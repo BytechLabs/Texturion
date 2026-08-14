@@ -1,5 +1,6 @@
 package com.loonext.android.core.snooze
 
+import com.loonext.android.core.i18n.AppStrings
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDateTime
@@ -52,13 +53,21 @@ object SnoozeTiming {
 
 enum class SnoozePresetId { LATER_TODAY, THIS_EVENING, TOMORROW, NEXT_WEEK }
 
-/** The wording, one place, so three clients cannot drift apart on it. */
-val SNOOZE_PRESET_LABELS: Map<SnoozePresetId, String> = mapOf(
-    SnoozePresetId.LATER_TODAY to "This afternoon",
-    SnoozePresetId.THIS_EVENING to "This evening",
-    SnoozePresetId.TOMORROW to "Tomorrow morning",
-    SnoozePresetId.NEXT_WEEK to "Next week",
+/**
+ * The wording, one place, so three clients cannot drift apart on it.
+ *
+ * #228: keys rather than sentences — this map is built at class-init, and a
+ * sentence written here could only ever be written in one language.
+ */
+val SNOOZE_PRESET_KEYS: Map<SnoozePresetId, String> = mapOf(
+    SnoozePresetId.LATER_TODAY to "domain.snoozePresetAfternoon",
+    SnoozePresetId.THIS_EVENING to "domain.snoozePresetEvening",
+    SnoozePresetId.TOMORROW to "domain.snoozePresetTomorrow",
+    SnoozePresetId.NEXT_WEEK to "domain.snoozePresetNextWeek",
 )
+
+val SNOOZE_PRESET_LABELS: Map<SnoozePresetId, String>
+    get() = SNOOZE_PRESET_KEYS.mapValues { (_, key) -> AppStrings.translate(null, key) }
 
 data class SnoozePreset(
     val id: SnoozePresetId,
@@ -84,6 +93,7 @@ fun daysUntilNextMonday(date: LocalDateTime): Long =
 fun snoozePresets(
     now: Instant = Instant.now(),
     zone: ZoneId = ZoneId.systemDefault(),
+    locale: String? = null,
 ): List<SnoozePreset> {
     val local = LocalDateTime.ofInstant(now, zone)
     val floor = now.toEpochMilli() + SnoozeTiming.MIN_LEAD_MS
@@ -103,7 +113,11 @@ fun snoozePresets(
     return candidates
         .filter { (_, millis) -> millis > floor }
         .map { (id, millis) ->
-            SnoozePreset(id, SNOOZE_PRESET_LABELS.getValue(id), millis)
+            SnoozePreset(
+                id,
+                AppStrings.translate(locale, SNOOZE_PRESET_KEYS.getValue(id)),
+                millis,
+            )
         }
 }
 
@@ -119,11 +133,16 @@ object DeferralKind {
 
 enum class FollowUpPresetId { THREE_DAYS, NEXT_WEEK, TWO_WEEKS }
 
-val FOLLOW_UP_PRESET_LABELS: Map<FollowUpPresetId, String> = mapOf(
-    FollowUpPresetId.THREE_DAYS to "In 3 days",
-    FollowUpPresetId.NEXT_WEEK to "Next week",
-    FollowUpPresetId.TWO_WEEKS to "In 2 weeks",
+val FOLLOW_UP_PRESET_KEYS: Map<FollowUpPresetId, String> = mapOf(
+    FollowUpPresetId.THREE_DAYS to "domain.followUpPresetThreeDays",
+    // The SAME key the snooze ladder uses: two ladders, one week, and a second
+    // sentence for it would be two names for one Monday.
+    FollowUpPresetId.NEXT_WEEK to "domain.snoozePresetNextWeek",
+    FollowUpPresetId.TWO_WEEKS to "domain.followUpPresetTwoWeeks",
 )
+
+val FOLLOW_UP_PRESET_LABELS: Map<FollowUpPresetId, String>
+    get() = FOLLOW_UP_PRESET_KEYS.mapValues { (_, key) -> AppStrings.translate(null, key) }
 
 data class FollowUpPreset(
     val id: FollowUpPresetId,
@@ -147,6 +166,7 @@ data class FollowUpPreset(
 fun followUpPresets(
     now: Instant = Instant.now(),
     zone: ZoneId = ZoneId.systemDefault(),
+    locale: String? = null,
 ): List<FollowUpPreset> {
     val local = LocalDateTime.ofInstant(now, zone)
     val floor = now.toEpochMilli() + SnoozeTiming.MIN_LEAD_MS
@@ -165,7 +185,11 @@ fun followUpPresets(
         // discovers it silently could.
         .filter { (_, millis) -> millis > floor }
         .map { (id, millis) ->
-            FollowUpPreset(id, FOLLOW_UP_PRESET_LABELS.getValue(id), millis)
+            FollowUpPreset(
+                id,
+                AppStrings.translate(locale, FOLLOW_UP_PRESET_KEYS.getValue(id)),
+                millis,
+            )
         }
 }
 
@@ -245,8 +269,13 @@ fun snoozeReturnLabel(
     untilIso: String,
     nowMs: Long = System.currentTimeMillis(),
     zone: ZoneId = ZoneId.systemDefault(),
+    // #228: last and defaulted. Only the FRAME is translated here — the time,
+    // the weekday and the month still come from java.time in the device's
+    // locale, which is what already makes a French phone say "août".
+    locale: String? = null,
 ): String {
-    val untilMs = parseInstantMillis(untilIso) ?: return "Snoozed"
+    val untilMs = parseInstantMillis(untilIso)
+        ?: return AppStrings.translate(locale, "domain.snoozeFallback")
     val local = LocalDateTime.ofInstant(Instant.ofEpochMilli(untilMs), zone)
     val time = local.format(
         java.time.format.DateTimeFormatter.ofLocalizedTime(
@@ -254,16 +283,27 @@ fun snoozeReturnLabel(
         ),
     )
     return when (snoozeReturnShape(untilMs, nowMs, zone)) {
-        SnoozeReturnShape.TODAY -> "Back at $time"
-        SnoozeReturnShape.TOMORROW -> "Back tomorrow, $time"
+        SnoozeReturnShape.TODAY ->
+            AppStrings.translate(locale, "domain.snoozeBackAt", mapOf("time" to time))
+        SnoozeReturnShape.TOMORROW ->
+            AppStrings.translate(locale, "domain.snoozeBackTomorrow", mapOf("time" to time))
         SnoozeReturnShape.WEEKDAY -> {
             val day = local.dayOfWeek.getDisplayName(
                 java.time.format.TextStyle.FULL,
                 java.util.Locale.getDefault(),
             )
-            "Back $day, $time"
+            AppStrings.translate(
+                locale,
+                "domain.snoozeBackWeekday",
+                mapOf("day" to day, "time" to time),
+            )
         }
-        SnoozeReturnShape.DATE ->
-            "Back " + local.format(java.time.format.DateTimeFormatter.ofPattern("d MMM"))
+        SnoozeReturnShape.DATE -> AppStrings.translate(
+            locale,
+            "domain.snoozeBackDate",
+            mapOf(
+                "date" to local.format(java.time.format.DateTimeFormatter.ofPattern("d MMM")),
+            ),
+        )
     }
 }

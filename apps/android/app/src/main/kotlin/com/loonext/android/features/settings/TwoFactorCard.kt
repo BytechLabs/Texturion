@@ -176,9 +176,15 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                                         "settingsMore.signedOut",
                                     ),
                                 )
+                            // The name this factor carries inside the reader's
+                            // authenticator app, which is the one place it is
+                            // ever read. Web translates its own (`Application
+                            // d'authentification · {date}`), so this does too;
+                            // Loonext and Android are a product and a platform
+                            // and stay as they are in both.
                             val enrolled = scope.graph.supabaseAuth.enrollTotp(
                                 token,
-                                "Loonext on Android",
+                                AppStrings.translate(locale, "settingsMore.tfaFactorName"),
                             )
                             val totp = enrolled["totp"]?.let { it as? kotlinx.serialization.json.JsonObject }
                             step = EnrolStep.Verify(

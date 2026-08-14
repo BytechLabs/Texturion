@@ -89,9 +89,29 @@ class CatalogueKeysTest {
          * version that goes stale and starts failing on somebody else's change.
          */
         val capabilities = sources
-            .flatMap { CONSTANT.findAll(it.readText()).map { m -> m.groupValues[1] } }
+            .flatMap { capabilityValues(it.readText()) }
             .toSet()
         assertTrue("no capability constants found — the declaration moved", capabilities.size >= 4)
+        /*
+         * The exemption has to stay SMALL, and it did not.
+         *
+         * This first read every `const val UPPER = "a.b"` in the tree as a
+         * capability. That was true when four existed. #228 then introduced
+         * dozens of `const val TITLE = "contactsTasks.importBeforeTitle"` —
+         * catalogue keys hoisted to constants — and every one of them became
+         * exempt from the missing-key check below. The guard would have gone on
+         * passing while a typo in any of them rendered its own name on screen,
+         * which is the exact failure it was written to catch.
+         *
+         * So the exemption is scoped to the OBJECT that declares capabilities
+         * rather than to a syntax anybody may reuse, and it is asserted small.
+         */
+        assertTrue(
+            "the capability exemption has grown to ${capabilities.size} — it should " +
+                "cover only `object Capability`. Something else is being read as a " +
+                "capability and is therefore exempt from the check below",
+            capabilities.size <= 12,
+        )
 
         val missing = mutableListOf<String>()
         var checked = 0
@@ -137,6 +157,22 @@ class CatalogueKeysTest {
     /** `const val SETTINGS_MANAGE = "settings.manage"` — a capability's declaration. */
     private val CONSTANT =
         Regex("""\bconst\s+val\s+[A-Z][A-Z0-9_]*\s*=\s*"([a-z][A-Za-z0-9]*\.[a-zA-Z][A-Za-z0-9]*)"""")
+
+    /**
+     * The capability names, read from `object Capability` and nowhere else.
+     *
+     * Scoped to that declaration because the SYNTAX is not distinctive: a
+     * catalogue key hoisted to `const val TITLE = "contactsTasks.importTitle"`
+     * looks identical, and reading those as capabilities exempts them from the
+     * very check this file exists to run.
+     */
+    private fun capabilityValues(source: String): List<String> {
+        val start = source.indexOf("object Capability {")
+        if (start == -1) return emptyList()
+        val end = source.indexOf("\n}", start)
+        val body = if (end == -1) source.substring(start) else source.substring(start, end)
+        return CONSTANT.findAll(body).map { it.groupValues[1] }.toList()
+    }
 
     /** Every Kotlin file the app ships, tests excluded. */
     private fun kotlinSources(): List<File> {

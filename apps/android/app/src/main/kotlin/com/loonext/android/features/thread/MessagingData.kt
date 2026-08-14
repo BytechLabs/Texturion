@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.core.model.AcknowledgeResult
 import com.loonext.android.core.model.Attachment
@@ -1012,11 +1013,18 @@ fun threadSummaryRefusal(reason: String, standing: CarrierStanding?): ThreadSumm
  * is one app telling somebody a different hour than another, which is worse
  * than no hint at all.
  */
-fun theirTimeLine(clock: DestinationClock?): String? {
+fun theirTimeLine(clock: DestinationClock?, locale: String? = null): String? {
     if (clock == null || !clock.quiet) return null
     val suffix = if (clock.local_hour < 12) "am" else "pm"
     val twelve = if (clock.local_hour % 12 == 0) 12 else clock.local_hour % 12
-    val line = "It's about $twelve$suffix where they are (${clockProvenance(clock.source)})."
+    val line = AppStrings.translate(
+        locale,
+        "thread.theirTimeAbout",
+        mapOf(
+            "time" to "$twelve$suffix",
+            "source" to clockProvenance(clock.source, locale),
+        ),
+    )
     // #539: WHY theirs is the clock that counts, and that a wrong guess is
     // correctable. The issue asked "why are we deriving time from customers area
     // codes even? what if i bought my phone number in quebec but now live in
@@ -1036,8 +1044,8 @@ fun theirTimeLine(clock: DestinationClock?): String? {
  * it were the customer's would be the quiet lie, and the whole value of the
  * ladder is that a screen can say how much to trust it.
  */
-fun clockProvenance(source: String): String = when (source) {
-    "contact" -> "set on their contact"
-    "area_code" -> "from their area code"
-    else -> "your workspace's timezone — we don't know theirs"
+fun clockProvenance(source: String, locale: String? = null): String = when (source) {
+    "contact" -> AppStrings.translate(locale, "thread.clockFromContact")
+    "area_code" -> AppStrings.translate(locale, "thread.clockFromAreaCode")
+    else -> AppStrings.translate(locale, "thread.clockFromWorkspace")
 }

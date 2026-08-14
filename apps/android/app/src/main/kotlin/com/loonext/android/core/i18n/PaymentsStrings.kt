@@ -24,6 +24,56 @@ object PaymentsStrings : AppStrings.Section {
         "payments.disputedNote" to
             "Their bank has pulled this back. Stripe has emailed you what it needs.",
         "payments.cancelAria" to "Cancel the {amount} request for {description}",
+
+        /*
+         * ── When the amount is refused ────────────────────────────────────────
+         *
+         * The bound is interpolated rather than typed, in BOTH languages: a
+         * Canadian workspace settles in CAD and a US one in USD, and a literal
+         * "$1" in a sentence about what somebody may charge is the #522 defect
+         * on the one sentence that must not carry it.
+         *
+         * `amountNotWhole` is unreachable from this client and is written anyway
+         * — the API answers 422 with it, and a copy table with a hole in it is a
+         * hole somebody fills with a paraphrase.
+         */
+        "payments.amountTooSmall" to "The smallest payment we can take is {amount}.",
+        "payments.amountTooLarge" to
+            "The largest payment we can take by text is {amount}.",
+        "payments.amountNotWhole" to "Enter an amount in dollars and cents.",
+
+        /*
+         * ── Stripe's outstanding requirements, in plain words ─────────────────
+         *
+         * Stripe names these `individual.verification.document` and
+         * `external_account`. Showing a plumber one of those is showing them a
+         * stack trace, so each identifier this build knows has a sentence — and
+         * an identifier it does not know still shows, tidied, rather than being
+         * dropped: an outstanding requirement nobody can see is the state where
+         * an owner concludes the product is broken.
+         *
+         * Stripe is a product name and is never translated.
+         */
+        "payments.reqBankAccount" to "Your bank account details",
+        "payments.reqWebsite" to "Your website or a description of what you do",
+        "payments.reqWorkKind" to "What kind of work you do",
+        "payments.reqOwnerId" to "Photo ID for the business owner",
+        "payments.reqOwnerIdSecond" to "A second document for the business owner",
+        "payments.reqOwnerSin" to "The owner's SIN or SSN",
+        "payments.reqOwnerAddress" to "The owner's address",
+        "payments.reqOwnerDob" to "The owner's date of birth",
+        /**
+         * THE REGISTRATION number, not the phone number.
+         *
+         * `company.tax_id` — the NEQ, the CRA business number, the EIN. Web's
+         * `businessNumberLabel` reads identically in English and means the
+         * TEXTING number, so its French ("numéro d'affaires") is the one piece
+         * of web copy on this screen that must NOT be copied over.
+         */
+        "payments.reqBusinessNumber" to "Your business number",
+        "payments.reqBusinessDocument" to "A document proving the business exists",
+        "payments.reqTos" to "Accepting Stripe's terms",
+        "payments.reqSignatoryId" to "Photo ID for whoever signs for the business",
     )
 
     override val frCA = mapOf(
@@ -40,5 +90,34 @@ object PaymentsStrings : AppStrings.Section {
         "payments.disputedNote" to
             "Leur banque a repris ce paiement. Stripe vous a écrit pour la suite.",
         "payments.cancelAria" to "Annuler la demande de {amount} pour {description}",
+
+        // ── When the amount is refused ────────────────────────────────────────
+        "payments.amountTooSmall" to
+            "Le plus petit paiement que nous pouvons prendre est de {amount}.",
+        "payments.amountTooLarge" to
+            "Le plus gros paiement que nous pouvons prendre par texto est de {amount}.",
+        "payments.amountNotWhole" to "Entrez un montant en dollars et en cents.",
+
+        // ── Stripe's outstanding requirements, in plain words ─────────────────
+        "payments.reqBankAccount" to "Les coordonnées de votre compte bancaire",
+        "payments.reqWebsite" to
+            "Votre site web ou une description de ce que vous faites",
+        "payments.reqWorkKind" to "Le type de travail que vous faites",
+        "payments.reqOwnerId" to
+            "Une pièce d'identité avec photo du propriétaire de l'entreprise",
+        "payments.reqOwnerIdSecond" to
+            "Un deuxième document pour le propriétaire de l'entreprise",
+        // NAS is the Canadian number and SSN the American one; a workspace has
+        // one or the other, and neither acronym is translated.
+        "payments.reqOwnerSin" to "Le NAS ou le SSN du propriétaire",
+        "payments.reqOwnerAddress" to "L'adresse du propriétaire",
+        "payments.reqOwnerDob" to "La date de naissance du propriétaire",
+        // "numéro d'entreprise", never "numéro d'affaires" — see the English.
+        "payments.reqBusinessNumber" to "Votre numéro d'entreprise",
+        "payments.reqBusinessDocument" to
+            "Un document prouvant l'existence de l'entreprise",
+        "payments.reqTos" to "L'acceptation des conditions de Stripe",
+        "payments.reqSignatoryId" to
+            "Une pièce d'identité avec photo de la personne qui signe pour l'entreprise",
     )
 }

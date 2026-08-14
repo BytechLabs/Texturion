@@ -165,6 +165,123 @@ object ShellStrings : AppStrings.Section {
         "shell.diagExport" to "Export everything",
         "shell.diagExportCaption" to
             "Device facts, call flow, and crash reports in one share",
+        /** The pushed route's own header. Spelled the same in both languages. */
+        "shell.diagnostics" to "Diagnostics",
+
+        /*
+         * ── After a crash (#168A) ─────────────────────────────────────────────
+         *
+         * The founder's device has no adb, so the report is offered through the
+         * share sheet once. The SUBJECT of that share stays English and is not
+         * in this catalogue — it lands in a support inbox beside a stack trace,
+         * where a translated label is harder to find and no easier to read. See
+         * the note on `shareText` in DiagnosticsScreen for the same rule.
+         */
+        "shell.crashTitle" to "The app closed unexpectedly",
+        "shell.crashBody" to
+            "A crash report was saved on this device. " +
+            "Sharing it helps us find and fix the problem.",
+        "shell.crashShare" to "Share crash report",
+
+        // ── The FAB and the one route header that is ours ─────────────────────
+        "shell.newConversation" to "New conversation",
+
+        /*
+         * ── The two signed-in interstitials ───────────────────────────────────
+         *
+         * Both hand off to the web, so both name a destination rather than a
+         * screen in this app. The domain is a domain and stays as typed in
+         * either language — somebody reads it out of the button and into a
+         * browser.
+         */
+        "shell.setupWorkspaceTitle" to "Let's set up your workspace",
+        "shell.setupWorkspaceBody" to
+            "Workspace creation and checkout live on the web for now. " +
+            "Create yours at app.loonext.com, then come back and pull to refresh.",
+        "shell.setupWorkspaceAction" to "Open app.loonext.com",
+        "shell.finishSetupTitle" to "Finish setting up",
+        "shell.finishSetupBody" to
+            "Your workspace hasn't completed checkout yet. Finish on the web " +
+            "and your number, texting, and calling light up here.",
+        "shell.finishSetupAction" to "Finish checkout",
+        "shell.externalStepDone" to "I've done this — refresh",
+
+        /*
+         * ── The update notice, and the floor (#339) ───────────────────────────
+         *
+         * Ported 1:1 in behaviour from web's `update-prompt.tsx`, and the French
+         * is copied from `apps/web/src/i18n/sections/shell.ts` (`updateReadyTitle`,
+         * `updateDismiss`, `updateBlockTitle`, `updateVersion`, `updateMinimum`).
+         *
+         * The one word that differs is deliberate and is not a translation
+         * choice: a browser RELOADS and a phone UPDATES, so web says "Recharger"
+         * where this says "Mettre à jour". A person with both devices is told
+         * the same thing about the same release, in the verb their device
+         * actually needs.
+         */
+        "shell.updateReadyTitle" to "A newer version of Loonext is ready",
+        "shell.updateReadyBody" to "Update to pick up the latest fixes.",
+        "shell.updateAction" to "Update",
+        "shell.updateDismiss" to "Dismiss update notice",
+        "shell.updateBlockTitle" to "Loonext needs an update",
+        "shell.updateBlockBody" to
+            "This version can no longer connect safely. Update to continue.",
+        "shell.updateBlockAction" to "Update Loonext",
+        // Support's first question is "what are you running", and the person
+        // reading this cannot reach the settings screen that would say.
+        "shell.updateVersion" to "You are on {version}",
+        "shell.updateMinimum" to " · {version} or newer is required",
+
+        /*
+         * ── Handing the phone over (#330) ─────────────────────────────────────
+         *
+         * The English is the hand-port of `packages/shared/src/hand-over-phone.ts`
+         * and `HandOverPhoneTest` holds it to that file WORD FOR WORD, so these
+         * entries are a move rather than a rewrite: the English below is the
+         * English that was in the Kotlin, to the character.
+         *
+         * The French says "quittera ce téléphone" where the English says "comes
+         * off this phone" for the reason the sentence exists — the person is
+         * deciding whether it is safe to hand the phone over, and the list is
+         * the answer.
+         */
+        "shell.handOverAction" to "Hand this phone to someone else",
+        "shell.handOverTitle" to "Hand this phone over?",
+        "shell.handOverConfirm" to "Sign out and clear",
+        "shell.handOverCancel" to "Stay signed in",
+        "shell.handOverBody" to
+            "You'll be signed out and everything from this workspace comes " +
+            "off this phone: the conversations, your customers' details, and the " +
+            "unread counts. The next person signs in as themselves.",
+        // Two shapes rather than a count: "1 messages" is the shape that tells a
+        // reader nobody proofread the warning they are being asked to act on.
+        "shell.handOverUnsentOne" to
+            "One message hasn't sent yet and will be discarded. If it matters, " +
+            "stay signed in until you have signal.",
+        "shell.handOverUnsentMany" to
+            "{count} messages haven't sent yet and will be discarded. If they " +
+            "matter, stay signed in until you have signal.",
+
+        // ── The app lock, when the phone cannot hold one (#330) ───────────────
+        "shell.lockCannotEnable" to
+            "Set a screen lock, fingerprint or face unlock on this phone first — " +
+            "without one there is nothing for this to ask you for.",
+
+        /*
+         * ── Full-size photos on metered data (#289) ───────────────────────────
+         *
+         * The hint is the one a person meets INSTEAD of a photo, so it says the
+         * condition and the remedy in one line: a spinner that never resolves is
+         * how a deliberate setting gets reported as a bug.
+         *
+         * "Wi-Fi" is the network's own name and is spelled the same in both.
+         */
+        "shell.meteredHint" to "You're on mobile data. Tap to load the full-size photo.",
+        "shell.meteredLoad" to "Load",
+        "shell.wifiOnlyLabel" to "Full-size photos on Wi-Fi only",
+        "shell.wifiOnlyDescription" to
+            "Threads and galleries always load. Only full-size photos and downloads " +
+            "wait for Wi-Fi — tap one to load it anyway.",
     )
 
     override val frCA = mapOf(
@@ -284,5 +401,81 @@ object ShellStrings : AppStrings.Section {
         "shell.diagExportCaption" to
             "Les données de l'appareil, le déroulement des appels et les rapports " +
             "de plantage en un seul partage",
+        "shell.diagnostics" to "Diagnostics",
+
+        // ── After a crash (#168A) ─────────────────────────────────────────────
+        // "rapport de plantage" and "sur ce téléphone" are the words the
+        // Diagnostics rows above already use for the same two things.
+        "shell.crashTitle" to "L'application s'est fermée de façon inattendue",
+        "shell.crashBody" to
+            "Un rapport de plantage a été enregistré sur ce téléphone. " +
+            "Le partager nous aide à trouver et à corriger le problème.",
+        "shell.crashShare" to "Partager le rapport de plantage",
+
+        "shell.newConversation" to "Nouvelle conversation",
+
+        // ── The two signed-in interstitials ───────────────────────────────────
+        "shell.setupWorkspaceTitle" to "Configurons votre espace de travail",
+        "shell.setupWorkspaceBody" to
+            "La création d'un espace de travail et le paiement se font sur le " +
+            "web pour l'instant. Créez le vôtre à app.loonext.com, puis revenez " +
+            "ici et tirez vers le bas pour actualiser.",
+        "shell.setupWorkspaceAction" to "Ouvrir app.loonext.com",
+        "shell.finishSetupTitle" to "Terminer la configuration",
+        "shell.finishSetupBody" to
+            "Votre espace de travail n'a pas terminé le paiement. Terminez sur " +
+            "le web et votre numéro, les textos et les appels s'activeront ici.",
+        "shell.finishSetupAction" to "Terminer le paiement",
+        "shell.externalStepDone" to "C'est fait — actualiser",
+
+        // ── The update notice, and the floor (#339) ───────────────────────────
+        // Copied from web's `i18n/sections/shell.ts`, except the verb: web
+        // reloads a tab, this updates an app.
+        "shell.updateReadyTitle" to "Une nouvelle version de Loonext est prête",
+        "shell.updateReadyBody" to
+            "Mettez à jour pour obtenir les derniers correctifs.",
+        "shell.updateAction" to "Mettre à jour",
+        "shell.updateDismiss" to "Masquer l'avis de mise à jour",
+        "shell.updateBlockTitle" to "Loonext a besoin d'une mise à jour",
+        "shell.updateBlockBody" to
+            "Cette version ne peut plus se connecter en toute sécurité. " +
+            "Mettez à jour pour continuer.",
+        "shell.updateBlockAction" to "Mettre à jour Loonext",
+        "shell.updateVersion" to "Vous utilisez {version}",
+        "shell.updateMinimum" to " · {version} ou plus récente est requise",
+
+        // ── Handing the phone over (#330) ─────────────────────────────────────
+        "shell.handOverAction" to "Confier ce téléphone à quelqu'un d'autre",
+        "shell.handOverTitle" to "Confier ce téléphone ?",
+        "shell.handOverConfirm" to "Se déconnecter et tout effacer",
+        "shell.handOverCancel" to "Rester connecté",
+        "shell.handOverBody" to
+            "Vous serez déconnecté et tout ce qui vient de cet espace de travail " +
+            "quittera ce téléphone : les conversations, les coordonnées de vos " +
+            "clients et les compteurs de messages non lus. La prochaine personne " +
+            "se connectera en son propre nom.",
+        "shell.handOverUnsentOne" to
+            "Un message n'est pas encore envoyé et sera supprimé. Si c'est " +
+            "important, restez connecté jusqu'à ce que vous ayez du signal.",
+        "shell.handOverUnsentMany" to
+            "{count} messages ne sont pas encore envoyés et seront supprimés. " +
+            "Si c'est important, restez connecté jusqu'à ce que vous ayez du signal.",
+
+        // ── The app lock, when the phone cannot hold one (#330) ───────────────
+        "shell.lockCannotEnable" to
+            "Configurez d'abord un verrouillage d'écran, une empreinte digitale " +
+            "ou la reconnaissance faciale sur ce téléphone — sans cela, il n'y a " +
+            "rien à vous demander.",
+
+        // ── Full-size photos on metered data (#289) ───────────────────────────
+        "shell.meteredHint" to
+            "Vous êtes sur les données mobiles. Touchez pour charger la photo " +
+            "en pleine résolution.",
+        "shell.meteredLoad" to "Charger",
+        "shell.wifiOnlyLabel" to "Photos en pleine résolution sur Wi-Fi seulement",
+        "shell.wifiOnlyDescription" to
+            "Les conversations et les galeries se chargent toujours. Seules les " +
+            "photos en pleine résolution et les téléchargements attendent le " +
+            "Wi-Fi — touchez-en une pour la charger quand même.",
     )
 }

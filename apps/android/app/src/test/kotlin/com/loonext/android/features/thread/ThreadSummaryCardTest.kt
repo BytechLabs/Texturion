@@ -392,7 +392,13 @@ class ThreadSummaryCardTest {
         val body = readMainSource("features/thread/ThreadSummaryCard.kt")
             .replace("\r\n", "\n")
             .substringAfter("fun ThreadSummaryCard(")
-        val call = "catchUpCarrierNote(state)"
+        // The OPENING of the call, not the whole argument list. This pinned
+        // `catchUpCarrierNote(state)` and #228 broke it by threading the
+        // reader's language through as a second argument — which is nothing
+        // this guard has an opinion about. Both things it actually asserts
+        // survive the loosening: the call is still counted (exactly one), and
+        // it is still located against the dispatching `when`.
+        val call = "catchUpCarrierNote(state"
 
         // The dispatching `when`, identified by starting its own line at the
         // Column's indentation — `AiOrb(state = when (state) {` and the label's

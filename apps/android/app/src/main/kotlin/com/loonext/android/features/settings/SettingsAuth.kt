@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import com.loonext.android.core.auth.await
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import kotlinx.coroutines.Dispatchers
@@ -40,12 +41,13 @@ class SettingsAuthClient(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun updateEmail(accessToken: String, newEmail: String) {
+    suspend fun updateEmail(accessToken: String, newEmail: String, locale: String? = null) {
         request(
             method = "PUT",
             path = "user",
             body = buildJsonObject { put("email", newEmail) },
             bearer = accessToken,
+            locale = locale,
         )
     }
 
@@ -54,7 +56,12 @@ class SettingsAuthClient(
      * [ApiException] with code [REAUTHENTICATION_NEEDED] when the session is
      * too stale — request a nonce and retry with it.
      */
-    suspend fun updatePassword(accessToken: String, password: String, nonce: String? = null) {
+    suspend fun updatePassword(
+        accessToken: String,
+        password: String,
+        nonce: String? = null,
+        locale: String? = null,
+    ) {
         request(
             method = "PUT",
             path = "user",
@@ -63,24 +70,33 @@ class SettingsAuthClient(
                 if (nonce != null) put("nonce", nonce)
             },
             bearer = accessToken,
+            locale = locale,
         )
     }
 
     /** Emails the signed-in user a one-time nonce for the retry above. */
-    suspend fun requestReauthenticationNonce(accessToken: String) {
+    suspend fun requestReauthenticationNonce(accessToken: String, locale: String? = null) {
         request(
             method = "POST",
             path = "reauthenticate",
             body = buildJsonObject {},
             bearer = accessToken,
+            locale = locale,
         )
     }
 
+    /**
+     * [locale] is the READER's, carried in rather than read here: this class is
+     * not a composable and the two sentences below are ours rather than
+     * GoTrue's. Defaulted to null — the English table — so a caller that has no
+     * composition to read one from still gets a sentence rather than a key.
+     */
     private suspend fun request(
         method: String,
         path: String,
         body: JsonObject,
         bearer: String,
+        locale: String? = null,
     ): String = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url("$supabaseUrl/auth/v1/$path")
@@ -93,19 +109,19 @@ class SettingsAuthClient(
         } catch (_: IOException) {
             throw ApiException(
                 ApiErrorCode.NETWORK,
-                "Can't reach the sign-in service. Check your connection.",
+                AppStrings.translate(locale, "settingsMore.cantReachSignIn"),
                 0,
             )
         }
         response.use {
             val text = it.body.string()
-            if (!it.isSuccessful) throw parseAuthError(text, it.code)
+            if (!it.isSuccessful) throw parseAuthError(text, it.code, locale)
             text
         }
     }
 
     /** GoTrue error shapes vary ({error_code,msg} vs {error,error_description}). */
-    private fun parseAuthError(body: String, status: Int): ApiException {
+    private fun parseAuthError(body: String, status: Int, locale: String?): ApiException {
         val obj = try {
             json.parseToJsonElement(body) as? JsonObject
         } catch (_: Exception) {
@@ -116,7 +132,11 @@ class SettingsAuthClient(
             ?: ApiErrorCode.UNAUTHORIZED
         val message = obj?.get("msg")?.jsonPrimitive?.content
             ?: obj?.get("error_description")?.jsonPrimitive?.content
-            ?: "Something went wrong ($status)."
+            ?: AppStrings.translate(
+                locale,
+                "settingsMore.somethingWentWrongStatus",
+                mapOf("status" to status.toString()),
+            )
         return ApiException(code, message, status)
     }
 }

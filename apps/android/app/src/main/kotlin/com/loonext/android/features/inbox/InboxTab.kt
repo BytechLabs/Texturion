@@ -2917,7 +2917,7 @@ private fun BulkSelectionBar(controller: InboxController) {
                     )
                 }
                 Text(
-                    selection.label(),
+                    selection.label(LocalAppLocale.current),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )

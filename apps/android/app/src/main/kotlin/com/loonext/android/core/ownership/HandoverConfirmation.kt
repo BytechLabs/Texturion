@@ -1,5 +1,7 @@
 package com.loonext.android.core.ownership
 
+import com.loonext.android.core.i18n.AppStrings
+
 /**
  * #537 — the words in front of a handover, and which of the prompts to show.
  *
@@ -111,8 +113,15 @@ object HandoverConfirmation {
      */
     fun goesToOurApi(kind: Kind): Boolean = destination(kind) == Destination.API
 
-    /** The dialog's heading. The same for both, because the ask is the same. */
-    const val TITLE = "Confirm it's you"
+    /**
+     * The dialog's heading. The same for both, because the ask is the same.
+     *
+     * #228: the KEY is the constant, because `t()` is `@Composable` and this
+     * object is not. The old names stay as properties over the catalogue, so a
+     * call site that has not been given the reader's language keeps its English.
+     */
+    const val TITLE_KEY = "domain.handoverTitle"
+    val TITLE: String get() = AppStrings.translate(null, TITLE_KEY)
 
     /**
      * Where to find the code.
@@ -121,25 +130,28 @@ object HandoverConfirmation {
      * code" is useless to somebody who does not know which code, and the two live in
      * completely different places.
      */
-    fun where(kind: Kind): String = when (kind) {
-        Kind.AUTHENTICATOR ->
-            "Open your authenticator app and enter the six-digit code it shows."
-        // Word for word the same as above, and deliberately so: the person is doing
-        // the identical thing, and a second phrasing for the same physical act would
-        // read as a different demand. What differs is entirely on our side of the
-        // wire, and nothing about that belongs in front of them.
-        Kind.REPROVE ->
-            "Open your authenticator app and enter the six-digit code it shows."
-        Kind.EMAIL ->
-            "We've emailed a six-digit code to the address on your account. " +
-                "It works once, and expires in ten minutes."
-    }
+    fun where(kind: Kind, locale: String? = null): String = AppStrings.translate(
+        locale,
+        when (kind) {
+            Kind.AUTHENTICATOR -> "domain.handoverWhereAuthenticator"
+            // The SAME KEY as above, and deliberately so: the person is doing the
+            // identical thing, and a second phrasing for the same physical act
+            // would read as a different demand. What differs is entirely on our
+            // side of the wire, and nothing about that belongs in front of them.
+            // One key rather than two identical sentences is also what stops the
+            // two drifting apart the next time either is reworded.
+            Kind.REPROVE -> "domain.handoverWhereAuthenticator"
+            Kind.EMAIL -> "domain.handoverWhereEmail"
+        },
+    )
 
     /** The field's label, and its accessible name. */
-    const val FIELD = "Six-digit code"
+    const val FIELD_KEY = "domain.handoverField"
+    val FIELD: String get() = AppStrings.translate(null, FIELD_KEY)
 
     /** The button that goes through with it. */
-    const val SUBMIT = "Confirm"
+    const val SUBMIT_KEY = "domain.handoverSubmit"
+    val SUBMIT: String get() = AppStrings.translate(null, SUBMIT_KEY)
 
     /**
      * Only offered on the email path.
@@ -148,7 +160,8 @@ object HandoverConfirmation {
      * generating the codes — and a Resend button there would imply we could send
      * them one, which we cannot. Same for `REPROVE`, for the same reason.
      */
-    const val RESEND = "Send it again"
+    const val RESEND_KEY = "domain.handoverResend"
+    val RESEND: String get() = AppStrings.translate(null, RESEND_KEY)
 
     /**
      * What to say when the code did not work.
@@ -158,7 +171,8 @@ object HandoverConfirmation {
      * attacker whether they had the right digits — so the client must not invent a
      * distinction the server refused to make.
      */
-    const val REJECTED = "That code didn't work. Ask for a new one and try again."
+    const val REJECTED_KEY = "domain.handoverRejected"
+    val REJECTED: String get() = AppStrings.translate(null, REJECTED_KEY)
 
     /**
      * Is this six digits?

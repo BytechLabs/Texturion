@@ -5,6 +5,7 @@ import android.media.MediaRecorder
 import android.os.Build
 import android.os.SystemClock
 import com.loonext.android.core.auth.await
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
@@ -129,17 +130,24 @@ data class WrapUpTranscript(
  * the keyboard they already have. Mirrors [replyDraftMessage]'s shape, and the
  * reasons themselves are `AiRunFailure` in `apps/api/src/ai/run.ts` plus the
  * route's own `too_long` and `unusable_output`.
+ *
+ * #228: [locale] defaults to English, so the callers and the tests that pin
+ * these sentences read exactly as they did; the composer passes the reader's.
  */
-fun wrapUpDictationMessage(reason: String?): String = when (reason) {
-    "too_long" -> "That was longer than two minutes. Say the short version, or type the note."
-    "disabled" -> "Dictated wrap-ups are turned off for this workspace. Settings, AI turns them back on."
-    // #581: billing, not breakage — so it must not say "try again", which is
-    // not what fixes it. Same sentence everywhere Lou refuses for this reason.
-    "subscription_inactive" -> "Lou is paused while the subscription is sorted out. An owner can fix that in Billing."
-    "over_cap" -> "This month's dictation is used up. It starts again next month — type the note for now."
-    "model_error", "unavailable" -> "Couldn't write that down just now. Try again, or type the note."
-    "unusable_output" -> "Couldn't make out any words. Try again somewhere quieter, or type the note."
-    else -> "Couldn't write that down. Type the note instead."
+fun wrapUpDictationMessage(reason: String?, locale: String? = null): String {
+    val key = when (reason) {
+        "too_long" -> "thread.wrapUpTooLong"
+        "disabled" -> "thread.wrapUpDisabled"
+        // #581: billing, not breakage — so it must not say "try again", which
+        // is not what fixes it. Same sentence everywhere Lou refuses for this
+        // reason, which is why the key is not a dictation-specific one.
+        "subscription_inactive" -> "thread.louPausedForBilling"
+        "over_cap" -> "thread.wrapUpOverCap"
+        "model_error", "unavailable" -> "thread.wrapUpUnreachable"
+        "unusable_output" -> "thread.wrapUpUnusable"
+        else -> "thread.wrapUpNoWords"
+    }
+    return AppStrings.translate(locale, key)
 }
 
 /**
@@ -156,7 +164,16 @@ fun wrapUpDictationMessage(reason: String?): String = when (reason) {
  * a `reason` is a refusal the member should read, not a failure, and comes back
  * as data.
  */
-class WrapUpTranscriber(private val api: ApiClient, private val baseUrl: String) {
+class WrapUpTranscriber(
+    private val api: ApiClient,
+    private val baseUrl: String,
+    /**
+     * #228: the reader's language. These two sentences are ours rather than
+     * the server's, and they are thrown from a coroutine — so the language is
+     * carried in rather than read from composition. Defaults to English.
+     */
+    private val locale: String? = null,
+) {
 
     suspend fun transcribe(
         companyId: String,
@@ -166,7 +183,7 @@ class WrapUpTranscriber(private val api: ApiClient, private val baseUrl: String)
     ): WrapUpTranscript {
         val session = api.freshSession() ?: throw ApiException(
             ApiErrorCode.UNAUTHORIZED,
-            "You're signed out.",
+            AppStrings.translate(locale, "thread.signedOut"),
             401,
         )
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
@@ -188,7 +205,7 @@ class WrapUpTranscriber(private val api: ApiClient, private val baseUrl: String)
         } catch (_: IOException) {
             throw ApiException(
                 ApiErrorCode.NETWORK,
-                "Can't reach Loonext. Check your connection.",
+                AppStrings.translate(locale, "thread.cantReachLoonext"),
                 0,
             )
         }

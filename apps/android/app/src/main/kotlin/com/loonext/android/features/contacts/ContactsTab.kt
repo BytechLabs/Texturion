@@ -562,7 +562,7 @@ private fun ContactListScreen(
                 // Both figures come from the ported contract, so the phone can
                 // never promise a file the server would refuse (#248).
                 val maxBytes = kind.maxBytes
-                val sizeMessage = ContactImport.tooLargeMessage(kind)
+                val sizeMessage = ContactImport.tooLargeMessage(kind, locale)
                 if (size > maxBytes) {
                     snackbar.showSnackbar(sizeMessage)
                     null
@@ -742,7 +742,8 @@ private fun ContactListScreen(
                                     // excluded, not missing, and "they're added
                                     // automatically" reads as having none.
                                     fieldFilter != null ->
-                                        "$CONTACT_FILTER_EMPTY_TITLE. $CONTACT_FILTER_EMPTY_BODY"
+                                        "${t(CONTACT_FILTER_EMPTY_TITLE)}. " +
+                                            t(CONTACT_FILTER_EMPTY_BODY)
                                     else -> t("contactsTasks.noContactsYet")
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
@@ -1535,6 +1536,7 @@ private fun ImportConsentSheet(
     // Never hoisted, never remembered across sheets: each file is its own
     // claim, so re-opening this asks again.
     var attested by remember(kind) { mutableStateOf(false) }
+    val locale = LocalAppLocale.current
 
     AppSheet(onDismissRequest = onDismiss) {
         // #180 contract: sheet roots scroll so the action row stays reachable
@@ -1545,9 +1547,9 @@ private fun ImportConsentSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp),
         ) {
-            Text(ContactImport.Copy.TITLE, style = MaterialTheme.typography.titleMedium)
+            Text(t(ContactImport.Copy.TITLE), style = MaterialTheme.typography.titleMedium)
             Text(
-                ContactImport.Copy.LEAD,
+                t(ContactImport.Copy.LEAD),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -1581,7 +1583,7 @@ private fun ImportConsentSheet(
                     // there is one hit target and one semantics node.
                     Checkbox(checked = attested, onCheckedChange = null)
                     Text(
-                        ContactImport.Copy.ATTESTATION,
+                        t(ContactImport.Copy.ATTESTATION),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(start = 6.dp),
                     )
@@ -1597,9 +1599,9 @@ private fun ImportConsentSheet(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 listOf(
-                    ContactImport.Copy.RECORDED,
-                    kind.optOutNote,
-                    ContactImport.limitsLine(kind),
+                    t(ContactImport.Copy.RECORDED),
+                    t(kind.optOutNote),
+                    ContactImport.limitsLine(kind, locale),
                 ).forEach { line ->
                     Text(
                         line,
@@ -1616,9 +1618,9 @@ private fun ImportConsentSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text(ContactImport.Copy.CANCEL) }
+                TextButton(onClick = onDismiss) { Text(t(ContactImport.Copy.CANCEL)) }
                 Button(enabled = attested, onClick = onAttested) {
-                    Text(ContactImport.Copy.CONTINUE)
+                    Text(t(ContactImport.Copy.CONTINUE))
                 }
             }
             Spacer(Modifier.height(24.dp))
@@ -1655,7 +1657,7 @@ private fun ImportRefusedSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp),
         ) {
-            Text(ContactImport.Refusal.TITLE, style = MaterialTheme.typography.titleMedium)
+            Text(t(ContactImport.Refusal.TITLE), style = MaterialTheme.typography.titleMedium)
 
             // The server's words, in a quiet container rather than error red:
             // the title already said nothing imported, and four sentences of red
@@ -1682,9 +1684,9 @@ private fun ImportRefusedSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text(ContactImport.Refusal.CLOSE) }
+                TextButton(onClick = onDismiss) { Text(t(ContactImport.Refusal.CLOSE)) }
                 onEditColumns?.let { edit ->
-                    Button(onClick = edit) { Text(ContactImport.Refusal.EDIT_COLUMNS) }
+                    Button(onClick = edit) { Text(t(ContactImport.Refusal.EDIT_COLUMNS)) }
                 }
             }
             Spacer(Modifier.height(24.dp))
@@ -1756,6 +1758,7 @@ private fun ImportColumnsSheet(
         .firstOrNull { it.value > 1 }
         ?.key
     val complete = answered == columns.size && duplicated == null
+    val locale = LocalAppLocale.current
 
     AppSheet(onDismissRequest = onDismiss) {
         // #180 contract: sheet roots scroll so the action row stays reachable.
@@ -1767,9 +1770,9 @@ private fun ImportColumnsSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp),
         ) {
-            Text(ContactImport.Columns.TITLE, style = MaterialTheme.typography.titleMedium)
+            Text(t(ContactImport.Columns.TITLE), style = MaterialTheme.typography.titleMedium)
             Text(
-                ContactImport.Columns.LEAD,
+                t(ContactImport.Columns.LEAD),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -1779,7 +1782,7 @@ private fun ImportColumnsSheet(
             // that reads 0 of 7 on a screen that is four-sevenths finished is
             // the reason people abandon a flow.
             Text(
-                ContactImport.Columns.progressLine(answered, columns.size),
+                ContactImport.Columns.progressLine(answered, columns.size, locale),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 10.dp),
@@ -1801,7 +1804,9 @@ private fun ImportColumnsSheet(
                     // groups exist — the rule lives beside the ordering it labels.
                     row.heading?.let { heading ->
                         Text(
-                            heading,
+                            // #228: the heading travels as a catalogue key, so
+                            // the group labels are resolved where they are drawn.
+                            t(heading),
                             style = MaterialTheme.typography.titleSmall,
                             modifier = Modifier.padding(top = 10.dp),
                         )
@@ -1818,7 +1823,7 @@ private fun ImportColumnsSheet(
             // than above the list: this is the last thing read before committing,
             // and it is the sentence that matters.
             Text(
-                ContactImport.Columns.WRONG_COLUMN,
+                ContactImport.Columns.wrongColumn(locale),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 16.dp),
@@ -1828,8 +1833,8 @@ private fun ImportColumnsSheet(
             if (!complete) {
                 Text(
                     duplicated
-                        ?.let { ContactImport.Columns.duplicateHint(it) }
-                        ?: ContactImport.Columns.UNANSWERED_HINT,
+                        ?.let { ContactImport.Columns.duplicateHint(it, locale) }
+                        ?: t(ContactImport.Columns.UNANSWERED_HINT),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(top = 8.dp),
@@ -1843,7 +1848,7 @@ private fun ImportColumnsSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text(ContactImport.Columns.CANCEL) }
+                TextButton(onClick = onDismiss) { Text(t(ContactImport.Columns.CANCEL)) }
                 Button(
                     enabled = complete,
                     onClick = {
@@ -1871,7 +1876,7 @@ private fun ImportColumnsSheet(
                         )
                     },
                 ) {
-                    Text(ContactImport.Columns.CONFIRM)
+                    Text(t(ContactImport.Columns.CONFIRM))
                 }
             }
             Spacer(Modifier.height(24.dp))
@@ -1899,6 +1904,7 @@ private fun ColumnDeclarationCard(
     // complete on request because that is the reading this whole flow claims
     // happened before somebody dismissed a column.
     var showAll by remember { mutableStateOf(false) }
+    val locale = LocalAppLocale.current
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -1906,14 +1912,14 @@ private fun ColumnDeclarationCard(
     ) {
         Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 12.dp)) {
             Text(
-                ContactImport.Columns.positionLabel(column.index),
+                ContactImport.Columns.positionLabel(column.index, locale),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 // Verbatim and quoted, never tidied: they have to find this exact
                 // string in their own spreadsheet.
-                ContactImport.Columns.headerLabel(column.header),
+                ContactImport.Columns.headerLabel(column.header, locale),
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.padding(top = 1.dp),
             )
@@ -1922,9 +1928,9 @@ private fun ColumnDeclarationCard(
                 // listed, so it does not end in ", and 40 more" while the note
                 // below says the same thing a second way.
                 if (showAll) {
-                    ContactImport.Columns.valuesLine(column.values, column.values.size)
+                    ContactImport.Columns.valuesLine(column.values, column.values.size, locale)
                 } else {
-                    ContactImport.Columns.valuesLine(column.samples, column.total)
+                    ContactImport.Columns.valuesLine(column.samples, column.total, locale)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1932,7 +1938,11 @@ private fun ColumnDeclarationCard(
             )
             if (showAll && column.total > column.values.size) {
                 Text(
-                    ContactImport.Columns.valueCeilingNote(column.values.size, column.total),
+                    ContactImport.Columns.valueCeilingNote(
+                        column.values.size,
+                        column.total,
+                        locale,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),
@@ -1948,9 +1958,9 @@ private fun ColumnDeclarationCard(
                 ) {
                     Text(
                         if (showAll) {
-                            ContactImport.Columns.SHOW_FEWER_VALUES_LABEL
+                            t(ContactImport.Columns.SHOW_FEWER_VALUES_LABEL)
                         } else {
-                            ContactImport.Columns.showAllValuesLabel(column.total)
+                            ContactImport.Columns.showAllValuesLabel(column.total, locale)
                         },
                         style = MaterialTheme.typography.labelLarge,
                     )
@@ -1973,8 +1983,8 @@ private fun ColumnDeclarationCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            action?.let { ContactImport.Columns.actionLabel(it) }
-                                ?: ContactImport.Columns.CHOOSE,
+                            action?.let { ContactImport.Columns.actionLabel(it, locale) }
+                                ?: t(ContactImport.Columns.CHOOSE),
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (action == null) {
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -1998,7 +2008,7 @@ private fun ColumnDeclarationCard(
                     // them texts everybody the column was protecting.
                     for (option in ImportColumns.ACTIONS) {
                         DropdownMenuItem(
-                            text = { Text(ContactImport.Columns.actionLabel(option)) },
+                            text = { Text(ContactImport.Columns.actionLabel(option, locale)) },
                             onClick = {
                                 open = false
                                 onAction(option)
@@ -2042,6 +2052,7 @@ private fun ImportPropertiesSheet(
 ) {
     var answers by remember(step) { mutableStateOf(emptyMap<String, String>()) }
     val complete = answers.size == step.properties.size
+    val locale = LocalAppLocale.current
 
     AppSheet(onDismissRequest = onDismiss) {
         Column(
@@ -2050,9 +2061,9 @@ private fun ImportPropertiesSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp),
         ) {
-            Text(ContactImport.Properties.TITLE, style = MaterialTheme.typography.titleMedium)
+            Text(t(ContactImport.Properties.TITLE), style = MaterialTheme.typography.titleMedium)
             Text(
-                ContactImport.Properties.LEAD,
+                t(ContactImport.Properties.LEAD),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -2063,14 +2074,14 @@ private fun ImportPropertiesSheet(
             // not on their screen.
             if (step.properties.any { it.contains(';') }) {
                 Text(
-                    ContactImport.Properties.PARAMETER_NOTE,
+                    t(ContactImport.Properties.PARAMETER_NOTE),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp),
                 )
             }
             Text(
-                ContactImport.Columns.progressLine(answers.size, step.properties.size),
+                ContactImport.Columns.progressLine(answers.size, step.properties.size, locale),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 10.dp),
@@ -2090,14 +2101,14 @@ private fun ImportPropertiesSheet(
             // How blunt the blocking answer is, said before it is chosen rather
             // than discovered afterwards.
             Text(
-                ContactImport.Properties.COARSE,
+                ContactImport.Properties.coarse(locale),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 16.dp),
             )
             if (!complete) {
                 Text(
-                    ContactImport.Properties.UNANSWERED_HINT,
+                    t(ContactImport.Properties.UNANSWERED_HINT),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(top = 8.dp),
@@ -2111,7 +2122,7 @@ private fun ImportPropertiesSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text(ContactImport.Properties.CANCEL) }
+                TextButton(onClick = onDismiss) { Text(t(ContactImport.Properties.CANCEL)) }
                 Button(
                     enabled = complete,
                     onClick = {
@@ -2126,7 +2137,7 @@ private fun ImportPropertiesSheet(
                         )
                     },
                 ) {
-                    Text(ContactImport.Properties.CONFIRM)
+                    Text(t(ContactImport.Properties.CONFIRM))
                 }
             }
             Spacer(Modifier.height(24.dp))
@@ -2142,6 +2153,7 @@ private fun PropertyDeclarationCard(
     onAction: (String) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    val locale = LocalAppLocale.current
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -2169,8 +2181,8 @@ private fun PropertyDeclarationCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            action?.let { ContactImport.Properties.actionLabel(it) }
-                                ?: ContactImport.Properties.CHOOSE,
+                            action?.let { ContactImport.Properties.actionLabel(it, locale) }
+                                ?: t(ContactImport.Properties.CHOOSE),
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (action == null) {
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -2189,7 +2201,7 @@ private fun PropertyDeclarationCard(
                 DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                     for (option in VCardProperties.ACTIONS) {
                         DropdownMenuItem(
-                            text = { Text(ContactImport.Properties.actionLabel(option)) },
+                            text = { Text(ContactImport.Properties.actionLabel(option, locale)) },
                             onClick = {
                                 open = false
                                 onAction(option)
@@ -2215,6 +2227,7 @@ private fun PropertyDeclarationCard(
 @Composable
 private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
     val result = report.result
+    val locale = LocalAppLocale.current
     AppSheet(onDismissRequest = onDismiss) {
         // #180 contract: sheet roots scroll so the Done row stays reachable
         // on square viewports (inert on tall screens).
@@ -2264,7 +2277,10 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
                 ) {
                     Column(Modifier.padding(14.dp)) {
                         Text(
-                            ContactImport.consentRefusedHeadline(result.consent_refused),
+                            ContactImport.consentRefusedHeadline(
+                                result.consent_refused,
+                                locale,
+                            ),
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -2349,6 +2365,7 @@ private fun ImportRowList(
     reasonColor: Color = Color.Unspecified,
     overflowColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
+    val locale = LocalAppLocale.current
     Column(
         modifier
             .fillMaxWidth()
@@ -2359,8 +2376,10 @@ private fun ImportRowList(
         shown.forEach { rowError ->
             Text(
                 t(
+                    // #228: `rowWord` travels as a catalogue key attached to the
+                    // KIND, so a .vcf still says "Card" — in whichever language.
                     "contactsTasks.importRowLine",
-                    "word" to rowWord,
+                    "word" to t(rowWord),
                     "row" to "${rowError.row}",
                     "reason" to rowError.reason,
                 ),
@@ -2369,7 +2388,7 @@ private fun ImportRowList(
                 modifier = Modifier.padding(vertical = 2.dp),
             )
         }
-        ContactImport.overflowLine(total, shown.size)?.let { line ->
+        ContactImport.overflowLine(total, shown.size, locale)?.let { line ->
             Text(
                 line,
                 style = MaterialTheme.typography.bodySmall,

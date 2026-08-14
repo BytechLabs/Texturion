@@ -1,5 +1,6 @@
 package com.loonext.android.core.contacts
 
+import com.loonext.android.core.i18n.AppStrings
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,6 +20,18 @@ import org.junit.Test
  * reads its vectors.
  */
 class ContactImportTest {
+
+    /**
+     * #228 — the ENGLISH behind a catalogue key.
+     *
+     * Half of this class asks what a sentence SAYS, and since #228 the copy
+     * objects hold keys rather than sentences. Reading the key's English back
+     * out of the catalogue keeps every one of those questions intact, and
+     * throwing on a missing key means a sentence deleted from the catalogue
+     * fails here rather than quietly rendering its own key name on a phone.
+     */
+    private fun en(key: String): String =
+        AppStrings.en[key] ?: throw AssertionError("no English for $key")
 
     /**
      * Walk UP to the repo root: Gradle runs unit tests from `apps/android/app`,
@@ -286,14 +299,17 @@ class ContactImportTest {
         // Somebody who ignores a do-not-call column here texts everybody it was
         // protecting, and that sentence has to be in front of them while they
         // answer — naming the outcome, not the procedure.
-        val warning = ContactImport.Columns.WRONG_COLUMN
+        // #228: built through the catalogue now, and the `{answer}` slot is
+        // still filled from the control's own label rather than retyped.
+        val warning = ContactImport.Columns.wrongColumn()
         assertTrue(warning, warning.contains(ContactImport.Columns.actionLabel("opted_out")))
         assertTrue(warning, warning.contains("texted"))
         assertTrue(warning, warning.contains("protecting"))
         // And the LEAD says why the question is being asked at all. "We did not
         // recognise these" invites "so skip them", which is the behaviour that
         // caused #248 twice.
-        assertTrue(ContactImport.Columns.LEAD, ContactImport.Columns.LEAD.contains("does not guess"))
+        val lead = en(ContactImport.Columns.LEAD)
+        assertTrue(lead, lead.contains("does not guess"))
     }
 
     @Test
@@ -337,16 +353,19 @@ class ContactImportTest {
         // it says — a CATEGORIES of "Friends" alongside one of "DNC". Genuinely
         // coarse, and somebody should know before they choose it rather than
         // after.
-        assertTrue(ContactImport.Properties.COARSE.contains("every card"))
+        val coarse = ContactImport.Properties.coarse()
+        assertTrue(coarse, coarse.contains("every card"))
         assertTrue(
-            ContactImport.Properties.COARSE.contains(
+            coarse,
+            coarse.contains(
                 ContactImport.Properties.actionLabel(VCardProperties.ACTION_OPTED_OUT),
             ),
         )
         // And the lead says where a .vcf can say do-not-text at all, because
         // nobody knows that: it is a note or a category, and nothing else.
-        assertTrue(ContactImport.Properties.LEAD.contains("note"))
-        assertTrue(ContactImport.Properties.LEAD.contains("categories"))
+        val lead = en(ContactImport.Properties.LEAD)
+        assertTrue(lead, lead.contains("note"))
+        assertTrue(lead, lead.contains("categories"))
         val labels = VCardProperties.ACTIONS.map { ContactImport.Properties.actionLabel(it) }
         assertEquals(labels.size, labels.toSet().size)
         for ((action, label) in VCardProperties.ACTIONS.zip(labels)) {
@@ -387,21 +406,24 @@ class ContactImportTest {
         // opt-out and inserts new ones, the vCard path never touches opt_outs.
         // Copy that hinted otherwise would be the one promise about carrier
         // truth we are not allowed to get wrong.
+        // #228: `optOutNote` is a catalogue key, so the sentence is read back
+        // out of the English map. STOP is a carrier keyword and stays STOP in
+        // both languages — a translated STOP is an opt-out nothing registers.
         for (kind in ContactImportKind.entries) {
-            assertTrue(kind.name, kind.optOutNote.contains("STOP"))
-            assertTrue(kind.name, kind.optOutNote.isNotBlank())
+            assertTrue(kind.name, en(kind.optOutNote).contains("STOP"))
+            assertTrue(kind.name, AppStrings.frCA[kind.optOutNote]?.contains("STOP") == true)
         }
-        assertTrue(ContactImportKind.CSV.optOutNote.contains("opted-out column"))
+        assertTrue(en(ContactImportKind.CSV.optOutNote).contains("opted-out column"))
         // #248 round 3 changed the FACT this sentence reports, so the guard had
         // to change with it: a .vcf CAN now say do-not-text, through a property
         // somebody declared. The old wording ("a .vcf carries no opt-out column")
         // was true of the parser and false of the format, and that gap is how
         // CATEGORIES:DNC came to be dropped in silence.
-        assertTrue(ContactImportKind.VCARD.optOutNote.contains("do-not-text"))
+        assertTrue(en(ContactImportKind.VCARD.optOutNote).contains("do-not-text"))
         for (kind in ContactImportKind.entries) {
             assertFalse(
                 "${kind.name} must not claim a card cannot carry an opt-out",
-                kind.optOutNote.contains("no opt-out"),
+                en(kind.optOutNote).contains("no opt-out"),
             )
         }
     }
@@ -441,7 +463,8 @@ class ContactImportTest {
         // The server records the attestation ONLY where there is no basis yet
         // and leaves an existing one alone (importConsentColumns). Copy saying
         // "recorded for everyone" would describe the behaviour #248 removed.
-        assertTrue(ContactImport.Copy.RECORDED.contains("no consent recorded yet"))
-        assertTrue(ContactImport.Copy.RECORDED.contains("keep it"))
+        val recorded = en(ContactImport.Copy.RECORDED)
+        assertTrue(recorded, recorded.contains("no consent recorded yet"))
+        assertTrue(recorded, recorded.contains("keep it"))
     }
 }

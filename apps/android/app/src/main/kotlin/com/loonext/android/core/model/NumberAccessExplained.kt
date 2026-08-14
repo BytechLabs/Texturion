@@ -1,5 +1,6 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.core.i18n.AppStrings
 import kotlinx.serialization.Serializable
 
 /**
@@ -33,11 +34,17 @@ data class MemberNumberAccess(
     val numbers: List<NumberAccessExplanation> = emptyList(),
 )
 
-/** What they can do, in the crew's words rather than the schema's. */
-fun numberAccessLevelLabel(level: String): String = when (level) {
-    "text" -> "Can text"
-    "note" -> "Read and notes only"
-    else -> "Hidden"
+/**
+ * What they can do, in the crew's words rather than the schema's.
+ *
+ * #228: [locale] is last and defaulted, so the hand-port tests that pin the
+ * English are untouched while the screen that knows the reader's language can
+ * pass it.
+ */
+fun numberAccessLevelLabel(level: String, locale: String? = null): String = when (level) {
+    "text" -> AppStrings.translate(locale, "domain.numberAccessCanText")
+    "note" -> AppStrings.translate(locale, "domain.numberAccessNoteOnly")
+    else -> AppStrings.translate(locale, "domain.numberAccessHidden")
 }
 
 /**
@@ -60,19 +67,50 @@ fun numberAccessReason(
      * copy of them written for the member-facing screen is a copy that drifts.
      */
     self: Boolean = false,
+    /**
+     * #228: the reader's language. LAST and defaulted, so the parity tests that
+     * pin these clauses in English are untouched while the two screens that know
+     * their reader can pass it.
+     */
+    locale: String? = null,
 ): String = when (decidedBy) {
-    "user" -> if (self) "A rule naming you" else "A rule naming them"
+    "user" -> AppStrings.translate(
+        locale,
+        if (self) "domain.numberAccessRuleNamingYou" else "domain.numberAccessRuleNamingThem",
+    )
     "role" ->
-        if (principal != null) "A rule for ${principal}s"
-        else if (self) "A rule for your role" else "A rule for their role"
-    "all" -> "A rule for everyone"
-    "no-match" ->
-        if (self) "This number has rules, and none of them include you"
-        else "This number has rules, and none of them include them"
-    "unruled" -> "Nobody has restricted this number"
-    "role-override" ->
-        if (principal == "owner") "Owners reach every number" else "Admins reach every number"
-    else -> if (self) "You are no longer in this workspace" else "No longer in this workspace"
+        // The role is the wire value the rule named, and it is not translated:
+        // it is the same word on the rule an owner would go and edit.
+        if (principal != null) {
+            AppStrings.translate(
+                locale,
+                "domain.numberAccessRuleForRole",
+                mapOf("role" to principal),
+            )
+        } else {
+            AppStrings.translate(
+                locale,
+                if (self) {
+                    "domain.numberAccessRuleForYourRole"
+                } else {
+                    "domain.numberAccessRuleForTheirRole"
+                },
+            )
+        }
+    "all" -> AppStrings.translate(locale, "domain.numberAccessRuleForEveryone")
+    "no-match" -> AppStrings.translate(
+        locale,
+        if (self) "domain.numberAccessNoMatchYou" else "domain.numberAccessNoMatchThem",
+    )
+    "unruled" -> AppStrings.translate(locale, "domain.numberAccessUnruled")
+    "role-override" -> AppStrings.translate(
+        locale,
+        if (principal == "owner") "domain.numberAccessOwners" else "domain.numberAccessAdmins",
+    )
+    else -> AppStrings.translate(
+        locale,
+        if (self) "domain.numberAccessNotMemberYou" else "domain.numberAccessNotMemberThem",
+    )
 }
 
 /**
@@ -88,21 +126,44 @@ fun numberAccessReason(
  * no absence to account for, and a paragraph reassuring them about a problem
  * they do not have is furniture.
  */
-fun numberAccessSelfNote(rows: List<NumberAccessExplanation>): String? {
+fun numberAccessSelfNote(
+    rows: List<NumberAccessExplanation>,
+    locale: String? = null,
+): String? {
     val hidden = rows.count { it.level == "none" }
     val readOnly = rows.count { it.level == "note" }
     if (hidden == 0 && readOnly == 0) return null
 
     val parts = mutableListOf<String>()
     if (hidden > 0) {
-        parts += "$hidden ${if (hidden == 1) "number is" else "numbers are"} hidden from you"
+        parts += AppStrings.translate(
+            locale,
+            if (hidden == 1) {
+                "domain.numberAccessSelfHiddenOne"
+            } else {
+                "domain.numberAccessSelfHiddenMany"
+            },
+            mapOf("count" to hidden.toString()),
+        )
     }
     if (readOnly > 0) {
-        parts += "$readOnly ${if (readOnly == 1) "is" else "are"} read-only"
+        parts += AppStrings.translate(
+            locale,
+            if (readOnly == 1) {
+                "domain.numberAccessSelfReadOnlyOne"
+            } else {
+                "domain.numberAccessSelfReadOnlyMany"
+            },
+            mapOf("count" to readOnly.toString()),
+        )
     }
-    return parts.joinToString(" and ") +
-        ". That is deliberate — somebody set it up that way, and it is not " +
-        "the app failing. Ask an owner or admin if you need more."
+    val and = AppStrings.translate(locale, "domain.and")
+    val joined = parts.joinToString(" $and ")
+    return AppStrings.translate(
+        locale,
+        "domain.numberAccessSelfNote",
+        mapOf("parts" to joined),
+    )
 }
 
 /** Anything short of full use is a restriction worth showing first. */

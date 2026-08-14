@@ -42,10 +42,23 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.util.Locale
 
-/** The default missed-call text-back shown as the placeholder (web parity). */
-private const val DEFAULT_MCTB_MESSAGE =
-    "Sorry we missed your call! This is {business_name}. Reply here with your address " +
-        "and what you need, and we'll get you booked in."
+/**
+ * The default missed-call text-back shown as the placeholder and previewed
+ * below it.
+ *
+ * THE CATALOGUE ENTRY IS THE SENT MESSAGE, not a description of it. Both
+ * languages are copied character for character out of
+ * `packages/shared/src/locale.ts` (`EN_COPY.missedCallTextBack` /
+ * `FR_CA_COPY.missedCallTextBack`), which is what the SERVER actually puts on
+ * the wire — so the French reads without accents and inside GSM-7, exactly as
+ * the text a customer receives does. A prettier French here would be a preview
+ * of a message this product never sends, which is worse than no preview.
+ *
+ * `{business_name}` is a merge field the send path fills in, not a catalogue
+ * token: an unknown token survives interpolation untouched, which is why the
+ * placeholder can show it and the preview can substitute it.
+ */
+private const val MCTB_DEFAULT_KEY = "settings.textBackDefault"
 
 /** Call-screening values PATCH /v1/company accepts. */
 private object CallScreening {
@@ -119,8 +132,9 @@ private fun TextBackCard(
     val trimmed = message.trim()
     // The server sends this with NO contact name (a missed call is usually a
     // brand-new caller) — the preview drops {first_name} exactly as the wire does.
+    val defaultMessage = t(MCTB_DEFAULT_KEY)
     val preview = applyMergeFields(
-        text = trimmed.ifEmpty { DEFAULT_MCTB_MESSAGE },
+        text = trimmed.ifEmpty { defaultMessage },
         contactName = null,
         businessName = company.name,
     )
@@ -201,7 +215,7 @@ private fun TextBackCard(
                         .fillMaxWidth()
                         .padding(top = 6.dp),
                     minLines = 3,
-                    placeholder = { Text(DEFAULT_MCTB_MESSAGE) },
+                    placeholder = { Text(defaultMessage) },
                     supportingText = {
                         // `{business_name}` is a merge field the owner types, not
                         // a catalogue token: it survives interpolation untouched

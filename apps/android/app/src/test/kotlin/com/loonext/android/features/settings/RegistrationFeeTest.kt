@@ -263,22 +263,69 @@ class RegistrationFeeTest {
      */
     @Test
     fun `each sentence on the enable-US card names the resolved fee`() {
-        val literals = stringLiterals(readMainSource(card))
+        // #228 MOVED THE SENTENCES, NOT THE RULE. The card's words live in
+        // `SettingsStrings` now, so a guard that hunted the English in this file
+        // would pass forever on a card that had stopped naming a price — which is
+        // the ceiling this whole file exists to avoid. Same repair, and the same
+        // reasoning, as `ExtraNumberPriceTest` after the numbers screen moved.
+        //
+        // It breaks in two places now, so both are checked: `enableUsCopy` has to
+        // HAND the resolved fee to each sentence, and each sentence has to have
+        // somewhere to put it. A key with no `{fee}` drops the figure silently,
+        // and `AppStringsTest` only checks that the two languages agree — it
+        // cannot know this one is about money.
+        val src = readMainSource(card)
+        val catalogue = readMainSource("core/i18n/SettingsStrings.kt")
         listOf(
-            "the button the owner presses" to "Enable US texting: \$fee one-time",
-            "the read-only line everybody else reads" to "\$fee carrier registration",
-            "the confirm dialog above the button" to
-                "A one-time \$fee registration fee is charged",
-        ).forEach { (where, phrase) ->
+            "the button the owner presses" to "settings.enableUsButton",
+            "the read-only line everybody else reads" to "settings.enableUsReadOnly",
+            "the confirm dialog above the button" to "settings.enableUsCharge",
+        ).forEach { (where, key) ->
             assertTrue(
-                "$where no longer quotes the resolved fee (looked for `$phrase`). " +
-                    "If the copy was rewritten, teach this guard the new sentence " +
-                    "rather than deleting it — an unpriced consent button is the " +
-                    "failure this half exists for",
-                literals.any { it.contains(phrase) },
+                "$where is no longer handed the resolved fee (looked for " +
+                    "`say(\"$key\", \"fee\" to fee)`). If the copy was rewritten, " +
+                    "teach this guard the new call rather than deleting it — an " +
+                    "unpriced consent button is the failure this half exists for",
+                src.contains("say(\"$key\", \"fee\" to fee)"),
             )
+            // BOTH languages, because the value is read out of each map in turn:
+            // a French sentence that lost `{fee}` is a consent button with no
+            // price on it for every reader in Quebec, and nothing else would say.
+            val values = valuesFor(catalogue, key)
+            assertEquals(
+                "$key must exist in both languages, or one of them is silently " +
+                    "falling back to the other",
+                2,
+                values.size,
+            )
+            values.forEach { value ->
+                assertTrue(
+                    "$key must interpolate {fee}, or the figure the card resolved " +
+                        "never reaches the reader: $value",
+                    value.contains("{fee}"),
+                )
+                assertFalse(
+                    "a price is typed into $key: $value. Every figure this card " +
+                        "prints has to come from usRegistrationFee(), resolved " +
+                        "through the workspace's billing_currency",
+                    dollarBeforeDigit(value),
+                )
+            }
         }
     }
+
+    /**
+     * Everything between `"<key>" to` and the next catalogue key, once per map.
+     *
+     * Two hits is the correct answer — English and French — and the count is
+     * asserted rather than assumed, because a key present in one map only is
+     * exactly the shape that renders the other language's sentence to a reader
+     * who cannot read it.
+     */
+    private fun valuesFor(catalogue: String, key: String): List<String> =
+        catalogue.split("\"$key\" to").drop(1).map { rest ->
+            rest.substringBefore("\"settings.")
+        }
 
     /**
      * The card resolves the fee from the COMPANY, and from both halves of the

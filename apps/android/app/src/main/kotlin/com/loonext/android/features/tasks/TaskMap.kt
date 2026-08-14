@@ -313,7 +313,7 @@ private fun TaskMapContent(
         // Same sentence as the web twin, asserted by a test on each side.
         if (!Basemap.isConfigured()) {
             Text(
-                Basemap.NO_BASEMAP_NOTICE,
+                t(Basemap.NO_BASEMAP_NOTICE_KEY),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 9.dp),

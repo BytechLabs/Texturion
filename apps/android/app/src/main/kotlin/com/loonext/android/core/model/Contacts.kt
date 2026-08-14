@@ -1,5 +1,6 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.core.i18n.AppStrings
 import kotlinx.serialization.Serializable
 
 /** The customer texted STOP and our webhook saw it: a block only they can lift. */
@@ -197,11 +198,14 @@ data class ImportResult(
  * a mobile number keeps its original code when its owner moves provinces.
  * "Using your timezone" is us admitting we do not know, which is the one they
  * most need to see before scheduling anything.
+ *
+ * #228: [locale] is last and defaulted, so the callers that pin the English are
+ * untouched while the screen that knows the reader's language can pass it.
  */
-fun timezoneProvenanceLabel(source: String?): String = when (source) {
-    "contact" -> "Set by your crew"
-    "area_code" -> "From their area code"
-    "company" -> "Their area code doesn't say — using your timezone"
+fun timezoneProvenanceLabel(source: String?, locale: String? = null): String = when (source) {
+    "contact" -> AppStrings.translate(locale, "domain.contactClockSetByCrew")
+    "area_code" -> AppStrings.translate(locale, "domain.contactClockFromAreaCode")
+    "company" -> AppStrings.translate(locale, "domain.contactClockUnknown")
     else -> ""
 }
 

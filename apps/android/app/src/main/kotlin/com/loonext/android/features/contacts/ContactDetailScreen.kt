@@ -556,6 +556,7 @@ private fun ContactDetailBody(
                 consentAt = contact.consent_at,
                 consentAttestedBy = contact.consent_attested_by,
                 memberName = ::memberName,
+                locale = locale,
             ),
         )
 

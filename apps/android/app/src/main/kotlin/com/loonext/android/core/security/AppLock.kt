@@ -120,8 +120,16 @@ object AppLock {
     fun canEnable(hasBiometric: Boolean, hasDeviceCredential: Boolean): Boolean =
         hasBiometric || hasDeviceCredential
 
-    /** Why it cannot be turned on, for the one case where that is true. */
-    const val CANNOT_ENABLE_NOTE: String =
-        "Set a screen lock, fingerprint or face unlock on this phone first — " +
-            "without one there is nothing for this to ask you for."
+    /**
+     * Why it cannot be turned on, for the one case where that is true.
+     *
+     * #228: [locale] defaults to English for the same reason [headline]'s does —
+     * `AppLockTest` asks whether this sentence names the REMEDY rather than a
+     * fault, and that question is about the English it was written in.
+     */
+    fun cannotEnableNote(locale: String = MessageLocale.EN): String =
+        AppStrings.translate(locale, "shell.lockCannotEnable")
+
+    /** The English, for the guard above and for call sites still passing none. */
+    val CANNOT_ENABLE_NOTE: String get() = cannotEnableNote()
 }

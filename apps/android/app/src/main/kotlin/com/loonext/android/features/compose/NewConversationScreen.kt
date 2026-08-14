@@ -322,7 +322,7 @@ private fun NewConversationLoaded(
                     trimmed = true
                     break
                 }
-                when (val result = stageMmsMedia(context, uri)) {
+                when (val result = stageMmsMedia(context, uri, locale)) {
                     is MmsStageResult.Ready -> {
                         composer.photos = composer.photos + result.media
                         composer.mediaInfo =

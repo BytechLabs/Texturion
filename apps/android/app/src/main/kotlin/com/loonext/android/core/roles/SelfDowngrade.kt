@@ -1,5 +1,6 @@
 package com.loonext.android.core.roles
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.MemberRole
 
 /**
@@ -40,13 +41,13 @@ object SelfDowngrade {
      * Written as things they DO. "team.manage" tells a developer what is being
      * revoked and tells an owner nothing.
      */
-    private val PLAIN = mapOf(
-        "billing.manage" to "the plan and billing",
-        "settings.manage" to "workspace settings",
-        "team.manage" to "who is on the team and what they can do",
-        "numbers.manage" to "phone numbers",
-        "history.read" to "the history log",
-        "contacts.bulk" to "importing and exporting customers",
+    private val PLAIN_KEYS = mapOf(
+        "billing.manage" to "domain.capBilling",
+        "settings.manage" to "domain.capSettings",
+        "team.manage" to "domain.capTeam",
+        "numbers.manage" to "domain.capNumbers",
+        "history.read" to "domain.capHistory",
+        "contacts.bulk" to "domain.capContactsBulk",
     )
 
     /** The capability set for each role. Kept in step with the shared module by test. */
@@ -125,23 +126,29 @@ object SelfDowngrade {
      * listed in full reads as legal boilerplate and gets skipped, which defeats the
      * whole point of asking.
      */
-    fun warning(from: String, to: String): String? {
+    fun warning(from: String, to: String, locale: String? = null): String? {
         val lost = capabilitiesLost(from, to)
         if (lost.isEmpty()) return null
-        val named = lost.mapNotNull { PLAIN[it] }
+        fun say(key: String, vars: Map<String, String> = emptyMap()) =
+            AppStrings.translate(locale, key, vars)
+
+        val named = lost.mapNotNull { PLAIN_KEYS[it] }.map { key -> say(key) }
         val head = named.take(3)
         val rest = named.size - head.size
         val list = when {
-            head.isEmpty() -> "some of what you can do now"
+            head.isEmpty() -> say("domain.selfDowngradeSomeOfWhat")
             head.size == 1 -> head[0]
-            else -> head.dropLast(1).joinToString(", ") + " and " + head.last()
+            else -> say(
+                "domain.selfDowngradeListPair",
+                mapOf("first" to head.dropLast(1).joinToString(", "), "last" to head.last()),
+            )
         }
-        val scope = if (rest > 0) "$list, and $rest more" else list
-        val undo = if (losesRoleControl(from, to)) {
-            " You won't be able to change it back yourself — only an owner can."
+        val scope = if (rest > 0) {
+            say("domain.selfDowngradeMore", mapOf("list" to list, "count" to rest.toString()))
         } else {
-            ""
+            list
         }
-        return "You'll lose access to $scope.$undo"
+        val undo = if (losesRoleControl(from, to)) say("domain.selfDowngradeUndo") else ""
+        return say("domain.selfDowngradeWarning", mapOf("scope" to scope, "undo" to undo))
     }
 }

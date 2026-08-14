@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.LeadSource
@@ -417,7 +418,10 @@ private fun OtherConversations(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                statusLabel(row.status),
+                                // #228: `statusLabel` defaults to English for
+                                // its pure callers, so the reader's language
+                                // has to be handed in here.
+                                statusLabel(row.status, LocalAppLocale.current),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

@@ -242,7 +242,7 @@ private fun TextEnableDocumentsRow(
             coroutines.launch {
                 try {
                     scope.repo.uploadTextEnablementDocuments(
-                        scope.companyId, order.id, listOf(upload),
+                        scope.companyId, order.id, listOf(upload), locale,
                     )
                     scope.showMessage(
                         AppStrings.translate(

@@ -65,6 +65,7 @@ object AppStrings {
         AuthStrings,
         CommonStrings,
         ContactsTasksStrings,
+        DomainStrings,
         InboxStrings,
         PaymentsStrings,
         SettingsMoreStrings,

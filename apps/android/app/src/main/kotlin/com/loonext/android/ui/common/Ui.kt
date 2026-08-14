@@ -23,7 +23,9 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.t
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.net.ApiDecodeException
 import com.loonext.android.core.net.ApiException
 import java.time.Duration
@@ -61,8 +63,22 @@ sealed interface LoadState<out T> {
  * possibility rather than a promise. The Diagnostics screen is deliberately NOT
  * mentioned: it is hidden until unlocked, so pointing anybody at it would be
  * directions to a door they cannot see.
+ *
+ * ## #228 — the two sentences that are OURS
+ *
+ * Only the last two branches are ours to translate, and they now come from the
+ * catalogue. Everything above them is the API's own wording, rendered verbatim:
+ * a client-side French copy of a server refusal is a second copy that drifts,
+ * and the server is where that translation belongs.
+ *
+ * [locale] is defaulted to English because this is called from coroutines,
+ * ViewModels and `catch` blocks that have no composition to read a reader out
+ * of — the same shape `AppLock.headline` uses. `rememberCacheFirst`, which is
+ * the ONLY way a screen may load data, passes the real one, so the general
+ * load-failure sentence follows the reader; call sites that still pass nothing
+ * are listed on #228 rather than left to be discovered.
  */
-fun Throwable.userMessage(): String = when {
+fun Throwable.userMessage(locale: String = MessageLocale.EN): String = when {
     // #555: a 500 carries the server's own reference, and saying it is what makes
     // "something went wrong" a report somebody can act on rather than a shrug.
     // Only on an internal error: a 422 explaining which field is wrong needs no
@@ -71,10 +87,8 @@ fun Throwable.userMessage(): String = when {
     this is ApiException && requestId != null && httpStatus >= 500 ->
         "$message Reference $requestId."
     this is ApiException -> message
-    this is ApiDecodeException ->
-        "This didn't load. It's a problem on our side, not something you did. " +
-            "If there's an app update, that usually fixes it."
-    else -> "Something went wrong."
+    this is ApiDecodeException -> AppStrings.translate(locale, "common.decodeFailed")
+    else -> AppStrings.translate(locale, "common.unknownError")
 }
 
 /** Centered expressive loading indicator — first load only, never spinners over data. */

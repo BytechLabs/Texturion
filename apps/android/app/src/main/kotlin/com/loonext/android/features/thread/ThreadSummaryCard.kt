@@ -289,14 +289,17 @@ fun catchUpState(
  * Takes the SERVER's fields. Nothing a model produced can reach this string —
  * that is the whole point of the function existing separately.
  */
-fun summaryCarrierNote(optOut: SummaryOptOut?, optOutHintAt: String?): String? = when {
+fun summaryCarrierNote(
+    optOut: SummaryOptOut?,
+    optOutHintAt: String?,
+    locale: String? = null,
+): String? = when {
     optOut != null && isCarrierEnforcedOptOut(optOut.source) ->
-        "They texted STOP, so their carrier is blocking your texts. Only they can undo it."
+        AppStrings.translate(locale, "thread.summaryOptOutCarrier")
     optOut != null ->
-        "Someone marked this customer opted out, so texts are blocked. Internal notes still work."
+        AppStrings.translate(locale, "thread.summaryOptOutManual")
     optOutHintAt != null ->
-        "Someone on this thread asked to be left alone. That request is binding " +
-            "however it's worded."
+        AppStrings.translate(locale, "thread.summaryOptOutHint")
     else -> null
 }
 
@@ -326,13 +329,13 @@ fun summaryCarrierNote(optOut: SummaryOptOut?, optOutHintAt: String?): String? =
  * contact — and a warning drawn there would be invention, the one thing this
  * whole feature is built not to do.
  */
-fun catchUpCarrierNote(state: CatchUpState): String? {
+fun catchUpCarrierNote(state: CatchUpState, locale: String? = null): String? {
     val standing = when (state) {
         is CatchUpState.Answered -> state.summary.standing
         is CatchUpState.Reading -> state.standing
         else -> null
     } ?: return null
-    return summaryCarrierNote(standing.optOut, standing.optOutHintAt)
+    return summaryCarrierNote(standing.optOut, standing.optOutHintAt, locale)
 }
 
 @Composable
@@ -423,7 +426,7 @@ fun ThreadSummaryCard(
         // skimming the thread. Here it sits above everything Lou wrote — and
         // above everything Lou could not write — for every answer that carried
         // an opt-out, whatever that answer was.
-        catchUpCarrierNote(state)?.let { note ->
+        catchUpCarrierNote(state, locale)?.let { note ->
             Row(
                 Modifier
                     .fillMaxWidth()

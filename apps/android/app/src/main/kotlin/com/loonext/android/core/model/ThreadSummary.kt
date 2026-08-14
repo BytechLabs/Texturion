@@ -1,5 +1,6 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.core.i18n.AppStrings
 import kotlinx.serialization.Serializable
 
 /**
@@ -152,14 +153,29 @@ object ThreadSummarySection {
  * owned the words; three clients each inventing a heading for "what we
  * committed to" is that failure waiting to happen again.
  */
-val THREAD_SUMMARY_SECTIONS: List<Pair<String, String>> = listOf(
-    ThreadSummarySection.ASKED to "What they asked",
-    ThreadSummarySection.WE_SAID to "What we said",
+val THREAD_SUMMARY_SECTION_KEYS: List<Pair<String, String>> = listOf(
+    ThreadSummarySection.ASKED to "domain.catchUpSectionAsked",
+    ThreadSummarySection.WE_SAID to "domain.catchUpSectionWeSaid",
     // Not "action items". A loop is open because nobody closed it, which is a
     // statement about the conversation; an action item is an instruction, and
     // this surface does not get to give the crew instructions.
-    ThreadSummarySection.OPEN to "Still open",
+    ThreadSummarySection.OPEN to "domain.catchUpSectionOpen",
 )
+
+/**
+ * The same three, resolved for one reader.
+ *
+ * #228: [locale] is defaulted, so a card that has not been given the reader's
+ * language keeps the English headings it drew before. The card that HAS one
+ * should read [THREAD_SUMMARY_SECTION_KEYS] and call `t()` on each key itself —
+ * that is one composition read rather than three catalogue lookups per frame.
+ */
+fun threadSummarySections(locale: String? = null): List<Pair<String, String>> =
+    THREAD_SUMMARY_SECTION_KEYS.map { (id, key) -> id to AppStrings.translate(locale, key) }
+
+/** The English headings, for a caller that has no reader. */
+val THREAD_SUMMARY_SECTIONS: List<Pair<String, String>>
+    get() = threadSummarySections()
 
 /**
  * The line shown beside the catch-up, in one place.
@@ -170,8 +186,10 @@ val THREAD_SUMMARY_SECTIONS: List<Pair<String, String>> = listOf(
  * arbiter. Every line taps through to the message it came from, which is what
  * makes that sentence true rather than a disclaimer.
  */
-const val THREAD_SUMMARY_ATTRIBUTION =
-    "Lou read this thread. Tap any line to see the message it came from."
+const val THREAD_SUMMARY_ATTRIBUTION_KEY = "domain.catchUpAttribution"
+
+val THREAD_SUMMARY_ATTRIBUTION: String
+    get() = AppStrings.translate(null, THREAD_SUMMARY_ATTRIBUTION_KEY)
 
 /**
  * One line of the catch-up, and the citation is the point.
@@ -324,33 +342,31 @@ val THREAD_SUMMARY_REASONS: List<String> = listOf(
  * where it read as documentation for that list. Moved onto the function it
  * describes.)
  */
-fun threadSummaryMessage(reason: String?): String = when (reason) {
-    "disabled" -> "Catch-ups are turned off for this workspace. Settings, AI turns them back on."
-    // #250: a thread somebody marked as spam never spends AI budget.
-    "spam" -> "This thread is marked as spam, so Lou skips it. Unmark it to catch up."
-    // The pre-filter, and the honest phrasing of it: nothing went wrong, the
-    // thread is just quicker to read than a summary of it would be.
-    "too_short" -> "This thread is short enough to read. Lou saves catch-ups for the long ones."
-    "over_cap" -> "This month's catch-ups are used up. They start again next month."
-    "rate_limited" -> "That was a lot of catch-ups at once. Try again in a moment."
-    "model_error", "unavailable" -> "Couldn't reach Lou just now. Try again."
-    // The reader's ROLE, not our weather — so it never says "try again", and
-    // the header does not offer one either (UNFIXABLE_BY_ASKING). Names the one
-    // person who can change it, in the words the composer's read-only banner
-    // already uses, because a view-only member meets both in the same thread.
-    THREAD_SUMMARY_NOT_ALLOWED ->
-        "You can read this thread but not ask Lou to catch you up. " +
-            "An owner or admin can change your access."
-    // The model answered and nothing it wrote could be traced to a message.
-    // Deliberately says what the rule IS: a person who reads this learns that
-    // every line is quoted, which is the thing that makes the card trustworthy.
-    "unusable_output" ->
-        "Nothing came back that Lou could point at in the thread, so there's nothing to show."
-    // #581: billing, not breakage — and it must not say "try again", because
-    // trying again is not what fixes it. Names the fix in the same words the
-    // send paths already use for a lapsed subscription, so a crew that meets
-    // both in one afternoon reads one story rather than two.
-    "subscription_inactive" ->
-        "Lou is paused while the subscription is sorted out. An owner can fix that in Billing."
-    else -> "No catch-up this time. Try again."
-}
+fun threadSummaryMessage(reason: String?, locale: String? = null): String = AppStrings.translate(
+    locale,
+    when (reason) {
+        "disabled" -> "domain.catchUpDisabled"
+        // #250: a thread somebody marked as spam never spends AI budget.
+        "spam" -> "domain.catchUpSpam"
+        // The pre-filter, and the honest phrasing of it: nothing went wrong, the
+        // thread is just quicker to read than a summary of it would be.
+        "too_short" -> "domain.catchUpTooShort"
+        "over_cap" -> "domain.catchUpOverCap"
+        "rate_limited" -> "domain.catchUpRateLimited"
+        "model_error", "unavailable" -> "domain.louUnreachable"
+        // The reader's ROLE, not our weather — so it never says "try again", and
+        // the header does not offer one either (UNFIXABLE_BY_ASKING). Names the
+        // one person who can change it.
+        THREAD_SUMMARY_NOT_ALLOWED -> "domain.catchUpNotAllowed"
+        // The model answered and nothing it wrote could be traced to a message.
+        // Deliberately says what the rule IS: a person who reads this learns
+        // that every line is quoted, which makes the card trustworthy.
+        "unusable_output" -> "domain.catchUpUnusable"
+        // #581: billing, not breakage — and it must not say "try again", because
+        // trying again is not what fixes it. The same KEY the send paths use for
+        // a lapsed subscription, so a crew that meets both in one afternoon
+        // reads one story rather than two.
+        "subscription_inactive" -> "domain.louPausedForBilling"
+        else -> "domain.catchUpNone"
+    },
+)

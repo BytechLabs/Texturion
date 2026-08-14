@@ -336,7 +336,7 @@ private fun PortCard(
         PortStepper(port.status)
         if (heldLine) {
             Text(
-                portHoldNote(),
+                portHoldNote(locale),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -645,7 +645,9 @@ private fun PortDocumentsRow(scope: SettingsScope, port: PortRequest, onChanged:
             error = null
             coroutines.launch {
                 try {
-                    scope.repo.uploadPortDocuments(scope.companyId, port.id, listOf(upload))
+                    scope.repo.uploadPortDocuments(
+                        scope.companyId, port.id, listOf(upload), locale,
+                    )
                     scope.showMessage(
                         AppStrings.translate(
                             locale,

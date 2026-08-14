@@ -428,6 +428,15 @@ fun contactAttribution(
  *  - inbound_sms → "Texted you first · Jul 8",
  *  - anything else (attested/import) → "Consent recorded by {member} · Jul 8"
  *    (the attester resolved against GET /v1/members; omitted when unknown).
+ *
+ * #228: the four sentences live in `ContactsTasksStrings`, copied from web's
+ * `appShell.ts`. [locale] is LAST and DEFAULTED for the same reason
+ * [contactAttribution]'s is — `ConsentLineTest` pins the English and passes it
+ * nothing, the screen passes the reader's language, and `ContactPanelSheet` in
+ * the thread feature keeps compiling untouched.
+ *
+ * The DATE suffix is built here rather than in the catalogue: it is a
+ * separator and a formatted date, and neither is a sentence.
  */
 fun consentLine(
     consentSource: String?,
@@ -435,18 +444,26 @@ fun consentLine(
     consentAttestedBy: String?,
     memberName: (String?) -> String?,
     clock: Clock = Clock.systemDefaultZone(),
+    locale: String? = null,
 ): String {
     if (consentSource == null) {
-        return "No consent recorded yet. It's recorded when they text you first, " +
-            "or when you send them their first text, which attests they asked for it."
+        return AppStrings.translate(locale, "contactsTasks.consentNone")
     }
     val date = com.loonext.android.features.tasks.parseInstant(consentAt)
         ?.atZone(clock.zone)
         ?.format(DateTimeFormatter.ofPattern("MMM d"))
     val suffix = if (date != null) " · $date" else ""
-    if (consentSource == ConsentSource.INBOUND_SMS) return "Texted you first$suffix"
+    if (consentSource == ConsentSource.INBOUND_SMS) {
+        return AppStrings.translate(locale, "contactsTasks.consentTextedFirst") + suffix
+    }
     val attester = memberName(consentAttestedBy)
-    return if (attester != null) "Consent recorded by $attester$suffix"
-    else "Consent recorded$suffix"
-
+    return if (attester != null) {
+        AppStrings.translate(
+            locale,
+            "contactsTasks.consentRecordedBy",
+            mapOf("name" to attester),
+        ) + suffix
+    } else {
+        AppStrings.translate(locale, "contactsTasks.consentRecorded") + suffix
+    }
 }

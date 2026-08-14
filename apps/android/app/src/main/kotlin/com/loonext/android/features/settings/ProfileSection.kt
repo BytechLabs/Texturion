@@ -345,7 +345,7 @@ private fun ChangeEmailBlock(scope: SettingsScope, authClient: SettingsAuthClien
                                 AppStrings.translate(locale, "settingsMore.signedOut"),
                                 401,
                             )
-                        authClient.updateEmail(session.accessToken, trimmed)
+                        authClient.updateEmail(session.accessToken, trimmed, locale)
                         editing = false
                         newEmail = ""
                         scope.showMessage(
@@ -413,6 +413,7 @@ private fun ChangePasswordBlock(scope: SettingsScope, authClient: SettingsAuthCl
                     accessToken = session.accessToken,
                     password = password,
                     nonce = nonce.trim().ifEmpty { null },
+                    locale = locale,
                 )
                 editing = false
                 password = ""
@@ -428,7 +429,7 @@ private fun ChangePasswordBlock(scope: SettingsScope, authClient: SettingsAuthCl
                     try {
                         val session = scope.graph.api.freshSession()
                         if (session != null) {
-                            authClient.requestReauthenticationNonce(session.accessToken)
+                            authClient.requestReauthenticationNonce(session.accessToken, locale)
                             nonceNeeded = true
                             error = null
                         } else {

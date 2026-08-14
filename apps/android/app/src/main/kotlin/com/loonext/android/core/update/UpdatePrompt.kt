@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.loonext.android.BuildConfig
+import com.loonext.android.core.i18n.t
 
 /**
  * #339 — the two things we can say about an old build, and they are not the
@@ -103,25 +104,28 @@ private fun UpdateCard(state: UpdateState, onUpdate: () -> Unit, onDismiss: () -
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
-                        "A newer version of Loonext is ready",
+                        t("shell.updateReadyTitle"),
                         style = MaterialTheme.typography.titleSmall,
                     )
                     Text(
-                        // The server's reason when it gave one. Never invented
-                        // here: a demand we cannot explain is one nobody should
-                        // trust.
-                        state.policy?.message ?: "Update to pick up the latest fixes.",
+                        // The server's reason when it gave one, verbatim and
+                        // untranslated here: those words are the API's to write
+                        // and to translate, and a client-side copy of somebody
+                        // else's sentence is a copy that drifts. Never invented
+                        // here either — a demand we cannot explain is one nobody
+                        // should trust.
+                        state.policy?.message ?: t("shell.updateReadyBody"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Button(onClick = onUpdate, modifier = Modifier.padding(top = 8.dp)) {
-                        Text("Update")
+                        Text(t("shell.updateAction"))
                     }
                 }
                 IconButton(onClick = onDismiss) {
                     Icon(
                         Icons.Outlined.Close,
-                        contentDescription = "Dismiss update notice",
+                        contentDescription = t("shell.updateDismiss"),
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -150,13 +154,12 @@ private fun UpdateBlock(state: UpdateState, context: Context) {
                 modifier = Modifier.size(40.dp),
             )
             Text(
-                "Loonext needs an update",
+                t("shell.updateBlockTitle"),
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(top = 24.dp),
             )
             Text(
-                state.policy?.message
-                    ?: "This version can no longer connect safely. Update to continue.",
+                state.policy?.message ?: t("shell.updateBlockBody"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -166,14 +169,19 @@ private fun UpdateBlock(state: UpdateState, context: Context) {
                 onClick = { openUpdate(context, state.policy?.update_url) },
                 modifier = Modifier.padding(top = 24.dp).fillMaxWidth().widthIn(max = 360.dp),
             ) {
-                Text("Update Loonext")
+                Text(t("shell.updateBlockAction"))
             }
+            // #228: built with `if` rather than `?.let`, so both halves are
+            // ordinary composable calls. The floor line only exists when the
+            // policy named one.
+            val minimumVersion = state.policy?.minimum_version
             Text(
-                buildString {
-                    append("You are on ")
-                    append(BuildConfig.VERSION_NAME)
-                    state.policy?.minimum_version?.let { append(" · $it or newer is required") }
-                },
+                t("shell.updateVersion", "version" to BuildConfig.VERSION_NAME) +
+                    if (minimumVersion != null) {
+                        t("shell.updateMinimum", "version" to minimumVersion)
+                    } else {
+                        ""
+                    },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

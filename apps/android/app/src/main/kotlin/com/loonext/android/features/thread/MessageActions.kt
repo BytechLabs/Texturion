@@ -698,8 +698,11 @@ private fun QuotedMessageWell(message: Message, contactName: String, zone: ZoneI
         )
         Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) {
+            // The quotation MARKS come from the catalogue with the text inside
+            // them: French sets a quotation in guillemets, with spaces.
+            val quoted = message.body.trim().ifBlank { t("thread.photo") }
             Text(
-                "“${message.body.trim().ifBlank { t("thread.photo") }}”",
+                t("thread.quoted", "text" to quoted),
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 12.5.sp,
                     lineHeight = 18.sp,

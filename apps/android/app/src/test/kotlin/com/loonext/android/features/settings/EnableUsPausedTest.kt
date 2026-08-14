@@ -247,15 +247,26 @@ class EnableUsPausedTest {
             // `copy.` read is words on a screen; it cannot withhold anything.
             .filterNot { it == "pause: PauseRead," || it.startsWith("copy.") }
 
-        assertEquals(
+        val complaint =
             "something on the enable-US card consults the pause besides the one " +
                 "line that words it. Greying the button, withdrawing it during the " +
                 "read, returning early, sizing it to nothing — they are one defect " +
                 "with many shapes, and what they share is this: a refusal has to " +
                 "ask whether the workspace is paused. Turning the fact into " +
-                "sentences is the only thing on this card that may",
-            listOf("val copy = enableUsCopy(fee, pause.isPaused)"),
-            consulted,
+                "sentences is the only thing on this card that may"
+
+        // The COUNT is the guarantee, and it is unchanged: exactly one line in
+        // this composable may mention the pause at all. Any second line, of any
+        // shape, still fails here without this guard having heard of it.
+        assertEquals(complaint, 1, consulted.size)
+        // Only the tail of that one line is now open, because #228 appended the
+        // reader's language to the call. A trailing argument cannot smuggle in a
+        // second consultation — that is what the count above is for — and
+        // pinning the whole line made a translation look like the defect this
+        // test was written to catch.
+        assertTrue(
+            "$complaint (found: ${consulted.firstOrNull()})",
+            consulted.firstOrNull()?.startsWith("val copy = enableUsCopy(fee, pause.isPaused") == true,
         )
 
         // ...and the block above it still hands the card the fact rather than
@@ -284,15 +295,28 @@ class EnableUsPausedTest {
     @Test
     fun `the branch is decided once, from the answer rather than a guess`() {
         val src = withoutComments(readMainSource(card))
+        // The lookbehind drops the declaration itself, whose parameter list
+        // would otherwise read as a second call site and make the count
+        // meaningless.
+        val callArgs = Regex("(?<!fun )enableUsCopy\\(([^)]*)\\)").findAll(src)
+            .map { it.groupValues[1].trim() }
+            .toList()
         assertEquals(
             "the copy is decided once, from the read's own answer",
-            listOf("fee, pause.isPaused"),
-            // The lookbehind drops the declaration itself, whose parameter list
-            // would otherwise read as a second call site and make the count
-            // meaningless.
-            Regex("(?<!fun )enableUsCopy\\(([^)]*)\\)").findAll(src)
-                .map { it.groupValues[1].trim() }
-                .toList(),
+            1,
+            callArgs.size,
+        )
+        // `startsWith`, not equality. This pinned the whole argument list and
+        // #228 broke it by appending `LocalAppLocale.current` — a reader's
+        // language, which is not one of the things this guard cares about. What
+        // it cares about is that the pause answer arrives HERE, from the read,
+        // and nowhere else on the card; a trailing argument cannot smuggle in a
+        // second consultation, and `assertFalse(paused_at)` below still refuses
+        // the re-derivation that shipped as the original defect.
+        assertTrue(
+            "the fee and the read's own pause answer must be what words this card, " +
+                "but the call reads `enableUsCopy(${callArgs.firstOrNull()})`",
+            callArgs.firstOrNull()?.startsWith("fee, pause.isPaused") == true,
         )
         assertFalse(
             "`paused_at != null` re-derives what [PauseRead] already decided, and " +

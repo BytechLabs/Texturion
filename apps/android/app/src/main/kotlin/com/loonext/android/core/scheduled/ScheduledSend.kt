@@ -1,5 +1,6 @@
 package com.loonext.android.core.scheduled
 
+import com.loonext.android.core.i18n.AppStrings
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.ZoneId
@@ -58,37 +59,37 @@ object ScheduledSend {
      * no remedy, because there is not one — an opt-out can only be lifted by
      * the customer, which is carrier truth rather than our policy.
      */
-    val HOLD_REASONS: Map<String, String> = mapOf(
-        "subscription_inactive" to
-            "Your subscription has lapsed, so this has not been sent. It will go out when billing is sorted.",
+    val HOLD_REASON_KEYS: Map<String, String> = mapOf(
+        "subscription_inactive" to "domain.scheduledHoldSubscriptionInactive",
         // #277: the seasonal hold. A SEPARATE reason from a lapse because the
         // events and the remedies are separate: nothing lapsed, no card needs
         // sorting, and the number is not on any clock. The sentence above used
         // to say "paused" for a lapse; that word belongs to this now, and two
         // reasons both claiming it is the confusion this roster exists to stop.
-        "workspace_paused" to
-            "Your plan is paused, so this has not been sent. It will go out when you resume.",
-        "registration_pending" to
-            "This is waiting on carrier approval for US texting. It will send once that clears.",
-        "service_unavailable" to
-            "Texting is paused while we deal with an issue. This is still queued and nothing was lost.",
-        "customer_replied" to
-            "They replied after you scheduled this, so we held it rather than talk over them. Send it anyway, or cancel it.",
-        "recipient_opted_out" to
-            "They replied STOP after you scheduled this, so it was not sent. Only they can undo that.",
-        "invalid_destination" to
-            "We cannot text this number any more, so this was not sent.",
-        "expired" to
-            "The send window passed before this could go, so it was not sent. A late message is usually worse than none.",
-        "workspace_closed" to
-            "The workspace was closed before this was due to send.",
+        "workspace_paused" to "domain.scheduledHoldWorkspacePaused",
+        "registration_pending" to "domain.scheduledHoldRegistrationPending",
+        "service_unavailable" to "domain.scheduledHoldServiceUnavailable",
+        "customer_replied" to "domain.scheduledHoldCustomerReplied",
+        "recipient_opted_out" to "domain.scheduledHoldOptedOut",
+        "invalid_destination" to "domain.scheduledHoldInvalidDestination",
+        "expired" to "domain.scheduledHoldExpired",
+        "workspace_closed" to "domain.scheduledHoldWorkspaceClosed",
         // #237: done, deleted, or reminders switched off for that job. One
         // reason for three causes — from the reader's side the actionable fact
         // is identical, and three near-identical sentences is the drift this
         // roster exists to prevent.
-        "job_no_longer_scheduled" to
-            "That job is no longer booked, so this reminder was not sent.",
+        "job_no_longer_scheduled" to "domain.scheduledHoldJobUnscheduled",
     )
+
+    /** The roster, in the reader's language. */
+    fun holdReasons(locale: String? = null): Map<String, String> =
+        HOLD_REASON_KEYS.mapValues { (_, key) -> AppStrings.translate(locale, key) }
+
+    val HOLD_REASONS: Map<String, String> get() = holdReasons()
+
+    /** One hold reason, or empty rather than a crash on a reason we do not know. */
+    fun holdReason(reason: String, locale: String? = null): String =
+        HOLD_REASON_KEYS[reason]?.let { AppStrings.translate(locale, it) } ?: ""
 
     /**
      * Does this reason clear on its own?
@@ -121,21 +122,22 @@ object ScheduledSend {
      * `TextButton` and a web dialog footer have different conventions and a
      * shared "Cancel" would be pretending otherwise.
      */
-    val COPY: Map<String, String> = mapOf(
-        "picker_reassurance" to
-            "You can change or cancel it any time before it goes.",
-        "quiet_hours_choice" to
-            "You can send it anyway, or pick a time in their morning.",
-        "quiet_hours_unknown" to
-            "That time is inside this customer's quiet hours.",
-        "canceled_confirmation" to
-            "Cancelled — that text will not go out.",
-        "nothing_scheduled" to
-            "Nothing is waiting to send. Anything you schedule shows up here.",
+    val COPY_KEYS: Map<String, String> = mapOf(
+        "picker_reassurance" to "domain.scheduledPickerReassurance",
+        "quiet_hours_choice" to "domain.scheduledQuietHoursChoice",
+        "quiet_hours_unknown" to "domain.scheduledQuietHoursUnknown",
+        "canceled_confirmation" to "domain.scheduledCancelled",
+        "nothing_scheduled" to "domain.scheduledNothingWaiting",
     )
 
-    /** One line of [COPY], or empty rather than a crash on a key typo. */
-    fun copy(key: String): String = COPY[key] ?: ""
+    fun copyLines(locale: String? = null): Map<String, String> =
+        COPY_KEYS.mapValues { (_, key) -> AppStrings.translate(locale, key) }
+
+    val COPY: Map<String, String> get() = copyLines()
+
+    /** One line of [COPY_KEYS], or empty rather than a crash on a key typo. */
+    fun copy(key: String, locale: String? = null): String =
+        COPY_KEYS[key]?.let { AppStrings.translate(locale, it) } ?: ""
 
     /**
      * Whose clock the sender picked against, said out loud.
@@ -145,11 +147,15 @@ object ScheduledSend {
      * their area code" in one place and something else in another has two
      * vocabularies for one fact.
      */
-    fun clockProvenance(source: String): String = when (source) {
-        "contact" -> "their time, set on their contact"
-        "area_code" -> "their time, from their area code"
-        else -> "your workspace's time — we don't know theirs"
-    }
+    fun clockProvenance(source: String, locale: String? = null): String =
+        AppStrings.translate(
+            locale,
+            when (source) {
+                "contact" -> "domain.clockTheirTimeContact"
+                "area_code" -> "domain.clockTheirTimeAreaCode"
+                else -> "domain.clockWorkspaceTime"
+            },
+        )
 
     /** One offer in the send-later menu. `at` is null for the picker. */
     data class Preset(val id: String, val label: String, val at: Instant?)
@@ -163,12 +169,13 @@ object ScheduledSend {
      * Computed in the DESTINATION's zone, because "tomorrow 8am" means 8am
      * where the customer is reading it.
      */
-    fun presets(now: Instant, zone: ZoneId): List<Preset> {
+    fun presets(now: Instant, zone: ZoneId, locale: String? = null): List<Preset> {
         val here = now.atZone(zone)
+        fun say(key: String) = AppStrings.translate(locale, key)
         return listOf(
-            Preset("tomorrow", "Tomorrow, 8:00am", atHour(here.plusDays(1))),
-            Preset("monday", "Monday, 8:00am", atHour(nextMonday(here))),
-            Preset("custom", "Pick a time", null),
+            Preset("tomorrow", say("domain.scheduledPresetTomorrow"), atHour(here.plusDays(1))),
+            Preset("monday", say("domain.scheduledPresetMonday"), atHour(nextMonday(here))),
+            Preset("custom", say("domain.scheduledPresetCustom"), null),
         )
     }
 

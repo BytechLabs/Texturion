@@ -299,72 +299,96 @@ fun eventTargetOf(event: ConversationEvent): EventTarget? {
 /**
  * Human line for an audit event. Unknown types fall back to a plain reading of
  * the type name so a lagging app build never renders raw snake_case.
+ *
+ * #228: [locale] defaults to English so the pure callers — and the tests that
+ * pin these sentences — read exactly as they did; the screen passes
+ * `LocalAppLocale.current`. Every actor is INTERPOLATED into the catalogue
+ * sentence rather than concatenated in front of it, for the reason web's own
+ * catalogue states: the subject does not sit at the front in every language.
  */
 fun eventLine(
     event: ConversationEvent,
     memberNames: Map<String, String>,
     contactName: String,
+    locale: String? = null,
 ): String {
-    val actor = event.actor_user_id?.let { memberNames[it] } ?: "Someone"
+    fun say(key: String, vararg vars: Pair<String, String>): String =
+        AppStrings.translate(locale, key, vars.toMap())
+
+    val actor = event.actor_user_id?.let { memberNames[it] }
+        ?: say("thread.sysSomeone")
     val system = event.actor_user_id == null
     return when (event.type) {
         "status_changed" -> {
             val to = event.payloadString("to")
-            if (to != null) "$actor moved this to ${statusLabel(to)}"
-            else "$actor changed the status"
+            if (to != null) {
+                say("thread.sysMovedTo", "by" to actor, "status" to statusLabel(to, locale))
+            } else {
+                say("thread.sysStatusChanged", "by" to actor)
+            }
         }
 
         "assigned" -> {
             val to = event.payloadString("to")
             when {
-                to == null -> "$actor unassigned this conversation"
-                else -> "$actor assigned this to ${memberNames[to] ?: "a teammate"}"
+                to == null -> say("thread.sysUnassigned", "by" to actor)
+                else -> say(
+                    "thread.sysAssignedTo",
+                    "by" to actor,
+                    "name" to (memberNames[to] ?: say("thread.sysATeammate")),
+                )
             }
         }
 
         "tag_added" -> {
             val name = event.payloadString("name")
-            if (name != null) "$actor added the tag \"$name\"" else "$actor added a tag"
+            if (name != null) say("thread.sysTagAdded", "by" to actor, "name" to name)
+            else say("thread.sysTagAddedGeneric", "by" to actor)
         }
 
-        "tag_removed" -> "$actor removed a tag"
+        "tag_removed" -> say("thread.sysTagRemoved", "by" to actor)
         "opted_out" ->
-            if (system) "$contactName opted out of texts" else "$actor opted $contactName out"
+            if (system) say("thread.sysOptedOutSystem", "name" to contactName)
+            else say("thread.sysOptedOutBy", "by" to actor, "name" to contactName)
 
         "opt_out_revoked" ->
-            if (system) "$contactName opted back in" else "$actor removed the opt-out"
+            if (system) say("thread.sysOptedInSystem", "name" to contactName)
+            else say("thread.sysOptOutRevoked", "by" to actor)
 
-        "consent_attested" -> "$actor attested consent to text $contactName"
+        "consent_attested" ->
+            say("thread.sysConsentAttested", "by" to actor, "name" to contactName)
         // #225: names the FACT (a send landed in the customer's quiet window), not
         // an attestation. With the confirmation switched off the same event is
         // written and nobody confirmed anything, so "confirmed" would be a lie —
         // and web has always said it this way, so this is parity too.
-        "quiet_hours_confirmed" -> "$actor sent during this customer's quiet hours"
+        "quiet_hours_confirmed" -> say("thread.sysQuietHours", "by" to actor)
         // #237: the actor is the CUSTOMER, who has no user row, so this line
         // carries no name. "Sam confirmed the appointment" would credit the
         // crew with the customer's answer.
-        "appointment_confirmed" -> "They confirmed the appointment"
+        "appointment_confirmed" -> say("thread.sysAppointmentConfirmed")
         // #313: the customer again, so no name. The SCORE is the whole line.
         "job_rated" ->
-            "They rated the job ${event.payloadString("score") ?: "?"} out of 5"
-        "spam_marked" -> "$actor marked this as spam"
-        "spam_unmarked" -> "$actor marked this as not spam"
-        "message_done" -> "$actor marked a message done"
-        "message_undone" -> "$actor reopened a message"
-        "task_created" -> "$actor created a task"
-        "task_assigned" -> "$actor assigned a task"
-        "task_due_set" -> "$actor set a task due date"
-        "task_deleted" -> "$actor deleted a task"
+            say("thread.sysJobRated", "score" to (event.payloadString("score") ?: "?"))
+        "spam_marked" -> say("thread.sysSpamMarked", "by" to actor)
+        "spam_unmarked" -> say("thread.sysSpamUnmarked", "by" to actor)
+        "message_done" -> say("thread.sysMessageDone", "by" to actor)
+        "message_undone" -> say("thread.sysMessageUndone", "by" to actor)
+        "task_created" -> say("thread.sysTaskCreated", "by" to actor)
+        "task_assigned" -> say("thread.sysTaskAssigned", "by" to actor)
+        "task_due_set" -> say("thread.sysTaskDueSet", "by" to actor)
+        "task_deleted" -> say("thread.sysTaskDeleted", "by" to actor)
         // #317 — a file this customer sent that we would not store. Same copy
         // as web (system-line.tsx) and iOS (Timeline.swift), word for word: a
         // crew comparing the phone and the laptop must not read two different
-        // histories for one conversation.
-        "media_refused" -> mediaRefusedLine(event)
-        "note_attachment_added" -> "$actor attached a file to a note"
-        "note_attachment_removed" -> "$actor removed a file from a note"
-        "task_attachment_added" -> "$actor attached a file to a task"
-        "task_attachment_removed" -> "$actor removed a file from a task"
-        "missed_call" -> "Missed call from $contactName"
+        // histories for one conversation. The sentences themselves now live in
+        // `core/i18n/ThreadStrings.kt`, which is where the parity guard reads
+        // them — the same move web made when its copy left `system-line.tsx`.
+        "media_refused" -> mediaRefusedLine(event, locale)
+        "note_attachment_added" -> say("thread.sysNoteAttachmentAdded", "by" to actor)
+        "note_attachment_removed" -> say("thread.sysNoteAttachmentRemoved", "by" to actor)
+        "task_attachment_added" -> say("thread.sysTaskAttachmentAdded", "by" to actor)
+        "task_attachment_removed" -> say("thread.sysTaskAttachmentRemoved", "by" to actor)
+        "missed_call" -> say("thread.sysMissedCallFrom", "name" to contactName)
         // #273: the server puts direction, outcome, forward_seconds and a
         // transfer pair on this payload, and this arm read ONE of them. Every
         // shape that was not a voicemail collapsed to "Call with X ended", so a
@@ -375,12 +399,12 @@ fun eventLine(
         // Branch order matters and mirrors web exactly (system-line.tsx): a
         // voicemail is also an inbound call with an outcome, so the specific
         // shapes have to be tested before the generic ones.
-        "call_completed" -> callCompletedLine(event, memberNames)
-        "auto_reply_sent" -> "Away auto-reply sent"
+        "call_completed" -> callCompletedLine(event, memberNames, locale)
+        "auto_reply_sent" -> say("thread.sysAutoReplySent")
         // #607/#224 — money. See `paymentLine`: these five had no arm, so they
         // fell through to the generic reading below and the transcript said
         // "Payment paid" where web said nothing at all.
-        in PAYMENT_EVENT_TYPES -> paymentLine(event, actor)
+        in PAYMENT_EVENT_TYPES -> paymentLine(event, actor, locale)
         else -> event.type.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
 }
@@ -426,7 +450,14 @@ fun eventLine(
  * an arm on all three clients, because a line that is right on one screen and
  * absent on another is the defect, not the fix.
  */
-private fun paymentLine(event: ConversationEvent, actor: String): String {
+private fun paymentLine(
+    event: ConversationEvent,
+    actor: String,
+    locale: String?,
+): String {
+    fun say(key: String, vararg vars: Pair<String, String>): String =
+        AppStrings.translate(locale, key, vars.toMap())
+
     // Through the money formatter, never typed, at the PAYLOAD's currency as
     // both amount and audience — the same rule PaymentStrip states: this figure
     // is in the STRIPE ACCOUNT's currency, which need not be the one the
@@ -439,17 +470,26 @@ private fun paymentLine(event: ConversationEvent, actor: String): String {
     val head = when (event.type) {
         // The crew, who have a user row, so these two carry their name.
         "payment_requested" ->
-            if (amount != null) "$actor asked for $amount" else "$actor asked for a payment"
+            if (amount != null) {
+                say("thread.sysPaymentRequested", "by" to actor, "amount" to amount)
+            } else {
+                say("thread.sysPaymentRequestedGeneric", "by" to actor)
+            }
 
         "payment_cancelled" ->
-            if (amount != null) "$actor called off the $amount request"
-            else "$actor called off the request"
+            if (amount != null) {
+                say("thread.sysPaymentCancelled", "by" to actor, "amount" to amount)
+            } else {
+                say("thread.sysPaymentCancelledGeneric", "by" to actor)
+            }
 
         // The customer, and then their bank. `actor_user_id` is null on all
         // three of these — the Connect webhook writes them, and stamping a crew
         // member would put a name against somebody else's action — so they name
         // nobody, the way `appointment_confirmed` and `job_rated` already do.
-        "payment_paid" -> if (amount != null) "They paid $amount" else "They paid"
+        "payment_paid" ->
+            if (amount != null) say("thread.sysPaymentPaid", "amount" to amount)
+            else say("thread.sysPaymentPaidGeneric")
 
         "payment_refunded" -> {
             // What actually went back, when the webhook recorded it: a PARTIAL
@@ -458,15 +498,18 @@ private fun paymentLine(event: ConversationEvent, actor: String): String {
             // no refund figure, which is the shared decision's rule across all
             // three clients.
             val back = event.payloadCents("amount_refunded_cents")?.takeIf { it > 0 } ?: cents
-            if (back != null) "${formatMoney(back, money)} went back to them"
-            else "The money went back to them"
+            if (back != null) {
+                say("thread.sysPaymentRefunded", "amount" to formatMoney(back, money))
+            } else {
+                say("thread.sysPaymentRefundedGeneric")
+            }
         }
 
         // Same words as `payments.disputedNote` on the strip, which says "Their
         // bank has pulled this back": one event, one vocabulary.
         "payment_disputed" ->
-            if (amount != null) "Their bank pulled back $amount"
-            else "Their bank pulled this payment back"
+            if (amount != null) say("thread.sysPaymentDisputed", "amount" to amount)
+            else say("thread.sysPaymentDisputedGeneric")
 
         // Unreachable — `PAYMENT_EVENT_TYPES` is the set of arms above and
         // `PaymentTimelineTest` holds the two to each other in both directions.
@@ -482,7 +525,11 @@ private fun paymentLine(event: ConversationEvent, actor: String): String {
     // shared suffix and not five branches that would drift the moment the
     // cancel route started writing it.
     val description = event.payloadString("description")?.takeIf { it.isNotBlank() }
-    return if (description != null) "$head — $description" else head
+    return if (description != null) {
+        say("thread.sysPaymentWithDescription", "line" to head, "description" to description)
+    } else {
+        head
+    }
 }
 
 /**
@@ -510,39 +557,37 @@ val PAYMENT_EVENT_TYPES = setOf(
  * customer forgot to attach one. Every arm ends in what to DO about it, which is
  * the only part they can act on between jobs.
  */
-private fun mediaRefusedLine(event: ConversationEvent): String =
+private fun mediaRefusedLine(event: ConversationEvent, locale: String?): String =
     when (event.payloadString("reason")) {
-        "too_large" ->
-            "A file this customer sent was too big to save — ask them to send a smaller one"
+        "too_large" -> AppStrings.translate(locale, "thread.sysMediaTooLarge")
 
-        "empty" ->
-            "A file this customer sent arrived empty — ask them to send it again"
+        "empty" -> AppStrings.translate(locale, "thread.sysMediaEmpty")
 
-        "type_mismatch" ->
-            "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved"
+        "type_mismatch" -> AppStrings.translate(locale, "thread.sysMediaTypeMismatch")
 
         // #317: the file WAS the type it claimed and the type is allowed —
         // what is inside it is the problem. One line, one action: which of a
         // macro project, a packed program or an auto-running script it turned
         // out to be changes nothing the crew can do about it.
-        "unsafe_content" ->
-            "A file this customer sent had something unsafe inside it, so it wasn't saved — ask them for a photo or a plain PDF"
+        "unsafe_content" -> AppStrings.translate(locale, "thread.sysMediaUnsafe")
 
-        "unreadable" ->
-            "A file this customer sent couldn't be checked, so it wasn't saved — ask them to send it again"
+        "unreadable" -> AppStrings.translate(locale, "thread.sysMediaUnreadable")
 
         "too_many_items" -> {
             val kept = event.payloadString("index")?.toIntOrNull() ?: 0
             if (kept > 0) {
-                "This message came with more files than we can save — the first $kept were kept"
+                AppStrings.translate(
+                    locale,
+                    "thread.sysMediaTooManyKept",
+                    mapOf("kept" to kept.toString()),
+                )
             } else {
-                "This message came with more files than we can save"
+                AppStrings.translate(locale, "thread.sysMediaTooMany")
             }
         }
         // unsupported_type, and anything a later server adds: the honest general
         // case, still ending in the thing that works.
-        else ->
-            "A file this customer sent can't be shown here — ask them to send a photo or a PDF"
+        else -> AppStrings.translate(locale, "thread.sysMediaUnsupported")
     }
 
 fun statusLabel(status: String, locale: String? = null): String = when (status) {
@@ -579,18 +624,32 @@ fun memberNames(
 private fun callCompletedLine(
     event: ConversationEvent,
     memberNames: Map<String, String>,
+    locale: String?,
 ): String {
+    fun say(key: String, vararg vars: Pair<String, String>): String =
+        AppStrings.translate(locale, key, vars.toMap())
+
+    // The line and how long it lasted, joined. One rule for every call shape,
+    // kept as its own key so a language that punctuates it differently can say
+    // so — the same split web's `sysWithDuration` makes.
+    fun withDuration(line: String, forSeconds: Int): String =
+        if (forSeconds > 0) {
+            say(
+                "thread.sysWithDuration",
+                "line" to line,
+                "duration" to formatCallDuration(forSeconds),
+            )
+        } else {
+            line
+        }
+
     val outcome = event.payloadString("outcome")
     val seconds = event.payloadString("forward_seconds")?.toIntOrNull() ?: 0
 
     // D38: an outbound bridge call speaks from the crew's side.
     if (event.payloadString("direction") == "outbound") {
-        if (outcome == "missed") return "Called, no answer"
-        return if (seconds > 0) {
-            "You called · ${formatCallDuration(seconds)}"
-        } else {
-            "You called"
-        }
+        if (outcome == "missed") return say("thread.sysCalledNoAnswer")
+        return withDuration(say("thread.sysYouCalled"), seconds)
     }
 
     // D43 phase 3: who handed the call to whom. A transfer that never ended
@@ -598,32 +657,31 @@ private fun callCompletedLine(
     if (event.payloadString("kind") == "transferred") {
         val to = event.payloadString("to_user_id")?.let { memberNames[it] }
         val from = event.payloadString("from_user_id")?.let { memberNames[it] }
-        if (to != null && from != null) return "$from transferred the call to $to"
-        return if (to != null) "Call transferred to $to" else "Call transferred"
+        if (to != null && from != null) {
+            return say("thread.sysTransferredBy", "from" to from, "to" to to)
+        }
+        return if (to != null) say("thread.sysTransferredTo", "to" to to)
+        else say("thread.sysTransferred")
     }
 
     // D43: the voicemail line carries the MESSAGE duration, not the call's.
     if (event.payloadString("kind") == "voicemail") {
         val vmSeconds = event.payloadString("voicemail_seconds")?.toIntOrNull() ?: 0
-        return if (vmSeconds > 0) {
-            "Left a voicemail · ${formatCallDuration(vmSeconds)}"
-        } else {
-            "Left a voicemail"
-        }
+        return withDuration(say("thread.sysLeftVoicemail"), vmSeconds)
     }
 
-    if (outcome == "voicemail") return "Call went to voicemail"
-    if (outcome == "missed") return "Missed call"
+    if (outcome == "voicemail") return say("thread.sysWentToVoicemail")
+    if (outcome == "missed") return say("thread.sysMissedCall")
     // #517: WHO picked up. On a crew, "Call answered" leaves out the one thing
     // the rest of them wanted to know. Falls back to the bare line when the
     // answerer is unknown (a call answered before the server started reporting
     // it) or has left the roster — "Call answered by " with nothing after it
     // would be worse than the line it replaced.
     val answeredBy = event.payloadString("answered_by_user_id")?.let { memberNames[it] }
-    val answered = if (answeredBy != null) "Call answered by $answeredBy" else "Call answered"
-    return if (seconds > 0) {
-        "$answered · ${formatCallDuration(seconds)}"
+    val answered = if (answeredBy != null) {
+        say("thread.sysAnsweredBy", "name" to answeredBy)
     } else {
-        answered
+        say("thread.sysAnswered")
     }
+    return withDuration(answered, seconds)
 }

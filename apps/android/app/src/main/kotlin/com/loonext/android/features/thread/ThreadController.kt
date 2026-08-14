@@ -6,6 +6,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.oncall.OnCall
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.MeRepository
@@ -104,6 +105,19 @@ class ThreadController(
     private val meUserId: String,
     private val scope: CoroutineScope,
 ) {
+    /**
+     * #228 — the reader's language, for the sentences this controller writes
+     * itself.
+     *
+     * A plain `var` kept current by the screen rather than a constructor
+     * argument: the controller is remembered across recompositions on
+     * (company, conversation), so a language changed in Settings while a thread
+     * is open would otherwise keep speaking the old one until the thread was
+     * closed and reopened. Null is English, which is what every non-UI caller
+     * and every test gets.
+     */
+    var locale: String? = null
+
     var load by mutableStateOf<LoadState<Unit>>(LoadState.Loading)
         private set
     var conversation by mutableStateOf<ConversationDetail?>(null)
@@ -216,6 +230,10 @@ class ThreadController(
     ) {
         notice = ThreadNotice(++noticeSeq, text, actionLabel, action)
     }
+
+    /** One of our own sentences, in the reader's language. See [locale]. */
+    private fun say(key: String, vararg vars: Pair<String, String>): String =
+        AppStrings.translate(locale, key, vars.toMap())
 
     // --- Loading -------------------------------------------------------------
 
@@ -812,7 +830,7 @@ class ThreadController(
      */
     fun flushOutbox() {
         scope.launch {
-            val flusher = OutboxFlusher(outbox) { item ->
+            val flusher = OutboxFlusher(outbox, locale = locale) { item ->
                 // The photos, read back from our own storage. A file that is
                 // gone must NOT become a quiet text-only send: the person
                 // attached it for a reason, so the row stops and says so, and
@@ -826,7 +844,7 @@ class ThreadController(
                     }
                 }
                 if (media.size != item.media.size) {
-                    return@OutboxFlusher SendOutcome.Refused(OUTBOX_MEDIA_LOST_MESSAGE)
+                    return@OutboxFlusher SendOutcome.Refused(outboxMediaLostMessage(locale))
                 }
                 try {
                     val message = repo.send(
@@ -989,9 +1007,13 @@ class ThreadController(
             if (failedCount > 0) {
                 notify(
                     if (failedCount == files.size) {
-                        "The note saved, but its files didn't upload."
+                        say("thread.noteFilesAllFailed")
                     } else {
-                        "The note saved, but $failedCount of ${files.size} files didn't upload."
+                        say(
+                            "thread.noteFilesSomeFailed",
+                            "failed" to failedCount.toString(),
+                            "total" to files.size.toString(),
+                        )
                     },
                 )
             }
@@ -1054,15 +1076,15 @@ class ThreadController(
                         promoted_task = MessageTaskLink(task.id, task.title),
                     ),
                 )
-                notify("Task created.")
+                notify(say("thread.taskCreated"))
             } catch (cause: ApiDecodeException) {
                 // The task WAS created (2xx) — only the response decode failed.
                 // Success, honestly reported; the refresh fetches truth.
-                notify("Task created.")
+                notify(say("thread.taskCreated"))
                 runCatching { refreshMessagesFirstPage() }
             } catch (cause: Exception) {
                 if ((cause as? ApiException)?.code == ApiErrorCode.CONFLICT) {
-                    notify("This message already has a task.")
+                    notify(say("thread.alreadyHasTask"))
                     runCatching { refreshMessagesFirstPage() }
                 } else {
                     notify(cause.userMessage())
@@ -1131,9 +1153,12 @@ class ThreadController(
                 applyConversationRow(repo.setSpam(companyId, conversationId, spam))
                 runCatching { refreshEvents() }
                 if (spam) {
-                    notify("Marked as spam.", actionLabel = "Undo") { setSpam(false) }
+                    notify(
+                        say("thread.markedAsSpam"),
+                        actionLabel = say("thread.undo"),
+                    ) { setSpam(false) }
                 } else {
-                    notify("Marked as not spam. It stays closed.")
+                    notify(say("thread.markedAsNotSpam"))
                 }
             } catch (cause: Exception) {
                 notify(cause.userMessage())
@@ -1194,7 +1219,7 @@ class ThreadController(
         scope.launch {
             try {
                 applyConversationRow(repo.clearSpamSuspicion(companyId, conversationId))
-                notify("Thanks. We won't flag this one.")
+                notify(say("thread.spamCleared"))
             } catch (cause: Exception) {
                 notify(cause.userMessage())
             }
@@ -1223,13 +1248,22 @@ class ThreadController(
                     snooze_kind = kind,
                 )
                 persistSnapshot()
+                // #228 CAUTION: `snoozeReturnLabel` is core/snooze's and still
+                // answers in English, and this splice swaps its first word.
+                // Swapping "Back" for a lead phrase is a rule about English
+                // grammar written as a `replace`, and it does nothing at all
+                // once that label is French. The two LEADS are in the
+                // catalogue now; the WHEN-clause behind them cannot be until
+                // `SnoozeLogic.kt` is extracted, and the day it is, this call
+                // has to become web's two-part `snoozeWhen*` + `snoozeLead*`
+                // rather than a substring swap.
                 notify(
                     snoozeReturnLabel(untilIso).replace(
                         "Back",
                         if (kind == DeferralKind.FOLLOW_UP) {
-                            "I'll remind you — back"
+                            say("thread.snoozeLeadRemind")
                         } else {
-                            "Snoozed — back"
+                            say("thread.snoozeLeadSnoozed")
                         },
                     ),
                 )
@@ -1253,7 +1287,8 @@ class ThreadController(
                 )
                 persistSnapshot()
                 notify(
-                    if (wasFollowUp) "Reminder cancelled." else "Back in your inbox.",
+                    if (wasFollowUp) say("thread.reminderCancelled")
+                    else say("thread.backInYourInbox"),
                 )
             } catch (cause: Exception) {
                 notify(cause.userMessage())

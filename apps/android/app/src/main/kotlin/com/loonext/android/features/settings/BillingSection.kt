@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.BillingModule
 import com.loonext.android.core.model.CompanyView
@@ -1333,6 +1334,9 @@ private fun PlanCard(
 ) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
+    // The held-number line is composed by a pure function next door, so it
+    // is handed the reader's language rather than reading one itself.
+    val locale = LocalAppLocale.current
 
     if (company.subscription_status == SubscriptionStatus.CANCELED) {
         CanceledSubscriptionCard(scope, company, canManage, onOpenHelp)
@@ -1444,6 +1448,7 @@ private fun PlanCard(
                 company.numbers
                     .filter { it.status == NumberStatus.SUSPENDED }
                     .map { it.number_e164 },
+                locale,
             )?.let { note ->
                 Spacer(Modifier.height(10.dp))
                 Text(note, style = MaterialTheme.typography.bodyMedium)
@@ -1623,6 +1628,10 @@ private fun ChangePlanDialog(
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    // Read HERE and closed over: the confirm handler runs in a coroutine,
+    // long after this composition, and `changePlanMessage` is not a
+    // composable.
+    val locale = LocalAppLocale.current
 
     /**
      * #583 — a prepaid year running underneath this switch.
@@ -1702,7 +1711,7 @@ private fun ChangePlanDialog(
                     // #523: an upgrade is one of the two routes out of a hold,
                     // so the sentence names what the bigger allowance brought
                     // back rather than leaving the owner to go and look.
-                    scope.showMessage(changePlanMessage(result))
+                    scope.showMessage(changePlanMessage(result, locale))
                     onChanged()
                 } catch (cause: Exception) {
                     error = cause.userMessage()

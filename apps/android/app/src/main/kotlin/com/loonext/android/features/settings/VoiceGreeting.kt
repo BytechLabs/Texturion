@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaRecorder
 import android.os.Build
 import com.loonext.android.core.auth.await
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
@@ -62,15 +63,21 @@ fun formatGreetingDuration(ms: Int): String {
  */
 class GreetingUploader(private val api: ApiClient, private val baseUrl: String) {
 
+    /**
+     * [locale] is the READER's, carried in because this is not a composable and
+     * the two refusals below are ours rather than the server's. Null asks for
+     * the English table, which is what every caller had before it existed.
+     */
     suspend fun upload(
         companyId: String,
         name: String,
         durationMs: Int,
         audio: ByteArray,
+        locale: String? = null,
     ): VoicemailGreeting {
         val session = api.freshSession() ?: throw ApiException(
             ApiErrorCode.UNAUTHORIZED,
-            "You're signed out.",
+            AppStrings.translate(locale, "settingsMore.signedOut"),
             401,
         )
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
@@ -93,7 +100,7 @@ class GreetingUploader(private val api: ApiClient, private val baseUrl: String) 
         } catch (_: IOException) {
             throw ApiException(
                 ApiErrorCode.NETWORK,
-                "Can't reach Loonext. Check your connection.",
+                AppStrings.translate(locale, "settingsMore.cantReachLoonext"),
                 0,
             )
         }

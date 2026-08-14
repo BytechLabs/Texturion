@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.OutboundMedia
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Dispatchers
@@ -58,8 +59,16 @@ sealed interface PhotoPrepResult {
  * untouched (an animated GIF survives); anything else — HEIC, WebP, or an
  * oversized photo — is transcoded to JPEG under 1 MB with the platform codecs
  * (progressive downscale + quality steps).
+ *
+ * #228: [locale] is the reader's language, carried in because a refusal built
+ * on an IO dispatcher cannot ask composition for it. It defaults to English so
+ * the existing callers and their tests are unchanged.
  */
-suspend fun preparePhoto(context: Context, uri: Uri): PhotoPrepResult =
+suspend fun preparePhoto(
+    context: Context,
+    uri: Uri,
+    locale: String? = null,
+): PhotoPrepResult =
     withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val raw = try {
@@ -67,7 +76,7 @@ suspend fun preparePhoto(context: Context, uri: Uri): PhotoPrepResult =
         } catch (_: Exception) {
             null
         } ?: return@withContext PhotoPrepResult.Rejected(
-            "Couldn't read that photo. Try attaching it again.",
+            AppStrings.translate(locale, "thread.photoReadFailed"),
         )
 
         val declaredType = resolver.getType(uri)
@@ -84,7 +93,7 @@ suspend fun preparePhoto(context: Context, uri: Uri): PhotoPrepResult =
 
         val jpeg = transcodeToJpeg(raw)
             ?: return@withContext PhotoPrepResult.Rejected(
-                "That image can't be sent. Try a different photo.",
+                AppStrings.translate(locale, "thread.imageCantBeSent"),
             )
         PhotoPrepResult.Ready(
             StagedPhoto(
@@ -195,7 +204,11 @@ fun isAllowedNoteFileType(contentType: String): Boolean {
     return type in ALLOWED_NOTE_FILE_TYPES
 }
 
-fun stageNoteFile(context: Context, uri: Uri): FileStageResult {
+fun stageNoteFile(
+    context: Context,
+    uri: Uri,
+    locale: String? = null,
+): FileStageResult {
     val resolver = context.contentResolver
     var name: String? = null
     var size: Long? = null
@@ -212,21 +225,23 @@ fun stageNoteFile(context: Context, uri: Uri): FileStageResult {
         // Fall through to the honest rejection below.
     }
     val resolvedName = name ?: return FileStageResult.Rejected(
-        "Couldn't read that file. Try picking it again.",
+        AppStrings.translate(locale, "thread.fileReadFailedPick"),
     )
     val resolvedSize = size ?: return FileStageResult.Rejected(
-        "Couldn't read that file's size. Try picking it again.",
+        AppStrings.translate(locale, "thread.fileSizeReadFailed"),
     )
     // Only reject a type that is PRESENT and explicitly disallowed: the server
     // sniffs the bytes and is the authority, so an unknown type still goes.
     val declaredType = resolver.getType(uri).orEmpty()
     if (declaredType.isNotEmpty() && !isAllowedNoteFileType(declaredType)) {
         return FileStageResult.Rejected(
-            "That file type isn't allowed. Images, PDFs, and documents only.",
+            AppStrings.translate(locale, "thread.fileTypeBlocked"),
         )
     }
     if (resolvedSize > MAX_NOTE_FILE_BYTES) {
-        return FileStageResult.Rejected("Files can be up to 25 MB each.")
+        return FileStageResult.Rejected(
+            AppStrings.translate(locale, "thread.fileSizeLimit"),
+        )
     }
     return FileStageResult.Ready(
         StagedFile(

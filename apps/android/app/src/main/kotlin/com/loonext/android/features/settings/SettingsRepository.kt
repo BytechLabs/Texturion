@@ -3,6 +3,7 @@ package com.loonext.android.features.settings
 import com.loonext.android.core.roles.SelfDowngrade
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.auth.await
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.BillingModules
 import com.loonext.android.core.model.ChangePlanResult
 import com.loonext.android.core.model.CompanyView
@@ -572,8 +573,9 @@ class SettingsRepository(
         name: String,
         durationMs: Int,
         audio: ByteArray,
+        locale: String? = null,
     ): VoicemailGreeting =
-        GreetingUploader(api, baseUrl).upload(companyId, name, durationMs, audio)
+        GreetingUploader(api, baseUrl).upload(companyId, name, durationMs, audio, locale)
 
     /**
      * #309's record-by-phone path: WE ring the owner, they speak after the beep
@@ -646,8 +648,9 @@ class SettingsRepository(
         companyId: String,
         portId: String,
         parts: List<DocumentUpload>,
+        locale: String? = null,
     ): PortRequest = api.json.decodeFromString(
-        multipartPut("/v1/port-requests/$portId/documents", companyId, parts),
+        multipartPut("/v1/port-requests/$portId/documents", companyId, parts, locale),
     )
 
     suspend fun submitPort(companyId: String, portId: String): PortRequest =
@@ -681,8 +684,9 @@ class SettingsRepository(
         companyId: String,
         orderId: String,
         parts: List<DocumentUpload>,
+        locale: String? = null,
     ): TextEnablementOrder = api.json.decodeFromString(
-        multipartPut("/v1/text-enablements/$orderId/documents", companyId, parts),
+        multipartPut("/v1/text-enablements/$orderId/documents", companyId, parts, locale),
     )
 
     suspend fun resubmitTextEnablement(companyId: String, orderId: String): TextEnablementOrder =
@@ -957,10 +961,17 @@ class SettingsRepository(
         path: String,
         companyId: String,
         parts: List<DocumentUpload>,
+        /**
+         * The READER's language, carried in from the composable that started
+         * the upload. This class is not a composable, and the two sentences
+         * below are ours rather than the server's — everything the API refuses
+         * with arrives already phrased for a person and is shown as written.
+         */
+        locale: String? = null,
     ): String {
         val session = api.freshSession() ?: throw ApiException(
             ApiErrorCode.UNAUTHORIZED,
-            "You're signed out.",
+            AppStrings.translate(locale, "settingsMore.signedOut"),
             401,
         )
         val body = MultipartBody.Builder().setType(MultipartBody.FORM).apply {
@@ -983,7 +994,7 @@ class SettingsRepository(
         } catch (_: IOException) {
             throw ApiException(
                 ApiErrorCode.NETWORK,
-                "Can't reach Loonext. Check your connection.",
+                AppStrings.translate(locale, "settingsMore.cantReachLoonext"),
                 0,
             )
         }

@@ -127,7 +127,13 @@ class HostHeaderLintTest {
         val host = readMainSource("MainActivity.kt")
         assertTrue(
             "the host header title must track the open settings section",
-            host.contains("section?.title ?: \"Settings\""),
+            // The FALLBACK's form is not this guard's business. It used to pin
+            // `?: "Settings"`, which #228 broke by translating that word into
+            // `t("shell.settings")` — a change this test should not have had an
+            // opinion about. What it is here to catch is a header that stops
+            // following the open section, so it watches the part that does the
+            // following and leaves the default alone.
+            host.contains("section?.title ?:"),
         )
     }
 

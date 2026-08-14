@@ -480,6 +480,159 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.addedBy" to "Added by {who}",
         "contactsTasks.addedByOn" to "Added by {who} on {date}",
         "contactsTasks.editedBy" to "Edited by {who}",
+
+        // ── The consent card (#226) ──────────────────────────────────────
+        // Copied from web's `appShell.ts` (`contactNoConsent` and friends):
+        // the same card, in the same words, so a crew reading it on the phone
+        // and then on the laptop is not told two things about one customer.
+        "contactsTasks.consentNone" to
+            "No consent recorded yet. It's recorded when they text you first, " +
+            "or when you send them their first text, which attests they asked for it.",
+        "contactsTasks.consentTextedFirst" to "Texted you first",
+        "contactsTasks.consentRecorded" to "Consent recorded",
+        "contactsTasks.consentRecordedBy" to "Consent recorded by {name}",
+
+        // ── The filtered-empty list (#291) ───────────────────────────────
+        // NOT the no-contacts-yet line: under a filter those customers are
+        // excluded, not missing. Copied from web's `filteredEmpty*`.
+        "contactsTasks.filterEmptyTitle" to "Nobody matches that yet",
+        "contactsTasks.filterEmptyBody" to
+            "No customer has that answer on file. Clear the filter to see everyone.",
+
+        // ── The map with no basemap (#428) ───────────────────────────────
+        // Copied from web's `misc.mapNoBasemap`. The provider's ATTRIBUTION
+        // beside it is never translated — a reworded credit is a licensing
+        // problem rather than a copy change.
+        "contactsTasks.mapNoBasemap" to
+            "Job pins are exact. The street background needs a map provider " +
+            "configured, which an owner can do in one setting.",
+
+        // ── The contact's history, row by row (#324) ─────────────────────
+        // All twelve copied from web's `contacts.ts` `timeline*` keys: one
+        // chronology, described the same way on both clients.
+        "contactsTasks.timelineJob" to "Job",
+        "contactsTasks.timelineCallAnsweredBy" to "Call answered by {name}",
+        "contactsTasks.timelineCallAnswered" to "Call answered",
+        "contactsTasks.timelineVoicemail" to "Voicemail",
+        "contactsTasks.timelineMissedCall" to "Missed call",
+        "contactsTasks.timelineConversation" to "Conversation",
+        "contactsTasks.timelineDone" to "Done",
+        "contactsTasks.timelineDue" to "Due {date}",
+        "contactsTasks.timelineOpen" to "Open",
+        "contactsTasks.timelineTalkedFor" to "Talked for {duration}",
+        "contactsTasks.timelineNoAnswer" to "No answer",
+        "contactsTasks.timelineClosed" to "Closed",
+
+        // ── Bulk import: the attestation sheet (#226/#248) ───────────────
+        // THE CLAIM is `importAttestation`, copied from web's
+        // `consentLabelFile`. It is never pre-ticked on any surface, and the
+        // wording IS what gets posted — a claim whose wording drifts from what
+        // it authorises is worse than no claim.
+        "contactsTasks.importBeforeTitle" to "Before you import",
+        "contactsTasks.importBeforeLead" to
+            "You are about to upload other people's phone numbers into this workspace.",
+        "contactsTasks.importAttestation" to
+            "Everyone in this file agreed to be texted by this business.",
+        "contactsTasks.importRecorded" to
+            "For anyone with no consent recorded yet, this is stored as your " +
+            "attestation. Contacts who already have one keep it.",
+        "contactsTasks.importChooseFile" to "Choose file",
+
+        // The bounds, with both figures derived from the shipped constants and
+        // neither typed. One key per door because the two caps differ, and a
+        // sentence quoting the CSV cap at a vCard promises a file the server
+        // refuses. STOP is a carrier keyword and is never translated.
+        "contactsTasks.importLimitsCsv" to "Up to {count} rows, {size} MB.",
+        "contactsTasks.importLimitsVcard" to "Up to {count} cards, {size} MB.",
+        "contactsTasks.importTooLargeCsv" to "CSV files must be {size} MB or less.",
+        "contactsTasks.importTooLargeVcard" to "vCard files must be {size} MB or less.",
+        "contactsTasks.importOptOutNoteCsv" to
+            "A STOP always survives an import, and an opted-out column in " +
+            "your file blocks those people here too.",
+        "contactsTasks.importOptOutNoteVcard" to
+            "A STOP always survives an import. A card marked do-not-text " +
+            "blocks that person here too.",
+
+        // How the server's per-entry errors are labelled, per door. A refusal
+        // list saying "Row 12" over a .vcf points at a line the file has not.
+        "contactsTasks.importRowWordRow" to "Row",
+        "contactsTasks.importRowWordCard" to "Card",
+
+        // ── Bulk import: the whole file refused ──────────────────────────
+        // "Not imported" rather than "failed": nothing is broken and nothing
+        // landed, and the difference decides what somebody does next.
+        "contactsTasks.importRefusedTitle" to "This file was not imported",
+        "contactsTasks.importRefusedEdit" to "Change columns",
+        "contactsTasks.importAndMore" to "…and {count} more.",
+        "contactsTasks.importOptedOutOne" to
+            "{count} customer in this file had already opted out",
+        "contactsTasks.importOptedOutMany" to
+            "{count} customers in this file had already opted out",
+
+        // ── Bulk import: the per-column step (#248 round 3) ──────────────
+        // Every column of the file is asked about, including the recognised
+        // ones and the empty ones. `importWrongColumn` names the CONSEQUENCE
+        // rather than the mechanism, and it derives the answer's own label
+        // through {answer} rather than retyping it.
+        "contactsTasks.importColumnsTitle" to "What is in this file?",
+        "contactsTasks.importColumnsLead" to
+            "This import does not guess what a column means — a do-not-contact " +
+            "column read as nothing texts somebody who asked this business " +
+            "to stop. Say what each column is, or ignore it on purpose.",
+        "contactsTasks.importWrongColumn" to
+            "If a column marks who must not be texted, choose " +
+            "“{answer}” — ignoring it would text everyone it was protecting.",
+        "contactsTasks.importConfirm" to "Import",
+        "contactsTasks.importUnansweredColumns" to
+            "Every column needs an answer before this file can import.",
+        "contactsTasks.importNotRecognised" to "Not recognised",
+        "contactsTasks.importRecognisedHeading" to "Recognised — change any that are wrong",
+        "contactsTasks.importDuplicateHint" to
+            "Two columns are both marked “{answer}”. A contact has one.",
+        "contactsTasks.importChoose" to "Choose…",
+        "contactsTasks.importColumnPosition" to "Column {number}",
+        "contactsTasks.importColumnNoHeader" to "(no header)",
+        "contactsTasks.importColumnQuoted" to "“{header}”",
+        "contactsTasks.importValuesEmpty" to "Every row leaves this column empty.",
+        // "include", never "holds": these are the first distinct values, and
+        // claiming to have listed the column would be a claim nobody checked.
+        "contactsTasks.importValuesInclude" to "Values include: {samples}",
+        "contactsTasks.importValuesAndMore" to ", and {count} more",
+        "contactsTasks.importShowAllValues" to "Show all {count} values",
+        "contactsTasks.importShowFewerValues" to "Show fewer values",
+        "contactsTasks.importValueCeiling" to
+            "Showing {shown} of the {total} different answers in this column.",
+        "contactsTasks.importProgress" to "{answered} of {total} answered",
+
+        // What each answer a column may carry is called. `importActionPhone`,
+        // `importActionFirstName` and `importActionLastName` are copied from
+        // web's `answer*`; the other four reuse the field labels above.
+        "contactsTasks.importActionPhone" to "Phone number",
+        "contactsTasks.importActionFirstName" to "First name",
+        "contactsTasks.importActionLastName" to "Last name",
+        "contactsTasks.importActionOptedOut" to "Do not text",
+        "contactsTasks.importActionIgnore" to "Ignore this column",
+
+        // ── Bulk import: the vCard door's own question ───────────────────
+        "contactsTasks.importPropertiesTitle" to "What do these cards carry?",
+        "contactsTasks.importPropertiesLead" to
+            "These cards carry information this import does not read. A card's " +
+            "categories, a note saying they asked us to stop, or a label " +
+            "typed beside a number are where a .vcf says do-not-text — so a " +
+            "property read as nothing texts somebody who asked this business " +
+            "to stop.",
+        "contactsTasks.importParameterNote" to
+            "A name with a “;” in it is a label attached to the property before " +
+            "it, and the label carries free text of its own — “DO NOT CALL” " +
+            "is one of the things people type there.",
+        "contactsTasks.importPropertiesCoarse" to
+            "“{answer}” blocks every card carrying that property, whatever it " +
+            "says on the card. Not texting somebody is the only direction this " +
+            "import is allowed to be wrong in.",
+        "contactsTasks.importUnansweredProperties" to
+            "Every one of these needs an answer before the file can import.",
+        "contactsTasks.importPropertyIgnore" to "Says nothing about texting",
+        "contactsTasks.importPropertyOptedOut" to "Do not text these cards",
     )
 
     override val frCA = mapOf(
@@ -967,5 +1120,155 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.addedBy" to "Ajouté par {who}",
         "contactsTasks.addedByOn" to "Ajouté par {who} le {date}",
         "contactsTasks.editedBy" to "Modifié par {who}",
+
+        // ── La carte de consentement (#226) ──────────────────────────────
+        // Copié CARACTÈRE POUR CARACTÈRE de `appShell.ts` sur le web.
+        "contactsTasks.consentNone" to
+            "Aucun consentement enregistré pour l'instant. Il est enregistré quand le " +
+            "client vous texte en premier, ou quand vous lui envoyez son premier " +
+            "texto, ce qui atteste qu'il l'a demandé.",
+        "contactsTasks.consentTextedFirst" to "Vous a texté en premier",
+        "contactsTasks.consentRecorded" to "Consentement enregistré",
+        "contactsTasks.consentRecordedBy" to "Consentement enregistré par {name}",
+
+        // ── La liste vidée par un filtre (#291) ──────────────────────────
+        // Copié de `filteredEmptyTitle` / `filteredEmptyDetail` sur le web.
+        "contactsTasks.filterEmptyTitle" to "Personne ne correspond pour l'instant",
+        "contactsTasks.filterEmptyBody" to
+            "Aucun client n'a cette réponse au dossier. Retirez le filtre pour voir " +
+            "tout le monde.",
+
+        // ── La carte sans fond de carte (#428) ───────────────────────────
+        // Copié de `misc.mapNoBasemap` sur le web.
+        "contactsTasks.mapNoBasemap" to
+            "Les épingles des travaux sont exactes. Le fond de carte exige un " +
+            "fournisseur de tuiles, qu'un propriétaire peut configurer en un réglage.",
+
+        // ── L'historique du client, ligne par ligne (#324) ───────────────
+        // Les douze copiés des clés `timeline*` de `contacts.ts` sur le web.
+        "contactsTasks.timelineJob" to "Tâche",
+        "contactsTasks.timelineCallAnsweredBy" to "Appel pris par {name}",
+        "contactsTasks.timelineCallAnswered" to "Appel pris",
+        "contactsTasks.timelineVoicemail" to "Message vocal",
+        "contactsTasks.timelineMissedCall" to "Appel manqué",
+        "contactsTasks.timelineConversation" to "Conversation",
+        "contactsTasks.timelineDone" to "Faite",
+        "contactsTasks.timelineDue" to "Échéance {date}",
+        "contactsTasks.timelineOpen" to "Ouverte",
+        "contactsTasks.timelineTalkedFor" to "Durée de l'appel : {duration}",
+        "contactsTasks.timelineNoAnswer" to "Sans réponse",
+        "contactsTasks.timelineClosed" to "Fermée",
+
+        // ── Importation en lot : la feuille d'attestation (#226/#248) ────
+        // `importAttestation` est copié de `consentLabelFile` sur le web :
+        // c'est LA déclaration, et sa formulation est ce qui est envoyé.
+        "contactsTasks.importBeforeTitle" to "Avant d'importer",
+        "contactsTasks.importBeforeLead" to
+            "Vous êtes sur le point de téléverser les numéros de téléphone " +
+            "d'autres personnes dans cet espace de travail.",
+        "contactsTasks.importAttestation" to
+            "Toutes les personnes de ce fichier ont accepté de recevoir des textos de " +
+            "cette entreprise.",
+        "contactsTasks.importRecorded" to
+            "Pour toute personne sans consentement déjà enregistré, ceci est " +
+            "conservé comme votre attestation. Les clients qui en ont déjà un " +
+            "conservent celui-ci.",
+        "contactsTasks.importChooseFile" to "Choisir un fichier",
+
+        // STOP est un mot-clé de fournisseur : jamais traduit.
+        "contactsTasks.importLimitsCsv" to "Jusqu'à {count} lignes, {size} Mo.",
+        "contactsTasks.importLimitsVcard" to "Jusqu'à {count} fiches, {size} Mo.",
+        "contactsTasks.importTooLargeCsv" to
+            "Les fichiers CSV doivent faire {size} Mo ou moins.",
+        "contactsTasks.importTooLargeVcard" to
+            "Les fichiers vCard doivent faire {size} Mo ou moins.",
+        "contactsTasks.importOptOutNoteCsv" to
+            "Un STOP survit toujours à une importation, et une colonne " +
+            "« désabonné » dans votre fichier bloque aussi ces personnes ici.",
+        "contactsTasks.importOptOutNoteVcard" to
+            "Un STOP survit toujours à une importation. Une fiche marquée " +
+            "« ne pas texter » bloque aussi cette personne ici.",
+
+        "contactsTasks.importRowWordRow" to "Ligne",
+        "contactsTasks.importRowWordCard" to "Fiche",
+
+        // ── Importation en lot : le fichier entier refusé ────────────────
+        "contactsTasks.importRefusedTitle" to "Ce fichier n'a pas été importé",
+        "contactsTasks.importRefusedEdit" to "Modifier les colonnes",
+        // Copié de `andMore` sur le web.
+        "contactsTasks.importAndMore" to "…et {count} de plus.",
+        "contactsTasks.importOptedOutOne" to
+            "{count} client de ce fichier s'était déjà désabonné",
+        "contactsTasks.importOptedOutMany" to
+            "{count} clients de ce fichier s'étaient déjà désabonnés",
+
+        // ── Importation en lot : l'étape par colonne (#248, ronde 3) ─────
+        "contactsTasks.importColumnsTitle" to "Qu'y a-t-il dans ce fichier ?",
+        "contactsTasks.importColumnsLead" to
+            "Cette importation ne devine pas ce qu'une colonne signifie : une " +
+            "colonne « ne pas texter » lue comme rien, c'est un texto à " +
+            "quelqu'un qui a demandé à cette entreprise d'arrêter. Dites ce " +
+            "qu'est chaque colonne, ou ignorez-la volontairement.",
+        "contactsTasks.importWrongColumn" to
+            "Si une colonne indique qui ne doit pas être texté, choisissez " +
+            "« {answer} » : l'ignorer texterait toutes les personnes qu'elle " +
+            "protégeait.",
+        "contactsTasks.importConfirm" to "Importer",
+        "contactsTasks.importUnansweredColumns" to
+            "Chaque colonne doit avoir une réponse avant que ce fichier puisse " +
+            "être importé.",
+        "contactsTasks.importNotRecognised" to "Non reconnues",
+        "contactsTasks.importRecognisedHeading" to
+            "Reconnues — corrigez celles qui clochent",
+        "contactsTasks.importDuplicateHint" to
+            "Deux colonnes sont toutes deux marquées « {answer} ». Un client " +
+            "n'en a qu'un.",
+        "contactsTasks.importChoose" to "Choisir…",
+        "contactsTasks.importColumnPosition" to "Colonne {number}",
+        "contactsTasks.importColumnNoHeader" to "(sans en-tête)",
+        // Copié de `columnQuoted` sur le web.
+        "contactsTasks.importColumnQuoted" to "« {header} »",
+        "contactsTasks.importValuesEmpty" to
+            "Toutes les lignes laissent cette colonne vide.",
+        // « Parmi les valeurs » et non « les valeurs » : ce sont les premières
+        // valeurs distinctes, pas la colonne entière.
+        "contactsTasks.importValuesInclude" to "Parmi les valeurs : {samples}",
+        // Copié de `unreadableOverflow` sur le web.
+        "contactsTasks.importValuesAndMore" to ", et {count} de plus",
+        "contactsTasks.importShowAllValues" to "Afficher les {count} valeurs",
+        "contactsTasks.importShowFewerValues" to "Afficher moins de valeurs",
+        "contactsTasks.importValueCeiling" to
+            "Affichage de {shown} des {total} réponses différentes de cette colonne.",
+        "contactsTasks.importProgress" to "{answered} sur {total} répondues",
+
+        // Copiés de `answerPhone`, `answerFirstName` et `answerLastName`.
+        "contactsTasks.importActionPhone" to "Numéro de téléphone",
+        "contactsTasks.importActionFirstName" to "Prénom",
+        "contactsTasks.importActionLastName" to "Nom de famille",
+        "contactsTasks.importActionOptedOut" to "Ne pas texter",
+        "contactsTasks.importActionIgnore" to "Ignorer cette colonne",
+
+        // ── Importation en lot : la question propre à la porte vCard ─────
+        "contactsTasks.importPropertiesTitle" to "Que contiennent ces fiches ?",
+        "contactsTasks.importPropertiesLead" to
+            "Ces fiches contiennent de l'information que cette importation ne " +
+            "lit pas. Les catégories d'une fiche, une note indiquant qu'une " +
+            "personne a demandé d'arrêter, ou un libellé écrit à côté d'un " +
+            "numéro : c'est là qu'un .vcf dit « ne pas texter ». Un élément lu " +
+            "comme rien, c'est un texto à quelqu'un qui a demandé à cette " +
+            "entreprise d'arrêter.",
+        "contactsTasks.importParameterNote" to
+            "Un nom contenant un « ; » est un libellé rattaché à l'élément qui " +
+            "le précède, et ce libellé contient son propre texte libre : " +
+            "« DO NOT CALL » est une des choses que les gens y écrivent.",
+        "contactsTasks.importPropertiesCoarse" to
+            "« {answer} » bloque toutes les fiches contenant cet élément, peu " +
+            "importe ce qui y est écrit. Ne pas texter quelqu'un est la seule " +
+            "direction dans laquelle cette importation a le droit de se tromper.",
+        "contactsTasks.importUnansweredProperties" to
+            "Chacun de ces éléments doit avoir une réponse avant que le fichier " +
+            "puisse être importé.",
+        "contactsTasks.importPropertyIgnore" to "N'indique rien sur les textos",
+        "contactsTasks.importPropertyOptedOut" to "Ne pas texter ces fiches",
     )
 }

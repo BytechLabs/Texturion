@@ -3,6 +3,8 @@ package com.loonext.android.features.attachments
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.model.MessageLocale
 
 /**
  * #289 — "download photos on Wi-Fi only, at minimum".
@@ -76,13 +78,24 @@ object MeteredMedia {
      * Says the CONDITION and the REMEDY in one line, because the alternative —
      * a spinner that never resolves, or a generic "couldn't load" — is how a
      * deliberate setting gets reported as a bug.
+     *
+     * #228: [locale] defaults to English so `MeteredMediaTest` can keep asking
+     * whether this line names the condition and the remedy — a question about
+     * the English — the same way `AppLock.headline` next door is defaulted.
      */
-    const val METERED_HINT = "You're on mobile data. Tap to load the full-size photo."
+    fun meteredHint(locale: String = MessageLocale.EN): String =
+        AppStrings.translate(locale, "shell.meteredHint")
 
-    const val SETTING_LABEL = "Full-size photos on Wi-Fi only"
-    const val SETTING_DESCRIPTION =
-        "Threads and galleries always load. Only full-size photos and downloads " +
-            "wait for Wi-Fi — tap one to load it anyway."
+    fun settingLabel(locale: String = MessageLocale.EN): String =
+        AppStrings.translate(locale, "shell.wifiOnlyLabel")
+
+    fun settingDescription(locale: String = MessageLocale.EN): String =
+        AppStrings.translate(locale, "shell.wifiOnlyDescription")
+
+    /** The English, for the guard above and for call sites still passing none. */
+    val METERED_HINT: String get() = meteredHint()
+    val SETTING_LABEL: String get() = settingLabel()
+    val SETTING_DESCRIPTION: String get() = settingDescription()
 }
 
 /**
@@ -102,6 +115,13 @@ suspend fun openOriginal(
     wifiOnlyOriginals: Boolean,
     snackbar: androidx.compose.material3.SnackbarHostState,
     requested: Boolean = false,
+    /**
+     * #228: this runs in a coroutine, not in composition, so the reader's
+     * language is passed in. Defaulted to English so every existing tap-through
+     * door keeps compiling; a screen that has `LocalAppLocale.current` to hand
+     * should pass it.
+     */
+    locale: String = MessageLocale.EN,
     mint: suspend () -> String,
 ): Boolean {
     if (
@@ -113,13 +133,20 @@ suspend fun openOriginal(
         )
     ) {
         val action = snackbar.showSnackbar(
-            message = MeteredMedia.METERED_HINT,
-            actionLabel = "Load",
+            message = MeteredMedia.meteredHint(locale),
+            actionLabel = AppStrings.translate(locale, "shell.meteredLoad"),
             withDismissAction = true,
         )
         if (action != androidx.compose.material3.SnackbarResult.ActionPerformed) return false
         // Asked again with the request granted — and only for THIS photo.
-        return openOriginal(context, wifiOnlyOriginals, snackbar, requested = true, mint = mint)
+        return openOriginal(
+            context,
+            wifiOnlyOriginals,
+            snackbar,
+            requested = true,
+            locale = locale,
+            mint = mint,
+        )
     }
     val url = mint()
     context.startActivity(

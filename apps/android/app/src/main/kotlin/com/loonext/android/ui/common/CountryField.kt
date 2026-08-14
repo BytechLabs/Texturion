@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.filterCountries
 
 /**
@@ -58,7 +59,7 @@ fun CountryField(
             singleLine = true,
             placeholder = {
                 Text(
-                    "Country",
+                    t("common.country"),
                     fontSize = 13.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 )

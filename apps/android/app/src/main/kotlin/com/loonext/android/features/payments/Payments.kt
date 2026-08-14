@@ -1,5 +1,7 @@
 package com.loonext.android.features.payments
 
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.features.settings.BillingCurrency
 import com.loonext.android.features.settings.formatMoney
 import java.time.Instant
@@ -162,18 +164,37 @@ object Payments {
         else -> null
     }
 
-    /** The sentence a crew member reads when the amount is refused. */
+    /**
+     * The sentence a crew member reads when the amount is refused.
+     *
+     * #228: the BOUND is still formatted here rather than written into the
+     * catalogue, in either language. A Canadian workspace settles in CAD and a
+     * US one in USD, so a typed "$1" in the one sentence that says what somebody
+     * may charge is the #522 defect on the worst possible line.
+     *
+     * [locale] is defaulted to English because this is a plain function called
+     * from a composer sheet's validation, and because `PaymentsTest` asks what
+     * the English says — see `AppLock.headline` for the same shape.
+     */
     fun amountProblemCopy(
         problem: PaymentAmountProblem,
         currency: BillingCurrency,
+        locale: String = MessageLocale.EN,
     ): String = when (problem) {
-        PaymentAmountProblem.TOO_SMALL ->
-            "The smallest payment we can take is ${formatMoney(MIN_CENTS, currency)}."
+        PaymentAmountProblem.TOO_SMALL -> AppStrings.translate(
+            locale,
+            "payments.amountTooSmall",
+            mapOf("amount" to formatMoney(MIN_CENTS, currency)),
+        )
 
-        PaymentAmountProblem.TOO_LARGE ->
-            "The largest payment we can take by text is ${formatMoney(MAX_CENTS, currency)}."
+        PaymentAmountProblem.TOO_LARGE -> AppStrings.translate(
+            locale,
+            "payments.amountTooLarge",
+            mapOf("amount" to formatMoney(MAX_CENTS, currency)),
+        )
 
-        PaymentAmountProblem.NOT_WHOLE -> "Enter an amount in dollars and cents."
+        PaymentAmountProblem.NOT_WHOLE ->
+            AppStrings.translate(locale, "payments.amountNotWhole")
     }
 
     /**
@@ -244,9 +265,20 @@ object Payments {
      * identifier itself rather than being dropped — an outstanding requirement
      * nobody can see is the state where an owner concludes the product is
      * broken.
+     *
+     * #228: THE FALLBACK STAYS UNTRANSLATED IN EVERY LANGUAGE, and that is the
+     * honest answer rather than a gap. It is Stripe's own identifier with the
+     * dots taken out; there is nothing to translate it FROM, and inventing a
+     * French sentence for a requirement this build has never heard of would be
+     * guessing at what Stripe is asking for. A tidied identifier a French reader
+     * can search for beats a confident French sentence that might be wrong about
+     * their money.
      */
-    fun requirementCopy(requirement: String): String {
-        KNOWN_REQUIREMENTS[requirement]?.let { return it }
+    fun requirementCopy(
+        requirement: String,
+        locale: String = MessageLocale.EN,
+    ): String {
+        KNOWN_REQUIREMENTS[requirement]?.let { return AppStrings.translate(locale, it) }
         val cleaned = requirement.replace(OWNER_PREFIX, "")
         val words = cleaned.replace(SEPARATORS, " ").trim()
         return words.replaceFirstChar { it.uppercase() }
@@ -328,20 +360,25 @@ object Payments {
 
     private val SEPARATORS = Regex("""[._]""")
 
+    /**
+     * Stripe's identifier → the catalogue key that says it in words.
+     *
+     * #228 turned the values from sentences into KEYS. The map is the same map:
+     * what a Stripe identifier means is a fact about Stripe, not about a
+     * language, so the mapping stays here and only the wording moved.
+     */
     private val KNOWN_REQUIREMENTS: Map<String, String> = mapOf(
-        "external_account" to "Your bank account details",
-        "business_profile.url" to "Your website or a description of what you do",
-        "business_profile.mcc" to "What kind of work you do",
-        "individual.verification.document" to "Photo ID for the business owner",
-        "individual.verification.additional_document" to
-            "A second document for the business owner",
-        "individual.id_number" to "The owner's SIN or SSN",
-        "individual.address.line1" to "The owner's address",
-        "individual.dob.day" to "The owner's date of birth",
-        "company.tax_id" to "Your business number",
-        "company.verification.document" to "A document proving the business exists",
-        "tos_acceptance.date" to "Accepting Stripe's terms",
-        "representative.verification.document" to
-            "Photo ID for whoever signs for the business",
+        "external_account" to "payments.reqBankAccount",
+        "business_profile.url" to "payments.reqWebsite",
+        "business_profile.mcc" to "payments.reqWorkKind",
+        "individual.verification.document" to "payments.reqOwnerId",
+        "individual.verification.additional_document" to "payments.reqOwnerIdSecond",
+        "individual.id_number" to "payments.reqOwnerSin",
+        "individual.address.line1" to "payments.reqOwnerAddress",
+        "individual.dob.day" to "payments.reqOwnerDob",
+        "company.tax_id" to "payments.reqBusinessNumber",
+        "company.verification.document" to "payments.reqBusinessDocument",
+        "tos_acceptance.date" to "payments.reqTos",
+        "representative.verification.document" to "payments.reqSignatoryId",
     )
 }

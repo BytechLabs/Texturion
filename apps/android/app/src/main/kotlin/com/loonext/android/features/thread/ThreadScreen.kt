@@ -85,6 +85,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -207,8 +208,14 @@ fun ThreadScreen(
     val wifiOnlyOriginals by graph.prefs.wifiOnlyOriginals
         .collectAsStateWithLifecycle(initialValue = false)
     val scope = rememberCoroutineScope()
+    // #228: the reader's language, handed to the two things that build a
+    // sentence outside composition — the uploader's own refusals, and the
+    // controller's snackbars.
+    val readerLocale = LocalAppLocale.current
     val repo = remember(graph) { MessagingRepository(graph.api) }
-    val uploader = remember(graph) { NoteFileUploader(graph.api, BuildConfig.API_URL) }
+    val uploader = remember(graph, readerLocale) {
+        NoteFileUploader(graph.api, BuildConfig.API_URL, readerLocale)
+    }
     val controller = remember(companyId, conversationId) {
         ThreadController(
             repo = repo,
@@ -222,6 +229,9 @@ fun ThreadScreen(
             scope = graph.appScope,
         )
     }
+    // Kept current rather than passed once: the controller outlives a language
+    // change made in Settings while this thread is open.
+    SideEffect { controller.locale = readerLocale }
 
     BackHandler(onBack = onBack)
     LaunchedEffect(controller) { controller.start() }
@@ -437,8 +447,8 @@ private fun ThreadLoaded(
     // #507: the wrap-up a crew member speaks into their own phone after a call
     // has ended. Multipart, so it goes through its own small client for the
     // same reason NoteFileUploader above does — ApiClient speaks JSON bodies.
-    val wrapUpTranscriber = remember(graph) {
-        WrapUpTranscriber(graph.api, BuildConfig.API_URL)
+    val wrapUpTranscriber = remember(graph, locale) {
+        WrapUpTranscriber(graph.api, BuildConfig.API_URL, locale)
     }
 
     // #234: deleting a queued message throws away words the person wrote and
@@ -826,7 +836,7 @@ private fun ThreadLoaded(
                                 val openable = target is EventTarget.OpenTask &&
                                     onOpenTask != null
                                 EventLine(
-                                    text = eventLine(item.event, names, contactName),
+                                    text = eventLine(item.event, names, contactName, locale),
                                     timeIso = item.event.created_at,
                                     eventType = item.event.type,
                                     transcript = voicemailTranscriptOf(item.event),

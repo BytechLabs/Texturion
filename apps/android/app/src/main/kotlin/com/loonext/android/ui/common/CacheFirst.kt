@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.loonext.android.core.data.StoreCache
+import com.loonext.android.core.i18n.LocalAppLocale
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -42,6 +43,11 @@ fun <T : Any> rememberCacheFirst(
     val flow = remember(key) { cache.flowOf<T>(key) }
     val cached by flow.collectAsState()
     var firstError by remember(key) { mutableStateOf<String?>(null) }
+    // #228: hoisted here and closed over below, because the effect's body is a
+    // coroutine and cannot call `t()`. This is the ONE place a screen may load
+    // data from, so it is also the one place that decides what language the
+    // general load failure is written in.
+    val locale = LocalAppLocale.current
     LaunchedEffect(key, refreshKey, enabled) {
         if (!enabled) return@LaunchedEffect
         try {
@@ -57,7 +63,7 @@ fun <T : Any> rememberCacheFirst(
             // even though the replacement fetch was already on its way.
             throw cause
         } catch (cause: Exception) {
-            if (flow.value == null) firstError = cause.userMessage()
+            if (flow.value == null) firstError = cause.userMessage(locale)
         }
     }
     val value = cached

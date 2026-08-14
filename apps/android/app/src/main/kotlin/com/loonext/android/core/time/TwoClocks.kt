@@ -1,5 +1,6 @@
 package com.loonext.android.core.time
 
+import com.loonext.android.core.i18n.AppStrings
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -41,11 +42,18 @@ import java.time.ZoneId
  */
 object TwoClocks {
 
-    /** What the destination's clock is called, in the product's voice. */
-    const val THERE = "their time"
+    /**
+     * What the destination's clock is called, in the product's voice.
+     *
+     * #228: the KEY is the constant, because `t()` is `@Composable` and this
+     * object is not. The old names stay as properties over the catalogue.
+     */
+    const val THERE_KEY = "domain.twoClocksThere"
+    val THERE: String get() = AppStrings.translate(null, THERE_KEY)
 
     /** ...and the reader's own. Not "my time": the screen is talking TO them. */
-    const val HERE = "yours"
+    const val HERE_KEY = "domain.twoClocksHere"
+    val HERE: String get() = AppStrings.translate(null, HERE_KEY)
 
     /**
      * #539 — why the CUSTOMER'S clock decides, and how to fix a wrong guess.
@@ -55,9 +63,8 @@ object TwoClocks {
      * code is how we guess it when nobody has told us, and it goes wrong exactly the
      * way the issue describes: a mobile keeps its code when its owner moves.
      */
-    const val AREA_CODE_NOTE =
-        "The rules about when you may text go by their clock, not yours. " +
-            "If this number moved, set their timezone on the contact."
+    const val AREA_CODE_NOTE_KEY = "domain.twoClocksAreaCodeNote"
+    val AREA_CODE_NOTE: String get() = AppStrings.translate(null, AREA_CODE_NOTE_KEY)
 
     /**
      * Are these two rendered wall clocks the same moment on the same clock face?
@@ -81,10 +88,17 @@ object TwoClocks {
      * line of two facts, which is what it is, and it survives a narrow row without
      * looking like a truncation.
      */
-    fun bothClocks(there: String, here: String? = null): String {
+    fun bothClocks(there: String, here: String? = null, locale: String? = null): String {
         val t = there.trim()
         if (here == null || sameClock(t, here)) return t
-        return "$t $THERE · ${here.trim()} $HERE"
+        // One sentence rather than four glued fragments: French puts the
+        // possessive somewhere English does not, and a line assembled from
+        // pieces can only ever be assembled in one word order.
+        return AppStrings.translate(
+            locale,
+            "domain.twoClocksLine",
+            mapOf("there" to t, "here" to here.trim()),
+        )
     }
 
     /**
@@ -93,10 +107,14 @@ object TwoClocks {
      * A middot is announced as "middle dot" or skipped entirely depending on the
      * reader, and "8:00 AM their time middle dot 11:00 AM yours" is not a sentence.
      */
-    fun bothClocksSpoken(there: String, here: String? = null): String {
+    fun bothClocksSpoken(there: String, here: String? = null, locale: String? = null): String {
         val t = there.trim()
         if (here == null || sameClock(t, here)) return t
-        return "$t $THERE, which is ${here.trim()} $HERE"
+        return AppStrings.translate(
+            locale,
+            "domain.twoClocksSpoken",
+            mapOf("there" to t, "here" to here.trim()),
+        )
     }
 
     /**
@@ -107,9 +125,20 @@ object TwoClocks {
      * mean 8am here or 8am there", and offering 400 IANA zones to answer it would
      * be a worse version of the same confusion.
      */
-    enum class Choice(val label: String) {
-        THEIRS("Their time"),
-        YOURS("Your time"),
+    enum class Choice(val labelKey: String) {
+        THEIRS("domain.twoClocksChoiceTheirs"),
+        YOURS("domain.twoClocksChoiceYours"),
+        ;
+
+        /**
+         * #228: an enum constant is built at class-init, before any reader
+         * exists, so the sentence cannot live in the constructor. [label] keeps
+         * the English every existing call site reads; [labelFor] is what a
+         * switch that knows its reader should call.
+         */
+        val label: String get() = labelFor(null)
+
+        fun labelFor(locale: String?): String = AppStrings.translate(locale, labelKey)
     }
 
     /**

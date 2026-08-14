@@ -118,9 +118,20 @@ private fun answerLabel(value: String): String = when (value) {
     else -> value
 }
 
-/** The words this surface owns, kept where the parity test can read them. */
+/**
+ * The words this surface owns, kept where the parity test can read them.
+ *
+ * The two CHIP labels are still spelled here: `contact-filter-parity.test.ts`
+ * reads this file's bytes and asserts both of them against web's catalogue, and
+ * that test lives in a tree this change may not touch. They move when all three
+ * clients do.
+ *
+ * #228: the two EMPTY-STATE sentences are catalogue KEYS, not sentences. The
+ * same parity test looks for the IDENTIFIER on the list screen rather than for
+ * the words, so `ContactsTab` reaching them through `t()` keeps it honest —
+ * what it is asking is whether the filtered-empty state exists at all.
+ */
 const val CONTACT_FILTER_ALL = "Everyone"
 const val CONTACT_FILTER_UNSET = "Not set"
-const val CONTACT_FILTER_EMPTY_TITLE = "Nobody matches that yet"
-const val CONTACT_FILTER_EMPTY_BODY =
-    "No customer has that answer on file. Clear the filter to see everyone."
+const val CONTACT_FILTER_EMPTY_TITLE = "contactsTasks.filterEmptyTitle"
+const val CONTACT_FILTER_EMPTY_BODY = "contactsTasks.filterEmptyBody"

@@ -1,5 +1,7 @@
 package com.loonext.android.core.jobs
 
+import com.loonext.android.core.i18n.AppStrings
+
 /**
  * #294 — before and after, the one classification the trade actually uses.
  *
@@ -38,9 +40,9 @@ object WorkPhase {
     val ALL = listOf(BEFORE, AFTER)
 
     /** What each is called on screen. */
-    fun label(phase: String): String = when (phase) {
-        BEFORE -> "Before"
-        AFTER -> "After"
+    fun label(phase: String, locale: String? = null): String = when (phase) {
+        BEFORE -> AppStrings.translate(locale, "domain.workPhaseBefore")
+        AFTER -> AppStrings.translate(locale, "domain.workPhaseAfter")
         else -> phase
     }
 
@@ -51,11 +53,12 @@ object WorkPhase {
      * part is on order is not an unlabelled before. Offering "None" invites a tech to
      * think they have failed to fill something in.
      */
-    const val UNSET_LABEL = "Not a before or after"
+    const val UNSET_LABEL_KEY = "domain.workPhaseUnset"
+    val UNSET_LABEL: String get() = AppStrings.translate(null, UNSET_LABEL_KEY)
 
     /** One line under the control, for somebody who has never seen it. */
-    const val HINT =
-        "Marks these photos as how it looked when you arrived, or how you left it."
+    const val HINT_KEY = "domain.workPhaseHint"
+    val HINT: String get() = AppStrings.translate(null, HINT_KEY)
 
     fun isPhase(value: String?): Boolean = value == BEFORE || value == AFTER
 }
@@ -134,12 +137,28 @@ fun <T : JobPhotoLike> groupJobPhotos(items: List<T>): List<JobPhotoGroup<T>> {
  * than "0 before, 0 after" — which reads as a broken count rather than as a job
  * whose photos nobody classified.
  */
-fun jobPhaseSummary(items: List<JobPhotoLike>): String? {
+fun jobPhaseSummary(items: List<JobPhotoLike>, locale: String? = null): String? {
     val before = items.count { it.workPhase == WorkPhase.BEFORE }
     val after = items.count { it.workPhase == WorkPhase.AFTER }
     if (before == 0 && after == 0) return null
     return listOfNotNull(
-        if (before > 0) "$before before" else null,
-        if (after > 0) "$after after" else null,
+        if (before > 0) {
+            AppStrings.translate(
+                locale,
+                "domain.jobPhaseCountBefore",
+                mapOf("count" to before.toString()),
+            )
+        } else {
+            null
+        },
+        if (after > 0) {
+            AppStrings.translate(
+                locale,
+                "domain.jobPhaseCountAfter",
+                mapOf("count" to after.toString()),
+            )
+        } else {
+            null
+        },
     ).joinToString(", ")
 }

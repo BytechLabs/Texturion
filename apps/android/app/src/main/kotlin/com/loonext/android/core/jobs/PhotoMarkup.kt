@@ -1,5 +1,6 @@
 package com.loonext.android.core.jobs
 
+import com.loonext.android.core.i18n.AppStrings
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -43,14 +44,20 @@ object PhotoMarkup {
     /** The two marks. Anything more is a drawing app, which this is not. */
     val TOOLS = listOf(ARROW, CIRCLE)
 
-    fun label(tool: String): String = when (tool) {
-        ARROW -> "Arrow"
-        CIRCLE -> "Circle"
+    fun label(tool: String, locale: String? = null): String = when (tool) {
+        ARROW -> AppStrings.translate(locale, "domain.markupArrow")
+        CIRCLE -> AppStrings.translate(locale, "domain.markupCircle")
         else -> tool
     }
 
-    /** The one line of instruction, for somebody who has never opened this. */
-    const val HINT = "Drag on the photo, or tap twice, to point at something."
+    /**
+     * The one line of instruction, for somebody who has never opened this.
+     *
+     * #228: the KEY is the constant, because `t()` is `@Composable` and this
+     * object is not. The old names stay as properties over the catalogue.
+     */
+    const val HINT_KEY = "domain.markupHint"
+    val HINT: String get() = AppStrings.translate(null, HINT_KEY)
 
     /**
      * What it says once a first tap has landed.
@@ -59,13 +66,16 @@ object PhotoMarkup {
      * single-pointer alternative — and it only works if the person can tell the app
      * is waiting for them rather than that their tap did nothing.
      */
-    const val HINT_SECOND_TAP = "Now tap where it should point."
+    const val HINT_SECOND_TAP_KEY = "domain.markupHintSecondTap"
+    val HINT_SECOND_TAP: String get() = AppStrings.translate(null, HINT_SECOND_TAP_KEY)
 
     /** Puts the marks on and closes. */
-    const val SAVE = "Done"
+    const val SAVE_KEY = "domain.markupSave"
+    val SAVE: String get() = AppStrings.translate(null, SAVE_KEY)
 
     /** Takes the last mark off. One step is what a thumb wants. */
-    const val UNDO = "Undo"
+    const val UNDO_KEY = "domain.markupUndo"
+    val UNDO: String get() = AppStrings.translate(null, UNDO_KEY)
 
     /** The mark: a strong red that reads as deliberate rather than decorative. */
     const val INK = 0xFFE23D28.toInt()

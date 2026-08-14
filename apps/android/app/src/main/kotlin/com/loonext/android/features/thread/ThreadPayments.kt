@@ -12,6 +12,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.net.ApiDecodeException
 import com.loonext.android.features.payments.PaymentsRepository
 import com.loonext.android.features.settings.formatMoney
@@ -76,6 +79,10 @@ fun ThreadPayments(
 ) {
     val repo = remember(graph) { PaymentsRepository(graph.api) }
     val coroutines = rememberCoroutineScope()
+    // #228: read in composition and held. Every use below is inside a coroutine
+    // lambda, where a `@Composable` lookup cannot go.
+    val locale = LocalAppLocale.current
+    val calledOff = t("thread.paymentCalledOff")
     var accountRefresh by remember(companyId) { mutableIntStateOf(0) }
     var requestsRefresh by remember(conversationId) { mutableIntStateOf(0) }
     var cancellingId by remember(conversationId) { mutableStateOf<String?>(null) }
@@ -144,13 +151,13 @@ fun ThreadPayments(
         coroutines.launch {
             try {
                 repo.cancelRequest(companyId, id)
-                onNotice(CALLED_OFF)
+                onNotice(calledOff)
             } catch (cause: ApiDecodeException) {
                 // The cancel LANDED — only our model of the row it answered
                 // with disagreed. Reporting a failure here would leave a
                 // cancelled request on screen looking live, and invite a
                 // second tap on a link that is already dead.
-                onNotice(CALLED_OFF)
+                onNotice(calledOff)
             } catch (cause: Exception) {
                 // Still live. The API's own words, because a refusal here is
                 // usually a RULE — already paid, refund it from Stripe instead
@@ -188,7 +195,18 @@ fun ThreadPayments(
                             description = ask.description,
                             idempotencyKey = ask.idempotencyKey,
                         )
-                        onNotice("Asked for ${formatMoney(ask.amountCents, ask.currency)}.")
+                        onNotice(
+                            AppStrings.translate(
+                                locale,
+                                "thread.askedFor",
+                                mapOf(
+                                    "amount" to formatMoney(
+                                        ask.amountCents,
+                                        ask.currency,
+                                    ),
+                                ),
+                            ),
+                        )
                         requestsRefresh++
                         onSent()
                         true
@@ -211,5 +229,3 @@ fun ThreadPayments(
     }
 }
 
-/** Said in both places a cancel can land, so the two cannot drift apart. */
-private const val CALLED_OFF = "Called off. You can ask again any time."

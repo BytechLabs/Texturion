@@ -1,5 +1,6 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.core.i18n.AppStrings
 import kotlinx.serialization.Serializable
 
 object CallOutcome {
@@ -84,8 +85,15 @@ data class VoicemailIntakeLine(
  * The provenance label, per PORTAL-UX §3.1. The Lou mark beside it already says
  * a machine did this; these words say WHERE it read it, which is the half a
  * person can check against the transcript underneath.
+ *
+ * #228: the KEY is the constant now, because `t()` is `@Composable` and this
+ * file is not. [VOICEMAIL_INTAKE_SOURCE_LABEL] still reads as the English
+ * sentence for any caller that has not been handed a reader's language yet.
  */
-const val VOICEMAIL_INTAKE_SOURCE_LABEL = "From the voicemail"
+const val VOICEMAIL_INTAKE_SOURCE_KEY = "domain.voicemailIntakeSource"
+
+val VOICEMAIL_INTAKE_SOURCE_LABEL: String
+    get() = AppStrings.translate(null, VOICEMAIL_INTAKE_SOURCE_KEY)
 
 /**
  * The rows worth drawing: present fields, in a fixed order, empties dropped.
@@ -96,14 +104,18 @@ const val VOICEMAIL_INTAKE_SOURCE_LABEL = "From the voicemail"
  * contain most of these.
  *
  * Order matches web and iOS: whether to go, then where, then how to reach them.
+ *
+ * #228: [locale] is last and defaulted, so the vectors that pin the English are
+ * untouched while the screen that knows the reader's language can pass it.
  */
-fun VoicemailIntake?.lines(): List<VoicemailIntakeLine> {
+fun VoicemailIntake?.lines(locale: String? = null): List<VoicemailIntakeLine> {
     val intake = this ?: return emptyList()
+    fun say(key: String) = AppStrings.translate(locale, key)
     val fields = listOf(
-        Triple("problem", "Problem", intake.problem),
-        Triple("address", "Address", intake.address),
-        Triple("callback", "Call back", intake.callback),
-        Triple("name", "Name", intake.name),
+        Triple("problem", say("domain.voicemailIntakeProblem"), intake.problem),
+        Triple("address", say("domain.voicemailIntakeAddress"), intake.address),
+        Triple("callback", say("domain.voicemailIntakeCallback"), intake.callback),
+        Triple("name", say("domain.voicemailIntakeName"), intake.name),
     )
     return fields.mapNotNull { (key, label, raw) ->
         val value = raw?.trim().orEmpty()

@@ -63,6 +63,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.UiLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.MessageLocale
@@ -405,32 +406,35 @@ private fun CrashReportPrompt(diagnostics: com.loonext.android.core.diag.CrashDi
         }
     }
     val text = report ?: return
+    // #228: hoisted, because the chooser's title is set inside an onClick —
+    // which is a plain lambda and cannot call `t()`. Same string either way: the
+    // button and the sheet it opens should not be two different sentences.
+    val shareLabel = t("shell.crashShare")
     val dismiss = {
         diagnostics.store.markSurfaced()
         report = null
     }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("The app closed unexpectedly") },
-        text = {
-            Text(
-                "A crash report was saved on this device. " +
-                    "Sharing it helps us find and fix the problem.",
-            )
-        },
+        title = { Text(t("shell.crashTitle")) },
+        text = { Text(t("shell.crashBody")) },
         confirmButton = {
             TextButton(onClick = {
                 dismiss()
                 val send = Intent(Intent.ACTION_SEND)
                     .setType("text/plain")
+                    // The SUBJECT stays English: it lands in a support inbox
+                    // beside the stack trace it names, where a translated label
+                    // is harder to find and no easier to read. Same rule as
+                    // DiagnosticsScreen's share.
                     .putExtra(Intent.EXTRA_SUBJECT, "Loonext Android crash report")
                     .putExtra(Intent.EXTRA_TEXT, text)
                 runCatching {
-                    context.startActivity(Intent.createChooser(send, "Share crash report"))
+                    context.startActivity(Intent.createChooser(send, shareLabel))
                 }
-            }) { Text("Share crash report") }
+            }) { Text(shareLabel) }
         },
-        dismissButton = { TextButton(onClick = dismiss) { Text("Dismiss") } },
+        dismissButton = { TextButton(onClick = dismiss) { Text(t("common.dismiss")) } },
     )
 }
 
@@ -459,10 +463,9 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
 
         is RootState.NeedsWorkspace -> PreShellHost {
             ExternalStep(
-                headline = "Let's set up your workspace",
-                body = "Workspace creation and checkout live on the web for now. " +
-                    "Create yours at app.loonext.com, then come back and pull to refresh.",
-                cta = "Open app.loonext.com",
+                headline = t("shell.setupWorkspaceTitle"),
+                body = t("shell.setupWorkspaceBody"),
+                cta = t("shell.setupWorkspaceAction"),
                 url = "https://app.loonext.com/onboarding",
                 onRefresh = root::retry,
                 onSignOut = root::signOut,
@@ -471,10 +474,9 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
 
         is RootState.NeedsCheckout -> PreShellHost {
             ExternalStep(
-                headline = "Finish setting up",
-                body = "Your workspace hasn't completed checkout yet. Finish on the web " +
-                    "and your number, texting, and calling light up here.",
-                cta = "Finish checkout",
+                headline = t("shell.finishSetupTitle"),
+                body = t("shell.finishSetupBody"),
+                cta = t("shell.finishSetupAction"),
                 url = "https://app.loonext.com/onboarding/plan",
                 onRefresh = root::retry,
                 onSignOut = root::signOut,
@@ -784,7 +786,7 @@ private fun ReadyShell(
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Outlined.Edit,
-                                    contentDescription = "New conversation",
+                                    contentDescription = t("shell.newConversation"),
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
@@ -968,7 +970,7 @@ private fun ReadyShell(
                     )
 
                     Overlay.Notifications -> OverlayScaffold(
-                        "Notifications",
+                        t("shell.notifications"),
                         onBack = { pop() },
                     ) {
                         NotificationsScreen(
@@ -1003,7 +1005,7 @@ private fun ReadyShell(
                         // Settings route (the pre-hoist ordering, preserved).
                         BackHandler(enabled = section != null) { section = null }
                         OverlayScaffold(
-                            title = section?.title ?: "Settings",
+                            title = section?.title ?: t("shell.settings"),
                             onBack = { if (section != null) section = null else pop() },
                         ) { contentModifier ->
                             SettingsHome(
@@ -1020,7 +1022,7 @@ private fun ReadyShell(
                     }
 
                     Overlay.Diagnostics -> OverlayScaffold(
-                        "Diagnostics",
+                        t("shell.diagnostics"),
                         onBack = { pop() },
                     ) {
                         DiagnosticsScreen(graph = graph, modifier = it)
@@ -1085,7 +1087,7 @@ private fun OverlayScaffold(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("common.back"),
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -1146,8 +1148,8 @@ private fun ExternalStep(
         Button(onClick = {
             context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
         }) { Text(cta) }
-        TextButton(onClick = onRefresh) { Text("I've done this — refresh") }
-        TextButton(onClick = onSignOut) { Text("Sign out") }
+        TextButton(onClick = onRefresh) { Text(t("shell.externalStepDone")) }
+        TextButton(onClick = onSignOut) { Text(t("shell.signOut")) }
       }
     }
 }

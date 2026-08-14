@@ -2,6 +2,7 @@ package com.loonext.android.core.model
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.jobs.JobPhotoLike
 
 /**
@@ -225,11 +226,14 @@ object AddressProvenance {
  * #214 provenance badge copy — shown ONLY for AI sources (message/contact/
  * company). "manual" and null return null (no badge). Pure, unit-testable, and
  * shared by the make-task sheet and the task-detail address section.
+ *
+ * #228: [locale] is last and defaulted, so the badge tests are untouched while
+ * the two screens that know their reader can pass it.
  */
-fun addressProvenanceLabel(provenance: String?): String? = when (provenance) {
-    AddressProvenance.MESSAGE -> "From the message"
-    AddressProvenance.CONTACT -> "From the contact"
-    AddressProvenance.COMPANY -> "Inferred from area code"
+fun addressProvenanceLabel(provenance: String?, locale: String? = null): String? = when (provenance) {
+    AddressProvenance.MESSAGE -> AppStrings.translate(locale, "domain.addrFromMessage")
+    AddressProvenance.CONTACT -> AppStrings.translate(locale, "domain.addrFromContact")
+    AddressProvenance.COMPANY -> AppStrings.translate(locale, "domain.addrFromAreaCode")
     else -> null
 }
 
@@ -338,20 +342,24 @@ data class ReplySuggestions(
  * happened and whether trying again will help. Mirrors
  * suggestionFailureMessage in apps/web/src/lib/api/reply-suggestions.ts.
  */
-fun replyDraftMessage(reason: String?): String = when (reason) {
-    "disabled" -> "Drafting is turned off for this workspace. Settings, AI turns it back on."
-    // #250: a thread somebody marked as spam never spends AI budget.
-    "spam" -> "This thread is marked as spam, so Lou skips it. Unmark it to draft a reply."
-    "nothing_to_reply" -> "Nothing to draft from yet. Type a few words and try again."
-    // #581: billing, not breakage — so it must not say "try again", which is
-    // not what fixes it. Same sentence everywhere Lou refuses for this reason.
-    "subscription_inactive" -> "Lou is paused while the subscription is sorted out. An owner can fix that in Billing."
-    "over_cap" -> "This month's drafting is used up. It starts again next month."
-    "rate_limited" -> "That was a lot of drafts at once. Try again in a moment."
-    "model_error", "unavailable" -> "Couldn't reach Lou just now. Try again."
-    "unusable_output" -> "Nothing came back worth sending. Try again, or add a few words first."
-    else -> "No drafts this time. Try again."
-}
+fun replyDraftMessage(reason: String?, locale: String? = null): String = AppStrings.translate(
+    locale,
+    when (reason) {
+        "disabled" -> "domain.draftsDisabled"
+        // #250: a thread somebody marked as spam never spends AI budget.
+        "spam" -> "domain.draftsSpam"
+        "nothing_to_reply" -> "domain.draftsNothingToReply"
+        // #581: billing, not breakage — so it must not say "try again", which is
+        // not what fixes it. The same KEY everywhere Lou refuses for this
+        // reason, so the wording cannot drift between them.
+        "subscription_inactive" -> "domain.louPausedForBilling"
+        "over_cap" -> "domain.draftsOverCap"
+        "rate_limited" -> "domain.draftsRateLimited"
+        "model_error", "unavailable" -> "domain.louUnreachable"
+        "unusable_output" -> "domain.draftsUnusable"
+        else -> "domain.draftsNone"
+    },
+)
 
 /**
  * #214 the confirmed (enriched or hand-entered) job address a create/update

@@ -307,7 +307,10 @@ class OutboxTest {
 
         assertEquals(listOf("k1"), result.blocked)
         assertEquals("a stale row is never sent behind the person's back", 0, calls)
-        assertEquals(OUTBOX_STALE_MESSAGE, store.rows.single().lastError)
+        // #228: the sentence moved into the catalogue, so this asks the
+        // accessor rather than a `const`. Still the same assertion — the row a
+        // person comes back to must carry the decision they now own.
+        assertEquals(outboxStaleMessage(), store.rows.single().lastError)
     }
 
     @Test

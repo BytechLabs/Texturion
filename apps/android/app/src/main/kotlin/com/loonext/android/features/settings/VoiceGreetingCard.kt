@@ -182,6 +182,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                     name.trim(),
                     current.durationMs,
                     current.bytes,
+                    locale,
                 )
                 player.value?.release()
                 player.value = null

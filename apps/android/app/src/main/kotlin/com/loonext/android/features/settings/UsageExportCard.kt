@@ -134,17 +134,31 @@ fun lastCompleteMonth(year: Int, month: Int): UsageExportPeriod {
     )
 }
 
-/** The words, from `packages/shared/src/usage-export.ts`. Pinned by `UsageExportCardTest`. */
-const val EXPORT_USAGE_ACTION = "Export usage"
+/**
+ * The words, from `packages/shared/src/usage-export.ts`, now held in the
+ * catalogue like every other sentence on this screen.
+ *
+ * THESE THREE CONSTANTS ARE THE ENGLISH, and they still exist because
+ * `UsageExportCardTest` compares them character for character against the
+ * shared module three clients read. `translate(null, …)` asks for the English
+ * table by the same rule a missing locale always has, so there is still exactly
+ * ONE place each sentence is written — the catalogue — and the parity check
+ * still reads the sentence that ships. The CARD renders `t(…)`, in the reader's
+ * language; these are only for the guard and for anything else that has to name
+ * the English.
+ */
+const val EXPORT_USAGE_ACTION_KEY = "settingsMore.exportUsageAction"
+const val EXPORT_USAGE_BLURB_KEY = "settingsMore.exportUsageBlurb"
+const val EXPORT_USAGE_NOTE_KEY = "settingsMore.exportUsageNote"
 
-const val EXPORT_USAGE_BLURB =
-    "Your texts, calls and storage for a period, as a file for whoever does " +
-        "your books."
+val EXPORT_USAGE_ACTION: String
+    get() = AppStrings.translate(null, EXPORT_USAGE_ACTION_KEY)
 
-const val EXPORT_USAGE_NOTE =
-    "It counts what we measured — it is not a copy of your Stripe invoice, and " +
-        "nothing on it is priced. It is put together in the background and appears " +
-        "under Data export."
+val EXPORT_USAGE_BLURB: String
+    get() = AppStrings.translate(null, EXPORT_USAGE_BLURB_KEY)
+
+val EXPORT_USAGE_NOTE: String
+    get() = AppStrings.translate(null, EXPORT_USAGE_NOTE_KEY)
 
 /**
  * A picked day, as the instant the API is asking for.
@@ -270,7 +284,7 @@ fun UsageExportCard(scope: SettingsScope) {
 
     SettingsCard(
         title = t("settingsMore.dataExport"),
-        description = if (open) null else EXPORT_USAGE_BLURB,
+        description = if (open) null else t(EXPORT_USAGE_BLURB_KEY),
     ) {
         if (!open) {
             LinkButton(onClick = { open = true }) {
@@ -280,10 +294,10 @@ fun UsageExportCard(scope: SettingsScope) {
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(6.dp))
-                Text(EXPORT_USAGE_ACTION)
+                Text(t(EXPORT_USAGE_ACTION_KEY))
             }
         } else {
-            Text(EXPORT_USAGE_BLURB, style = MaterialTheme.typography.bodyMedium)
+            Text(t(EXPORT_USAGE_BLURB_KEY), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(10.dp))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -305,7 +319,7 @@ fun UsageExportCard(scope: SettingsScope) {
             Spacer(Modifier.height(8.dp))
             // The honest caveat where the DECISION is made, not where the
             // disappointment would be.
-            ReadOnlyLine(EXPORT_USAGE_NOTE)
+            ReadOnlyLine(t(EXPORT_USAGE_NOTE_KEY))
             InlineError(error)
             Row(
                 verticalAlignment = Alignment.CenterVertically,

@@ -119,9 +119,13 @@ class ImportConsentGateTest {
         // reports what it refused. A workspace that never sees that is back to
         // a silent refusal — which is the same defect as manufacturing the
         // consent, discovered a year later by somebody reading the audit row.
+        // #228: the sentence takes the reader's language as a trailing argument
+        // and the call now wraps, so the needle is a regex that stops at the
+        // FIGURE — which is the half this assertion has always been about.
         assertTrue(
             "the refused COUNT must be shown, derived from the server's number",
-            tab.contains("ContactImport.consentRefusedHeadline(result.consent_refused)"),
+            Regex("""ContactImport\.consentRefusedHeadline\(\s*result\.consent_refused""")
+                .containsMatchIn(tab),
         )
         assertTrue(
             "the server's own sentence must reach the screen verbatim — it is " +
@@ -458,7 +462,10 @@ class ImportConsentGateTest {
         // a fully recognised file stops being defensible the moment that is true.
         val sheet = composable("ImportColumnsSheet")
         val cards = sheet.indexOf("ColumnDeclarationCard(")
-        val warning = sheet.indexOf("ContactImport.Columns.WRONG_COLUMN")
+        // #228: the sentence is assembled through the catalogue now — the
+        // `{answer}` slot is filled from the control's own label — so the
+        // identifier is `wrongColumn(`. Its POSITION is what this pins.
+        val warning = sheet.indexOf("ContactImport.Columns.wrongColumn(")
         val confirm = sheet.indexOf("ContactImport.Columns.CONFIRM")
         assertTrue("the cards are gone from the sheet", cards > 0)
         assertTrue("the warning is gone from the sheet", warning > 0)
@@ -480,6 +487,10 @@ class ImportConsentGateTest {
             "a column's values must be on screen",
             card.contains("ContactImport.Columns.valuesLine(column.samples"),
         )
+        // #228 note on the needles below: each of these builders takes the
+        // reader's language as a trailing argument now, so the needles stop
+        // before the closing bracket. What they pin is unchanged — which FACT
+        // about the column reaches the card.
         // #528: and the ones it does not print must be COUNTED and REACHABLE.
         // "Values include: a, b, c" admitted there might be more without saying
         // how many or where, so a column with nine answers and one with four
@@ -492,19 +503,19 @@ class ImportConsentGateTest {
         )
         assertTrue(
             "and reachable",
-            card.contains("ContactImport.Columns.showAllValuesLabel(column.total)") &&
+            card.contains("ContactImport.Columns.showAllValuesLabel(column.total") &&
                 card.contains("column.values"),
         )
         assertTrue(
             "and its position, because the server names a column by position",
-            card.contains("ContactImport.Columns.positionLabel(column.index)"),
+            card.contains("ContactImport.Columns.positionLabel(column.index"),
         )
         assertTrue(
             "and its header exactly as the file spelled it",
-            card.contains("ContactImport.Columns.headerLabel(column.header)"),
+            card.contains("ContactImport.Columns.headerLabel(column.header"),
         )
         // The consequence of a wrong answer sits on the path to the button.
-        val warning = tab.indexOf("ContactImport.Columns.WRONG_COLUMN")
+        val warning = tab.indexOf("ContactImport.Columns.wrongColumn(")
         val confirm = tab.indexOf("ContactImport.Columns.CONFIRM")
         assertTrue("the warning is gone", warning > 0)
         assertTrue("it must be read before the button, not after it", warning < confirm)
@@ -623,7 +634,7 @@ class ImportConsentGateTest {
         )
         assertTrue(
             "and the overflow sentence must be the derived one",
-            tab.contains("ContactImport.overflowLine(total, shown.size)"),
+            tab.contains("ContactImport.overflowLine(total, shown.size"),
         )
     }
 

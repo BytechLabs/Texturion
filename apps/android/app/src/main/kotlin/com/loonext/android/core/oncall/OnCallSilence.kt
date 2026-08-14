@@ -1,5 +1,6 @@
 package com.loonext.android.core.oncall
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.snooze.parseInstantMillis
 
 /**
@@ -28,11 +29,19 @@ import com.loonext.android.core.snooze.parseInstantMillis
  */
 object OnCallSilence {
 
-    /** The confirm button, which says what happens rather than "OK". */
-    const val CONFIRM = "Turn it off anyway"
+    /**
+     * The confirm button, which says what happens rather than "OK".
+     *
+     * #228: the KEY is the constant, because `t()` is `@Composable` and this
+     * object is not. The old name stays as a property over it, so a call site
+     * that has not been given the reader's language keeps its English.
+     */
+    const val CONFIRM_KEY = "domain.onCallSilenceConfirm"
+    val CONFIRM: String get() = AppStrings.translate(null, CONFIRM_KEY)
 
     /** ...and the way out. */
-    const val CANCEL = "Leave it on"
+    const val CANCEL_KEY = "domain.onCallSilenceCancel"
+    val CANCEL: String get() = AppStrings.translate(null, CANCEL_KEY)
 
     /** One shift, reduced to what this decision needs. */
     data class Shift(val userId: String, val startsAt: String, val endsAt: String)
@@ -62,12 +71,27 @@ object OnCallSilence {
      * ON — so a caller can ask unconditionally. Turning notifications back on is the
      * good outcome, and a dialog there would be punishing the fix.
      */
-    fun warning(onCall: Boolean, turningOff: Boolean, channel: String): String? {
+    fun warning(
+        onCall: Boolean,
+        turningOff: Boolean,
+        channel: String,
+        // #228: last and defaulted, so the parity test against the shared
+        // TypeScript keeps comparing English to English.
+        locale: String? = null,
+    ): String? {
         if (!onCall || !turningOff) return null
-        val what = if (channel == "push") "Push alerts" else "Emails"
-        return "You're on call right now. $what are how a new customer nobody has " +
-            "answered reaches you, and with this off those pages go nowhere — no " +
-            "one else is told. Hand the shift over first if you need to be " +
-            "unreachable."
+        val what = AppStrings.translate(
+            locale,
+            if (channel == "push") {
+                "domain.onCallSilenceChannelPush"
+            } else {
+                "domain.onCallSilenceChannelEmail"
+            },
+        )
+        return AppStrings.translate(
+            locale,
+            "domain.onCallSilenceWarning",
+            mapOf("what" to what),
+        )
     }
 }

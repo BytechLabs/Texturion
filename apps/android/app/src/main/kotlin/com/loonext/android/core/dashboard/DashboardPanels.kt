@@ -1,5 +1,7 @@
 package com.loonext.android.core.dashboard
 
+import com.loonext.android.core.i18n.AppStrings
+
 /**
  * #540 — which parts of the landing screen a member is allowed to put away.
  *
@@ -38,13 +40,16 @@ object DashboardPanels {
      * The label has to be the heading shown on the screen, or the switch is a
      * guess.
      */
-    fun label(panel: Panel): String = when (panel) {
-        Panel.RESPONSE_TIME -> "Response time"
-        Panel.PIPELINE -> "Quotes"
-        Panel.SATISFACTION -> "Satisfaction"
-        Panel.LEAD_SOURCES -> "Where your customers come from"
-        Panel.RECENT_CALLS -> "Recent calls"
-    }
+    fun label(panel: Panel, locale: String? = null): String = AppStrings.translate(
+        locale,
+        when (panel) {
+            Panel.RESPONSE_TIME -> "domain.panelResponseTime"
+            Panel.PIPELINE -> "domain.panelPipeline"
+            Panel.SATISFACTION -> "domain.panelSatisfaction"
+            Panel.LEAD_SOURCES -> "domain.panelLeadSources"
+            Panel.RECENT_CALLS -> "domain.panelRecentCalls"
+        },
+    )
 
     /**
      * One line saying what the panel is for.
@@ -53,13 +58,16 @@ object DashboardPanels {
      * answers, and four headings alone do not distinguish "Pipeline" from
      * "Response time" for anybody who has not read both cards.
      */
-    fun note(panel: Panel): String = when (panel) {
-        Panel.RESPONSE_TIME -> "How fast new customers got an answer this week."
-        Panel.PIPELINE -> "What you quoted this month, and how much of it landed."
-        Panel.SATISFACTION -> "Whether the people you answered were happy."
-        Panel.LEAD_SOURCES -> "Which channels are actually bringing work in."
-        Panel.RECENT_CALLS -> "The last few calls, in and out."
-    }
+    fun note(panel: Panel, locale: String? = null): String = AppStrings.translate(
+        locale,
+        when (panel) {
+            Panel.RESPONSE_TIME -> "domain.panelResponseTimeNote"
+            Panel.PIPELINE -> "domain.panelPipelineNote"
+            Panel.SATISFACTION -> "domain.panelSatisfactionNote"
+            Panel.LEAD_SOURCES -> "domain.panelLeadSourcesNote"
+            Panel.RECENT_CALLS -> "domain.panelRecentCallsNote"
+        },
+    )
 
     /**
      * Clean a stored set into something safe to render from.

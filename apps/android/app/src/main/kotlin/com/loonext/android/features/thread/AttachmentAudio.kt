@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.AttachmentSummary
 import kotlinx.coroutines.delay
@@ -162,7 +164,7 @@ fun AttachmentAudio(
         Spacer(Modifier.width(6.dp))
         Column(Modifier.width(170.dp)) {
             Text(
-                audioRowCaption(failed),
+                audioRowCaption(failed, LocalAppLocale.current),
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -197,5 +199,8 @@ fun AttachmentAudio(
  * both phones. iOS had a comma where this had a middle dot, which is the sort of
  * drift nobody notices until a screenshot puts the two side by side.
  */
-fun audioRowCaption(failed: Boolean): String =
-    if (failed) "Audio unavailable · tap to retry" else "Audio message"
+fun audioRowCaption(failed: Boolean, locale: String? = null): String =
+    AppStrings.translate(
+        locale,
+        if (failed) "thread.audioUnavailable" else "thread.audioMessage",
+    )

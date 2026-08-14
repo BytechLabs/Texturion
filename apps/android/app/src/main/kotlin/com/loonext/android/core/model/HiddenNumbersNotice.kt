@@ -1,5 +1,7 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.core.i18n.AppStrings
+
 /**
  * #286 — saying that a number is missing, rather than letting it be missing.
  *
@@ -15,14 +17,20 @@ package com.loonext.android.core.model
  * The wording lives in shared and is ported rather than reinvented, because
  * three clients describing one access rule three different ways is the #437
  * failure on the surface where a new member forms their first impression.
+ *
+ * #228: [locale] is last and defaulted. A member who cannot see a number is the
+ * member most likely to be the newest one on the crew, and the newest one is the
+ * likeliest to be reading in the other language.
  */
-fun hiddenNumbersNotice(hiddenCount: Int): String? {
+fun hiddenNumbersNotice(hiddenCount: Int, locale: String? = null): String? {
     if (hiddenCount <= 0) return null
     return if (hiddenCount == 1) {
-        "One more number is on this account that is not shared with you. " +
-            "Ask an owner if you need it."
+        AppStrings.translate(locale, "domain.hiddenNumbersOne")
     } else {
-        "$hiddenCount more numbers are on this account that are not shared " +
-            "with you. Ask an owner if you need them."
+        AppStrings.translate(
+            locale,
+            "domain.hiddenNumbersMany",
+            mapOf("count" to hiddenCount.toString()),
+        )
     }
 }

@@ -109,10 +109,11 @@ fun EmergencyCard(
     // The composed preview: the owner's body (or the product default) followed
     // by the sentence no setting removes. The server's composed message is the
     // truth whenever nothing is unsaved, which is why it shows when empty.
+    val safetyLine = t(EMERGENCY_SAFETY_LINE_KEY)
     val previewBody = trimmedMessage.ifEmpty { company.emergency_effective_message }
     val preview =
-        if (previewBody.contains(EMERGENCY_SAFETY_LINE)) previewBody
-        else "$previewBody $EMERGENCY_SAFETY_LINE"
+        if (previewBody.contains(safetyLine)) previewBody
+        else "$previewBody $safetyLine"
 
     // `addWord` and the chip's onClick both run outside composition, and one of
     // them has to name the offending word — so the locale is captured here and
@@ -282,7 +283,7 @@ fun EmergencyCard(
         Spacer(Modifier.height(12.dp))
         PreviewBubble(label = t("settings.emergencyPreviewLabel"), text = preview)
         Text(
-            t("settings.emergencySafetyLineNote", "line" to EMERGENCY_SAFETY_LINE),
+            t("settings.emergencySafetyLineNote", "line" to safetyLine),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -340,8 +341,17 @@ fun EmergencyCard(
 
 /**
  * The one sentence appended to every emergency reply, mirroring
- * `EMERGENCY_SAFETY_LINE` in shared. Kept in Kotlin because this screen has to
- * PREVIEW the composed message while the owner is still typing — the server's
- * composed value is a round trip behind.
+ * `EMERGENCY_SAFETY_LINE` in shared. Read from the catalogue because this
+ * screen has to PREVIEW the composed message while the owner is still typing —
+ * the server's composed value is a round trip behind.
+ *
+ * BOTH LANGUAGES ARE THE SERVER'S OWN, copied character for character from
+ * `packages/shared/src/locale.ts`. This is the one sentence in the product with
+ * a SAFETY property: the rest degrades to "the customer reads English" when a
+ * translation is missing, and this degrades to somebody in danger being told
+ * what to do in a language they may not read. A prettier French written here
+ * would preview a sentence the server never sends, which is the same failure
+ * with better spelling. 911 is the number in Canada and the US alike, so it is
+ * as region-neutral in French as it is in English.
  */
-const val EMERGENCY_SAFETY_LINE = "If anyone is in danger, call 911."
+const val EMERGENCY_SAFETY_LINE_KEY = "settings.emergencySafetyLine"

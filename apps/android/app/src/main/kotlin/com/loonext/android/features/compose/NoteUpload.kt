@@ -1,6 +1,7 @@
 package com.loonext.android.features.compose
 
 import com.loonext.android.core.auth.await
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
@@ -17,8 +18,17 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * speaks JSON bodies, so this helper borrows its OkHttp client + fresh-session
  * refresh + SPEC §7 envelope decoding for the one multipart door the composer
  * needs (owner_type='note' is the ONLY generic upload owner).
+ *
+ * #228: [locale] is the reader's language. The two sentences below are OURS —
+ * the server's own refusals still come back verbatim through `expectSuccess` —
+ * and they are thrown from a coroutine, so the language has to be carried in
+ * rather than read from composition. It defaults to English.
  */
-class NoteFileUploader(private val api: ApiClient, private val baseUrl: String) {
+class NoteFileUploader(
+    private val api: ApiClient,
+    private val baseUrl: String,
+    private val locale: String? = null,
+) {
 
     suspend fun upload(
         companyId: String,
@@ -29,7 +39,7 @@ class NoteFileUploader(private val api: ApiClient, private val baseUrl: String) 
     ): Attachment {
         val session = api.freshSession() ?: throw ApiException(
             ApiErrorCode.UNAUTHORIZED,
-            "You're signed out.",
+            AppStrings.translate(locale, "thread.signedOut"),
             401,
         )
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
@@ -65,7 +75,7 @@ class NoteFileUploader(private val api: ApiClient, private val baseUrl: String) 
         } catch (_: IOException) {
             throw ApiException(
                 ApiErrorCode.NETWORK,
-                "Can't reach Loonext. Check your connection.",
+                AppStrings.translate(locale, "thread.cantReachLoonext"),
                 0,
             )
         }

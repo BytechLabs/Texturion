@@ -1,6 +1,7 @@
 package com.loonext.android.features.thread
 
 import android.content.Context
+import com.loonext.android.core.i18n.AppStrings
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -104,14 +105,20 @@ class OutboxMediaBytes(val contentType: String, val bytes: ByteArray)
  */
 const val OUTBOX_AGE_OUT_HOURS = 24L
 
-/** Said to the person, not logged — so it names the decision they now own. */
-const val OUTBOX_STALE_MESSAGE =
-    "Queued for over a day. The conversation may have moved on — send it now, or delete it."
+/**
+ * Said to the person, not logged — so it names the decision they now own.
+ *
+ * #228: a function rather than a `const`, because the sentence is the reader's
+ * and the reader's language is not known at compile time. It is written into
+ * the durable row, so a row queued in one language keeps that wording until it
+ * is resolved; that is a fact about the store, not a translation gap.
+ */
+fun outboxStaleMessage(locale: String? = null): String =
+    AppStrings.translate(locale, "thread.outboxStale")
 
 /** Said when the photo is gone but the words are still worth sending. */
-const val OUTBOX_MEDIA_LOST_MESSAGE =
-    "The photo for this message is no longer on this device. Send the text on its own, " +
-        "or delete it."
+fun outboxMediaLostMessage(locale: String? = null): String =
+    AppStrings.translate(locale, "thread.outboxMediaLost")
 
 /**
  * Persistence for the outbox.
@@ -282,6 +289,8 @@ class OutboxFlusher(
     private val outbox: Outbox,
     /** Injected so the age-out is assertable without waiting a day. */
     private val now: () -> Instant = { Instant.now() },
+    /** #228: the reader's language, for the one sentence this writes itself. */
+    private val locale: String? = null,
     private val send: suspend (QueuedSend) -> SendOutcome,
 ) {
     private val mutex = Mutex()
@@ -299,7 +308,9 @@ class OutboxFlusher(
             }
             // Old enough that sending it is a decision rather than a delivery.
             if (!item.staleAcknowledged && agedOut(item, now())) {
-                outbox.put(item.copy(blocked = true, lastError = OUTBOX_STALE_MESSAGE))
+                outbox.put(
+                    item.copy(blocked = true, lastError = outboxStaleMessage(locale)),
+                )
                 blocked += item.localId
                 continue
             }

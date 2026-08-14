@@ -1,5 +1,6 @@
 package com.loonext.android.features.compose
 
+import com.loonext.android.core.i18n.AppStrings
 import java.time.Instant
 import java.time.format.DateTimeParseException
 
@@ -67,24 +68,55 @@ private fun parseInstant(value: String): Instant? = try {
  * The sentence the confirmation opens with. Names the person when we know
  * them, because "Sam replied" is a fact somebody can act on — they can ask Sam
  * — and "someone replied" is not.
+ *
+ * #228: the WHEN-clause is built first and a whole sentence wraps it, rather
+ * than a magnitude glued to a unit and a suffix. "1 minute ago" and "2 minutes
+ * ago" are separate sentences here for the same reason web keeps them apart:
+ * pluralising by appending an "s" is a rule about English that does nothing at
+ * all once the sentence is French. [locale] defaults to English so the tests
+ * that pin this wording read exactly as they did.
  */
-fun duplicateReplyPrompt(who: String?, secondsAgo: Long): String {
+fun duplicateReplyPrompt(who: String?, secondsAgo: Long, locale: String? = null): String {
     val ago = when {
-        secondsAgo < 60 -> "just now"
+        secondsAgo < 60 -> AppStrings.translate(locale, "thread.agoJustNow")
         secondsAgo < 3600 -> {
             val m = secondsAgo / 60
-            "$m minute${if (m == 1L) "" else "s"} ago"
+            if (m == 1L) {
+                AppStrings.translate(locale, "thread.agoOneMinute")
+            } else {
+                AppStrings.translate(
+                    locale,
+                    "thread.agoMinutes",
+                    mapOf("count" to m.toString()),
+                )
+            }
         }
         secondsAgo < 86_400 -> {
             val h = secondsAgo / 3600
-            "$h hour${if (h == 1L) "" else "s"} ago"
+            if (h == 1L) {
+                AppStrings.translate(locale, "thread.agoOneHour")
+            } else {
+                AppStrings.translate(
+                    locale,
+                    "thread.agoHours",
+                    mapOf("count" to h.toString()),
+                )
+            }
         }
-        else -> "since you started writing"
+        else -> AppStrings.translate(locale, "thread.agoSinceWriting")
     }
     val name = who?.trim().orEmpty()
     return if (name.isNotEmpty()) {
-        "$name replied $ago."
+        AppStrings.translate(
+            locale,
+            "thread.duplicateReplyNamed",
+            mapOf("name" to name, "ago" to ago),
+        )
     } else {
-        "An automatic reply went out $ago."
+        AppStrings.translate(
+            locale,
+            "thread.duplicateReplyAuto",
+            mapOf("ago" to ago),
+        )
     }
 }

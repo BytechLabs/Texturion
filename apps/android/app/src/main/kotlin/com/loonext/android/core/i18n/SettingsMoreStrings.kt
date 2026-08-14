@@ -1190,6 +1190,77 @@ object SettingsMoreStrings : AppStrings.Section {
             "{targets} people could be rung by a call to this number, and one " +
             "call rings {limit}. Everyone still takes turns — a different {limit} " +
             "ring each time — but nobody is rung on every call.",
+
+        // -- What the app calls itself inside an authenticator (#228) ---------
+        // Web translates its own factor name (`tfaAuthenticatorFactorName`), so
+        // this does too. Loonext is a product and Android is a platform: both
+        // stay as they are in either language.
+        "settingsMore.tfaFactorName" to "Loonext on Android",
+
+        // -- The usage export, moved out of `UsageExportCard` (#228) ----------
+        // These three are the words `packages/shared/src/usage-export.ts` owns
+        // for all three clients, and `UsageExportCardTest` compares the English
+        // here against that module character for character. Change one and the
+        // guard fails, which is the point of it.
+        "settingsMore.exportUsageAction" to "Export usage",
+        "settingsMore.exportUsageBlurb" to
+            "Your texts, calls and storage for a period, as a file for whoever does " +
+            "your books.",
+        "settingsMore.exportUsageNote" to
+            "It counts what we measured — it is not a copy of your Stripe invoice, and " +
+            "nothing on it is priced. It is put together in the background and appears " +
+            "under Data export.",
+
+        // -- The two refusals the settings screens raise themselves -----------
+        // Everything the API refuses with arrives already phrased for a person
+        // and is rendered as written; these two are OURS, raised before any
+        // request reached anybody. `settingsMore.signedOut` above is the third.
+        "settingsMore.cantReachLoonext" to "Can't reach Loonext. Check your connection.",
+        "settingsMore.cantReachSignIn" to
+            "Can't reach the sign-in service. Check your connection.",
+        // The last resort when GoTrue refused in a shape we could not read. The
+        // status code rides along because it is the one thing a support email
+        // can be looked up by.
+        "settingsMore.somethingWentWrongStatus" to "Something went wrong ({status}).",
+
+        // -- A carrier is filtering this line (#235) --------------------------
+        // It never says "spam" or "flagged": we know delivery fell, we do not
+        // know which vendor labelled it or whether one did.
+        "settingsMore.numberHealthRate" to
+            "About {percent}% of your recent texts were delivered, " +
+            "which is below normal for this number.",
+        "settingsMore.numberHealthNoRate" to
+            "Fewer of your texts are getting through than usual.",
+        "settingsMore.numberHealthCause" to
+            "Carriers sometimes start filtering a number — often one that was " +
+            "reused from a previous business. We've been alerted and we're on it; " +
+            "you don't need to do anything yet.",
+
+        // -- Giving a number up for good (#523) -------------------------------
+        // Two whole sentences, because the last clause of the plain one is false
+        // for a hold: a workspace on hold is over its allowance by definition, so
+        // releasing brings it back TO the allowance and no further.
+        "settingsMore.releaseBody" to
+            "This gives the number up for good. Customers who text it won't reach you, " +
+            "and you can't get the same number back. It doesn't change your plan or " +
+            "what you pay. A number is included, so you can set up a new one here " +
+            "afterward. Type the number to confirm.",
+        "settingsMore.releaseBodyHeld" to
+            "This is a number your plan doesn't cover, and releasing it is the other way " +
+            "out of that hold — it ends the hold by giving the number up rather than " +
+            "by bringing it back. Customers who text it won't reach you afterward, and " +
+            "you can't get the same number back. Your plan stops being over its " +
+            "allowance, and what you pay doesn't change. Type the number to confirm.",
+
+        // -- Why this workspace cannot buy one more number (#464, #522) -------
+        "settingsMore.extraNumberCountry" to
+            "Extra numbers are available for US and Canadian workspaces.",
+        "settingsMore.extraNumberUsTexting" to
+            "An extra number needs US texting turned on for your workspace first.",
+        "settingsMore.extraNumberCurrency" to
+            "Extra numbers are priced in US dollars and can't be added to a " +
+            "subscription billed in another currency yet. Contact support and " +
+            "we'll sort it out.",
     )
 
     override val frCA = mapOf(
@@ -2438,5 +2509,63 @@ object SettingsMoreStrings : AppStrings.Section {
             "et un appel en fait sonner {limit}. Tout le monde passe à tour de " +
             "rôle — {limit} personnes différentes à chaque appel — mais personne " +
             "n'est joint à tous les appels.",
+
+        "settingsMore.tfaFactorName" to "Loonext sur Android",
+
+        "settingsMore.exportUsageAction" to "Exporter l'utilisation",
+        "settingsMore.exportUsageBlurb" to
+            "Vos textos, vos appels et votre stockage pour une période, sous forme " +
+            "de fichier pour la personne qui tient vos livres.",
+        "settingsMore.exportUsageNote" to
+            "Le fichier compte ce que nous avons mesuré — ce n'est pas une copie de " +
+            "votre facture Stripe, et rien n'y est chiffré en dollars. Il est " +
+            "assemblé en arrière-plan et apparaît sous Exportation de données.",
+
+        // Copié de `thread.cantReachLoonext` : même refus, mêmes mots.
+        "settingsMore.cantReachLoonext" to
+            "Impossible de joindre Loonext. Vérifiez votre connexion.",
+        "settingsMore.cantReachSignIn" to
+            "Impossible de joindre le service de connexion. Vérifiez votre connexion.",
+        "settingsMore.somethingWentWrongStatus" to
+            "Une erreur s'est produite ({status}).",
+
+        // Copié de `settingsMore.numberHealthRate` / `numberHealthRateUnknown` /
+        // `numberHealthBody` sur le web, caractère pour caractère.
+        "settingsMore.numberHealthRate" to
+            "Environ {percent} % de vos textos récents ont été livrés, ce qui est " +
+            "sous la normale pour ce numéro.",
+        "settingsMore.numberHealthNoRate" to
+            "Moins de vos textos se rendent à destination qu'à l'habitude.",
+        "settingsMore.numberHealthCause" to
+            "Les fournisseurs se mettent parfois à filtrer un numéro — souvent un " +
+            "numéro réutilisé d'une entreprise précédente. Nous avons été avertis et " +
+            "nous nous en occupons ; vous n'avez rien à faire pour le moment.",
+
+        // Copié de `settingsMore.releaseBodyPlain` / `releaseBodyOverAllowance`
+        // sur le web, caractère pour caractère.
+        "settingsMore.releaseBody" to
+            "Cela abandonne le numéro pour de bon. Les clients qui le textent ne vous " +
+            "joindront plus, et vous ne pouvez pas récupérer le même numéro. Cela ne " +
+            "change ni votre forfait ni ce que vous payez — un numéro est inclus, " +
+            "alors vous pouvez en configurer un nouveau ici par la suite. Tapez le " +
+            "numéro pour confirmer.",
+        "settingsMore.releaseBodyHeld" to
+            "Ce numéro n'est pas couvert par votre forfait, et le libérer est l'autre " +
+            "façon de sortir de cette attente — cela met fin à l'attente en " +
+            "abandonnant le numéro plutôt qu'en le rétablissant. Les clients qui le " +
+            "textent ne vous joindront plus par la suite, et vous ne pouvez pas " +
+            "récupérer le même numéro. Votre forfait cesse de dépasser son allocation, " +
+            "et ce que vous payez ne change pas. Tapez le numéro pour confirmer.",
+
+        "settingsMore.extraNumberCountry" to
+            "Les numéros supplémentaires sont offerts aux espaces de travail " +
+            "américains et canadiens.",
+        "settingsMore.extraNumberUsTexting" to
+            "Un numéro supplémentaire exige d'abord que les textos américains " +
+            "soient activés pour votre espace de travail.",
+        "settingsMore.extraNumberCurrency" to
+            "Les numéros supplémentaires sont facturés en dollars américains et ne " +
+            "peuvent pas encore être ajoutés à un abonnement facturé dans une autre " +
+            "devise. Écrivez au soutien et nous arrangerons cela.",
     )
 }

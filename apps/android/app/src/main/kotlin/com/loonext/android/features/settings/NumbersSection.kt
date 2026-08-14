@@ -369,7 +369,7 @@ private fun NumberCard(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    numberHealthCopy(number.health),
+                    numberHealthCopy(number.health, locale),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -400,6 +400,7 @@ private fun NumberCard(
                     suspendedNumberNote(
                         company.subscription_status,
                         SettingsRoleGate.canManageBilling(scope.role),
+                        locale,
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -655,7 +656,7 @@ private fun ReleaseNumberDialog(
 
     ConfirmDialog(
         title = t("settingsMore.releaseTitle", "number" to display),
-        body = releaseNumberBody(heldOverAllowance),
+        body = releaseNumberBody(heldOverAllowance, locale),
         confirmLabel = t("settingsMore.releaseConfirm"),
         destructive = true,
         pending = pending,
@@ -1013,10 +1014,12 @@ private fun AddNumberCard(
     // satisfy — and the gate it hid behind (10DLC approval) is a US carrier
     // requirement that does not exist in Canada. Same rule as the server's
     // extraNumberBlockedReason; only the US branch has a wait.
+    val locale = LocalAppLocale.current
     val extraBlockedReason = extraNumberBlockedReason(
         country = company.country,
         usTextingEnabled = company.us_texting_enabled,
         billingCurrency = company.billing_currency,
+        locale = locale,
     )
     if (nextIsExtra && extraBlockedReason != null) {
         SettingsCard(title = t("settingsMore.addNumber")) {
@@ -1041,7 +1044,6 @@ private fun AddNumberCard(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
-    val locale = LocalAppLocale.current
 
     SettingsCard(
         title = t("settingsMore.addNumber"),
@@ -1178,15 +1180,15 @@ private fun RemediateNumberFlow(
  * established would be a guess dressed as a diagnosis. It also promises no
  * self-serve fix — remediation is registry paperwork that takes days.
  */
-internal fun numberHealthCopy(health: NumberHealth): String {
+internal fun numberHealthCopy(health: NumberHealth, locale: String? = null): String {
     val opening = health.delivery_rate?.let {
-        "About ${Math.round(it * 100)}% of your recent texts were delivered, " +
-            "which is below normal for this number."
-    } ?: "Fewer of your texts are getting through than usual."
-    return opening +
-        " Carriers sometimes start filtering a number — often one that was " +
-        "reused from a previous business. We've been alerted and we're on it; " +
-        "you don't need to do anything yet."
+        AppStrings.translate(
+            locale,
+            "settingsMore.numberHealthRate",
+            mapOf("percent" to Math.round(it * 100).toString()),
+        )
+    } ?: AppStrings.translate(locale, "settingsMore.numberHealthNoRate")
+    return opening + " " + AppStrings.translate(locale, "settingsMore.numberHealthCause")
 }
 
 /**
@@ -1261,18 +1263,13 @@ internal fun mayReleaseNumber(
  * told there was no elimination to do. That is what the friction is for; the
  * type-the-number box below is the pause, this is the reason to use it.
  */
-internal fun releaseNumberBody(heldOverAllowance: Boolean): String = if (heldOverAllowance) {
-    "This is a number your plan doesn't cover, and releasing it is the other way " +
-        "out of that hold — it ends the hold by giving the number up rather than " +
-        "by bringing it back. Customers who text it won't reach you afterward, and " +
-        "you can't get the same number back. Your plan stops being over its " +
-        "allowance, and what you pay doesn't change. Type the number to confirm."
-} else {
-    "This gives the number up for good. Customers who text it won't reach you, " +
-        "and you can't get the same number back. It doesn't change your plan or " +
-        "what you pay. A number is included, so you can set up a new one here " +
-        "afterward. Type the number to confirm."
-}
+internal fun releaseNumberBody(
+    heldOverAllowance: Boolean,
+    locale: String? = null,
+): String = AppStrings.translate(
+    locale,
+    if (heldOverAllowance) "settingsMore.releaseBodyHeld" else "settingsMore.releaseBody",
+)
 
 /**
  * #464: why this workspace cannot buy one more number, or null when it can.
@@ -1288,13 +1285,14 @@ internal fun extraNumberBlockedReason(
     country: String,
     usTextingEnabled: Boolean,
     billingCurrency: String?,
+    locale: String? = null,
 ): String? {
     if (country != "US" && country != "CA") {
-        return "Extra numbers are available for US and Canadian workspaces."
+        return AppStrings.translate(locale, "settingsMore.extraNumberCountry")
     }
     // US only: the carriers must approve the brand before a US number can text.
     if (country == "US" && !usTextingEnabled) {
-        return "An extra number needs US texting turned on for your workspace first."
+        return AppStrings.translate(locale, "settingsMore.extraNumberUsTexting")
     }
     // #522: a Stripe subscription bills in ONE currency and every item on it has
     // to carry an amount in that currency. The extra-number prices are filed in
@@ -1306,9 +1304,7 @@ internal fun extraNumberBlockedReason(
     // missing from an older response.
     val currency = billingCurrency?.trim()?.lowercase()
     if (currency != null && currency.isNotEmpty() && currency != EXTRA_NUMBER_CURRENCY) {
-        return "Extra numbers are priced in US dollars and can't be added to a " +
-            "subscription billed in another currency yet. Contact support and " +
-            "we'll sort it out."
+        return AppStrings.translate(locale, "settingsMore.extraNumberCurrency")
     }
     return null
 }

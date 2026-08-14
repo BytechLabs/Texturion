@@ -1,5 +1,6 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.core.i18n.AppStrings
 import kotlinx.serialization.Serializable
 
 // --- For You (D23) ---
@@ -60,11 +61,18 @@ data class SpamReviewPage(val data: List<SpamReviewItem> = emptyList())
  * #342: why this thread was raised, in the order the signals are trusted.
  * A count alone reads as a counter; naming the signal reads as the mistake it
  * probably is.
+ *
+ * #228: [locale] is last and defaulted, so a caller that has not been given the
+ * reader's language keeps the English it had.
  */
-fun spamReviewReason(item: SpamReviewItem): String = when {
-    item.we_texted_them -> "You texted them before this was marked"
-    item.sustained -> "Still texting, over several days"
-    else -> "${item.inbound_since} messages since it was marked"
+fun spamReviewReason(item: SpamReviewItem, locale: String? = null): String = when {
+    item.we_texted_them -> AppStrings.translate(locale, "domain.spamWhyTexted")
+    item.sustained -> AppStrings.translate(locale, "domain.spamWhySustained")
+    else -> AppStrings.translate(
+        locale,
+        "domain.spamWhyCount",
+        mapOf("count" to item.inbound_since.toString()),
+    )
 }
 
 @Serializable

@@ -38,15 +38,20 @@ object MergeFields {
      * The list was duplicated in three editors before, and duplicated lists
      * drift: a token offered on the phone and not the laptop means a template
      * somebody writes here and then cannot maintain there.
+     *
+     * #228: the third element is a CATALOGUE KEY, not a sentence. This list is
+     * a `val` read from a template editor and from the composer's preview, and
+     * neither read happens in composition — so the description is resolved
+     * where it is rendered, with `t(...)`.
      */
     val VARIABLES: List<Triple<String, String, String>> = listOf(
-        Triple("first_name", "First name", "The customer's first name"),
-        Triple("address", "Address", "The address on their contact"),
-        Triple("job_day", "Day", "The day of their next booked visit"),
-        Triple("job_time", "Time", "The time of it"),
-        Triple("my_name", "My name", "Your first name"),
-        Triple("business_name", "Business", "Your business name"),
-        Triple("our_number", "Our number", "The number they reply to"),
+        Triple("first_name", "First name", "thread.mergeFirstName"),
+        Triple("address", "Address", "thread.mergeAddress"),
+        Triple("job_day", "Day", "thread.mergeJobDay"),
+        Triple("job_time", "Time", "thread.mergeJobTime"),
+        Triple("my_name", "My name", "thread.mergeMyName"),
+        Triple("business_name", "Business", "thread.mergeBusinessName"),
+        Triple("our_number", "Our number", "thread.mergeOurNumber"),
     )
 
     /**
@@ -196,8 +201,13 @@ object MergeFields {
      */
     val SERVER_ONLY_TOKENS = listOf("job_day", "job_time")
 
-    /** The note a composer preview appends when it cannot show the whole truth. */
-    const val SERVER_ONLY_TOKENS_NOTE = "The day and time fill in when you send."
+    /**
+     * The note a composer preview appends when it cannot show the whole truth.
+     *
+     * #228: a catalogue KEY. The composer renders it with `t(...)`, which is
+     * the only place it is read.
+     */
+    const val SERVER_ONLY_TOKENS_NOTE_KEY = "thread.serverOnlyTokensNote"
 
     /** True when `text` uses a token only the send path can resolve. */
     fun hasServerOnlyTokens(text: String): Boolean {

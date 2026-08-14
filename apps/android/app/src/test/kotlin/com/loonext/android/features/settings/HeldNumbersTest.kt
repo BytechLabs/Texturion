@@ -636,7 +636,7 @@ class HeldNumbersTest {
         val src = readMainSource("features/settings/BillingSection.kt")
         assertTrue(
             "the plan-change toast must report what the upgrade brought back",
-            src.contains("changePlanMessage(result)"),
+            src.contains("changePlanMessage(result"),
         )
         assertFalse(
             "a held-numbers card on the billing screen is height between a thumb " +
@@ -953,7 +953,7 @@ class HeldNumbersTest {
         assertTrue(
             "and its words must come from the shared copy, which is where the false " +
                 "sentence was fixed",
-            src.contains("body = releaseNumberBody(heldOverAllowance)"),
+            src.contains("body = releaseNumberBody(heldOverAllowance"),
         )
     }
 
@@ -1160,7 +1160,7 @@ class HeldNumbersTest {
         )
         assertTrue(
             "and the note must be drawn, or the pill changes and nothing explains it",
-            src.contains("portHoldNote()"),
+            src.contains("portHoldNote("),
         )
     }
 

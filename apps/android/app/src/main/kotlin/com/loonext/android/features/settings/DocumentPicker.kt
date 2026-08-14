@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.loonext.android.core.i18n.t
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,6 +41,11 @@ fun rememberDocumentPicker(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var pendingField by remember { mutableStateOf<String?>(null) }
+    // Both refusals are written from the launcher's callback, which runs long
+    // after this composition ended, so they are read HERE and closed over — the
+    // `MfaGate` pattern. `t()` is a composable read and neither of these is.
+    val wrongKind = t("settings.docWrongKind")
+    val unreadable = t("settings.docUnreadable")
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -51,12 +57,12 @@ fun rememberDocumentPicker(
             try {
                 val upload = withContext(Dispatchers.IO) { readDocument(context, uri, field) }
                 if (upload == null) {
-                    onError("Use a PDF, PNG, or JPEG up to 10 MB.")
+                    onError(wrongKind)
                 } else {
                     onPicked(upload)
                 }
             } catch (_: Exception) {
-                onError("Couldn't read that file. Try another one.")
+                onError(unreadable)
             }
         }
     }

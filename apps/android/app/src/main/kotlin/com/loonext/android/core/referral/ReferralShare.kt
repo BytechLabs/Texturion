@@ -1,5 +1,7 @@
 package com.loonext.android.core.referral
 
+import com.loonext.android.core.i18n.AppStrings
+
 /**
  * #288 — one tap, a pre-written message they can edit, sent from the phone they
  * are already holding.
@@ -21,6 +23,15 @@ package com.loonext.android.core.referral
  * The first owner who rewrites this in their own words would delete it, send it,
  * and get nothing for a referral they actually made. [shareText] appends it, so
  * there is no version of this that can go out without it.
+ *
+ * ## #228, and why the English is still pinned
+ *
+ * Every sentence here is a catalogue key now, and every function takes the
+ * reader's language LAST and DEFAULTED. `ReferralShareTest` still reads
+ * `packages/shared/src/referral-share.ts` and asserts the ENGLISH matches it
+ * character for character, which is exactly what the default preserves: the
+ * parity that stops a draft reading differently on the phone than on the laptop
+ * is a parity about the source sentence, not about which language it is read in.
  */
 object ReferralShare {
 
@@ -31,13 +42,12 @@ object ReferralShare {
      * writing on their behalf. Every claim in it is one BRAND-MESSAGING already
      * makes, and the reward is stated rather than implied.
      */
-    const val NOTE: String =
-        "We run our business line through Loonext — calls and texts land in one " +
-            "inbox and whoever's free answers. Flat price, no per-seat fee. Sign up " +
-            "with my link and we both get a free month."
+    const val NOTE_KEY: String = "domain.referralNote"
+    val NOTE: String get() = AppStrings.translate(null, NOTE_KEY)
 
     /** The heading over the share control, on all three clients. */
-    const val TITLE: String = "Refer another crew"
+    const val TITLE_KEY: String = "domain.referralTitle"
+    val TITLE: String get() = AppStrings.translate(null, TITLE_KEY)
 
     /**
      * What the referrer gets, and when.
@@ -57,9 +67,8 @@ object ReferralShare {
      * what lets the parity test compare the two strings literally instead of
      * reasoning about a trailing full stop.
      */
-    const val REWARD_LINE: String =
-        "Send this to another business. When they sign up and a customer texts them " +
-            "back, you both get a month free"
+    const val REWARD_LINE_KEY: String = "domain.referralRewardLine"
+    val REWARD_LINE: String get() = AppStrings.translate(null, REWARD_LINE_KEY)
 
     /**
      * The four states a referral passes through, in the words the referrer reads.
@@ -68,37 +77,42 @@ object ReferralShare {
      * exact strings. An unknown stage returns the raw value rather than throwing:
      * a server ahead of this build must not crash a settings screen.
      */
-    fun stageLabel(stage: String): String = when (stage) {
-        "invited" -> "Signed up, no replies yet"
-        "signed_up" -> "Up and running"
-        "active" -> "Still going after 30 days"
-        "rewarded" -> "Free month applied"
-        "voided" -> "Not counted"
+    fun stageLabel(stage: String, locale: String? = null): String = when (stage) {
+        "invited" -> AppStrings.translate(locale, "domain.referralStageInvited")
+        "signed_up" -> AppStrings.translate(locale, "domain.referralStageSignedUp")
+        "active" -> AppStrings.translate(locale, "domain.referralStageActive")
+        "rewarded" -> AppStrings.translate(locale, "domain.referralStageRewarded")
+        "voided" -> AppStrings.translate(locale, "domain.referralStageVoided")
         else -> stage
     }
 
     /** The one tap. */
-    const val ACTION: String = "Share"
+    const val ACTION_KEY: String = "domain.referralAction"
+    val ACTION: String get() = AppStrings.translate(null, ACTION_KEY)
 
     /** The fallback, for somebody who wants the words somewhere else first. */
-    const val COPY: String = "Copy"
+    const val COPY_KEY: String = "domain.referralCopy"
+    val COPY: String get() = AppStrings.translate(null, COPY_KEY)
 
     /** Confirmation after the copy. */
-    const val COPIED: String = "Copied"
+    const val COPIED_KEY: String = "domain.referralCopied"
+    val COPIED: String get() = AppStrings.translate(null, COPIED_KEY)
 
     /** The label on the editable draft. */
-    const val DRAFT_LABEL: String = "Your message"
+    const val DRAFT_LABEL_KEY: String = "domain.referralDraftLabel"
+    val DRAFT_LABEL: String get() = AppStrings.translate(null, DRAFT_LABEL_KEY)
 
     /** Said out loud, because an editable box next to a fixed link invites the question. */
-    const val LINK_NOTE: String = "Your link goes on the end automatically."
+    const val LINK_NOTE_KEY: String = "domain.referralLinkNote"
+    val LINK_NOTE: String get() = AppStrings.translate(null, LINK_NOTE_KEY)
 
     /** The ask itself, once the moment has been earned. */
-    const val ASK_BODY: String =
-        "Know another crew still running their business off one person's cell? " +
-            "Send them your link — you both get a free month."
+    const val ASK_BODY_KEY: String = "domain.referralAskBody"
+    val ASK_BODY: String get() = AppStrings.translate(null, ASK_BODY_KEY)
 
     /** The primary action on the ask. */
-    const val ASK_ACTION: String = "Share your link"
+    const val ASK_ACTION_KEY: String = "domain.referralAskAction"
+    val ASK_ACTION: String get() = AppStrings.translate(null, ASK_ACTION_KEY)
 
     /**
      * The way out.
@@ -106,7 +120,8 @@ object ReferralShare {
      * A plain button of equal weight, not a greyed-out afterthought. A prompt
      * asking for a favour has no business making "no" hard to find.
      */
-    const val ASK_DISMISS: String = "Not now"
+    const val ASK_DISMISS_KEY: String = "domain.referralAskDismiss"
+    val ASK_DISMISS: String get() = AppStrings.translate(null, ASK_DISMISS_KEY)
 
     /**
      * The message as it will actually be sent: the owner's words, then the link.
@@ -117,9 +132,13 @@ object ReferralShare {
      * the URL is tappable in every messaging app rather than running into the last
      * word.
      */
-    fun shareText(note: String, link: String?, code: String): String {
+    fun shareText(note: String, link: String?, code: String, locale: String? = null): String {
         val written = note.trim()
-        val tail = link ?: "Use my code $code when you sign up."
+        val tail = link ?: AppStrings.translate(
+            locale,
+            "domain.referralCodeFallback",
+            mapOf("code" to code),
+        )
         return if (written.isEmpty()) tail else "$written\n\n$tail"
     }
 
@@ -130,10 +149,14 @@ object ReferralShare {
      * "you replied to 37 customers this month" has been handed a fact about their
      * own business before being asked for anything.
      */
-    fun askHeadline(customers: Int): String =
+    fun askHeadline(customers: Int, locale: String? = null): String =
         if (customers == 1) {
-            "You replied to 1 customer this month."
+            AppStrings.translate(locale, "domain.referralAskHeadlineOne")
         } else {
-            "You replied to $customers customers this month."
+            AppStrings.translate(
+                locale,
+                "domain.referralAskHeadlineMany",
+                mapOf("count" to customers.toString()),
+            )
         }
 }

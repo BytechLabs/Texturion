@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.core.i18n.AppStrings
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -117,9 +118,10 @@ private val DAY_LABEL: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yy
 internal fun timelineDayLabel(
     day: LocalDate,
     today: LocalDate = LocalDate.now(),
+    locale: String? = null,
 ): String = when (day) {
-    today -> "Today"
-    today.minusDays(1) -> "Yesterday"
+    today -> AppStrings.translate(locale, "contactsTasks.today")
+    today.minusDays(1) -> AppStrings.translate(locale, "contactsTasks.yesterday")
     else -> DAY_LABEL.format(day)
 }
 
@@ -129,36 +131,67 @@ internal fun timelineDayLabel(
  * #517: [memberNames] resolves an answered call's picker-upper, so this page
  * and the thread describe one call the same way. Defaulted empty because the
  * name is a decoration on a line that already reads correctly without it.
+ *
+ * #228: every sentence here is a `contactsTasks.timeline*` key, copied from
+ * web's own `timeline*` so one chronology reads the same on both clients.
+ * [locale] is last and defaulted — `ContactTimelineLogicTest` pins the English
+ * and passes it nothing; the section passes the reader's language.
  */
 internal fun timelineTitle(
     entry: TimelineEntry,
     memberNames: Map<String, String> = emptyMap(),
+    locale: String? = null,
 ): String = when (entry.kind) {
-    "task" -> entry.detail ?: "Job"
+    "task" -> entry.detail ?: AppStrings.translate(locale, "contactsTasks.timelineJob")
     "call" -> when (entry.status) {
         "answered" -> entry.answered_by_user_id
             ?.let { memberNames[it] }
-            ?.let { "Call answered by $it" }
-            ?: "Call answered"
-        "voicemail" -> "Voicemail"
-        else -> "Missed call"
+            ?.let {
+                AppStrings.translate(
+                    locale,
+                    "contactsTasks.timelineCallAnsweredBy",
+                    mapOf("name" to it),
+                )
+            }
+            ?: AppStrings.translate(locale, "contactsTasks.timelineCallAnswered")
+        "voicemail" -> AppStrings.translate(locale, "contactsTasks.timelineVoicemail")
+        else -> AppStrings.translate(locale, "contactsTasks.timelineMissedCall")
     }
-    else -> "Conversation"
+    else -> AppStrings.translate(locale, "contactsTasks.timelineConversation")
 }
 
 /** The second line: the one detail worth carrying at a glance. */
-internal fun timelineDetail(entry: TimelineEntry): String = when (entry.kind) {
+internal fun timelineDetail(
+    entry: TimelineEntry,
+    locale: String? = null,
+): String = when (entry.kind) {
     "task" -> when {
-        entry.done == true -> "Done"
-        entry.due_at != null -> "Due ${dueLabel(entry.due_at)}"
-        else -> "Open"
+        entry.done == true -> AppStrings.translate(locale, "contactsTasks.timelineDone")
+        entry.due_at != null -> AppStrings.translate(
+            locale,
+            "contactsTasks.timelineDue",
+            mapOf("date" to dueLabel(entry.due_at)),
+        )
+        else -> AppStrings.translate(locale, "contactsTasks.timelineOpen")
     }
     // Talk time only, and only when there was any: "0s" on a missed call reads
     // as a fault rather than as an absence.
     "call" -> (entry.talk_seconds ?: 0).let { seconds ->
-        if (seconds > 0) "Talked for ${talkTime(seconds)}" else "No answer"
+        if (seconds > 0) {
+            AppStrings.translate(
+                locale,
+                "contactsTasks.timelineTalkedFor",
+                mapOf("duration" to talkTime(seconds)),
+            )
+        } else {
+            AppStrings.translate(locale, "contactsTasks.timelineNoAnswer")
+        }
     }
-    else -> if (entry.status == "closed") "Closed" else "Open"
+    else -> if (entry.status == "closed") {
+        AppStrings.translate(locale, "contactsTasks.timelineClosed")
+    } else {
+        AppStrings.translate(locale, "contactsTasks.timelineOpen")
+    }
 }
 
 private fun talkTime(seconds: Int): String {

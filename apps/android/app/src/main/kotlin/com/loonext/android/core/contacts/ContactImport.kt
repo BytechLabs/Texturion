@@ -1,5 +1,6 @@
 package com.loonext.android.core.contacts
 
+import com.loonext.android.core.i18n.AppStrings
 import java.util.Locale
 
 /**
@@ -123,22 +124,48 @@ object ContactImport {
      * this module — an arithmetic claim nothing can run is a claim nothing can
      * check.
      */
-    fun overflowLine(total: Int, listed: Int): String? {
+    fun overflowLine(total: Int, listed: Int, locale: String? = null): String? {
         val hidden = total - listed
-        return if (hidden > 0) "…and $hidden more." else null
+        return if (hidden > 0) {
+            AppStrings.translate(
+                locale,
+                "contactsTasks.importAndMore",
+                mapOf("count" to hidden.toString()),
+            )
+        } else {
+            null
+        }
     }
 
-    /** "Up to 2,000 rows, 2 MB." — both figures derived, neither typed. */
-    fun limitsLine(kind: ContactImportKind): String =
-        "Up to ${grouped(kind.maxEntries)} ${kind.unitPlural}, ${megabytes(kind.maxBytes)}."
+    /**
+     * "Up to 2,000 rows, 2 MB." — both figures derived, neither typed.
+     *
+     * #228: one KEY per door rather than one sentence with the unit slotted in,
+     * because the two caps differ and a sentence quoting the CSV cap at a vCard
+     * promises a file the server refuses. The unit is inside the sentence so
+     * French can say "Mo".
+     */
+    fun limitsLine(kind: ContactImportKind, locale: String? = null): String =
+        AppStrings.translate(
+            locale,
+            kind.limitsKey,
+            mapOf(
+                "count" to grouped(kind.maxEntries),
+                "size" to megabytes(kind.maxBytes),
+            ),
+        )
 
     /**
      * Said when the picked file is over the cap, before anything uploads —
      * the phone can refuse it without spending the customer's data on a body
      * the server will reject anyway.
      */
-    fun tooLargeMessage(kind: ContactImportKind): String =
-        "${kind.fileWord} files must be ${megabytes(kind.maxBytes)} or less."
+    fun tooLargeMessage(kind: ContactImportKind, locale: String? = null): String =
+        AppStrings.translate(
+            locale,
+            kind.tooLargeKey,
+            mapOf("size" to megabytes(kind.maxBytes)),
+        )
 
     /**
      * #248 — the heading over the rows whose attestation the server refused.
@@ -151,14 +178,27 @@ object ContactImport {
      * Derived from the server's number rather than typed, so a report can never
      * say "3 customers" over four rows.
      */
-    fun consentRefusedHeadline(count: Int): String {
-        val noun = if (count == 1) "customer" else "customers"
-        return "$count $noun in this file had already opted out"
-    }
+    fun consentRefusedHeadline(count: Int, locale: String? = null): String =
+        AppStrings.translate(
+            locale,
+            if (count == 1) {
+                "contactsTasks.importOptedOutOne"
+            } else {
+                "contactsTasks.importOptedOutMany"
+            },
+            mapOf("count" to count.toString()),
+        )
 
     private fun grouped(count: Int): String = String.format(Locale.US, "%,d", count)
 
-    private fun megabytes(bytes: Long): String = "${bytes / (1024L * 1024L)} MB"
+    /**
+     * The megabyte figure alone.
+     *
+     * The UNIT lives in the sentence rather than here, because "MB" is "Mo" in
+     * French — a number formatted with its unit baked in is a number no
+     * catalogue entry can translate.
+     */
+    private fun megabytes(bytes: Long): String = "${bytes / (1024L * 1024L)}"
 
     /**
      * What the attestation sheet says.
@@ -167,34 +207,35 @@ object ContactImport {
      * and the value that gets posted cannot be changed independently of each
      * other — the wording IS the claim, and a claim whose wording drifts from
      * what it authorises is worse than no claim.
+     *
+     * #228: these are catalogue KEYS, not sentences. `t()` is @Composable and
+     * this object is not, so the key travels and the sheet resolves it — the
+     * pairing the docblock above is about is preserved, because the key and the
+     * field it guards still live in the same object.
      */
     object Copy {
-        const val TITLE = "Before you import"
+        const val TITLE = "contactsTasks.importBeforeTitle"
 
-        const val LEAD =
-            "You are about to upload other people's phone numbers into this workspace."
+        const val LEAD = "contactsTasks.importBeforeLead"
 
         /**
          * THE CLAIM. Never pre-ticked, on any surface: a consent box that
          * arrives already agreed to is not an attestation, and this is the one
          * control in the app where a smart default would be a lie.
          */
-        const val ATTESTATION =
-            "Everyone in this file agreed to be texted by this business."
+        const val ATTESTATION = "contactsTasks.importAttestation"
 
         /**
          * What ticking it actually writes. The server records the attestation
          * only where there is no basis yet and leaves an existing one alone, so
          * saying "we record it for everyone" would be the older, wrong story.
          */
-        const val RECORDED =
-            "For anyone with no consent recorded yet, this is stored as your " +
-                "attestation. Contacts who already have one keep it."
+        const val RECORDED = "contactsTasks.importRecorded"
 
         /** The primary action — it opens the file picker, it does not upload. */
-        const val CONTINUE = "Choose file"
+        const val CONTINUE = "contactsTasks.importChooseFile"
 
-        const val CANCEL = "Cancel"
+        const val CANCEL = "common.cancel"
     }
 
     /**
@@ -213,10 +254,10 @@ object ContactImport {
          * nothing landed, and the difference decides whether somebody's next
          * move is to check what arrived or to fix the file.
          */
-        const val TITLE = "This file was not imported"
+        const val TITLE = "contactsTasks.importRefusedTitle"
 
         /** Dismisses. There is nothing to retry until the file or the answer changes. */
-        const val CLOSE = "Close"
+        const val CLOSE = "common.close"
 
         /**
          * The way back into the per-column step, offered only for a file this app
@@ -229,7 +270,7 @@ object ContactImport {
          * re-opens the same question rather than resending the same answer:
          * every retry is a complete declaration made again by a person.
          */
-        const val EDIT_COLUMNS = "Change columns"
+        const val EDIT_COLUMNS = "contactsTasks.importRefusedEdit"
     }
 
     /**
@@ -244,41 +285,42 @@ object ContactImport {
      * import recognised and the ones that are empty.
      */
     object Columns {
-        const val TITLE = "What is in this file?"
+        const val TITLE = "contactsTasks.importColumnsTitle"
 
         /**
          * WHY they are being asked, naming the consequence rather than the
          * mechanism. "We did not recognise these" invites "so skip them", which
          * is the behaviour that caused #248 in the first place.
          */
-        const val LEAD =
-            "This import does not guess what a column means — a do-not-contact " +
-                "column read as nothing texts somebody who asked this business " +
-                "to stop. Say what each column is, or ignore it on purpose."
+        const val LEAD = "contactsTasks.importColumnsLead"
 
         /**
          * THE CONSEQUENCE OF A WRONG ANSWER, on the path to the button rather
          * than above the list: this is the last thing read before committing.
          *
          * The answer it names is DERIVED from the control's own label rather than
-         * retyped beside it. A sentence telling somebody to choose an option that
-         * is no longer called that is worse than no sentence — it reads as a bug
-         * in the moment somebody is deciding whether to text a person who said
-         * stop.
+         * retyped beside it — the catalogue sentence carries a `{answer}` slot and
+         * [wrongColumn] fills it from [actionLabel]. A sentence telling somebody to
+         * choose an option that is no longer called that is worse than no sentence:
+         * it reads as a bug in the moment somebody is deciding whether to text a
+         * person who said stop.
          */
-        val WRONG_COLUMN =
-            "If a column marks who must not be texted, choose " +
-                "“${actionLabel(ImportColumns.FIELD_OPTED_OUT)}” — ignoring it " +
-                "would text everyone it was protecting."
+        const val WRONG_COLUMN = "contactsTasks.importWrongColumn"
+
+        /** [WRONG_COLUMN], with the do-not-text answer's own label in it. */
+        fun wrongColumn(locale: String? = null): String = AppStrings.translate(
+            locale,
+            WRONG_COLUMN,
+            mapOf("answer" to actionLabel(ImportColumns.FIELD_OPTED_OUT, locale)),
+        )
 
         /** Enabled only once every column has an answer. */
-        const val CONFIRM = "Import"
+        const val CONFIRM = "contactsTasks.importConfirm"
 
-        const val CANCEL = "Cancel"
+        const val CANCEL = "common.cancel"
 
         /** Shown while anything is unanswered, so the disabled button has a reason. */
-        const val UNANSWERED_HINT =
-            "Every column needs an answer before this file can import."
+        const val UNANSWERED_HINT = "contactsTasks.importUnansweredColumns"
 
         /**
          * The two groups the list is split into, and the order is the point: the
@@ -287,24 +329,36 @@ object ContactImport {
          * The split is by what the DETECTOR recognised, which never changes while
          * the sheet is open — grouping by what is answered right now would make
          * cards jump between sections under the finger that just answered them.
+         *
+         * #228: these two travel as KEYS on `ImportColumns.SheetRow.heading`, and
+         * the sheet resolves them where it draws them.
          */
-        const val NEEDS_ANSWER = "Not recognised"
+        const val NEEDS_ANSWER = "contactsTasks.importNotRecognised"
 
-        const val RECOGNISED = "Recognised — change any that are wrong"
+        const val RECOGNISED = "contactsTasks.importRecognisedHeading"
 
         /**
          * Said when a person has given two columns the same job. The server
          * refuses that file ("a contact has one"), so catching it here only ever
          * saves a round trip — it cannot let anything through.
          */
-        fun duplicateHint(action: String): String =
-            "Two columns are both marked “${actionLabel(action)}”. A contact has one."
+        fun duplicateHint(action: String, locale: String? = null): String =
+            AppStrings.translate(
+                locale,
+                "contactsTasks.importDuplicateHint",
+                mapOf("answer" to actionLabel(action, locale)),
+            )
 
         /** What an unanswered column's control says. */
-        const val CHOOSE = "Choose…"
+        const val CHOOSE = "contactsTasks.importChoose"
 
         /** "Column 3" — 1-based, matching how the server names a column at fault. */
-        fun positionLabel(index: Int): String = "Column ${index + 1}"
+        fun positionLabel(index: Int, locale: String? = null): String =
+            AppStrings.translate(
+                locale,
+                "contactsTasks.importColumnPosition",
+                mapOf("number" to "${index + 1}"),
+            )
 
         /**
          * The header as the file spelled it, quoted so its spaces are visible —
@@ -317,8 +371,16 @@ object ContactImport {
          * the end of the header row — `Phone,Name` over `+1206…,Ann,DO NOT CALL`
          * — arrives here as a column with no name and gets asked about.
          */
-        fun headerLabel(header: String): String =
-            if (header.isBlank()) "(no header)" else "“$header”"
+        fun headerLabel(header: String, locale: String? = null): String =
+            if (header.isBlank()) {
+                AppStrings.translate(locale, "contactsTasks.importColumnNoHeader")
+            } else {
+                AppStrings.translate(
+                    locale,
+                    "contactsTasks.importColumnQuoted",
+                    mapOf("header" to header),
+                )
+            }
 
         /**
          * "Values include: DO NOT CALL, OK, and 12 more" — what a header alone
@@ -332,20 +394,41 @@ object ContactImport {
          * neither said where to find the rest. [showAllValuesLabel] is the other
          * half — a count nobody can act on is a better-worded dead end.
          */
-        fun valuesLine(samples: List<String>, total: Int = samples.size): String =
+        fun valuesLine(
+            samples: List<String>,
+            total: Int = samples.size,
+            locale: String? = null,
+        ): String =
             if (samples.isEmpty()) {
-                "Every row leaves this column empty."
+                AppStrings.translate(locale, "contactsTasks.importValuesEmpty")
             } else {
                 val hidden = total - samples.size
-                val more = if (hidden > 0) ", and $hidden more" else ""
-                "Values include: ${samples.joinToString(", ")}$more"
+                val more = if (hidden > 0) {
+                    AppStrings.translate(
+                        locale,
+                        "contactsTasks.importValuesAndMore",
+                        mapOf("count" to hidden.toString()),
+                    )
+                } else {
+                    ""
+                }
+                AppStrings.translate(
+                    locale,
+                    "contactsTasks.importValuesInclude",
+                    mapOf("samples" to samples.joinToString(", ")),
+                ) + more
             }
 
         /** The control that puts every value a column holds on the screen. */
-        fun showAllValuesLabel(total: Int): String = "Show all $total values"
+        fun showAllValuesLabel(total: Int, locale: String? = null): String =
+            AppStrings.translate(
+                locale,
+                "contactsTasks.importShowAllValues",
+                mapOf("count" to total.toString()),
+            )
 
         /** The control that puts an expanded column back to its first few values. */
-        const val SHOW_FEWER_VALUES_LABEL = "Show fewer values"
+        const val SHOW_FEWER_VALUES_LABEL = "contactsTasks.importShowFewerValues"
 
         /**
          * What an expanded column says when even the full list is cut.
@@ -355,8 +438,12 @@ object ContactImport {
          * longer list. It states the two numbers and stops: how many answers a
          * column has is NOT a rule about what the column means.
          */
-        fun valueCeilingNote(shown: Int, total: Int): String =
-            "Showing $shown of the $total different answers in this column."
+        fun valueCeilingNote(shown: Int, total: Int, locale: String? = null): String =
+            AppStrings.translate(
+                locale,
+                "contactsTasks.importValueCeiling",
+                mapOf("shown" to shown.toString(), "total" to total.toString()),
+            )
 
         /**
          * "4 of 7 answered".
@@ -366,18 +453,33 @@ object ContactImport {
          * progress line that opens at 0% on a screen that is one third complete
          * is the reason people abandon the flow.
          */
-        fun progressLine(answered: Int, total: Int): String = "$answered of $total answered"
+        fun progressLine(answered: Int, total: Int, locale: String? = null): String =
+            AppStrings.translate(
+                locale,
+                "contactsTasks.importProgress",
+                mapOf("answered" to answered.toString(), "total" to total.toString()),
+            )
 
-        /** What each answer is called. Every action in ImportColumns.ACTIONS has one. */
-        fun actionLabel(action: String): String = when (action) {
-            "phone" -> "Phone number"
-            "name" -> "Name"
-            "first_name" -> "First name"
-            "last_name" -> "Last name"
-            "address" -> "Address"
-            "notes" -> "Notes"
-            "opted_out" -> "Do not text"
-            ImportColumns.ACTION_IGNORE -> "Ignore this column"
+        /**
+         * What each answer is called. Every action in ImportColumns.ACTIONS has one.
+         *
+         * Four of the eight reach for the FIELD labels the contact record already
+         * uses — a column called "Address" here and "Adresse" on the record it
+         * lands in would be two names for one thing.
+         */
+        fun actionLabel(action: String, locale: String? = null): String = when (action) {
+            "phone" -> AppStrings.translate(locale, "contactsTasks.importActionPhone")
+            "name" -> AppStrings.translate(locale, "contactsTasks.nameField")
+            "first_name" ->
+                AppStrings.translate(locale, "contactsTasks.importActionFirstName")
+            "last_name" ->
+                AppStrings.translate(locale, "contactsTasks.importActionLastName")
+            "address" -> AppStrings.translate(locale, "contactsTasks.address")
+            "notes" -> AppStrings.translate(locale, "contactsTasks.notesField")
+            "opted_out" ->
+                AppStrings.translate(locale, "contactsTasks.importActionOptedOut")
+            ImportColumns.ACTION_IGNORE ->
+                AppStrings.translate(locale, "contactsTasks.importActionIgnore")
             // Never reached while ACTIONS and this function agree, and
             // `ContactImportTest` fails the moment they do not. Printing the raw
             // token beats printing nothing: a mystery blank control is worse to
@@ -395,14 +497,9 @@ object ContactImport {
      * of any kind.
      */
     object Properties {
-        const val TITLE = "What do these cards carry?"
+        const val TITLE = "contactsTasks.importPropertiesTitle"
 
-        const val LEAD =
-            "These cards carry information this import does not read. A card's " +
-                "categories, a note saying they asked us to stop, or a label " +
-                "typed beside a number are where a .vcf says do-not-text — so a " +
-                "property read as nothing texts somebody who asked this business " +
-                "to stop."
+        const val LEAD = "contactsTasks.importPropertiesLead"
 
         /**
          * WHAT A NAME WITH A `;` IN IT IS, shown only when one is in the list.
@@ -416,10 +513,7 @@ object ContactImport {
          * Named after the shape rather than the example, because the example is
          * whatever their phone happened to write.
          */
-        const val PARAMETER_NOTE =
-            "A name with a “;” in it is a label attached to the property before " +
-                "it, and the label carries free text of its own — “DO NOT CALL” " +
-                "is one of the things people type there."
+        const val PARAMETER_NOTE = "contactsTasks.importParameterNote"
 
         /**
          * The coarseness, stated rather than discovered. It is genuinely blunt —
@@ -429,23 +523,28 @@ object ContactImport {
          * Names the option by DERIVING its label, for the same reason
          * [Columns.WRONG_COLUMN] does.
          */
-        val COARSE =
-            "“${actionLabel(VCardProperties.ACTION_OPTED_OUT)}” blocks every card " +
-                "carrying that property, whatever it says on the card. Not texting " +
-                "somebody is the only direction this import is allowed to be wrong in."
+        const val COARSE = "contactsTasks.importPropertiesCoarse"
 
-        const val CONFIRM = "Import"
+        /** [COARSE], with the blocking answer's own label in it. */
+        fun coarse(locale: String? = null): String = AppStrings.translate(
+            locale,
+            COARSE,
+            mapOf("answer" to actionLabel(VCardProperties.ACTION_OPTED_OUT, locale)),
+        )
 
-        const val CANCEL = "Cancel"
+        const val CONFIRM = "contactsTasks.importConfirm"
 
-        const val UNANSWERED_HINT =
-            "Every one of these needs an answer before the file can import."
+        const val CANCEL = "common.cancel"
+
+        const val UNANSWERED_HINT = "contactsTasks.importUnansweredProperties"
 
         const val CHOOSE = ContactImport.Columns.CHOOSE
 
-        fun actionLabel(action: String): String = when (action) {
-            VCardProperties.ACTION_IGNORE -> "Says nothing about texting"
-            VCardProperties.ACTION_OPTED_OUT -> "Do not text these cards"
+        fun actionLabel(action: String, locale: String? = null): String = when (action) {
+            VCardProperties.ACTION_IGNORE ->
+                AppStrings.translate(locale, "contactsTasks.importPropertyIgnore")
+            VCardProperties.ACTION_OPTED_OUT ->
+                AppStrings.translate(locale, "contactsTasks.importPropertyOptedOut")
             else -> action
         }
     }
@@ -462,40 +561,46 @@ enum class ContactImportKind(
     val maxEntries: Int,
     /** Bytes of file text the server accepts in one import. */
     val maxBytes: Long,
-    /** How the server's per-entry errors are labelled in the report sheet. */
+    /**
+     * How the server's per-entry errors are labelled in the report sheet.
+     *
+     * #228: a catalogue KEY. A .vcf reports CARD numbers, and a refusal list
+     * saying "Row 12" over a vCard import points at a line the file has not —
+     * so this stays attached to the KIND, in whatever language it is read in.
+     */
     val rowWord: String,
-    /** The unit, plural, for the limits line. */
-    val unitPlural: String,
-    /** What the file is called when we refuse it for being too big. */
-    val fileWord: String,
+    /** The limits sentence for this door — its own, because the caps differ. */
+    val limitsKey: String,
+    /** What this door says when the picked file is over its cap. */
+    val tooLargeKey: String,
     /**
      * The opt-out truth for this door, which is genuinely different on each.
      * An import can only ever ADD a block: the CSV path revives a REVOKED
      * opt-out and inserts new ones, and neither path can clear an active one.
+     *
+     * STOP is a carrier keyword and is never translated in either sentence.
      */
     val optOutNote: String,
 ) {
     CSV(
         maxEntries = ContactImport.MAX_ROWS,
         maxBytes = ContactImport.MAX_BYTES,
-        rowWord = "Row",
-        unitPlural = "rows",
-        fileWord = "CSV",
-        optOutNote = "A STOP always survives an import, and an opted-out column in " +
-            "your file blocks those people here too.",
+        rowWord = "contactsTasks.importRowWordRow",
+        limitsKey = "contactsTasks.importLimitsCsv",
+        tooLargeKey = "contactsTasks.importTooLargeCsv",
+        optOutNote = "contactsTasks.importOptOutNoteCsv",
     ),
     VCARD(
         maxEntries = ContactImport.VCARD_MAX_CARDS,
         maxBytes = ContactImport.VCARD_MAX_BYTES,
-        rowWord = "Card",
-        unitPlural = "cards",
-        fileWord = "vCard",
+        rowWord = "contactsTasks.importRowWordCard",
+        limitsKey = "contactsTasks.importLimitsVcard",
+        tooLargeKey = "contactsTasks.importTooLargeVcard",
         // #248 round 3: a .vcf CAN now say it, in the one place the format
         // allows — a property somebody declared do-not-text blocks every card
         // carrying it. The old wording ("a .vcf carries no opt-out column") was
         // true of the parser and false of the format, which is how CATEGORIES:DNC
         // came to be dropped in silence.
-        optOutNote = "A STOP always survives an import. A card marked do-not-text " +
-            "blocks that person here too.",
+        optOutNote = "contactsTasks.importOptOutNoteVcard",
     ),
 }

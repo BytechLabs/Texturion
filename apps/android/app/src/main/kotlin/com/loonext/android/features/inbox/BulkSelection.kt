@@ -1,6 +1,8 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.BulkConversationsResult
+import com.loonext.android.core.model.MessageLocale
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
@@ -84,10 +86,23 @@ fun BulkSelection.canEscalate(loadedIds: List<String>, hasMore: Boolean): Boolea
  * Filter mode deliberately carries no number: the server counts the set when it
  * runs the action, and until then the honest phrasing is the one that does not
  * commit to a figure.
+ *
+ * #228: the two sentences live in `CommonStrings` rather than the inbox's own
+ * section because the TASK list reads them through this same function, and one
+ * sentence kept in two places is how two surfaces come to disagree about the
+ * same number. [locale] is defaulted to English so a caller that has no reader
+ * to hand still compiles; the bulk bars pass `LocalAppLocale.current`.
  */
-fun BulkSelection.label(): String = when (this) {
-    is BulkSelection.Filter -> "All matching this filter"
-    is BulkSelection.Ids -> "${ids.size} selected"
+fun BulkSelection.label(locale: String = MessageLocale.EN): String = when (this) {
+    is BulkSelection.Filter ->
+        AppStrings.translate(locale, "common.bulkSelectedAllMatching")
+
+    is BulkSelection.Ids ->
+        AppStrings.translate(
+            locale,
+            "common.bulkSelectedCount",
+            mapOf("count" to "${ids.size}"),
+        )
 }
 
 /** The ids to send, or null when the server should resolve the filter itself. */

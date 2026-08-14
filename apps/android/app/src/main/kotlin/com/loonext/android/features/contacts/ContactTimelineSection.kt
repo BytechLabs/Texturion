@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.AppGraph
 import com.loonext.android.ui.common.LoadState
@@ -77,6 +78,9 @@ internal fun ContactTimelineSection(
     var loadingMore by remember(contactId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    // #228: the day headings are built inside a LazyListScope, which is not a
+    // composition, so the reader's language is read here and carried in.
+    val locale = LocalAppLocale.current
 
     // #176 cache-first, like the Calls section: a reopened contact paints its
     // history instantly while the first page revalidates, and the merge keeps
@@ -157,7 +161,7 @@ internal fun ContactTimelineSection(
                     val groups = remember(entries) { groupTimelineByDay(entries) }
                     groups.forEachIndexed { groupIndex, (day, rows) ->
                         SectionHeader(
-                            timelineDayLabel(day),
+                            timelineDayLabel(day, locale = locale),
                             Modifier.padding(top = if (groupIndex == 0) 0.dp else 10.dp),
                             count = rows.size,
                         )
@@ -232,6 +236,7 @@ private fun TimelineRow(
     onOpen: (() -> Unit)?,
 ) {
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
     Row(
         Modifier
             .fillMaxWidth()
@@ -264,12 +269,12 @@ private fun TimelineRow(
         )
         Column(Modifier.weight(1f)) {
             Text(
-                timelineTitle(entry, memberNames),
+                timelineTitle(entry, memberNames, locale),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
             )
             Text(
-                timelineDetail(entry),
+                timelineDetail(entry, locale),
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

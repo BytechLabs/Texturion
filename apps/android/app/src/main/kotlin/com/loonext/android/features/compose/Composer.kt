@@ -570,7 +570,7 @@ fun ThreadComposer(
                     wrapUpPhase = WrapUpPhase.Idle
                     val words = written?.text?.trim().orEmpty()
                     if (written != null && words.isEmpty()) {
-                        onNotice(wrapUpDictationMessage(written.reason))
+                        onNotice(wrapUpDictationMessage(written.reason, locale))
                     } else if (words.isNotEmpty()) {
                         // The draft is shared between the two modes, and a
                         // wrap-up dictated into the note box must never surface
@@ -665,7 +665,7 @@ fun ThreadComposer(
                     trimmed = true
                     break
                 }
-                when (val result = stageMmsMedia(context, uri)) {
+                when (val result = stageMmsMedia(context, uri, locale)) {
                     is MmsStageResult.Ready -> {
                         state.photos = state.photos + result.media
                         state.mediaInfo = state.mediaInfo + (result.media.id to result.info)
@@ -688,7 +688,7 @@ fun ThreadComposer(
                 trimmed = true
                 break
             }
-            when (val result = stageNoteFile(context, uri)) {
+            when (val result = stageNoteFile(context, uri, locale)) {
                 is FileStageResult.Ready -> state.files = state.files + result.file
                 is FileStageResult.Rejected -> onNotice(result.reason)
             }
@@ -856,6 +856,7 @@ fun ThreadComposer(
                     duplicateReplyPrompt(
                         lastOutbound?.sent_by_user_id?.let(memberName),
                         secondsAgo,
+                        locale,
                     ) + t("thread.collisionAsk"),
                 )
             },
@@ -937,7 +938,7 @@ fun ThreadComposer(
         // #225: above the box, below any banner. Never shown for a notes-only
         // member — an internal note has no recipient to wake up.
         if (!noteOnly) {
-            theirTimeLine(destinationClock)?.let { line ->
+            theirTimeLine(destinationClock, locale)?.let { line ->
                 Text(
                     line,
                     style = MaterialTheme.typography.labelSmall,
@@ -1682,7 +1683,7 @@ fun ComposerHints(
             // than one that says which part it cannot show.
             if (MergeFields.hasServerOnlyTokens(text)) {
                 Text(
-                    MergeFields.SERVER_ONLY_TOKENS_NOTE,
+                    t(MergeFields.SERVER_ONLY_TOKENS_NOTE_KEY),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -2386,8 +2387,16 @@ fun stagedSizeLabel(sizeBytes: Long): String = when {
  * type, route images through the existing transcode pipeline (an oversized
  * photo still becomes deliverable), and hold everything else to the 1 MB
  * decoded ceiling. Rejection copy matches the web composer word for word.
+ *
+ * #228: [locale] is carried in because this runs on an IO dispatcher, where a
+ * `@Composable` lookup cannot go. It defaults to English so the existing
+ * callers are unchanged.
  */
-suspend fun stageMmsMedia(context: Context, uri: Uri): MmsStageResult =
+suspend fun stageMmsMedia(
+    context: Context,
+    uri: Uri,
+    locale: String? = null,
+): MmsStageResult =
     withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         var name: String? = null
@@ -2402,16 +2411,19 @@ suspend fun stageMmsMedia(context: Context, uri: Uri): MmsStageResult =
             // Name is display-only; the type and bytes below decide admission.
         }
         val display = name?.trim()?.takeIf { it.isNotEmpty() }?.let { "\"$it\"" }
-            ?: "That file"
+            ?: AppStrings.translate(locale, "thread.thatFile")
 
         val contentType = mmsTypeForFile(resolver.getType(uri), name)
             ?: return@withContext MmsStageResult.Rejected(
-                "$display isn't something a text can carry. " +
-                    "Try a photo, video, audio clip, contact card, or PDF.",
+                AppStrings.translate(
+                    locale,
+                    "thread.mmsUnsupportedFile",
+                    mapOf("name" to display),
+                ),
             )
 
         if (contentType.startsWith("image/")) {
-            return@withContext when (val result = preparePhoto(context, uri)) {
+            return@withContext when (val result = preparePhoto(context, uri, locale)) {
                 is PhotoPrepResult.Ready -> MmsStageResult.Ready(
                     result.photo,
                     StagedMediaInfo(name, result.photo.bytes.size.toLong()),
@@ -2437,15 +2449,25 @@ suspend fun stageMmsMedia(context: Context, uri: Uri): MmsStageResult =
         } catch (_: Exception) {
             null
         } ?: return@withContext MmsStageResult.Rejected(
-            "Couldn't read that file. Try picking it again.",
+            AppStrings.translate(locale, "thread.fileReadFailedPick"),
         )
 
         if (bytes.isEmpty()) {
-            return@withContext MmsStageResult.Rejected("$display is empty.")
+            return@withContext MmsStageResult.Rejected(
+                AppStrings.translate(
+                    locale,
+                    "thread.mmsFileEmpty",
+                    mapOf("name" to display),
+                ),
+            )
         }
         if (bytes.size > MAX_PHOTO_BYTES) {
             return@withContext MmsStageResult.Rejected(
-                "$display is over 1 MB, the most a text can carry.",
+                AppStrings.translate(
+                    locale,
+                    "thread.mmsFileTooBig",
+                    mapOf("name" to display),
+                ),
             )
         }
         MmsStageResult.Ready(

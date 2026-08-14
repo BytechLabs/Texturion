@@ -214,7 +214,7 @@ private fun EnableUsCard(
     // see [enableUsCopy]. `isPaused` is true only on an ANSWERED read, so a read
     // in flight or one that failed leaves every sentence exactly as it was
     // before the pause existed rather than guessing in either direction.
-    val copy = enableUsCopy(fee, pause.isPaused)
+    val copy = enableUsCopy(fee, pause.isPaused, LocalAppLocale.current)
 
     SettingsCard(title = t("settingsMore.usTexting"), description = copy.description) {
         if (SettingsRoleGate.canEnableUsTexting(scope.role)) {
@@ -285,6 +285,18 @@ private fun EnableUsCard(
  */
 const val US_APPROVAL_WINDOW = "3 to 7 business days"
 
+/**
+ * The same window, as the catalogue holds it — the key [enableUsCopy] quotes.
+ *
+ * TWO NAMES FOR ONE FIGURE, deliberately and narrowly. The constant above is
+ * the ENGLISH, and it is what `EnableUsPausedTest` reads: that guard counts the
+ * spellings of `business days` in THIS file and allows exactly one, so a
+ * constant that resolved itself out of the catalogue would leave zero and the
+ * guard would pass on an empty set. The catalogue's English for this key is
+ * byte-identical to it; the French is web's own ("3 à 7 jours ouvrables").
+ */
+const val US_APPROVAL_WINDOW_KEY = "settings.usApprovalWindow"
+
 /** Every sentence the enable-US card can render, decided in one place. */
 data class EnableUsCopy(
     /** Under the card title. */
@@ -345,43 +357,45 @@ data class EnableUsCopy(
  * THE FEE IS THE CALLER'S, resolved through [usRegistrationFee] from the
  * workspace's own billing currency (#522). This function never names an amount.
  */
-fun enableUsCopy(fee: String, paused: Boolean): EnableUsCopy {
+fun enableUsCopy(fee: String, paused: Boolean, locale: String? = null): EnableUsCopy {
+    fun say(key: String, vararg vars: Pair<String, String>) =
+        AppStrings.translate(locale, key, vars.toMap())
+
+    // The approval window is quoted rather than spelled out, in every sentence
+    // that mentions it — `EnableUsPausedTest` counts the spellings and allows
+    // exactly one. [US_APPROVAL_WINDOW] stays the English figure that guard
+    // reads; the catalogue holds the same words for English and the French
+    // web already uses ("3 à 7 jours ouvrables").
+    val window = say(US_APPROVAL_WINDOW_KEY)
     // One sentence, both branches, because it is the sentence somebody agrees
     // to a charge on and two copies of it are two chances to reprice one of
     // them. It is also the phrase `RegistrationFeeTest` pins.
-    val charge = "A one-time $fee registration fee is charged to your card on file, " +
-        "and we register your business with US carriers."
+    val charge = say("settings.enableUsCharge", "fee" to fee)
 
     return EnableUsCopy(
-        description = "Texting Canadian numbers already works. Texting US numbers needs " +
-            "a one-time carrier registration.",
-        buttonLabel = "Enable US texting: $fee one-time",
-        readOnlyLine = "Ask your account owner to enable US texting; it's a one-time " +
-            "$fee carrier registration.",
+        description = say("settings.enableUsDescription"),
+        buttonLabel = say("settings.enableUsButton", "fee" to fee),
+        readOnlyLine = say("settings.enableUsReadOnly", "fee" to fee),
         pausedNote = if (paused) {
-            "Your plan is paused, and the carriers review this either way — the " +
-                "$US_APPROVAL_WINDOW pass while you're quiet instead of costing you a " +
-                "week in the spring. Texting US numbers starts the day you resume."
+            say("settings.enableUsPausedNote", "window" to window)
         } else {
             null
         },
-        confirmTitle = "Enable US texting?",
+        confirmTitle = say("settings.enableUsConfirmTitle"),
         confirmBody = if (paused) {
-            "$charge Approval usually takes $US_APPROVAL_WINDOW, and that review runs " +
-                "while your plan is paused. You still can't text anyone until you " +
-                "resume — US numbers work from the day you do, with no waiting left. " +
-                "The fee is charged once per workspace, ever, so waiting until spring " +
-                "wouldn't save it."
+            say(
+                "settings.enableUsConfirmBodyPaused",
+                "charge" to charge,
+                "window" to window,
+            )
         } else {
-            "$charge Approval usually takes $US_APPROVAL_WINDOW. We handle it and " +
-                "email you when it's live."
+            say("settings.enableUsConfirmBody", "charge" to charge, "window" to window)
         },
-        confirmLabel = "Enable US texting",
+        confirmLabel = say("settings.enableUsConfirmLabel"),
         startedMessage = if (paused) {
-            "US registration started. We'll email you when the carriers approve it, " +
-                "and US texting works when you resume."
+            say("settings.enableUsStartedPaused")
         } else {
-            "US registration started. We'll email you when it's approved."
+            say("settings.enableUsStarted")
         },
     )
 }

@@ -1,5 +1,8 @@
 package com.loonext.android.core.security
 
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.model.MessageLocale
+
 /**
  * #330 — handing the phone to whoever is covering the rest of the shift.
  *
@@ -26,20 +29,47 @@ package com.loonext.android.core.security
  * homeowner must not sit on a phone the business does not own. That means a handover
  * DISCARDS anything still waiting for signal — and the person tapping it is the only
  * one who can be told, since a session the server revokes has nobody to ask.
+ *
+ * ## #228 — where the words went, and why there are two ways in
+ *
+ * The sentences moved to `ShellStrings`, unchanged to the character. Each is
+ * reachable two ways, and the pair is not duplication:
+ *
+ *   [action] / [title] / [confirm] / [cancel] / [body] take a LOCALE, defaulted
+ *   to English exactly as `AppLock.headline` next door does, so a caller inside
+ *   composition passes `LocalAppLocale.current` and the person reads their own
+ *   language.
+ *
+ *   [ACTION] / [TITLE] / [CONFIRM] / [CANCEL] are the English, and English is
+ *   the point of them: `HandOverPhoneTest` holds these four against
+ *   `packages/shared/src/hand-over-phone.ts` word for word, which is the guard
+ *   that keeps three clients saying one thing. A locale-aware property cannot do
+ *   that, and a test that asked for French would be asking the shared module a
+ *   question it does not answer.
  */
 object HandOverPhone {
 
     /** The action, named for what somebody is actually doing. */
-    const val ACTION = "Hand this phone to someone else"
+    fun action(locale: String = MessageLocale.EN): String =
+        AppStrings.translate(locale, "shell.handOverAction")
 
     /** The confirmation's heading. */
-    const val TITLE = "Hand this phone over?"
+    fun title(locale: String = MessageLocale.EN): String =
+        AppStrings.translate(locale, "shell.handOverTitle")
 
     /** Goes through with it. */
-    const val CONFIRM = "Sign out and clear"
+    fun confirm(locale: String = MessageLocale.EN): String =
+        AppStrings.translate(locale, "shell.handOverConfirm")
 
     /** Backs out. */
-    const val CANCEL = "Stay signed in"
+    fun cancel(locale: String = MessageLocale.EN): String =
+        AppStrings.translate(locale, "shell.handOverCancel")
+
+    /** The English labels, held to the shared module by `HandOverPhoneTest`. */
+    val ACTION: String get() = action()
+    val TITLE: String get() = title()
+    val CONFIRM: String get() = confirm()
+    val CANCEL: String get() = cancel()
 
     /**
      * What happens, in the order it matters to the person holding the phone.
@@ -47,18 +77,22 @@ object HandOverPhone {
      * [unsent] is how many messages are still waiting for signal. Naming the number
      * rather than saying "any unsent messages" is the difference between a warning
      * somebody reads past and one they act on.
+     *
+     * Two warning sentences rather than one with a count, in both languages: "1
+     * messages" is the shape that tells a reader nobody proofread the thing they
+     * are being asked to act on.
      */
-    fun body(unsent: Int): String {
-        val first = "You'll be signed out and everything from this workspace comes " +
-            "off this phone: the conversations, your customers' details, and the " +
-            "unread counts. The next person signs in as themselves."
+    fun body(unsent: Int, locale: String = MessageLocale.EN): String {
+        val first = AppStrings.translate(locale, "shell.handOverBody")
         if (unsent <= 0) return first
         val warning = if (unsent == 1) {
-            "One message hasn't sent yet and will be discarded. If it matters, " +
-                "stay signed in until you have signal."
+            AppStrings.translate(locale, "shell.handOverUnsentOne")
         } else {
-            "$unsent messages haven't sent yet and will be discarded. If they " +
-                "matter, stay signed in until you have signal."
+            AppStrings.translate(
+                locale,
+                "shell.handOverUnsentMany",
+                mapOf("count" to "$unsent"),
+            )
         }
         return "$first\n\n$warning"
     }

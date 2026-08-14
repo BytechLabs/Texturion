@@ -12,6 +12,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ChangePlanResult
 import com.loonext.android.core.model.CompanyView
@@ -98,14 +100,11 @@ import kotlinx.coroutines.launch
  * string would have forced the plural to be written somewhere else — which is
  * the duplication this exists to prevent, arrived at by grammar.
  */
-internal fun heldNumberKept(many: Boolean): String = if (many) {
-    "They haven't been given up: texts and calls still reach them and their " +
-        "history is untouched, but you can't send or answer from them while " +
-        "they're on hold."
-} else {
-    "It hasn't been given up: texts and calls still reach it and its " +
-        "history is untouched, but you can't send or answer from it while it's on hold."
-}
+internal fun heldNumberKept(many: Boolean, locale: String? = null): String =
+    AppStrings.translate(
+        locale,
+        if (many) "settings.heldKeptMany" else "settings.heldKeptOne",
+    )
 
 /**
  * The numbers a sentence is about: named where we can spell them, counted where
@@ -120,12 +119,24 @@ internal fun heldNumberKept(many: Boolean): String = if (many) {
  *   caller supplies its own because the two sentences are addressed differently
  *   — one reports what an upgrade just did, the other describes what is true now.
  */
-internal fun heldNumberSubject(e164s: List<String?>, fallback: String): String {
+internal fun heldNumberSubject(
+    e164s: List<String?>,
+    fallback: String,
+    locale: String? = null,
+): String {
     val named = e164s.filterNotNull().map(::formatPhone)
     return when {
         e164s.size == 1 -> named.singleOrNull() ?: fallback
-        named.size == e164s.size -> named.joinToString(" and ")
-        else -> "${e164s.size} held numbers"
+        // The joiner is a WORD, so it is a catalogue entry like any other: a
+        // French list joined with "and" is the one place a sentence would stop
+        // being French halfway through.
+        named.size == e164s.size ->
+            named.joinToString(AppStrings.translate(locale, "settings.heldAndJoiner"))
+        else -> AppStrings.translate(
+            locale,
+            "settings.heldCounted",
+            mapOf("count" to e164s.size.toString()),
+        )
     }
 }
 
@@ -168,14 +179,24 @@ internal fun heldNumberSubject(e164s: List<String?>, fallback: String): String {
  *
  * @return null when nothing is held, which is the answer on almost every load.
  */
-fun heldNumbersPlanNote(heldE164s: List<String?>): String? {
+fun heldNumbersPlanNote(heldE164s: List<String?>, locale: String? = null): String? {
     if (heldE164s.isEmpty()) return null
     val many = heldE164s.size > 1
-    val subject = heldNumberSubject(heldE164s, fallback = "One of your numbers")
-    return "$subject ${if (many) "are" else "is"} on hold — your plan covers " +
-        "fewer numbers than you're holding. ${heldNumberKept(many)} The ways to " +
-        "bring ${if (many) "them" else "it"} back are on the Numbers screen, on " +
-        "${if (many) "each number's" else "the number's"} own card."
+    val subject = heldNumberSubject(
+        heldE164s,
+        fallback = AppStrings.translate(locale, "settings.heldOneOfYours"),
+        locale = locale,
+    )
+    // WHOLE SENTENCES, one per grammar, rather than a stem with "is"/"are" and
+    // "it"/"them" dropped into it. French agrees a verb, an article and a
+    // possessive at once, so a shared stem would have pushed three more
+    // fragments into the catalogue for a translator to reassemble blind — the
+    // same reason the devices card spells both counts out.
+    return AppStrings.translate(
+        locale,
+        if (many) "settings.heldPlanNoteMany" else "settings.heldPlanNoteOne",
+        mapOf("subject" to subject, "kept" to heldNumberKept(many, locale)),
+    )
 }
 
 /**
@@ -201,13 +222,18 @@ fun heldNumbersPlanNote(heldE164s: List<String?>): String? {
  * allowance. It asked somebody to re-enter card details to solve a problem card
  * details have nothing to do with.
  */
-fun suspendedNumberNote(subscriptionStatus: String?, canManageBilling: Boolean): String {
+fun suspendedNumberNote(
+    subscriptionStatus: String?,
+    canManageBilling: Boolean,
+    locale: String? = null,
+): String {
     // Said before the cause, every time. Somebody who reads "your plan covers
     // fewer numbers than you're holding" and stops there has already started
     // composing the sentence where they lost a phone number — and the next thing
     // they do is tell customers to use a different one, or start a port they do
     // not need.
-    val kept = heldNumberKept(many = false)
+    val kept = heldNumberKept(many = false, locale = locale)
+    fun say(key: String) = AppStrings.translate(locale, key, mapOf("kept" to kept))
 
     return when (subscriptionStatus) {
         // The server calls this `over_plan_allowance`: the subscription is live
@@ -216,41 +242,38 @@ fun suspendedNumberNote(subscriptionStatus: String?, canManageBilling: Boolean):
         // so an owner is deliberately pointed nowhere here, and only a member,
         // for whom nothing further will render, is told who to ask.
         SubscriptionStatus.ACTIVE ->
-            "This number is on hold — your plan covers fewer numbers than you're " +
-                "holding. $kept" +
+            say("settings.heldNoteAllowance") +
                 if (canManageBilling) {
                     ""
                 } else {
-                    " Ask an owner or admin — the ways to bring it back are under Billing."
+                    " " + say("settings.heldAskOwnerAllowance")
                 }
 
         SubscriptionStatus.PAST_DUE, SubscriptionStatus.UNPAID ->
-            "This number is on hold because the last payment didn't go through. " +
-                "$kept It comes back as soon as the payment method is updated. " +
+            say("settings.heldNotePastDue") + " " +
                 if (canManageBilling) {
-                    "Update it under Settings › Billing."
+                    say("settings.heldFixPastDue")
                 } else {
-                    "Ask an owner or admin to update it under Billing."
+                    say("settings.heldAskOwnerPastDue")
                 }
 
         SubscriptionStatus.CANCELED ->
-            "This number is on hold because the subscription is canceled. $kept It " +
-                "comes back when the subscription does. " +
+            say("settings.heldNoteCanceled") + " " +
                 if (canManageBilling) {
-                    "Resubscribe under Settings › Billing."
+                    say("settings.heldFixCanceled")
                 } else {
-                    "Ask an owner or admin to resubscribe under Billing."
+                    say("settings.heldAskOwnerCanceled")
                 }
 
         // Never seen in practice — a workspace with no subscription has no
         // numbers to hold. Says what is true and guesses at no cause, rather
         // than picking whichever of the three above sounds most likely.
         else ->
-            "This number is on hold. $kept" +
+            say("settings.heldNoteUnknown") + " " +
                 if (canManageBilling) {
-                    " Settings › Billing has the ways to bring it back."
+                    say("settings.heldFixUnknown")
                 } else {
-                    " Ask an owner or admin — the ways to bring it back are under Billing."
+                    say("settings.heldAskOwnerAllowance")
                 }
     }
 }
@@ -339,10 +362,11 @@ fun portLineIsHeld(portE164: String, numbers: List<PhoneNumberSummary>): Boolean
  * their old carrier, or starts a port they do not need. Two copies of that
  * clause are two chances for one of them to lose the "still reach it" half.
  */
-fun portHoldNote(): String =
-    "This transfer finished and the number is yours. It's on hold for a billing " +
-        "reason, not a transfer one. ${heldNumberKept(many = false)} Its own card, " +
-        "further up this screen, says why and what can be done about it."
+fun portHoldNote(locale: String? = null): String = AppStrings.translate(
+    locale,
+    "settings.heldPortNote",
+    mapOf("kept" to heldNumberKept(many = false, locale = locale)),
+)
 
 /**
  * The way or ways back, or null when this response has nothing to say about
@@ -363,7 +387,12 @@ fun portHoldNote(): String =
  *   route: a control that charges an amount we declined to name is the one thing
  *   a money control must never be.
  */
-fun heldNumberRoutes(state: HeldNumbers, numberId: String, price: String?): String? {
+fun heldNumberRoutes(
+    state: HeldNumbers,
+    numberId: String,
+    price: String?,
+    locale: String? = null,
+): String? {
     if (state.reason != HeldNumberReason.OVER_PLAN_ALLOWANCE) return null
     if (state.held.none { it.id == numberId }) return null
 
@@ -381,24 +410,30 @@ fun heldNumberRoutes(state: HeldNumbers, numberId: String, price: String?): Stri
     val atHardCap = included != null && cap != null && included + state.paid_extras >= cap
 
     return when {
-        paidRoute && state.can_upgrade ->
-            "Bring it back as a paid extra number for $price, or move to Pro under " +
-                "Settings › Billing — either brings it straight back."
+        paidRoute && state.can_upgrade -> AppStrings.translate(
+            locale,
+            "settings.heldRoutePaidOrPro",
+            mapOf("price" to price.orEmpty()),
+        )
 
-        paidRoute ->
-            "Bring it back as a paid extra number for $price and it works again " +
-                "straight away."
+        paidRoute -> AppStrings.translate(
+            locale,
+            "settings.heldRoutePaid",
+            mapOf("price" to price.orEmpty()),
+        )
 
-        atHardCap && state.can_upgrade ->
-            "Starter tops out at $cap numbers, so this one needs Pro — the plan " +
-                "switch is under Settings › Billing."
+        atHardCap && state.can_upgrade -> AppStrings.translate(
+            locale,
+            "settings.heldRouteHardCap",
+            mapOf("cap" to cap.toString()),
+        )
 
         // The server has refused the paid route for a reason this client cannot
         // see: a paused plan, a scheduled plan change, an environment with no
         // extra-number price. Naming a route we cannot verify would draw the only
         // pressable path to a 409 on the whole screen, so this names the screen
         // where the real answer is instead.
-        else -> "The ways to bring it back are under Settings › Billing."
+        else -> AppStrings.translate(locale, "settings.heldRouteBilling")
     }
 }
 
@@ -445,21 +480,26 @@ fun heldNumberPrice(state: HeldNumbers, company: CompanyView): String? {
  * whose `number_e164` is null is still a number that came back, so it is counted
  * either way; what changes is whether the sentence can name it.
  */
-fun changePlanMessage(result: ChangePlanResult): String {
+fun changePlanMessage(result: ChangePlanResult, locale: String? = null): String {
     if (result.effective != "now") {
-        return "Switch to Starter scheduled for the end of this period."
+        return AppStrings.translate(locale, "settings.changePlanScheduled")
     }
     val count = result.reinstated.size
-    if (count == 0) return "You're on Pro now."
+    if (count == 0) return AppStrings.translate(locale, "settings.changePlanOnPro")
 
     // Some rows can come back unnamed. Counting is still true; picking out only
     // the ones we can spell would under-report what the upgrade did — which is
     // why [heldNumberSubject] owns that judgement for both sentences that make it.
     val subject = heldNumberSubject(
         result.reinstated.map { it.number_e164 },
-        fallback = "your held number",
+        fallback = AppStrings.translate(locale, "settings.heldYourHeldNumber"),
+        locale = locale,
     )
-    return "You're on Pro now, and $subject ${if (count == 1) "is" else "are"} back."
+    return AppStrings.translate(
+        locale,
+        if (count == 1) "settings.changePlanBackOne" else "settings.changePlanBackMany",
+        mapOf("subject" to subject),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -496,7 +536,8 @@ fun HeldNumberActions(
 ) {
     val state = held ?: return
     val price = heldNumberPrice(state, company)
-    val routes = heldNumberRoutes(state, number.id, price) ?: return
+    val routes = heldNumberRoutes(state, number.id, price, LocalAppLocale.current)
+        ?: return
 
     Text(
         routes,

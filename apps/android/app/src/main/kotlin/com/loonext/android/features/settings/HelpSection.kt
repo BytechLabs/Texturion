@@ -10,6 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.diag.RecentErrors
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import java.net.URLEncoder
 
@@ -43,7 +45,8 @@ const val SUPPORT_EMAIL = "support@loonext.com"
  * survives a bad week; the good weeks beat it, and beating a stated commitment
  * costs nothing. MIRROR of SUPPORT_RESPONSE_TIME in packages/shared.
  */
-const val SUPPORT_RESPONSE_TIME = "within two business days, usually sooner"
+val SUPPORT_RESPONSE_TIME: String
+    get() = AppStrings.translate(null, "settings.helpResponseTime")
 
 /**
  * #321 acceptance 4 — the loop, stated out loud.
@@ -54,9 +57,8 @@ const val SUPPORT_RESPONSE_TIME = "within two business days, usually sooner"
  * the reply a step of every release. MIRROR of SUPPORT_FIX_PROMISE in
  * packages/shared.
  */
-const val SUPPORT_FIX_PROMISE =
-    "If you tell us something's broken, we write back when it's fixed, not just " +
-        "when we've read it."
+val SUPPORT_FIX_PROMISE: String
+    get() = AppStrings.translate(null, "settings.helpFixPromise")
 
 /** Mirror of SUPPORT_ERROR_LINES: a truncated mailto body carries NO diagnostics. */
 private const val SUPPORT_ERROR_LINES = 6
@@ -69,25 +71,48 @@ private const val SUPPORT_ERROR_LINES = 6
  * MIRROR of `supportSituation` in packages/shared/src/support.ts. Keyed on the
  * same strings the shared banner kinds use, so one carrier suspension reported
  * from three platforms lands in the inbox under one name.
+ *
+ * ## THE KEY, not the sentence
+ *
+ * Because the two readers of it want different languages and both are right.
+ * [supportBody] renders it for the PERSON, in whatever they read; the SUBJECT
+ * renders the same key against the English table on purpose
+ * ([supportSubjectFor]). A subject line is the inbox's index, and one carrier
+ * suspension reported from Montreal and from Calgary has to arrive under one
+ * heading, or the pattern that matters most — five reports of one failure in
+ * a morning — is the one that stops being visible.
  */
-fun supportSituation(kind: String): String? = when (kind) {
-    "registration_pending" -> "US registration is pending approval"
-    "registration_suspended" -> "the carrier suspended our US registration"
-    "us_texting_off" -> "US texting is off for this workspace"
-    "usage_cap" -> "sending is paused at the spending cap"
-    "subscription" -> "the subscription is not active"
-    "opted_out" -> "this customer is opted out"
-    "opt_out_hint" -> "an opt-out was detected in the thread"
-    "number_access" -> "I do not have texting access to this number"
-    "read_only" -> "I have view-only access"
+internal fun supportSituationKey(kind: String): String? = when (kind) {
+    "registration_pending" -> "settings.supportSituationRegistrationPending"
+    "registration_suspended" -> "settings.supportSituationRegistrationSuspended"
+    "us_texting_off" -> "settings.supportSituationUsTextingOff"
+    "usage_cap" -> "settings.supportSituationUsageCap"
+    "subscription" -> "settings.supportSituationSubscription"
+    "opted_out" -> "settings.supportSituationOptedOut"
+    "opt_out_hint" -> "settings.supportSituationOptOutHint"
+    "number_access" -> "settings.supportSituationNumberAccess"
+    "read_only" -> "settings.supportSituationReadOnly"
     else -> null
 }
 
+fun supportSituation(kind: String, locale: String? = null): String? =
+    supportSituationKey(kind)?.let { AppStrings.translate(locale, it) }
+
 /** The subject a report from a failure banner carries. */
 fun supportSubjectFor(kind: String): String {
-    val situation = supportSituation(kind)
-    return if (situation == null) "Help with my Loonext workspace"
-    else "Problem: $situation"
+    // `translate(null, …)` asks for the ENGLISH table by the same rule a missing
+    // locale always has. Deliberate, and the one place in this file that is: see
+    // [supportSituationKey] for why the index is one language.
+    val situation = supportSituationKey(kind)?.let { AppStrings.translate(null, it) }
+    return if (situation == null) {
+        AppStrings.translate(null, "settings.supportSubjectDefault")
+    } else {
+        AppStrings.translate(
+            null,
+            "settings.supportSubjectProblem",
+            mapOf("situation" to situation),
+        )
+    }
 }
 
 /**
@@ -98,29 +123,22 @@ fun supportSubjectFor(kind: String): String {
  * by a person who has the question and is not currently staring at the failure.
  * MIRROR of SUPPORT_TOPICS in packages/shared.
  */
-val SUPPORT_TOPICS: List<Pair<String, String>> = listOf(
-    "Why won't my text to a US number send?" to
-        "US carriers require every business number to be registered before it can text US " +
-        "phones. Approval usually takes 3 to 7 business days, and there is nothing to do " +
-        "while it runs. Calls to US numbers work the whole time, and Canadian texts are " +
-        "unaffected.",
-    "What does \u201Cregistration pending\u201D actually mean?" to
-        "We have submitted your business to the carriers and they have not answered yet. It " +
-        "is a queue, not a review of anything you did. You will get an email the moment it " +
-        "clears.",
-    "Why did my number stop sending after it was working?" to
-        "Two things do that. A carrier can suspend an approved registration, which we are " +
-        "told about and act on without you doing anything. Or your workspace has hit the " +
-        "spending cap the owner set, which is protection rather than a quota and an owner " +
-        "can raise it in Settings.",
-    "A customer says they never got my text. What now?" to
-        "Check whether they ever texted STOP: a carrier opt-out blocks us and only the " +
-        "customer can lift it, by texting START. If that is not it, email us the customer's " +
-        "number and roughly when you sent it, and we can trace the message with the carrier.",
-    "How long does moving my existing number take?" to
-        "Porting takes 7 to 10 business days once the carrier accepts the request, and your " +
-        "old number keeps working the entire time. Nothing goes dark at any point.",
+private val SUPPORT_TOPIC_KEYS: List<Pair<String, String>> = listOf(
+    "settings.helpFaqUsSendQ" to "settings.helpFaqUsSendA",
+    "settings.helpFaqPendingQ" to "settings.helpFaqPendingA",
+    "settings.helpFaqStoppedQ" to "settings.helpFaqStoppedA",
+    "settings.helpFaqNotGotQ" to "settings.helpFaqNotGotA",
+    "settings.helpFaqPortQ" to "settings.helpFaqPortA",
 )
+
+/** The questions and their answers, in one language. */
+fun supportTopics(locale: String? = null): List<Pair<String, String>> =
+    SUPPORT_TOPIC_KEYS.map { (question, answer) ->
+        AppStrings.translate(locale, question) to AppStrings.translate(locale, answer)
+    }
+
+/** The English, for the guards that compare this app against the shared module. */
+val SUPPORT_TOPICS: List<Pair<String, String>> get() = supportTopics()
 
 /**
  * The customer's own words go at the TOP — nobody should scroll past our
@@ -135,22 +153,44 @@ fun supportBody(
     situation: String? = null,
     /** #253: recent client failures, newest first, already scrubbed. */
     recentErrors: List<String> = emptyList(),
+    /**
+     * The reader's language. This block is printed on the help screen for a
+     * device with no mail app, so it is read here before it is read by us.
+     * The values inside it — a workspace id, a plan slug, a version, an error
+     * line — are the diagnostic and have no language at all.
+     */
+    locale: String? = null,
 ): String {
+    fun say(key: String, vararg vars: Pair<String, String>) =
+        AppStrings.translate(locale, key, vars.toMap())
+
     val lines = mutableListOf(
         "",
         "",
         "---",
-        "The details below help us look this up. Please leave them in.",
-        "Workspace: ${companyName ?: "(unnamed)"} ($companyId)",
+        say("settings.supportBodyLeadIn"),
+        say(
+            "settings.supportBodyWorkspace",
+            "name" to (companyName ?: say("settings.supportBodyUnnamed")),
+            "id" to companyId,
+        ),
     )
-    if (!plan.isNullOrBlank()) lines.add("Plan: $plan")
-    lines.add("App: android${if (!appVersion.isNullOrBlank()) " $appVersion" else ""}")
+    if (!plan.isNullOrBlank()) lines.add(say("settings.supportBodyPlan", "plan" to plan))
+    lines.add(
+        if (appVersion.isNullOrBlank()) {
+            say("settings.supportBodyAppNoVersion")
+        } else {
+            say("settings.supportBodyApp", "version" to appVersion)
+        },
+    )
     // The situation goes ABOVE the errors: it is the one line that says what
     // the person was trying to do, and it is true even when nothing errored.
-    if (!situation.isNullOrBlank()) lines.add("Screen: $situation")
+    if (!situation.isNullOrBlank()) {
+        lines.add(say("settings.supportBodyScreen", "situation" to situation))
+    }
     val errors = recentErrors.filter { it.isNotBlank() }
     if (errors.isNotEmpty()) {
-        lines.add("Recent errors on this device (newest first):")
+        lines.add(say("settings.supportBodyErrors"))
         errors.take(SUPPORT_ERROR_LINES).forEach { lines.add("  $it") }
     }
     return lines.joinToString("\n")
@@ -161,12 +201,15 @@ fun supportMailto(
     companyName: String?,
     plan: String?,
     appVersion: String?,
-    subject: String = "Help with my Loonext workspace",
+    subject: String = AppStrings.translate(null, "settings.supportSubjectDefault"),
     situation: String? = null,
     recentErrors: List<String> = emptyList(),
+    locale: String? = null,
 ): String {
     fun enc(value: String) = URLEncoder.encode(value, "UTF-8").replace("+", "%20")
-    val body = supportBody(companyId, companyName, plan, appVersion, situation, recentErrors)
+    val body = supportBody(
+        companyId, companyName, plan, appVersion, situation, recentErrors, locale,
+    )
     return "mailto:$SUPPORT_EMAIL?subject=${enc(subject)}&body=${enc(body)}"
 }
 
@@ -193,13 +236,15 @@ fun feedbackMailto(
      * as not recording it.
      */
     recentErrors: List<String> = emptyList(),
+    locale: String? = null,
 ): String = supportMailto(
     recentErrors = recentErrors,
     companyId = companyId,
     companyName = companyName,
     plan = plan,
     appVersion = appVersion,
-    subject = "Idea for Loonext",
+    subject = AppStrings.translate(null, "settings.supportSubjectIdea"),
+    locale = locale,
 )
 
 /**
@@ -218,9 +263,11 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
     // customer should not have to know what we need in order to be helped, and
     // they cannot read a log. Already scrubbed by RecentErrors.
     val recentErrors = RecentErrors.recentLines()
+    val locale = LocalAppLocale.current
     val body = supportBody(
         scope.companyId, companyName, plan, appVersion,
         recentErrors = recentErrors,
+        locale = locale,
     )
 
     SettingsCard(
@@ -234,6 +281,7 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
                     supportMailto(
                         scope.companyId, companyName, plan, appVersion,
                         recentErrors = recentErrors,
+                        locale = locale,
                     ),
                 )
             },
@@ -263,6 +311,7 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
                     feedbackMailto(
                         scope.companyId, companyName, plan, appVersion,
                         recentErrors = recentErrors,
+                        locale = locale,
                     ),
                 )
             },
@@ -277,7 +326,7 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
         title = t("settings.helpFaqTitle"),
         description = t("settings.helpFaqIntro"),
     ) {
-        SUPPORT_TOPICS.forEachIndexed { index, (question, answer) ->
+        supportTopics(locale).forEachIndexed { index, (question, answer) ->
             if (index > 0) Spacer(Modifier.height(12.dp))
             Text(question, style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(2.dp))
@@ -291,16 +340,16 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
     ) {
         ReadOnlyLine(
             // #253 acceptance 4: a stated commitment, from ONE mirrored
-            // constant. Two business days is what survives a bad week.
-            "We reply $SUPPORT_RESPONSE_TIME. We're a small team, so this is email " +
-                "rather than a chat window, and we read everything that comes in. " +
-                "If your texts have stopped arriving, say so in the subject line " +
-                "and we'll start there.",
+            // constant. Two business days is what survives a bad week. The
+            // sentence around it is web's own `appShell.helpReplyPromise`, in
+            // both languages, and the window rides in as `{time}` exactly as it
+            // does there.
+            t("settings.helpReplyPromise", "time" to t("settings.helpResponseTime")),
         )
         Spacer(Modifier.height(8.dp))
         // #321: the loop, stated. The reason to bother writing in is knowing
         // you will hear back — which makes the release step in
         // docs/RELEASING.md load-bearing, not optional.
-        Text(SUPPORT_FIX_PROMISE, style = MaterialTheme.typography.bodyMedium)
+        Text(t("settings.helpFixPromise"), style = MaterialTheme.typography.bodyMedium)
     }
 }

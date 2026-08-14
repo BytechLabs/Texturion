@@ -1,5 +1,7 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.core.i18n.AppStrings
+
 /**
  * #310 — making the wait legible.
  *
@@ -52,50 +54,61 @@ fun registrationStage(brand: String?, campaign: String?): RegistrationStage = wh
  * anything has been sent. A bar sitting at 0% for four days is the spinner
  * this exists to replace. The value marks how many steps are BEHIND you —
  * a true statement, rather than a fabricated estimate of time remaining.
+ *
+ * #228: [locale] is last and defaulted, so `RegistrationProgressTest` keeps
+ * asserting the same table while the waiting-room screen can pass the reader's
+ * language. The percentages and [RegistrationProgress.actionNeeded] state the
+ * same facts in either language and are untouched by it.
  */
-fun registrationProgress(brand: String?, campaign: String?): RegistrationProgress =
-    when (registrationStage(brand, campaign)) {
+fun registrationProgress(
+    brand: String?,
+    campaign: String?,
+    locale: String? = null,
+): RegistrationProgress {
+    fun say(key: String) = AppStrings.translate(locale, key)
+    return when (registrationStage(brand, campaign)) {
         RegistrationStage.NEEDS_DETAILS -> RegistrationProgress(
             stage = RegistrationStage.NEEDS_DETAILS,
             percent = 10,
-            title = "We need a few business details",
-            next = "Finish the texting registration form and we'll send it on.",
+            title = say("domain.regStageNeedsDetailsTitle"),
+            next = say("domain.regStageNeedsDetailsNext"),
             expected = null,
             actionNeeded = true,
         )
         RegistrationStage.SUBMITTING -> RegistrationProgress(
             stage = RegistrationStage.SUBMITTING,
             percent = 40,
-            title = "Sent to the carriers",
-            next = "The carriers review it next. Nothing needed from you.",
-            expected = "Usually 3–7 business days, sometimes longer",
+            title = say("domain.regStageSubmittingTitle"),
+            next = say("domain.regStageSubmittingNext"),
+            expected = say("domain.regStageExpected"),
             actionNeeded = false,
         )
         RegistrationStage.UNDER_REVIEW -> RegistrationProgress(
             stage = RegistrationStage.UNDER_REVIEW,
             percent = 70,
-            title = "Under review by the carriers",
-            next = "We'll text and email you the moment it clears.",
-            expected = "Usually 3–7 business days, sometimes longer",
+            title = say("domain.regStageUnderReviewTitle"),
+            next = say("domain.regStageUnderReviewNext"),
+            expected = say("domain.regStageExpected"),
             actionNeeded = false,
         )
         RegistrationStage.APPROVED -> RegistrationProgress(
             stage = RegistrationStage.APPROVED,
             percent = 100,
-            title = "Your texting is live",
-            next = "You can text customers now.",
+            title = say("domain.regStageApprovedTitle"),
+            next = say("domain.regStageApprovedNext"),
             expected = null,
             actionNeeded = false,
         )
         RegistrationStage.REJECTED -> RegistrationProgress(
             stage = RegistrationStage.REJECTED,
             percent = 40,
-            title = "The carriers need something changed",
-            next = "Check the details on your registration and resubmit.",
+            title = say("domain.regStageRejectedTitle"),
+            next = say("domain.regStageRejectedNext"),
             expected = null,
             actionNeeded = true,
         )
     }
+}
 
 /**
  * Is this workspace in the waiting room?

@@ -14,6 +14,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TwoClocks
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -119,9 +121,15 @@ fun SendLaterSheet(
         Column {
             SendLaterNote(
                 if (clock != null) {
-                    "Send later — ${ScheduledSend.clockProvenance(clock.source)}"
+                    t(
+                        "thread.sendLaterClock",
+                        "clock" to ScheduledSend.clockProvenance(
+                            clock.source,
+                            LocalAppLocale.current,
+                        ),
+                    )
                 } else {
-                    "Send later — your workspace's time"
+                    t("thread.sendLaterWorkspaceClock")
                 },
             )
             presets.forEach { preset ->
@@ -249,6 +257,7 @@ fun SendLaterPicker(
                                     device, theirZone, choice, canSwitch,
                                 ),
                                 theirZone = theirZone,
+                                locale = LocalAppLocale.current,
                             ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -300,10 +309,10 @@ fun QuietHoursScheduleDialog(
         text = {
             Text(
                 if (localHour == null) {
-                    ScheduledSend.copy("quiet_hours_unknown")
+                    ScheduledSend.copy("quiet_hours_unknown", LocalAppLocale.current)
                 } else {
-                    "That is around ${formatHour(localHour)} for this customer."
-                } + " " + ScheduledSend.copy("quiet_hours_choice"),
+                    t("thread.quietHoursAround", "hour" to formatHour(localHour))
+                } + " " + ScheduledSend.copy("quiet_hours_choice", LocalAppLocale.current),
             )
         },
         confirmButton = {
@@ -342,17 +351,44 @@ internal fun destinationZone(clock: DestinationClock?): ZoneId =
  * Measured against the real calendars rather than an offset table, so it stays
  * right across a DST boundary where two zones change on different dates.
  */
-internal fun senderClockNote(clock: DestinationClock?, device: ZoneId): String {
-    val reassurance = ScheduledSend.copy("picker_reassurance")
+internal fun senderClockNote(
+    clock: DestinationClock?,
+    device: ZoneId,
+    locale: String? = null,
+): String {
+    val reassurance = ScheduledSend.copy("picker_reassurance", locale)
     val zone = clock?.timezone?.let { runCatching { ZoneId.of(it) }.getOrNull() }
     if (clock == null || zone == null || clock.source == "company" || zone == device) {
-        return "This is your own time. $reassurance"
+        return AppStrings.translate(
+            locale,
+            "thread.senderClockOwn",
+            mapOf("reassurance" to reassurance),
+        )
     }
-    return "This is your own time, and they are ${hoursApart(zone, device)}. $reassurance"
+    return AppStrings.translate(
+        locale,
+        "thread.senderClockApart",
+        mapOf(
+            "delta" to hoursApart(zone, device, locale = locale),
+            "reassurance" to reassurance,
+        ),
+    )
 }
 
-/** "3 hours behind you", wrapped into (-12, 12] so 23 ahead reads as 1 behind. */
-internal fun hoursApart(there: ZoneId, here: ZoneId, now: Instant = Instant.now()): String {
+/**
+ * "3 hours behind you", wrapped into (-12, 12] so 23 ahead reads as 1 behind.
+ *
+ * #228: four sentences rather than a magnitude glued to a direction. "an hour"
+ * + "ahead of" + "you" is a rule about English word order, and a French reader
+ * would meet it assembled backwards; [locale] defaults to English so the tests
+ * that pin these phrases are unchanged.
+ */
+internal fun hoursApart(
+    there: ZoneId,
+    here: ZoneId,
+    now: Instant = Instant.now(),
+    locale: String? = null,
+): String {
     val minutes = (
         there.rules.getOffset(now).totalSeconds -
             here.rules.getOffset(now).totalSeconds
@@ -360,9 +396,20 @@ internal fun hoursApart(there: ZoneId, here: ZoneId, now: Instant = Instant.now(
     var delta = minutes / 60
     if (delta > 12) delta -= 24
     if (delta < -12) delta += 24
-    if (delta == 0) return "on the same clock"
-    val magnitude = if (abs(delta) == 1) "an hour" else "${abs(delta)} hours"
-    return "$magnitude ${if (delta > 0) "ahead of" else "behind"} you"
+    if (delta == 0) return AppStrings.translate(locale, "thread.clockSame")
+    val ahead = delta > 0
+    val magnitude = abs(delta)
+    if (magnitude == 1) {
+        return AppStrings.translate(
+            locale,
+            if (ahead) "thread.clockAnHourAhead" else "thread.clockAnHourBehind",
+        )
+    }
+    return AppStrings.translate(
+        locale,
+        if (ahead) "thread.clockHoursAhead" else "thread.clockHoursBehind",
+        mapOf("count" to magnitude.toString()),
+    )
 }
 
 /** A heading inside the sheet — says something, does nothing. */
@@ -447,11 +494,22 @@ internal fun pickerClockNote(
     choice: TwoClocks.Choice,
     at: Instant,
     theirZone: ZoneId,
+    locale: String? = null,
 ): String {
-    if (!canSwitch) return senderClockNote(clock, device)
+    if (!canSwitch) return senderClockNote(clock, device, locale)
+    // `TwoClocks.HERE` / `.THERE` are core/time's words, not this section's;
+    // when they move into a catalogue this sentence needs no second pass.
     return if (choice == TwoClocks.Choice.THEIRS) {
-        "That's ${clockOf(at, device)} ${TwoClocks.HERE}"
+        AppStrings.translate(
+            locale,
+            "thread.pickerThats",
+            mapOf("time" to clockOf(at, device), "clock" to TwoClocks.HERE),
+        )
     } else {
-        "That's ${clockOf(at, theirZone)} ${TwoClocks.THERE}"
+        AppStrings.translate(
+            locale,
+            "thread.pickerThats",
+            mapOf("time" to clockOf(at, theirZone), "clock" to TwoClocks.THERE),
+        )
     }
 }

@@ -18,23 +18,28 @@ package com.loonext.android.core.i18n
  *
  * ## What is deliberately NOT here
  *
- * Copy that lives outside a composable and cannot reach a locale — the pure
- * functions in `HeldNumbers.kt`, `ContactFields.Copy`, `SUPPORT_TOPICS` — stays
- * where it is. Threading a locale through five layers to reach one sentence
- * would be a bigger change than the extraction it serves, and each of those has
- * a parity test pinning its English against another client. They are listed in
- * the extraction report instead of being half-moved.
+ * Copy that lives outside a composable reaches a locale the way rule 3 says:
+ * the pure functions in `HeldNumbers.kt` and `HelpSection.kt` take one, default
+ * it to null (the English table) so the guards that compare this app against
+ * `packages/shared` keep reading English, and every composable call site hands
+ * them `LocalAppLocale.current`.
+ *
+ * `ContactFields.Copy` is the exception and stays where it is:
+ * `ContactFieldsParityTest` pins it word for word against the web card, so a
+ * copy here would fork the thing that test exists to keep single.
  */
 object SettingsStrings : AppStrings.Section {
     override val en: Map<String, String> =
         AI_EN + CLOSED_DATES_EN + CONTACT_FIELDS_EN + LEAVE_EN + HELP_EN +
-            DELETE_ACCOUNT_EN + EMERGENCY_EN + DEVICES_EN + HOURS_EN +
-            CALLING_EN + HELD_EN + BILLING_EN
+            SUPPORT_EN + DELETE_ACCOUNT_EN + EMERGENCY_EN + DEVICES_EN +
+            HOURS_EN + CALLING_EN + HELD_EN + HOLD_COPY_EN + REGISTRATION_EN +
+            BILLING_EN
 
     override val frCA: Map<String, String> =
         AI_FR + CLOSED_DATES_FR + CONTACT_FIELDS_FR + LEAVE_FR + HELP_FR +
-            DELETE_ACCOUNT_FR + EMERGENCY_FR + DEVICES_FR + HOURS_FR +
-            CALLING_FR + HELD_FR + BILLING_FR
+            SUPPORT_FR + DELETE_ACCOUNT_FR + EMERGENCY_FR + DEVICES_FR +
+            HOURS_FR + CALLING_FR + HELD_FR + HOLD_COPY_FR + REGISTRATION_FR +
+            BILLING_FR
 }
 
 // ---------------------------------------------------------------------------
@@ -370,12 +375,11 @@ private val LEAVE_FR = mapOf(
 // ---------------------------------------------------------------------------
 
 /**
- * `SUPPORT_TOPICS`, `SUPPORT_FIX_PROMISE` and the response-time clause are NOT
- * here. All three are hand-ported MIRRORS of `packages/shared/src/support.ts`
- * that `SupportPortTest` pins by content, and a French copy in this catalogue
- * would be a second original for a string whose whole point is that three
- * clients say it identically. They are named in the extraction report rather
- * than half-moved.
+ * The help screen's own headings. The FAQ, the fix promise and the reply
+ * promise moved into [SUPPORT_EN] below, where the support pre-fill lives;
+ * `SUPPORT_TOPICS` and friends in `HelpSection.kt` now READ this catalogue's
+ * English rather than holding a second copy of it, so `SupportPortTest` still
+ * compares the shipped sentence against `packages/shared/src/support.ts`.
  */
 private val HELP_EN = mapOf(
     "settings.helpEmailTitle" to "Email us",
@@ -543,9 +547,9 @@ private val DELETE_ACCOUNT_FR = mapOf(
  * on the wire against the workspace's keyword list — translating the example
  * would teach a Quebec owner to expect a word the matcher never sees.
  *
- * `{line}` is `EMERGENCY_SAFETY_LINE`, which is likewise not translated here:
- * it is the sentence the SERVER appends to an outgoing text, mirrored from
- * shared, and this screen only quotes it back.
+ * `{line}` is `settings.emergencySafetyLine`, the sentence the SERVER appends
+ * to an outgoing text. Both languages are copied from shared rather than
+ * written here — this screen only quotes back what the send path composes.
  */
 private val EMERGENCY_EN = mapOf(
     "settings.emergencyTitle" to "Emergency words and reply",
@@ -579,6 +583,13 @@ private val EMERGENCY_EN = mapOf(
     "settings.emergencyCount" to "{count}/1000",
     "settings.emergencyCountDefault" to "{count}/1000 · using the default",
     "settings.emergencyPreviewLabel" to "What the customer receives",
+    // THE ONE SENTENCE WITH A SAFETY PROPERTY. Everything else in this file
+    // degrades to "the reader gets English" when a translation is missing;
+    // this degrades to somebody in danger being told what to do in a language
+    // they may not read. Both languages are the SERVER's own, copied from
+    // `packages/shared/src/locale.ts` — this screen only previews what the
+    // send path appends. 911 is the number in Canada and the US alike.
+    "settings.emergencySafetyLine" to "If anyone is in danger, call 911.",
     "settings.emergencySafetyLineNote" to
         "\"{line}\" is always added and can't be edited. You decide what is " +
         "promised; whether someone in danger is told where else to turn isn't ours " +
@@ -622,6 +633,7 @@ private val EMERGENCY_FR = mapOf(
     "settings.emergencyCount" to "{count}/1000",
     "settings.emergencyCountDefault" to "{count}/1000 · valeur par défaut utilisée",
     "settings.emergencyPreviewLabel" to "Ce que le client reçoit",
+    "settings.emergencySafetyLine" to "Si quelqu'un est en danger, composez le 911.",
     "settings.emergencySafetyLineNote" to
         "« {line} » est toujours ajoutée et ne peut pas être modifiée. Vous décidez " +
         "de ce qui est promis ; dire à une personne en danger vers qui d'autre se " +
@@ -881,6 +893,17 @@ private val CALLING_EN = mapOf(
         "settings won't apply until you add or transfer a Loonext number.",
 
     "settings.textBackTitle" to "Text back a missed call",
+    // THE MESSAGE ITSELF, not a description of it: this is the placeholder
+    // AND the preview of what the caller receives. Both languages are copied
+    // character for character out of `packages/shared/src/locale.ts`, which
+    // is what the server puts on the wire — so the French reads without
+    // accents and inside GSM-7, exactly as the text a customer gets does. A
+    // prettier French here would preview a message this product never sends.
+    // `{business_name}` is a merge field the send path fills in, not a
+    // catalogue token, and survives interpolation untouched.
+    "settings.textBackDefault" to
+        "Sorry we missed your call! This is {business_name}. Reply here with your " +
+        "address and what you need, and we'll get you booked in.",
     "settings.textBackIntro" to
         "When a call to your business number goes unanswered, we send the caller " +
         "one text so they can book by reply, instead of calling the next number on " +
@@ -1036,6 +1059,12 @@ private val CALLING_FR = mapOf(
         "vous n'aurez pas ajouté ou transféré un numéro Loonext.",
 
     "settings.textBackTitle" to "Répondre par texto à un appel manqué",
+    // `FR_CA_COPY.missedCallTextBack` in `packages/shared/src/locale.ts`,
+    // character for character — accents and all left as the wire has them.
+    "settings.textBackDefault" to
+        "Desole, nous avons manque votre appel. Ici {business_name}. " +
+        "Repondez ici avec votre adresse et ce dont vous avez besoin, " +
+        "et nous vous trouverons une place.",
     "settings.textBackIntro" to
         "Quand un appel à votre numéro d'entreprise reste sans réponse, nous " +
         "envoyons un seul texto à l'appelant pour qu'il puisse réserver en " +
@@ -1632,4 +1661,455 @@ private val BILLING_FR = mapOf(
         "pour la partie inutilisée de cette période sur votre prochaine facture.",
     "settings.moduleRemoveAction" to "Le retirer",
     "settings.moduleRemoved" to "{name} retiré.",
+)
+
+// ---------------------------------------------------------------------------
+// Settings → Help → the route to a human (#382, #253, #321)
+// ---------------------------------------------------------------------------
+
+/**
+ * The support pre-fill and the questions it exists to make unnecessary.
+ *
+ * ## Two readers, two languages, one key each
+ *
+ * A support report is read TWICE. The person writing it reads the screen and the
+ * body of the mail their phone opens; we read the subject line. So each sentence
+ * is one key with two translations, and the two readers ask for it differently:
+ * `supportBody` resolves it in the READER's language, and `supportSubjectFor`
+ * resolves the same key against the ENGLISH table on purpose.
+ *
+ * The subject is the inbox's index. `supportSubjectFor` gives every reporter of
+ * one failure the identical subject so a single search finds all of them, and
+ * `docs/RELEASING.md` makes the reply a step of every release — that mechanism
+ * is what #321's "we write back when it's fixed" promise rests on. A subject
+ * line that changed with the reporter's language would split each failure into
+ * two piles, and the pattern that matters most, five reports of one thing in a
+ * morning, would be the one that stopped being visible.
+ *
+ * ## The response time is quoted, not translated
+ *
+ * `{time}` inside `helpReplyPromise` is `SUPPORT_RESPONSE_TIME`, the ONE
+ * constant three clients and `SupportPortTest` read. Web interpolates the
+ * English into its French for the same reason. It is listed as a known gap in
+ * the extraction report rather than quietly forked here — a promise about how
+ * fast we answer is not a sentence one client should reword alone.
+ *
+ * `android` in `supportBodyApp` is the platform's name and is never translated.
+ */
+private val SUPPORT_EN = mapOf(
+    // -- what the person was looking at, for the subject and the body --------
+    "settings.supportSituationRegistrationPending" to "US registration is pending approval",
+    "settings.supportSituationRegistrationSuspended" to
+        "the carrier suspended our US registration",
+    "settings.supportSituationUsTextingOff" to "US texting is off for this workspace",
+    "settings.supportSituationUsageCap" to "sending is paused at the spending cap",
+    "settings.supportSituationSubscription" to "the subscription is not active",
+    "settings.supportSituationOptedOut" to "this customer is opted out",
+    "settings.supportSituationOptOutHint" to "an opt-out was detected in the thread",
+    "settings.supportSituationNumberAccess" to "I do not have texting access to this number",
+    "settings.supportSituationReadOnly" to "I have view-only access",
+
+    // -- the subject line, always the English table --------------------------
+    "settings.supportSubjectDefault" to "Help with my Loonext workspace",
+    "settings.supportSubjectProblem" to "Problem: {situation}",
+    "settings.supportSubjectIdea" to "Idea for Loonext",
+
+    // -- the body, which is printed on the screen as well --------------------
+    "settings.supportBodyLeadIn" to
+        "The details below help us look this up. Please leave them in.",
+    "settings.supportBodyWorkspace" to "Workspace: {name} ({id})",
+    "settings.supportBodyUnnamed" to "(unnamed)",
+    "settings.supportBodyPlan" to "Plan: {plan}",
+    "settings.supportBodyApp" to "App: android {version}",
+    "settings.supportBodyAppNoVersion" to "App: android",
+    "settings.supportBodyScreen" to "Screen: {situation}",
+    "settings.supportBodyErrors" to "Recent errors on this device (newest first):",
+
+    // -- what to expect ------------------------------------------------------
+    "settings.helpResponseTime" to "within two business days, usually sooner",
+    "settings.helpReplyPromise" to
+        "We reply {time}. We're a small team, so this is email rather than a chat " +
+        "window, and we read everything that comes in. If your texts have stopped " +
+        "arriving, say so in the subject line and we'll start there.",
+    "settings.helpFixPromise" to
+        "If you tell us something's broken, we write back when it's fixed, not just " +
+        "when we've read it.",
+
+    // -- the questions the answers already existed for -----------------------
+    // STOP and START are carrier keywords: a carrier matches on the literal
+    // word, so they are never translated.
+    "settings.helpFaqUsSendQ" to "Why won't my text to a US number send?",
+    "settings.helpFaqUsSendA" to
+        "US carriers require every business number to be registered before it can text US " +
+        "phones. Approval usually takes 3 to 7 business days, and there is nothing to do " +
+        "while it runs. Calls to US numbers work the whole time, and Canadian texts are " +
+        "unaffected.",
+    "settings.helpFaqPendingQ" to "What does “registration pending” actually mean?",
+    "settings.helpFaqPendingA" to
+        "We have submitted your business to the carriers and they have not answered yet. It " +
+        "is a queue, not a review of anything you did. You will get an email the moment it " +
+        "clears.",
+    "settings.helpFaqStoppedQ" to "Why did my number stop sending after it was working?",
+    "settings.helpFaqStoppedA" to
+        "Two things do that. A carrier can suspend an approved registration, which we are " +
+        "told about and act on without you doing anything. Or your workspace has hit the " +
+        "spending cap the owner set, which is protection rather than a quota and an owner " +
+        "can raise it in Settings.",
+    "settings.helpFaqNotGotQ" to "A customer says they never got my text. What now?",
+    "settings.helpFaqNotGotA" to
+        "Check whether they ever texted STOP: a carrier opt-out blocks us and only the " +
+        "customer can lift it, by texting START. If that is not it, email us the customer's " +
+        "number and roughly when you sent it, and we can trace the message with the carrier.",
+    "settings.helpFaqPortQ" to "How long does moving my existing number take?",
+    "settings.helpFaqPortA" to
+        "Porting takes 7 to 10 business days once the carrier accepts the request, and your " +
+        "old number keeps working the entire time. Nothing goes dark at any point.",
+)
+
+private val SUPPORT_FR = mapOf(
+    "settings.supportSituationRegistrationPending" to
+        "l'inscription américaine est en attente d'approbation",
+    "settings.supportSituationRegistrationSuspended" to
+        "le fournisseur a suspendu notre inscription américaine",
+    "settings.supportSituationUsTextingOff" to
+        "les textos américains sont désactivés pour cet espace de travail",
+    "settings.supportSituationUsageCap" to
+        "l'envoi est suspendu au plafond de dépenses",
+    "settings.supportSituationSubscription" to "l'abonnement n'est pas actif",
+    "settings.supportSituationOptedOut" to "ce client s'est désabonné",
+    "settings.supportSituationOptOutHint" to
+        "un désabonnement a été détecté dans la conversation",
+    "settings.supportSituationNumberAccess" to
+        "je n'ai pas accès aux textos de ce numéro",
+    "settings.supportSituationReadOnly" to "j'ai un accès en lecture seule",
+
+    // The subject line is resolved from the ENGLISH table whatever this says —
+    // see the header. These exist so the same sentence can be read in French
+    // inside the body, from one key rather than two.
+    "settings.supportSubjectDefault" to "Aide avec mon espace de travail Loonext",
+    "settings.supportSubjectProblem" to "Problème : {situation}",
+    "settings.supportSubjectIdea" to "Idée pour Loonext",
+
+    "settings.supportBodyLeadIn" to
+        "Les renseignements ci-dessous nous aident à retrouver votre dossier. " +
+        "Laissez-les dans le message.",
+    "settings.supportBodyWorkspace" to "Espace de travail : {name} ({id})",
+    "settings.supportBodyUnnamed" to "(sans nom)",
+    "settings.supportBodyPlan" to "Forfait : {plan}",
+    "settings.supportBodyApp" to "Application : android {version}",
+    "settings.supportBodyAppNoVersion" to "Application : android",
+    "settings.supportBodyScreen" to "Écran : {situation}",
+    "settings.supportBodyErrors" to
+        "Erreurs récentes sur cet appareil (les plus récentes d'abord) :",
+
+    "settings.helpResponseTime" to "within two business days, usually sooner",
+    // Copied character for character from web's `appShell.helpReplyPromise`.
+    "settings.helpReplyPromise" to
+        "Nous répondons {time}. Nous sommes une petite équipe, alors c'est le " +
+        "courriel plutôt qu'une fenêtre de clavardage, et nous lisons tout ce qui " +
+        "arrive. Si vos textos ont cessé d'arriver, dites-le dans l'objet et nous " +
+        "commencerons par là.",
+    "settings.helpFixPromise" to
+        "Si vous nous signalez un problème, nous vous réécrivons quand il est " +
+        "corrigé, pas seulement quand nous l'avons lu.",
+
+    "settings.helpFaqUsSendQ" to
+        "Pourquoi mon texto vers un numéro américain ne part-il pas ?",
+    "settings.helpFaqUsSendA" to
+        "Les fournisseurs américains exigent que chaque numéro d'entreprise soit " +
+        "inscrit avant de pouvoir texter des téléphones américains. " +
+        "L'approbation prend habituellement de 3 à 7 jours ouvrables, et il n'y a rien " +
+        "à faire pendant ce temps. Les appels vers les numéros américains " +
+        "fonctionnent tout du long, et les textos canadiens ne sont pas touchés.",
+    "settings.helpFaqPendingQ" to
+        "Que veut dire « inscription en attente », au juste ?",
+    "settings.helpFaqPendingA" to
+        "Nous avons soumis votre entreprise aux fournisseurs et ils n'ont pas encore " +
+        "répondu. C'est une file d'attente, pas un examen de quoi que ce soit que vous " +
+        "auriez fait. Vous recevrez un courriel dès que ce sera réglé.",
+    "settings.helpFaqStoppedQ" to
+        "Pourquoi mon numéro a-t-il cessé d'envoyer après avoir fonctionné ?",
+    "settings.helpFaqStoppedA" to
+        "Deux choses causent cela. Un fournisseur peut suspendre une inscription " +
+        "approuvée ; on nous en avise et nous agissons sans que vous ayez rien à " +
+        "faire. Ou votre espace de travail a atteint le plafond de dépenses fixé " +
+        "par le propriétaire, qui est une protection plutôt qu'un quota et qu'un " +
+        "propriétaire peut relever dans les paramètres.",
+    "settings.helpFaqNotGotQ" to
+        "Un client dit qu'il n'a jamais reçu mon texto. Que faire ?",
+    "settings.helpFaqNotGotA" to
+        "Vérifiez s'il a déjà envoyé STOP : un désabonnement chez le " +
+        "fournisseur nous bloque et seul le client peut le lever, en textant START. Si ce " +
+        "n'est pas cela, écrivez-nous le numéro du client et le moment approximatif " +
+        "de l'envoi, et nous pourrons retracer le message avec le fournisseur.",
+    "settings.helpFaqPortQ" to
+        "Combien de temps prend le transfert de mon numéro actuel ?",
+    "settings.helpFaqPortA" to
+        "Le transfert prend de 7 à 10 jours ouvrables une fois que le fournisseur " +
+        "accepte la demande, et votre ancien numéro continue de fonctionner pendant tout " +
+        "ce temps. Rien ne s'éteint à aucun moment.",
+)
+
+// ---------------------------------------------------------------------------
+// Settings → a number the plan does not cover (#523)
+// ---------------------------------------------------------------------------
+
+/**
+ * The words a hold is explained with, on three surfaces.
+ *
+ * THE "NOT GIVEN UP" CLAUSE IS ONE ENTRY PER GRAMMAR and every sentence quotes
+ * it as `{kept}`. It is the half somebody could plan a business around being
+ * wrong about: an owner who reads "on hold" and concludes the line is dead tells
+ * customers to use a different number, or starts a transfer they do not need.
+ * Two copies of it are two chances for one of them to lose the "still reach it"
+ * half in an edit.
+ *
+ * THE PLAN NOTE IS TWO WHOLE SENTENCES rather than a stem with `is`/`are`
+ * dropped into it. French agrees a verb, an article and a possessive at once, so
+ * a shared stem would have pushed three more fragments into this file for a
+ * translator to reassemble blind — the same reason the devices card spells both
+ * counts out. The vocabulary is web's own (`settings.ts`): a hold is "en
+ * attente", bringing one back is "récupérer", and nothing is ever "abandonné".
+ */
+private val HOLD_COPY_EN = mapOf(
+    "settings.heldKeptOne" to
+        "It hasn't been given up: texts and calls still reach it and its " +
+        "history is untouched, but you can't send or answer from it while it's on hold.",
+    "settings.heldKeptMany" to
+        "They haven't been given up: texts and calls still reach them and their " +
+        "history is untouched, but you can't send or answer from them while " +
+        "they're on hold.",
+    // The word between two numbers in a list, and the sentence for the numbers
+    // we hold but cannot spell.
+    "settings.heldAndJoiner" to " and ",
+    "settings.heldCounted" to "{count} held numbers",
+    "settings.heldOneOfYours" to "One of your numbers",
+    "settings.heldYourHeldNumber" to "your held number",
+
+    "settings.heldPlanNoteOne" to
+        "{subject} is on hold — your plan covers fewer numbers than you're " +
+        "holding. {kept} The ways to bring it back are on the Numbers screen, on " +
+        "the number's own card.",
+    "settings.heldPlanNoteMany" to
+        "{subject} are on hold — your plan covers fewer numbers than you're " +
+        "holding. {kept} The ways to bring them back are on the Numbers screen, on " +
+        "each number's own card.",
+
+    "settings.heldNoteAllowance" to
+        "This number is on hold — your plan covers fewer numbers than you're " +
+        "holding. {kept}",
+    "settings.heldAskOwnerAllowance" to
+        "Ask an owner or admin — the ways to bring it back are under Billing.",
+    "settings.heldNotePastDue" to
+        "This number is on hold because the last payment didn't go through. {kept} " +
+        "It comes back as soon as the payment method is updated.",
+    "settings.heldFixPastDue" to "Update it under Settings › Billing.",
+    "settings.heldAskOwnerPastDue" to "Ask an owner or admin to update it under Billing.",
+    "settings.heldNoteCanceled" to
+        "This number is on hold because the subscription is canceled. {kept} It " +
+        "comes back when the subscription does.",
+    "settings.heldFixCanceled" to "Resubscribe under Settings › Billing.",
+    "settings.heldAskOwnerCanceled" to "Ask an owner or admin to resubscribe under Billing.",
+    "settings.heldNoteUnknown" to "This number is on hold. {kept}",
+    "settings.heldFixUnknown" to "Settings › Billing has the ways to bring it back.",
+
+    "settings.heldPortNote" to
+        "This transfer finished and the number is yours. It's on hold for a billing " +
+        "reason, not a transfer one. {kept} Its own card, further up this screen, " +
+        "says why and what can be done about it.",
+
+    "settings.heldRoutePaidOrPro" to
+        "Bring it back as a paid extra number for {price}, or move to Pro under " +
+        "Settings › Billing — either brings it straight back.",
+    "settings.heldRoutePaid" to
+        "Bring it back as a paid extra number for {price} and it works again " +
+        "straight away.",
+    "settings.heldRouteHardCap" to
+        "Starter tops out at {cap} numbers, so this one needs Pro — the plan " +
+        "switch is under Settings › Billing.",
+    "settings.heldRouteBilling" to
+        "The ways to bring it back are under Settings › Billing.",
+
+    "settings.changePlanScheduled" to
+        "Switch to Starter scheduled for the end of this period.",
+    "settings.changePlanOnPro" to "You're on Pro now.",
+    "settings.changePlanBackOne" to "You're on Pro now, and {subject} is back.",
+    "settings.changePlanBackMany" to "You're on Pro now, and {subject} are back.",
+)
+
+private val HOLD_COPY_FR = mapOf(
+    "settings.heldKeptOne" to
+        "Il n'a pas été abandonné : les textos et les appels s'y rendent " +
+        "toujours et l'historique est intact, mais vous ne pouvez pas envoyer ni " +
+        "répondre à partir de ce numéro tant qu'il est en attente.",
+    "settings.heldKeptMany" to
+        "Ils n'ont pas été abandonnés : les textos et les appels s'y rendent " +
+        "toujours et leur historique est intact, mais vous ne pouvez pas envoyer ni " +
+        "répondre à partir de ces numéros tant qu'ils sont en attente.",
+    "settings.heldAndJoiner" to " et ",
+    "settings.heldCounted" to "{count} numéros en attente",
+    "settings.heldOneOfYours" to "Un de vos numéros",
+    "settings.heldYourHeldNumber" to "votre numéro en attente",
+
+    "settings.heldPlanNoteOne" to
+        "{subject} est en attente — votre forfait couvre moins de numéros que " +
+        "vous en avez. {kept} Les façons de le récupérer se trouvent à " +
+        "l'écran Numéros, sur la fiche du numéro.",
+    "settings.heldPlanNoteMany" to
+        "{subject} sont en attente — votre forfait couvre moins de numéros que " +
+        "vous en avez. {kept} Les façons de les récupérer se trouvent à " +
+        "l'écran Numéros, sur la fiche de chaque numéro.",
+
+    "settings.heldNoteAllowance" to
+        "Ce numéro est en attente — votre forfait couvre moins de numéros que " +
+        "vous en avez. {kept}",
+    "settings.heldAskOwnerAllowance" to
+        "Demandez à un propriétaire ou à un administrateur — les " +
+        "façons de le récupérer sont sous Facturation.",
+    "settings.heldNotePastDue" to
+        "Ce numéro est en attente parce que le dernier paiement n'a pas été " +
+        "accepté. {kept} Il revient dès que le mode de paiement est mis à jour.",
+    "settings.heldFixPastDue" to
+        "Mettez-le à jour sous Paramètres › Facturation.",
+    "settings.heldAskOwnerPastDue" to
+        "Demandez à un propriétaire ou à un administrateur de le mettre à " +
+        "jour sous Facturation.",
+    "settings.heldNoteCanceled" to
+        "Ce numéro est en attente parce que l'abonnement est annulé. {kept} Il " +
+        "revient quand l'abonnement revient.",
+    "settings.heldFixCanceled" to
+        "Réabonnez-vous sous Paramètres › Facturation.",
+    "settings.heldAskOwnerCanceled" to
+        "Demandez à un propriétaire ou à un administrateur de se réabonner " +
+        "sous Facturation.",
+    "settings.heldNoteUnknown" to "Ce numéro est en attente. {kept}",
+    "settings.heldFixUnknown" to
+        "Paramètres › Facturation contient les façons de le récupérer.",
+
+    "settings.heldPortNote" to
+        "Ce transfert est terminé et le numéro est à vous. Il est en attente " +
+        "pour une raison de facturation, pas de transfert. {kept} Sa propre fiche, plus " +
+        "haut sur cet écran, dit pourquoi et ce qu'on peut y faire.",
+
+    "settings.heldRoutePaidOrPro" to
+        "Récupérez-le comme numéro supplémentaire payant à {price}, " +
+        "ou passez à Pro sous Paramètres › Facturation — les deux le " +
+        "ramènent immédiatement.",
+    "settings.heldRoutePaid" to
+        "Récupérez-le comme numéro supplémentaire payant à {price} " +
+        "et il refonctionne immédiatement.",
+    "settings.heldRouteHardCap" to
+        "Starter plafonne à {cap} numéros : celui-ci exige donc Pro — le " +
+        "changement de forfait est sous Paramètres › Facturation.",
+    "settings.heldRouteBilling" to
+        "Les façons de le récupérer sont sous Paramètres › Facturation.",
+
+    "settings.changePlanScheduled" to
+        "Passage à Starter prévu pour la fin de cette période.",
+    "settings.changePlanOnPro" to "Vous êtes sur Pro maintenant.",
+    "settings.changePlanBackOne" to
+        "Vous êtes sur Pro maintenant, et {subject} est de retour.",
+    "settings.changePlanBackMany" to
+        "Vous êtes sur Pro maintenant, et {subject} sont de retour.",
+)
+
+// ---------------------------------------------------------------------------
+// Settings → buying the US carrier registration (#525)
+// ---------------------------------------------------------------------------
+
+/**
+ * The enable-US card, whose French is web's own (`settingsMore.ts`:
+ * `regUsTextingDescription`, `regEnableUsAction`, `regEnableUsConfirmTitle`,
+ * `regEnableUs`, `regAskOwnerEnableUs`, `usRegTerms`, `usRegRunningTail`,
+ * `usRegStartedPaused`, `usRegStartedRunning`) copied character for character.
+ *
+ * `{window}` is the approval estimate, quoted rather than spelled out in every
+ * sentence that mentions it — a card that says one figure in the dialog and
+ * another in the note above the button is asking the reader which of us to
+ * believe, and `EnableUsPausedTest` counts the spellings. Its English is
+ * `US_APPROVAL_WINDOW` in `RegistrationCard.kt`, byte for byte; its French is
+ * the one web already uses ("3 à 7 jours ouvrables").
+ */
+private val REGISTRATION_EN = mapOf(
+    // The system document picker, which the transfer and text-enablement
+    // uploads both open. Written from the launcher's own callback, long after
+    // the composition that started it — see `rememberDocumentPicker`.
+    "settings.docWrongKind" to "Use a PDF, PNG, or JPEG up to 10 MB.",
+    "settings.docUnreadable" to "Couldn't read that file. Try another one.",
+
+    "settings.usApprovalWindow" to "3 to 7 business days",
+    "settings.enableUsCharge" to
+        "A one-time {fee} registration fee is charged to your card on file, " +
+        "and we register your business with US carriers.",
+    "settings.enableUsDescription" to
+        "Texting Canadian numbers already works. Texting US numbers needs " +
+        "a one-time carrier registration.",
+    "settings.enableUsButton" to "Enable US texting: {fee} one-time",
+    "settings.enableUsReadOnly" to
+        "Ask your account owner to enable US texting; it's a one-time " +
+        "{fee} carrier registration.",
+    "settings.enableUsPausedNote" to
+        "Your plan is paused, and the carriers review this either way — the " +
+        "{window} pass while you're quiet instead of costing you a " +
+        "week in the spring. Texting US numbers starts the day you resume.",
+    "settings.enableUsConfirmTitle" to "Enable US texting?",
+    "settings.enableUsConfirmBody" to
+        "{charge} Approval usually takes {window}. We handle it and " +
+        "email you when it's live.",
+    "settings.enableUsConfirmBodyPaused" to
+        "{charge} Approval usually takes {window}, and that review runs " +
+        "while your plan is paused. You still can't text anyone until you " +
+        "resume — US numbers work from the day you do, with no waiting left. " +
+        "The fee is charged once per workspace, ever, so waiting until spring " +
+        "wouldn't save it.",
+    "settings.enableUsConfirmLabel" to "Enable US texting",
+    "settings.enableUsStarted" to
+        "US registration started. We'll email you when it's approved.",
+    "settings.enableUsStartedPaused" to
+        "US registration started. We'll email you when the carriers approve it, " +
+        "and US texting works when you resume.",
+)
+
+private val REGISTRATION_FR = mapOf(
+    // « Mo » plutôt que « MB », comme sur le web (`settingsMore.portDocSizeError`).
+    "settings.docWrongKind" to "Utilisez un PDF, un PNG ou un JPEG de 10 Mo au maximum.",
+    "settings.docUnreadable" to "Impossible de lire ce fichier. Essayez-en un autre.",
+
+    "settings.usApprovalWindow" to "3 à 7 jours ouvrables",
+    "settings.enableUsCharge" to
+        "Des frais d'inscription uniques de {fee} sont portés à la carte que nous " +
+        "avons au dossier, et nous inscrivons votre entreprise auprès des " +
+        "fournisseurs américains.",
+    "settings.enableUsDescription" to
+        "Texter des numéros canadiens fonctionne déjà. Texter des numéros " +
+        "américains exige une inscription unique auprès des fournisseurs.",
+    "settings.enableUsButton" to
+        "Activer les textos américains : {fee} une seule fois",
+    "settings.enableUsReadOnly" to
+        "Demandez au propriétaire du compte d'activer les textos américains ; " +
+        "c'est une inscription unique de {fee} auprès des fournisseurs.",
+    "settings.enableUsPausedNote" to
+        "Votre forfait est en pause, et les fournisseurs examinent votre demande de toute " +
+        "façon — les {window} passent pendant votre saison tranquille au lieu de " +
+        "vous coûter une semaine au printemps. Les textos vers les numéros " +
+        "américains commencent le jour de votre reprise.",
+    "settings.enableUsConfirmTitle" to "Activer les textos vers les États-Unis ?",
+    "settings.enableUsConfirmBody" to
+        "{charge} L'approbation prend habituellement de {window}. Nous nous en " +
+        "occupons et vous écrivons quand c'est en service.",
+    "settings.enableUsConfirmBodyPaused" to
+        "{charge} L'approbation prend habituellement de {window}, et cet examen se " +
+        "déroule pendant que votre forfait est en pause. Vous ne pouvez toujours " +
+        "écrire à personne avant votre reprise — les numéros " +
+        "américains fonctionnent dès ce jour-là, sans attente restante. Les " +
+        "frais sont facturés une seule fois par espace de travail, à jamais : " +
+        "attendre au printemps ne les éviterait pas.",
+    "settings.enableUsConfirmLabel" to "Activer les textos américains",
+    "settings.enableUsStarted" to
+        "Inscription américaine lancée. Nous vous écrirons quand elle sera " +
+        "approuvée.",
+    "settings.enableUsStartedPaused" to
+        "Inscription américaine lancée. Nous vous écrirons quand les " +
+        "fournisseurs l'auront approuvée, et les textos américains " +
+        "fonctionneront à votre reprise.",
 )

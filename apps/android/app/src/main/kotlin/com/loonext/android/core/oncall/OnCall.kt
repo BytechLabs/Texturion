@@ -1,5 +1,6 @@
 package com.loonext.android.core.oncall
 
+import com.loonext.android.core.i18n.AppStrings
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -25,45 +26,90 @@ object OnCall {
 
     data class Preset(val key: String, val label: String, val detail: String)
 
-    val PRESETS = listOf(
-        Preset("tonight", "Tonight", "6pm until 8am tomorrow"),
-        Preset("weekend", "This weekend", "Friday 6pm until Monday 8am"),
-        Preset("week", "The next 7 days", "Starting now"),
+    /**
+     * #228 — how every sentence in this object reaches a reader.
+     *
+     * `t()` is `@Composable` and this object is not: it is a plain `object`
+     * whose constants are read at class-init, long before any composition
+     * exists. So each sentence is a KEY, resolved by a function that takes the
+     * reader's language LAST and DEFAULTED — the shape `AppLock.headline` and
+     * `ongoingStatusLabel` already use.
+     *
+     * The old `const val` names are kept as properties over those functions, so
+     * a call site that has not been given a reader keeps rendering exactly what
+     * it rendered before rather than a bare key. A screen that HAS one should
+     * move to the `…_KEY` constant and `t()`, or to the locale-taking function
+     * beside it.
+     */
+    private fun say(key: String, locale: String? = null): String =
+        AppStrings.translate(locale, key)
+
+    const val PRESET_TONIGHT_KEY = "domain.onCallPresetTonight"
+    const val PRESET_TONIGHT_DETAIL_KEY = "domain.onCallPresetTonightDetail"
+    const val PRESET_WEEKEND_KEY = "domain.onCallPresetWeekend"
+    const val PRESET_WEEKEND_DETAIL_KEY = "domain.onCallPresetWeekendDetail"
+    const val PRESET_WEEK_KEY = "domain.onCallPresetWeek"
+    const val PRESET_WEEK_DETAIL_KEY = "domain.onCallPresetWeekDetail"
+
+    /** The three offers, in the reader's language. */
+    fun presets(locale: String? = null): List<Preset> = listOf(
+        Preset("tonight", say(PRESET_TONIGHT_KEY, locale), say(PRESET_TONIGHT_DETAIL_KEY, locale)),
+        Preset("weekend", say(PRESET_WEEKEND_KEY, locale), say(PRESET_WEEKEND_DETAIL_KEY, locale)),
+        Preset("week", say(PRESET_WEEK_KEY, locale), say(PRESET_WEEK_DETAIL_KEY, locale)),
     )
 
+    val PRESETS: List<Preset> get() = presets()
+
     /** Nobody holding it — states the CONSEQUENCE, which is the decision. */
-    const val NOBODY =
-        "Nobody is on call, so an after-hours call wakes everyone who can see " +
-            "the number. Put one person on and the rest get a quiet night."
+    const val NOBODY_KEY = "domain.onCallNobody"
+    val NOBODY: String get() = say(NOBODY_KEY)
 
-    const val UNTIL = "on call until"
+    const val UNTIL_KEY = "domain.onCallUntil"
+    val UNTIL: String get() = say(UNTIL_KEY)
 
-    const val ESCALATION =
-        "If they do not pick it up, everyone else is told a few minutes later."
+    const val ESCALATION_KEY = "domain.onCallEscalation"
+    val ESCALATION: String get() = say(ESCALATION_KEY)
 
-    const val READ_ONLY = "Only an owner or admin can change who is on call."
+    const val READ_ONLY_KEY = "domain.onCallReadOnly"
+    val READ_ONLY: String get() = say(READ_ONLY_KEY)
 
-    fun line(name: String, until: String): String = "$name is $UNTIL $until"
+    /**
+     * One whole sentence rather than a name glued to a fragment: the verb sits
+     * in a different place in the two languages, and a sentence assembled from
+     * pieces can only ever be assembled in one word order.
+     */
+    fun line(name: String, until: String, locale: String? = null): String =
+        AppStrings.translate(
+            locale,
+            "domain.onCallLine",
+            mapOf("name" to name, "until" to until),
+        )
 
     // -- #244 the unclaimed-page banner ------------------------------------
 
     /** Unclaimed. Says what is owed, not what happened. */
-    const val BANNER_WAITING = "Nobody has picked this up yet"
+    const val BANNER_WAITING_KEY = "domain.onCallBannerWaiting"
+    val BANNER_WAITING: String get() = say(BANNER_WAITING_KEY)
 
     /** The action. First person, because that is what tapping it means. */
-    const val BANNER_CLAIM = "I have this"
+    const val BANNER_CLAIM_KEY = "domain.onCallBannerClaim"
+    val BANNER_CLAIM: String get() = say(BANNER_CLAIM_KEY)
 
     /** Claimed by somebody else — the sentence that stops a second callback. */
-    const val BANNER_TAKEN = "has this"
+    const val BANNER_TAKEN_KEY = "domain.onCallBannerTaken"
+    val BANNER_TAKEN: String get() = say(BANNER_TAKEN_KEY)
 
     /** Claimed by you. Confirms it stuck, and that the others were told. */
-    const val BANNER_YOURS = "You have this. The rest of the crew has been told."
+    const val BANNER_YOURS_KEY = "domain.onCallBannerYours"
+    val BANNER_YOURS: String get() = say(BANNER_YOURS_KEY)
 
-    fun alertTakenLine(name: String): String = "$name $BANNER_TAKEN"
+    fun alertTakenLine(name: String, locale: String? = null): String =
+        AppStrings.translate(locale, "domain.onCallTakenLine", mapOf("name" to name))
 
     // -- #244 a member's own quiet hours -----------------------------------
 
-    const val QUIET_HEADING = "Quiet hours"
+    const val QUIET_HEADING_KEY = "domain.quietHoursHeading"
+    val QUIET_HEADING: String get() = say(QUIET_HEADING_KEY)
 
     /**
      * THE LOAD-BEARING SENTENCE. The reason people do not set quiet hours is
@@ -71,52 +117,74 @@ object OnCall {
      * without saying what still gets through does not get switched on — and
      * the member goes back to turning notifications off entirely.
      */
-    const val QUIET_REASSURANCE =
-        "Your phone stays quiet for ordinary messages. If you are on call, or " +
-            "an alert nobody picked up widens to the crew, it still comes through."
+    const val QUIET_REASSURANCE_KEY = "domain.quietHoursReassurance"
+    val QUIET_REASSURANCE: String get() = say(QUIET_REASSURANCE_KEY)
 
-    const val QUIET_OFF = "Off — every notification reaches you at any hour."
+    const val QUIET_OFF_KEY = "domain.quietHoursOff"
+    val QUIET_OFF: String get() = say(QUIET_OFF_KEY)
 
-    const val QUIET_ON = "Quiet from"
+    const val QUIET_ON_KEY = "domain.quietHoursOn"
+    val QUIET_ON: String get() = say(QUIET_ON_KEY)
 
-    const val QUIET_SCOPE = "This applies to this workspace only."
+    const val QUIET_SCOPE_KEY = "domain.quietHoursScope"
+    val QUIET_SCOPE: String get() = say(QUIET_SCOPE_KEY)
 
     /** The window most people want, offered rather than imposed. */
     const val QUIET_DEFAULT_FROM = "22:00"
     const val QUIET_DEFAULT_TO = "07:00"
 
-    fun quietHoursLine(from: String, to: String): String = "$QUIET_ON $from to $to"
+    /** One sentence, for the same reason [line] is one. */
+    fun quietHoursLine(from: String, to: String, locale: String? = null): String =
+        AppStrings.translate(
+            locale,
+            "domain.quietHoursLine",
+            mapOf("from" to from, "to" to to),
+        )
 
     // -- #297 how loud each kind of notification is ------------------------
 
-    const val DELIVERY_HEADING = "How much we tell you"
+    const val DELIVERY_HEADING_KEY = "domain.deliveryHeading"
+    val DELIVERY_HEADING: String get() = say(DELIVERY_HEADING_KEY)
 
     /**
      * THE PROMISE THAT MAKES A QUIETER SETTING PICKABLE. Without it nobody
      * chooses one, because the fear is missing the call that mattered — and
      * they go back to turning notifications off entirely.
      */
-    const val DELIVERY_URGENT_ALWAYS =
-        "An emergency, a page while you are on call, or an alert nobody picked " +
-            "up always arrives straight away, whatever you choose here."
+    const val DELIVERY_URGENT_ALWAYS_KEY = "domain.deliveryUrgentAlways"
+    val DELIVERY_URGENT_ALWAYS: String get() = say(DELIVERY_URGENT_ALWAYS_KEY)
 
-    const val DELIVERY_IMMEDIATE = "Straight away"
-    const val DELIVERY_BATCHED = "Grouped up"
-    const val DELIVERY_SUMMARY = "Once a day"
+    const val DELIVERY_IMMEDIATE_KEY = "domain.deliveryImmediate"
+    const val DELIVERY_BATCHED_KEY = "domain.deliveryBatched"
+    const val DELIVERY_SUMMARY_KEY = "domain.deliverySummary"
+    val DELIVERY_IMMEDIATE: String get() = say(DELIVERY_IMMEDIATE_KEY)
+    val DELIVERY_BATCHED: String get() = say(DELIVERY_BATCHED_KEY)
+    val DELIVERY_SUMMARY: String get() = say(DELIVERY_SUMMARY_KEY)
 
     /** Said next to "Once a day", the option people misread as off. */
-    const val DELIVERY_SUMMARY_DETAIL =
-        "Held for your daily summary, not discarded."
+    const val DELIVERY_SUMMARY_DETAIL_KEY = "domain.deliverySummaryDetail"
+    val DELIVERY_SUMMARY_DETAIL: String get() = say(DELIVERY_SUMMARY_DETAIL_KEY)
 
-    /** The categories, in the words a member would use. */
-    val CATEGORY_LABELS = linkedMapOf(
-        "messages_mine" to "Texts on my jobs",
-        "messages_all" to "Texts on anyone's jobs",
-        "mentions" to "When somebody @s me",
-        "assignments" to "Work handed to me",
-        "missed_calls" to "Missed calls",
-        "voicemails" to "Voicemails",
+    /**
+     * The categories, in the words a member would use.
+     *
+     * The KEYS are the stored vocabulary and never change; the labels beside
+     * them are what a person reads. Ordered, because the order is the order the
+     * rows are drawn in.
+     */
+    val CATEGORY_KEYS = linkedMapOf(
+        "messages_mine" to "domain.categoryMessagesMine",
+        "messages_all" to "domain.categoryMessagesAll",
+        "mentions" to "domain.categoryMentions",
+        "assignments" to "domain.categoryAssignments",
+        "missed_calls" to "domain.categoryMissedCalls",
+        "voicemails" to "domain.categoryVoicemails",
     )
+
+    fun categoryLabels(locale: String? = null): Map<String, String> =
+        CATEGORY_KEYS.mapValues { (_, key) -> say(key, locale) }
+
+    val CATEGORY_LABELS: Map<String, String> get() = categoryLabels()
 
     val DELIVERY_MODES = listOf("immediate", "batched", "summary")
 

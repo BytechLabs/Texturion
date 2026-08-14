@@ -1,5 +1,6 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.core.i18n.AppStrings
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -395,8 +396,13 @@ object MessageLocale {
      * the answer, and the answer is what they opened the screen for. It is also
      * the only option that can put a contact back to following the workspace,
      * so it has to read as a real choice rather than as an absence.
+     *
+     * #228: [locale] is the READER's language and is a different question from
+     * [companyLocale], which is the language being NAMED inside the sentence.
+     * Last and defaulted, so a caller that has not been given a reader keeps the
+     * English it had.
      */
-    fun inheritLabel(companyLocale: String?): String {
+    fun inheritLabel(companyLocale: String?, locale: String? = null): String {
         // Names the language only when it is actually known. A value this build
         // does not recognise would otherwise render as its raw code ("Same as
         // workspace (de)"), and naming English instead would be worse still: it
@@ -405,8 +411,14 @@ object MessageLocale {
         // sentence still means something.
         //
         // Matches the web and iOS clients, which degrade the same way.
-        if (companyLocale == null || companyLocale !in ALL) return "Same as workspace"
-        return "Same as workspace (${label(companyLocale)})"
+        if (companyLocale == null || companyLocale !in ALL) {
+            return AppStrings.translate(locale, "domain.localeSameAsWorkspace")
+        }
+        return AppStrings.translate(
+            locale,
+            "domain.localeSameAsWorkspaceNamed",
+            mapOf("language" to label(companyLocale)),
+        )
     }
 
     /**

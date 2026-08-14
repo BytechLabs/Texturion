@@ -11,6 +11,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.CompanyView
@@ -181,17 +183,21 @@ fun usSuspended(company: CompanyView): Boolean =
 fun usTextingOff(company: CompanyView): Boolean =
     company.country == "CA" && !company.us_texting_enabled
 
-/** Honest, calm one-liner copy per banner (Loonext voice — no hype). */
-fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
+/**
+ * Which two sentences a banner says, as CATALOGUE KEYS.
+ *
+ * #228: keys rather than sentences because this `when` is not composable and
+ * two of its callers are not either — the pattern this repo already uses for
+ * `AuthError`. [bannerCopy] resolves them.
+ */
+fun bannerCopyKeys(banner: ComposerBanner): Pair<String, String> = when (banner) {
     // Say what can actually be done about it, rather than covering both cases
     // at once and leaving the reader to guess which one they are in.
     is ComposerBanner.OptedOut ->
         if (banner.carrierBlocked) {
-            "This customer opted out" to
-                "They texted STOP, so their carrier is blocking your texts. Only they can undo it, by texting START to your number. Internal notes still work."
+            "thread.bannerOptedOutTitle" to "thread.bannerOptedOutCarrierBody"
         } else {
-            "This customer opted out" to
-                "Someone marked them opted out. You can undo that on their contact. Internal notes still work."
+            "thread.bannerOptedOutTitle" to "thread.bannerOptedOutManualBody"
         }
 
     // #363: what is true, and what to do. No call offer either — whether a
@@ -202,24 +208,20 @@ fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
     // #315: names the ROLE, not the number — an accountant sent to "ask for
     // access to this number" would go looking in the wrong place.
     ComposerBanner.ReadOnly ->
-        "You have view-only access" to
-            "You can read this conversation but not reply or leave notes. An owner or admin can change your access."
+        "thread.bannerReadOnlyTitle" to "thread.bannerReadOnlyBody"
 
     ComposerBanner.NumberAccess ->
-        "You can't text from this number" to
-            "You can read this conversation and add internal notes, but texting this customer needs access an owner or admin grants. Calls to this number won't ring you either. Ask them if you need it."
+        "thread.bannerNumberAccessTitle" to "thread.bannerNumberAccessBody"
 
     is ComposerBanner.Subscription ->
-        "Texting is paused" to
-            "Your subscription isn't active, so outbound texts are blocked. An owner can fix this in billing. Internal notes still work."
+        "thread.bannerSubscriptionTitle" to "thread.bannerSubscriptionBody"
 
     ComposerBanner.RegistrationPending ->
-        "US texting isn't approved yet" to
-            "Carriers are still reviewing your registration. Texts to US numbers will send once it's approved. Internal notes still work."
+        "thread.bannerRegistrationPendingTitle" to
+            "thread.bannerRegistrationPendingBody"
 
     ComposerBanner.UsTextingOff ->
-        "US texting isn't on for this workspace" to
-            "This is a US number, and texting US numbers is an add-on your workspace hasn't turned on. An owner can add it in settings. Calls to this customer still work, and internal notes still work."
+        "thread.bannerUsTextingOffTitle" to "thread.bannerUsTextingOffBody"
 
     // #423. Deliberately NOT the pending copy: promising approval to a
     // workspace that WAS approved is a wait that never ends, and it sends them
@@ -227,19 +229,30 @@ fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
     // and what still works — the same three things the email says, so the two
     // never contradict each other.
     ComposerBanner.RegistrationSuspended ->
-        "US texting is paused" to
-            "The carrier paused your US registration, so texts to US numbers won't send. We've been told and we're on it, and you'll get an email when it's back. Canadian texts, calls and internal notes all still work."
+        "thread.bannerRegistrationSuspendedTitle" to
+            "thread.bannerRegistrationSuspendedBody"
 
     ComposerBanner.UsageCap ->
-        "You've hit this month's cap" to
-            "Outbound texts pause until the cap is raised or the month rolls over. Internal notes still work."
+        "thread.bannerUsageCapTitle" to "thread.bannerUsageCapBody"
 
     // #396: says what was seen and who decides. It does NOT opt anyone out —
     // only the customer can, and only they can lift it, so a wrong guess would
-    // silence a real lead for good.
+    // silence a real lead for good. `isCarrierEnforcedOptOut` above decides
+    // which opt-out body is said, and the carrier one names START.
     ComposerBanner.OptOutHint ->
-        "They asked not to be contacted" to
-            "Someone on this thread asked to be left alone. That request is binding however it's worded, so don't reply unless you're sure it wasn't one. To stop texts for good, they need to text STOP."
+        "thread.bannerOptOutHintTitle" to "thread.bannerOptOutHintBody"
+}
+
+/**
+ * Honest, calm one-liner copy per banner (Loonext voice — no hype).
+ *
+ * [locale] defaults to English so the existing pure callers, and the tests that
+ * pin this wording, read exactly as they did.
+ */
+fun bannerCopy(banner: ComposerBanner, locale: String? = null): Pair<String, String> {
+    val (titleKey, bodyKey) = bannerCopyKeys(banner)
+    return AppStrings.translate(locale, titleKey) to
+        AppStrings.translate(locale, bodyKey)
 }
 
 /**
@@ -271,7 +284,7 @@ fun ComposerBannerCard(
      */
     onReport: (() -> Unit)? = null,
 ) {
-    val (title, body) = bannerCopy(banner)
+    val (title, body) = bannerCopy(banner, LocalAppLocale.current)
     Column(
         modifier
             .fillMaxWidth()

@@ -1,5 +1,7 @@
 package com.loonext.android.core.reminders
 
+import com.loonext.android.core.i18n.AppStrings
+
 /**
  * #237 — appointment reminders, as this phone understands them.
  *
@@ -35,16 +37,34 @@ object AppointmentReminders {
      */
     val OFFSET_CHOICES = listOf(2880, 1440, 240, 120, 60)
 
-    /** "The day before", "2 hours before" — the offset, said the way a person would. */
-    fun offsetLabel(minutes: Int): String = when {
-        minutes % 1440 == 0 -> {
-            val days = minutes / 1440
-            if (days == 1) "The day before" else "$days days before"
+    /**
+     * "The day before", "2 hours before" — the offset, said the way a person
+     * would.
+     *
+     * #228: [locale] is last and defaulted, so the settings card that knows the
+     * reader can pass it while every other caller keeps its English.
+     */
+    fun offsetLabel(minutes: Int, locale: String? = null): String {
+        fun say(key: String, count: Int) =
+            AppStrings.translate(locale, key, mapOf("count" to count.toString()))
+        return when {
+            minutes % 1440 == 0 -> {
+                val days = minutes / 1440
+                if (days == 1) {
+                    AppStrings.translate(locale, "domain.reminderOffsetDayBefore")
+                } else {
+                    say("domain.reminderOffsetDays", days)
+                }
+            }
+            minutes % 60 == 0 -> {
+                val hours = minutes / 60
+                if (hours == 1) {
+                    AppStrings.translate(locale, "domain.reminderOffsetHour")
+                } else {
+                    say("domain.reminderOffsetHours", hours)
+                }
+            }
+            else -> say("domain.reminderOffsetMinutes", minutes)
         }
-        minutes % 60 == 0 -> {
-            val hours = minutes / 60
-            if (hours == 1) "1 hour before" else "$hours hours before"
-        }
-        else -> "$minutes minutes before"
     }
 }
