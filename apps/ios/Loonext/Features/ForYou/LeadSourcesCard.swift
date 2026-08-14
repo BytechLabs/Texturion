@@ -27,6 +27,12 @@ import SwiftUI
  */
 struct LeadSourcesCard: View {
     let report: LeadSourceReport?
+    /// #540: where "put a source on the numbers you advertise" happens.
+    ///
+    /// Not optional. A default of nil turns "nobody wired this" into a
+    /// silently inert card rather than a compile error, and this is the state
+    /// a NEW workspace opens on.
+    let onSetUpSources: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
 
@@ -48,6 +54,27 @@ struct LeadSourcesCard: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.top, 6)
+                        // #540: the paragraph tells a new crew what to do and
+                        // web has always offered the door to do it. Both phones
+                        // printed the instruction and stopped.
+                        Button {
+                            Haptics.tap()
+                            onSetUpSources()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(
+                                    AppStrings.translate(
+                                        appLocale, "inbox.leadSourcesSetOneUp"
+                                    )
+                                )
+                                Image(systemName: "arrow.right")
+                                    .font(.scaled(12, weight: .semibold))
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(BrandColor.olive)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 8)
                     } else {
                         body(for: report)
                     }

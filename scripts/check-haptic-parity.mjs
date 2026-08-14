@@ -71,7 +71,6 @@ const AREAS = {
 const SILENT_ON_IOS = {
   contacts: 5,
   diagnostics: 1,
-  foryou: 1,
   notifications: 1,
   settings: 13,
 };

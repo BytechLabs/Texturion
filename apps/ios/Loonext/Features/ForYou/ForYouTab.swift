@@ -448,7 +448,10 @@ private struct ForYouList: View {
                 // than the three above it — next month's spending rather than
                 // this week's work.
                 if DashboardPanels.isVisible(hidden, .leadSources) {
-                    LeadSourcesCard(report: leadSources)
+                    LeadSourcesCard(
+                        report: leadSources,
+                        onSetUpSources: { onOpenSettings(.numbers) }
+                    )
                 }
                 // #313: directly under the speed number on purpose. How fast
                 // you answered and whether it landed are one thought, and

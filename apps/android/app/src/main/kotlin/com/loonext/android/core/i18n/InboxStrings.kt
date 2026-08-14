@@ -261,6 +261,9 @@ object InboxStrings : AppStrings.Section {
             "advertise — the one on the truck, the one in the ad — and " +
             "every call and text to them is counted from then on, with " +
             "nobody tapping anything.",
+        // #540: the door out of the paragraph above. Web has always had it;
+        // both phones printed the instruction and offered no way to follow it.
+        "inbox.leadSourcesSetOneUp" to "Set one up",
         "inbox.leadSourcesLeading" to
             "Most of the work you can account for came from {name} — " +
             "{count} of {total}.",
@@ -576,6 +579,7 @@ object InboxStrings : AppStrings.Section {
             "que vous annoncez — celui sur le camion, celui dans la publicité — et " +
             "chaque appel et texto vers ces numéros est compté à partir de là, sans " +
             "que personne n'ait à toucher à quoi que ce soit.",
+        "inbox.leadSourcesSetOneUp" to "En configurer une",
         "inbox.leadSourcesLeading" to
             "La majorité du travail que vous pouvez attribuer vient de {name} — " +
             "{count} sur {total}.",

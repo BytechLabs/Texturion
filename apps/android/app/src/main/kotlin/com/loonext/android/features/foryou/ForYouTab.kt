@@ -562,7 +562,12 @@ private fun ForYouList(
         // #540: its own item now rather than sharing the pipeline's, because the
         // two are separately hideable and a shared slot cannot hide one of them.
         if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.LEAD_SOURCES)) {
-            item(key = "lead-sources") { LeadSourcesCard(report = leadSources) }
+            item(key = "lead-sources") {
+                LeadSourcesCard(
+                    report = leadSources,
+                    onSetUpSources = { onOpenSettings(SettingsSection.Numbers) },
+                )
+            }
         }
 
         // #313: directly under the speed number on purpose. How fast you
