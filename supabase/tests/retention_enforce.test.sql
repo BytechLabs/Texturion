@@ -283,4 +283,52 @@ begin
   raise notice 'call record retention: all assertions passed';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- [#581 C3] EVERY row that REFUSES a message delete has to be one the sweep
+-- clears — and this asserts the set in BOTH directions.
+--
+-- The finding: `usage_events.message_id` and `tasks.message_id` are both
+-- `on delete restrict`, so the enforcement job's delete threw AFTER it had
+-- already removed the customer's photos. It could not fire only because
+-- nothing outside SQL sets a retention window, which made it dormant rather
+-- than fixed.
+--
+-- The Worker now clears both. What it cannot do is notice a THIRD one: a new
+-- table added next year with a restrict edge to messages would break retention
+-- nightly, in production, with no test anywhere going red. So the set is
+-- pinned here, where the constraints actually live.
+--
+-- Equality both ways is the point. A one-way check ("every table I clear has a
+-- restrict edge") stays green forever while a new blocker arrives; the other
+-- direction is the one that bites.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_blockers text[];
+  v_handled  text[] := array['tasks', 'usage_events'];
+begin
+  select coalesce(array_agg(distinct cl.relname::text order by cl.relname::text), array[]::text[])
+    into v_blockers
+    from pg_constraint c
+    join pg_class cl on cl.oid = c.conrelid
+    join pg_class ref on ref.oid = c.confrelid
+    join pg_namespace n on n.oid = cl.relnamespace
+   where c.contype = 'f'
+     and c.confdeltype = 'r'          -- RESTRICT
+     and ref.relname = 'messages'
+     and n.nspname = 'public';
+
+  if v_blockers is distinct from v_handled then
+    raise exception
+      'the rows that refuse a message delete are %, and the retention sweep '
+      'clears %. Whichever way they differ, retention is broken: an unhandled '
+      'blocker throws every night AFTER the attachments are gone, and a handled '
+      'table that no longer blocks is a delete nobody needs. Fix '
+      'apps/api/src/workspace/retention-enforce.ts, then this list.',
+      v_blockers, v_handled;
+  end if;
+
+  raise notice 'retention blockers: all assertions passed';
+end $$;
+
 rollback;

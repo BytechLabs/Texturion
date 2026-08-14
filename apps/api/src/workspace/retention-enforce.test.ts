@@ -25,6 +25,7 @@ vi.mock("@sentry/cloudflare", () => ({
 const env = completeEnv();
 const COMPANY = "cccccccc-0000-4000-8000-00000000000c";
 const OLD_MESSAGE = "11111111-0000-4000-8000-000000000011";
+const TASK = "22222222-0000-4000-8000-000000000022";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -34,7 +35,15 @@ afterEach(() => {
  * A workspace with one overdue message carrying one MMS attachment, and an
  * ordered log of everything the job did to storage and to rows.
  */
-function world(options: { removeFails?: boolean } = {}) {
+function world(
+  options: {
+    removeFails?: boolean;
+    /** Tasks promoted from the overdue message (#581 C3). */
+    tasks?: Record<string, unknown>[];
+    /** `attachments` rows, answered by owner_type. */
+    attachments?: Record<string, Record<string, unknown>[]>;
+  } = {},
+) {
   const sb = supabaseStub(env);
   const order: string[] = [];
   let batches = 0;
@@ -52,9 +61,33 @@ function world(options: { removeFails?: boolean } = {}) {
   sb.on("GET", "/rest/v1/message_attachments", () => [
     { storage_path: "mms-media/co/msg/photo.jpg" },
   ]);
-  sb.on("GET", "/rest/v1/attachments", () => []);
+  // Answered by owner_type, because a note's files are keyed by the MESSAGE
+  // and a task's by the TASK — a stub that ignored the filter would prove the
+  // job asks for attachments without proving it asks for the right ones.
+  sb.on("GET", "/rest/v1/attachments", (call) => {
+    const owner = (call.url.searchParams.get("owner_type") ?? "").replace(
+      /^eq\./,
+      "",
+    );
+    return options.attachments?.[owner] ?? [];
+  });
+  sb.on("GET", "/rest/v1/tasks", () => options.tasks ?? []);
   sb.on("POST", "/rest/v1/rpc/api_voicemail_audio_overdue", () => []);
   sb.on("POST", "/rest/v1/rpc/api_retention_overdue_calls", () => []);
+  sb.on("DELETE", "/rest/v1/attachments", (call) => {
+    order.push(
+      `delete:attachments:${(call.url.searchParams.get("owner_type") ?? "").replace(/^eq\./, "")}`,
+    );
+    return [];
+  });
+  sb.on("DELETE", "/rest/v1/tasks", () => {
+    order.push("delete:tasks");
+    return [];
+  });
+  sb.on("PATCH", "/rest/v1/usage_events", (call) => {
+    order.push(`sever:usage_events:${JSON.stringify(call.body)}`);
+    return [];
+  });
   sb.on("DELETE", "/rest/v1/messages", () => {
     order.push("delete:messages");
     return [];
@@ -131,6 +164,96 @@ describe("retention enforcement", () => {
       "batch:1",
       "batch:2",
     ]);
+  });
+
+  it("clears the two rows that REFUSE the delete, before attempting it (#581 C3)", async () => {
+    // `usage_events.message_id` and `tasks.message_id` are both `on delete
+    // restrict`, so this delete threw — AFTER the photos were already gone.
+    // Nightly, to live customers: attachments destroyed, rows kept, the thread
+    // left showing files that 404. It could not fire only because nothing
+    // outside SQL sets a retention window.
+    const w = world({ tasks: [{ id: TASK }] });
+    stubFetch(...w.routes);
+
+    const summary = await runRetentionEnforceJob(env, new Date(), undefined);
+
+    // Asserted as a SEQUENCE rather than as two index comparisons. `indexOf`
+    // answers -1 for a step that never happened, and -1 is less than every
+    // index — so the obvious form of this test passes when the fix is deleted,
+    // which is the shape of guard this repo has been caught writing before.
+    expect(w.order.filter((step) => step.startsWith("delete:") || step.startsWith("sever:")))
+      .toEqual([
+        "delete:attachments:note",
+        "delete:attachments:task",
+        "delete:tasks",
+        `sever:usage_events:${JSON.stringify({ message_id: null })}`,
+        "delete:messages",
+      ]);
+    expect(summary.messagesDeleted).toBe(1);
+  });
+
+  it("keeps the billing meter and cuts only its pointer", async () => {
+    // A usage_event is a segment count and a Stripe identifier — nothing a
+    // customer wrote. Retention is a promise about what a customer wrote, and
+    // destroying revenue history to keep it would answer a question nobody
+    // asked, on the one table that has to still be there when an invoice is
+    // disputed.
+    const w = world({ tasks: [{ id: TASK }] });
+    stubFetch(...w.routes);
+
+    await runRetentionEnforceJob(env, new Date(), undefined);
+
+    const sever = w.order.find((step) => step.startsWith("sever:usage_events"));
+    expect(sever).toBe(`sever:usage_events:${JSON.stringify({ message_id: null })}`);
+    // Never a delete. If this ever becomes one, the revenue history for every
+    // aged-out message goes with it.
+    expect(w.sb.find("DELETE", "/rest/v1/usage_events")).toHaveLength(0);
+  });
+
+  it("takes a task's photos too, and the rows that point at them", async () => {
+    // A task's files hang off the TASK id, so they are unreachable the moment
+    // the task row is gone — and `attachments.owner_id` carries no foreign key,
+    // so nothing cascades either the row or the object. Removing the object and
+    // leaving the row is worse than doing neither: the gallery reads live rows
+    // and would list a photo that 404s.
+    const w = world({
+      tasks: [{ id: TASK }],
+      attachments: {
+        note: [{ storage_path: "co/note/plan.pdf" }],
+        task: [{ storage_path: "co/task/before.jpg" }],
+      },
+    });
+    stubFetch(...w.routes);
+
+    const summary = await runRetentionEnforceJob(env, new Date(), undefined);
+
+    // One MMS photo, one note file, one task photo.
+    expect(summary.objectsRemoved).toBe(3);
+    expect(w.order).toContain("delete:attachments:note");
+    expect(w.order).toContain("delete:attachments:task");
+    // Both row deletes happen only after the objects are gone.
+    expect(w.order.indexOf("remove:objects")).toBeLessThan(
+      w.order.indexOf("delete:attachments:task"),
+    );
+  });
+
+  it("asks for a task's files by the task, never by the message", async () => {
+    // `owner_id` is a bare uuid across two id spaces. Keying a task's files by
+    // the message id would match nothing — silently, leaving every task photo
+    // in the bucket forever while the summary reported a clean run.
+    const w = world({
+      tasks: [{ id: TASK }],
+      attachments: { task: [{ storage_path: "co/task/before.jpg" }] },
+    });
+    stubFetch(...w.routes);
+
+    await runRetentionEnforceJob(env, new Date(), undefined);
+
+    const taskRead = w.sb
+      .find("GET", "/rest/v1/attachments")
+      .find((call) => call.url.searchParams.get("owner_type") === "eq.task");
+    expect(taskRead?.url.searchParams.get("owner_id")).toBe(`in.(${TASK})`);
+    expect(taskRead?.url.searchParams.get("owner_id")).not.toContain(OLD_MESSAGE);
   });
 
   it("does nothing at all when no workspace is eligible", async () => {

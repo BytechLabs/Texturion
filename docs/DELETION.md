@@ -151,6 +151,35 @@ next), and every **push registration** for the workspace's members.
 
 ---
 
+## The retention sweep deletes in a DIFFERENT order, on purpose
+
+The nightly sweep (`workspace/retention-enforce.ts`) ages out a batch of
+messages inside a workspace that is still very much alive. That single
+difference changes two steps of the order above, and #581's C3 finding is what
+happens when the difference is not written down.
+
+| # | What | Why this and not the teardown's answer |
+|---|------|----------------------------------------|
+| 1 | resolve the batch's `tasks` ids | a task's files are keyed by the TASK, so once the row is gone there is nothing left to find them by |
+| 2 | remove the Storage objects — MMS, note files, task files | the rows hold the paths, so objects go first (the #378 rule, unchanged) |
+| 3 | delete the `attachments` rows | `owner_id` is a bare uuid with **no** foreign key across two id spaces, so neither the message nor the task cascades them. Removing the object and keeping the row makes the gallery list a photo that 404s |
+| 4 | delete `tasks` | `message_id` is `NOT NULL … restrict`: a task is a promoted message and cannot outlive one |
+| 5 | **null** `usage_events.message_id` | the teardown DELETES this row; the sweep must not. It is the billing meter — a count and a Stripe identifier, carrying nothing a customer wrote — and the workspace is still trading. The column is already nullable for adjustment rows, and the hourly re-reporter reads `meter_identifier ?? id` |
+| 6 | delete `messages` | `message_attachments` and the mention rows cascade from here |
+
+Steps 4 and 5 are the two `on delete restrict` edges pointing at `messages`.
+Both were missing, so the delete at step 6 threw **after** step 2 had already
+destroyed the customer's photos — every night, for any workspace with a short
+enough window. It was dormant only because nothing outside SQL sets
+`retention_days`, which is a fact about the product's surface area rather than
+about the code being right.
+
+`supabase/tests/retention_enforce.test.sql` pins the set of restrict edges in
+**both** directions, so a third one added later fails a build instead of a
+customer's attachments.
+
+---
+
 ## What survives, and why
 
 Total erasure is not available to us, and a deletion feature that claims it is

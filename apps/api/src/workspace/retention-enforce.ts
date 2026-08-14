@@ -25,6 +25,36 @@
  * nothing half-done that the next run cannot simply continue.
  *
  * ---------------------------------------------------------------------------
+ * AND A MESSAGE CANNOT BE DELETED ON ITS OWN (the #581 C3 finding).
+ *
+ * Two foreign keys REFUSE it — `usage_events.message_id` and `tasks.message_id`
+ * are both `on delete restrict` — so the delete below would have thrown AFTER
+ * the photos were already gone. Nightly, to live customers: attachments
+ * destroyed, message rows kept, the thread left showing files that 404.
+ *
+ * It could not fire yet because nothing outside SQL sets `retention_days`, so
+ * every workspace sits at the seven-year default. That made it dormant, not
+ * fixed, and "we will do it when the setting ships" is how it would have gone
+ * out with the setting.
+ *
+ * The two blockers are cleared differently, on purpose:
+ *
+ *   - a TASK is deleted. It is a promoted message (D17, `message_id NOT NULL`,
+ *     "meaningless without its source message"), so it cannot outlive one.
+ *   - a USAGE EVENT keeps its row and loses its POINTER. That row is the
+ *     billing meter — a count and a Stripe identifier, carrying nothing a
+ *     customer wrote — and destroying revenue history to honour a promise
+ *     about message content would be answering the wrong question. The column
+ *     is already nullable for exactly this shape (adjustment rows have no
+ *     message), and the hourly re-reporter reads `meter_identifier ?? id`,
+ *     never the pointer.
+ *
+ * `attachments` rows go with them, which the earlier version also missed:
+ * `owner_id` is a bare uuid with NO foreign key (app-enforced, two id spaces),
+ * so nothing cascades. Removing the object and leaving the row is how a gallery
+ * ends up listing a photo that 404s.
+ *
+ * ---------------------------------------------------------------------------
  * WHAT MAKES IT SAFE TO RUN AT ALL.
  *
  * Two guards, both enforced in SQL rather than here (see the migration), so a
@@ -89,6 +119,19 @@ const MESSAGE_OBJECT_SOURCES = [
     // would have its files deleted by a thread's retention window.
     key: "owner_id",
     ownerType: "note",
+    column: "storage_path",
+    bucket: ATTACHMENTS_BUCKET,
+    stripPrefix: null,
+  },
+  {
+    table: "attachments",
+    // A TASK's files, keyed by the task rather than by the message — which is
+    // why the task ids are resolved before anything is destroyed. The task goes
+    // with its message (`message_id NOT NULL`), so its photos have to go too,
+    // and nothing else will ever look for them: `owner_id` has no foreign key,
+    // so they are not orphans anything sweeps, just files.
+    key: "owner_id",
+    ownerType: "task",
     column: "storage_path",
     bucket: ATTACHMENTS_BUCKET,
     stripPrefix: null,
@@ -272,7 +315,19 @@ async function enforceCompany(
     );
     if (ids.length === 0) break;
 
-    objects += await removeMessageObjects(db, ids);
+    // Resolved BEFORE anything is destroyed: a task's files hang off the TASK,
+    // and once the task is gone there is nothing left to find them by.
+    const taskIds = await taskIdsFor(db, companyId, ids);
+
+    objects += await removeMessageObjects(db, ids, taskIds);
+
+    // The rows whose pointers are app-enforced, so nothing cascades them.
+    await deleteAttachmentRows(db, companyId, ids, taskIds);
+    // The two `on delete restrict` edges, cleared in the order that leaves the
+    // least behind if the pass is interrupted: the task (which cannot outlive
+    // its message) before the meter (which must).
+    await deleteTasks(db, companyId, ids);
+    await severUsageEvents(db, companyId, ids);
 
     const { error: deleteError } = await db
       .from("messages")
@@ -379,6 +434,122 @@ async function deleteOverdueCalls(
 }
 
 /**
+ * The tasks promoted from this batch of messages.
+ *
+ * Read before anything is deleted, because a task's files are keyed by the
+ * TASK's id — once the row is gone there is no way left to find them, and they
+ * would sit in the bucket billed to nobody forever.
+ */
+async function taskIdsFor(
+  db: SupabaseClient,
+  companyId: string,
+  messageIds: string[],
+): Promise<string[]> {
+  const { data, error } = await db
+    .from("tasks")
+    .select("id")
+    // Scoped as well as keyed (#347). The ids come from a company-scoped RPC,
+    // so the filter is redundant today and is exactly the redundancy that keeps
+    // a future caller from deleting another workspace's rows.
+    .eq("company_id", companyId)
+    .in("message_id", messageIds);
+  if (error) throw new Error(`retention task lookup failed: ${error.message}`);
+  return ((data ?? []) as { id: string }[]).map((row) => row.id);
+}
+
+/**
+ * Delete the `attachments` rows for this batch — a note's by the message id,
+ * a task's by the task id.
+ *
+ * `owner_id` carries NO foreign key: it is a bare uuid across two id spaces
+ * (D19), so neither deleting the message nor deleting the task removes these.
+ * Clearing the object and leaving the row is worse than doing neither, because
+ * the gallery reads live rows and would list a photo that 404s.
+ *
+ * Hard delete rather than the soft-delete this table also supports: the sweep
+ * behind `deleted_at` exists to remove the OBJECT later, and the object is
+ * already gone by the time this runs.
+ */
+async function deleteAttachmentRows(
+  db: SupabaseClient,
+  companyId: string,
+  messageIds: string[],
+  taskIds: string[],
+): Promise<void> {
+  const owners: { ownerType: string; ids: string[] }[] = [
+    { ownerType: "note", ids: messageIds },
+    { ownerType: "task", ids: taskIds },
+  ];
+  for (const owner of owners) {
+    if (owner.ids.length === 0) continue;
+    const { error } = await db
+      .from("attachments")
+      .delete()
+      .eq("company_id", companyId)
+      .eq("owner_type", owner.ownerType)
+      .in("owner_id", owner.ids);
+    if (error) {
+      throw new Error(
+        `retention ${owner.ownerType} attachment row delete failed: ${error.message}`,
+      );
+    }
+  }
+}
+
+/**
+ * Delete the tasks promoted from this batch.
+ *
+ * `tasks.message_id` is `NOT NULL … on delete restrict` and the migration says
+ * why: "a task is meaningless without its source message". So a task cannot
+ * outlive the message it was promoted from, and the alternative — keeping it
+ * with a dangling pointer — is not expressible in the schema anyway.
+ *
+ * Everything hanging off a task follows automatically: ratings and reminders
+ * cascade, and a note's `task_id` is `set null`.
+ */
+async function deleteTasks(
+  db: SupabaseClient,
+  companyId: string,
+  messageIds: string[],
+): Promise<void> {
+  const { error } = await db
+    .from("tasks")
+    .delete()
+    .eq("company_id", companyId)
+    .in("message_id", messageIds);
+  if (error) throw new Error(`retention task delete failed: ${error.message}`);
+}
+
+/**
+ * Cut the meter's pointer at this batch, keeping the meter.
+ *
+ * A `usage_events` row is a segment count and a Stripe identifier. It holds
+ * nothing a customer wrote, and retention is a promise about what a customer
+ * wrote — deleting revenue history to keep it would be answering a question
+ * nobody asked, on a table whose whole purpose is to still be there when an
+ * invoice is disputed.
+ *
+ * The column is already nullable for this exact shape (an adjustment row has
+ * no message), the unique index that stops double-billing is partial on
+ * `message_id is not null`, and the hourly re-reporter identifies a row by
+ * `meter_identifier ?? id` and never reads this column.
+ */
+async function severUsageEvents(
+  db: SupabaseClient,
+  companyId: string,
+  messageIds: string[],
+): Promise<void> {
+  const { error } = await db
+    .from("usage_events")
+    .update({ message_id: null })
+    .eq("company_id", companyId)
+    .in("message_id", messageIds);
+  if (error) {
+    throw new Error(`retention usage-event sever failed: ${error.message}`);
+  }
+}
+
+/**
  * Clear the storage objects belonging to a batch of messages, before their
  * rows go away.
  *
@@ -391,14 +562,17 @@ async function deleteOverdueCalls(
 async function removeMessageObjects(
   db: SupabaseClient,
   messageIds: string[],
+  taskIds: string[],
 ): Promise<number> {
   let removed = 0;
 
   for (const source of MESSAGE_OBJECT_SOURCES) {
+    const keyIds = source.ownerType === "task" ? taskIds : messageIds;
+    if (keyIds.length === 0) continue;
     let query = db
       .from(source.table)
       .select(source.column)
-      .in(source.key, messageIds)
+      .in(source.key, keyIds)
       .not(source.column, "is", null);
     if (source.ownerType !== null) {
       query = query.eq("owner_type", source.ownerType);
