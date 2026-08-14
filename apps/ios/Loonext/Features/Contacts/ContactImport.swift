@@ -654,7 +654,12 @@ struct ContactImportConsentSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(AppStrings.translate(appLocale, "common.cancel")) { dismiss() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) {
+                        // #556: a plain press. The weight on this screen belongs
+                        // to the import landing, not to backing out of it.
+                        Haptics.tap()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(

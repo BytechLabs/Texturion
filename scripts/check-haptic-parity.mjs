@@ -69,9 +69,18 @@ const AREAS = {
  * into decoration.
  */
 const SILENT_ON_IOS = {
-  contacts: 5,
-  diagnostics: 1,
-  notifications: 1,
+  // `contacts` left on 2026-08-14, and with it the LAST entry: a merge and an
+  // import both confirm(), because each is a change that lands while somebody
+  // is looking somewhere else and neither can be undone.
+  //
+  // The object is now empty, which is the state this ledger was written to
+  // reach rather than a sign it stopped working — every removal here was a
+  // real iOS surface being wired, which is the only way the guard permits one.
+  // `diagnostics` left on 2026-08-14: sharing a report taps, and both clears
+  // reject, matching what Android already did with the same two actions.
+  // `notifications` left on 2026-08-14: the preference toggles, the retry and
+  // the on-call silence confirm all fire now — the last a reject(), because it
+  // is the one press on that screen somebody can regret.
   // `settings` left on 2026-08-14: #232's website-widget card is the first iOS
   // settings surface to fire, so the area is no longer silent and the guard
   // refuses the entry. That is the ledger working — it shrank because a real

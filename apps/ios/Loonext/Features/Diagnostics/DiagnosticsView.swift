@@ -139,6 +139,10 @@ struct DiagnosticsView: View {
                     if !entries.isEmpty {
                         RowDivider()
                         Button {
+                            // #556: Android fires tap() here. Opening a confirm
+                            // is an ordinary press — the weight belongs on the
+                            // answer, not on the question.
+                            Haptics.tap()
                             confirmingClear = true
                         } label: {
                             Text(AppStrings.translate(appLocale, "shell.diagClearEvents"))
@@ -174,6 +178,11 @@ struct DiagnosticsView: View {
                 AppStrings.translate(appLocale, "shell.diagClearEvents"),
                 role: .destructive
             ) {
+                // #556: reject(), the same weight Android gives this. A clear
+                // is not undoable and the hand should be told so — Haptics.kt's
+                // contract is that the feel carries the meaning, not the
+                // control's type.
+                Haptics.reject()
                 DiagnosticsLog.clear()
                 entries = []
             }
@@ -185,6 +194,7 @@ struct DiagnosticsView: View {
                 AppStrings.translate(appLocale, "shell.diagClearAll"),
                 role: .destructive
             ) {
+                Haptics.reject()
                 DiagnosticsLog.clear()
                 CrashReportStore.clear()
                 entries = []

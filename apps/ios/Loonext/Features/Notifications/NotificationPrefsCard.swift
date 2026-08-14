@@ -70,6 +70,7 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Button(AppStrings.translate(appLocale, "common.retry")) {
+                        Haptics.tap()
                         state = .loading
                         retryKey += 1
                     }
@@ -183,6 +184,10 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
         ) {
             Button(OnCallSilence.cancel, role: .cancel) { silencing = nil }
             Button(OnCallSilence.confirm, role: .destructive) {
+                // #556: reject(). Silencing your own on-call channel is the one
+                // press here somebody can regret, and Android gives the same
+                // weight to the same class of decision.
+                Haptics.reject()
                 let channel = silencing?.id
                 silencing = nil
                 guard case .ready(let prefs) = state, let channel else { return }
@@ -296,7 +301,14 @@ private struct PrefToggleRow: View {
     let onChange: (Bool) -> Void
 
     var body: some View {
-        Toggle(isOn: Binding(get: { isOn }, set: onChange)) {
+        // #556: a switch moving is a tap. Wired on the ROW rather than at each
+        // of the three call sites — they all pass through here, and three
+        // copies is three chances for one to be forgotten when a fourth
+        // preference arrives.
+        Toggle(isOn: Binding(get: { isOn }, set: { next in
+            Haptics.tap()
+            onChange(next)
+        })) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.golos(13.5, weight: .semibold))

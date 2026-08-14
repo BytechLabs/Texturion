@@ -68,6 +68,11 @@ struct DuplicateContactsCard: View {
                 companyId: companyId,
                 pair: pair,
                 onMerged: { result in
+                    // #556: confirm(), matching Android. Two records becoming
+                    // one is the kind of change somebody wants told about in
+                    // the hand as well as on the screen — it is not undoable
+                    // and it happens while they are looking elsewhere.
+                    Haptics.confirm()
                     merging = nil
                     refreshKey += 1
                     onMerged(result)
