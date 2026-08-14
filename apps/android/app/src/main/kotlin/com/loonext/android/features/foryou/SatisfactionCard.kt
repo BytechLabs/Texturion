@@ -21,6 +21,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -328,16 +333,47 @@ private fun SatisfactionBody(
     }
 
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-    Text(
-        if (open) t("inbox.satisfactionHideDetails") else t("inbox.satisfactionDetails"),
-        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
+    // #540: a disclosure control that LOOKS like one.
+    //
+    // This was a Text with `.clickable` on it: no chevron, no rotation, and
+    // the same muted label style as the sentence above it — so the one
+    // control on the card that expands looked exactly like the copy that
+    // does not. The row directly above carries an arrow; this carried
+    // nothing, which is the inconsistency #540 means by "amateur".
+    //
+    // It also announced nothing. A clickable Text has no role and no
+    // expanded state, so TalkBack read the word and stopped; the web twin
+    // has been a real <button aria-expanded> all along.
+    //
+    // *Applying: the Safety principle — a control that expands uses the
+    // affordance everybody already knows.*
+    Row(
+        Modifier
             .fillMaxWidth()
             .minimumInteractiveComponentSize()
             .clickable { open = !open }
+            .semantics { role = Role.Button }
             .padding(horizontal = 14.dp, vertical = 8.dp),
-    )
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            if (open) t("inbox.satisfactionHideDetails") else t("inbox.satisfactionDetails"),
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            Icons.Outlined.ExpandMore,
+            contentDescription = null,
+            modifier = Modifier
+                .size(16.dp)
+                // Points down when closed and up when open, so the glyph
+                // says which way the control goes rather than only that it
+                // is one.
+                .rotate(if (open) 180f else 0f),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     if (open) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
