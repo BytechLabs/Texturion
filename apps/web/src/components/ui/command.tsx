@@ -159,8 +159,33 @@ function CommandSeparator({
   className,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Separator>) {
+  const rule = React.useRef<HTMLDivElement>(null)
+
+  /**
+   * #238 — a listbox may own `option` and `group`, and nothing else.
+   *
+   * cmdk renders this divider as `role="separator"`, which made the palette's
+   * entire result list invalid: axe reports `aria-required-children` CRITICAL
+   * on the listbox, and a screen reader is handed a list whose contents it
+   * cannot enumerate. That list is the app's whole keyboard search surface.
+   *
+   * `presentation` is what this element actually is — a one-pixel rule. The
+   * grouping it hints at is already carried by the `role="group"` wrappers and
+   * their headings, so nothing leaves the accessible tree; the decoration just
+   * stops claiming to be structure.
+   *
+   * Set on the NODE rather than passed as a prop, because cmdk writes its own
+   * `role` after spreading ours — passing `role="presentation"` looks like it
+   * works and changes nothing, which is how I first "fixed" this. Verified
+   * against the rendered DOM, not the source.
+   */
+  React.useLayoutEffect(() => {
+    rule.current?.setAttribute("role", "presentation")
+  })
+
   return (
     <CommandPrimitive.Separator
+      ref={rule}
       data-slot="command-separator"
       className={cn("-mx-1 h-px bg-border", className)}
       {...props}

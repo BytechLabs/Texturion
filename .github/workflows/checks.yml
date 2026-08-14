@@ -685,6 +685,18 @@ jobs:
       - name: Audit both themes on rendered output
         run: node scripts/theme-audit.mjs --public
 
+      # #238: APP-LAYOUT-V2 §7's accessibility rules, which until now were
+      # enforced by memory. Same surfaces as the theme audit — the list lives in
+      # `scripts/audit-surfaces.mjs` and both import it, so the two cannot drift
+      # into checking different products while both report green.
+      #
+      # Runs at 1440px AND 375px, because §7 is a mobile-first spec. It MUST run
+      # against a built app: under `next dev` preflight does not reach form
+      # controls and every input in the product measures 13.33px, which the
+      # audit refuses to report on rather than believe.
+      - name: Audit accessibility on rendered output
+        run: node scripts/check-app-a11y.mjs --public
+
       # #232 phase 5: the embed's accessibility pass and its 15KB budget, run
       # against a stand-in customer website rather than our own app — the widget
       # has to survive a stranger's WordPress theme, so it is loaded the way an
@@ -814,6 +826,13 @@ jobs:
       # failure mode #320 exists to prevent.
       - name: Audit the authenticated surfaces
         run: node scripts/theme-audit.mjs --authed
+
+      # #238: the same accessibility pass over the surfaces that need a login —
+      # including the two PORTALS, which is where both of the serious findings
+      # were (an `aria-hidden` app root still in the tab order, and a listbox
+      # owning a separator).
+      - name: Audit accessibility on the authenticated surfaces
+        run: node scripts/check-app-a11y.mjs --authed
 
       - name: Stop Supabase
         if: always()

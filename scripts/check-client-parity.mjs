@@ -156,6 +156,24 @@ const SURFACES = [
     iosReason: "the prompt lives in Features/Settings/OwnershipPrompt.swift — no address bar to arrive from",
   },
   {
+    key: "a11y",
+    // #238 — a Radix overlay marks everything behind it `aria-hidden` and
+    // leaves it in the TAB ORDER: focusable and unannounceable at once. This
+    // directory holds the one component that makes that subtree `inert` too.
+    //
+    // WEB-ONLY BECAUSE IT IS A WEB PROBLEM. Neither phone can reproduce it: a
+    // Compose `ModalBottomSheet`/`Dialog` and a SwiftUI `.sheet` both take
+    // modality from the framework — content behind is not focusable, and
+    // TalkBack and VoiceOver both scope themselves to the presented surface by
+    // construction. There is nothing for the phones to port; a file here would
+    // be a fix for a defect they do not have.
+    web: "a11y",
+    android: null,
+    androidReason: "Compose modals are modal by construction — background is not focusable and TalkBack scopes to the sheet",
+    ios: null,
+    iosReason: "SwiftUI .sheet/.fullScreenCover are modal by construction — VoiceOver scopes to the presented surface",
+  },
+  {
     key: "payments",
     // #224 — text-to-pay: the crew asks a customer for money, and the owner
     // connects the Stripe account that receives it.

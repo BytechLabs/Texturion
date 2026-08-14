@@ -8,6 +8,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { MfaGate } from "@/components/shell/mfa-gate";
 import { PortalScope } from "@/components/shell/portal-scope";
 import { UpdatePrompt } from "@/components/shell/update-prompt";
+import { InertWhileAriaHidden } from "@/components/a11y/inert-while-aria-hidden";
 import { golosText } from "@/lib/app/fonts";
 import { CompanyProvider } from "@/lib/company/provider";
 import { RealtimeProvider } from "@/lib/realtime/provider";
@@ -61,6 +62,13 @@ export default function AppLayout({
               scope must ALSO live on <body> or portaled surfaces lose every
               app token (transparent sheets, white borders in dark, Inter). */}
           <PortalScope classes={`${golosText.variable} app-scope`} />
+          {/* #238: a Radix overlay marks everything behind it `aria-hidden` and
+              leaves it in the TAB ORDER — focusable and unannounceable, which
+              is the worst of both. This makes the same subtree `inert` for as
+              long as the attribute is set. Mounted beside PortalScope because
+              it is the same class of concern: a rule about what happens to the
+              app while something is portalled over it. */}
+          <InertWhileAriaHidden />
           {/* app-scope: calm palette + Golos; font-sans now resolves to Golos
               here. h-svh so the shell owns the viewport. */}
           <div
