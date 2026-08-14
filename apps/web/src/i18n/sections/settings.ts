@@ -663,6 +663,13 @@ export const settingsEn = {
     "immediately. You'll need to paste the new one everywhere you installed it.",
   widgetRotateConfirm: "Replace it",
   widgetRotated: "Replaced. Paste the new snippet on your site.",
+  /** #232 phase 3: which of the workspace's lines the website rings. */
+  widgetLineLabel: "Which number website messages land on",
+  widgetLineHelp:
+    "Replies from your crew come from this number, so pick the line you watch.",
+  widgetLineDefault: "Your first number",
+  widgetLineSaved: "Website messages will land on that number.",
+  widgetLineFailed: "That did not save. Try again.",
   widgetRotateFailed: "Couldn't replace the key. Try again.",
 } as const;
 
@@ -1354,5 +1361,11 @@ export const settingsFr: Translated<typeof settingsEn> = {
     "installé.",
   widgetRotateConfirm: "Remplacer",
   widgetRotated: "Remplacée. Collez le nouveau code sur votre site.",
+  widgetLineLabel: "Le numéro qui reçoit les messages du site web",
+  widgetLineHelp:
+    "Les réponses de votre équipe partent de ce numéro : choisissez la ligne que vous surveillez.",
+  widgetLineDefault: "Votre premier numéro",
+  widgetLineSaved: "Les messages du site web arriveront sur ce numéro.",
+  widgetLineFailed: "L'enregistrement a échoué. Réessayez.",
   widgetRotateFailed: "Impossible de remplacer la clé. Réessayez.",
 };

@@ -425,6 +425,11 @@ export interface CompanyView {
    * Thursday. Optional so a cached pre-#402 company shape stays assignable.
    */
   business_hours_exceptions?: HoursException[];
+  /**
+   * #232: which number a website-widget conversation lands on. Null means
+   * "not chosen" — the server falls back to the oldest active number.
+   */
+  widget_number_id: string | null;
   away_enabled: boolean;
   away_message: string | null;
   /** #414 ask 5: the template that will ACTUALLY send — the owner's text if

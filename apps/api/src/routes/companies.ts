@@ -179,6 +179,19 @@ export const patchSchema = z
     // near-identical ones.
     business_hours_exceptions: z.array(z.unknown()).optional(),
     away_enabled: z.boolean().optional(),
+    /**
+     * #232: which of the workspace's numbers a website-widget conversation
+     * lands on. Null clears the choice back to "not chosen", which the
+     * resolver reads as the oldest active number — the behaviour every
+     * workspace had before the setting existed.
+     *
+     * Not validated against the workspace's own numbers here. The resolver
+     * matches it against the ACTIVE list at send time and falls back when it
+     * does not match, so an id from another workspace is inert rather than
+     * dangerous, and a number released AFTER this was set has to fall back
+     * anyway — one rule, applied where it can actually be true.
+     */
+    widget_number_id: z.string().uuid().nullable().optional(),
     // Owner-authored away text; null clears it. Max 1000 for a comfortable
     // multi-line emergency-aware message.
     away_message: z.string().trim().max(1000).nullable().optional(),
@@ -339,7 +352,17 @@ export const patchSchema = z
       body.business_hours_exceptions !== undefined ||
       body.away_enabled !== undefined ||
       "away_message" in body ||
+      // #232: `in body`, because null is a real value here — it clears the
+      // choice back to the oldest active number.
+      "widget_number_id" in body ||
       body.emergency_keyword_enabled !== undefined ||
+      // Both found by `company-patch-vocabulary.test.ts` the day it was
+      // written, both real: a client sending ONLY one of these was told it had
+      // provided nothing. #553's whole point is that the reply switch moves
+      // independently of the detection one, so "only this field" is its normal
+      // request, not an edge case.
+      body.emergency_reply_enabled !== undefined ||
+      "offramp_message" in body ||
       "emergency_keywords" in body ||
       "emergency_message" in body ||
       body.locale !== undefined ||
@@ -727,6 +750,9 @@ const AUDITED_COMPANY_SETTINGS = [
   "away_enabled",
   "away_message",
   "business_hours",
+  // #232: "why did our website leads stop reaching the sales line" has one
+  // honest answer only if the log says who repointed it and when.
+  "widget_number_id",
   "mctb_enabled",
   "mctb_message",
   "emergency_message",
@@ -933,6 +959,11 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
     patch.business_hours_exceptions = body.business_hours_exceptions;
   }
   if (body.away_enabled !== undefined) patch.away_enabled = body.away_enabled;
+  // #232: `in body` rather than `!== undefined`, so an explicit null clears the
+  // choice instead of being read as "not sent".
+  if ("widget_number_id" in body) {
+    patch.widget_number_id = body.widget_number_id ?? null;
+  }
   if ("away_message" in body) {
     // Empty string clears to null (an unauthored message never fires).
     patch.away_message =

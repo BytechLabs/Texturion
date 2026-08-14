@@ -5,8 +5,22 @@ import { toast } from "sonner";
 
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useT } from "@/i18n/provider";
-import { useRotateWidgetKey, useWidgetKey } from "@/lib/api/companies";
+import {
+  useCompany,
+  useRotateWidgetKey,
+  useUpdateCompany,
+  useWidgetKey,
+} from "@/lib/api/companies";
+import { useNumbers } from "@/lib/api/numbers";
+import { formatPhone } from "@/lib/format/phone";
 import { widgetSnippet } from "@/lib/marketing/widget-snippet";
 
 /**
@@ -38,13 +52,41 @@ import { widgetSnippet } from "@/lib/marketing/widget-snippet";
  * - **It is only fetched when the card is opened.** The key is not on the
  *   company view every member loads at startup; asking for it is the act of
  *   installing a widget.
+ *
+ * - **The line picker only appears when there is a line to pick.** A workspace
+ *   with one number is never asked, because a select with one option is a
+ *   decision that does not exist dressed up as one. *Applying: Zen of Clarity
+ *   — the primary view stays about the one action this card exists for.*
  */
+/**
+ * The select's value for "not chosen".
+ *
+ * A sentinel rather than the empty string, which Radix reads as no selection at
+ * all and answers with the placeholder — so the default state would render as a
+ * blank box instead of naming the line it is actually using.
+ */
+const DEFAULT_LINE = "default";
+
 export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const key = useWidgetKey(open);
   const rotate = useRotateWidgetKey();
+  const company = useCompany();
+  const numbers = useNumbers();
+  const updateCompany = useUpdateCompany();
+
+  // Only the lines that can actually receive. A suspended or released number in
+  // this list would be an offer to point the website at something that cannot
+  // answer — and the server falls back past it anyway, so the picker would be
+  // showing a choice that silently does not hold.
+  // `number_e164` is nullable on a row still being provisioned, and a select
+  // option with no label is an option nobody can choose on purpose.
+  const routable = (numbers.data?.data ?? []).filter(
+    (n) => n.status === "active" && n.number_e164,
+  );
+  const chosen = company.data?.widget_number_id ?? DEFAULT_LINE;
 
   const snippet =
     key.data === undefined ? "" : widgetSnippet(appOrigin, key.data.widget_key);
@@ -129,6 +171,62 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
               </div>
             )}
           </div>
+
+          {/* #232 phase 3: which line the website rings.
+              LAST, under the actions. The card exists to get one line of markup
+              onto a WordPress site, so a routing question in front of that is a
+              decision demanded before the thing it decides about even works.
+              And it must not sit BETWEEN the snippet and Copy — I put it there
+              first and the screenshot showed a Copy button that looked like it
+              belonged to the picker. *Applying: Prioritise Intent, and
+              Relationship Strength — the snippet and its button are one thing
+              and nothing goes between them.* */}
+          {routable.length > 1 && (
+            <div className="space-y-1.5 border-t border-app-line pt-4">
+              <label
+                htmlFor="widget-line"
+                className="block text-sm font-medium"
+              >
+                {t("settings.widgetLineLabel")}
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {t("settings.widgetLineHelp")}
+              </p>
+              <Select
+                value={chosen}
+                disabled={updateCompany.isPending}
+                onValueChange={(value) => {
+                  updateCompany.mutate(
+                    {
+                      widget_number_id: value === DEFAULT_LINE ? null : value,
+                    },
+                    {
+                      onSuccess: () => toast.success(t("settings.widgetLineSaved")),
+                      onError: () => toast.error(t("settings.widgetLineFailed")),
+                    },
+                  );
+                }}
+              >
+                <SelectTrigger id="widget-line" className="w-full sm:w-80">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Named, not blank. "Your first number" is what the server
+                      actually does with an unset choice, and a default that
+                      does not say what it resolves to is a setting somebody
+                      has to test to understand. *Applying: Smart Defaults.* */}
+                  <SelectItem value={DEFAULT_LINE}>
+                    {t("settings.widgetLineDefault")}
+                  </SelectItem>
+                  {routable.map((number) => (
+                    <SelectItem key={number.id} value={number.id}>
+                      {formatPhone(number.number_e164 ?? "")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       )}
     </SettingsCard>

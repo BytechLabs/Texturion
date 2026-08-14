@@ -93,6 +93,8 @@ export interface CompanyPatch {
   overage_cap_multiplier?: number | null;
   /** FEATURE-GAPS Step 1 — after-hours away reply (O/A). */
   business_hours?: BusinessHours;
+  /** #232: null clears the choice back to the oldest active number. */
+  widget_number_id?: string | null;
   away_enabled?: boolean;
   away_message?: string | null;
   /** #481: what a departing owner's customers are told, in their own words.

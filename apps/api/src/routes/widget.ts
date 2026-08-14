@@ -45,7 +45,9 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { verifyTurnstile } from "../http/turnstile";
+import { maybeSendAwayReply } from "../messaging/away-reply";
 import { runPreSendGates, sendSystemText } from "../messaging/send";
+import { resolveWidgetNumber } from "./widget-number";
 
 /**
  * How long a code is good for.
@@ -240,19 +242,11 @@ widgetRoutes.post("/widget/start", async (c) => {
 
   // The number the code is sent FROM. Chosen server-side from the workspace's
   // own numbers — a client-supplied `from` would let anybody send from any
-  // number we own.
-  const { data: numbers, error: numberError } = await db
-    .from("phone_numbers")
-    .select("number_e164")
-    .eq("company_id", companyId)
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(1);
-  if (numberError) {
-    throw new Error(`widget number lookup failed: ${numberError.message}`);
-  }
-  const from = (numbers ?? [])[0]?.number_e164 as string | undefined;
-  if (from === undefined) return widgetUnavailable(c);
+  // number we own. #232 phase 3: the SAME resolver the verify path uses, so
+  // the code and the conversation can never arrive on two different lines.
+  const line = await resolveWidgetNumber(db, companyId);
+  if (line === null) return widgetUnavailable(c);
+  const from = line.number_e164;
 
   // 4. THE SEND GATES, including opt-out. Throws an ApiError the error
   // middleware renders; a refusal here is deliberately NOT flattened into the
@@ -394,18 +388,12 @@ widgetRoutes.post("/widget/verify", async (c) => {
 
   // The number the conversation lands on: the same one the code came from, so
   // a reply from the crew reaches the phone the visitor just proved they hold.
-  const { data: numbers, error: numberError } = await db
-    .from("phone_numbers")
-    .select("id")
-    .eq("company_id", result.company_id)
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(1);
-  if (numberError) {
-    throw new Error(`widget number lookup failed: ${numberError.message}`);
-  }
-  const numberId = (numbers ?? [])[0]?.id as string | undefined;
-  if (numberId === undefined) return widgetUnavailable(c);
+  // One resolver, called from both halves — see widget-number.ts for why two
+  // copies of "oldest active" agreed by accident and would not have survived
+  // the setting.
+  const line = await resolveWidgetNumber(db, result.company_id);
+  if (line === null) return widgetUnavailable(c);
+  const numberId = line.id;
 
   const { data: threaded, error: threadError } = await db.rpc(
     "thread_inbound_message",
@@ -424,9 +412,43 @@ widgetRoutes.post("/widget/verify", async (c) => {
   if (threadError) {
     throw new Error(`widget threading failed: ${threadError.message}`);
   }
-  const landed = threaded as { conversation_id?: string } | null;
+  const landed = threaded as
+    | { conversation_id?: string; created?: boolean }
+    | null;
   if (!landed?.conversation_id) {
     throw new Error("widget threading returned no conversation");
+  }
+
+  // #232 phase 3 — the after-hours reply, so an 11pm visitor is answered
+  // instead of met with silence.
+  //
+  // This is the whole reason the gap existed: `maybeSendAwayReply` hangs off
+  // the CARRIER webhook, and a widget message never goes near it. A visitor
+  // typing at 11pm on a Sunday got a thread nobody would look at until Monday
+  // and no acknowledgement at all — from the highest-intent moment the product
+  // has. The one that arrives is the owner's own away message on the receiving
+  // line's schedule, not a "we're closed" we invented; the same message their
+  // texting customers get, which is the point.
+  //
+  // Best-effort and self-swallowing, exactly as in the inbound pipeline: the
+  // conversation is already durable, and a send failure must not turn a
+  // successful submission into an error the visitor sees. Only on `created`,
+  // so a double-tap that re-threads answers once.
+  if (landed.created) {
+    try {
+      await maybeSendAwayReply(env, db, {
+        companyId: result.company_id,
+        conversationId: landed.conversation_id,
+        fromE164: result.phone_e164,
+        triggerBody: body.message,
+        atUtc: new Date(),
+      });
+    } catch (cause) {
+      console.error(
+        `widget away-reply for conversation ${landed.conversation_id} failed:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
   }
 
   return c.json({ ok: true }, 201);

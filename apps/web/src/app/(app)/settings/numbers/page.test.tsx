@@ -54,6 +54,10 @@ vi.mock("@/lib/api/companies", () => ({
   // tests actually render it in.
   useWidgetKey: () => ({ isPending: true, isError: false, data: undefined }),
   useRotateWidgetKey: () => ({ isPending: false, mutate: vi.fn() }),
+  // #232 phase 3: the widget card's line picker writes through the ordinary
+  // company patch. It only renders once the card is opened, which these tests
+  // never do — but the module has to export it or the mock refuses to load.
+  useUpdateCompany: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 vi.mock("@/lib/api/numbers", () => ({
   useNumbers: () => ({

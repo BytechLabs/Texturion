@@ -50,6 +50,8 @@ export const COMPANY_COLUMNS =
   // the promise have to be readable in one place, or an owner turns one off
   // and leaves the other making an offer nobody answers.
   "business_hours,business_hours_exceptions,away_enabled,away_message," +
+  // #232: which line the website widget rings.
+  "widget_number_id," +
   "emergency_keyword_enabled,emergency_keywords,emergency_message," +
   // #553: and whether we text the customer BACK, which is a separate choice from
   // whether we notice at all. Added here in the same commit as the schema field,
