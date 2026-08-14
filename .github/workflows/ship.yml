@@ -172,6 +172,25 @@ jobs:
           echo "$resp"
           echo "$resp" | grep -q '"success":true'
 
+      # #578: ask the WIRE, right after the deploy that is supposed to have shut
+      # the door. `workers_dev: false` has been correct in both wrangler.jsonc
+      # files for a while, and both Workers still answered on *.workers.dev the
+      # whole time — because production ships on a release and nothing re-checked
+      # afterwards. "Verified on the wire after a real deploy" was a thing
+      # somebody had to remember, which is the same shape of gap as a comment
+      # standing in for a test.
+      #
+      # Credential-free (two unauthenticated GETs) and it knocks on a wall first:
+      # the script asks a hostname that certainly does not exist before asking
+      # the real ones, so a wrong subdomain cannot read as a clean pass.
+      #
+      # Deliberately NOT continue-on-error. A second origin serving the whole app
+      # with no host redirect and none of the zone's cache rules is the defect
+      # this release is meant to close; a deploy that fails to close it should
+      # say so out loud rather than in a log nobody opens.
+      - name: Verify the Workers stopped answering on workers.dev
+        run: node scripts/ops/verify-workers-dev-off.mjs
+
   # ---------------------------------------------------------------------------
   # The phone apps. Runs alongside the backend rather than after it — a store
   # review takes days, so there is nothing to sequence.
