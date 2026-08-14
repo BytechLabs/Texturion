@@ -127,7 +127,15 @@ export async function buildTaskExport(
     .from("tasks")
     .select(
       "id,title,description,due_at,created_at,assigned_user_id,conversation_id," +
-        "messages(done_at)," +
+        // `!message_id`, and it is load-bearing. `tasks.message_id` and
+        // `messages.task_id` both exist, so PostgREST cannot tell which
+        // relationship this means and refuses the whole request with PGRST201 —
+        // this export has been failing outright. The fake-REST harness the unit
+        // tests use resolves embeds by name and never had the ambiguity, so
+        // nothing caught it until check-postgrest-embed-ambiguity.mjs looked at
+        // the constraints instead of the stubs. Same hint scheduled-send.ts
+        // already carries.
+        "messages!message_id(done_at)," +
         "conversations(phone_number_id,contact_phone_e164,contacts(name))",
     )
     .eq("company_id", args.companyId)

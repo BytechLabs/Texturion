@@ -255,6 +255,16 @@ jobs:
       - name: Guard NULL-blind SQL assertions
         run: node scripts/check-sql-null-blind.mjs
 
+      # #232: a SECOND foreign key between two tables makes PostgREST refuse
+      # EVERY embed between them — not the new one, all of them. A one-clause
+      # `references` on a settings column nothing had read yet took down an
+      # inbound carrier webhook and the number-release cron in the same run.
+      # It also found the tasks export, which had been failing outright on the
+      # same ambiguity: the fake-REST harness resolves embeds by name and never
+      # had two candidates to choose between.
+      - name: Guard PostgREST embed ambiguity
+        run: node scripts/check-postgrest-embed-ambiguity.mjs
+
       # #580: the audit-log CSV export — "the export an owner hands to an insurer
       # or a security questionnaire" — carried its own private cell writer that
       # applied RFC-4180 quoting and never called `csvSafeText`. It was the only
