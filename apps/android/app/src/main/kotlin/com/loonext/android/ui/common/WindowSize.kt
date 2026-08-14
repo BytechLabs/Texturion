@@ -38,6 +38,29 @@ val LocalWindowSizeClass = staticCompositionLocalOf<WindowSizeClass?> { null }
 val DefaultContentMaxWidth: Dp = 640.dp
 
 /**
+ * #556 — how wide the nav pill is allowed to get, which is NOT the content's cap.
+ *
+ * The bar first shared [DefaultContentMaxWidth], on the reasoning that a nav and
+ * the column it drives are one thing and one thing has one width. Rendering the
+ * real shell at 840dp showed the cost of that: five slots across 640dp sit
+ * **125dp apart**, against **73dp** on a 411dp phone. At that spacing the icons
+ * stop reading as one control and become five separate things — the grouping
+ * they need from each other is stronger than the alignment they gain with the
+ * content's edges, and this is a floating PILL with a shadow and a 14dp inset,
+ * an island rather than an edge-to-edge bar. An island belongs to the column by
+ * being centred under it, which it is at either number.
+ *
+ * 460 puts the slots ~89dp apart, within a hair of the phone's own rhythm, so
+ * the control looks like itself at every width. It is also the number iOS has
+ * shipped since its own regular-size-class pass, so this converges the two
+ * phones rather than giving them a third answer.
+ *
+ * *Applying: Relationship Strength — the slots' relationship to each other
+ * outranks the bar's to the content's edges.*
+ */
+val NavPillMaxWidth: Dp = 460.dp
+
+/**
  * True on short viewports — landscape phones, square cover displays — where the
  * vertical rhythm must condense to keep every control on screen. False when the
  * size class is unknown (roomy default).

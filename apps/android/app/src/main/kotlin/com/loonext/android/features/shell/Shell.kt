@@ -76,6 +76,7 @@ import com.loonext.android.features.tasks.TasksTab
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.assertAboveIme
+import com.loonext.android.ui.common.NavPillMaxWidth
 import com.loonext.android.ui.common.contentMaxWidth
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
@@ -287,24 +288,20 @@ fun MainShell(
                     .navigationBarsPadding()
                     .padding(start = 14.dp, end = 14.dp, bottom = 14.dp)
                     .fillMaxWidth()
-                    // #556: the same cap the CONTENT gets. Every tab's
-                    // content is drawn through contentMaxWidth() -- 640dp,
-                    // centred on a wide window -- and this bar was not. So on
-                    // a tablet or an unfolded foldable the four slots spread
-                    // across the whole window while the column they navigate
-                    // sat in the middle, and the moving pill under a tab
-                    // pointed at nothing above it.
+                    // #556: capped and centred, because this was `fillMaxWidth()`
+                    // and nothing else -- so on a tablet or an unfolded foldable
+                    // the slots spread across the whole window while the column
+                    // they navigate sat in the middle, and the moving pill under
+                    // a tab pointed at nothing above it.
                     //
-                    // *Applying: Relationship Strength -- the bar and the
-                    // content it drives are one thing, and one thing has one
-                    // width.*
+                    // The cap is the PILL's, not the content's. Both numbers were
+                    // rendered at 840dp before choosing; see [NavPillMaxWidth] for
+                    // what the picture showed and why the slots' relationship to
+                    // each other wins over the bar's to the content's edges.
                     //
-                    // The SMALL half of this issue's bottom-bar-vs-side-bar
-                    // question. A NavigationRail is the Material answer above
-                    // 600dp and a larger decision; a bar that does not line up
-                    // with its own content is a defect either way, and fixing
-                    // it does not foreclose the rail.
-                    .contentMaxWidth()
+                    // D134 settles the rest of this issue's bottom-bar-vs-side-bar
+                    // question: no rail, at any width, on either phone.
+                    .contentMaxWidth(NavPillMaxWidth)
                     .height(66.dp)
                     .shadow(24.dp, CircleShape, spotColor = BrandColor.Ink.copy(alpha = 0.4f))
                     .background(BrandColor.Ink, CircleShape)

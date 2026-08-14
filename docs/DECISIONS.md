@@ -8053,3 +8053,80 @@ A jurisdiction where facilitating the payment makes us a party regardless of the
 charge type, or a business asking us to hold funds. Both would be a decision to
 reopen, not a detail to adjust. `docs/TEXT-TO-PAY.md` carries the operating
 detail, the refund and dispute paths, and the boundaries this deliberately keeps.
+
+## D134 — the phones keep the bottom bar at every width; the pill caps at 460, not at the content's 640 (#556, 2026-08-14)
+
+#556 asks it directly: *"Does a bottom bar make sense? What about a side bar?"*
+Material's answer is a `NavigationRail` above 600dp. Ours is no rail, on either
+phone, at any width — and the reason is not that Material is wrong.
+
+### The product already answered this, at a different number
+
+`apps/web/src/components/shell/app-shell.tsx` has shipped the switch since #8: a
+left sidebar at **1000px and above**, and below it *"the labeled bottom tab bar
+owns primary nav."* That is the same product, for the same crew, and it puts the
+threshold 400dp higher than Material does.
+
+Adopting 600dp on the phones would make the app contradict itself at one
+physical width. A tech on a 700dp tablet would meet a rail in the Android app
+and a bottom bar in the browser on the same device, in the same hand. Platform
+convention is worth a lot, but not more than one product behaving like one
+product for the person holding it.
+
+At the product's own threshold, no Android window qualifies. The widest this app
+realistically meets is a Pixel Fold opened out at **840dp**, which is below
+1000. So the rail has no window to appear in.
+
+The second reason is structural. `NavigationRail` is a Material component with
+no SwiftUI twin — Apple's equivalent is a split-view sidebar, which is a
+different feature with a different information architecture. Building the rail
+would put a parity gap in the SHELL, the one surface every session begins in,
+to serve a window size that currently has no users.
+
+And SPEC §7 says *"one-handed throughout"*, which is binding and points the same
+way.
+
+### What this does not decide
+
+**iPad.** A 12.9" iPad in landscape is 1024pt and does clear the product's own
+threshold. That is a real case and the answer there is probably a sidebar — but
+it is iPad SUPPORT, a posture this product has never targeted, not a loose end
+in a phone navigation audit. If iPad becomes a target it gets its own issue and
+its own decision, and this one does not prejudge it.
+
+### The pill's width, which is a separate question
+
+The bar was `fillMaxWidth()` and nothing else, so on a wide window its slots
+spread across the whole screen while the column they navigate sat centred in the
+middle. That was a defect either way and is fixed.
+
+It was first capped at the CONTENT's 640dp, on the reasoning that a nav and the
+column it drives are one thing. Rendering the real `MainShell` at 840dp is what
+changed the answer: five slots across 640dp sit **125dp apart**, against **73dp**
+on a 411dp phone. At that spacing the icons stop reading as one control and
+become five separate things.
+
+**460dp** puts them ~89dp apart, within a hair of the phone's own rhythm, so the
+control looks like itself at every width. It is also what iOS has shipped since
+its regular-size-class pass, so the two phones now agree rather than holding
+three opinions between them.
+
+The alignment argument for 640 is real but weaker than it looks: this is a
+floating PILL with a shadow and a 14dp inset — an island, not an edge-to-edge
+bar. An island belongs to the column above it by being centred under it, which
+it is at either number.
+
+*Applying: Relationship Strength — the slots' relationship to each other outranks
+the bar's to the content's edges.*
+
+Both widths were rendered before choosing, by `ShellWidthRenderTest`, which
+composes the real shell rather than a reproduction of it. That distinction is
+load-bearing here: an earlier pass on this issue reported a tablet-stretch
+defect that did not exist, because the harness had composed a card with no shell
+above it and the picture looked exactly like a layout bug. Width is the shell's
+business, so a width question renders the shell.
+
+### What would change this
+
+A tablet or foldable posture with actual usage behind it, or an iPad target. Both
+are a decision to reopen with evidence, not a detail to adjust.
