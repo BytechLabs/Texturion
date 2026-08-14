@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { verifyTelnyxWebhook } from "./verify";
 import { completeEnv } from "../test/support";
@@ -52,6 +52,31 @@ function webhookRequest(
   });
 }
 
+/**
+ * A clock that does not move while a test runs.
+ *
+ * These three cases compute a timestamp from `Date.now()`, then sign it, then
+ * let `verifyTelnyxWebhook` read `Date.now()` again — and the tolerance is
+ * `abs(now - timestamp) > 300`. The two directions are not symmetric under
+ * elapsed time: a PAST timestamp only drifts further out (still rejected),
+ * while a FUTURE one drifts closer in. At `+301` the margin was ONE SECOND, so
+ * a loaded runner that took a second between signing and verifying flipped the
+ * assertion. That is exactly what happened on CI.
+ *
+ * Pinning the clock keeps the boundaries exact — 301 really is one second past
+ * the edge — instead of buying reliability by widening the numbers, which would
+ * have stopped testing the edge this suite exists for.
+ */
+const FIXED_NOW = 1_786_000_000_000;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function freezeClock(): void {
+  vi.spyOn(Date, "now").mockReturnValue(FIXED_NOW);
+}
+
 const PAYLOAD = JSON.stringify({
   data: {
     event_type: "message.received",
@@ -102,6 +127,7 @@ describe("verifyTelnyxWebhook", () => {
   });
 
   it("rejects a timestamp older than 5 minutes", async () => {
+    freezeClock();
     const timestamp = String(Math.floor(Date.now() / 1000) - 301);
     const signature = await sign(keyPair, timestamp, PAYLOAD);
     const result = await verifyTelnyxWebhook(
@@ -115,6 +141,7 @@ describe("verifyTelnyxWebhook", () => {
   });
 
   it("rejects a timestamp more than 5 minutes in the future", async () => {
+    freezeClock();
     const timestamp = String(Math.floor(Date.now() / 1000) + 301);
     const signature = await sign(keyPair, timestamp, PAYLOAD);
     const result = await verifyTelnyxWebhook(
@@ -128,6 +155,7 @@ describe("verifyTelnyxWebhook", () => {
   });
 
   it("accepts a timestamp just inside the tolerance window", async () => {
+    freezeClock();
     const timestamp = String(Math.floor(Date.now() / 1000) - 295);
     const signature = await sign(keyPair, timestamp, PAYLOAD);
     const result = await verifyTelnyxWebhook(
