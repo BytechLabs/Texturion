@@ -106,13 +106,19 @@ the posture script every Monday.
 
 | Checked | By | Plan | PITR | Backups retained |
 |---|---|---|---|---|
-| **2026-07-30** | `scripts/ops/verify-backup-posture.mjs` (Management API) | Supabase Pro, us-east-1 | **OFF** | 7 daily physical, oldest 2026-07-23, newest 23.8h old |
+| **2026-08-14** | `scripts/ops/verify-backup-posture.mjs` (Management API) | Supabase Pro, us-east-1 | **OFF** | 6 daily physical, oldest 2026-08-07, newest 1.1h old |
+| 2026-07-30 | same | same | OFF | 7 daily physical, oldest 2026-07-23, newest 23.8h old |
 
 That last column is a **count of the snapshots the API returned**, not a retention
 setting — the script reads no retention policy, and calling it "retention" implied
-a configured guarantee where there is only an observed list. The count moved from
-8 to 7 between 2026-07-29 and 2026-07-30, which is a rolling window doing what it
-does, and exactly why a number here needs a date beside it.
+a configured guarantee where there is only an observed list. The count has now been 8, then 7, then **6** across three observations
+(2026-07-29, 2026-07-30, 2026-08-14), which is a rolling window doing what it
+does — and exactly why a number here needs a date beside it. Quoting any one of
+them as "we retain N days" would be inventing a guarantee out of a reading.
+
+The *newest* figure moves just as much and for a duller reason: 23.8h on one
+reading and 1.1h on the next says only where in the daily cycle the script ran.
+It bounds the RPO; it is not the RPO.
 
 **What the weekly job alarms on, and what it deliberately ignores.** It runs the
 script in `--monitor` mode, which fails only if backups have *stopped* — none at

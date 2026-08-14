@@ -71,7 +71,7 @@ guarantees.
 | Question | Answer | Source |
 |---|---|---|
 | What is your RPO? | **Up to 24 hours.** Point-in-time recovery is OFF; recovery is from daily physical snapshots. | `docs/ACCEPTED-RISKS.md` R6, `docs/DISASTER-RECOVERY.md` §"PITR status" |
-| Evidence for that? | Checked 2026-07-30 by `scripts/ops/verify-backup-posture.mjs` against the Supabase Management API: Pro plan, us-east-1, PITR off, 7 daily physical snapshots present, newest 23.8h old. | `docs/DISASTER-RECOVERY.md` |
+| Evidence for that? | Checked **2026-08-14** by `scripts/ops/verify-backup-posture.mjs` against the Supabase Management API: Pro plan, us-east-1, PITR off, 6 daily physical snapshots present, newest 1.1h old. Re-observe before sending — the snapshot count has read 8, 7 and 6 across three checks, and the "newest" age says where in the daily cycle the script ran rather than anything about the RPO. | `docs/DISASTER-RECOVERY.md` §"PITR status" |
 | Is that re-checked? | Weekly, by CI (`.github/workflows/backup-posture.yml`). It alarms if backups have STOPPED, not because PITR is off, which is a recorded decision rather than news. | `docs/DISASTER-RECOVERY.md` |
 | Is there a documented recovery procedure? | Yes, including the state that is not in Postgres: storage buckets, Durable Objects, Stripe, and Telnyx numbers, registrations and in-flight ports. | `docs/DISASTER-RECOVERY.md` §§3-4 |
 | Has recovery been rehearsed? | There is a drill script (`scripts/ops/backup-drill.mjs`). Quote the date of the last run, not the existence of the script. | `docs/DISASTER-RECOVERY.md` |
