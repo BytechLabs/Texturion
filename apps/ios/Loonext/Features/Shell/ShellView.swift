@@ -549,7 +549,9 @@ struct ShellView: View {
         }
         .padding(.horizontal, 8)
         .frame(height: 66)
-        .background(BrandColor.inkFixed, in: Capsule())
+        // #556: the capsule needs an EDGE in either theme — see `navPill`.
+        .background(BrandColor.navPill, in: Capsule())
+        .overlay(Capsule().strokeBorder(BrandColor.navPillEdge, lineWidth: 1))
         .shadow(color: BrandColor.inkFixed.opacity(0.28), radius: 20, x: 0, y: 9)
         // Cap + center on regular width (iPad); full-bleed on a phone (#180).
         .frame(maxWidth: pillMaxWidth)

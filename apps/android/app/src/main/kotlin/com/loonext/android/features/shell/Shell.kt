@@ -6,6 +6,8 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
@@ -304,7 +306,35 @@ fun MainShell(
                     .contentMaxWidth(NavPillMaxWidth)
                     .height(66.dp)
                     .shadow(24.dp, CircleShape, spotColor = BrandColor.Ink.copy(alpha = 0.4f))
-                    .background(BrandColor.Ink, CircleShape)
+                    // #556: the capsule has to have an EDGE, in either theme.
+                    //
+                    // It was BrandColor.Ink (0x1A1A1A) in BOTH. On the paper
+                    // canvas that is the design -- a dark control on a light
+                    // ground. On the DARK canvas (0x151515) it is five parts in
+                    // 255, and the app's most-used control stopped being a
+                    // control and became five icons loose at the bottom of the
+                    // screen. Rendered and measured: a luminance standoff of
+                    // 0.851 in light against 0.024 in dark.
+                    //
+                    // The shadow does not rescue it -- a shadow whose spot
+                    // colour is Ink casts nothing onto a near-black ground,
+                    // which is the general reason dark themes express elevation
+                    // as a LIGHTER SURFACE rather than as a drop shadow. So the
+                    // capsule rises to the top of the dark elevation ladder and
+                    // takes the hairline the palette already names for edges.
+                    // Both are existing tokens; no new colour was invented for
+                    // this.
+                    .background(
+                        if (isSystemInDarkTheme()) BrandColor.DarkRaised else BrandColor.Ink,
+                        CircleShape,
+                    )
+                    .then(
+                        if (isSystemInDarkTheme()) {
+                            Modifier.border(1.dp, BrandColor.DarkOutline, CircleShape)
+                        } else {
+                            Modifier
+                        },
+                    )
                     .padding(horizontal = 8.dp),
             ) {
                 // The active paper circle GLIDES between slots instead of

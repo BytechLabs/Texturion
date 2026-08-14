@@ -59,12 +59,62 @@ class ShellWidthRenderTest {
     }
 
     @Test
+    @Config(sdk = [34], qualifiers = "w411dp-h891dp-night")
+    fun `the shell draws on a phone in dark`() {
+        // The pill is an INK capsule on a paper canvas. In dark the canvas goes
+        // ink too, and a dark control on a dark ground is exactly the pairing
+        // that disappears — this repo has already lost overlay contrast that way
+        // once. Worth a picture, not an assumption.
+        renderShell("shell-phone-411dp-dark")
+    }
+
+    @Test
     @Config(sdk = [34], qualifiers = "w840dp-h1000dp")
     fun `the shell draws on an unfolded foldable`() {
         // 840dp is the widest window this app realistically meets on Android:
         // a Pixel Fold opened out. Web switches to a sidebar at 1000px, so if
         // any Android window earned a rail it would be this one.
         renderShell("shell-foldable-840dp")
+    }
+
+    /**
+     * How far the pill's fill stands off the ground beside it, 0..1.
+     *
+     * FINDS the pill rather than computing where it should be. The first version
+     * of this sampled a fixed height — 14dp inset plus half of 66dp — and that
+     * arithmetic is only right when the system navigation inset is what you
+     * assumed. At the foldable qualifier it was not, so the probe read a row
+     * BELOW the capsule, compared canvas against canvas, and reported 0.039 as
+     * though it had measured the control. It would have gone on reporting a
+     * number for a thing it never looked at.
+     *
+     * So: walk every row of the bottom third, compare a column that is inside
+     * the capsule horizontally (between two slots, clear of the icons and the
+     * active paper circle) against the canvas at the very edge of the same row,
+     * and keep the largest difference. If the capsule has an edge anywhere, this
+     * finds it; if it has none, there is nothing to find and the answer is ~0.
+     */
+    private fun pillStandoff(bitmap: Bitmap): Double {
+        val width = bitmap.width
+        val height = bitmap.height
+        val insideX = (width * 0.42).toInt()
+        var widest = 0.0
+        for (y in (height * 2 / 3) until height) {
+            val gap = luminanceGap(bitmap.getPixel(insideX, y), bitmap.getPixel(4, y))
+            if (gap > widest) widest = gap
+        }
+        return widest
+    }
+
+    /** Plain relative-luminance difference; enough to say "these differ". */
+    private fun luminanceGap(a: Int, b: Int): Double {
+        fun luminance(color: Int): Double {
+            val r = (color shr 16 and 0xFF) / 255.0
+            val g = (color shr 8 and 0xFF) / 255.0
+            val bl = (color and 0xFF) / 255.0
+            return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+        }
+        return kotlin.math.abs(luminance(a) - luminance(b))
     }
 
     private fun renderShell(name: String) {
@@ -94,6 +144,43 @@ class ShellWidthRenderTest {
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
         writePng(bitmap, name)
         assertTrue("$name drew nothing", bitmap.width > 0 && bitmap.height > 0)
+
+        /*
+         * #556 — the pill must have an EDGE, in whichever theme.
+         *
+         * Found by looking: in dark the ink capsule sits on an ink canvas and
+         * its boundary disappears, so the app's most-used control stops being a
+         * control and becomes five icons loose at the bottom of the screen. The
+         * drop shadow does not save it — a shadow whose spot colour is Ink casts
+         * nothing onto a near-black ground.
+         *
+         * Asserted rather than merely looked at, because this is the failure
+         * mode that comes back the next time either palette is touched, and it
+         * is invisible to every check that reads text or structure.
+         */
+        val standoff = pillStandoff(bitmap)
+        /*
+         * 0.10 is read off the measurements, not chosen:
+         *
+         *   broken dark   0.024   ink capsule on the ink canvas
+         *   fixed dark    0.216   raised surface + hairline
+         *   light         0.851   ink capsule on paper
+         *
+         * The floor sits 4x above the failure and 2x below the worst passing
+         * case, so it catches this defect returning without going off the next
+         * time somebody nudges a grey. Deliberately NOT a WCAG ratio: 1.4.11
+         * asks 3:1 for a component boundary and the dark capsule reaches 1.35:1
+         * on fill alone, which the hairline is there to answer. Reaching 3:1 on
+         * the fill would need a mid-grey capsule and would abandon the ink
+         * language the design is built on — that tradeoff is written up in D134
+         * rather than silently decided by a threshold in a test.
+         */
+        assertTrue(
+            "$name: the nav pill is indistinguishable from the ground beside it " +
+                "(luminance gap ${"%.3f".format(standoff)}) — a dark capsule on a " +
+                "dark canvas is not a control",
+            standoff >= 0.10,
+        )
     }
 
     private fun writePng(bitmap: Bitmap, name: String) {

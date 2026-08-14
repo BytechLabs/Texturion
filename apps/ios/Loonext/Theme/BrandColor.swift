@@ -21,9 +21,34 @@ enum BrandColor {
     /// Primary text + dark buttons / the pill nav.
     static let ink = adaptive(light: 0x1A1A1A, dark: 0xF0F0F0)
 
-    /// Fixed ink (the pill nav stays dark in BOTH themes).
+    /// Fixed ink — shadows that must stay dark whichever theme is on.
     static let inkFixed = Color(hex: 0x1A1A1A)
     static let paperFixed = Color(hex: 0xFDFDFD)
+
+    /// #556 — the nav capsule's fill, which is NOT `inkFixed` in dark.
+    ///
+    /// The pill was `inkFixed` in both themes. On the paper canvas that is the
+    /// design: a dark control on a light ground. On the DARK canvas (0x151515)
+    /// it is 0x1A1A1A — **five parts in 255** — and the app's most-used control
+    /// stops being a control and becomes five icons loose at the bottom of the
+    /// screen. Found on Android by rendering the shell and measuring the
+    /// capsule against the ground beside it: a luminance standoff of 0.851 in
+    /// light against 0.024 in dark. This phone had the identical values.
+    ///
+    /// The shadow does not rescue it — a shadow whose colour is ink casts
+    /// nothing onto a near-black ground, which is the general reason dark
+    /// themes express elevation as a LIGHTER SURFACE rather than as a drop
+    /// shadow.
+    ///
+    /// Both dark values are already pinned in this file (0x2E2E2E is
+    /// `avatarTint`'s dark rung, 0x4B4B4B is `muted250`'s, the one documented
+    /// for stroke borders), so nothing here was eyeball-adjusted — which the
+    /// header of this file forbids.
+    static let navPill = adaptive(light: 0x1A1A1A, dark: 0x2E2E2E)
+
+    /// The capsule's hairline. Equal to the fill in light, so it costs nothing
+    /// there and needs no `colorScheme` check at the call site.
+    static let navPillEdge = adaptive(light: 0x1A1A1A, dark: 0x4B4B4B)
 
     /// Inset wells / hairline dividers.
     static let inset = adaptive(light: 0xEFEFEF, dark: 0x252525)
