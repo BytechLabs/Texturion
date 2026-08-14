@@ -156,8 +156,7 @@ struct DiagnosticsView: View {
             .padding(.horizontal, 18)
             .padding(.top, 8)
             .padding(.bottom, 24)
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
+            .contentMaxWidth()
         }
         .background(BrandColor.canvas)
         .task {

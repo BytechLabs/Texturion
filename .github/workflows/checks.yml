@@ -368,6 +368,13 @@ jobs:
       - name: Guard Compose modifier order
         run: node scripts/check-compose-modifier-order.mjs
 
+      # #556: Android caps a reading measure once in the shell; iOS wrote the
+      # same rule out seven times by hand and ForYou was the screen that had
+      # never had it. Holds the number equal across the two phones, and refuses
+      # a retyped copy of the idiom.
+      - name: Guard the shared content width
+        run: node scripts/check-content-width.mjs
+
       # #569: an initials badge sized in fixed `dp` around a glyph sized in `sp`
       # lets the letters outgrow the box at large OS text. `InitialsAvatar` was
       # meant to be the one implementation; a survey found EIGHT hand-rolled copies,

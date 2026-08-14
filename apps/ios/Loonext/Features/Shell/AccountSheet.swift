@@ -78,8 +78,7 @@ struct AccountSheet: View {
             .padding(.bottom, 24)
             // Keep the cards from stretching edge-to-edge on a regular-width
             // (iPad) sheet — capped and centered (#180).
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
+            .contentMaxWidth()
         }
         .background(BrandColor.canvas)
         .presentationDetents([.medium, .large])

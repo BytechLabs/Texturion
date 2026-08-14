@@ -692,8 +692,7 @@ private struct MemberAccessSheet: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
-                .frame(maxWidth: 640)
-                .frame(maxWidth: .infinity)
+                .contentMaxWidth()
             }
             .background(BrandColor.canvas)
             .navigationTitle("Numbers \(name) can reach")

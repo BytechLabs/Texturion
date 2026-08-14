@@ -516,8 +516,7 @@ private struct ForYouList: View {
             // 640 is Material's "medium" window and roughly web's own base cap,
             // and `maxWidth` with a centred frame leaves every phone untouched
             // — a 393pt iPhone is already narrower than the cap.
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
+            .contentMaxWidth()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         // Pull to refresh, matching Android.

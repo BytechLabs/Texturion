@@ -336,8 +336,7 @@ struct SettingsHome: View {
             .padding(.bottom, 24)
             // Cap + center the index on a regular-width (iPad) window so it
             // doesn't stretch edge-to-edge (#180).
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
+            .contentMaxWidth()
         }
         .background(BrandColor.canvas)
         .toolbar(.hidden, for: .navigationBar)
@@ -538,8 +537,7 @@ struct SettingsHome: View {
             .padding(.vertical, 10)
             // Same iPad cap as the index, so a section's rows/forms stay a
             // readable column instead of spanning the full width (#180).
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
+            .contentMaxWidth()
         }
         .background(BrandColor.canvas)
         .navigationTitle(section.title)
@@ -655,8 +653,7 @@ private struct SettingsIndexPreview: View {
             .padding(.horizontal, 18)
             .padding(.top, 8)
             .padding(.bottom, 24)
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
+            .contentMaxWidth()
         }
         .background(BrandColor.canvas)
     }

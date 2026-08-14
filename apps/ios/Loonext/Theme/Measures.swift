@@ -196,3 +196,46 @@ extension MeasureHeader where Trailing == EmptyView {
         self.init(label, trailing: { EmptyView() })
     }
 }
+
+/// #556 — how wide content is allowed to get, in ONE place.
+///
+/// ## Why this exists
+///
+/// The rule was written out seven times across five files as
+/// `.frame(maxWidth: 640).frame(maxWidth: .infinity)`, each carrying its own
+/// copy of the #180 comment. `ForYouTab` was the one that did not have it, and
+/// nothing could have told anybody: a rule repeated by hand is a rule a new
+/// screen can silently omit, and the omission is invisible until somebody opens
+/// the app on an iPad.
+///
+/// Android has never had this problem, and the contrast is the useful part —
+/// there the shell applies `contentMaxWidth()` to every tab's content once, so
+/// a new tab inherits the cap by construction. This is the same rule made
+/// findable on this platform; applying it centrally in `ShellView` is the
+/// follow-up, and it needs a simulator to check what happens to the backgrounds
+/// behind a capped tab root.
+///
+/// ## The two frames
+///
+/// The first caps, the second re-expands the outer frame so the capped content
+/// CENTRES rather than sitting against the leading edge. Both are needed and
+/// the order is not interchangeable — which is exactly the sort of detail that
+/// drifts when it is retyped.
+///
+/// A no-op on every phone: 640 is wider than any iPhone in portrait, so this
+/// changes nothing until the window is an iPad, a Stage Manager tile or a Mac.
+extension View {
+    func contentMaxWidth(_ max: CGFloat = ContentWidth.max) -> some View {
+        self
+            .frame(maxWidth: max)
+            .frame(maxWidth: .infinity)
+    }
+}
+
+enum ContentWidth {
+    /// Material's "medium" window, and the same number Android caps at
+    /// (`WindowSize.kt` `DefaultContentMaxWidth`). Held equal by
+    /// `scripts/check-content-width.mjs`, because a cap that differs by
+    /// platform is two products disagreeing about a reading measure.
+    static let max: CGFloat = 640
+}
