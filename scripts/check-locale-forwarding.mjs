@@ -96,11 +96,29 @@ for (const client of CLIENTS) {
   // merging them would let one language's declaration answer for the other's
   // call.
   const accepts = new Set();
+  /*
+   * Which callees LABEL their locale parameter.
+   *
+   * Swift has both shapes and they take opposite call syntax:
+   *   func f(_ x: T, locale: String?)    ->  f(x, locale: locale)
+   *   func f(_ x: T, _ locale: String?)  ->  f(x, locale)
+   *
+   * The label check below fired on `table(locale)` and `say(key, locale)`,
+   * which are both correct — they declare `_ locale:`. A guard that cannot
+   * tell those two shapes apart reports the compiling call and the broken one
+   * identically, which is worse than not checking at all.
+   */
+  const labelled = new Set();
   for (const file of files) {
     const source = readFileSync(file, "utf8");
     DECLARES_LOCALE.lastIndex = 0;
     for (const match of source.matchAll(DECLARES_LOCALE)) {
-      if (takesLocale(match[2])) accepts.add(match[1]);
+      if (!takesLocale(match[2])) continue;
+      accepts.add(match[1]);
+      // `_ locale:` is positional; a bare `locale:` carries the label.
+      if (!/(?:^|,)\s*_\s+locale\s*:\s*String\?/.test(match[2])) {
+        labelled.add(match[1]);
+      }
     }
   }
   acceptCount += accepts.size;
@@ -193,7 +211,36 @@ function stripComments(text) {
       const callee = call[1];
       if (callee === match[1]) continue; // recursion carries it or does not, separately
       if (!accepts.has(callee)) continue;
-      if (/\blocale\b|LocalAppLocale/.test(call[2])) continue;
+      if (/\blocale\b|LocalAppLocale/.test(call[2])) {
+        /*
+         * SWIFT WANTS THE LABEL, and forgetting it is a compile error a
+         * Kotlin habit produces easily.
+         *
+         * Every locale-taking function here declares it as `locale:` — a
+         * labelled trailing parameter — so `f(x, locale)` does not compile
+         * while `f(x, locale: locale)` does. Kotlin takes it positionally, so
+         * porting a fix between the two clients is exactly when this happens.
+         * It did: the twin of an Android fix went in positionally and cost a
+         * whole CI cycle to discover, because there is no Swift compiler on
+         * the machine this runs on.
+         *
+         * Only checked when a locale is actually being passed, so this can
+         * never fire on a call that simply has none.
+         */
+        if (
+          client.name === "ios" &&
+          labelled.has(callee) &&
+          !/\blocale\s*:/.test(call[2])
+        ) {
+          const line = source.slice(0, start + call.index).split("\n").length;
+          findings.push(
+            `${file.replace(/\\/g, "/")}:${line}  ${callee}(${call[2].slice(0, 40)}) ` +
+              "passes a locale POSITIONALLY — Swift needs the `locale:` label and " +
+              "this will not compile",
+          );
+        }
+        continue;
+      }
       /*
        * A helper declared INSIDE this function already closes over the locale.
        *
