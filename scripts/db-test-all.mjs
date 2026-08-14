@@ -169,6 +169,9 @@ const SUITES = [
   // #224: text-to-pay. Asserts the account predicate that stops one
   // connected account marking another workspace's bill paid.
   "payment_requests",
+  // #232/D124: the widget verification lifecycle — the budgets that stop a
+  // public endpoint spending money on texts to strangers.
+  "widget_verification",
 ];
 
 const args = process.argv.slice(2);

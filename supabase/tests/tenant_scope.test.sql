@@ -59,6 +59,8 @@ declare
     'template_uses',
     'templates', 'text_enablement_orders', 'usage_alerts', 'usage_events',
     'voicemail_greetings',
+    -- #232: the website widget's verification codes.
+    'widget_verifications',
     'lead_sources',
     -- #224: text-to-pay.
     'payment_requests', 'stripe_connect_accounts'

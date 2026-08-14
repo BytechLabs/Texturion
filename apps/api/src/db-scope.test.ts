@@ -91,6 +91,10 @@ const TENANT_TABLES = new Set([
   "templates", "text_enablement_orders", "usage_alerts", "usage_events",
   // #309: the business's own recorded greetings.
   "voicemail_greetings",
+  // #232: one row per code texted to a website visitor. Company-scoped, and
+  // carrying a phone number and an IP, so a query against it without a company
+  // filter is the same defect as anywhere else.
+  "widget_verifications",
   "lead_sources",
   // #224: the ask for money, and the mirror of the Stripe account it is paid
   // into. An unscoped read of either is the most valuable cross-tenant leak in

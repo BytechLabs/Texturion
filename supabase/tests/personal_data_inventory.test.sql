@@ -104,6 +104,12 @@ declare
     'payment_requests', 'stripe_connect_accounts',
     -- §4 prospect data
     'contact_messages', 'marketing_contacts',
+    -- #232/D124: a website visitor's mobile number and IP, plus a code HASH,
+    -- kept 30 days for abuse forensics. Prospect data rather than contact
+    -- data: at the moment the row is written the person is a stranger on
+    -- somebody else's website, and they only become a contact once the code
+    -- is answered.
+    'widget_verifications',
     -- §5 operational data with an identifier attached
     'prepayments', 'referrals',
     'email_events', 'email_suppressions', 'email_ledger', 'public_link_access',
