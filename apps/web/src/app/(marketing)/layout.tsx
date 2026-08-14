@@ -12,7 +12,7 @@ import { body, display, mono } from "@/lib/marketing/fonts";
 /**
  * The MARKETING v4 type trio (DESIGN-DIRECTION §3, "FIRST RESPONSE"):
  * Bricolage Grotesque (display), Hanken Grotesk (body), Spline Sans Mono
- * (data). The next/font/google instances are defined once in
+ * (data). The self-hosted next/font/local instances are defined once in
  * `@/lib/marketing/fonts`; here we mount their `.variable` classNames on the
  * (marketing) route-group subtree so --font-display / --font-body /
  * --font-mono resolve for the marketing utilities. The APP keeps its own

@@ -157,21 +157,49 @@ describe("globals.css — the --fr-* system (direction §2)", () => {
   });
 });
 
-describe("fonts.ts — the v4 trio via next/font/google (§3)", () => {
+describe("fonts.ts — the v4 trio, self-hosted (§3)", () => {
   const fonts = readFileSync(
     join(process.cwd(), "src", "lib", "marketing", "fonts.ts"),
     "utf8",
   );
 
-  it("loads Bricolage Grotesque / Hanken Grotesk / Spline Sans Mono with the direction's variables", () => {
-    expect(fonts).toContain("Bricolage_Grotesque");
-    expect(fonts).toContain("Hanken_Grotesk");
-    expect(fonts).toContain("Spline_Sans_Mono");
+  it("loads the three faces from files we ship, with the direction's variables", () => {
+    // The FILES, not the loader's family identifiers. #612 moved these off
+    // `next/font/google` because fetching them during `next build` made every
+    // release depend on fonts.gstatic.com answering — it failed twice in one
+    // day. What the direction actually specifies is which three faces and
+    // which three variables, and that is what this pins.
+    expect(fonts).toContain("BricolageGrotesque.woff2");
+    expect(fonts).toContain("HankenGrotesk.woff2");
+    expect(fonts).toContain("SplineSansMono.woff2");
     expect(fonts).toContain('variable: "--font-display"');
     expect(fonts).toContain('variable: "--font-body"');
     expect(fonts).toContain('variable: "--font-mono"');
-    expect(fonts).toMatch(/axes:\s*\["opsz",\s*"wdth"\]/);
-    expect(fonts).toMatch(/weight:\s*\["400",\s*"500"\]/);
+  });
+
+  it("does not reach the network during a build", () => {
+    // THE POINT OF #612, stated as a rule rather than remembered. A single
+    // `next/font/google` import anywhere in this file puts the release build
+    // back at the mercy of a third party being up.
+    expect(fonts).not.toContain('from "next/font/google"');
+    expect(fonts).toContain('from "next/font/local"');
+  });
+
+  it("keeps the weight RANGES that make these variable faces", () => {
+    // A static instance would drop the axes the direction asks for — Bricolage
+    // is specified "with the opsz + wdth axes", which only the variable file
+    // carries. A range rather than a fixed weight is what says the file is
+    // variable, and a future edit narrowing it to `weight: "800"` would
+    // silently ship a different typeface.
+    expect(fonts).toMatch(/weight:\s*"200 800"/);
+    expect(fonts).toMatch(/weight:\s*"100 900"/);
+    expect(fonts).toMatch(/weight:\s*"300 700"/);
+  });
+
+  it("still paints a metric-matched fallback rather than nothing", () => {
+    // §7's CLS-0 strategy: `optional` upgrades only inside the block window,
+    // so the fallback has to occupy the same box or the page moves.
+    expect(fonts.match(/display: "optional"/g)).toHaveLength(3);
   });
 
   it("the v3 faces are gone from the font wiring", () => {
