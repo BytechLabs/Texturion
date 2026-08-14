@@ -606,7 +606,12 @@ struct ShellView: View {
                 if notifReadState.unreadCount > 0 {
                     Circle()
                         .fill(BrandColor.coral)
-                        .overlay(Circle().stroke(BrandColor.inkFixed, lineWidth: 2))
+                        // The ring is the CAPSULE showing through, so it has to
+                        // be the capsule's colour rather than a fixed ink that
+                        // merely used to equal it. Once the capsule lightened in
+                        // dark (#556) an `inkFixed` ring stopped being a cutout
+                        // and became a dark halo around the dot.
+                        .overlay(Circle().stroke(BrandColor.navPill, lineWidth: 2))
                         .frame(width: 9, height: 9)
                         .offset(x: 2, y: -2)
                 }
