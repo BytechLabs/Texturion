@@ -199,6 +199,7 @@ enum InboxStrings {
             "inbox.forYouWhyOpenTask": "Open task",
 
             // --- Customise this screen (#540 CustomiseSheet.swift) ---------------------------
+            "inbox.forYouNotificationsAria": "Notifications",
             "inbox.customiseAria": "Customise this screen",
             "inbox.customiseAriaPutAwayOne":
                 "Customise this screen — {count} panel put away",
@@ -497,6 +498,7 @@ enum InboxStrings {
             "inbox.forYouWhyOpenTask": "Tâche ouverte",
 
             // --- Customise this screen (#540 CustomiseSheet.swift) ---------------------------
+            "inbox.forYouNotificationsAria": "Notifications",
             "inbox.customiseAria": "Personnaliser cet écran",
             "inbox.customiseAriaPutAwayOne":
                 "Personnaliser cet écran — {count} panneau rangé",

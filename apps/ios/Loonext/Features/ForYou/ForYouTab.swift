@@ -19,6 +19,14 @@ struct ForYouTab: View {
     let graph: AppGraph
     let companyId: String
     let me: Me
+    /// #556: the SHARED unread state, not a snapshot — the same instance the
+    /// account sheet and the notifications screen read, so the dot on the bell
+    /// clears the frame a mark-read lands rather than on the next refresh.
+    let readState: CompanyReadState
+    /// #556: Android has had this in the header since #201. On iOS it was two
+    /// taps into the account sheet, which means you had to already suspect
+    /// something was there to go looking for it.
+    let onOpenNotifications: () -> Void
     var onOpenCalls: (() -> Void)? = nil
 
     @State private var state: LoadState<ForYou> = .loading
@@ -114,6 +122,8 @@ struct ForYouTab: View {
                     .background(BrandColor.canvas)
             case .ready(let forYou):
                 ForYouList(
+                    readState: readState,
+                    onOpenNotifications: onOpenNotifications,
                     forYou: forYou,
                     spamReview: spamReview,
                     onAnswerSpamReview: { conversationId, notSpam in
@@ -357,6 +367,14 @@ private struct ForYouList: View {
     /// #301: nil while it loads, and the card renders nothing.
     let leadSources: LeadSourceReport?
     let onOpenConversation: @MainActor (String) -> Void
+    /// #556: the SHARED unread state, not a snapshot — the same instance the
+    /// account sheet and the notifications screen read, so the dot on the bell
+    /// clears the frame a mark-read lands rather than on the next refresh.
+    let readState: CompanyReadState
+    /// #556: Android has put this in the header since #201. On iOS it was two
+    /// taps into the account sheet, which means you had to already suspect
+    /// something was there to go looking for it.
+    let onOpenNotifications: () -> Void
     let onOpenCalls: (() -> Void)?
     /// Both loaders, awaited together, so the pull-to-refresh spinner settles
     /// when the screen is actually current rather than when the gesture ends.
@@ -538,6 +556,33 @@ private struct ForYouList: View {
             // other way to find out why their screen is shorter than a
             // colleague's, and "the app is missing the pipeline card" is a
             // support conversation nobody can win.
+            // #556: the notifications bell, matching Android's header.
+            //
+            // BEFORE customise, because it is the one people press: it is
+            // what happened while they were away, and customise is a thing
+            // somebody does once. *Applying: Prioritise Intent.*
+            //
+            // The dot carries the same weight it does on the Android twin —
+            // somebody with no dot never opens the sheet to find out there was
+            // nothing in it.
+            Button(action: onOpenNotifications) {
+                Image(systemName: "bell")
+                    .font(.scaled(15, weight: .medium))
+                    .foregroundStyle(BrandColor.muted700)
+                    .frame(width: 40, height: 40)
+                    .background(BrandColor.paper, in: Circle())
+                    .overlay(alignment: .topTrailing) {
+                        if readState.unreadCount > 0 {
+                            Circle()
+                                .fill(BrandColor.lime)
+                                .frame(width: 8, height: 8)
+                                .overlay(Circle().stroke(BrandColor.canvas, lineWidth: 2))
+                        }
+                    }
+            }
+            .accessibilityLabel(
+                AppStrings.translate(appLocale, "inbox.forYouNotificationsAria")
+            )
             Button(action: onCustomise) {
                 Image(systemName: "slider.horizontal.3")
                     // Scaled, so the glyph grows with the reader's font setting
@@ -1065,6 +1110,8 @@ private func previewCall(
 
 #Preview("Recent calls section") {
     ForYouList(
+        readState: CompanyReadState(),
+        onOpenNotifications: {},
         forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
         spamReview: [],
         onAnswerSpamReview: { _, _ in },
@@ -1120,6 +1167,8 @@ private func previewCall(
 
 #Preview("Recent calls · load failure") {
     ForYouList(
+        readState: CompanyReadState(),
+        onOpenNotifications: {},
         forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
         spamReview: [],
         onAnswerSpamReview: { _, _ in },
@@ -1157,6 +1206,8 @@ private func previewCall(
 /// kind of surface that rots unseen.
 #Preview("Marked spam, still texting") {
     ForYouList(
+        readState: CompanyReadState(),
+        onOpenNotifications: {},
         forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
         spamReview: [
             SpamReviewItem(

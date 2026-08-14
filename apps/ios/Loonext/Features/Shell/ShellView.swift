@@ -390,6 +390,10 @@ struct ShellView: View {
                     graph: graph,
                     companyId: companyId,
                     me: hydratedMe,
+                    // #556: the same instance the account sheet reads, so the
+                    // bell's dot and the sheet's count can never disagree.
+                    readState: notifReadState,
+                    onOpenNotifications: { activeSheet = .notifications },
                     onOpenCalls: { AppRouter.shared.openCalls = true }
                 )
                 .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
