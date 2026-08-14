@@ -403,6 +403,122 @@ begin
 end $$;
 
 -- ===========================================================================
+-- WV-14. A widget message threads like any other inbound, without pretending
+--        a carrier sent it.
+-- ===========================================================================
+insert into public.phone_numbers
+  (id, company_id, number_e164, status, provisioning_key, country)
+values
+  ('dd000000-0000-4000-8000-0000000000f1'::uuid,
+   'dd000000-0000-4000-8000-0000000000c1'::uuid,
+   '+15558881111', 'active', 'widget-test-key', 'US');
+
+do $$
+declare
+  v jsonb;
+  v_msg public.messages%rowtype;
+  v_conv public.conversations%rowtype;
+begin
+  v := public.thread_inbound_message(
+    'dd000000-0000-4000-8000-0000000000c1'::uuid,
+    'dd000000-0000-4000-8000-0000000000f1'::uuid,
+    '+15557770001', 'My boiler is leaking', null,
+    null, 200, 200, 'widget', 'widget:verification-1');
+
+  if v->>'message_id' is null then
+    raise exception 'WV-14 FAILED: a widget message must thread, got %', v;
+  end if;
+
+  select * into v_msg from public.messages where id = (v->>'message_id')::uuid;
+  if v_msg.source is distinct from 'widget' then
+    raise exception 'WV-14 FAILED: the message must say where it came from';
+  end if;
+  -- THE WHOLE POINT. No carrier gave us an id, and the column named after the
+  -- carrier does not get a made-up one.
+  if v_msg.telnyx_message_id is not null then
+    raise exception
+      'WV-14 FAILED: a widget message carries a telnyx id it was never given';
+  end if;
+  if v_msg.idempotency_key is distinct from 'widget:verification-1' then
+    raise exception 'WV-14 FAILED: our own key must be stored';
+  end if;
+
+  select * into v_conv from public.conversations
+   where id = (v->>'conversation_id')::uuid;
+  if v_conv.first_source is distinct from 'widget' then
+    raise exception 'WV-14 FAILED: the conversation must record its first touch';
+  end if;
+
+  raise notice 'WV-14 PASSED: a widget message threads without a carrier id';
+end $$;
+
+-- ===========================================================================
+-- WV-15. Pressing submit twice does not open two threads.
+--
+-- The carrier path dedupes on Telnyx's id. A widget message has none, so the
+-- replay check has to key on OURS — and without it a visitor who double-taps
+-- gets two conversations and the crew gets two notifications.
+-- ===========================================================================
+do $$
+declare
+  first_call jsonb;
+  again      jsonb;
+begin
+  first_call := public.thread_inbound_message(
+    'dd000000-0000-4000-8000-0000000000c1'::uuid,
+    'dd000000-0000-4000-8000-0000000000f1'::uuid,
+    '+15557770002', 'Quote for a re-pipe please', null,
+    null, 200, 200, 'widget', 'widget:verification-2');
+  again := public.thread_inbound_message(
+    'dd000000-0000-4000-8000-0000000000c1'::uuid,
+    'dd000000-0000-4000-8000-0000000000f1'::uuid,
+    '+15557770002', 'Quote for a re-pipe please', null,
+    null, 200, 200, 'widget', 'widget:verification-2');
+
+  if again->>'message_id' is distinct from (first_call->>'message_id') then
+    raise exception 'WV-15 FAILED: a replay created a second message';
+  end if;
+  if (again->>'created')::boolean then
+    raise exception 'WV-15 FAILED: a replay reported itself as new';
+  end if;
+
+  raise notice 'WV-15 PASSED: a double submit is one thread';
+end $$;
+
+-- ===========================================================================
+-- WV-16. The carrier path is untouched, and still demands a carrier id.
+--
+-- The half that makes the change safe: every existing caller passes no source
+-- at all and must behave exactly as it did.
+-- ===========================================================================
+do $$
+declare v jsonb;
+begin
+  begin
+    v := public.thread_inbound_message(
+      'dd000000-0000-4000-8000-0000000000c1'::uuid,
+      'dd000000-0000-4000-8000-0000000000f1'::uuid,
+      '+15557770003', 'hello', null);
+    raise exception
+      'WV-16 FAILED: the default path accepted a message with no carrier id';
+  exception when others then
+    if sqlerrm not like '%telnyx_message_id is required%' then raise; end if;
+  end;
+
+  -- And a carrier message still says it is one, without anybody passing it.
+  v := public.thread_inbound_message(
+    'dd000000-0000-4000-8000-0000000000c1'::uuid,
+    'dd000000-0000-4000-8000-0000000000f1'::uuid,
+    '+15557770004', 'hello', 'telnyx-msg-1');
+  if (select source from public.messages where id = (v->>'message_id')::uuid)
+     is distinct from 'carrier' then
+    raise exception 'WV-16 FAILED: an ordinary inbound must default to carrier';
+  end if;
+
+  raise notice 'WV-16 PASSED: the carrier path is exactly as it was';
+end $$;
+
+-- ===========================================================================
 -- WV-10. Nobody but the service role can reach any of it.
 -- ===========================================================================
 do $$
