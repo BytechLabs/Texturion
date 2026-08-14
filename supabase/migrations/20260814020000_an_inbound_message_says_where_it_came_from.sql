@@ -201,13 +201,26 @@ begin
     -- consent and a resurrection whichever of their numbers it came from.
     update public.contacts
        set deleted_at     = null,
-           consent_source = coalesce(consent_source, 'inbound_sms'),
+           -- `coalesce`, so an existing consent record is never overwritten: a
+           -- customer who already gave express consent does not lose it by
+           -- texting later, and one who texted first does not have it upgraded
+           -- by a form somebody else filled in.
+           consent_source = coalesce(
+             consent_source,
+             case when p_source = 'widget' then 'widget_form' else 'inbound_sms' end::public.consent_source_t),
            consent_at     = coalesce(consent_at, now())
      where id = v_contact_id;
   else
     -- Rule 1: contact upsert — clears deleted_at, stamps inbound consent once.
+    -- #232: the consent source has to match how consent was actually given.
+    -- A widget visitor did not text us — recording `inbound_sms` would file an
+    -- EXPRESS web-form opt-in as the weakest kind the rules recognise, in the
+    -- one record that exists to answer that question.
     insert into public.contacts as ct (company_id, phone_e164, consent_source, consent_at)
-    values (p_company_id, p_from_e164, 'inbound_sms', now())
+    values (
+      p_company_id, p_from_e164,
+      case when p_source = 'widget' then 'widget_form' else 'inbound_sms' end::public.consent_source_t,
+      now())
     on conflict (company_id, phone_e164) do update
       set deleted_at     = null,
           consent_source = coalesce(ct.consent_source, excluded.consent_source),

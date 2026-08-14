@@ -453,6 +453,52 @@ begin
 end $$;
 
 -- ===========================================================================
+-- WV-17. The consent is recorded as what it actually was.
+--
+-- The three kinds are not interchangeable and this is the record that answers
+-- a regulator: `inbound_sms` is IMPLIED consent, `attested` is a member's
+-- account of a conversation nobody recorded, and a widget opt-in is the only
+-- one where the customer's own action is on file — they typed the number and
+-- then proved they hold the handset.
+--
+-- Filing it as `inbound_sms` would be a lie about a legal record, in the
+-- direction that flatters us least: express consent downgraded to implied.
+-- ===========================================================================
+do $$
+declare
+  v_contact public.contacts%rowtype;
+  v_state   text;
+  v_source  text;
+begin
+  select * into v_contact from public.contacts
+   where company_id = 'dd000000-0000-4000-8000-0000000000c1'
+     and phone_e164 = '+15557770001';
+
+  if v_contact.consent_source::text is distinct from 'widget_form' then
+    raise exception
+      'WV-17 FAILED: a web-form opt-in was filed as %, not widget_form',
+      v_contact.consent_source;
+  end if;
+
+  select state, source into v_state, v_source
+    from public.contact_consent_events
+   where contact_id = v_contact.id
+   order by captured_at desc
+   limit 1;
+
+  if v_state is distinct from 'express' then
+    raise exception
+      'WV-17 FAILED: the ledger recorded % consent for a web form, and express '
+      'downgraded to implied is the error that matters', v_state;
+  end if;
+  if v_source is distinct from 'widget_form' then
+    raise exception 'WV-17 FAILED: the ledger source reads %', v_source;
+  end if;
+
+  raise notice 'WV-17 PASSED: a web-form opt-in is recorded as express, from the widget';
+end $$;
+
+-- ===========================================================================
 -- WV-15. Pressing submit twice does not open two threads.
 --
 -- The carrier path dedupes on Telnyx's id. A widget message has none, so the
