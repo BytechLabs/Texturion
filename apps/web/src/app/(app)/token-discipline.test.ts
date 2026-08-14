@@ -99,6 +99,14 @@ const ALLOWED = new Map<string, string>([
     "rendered outside the authenticated shell, where the app token scope is absent",
   ],
   [
+    "app/widget-preview/route.ts",
+    "#232: a whole separate DOCUMENT, framed by the settings card to show the " +
+      "embed as a customer's visitor sees it. It cannot reach our stylesheet — " +
+      "and must not: it is a stand-in for somebody else's website, so painting " +
+      "it in our own tokens would show the owner a preview against a background " +
+      "their site does not have",
+  ],
+  [
     "app/manifest.ts",
     "the PWA theme colour IS a literal by specification — the operating system " +
       "reads the value, and it has no concept of our tokens",

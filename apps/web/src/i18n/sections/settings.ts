@@ -650,6 +650,9 @@ export const settingsEn = {
     "They type their number, we text them a code, and their message lands in " +
     "your inbox like any other text.",
   widgetShow: "Get the snippet",
+  /** #232: the frame showing the real widget on a stand-in page. */
+  widgetPreviewTitle: "A preview of your Text us button",
+  widgetPreviewHint: "Your site, with the button on it.",
   widgetStepCopy: "Copy the line below.",
   widgetStepPaste: "Paste it into your website, just before </body>.",
   widgetStepSave: "Save and reload your site — the button appears bottom right.",
@@ -1345,6 +1348,8 @@ export const settingsFr: Translated<typeof settingsEn> = {
     "conversation ici. Il entre son numéro, nous lui envoyons un code, et son " +
     "message arrive dans votre boîte comme n'importe quel texto.",
   widgetShow: "Obtenir le code à coller",
+  widgetPreviewTitle: "Un aperçu de votre bouton « Écrivez-nous »",
+  widgetPreviewHint: "Votre site, avec le bouton dessus.",
   widgetStepCopy: "Copiez la ligne ci-dessous.",
   widgetStepPaste: "Collez-la dans votre site, juste avant </body>.",
   widgetStepSave:

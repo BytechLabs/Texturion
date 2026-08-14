@@ -112,6 +112,12 @@ const DECLARED_TOP_LEVEL_ROUTES = [
   // Supabase's auth callback + the legacy dashboard entry.
   "auth",
   "dashboard",
+  // #232: the widget preview the settings card frames. A route handler, not a
+  // page — it returns a whole document with its own CSP because it has to run a
+  // script the app's `strict-dynamic` policy would refuse, and it carries no
+  // session and no token. Outside both groups because it is not part of either
+  // shell: framing (app) inside itself would nest the whole application.
+  "widget-preview",
   // Not pages: handlers and generated assets.
   "api",
   "og",

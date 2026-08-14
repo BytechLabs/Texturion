@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useT } from "@/i18n/provider";
+import { useLocale, useT } from "@/i18n/provider";
 import {
   useCompany,
   useRotateWidgetKey,
@@ -69,6 +69,7 @@ const DEFAULT_LINE = "default";
 
 export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
   const t = useT();
+  const { locale } = useLocale();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const key = useWidgetKey(open);
@@ -119,6 +120,31 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
         <p className="text-sm text-destructive">{t("settings.widgetLoadFailed")}</p>
       ) : (
         <div className="space-y-4">
+          {/* #232 build item 1: "copy-paste from Settings with a LIVE
+              preview". It loads the same widget.js that is about to be pasted,
+              so this is the thing itself rather than a picture of it that goes
+              stale the first time somebody changes a colour.
+
+              ABOVE the instructions, because seeing what you are about to
+              install is what makes the three steps worth reading. *Applying:
+              Outcomes Over Features — show the result before the procedure.*
+
+              `loading="lazy"` so a card nobody opens costs nothing, and a
+              title because an unlabelled frame is a landmark a screen reader
+              announces as nothing at all. */}
+          <iframe
+            // The reader's language, so a French settings page does not
+            // frame an English preview.
+            src={`/widget-preview?lang=${locale}`}
+            title={t("settings.widgetPreviewTitle")}
+            loading="lazy"
+            // Tall enough for the panel, not just the button. Somebody looking
+            // at a preview of a button WILL press it, and at 256px the opened
+            // panel was cut off at the top — which reads as "the widget is
+            // broken" about the thing they are deciding whether to install.
+            className="h-[33rem] w-full rounded-app-card border border-app-line bg-app-inset"
+          />
+
           <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
             <li>{t("settings.widgetStepCopy")}</li>
             <li>{t("settings.widgetStepPaste")}</li>

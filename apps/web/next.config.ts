@@ -101,8 +101,42 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/(.*)",
+        // #232: everything EXCEPT the widget preview, which the settings page
+        // frames on purpose. The global list carries `frame-ancestors 'none'`
+        // and `X-Frame-Options: DENY`, and both are right for every other
+        // route — a browser enforces every CSP it is given, so a route handler
+        // cannot loosen them by setting its own header. The exclusion is a
+        // negative lookahead here rather than a second rule below, because a
+        // second rule would ADD a header next to the deny rather than replace
+        // it.
+        //
+        // Safe for this one path on its own terms: the preview is a static
+        // document with no session, no authenticated data and nothing a
+        // clickjacker could aim a cursor at. Its only form posts a literal
+        // `preview` key that resolves to no workspace.
+        source: "/((?!widget-preview$).*)",
         headers: [...SECURITY_HEADERS],
+      },
+      {
+        // The preview's own posture: framed by US and nobody else.
+        source: "/widget-preview",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'none'",
+              "script-src 'self'",
+              "style-src 'unsafe-inline'",
+              "img-src 'self' data:",
+              "connect-src 'self'",
+              "base-uri 'none'",
+              "form-action 'self'",
+              "frame-ancestors 'self'",
+            ].join("; "),
+          },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+        ],
       },
       // Edge-cache the marketing HTML so repeat requests skip the OpenNext
       // worker (and its Cloudflare cold-isolate TTFB, ~1.3-1.9s on a cold hit;
