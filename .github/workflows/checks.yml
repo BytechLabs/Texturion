@@ -858,6 +858,26 @@ jobs:
           packages: "platforms;android-37.0 build-tools;36.0.0 platform-tools"
           log-accepted-android-sdk-licenses: false
 
+      # Robolectric downloads its `android-all` runtime jar from Maven THE FIRST
+      # TIME A TEST RUNS, through its own fetcher rather than through Gradle —
+      # so `setup-gradle`'s dependency cache does not cover it, and a blip
+      # reaching Maven fails the job inside class initialisation, before any
+      # assertion. That is exactly what happened on 91697bd5: eight Robolectric
+      # suites failed with `MavenArtifactFetcher` → IOException, on a commit
+      # that touched only SQL, and the next commit passed on the same Android
+      # tree.
+      #
+      # Caching `~/.m2` means the jar is fetched once per Robolectric version
+      # rather than once per run. Keyed on the version so a bump re-fetches
+      # rather than serving a stale jar, and `restore-keys` lets a bump start
+      # from the previous cache instead of cold.
+      - name: Cache the Robolectric runtime jars
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ runner.os }}-${{ hashFiles('apps/android/gradle/libs.versions.toml') }}
+          restore-keys: robolectric-${{ runner.os }}-
+
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest
 
