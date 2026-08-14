@@ -18,9 +18,11 @@ import { describe, expect, it } from "vitest";
  * font list from what is actually LOADED rather than from a list somebody has to
  * remember to update — a hardcoded list would have passed the whole time.
  *
- * `next/font/google` counts. Next downloads those faces at build time and
- * self-hosts them from our origin; it does not hot-link Google, so they
- * redistribute exactly like the local files.
+ * `next/font/google` counts, and is still read for that reason even though
+ * #612 left us with none: Next downloads those faces at build time and
+ * self-hosts them from our origin — it does not hot-link Google — so they
+ * redistribute exactly like the local files, and the next one somebody adds
+ * has to be caught.
  */
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -80,10 +82,17 @@ const shipped = [...selfHostedFamilies(), ...googleFamilies()].sort();
 
 describe("#429 every font we serve ships its license", () => {
   it("finds the fonts by reading what is loaded, so the guard cannot go blind", () => {
-    // If a refactor hides the fonts behind a helper these collapse to zero and
+    // If a refactor hides the fonts behind a helper this collapses to zero and
     // every assertion below would pass while checking nothing.
-    expect(selfHostedFamilies().length).toBeGreaterThanOrEqual(2);
-    expect(googleFamilies().length).toBeGreaterThanOrEqual(3);
+    //
+    // The floor is on the COMBINED count, not on each loader. It used to
+    // require three Google families, which pinned HOW the fonts were loaded
+    // rather than the thing that matters — and #612 moved all three to
+    // `next/font/local` for a build-reliability reason having nothing to do
+    // with licences, so a guard about redistribution failed a change that
+    // redistributed exactly the same five files. Zero Google fonts is now the
+    // healthy state; zero fonts ALTOGETHER never is.
+    expect(shipped.length).toBeGreaterThanOrEqual(5);
     // The exact set today. Deliberately pinned: a new font should make somebody
     // read this file, since the license is the point.
     expect(shipped).toEqual([
