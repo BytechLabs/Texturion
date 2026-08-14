@@ -814,8 +814,18 @@ final class ThreadSummaryTests: XCTestCase {
         // arm it used to live in and would quietly put the notice back inside
         // one phase.
         let card = try iosSource("Features/Thread/ThreadSummaryCard.swift")
+        // The OPENING of the call, over whitespace-collapsed source.
+        //
+        // What this asserts is WHICH arm the card reads the carrier from —
+        // `state.visibleCarrier`, not `result.carrier`. It has no opinion about
+        // the rest of the argument list, and it used to pin the closing paren:
+        // #228 then appended the reader's language, and rather than admit a
+        // second argument the notice was left permanently English to keep this
+        // green. Collapsing whitespace so the call may also wrap across lines,
+        // which is the other thing this should never have had a view on.
+        let flat = card.split(whereSeparator: \.isWhitespace).joined()
         XCTAssertTrue(
-            card.contains("threadCatchUpOptOutNotice(state.visibleCarrier)"),
+            flat.contains("threadCatchUpOptOutNotice(state.visibleCarrier"),
             "the card no longer asks the PHASE what it may say about the carrier."
         )
     }

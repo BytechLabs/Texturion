@@ -81,7 +81,10 @@ struct ThreadSummaryCard: View {
                     // stopped being told so at exactly the moment somebody
                     // pressed the button. `visibleCarrier` is what each phase is
                     // entitled to say (`ThreadCatchUpState`).
-                    if let notice = threadCatchUpOptOutNotice(state.visibleCarrier) {
+                    if let notice = threadCatchUpOptOutNotice(
+                        state.visibleCarrier,
+                        locale: appLocale
+                    ) {
                         optOutNotice(notice)
                     }
                     switch state {

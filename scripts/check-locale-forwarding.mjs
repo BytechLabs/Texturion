@@ -37,42 +37,82 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-const ROOT = "apps/android/app/src/main/kotlin";
+/**
+ * BOTH PHONES, because both have the defect available to them.
+ *
+ * The Android sweep landed first and this guard was written for Kotlin. The
+ * iOS sweep then introduced 155 Swift functions with the identical
+ * `locale: String? = nil` shape — so the same silent failure was one forgotten
+ * argument away on a client this guard could not see. One checker over two
+ * languages rather than a second copy: a rule written twice is the drift the
+ * cross-client tests exist to catch, one level up.
+ *
+ * The two languages differ only in how a function is declared and how an
+ * argument is passed, so that is all the dialect describes.
+ */
+const CLIENTS = [
+  {
+    name: "android",
+    root: "apps/android/app/src/main/kotlin",
+    ext: ".kt",
+    keyword: "fun",
+    // `fun name(… locale: String? …)`
+    declares: /\bfun\s+([A-Za-z][A-Za-z0-9_]*)\s*\(([^)]*)\)/g,
+  },
+  {
+    name: "ios",
+    root: "apps/ios/Loonext",
+    ext: ".swift",
+    keyword: "func",
+    // `func name(… locale: String? …)`, static or not.
+    declares: /\bfunc\s+([A-Za-z][A-Za-z0-9_]*)\s*\(([^)]*)\)/g,
+  },
+];
 
-function walk(dir, out = []) {
+function walk(dir, ext, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) walk(path, out);
-    else if (entry.name.endsWith(".kt")) out.push(path);
+    if (entry.isDirectory()) walk(path, ext, out);
+    else if (entry.name.endsWith(ext)) out.push(path);
   }
   return out;
 }
 
-/** `fun name(… locale: String? …)` — a declaration that accepts the language. */
-const DECLARES_LOCALE = /\bfun\s+([A-Za-z][A-Za-z0-9_]*)\s*\(([^)]*)\)/g;
-
+/** Kotlin writes `String?`; Swift writes `String?` too. Same test. */
 function takesLocale(params) {
   return /\blocale\s*:\s*String\?/.test(params);
 }
 
-const files = walk(ROOT);
+const findings = [];
+let inspected = 0;
+let acceptCount = 0;
 
-// Every function in the app that accepts a locale.
-const accepts = new Set();
-for (const file of files) {
-  const source = readFileSync(file, "utf8");
-  for (const match of source.matchAll(DECLARES_LOCALE)) {
-    if (takesLocale(match[2])) accepts.add(match[1]);
+for (const client of CLIENTS) {
+  const files = walk(client.root, client.ext);
+  const DECLARES_LOCALE = client.declares;
+
+  // Every function on THIS client that accepts a locale. Per client, not
+  // shared: a Kotlin name and a Swift name are different vocabularies, and
+  // merging them would let one language's declaration answer for the other's
+  // call.
+  const accepts = new Set();
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    DECLARES_LOCALE.lastIndex = 0;
+    for (const match of source.matchAll(DECLARES_LOCALE)) {
+      if (takesLocale(match[2])) accepts.add(match[1]);
+    }
   }
-}
+  acceptCount += accepts.size;
 
-if (accepts.size < 20) {
-  console.error(
-    `Locale forwarding: only ${accepts.size} locale-taking function(s) found — ` +
-      "the declaration pattern stopped matching, so this guard is reading nothing.",
-  );
-  process.exit(1);
-}
+  if (accepts.size < 20) {
+    console.error(
+      `Locale forwarding: only ${accepts.size} locale-taking function(s) found on ` +
+        `${client.name} — the declaration pattern stopped matching, so this guard ` +
+        "is reading nothing there.",
+    );
+    process.exit(1);
+  }
 
 /**
  * The body of each function that HAS a locale, so calls can be attributed to a
@@ -80,7 +120,12 @@ if (accepts.size < 20) {
  * rather than by a closing brace: most of these are expression functions whose
  * body closes at an indent.
  */
-const DECL_START = /^(\s*)(?:@|(?:private |internal |public |companion )*(?:fun|val|var|object|class|enum)\b)/;
+const DECL_START = {
+  android: /^(\s*)(?:@|(?:private |internal |public |companion )*(?:fun|val|var|object|class|enum)\b)/,
+  // Swift's own keywords, plus `extension`, which Kotlin has no equivalent of
+  // and which ends a declaration just as firmly.
+  ios: /^(\s*)(?:@|(?:private |fileprivate |internal |public |static |final )*(?:func|var|let|struct|class|enum|extension)\b)/,
+};
 
 /**
  * The body of the declaration starting at [from], bounded by INDENTATION.
@@ -95,22 +140,41 @@ const DECL_START = /^(\s*)(?:@|(?:private |internal |public |companion )*(?:fun|
  * So a declaration ends where the next one at the SAME or shallower indentation
  * begins, which is the rule Kotlin's own layout follows.
  */
-function bodyAfter(source, from, ownIndent) {
+function bodyAfter(source, from, ownIndent, declStart) {
   const rest = source.slice(from);
   const lines = rest.split("\n");
   const kept = [];
   for (let i = 0; i < lines.length; i += 1) {
-    const match = i === 0 ? null : DECL_START.exec(lines[i]);
+    const match = i === 0 ? null : declStart.exec(lines[i]);
     if (match && match[1].length <= ownIndent) break;
     kept.push(lines[i]);
   }
-  return kept.join("\n");
+  return stripComments(kept.join("\n"));
 }
 
-const findings = [];
-let inspected = 0;
+/**
+ * Comment lines dropped, because a call QUOTED in a comment is not a call.
+ *
+ * Caught by this guard biting its own tail: a docblock explaining that the card
+ * now passes `threadCatchUpOptOutNotice(state.visibleCarrier, locale:)` quoted
+ * the OLD spelling to say what changed, and the scanner read the quotation as a
+ * live call that had dropped the locale. Prose about the code is not the code —
+ * the same rule the hardcoded-strings ledger learned.
+ *
+ * Whole comment LINES only. A trailing `//` after real code is left alone, since
+ * cutting at the first `//` would truncate any line containing a URL.
+ */
+function stripComments(text) {
+  return text
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trimStart();
+      return !trimmed.startsWith("//") && !trimmed.startsWith("*");
+    })
+    .join("\n");
+}
 
-for (const file of files) {
+  for (const file of files) {
   const source = readFileSync(file, "utf8");
   /** What THIS file declares, and whether each one takes a locale. */
   const localDeclarations = new Map();
@@ -122,7 +186,7 @@ for (const file of files) {
     const start = match.index + match[0].length;
     const lineStart = source.lastIndexOf("\n", match.index) + 1;
     const ownIndent = /^[ \t]*/.exec(source.slice(lineStart, match.index))?.[0].length ?? 0;
-    const body = bodyAfter(source, start, ownIndent);
+    const body = bodyAfter(source, start, ownIndent, DECL_START[client.name]);
     inspected += 1;
 
     for (const call of body.matchAll(/(?<![A-Za-z0-9_.])([A-Za-z][A-Za-z0-9_]*)\(([^()]*)\)/g)) {
@@ -145,7 +209,7 @@ for (const file of files) {
        * locale)` are one name to a scanner and two different functions to
        * Kotlin.
        */
-      if (new RegExp(`fun\\s+${callee}\\s*\\(`).test(body)) continue;
+      if (new RegExp(`${client.keyword}\\s+${callee}\\s*\\(`).test(body)) continue;
       /*
        * SAME-FILE declarations win, exactly as Kotlin resolves them.
        *
@@ -164,6 +228,8 @@ for (const file of files) {
       );
     }
   }
+}
+
 }
 
 if (inspected < 20) {
@@ -185,6 +251,7 @@ if (findings.length > 0) {
 }
 
 console.log(
-  `Locale forwarding: ${inspected} function(s) holding a locale pass it to every ` +
-    `one of the ${accepts.size} locale-taking functions they call.`,
+  `Locale forwarding: ${inspected} function(s) across ${CLIENTS.length} client(s) ` +
+    `hold a locale and pass it to every one of the ${acceptCount} locale-taking ` +
+    "functions they call.",
 );

@@ -265,7 +265,10 @@ func deliveryLabel(_ message: Message, locale: String? = nil) -> String? {
     case MessageStatus.sent: AppStrings.translate(locale, "thread.sent") + " ✓"
     case MessageStatus.delivered:
         AppStrings.translate(locale, "thread.delivered") + " ✓✓"
-    case MessageStatus.failed: sendFailureMessage(message.error_code)
+    // #228: the locale goes on, exactly as it does on Android. Without it this
+    // one branch rendered English while "Sending", "Sent" and "Delivered" above
+    // it were translated — and it is the branch that says why a text did NOT go.
+    case MessageStatus.failed: sendFailureMessage(message.error_code, locale)
     default: nil
     }
 }

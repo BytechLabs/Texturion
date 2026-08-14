@@ -664,10 +664,14 @@ func threadCatchUpMessage(_ reason: String?, locale: String? = nil) -> String {
 /// in a phase that has no result: a pending re-ask holds the standing and
 /// nothing else (`ThreadCatchUpState.asking`).
 ///
-/// #228: `locale` defaulted and LAST, and for the moment it is never passed —
-/// `ThreadSummaryTests` scans the card's source for the exact spelling
-/// `threadCatchUpOptOutNotice(state.visibleCarrier)`. See the note on
-/// `threadCatchUpMessage`.
+/// #228: `locale` defaulted and LAST, and the card DOES pass it.
+///
+/// It did not at first. `ThreadSummaryTests` pinned the exact spelling
+/// `threadCatchUpOptOutNotice(state.visibleCarrier)`, closing paren included, so
+/// adding an argument would have failed a test whose actual subject is WHICH arm
+/// the carrier is read from. The notice was left English to keep it green. The
+/// test now matches the opening of the call over whitespace-collapsed source,
+/// which is what it meant all along.
 func threadCatchUpOptOutNotice(
     _ carrier: ThreadCatchUpCarrier,
     locale: String? = nil
