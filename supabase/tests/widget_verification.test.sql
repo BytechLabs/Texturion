@@ -316,6 +316,93 @@ begin
 end $$;
 
 -- ===========================================================================
+-- WV-11. The embed's key resolves to a workspace, and rotating it stops the
+--        old embeds dead.
+--
+-- The key exists because a workspace id in a customer's page source cannot be
+-- rotated when it is abused — it IS the workspace. That property is only real
+-- if replacing the key actually invalidates the old one, so it is asserted
+-- rather than assumed.
+-- ===========================================================================
+do $$
+declare
+  v_key uuid;
+  v_id  uuid;
+begin
+  select widget_key into v_key from public.companies
+   where id = 'dd000000-0000-4000-8000-0000000000c1';
+  if v_key is null then
+    raise exception 'WV-11 FAILED: a workspace must have a widget key by default';
+  end if;
+
+  v_id := public.api_company_for_widget_key(v_key);
+  if v_id is distinct from 'dd000000-0000-4000-8000-0000000000c1'::uuid then
+    raise exception 'WV-11 FAILED: the key must resolve to its own workspace';
+  end if;
+
+  -- ROTATION. The whole point of a key rather than an id.
+  update public.companies set widget_key = gen_random_uuid()
+   where id = 'dd000000-0000-4000-8000-0000000000c1';
+  if public.api_company_for_widget_key(v_key) is not null then
+    raise exception
+      'WV-11 FAILED: the old key still resolves after rotation, which makes the '
+      'key no better than the workspace id it replaced';
+  end if;
+
+  raise notice 'WV-11 PASSED: the key resolves, and rotating it kills the old embeds';
+end $$;
+
+-- ===========================================================================
+-- WV-12. A closed workspace resolves to nothing.
+--
+-- A widget outlives the account behind it: the snippet sits on a website long
+-- after somebody stops paying, and the first thing that must not happen is a
+-- text sent on behalf of a business that no longer exists.
+-- ===========================================================================
+do $$
+declare v_key uuid;
+begin
+  select widget_key into v_key from public.companies
+   where id = 'dd000000-0000-4000-8000-0000000000c2';
+
+  update public.companies set deleted_at = now()
+   where id = 'dd000000-0000-4000-8000-0000000000c2';
+
+  if public.api_company_for_widget_key(v_key) is not null then
+    raise exception
+      'WV-12 FAILED: a closed workspace resolved from its widget key, so an '
+      'embed left on a website outlives the account and can still send';
+  end if;
+
+  update public.companies set deleted_at = null
+   where id = 'dd000000-0000-4000-8000-0000000000c2';
+  raise notice 'WV-12 PASSED: a closed workspace resolves to nothing';
+end $$;
+
+-- ===========================================================================
+-- WV-13. Two workspaces never share a key.
+--
+-- Enforced by the unique index rather than by hope: a collision would route
+-- one business's website visitors into another business's inbox.
+-- ===========================================================================
+do $$
+declare v_other uuid;
+begin
+  select widget_key into v_other from public.companies
+   where id = 'dd000000-0000-4000-8000-0000000000c2';
+  begin
+    update public.companies set widget_key = v_other
+     where id = 'dd000000-0000-4000-8000-0000000000c1';
+    raise exception
+      'WV-13 FAILED: two workspaces were allowed the same widget key, which '
+      'routes one business''s visitors into another''s inbox';
+  exception when unique_violation then
+    null;
+  end;
+  raise notice 'WV-13 PASSED: a widget key belongs to exactly one workspace';
+end $$;
+
+-- ===========================================================================
 -- WV-10. Nobody but the service role can reach any of it.
 -- ===========================================================================
 do $$
@@ -330,7 +417,8 @@ begin
     raise exception 'WV-10 FAILED: anon/authenticated hold % on the table', bad;
   end if;
 
-  if has_function_privilege('anon', 'public.api_claim_widget_verification(uuid, text, text, text, int, int, int, int)', 'execute')
+  if has_function_privilege('anon', 'public.api_company_for_widget_key(uuid)', 'execute')
+     or has_function_privilege('anon', 'public.api_claim_widget_verification(uuid, text, text, text, int, int, int, int)', 'execute')
      or has_function_privilege('authenticated', 'public.api_answer_widget_verification(uuid, text, int)', 'execute')
      or has_function_privilege('anon', 'public.api_prune_widget_verifications(int)', 'execute') then
     raise exception
