@@ -7,6 +7,13 @@ import {
   isTransientAuthBlip,
 } from "@/lib/auth/redirects";
 import { decideBlogRoute, decideHostRedirect } from "@/lib/hosts";
+import {
+  CSP_HEADER,
+  createNonce,
+  cspStagingEnabled,
+  nonceContentSecurityPolicy,
+  reportingEndpointsHeader,
+} from "@/lib/observability/csp";
 import { SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
 /**
@@ -52,6 +59,23 @@ export async function middleware(request: NextRequest) {
   if (hostRedirect) {
     return NextResponse.redirect(hostRedirect, 308);
   }
+
+  // #577 step 2: one nonce per response, minted here because here is the only
+  // place a response is made. It rides on the REQUEST headers as well, which is
+  // how Next marks its own inline bootstrap scripts — `app-render.js` reads the
+  // policy off the request and pulls the nonce out of it.
+  //
+  // Set after the two redirects above: a 308 to another host carries no
+  // document, so a policy on it would protect nothing.
+  //
+  // OFF unless a staging window is open (`CSP_STAGING=report-only`), and
+  // `csp.ts` carries the measurement behind that: this app is prerendered, so a
+  // nonce cannot reach the inline scripts in 93 static HTML files, and staging
+  // it live would have every visitor POST a report about a fault already
+  // counted on the build.
+  const nonce = cspStagingEnabled() ? createNonce() : null;
+  const policy = nonce === null ? null : nonceContentSecurityPolicy(nonce);
+  if (policy !== null) request.headers.set(CSP_HEADER, policy);
 
   let response = NextResponse.next({ request });
 
@@ -121,6 +145,14 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // LAST, because `response` is replaced whenever the Supabase client writes a
+  // cookie — headers set on an earlier object would be silently thrown away
+  // with it, and the symptom would be a policy that is present locally and
+  // absent for exactly the signed-in users it exists to protect.
+  if (policy !== null) {
+    response.headers.set(CSP_HEADER, policy);
+    response.headers.set("Reporting-Endpoints", reportingEndpointsHeader());
+  }
   return response;
 }
 

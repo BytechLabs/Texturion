@@ -194,6 +194,26 @@ artifact is never deployed).
 
 ---
 
+## C.1 One staging switch, off in every environment
+
+`CSP_STAGING` is read straight from the Worker environment by
+`apps/web/src/middleware.ts` rather than through `apps/web/src/env.ts`, because
+it is neither a build-time public var nor a secret — it is an operator switch
+with exactly one value.
+
+| Var | Value | What it does |
+|-----|-------|--------------|
+| `CSP_STAGING` | `report-only` | Sends the nonce-bearing `Content-Security-Policy-Report-Only` header (#577 step 2) and collects violations at `/api/csp-report`. Anything else, including absent, sends nothing. |
+
+**Leave it unset.** The policy blocks nothing, but the app is prerendered — 93
+static HTML files whose inline scripts cannot carry a per-request nonce — so
+every visitor would report a violation we have already measured on the build.
+Open a window deliberately, read the Worker logs for `csp-violation`, close it.
+`apps/web/src/lib/observability/csp.ts` carries the measurement and what
+enforcement would actually cost.
+
+---
+
 ## D. Not env vars — dashboard-only settings
 
 These are configured in a vendor dashboard and have **no** app env var:

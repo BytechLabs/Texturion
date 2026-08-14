@@ -42,10 +42,15 @@ export const SECURITY_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
    *                       Stripe and OAuth flows are redirects rather than
    *                       cross-origin form posts.
    *
-   * STILL ABSENT, deliberately: `script-src`. It needs per-request nonces
-   * threaded through Next's inline runtime, which is a middleware change on
-   * both hosts. It is not half-shipped here because the only way to make a
-   * `script-src` pass without that work is `unsafe-inline`, and a policy that
+   * STILL ABSENT FROM THIS HEADER, deliberately: `script-src`. It needs a
+   * per-request nonce, and nothing static can carry one — so it lives in
+   * `csp.ts` and is emitted by middleware as a SECOND, report-only header. Two
+   * CSP headers are not a compromise: a browser enforces every policy it is
+   * given, so if that one is ever dropped the product is exactly as protected
+   * as this line makes it.
+   *
+   * It is not half-shipped here because the only way to make a `script-src`
+   * pass on this app without a nonce is `unsafe-inline`, and a policy that
    * permits what it exists to forbid is worse than an honest short one — it
    * reads as protection in every audit that greps for the header.
    */
