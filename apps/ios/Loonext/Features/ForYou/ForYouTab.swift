@@ -122,8 +122,6 @@ struct ForYouTab: View {
                     .background(BrandColor.canvas)
             case .ready(let forYou):
                 ForYouList(
-                    readState: readState,
-                    onOpenNotifications: onOpenNotifications,
                     forYou: forYou,
                     spamReview: spamReview,
                     onAnswerSpamReview: { conversationId, notSpam in
@@ -152,6 +150,8 @@ struct ForYouTab: View {
                     pipeline: pipeline,
                     leadSources: leadSources,
                     onOpenConversation: { AppRouter.shared.openConversationId = $0 },
+                    readState: readState,
+                    onOpenNotifications: onOpenNotifications,
                     onOpenCalls: onOpenCalls,
                     onRefresh: {
                         await reload()
@@ -1110,8 +1110,6 @@ private func previewCall(
 
 #Preview("Recent calls section") {
     ForYouList(
-        readState: CompanyReadState(),
-        onOpenNotifications: {},
         forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
         spamReview: [],
         onAnswerSpamReview: { _, _ in },
@@ -1153,6 +1151,8 @@ private func previewCall(
         pipeline: nil,
         leadSources: nil,
         onOpenConversation: { _ in },
+        readState: CompanyReadState(),
+        onOpenNotifications: {},
         onOpenCalls: {},
         onRefresh: {},
         company: nil,
@@ -1167,8 +1167,6 @@ private func previewCall(
 
 #Preview("Recent calls · load failure") {
     ForYouList(
-        readState: CompanyReadState(),
-        onOpenNotifications: {},
         forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
         spamReview: [],
         onAnswerSpamReview: { _, _ in },
@@ -1189,6 +1187,8 @@ private func previewCall(
         pipeline: nil,
         leadSources: nil,
         onOpenConversation: { _ in },
+        readState: CompanyReadState(),
+        onOpenNotifications: {},
         onOpenCalls: {},
         onRefresh: {},
         company: nil,
@@ -1206,8 +1206,6 @@ private func previewCall(
 /// kind of surface that rots unseen.
 #Preview("Marked spam, still texting") {
     ForYouList(
-        readState: CompanyReadState(),
-        onOpenNotifications: {},
         forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
         spamReview: [
             SpamReviewItem(
@@ -1244,6 +1242,8 @@ private func previewCall(
         pipeline: nil,
         leadSources: nil,
         onOpenConversation: { _ in },
+        readState: CompanyReadState(),
+        onOpenNotifications: {},
         onOpenCalls: {},
         onRefresh: {},
         company: nil,
