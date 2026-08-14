@@ -36,18 +36,27 @@ const SOURCES: Record<string, string> = {
 /**
  * And where each client keeps the WORDS.
  *
- * The same file on the phones, a different one on web since #228: web's English
- * moved out of the component and into the catalogue, and a guard still reading
- * `system-line.tsx` for sentences would have gone green on a component that no
- * longer contains a single one of them — the decorative-guard failure this
- * repo has now recorded more than once.
+ * A different file from the one that DECIDES on both web and Android since
+ * #228: each moved its English out of the component and into a catalogue, and a
+ * guard still reading `system-line.tsx` or `Timeline.kt` for sentences would
+ * have gone green on a file that no longer contains a single one of them — the
+ * decorative-guard failure this repo has now recorded more than once.
  *
- * The English in `sections/thread.ts` is therefore load-bearing for three
- * clients. It carries a comment saying so, next to the keys.
+ * iOS still keeps both in `Timeline.swift`, so its entry is inherited from
+ * SOURCES; the day its copy moves, this map gets a third override and nothing
+ * else here changes.
+ *
+ * The English in `sections/thread.ts` and in `ThreadStrings.kt` is therefore
+ * load-bearing for three clients. Both carry a comment saying so, next to the
+ * keys.
  */
 const COPY: Record<string, string> = {
   ...SOURCES,
   web: join(REPO_ROOT, "apps/web/src/i18n/sections/thread.ts"),
+  android: join(
+    REPO_ROOT,
+    "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/ThreadStrings.kt",
+  ),
 };
 
 /**
@@ -105,15 +114,59 @@ describe("#317 refused-attachment copy is the same on every client", () => {
     // the roster. Adding an arm now fails here until somebody adds the sentence,
     // which is the moment they ask whether the other two clients say it too.
     const kotlin = readFileSync(SOURCES.android, "utf8");
-    const fn = kotlin.slice(
-      kotlin.indexOf("fun mediaRefusedLine"),
-      kotlin.indexOf("\n}", kotlin.indexOf("fun mediaRefusedLine")),
-    );
-    expect(fn.length, "could not find mediaRefusedLine").toBeGreaterThan(200);
+    const start = kotlin.indexOf("fun mediaRefusedLine");
+    expect(start, "could not find mediaRefusedLine").toBeGreaterThan(-1);
+    /*
+     * Bounded by the NEXT declaration, not by the next `\n}`.
+     *
+     * This is an expression function — `fun mediaRefusedLine(...): String =
+     * when (...) {` — so its `when` closes at an INDENT and `\n}` does not match
+     * it. The slice therefore ran on past the function into whatever came next,
+     * which was harmless while only capitalised prose was scraped and stopped
+     * being harmless the moment this looked for keys: it started collecting the
+     * conversation status labels from a function two declarations away.
+     */
+    const rest = kotlin.slice(start + 1);
+    const nextDecl = rest.search(/\n(?:@|private fun |internal fun |fun |val |object |class )/);
+    const fn = rest.slice(0, nextDecl === -1 ? undefined : nextDecl);
+    expect(fn.length, "mediaRefusedLine reads as empty").toBeGreaterThan(200);
 
-    const uncovered = [...fn.matchAll(/"([A-Z][^"]{24,})"/g)]
-      .map((m) => m[1])
-      // Interpolated variants ("… the first $kept were kept") cannot be matched
+    /*
+     * KEYS now, not sentences — and the switch is why this test nearly stopped
+     * working.
+     *
+     * It used to scrape capitalised literals straight out of this `when` block.
+     * #228 moved every one of those sentences into `ThreadStrings.kt` and left
+     * `AppStrings.translate(locale, "thread.sysMediaTooLarge")` behind, so the
+     * `"[A-Z]…"` pattern matched NOTHING and the roster check passed on an empty
+     * set — decorative, while reporting green. The `fn.length` net above did not
+     * catch it, because the function is still there and still long; only its
+     * contents changed shape.
+     *
+     * So the arms are found by their keys, and each key is resolved through the
+     * catalogue to the English it actually renders. Adding an arm still fails
+     * here until its sentence reaches the roster, which is the moment somebody
+     * asks whether the other two clients say it too.
+     */
+    const keys = [...fn.matchAll(/"(thread\.[A-Za-z0-9_]+)"/g)].map((m) => m[1]);
+    expect(
+      keys.length,
+      "mediaRefusedLine dispatches to no catalogue keys — it was rewritten in a " +
+        "shape this guard cannot read. Point it at the new one rather than " +
+        "deleting it; an empty scrape here is how it went quiet before",
+    ).toBeGreaterThanOrEqual(5);
+
+    const catalogue = readFileSync(COPY.android, "utf8");
+    const uncovered = keys
+      .map((key) => {
+        // The value as the catalogue writes it, wrapped literals glued back.
+        const at = catalogue.indexOf(`"${key}" to`);
+        if (at === -1) return `${key} (no entry in ThreadStrings.kt)`;
+        const tail = catalogue.slice(at, at + 800).replace(/"\s*\+\s*\n\s*"/g, "");
+        const value = /"[^"]+"\s*to\s*"((?:[^"\\]|\\.)*)"/.exec(tail)?.[1];
+        return value ?? `${key} (unreadable entry)`;
+      })
+      // Interpolated variants ("… the first {kept} were kept") cannot be matched
       // whole, so they are covered by their stem being on the roster.
       .filter((line) => !SENTENCES.some((s) => line.startsWith(s.slice(0, 40))));
 

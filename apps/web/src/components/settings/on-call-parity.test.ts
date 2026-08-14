@@ -7,6 +7,7 @@
  * explains it.
  */
 import { readFileSync } from "node:fs";
+import { copyWithCatalogue } from "@/lib/parity/client-catalogue";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -153,6 +154,14 @@ const BANNERS: Record<string, string> = {
  */
 const CATALOGUES: Record<string, string> = {
   shared: join(REPO_ROOT, "apps/web/src/i18n/sections/thread.ts"),
+  // #228 moved Android's on-call sentences out of `OnCall.kt` and into the
+  // shared catalogue. Its source now names keys where it used to carry the
+  // English, so without this the guard reports every one of them missing —
+  // failing on the work that improved the thing it guards.
+  android: join(
+    REPO_ROOT,
+    "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/DomainStrings.kt",
+  ),
 };
 
 describe("#244 on-call copy is the same on every client", () => {

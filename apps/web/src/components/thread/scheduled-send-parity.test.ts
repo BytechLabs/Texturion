@@ -18,6 +18,7 @@
  * (drift in) — the second is what would have caught the media-refused gap.
  */
 import { readFileSync } from "node:fs";
+import { copyWithCatalogue } from "@/lib/parity/client-catalogue";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -39,7 +40,33 @@ const SOURCES: Record<string, string> = {
   ios: join(REPO_ROOT, "apps/ios/Loonext/Core/ScheduledSend.swift"),
 };
 
-const read = (path: string) => readFileSync(path, "utf8");
+/**
+ * #228 moved Android's sentences out of `ScheduledSend.kt` and into the shared
+ * catalogue, so a source-only read reports every hold reason as missing —
+ * failing this guard on work that improved the thing it guards.
+ *
+ * Source AND catalogue, not one or the other: the migration is file-by-file, so
+ * some copy on a screen has moved while the rest is still inline.
+ */
+const ANDROID_CATALOGUES = [
+  join(
+    REPO_ROOT,
+    "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/DomainStrings.kt",
+  ),
+];
+
+/**
+ * This test's own keys. `DomainStrings.kt` also holds the contact clock lines,
+ * the number-access notes and the carrier registration steps; handing all of
+ * that to the reverse-direction assertion below would read every one of them as
+ * a hold reason nobody declared.
+ */
+const ANDROID_KEYS = ["domain.scheduledHold", "domain.scheduled", "domain.sendLater"];
+
+const read = (path: string) =>
+  path.endsWith(".kt")
+    ? copyWithCatalogue(path, ANDROID_CATALOGUES, "kotlin", ANDROID_KEYS)
+    : readFileSync(path, "utf8");
 
 describe("#233 every client says the same thing when a text does not go", () => {
   it.each(Object.entries(SOURCES))(
