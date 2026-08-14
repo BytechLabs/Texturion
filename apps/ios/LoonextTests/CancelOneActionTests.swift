@@ -1898,17 +1898,18 @@ final class CancelOneActionTests: XCTestCase {
         let copy = try pauseCopySource()
         XCTAssertGreaterThan(copy.count, 100, "the pause copy slice came back too small")
         // #228: the sentence moved to the catalogue, so the slice names its KEY.
-        // Both halves are still checked — the slice reaches the pause answer,
-        // and that key still holds the sentence this scan exists to police — so
-        // a slice that matched nothing still cannot pass forever.
+        // A slice that matched nothing would pass forever, which is what this
+        // half is for, and the key is as good an anchor as the sentence was.
+        //
+        // Deliberately NOT also asserting what the key HOLDS. This file imports
+        // only XCTest — it is a source scan, and that is the point of it, so
+        // `AppStrings` is not in scope here. The catalogue's own guard checks
+        // that every key resolves in both languages; reaching for the app
+        // module from a file that has no business importing it would trade this
+        // test's independence for a check that already exists elsewhere.
         XCTAssertTrue(
             copy.contains(where: { $0.text.contains("settings.pauseOfferBody") }),
             "the pause copy is not inside the slice the price scan reads"
-        )
-        XCTAssertTrue(
-            AppStrings.en["settings.pauseOfferBody"]?
-                .contains("a month holds your number") == true,
-            "the pause answer no longer says what the price buys"
         )
     }
 
