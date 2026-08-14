@@ -24,7 +24,7 @@
   "Features/Payments/PaymentsLogic.swift": 1,
   "Features/Push/PushCoordinator.swift": 3,
   "Features/Push/PushRegistrar.swift": 9,
-  "Features/Settings/BillingSection.swift": 5,
+  "Features/Settings/BillingSection.swift": 4,
   "Features/Settings/SettingsHome.swift": 1,
   "Features/Settings/SettingsLogic.swift": 2,
   "Features/Settings/SettingsRepository.swift": 1,

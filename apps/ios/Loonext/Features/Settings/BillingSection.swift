@@ -1602,25 +1602,23 @@ private struct CancelCard: View {
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted600)
                 .fixedSize(horizontal: false, vertical: true)
-            // #228 — THE ONE LITERAL LEFT ON THIS SCREEN, AND IT IS PINNED HERE
-            // BY A GUARD RATHER THAN BY AN OVERSIGHT.
+            // #228 — the label is a key, and `CancelOneActionTests` anchors on
+            // that key now.
             //
-            // `CancelOneActionTests` anchors its entire one-press property on
-            // finding the exact phrase "Continue to cancel" on a CODE line
-            // inside `leaving` (`exitLabel`, and `code()` blanks whole-line
-            // comments so it cannot be satisfied by one). From that anchor it
-            // derives the modifier chain, the allowlist of what may touch this
-            // button, and the walk that proves nothing branches in front of it.
-            // Swapping the label for `t("settings.cancelExitAction")` removes
-            // the anchor and every one of those assertions fails with "the way
-            // out moved or was renamed" — trading a guard on the control
-            // somebody presses to stop paying us for one translated word.
+            // It anchored on the English before, and its whole one-press
+            // property hangs off finding this line: the modifier chain, the
+            // allowlist of what may touch this button, and the walk proving
+            // nothing branches in front of it. That anchor is worth more than
+            // the word, so the sweep left the label English and said so here.
             //
-            // The key EXISTS and holds both languages; finishing this is a
-            // one-line change in that test (anchor on the key rather than on
-            // the English), which is not this pass's file to touch. Left
-            // English, on purpose, and reported.
-            Button(opening ? "Opening…" : "Continue to cancel") { handOff() }
+            // Saying so is what broke it. The note quoted the phrase, and the
+            // test's search reads raw lines, so the anchor landed on the COMMENT
+            // and every derived assertion measured from the wrong place. The
+            // guard now matches the key and the search skips comments — and
+            // this note deliberately does not spell the label out.
+            Button(opening ? t("settings.billingOpening") : t("settings.cancelExitAction")) {
+                handOff()
+            }
                 .buttonStyle(.borderedProminent)
                 .tint(BrandColor.olive)
                 // The request already in flight, and nothing else, ever.

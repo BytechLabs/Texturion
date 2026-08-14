@@ -316,9 +316,20 @@ final class UsageExportCardTests: XCTestCase {
             UsageExport.note.contains("under Data export"),
             "the shared note no longer names a heading — retitle the list to match"
         )
+        // #228: the heading is a key now, so the promise is kept in two places
+        // and both are checked — the card names `settingsMore.dataExport`, and
+        // that key's English is still the phrase the shared note points at.
+        // Checking only the key would let the catalogue be retitled out from
+        // under the promise; checking only the English would fail on the
+        // extraction that improved it.
         XCTAssertTrue(
-            source.contains("SettingsCard(title: \"Data export\""),
+            source.contains("t(\"settingsMore.dataExport\")"),
             "the card must be headed with the words the note promises"
+        )
+        XCTAssertEqual(
+            "Data export",
+            AppStrings.en["settingsMore.dataExport"],
+            "the heading key no longer holds the words the shared note promises"
         )
     }
 

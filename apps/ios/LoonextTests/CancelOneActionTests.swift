@@ -94,10 +94,18 @@ import XCTest
 /// it, the offer sits below it, and the plan card states no fact it has not
 /// read.
 final class CancelOneActionTests: XCTestCase {
-    /// The label on the button that leaves. If this string moves, every test
-    /// here fails with "not found" rather than passing vacuously — see
+    /// The KEY of the label on the button that leaves. If this moves, every
+    /// test here fails with "not found" rather than passing vacuously — see
     /// `testTheScanIsActuallyReadingTheScreen`.
-    private let exitLabel = "Continue to cancel"
+    ///
+    /// #228: the English used to be the anchor, and that had two costs. It kept
+    /// one word on this screen untranslated to avoid disturbing the guard, and
+    /// then the comment written to EXPLAIN that quoted the phrase — so the
+    /// search below, which reads raw lines, matched the note instead of the
+    /// button and every assertion derived from the anchor measured from the
+    /// wrong place. A key is a poor thing to say by accident in prose, which is
+    /// most of why it is a better anchor.
+    private let exitLabel = "settings.cancelExitAction"
 
     /// #524 — EVERY modifier allowed to land on that button, as written.
     ///
@@ -408,7 +416,12 @@ final class CancelOneActionTests: XCTestCase {
             XCTFail("`leaving` is gone from CancelCard — this guard is reading nothing")
             return nil
         }
-        guard let exit = body.firstIndex(where: { $0.contains(exitLabel) }) else {
+        // `code($0)`, not the raw line: a comment MENTIONING the anchor is not
+        // the button, and matching one put every derived measurement — the
+        // modifier chain, the allowlist, the branch walk — nine lines into a
+        // docblock. `code()` blanks whole-line comments, which is exactly the
+        // distinction this needs.
+        guard let exit = body.firstIndex(where: { code($0).contains(exitLabel) }) else {
             XCTFail("no \"\(exitLabel)\" in `leaving` — the way out moved or was renamed")
             return nil
         }
@@ -906,7 +919,10 @@ final class CancelOneActionTests: XCTestCase {
         let consults = at("planCardShape(read)")
         let paused = at("shape == .paused")
         let unread = at("case .unconfirmed(let checking) = shape")
-        let pill = at("StatusPill(label: \"Active\"")
+        // #228: the pill's label is a key. What this locates is the ORDINARY
+        // plan branch — that it comes last, after the paused and unread ones —
+        // and which words the pill says was never this test's subject.
+        let pill = at("StatusPill(label: t(\"settings.planPillActive\")")
         let price = at("facts.price")
 
         var missing: [String] = []
@@ -1881,9 +1897,18 @@ final class CancelOneActionTests: XCTestCase {
         // pass forever, so it has to contain a sentence known to live there.
         let copy = try pauseCopySource()
         XCTAssertGreaterThan(copy.count, 100, "the pause copy slice came back too small")
+        // #228: the sentence moved to the catalogue, so the slice names its KEY.
+        // Both halves are still checked — the slice reaches the pause answer,
+        // and that key still holds the sentence this scan exists to police — so
+        // a slice that matched nothing still cannot pass forever.
         XCTAssertTrue(
-            copy.contains(where: { $0.text.contains("a month holds your number") }),
+            copy.contains(where: { $0.text.contains("settings.pauseOfferBody") }),
             "the pause copy is not inside the slice the price scan reads"
+        )
+        XCTAssertTrue(
+            AppStrings.en["settings.pauseOfferBody"]?
+                .contains("a month holds your number") == true,
+            "the pause answer no longer says what the price buys"
         )
     }
 

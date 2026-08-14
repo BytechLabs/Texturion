@@ -274,7 +274,7 @@ final class SettingsLogicTests: XCTestCase {
     func testTheLeaveControlIsOnTheCardBeforeAnythingIsTapped() throws {
         let card = try cancelCardSource()
         XCTAssertTrue(
-            card.contains("\"Continue to cancel\""),
+            card.contains("settings.cancelExitAction"),
             "the cancel card must carry the control that leaves"
         )
         XCTAssertEqual(
@@ -294,7 +294,7 @@ final class SettingsLogicTests: XCTestCase {
         let rendered = try section(of: card, from: "private var leaving: some View {")
         guard let question = rendered.range(of: "reasonQuestion"),
               let export = rendered.range(of: "exportOffer"),
-              let leave = rendered.range(of: "\"Continue to cancel\"") else {
+              let leave = rendered.range(of: "settings.cancelExitAction") else {
             return XCTFail("the cancel card no longer renders all three parts together")
         }
         XCTAssertTrue(
@@ -302,7 +302,7 @@ final class SettingsLogicTests: XCTestCase {
             "the question, then the export, then the button that leaves"
         )
         XCTAssertTrue(
-            card.contains("\"Take your contacts with you\""),
+            card.contains("settings.cancelExportHeading"),
             "somebody leaving still needs their customer list"
         )
     }
@@ -468,8 +468,8 @@ final class SettingsLogicTests: XCTestCase {
     func testTheConsequenceCopyIsTrueForWhoeverIsReadingIt() throws {
         let card = try cancelCardSource()
         let copy = try section(of: card, from: "private var consequence: String {")
-        guard let owner = copy.range(of: "\"Cancel anytime."),
-              let other = copy.range(of: "\"Only the owner can cancel this plan.") else {
+        guard let owner = copy.range(of: "settings.cancelConsequence"),
+              let other = copy.range(of: "settings.cancelOwnerOnly") else {
             return XCTFail("the cancel card no longer says something different to a non-owner")
         }
         // The gate itself, not just a mention of it. `!canCancel ? …` reads
@@ -538,12 +538,28 @@ final class SettingsLogicTests: XCTestCase {
         )
         // ...and the deadline is still named, from the constant the release job
         // measures against rather than as a number typed into a sentence.
+        //
+        // #228 made this STRONGER and the old spelling stopped matching. The
+        // two sentences used to interpolate `cancellationGraceDays` once each,
+        // so the count was 2. They are now two catalogue keys sharing ONE
+        // `t(…)` call, whose `days` argument reads the same constant — one
+        // site, feeding both readers, which is a better guarantee than two
+        // sites that happened to agree.
         XCTAssertEqual(
-            2, copy.components(separatedBy: "\\(cancellationGraceDays) days").count - 1,
+            1, copy.components(separatedBy: "\"\\(cancellationGraceDays)\"").count - 1,
             "\n\n\(copy)\n\n"
-                + "Both readers are told how long the number is held, and both read it "
-                + "off `cancellationGraceDays` — which is what `runGraceJob` counts to.\n"
+                + "The hold is read off `cancellationGraceDays` — which is what "
+                + "`runGraceJob` counts to — rather than typed into a sentence.\n"
         )
+        for key in ["settings.cancelConsequence", "settings.cancelOwnerOnly"] {
+            XCTAssertTrue(
+                copy.contains(key),
+                "\n\n\(copy)\n\n"
+                    + "Both readers are still told how long the number is held: the "
+                    + "owner's sentence and the one everybody else gets are both "
+                    + "served from this call, so both receive the deadline.\n"
+            )
+        }
     }
 
     // MARK: - Answering that reason (#277 follow-up)
@@ -733,11 +749,22 @@ final class SettingsLogicTests: XCTestCase {
                     ?? logic.startIndex)...
             ]
         )
+        // #228 changed HOW the copy reads them, not WHETHER it does. The
+        // sentences moved to the catalogue with `{seats}` / `{numbers}` /
+        // `{days}` placeholders, and the constant is now handed to
+        // `AppStrings.translate` as the value for that placeholder. So the old
+        // spelling — a Swift interpolation sitting inside the sentence — is
+        // gone, and pinning it would have forced the figure back into the copy
+        // to keep this green.
+        //
+        // What is still pinned is the thing that matters: the offer code passes
+        // the CONSTANT, never a number typed twice. A literal `3` or `30` in
+        // that argument would fail here exactly as a literal in the sentence
+        // used to.
         for interpolation in [
-            "\\(starterSeats) people",
-            "\\(starterNumbers) business ",
-            "\\(starterSeats) seats",
-            "\\(cancellationGraceDays) days from the ",
+            "\"\\(starterSeats)\"",
+            "\"\\(starterNumbers)\"",
+            "\"\\(cancellationGraceDays)\"",
         ] {
             XCTAssertTrue(
                 offers.contains(interpolation),
