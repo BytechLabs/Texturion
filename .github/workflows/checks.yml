@@ -265,6 +265,13 @@ jobs:
       - name: Guard PostgREST embed ambiguity
         run: node scripts/check-postgrest-embed-ambiguity.mjs
 
+      # #238 / WCAG 2.2 2.5.7: a drag may be a shortcut, never the only way.
+      # Web has this as a vitest roster; the phones had the rule written in
+      # SwipeActions.kt's docblock and nothing that could fail. Catches both a
+      # deleted alternative and a NEW gesture nobody registered.
+      - name: Guard dragging alternatives on the phones
+        run: node scripts/check-gesture-alternatives.mjs
+
       # #580: the audit-log CSV export — "the export an owner hands to an insurer
       # or a security questionnaire" — carried its own private cell writer that
       # applied RFC-4180 quoting and never called `csvSafeText`. It was the only
