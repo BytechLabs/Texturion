@@ -28,8 +28,13 @@ describe("the embed snippet", () => {
     // page with it. Assembled from the tag name, so this is the assertion that
     // the assembly is right rather than clever.
     const snippet = widgetSnippet("https://app.loonext.com", "k");
-    expect(snippet.startsWith("<script ")).toBe(true);
-    expect(snippet.endsWith("</script>")).toBe(true);
+    // Both tags are built from the same pieces the source is, for the reason
+    // the module explains: a literal closing tag in a file the bundler embeds
+    // as a string closes the surrounding script block. A test file is embedded
+    // the same way.
+    const tag = "script";
+    expect(snippet.startsWith(`<${tag} `)).toBe(true);
+    expect(snippet.endsWith(`</${tag}>`)).toBe(true);
   });
 
   it("has no line breaks, because it is pasted into a text field", () => {

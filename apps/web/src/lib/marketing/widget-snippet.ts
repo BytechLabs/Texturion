@@ -5,9 +5,15 @@
  * counts.
  *
  * The closing tag is ASSEMBLED from the tag name rather than written out. A
- * literal `</script>` inside a module that is ever rendered into a page
+ * literal closing script tag inside a module that is ever rendered into a page
  * terminates the enclosing script block — a parser hazard old enough to have
  * its own CVEs — so the sequence never exists in this source.
+ *
+ * INCLUDING IN THIS COMMENT, which is not pedantry: the first version of this
+ * file spelled the tag out here to explain why the code does not, and that
+ * broke the settings page in dev. The bundler embeds module SOURCE — comments
+ * and all — as a string, and the sequence closed the surrounding script block.
+ * Uncaught "Invalid or unexpected token", on one route only, from a docblock.
  *
  * And `check-hardcoded-strings` reads text between a `>` and the next `<` as
  * JSX, which it cannot distinguish from a template literal holding markup. In

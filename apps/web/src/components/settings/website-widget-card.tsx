@@ -86,7 +86,13 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
           {/* Selectable, wrapping, and readable: somebody whose clipboard
               permission is refused still has to be able to take this by hand. */}
           <pre className="overflow-x-auto rounded-app-card border border-app-line bg-app-inset p-3 text-xs leading-relaxed">
-            <code className="whitespace-pre-wrap break-all">{snippet}</code>
+            {/* `break-all` split the line MID-TOKEN — "defer" rendered as
+                "defe" / "r>" across two lines. Found by looking at it. The
+                attributes are space-separated, so ordinary wrapping breaks at
+                the spaces; the two long tokens (the URL and the key) overflow
+                instead, which the parent scrolls. Somebody copying this by hand
+                because their clipboard was refused has to be able to read it. */}
+            <code className="whitespace-pre-wrap">{snippet}</code>
           </pre>
 
           <div className="flex flex-wrap gap-2">
