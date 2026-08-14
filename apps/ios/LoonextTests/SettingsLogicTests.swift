@@ -475,19 +475,28 @@ final class SettingsLogicTests: XCTestCase {
         // The gate itself, not just a mention of it. `!canCancel ? …` reads
         // identically at a glance and promises an admin the one thing they
         // cannot do.
+        // The DIRECTION of the ternary, not what the body opens with. #228 wrapped
+        // both branches in one `t(…)`, so the body now begins `t(` and the gate
+        // sits one line in — and `hasPrefix` was only ever a cheap way of asking
+        // this. What it is actually here to refuse is `!canCancel ? …`, which
+        // reads identically at a glance and promises an admin the one thing they
+        // cannot do.
         XCTAssertTrue(
-            copy.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("canCancel"),
+            copy.contains("canCancel ?") && !copy.contains("!canCancel ?"),
             "the branch has to stay pointing this way round: canCancel ? owner : everybody else"
         )
         XCTAssertTrue(
             owner.lowerBound < other.lowerBound,
             "the owner reads 'Cancel anytime', everybody else reads who can"
         )
+        // The key on the card, and the sentence still under that key. Both
+        // halves, so neither can drift alone: the card could stop showing the
+        // note, or the note could be reworded into something that no longer
+        // says the portal has no cancel button on it.
         XCTAssertTrue(
-            card.contains("The payment portal above is for cards and invoices and has no ")
-                && card.contains(
-                    "cancellation on it, so this is not something to go looking for there."
-                ),
+            card.contains("settings.cancelNotInPortal")
+                && AppStrings.en["settings.cancelNotInPortal"]?
+                    .contains("has no cancellation on it") == true,
             "and is told the portal they can reach has no cancel button on it, in the "
                 + "same words the other clients use"
         )
@@ -1486,7 +1495,10 @@ final class SettingsLogicTests: XCTestCase {
     func testTheAnswerRendersAfterTheControlThatLeaves() throws {
         let card = try cancelCardSource()
         let rendered = try section(of: card, from: "private var leaving: some View {")
-        guard let leave = rendered.range(of: "\"Continue to cancel\""),
+        // #228: the exit's label is a key now. What this asserts is ORDER —
+        // the answer renders BELOW the button that leaves — and which word the
+        // button says was never its subject.
+        guard let leave = rendered.range(of: "settings.cancelExitAction"),
               let answer = rendered.range(of: "CancellationAnswerNote(") else {
             return XCTFail("the cancel card no longer renders the exit and the answer")
         }
@@ -1520,7 +1532,10 @@ final class SettingsLogicTests: XCTestCase {
                 + "flag is a flow this note is not allowed to have"
         )
         XCTAssertTrue(disabledExpressions(note).isEmpty, "the answer disables nothing")
-        XCTAssertFalse(note.contains("Continue to cancel"))
+        // The KEY, not the English: with the label extracted, searching for the
+        // words would pass on a note that did carry the button, which is the
+        // decorative-assertion failure this file has already had once today.
+        XCTAssertFalse(note.contains("settings.cancelExitAction"))
         XCTAssertFalse(note.contains("ConfirmSheet"))
         XCTAssertEqual(
             note.components(separatedBy: ".sheet(").count - 1, 1,

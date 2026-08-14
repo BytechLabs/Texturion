@@ -1616,9 +1616,16 @@ private struct CancelCard: View {
             // and every derived assertion measured from the wrong place. The
             // guard now matches the key and the search skips comments — and
             // this note deliberately does not spell the label out.
-            Button(opening ? t("settings.billingOpening") : t("settings.cancelExitAction")) {
-                handOff()
-            }
+            // ONE LINE, deliberately, and the key stays ON it.
+            //
+            // `theWayToTheExit` finds this line by the key and then walks
+            // outward to the struct that draws it and the screen that builds
+            // that struct. Splitting the call across three lines moved the block
+            // boundaries it measures and dropped the exit out of its own path;
+            // hoisting the label into a `let` above would take the key off the
+            // line the walk anchors on. The guard is right to be structural, so
+            // the structure stays.
+            Button(opening ? t("settings.billingOpening") : t("settings.cancelExitAction")) { handOff() }
                 .buttonStyle(.borderedProminent)
                 .tint(BrandColor.olive)
                 // The request already in flight, and nothing else, ever.
