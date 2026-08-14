@@ -462,6 +462,10 @@ struct CompanyView: Codable, Sendable {
     /// inherits this one, so changing it moves the whole customer list, and the
     /// server re-resolves the `*_effective_message` previews to match.
     @Default<DefaultLocaleEnglish> var locale: String
+    /// #232: which number a website-widget conversation lands on. Nil means
+    /// "not chosen" — the server falls back to the oldest active number, which
+    /// is what every workspace had before the setting existed.
+    let widget_number_id: String?
     @Default<DefaultFalse> var away_enabled: Bool
     let away_message: String?
     /// #414 ask 5: the template that will ACTUALLY send — the owner's text if
@@ -730,6 +734,14 @@ struct LeadSourceCount: Codable, Sendable, Identifiable {
     @Default<DefaultZero> var total: Int
 
     var id: String { lead_source_id }
+}
+
+/// #232: the key that identifies a workspace inside its own embed snippet.
+///
+/// Not on the company view — the key is the credential in the markup, and
+/// asking for it is the act of installing a widget rather than opening the app.
+struct WidgetKey: Codable, Sendable {
+    let widget_key: String
 }
 
 struct LeadSourceReport: Codable, Sendable {

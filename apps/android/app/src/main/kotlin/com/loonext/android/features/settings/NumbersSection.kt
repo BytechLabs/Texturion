@@ -59,6 +59,7 @@ import com.loonext.android.core.model.NumberHealth
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.ownership.HandoverConfirmation
 import com.loonext.android.core.model.PhoneNumberSummary
+import com.loonext.android.core.model.Capability
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
@@ -216,6 +217,20 @@ fun NumbersSection(
             // workspace ported in most recently is exactly the one held. A row
             // that is suspended was live once, so it is never an in-flight port
             // and the reason for the original filter does not reach it.
+            // #232: the widget lives on the NUMBERS screen rather than a screen
+            // of its own — its whole job is to turn a website visitor into a
+            // conversation on one of these lines, and a settings page for one
+            // button is a page nobody finds. Gated on the same capability the
+            // API gates the key with: a card that renders a 403 is a worse
+            // answer than a card that is not there.
+            if (MemberRole.has(scope.role, Capability.SETTINGS_MANAGE)) {
+                WebsiteWidgetCard(
+                    scope = scope,
+                    company = company,
+                    numbers = data.numbers,
+                    onCompanyUpdated = { onRefreshCompany() },
+                )
+            }
             val cards = data.numbers.filter { number ->
                 number.source == "provisioned" ||
                     number.status == NumberStatus.ACTIVE ||

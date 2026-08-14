@@ -53,6 +53,20 @@ struct NumbersSectionView: View {
                 // case, not the exotic one. A row that is suspended was live
                 // once, so it is never an in-flight port and the reason for the
                 // original filter does not reach it.
+                // #232: the widget lives on the NUMBERS screen rather than a
+                // screen of its own — its whole job is to turn a website
+                // visitor into a conversation on one of these lines, and a
+                // settings page for one button is a page nobody finds. Gated on
+                // the same capability the API gates the key with: a card that
+                // renders a 403 is a worse answer than a card that is not there.
+                if MemberRole.has(scope.role, Capability.settingsManage) {
+                    WebsiteWidgetCard(
+                        scope: scope,
+                        company: company,
+                        numbers: data.numbers,
+                        onCompanyUpdated: { _ in onRefreshCompany() }
+                    )
+                }
                 let cards = data.numbers.filter { number in
                     number.source == "provisioned"
                         || number.status == NumberStatus.active

@@ -33,6 +33,22 @@ struct SettingsRepository: Sendable {
         try await api.patch("/v1/company", body: patch, companyId: companyId)
     }
 
+    // MARK: - #232 website widget
+
+    /// The workspace's widget key, asked for only when somebody opens the card.
+    ///
+    /// Deliberately NOT on the company view every member loads at startup: the
+    /// key is the credential in the embed, and asking for it is the act of
+    /// installing a widget rather than the act of opening the app.
+    func widgetKey(_ companyId: String) async throws -> WidgetKey {
+        try await api.get("/v1/company/widget-key", companyId: companyId)
+    }
+
+    /// Replace the key. Every embed carrying the old one stops working.
+    func rotateWidgetKey(_ companyId: String) async throws -> WidgetKey {
+        try await api.post("/v1/company/widget-key/rotate", companyId: companyId)
+    }
+
     // MARK: - #237 appointment reminders
 
     /// The workspace's reminder rules, plus the two it would get if it asked.

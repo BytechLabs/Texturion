@@ -483,6 +483,12 @@ data class CompanyView(
     val business_hours: Map<String, DayHours?> = emptyMap(),
     /** #402: dates that override the weekly loop — Christmas is not a Thursday. */
     val business_hours_exceptions: List<HoursException> = emptyList(),
+    /**
+     * #232: which number a website-widget conversation lands on. Null means
+     * "not chosen" — the server falls back to the oldest active number, which
+     * is what every workspace had before the setting existed.
+     */
+    val widget_number_id: String? = null,
     val away_enabled: Boolean = false,
     val away_message: String? = null,
     /**
@@ -625,6 +631,17 @@ data class LeadSourceCount(
     /** A person said so. */
     val by_person: Int = 0,
     val total: Int = 0,
+)
+
+/**
+ * #232: the key that identifies a workspace inside its own embed snippet.
+ *
+ * Not on the company view — the key is the credential in the markup, and
+ * asking for it is the act of installing a widget rather than opening the app.
+ */
+@Serializable
+data class WidgetKey(
+    val widget_key: String = "",
 )
 
 @Serializable

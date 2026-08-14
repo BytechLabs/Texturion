@@ -72,7 +72,10 @@ const SILENT_ON_IOS = {
   contacts: 5,
   diagnostics: 1,
   notifications: 1,
-  settings: 13,
+  // `settings` left on 2026-08-14: #232's website-widget card is the first iOS
+  // settings surface to fire, so the area is no longer silent and the guard
+  // refuses the entry. That is the ledger working — it shrank because a real
+  // surface was wired, which is the only way it is allowed to change.
 };
 
 /** `apps` has no iOS twin directory — its haptics live in the shell there. */

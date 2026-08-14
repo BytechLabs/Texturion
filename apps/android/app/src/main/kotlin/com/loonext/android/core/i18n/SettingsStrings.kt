@@ -181,6 +181,24 @@ private val AI_FR = mapOf(
 
 private val CLOSED_DATES_EN = mapOf(
     "settings.closedDatesTitle" to "Closed dates",
+    "settings.widgetTitle" to "Text us button for your website",
+    "settings.widgetBlurb" to "A button on your own site that turns a visitor into a conversation here. They type their number, we text them a code, and their message lands in your inbox like any other text.",
+    "settings.widgetShow" to "Get the snippet",
+    "settings.widgetLoading" to "Loading…",
+    "settings.widgetStepCopy" to "Copy the line below.",
+    "settings.widgetStepPaste" to "Paste it into your website, just before </body>.",
+    "settings.widgetStepSave" to "Save and reload your site — the button appears bottom right.",
+    "settings.widgetCopy" to "Copy",
+    "settings.widgetCopied" to "Copied.",
+    "settings.widgetLoadFailed" to "Couldn't load your snippet. Try again.",
+    "settings.widgetRotate" to "Replace the key",
+    "settings.widgetRotateWarning" to "The button stops working on every site using the old snippet, immediately. You'll need to paste the new one everywhere you installed it.",
+    "settings.widgetRotateConfirm" to "Replace it",
+    "settings.widgetRotated" to "Replaced. Paste the new snippet on your site.",
+    "settings.widgetLineLabel" to "Which number website messages land on",
+    "settings.widgetLineHelp" to "Replies from your crew come from this number, so pick the line you watch.",
+    "settings.widgetLineDefault" to "Your first number",
+    "settings.widgetLineSaved" to "Website messages will land on that number.",
     "settings.closedDatesIntro" to
         "Holidays, a week off, a day for a funeral. On these dates your away reply " +
         "goes out even if the weekly schedule says you're open — so a customer " +
@@ -202,6 +220,24 @@ private val CLOSED_DATES_EN = mapOf(
 
 private val CLOSED_DATES_FR = mapOf(
     "settings.closedDatesTitle" to "Jours de fermeture",
+    "settings.widgetTitle" to "Bouton « Écrivez-nous » pour votre site Web",
+    "settings.widgetBlurb" to "Un bouton sur votre propre site qui transforme un visiteur en conversation ici. Il entre son numéro, nous lui envoyons un code, et son message arrive dans votre boîte comme n'importe quel texto.",
+    "settings.widgetShow" to "Obtenir le code à coller",
+    "settings.widgetLoading" to "Chargement…",
+    "settings.widgetStepCopy" to "Copiez la ligne ci-dessous.",
+    "settings.widgetStepPaste" to "Collez-la dans votre site, juste avant </body>.",
+    "settings.widgetStepSave" to "Enregistrez et rechargez votre site — le bouton apparaît en bas à droite.",
+    "settings.widgetCopy" to "Copier",
+    "settings.widgetCopied" to "Copié.",
+    "settings.widgetLoadFailed" to "Impossible de charger votre code. Réessayez.",
+    "settings.widgetRotate" to "Remplacer la clé",
+    "settings.widgetRotateWarning" to "Le bouton cessera de fonctionner sur tous les sites utilisant l'ancien code, immédiatement. Vous devrez coller le nouveau partout où vous l'avez installé.",
+    "settings.widgetRotateConfirm" to "Remplacer",
+    "settings.widgetRotated" to "Remplacée. Collez le nouveau code sur votre site.",
+    "settings.widgetLineLabel" to "Le numéro qui reçoit les messages du site web",
+    "settings.widgetLineHelp" to "Les réponses de votre équipe partent de ce numéro : choisissez la ligne que vous surveillez.",
+    "settings.widgetLineDefault" to "Votre premier numéro",
+    "settings.widgetLineSaved" to "Les messages du site web arriveront sur ce numéro.",
     "settings.closedDatesIntro" to
         "Les jours fériés, une semaine de congé, une journée pour des funérailles. " +
         "Ces jours-là, votre réponse d'absence part même si l'horaire hebdomadaire " +

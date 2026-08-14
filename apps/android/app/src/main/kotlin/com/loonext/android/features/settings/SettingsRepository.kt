@@ -29,6 +29,7 @@ import com.loonext.android.core.model.ReminderRule
 import com.loonext.android.core.model.ReminderRulesBody
 import com.loonext.android.core.model.ReminderRulesResponse
 import com.loonext.android.core.model.ReminderRulesSaved
+import com.loonext.android.core.model.WidgetKey
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -78,6 +79,22 @@ class SettingsRepository(
     /** PATCH /v1/company — returns the updated scalar columns as a view. */
     suspend fun updateCompany(companyId: String, patch: JsonObject): CompanyView =
         api.patch("/v1/company", patch, companyId = companyId)
+
+    // -- #232 website widget -------------------------------------------------
+
+    /**
+     * The workspace's widget key, asked for only when somebody opens the card.
+     *
+     * Deliberately NOT on the company view every member loads at startup: the
+     * key is the credential in the embed, and asking for it is the act of
+     * installing a widget rather than the act of opening the app.
+     */
+    suspend fun widgetKey(companyId: String): WidgetKey =
+        api.get("/v1/company/widget-key", companyId = companyId)
+
+    /** Replace the key. Every embed carrying the old one stops working. */
+    suspend fun rotateWidgetKey(companyId: String): WidgetKey =
+        api.post("/v1/company/widget-key/rotate", companyId = companyId)
 
     // -- #237 appointment reminders -----------------------------------------
 
