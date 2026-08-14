@@ -1,23 +1,11 @@
 {
   "com/loonext/android/core/model/RegistrationProgress.kt": 5,
-  "com/loonext/android/core/net/ApiClient.kt": 1,
   "com/loonext/android/core/update/UpdatePrompt.kt": 5,
   "com/loonext/android/features/auth/CaptchaSheet.kt": 4,
   "com/loonext/android/features/auth/MfaGate.kt": 2,
-  "com/loonext/android/features/calls/CallBackdrop.kt": 6,
-  "com/loonext/android/features/calls/CallKit.kt": 3,
-  "com/loonext/android/features/calls/CallsScreen.kt": 1,
-  "com/loonext/android/features/calls/InCallScreen.kt": 2,
   "com/loonext/android/features/contacts/AddressList.kt": 2,
-  "com/loonext/android/features/contacts/ContactCallsSection.kt": 1,
-  "com/loonext/android/features/contacts/ContactDetailScreen.kt": 1,
   "com/loonext/android/features/contacts/PhoneList.kt": 1,
-  "com/loonext/android/features/notifications/NotificationsScreen.kt": 1,
-  "com/loonext/android/features/tasks/TaskDetailScreen.kt": 1,
-  "com/loonext/android/features/tasks/TasksTab.kt": 1,
   "com/loonext/android/MainActivity.kt": 8,
   "com/loonext/android/ui/common/CountryField.kt": 1,
-  "com/loonext/android/ui/common/Motion.kt": 3,
-  "com/loonext/android/ui/common/SwipeActions.kt": 1,
   "com/loonext/android/ui/common/Ui.kt": 1
 }

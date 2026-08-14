@@ -1,5 +1,5 @@
 {
-  "Features/Calls/InCallView.swift": 13,
+  "Features/Calls/InCallView.swift": 12,
   "Features/Compose/Composer.swift": 25,
   "Features/Compose/ComposerBanner.swift": 2,
   "Features/Compose/NewConversationView.swift": 16,
@@ -12,7 +12,7 @@
   "Features/Inbox/ScheduledSheet.swift": 5,
   "Features/Payments/PaymentsSection.swift": 3,
   "Features/Payments/ThreadPayments.swift": 8,
-  "Features/Settings/BillingSection.swift": 27,
+  "Features/Settings/BillingSection.swift": 24,
   "Features/Settings/CallingSection.swift": 13,
   "Features/Settings/EmergencyCard.swift": 7,
   "Features/Settings/HoursSection.swift": 2,
@@ -34,7 +34,7 @@
   "Features/Tasks/ShareJobPhotos.swift": 3,
   "Features/Tasks/TaskBoard.swift": 1,
   "Features/Tasks/TaskCalendarView.swift": 5,
-  "Features/Tasks/TaskDetailView.swift": 21,
+  "Features/Tasks/TaskDetailView.swift": 20,
   "Features/Tasks/TaskMapView.swift": 5,
   "Features/Tasks/TasksTab.swift": 12,
   "Features/Thread/ScheduledStrip.swift": 1

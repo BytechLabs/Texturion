@@ -87,6 +87,7 @@
  */
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * The three clients, each with the root it scans, the extensions it reads, and
@@ -190,6 +191,26 @@ function looksLikeProse(value) {
   // A path, a URL, a token, a css class, an enum value, an id.
   if (/^[a-z0-9]+([-_/.][a-z0-9]+)+$/i.test(text)) return false;
   if (/^[A-Z0-9_]+$/.test(text)) return false;
+  /*
+   * A camelCase IDENTIFIER: one token, opening lowercase, a capital inside.
+   *
+   * `backdropDrift`, `vmPlayPause`, `swipeActionIcon`. Nobody writes copy that
+   * way and nobody reads these — they are animation labels and test tags. The
+   * shape has to be this specific because real copy CAN be one word ("Update",
+   * "Dismiss", "Back"), so the rule keys on the internal capital after a
+   * lowercase opening, which a sentence never has.
+   */
+  if (/^[a-z][A-Za-z0-9]*[A-Z][A-Za-z0-9]*$/.test(text)) return false;
+  /*
+   * Nothing but interpolation and punctuation: `"$method $path"`.
+   *
+   * Two "words" and mostly letters, so it scores as prose, but every letter in
+   * it belongs to a variable name. What reaches a person is whatever those
+   * variables hold, which is not this file's business.
+   */
+  if (!/[A-Za-z]/.test(text.replace(/\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*/g, ""))) {
+    return false;
+  }
   if (text.includes("://") || text.startsWith("/") || text.startsWith("#")) return false;
   // Tailwind and inline style soup: many tokens, no sentence punctuation.
   if (/^[\w\-:[\]()./%\s]+$/.test(text) && /\b(px|py|mt|mb|text|bg|flex|grid|rounded|border|gap|w|h)-/.test(text)) {
@@ -399,6 +420,90 @@ function stripComments(source) {
 }
 
 /**
+ * Preview bodies stripped, because a preview is not a screen.
+ *
+ * `@Preview` on Android and `#Preview` on iOS render in the IDE and ship in no
+ * build. The names and sentences inside them are FIXTURES — "Jordan Lee" on the
+ * in-call screen is not a person any customer will meet, and translating it
+ * would mean translating a fake caller's name into French.
+ *
+ * Counting them made the ledger overstate the work, which matters more than it
+ * sounds: the ledger is the only number that says how much of #228 is left, and
+ * a number inflated by fixtures hides the real remainder behind noise.
+ *
+ * Braces are matched with a counter that skips string literals, so a `{` inside
+ * copy cannot run the scan off the end of the block.
+ */
+function stripPreviewBodies(source) {
+  let out = source;
+  // `@ResponsivePreviews` and friends are MULTI-preview annotations — one
+  // annotation that expands to five `@Preview`s. Matching only `@Preview` left
+  // their bodies in the count, which is how a fake caller called "Jordan Lee"
+  // came to be tracked as a sentence somebody had to translate. The alternation
+  // is explicit so `@PreviewParameter`, which annotates a parameter and not a
+  // preview, cannot swallow a real function's body.
+  for (const marker of [/@(?:Preview|\w+Previews)\b/g, /#Preview\b/g]) {
+    let result = "";
+    let index = 0;
+    marker.lastIndex = 0;
+    let match;
+    while ((match = marker.exec(out)) !== null) {
+      if (match.index < index) continue;
+      const open = out.indexOf("{", match.index);
+      if (open === -1) break;
+      const close = matchingBrace(out, open);
+      if (close === -1) break;
+      result += out.slice(index, match.index);
+      index = close + 1;
+      marker.lastIndex = index;
+    }
+    out = result + out.slice(index);
+  }
+  return out;
+}
+
+/** The index of the `}` closing the `{` at [open], or -1. Skips strings. */
+function matchingBrace(source, open) {
+  let depth = 0;
+  for (let i = open; i < source.length; i += 1) {
+    const char = source[i];
+    if (char === '"') {
+      i += 1;
+      while (i < source.length && source[i] !== '"') {
+        if (source[i] === "\\") i += 1;
+        i += 1;
+      }
+      continue;
+    }
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Is this `label =` an ANIMATION's debug label rather than a field's?
+ *
+ * Compose spends the same argument name on two unrelated jobs. On a text field
+ * `label` is read by the person filling it in; on `animateFloatAsState`,
+ * `updateTransition`, `AnimatedContent` and friends it is a string the
+ * animation inspector shows a developer, and it has never been on a screen.
+ *
+ * Told apart by the SIBLING arguments rather than by the string, because the
+ * string is exactly what we must not trust here — `label = "Country"` on a
+ * field and `label = "sweep"` on a tween are both plausible either way round.
+ */
+function isAnimationLabel(code, matchIndex) {
+  const window = code.slice(Math.max(0, matchIndex - 300), matchIndex);
+  return /animationSpec\s*=|targetState\s*=|targetValue\s*=|\b\w*Transition\s*\(|\bCrossfade\s*\(/.test(
+    window,
+  );
+}
+
+/**
  * Compose: the places a sentence reaches somebody holding a phone.
  *
  * `Text(` is the bulk of it. `contentDescription` is the one that would be
@@ -408,16 +513,17 @@ function stripComments(source) {
  */
 export function findKotlinLiterals(source) {
   const found = [];
-  const code = stripComments(source);
+  const code = stripPreviewBodies(stripComments(source));
   for (const match of code.matchAll(
     /\b(?:Text|OutlinedButton|TextButton|Button)\s*\(\s*"([^"]{4,})"/g,
   )) {
     if (looksLikeProse(match[1])) found.push(match[1]);
   }
   for (const match of code.matchAll(
-    /\b(?:contentDescription|placeholder|label|title|supportingText)\s*=\s*"([^"]{4,})"/g,
+    /\b(contentDescription|placeholder|label|title|supportingText)\s*=\s*"([^"]{4,})"/g,
   )) {
-    if (looksLikeProse(match[1])) found.push(match[1]);
+    if (match[1] === "label" && isAnimationLabel(code, match.index)) continue;
+    if (looksLikeProse(match[2])) found.push(match[2]);
   }
   return found;
 }
@@ -432,7 +538,7 @@ export function findKotlinLiterals(source) {
  */
 export function findSwiftLiterals(source) {
   const found = [];
-  const code = stripComments(source);
+  const code = stripPreviewBodies(stripComments(source));
   for (const match of code.matchAll(
     /\b(?:Text|Button|Label|TextField|SecureField|Toggle|Section)\s*\(\s*"([^"]{4,})"/g,
   )) {
@@ -488,6 +594,20 @@ function readLedger(path) {
   }
 }
 
+/*
+ * Everything below runs only when this file is EXECUTED, not when it is
+ * imported.
+ *
+ * The three `find*Literals` functions are exported so they can be tested, and
+ * until this guard existed importing them also scanned the repository — from
+ * whatever directory the importer happened to be in, which for a test in
+ * `packages/shared` meant `ENOENT ... packages/shared/apps/web/src`. The
+ * functions that decide the ledger were therefore the only part of it nothing
+ * could test. Same shape as `check-do-not-build.mjs`.
+ */
+if (!(process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1])) {
+  // Imported for its exports; the scan below is not ours to run.
+} else {
 const baseline = process.argv.includes("--baseline");
 /** `--only web` narrows a run while one client is being worked on. */
 const onlyIndex = process.argv.indexOf("--only");
@@ -603,3 +723,4 @@ if (failed > 0) {
 }
 
 console.log(`Hardcoded strings — ${summary.join(" · ")}. No file grew.`);
+}
