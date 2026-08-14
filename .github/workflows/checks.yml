@@ -272,6 +272,14 @@ jobs:
       - name: Guard dragging alternatives on the phones
         run: node scripts/check-gesture-alternatives.mjs
 
+      # #238: an icon-only control with no accessible name. TalkBack says
+      # "button"; VoiceOver reads the SF Symbol's name or nothing — and the
+      # person has to press it to find out what it does, which on a delete is
+      # not a reasonable thing to ask. Both phones are clean today; this keeps
+      # them there.
+      - name: Guard screen-reader names on the phones
+        run: node scripts/check-screen-reader-names.mjs
+
       # #580: the audit-log CSV export — "the export an owner hands to an insurer
       # or a security questionnaire" — carried its own private cell writer that
       # applied RFC-4180 quoting and never called `csvSafeText`. It was the only
