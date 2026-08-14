@@ -140,6 +140,29 @@ private struct LeadSourceRow: View {
     let max: Int
     let muted: Bool
 
+    /**
+     #238 — at a large Dynamic Type setting the BAR gives way, not the words.
+
+     The row carries three things and they are not equal. The name says which
+     channel and the number says how much; the bar restates the number as a
+     length, for people who read a shape faster than a figure. When the reader's
+     setting means all three cannot fit, keeping the decoration and truncating
+     the label tells them a proportion about a source they can no longer
+     identify — worse than no row at all.
+
+     The Android twin was rendered at 200% and showed exactly that: "Your
+     website" became "Your ..." and the count 14 broke across two lines as "1"
+     over "4" — the number the row exists to convey, shown as a different
+     number. These fixed 104 and 28 point frames are the same ones, so this
+     carries the same fix rather than waiting for a device to prove it twice.
+
+     *Applying: Zen of Clarity — when the space runs out, the decorative
+     element goes first.*
+     */
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    private var roomy: Bool { typeSize <= .large }
+
     var body: some View {
         HStack(spacing: 10) {
             Text(name)
@@ -147,23 +170,32 @@ private struct LeadSourceRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .foregroundStyle(muted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
-                .frame(width: 104, alignment: .leading)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.secondary.opacity(0.18))
-                    Capsule()
-                        .fill(muted ? Color.secondary.opacity(0.4) : BrandColor.olive.opacity(0.7))
-                        .frame(
-                            width: geo.size.width * CGFloat(total) / CGFloat(Swift.max(max, 1))
-                        )
+                // The original 104 at ordinary sizes, untouched — it holds
+                // "Word of mouth" and "Don't know" in full, and a proportional
+                // width tried on Android was NARROWER and truncated both. A fix
+                // for the largest setting must not make the common one worse.
+                .frame(maxWidth: roomy ? 104 : .infinity, alignment: .leading)
+            if roomy {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.secondary.opacity(0.18))
+                        Capsule()
+                            .fill(muted ? Color.secondary.opacity(0.4) : BrandColor.olive.opacity(0.7))
+                            .frame(
+                                width: geo.size.width * CGFloat(total) / CGFloat(Swift.max(max, 1))
+                            )
+                    }
                 }
+                .frame(height: 6)
             }
-            .frame(height: 6)
             Text("\(total)")
                 .font(.callout)
                 .monospacedDigit()
-                .frame(width: 28, alignment: .trailing)
+                // A MINIMUM, not a fixed width: 28 points is narrower than two
+                // digits at the largest settings, and a fixed frame folds them.
+                .fixedSize()
+                .frame(minWidth: 28, alignment: .trailing)
         }
     }
 }

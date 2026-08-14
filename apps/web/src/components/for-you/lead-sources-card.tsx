@@ -267,7 +267,14 @@ function Row({
           style={{ width: `${Math.round((total / max) * 100)}%` }}
         />
       </span>
-      <span className="w-8 text-right text-sm tabular-nums">{total}</span>
+      {/* #238: a MINIMUM width, not a fixed one. `w-8` holds three digits and
+          clips a fourth, so a workspace with a thousand conversations in a
+          month would read a different number than it had — the same shape as
+          the phones' fixed 28dp/28pt count columns, which folded "14" onto two
+          lines at 200% text. The label beside it already uses `min-w-`, which
+          is why web has no Dynamic Type defect and this one is scale-agnostic:
+          it is about the count, not the setting. */}
+      <span className="min-w-8 text-right text-sm tabular-nums">{total}</span>
     </li>
   );
 }

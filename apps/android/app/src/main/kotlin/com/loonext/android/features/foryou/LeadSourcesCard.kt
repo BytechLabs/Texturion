@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
@@ -25,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
@@ -160,13 +162,43 @@ fun LeadSourcesCard(
 
 @Composable
 private fun SourceRow(name: String, total: Int, max: Int, muted: Boolean) {
+    /**
+     * #238 — at a large font setting the BAR gives way, not the words.
+     *
+     * The row carries three things and they are not equal. The name says which
+     * channel and the number says how much; the bar restates the number as a
+     * length, for people who read a shape faster than a figure. When the
+     * reader's setting means all three cannot fit, keeping the decoration and
+     * truncating the label to "Yo..." tells them a proportion about a source
+     * they can no longer identify — which is worse than no row.
+     *
+     * 1.5 is where the 200% screenshot showed the names failing, and it is
+     * comfortably above the scales people use for ordinary comfort, so nobody
+     * loses the bar for turning text up a notch.
+     *
+     * *Applying: Zen of Clarity — when the space runs out, the decorative
+     * element goes first.*
+     */
+    val roomy = LocalDensity.current.fontScale < 1.5f
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             name,
-            modifier = Modifier.width(104.dp),
+            // #238: WEIGHTED, not a fixed 104dp. At the OS's 200% font setting
+            // a fixed column cannot hold the words it was measured for, and
+            // "Your website" rendered as "Your ..." — the reader is told which
+            // channel earned the most work and cannot read its name. A share of
+            // the row grows with the text instead. *Applying: Relationship
+            // Strength — the label and its bar are one thing, so they divide
+            // the row rather than one starving the other.*
+            // The ORIGINAL 104dp at ordinary sizes, untouched: it held "Word
+            // of mouth" and "Don't know" in full, and a weight I tried instead
+            // was narrower and truncated both. A fix for the largest setting
+            // has no business making the common one worse — checked by looking
+            // at both pictures, which is the only way that shows up.
+            modifier = if (roomy) Modifier.width(104.dp) else Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodyMedium,
@@ -177,6 +209,7 @@ private fun SourceRow(name: String, total: Int, max: Int, muted: Boolean) {
             },
         )
         Spacer(Modifier.width(10.dp))
+        if (roomy) {
         Box(
             Modifier
                 .weight(1f)
@@ -198,10 +231,17 @@ private fun SourceRow(name: String, total: Int, max: Int, muted: Boolean) {
                     ),
             )
         }
+        }
         Spacer(Modifier.width(10.dp))
         Text(
             total.toString(),
-            modifier = Modifier.width(28.dp),
+            // #238: never wrapped. At 200% the fixed 28dp was narrower than two
+            // digits and "14" broke across two lines as "1" over "4" — the
+            // number the row exists to convey, rendered as a different number.
+            // A minimum keeps the columns aligned at ordinary sizes; softWrap
+            // off means the digits take the room they need rather than folding.
+            modifier = Modifier.widthIn(min = 28.dp),
+            softWrap = false,
             textAlign = TextAlign.End,
             style = MaterialTheme.typography.bodyMedium,
         )

@@ -19,6 +19,9 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import com.loonext.android.core.model.LeadSourceCount
 import com.loonext.android.core.model.PipelineReport
 import com.loonext.android.core.model.PipelineReportResponse
@@ -350,6 +353,62 @@ class DashboardScreenshotTest {
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
         writePng(bitmap, "satisfaction")
         assertTrue("satisfaction drew nothing", drewSomething(bitmap))
+    }
+
+    @Test
+    // #238: the reader's font scale turned all the way up.
+    //
+    // `check-native-a11y.mjs` proves every size is expressed in `sp` so it
+    // SCALES, and says outright that whether the layout survives 200% is
+    // unverified because it "needs a device and a person". It needs neither:
+    // Robolectric takes a font-scale qualifier, and the result is a picture.
+    //
+    // 200% is the number WCAG 1.4.4 names and the top of Android's own
+    // accessibility slider. What it exposes is not small text — it is text that
+    // no longer fits: a truncated count, a label clipped to its first word, two
+    // lines colliding. None of that shows up in a source scan.
+    //
+    // Applied through `LocalDensity`, not a resource qualifier: font scale is
+    // not one (`fontScale200` fails to parse), and `LocalDensity` is the exact
+    // channel the OS setting travels down into Compose.
+    @Config(sdk = [34])
+    fun `the panels at 200 percent font scale`() {
+        compose.setContent {
+            LoonextTheme {
+                CompositionLocalProvider(
+                    LocalDensity provides Density(
+                        density = LocalDensity.current.density,
+                        fontScale = 2f,
+                    ),
+                ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(16.dp),
+                ) {
+                    LeadSourcesCard(
+                        report = LeadSourceReport(
+                            days = 30,
+                            sources = listOf(
+                                LeadSourceCount("s1", "Google", by_number = 6, by_person = 2, total = 8),
+                                LeadSourceCount("s2", "Word of mouth", by_person = 5, total = 5),
+                            ),
+                            widget = 14,
+                            unknown = 3,
+                            total = 30,
+                            coverage = 0.9,
+                        ),
+                        onSetUpSources = {},
+                    )
+                }
+                }
+            }
+        }
+        compose.waitForIdle()
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        writePng(bitmap, "font-scale-200")
+        assertTrue("font-scale-200 drew nothing", drewSomething(bitmap))
     }
 
     @Test
