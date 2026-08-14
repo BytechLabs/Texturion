@@ -36,13 +36,23 @@
  * is the honest progress bar for that.
  *
  * ONE EXCEPTION, and it is the opposite of a loophole: the ledger may GROW when
- * the DETECTOR improves. It has, three times — when the JSX rule learned to read
+ * the DETECTOR improves. It has, four times — when the JSX rule learned to read
  * text beginning on the line below its tag, when it learned to read around an
- * interpolation, and when rule 4 started seeing sentences held in string
- * literals rather than written into markup. Each time the number rose because
- * the guard had been wrong, not because the code had. A ledger that could only
- * ever shrink would have made all three fixes look like regressions, and
- * quietly discouraged every one of them.
+ * interpolation, when rule 4 started seeing sentences held in string literals
+ * rather than written into markup, and when rule 4 was finally given to the two
+ * PHONES as well. Each time the number rose because the guard had been wrong,
+ * not because the code had. A ledger that could only ever shrink would have made
+ * all four fixes look like regressions, and quietly discouraged every one of
+ * them.
+ *
+ * The fourth was the largest by far, and worth recording as a caution about
+ * trusting a green guard. Rule 4 had lived on web since it was written, and the
+ * two phone detectors had only their component-shaped rules — so Compose
+ * reported 29 literals where 646 was the truth, and SwiftUI 318 where 1,300 was.
+ * The ledger said 497 across three clients; the honest figure was 2,070. Every
+ * screen extracted against that number was extracted against a fiction, and the
+ * files that looked finished were the ones whose remaining copy simply lived in
+ * a `when` branch or an `error =` rather than inside a `Text(`.
  *
  * ---------------------------------------------------------------------------
  * WHAT COUNTS AS USER-FACING, AND WHY THE LIST IS SHORT
@@ -150,10 +160,18 @@ const SKIP_DIRS = new Set([
 ]);
 
 /** A file whose strings are not read by a person. */
-function isScannable(path, exts) {
+export function isScannable(path, exts) {
   if (!exts.some((ext) => path.endsWith(ext))) return false;
   if (/\.test\.|\.stories\.|Test\.kt$|Tests\.swift$/.test(path)) return false;
-  const parts = path.split("/");
+  /*
+   * Case-INSENSITIVE, because the three clients disagree about capitals and the
+   * Set does not. Android keeps its catalogue in `core/i18n`, iOS in
+   * `Core/I18n` — so the exact-match version skipped one and scanned the other,
+   * and every sentence in iOS's catalogue counted as a hardcoded literal.
+   * Including the French ones: 1,476 finished translations were being reported
+   * as translation work outstanding.
+   */
+  const parts = path.toLowerCase().split(/[/\\]/);
   return !parts.some((part) => SKIP_DIRS.has(part));
 }
 
@@ -208,9 +226,8 @@ function looksLikeProse(value) {
    * it belongs to a variable name. What reaches a person is whatever those
    * variables hold, which is not this file's business.
    */
-  if (!/[A-Za-z]/.test(text.replace(/\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*/g, ""))) {
-    return false;
-  }
+  if (isOnlyInterpolation(text)) return false;
+  if (isDateFormatPattern(text)) return false;
   if (text.includes("://") || text.startsWith("/") || text.startsWith("#")) return false;
   // Tailwind and inline style soup: many tokens, no sentence punctuation.
   if (/^[\w\-:[\]()./%\s]+$/.test(text) && /\b(px|py|mt|mb|text|bg|flex|grid|rounded|border|gap|w|h)-/.test(text)) {
@@ -408,8 +425,47 @@ function isSentenceLiteral(value) {
     return false;
   }
   if (text.split(/\s+/).filter(Boolean).length < 3) return false;
+  if (isOnlyInterpolation(text)) return false;
+  if (isDateFormatPattern(text)) return false;
   const letters = (text.match(/[A-Za-z]/g) ?? []).length;
   return letters / text.length > 0.6 && /^[A-Z"‘“(]/.test(text);
+}
+
+/**
+ * Nothing but variables and punctuation — `"$method $path"`, `"\(name) · \(price)"`.
+ *
+ * Scores as prose because it is mostly letters and several words, but every
+ * letter in it belongs to an identifier. Whatever a person reads here is
+ * whatever those variables hold, and that copy lives wherever they came from.
+ *
+ * All three interpolation syntaxes, because the same mistake is available in
+ * each: `${…}` and `$name` in Kotlin and TypeScript, `\(…)` in Swift. Only
+ * Kotlin's was stripped at first, so every Swift string built purely out of
+ * interpolations counted as a sentence needing translation.
+ */
+function isOnlyInterpolation(text) {
+  const bare = text
+    .replace(/\\\([^)]*\)/g, "")
+    .replace(/\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*/g, "");
+  return !/[A-Za-z]/.test(bare);
+}
+
+/**
+ * A date or time FORMAT, not a sentence: `"MMMM d, yyyy"`, `"h:mm a"`.
+ *
+ * The signature is that every token is one letter repeated — `MMMM`, `yyyy`,
+ * `mm`. No English word is built that way, so this cannot swallow copy. These
+ * patterns do have to change per locale, but through a formatter's locale
+ * argument rather than through a translated string, so counting them here would
+ * point the reader at the wrong fix.
+ */
+function isDateFormatPattern(text) {
+  const tokens = text.split(/[^A-Za-z]+/).filter(Boolean);
+  if (tokens.length === 0) return false;
+  return tokens.every(
+    (token) => /^[yMdDhHmsSaAEeZzGwWkKLqQuvV]+$/.test(token) &&
+      new Set(token).size === 1,
+  );
 }
 
 /** Comments stripped, so prose ABOUT the UI is never counted as UI. */
@@ -525,7 +581,38 @@ export function findKotlinLiterals(source) {
     if (match[1] === "label" && isAnimationLabel(code, match.index)) continue;
     if (looksLikeProse(match[2])) found.push(match[2]);
   }
-  return found;
+  /*
+   * A SENTENCE HELD IN A STRING LITERAL — the same rule 4 that, on web, turned
+   * out to be larger than the other three rules combined.
+   *
+   * Kotlin had no equivalent, and the gap was the same shape: copy that
+   * somebody deliberately lifted OUT of a composable is invisible to a
+   * composable-shaped scanner. `RegistrationProgress` builds a `title`, a
+   * `next` and an `expected` for every carrier state; only `title` was in an
+   * attribute the rules above knew about, so the sentence a person actually
+   * reads — "The carriers review it next. Nothing needed from you." — was not
+   * counted anywhere. `MfaGate` held ten more in `error =` and in `when`
+   * branches.
+   *
+   * This makes the ledger GROW, which the header at the top of this file
+   * blesses explicitly and for this exact reason: the number rises because the
+   * guard was wrong, not because the code got worse.
+   */
+  for (const match of code.matchAll(/"([^"\n]{12,})"/g)) {
+    if (isSentenceLiteral(match[1])) found.push(match[1]);
+  }
+  return dedupe(found);
+}
+
+/**
+ * One literal counted once.
+ *
+ * The rules overlap by design — `Text("…")` is also a string literal — and a
+ * ledger that counted the same sentence twice would report a file as having
+ * twice the work left in it.
+ */
+function dedupe(found) {
+  return [...new Set(found)];
 }
 
 /**
@@ -549,7 +636,12 @@ export function findSwiftLiterals(source) {
   )) {
     if (looksLikeProse(match[1])) found.push(match[1]);
   }
-  return found;
+  // Rule 4, for the same reason it exists on web and now on Compose: the copy
+  // somebody lifted out of a view is exactly what a view-shaped scanner misses.
+  for (const match of code.matchAll(/"([^"\n]{12,})"/g)) {
+    if (isSentenceLiteral(match[1])) found.push(match[1]);
+  }
+  return dedupe(found);
 }
 
 /**
