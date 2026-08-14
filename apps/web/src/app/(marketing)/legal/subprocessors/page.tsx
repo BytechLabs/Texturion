@@ -158,7 +158,11 @@ export default function SubprocessorsPage() {
       <LegalSectionBlock id="list" heading="Current sub-processors">
         {/* The Honesty Ledger treatment (v4 §5.3): Frost row striping, no
             rules, vendor names emphasized, regions in the mono voice. */}
-        <div className="overflow-x-auto">
+        {/* #238: keyboard-reachable, because a subprocessor table that scrolls
+            sideways on a phone is otherwise unreadable past its first column
+            for anybody driving with a keyboard — and this is the page a buyer's
+            security reviewer opens. */}
+        <div className="overflow-x-auto" tabIndex={0}>
           <table className="w-full border-collapse text-[0.9375rem]">
             <thead>
               <tr className="text-left">
@@ -240,7 +244,7 @@ export default function SubprocessorsPage() {
           appears once above rather than twice. What each one sends, and the
           model that receives it:
         </p>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0}>
           <table className="w-full border-collapse text-[0.9375rem]">
             <thead>
               <tr className="text-left">

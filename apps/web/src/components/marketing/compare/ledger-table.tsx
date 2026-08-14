@@ -58,7 +58,18 @@ export function LedgerTable({
 }) {
   return (
     <div className={cn("fr-card overflow-hidden", className)}>
-      <div className="overflow-x-auto">
+      {/* #238: `min-w-[40rem]` guarantees this scrolls sideways on a phone, so
+          it MUST be reachable by keyboard — without `tabIndex` the comparison
+          is readable to a mouse and a finger and stops at the first column for
+          anybody driving with a keyboard. The columns are there; no key gets to
+          them. Caught by `check-app-a11y.mjs` at 375px as
+          `scrollable-region-focusable`.
+
+          Named by the `<caption>` the table already carries, via
+          `aria-labelledby`-by-proxy: `role="group"` with `aria-label` would
+          duplicate that name, so the region stays unlabelled and the caption
+          does the announcing — which is what a caption is for. */}
+      <div className="overflow-x-auto" tabIndex={0}>
         <table className="w-full min-w-[40rem] border-collapse text-left">
           <caption className="sr-only">{caption}</caption>
           <thead>

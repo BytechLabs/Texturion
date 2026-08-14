@@ -63,36 +63,7 @@ const base = baseIndex >= 0 ? args[baseIndex + 1] : "http://localhost:3100";
  * its place by being a surface where a theme bug has actually happened or where
  * the token scope is genuinely at risk.
  */
-const SURFACES = [
-  // Marketing: its own palette, its own scope, and newly dark (#362 phase 8).
-  { path: "/", label: "marketing home", auth: false },
-  { path: "/pricing", label: "marketing pricing", auth: false },
-  // #218 was literally "auth screens unreadable in light mode".
-  { path: "/login", label: "login", auth: false },
-  { path: "/signup", label: "signup", auth: false },
-  // The authenticated shell, and then the PORTALS — #116's own ground.
-  { path: "/for-you", label: "for-you (the post-login landing)", auth: true },
-  { path: "/inbox", label: "inbox", auth: true },
-  {
-    path: "/inbox",
-    label: "inbox · account menu (portal)",
-    auth: true,
-    // The see-through account surface IS the #116 bug. Opening it is the point:
-    // this is the one entry here that audits a subtree rendered OUTSIDE
-    // `.app-scope`, which is the only place the cascade fault can happen.
-    open: ['[aria-label="Account and settings"]'],
-  },
-  {
-    path: "/inbox",
-    label: "inbox · command palette (portal)",
-    auth: true,
-    // A second portal, opened a different way (keyboard), because the account
-    // menu and the palette mount through different Radix primitives.
-    open: ["__cmdk__"],
-  },
-  { path: "/settings", label: "settings", auth: true },
-  { path: "/tasks", label: "tasks", auth: true },
-];
+const { SURFACES } = await import("./audit-surfaces.mjs");
 
 /* ------------------------------------------------------------------------- */
 

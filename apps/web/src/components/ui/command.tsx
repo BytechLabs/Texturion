@@ -85,7 +85,12 @@ function CommandInput({
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
-          "flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+          // #238 — `text-base md:text-sm`, not a flat `text-sm`. Below 16px
+          // Mobile Safari ZOOMS the whole page when a field takes focus, and
+          // the palette opens with focus already in this one: on a phone,
+          // pressing the search shortcut lurched the page every time. The
+          // desktop size is unchanged.
+          "flex h-10 w-full rounded-md bg-transparent py-3 text-base md:text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
           // #238 — the palette's search field had `outline-hidden` and nothing
           // in its place: focus arrived and there was no indicator at all
           // (2.4.7). Easy to miss by eye, because the palette opens with focus

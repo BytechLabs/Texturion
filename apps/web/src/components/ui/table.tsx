@@ -9,6 +9,23 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     <div
       data-slot="table-container"
       className="relative w-full overflow-x-auto"
+      // #238: a scrollable region has to be reachable by keyboard. Without
+      // this, the pricing comparison on a 375px screen scrolls sideways for a
+      // mouse and a finger and is simply unreadable past its first column for
+      // anybody driving with a keyboard — the columns exist, and there is no
+      // key that reaches them. Found by `check-app-a11y.mjs` on its first run
+      // against the built app, as `scrollable-region-focusable`.
+      //
+      // On the SHARED wrapper rather than at the pricing page, because the
+      // fault is the wrapper's: every table in the product — settings, legal,
+      // pricing — scrolls through this one div, and fixing the page that
+      // happened to be audited would have left the rest exactly as broken.
+      //
+      // `tabIndex` and nothing else. A `role="region"` here would announce an
+      // unnamed landmark on every table in the app, which trades a keyboard
+      // failure for a screen-reader one. Callers that want the region named
+      // pass `aria-label` to the table itself, which is where the name belongs.
+      tabIndex={0}
     >
       <table
         data-slot="table"
