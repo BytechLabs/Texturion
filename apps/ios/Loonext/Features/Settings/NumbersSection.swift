@@ -433,7 +433,7 @@ private struct NumberCard: View {
             // a thin sample is how a false alarm becomes a cancellation.
             Text(AppStrings.translate(appLocale, "settingsMore.numberUnreliable"))
                 .font(.callout)
-            Text(numberHealthCopy(health))
+            Text(numberHealthCopy(health, appLocale))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else if number.status == NumberStatus.suspended {
@@ -1120,18 +1120,21 @@ private struct RemediateNumberSheet: View {
 /// which vendor labelled it or whether one did, and naming a cause we have not
 /// established would be a guess dressed as a diagnosis. It also promises no
 /// self-serve fix — remediation is registry paperwork that takes days.
-func numberHealthCopy(_ health: NumberHealth) -> String {
+///
+/// `locale` is the reader's, defaulted to nil — the English table — the rule
+/// this app uses for copy that lives outside a View.
+func numberHealthCopy(_ health: NumberHealth, _ locale: String? = nil) -> String {
     let opening: String
     if let rate = health.delivery_rate {
-        opening = "About \(Int((rate * 100).rounded()))% of your recent texts were "
-            + "delivered, which is below normal for this number."
+        opening = AppStrings.translate(
+            locale,
+            "settingsMore.numberHealthRate",
+            ["percent": String(Int((rate * 100).rounded()))]
+        )
     } else {
-        opening = "Fewer of your texts are getting through than usual."
+        opening = AppStrings.translate(locale, "settingsMore.numberHealthNoRate")
     }
-    return opening
-        + " Carriers sometimes start filtering a number — often one that was "
-        + "reused from a previous business. We've been alerted and we're on it; "
-        + "you don't need to do anything yet."
+    return opening + " " + AppStrings.translate(locale, "settingsMore.numberHealthCause")
 }
 
 /**

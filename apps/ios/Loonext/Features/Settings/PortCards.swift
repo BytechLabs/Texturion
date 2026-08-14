@@ -575,7 +575,10 @@ private struct PreCutoverChecklist: View {
                 .font(.footnote.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
             ForEach(preCutoverSteps, id: \.lead) { step in
-                item(step.lead, step.detail)
+                item(
+                    AppStrings.translate(appLocale, step.lead),
+                    AppStrings.translate(appLocale, step.detail)
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -966,6 +969,10 @@ private struct FixPortSheet: View {
 /// One row of the pre-cutover list: a bold lead a skim can stop at, and the
 /// sentence it owns.
 struct PortPreCutoverStep {
+    /// #228: the CATALOGUE KEYS, not the words — the same choice
+    /// `PortCards.kt`'s `preCutoverSteps()` made. The list below is a top-level
+    /// `let` built before anybody has a locale, and `lead` doubles as the
+    /// `ForEach` identity, which a key is better at being than a sentence.
     let lead: String
     let detail: String
 }
@@ -983,23 +990,20 @@ struct PortPreCutoverStep {
 /// the one way a business genuinely loses the number on its trucks.
 let preCutoverSteps: [PortPreCutoverStep] = [
     PortPreCutoverStep(
-        lead: "Keep your old service active.",
-        detail: "Cancelling before the transfer finishes can release the number back "
-            + "to the carrier, and that is the one way to genuinely lose it."
+        lead: "settingsMore.cutoverKeepOld",
+        detail: "settingsMore.cutoverKeepOldDetail"
     ),
     PortPreCutoverStep(
-        lead: "Export your message history.",
-        detail: "The number moves, your old conversations do not."
+        lead: "settingsMore.cutoverExport",
+        detail: "settingsMore.cutoverExportDetail"
     ),
     PortPreCutoverStep(
-        lead: "Tell the crew the switch date.",
-        detail: "From that morning, calls and texts arrive in this inbox instead of "
-            + "the old one."
+        lead: "settingsMore.cutoverTellCrew",
+        detail: "settingsMore.cutoverTellCrewDetail"
     ),
     PortPreCutoverStep(
-        lead: "Expect texting to trail calls.",
-        detail: "Voice and texting can finish on different clocks, so texts may take "
-            + "an extra day. We will tell you when both are live."
+        lead: "settingsMore.cutoverTextsTrail",
+        detail: "settingsMore.cutoverTextsTrailDetail"
     ),
 ]
 

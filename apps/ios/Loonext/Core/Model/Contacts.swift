@@ -243,11 +243,11 @@ struct ImportResult: Codable, Sendable {
 /// a mobile number keeps its original code when its owner moves provinces.
 /// "Using your timezone" is us admitting we do not know, which is the one they
 /// most need to see before scheduling anything.
-func timezoneProvenanceLabel(_ source: String?) -> String {
+func timezoneProvenanceLabel(_ source: String?, locale: String? = nil) -> String {
     switch source {
-    case "contact": return "Set by your crew"
-    case "area_code": return "From their area code"
-    case "company": return "Their area code doesn't say — using your timezone"
+    case "contact": return AppStrings.translate(locale, "domain.contactClockSetByCrew")
+    case "area_code": return AppStrings.translate(locale, "domain.contactClockFromAreaCode")
+    case "company": return AppStrings.translate(locale, "domain.contactClockUnknown")
     default: return ""
     }
 }

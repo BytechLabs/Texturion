@@ -42,12 +42,25 @@ enum MergeFields {
     }
 
     /// #274 — one variable the template editor offers.
+    ///
+    /// #228: `hintKey` is a CATALOGUE KEY, not a sentence — the same shape
+    /// Android's `MergeFields.VARIABLES` uses, and for the same reason. This
+    /// list is a `let` read from a template editor and from the composer's
+    /// preview, neither of which is a place a reader's language is in scope, so
+    /// the sentence is resolved where it is rendered.
     struct Variable: Identifiable {
         let token: String
         let label: String
-        let hint: String
+        let hintKey: String
 
         var id: String { token }
+
+        /// The hint in ENGLISH, for a call site that has no reader in hand yet.
+        ///
+        /// Kept so the template editor compiles and reads exactly as it did
+        /// before this key existed. A screen that has the reader's language
+        /// should translate `hintKey` itself rather than read this.
+        var hint: String { AppStrings.translate(nil, hintKey) }
     }
 
     /// #274 — the tokens the editor offers, in order. MIRROR of
@@ -57,13 +70,13 @@ enum MergeFields {
     /// drift: a token offered on the phone and not the laptop means a template
     /// somebody writes here and then cannot maintain there.
     static let variables: [Variable] = [
-        Variable(token: "first_name", label: "First name", hint: "The customer's first name"),
-        Variable(token: "address", label: "Address", hint: "The address on their contact"),
-        Variable(token: "job_day", label: "Day", hint: "The day of their next booked visit"),
-        Variable(token: "job_time", label: "Time", hint: "The time of it"),
-        Variable(token: "my_name", label: "My name", hint: "Your first name"),
-        Variable(token: "business_name", label: "Business", hint: "Your business name"),
-        Variable(token: "our_number", label: "Our number", hint: "The number they reply to"),
+        Variable(token: "first_name", label: "First name", hintKey: "thread.mergeFirstName"),
+        Variable(token: "address", label: "Address", hintKey: "thread.mergeAddress"),
+        Variable(token: "job_day", label: "Day", hintKey: "thread.mergeJobDay"),
+        Variable(token: "job_time", label: "Time", hintKey: "thread.mergeJobTime"),
+        Variable(token: "my_name", label: "My name", hintKey: "thread.mergeMyName"),
+        Variable(token: "business_name", label: "Business", hintKey: "thread.mergeBusinessName"),
+        Variable(token: "our_number", label: "Our number", hintKey: "thread.mergeOurNumber"),
     ]
 
     /// #274 — stand-in values so a preview SHOWS each token working. MIRROR of
@@ -234,8 +247,9 @@ enum MergeFields {
     /// preview, whose whole reason to exist is being exactly what ships.
     static let serverOnlyTokens = ["job_day", "job_time"]
 
-    /// The note a composer preview appends when it cannot show the whole truth.
-    static let serverOnlyTokensNote = "The day and time fill in when you send."
+    /// The note a composer preview appends when it cannot show the whole truth
+    /// lives in the catalogue as `thread.serverOnlyTokensNote` (#228), and is
+    /// read where it is drawn — a constant here would be an English one.
 
     /// True when `text` uses a token only the send path can resolve.
     static func hasServerOnlyTokens(_ text: String) -> Bool {

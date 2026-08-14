@@ -75,11 +75,14 @@ func countActiveStartedMembers(_ members: [Member]) -> Int {
 /// so the reader picked a plan and paid before ever seeing it. A setup list
 /// that starts at zero for somebody who has already done something reads as
 /// "none of that counted".
+/// #228: `locale` is last and defaulted, so `GettingStartedLogicTests` — which
+/// reads these hints in English — keeps calling this unchanged.
 func ownerSteps(
     numbers: [PhoneNumberSummary],
     hasConversation: Bool,
     usedSegments: Int,
-    activeMemberCount: Int
+    activeMemberCount: Int,
+    locale: String? = nil
 ) -> [StartedStep] {
     let numberDone = numbers.contains { $0.status == NumberStatus.active }
     let numberStalled =
@@ -90,39 +93,44 @@ func ownerSteps(
         // Don't promise "under a minute" once a purchase has actually stalled:
         // the honest delayed line matches the app-wide status banner.
         if numberStalled {
-            return "Taking a little longer than usual. You don't need to do anything."
+            return AppStrings.translate(locale, "inbox.startedOwnerNumberStalledHint")
         }
-        return "It's on its way, usually under a minute."
+        return AppStrings.translate(locale, "inbox.startedOwnerNumberHint")
     }()
 
     return [
-        StartedStep(key: "signup", done: true, label: "Set your workspace up", hint: nil),
+        StartedStep(
+            key: "signup",
+            done: true,
+            label: AppStrings.translate(locale, "inbox.startedOwnerSignupLabel"),
+            hint: nil
+        ),
         StartedStep(
             key: "number",
             done: numberDone,
-            label: "Get your business number",
+            label: AppStrings.translate(locale, "inbox.startedOwnerNumberLabel"),
             hint: numberHint
         ),
         StartedStep(
             key: "inbound",
             done: hasConversation,
-            label: "Receive your first text",
+            label: AppStrings.translate(locale, "inbox.startedOwnerInboundLabel"),
             hint: hasConversation
                 ? nil
-                : "Text your number from your phone, and it lands right here."
+                : AppStrings.translate(locale, "inbox.startedOwnerInboundHint")
         ),
         StartedStep(
             key: "reply",
             done: usedSegments > 0,
-            label: "Send your first reply",
+            label: AppStrings.translate(locale, "inbox.startedOwnerReplyLabel"),
             hint: usedSegments > 0
                 ? nil
-                : "Open a conversation and answer like you would from your cell."
+                : AppStrings.translate(locale, "inbox.startedOwnerReplyHint")
         ),
         StartedStep(
             key: "teammate",
             done: activeMemberCount > 1,
-            label: "Invite a teammate",
+            label: AppStrings.translate(locale, "inbox.startedOwnerTeammateLabel"),
             hint: nil
         ),
     ]
@@ -135,31 +143,31 @@ func ownerSteps(
 /// note is not a text, and learning that by accident means a customer received
 /// something meant for a colleague.
 /// *Applying: Chunking — three things, which is what a person holds.*
-func memberSteps(_ firsts: MemberFirsts) -> [StartedStep] {
+func memberSteps(_ firsts: MemberFirsts, _ locale: String? = nil) -> [StartedStep] {
     [
         StartedStep(
             key: "reply",
             done: firsts.replied,
-            label: "Answer a customer",
+            label: AppStrings.translate(locale, "inbox.startedMemberReplyLabel"),
             hint: firsts.replied
                 ? nil
-                : "Open a thread and reply. It goes out from the business number, and the whole crew can see it."
+                : AppStrings.translate(locale, "inbox.startedMemberReplyHint")
         ),
         StartedStep(
             key: "note",
             done: firsts.noted,
-            label: "Leave a note for the crew",
+            label: AppStrings.translate(locale, "inbox.startedMemberNoteLabel"),
             hint: firsts.noted
                 ? nil
-                : "Switch the composer to Note. Notes stay inside the app — the customer never sees them."
+                : AppStrings.translate(locale, "inbox.startedMemberNoteHint")
         ),
         StartedStep(
             key: "done",
             done: firsts.marked_done,
-            label: "Mark something done",
+            label: AppStrings.translate(locale, "inbox.startedMemberDoneLabel"),
             hint: firsts.marked_done
                 ? nil
-                : "Tick a message off when it is handled, so the rest of the crew knows nobody needs to chase it."
+                : AppStrings.translate(locale, "inbox.startedMemberDoneHint")
         ),
     ]
 }
@@ -214,18 +222,18 @@ struct GettingStartedCard: View {
         startedAudience(me.memberships.first { $0.company_id == companyId }?.role)
     }
 
-    /// #228 — STILL ENGLISH, and deliberately.
+    /// #228: `packages/shared/src/first-run-copy.test.ts` reads
+    /// `Core/I18n/InboxStrings.swift` for iOS now — as it already did for
+    /// Android — so the two titles and every step label and hint below are
+    /// still held word for word against web, and a French reader gets French.
     ///
-    /// `packages/shared/src/first-run-copy.test.ts` reads THIS FILE as one of
-    /// its three title sources and as iOS's copy source for every step label
-    /// and hint in `ownerSteps`/`memberSteps` below. It compares web's
-    /// catalogue against the two hand-ports; for iOS it still compares against
-    /// the source, the way it did for Android before that client's sentences
-    /// moved. Lifting these into `InboxStrings` would fail that guard rather
-    /// than help a French reader, so they wait for it to be re-pointed at
-    /// `Core/I18n/InboxStrings.swift`.
+    /// Two literal `translate` calls rather than a ternary inside one, because
+    /// `check-ios-catalogue-keys` reads the literal argument and a key chosen at
+    /// runtime is invisible to it.
     private var title: String {
-        audience == .setup ? "Getting started" : "Getting the hang of it"
+        audience == .setup
+            ? AppStrings.translate(appLocale, "inbox.startedOwnerTitle")
+            : AppStrings.translate(appLocale, "inbox.startedMemberTitle")
     }
 
     var body: some View {
@@ -373,7 +381,10 @@ struct GettingStartedCard: View {
             case .none:
                 return []
             case .doingTheJob:
-                return memberSteps(try await graph.meApi.firsts(companyId: companyId))
+                return memberSteps(
+                    try await graph.meApi.firsts(companyId: companyId),
+                    appLocale
+                )
             case .setup:
                 // G7 step 7 is the POST-payment first inbox visit. Before that,
                 // "Get your business number, it's on its way" would be a lie.
@@ -396,7 +407,8 @@ struct GettingStartedCard: View {
                     numbers: company.numbers,
                     hasConversation: !(try await conversations.data.isEmpty),
                     usedSegments: try await usage.used_segments,
-                    activeMemberCount: countActiveStartedMembers(try await members.data)
+                    activeMemberCount: countActiveStartedMembers(try await members.data),
+                    locale: appLocale
                 )
             }
         } catch {

@@ -166,22 +166,42 @@ struct SegmentMeterState: Equatable, Sendable {
 
 /// Composer segment hint — passive text, not a control. Appears only once a
 /// message actually splits into 2+ parts; MMS shows a flat 3-part note.
-func segmentMeter(_ text: String, hasMedia: Bool = false) -> SegmentMeterState {
+///
+/// #228: `locale` is defaulted and declared LAST — every existing call site and
+/// every test compiles unchanged, and the English is what nil still returns.
+/// The keys and their French are Android's, so the two phones count parts in
+/// the same words.
+func segmentMeter(
+    _ text: String,
+    hasMedia: Bool = false,
+    locale: String? = nil
+) -> SegmentMeterState {
     if hasMedia {
         return SegmentMeterState(
             visible: true,
             segments: mmsSegments,
             encoding: SmsEncoding.gsm7,
-            label: "MMS · sent in \(mmsSegments) parts",
+            label: AppStrings.translate(
+                locale,
+                "thread.mmsSegments",
+                ["count": String(mmsSegments)]
+            ),
             warn: false
         )
     }
     let estimate = estimateSegments(text)
+    let label = estimate.segments == 1
+        ? AppStrings.translate(locale, "thread.sentInOnePart")
+        : AppStrings.translate(
+            locale,
+            "thread.sentInParts",
+            ["count": String(estimate.segments)]
+        )
     return SegmentMeterState(
         visible: estimate.segments >= 2,
         segments: estimate.segments,
         encoding: estimate.encoding,
-        label: "Sent in \(estimate.segments) part\(estimate.segments == 1 ? "" : "s")",
+        label: label,
         warn: estimate.segments >= meterWarnAtSegments
     )
 }

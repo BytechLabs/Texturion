@@ -20,33 +20,44 @@ import SwiftUI
 /// for the same fortnight.
 
 /// The arc sentence, or nil when there is no arc worth drawing.
-func responseArcSentence(_ report: ResponseTimeReport) -> String? {
+///
+/// #228: `locale` is LAST and defaulted on all three of these, so
+/// `ResponseTimeCopyTests` — which pins the English word for word against web and
+/// Android — keeps calling them unchanged and keeps reading the same sentence.
+func responseArcSentence(
+    _ report: ResponseTimeReport,
+    _ locale: String? = nil
+) -> String? {
     guard let direction = ResponseTimeFormat.arcDirection(report.improved_by_seconds),
           let then = report.baseline?.median_seconds
     else { return nil }
     let label = ResponseTimeFormat.format(then)
     return direction == "faster"
-        ? "Down from \(label) when you started"
-        : "Up from \(label) when you started"
+        ? AppStrings.translate(locale, "inbox.responseArcDown", ["then": label])
+        : AppStrings.translate(locale, "inbox.responseArcUp", ["then": label])
 }
 
 /// Why there is no arc yet, said plainly rather than left blank.
-func responseNoArcReason(_ report: ResponseTimeReport) -> String {
+func responseNoArcReason(_ report: ResponseTimeReport, _ locale: String? = nil) -> String {
     switch report.baseline_unavailable {
     case "too_new":
-        return "Your starting point lands once you have been here a fortnight"
+        return AppStrings.translate(locale, "inbox.responseNoArcTooNew")
     case "no_answered_leads":
-        return "No answered leads in your first two weeks, so there is nothing to compare"
+        return AppStrings.translate(locale, "inbox.responseNoArcNoLeads")
     default:
         // A baseline exists and the change is under a minute: the same
         // performance measured twice, which is not a story.
-        return "About the same as when you started"
+        return AppStrings.translate(locale, "inbox.responseNoArcSame")
     }
 }
 
 /// "2 leads nobody answered" — singular when it is one, because it often is.
-func responseUnansweredLine(_ count: Int) -> String {
-    count == 1 ? "1 lead nobody answered" : "\(count) leads nobody answered"
+func responseUnansweredLine(_ count: Int, _ locale: String? = nil) -> String {
+    count == 1
+        ? AppStrings.translate(locale, "inbox.responseUnansweredOne")
+        : AppStrings.translate(
+            locale, "inbox.responseUnansweredMany", ["count": String(count)]
+        )
 }
 
 struct ResponseTimeCard: View {
@@ -61,12 +72,11 @@ struct ResponseTimeCard: View {
     let onOpenUnanswered: () -> Void
 
     @State private var open = false
-    /// #228. The sentences this card still writes out are the ones
-    /// `apps/web/src/components/for-you/response-time-parity.test.ts` reads OUT
-    /// OF THIS FILE — for iOS it compares against the source, not the catalogue,
-    /// the way it already does for web and Android. Moving them would make that
-    /// guard fail rather than make a French reader happier, so they stay here
-    /// until it is re-pointed at `Core/I18n/InboxStrings.swift`.
+    /// #228. Every sentence on this card now comes from the catalogue.
+    /// `response-time-parity.test.ts` reads the Swift card AND
+    /// `Core/I18n/InboxStrings.swift` for iOS, so the wording is still held word
+    /// for word against web and Android — it just lives where a translator can
+    /// find it.
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
@@ -164,12 +174,12 @@ struct ResponseTimeCard: View {
                 Text(ResponseTimeFormat.format(report.median_seconds))
                     .font(.golos(24, weight: .semibold))
                     .monospacedDigit()
-                Text("to answer a new customer")
+                Text(AppStrings.translate(appLocale, "inbox.responseToAnswer"))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted600)
             }
 
-            if let arc = responseArcSentence(report) {
+            if let arc = responseArcSentence(report, appLocale) {
                 let direction = ResponseTimeFormat.arcDirection(report.improved_by_seconds)
                 HStack(spacing: 5) {
                     Image(
@@ -185,7 +195,7 @@ struct ResponseTimeCard: View {
                 // improvement is one nobody believes.
                 .foregroundStyle(direction == "faster" ? BrandColor.olive : BrandColor.coral)
             } else {
-                Text(responseNoArcReason(report))
+                Text(responseNoArcReason(report, appLocale))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted600)
             }
@@ -201,7 +211,7 @@ struct ResponseTimeCard: View {
             Divider().overlay(BrandColor.muted250)
             Button(action: onOpenUnanswered) {
                 HStack(spacing: 8) {
-                    Text(responseUnansweredLine(report.unanswered))
+                    Text(responseUnansweredLine(report.unanswered, appLocale))
                         .font(.golos(13))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Image(systemName: "arrow.right")
@@ -253,30 +263,48 @@ struct ResponseTimeCard: View {
             Divider().overlay(BrandColor.muted250)
             VStack(alignment: .leading, spacing: 0) {
                 detailRow(
-                    "Slowest 10% of answers",
+                    AppStrings.translate(appLocale, "inbox.responseSlowest"),
                     ResponseTimeFormat.format(report.p90_seconds)
                 )
                 detailRow(
-                    "During hours (\(report.business_hours.leads))",
+                    AppStrings.translate(
+                        appLocale,
+                        "inbox.responseDuringHours",
+                        ["count": String(report.business_hours.leads)]
+                    ),
                     ResponseTimeFormat.format(report.business_hours.median_seconds)
                 )
                 detailRow(
-                    "After hours (\(report.after_hours.leads))",
+                    AppStrings.translate(
+                        appLocale,
+                        "inbox.responseAfterHours",
+                        ["count": String(report.after_hours.leads)]
+                    ),
                     ResponseTimeFormat.format(report.after_hours.median_seconds)
                 )
                 // #482: which line is letting people down. Slowest first, and
                 // present only when there is more than one to compare.
                 ForEach(report.by_number ?? []) { number in
                     detailRow(
-                        "\(formatPhone(number.number_e164)) · "
-                            + "\(number.leads - number.answered) unanswered",
+                        AppStrings.translate(
+                            appLocale,
+                            "inbox.responseByNumber",
+                            [
+                                "number": formatPhone(number.number_e164),
+                                "count": String(number.leads - number.answered),
+                            ]
+                        ),
                         ResponseTimeFormat.format(number.median_seconds)
                     )
                 }
                 if let members = report.by_member {
                     ForEach(members) { member in
                         detailRow(
-                            "Member · \(member.answered) answered",
+                            AppStrings.translate(
+                                appLocale,
+                                "inbox.responseByMember",
+                                ["count": String(member.answered)]
+                            ),
                             ResponseTimeFormat.format(member.median_seconds)
                         )
                     }

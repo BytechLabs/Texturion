@@ -29,9 +29,14 @@ struct PhotoGroupHeader: View {
     let fromCustomer: Bool
     let nameOf: (String?) -> String?
 
+    @Environment(\.appLocale) private var appLocale
+
     private var who: String {
-        if fromCustomer { return "From the customer" }
-        return nameOf(addedByUserId) ?? "Added by the crew"
+        if fromCustomer {
+            return AppStrings.translate(appLocale, "contactsTasks.photosFromCustomer")
+        }
+        return nameOf(addedByUserId)
+            ?? AppStrings.translate(appLocale, "contactsTasks.photosFromCrew")
     }
 
     var body: some View {

@@ -37,6 +37,8 @@ struct TasksTab: View {
     @State private var bulkSelection: BulkSelection = .empty
     @State private var bulkRunning = false
 
+    @Environment(\.appLocale) private var appLocale
+
     private var filtersActive: Bool {
         assigneeChip != nil || unassignedChip || dueChip != nil || !debouncedQ.isEmpty
     }
@@ -174,7 +176,7 @@ struct TasksTab: View {
             }
         }
         .alert(
-            "Couldn't update the task",
+            AppStrings.translate(appLocale, "contactsTasks.taskUpdateFailed"),
             isPresented: Binding(
                 get: { toggleError != nil },
                 set: { if !$0 { toggleError = nil } }
@@ -191,20 +193,32 @@ struct TasksTab: View {
     /// spoken labels, ink-filled when selected.
     private var headerRow: some View {
         HStack(alignment: .center, spacing: 8) {
-            ScreenTitle(text: "Tasks")
+            ScreenTitle(text: AppStrings.translate(appLocale, "contactsTasks.tasksTitle"))
             Spacer(minLength: 8)
             HStack(spacing: 6) {
-                viewToggle(kind: .list, icon: "list.bullet", label: "List view")
-                viewToggle(kind: .board, icon: "square.grid.2x2", label: "Board view")
-                viewToggle(kind: .calendar, icon: "calendar", label: "Calendar view")
-                viewToggle(kind: .map, icon: "map", label: "Map view")
+                viewToggle(kind: .list, icon: "list.bullet", labelKey: "contactsTasks.viewList")
+                viewToggle(
+                    kind: .board,
+                    icon: "square.grid.2x2",
+                    labelKey: "contactsTasks.viewBoard"
+                )
+                viewToggle(
+                    kind: .calendar,
+                    icon: "calendar",
+                    labelKey: "contactsTasks.viewCalendar"
+                )
+                viewToggle(kind: .map, icon: "map", labelKey: "contactsTasks.viewMap")
             }
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
     }
 
-    private func viewToggle(kind: TaskViewKind, icon: String, label: String) -> some View {
+    private func viewToggle(
+        kind: TaskViewKind,
+        icon: String,
+        labelKey: String
+    ) -> some View {
         let selected = view == kind
         return Button {
             if view != kind { view = kind }
@@ -217,7 +231,7 @@ struct TasksTab: View {
                 .shadow(color: Color.black.opacity(0.06), radius: 2, y: 1)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(label)
+        .accessibilityLabel(AppStrings.translate(appLocale, labelKey))
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
@@ -230,7 +244,7 @@ struct TasksTab: View {
                 Button {
                     tab = item
                 } label: {
-                    Text(item.rawValue)
+                    Text(AppStrings.translate(appLocale, item.labelKey))
                         .font(.golos(12, weight: selected ? .semibold : .medium))
                         .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
                         .padding(.horizontal, 15)
@@ -250,7 +264,10 @@ struct TasksTab: View {
             Image(systemName: "magnifyingglass")
                 .font(.scaled(14, weight: .medium))
                 .foregroundStyle(BrandColor.muted400)
-            TextField("Search task titles", text: $search)
+            TextField(
+                AppStrings.translate(appLocale, "contactsTasks.searchTaskTitles"),
+                text: $search
+            )
                 .font(.golos(13))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -267,7 +284,9 @@ struct TasksTab: View {
                         .foregroundStyle(BrandColor.muted300)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Clear search")
+                .accessibilityLabel(
+                    AppStrings.translate(appLocale, "contactsTasks.clearSearch")
+                )
             }
         }
         .padding(.horizontal, 15)
@@ -278,10 +297,15 @@ struct TasksTab: View {
     }
 
     private var assigneeChipLabel: String {
-        guard let id = assigneeChip else { return "Assignee" }
-        if id == me.user_id { return "You" }
+        guard let id = assigneeChip else {
+            return AppStrings.translate(appLocale, "contactsTasks.assignee")
+        }
+        if id == me.user_id { return AppStrings.translate(appLocale, "contactsTasks.you") }
         let name = members.first { $0.user_id == id }?.display_name
-        return (name?.isBlank ?? true) ? "Teammate" : (name ?? "Teammate")
+        guard let name, !name.isBlank else {
+            return AppStrings.translate(appLocale, "contactsTasks.teammate")
+        }
+        return name
     }
 
     private var filterChips: some View {
@@ -290,12 +314,16 @@ struct TasksTab: View {
                 filterChip(
                     label: assigneeChipLabel,
                     selected: assigneeChip != nil,
-                    clearLabel: assigneeChip != nil ? "Clear assignee filter" : nil,
+                    clearLabel: assigneeChip != nil
+                        ? AppStrings.translate(
+                            appLocale, "contactsTasks.clearAssigneeFilter"
+                          )
+                        : nil,
                     onTap: { pickerOpen = true },
                     onClear: { assigneeChip = nil }
                 )
                 filterChip(
-                    label: "Unassigned",
+                    label: AppStrings.translate(appLocale, "contactsTasks.unassigned"),
                     selected: unassignedChip,
                     clearLabel: nil,
                     onTap: {
@@ -306,7 +334,7 @@ struct TasksTab: View {
                 )
                 ForEach(DueChip.allCases) { chip in
                     filterChip(
-                        label: chip.rawValue,
+                        label: AppStrings.translate(appLocale, chip.labelKey),
                         selected: dueChip == chip,
                         clearLabel: nil,
                         onTap: { dueChip = dueChip == chip ? nil : chip },
@@ -366,9 +394,12 @@ struct TasksTab: View {
         case .ready:
             if rows.isEmpty {
                 Text(
-                    filtersActive || tab != .open
-                        ? "Nothing on this list."
-                        : "No tasks yet. Promote a message from its ⋯ menu in a conversation."
+                    AppStrings.translate(
+                        appLocale,
+                        filtersActive || tab != .open
+                            ? "contactsTasks.listEmptyFiltered"
+                            : "contactsTasks.listEmpty"
+                    )
                 )
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.muted500)
@@ -421,7 +452,14 @@ struct TasksTab: View {
                             }
                         }
                         if hasMore {
-                            Button(loadingMore ? "Loading…" : "Load more") {
+                            Button(
+                                AppStrings.translate(
+                                    appLocale,
+                                    loadingMore
+                                        ? "contactsTasks.loading"
+                                        : "contactsTasks.loadMore"
+                                )
+                            ) {
                                 loadMore()
                             }
                             .disabled(loadingMore)
@@ -433,7 +471,11 @@ struct TasksTab: View {
                             Circle()
                                 .fill(BrandColor.lime)
                                 .frame(width: 6, height: 6)
-                            Text("Every task links back to its message")
+                            Text(
+                                AppStrings.translate(
+                                    appLocale, "contactsTasks.everyTaskLinksBack"
+                                )
+                            )
                                 .font(.golos(11))
                                 .foregroundStyle(BrandColor.muted700)
                         }
@@ -551,6 +593,8 @@ private struct TaskListRow: View {
     let assigneeName: String?
     let onToggleDone: @MainActor (Bool) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             // The round derived-done toggle: 22pt ring → lime fill + ink check
@@ -571,7 +615,12 @@ private struct TaskListRow: View {
                 .frame(width: 22, height: 22)
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel(task.done ? "Mark not done" : "Mark done")
+            .accessibilityLabel(
+                AppStrings.translate(
+                    appLocale,
+                    task.done ? "contactsTasks.markNotDone" : "contactsTasks.markDone"
+                )
+            )
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.title)
@@ -586,9 +635,13 @@ private struct TaskListRow: View {
                 if task.due_at != nil {
                     let overdue = isOverdue(task)
                     Text(
-                        overdue
-                            ? "Overdue · due \(formatDue(task.due_at))"
-                            : "Due \(formatDue(task.due_at))"
+                        AppStrings.translate(
+                            appLocale,
+                            overdue
+                                ? "contactsTasks.overdueDueWhen"
+                                : "contactsTasks.dueWhen",
+                            ["when": formatDue(task.due_at)]
+                        )
                     )
                     .font(.golos(11.5, weight: overdue ? .semibold : .regular))
                     // Overdue = amber, never red.
@@ -716,7 +769,9 @@ extension TasksTab {
             }
             .buttonStyle(.plain)
             .disabled(bulkRunning)
-            .accessibilityLabel("Clear selection")
+            .accessibilityLabel(
+                AppStrings.translate(appLocale, "contactsTasks.clearSelection")
+            )
 
             Text(bulkSelection.label)
                 .font(.golos(13, weight: .semibold))
@@ -726,7 +781,9 @@ extension TasksTab {
 
             if bulkRunning { ProgressView() }
 
-            Button("Done") { runBulk(action: "mark_done", verb: "Marked done") }
+            Button(AppStrings.translate(appLocale, "contactsTasks.columnDone")) {
+                runBulk(action: "mark_done", verb: "Marked done")
+            }
                 .font(.golos(13, weight: .semibold))
                 .foregroundStyle(BrandColor.olive)
                 .buttonStyle(.plain)
@@ -734,19 +791,26 @@ extension TasksTab {
 
             Menu {
                 ForEach(members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
-                    Button("Assign to \(member.display_name.isBlank ? "Teammate" : member.display_name)") {
+                    let who = member.display_name.isBlank
+                        ? AppStrings.translate(appLocale, "contactsTasks.teammate")
+                        : member.display_name
+                    Button(
+                        AppStrings.translate(
+                            appLocale, "contactsTasks.assignTo", ["who": who]
+                        )
+                    ) {
                         runBulk(action: "assign", verb: "Assigned", targetUserId: member.user_id)
                     }
                 }
-                Button("Unassign") {
+                Button(AppStrings.translate(appLocale, "contactsTasks.unassign")) {
                     runBulk(action: "assign", verb: "Unassigned", unassign: true)
                 }
-                Button("Mark not done") {
+                Button(AppStrings.translate(appLocale, "contactsTasks.markNotDone")) {
                     runBulk(action: "mark_undone", verb: "Marked not done")
                 }
                 // Destructive and last: an action adjacent to the ones people
                 // use by momentum is one somebody hits by momentum.
-                Button("Delete", role: .destructive) {
+                Button(AppStrings.translate(appLocale, "common.delete"), role: .destructive) {
                     runBulk(action: "delete", verb: "Deleted")
                 }
             } label: {
@@ -754,7 +818,9 @@ extension TasksTab {
                     .font(.scaled(13, weight: .semibold))
             }
             .disabled(bulkRunning)
-            .accessibilityLabel("More bulk actions")
+            .accessibilityLabel(
+                AppStrings.translate(appLocale, "contactsTasks.moreBulkActions")
+            )
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -765,7 +831,13 @@ extension TasksTab {
         if case let .ids(ids) = bulkSelection,
            !rows.isEmpty,
            !rows.allSatisfy({ ids.contains($0.id) }) {
-            Button("Select these \(rows.count)") {
+            Button(
+                AppStrings.translate(
+                    appLocale,
+                    "contactsTasks.selectThese",
+                    ["count": String(rows.count)]
+                )
+            ) {
                 bulkSelection = selectLoaded(rows.map(\.id))
             }
             .font(.golos(12.5, weight: .semibold))
@@ -775,7 +847,9 @@ extension TasksTab {
             .padding(.bottom, 8)
         }
         if bulkSelection.canEscalate(loadedIds: rows.map(\.id), hasMore: hasMore) {
-            Button("Select all matching") { bulkSelection = .filter }
+            Button(AppStrings.translate(appLocale, "contactsTasks.selectAllMatching")) {
+                bulkSelection = .filter
+            }
                 .font(.golos(12.5, weight: .semibold))
                 .foregroundStyle(BrandColor.olive)
                 .buttonStyle(.plain)
@@ -833,7 +907,7 @@ extension TasksTab {
                 bulkSelection = .empty
                 refreshKey += 1
             } catch {
-                toggleError = "That didn't go through. Nothing was changed."
+                toggleError = AppStrings.translate(appLocale, "contactsTasks.bulkFailed")
             }
         }
     }

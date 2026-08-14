@@ -39,7 +39,13 @@ import { readFileSync } from "node:fs";
  * failure it produced the first time the Android sweep landed.
  */
 function joinWrappedLiterals(text: string): string {
-  return text.replace(/"\s*\+\s*\n\s*"/g, "");
+  return (
+    text
+      // Kotlin puts the `+` at the END of the line: `"It will go " +`
+      .replace(/"\s*\+\s*\n\s*"/g, "")
+      // Swift puts it at the START of the continuation: `"It will go "\n + "out`
+      .replace(/"\s*\n\s*\+\s*"/g, "")
+  );
 }
 
 /** Strip `"section.key" to ` pairs and comment lines, leaving the sentences. */

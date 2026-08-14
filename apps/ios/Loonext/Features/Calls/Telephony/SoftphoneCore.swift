@@ -48,6 +48,18 @@ enum SoftphoneErrorGate {
 final class SoftphoneCore {
     static let maxConcurrentCalls = CallStateMachine.maxConcurrentCalls
 
+    /// #228 — the reader's language, asked for at the moment a sentence is
+    /// needed.
+    ///
+    /// `UiLocaleStore` rather than the `appLocale` environment, because this is
+    /// not a view: the failures below are thrown from an authorize or a placement
+    /// with no SwiftUI hierarchy around them. Same store the router publishes
+    /// from, and the same one `AppLockGate` reads for the same reason — a
+    /// captured locale would go stale the moment somebody changed the setting.
+    private func t(_ key: String) -> String {
+        AppStrings.translate(UiLocaleStore.shared.resolved, key)
+    }
+
     @ObservationIgnored private let api: any CallsBackend
     @ObservationIgnored private let sdk: any SoftphoneSdk
     @ObservationIgnored private let now: () -> Date
@@ -234,7 +246,7 @@ final class SoftphoneCore {
             if clock.now >= deadline {
                 throw ApiError(
                     code: ApiErrorCode.network,
-                    message: "Couldn't connect your phone. Check your connection and try again.",
+                    message: t("shell.phoneConnectFailed"),
                     httpStatus: 0
                 )
             }
@@ -340,7 +352,7 @@ final class SoftphoneCore {
             )
             let down = CallStateMachine.disconnected(state)
             state = worthTelling
-                ? CallStateMachine.error(down, "Calling is temporarily unavailable.")
+                ? CallStateMachine.error(down, t("shell.callingTemporarilyUnavailable"))
                 : down
             scheduleRecover()
 
@@ -654,14 +666,14 @@ final class SoftphoneCore {
         guard let company = companyId else {
             throw ApiError(
                 code: ApiErrorCode.network,
-                message: "Calling isn't ready yet. Try again in a moment.",
+                message: t("shell.callingNotReady"),
                 httpStatus: 0
             )
         }
         guard state.liveCalls.count < Self.maxConcurrentCalls else {
             throw ApiError(
                 code: ApiErrorCode.conflict,
-                message: "You're already on two calls.",
+                message: t("shell.tooManyCalls"),
                 httpStatus: 0
             )
         }
@@ -681,7 +693,7 @@ final class SoftphoneCore {
             // fail honestly rather than leave a silent dead chip. Mirrors web.
             throw ApiError(
                 code: ApiErrorCode.conflict,
-                message: "Couldn't start the call. Please try again.",
+                message: t("shell.callStartFailedPleaseRetry"),
                 httpStatus: 409
             )
         }
@@ -700,7 +712,7 @@ final class SoftphoneCore {
             self.state = CallStateMachine.placementFailed(
                 self.state,
                 placementId: sessionId,
-                message: "Couldn't reach the line. Please try again."
+                message: t("shell.lineUnreachable")
             )
         }
         pendingPlacements[sessionId] = PendingPlacement(
@@ -861,7 +873,7 @@ final class SoftphoneCore {
         guard let companyId else {
             throw ApiError(
                 code: ApiErrorCode.network,
-                message: "Calling isn't ready yet. Try again in a moment.",
+                message: t("shell.callingNotReady"),
                 httpStatus: 0
             )
         }

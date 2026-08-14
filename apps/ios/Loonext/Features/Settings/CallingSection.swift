@@ -1,9 +1,28 @@
 import SwiftUI
 
-/// The default missed-call text-back shown as the placeholder (web parity).
-let defaultMctbMessage =
-    "Sorry we missed your call! This is {business_name}. Reply here with your address "
-        + "and what you need, and we'll get you booked in."
+/// #228: the key holding the default missed-call text-back, in both languages.
+///
+/// THE CATALOGUE ENTRY IS THE SENT MESSAGE, not a description of it. Both
+/// languages are Android's `settings.textBackDefault` character for character,
+/// which took them from `packages/shared/src/locale.ts` — what the SERVER
+/// actually puts on the wire. So the French reads without accents and inside
+/// GSM-7, exactly as the text a customer receives does. A prettier French here
+/// would preview a message this product never sends, which is worse than no
+/// preview at all.
+///
+/// `{business_name}` is a merge field the send path fills in rather than a
+/// catalogue token: `AppStrings.translate` leaves an unknown token untouched,
+/// which is why the placeholder can show it and the preview can substitute it.
+private let mctbDefaultKey = "settings.textBackDefault"
+
+/// The ENGLISH default, which is what `mctbSendTemplate` falls back to.
+///
+/// It stays a constant rather than becoming a lookup with a locale, because it
+/// is the last resort of a function with no reader in scope: `SettingsLogicTests`
+/// pins `mctbSendTemplate(message: "", effectiveMessage: nil)` against it, and
+/// the shipped screens never reach this branch — they hand the function the
+/// reader's own default instead (see `previewTemplate`).
+let defaultMctbMessage = AppStrings.translate(MessageLocale.en, mctbDefaultKey)
 
 /// #192: the template that actually sends for a (possibly blank) local edit. A
 /// blank message is legal and resolves to the server's effective template
@@ -36,17 +55,15 @@ struct CallingSectionView: View {
     let company: CompanyView
     let onCompanyUpdated: @MainActor (CompanyView) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         if onlyHostedNumbers(company) {
-            Text(
-                "In-app calling needs a number whose calls come through Loonext. Calls to "
-                    + "your text-enabled landline stay with your existing carrier, so these "
-                    + "settings won't apply until you add or transfer a Loonext number."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 6)
+            Text(AppStrings.translate(appLocale, "settings.callingHostedOnly"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 6)
         }
         TextBackCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         VoicemailCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
@@ -85,6 +102,8 @@ private struct TextBackCard: View {
     @State private var saveState: TextBackSaveState = .idle
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     init(scope: SettingsScope, company: CompanyView, onCompanyUpdated: @escaping @MainActor (CompanyView) -> Void) {
         self.scope = scope
         self.company = company
@@ -96,37 +115,45 @@ private struct TextBackCard: View {
         )
     }
 
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
     private var trimmed: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
 
+    /// The default the reader sees, rather than the English constant.
+    private var readerDefault: String { t(mctbDefaultKey) }
+
     /// #192: a blank message is legal and sends the shared product default. The
     /// live preview shows the local edit, else the server-resolved effective
-    /// template (custom else default), falling back to the bundled default.
+    /// template (custom else default), falling back to the reader's default.
     private var previewTemplate: String {
-        mctbSendTemplate(message: message, effectiveMessage: company.mctb_effective_message)
+        mctbSendTemplate(
+            message: message,
+            effectiveMessage: company.mctb_effective_message ?? readerDefault
+        )
     }
 
     private var savingStatus: String {
         switch saveState {
-        case .saving: " · Saving…"
-        case .saved: " · Saved"
+        case .saving: t("settings.textBackStatusSaving")
+        case .saved: t("settings.textBackStatusSaved")
         case .idle: ""
         }
     }
 
     var body: some View {
         SettingsCard(
-            title: "Text back a missed call",
-            description: "When a call to your business number goes unanswered, we send the "
-                + "caller one text so they can book by reply, instead of calling the next "
-                + "number on their list."
+            title: t("settings.textBackTitle"),
+            description: t("settings.textBackIntro")
         ) {
             // The toggle alone decides WHETHER the text-back fires; a blank
             // message means the default ships. The flip is optimistic, reverted
             // with the cause if the PATCH fails.
             LabeledToggleRow(
-                label: "Text back missed calls",
-                supporting: "Fires once per caller when a call goes unanswered.",
+                label: t("settings.textBackSwitch"),
+                supporting: t("settings.textBackSwitchHelp"),
                 isOn: enabled,
                 enabled: canEdit
             ) { next in
@@ -150,13 +177,17 @@ private struct TextBackCard: View {
             // do. A caller who is never texted back is the whole point of the
             // feature.
             if enabled, !usSendApproved(company) {
-                ReachNote(text: usTextingOff(company)
-                    ? "Callers with US numbers won't get this text: US texting isn't on for this workspace. Canadian callers get it now."
-                    : "Callers with US numbers won't get this text until your registration is approved. Canadian callers get it now.")
+                ReachNote(
+                    text: t(
+                        usTextingOff(company)
+                            ? "settings.textBackUsTextingOff"
+                            : "settings.textBackUsPending"
+                    )
+                )
             }
             if enabled {
                 if canEdit {
-                    TextField(defaultMctbMessage, text: Binding(
+                    TextField(readerDefault, text: Binding(
                         get: { message },
                         set: { next in
                             if next.count <= 1000 { message = next }
@@ -165,19 +196,16 @@ private struct TextBackCard: View {
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(3 ... 8)
                     .padding(.top, 6)
-                    Text(
-                        "Leave it empty to send the default. "
-                            + "{business_name} fills in automatically." + savingStatus
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
+                    Text(t("settings.textBackHint") + savingStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
                 }
                 // The server sends this with NO contact name (a missed call is
                 // usually a brand-new caller) — the preview drops {first_name}
                 // exactly as the wire does.
                 PreviewBubble(
-                    label: "What the caller receives",
+                    label: t("settings.textBackPreviewLabel"),
                     text: applyMergeFields(
                         previewTemplate,
                         contactName: nil,
@@ -188,7 +216,7 @@ private struct TextBackCard: View {
             InlineError(error)
             if !canEdit {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change the missed-call text-back.")
+                ReadOnlyLine(t("settings.textBackReadOnly"))
             }
         }
         // #192 debounced autosave: a fresh keystroke cancels this task via
@@ -228,11 +256,17 @@ private struct VoicemailCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     init(scope: SettingsScope, company: CompanyView, onCompanyUpdated: @escaping @MainActor (CompanyView) -> Void) {
         self.scope = scope
         self.company = company
         self.onCompanyUpdated = onCompanyUpdated
         _greeting = State(initialValue: company.voicemail_greeting ?? "")
+    }
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
     }
 
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
@@ -241,15 +275,27 @@ private struct VoicemailCard: View {
         trimmed != (company.voicemail_greeting ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The spoken default, DELIBERATELY still in English (#228).
+    ///
+    /// `apps/api/src/messaging/inbound-ring.ts` speaks `defaultGreeting()` to
+    /// the caller and takes no locale, so this is the sentence a caller
+    /// actually hears whatever anybody's app is set to. Translating the preview
+    /// would show a French owner words their callers never hear — the same
+    /// argument the missed-call default's docblock makes, pointing the other
+    /// way. It is worth extracting on the day the SERVER learns the language,
+    /// and misleading before then. Android leaves it English for the same
+    /// reason.
+    private var spokenDefault: String {
+        defaultVoicemailGreeting(companyName: company.name)
+    }
+
     var body: some View {
         SettingsCard(
-            title: "Voicemail greeting",
-            description: "When nobody answers in the app, the caller hears this greeting "
-                + "and can leave a message up to two minutes. Voicemails land in the call "
-                + "log and the caller's conversation, ready to play."
+            title: t("settings.voicemailTitle"),
+            description: t("settings.voicemailIntro")
         ) {
             if canEdit {
-                TextField(defaultVoicemailGreeting(companyName: company.name), text: Binding(
+                TextField(spokenDefault, text: Binding(
                     get: { greeting },
                     set: { next in
                         if next.count <= 500 { greeting = next }
@@ -258,27 +304,35 @@ private struct VoicemailCard: View {
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(2 ... 6)
                 .disabled(saving)
-                Text("\(greeting.count)/500 · Spoken aloud to the caller. Leave it empty to use the default.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
+                Text(
+                    AppStrings.translate(
+                        appLocale,
+                        "settings.voicemailCount",
+                        ["count": "\(greeting.count)"]
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.top, 2)
             }
             PreviewBubble(
-                label: "What callers hear",
-                text: trimmed.isEmpty ? defaultVoicemailGreeting(companyName: company.name) : trimmed
+                label: t("settings.voicemailPreviewLabel"),
+                text: trimmed.isEmpty ? spokenDefault : trimmed
             )
             InlineError(error)
             if canEdit {
                 if dirty {
-                    Button(saving ? "Saving…" : "Save greeting") { save() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.olive)
-                        .disabled(saving)
-                        .padding(.top, 10)
+                    Button(saving ? t("common.saving") : t("settings.voicemailSaveAction")) {
+                        save()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BrandColor.olive)
+                    .disabled(saving)
+                    .padding(.top, 10)
                 }
             } else {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change the voicemail greeting.")
+                ReadOnlyLine(t("settings.voicemailReadOnly"))
             }
         }
     }
@@ -286,6 +340,7 @@ private struct VoicemailCard: View {
     private func save() {
         error = nil
         saving = true
+        let locale = appLocale
         let body = JSONValue.object([
             "voicemail_greeting": trimmed.isEmpty ? .null : .string(trimmed),
         ])
@@ -293,7 +348,9 @@ private struct VoicemailCard: View {
             do {
                 let updated = try await scope.repo.updateCompany(scope.companyId, patch: body)
                 onCompanyUpdated(updated)
-                scope.showMessage("Voicemail greeting saved.")
+                scope.showMessage(
+                    AppStrings.translate(locale, "settings.voicemailSaved")
+                )
             } catch {
                 self.error = error.userMessage
             }
@@ -327,6 +384,12 @@ private struct AfterHoursCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
     private var hoursSet: Bool {
         company.business_hours.values.contains { $0 != nil }
@@ -334,18 +397,13 @@ private struct AfterHoursCard: View {
 
     var body: some View {
         SettingsCard(
-            title: "After hours",
-            description: "Outside your business hours a call can ring everyone, "
-                + "ring only whoever's on call, or go straight to a message. Most "
-                + "small crews are best on the first one."
+            title: t("settings.afterHoursTitle"),
+            description: t("settings.afterHoursIntro")
         ) {
             if !hoursSet {
-                Text(
-                    "You haven't set business hours yet, so nothing here can happen — "
-                        + "every hour is a working hour until you do. Set them under Hours."
-                )
-                .font(.footnote)
-                .padding(.bottom, 8)
+                Text(t("settings.afterHoursNoHours"))
+                    .font(.footnote)
+                    .padding(.bottom, 8)
             }
             ForEach(afterHoursChoices) { choice in
                 let selected = company.after_hours_calls == choice.value
@@ -358,10 +416,10 @@ private struct AfterHoursCard: View {
                             .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
                             .padding(.top, 2)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(choice.label)
+                            Text(t(choice.labelKey))
                                 .font(.body)
                                 .foregroundStyle(Color.primary)
-                            Text(choice.detail)
+                            Text(t(choice.detailKey))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -375,7 +433,7 @@ private struct AfterHoursCard: View {
             InlineError(error)
             if !canEdit {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change after-hours calling.")
+                ReadOnlyLine(t("settings.afterHoursReadOnly"))
             }
         }
     }
@@ -383,6 +441,7 @@ private struct AfterHoursCard: View {
     private func save(_ value: String) {
         error = nil
         saving = true
+        let locale = appLocale
         Task {
             do {
                 let updated = try await scope.repo.updateCompany(
@@ -390,7 +449,9 @@ private struct AfterHoursCard: View {
                     patch: .object(["after_hours_calls": .string(value)])
                 )
                 onCompanyUpdated(updated)
-                scope.showMessage("After-hours calling updated.")
+                scope.showMessage(
+                    AppStrings.translate(locale, "settings.afterHoursUpdated")
+                )
             } catch {
                 self.error = error.userMessage
             }
@@ -399,10 +460,16 @@ private struct AfterHoursCard: View {
     }
 }
 
+/// #228: a choice is now a wire value and two catalogue KEYS.
+///
+/// The words moved out but the list stayed a list, deliberately: the order of
+/// these three is the design (the recommended shape first), and a `ForEach` over
+/// a table keeps that order in one readable place instead of spreading it down
+/// the body of the card.
 private struct AfterHoursChoice: Identifiable {
     let value: String
-    let label: String
-    let detail: String
+    let labelKey: String
+    let detailKey: String
     var id: String { value }
 }
 
@@ -416,49 +483,43 @@ private struct AfterHoursChoice: Identifiable {
 private let afterHoursChoices = [
     AfterHoursChoice(
         value: "ring_everyone",
-        label: "Ring everyone, day or night",
-        detail: "What happens today. Every call rings the whole crew whatever "
-            + "the clock says."
+        labelKey: "settings.afterHoursRingEveryone",
+        detailKey: "settings.afterHoursRingEveryoneDetail"
     ),
     AfterHoursChoice(
         value: "on_call_only",
-        label: "Ring only whoever's on call",
-        detail: "After hours, the phone rings for the person holding the on-call "
-            + "shift and nobody else. With no shift set, everyone rings — we never "
-            + "leave a call reaching nobody."
+        labelKey: "settings.afterHoursOnCallOnly",
+        detailKey: "settings.afterHoursOnCallOnlyDetail"
     ),
     AfterHoursChoice(
         value: "voicemail",
-        label: "Take a message",
-        detail: "After hours, the caller goes straight to your greeting instead "
-            + "of ringing out first — unless somebody is on call, who still rings."
+        labelKey: "settings.afterHoursVoicemail",
+        detailKey: "settings.afterHoursVoicemailDetail"
     ),
 ]
 
 private struct ScreeningChoice: Identifiable {
     let value: String
-    let label: String
-    let detail: String
+    let labelKey: String
+    let detailKey: String
     var id: String { value }
 }
 
 private let screeningChoices = [
     ScreeningChoice(
         value: CallScreening.off,
-        label: "Off",
-        detail: "Every call rings the team, no carrier verdict shown."
+        labelKey: "settings.screeningOff",
+        detailKey: "settings.screeningOffDetail"
     ),
     ScreeningChoice(
         value: CallScreening.flag,
-        label: "Label suspicious calls",
-        detail: "The carrier's verdict shows on the call as “Spam likely”, but every "
-            + "call still rings the team."
+        labelKey: "settings.screeningFlag",
+        detailKey: "settings.screeningFlagDetail"
     ),
     ScreeningChoice(
         value: CallScreening.divert,
-        label: "Send suspicious calls to voicemail",
-        detail: "Flagged callers skip the ring and go straight to voicemail. A real customer "
-            + "who gets misflagged can still leave a message."
+        labelKey: "settings.screeningDivert",
+        detailKey: "settings.screeningDivertDetail"
     ),
 ]
 
@@ -470,12 +531,18 @@ private struct ScreeningCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
 
     var body: some View {
         SettingsCard(
-            title: "Call screening",
-            description: "What happens when the carrier thinks an incoming call is spam."
+            title: t("settings.screeningTitle"),
+            description: t("settings.screeningIntro")
         ) {
             ForEach(screeningChoices) { choice in
                 let selected = company.call_screening == choice.value
@@ -488,10 +555,10 @@ private struct ScreeningCard: View {
                             .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
                             .padding(.top, 2)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(choice.label)
+                            Text(t(choice.labelKey))
                                 .font(.body)
                                 .foregroundStyle(Color.primary)
-                            Text(choice.detail)
+                            Text(t(choice.detailKey))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -505,7 +572,7 @@ private struct ScreeningCard: View {
             InlineError(error)
             if !canEdit {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change call screening.")
+                ReadOnlyLine(t("settings.screeningReadOnly"))
             }
         }
     }
@@ -513,6 +580,7 @@ private struct ScreeningCard: View {
     private func save(_ value: String) {
         error = nil
         saving = true
+        let locale = appLocale
         Task {
             do {
                 let updated = try await scope.repo.updateCompany(
@@ -520,7 +588,9 @@ private struct ScreeningCard: View {
                     patch: .object(["call_screening": .string(value)])
                 )
                 onCompanyUpdated(updated)
-                scope.showMessage("Call screening updated.")
+                scope.showMessage(
+                    AppStrings.translate(locale, "settings.screeningUpdated")
+                )
             } catch {
                 self.error = error.userMessage
             }
@@ -575,6 +645,12 @@ private struct CallerIdCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
     private var usingCompanyName: Bool { company.caller_id_source == "company_name" }
     private var trimmedDraft: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -582,24 +658,29 @@ private struct CallerIdCard: View {
 
     var body: some View {
         SettingsCard(
-            title: "Caller ID",
-            description: "What people see when you call them, and what you see when "
-                + "they call you."
+            title: t("settings.callerIdTitle"),
+            description: t("settings.callerIdIntro")
         ) {
-            Text("Your outbound display name")
+            Text(t("settings.callerIdOutboundHeading"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.primary)
             HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(company.caller_id_effective ?? "No display name")
+                    Text(company.caller_id_effective ?? t("settings.callerIdNone"))
                         .font(.body)
-                    Text(usingCompanyName ? "Using your company name" : "Custom display name")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        t(
+                            usingCompanyName
+                                ? "settings.callerIdUsingCompanyName"
+                                : "settings.callerIdCustom"
+                        )
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
                 if canEdit && !editing {
-                    Button("Change") {
+                    Button(t("settings.callerIdChange")) {
                         draft = company.cnam_display_name ?? ""
                         error = nil
                         confirming = nil
@@ -612,13 +693,10 @@ private struct CallerIdCard: View {
             }
             .padding(.top, 4)
             if cnamChangePending(submittedAt: company.cnam_submitted_at) {
-                Text(
-                    "Caller ID update submitted. Carriers usually show the new name "
-                        + "within 1 to 3 days."
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
+                Text(t("settings.callerIdPending"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
             }
 
             if editing && confirming == nil {
@@ -632,26 +710,27 @@ private struct CallerIdCard: View {
                 .disabled(saving)
                 .padding(.top, 10)
                 Text(
-                    draftInvalid
-                        ? "1 to 15 letters, digits, or spaces."
-                        : "Shown on US caller ID when you call customers. Letters, "
-                            + "digits, and spaces, 15 characters max. Canadian display "
-                            + "names are set by the receiving carrier, so this mainly "
-                            + "helps your US calls."
+                    t(
+                        draftInvalid
+                            ? "settings.callerIdInvalid"
+                            : "settings.callerIdNewNameHelp"
+                    )
                 )
                 .font(.caption)
                 .foregroundStyle(draftInvalid ? AnyShapeStyle(BrandColor.destructive) : AnyShapeStyle(.secondary))
                 .padding(.top, 2)
                 if !usingCompanyName {
-                    Button("Use company name instead") { confirming = CallerIdChange(value: nil) }
-                        .buttonStyle(.borderless)
-                        .tint(BrandColor.olive)
-                        .disabled(saving)
+                    Button(t("settings.callerIdUseCompanyName")) {
+                        confirming = CallerIdChange(value: nil)
+                    }
+                    .buttonStyle(.borderless)
+                    .tint(BrandColor.olive)
+                    .disabled(saving)
                 }
                 HStack(spacing: 8) {
-                    Button("Review change") {
+                    Button(t("settings.callerIdReview")) {
                         if draftInvalid || trimmedDraft.isEmpty {
-                            error = "The display name must be 1 to 15 letters, digits, or spaces."
+                            error = t("settings.callerIdInvalidError")
                             return
                         }
                         if trimmedDraft == company.cnam_display_name {
@@ -664,7 +743,7 @@ private struct CallerIdCard: View {
                     .buttonStyle(.borderedProminent)
                     .tint(BrandColor.olive)
                     .disabled(saving)
-                    Button("Cancel") { editing = false }
+                    Button(t("common.cancel")) { editing = false }
                         .buttonStyle(.bordered)
                         .disabled(saving)
                 }
@@ -674,24 +753,33 @@ private struct CallerIdCard: View {
             if let change = confirming {
                 let target = change.value ?? cnamFromCompanyName(company.name)
                 VStack(alignment: .leading, spacing: 2) {
+                    // Two whole questions rather than a stem plus a suffix: the
+                    // parenthetical lands in a different place in French, and a
+                    // concatenation would nail it to where English puts it.
                     Text(
-                        "Update your caller ID to \"\(target)\""
-                            + (change.value == nil ? " (your company name)?" : "?")
+                        AppStrings.translate(
+                            appLocale,
+                            change.value == nil
+                                ? "settings.callerIdConfirmCompanyName"
+                                : "settings.callerIdConfirm",
+                            ["name": target]
+                        )
                     )
                     .font(.body)
-                    Text(
-                        "Carriers refresh their name databases on their own schedule, "
-                            + "so the new name can take a few days to show on calls."
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
+                    Text(t("settings.callerIdConfirmNote"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
                     HStack(spacing: 8) {
-                        Button(saving ? "Submitting…" : "Update caller ID") { submit(change) }
+                        Button(
+                            saving
+                                ? t("settings.callerIdSubmitting")
+                                : t("settings.callerIdSubmit")
+                        ) { submit(change) }
                             .buttonStyle(.borderedProminent)
                             .tint(BrandColor.olive)
                             .disabled(saving)
-                        Button("Go back") { confirming = nil }
+                        Button(t("settings.callerIdGoBack")) { confirming = nil }
                             .buttonStyle(.bordered)
                             .disabled(saving)
                     }
@@ -701,16 +789,15 @@ private struct CallerIdCard: View {
             }
 
             LabeledToggleRow(
-                label: "Look up who's calling",
-                supporting: "Shows the caller's network-registered name on incoming calls "
-                    + "when they aren't in your contacts yet.",
+                label: t("settings.callerIdLookup"),
+                supporting: t("settings.callerIdLookupHelp"),
                 isOn: company.caller_id_lookup,
                 enabled: canEdit && !saving
             ) { saveLookup($0) }
             InlineError(error)
             if !canEdit {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change caller ID settings.")
+                ReadOnlyLine(t("settings.callerIdReadOnly"))
             }
         }
     }
@@ -718,6 +805,7 @@ private struct CallerIdCard: View {
     private func submit(_ change: CallerIdChange) {
         error = nil
         saving = true
+        let locale = appLocale
         let body = JSONValue.object([
             "cnam_display_name": change.value.map { JSONValue.string($0) } ?? .null,
         ])
@@ -727,7 +815,9 @@ private struct CallerIdCard: View {
                 onCompanyUpdated(updated)
                 editing = false
                 confirming = nil
-                scope.showMessage("Caller ID update submitted to carriers.")
+                scope.showMessage(
+                    AppStrings.translate(locale, "settings.callerIdSubmitted")
+                )
             } catch {
                 self.error = error.userMessage
             }
@@ -761,16 +851,23 @@ private struct MinutesFooter: View {
 
     @State private var usage: Usage?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         Group {
             if let voice = usage?.voice, voice.included_minutes > 0 {
+                // Two whole sentences rather than one with a clause spliced into
+                // the middle: French does not put "Past that…" where English
+                // does, and gluing it between two halves would fix the word
+                // order of the translation to the word order of the original.
                 Text(
-                    "Your plan includes \(groupDigits(voice.included_minutes)) "
-                        + "calling minutes a month, both directions."
-                        + (voice.overage_billed
-                            ? " Past that, extra minutes bill at 1¢ each up to your spending cap."
-                            : "")
-                        + " Details live in Settings › Usage."
+                    AppStrings.translate(
+                        appLocale,
+                        voice.overage_billed
+                            ? "settings.minutesFooterOverage"
+                            : "settings.minutesFooter",
+                        ["minutes": groupDigits(voice.included_minutes)]
+                    )
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)

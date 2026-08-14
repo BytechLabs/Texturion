@@ -15,61 +15,79 @@ import Foundation
 /// apps/android/.../core/model/SendFailures.kt. Keep the three identical.
 
 /// The fallback, and the whole of what a failed send used to say.
-let genericSendFailure = "Not delivered"
+///
+/// #228: a KEY rather than a sentence, because this table is built at file-init
+/// — before any view exists, so a sentence written here could only ever be
+/// written in one language.
+let genericSendFailureKey = "domain.sendFailureGeneric"
 
-private let sendFailureMessages: [String: String] = [
+/// The English, for the callers that have not been handed a reader yet.
+///
+/// Computed rather than stored, for the reason `voicemailIntakeSourceLabel`
+/// in `Model/Calls.swift` gives.
+var genericSendFailure: String {
+    AppStrings.translate(nil, genericSendFailureKey)
+}
+
+private let sendFailureKeys: [String: String] = [
     // The recipient's own choice. Only they can undo it, by texting START.
-    "40300": "This customer opted out",
+    "40300": "domain.sendFailureOptedOut",
 
     // Nothing on the other end can receive it.
-    "40001": "That number can't receive texts",
-    "40012": "That number isn't textable",
-    "40310": "That number isn't textable",
+    "40001": "domain.sendFailureUnreachable",
+    "40012": "domain.sendFailureNotTextable",
+    "40310": "domain.sendFailureNotTextable",
 
     // Carriers judged the content. Worth rewording and trying again in the
     // temporary cases; pointless in the permanent ones, so the wording differs.
-    "40002": "Carriers are blocking this right now",
-    "40017": "Carriers are blocking this right now",
-    "40003": "Carriers blocked this as spam",
-    "40015": "Carriers blocked this as spam",
-    "40322": "Carriers blocked this as spam",
+    "40002": "domain.sendFailureBlockedNow",
+    "40017": "domain.sendFailureBlockedNow",
+    "40003": "domain.sendFailureSpam",
+    "40015": "domain.sendFailureSpam",
+    "40322": "domain.sendFailureSpam",
 
     // Volume, not content.
-    "40011": "Sent too fast for carriers. Try again shortly",
-    "40016": "Sent too fast for carriers. Try again shortly",
-    "40018": "Sent too fast for carriers. Try again shortly",
-    "40318": "Sent too fast for carriers. Try again shortly",
+    "40011": "domain.sendFailureRateLimited",
+    "40016": "domain.sendFailureRateLimited",
+    "40018": "domain.sendFailureRateLimited",
+    "40318": "domain.sendFailureRateLimited",
 
     // Their phone, momentarily.
-    "40004": "Their phone rejected it",
-    "40006": "Their phone couldn't receive it",
-    "40008": "Their phone couldn't receive it",
+    "40004": "domain.sendFailureHandsetRejected",
+    "40006": "domain.sendFailureHandsetUnavailable",
+    "40008": "domain.sendFailureHandsetUnavailable",
 
     // It sat too long to still be worth sending.
-    "40005": "It expired before it could send",
-    "40014": "It expired before it could send",
+    "40005": "domain.sendFailureExpired",
+    "40014": "domain.sendFailureExpired",
 
     // Something about the message itself.
-    "40009": "Carriers wouldn't accept this message",
-    "40316": "There was nothing to send",
-    "40317": "Carriers wouldn't accept that attachment",
-    "40328": "Too long to send",
+    "40009": "domain.sendFailureContent",
+    "40316": "domain.sendFailureEmpty",
+    "40317": "domain.sendFailureAttachment",
+    "40328": "domain.sendFailureTooLong",
 
     // Registration and number setup, which the owner can actually go and fix.
-    "40010": "Your US texting registration isn't approved yet",
-    "40329": "Your US texting registration isn't approved yet",
-    "40330": "This number isn't set up for texting yet",
-    "40100": "This number isn't set up for texting yet",
-    "40314": "Texting is turned off for this number",
-    "40305": "This number can't send texts",
-    "40308": "This number can't send pictures",
+    "40010": "domain.sendFailureRegistration",
+    "40329": "domain.sendFailureRegistration",
+    "40330": "domain.sendFailureNumberNotReady",
+    "40100": "domain.sendFailureNumberNotReady",
+    "40314": "domain.sendFailureTextingOff",
+    "40305": "domain.sendFailureNoSms",
+    "40308": "domain.sendFailureNoMms",
 ]
 
 /// The sentence to show under a failed message. Falls back to the plain
 /// "Not delivered" for a code we cannot explain honestly.
-func sendFailureMessage(_ errorCode: String?) -> String {
-    let key = (errorCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    return sendFailureMessages[key] ?? genericSendFailure
+///
+/// #228: `locale` is last and defaulted, so `CarrierFailureTests` keeps pinning
+/// the English table while the thread that knows its reader passes `appLocale`.
+/// Nothing about WHICH sentence is chosen depends on it — the choice is made
+/// against the carrier's own numeric code, which arrives in one language
+/// whoever is reading.
+func sendFailureMessage(_ errorCode: String?, locale: String? = nil) -> String {
+    let code = (errorCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    return AppStrings.translate(locale, sendFailureKeys[code] ?? genericSendFailureKey)
 }
 
 /// #241 — why a send failed, in OUR vocabulary rather than the carrier's.

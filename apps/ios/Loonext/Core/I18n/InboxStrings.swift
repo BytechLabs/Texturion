@@ -92,10 +92,17 @@ enum InboxStrings {
             "inbox.rowStateUnread": "Unread",
             "inbox.tagOverflow": "+{count}",
             "inbox.spamLabel": "Spam",
+            "inbox.swipeRead": "Read",
+            "inbox.swipeUnread": "Unread",
             "inbox.swipeReopen": "Reopen",
             "inbox.swipeDone": "Done",
             "inbox.swipeAssign": "Assign",
             "inbox.undo": "Undo",
+            // What a swipe SAYS afterwards. Android's `inbox.conversationClosed`
+            // / `…Reopened` verbatim, because a crew that closes a thread on the
+            // phone and reopens it on the tablet must read one vocabulary.
+            "inbox.conversationClosed": "Conversation closed",
+            "inbox.conversationReopened": "Conversation reopened",
 
             // --- The two filter sheets ------------------------------------------
             "inbox.filterByAssigneeTitle": "Filter by assignee",
@@ -131,6 +138,33 @@ enum InboxStrings {
             "inbox.bulkMarkRead": "Mark read",
             "inbox.bulkClose": "Close",
             "inbox.bulkSpam": "Spam",
+            /*
+             * What a bulk action REPORTS BACK, in the shape web already uses
+             * (`i18n/sections/inbox.ts`: `bulkResultApplied` and friends), keys
+             * and English copied from there.
+             *
+             * The verb and the noun are interpolated rather than concatenated
+             * so a translator can put them where the sentence needs them —
+             * which is also why the two failure lines are separate keys: the
+             * agreement moves more than a word in French.
+             */
+            "inbox.bulkResultApplied": "{verb} {count} {thing}",
+            "inbox.bulkResultCapped":
+                ". {count} more matched than one go can handle, so run it again",
+            "inbox.bulkResultFailedOne":
+                ". {count} couldn't be reached and was left alone",
+            "inbox.bulkResultFailedMany":
+                ". {count} couldn't be reached and were left alone",
+            "inbox.bulkNounOne": "conversation",
+            "inbox.bulkNounMany": "conversations",
+            // The verbs that fill `{verb}` above. Named like web's
+            // `tasks.bulkVerb…` set, which is the only client that had already
+            // lifted them out of the component.
+            "inbox.bulkVerbMarkedRead": "Marked read",
+            "inbox.bulkVerbClosed": "Closed",
+            "inbox.bulkVerbMarkedSpam": "Marked as spam",
+            "inbox.bulkVerbAssigned": "Assigned",
+            "inbox.bulkVerbUnassigned": "Unassigned",
 
             // --- Saved views (#280) ---------------------------------------------------
             "inbox.viewsSave": "Save this view",
@@ -164,9 +198,38 @@ enum InboxStrings {
 
             // --- First-run guidance (#476 GettingStartedCard.swift) ----------------------
             //
-            // The step LABELS and HINTS are deliberately absent: they live in
-            // `ownerSteps`/`memberSteps`, which `first-run-copy.test.ts` reads
-            // as source text on all three clients. See the note in that file.
+            // Read verbatim by `packages/shared/src/first-run-copy.test.ts`,
+            // which now reads THIS FILE for iOS — the same move Android's
+            // sentences made when they left `GettingStartedLogic.kt`. Changing
+            // an English value here is a change to three clients.
+            "inbox.startedOwnerTitle": "Getting started",
+            "inbox.startedOwnerSignupLabel": "Set your workspace up",
+            "inbox.startedOwnerNumberLabel": "Get your business number",
+            "inbox.startedOwnerNumberHint": "It's on its way, usually under a minute.",
+            "inbox.startedOwnerNumberStalledHint":
+                "Taking a little longer than usual. You don't need to do anything.",
+            "inbox.startedOwnerInboundLabel": "Receive your first text",
+            "inbox.startedOwnerInboundHint":
+                "Text your number from your phone, and it lands right here.",
+            "inbox.startedOwnerReplyLabel": "Send your first reply",
+            "inbox.startedOwnerReplyHint":
+                "Open a conversation and answer like you would from your cell.",
+            "inbox.startedOwnerTeammateLabel": "Invite a teammate",
+            "inbox.startedMemberTitle": "Getting the hang of it",
+            "inbox.startedMemberReplyLabel": "Answer a customer",
+            // THE THREE HINTS BELOW ARE ONE LITERAL EACH, DELIBERATELY OVER-LONG.
+            // `first-run-copy.test.ts` compares them to web and Android with a
+            // verbatim `includes`, so a `"…" + "…"` wrap — which reads better and
+            // which this file uses everywhere else — splits the sentence in the
+            // source and the guard reports iOS as the client that lost the line.
+            "inbox.startedMemberReplyHint":
+                "Open a thread and reply. It goes out from the business number, and the whole crew can see it.",
+            "inbox.startedMemberNoteLabel": "Leave a note for the crew",
+            "inbox.startedMemberNoteHint":
+                "Switch the composer to Note. Notes stay inside the app — the customer never sees them.",
+            "inbox.startedMemberDoneLabel": "Mark something done",
+            "inbox.startedMemberDoneHint":
+                "Tick a message off when it is handled, so the rest of the crew knows nobody needs to chase it.",
             "inbox.startedMemberFooter":
                 "Your notification settings are yours alone. Change when we "
                 + "buzz you in Settings.",
@@ -230,6 +293,10 @@ enum InboxStrings {
             // #540: the door out of the paragraph above. Web has always had it;
             // both phones printed the instruction and offered no way to follow it.
             "inbox.leadSourcesSetOneUp": "Set one up",
+            "inbox.leadSourcesLeading":
+                "Most of the work you can account for came from {name} — "
+                + "{count} of {total}.",
+            "inbox.leadSourcesMore": "{count} more",
             "inbox.leadSourcesWebsite": "Your website",
             "inbox.leadSourcesWebsiteInline": "your website",
             "inbox.leadSourcesUnknown": "Don't know",
@@ -255,16 +322,33 @@ enum InboxStrings {
 
             // --- Response time (#239 ResponseTimeCard.swift) --------------------------------------
             //
-            // Only the sentences `response-time-parity.test.ts` does NOT read
-            // out of the Swift card. The arc phrases, "to answer a new
-            // customer", the details rows and the unanswered line are still
-            // written at the card, because that guard reads the FILE for iOS.
+            // ALL of it now, including the arc phrases and the details rows.
+            // `response-time-parity.test.ts` reads the Swift card AND this file
+            // for iOS — it has done since the Details control moved — so a
+            // sentence that lands here is still held word for word against web
+            // and Android. Key names and French are Android's
+            // `core/i18n/InboxStrings.kt` verbatim.
             "inbox.responseTimeTitle": "RESPONSE TIME",
             "inbox.responseLoading": "Working out your response time…",
             "inbox.responseNoLeads":
                 "No new customers texted you in the last {days} days, so there "
                 + "is nothing to measure yet.",
             "inbox.responseRingAria": "{answered} of {leads} new customers answered",
+            "inbox.responseToAnswer": "to answer a new customer",
+            "inbox.responseArcDown": "Down from {then} when you started",
+            "inbox.responseArcUp": "Up from {then} when you started",
+            "inbox.responseNoArcTooNew":
+                "Your starting point lands once you have been here a fortnight",
+            "inbox.responseNoArcNoLeads":
+                "No answered leads in your first two weeks, so there is nothing to compare",
+            "inbox.responseNoArcSame": "About the same as when you started",
+            "inbox.responseUnansweredOne": "1 lead nobody answered",
+            "inbox.responseUnansweredMany": "{count} leads nobody answered",
+            "inbox.responseSlowest": "Slowest 10% of answers",
+            "inbox.responseDuringHours": "During hours ({count})",
+            "inbox.responseAfterHours": "After hours ({count})",
+            "inbox.responseByNumber": "{number} · {count} unanswered",
+            "inbox.responseByMember": "Member · {count} answered",
             "inbox.responseUnansweredHint":
                 "Opens the inbox filtered to conversations nobody has answered",
             "inbox.responseSplitTruncated":
@@ -273,11 +357,39 @@ enum InboxStrings {
 
             // --- Satisfaction (#313 SatisfactionCard.swift) ------------------------------------------
             //
-            // Same arrangement, and the same reason: `satisfaction-parity.test.ts`
-            // reads the Swift card, so "out of 5, from …", "Asked", the arc
-            // phrases and the gap sentences stay in it.
+            // Same arrangement as the card above, and the same reason it is safe:
+            // `satisfaction-parity.test.ts` reads the Swift card AND this file
+            // for iOS, so the gap sentences, the arc phrases and "Asked" are
+            // still compared word for word with web and Android. Keys and
+            // French are Android's verbatim.
             "inbox.satisfactionTitle": "SATISFACTION",
             "inbox.satisfactionLoading": "Reading your ratings…",
+            "inbox.satisfactionGapNoneAsked":
+                "No finished jobs have been asked about in this window. The question "
+                + "goes out a few hours after a job is marked done.",
+            "inbox.satisfactionGapNoneAnswered":
+                "Nobody has answered yet. Most people do not, which is why one answer "
+                + "is worth reading rather than counting.",
+            "inbox.satisfactionGapTooFew":
+                "Too few answers to average yet — {answered} of {minimum}",
+            "inbox.satisfactionRingAria": "{score} out of 5, from {count} answers",
+            "inbox.satisfactionOutOfFive": "out of 5, from {count} answers",
+            "inbox.satisfactionArcUp": "Up from {then} the month before",
+            "inbox.satisfactionArcDown": "Down from {then} the month before",
+            "inbox.satisfactionNoBaseline":
+                "No month before this one to compare against yet",
+            "inbox.satisfactionSame": "About the same as the month before",
+            "inbox.satisfactionStarsOne": "1 star",
+            "inbox.satisfactionStarsMany": "{count} stars",
+            "inbox.satisfactionAsked": "Asked",
+            "inbox.satisfactionAskedValue": "{count} in {days} days",
+            "inbox.satisfactionByMemberOff":
+                "Per-person scores are off. In a small crew a bad week is "
+                + "noise, so this stays a coaching signal rather than a "
+                + "scoreboard — turn it on in Settings.",
+            "inbox.satisfactionMemberFallback": "Member",
+            "inbox.satisfactionByMember": "{name} · {count} answered",
+            "inbox.satisfactionMemberTooFew": "Too few answers to average yet",
             "inbox.satisfactionPoorHint":
                 "Opens the inbox to follow up with unhappy customers",
             "inbox.satisfactionTruncated": "Showing the most recent {count} ratings.",
@@ -396,10 +508,14 @@ enum InboxStrings {
             "inbox.rowStateUnread": "Non lue",
             "inbox.tagOverflow": "+{count}",
             "inbox.spamLabel": "Indésirable",
+            "inbox.swipeRead": "Lue",
+            "inbox.swipeUnread": "Non lue",
             "inbox.swipeReopen": "Rouvrir",
             "inbox.swipeDone": "Terminée",
             "inbox.swipeAssign": "Assigner",
             "inbox.undo": "Annuler",
+            "inbox.conversationClosed": "Conversation fermée",
+            "inbox.conversationReopened": "Conversation rouverte",
 
             // --- The two filter sheets ------------------------------------------
             "inbox.filterByAssigneeTitle": "Filtrer par responsable",
@@ -437,6 +553,21 @@ enum InboxStrings {
             "inbox.bulkMarkRead": "Marquer comme lues",
             "inbox.bulkClose": "Fermer",
             "inbox.bulkSpam": "Indésirable",
+            "inbox.bulkResultApplied": "{verb} {count} {thing}",
+            "inbox.bulkResultCapped":
+                ". {count} de plus correspondent que ce qu'une seule passe peut "
+                + "traiter ; relancez l'action",
+            "inbox.bulkResultFailedOne":
+                ". {count} n'a pas pu être atteinte et a été laissée telle quelle",
+            "inbox.bulkResultFailedMany":
+                ". {count} n'ont pas pu être atteintes et ont été laissées telles quelles",
+            "inbox.bulkNounOne": "conversation",
+            "inbox.bulkNounMany": "conversations",
+            "inbox.bulkVerbMarkedRead": "Marquées comme lues",
+            "inbox.bulkVerbClosed": "Fermées",
+            "inbox.bulkVerbMarkedSpam": "Marquées comme indésirables",
+            "inbox.bulkVerbAssigned": "Assignées",
+            "inbox.bulkVerbUnassigned": "Désassignées",
 
             // --- Saved views (#280) ---------------------------------------------------
             "inbox.viewsSave": "Enregistrer cette vue",
@@ -470,6 +601,33 @@ enum InboxStrings {
             "inbox.done": "Terminé",
 
             // --- First-run guidance (#476 GettingStartedCard.swift) ----------------------
+            "inbox.startedOwnerTitle": "Premiers pas",
+            "inbox.startedOwnerSignupLabel": "Configurer votre espace de travail",
+            "inbox.startedOwnerNumberLabel": "Obtenir votre numéro d'entreprise",
+            "inbox.startedOwnerNumberHint":
+                "Il arrive, habituellement en moins d'une minute.",
+            "inbox.startedOwnerNumberStalledHint":
+                "Cela prend un peu plus de temps que d'habitude. Vous n'avez rien à faire.",
+            "inbox.startedOwnerInboundLabel": "Recevoir votre premier texto",
+            "inbox.startedOwnerInboundHint":
+                "Textez votre numéro depuis votre téléphone, et le message arrive ici.",
+            "inbox.startedOwnerReplyLabel": "Envoyer votre première réponse",
+            "inbox.startedOwnerReplyHint":
+                "Ouvrez une conversation et répondez comme vous le feriez de votre cellulaire.",
+            "inbox.startedOwnerTeammateLabel": "Inviter un coéquipier",
+            "inbox.startedMemberTitle": "Prendre le rythme",
+            "inbox.startedMemberReplyLabel": "Répondre à un client",
+            "inbox.startedMemberReplyHint":
+                "Ouvrez une conversation et répondez. Le texto part du numéro "
+                + "d'entreprise, et toute l'équipe le voit.",
+            "inbox.startedMemberNoteLabel": "Laisser une note à l'équipe",
+            "inbox.startedMemberNoteHint":
+                "Basculez le champ de rédaction en mode Note. Les notes restent dans "
+                + "l'application — le client ne les voit jamais.",
+            "inbox.startedMemberDoneLabel": "Marquer quelque chose comme fait",
+            "inbox.startedMemberDoneHint":
+                "Cochez un message une fois qu'il est réglé, pour que le reste de "
+                + "l'équipe sache que personne n'a à le relancer.",
             "inbox.startedMemberFooter":
                 "Vos paramètres de notification n'appartiennent qu'à vous. "
                 + "Choisissez quand nous vous avertissons dans les paramètres.",
@@ -532,6 +690,10 @@ enum InboxStrings {
                 + "compté à partir de là, sans que personne n'ait à toucher à "
                 + "quoi que ce soit.",
             "inbox.leadSourcesSetOneUp": "En configurer une",
+            "inbox.leadSourcesLeading":
+                "La majorité du travail que vous pouvez attribuer vient de {name} — "
+                + "{count} sur {total}.",
+            "inbox.leadSourcesMore": "{count} de plus",
             "inbox.leadSourcesWebsite": "Votre site web",
             "inbox.leadSourcesWebsiteInline": "votre site web",
             "inbox.leadSourcesUnknown": "Inconnue",
@@ -563,6 +725,22 @@ enum InboxStrings {
                 + "jours, alors il n'y a encore rien à mesurer.",
             "inbox.responseRingAria":
                 "{answered} nouveaux clients sur {leads} ont eu une réponse",
+            "inbox.responseToAnswer": "pour répondre à un nouveau client",
+            "inbox.responseArcDown": "En baisse depuis {then} à vos débuts",
+            "inbox.responseArcUp": "En hausse depuis {then} à vos débuts",
+            "inbox.responseNoArcTooNew":
+                "Votre point de départ sera établi après deux semaines ici",
+            "inbox.responseNoArcNoLeads":
+                "Aucun client n'a reçu de réponse durant vos deux premières "
+                + "semaines, alors il n'y a rien à comparer",
+            "inbox.responseNoArcSame": "À peu près comme à vos débuts",
+            "inbox.responseUnansweredOne": "1 client potentiel sans réponse",
+            "inbox.responseUnansweredMany": "{count} clients potentiels sans réponse",
+            "inbox.responseSlowest": "Les 10 % de réponses les plus lentes",
+            "inbox.responseDuringHours": "Pendant les heures ({count})",
+            "inbox.responseAfterHours": "Hors des heures ({count})",
+            "inbox.responseByNumber": "{number} · {count} sans réponse",
+            "inbox.responseByMember": "Membre · {count} avec réponse",
             "inbox.responseUnansweredHint":
                 "Ouvre la boîte de réception filtrée sur les conversations sans "
                 + "réponse",
@@ -574,6 +752,36 @@ enum InboxStrings {
             // --- Satisfaction (#313 SatisfactionCard.swift) ------------------------------------------
             "inbox.satisfactionTitle": "SATISFACTION",
             "inbox.satisfactionLoading": "Lecture de vos évaluations…",
+            "inbox.satisfactionGapNoneAsked":
+                "Aucun travail terminé n'a fait l'objet d'une question durant cette "
+                + "période. La question part quelques heures après qu'un travail est "
+                + "marqué comme fait.",
+            "inbox.satisfactionGapNoneAnswered":
+                "Personne n'a répondu encore. La plupart des gens ne répondent pas, "
+                + "c'est pourquoi une seule réponse vaut la peine d'être lue plutôt "
+                + "que comptée.",
+            "inbox.satisfactionGapTooFew":
+                "Trop peu de réponses pour faire une moyenne — {answered} sur {minimum}",
+            "inbox.satisfactionRingAria": "{score} sur 5, à partir de {count} réponses",
+            "inbox.satisfactionOutOfFive": "sur 5, à partir de {count} réponses",
+            "inbox.satisfactionArcUp": "En hausse depuis {then} le mois précédent",
+            "inbox.satisfactionArcDown": "En baisse depuis {then} le mois précédent",
+            "inbox.satisfactionNoBaseline":
+                "Aucun mois précédent auquel se comparer pour l'instant",
+            "inbox.satisfactionSame": "À peu près comme le mois précédent",
+            "inbox.satisfactionStarsOne": "1 étoile",
+            "inbox.satisfactionStarsMany": "{count} étoiles",
+            "inbox.satisfactionAsked": "Demandées",
+            "inbox.satisfactionAskedValue": "{count} en {days} jours",
+            "inbox.satisfactionByMemberOff":
+                "Les scores par personne sont désactivés. Dans une petite équipe, une "
+                + "mauvaise semaine n'est que du bruit ; cela reste donc un signal "
+                + "d'accompagnement plutôt qu'un tableau de classement — activez-les "
+                + "dans les paramètres.",
+            "inbox.satisfactionMemberFallback": "Membre",
+            "inbox.satisfactionByMember": "{name} · {count} avec réponse",
+            "inbox.satisfactionMemberTooFew":
+                "Trop peu de réponses pour faire une moyenne",
             "inbox.satisfactionPoorHint":
                 "Ouvre la boîte de réception pour faire un suivi auprès des "
                 + "clients insatisfaits",

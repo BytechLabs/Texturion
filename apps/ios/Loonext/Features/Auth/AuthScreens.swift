@@ -195,7 +195,7 @@ final class AuthViewModel {
     func completeApple(_ result: Result<ASAuthorization, Error>) {
         let credential: AppleSignIn.Credential?
         do {
-            credential = try AppleSignIn.credential(from: result)
+            credential = try AppleSignIn.credential(from: result, locale: locale)
         } catch let failure {
             error = failure.userMessage
             return

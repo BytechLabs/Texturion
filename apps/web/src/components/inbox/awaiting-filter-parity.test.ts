@@ -81,6 +81,32 @@ const ANDROID_COPY = readFileSync(ANDROID_CATALOGUE, "utf8")
   })
   .join("\n");
 
+/**
+ * #228 reached iOS too: `InboxTab.swift` now calls
+ * `AppStrings.translate(appLocale, "inbox.…")` and its sentences live in a Swift
+ * catalogue of `"key": "value"` pairs. So the two COPY checks below read that
+ * file for iOS — the way they already do for web and Android — while the
+ * BEHAVIOUR checks keep reading the component.
+ *
+ * Keys stripped, and comment lines with them, for exactly the reason recorded
+ * above: `inbox.chipUnanswered` contains the word "Unanswered", so a catalogue
+ * read whole would let an IDENTIFIER satisfy a copy check while the label
+ * beside it had been reworded to "No reply yet".
+ */
+const IOS_CATALOGUE = join(
+  REPO_ROOT,
+  "apps/ios/Loonext/Core/I18n/InboxStrings.swift",
+);
+
+const IOS_COPY = readFileSync(IOS_CATALOGUE, "utf8")
+  .replace(/"inbox\.[A-Za-z0-9_]+"\s*:\s*/g, "")
+  .split("\n")
+  .filter((line) => {
+    const trimmed = line.trim();
+    return !trimmed.startsWith("//") && !trimmed.startsWith("*");
+  })
+  .join("\n");
+
 /** Every .swift file under apps/ios — the APP and the TEST target. */
 function swiftSources(): string[] {
   const root = join(REPO_ROOT, "apps/ios");
@@ -123,6 +149,8 @@ describe("#508 the unanswered filter is one predicate, three clients", () => {
     expect(WEB_COPY.length).toBeGreaterThan(1000);
     // Android's are a fifth, for the same reason.
     expect(ANDROID_COPY.length).toBeGreaterThan(1000);
+    // And iOS's are a sixth, now that its words live there too.
+    expect(IOS_COPY.length).toBeGreaterThan(1000);
   });
 
   it("sends the same `awaiting` parameter from every client", () => {
@@ -156,11 +184,11 @@ describe("#508 the unanswered filter is one predicate, three clients", () => {
     // the first version and it could not fail: the item calls
     // `t("inbox.chipUnanswered")`, and the key contains the word, so renaming
     // the label to "No reply yet" still matched. An identifier is not copy.
-    // Android reads the same way now, off its own catalogue's values.
+    // Android and iOS read the same way now, off their own catalogues' values.
     const COPY: Record<string, string> = {
       web: WEB_COPY,
       android: ANDROID_COPY,
-      ios: readFileSync(CONTROLS.ios, "utf8"),
+      ios: IOS_COPY,
     };
     for (const [platform, text] of Object.entries(COPY)) {
       expect(text, platform).toContain("Unanswered");
@@ -188,7 +216,7 @@ describe("#508 the unanswered filter is one predicate, three clients", () => {
     const EMPTY_STATES: Record<string, string> = {
       web: WEB_COPY,
       android: ANDROID_COPY,
-      ios: readFileSync(CONTROLS.ios, "utf8"),
+      ios: IOS_COPY,
     };
     for (const [platform, text] of Object.entries(EMPTY_STATES)) {
       expect(text, platform).toContain("Everyone has been answered.");

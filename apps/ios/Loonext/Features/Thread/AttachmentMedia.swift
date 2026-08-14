@@ -18,8 +18,13 @@ import SwiftUI
 /// read the same on both phones. Android's string carries a middle dot; iOS used
 /// a comma, which is the sort of drift nobody notices until a screenshot puts
 /// the two side by side.
-func audioRowCaption(failed: Bool) -> String {
-    failed ? "Audio unavailable · tap to retry" : "Audio message"
+/// #228: both sentences are Android's keys and Android's French, for exactly
+/// the reason the paragraph above gives. `locale` is defaulted and last, so the
+/// assertion table is untouched and nil still reads English.
+func audioRowCaption(failed: Bool, locale: String? = nil) -> String {
+    failed
+        ? AppStrings.translate(locale, "thread.audioUnavailable")
+        : AppStrings.translate(locale, "thread.audioMessage")
 }
 
 @MainActor
@@ -60,7 +65,7 @@ struct SignedAudioAttachment: View {
             )
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(audioRowCaption(failed: failed))
+                Text(audioRowCaption(failed: failed, locale: appLocale))
                     .font(.golos(12.5, weight: .medium))
                     .foregroundStyle(BrandColor.ink)
                 ProgressView(value: min(max(progress, 0), 1))

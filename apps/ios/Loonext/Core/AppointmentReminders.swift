@@ -34,15 +34,25 @@ enum AppointmentReminders {
 
     /// "The day before", "2 hours before" — the offset, said the way a person
     /// would.
-    static func offsetLabel(_ minutes: Int) -> String {
+    static func offsetLabel(_ minutes: Int, locale: String? = nil) -> String {
         if minutes % 1440 == 0 {
             let days = minutes / 1440
-            return days == 1 ? "The day before" : "\(days) days before"
+            return days == 1
+                ? AppStrings.translate(locale, "domain.reminderOffsetDayBefore")
+                : AppStrings.translate(
+                    locale, "domain.reminderOffsetDays", ["count": String(days)]
+                )
         }
         if minutes % 60 == 0 {
             let hours = minutes / 60
-            return hours == 1 ? "1 hour before" : "\(hours) hours before"
+            return hours == 1
+                ? AppStrings.translate(locale, "domain.reminderOffsetHour")
+                : AppStrings.translate(
+                    locale, "domain.reminderOffsetHours", ["count": String(hours)]
+                )
         }
-        return "\(minutes) minutes before"
+        return AppStrings.translate(
+            locale, "domain.reminderOffsetMinutes", ["count": String(minutes)]
+        )
     }
 }

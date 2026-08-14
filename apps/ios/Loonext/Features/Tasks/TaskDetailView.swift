@@ -34,6 +34,7 @@ struct TaskDetailView: View {
     @State private var deleting = false
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
 
     private var mutations: TaskMutations { TaskMutations(api: graph.api) }
 
@@ -62,7 +63,7 @@ struct TaskDetailView: View {
                 readyBody(detail)
             }
         }
-        .navigationTitle("Task")
+        .navigationTitle(AppStrings.translate(appLocale, "contactsTasks.taskHeading"))
         .navigationBarTitleDisplayMode(.inline)
         // The tab's list screen hides the bar; the pushed detail needs it
         // back for the title, back button, and overflow menu.
@@ -137,10 +138,19 @@ struct TaskDetailView: View {
                 )
             }
         }
-        .alert("Delete this task?", isPresented: $confirmDelete) {
-            Button("Delete", role: .destructive) { deleteTask() }
+        .alert(
+            AppStrings.translate(appLocale, "contactsTasks.deleteTaskTitle"),
+            isPresented: $confirmDelete
+        ) {
+            Button(
+                AppStrings.translate(appLocale, "common.delete"),
+                role: .destructive
+            ) { deleteTask() }
                 .disabled(deleting)
-            Button("Keep task", role: .cancel) {}
+            Button(
+                AppStrings.translate(appLocale, "contactsTasks.keepTask"),
+                role: .cancel
+            ) {}
         } message: {
             if let detail {
                 Text(deleteWarning(detail))
@@ -156,7 +166,10 @@ struct TaskDetailView: View {
         } catch let error as ApiError where error.code == ApiErrorCode.notFound {
             // A teammate deleted it (task.changed → refetch → 404):
             // say so instead of showing a stale row forever.
-            state = .failed(message: "This task doesn't exist or was removed.", notFound: true)
+            state = .failed(
+                message: AppStrings.translate(appLocale, "contactsTasks.taskGone"),
+                notFound: true
+            )
         } catch {
             if case .ready = state {
                 // Keep data on a quiet refresh failure.
@@ -189,11 +202,20 @@ struct TaskDetailView: View {
 
     private func deleteWarning(_ detail: TaskDetail) -> String {
         let carried = [
-            hasNotes(detail) ? "discussion notes" : nil,
-            detail.attachments.isEmpty ? nil : "files",
-        ].compactMap(\.self).joined(separator: " and ")
-        return "It carries \(carried). The conversation and its messages stay; "
-            + "the done mark on the source message is kept."
+            hasNotes(detail)
+                ? AppStrings.translate(appLocale, "contactsTasks.discussionNotes")
+                : nil,
+            detail.attachments.isEmpty
+                ? nil
+                : AppStrings.translate(appLocale, "contactsTasks.filesLower"),
+        ]
+            .compactMap(\.self)
+            .joined(separator: AppStrings.translate(appLocale, "contactsTasks.andJoiner"))
+        return AppStrings.translate(
+            appLocale,
+            "contactsTasks.deleteTaskBody",
+            ["what": carried]
+        )
     }
 
     // MARK: - Mutations
@@ -281,7 +303,9 @@ struct TaskDetailView: View {
                 try await mutations.delete(companyId: companyId, taskId: detail.id)
                 dismiss()
             } catch let error as ApiError where error.code == ApiErrorCode.forbidden {
-                actionError = "Only the task's creator or an admin can delete it."
+                actionError = AppStrings.translate(
+                    appLocale, "contactsTasks.deleteForbidden"
+                )
             } catch {
                 actionError = error.userMessage
             }
@@ -294,10 +318,20 @@ struct TaskDetailView: View {
     private func overflowMenu(_ detail: TaskDetail) -> some View {
         Menu {
             if !noAccess {
-                Button(detail.done ? "Mark not done" : "Mark done") { toggleDone() }
+                Button(
+                    AppStrings.translate(
+                        appLocale,
+                        detail.done
+                            ? "contactsTasks.markNotDone"
+                            : "contactsTasks.markDone"
+                    )
+                ) { toggleDone() }
             }
             if canDelete {
-                Button("Delete task", role: .destructive) {
+                Button(
+                    AppStrings.translate(appLocale, "contactsTasks.deleteTask"),
+                    role: .destructive
+                ) {
                     // #89: confirm only when the task carries notes or files;
                     // a plain task deletes now.
                     if hasNotes(detail) || !detail.attachments.isEmpty {
@@ -311,7 +345,7 @@ struct TaskDetailView: View {
         } label: {
             Image(systemName: "ellipsis.circle")
         }
-        .accessibilityLabel("Task actions")
+        .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.taskActions"))
     }
 
     // fileprivate (not private) so the #Preview below can render the ready
@@ -387,7 +421,14 @@ struct TaskDetailView: View {
                     .padding(.top, 3)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel(detail.done ? "Mark not done" : "Mark done")
+                .accessibilityLabel(
+                    AppStrings.translate(
+                        appLocale,
+                        detail.done
+                            ? "contactsTasks.markNotDone"
+                            : "contactsTasks.markDone"
+                    )
+                )
             }
             if noAccess {
                 Text(detail.title)
@@ -398,7 +439,9 @@ struct TaskDetailView: View {
                 InlineEditField(
                     initial: detail.title,
                     maxLength: taskTitleMax,
-                    placeholder: "Task title",
+                    placeholder: AppStrings.translate(
+                        appLocale, "contactsTasks.taskTitlePlaceholder"
+                    ),
                     multiline: false,
                     allowEmpty: false,
                     font: .golos(21, weight: .semibold)
@@ -417,17 +460,31 @@ struct TaskDetailView: View {
     private func metaChips(_ detail: TaskDetail) -> some View {
         let assigneeLabel: String = {
             if detail.assigned_user_id != nil && detail.assigned_user_id == me.user_id {
-                return "You"
+                return AppStrings.translate(appLocale, "contactsTasks.you")
             }
             if let name = detail.assignee?.display_name, !name.isBlank { return name }
             if let name = memberName(detail.assigned_user_id) { return name }
-            return detail.assigned_user_id == nil ? "Unassigned" : "Teammate"
+            return AppStrings.translate(
+                appLocale,
+                detail.assigned_user_id == nil
+                    ? "contactsTasks.unassigned"
+                    : "contactsTasks.teammate"
+            )
         }()
         let overdue = !detail.done && parseWireTimestamp(detail.due_at).map { $0 < Date() } == true
         let dueLabel: String = {
-            if detail.due_at == nil { return "No due date" }
-            if overdue { return "Overdue · \(formatDue(detail.due_at))" }
-            return "Due \(formatDue(detail.due_at))"
+            if detail.due_at == nil {
+                return AppStrings.translate(appLocale, "contactsTasks.noDueDate")
+            }
+            let when = formatDue(detail.due_at)
+            if overdue {
+                return AppStrings.translate(
+                    appLocale, "contactsTasks.overdueDot", ["due": when]
+                )
+            }
+            return AppStrings.translate(
+                appLocale, "contactsTasks.dueWhen", ["when": when]
+            )
         }()
 
         // Spec 23: a paper card of Assignee / Due rows with hairlines.
@@ -436,7 +493,7 @@ struct TaskDetailView: View {
                 if !noAccess { pickerOpen = true }
             } label: {
                 HStack(spacing: 11) {
-                    metaRowLabel("Assignee")
+                    metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.assignee"))
                     Text(assigneeLabel)
                         .font(.golos(13, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
@@ -454,7 +511,7 @@ struct TaskDetailView: View {
                     if !noAccess { duePickerOpen = true }
                 } label: {
                     HStack(spacing: 11) {
-                        metaRowLabel("Due")
+                        metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.due"))
                         Text(dueLabel)
                             .font(.golos(13, weight: .semibold))
                             .foregroundStyle(overdue ? BrandColor.overdueAmber : BrandColor.ink)
@@ -473,7 +530,9 @@ struct TaskDetailView: View {
                             .foregroundStyle(BrandColor.muted300)
                     }
                     .buttonStyle(.borderless)
-                    .accessibilityLabel("Clear due date")
+                    .accessibilityLabel(
+                        AppStrings.translate(appLocale, "contactsTasks.clearDueDate")
+                    )
                 }
                 metaRowChevron
             }
@@ -487,7 +546,7 @@ struct TaskDetailView: View {
             if detail.due_at != nil {
                 RowDivider()
                 HStack(spacing: 11) {
-                    metaRowLabel("Remind")
+                    metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.remind"))
                     Text(reminderStateLine(detail))
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted500)
@@ -510,7 +569,9 @@ struct TaskDetailView: View {
                     )
                     .labelsHidden()
                     .disabled(noAccess)
-                    .accessibilityLabel("Remind this customer about this job")
+                    .accessibilityLabel(
+                        AppStrings.translate(appLocale, "contactsTasks.remindAria")
+                    )
                 }
                 .padding(.horizontal, 15)
                 .padding(.vertical, 11)
@@ -530,13 +591,19 @@ struct TaskDetailView: View {
     /// `self.detail` would be a second source for the same fact.
     private func reminderStateLine(_ detail: TaskDetail) -> String {
         if detail.confirmed_at != nil {
-            return detail.confirmed_by == "customer"
-                ? "They confirmed they'll be there."
-                : "Marked confirmed by your crew."
+            return AppStrings.translate(
+                appLocale,
+                detail.confirmed_by == "customer"
+                    ? "contactsTasks.confirmedByCustomer"
+                    : "contactsTasks.confirmedByCrew"
+            )
         }
-        return (detail.reminders_off ?? false)
-            ? "Off for this job"
-            : "Uses your workspace reminders"
+        return AppStrings.translate(
+            appLocale,
+            (detail.reminders_off ?? false)
+                ? "contactsTasks.remindOff"
+                : "contactsTasks.remindWorkspace"
+        )
     }
 
     private func metaRowLabel(_ text: String) -> some View {
@@ -558,11 +625,20 @@ struct TaskDetailView: View {
             return memberName(detail.created_by_user_id)
         }()
         let parts = [
-            creator.map { "Created by \($0)" },
+            creator.map {
+                AppStrings.translate(
+                    appLocale, "contactsTasks.createdByName", ["name": $0]
+                )
+            },
             relativeTime(detail.created_at),
         ].compactMap(\.self).filter { !$0.isEmpty }
         return HStack(spacing: 7) {
-            DsChip(text: detail.done ? "Done" : "To do")
+            DsChip(
+                text: AppStrings.translate(
+                    appLocale,
+                    detail.done ? "contactsTasks.columnDone" : "contactsTasks.columnToDo"
+                )
+            )
             Text(parts.joined(separator: " · "))
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted300)
@@ -570,11 +646,7 @@ struct TaskDetailView: View {
     }
 
     private var noAccessCard: some View {
-        Text(
-            "This task is linked to a number you don't have access to. "
-                + "You can see the task, but not its messages, files, or "
-                + "discussion. Ask an owner or admin for access."
-        )
+        Text(AppStrings.translate(appLocale, "contactsTasks.taskNoAccess"))
         .font(.golos(13))
         .foregroundStyle(BrandColor.muted700)
         .padding(14)
@@ -586,18 +658,28 @@ struct TaskDetailView: View {
     private func sourceCard(_ detail: TaskDetail) -> some View {
         if let source = detail.source_message {
             VStack(alignment: .leading, spacing: 6) {
-                sectionLabel("From this message")
+                sectionLabel(
+                    AppStrings.translate(appLocale, "contactsTasks.fromThisMessage")
+                )
                 // Spec 23: paper well with the lime source-quote bar.
                 HStack(alignment: .top, spacing: 10) {
                     RoundedRectangle(cornerRadius: 2)
                         .fill(BrandColor.lime)
                         .frame(width: 3)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(source.body.isBlank ? "A photo" : source.body)
+                        Text(
+                            source.body.isBlank
+                                ? AppStrings.translate(appLocale, "contactsTasks.aPhoto")
+                                : source.body
+                        )
                             .font(.golos(12.5))
                             .foregroundStyle(BrandColor.muted700)
                         if onOpenConversation != nil {
-                            Button("View in conversation") {
+                            Button(
+                                AppStrings.translate(
+                                    appLocale, "contactsTasks.viewInConversation"
+                                )
+                            ) {
                                 onOpenConversation?(detail.conversation_id, detail.message_id)
                             }
                             .font(.golos(11, weight: .bold))
@@ -641,11 +723,13 @@ struct TaskDetailView: View {
 
     private func descriptionSection(_ detail: TaskDetail) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            sectionLabel("Description")
+            sectionLabel(AppStrings.translate(appLocale, "contactsTasks.description"))
             InlineEditField(
                 initial: detail.description,
                 maxLength: taskDescriptionMax,
-                placeholder: "Add details teammates should know",
+                placeholder: AppStrings.translate(
+                    appLocale, "contactsTasks.descriptionPlaceholder"
+                ),
                 multiline: true,
                 allowEmpty: true,
                 font: .golos(13)
@@ -684,7 +768,7 @@ struct TaskDetailView: View {
     /// a label.
     private func attachmentsSection(_ detail: TaskDetail) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            sectionLabel("Files")
+            sectionLabel(AppStrings.translate(appLocale, "contactsTasks.files"))
             ForEach(groupJobPhotos(detail.attachments)) { group in
                 PhotoGroupHeader(
                     phase: group.workPhase,
@@ -723,9 +807,9 @@ struct TaskDetailView: View {
 
     private func activitySection(_ detail: TaskDetail) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("Activity")
+            sectionLabel(AppStrings.translate(appLocale, "contactsTasks.activity"))
             if detail.activity.isEmpty {
-                Text("No activity yet. Post a note below to start a discussion.")
+                Text(AppStrings.translate(appLocale, "contactsTasks.activityEmpty"))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted500)
             }
@@ -746,7 +830,16 @@ struct TaskDetailView: View {
                         Circle()
                             .fill(BrandColor.muted250)
                             .frame(width: 6, height: 6)
-                        Text("\(sentence) · \(relativeTime(item.created_at))")
+                        Text(
+                            AppStrings.translate(
+                                appLocale,
+                                "contactsTasks.activityLine",
+                                [
+                                    "sentence": sentence,
+                                    "when": relativeTime(item.created_at),
+                                ]
+                            )
+                        )
                             .font(.golos(12))
                             .foregroundStyle(BrandColor.muted600)
                     }
@@ -758,7 +851,8 @@ struct TaskDetailView: View {
 
     private func authorName(_ item: TaskActivityItem) -> String {
         if let name = item.author?.display_name, !name.isBlank { return name }
-        return memberName(item.author_user_id) ?? "Teammate"
+        return memberName(item.author_user_id)
+            ?? AppStrings.translate(appLocale, "contactsTasks.teammate")
     }
 
     private func actorName(_ item: TaskActivityItem) -> String {
@@ -867,6 +961,8 @@ private struct TaskAddressSection: View {
     @State private var open: Bool
     @FocusState private var focused: AddrField?
 
+    @Environment(\.appLocale) private var appLocale
+
     init(detail: TaskDetail, onSave: @escaping @MainActor (AddressFieldValues, String) -> Void) {
         self.detail = detail
         self.onSave = onSave
@@ -887,7 +983,7 @@ private struct TaskAddressSection: View {
                         Image(systemName: "mappin.and.ellipse")
                             .font(.scaled(13, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
-                        Text("Address")
+                        Text(AppStrings.translate(appLocale, "contactsTasks.address"))
                             .font(.golos(13.5, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
                         if let label = addressProvenanceLabel(provenance) {
@@ -904,11 +1000,16 @@ private struct TaskAddressSection: View {
                 // Clearing commits (an empty address PATCHes `{"address": null}`),
                 // consistent with the section's commit-on-change contract.
                 if !fields.isEmpty {
-                    Button("Clear", action: clearAddress)
+                    Button(
+                        AppStrings.translate(appLocale, "contactsTasks.clear"),
+                        action: clearAddress
+                    )
                         .font(.golos(12.5, weight: .semibold))
                         .foregroundStyle(BrandColor.muted500)
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Clear address")
+                        .accessibilityLabel(
+                            AppStrings.translate(appLocale, "contactsTasks.clearAddress")
+                        )
                 }
 
                 // The disclosure chevron stays the trailing affordance (parity
@@ -925,14 +1026,18 @@ private struct TaskAddressSection: View {
 
             if open {
                 VStack(spacing: 8) {
-                    addrField("Street", text: $fields.street, field: .street)
+                    addrField("contactsTasks.addrStreet", text: $fields.street, field: .street)
                     HStack(spacing: 8) {
-                        addrField("Unit / suite", text: $fields.unit, field: .unit)
-                        addrField("City", text: $fields.city, field: .city)
+                        addrField("contactsTasks.addrUnit", text: $fields.unit, field: .unit)
+                        addrField("contactsTasks.addrCity", text: $fields.city, field: .city)
                     }
                     HStack(spacing: 8) {
-                        addrField("State / province", text: $fields.state, field: .state)
-                        addrField("Postal code", text: $fields.postalCode, field: .postal)
+                        addrField("contactsTasks.addrState", text: $fields.state, field: .state)
+                        addrField(
+                            "contactsTasks.addrPostalCode",
+                            text: $fields.postalCode,
+                            field: .postal
+                        )
                     }
                     // #214: the country is a typable, searchable picker. A
                     // selection is a field edit — mark the address "manual" (as
@@ -970,12 +1075,14 @@ private struct TaskAddressSection: View {
         .background(BrandColor.inset, in: Capsule())
     }
 
+    /// The placeholder IS the label here, so it comes from the catalogue by
+    /// KEY rather than by sentence — one lookup at the one call site.
     private func addrField(
-        _ placeholder: String,
+        _ placeholderKey: String,
         text: Binding<String>,
         field: AddrField
     ) -> some View {
-        TextField(placeholder, text: text)
+        TextField(AppStrings.translate(appLocale, placeholderKey), text: text)
             .font(.golos(13))
             .foregroundStyle(BrandColor.ink)
             .textInputAutocapitalization(.words)
@@ -1028,6 +1135,7 @@ private struct DuePickerSheet: View {
 
     @State private var draft: Date
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
 
     init(initial: Date?, onSet: @escaping @MainActor (Date) -> Void) {
         self.initial = initial
@@ -1042,16 +1150,16 @@ private struct DuePickerSheet: View {
     var body: some View {
         VStack(spacing: 12) {
             DatePicker(
-                "Due",
+                AppStrings.translate(appLocale, "contactsTasks.due"),
                 selection: $draft,
                 displayedComponents: [.date, .hourAndMinute]
             )
             .datePickerStyle(.graphical)
             HStack {
-                Button("Cancel") { dismiss() }
+                Button(AppStrings.translate(appLocale, "common.cancel")) { dismiss() }
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Set due date") {
+                Button(AppStrings.translate(appLocale, "contactsTasks.setDueDate")) {
                     onSet(draft)
                     dismiss()
                 }
@@ -1080,6 +1188,7 @@ private struct AttachmentCell: View {
     @State private var url: URL?
     @State private var failed = false
     @Environment(\.openURL) private var openURL
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         if item.kind == "image" {
@@ -1123,11 +1232,13 @@ private struct AttachmentCell: View {
                 onError(error.userMessage)
             }
         }
-        .accessibilityLabel(item.file_name ?? "Photo")
+        .accessibilityLabel(
+            item.file_name ?? AppStrings.translate(appLocale, "contactsTasks.photo")
+        )
     }
 
     private var couldNotLoad: some View {
-        Text("Couldn't load")
+        Text(AppStrings.translate(appLocale, "contactsTasks.couldntLoad"))
             .font(.caption)
             .foregroundStyle(.secondary)
     }
@@ -1137,7 +1248,7 @@ private struct AttachmentCell: View {
             Image(systemName: "doc")
                 .foregroundStyle(BrandColor.muted500)
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.file_name ?? "File")
+                Text(item.file_name ?? AppStrings.translate(appLocale, "contactsTasks.file"))
                     .font(.golos(11.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                     .lineLimit(1)
@@ -1246,6 +1357,8 @@ private struct NoteComposer: View {
     @State private var error: String?
     @State private var pickerOpen = false
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if !staged.isEmpty {
@@ -1267,7 +1380,13 @@ private struct NoteComposer: View {
                                 .background(BrandColor.inset, in: Capsule())
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Remove \(file.name)")
+                            .accessibilityLabel(
+                                AppStrings.translate(
+                                    appLocale,
+                                    "contactsTasks.removeNamed",
+                                    ["name": file.name]
+                                )
+                            )
                         }
                     }
                 }
@@ -1287,8 +1406,14 @@ private struct NoteComposer: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(posting || staged.count >= noteFilesMax)
-                .accessibilityLabel("Attach files")
-                TextField("Add a note for your team", text: $body_, axis: .vertical)
+                .accessibilityLabel(
+                    AppStrings.translate(appLocale, "contactsTasks.attachFiles")
+                )
+                TextField(
+                    AppStrings.translate(appLocale, "contactsTasks.noteComposerTeam"),
+                    text: $body_,
+                    axis: .vertical
+                )
                     .font(.golos(13))
                     .lineLimit(1 ... 4)
                     .onChange(of: body_) { _, next in
@@ -1308,7 +1433,9 @@ private struct NoteComposer: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(posting || (body_.isBlank && staged.isEmpty))
-                .accessibilityLabel("Post note")
+                .accessibilityLabel(
+                    AppStrings.translate(appLocale, "contactsTasks.postNote")
+                )
             }
             .padding(.leading, 14)
             .padding(.trailing, 5)
@@ -1353,8 +1480,16 @@ private struct NoteComposer: View {
             )
         }
         error = {
-            if urls.count > room { return "Up to \(noteFilesMax) files per note." }
-            if oversize { return "Files must be 25 MB or less." }
+            if urls.count > room {
+                return AppStrings.translate(
+                    appLocale,
+                    "contactsTasks.noteFilesCap",
+                    ["count": String(noteFilesMax)]
+                )
+            }
+            if oversize {
+                return AppStrings.translate(appLocale, "contactsTasks.noteFileTooBig")
+            }
             return nil
         }()
         staged += next
@@ -1397,9 +1532,13 @@ private struct NoteComposer: View {
                 body_ = ""
                 staged = []
                 error = failures > 0
-                    ? "The note posted, but \(failures) "
-                        + (failures == 1 ? "file" : "files")
-                        + " didn't upload. Retry from the note in the thread."
+                    ? AppStrings.translate(
+                        appLocale,
+                        failures == 1
+                            ? "contactsTasks.noteUploadFailedOne"
+                            : "contactsTasks.noteUploadFailedMany",
+                        ["count": String(failures)]
+                      )
                     : nil
                 onPosted()
             } catch {

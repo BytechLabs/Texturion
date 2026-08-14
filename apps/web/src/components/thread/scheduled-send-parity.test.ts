@@ -63,10 +63,19 @@ const ANDROID_CATALOGUES = [
  */
 const ANDROID_KEYS = ["domain.scheduledHold", "domain.scheduled", "domain.sendLater"];
 
-const read = (path: string) =>
-  path.endsWith(".kt")
-    ? copyWithCatalogue(path, ANDROID_CATALOGUES, "kotlin", ANDROID_KEYS)
-    : readFileSync(path, "utf8");
+const IOS_CATALOGUES = [
+  join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/DomainStrings.swift"),
+];
+
+const read = (path: string) => {
+  if (path.endsWith(".kt")) {
+    return copyWithCatalogue(path, ANDROID_CATALOGUES, "kotlin", ANDROID_KEYS);
+  }
+  if (path.endsWith(".swift")) {
+    return copyWithCatalogue(path, IOS_CATALOGUES, "swift", ANDROID_KEYS);
+  }
+  return readFileSync(path, "utf8");
+};
 
 describe("#233 every client says the same thing when a text does not go", () => {
   it.each(Object.entries(SOURCES))(

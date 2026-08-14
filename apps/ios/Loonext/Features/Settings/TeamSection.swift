@@ -26,27 +26,33 @@ private func isExpired(_ invite: Invite, now: Date = Date()) -> Bool {
 /// catch-all, so a view-only teammate rendered as "Member" — the app telling
 /// the owner the opposite of what they had set. An unknown role from a newer
 /// server now reads as itself rather than as a role it is not.
-private func roleLabel(_ role: String) -> String {
+///
+/// #228: `locale` is the reader's, defaulted to nil — the English table — the
+/// rule this app uses for copy that lives outside a View. The unknown-role
+/// fallback is deliberately NOT translated: it is the server's own word tidied
+/// up, and inventing French for a role this build has never heard of would be
+/// making something up about a permission.
+private func roleLabel(_ role: String, _ locale: String? = nil) -> String {
     switch role {
-    case MemberRole.owner: "Owner"
-    case MemberRole.admin: "Admin"
-    case MemberRole.member: "Member"
-    case MemberRole.readOnly: "View only"
-    case MemberRole.bookkeeper: "Bookkeeper"
+    case MemberRole.owner: AppStrings.translate(locale, "settingsMore.roleOwner")
+    case MemberRole.admin: AppStrings.translate(locale, "settingsMore.roleAdmin")
+    case MemberRole.member: AppStrings.translate(locale, "settingsMore.roleMember")
+    case MemberRole.readOnly: AppStrings.translate(locale, "settingsMore.roleReadOnly")
+    case MemberRole.bookkeeper: AppStrings.translate(locale, "settingsMore.roleBookkeeper")
     default: role.replacingOccurrences(of: "_", with: " ").capitalized
     }
 }
 
 /// What each assignable role is FOR, in the words an owner picking one uses.
-private func roleBlurb(_ role: String) -> String {
+private func roleBlurb(_ role: String, _ locale: String? = nil) -> String {
     switch role {
     case MemberRole.admin:
-        "Everything except transferring ownership and closing the workspace"
+        AppStrings.translate(locale, "settingsMore.roleAdminBlurb")
     case MemberRole.readOnly:
-        "Can see conversations, cannot reply or change anything"
+        AppStrings.translate(locale, "settingsMore.roleReadOnlyBlurb")
     case MemberRole.bookkeeper:
-        "Billing and invoices only; no access to conversations"
-    default: "Read and answer customers; no billing, team or settings"
+        AppStrings.translate(locale, "settingsMore.roleBookkeeperBlurb")
+    default: AppStrings.translate(locale, "settingsMore.roleMemberBlurb")
     }
 }
 
@@ -69,6 +75,12 @@ struct TeamSectionView: View {
 
     @State private var state: LoadState<TeamData> = .loading
     @State private var refreshKey = 0
+
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
 
     private var canManage: Bool { SettingsRoleGate.canManageTeam(scope.role) }
 
@@ -99,8 +111,8 @@ struct TeamSectionView: View {
                         invites: invites
                     ) { refreshKey += 1 }
                 } else {
-                    SettingsCard(title: "Invites") {
-                        ReadOnlyLine("Only owners and admins can invite or deactivate teammates.")
+                    SettingsCard(title: t("settingsMore.invites")) {
+                        ReadOnlyLine(t("settingsMore.onlyAdminsInvite"))
                     }
                 }
             }
@@ -137,10 +149,16 @@ private struct MembersCard: View {
     let members: [Member]
     let onChanged: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         SettingsCard(
-            title: "Members",
-            description: "Who can see and answer your customers' texts."
+            title: t("settingsMore.members"),
+            description: t("settingsMore.membersDesc")
         ) {
             let active = members.filter { $0.deactivated_at == nil }
             let deactivated = members.filter { $0.deactivated_at != nil }
@@ -150,7 +168,7 @@ private struct MembersCard: View {
             }
             if !deactivated.isEmpty {
                 Spacer().frame(height: 14)
-                Text("Deactivated")
+                Text(t("settingsMore.deactivatedHeading"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 0) {
@@ -178,8 +196,16 @@ private struct MemberRow: View {
     /// confirm. Nil the rest of the time, which is almost always.
     @State private var givingUp: PendingRole?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var isSelf: Bool { member.user_id == scope.me.user_id }
-    private var name: String { member.display_name.isBlank ? "Teammate" : member.display_name }
+    private var name: String {
+        member.display_name.isBlank ? t("settingsMore.teammate") : member.display_name
+    }
     private var canChangeRole: Bool { SettingsRoleGate.canChangeRoleOf(actorRole: scope.role, target: member) }
     private var canDeactivate: Bool {
         SettingsRoleGate.canDeactivate(actorRole: scope.role, target: member, selfUserId: scope.me.user_id)
@@ -189,11 +215,16 @@ private struct MemberRow: View {
         HStack(spacing: 12) {
             InitialsAvatar(name: name, size: 36)
             VStack(alignment: .leading, spacing: 2) {
-                Text(isSelf ? "\(name) (you)" : name)
+                Text(isSelf ? t("settingsMore.nameYou", ["name": name]) : name)
                     .font(.body)
                 Text(
-                    member.deactivated_at.map { "Deactivated \(relativeTime($0)) ago" }
-                        ?? "Joined \(relativeTime(member.created_at)) ago"
+                    member.deactivated_at.map {
+                        t("settingsMore.deactivatedAgo", ["ago": relativeTime($0)])
+                    }
+                        ?? t(
+                            "settingsMore.joinedAgo",
+                            ["ago": relativeTime(member.created_at)]
+                        )
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -203,13 +234,13 @@ private struct MemberRow: View {
             // and text-only, because it answers a question rather than being an
             // action, and the row already carries a role menu.
             if member.deactivated_at == nil {
-                Button("Numbers") { showingAccess = true }
+                Button(t("settingsMore.numbersLink")) { showingAccess = true }
                     .font(.footnote)
                     .foregroundStyle(BrandColor.muted500)
                     .buttonStyle(.plain)
             }
             if member.role == MemberRole.owner {
-                StatusPill(label: "Owner", tone: .positive)
+                StatusPill(label: t("settingsMore.roleOwner"), tone: .positive)
             } else if canChangeRole {
                 Menu {
                     ForEach(
@@ -221,21 +252,21 @@ private struct MemberRow: View {
                         ],
                         id: \.self
                     ) { role in
-                        Button(roleLabel(role)) { changeRole(role) }
+                        Button(roleLabel(role, appLocale)) { changeRole(role) }
                     }
                 } label: {
-                    Text(busy ? "Saving…" : roleLabel(member.role))
+                    Text(busy ? t("common.saving") : roleLabel(member.role, appLocale))
                         .font(.subheadline)
                         .foregroundStyle(BrandColor.olive)
                 }
                 .disabled(busy)
             } else {
-                Text(roleLabel(member.role))
+                Text(roleLabel(member.role, appLocale))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             if canDeactivate {
-                Button("Deactivate") { confirmingDeactivate = true }
+                Button(t("settingsMore.deactivate")) { confirmingDeactivate = true }
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .buttonStyle(.borderless)
@@ -245,10 +276,9 @@ private struct MemberRow: View {
         .padding(.vertical, 10)
         .sheet(isPresented: $confirmingDeactivate) {
             ConfirmSheet(
-                title: "Deactivate \(name)?",
-                message: "They lose access right away and their seat frees up. "
-                    + "Conversations and messages they worked on stay put.",
-                confirmLabel: "Deactivate",
+                title: t("settingsMore.deactivateTitle", ["name": name]),
+                message: t("settingsMore.deactivateBody"),
+                confirmLabel: t("settingsMore.deactivate"),
                 destructive: true,
                 pending: busy,
                 error: actionError,
@@ -268,13 +298,16 @@ private struct MemberRow: View {
         // dismiss the dialogs that matter.
         .sheet(item: $givingUp) { pending in
             ConfirmSheet(
-                title: "Give up your own access?",
+                title: t("settingsMore.giveUpAccessTitle"),
                 // The sentence comes from the shared rule, so the phone, the laptop
                 // and the server agree about what a role costs.
                 message: SelfDowngrade.warning(from: member.role, to: pending.id) ?? "",
                 // Says what happens rather than "OK", so somebody skimming the
                 // buttons still reads the decision.
-                confirmLabel: "Make me \(roleLabel(pending.id).lowercased())",
+                confirmLabel: t(
+                    "settingsMore.makeMeRole",
+                    ["role": roleLabel(pending.id, appLocale).lowercased()]
+                ),
                 destructive: true,
                 pending: busy,
                 error: actionError,
@@ -313,7 +346,12 @@ private struct MemberRow: View {
                     role: role,
                     confirmLosingAccess: acknowledged
                 )
-                scope.showMessage("\(name) is now \(roleLabel(role).lowercased()).")
+                scope.showMessage(
+                    t(
+                        "settingsMore.roleChanged",
+                        ["name": name, "role": roleLabel(role, appLocale).lowercased()]
+                    )
+                )
                 onChanged()
             } catch {
                 scope.showMessage(error.userMessage)
@@ -329,7 +367,7 @@ private struct MemberRow: View {
             do {
                 try await scope.repo.deactivateMember(scope.companyId, memberId: member.id)
                 confirmingDeactivate = false
-                scope.showMessage("\(name) deactivated. Their seat is free.")
+                scope.showMessage(t("settingsMore.deactivated", ["name": name]))
                 onChanged()
             } catch {
                 actionError = error.userMessage
@@ -400,6 +438,12 @@ private struct InvitesCard: View {
     @State private var sending = false
     @State private var formError: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var seat: SeatUsage {
         seatUsage(
             activeMembers: countActiveMembers(members),
@@ -422,8 +466,8 @@ private struct InvitesCard: View {
     }
 
     var body: some View {
-        SettingsCard(title: "Invite a teammate", description: seat.line) {
-            TextField("Email", text: $email)
+        SettingsCard(title: t("settingsMore.inviteTeammate"), description: seat.line) {
+            TextField(t("settingsMore.email"), text: $email)
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
@@ -438,7 +482,7 @@ private struct InvitesCard: View {
             // Left blank it is the invite that has always been sent: nothing
             // below it changes and nothing blocks the button.
             TextField(
-                "What to tell them (optional)",
+                t("settingsMore.inviteNoteLabel"),
                 text: Binding(
                     get: { note },
                     // Capped where the server caps it, so an over-long note
@@ -456,13 +500,21 @@ private struct InvitesCard: View {
                 // writing rather than about what was written: there is no edit
                 // path, so an owner who learns this afterwards learns it too
                 // late to act on it.
-                Text("They see this once, when they join. You cannot change it after the invite goes out.")
+                Text(t("settingsMore.inviteNoteOneShot"))
                     .fixedSize(horizontal: false, vertical: true)
                 if noteLeft <= inviteNoteCountdownFrom {
                     // The cap made visible at the point it starts to bite, and
                     // the one signal a paste that got cut off leaves behind.
-                    Text(noteLeft == 1 ? "1 character left" : "\(noteLeft) characters left")
-                        .monospacedDigit()
+                    //
+                    // Two sentences rather than one with a number glued in: the
+                    // singular is its own key so French agrees with it, which a
+                    // "{count} characters left" alone cannot do at one.
+                    Text(
+                        noteLeft == 1
+                            ? t("settingsMore.oneCharacterLeft")
+                            : t("settingsMore.charactersLeft", ["count": String(noteLeft)])
+                    )
+                    .monospacedDigit()
                 }
             }
             .font(.caption)
@@ -487,17 +539,19 @@ private struct InvitesCard: View {
                         Button {
                             role = option
                         } label: {
-                            Text(roleLabel(option))
-                            Text(roleBlurb(option))
+                            Text(roleLabel(option, appLocale))
+                            Text(roleBlurb(option, appLocale))
                         }
                     }
                 } label: {
-                    Text(roleLabel(role))
+                    Text(roleLabel(role, appLocale))
                         .font(.subheadline)
                 }
                 .buttonStyle(.bordered)
                 .disabled(seat.full || sending)
-                Button(sending ? "Inviting…" : "Invite") { invite() }
+                Button(
+                    sending ? t("settingsMore.inviting") : t("settingsMore.invite")
+                ) { invite() }
                     .buttonStyle(.borderedProminent)
                     .tint(BrandColor.olive)
                     .disabled(seat.full || sending || email.isBlank)
@@ -505,12 +559,12 @@ private struct InvitesCard: View {
             InlineError(formError)
             if seat.full {
                 Spacer().frame(height: 6)
-                ReadOnlyLine("All seats are taken. Deactivate a teammate or revoke a pending invite first.")
+                ReadOnlyLine(t("settingsMore.seatsFull"))
             }
 
             if !pending.isEmpty {
                 Spacer().frame(height: 14)
-                Text("Pending invites")
+                Text(t("settingsMore.pendingInvites"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 ForEach(pending, id: \.id) { invite in
@@ -524,7 +578,7 @@ private struct InvitesCard: View {
     private func invite() {
         let trimmed = email.trimmingCharacters(in: .whitespaces)
         guard trimmed.contains("@"), trimmed.count >= 3 else {
-            formError = "Enter the teammate's email address."
+            formError = t("settingsMore.enterTeammateEmail")
             return
         }
         // Trimmed here as well as server-side so "typed a space" and "left it
@@ -544,12 +598,15 @@ private struct InvitesCard: View {
                 email = ""
                 note = ""
                 if invite.email_sent == false {
-                    scope.showMessage(
-                        "The invite is saved, but we couldn't email \(trimmed). "
-                            + "Use Copy link below and share it yourself."
-                    )
+                    // Android's sentence, which does not repeat the address back:
+                    // it is still in the field the person just typed, and the two
+                    // clients saying different things about the same failure is
+                    // what this pass exists to end.
+                    scope.showMessage(t("settingsMore.inviteEmailFailed"))
                 } else {
-                    scope.showMessage("Invite sent to \(trimmed).")
+                    scope.showMessage(
+                        t("settingsMore.inviteSentTo", ["email": trimmed])
+                    )
                 }
                 onChanged()
             } catch {
@@ -567,6 +624,12 @@ private struct PendingInviteRow: View {
 
     @State private var revoking = false
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     var body: some View {
         let expired = isExpired(invite)
         HStack(spacing: 8) {
@@ -574,8 +637,18 @@ private struct PendingInviteRow: View {
                 Text(invite.email)
                     .font(.callout)
                 Text(
-                    "\(roleLabel(invite.role)) · "
-                        + (expired ? "Expired, doesn't hold a seat" : "Expires \(expiryDate(invite.expires_at))")
+                    t(
+                        "settingsMore.invitePending",
+                        [
+                            "role": roleLabel(invite.role, appLocale),
+                            "when": expired
+                                ? t("settingsMore.inviteExpired")
+                                : t(
+                                    "settingsMore.inviteExpires",
+                                    ["date": expiryDate(invite.expires_at)]
+                                ),
+                        ]
+                    )
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -609,14 +682,16 @@ private struct PendingInviteRow: View {
             }
             Spacer()
             if !expired {
-                Button("Copy link") {
+                Button(t("settingsMore.copyLink")) {
                     copyToClipboard(inviteLink(invite.id))
-                    scope.showMessage("Invite link copied.")
+                    scope.showMessage(t("settingsMore.inviteLinkCopied"))
                 }
                 .font(.subheadline)
                 .buttonStyle(.borderless)
             }
-            Button(revoking ? "Revoking…" : "Revoke") { revoke() }
+            Button(
+                revoking ? t("settingsMore.revoking") : t("settingsMore.revoke")
+            ) { revoke() }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .buttonStyle(.borderless)
@@ -630,7 +705,7 @@ private struct PendingInviteRow: View {
         Task {
             do {
                 try await scope.repo.revokeInvite(scope.companyId, inviteId: invite.id)
-                scope.showMessage("Invite revoked.")
+                scope.showMessage(t("settingsMore.inviteRevoked"))
                 onChanged()
             } catch {
                 scope.showMessage(error.userMessage)
@@ -665,20 +740,25 @@ private struct MemberAccessSheet: View {
     @State private var rows: [NumberAccessExplanation]?
     @State private var failed = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("What they can do on each number, and the rule that decided it.")
+                    Text(t("settingsMore.memberNumbersDesc"))
                         .font(.footnote)
                         .foregroundStyle(BrandColor.muted500)
                     PaperCard {
                         if failed {
-                            quiet("Couldn't load their access. Try again.")
+                            quiet(t("settingsMore.memberAccessFailed"))
                         } else if let rows {
                             if rows.isEmpty {
-                                quiet("This workspace has no numbers yet.")
+                                quiet(t("settingsMore.noNumbersInWorkspace"))
                             } else {
                                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                                     if index > 0 { RowDivider() }
@@ -686,7 +766,7 @@ private struct MemberAccessSheet: View {
                                 }
                             }
                         } else {
-                            quiet("Checking\u{2026}")
+                            quiet(t("settingsMore.checking"))
                         }
                     }
                 }
@@ -695,11 +775,11 @@ private struct MemberAccessSheet: View {
                 .contentMaxWidth()
             }
             .background(BrandColor.canvas)
-            .navigationTitle("Numbers \(name) can reach")
+            .navigationTitle(t("settingsMore.memberNumbersTitle", ["name": name]))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button(t("settingsMore.done")) { dismiss() }
                 }
             }
         }
@@ -728,7 +808,7 @@ private struct MemberAccessSheet: View {
     private func accessRow(_ row: NumberAccessExplanation) -> some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
-                Text(row.number_e164 ?? "Number")
+                Text(row.number_e164 ?? t("settingsMore.aNumber"))
                     .font(.golos(13.5))
                     .foregroundStyle(BrandColor.ink)
                 Text(numberAccessReason(row.decided_by, row.principal))

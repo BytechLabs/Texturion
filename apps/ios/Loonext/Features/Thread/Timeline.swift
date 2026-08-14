@@ -360,76 +360,105 @@ func humanizedEventType(_ type: String) -> String {
 
 /// Human line for an audit event. Unknown types fall back to a plain reading
 /// of the type name so a lagging app build never renders raw snake_case.
+///
+/// #228: every sentence here is Android's `thread.sys…` key with Android's own
+/// French — a crew comparing the phone and the laptop must not read two
+/// different histories for one conversation, and that argument does not stop at
+/// the language boundary. `locale` is defaulted and LAST, so the assertion
+/// table and the previews read exactly as they did.
 func eventLine(
     _ event: ConversationEvent,
     memberNames: [String: String],
-    contactName: String
+    contactName: String,
+    locale: String? = nil
 ) -> String {
-    let actor = event.actor_user_id.flatMap { memberNames[$0] } ?? "Someone"
+    func say(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
+    let actor = event.actor_user_id.flatMap { memberNames[$0] }
+        ?? AppStrings.translate(locale, "thread.sysSomeone")
     let system = event.actor_user_id == nil
     switch event.type {
     case "status_changed":
         if let to = event.payload["to"]?.stringValue {
-            return "\(actor) moved this to \(statusLabel(to))"
+            return say(
+                "thread.sysMovedTo",
+                ["by": actor, "status": statusLabel(to, locale: locale)]
+            )
         }
-        return "\(actor) changed the status"
+        return say("thread.sysStatusChanged", ["by": actor])
 
     case "assigned":
         if let to = event.payload["to"]?.stringValue {
-            return "\(actor) assigned this to \(memberNames[to] ?? "a teammate")"
+            let name = memberNames[to]
+                ?? AppStrings.translate(locale, "thread.sysATeammate")
+            return say("thread.sysAssignedTo", ["by": actor, "name": name])
         }
-        return "\(actor) unassigned this conversation"
+        return say("thread.sysUnassigned", ["by": actor])
 
     case "tag_added":
         if let name = event.payload["name"]?.stringValue {
-            return "\(actor) added the tag \"\(name)\""
+            return say("thread.sysTagAdded", ["by": actor, "name": name])
         }
-        return "\(actor) added a tag"
+        return say("thread.sysTagAddedGeneric", ["by": actor])
 
-    case "tag_removed": return "\(actor) removed a tag"
+    case "tag_removed": return say("thread.sysTagRemoved", ["by": actor])
     case "opted_out":
-        return system ? "\(contactName) opted out of texts" : "\(actor) opted \(contactName) out"
+        return system
+            ? say("thread.sysOptedOutSystem", ["name": contactName])
+            : say("thread.sysOptedOutBy", ["by": actor, "name": contactName])
     case "opt_out_revoked":
-        return system ? "\(contactName) opted back in" : "\(actor) removed the opt-out"
-    case "consent_attested": return "\(actor) attested consent to text \(contactName)"
+        return system
+            ? say("thread.sysOptedInSystem", ["name": contactName])
+            : say("thread.sysOptOutRevoked", ["by": actor])
+    case "consent_attested":
+        return say("thread.sysConsentAttested", ["by": actor, "name": contactName])
     // #225: names the FACT (a send landed in the customer's quiet window), not an
     // attestation. With the confirmation switched off the same event is written
     // and nobody confirmed anything, so "confirmed" would be a lie — and web has
     // always said it this way, so this is parity too.
-    case "quiet_hours_confirmed": return "\(actor) sent during this customer's quiet hours"
+    case "quiet_hours_confirmed": return say("thread.sysQuietHours", ["by": actor])
     // #237: the actor is the CUSTOMER, who has no user row, so this line
     // carries no name. "Sam confirmed the appointment" would credit the crew
     // with the customer's answer.
-    case "appointment_confirmed": return "They confirmed the appointment"
+    case "appointment_confirmed": return say("thread.sysAppointmentConfirmed")
     // #313: the customer again, so no name. The SCORE is the whole line.
     case "job_rated":
-        return "They rated the job \(event.payload["score"]?.intValue.map(String.init) ?? "?") out of 5"
-    case "spam_marked": return "\(actor) marked this as spam"
-    case "spam_unmarked": return "\(actor) marked this as not spam"
-    case "message_done": return "\(actor) marked a message done"
-    case "message_undone": return "\(actor) reopened a message"
-    case "task_created": return "\(actor) created a task"
-    case "task_assigned": return "\(actor) assigned a task"
-    case "task_due_set": return "\(actor) set a task due date"
-    case "task_deleted": return "\(actor) deleted a task"
+        return say(
+            "thread.sysJobRated",
+            ["score": event.payload["score"]?.intValue.map(String.init) ?? "?"]
+        )
+    case "spam_marked": return say("thread.sysSpamMarked", ["by": actor])
+    case "spam_unmarked": return say("thread.sysSpamUnmarked", ["by": actor])
+    case "message_done": return say("thread.sysMessageDone", ["by": actor])
+    case "message_undone": return say("thread.sysMessageUndone", ["by": actor])
+    case "task_created": return say("thread.sysTaskCreated", ["by": actor])
+    case "task_assigned": return say("thread.sysTaskAssigned", ["by": actor])
+    case "task_due_set": return say("thread.sysTaskDueSet", ["by": actor])
+    case "task_deleted": return say("thread.sysTaskDeleted", ["by": actor])
     // #317 — a file this customer sent that we would not store. Same copy as
     // web (system-line.tsx) and Android (Timeline.kt), word for word: a crew
     // comparing the phone and the laptop must not read two different histories
     // for one conversation.
-    case "media_refused": return mediaRefusedLine(event)
-    case "note_attachment_added": return "\(actor) attached a file to a note"
-    case "note_attachment_removed": return "\(actor) removed a file from a note"
-    case "task_attachment_added": return "\(actor) attached a file to a task"
-    case "task_attachment_removed": return "\(actor) removed a file from a task"
-    case "missed_call": return "Missed call from \(contactName)"
+    case "media_refused": return mediaRefusedLine(event, locale: locale)
+    case "note_attachment_added":
+        return say("thread.sysNoteAttachmentAdded", ["by": actor])
+    case "note_attachment_removed":
+        return say("thread.sysNoteAttachmentRemoved", ["by": actor])
+    case "task_attachment_added":
+        return say("thread.sysTaskAttachmentAdded", ["by": actor])
+    case "task_attachment_removed":
+        return say("thread.sysTaskAttachmentRemoved", ["by": actor])
+    case "missed_call":
+        return say("thread.sysMissedCallFrom", ["name": contactName])
     // #273: the server puts direction, outcome, forward_seconds and a transfer
     // pair on this payload, and this arm read ONE of them. Every shape that was
     // not a voicemail collapsed to "Call with X ended", so a 4:32 outbound call,
     // a missed call and a transfer were indistinguishable on the phone while web
     // showed all three — one conversation with two different histories.
     case "call_completed":
-        return callCompletedLine(event, memberNames: memberNames)
-    case "auto_reply_sent": return "Away auto-reply sent"
+        return callCompletedLine(event, memberNames: memberNames, locale: locale)
+    case "auto_reply_sent": return say("thread.sysAutoReplySent")
     // #607 A3 — money, said out loud. Same five arms and the same words on web
     // (system-line.tsx) and Android (Timeline.kt); see `paymentEventLine`.
     case "payment_requested",
@@ -437,7 +466,7 @@ func eventLine(
          "payment_cancelled",
          "payment_refunded",
          "payment_disputed":
-        return paymentEventLine(event, actor: actor)
+        return paymentEventLine(event, actor: actor, locale: locale)
     default:
         return humanizedEventType(event.type)
     }
@@ -480,7 +509,14 @@ func eventLine(
  Word for word with web and Android, like `mediaRefusedLine` and
  `callCompletedLine` above and for the same reason.
  */
-func paymentEventLine(_ event: ConversationEvent, actor: String) -> String {
+func paymentEventLine(
+    _ event: ConversationEvent,
+    actor: String,
+    locale: String? = nil
+) -> String {
+    func say(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
     // #270: these are JSON NUMBERS. Read through `intValue`, never
     // `stringValue` — which returns nil for `.number` and would make every
     // amount silently vanish into the no-amount arms below.
@@ -511,15 +547,18 @@ func paymentEventLine(_ event: ConversationEvent, actor: String) -> String {
     let head: String
     switch event.type {
     case "payment_requested":
-        head = money(cents).map { "\(actor) asked for \($0)" }
-            ?? "\(actor) asked for a payment"
+        head = money(cents)
+            .map { say("thread.sysPaymentRequested", ["by": actor, "amount": $0]) }
+            ?? say("thread.sysPaymentRequestedGeneric", ["by": actor])
 
     case "payment_paid":
-        head = money(cents).map { "They paid \($0)" } ?? "They paid"
+        head = money(cents).map { say("thread.sysPaymentPaid", ["amount": $0]) }
+            ?? say("thread.sysPaymentPaidGeneric")
 
     case "payment_cancelled":
-        head = money(cents).map { "\(actor) called off the \($0) request" }
-            ?? "\(actor) called off the request"
+        head = money(cents)
+            .map { say("thread.sysPaymentCancelled", ["by": actor, "amount": $0]) }
+            ?? say("thread.sysPaymentCancelledGeneric", ["by": actor])
 
     case "payment_refunded":
         // THE AMOUNT THAT WENT BACK, not the amount that was charged. A partial
@@ -529,12 +568,12 @@ func paymentEventLine(_ event: ConversationEvent, actor: String) -> String {
         // rendered: `amount_refunded_cents` is nullable and a stored zero means
         // the webhook did not know the figure, never that nothing moved.
         let back = (refunded ?? 0) > 0 ? refunded : cents
-        head = money(back).map { "\($0) went back to them" }
-            ?? "The money went back to them"
+        head = money(back).map { say("thread.sysPaymentRefunded", ["amount": $0]) }
+            ?? say("thread.sysPaymentRefundedGeneric")
 
     case "payment_disputed":
-        head = money(cents).map { "Their bank pulled back \($0)" }
-            ?? "Their bank pulled this payment back"
+        head = money(cents).map { say("thread.sysPaymentDisputed", ["amount": $0]) }
+            ?? say("thread.sysPaymentDisputedGeneric")
 
     default:
         // Unreachable through `eventLine`, which routes only the five above.
@@ -549,7 +588,12 @@ func paymentEventLine(_ event: ConversationEvent, actor: String) -> String {
     // never appends — which is a fact about the writer, not a fourth branch to
     // keep in step across three clients.
     let description = event.payload["description"]?.stringValue ?? ""
-    return description.isBlank ? head : head + " — " + description
+    return description.isBlank
+        ? head
+        : say(
+            "thread.sysPaymentWithDescription",
+            ["line": head, "description": description]
+        )
 }
 
 /**
@@ -561,32 +605,36 @@ func paymentEventLine(_ event: ConversationEvent, actor: String) -> String {
  part they can act on between jobs. Word-for-word identical to web
  (system-line.tsx) and Android (Timeline.kt).
  */
-func mediaRefusedLine(_ event: ConversationEvent) -> String {
+func mediaRefusedLine(_ event: ConversationEvent, locale: String? = nil) -> String {
     switch event.payload["reason"]?.stringValue {
     case "too_large":
-        return "A file this customer sent was too big to save — ask them to send a smaller one"
+        return AppStrings.translate(locale, "thread.sysMediaTooLarge")
     case "empty":
-        return "A file this customer sent arrived empty — ask them to send it again"
+        return AppStrings.translate(locale, "thread.sysMediaEmpty")
     case "type_mismatch":
-        return "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved"
+        return AppStrings.translate(locale, "thread.sysMediaTypeMismatch")
     // #317: the file WAS the type it claimed and the type is allowed — what is
     // inside it is the problem. One line, one action: which of a macro project,
     // a packed program or an auto-running script it turned out to be changes
     // nothing the crew can do about it.
     case "unsafe_content":
-        return "A file this customer sent had something unsafe inside it, so it wasn't saved — ask them for a photo or a plain PDF"
+        return AppStrings.translate(locale, "thread.sysMediaUnsafe")
     case "unreadable":
-        return "A file this customer sent couldn't be checked, so it wasn't saved — ask them to send it again"
+        return AppStrings.translate(locale, "thread.sysMediaUnreadable")
     case "too_many_items":
         // #270: this is a JSON NUMBER — read through intValue, never stringValue.
         let kept = event.payload["index"]?.intValue ?? 0
         return kept > 0
-            ? "This message came with more files than we can save — the first \(kept) were kept"
-            : "This message came with more files than we can save"
+            ? AppStrings.translate(
+                locale,
+                "thread.sysMediaTooManyKept",
+                ["kept": String(kept)]
+            )
+            : AppStrings.translate(locale, "thread.sysMediaTooMany")
     default:
         // unsupported_type, and anything a later server adds: the honest general
         // case, still ending in the thing that works.
-        return "A file this customer sent can't be shown here — ask them to send a photo or a PDF"
+        return AppStrings.translate(locale, "thread.sysMediaUnsupported")
     }
 }
 
@@ -604,10 +652,15 @@ func statusLabel(_ status: String, locale: String? = nil) -> String {
 }
 
 /// display_name lookup for event lines + assignee UI.
-func memberNames(_ members: [Member]) -> [String: String] {
+///
+/// #228: `locale` defaulted and last, for the one word this writes.
+func memberNames(_ members: [Member], locale: String? = nil) -> [String: String] {
+    let fallback = AppStrings.translate(locale, "thread.teammate")
     var names: [String: String] = [:]
     for member in members {
-        names[member.user_id] = member.display_name.isBlank ? "Teammate" : member.display_name
+        names[member.user_id] = member.display_name.isBlank
+            ? fallback
+            : member.display_name
     }
     return names
 }
@@ -620,18 +673,31 @@ func memberNames(_ members: [Member]) -> [String: String] {
 /// testing the generic fields first would swallow the specific shapes.
 func callCompletedLine(
     _ event: ConversationEvent,
-    memberNames: [String: String]
+    memberNames: [String: String],
+    locale: String? = nil
 ) -> String {
+    func say(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
+    /// "{line} · {duration}", as one catalogue entry rather than a middle dot
+    /// glued on here — the separator is punctuation in English and it is
+    /// punctuation in French, but which side the duration falls on is not this
+    /// file's decision to make.
+    func withDuration(_ line: String, _ seconds: Int) -> String {
+        say(
+            "thread.sysWithDuration",
+            ["line": line, "duration": formatCallDuration(seconds)]
+        )
+    }
     let outcome = event.payload["outcome"]?.stringValue
     // #270: these are JSON NUMBERS — read through intValue, never stringValue.
     let seconds = event.payload["forward_seconds"]?.intValue ?? 0
 
     // D38: an outbound bridge call speaks from the crew's side.
     if event.payload["direction"]?.stringValue == "outbound" {
-        if outcome == "missed" { return "Called, no answer" }
-        return seconds > 0
-            ? "You called · \(formatCallDuration(seconds))"
-            : "You called"
+        if outcome == "missed" { return say("thread.sysCalledNoAnswer") }
+        let youCalled = say("thread.sysYouCalled")
+        return seconds > 0 ? withDuration(youCalled, seconds) : youCalled
     }
 
     // D43 phase 3: who handed the call to whom. A transfer that never ended was
@@ -639,20 +705,22 @@ func callCompletedLine(
     if event.payload["kind"]?.stringValue == "transferred" {
         let to = event.payload["to_user_id"]?.stringValue.flatMap { memberNames[$0] }
         let from = event.payload["from_user_id"]?.stringValue.flatMap { memberNames[$0] }
-        if let to, let from { return "\(from) transferred the call to \(to)" }
-        return to.map { "Call transferred to \($0)" } ?? "Call transferred"
+        if let to, let from {
+            return say("thread.sysTransferredBy", ["from": from, "to": to])
+        }
+        return to.map { say("thread.sysTransferredTo", ["to": $0]) }
+            ?? say("thread.sysTransferred")
     }
 
     // D43: the voicemail line carries the MESSAGE duration, not the call's.
     if event.payload["kind"]?.stringValue == "voicemail" {
         let vmSeconds = event.payload["voicemail_seconds"]?.intValue ?? 0
-        return vmSeconds > 0
-            ? "Left a voicemail · \(formatCallDuration(vmSeconds))"
-            : "Left a voicemail"
+        let left = say("thread.sysLeftVoicemail")
+        return vmSeconds > 0 ? withDuration(left, vmSeconds) : left
     }
 
-    if outcome == "voicemail" { return "Call went to voicemail" }
-    if outcome == "missed" { return "Missed call" }
+    if outcome == "voicemail" { return say("thread.sysWentToVoicemail") }
+    if outcome == "missed" { return say("thread.sysMissedCall") }
     // #517: WHO picked up. On a crew, "Call answered" leaves out the one thing
     // the rest of them wanted to know. Falls back to the bare line when the
     // answerer is unknown (a call answered before the server started reporting
@@ -660,8 +728,7 @@ func callCompletedLine(
     // would be worse than the line it replaced.
     let answeredBy = event.payload["answered_by_user_id"]?.stringValue
         .flatMap { memberNames[$0] }
-    let answered = answeredBy.map { "Call answered by \($0)" } ?? "Call answered"
-    return seconds > 0
-        ? "\(answered) · \(formatCallDuration(seconds))"
-        : answered
+    let answered = answeredBy.map { say("thread.sysAnsweredBy", ["name": $0]) }
+        ?? say("thread.sysAnswered")
+    return seconds > 0 ? withDuration(answered, seconds) : answered
 }

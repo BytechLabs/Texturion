@@ -162,6 +162,8 @@ const CATALOGUES: Record<string, string> = {
     REPO_ROOT,
     "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/DomainStrings.kt",
   ),
+  // iOS reached the same shape one sweep later.
+  ios: join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/DomainStrings.swift"),
 };
 
 describe("#244 on-call copy is the same on every client", () => {

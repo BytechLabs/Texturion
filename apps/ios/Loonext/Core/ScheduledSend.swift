@@ -50,37 +50,46 @@ enum ScheduledSend {
     /// Each is a REASON, not an error. `recipient_opted_out` deliberately
     /// offers no remedy, because there is not one — an opt-out can only be
     /// lifted by the customer, which is carrier truth rather than our policy.
-    static let holdReasons: [String: String] = [
-        "subscription_inactive":
-            "Your subscription has lapsed, so this has not been sent. It will go out when billing is sorted.",
+    /// #228: KEYS, not sentences. This map is built at type-init, before any
+    /// reader exists.
+    private static let holdReasonKeys: [String: String] = [
+        "subscription_inactive": "domain.scheduledHoldSubscriptionInactive",
         // #277: the seasonal hold. A SEPARATE reason from a lapse because the
         // events and the remedies are separate: nothing lapsed, no card needs
         // sorting, and the number is not on any clock. The sentence above used
         // to say "paused" for a lapse; that word belongs to this now, and two
         // reasons both claiming it is the confusion this roster exists to stop.
-        "workspace_paused":
-            "Your plan is paused, so this has not been sent. It will go out when you resume.",
-        "registration_pending":
-            "This is waiting on carrier approval for US texting. It will send once that clears.",
-        "service_unavailable":
-            "Texting is paused while we deal with an issue. This is still queued and nothing was lost.",
-        "customer_replied":
-            "They replied after you scheduled this, so we held it rather than talk over them. Send it anyway, or cancel it.",
-        "recipient_opted_out":
-            "They replied STOP after you scheduled this, so it was not sent. Only they can undo that.",
-        "invalid_destination":
-            "We cannot text this number any more, so this was not sent.",
-        "expired":
-            "The send window passed before this could go, so it was not sent. A late message is usually worse than none.",
-        "workspace_closed":
-            "The workspace was closed before this was due to send.",
+        "workspace_paused": "domain.scheduledHoldWorkspacePaused",
+        "registration_pending": "domain.scheduledHoldRegistrationPending",
+        "service_unavailable": "domain.scheduledHoldServiceUnavailable",
+        "customer_replied": "domain.scheduledHoldCustomerReplied",
+        "recipient_opted_out": "domain.scheduledHoldOptedOut",
+        "invalid_destination": "domain.scheduledHoldInvalidDestination",
+        "expired": "domain.scheduledHoldExpired",
+        "workspace_closed": "domain.scheduledHoldWorkspaceClosed",
         // #237: done, deleted, or reminders switched off for that job. One
         // reason for three causes — from the reader's side the actionable fact
         // is identical, and three near-identical sentences is the drift this
         // roster exists to prevent.
-        "job_no_longer_scheduled":
-            "That job is no longer booked, so this reminder was not sent.",
+        "job_no_longer_scheduled": "domain.scheduledHoldJobUnscheduled",
     ]
+
+    /// Every reason, resolved, in the reader's language.
+    static func localisedHoldReasons(_ locale: String? = nil) -> [String: String] {
+        holdReasonKeys.mapValues { AppStrings.translate(locale, $0) }
+    }
+
+    /// The English, for the callers and the guards that have no reader.
+    ///
+    /// `ScheduledSendTests` walks this asserting every reason is a SENTENCE and
+    /// not a code, which is a guard worth keeping pointed at the copy rather
+    /// than at the keys.
+    static var holdReasons: [String: String] { localisedHoldReasons() }
+
+    /// One reason, or nil for a state we do not have words for.
+    static func holdReason(_ reason: String, locale: String? = nil) -> String? {
+        holdReasonKeys[reason].map { AppStrings.translate(locale, $0) }
+    }
 
     /// Does this reason clear on its own?
     ///
@@ -113,21 +122,26 @@ enum ScheduledSend {
     /// Whole sentences only. Button labels stay per-platform, because a
     /// SwiftUI `Button` role and a web dialog footer have different conventions
     /// and a shared "Cancel" would be pretending otherwise.
-    static let copy: [String: String] = [
-        "picker_reassurance":
-            "You can change or cancel it any time before it goes.",
-        "quiet_hours_choice":
-            "You can send it anyway, or pick a time in their morning.",
-        "quiet_hours_unknown":
-            "That time is inside this customer's quiet hours.",
-        "canceled_confirmation":
-            "Cancelled — that text will not go out.",
-        "nothing_scheduled":
-            "Nothing is waiting to send. Anything you schedule shows up here.",
+    private static let copyKeys: [String: String] = [
+        "picker_reassurance": "domain.scheduledPickerReassurance",
+        "quiet_hours_choice": "domain.scheduledQuietHoursChoice",
+        "quiet_hours_unknown": "domain.scheduledQuietHoursUnknown",
+        "canceled_confirmation": "domain.scheduledCancelled",
+        "nothing_scheduled": "domain.scheduledNothingWaiting",
     ]
 
+    /// The English, for the callers that have no reader.
+    static var copy: [String: String] {
+        copyKeys.mapValues { AppStrings.translate(nil, $0) }
+    }
+
     /// One line of ``copy``, or empty rather than a crash on a key typo.
-    static func copyLine(_ key: String) -> String { copy[key] ?? "" }
+    ///
+    /// The empty string is deliberate and unchanged: a typo'd key must leave a
+    /// gap in a sentence somebody notices, not take a screen down.
+    static func copyLine(_ key: String, locale: String? = nil) -> String {
+        copyKeys[key].map { AppStrings.translate(locale, $0) } ?? ""
+    }
 
     /// Whose clock the sender picked against, said out loud.
     ///
@@ -135,11 +149,11 @@ enum ScheduledSend {
     /// line (`clockProvenance` in MessagingRepository.swift) — a product that
     /// says "from their area code" in one place and something else in another
     /// has two vocabularies for one fact.
-    static func clockProvenance(_ source: String) -> String {
+    static func clockProvenance(_ source: String, locale: String? = nil) -> String {
         switch source {
-        case "contact": return "their time, set on their contact"
-        case "area_code": return "their time, from their area code"
-        default: return "your workspace's time — we don't know theirs"
+        case "contact": return AppStrings.translate(locale, "domain.clockTheirTimeContact")
+        case "area_code": return AppStrings.translate(locale, "domain.clockTheirTimeAreaCode")
+        default: return AppStrings.translate(locale, "domain.clockWorkspaceTime")
         }
     }
 }
@@ -180,7 +194,8 @@ private func sendLaterDaysUntilNextMonday(_ date: Date, calendar: Calendar) -> I
 /// need reading is slower than the picker it was meant to avoid.
 func schedulePresets(
     now: Date = Date(),
-    timeZone: TimeZone
+    timeZone: TimeZone,
+    locale: String? = nil
 ) -> [SchedulePreset] {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = timeZone
@@ -199,12 +214,20 @@ func schedulePresets(
     }
 
     return [
-        SchedulePreset(id: "tomorrow", label: "Tomorrow, 8:00am", at: at(addDays: 1)),
+        SchedulePreset(
+            id: "tomorrow",
+            label: AppStrings.translate(locale, "domain.scheduledPresetTomorrow"),
+            at: at(addDays: 1)
+        ),
         SchedulePreset(
             id: "monday",
-            label: "Monday, 8:00am",
+            label: AppStrings.translate(locale, "domain.scheduledPresetMonday"),
             at: at(addDays: sendLaterDaysUntilNextMonday(now, calendar: calendar))
         ),
-        SchedulePreset(id: "custom", label: "Pick a time", at: nil),
+        SchedulePreset(
+            id: "custom",
+            label: AppStrings.translate(locale, "domain.scheduledPresetCustom"),
+            at: nil
+        ),
     ]
 }

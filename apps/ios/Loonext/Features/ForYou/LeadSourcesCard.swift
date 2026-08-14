@@ -273,8 +273,15 @@ func leadSourceHeadline(
     let attributed = report.total - report.unknown
     guard attributed > 0 else { return nil }
     guard Double(top.total) / Double(attributed) >= 0.34 else { return nil }
-    return "Most of the work you can account for came from \(top.sentenceName) — "
-        + "\(top.total) of \(attributed)."
+    return AppStrings.translate(
+        locale,
+        "inbox.leadSourcesLeading",
+        [
+            "name": top.sentenceName,
+            "count": String(top.total),
+            "total": String(attributed),
+        ]
+    )
 }
 
 /** The rows to render: the top few, then everything else as one. */
@@ -290,7 +297,9 @@ func leadSourceRows(
     if !rest.isEmpty {
         rows.append(
             LeadSourceRowValue(
-                name: "\(rest.count) more",
+                name: AppStrings.translate(
+                    locale, "inbox.leadSourcesMore", ["count": String(rest.count)]
+                ),
                 total: rest.reduce(0) { $0 + $1.total }
             )
         )

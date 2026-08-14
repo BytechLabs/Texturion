@@ -13,6 +13,12 @@ struct TextEnableBlock: View {
 
     @State private var starting = false
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         ForEach(orders.filter { $0.status != TextEnablementStatus.cancelled }, id: \.id) { order in
             TextEnableCard(scope: scope, order: order, onChanged: onChanged)
@@ -20,12 +26,10 @@ struct TextEnableBlock: View {
 
         if SettingsRoleGate.canManageNumbers(scope.role) && company.subscriptionActive {
             SettingsCard(
-                title: "Text-enable your landline",
-                description: "Keep your number: texting runs through Loonext while calls "
-                    + "stay exactly where they are today. The carrier review takes a few "
-                    + "business days."
+                title: t("settingsMore.textEnableTitle"),
+                description: t("settingsMore.textEnableDesc")
             ) {
-                Button("Text-enable a number") { starting = true }
+                Button(t("settingsMore.textEnableAction")) { starting = true }
                     .buttonStyle(.bordered)
             }
             .sheet(isPresented: $starting) {
@@ -49,6 +53,12 @@ private struct TextEnableCard: View {
     @State private var cancelling = false
     @State private var actionError: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var canManage: Bool { SettingsRoleGate.canManageNumbers(scope.role) }
     private var canCancel: Bool { SettingsRoleGate.canCancelTextEnablement(scope.role) }
 
@@ -57,7 +67,12 @@ private struct TextEnableCard: View {
     }
 
     var body: some View {
-        SettingsCard(title: "Text-enable: \(formatPhone(order.phone_e164))") {
+        SettingsCard(
+            title: t(
+                "settingsMore.textEnableCardTitle",
+                ["number": formatPhone(order.phone_e164)]
+            )
+        ) {
             statusPill
             Spacer().frame(height: 6)
             Text(statusCopy)
@@ -74,13 +89,15 @@ private struct TextEnableCard: View {
             InlineError(actionError)
             HStack(spacing: 8) {
                 if canManage && order.status == TextEnablementStatus.failed {
-                    Button(busy ? "Resubmitting…" : "Resubmit") { resubmit() }
+                    Button(
+                        busy ? t("settingsMore.resubmitting") : t("settingsMore.resubmit")
+                    ) { resubmit() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(busy)
                 }
                 if canCancel && open {
-                    Button("Cancel order") { cancelling = true }
+                    Button(t("settingsMore.cancelOrder")) { cancelling = true }
                         .font(.subheadline)
                         .foregroundStyle(BrandColor.destructive)
                         .buttonStyle(.borderless)
@@ -91,14 +108,13 @@ private struct TextEnableCard: View {
         }
         .sheet(isPresented: $cancelling) {
             ConfirmSheet(
-                title: "Cancel text-enablement?",
-                message: "Nothing changes with your current carrier — the number keeps "
-                    + "working exactly as it does today. You can start again any time.",
-                confirmLabel: "Cancel order",
+                title: t("settingsMore.cancelTextEnableTitle"),
+                message: t("settingsMore.cancelTextEnableBody"),
+                confirmLabel: t("settingsMore.cancelOrder"),
                 destructive: true,
                 pending: busy,
                 error: actionError,
-                dismissLabel: "Keep it going",
+                dismissLabel: t("settingsMore.keepItGoing"),
                 onConfirm: { cancel() },
                 onDismiss: { cancelling = false }
             )
@@ -109,35 +125,41 @@ private struct TextEnableCard: View {
     private var statusPill: some View {
         switch order.status {
         case TextEnablementStatus.completed:
-            StatusPill(label: "Texting live", tone: .positive)
+            StatusPill(label: t("settingsMore.teLive"), tone: .positive)
         case TextEnablementStatus.failed:
-            StatusPill(label: "Didn't go through", tone: .bad)
+            StatusPill(label: t("settingsMore.teFailed"), tone: .bad)
         case TextEnablementStatus.actionRequired:
-            StatusPill(label: "Action needed", tone: .warn)
+            StatusPill(label: t("settingsMore.statusActionNeeded"), tone: .warn)
         case TextEnablementStatus.inProgress:
-            StatusPill(label: "Carrier reviewing", tone: .warn)
+            StatusPill(label: t("settingsMore.teReviewing"), tone: .warn)
         case TextEnablementStatus.pending:
-            StatusPill(label: "Order received", tone: .warn)
+            StatusPill(label: t("settingsMore.teReceived"), tone: .warn)
         default:
+            // The wire's own word for a status this build has never heard of.
+            // Not translated, deliberately: inventing French for a state we
+            // cannot name would be making something up about an order.
             StatusPill(label: order.status, tone: .neutral)
         }
     }
 
     private var statusCopy: String {
+        // The carrier's own sentence, appended where there is one — a colon and
+        // the reason, or a full stop. Both are catalogue entries because French
+        // puts a space before a colon and English does not.
+        let carrierSays = order.last_error.map {
+            t("settingsMore.colonReason", ["reason": $0])
+        } ?? t("settingsMore.fullStop")
         switch order.status {
         case TextEnablementStatus.completed:
-            "Texting is live on this number. Calls stay with your current carrier."
+            return t("settingsMore.teLiveBody")
         case TextEnablementStatus.failed:
-            "The order didn't go through"
-                + (order.last_error.map { ": \($0)" } ?? ".")
-                + " Fix what's named and resubmit."
+            return t("settingsMore.teFailedBody")
+                + carrierSays
+                + t("settingsMore.teFixAndResubmit")
         case TextEnablementStatus.actionRequired:
-            "The carrier needs something from you"
-                + (order.last_error.map { ": \($0)" } ?? ".")
+            return t("settingsMore.teActionBody") + carrierSays
         default:
-            "The carrier reviews text-enablement over a few business days. "
-                + "Texting goes live only when the review completes — we'll "
-                + "keep this card honest in the meantime."
+            return t("settingsMore.teReviewingBody")
         }
     }
 
@@ -147,7 +169,7 @@ private struct TextEnableCard: View {
         Task {
             do {
                 _ = try await scope.repo.resubmitTextEnablement(scope.companyId, orderId: order.id)
-                scope.showMessage("Order resubmitted.")
+                scope.showMessage(t("settingsMore.orderResubmitted"))
                 onChanged()
             } catch {
                 actionError = error.userMessage
@@ -163,7 +185,7 @@ private struct TextEnableCard: View {
             do {
                 _ = try await scope.repo.cancelTextEnablement(scope.companyId, orderId: order.id)
                 cancelling = false
-                scope.showMessage("Text-enablement cancelled.")
+                scope.showMessage(t("settingsMore.textEnableCancelled"))
                 onChanged()
             } catch {
                 actionError = error.userMessage
@@ -181,23 +203,30 @@ private struct TextEnableDocumentsRow: View {
     @State private var uploading = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
-        Text(
-            "Ownership proof: a signed letter of authorization and a recent bill for "
-                + "the number (PDF, PNG, or JPEG)."
-        )
-        .font(.footnote)
-        .foregroundStyle(.secondary)
+        Text(t("settingsMore.teDocsNote"))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         HStack(spacing: 8) {
             DocumentPickButton(
-                label: order.has_loa ? "Replace LOA ✓" : "Upload LOA",
+                label: t(
+                    order.has_loa ? "settingsMore.replaceLoa" : "settingsMore.uploadLoa"
+                ),
                 fieldName: "loa",
                 disabled: uploading,
                 onPicked: { upload($0) },
                 onError: { error = $0 }
             )
             DocumentPickButton(
-                label: order.has_bill ? "Replace bill ✓" : "Upload bill",
+                label: t(
+                    order.has_bill ? "settingsMore.replaceBill" : "settingsMore.uploadBill"
+                ),
                 fieldName: "bill",
                 disabled: uploading,
                 onPicked: { upload($0) },
@@ -206,7 +235,7 @@ private struct TextEnableDocumentsRow: View {
         }
         .padding(.top, 6)
         if uploading {
-            Text("Uploading…")
+            Text(t("settingsMore.uploading"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
@@ -225,7 +254,11 @@ private struct TextEnableDocumentsRow: View {
                     parts: [document]
                 )
                 scope.showMessage(
-                    document.fieldName == "loa" ? "Letter of authorization uploaded." : "Bill uploaded."
+                    t(
+                        document.fieldName == "loa"
+                            ? "settingsMore.loaUploaded"
+                            : "settingsMore.plainBillUploaded"
+                    )
                 )
                 onChanged()
             } catch {
@@ -247,22 +280,28 @@ private struct VerificationRow: View {
     @State private var error: String?
     @State private var codeSent = false
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
-        Text("Number ownership check: the carrier sends a code to the number itself.")
+        Text(t("settingsMore.ownershipCheckNote"))
             .font(.footnote)
             .foregroundStyle(.secondary)
         HStack(spacing: 8) {
-            Button("Text me the code") { requestCode("sms") }
+            Button(t("settingsMore.textMeTheCode")) { requestCode("sms") }
                 .buttonStyle(.bordered)
                 .disabled(requesting || verifying)
-            Button("Call me instead") { requestCode("call") }
+            Button(t("settingsMore.callMeInstead")) { requestCode("call") }
                 .buttonStyle(.bordered)
                 .disabled(requesting || verifying)
         }
         .padding(.top, 6)
         if codeSent {
             HStack(spacing: 8) {
-                TextField("Verification code", text: Binding(
+                TextField(t("settingsMore.verificationCode"), text: Binding(
                     get: { code },
                     set: { next in
                         if next.count <= 16 { code = next }
@@ -271,7 +310,9 @@ private struct VerificationRow: View {
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.numberPad)
                 .disabled(verifying)
-                Button(verifying ? "Checking…" : "Verify") { verify() }
+                Button(
+                    verifying ? t("settingsMore.checking") : t("settingsMore.verify")
+                ) { verify() }
                     .buttonStyle(.borderedProminent)
                     .tint(BrandColor.olive)
                     .disabled(verifying || code.isBlank)
@@ -293,9 +334,11 @@ private struct VerificationRow: View {
                 )
                 codeSent = true
                 scope.showMessage(
-                    method == "sms"
-                        ? "Code sent by text to your number."
-                        : "You'll get a call at your number with the code."
+                    t(
+                        method == "sms"
+                            ? "settingsMore.codeSentBySms"
+                            : "settingsMore.codeComingByCall"
+                    )
                 )
             } catch {
                 self.error = error.userMessage
@@ -314,7 +357,7 @@ private struct VerificationRow: View {
                     orderId: order.id,
                     code: code.trimmingCharacters(in: .whitespaces)
                 )
-                scope.showMessage("Number verified.")
+                scope.showMessage(t("settingsMore.numberVerified"))
                 onChanged()
             } catch {
                 self.error = error.userMessage
@@ -334,24 +377,28 @@ private struct StartTextEnableSheet: View {
     @State private var error: String?
     @State private var idempotencyKey = UUID().uuidString
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         ConfirmSheet(
-            title: "Text-enable your landline",
-            message: "Texting for this number runs through Loonext; calls stay with your "
-                + "current carrier, nothing changes there. The carrier reviews the order "
-                + "over a few business days, and you'll upload proof you own the number.",
-            confirmLabel: "Start",
+            title: t("settingsMore.textEnableTitle"),
+            message: t("settingsMore.startTextEnableBody"),
+            confirmLabel: t("settingsMore.start"),
             pending: pending,
             error: error,
             onConfirm: { create() },
             onDismiss: { onDismiss() }
         ) {
-            TextField("(416) 555-0182", text: $phoneInput)
+            TextField(t("settingsMore.phoneSample"), text: $phoneInput)
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.phonePad)
                 .disabled(pending)
                 .padding(.top, 10)
-            Text("Your landline or VoIP number")
+            Text(t("settingsMore.landlineNumberLabel"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
@@ -360,7 +407,7 @@ private struct StartTextEnableSheet: View {
 
     private func create() {
         guard let e164 = normalizeNanpInput(phoneInput) else {
-            error = "Enter a full 10-digit US or Canadian number."
+            error = t("settingsMore.enterFullNanp")
             return
         }
         pending = true
@@ -373,7 +420,7 @@ private struct StartTextEnableSheet: View {
                     idempotencyKey: key,
                     phoneE164: e164
                 )
-                scope.showMessage("Order created. Upload the documents to move it along.")
+                scope.showMessage(t("settingsMore.teOrderCreated"))
                 onCreated()
             } catch {
                 self.error = error.userMessage

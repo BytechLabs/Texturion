@@ -375,6 +375,285 @@ enum ThreadStrings {
             "thread.theirTimeAskFirst":
                 "It's {time} for this customer. We'll ask before sending this late.",
             "thread.theirTime": "It's {time} for them.",
+
+            // ── #228 pass 2: the composer, the timeline's system lines,
+            //    the catch-up and the wrap-up ─────────────────────────────
+            "thread.copied": "Copied.",
+            "thread.undo": "Undo",
+            "thread.thatFile": "That file",
+            "thread.imageCantBeSent": "That image can't be sent. Try a different photo.",
+            "thread.mmsUnsupportedFile":
+                "{name} isn't something a text can carry. Try a photo, video, audio "
+                + "clip, contact card, or PDF.",
+            "thread.mmsFileEmpty": "{name} is empty.",
+            "thread.mmsFileTooBig": "{name} is over 1 MB, the most a text can carry.",
+            "thread.fileReadFailedPick":
+                "Couldn't read that file. Try picking it again.",
+            "thread.fileSizeReadFailed":
+                "Couldn't read that file's size. Try picking it again.",
+            "thread.fileTypeBlocked":
+                "That file type isn't allowed. Images, PDFs, and documents only.",
+            "thread.fileSizeLimit": "Files can be up to 25 MB each.",
+            "thread.mergeFirstName": "The customer's first name",
+            "thread.mergeAddress": "The address on their contact",
+            "thread.mergeJobDay": "The day of their next booked visit",
+            "thread.mergeJobTime": "The time of it",
+            "thread.mergeMyName": "Your first name",
+            "thread.mergeBusinessName": "Your business name",
+            "thread.mergeOurNumber": "The number they reply to",
+            "thread.serverOnlyTokensNote": "The day and time fill in when you send.",
+            "thread.mmsSegments": "MMS · sent in {count} parts",
+            "thread.sentInOnePart": "Sent in 1 part",
+            "thread.sentInParts": "Sent in {count} parts",
+            "thread.scheduledConfirm": "Sending {when}.",
+            "thread.quietHoursAround": "That is around {hour} for this customer.",
+            "thread.pickerThats": "That's {time} {clock}",
+            "thread.senderClockOwn": "This is your own time. {reassurance}",
+            "thread.senderClockApart":
+                "This is your own time, and they are {delta}. {reassurance}",
+            "thread.clockSame": "on the same clock",
+            "thread.clockAnHourAhead": "an hour ahead of you",
+            "thread.clockAnHourBehind": "an hour behind you",
+            "thread.clockHoursAhead": "{count} hours ahead of you",
+            "thread.clockHoursBehind": "{count} hours behind you",
+            "thread.theirTimeAbout": "It's about {time} where they are ({source}).",
+            "thread.clockFromContact": "set on their contact",
+            "thread.clockFromAreaCode": "from their area code",
+            "thread.clockFromWorkspace":
+                "your workspace's timezone — we don't know theirs",
+            "thread.duplicateReplyNamed": "{name} replied {ago}.",
+            "thread.duplicateReplyAuto": "An automatic reply went out {ago}.",
+            "thread.agoJustNow": "just now",
+            "thread.agoOneMinute": "1 minute ago",
+            "thread.agoMinutes": "{count} minutes ago",
+            "thread.agoOneHour": "1 hour ago",
+            "thread.agoHours": "{count} hours ago",
+            "thread.agoSinceWriting": "since you started writing",
+            "thread.bannerOptedOutTitle": "This customer opted out",
+            "thread.bannerOptedOutCarrierBody":
+                "They texted STOP, so their carrier is blocking your texts. Only "
+                + "they can undo it, by texting START to your number. Internal notes "
+                + "still work.",
+            "thread.bannerOptedOutManualBody":
+                "Someone marked them opted out. You can undo that on their contact. "
+                + "Internal notes still work.",
+            "thread.bannerSubscriptionTitle": "Texting is paused",
+            "thread.bannerSubscriptionBody":
+                "Your subscription isn't active, so outbound texts are blocked. An "
+                + "owner can fix this in billing. Internal notes still work.",
+            "thread.bannerRegistrationPendingTitle": "US texting isn't approved yet",
+            "thread.bannerRegistrationPendingBody":
+                "Carriers are still reviewing your registration. Texts to US "
+                + "numbers will send once it's approved. Internal notes still work.",
+            "thread.bannerUsTextingOffTitle": "US texting isn't on for this workspace",
+            "thread.bannerUsTextingOffBody":
+                "This is a US number, and texting US numbers is an add-on your "
+                + "workspace hasn't turned on. An owner can add it in settings. Calls "
+                + "to this customer still work, and internal notes still work.",
+            "thread.bannerRegistrationSuspendedTitle": "US texting is paused",
+            "thread.bannerRegistrationSuspendedBody":
+                "The carrier paused your US registration, so texts to US numbers "
+                + "won't send. We've been told and we're on it, and you'll get an "
+                + "email when it's back. Canadian texts, calls and internal notes all "
+                + "still work.",
+            "thread.bannerUsageCapTitle": "You've hit this month's cap",
+            "thread.bannerUsageCapBody":
+                "Outbound texts pause until the cap is raised or the month rolls "
+                + "over. Internal notes still work.",
+            "thread.bannerReadOnlyTitle": "You have view-only access",
+            "thread.bannerReadOnlyBody":
+                "You can read this conversation but not reply or leave notes. An "
+                + "owner or admin can change your access.",
+            "thread.bannerNumberAccessTitle": "You can't text from this number",
+            "thread.bannerNumberAccessBody":
+                "You can read this conversation and add internal notes, but texting "
+                + "this customer needs access an owner or admin grants. Calls to this "
+                + "number won't ring you either. Ask them if you need it.",
+            "thread.bannerOptOutHintTitle": "They asked not to be contacted",
+            "thread.bannerOptOutHintBody":
+                "Someone on this thread asked to be left alone. That request is "
+                + "binding however it's worded, so don't reply unless you're sure it "
+                + "wasn't one. To stop texts for good, they need to text STOP.",
+            "thread.signedOut": "You're signed out.",
+            "thread.cantReachLoonext": "Can't reach Loonext. Check your connection.",
+            "thread.outboxStale":
+                "Queued for over a day. The conversation may have moved on — send "
+                + "it now, or delete it.",
+            "thread.outboxMediaLost":
+                "The photo for this message is no longer on this device. Send the "
+                + "text on its own, or delete it.",
+            "thread.noteFilesAllFailed": "The note saved, but its files didn't upload.",
+            "thread.noteFilesSomeFailed":
+                "The note saved, but {failed} of {total} files didn't upload.",
+            "thread.taskCreated": "Task created.",
+            "thread.alreadyHasTask": "This message already has a task.",
+            "thread.markedAsSpam": "Marked as spam.",
+            "thread.markedAsNotSpam": "Marked as not spam. It stays closed.",
+            "thread.spamCleared": "Thanks. We won't flag this one.",
+            "thread.snoozeLeadRemind": "I'll remind you — back",
+            "thread.snoozeLeadSnoozed": "Snoozed — back",
+            "thread.reminderCancelled": "Reminder cancelled.",
+            "thread.backInYourInbox": "Back in your inbox.",
+            "thread.audioMessage": "Audio message",
+            "thread.audioUnavailable": "Audio unavailable · tap to retry",
+            "thread.louPausedForBilling":
+                "Lou is paused while the subscription is sorted out. An owner can "
+                + "fix that in Billing.",
+            "thread.sysSomeone": "Someone",
+            "thread.sysATeammate": "a teammate",
+            "thread.sysMovedTo": "{by} moved this to {status}",
+            "thread.sysStatusChanged": "{by} changed the status",
+            "thread.sysUnassigned": "{by} unassigned this conversation",
+            "thread.sysAssignedTo": "{by} assigned this to {name}",
+            "thread.sysTagAdded": "{by} added the tag \"{name}\"",
+            "thread.sysTagAddedGeneric": "{by} added a tag",
+            "thread.sysTagRemoved": "{by} removed a tag",
+            "thread.sysOptedOutSystem": "{name} opted out of texts",
+            "thread.sysOptedOutBy": "{by} opted {name} out",
+            "thread.sysOptedInSystem": "{name} opted back in",
+            "thread.sysOptOutRevoked": "{by} removed the opt-out",
+            "thread.sysConsentAttested": "{by} attested consent to text {name}",
+            "thread.sysQuietHours": "{by} sent during this customer's quiet hours",
+            "thread.sysAppointmentConfirmed": "They confirmed the appointment",
+            "thread.sysJobRated": "They rated the job {score} out of 5",
+            "thread.sysSpamMarked": "{by} marked this as spam",
+            "thread.sysSpamUnmarked": "{by} marked this as not spam",
+            "thread.sysMessageDone": "{by} marked a message done",
+            "thread.sysMessageUndone": "{by} reopened a message",
+            "thread.sysTaskCreated": "{by} created a task",
+            "thread.sysTaskAssigned": "{by} assigned a task",
+            "thread.sysTaskDueSet": "{by} set a task due date",
+            "thread.sysTaskDeleted": "{by} deleted a task",
+            "thread.sysNoteAttachmentAdded": "{by} attached a file to a note",
+            "thread.sysNoteAttachmentRemoved": "{by} removed a file from a note",
+            "thread.sysTaskAttachmentAdded": "{by} attached a file to a task",
+            "thread.sysTaskAttachmentRemoved": "{by} removed a file from a task",
+            "thread.sysMissedCallFrom": "Missed call from {name}",
+            "thread.sysAutoReplySent": "Away auto-reply sent",
+            "thread.sysPaymentRequested": "{by} asked for {amount}",
+            "thread.sysPaymentRequestedGeneric": "{by} asked for a payment",
+            "thread.sysPaymentCancelled": "{by} called off the {amount} request",
+            "thread.sysPaymentCancelledGeneric": "{by} called off the request",
+            "thread.sysPaymentPaid": "They paid {amount}",
+            "thread.sysPaymentPaidGeneric": "They paid",
+            "thread.sysPaymentRefunded": "{amount} went back to them",
+            "thread.sysPaymentRefundedGeneric": "The money went back to them",
+            "thread.sysPaymentDisputed": "Their bank pulled back {amount}",
+            "thread.sysPaymentDisputedGeneric": "Their bank pulled this payment back",
+            "thread.sysPaymentWithDescription": "{line} — {description}",
+            "thread.sysMediaTooLarge":
+                "A file this customer sent was too big to save — ask them to send a "
+                + "smaller one",
+            "thread.sysMediaEmpty":
+                "A file this customer sent arrived empty — ask them to send it "
+                + "again",
+            "thread.sysMediaTypeMismatch":
+                "A file this customer sent wasn't the kind of file it claimed to "
+                + "be, so it wasn't saved",
+            "thread.sysMediaUnsafe":
+                "A file this customer sent had something unsafe inside it, so it "
+                + "wasn't saved — ask them for a photo or a plain PDF",
+            "thread.sysMediaUnreadable":
+                "A file this customer sent couldn't be checked, so it wasn't saved "
+                + "— ask them to send it again",
+            "thread.sysMediaTooManyKept":
+                "This message came with more files than we can save — the first "
+                + "{kept} were kept",
+            "thread.sysMediaTooMany":
+                "This message came with more files than we can save",
+            "thread.sysMediaUnsupported":
+                "A file this customer sent can't be shown here — ask them to send a "
+                + "photo or a PDF",
+            "thread.sysCalledNoAnswer": "Called, no answer",
+            "thread.sysYouCalled": "You called",
+            "thread.sysTransferredBy": "{from} transferred the call to {to}",
+            "thread.sysTransferredTo": "Call transferred to {to}",
+            "thread.sysTransferred": "Call transferred",
+            "thread.sysLeftVoicemail": "Left a voicemail",
+            "thread.sysWentToVoicemail": "Call went to voicemail",
+            "thread.sysMissedCall": "Missed call",
+            "thread.sysAnsweredBy": "Call answered by {name}",
+            "thread.sysAnswered": "Call answered",
+            "thread.sysWithDuration": "{line} · {duration}",
+            "domain.catchUpSectionAsked": "What they asked",
+            "domain.catchUpSectionWeSaid": "What we said",
+            "domain.catchUpSectionOpen": "Still open",
+            "domain.catchUpAttribution":
+                "Lou read this thread. Tap any line to see the message it came "
+                + "from.",
+            "domain.catchUpDisabled":
+                "Catch-ups are turned off for this workspace. Settings, AI turns "
+                + "them back on.",
+            "domain.catchUpRateLimited":
+                "That was a lot of catch-ups at once. Try again in a moment.",
+            "thread.somethingWentWrongStatus": "Something went wrong ({status}).",
+            "thread.summaryOfferMessages": "{count} messages",
+            "thread.summaryOfferQuietDay": "quiet for a day",
+            "thread.summaryOfferQuietDays": "quiet for {count} days",
+            "thread.summarySpam":
+                "This thread is marked as spam, so Lou skips it. Unmark it to ask "
+                + "for a catch-up.",
+            "thread.summaryTooShort":
+                "There isn't much here yet — reading the thread is quicker than a "
+                + "catch-up.",
+            "thread.summaryOverCap":
+                "This month's catch-ups are used up. They start again next month. "
+                + "Read the thread.",
+            "thread.summaryUnreachable":
+                "Couldn't reach Lou just now. Try again, or read the thread.",
+            "thread.summaryUnusable":
+                "Nothing Lou wrote checked out against the thread, so it said "
+                + "nothing. Read the thread.",
+            "thread.summaryForbidden":
+                "Your role can't ask for catch-ups — they spend the workspace's "
+                + "shared AI budget. An owner or admin can change that, and the "
+                + "thread is all here.",
+            "thread.summaryNotFound":
+                "This thread isn't there any more. Close it and open it again.",
+            "thread.summaryNetwork":
+                "Can't reach Loonext. Check your connection, then try again.",
+            "thread.summaryPaused":
+                "Catch-ups are paused right now. Try again shortly, or read the "
+                + "thread.",
+            "thread.summaryNone":
+                "No catch-up this time. Try again, or read the thread.",
+            "thread.summaryStopNotice":
+                "This contact texted STOP. Nothing can be sent to them, whatever "
+                + "this says.",
+            "thread.summaryOptedOutNotice":
+                "This contact is opted out. Nothing can be sent to them, whatever "
+                + "this says.",
+            "thread.summaryLeftAloneNotice":
+                "Somebody here asked to be left alone. Check the thread before "
+                + "replying.",
+            "thread.summaryRecentStretch":
+                "This is the recent stretch of the thread, not all of it.",
+            "thread.wrapUpFailTooLong":
+                "That was longer than two minutes. Say the short version and Lou "
+                + "will write it down.",
+            "thread.wrapUpFailDisabled":
+                "Wrap-up dictation is turned off for this workspace. Settings, AI "
+                + "turns it back on.",
+            "thread.wrapUpFailOverCap":
+                "This month's dictation is used up. It starts again next month — "
+                + "type the note in the meantime.",
+            "thread.wrapUpFailUnreachable":
+                "Couldn't reach Lou just now. Try again, or type the note.",
+            "thread.wrapUpFailUnusable":
+                "Nothing came back that reads like words. Try again closer to the "
+                + "mic, or type the note.",
+            "thread.wrapUpFailDefault":
+                "That didn't come back as words. Type the note instead.",
+            "thread.wrapUpRefusalCallInProgress":
+                "Finish the call first. Lou writes down what you say afterwards, "
+                + "never the call.",
+            "thread.wrapUpRefusalMicDenied":
+                "Loonext needs the microphone to take a wrap-up. Allow it in "
+                + "Settings › Loonext, or type the note.",
+            "thread.wrapUpRefusalMicJustGranted":
+                "Microphone is on now. Hold the mic and say it again.",
+            "thread.wrapUpRefusalCouldNotStart":
+                "Couldn't start recording. Type the note instead.",
         ],
         frCA: [
             // --- The thread itself ---------------------------------------
@@ -637,7 +916,7 @@ enum ThreadStrings {
                 "Vous pouvez joindre jusqu'à {max} fichiers par texto.",
             "thread.attachLimitNote": "Une note peut porter jusqu'à 10 fichiers.",
             "thread.photoReadFailed":
-                "Impossible de lire cette photo. Réessayez de la joindre.",
+                "Impossible de lire cette photo. Joignez-la de nouveau.",
             "thread.sendsAs": "S'envoie ainsi : ",
             "thread.callThemInstead": "Appelez-le plutôt",
             "thread.reportThis": "Signaler ceci",
@@ -725,6 +1004,322 @@ enum ThreadStrings {
             "thread.theirTimeAskFirst":
                 "Il est {time} chez ce client. Nous demanderons avant d'envoyer si tard.",
             "thread.theirTime": "Il est {time} chez lui.",
+
+            // ── #228 pass 2: the composer, the timeline's system lines,
+            //    the catch-up and the wrap-up ─────────────────────────────
+            "thread.copied": "Copié.",
+            "thread.undo": "Annuler",
+            "thread.thatFile": "Ce fichier",
+            "thread.imageCantBeSent":
+                "Cette image ne peut pas être envoyée. Essayez une autre photo.",
+            "thread.mmsUnsupportedFile":
+                "{name} n'est pas quelque chose qu'un texto peut transporter. "
+                + "Essayez une photo, une vidéo, un clip audio, une fiche de contact "
+                + "ou un PDF.",
+            "thread.mmsFileEmpty": "{name} est vide.",
+            "thread.mmsFileTooBig":
+                "{name} dépasse 1 Mo, le maximum qu'un texto peut transporter.",
+            "thread.fileReadFailedPick":
+                "Impossible de lire ce fichier. Choisissez-le de nouveau.",
+            "thread.fileSizeReadFailed":
+                "Impossible de lire la taille de ce fichier. Choisissez-le de "
+                + "nouveau.",
+            "thread.fileTypeBlocked":
+                "Ce type de fichier n'est pas autorisé. Images, PDF et documents "
+                + "seulement.",
+            "thread.fileSizeLimit": "Les fichiers peuvent atteindre 25 Mo chacun.",
+            "thread.mergeFirstName": "Le prénom du client",
+            "thread.mergeAddress": "L'adresse inscrite à sa fiche de contact",
+            "thread.mergeJobDay": "Le jour de sa prochaine visite prévue",
+            "thread.mergeJobTime": "L'heure de celle-ci",
+            "thread.mergeMyName": "Votre prénom",
+            "thread.mergeBusinessName": "Le nom de votre entreprise",
+            "thread.mergeOurNumber": "Le numéro auquel il répond",
+            "thread.serverOnlyTokensNote":
+                "Le jour et l'heure se remplissent à l'envoi.",
+            "thread.mmsSegments": "MMS · envoyé en {count} parties",
+            "thread.sentInOnePart": "Envoyé en 1 partie",
+            "thread.sentInParts": "Envoyé en {count} parties",
+            "thread.scheduledConfirm": "Envoi {when}.",
+            "thread.quietHoursAround": "Il sera environ {hour} chez ce client.",
+            "thread.pickerThats": "C'est {time} {clock}",
+            "thread.senderClockOwn": "Ceci est votre propre heure. {reassurance}",
+            "thread.senderClockApart":
+                "Ceci est votre propre heure, et le client est {delta}. "
+                + "{reassurance}",
+            "thread.clockSame": "à la même heure que vous",
+            "thread.clockAnHourAhead": "une heure en avance sur vous",
+            "thread.clockAnHourBehind": "une heure en retard sur vous",
+            "thread.clockHoursAhead": "{count} heures en avance sur vous",
+            "thread.clockHoursBehind": "{count} heures en retard sur vous",
+            "thread.theirTimeAbout": "Il est environ {time} chez lui ({source}).",
+            "thread.clockFromContact": "inscrit à sa fiche de contact",
+            "thread.clockFromAreaCode": "d'après son indicatif régional",
+            "thread.clockFromWorkspace":
+                "le fuseau horaire de votre espace de travail — nous ne connaissons "
+                + "pas le sien",
+            "thread.duplicateReplyNamed": "{name} a répondu {ago}.",
+            "thread.duplicateReplyAuto": "Une réponse automatique est partie {ago}.",
+            "thread.agoJustNow": "à l'instant",
+            "thread.agoOneMinute": "il y a 1 minute",
+            "thread.agoMinutes": "il y a {count} minutes",
+            "thread.agoOneHour": "il y a 1 heure",
+            "thread.agoHours": "il y a {count} heures",
+            "thread.agoSinceWriting": "depuis que vous avez commencé à écrire",
+            "thread.bannerOptedOutTitle": "Ce client s'est désabonné",
+            "thread.bannerOptedOutCarrierBody":
+                "Il a texté STOP : son fournisseur bloque vos textos. Lui seul peut "
+                + "annuler ce blocage, en textant START à votre numéro. Les notes "
+                + "internes fonctionnent toujours.",
+            "thread.bannerOptedOutManualBody":
+                "Quelqu'un l'a marqué comme désabonné. Vous pouvez annuler cela "
+                + "dans sa fiche de contact. Les notes internes fonctionnent "
+                + "toujours.",
+            "thread.bannerSubscriptionTitle": "Les textos sont en pause",
+            "thread.bannerSubscriptionBody":
+                "Votre abonnement n'est pas actif : les textos sortants sont "
+                + "bloqués. Un propriétaire peut corriger cela dans la facturation. "
+                + "Les notes internes fonctionnent toujours.",
+            "thread.bannerRegistrationPendingTitle":
+                "Les textos vers les États-Unis ne sont pas encore approuvés",
+            "thread.bannerRegistrationPendingBody":
+                "Les fournisseurs examinent encore votre inscription. Les textos "
+                + "vers les numéros américains partiront dès son approbation. Les "
+                + "notes internes fonctionnent toujours.",
+            "thread.bannerUsTextingOffTitle":
+                "Les textos vers les États-Unis ne sont pas activés pour cet espace "
+                + "de travail",
+            "thread.bannerUsTextingOffBody":
+                "Ceci est un numéro américain, et texter les numéros américains est "
+                + "une option que votre espace de travail n'a pas activée. Un "
+                + "propriétaire peut l'ajouter dans les paramètres. Les appels vers "
+                + "ce client fonctionnent toujours, et les notes internes aussi.",
+            "thread.bannerRegistrationSuspendedTitle":
+                "Les textos vers les États-Unis sont en pause",
+            "thread.bannerRegistrationSuspendedBody":
+                "Le fournisseur a suspendu votre inscription américaine : les "
+                + "textos vers les numéros américains ne partiront pas. Nous avons "
+                + "été avisés et nous nous en occupons, et vous recevrez un courriel "
+                + "dès le rétablissement. Les textos canadiens, les appels et les "
+                + "notes internes fonctionnent toujours.",
+            "thread.bannerUsageCapTitle": "Vous avez atteint le plafond du mois",
+            "thread.bannerUsageCapBody":
+                "Les textos sortants sont en pause jusqu'à ce que le plafond soit "
+                + "relevé ou que le mois change. Les notes internes fonctionnent "
+                + "toujours.",
+            "thread.bannerReadOnlyTitle": "Vous avez un accès en lecture seule",
+            "thread.bannerReadOnlyBody":
+                "Vous pouvez lire cette conversation, mais pas répondre ni laisser "
+                + "de notes. Un propriétaire ou un administrateur peut modifier votre "
+                + "accès.",
+            "thread.bannerNumberAccessTitle":
+                "Vous ne pouvez pas texter depuis ce numéro",
+            "thread.bannerNumberAccessBody":
+                "Vous pouvez lire cette conversation et ajouter des notes internes, "
+                + "mais texter ce client exige un accès qu'un propriétaire ou un "
+                + "administrateur accorde. Les appels vers ce numéro ne vous "
+                + "joindront pas non plus. Demandez-le-leur si vous en avez besoin.",
+            "thread.bannerOptOutHintTitle": "Il a demandé à ne plus être contacté",
+            "thread.bannerOptOutHintBody":
+                "Quelqu'un dans cette conversation a demandé à ne plus être "
+                + "contacté. Cette demande est contraignante, peu importe la "
+                + "formulation : ne répondez pas à moins d'être certain qu'il ne "
+                + "s'agissait pas de cela. Pour arrêter les textos définitivement, le "
+                + "client doit texter STOP.",
+            "thread.signedOut": "Vous êtes déconnecté.",
+            "thread.cantReachLoonext":
+                "Impossible de joindre Loonext. Vérifiez votre connexion.",
+            "thread.outboxStale":
+                "En file d'attente depuis plus d'une journée. La conversation a "
+                + "peut-être évolué — envoyez-le maintenant, ou supprimez-le.",
+            "thread.outboxMediaLost":
+                "La photo de ce message n'est plus sur cet appareil. Envoyez le "
+                + "texte seul, ou supprimez-le.",
+            "thread.noteFilesAllFailed":
+                "La note est enregistrée, mais ses fichiers n'ont pas été "
+                + "téléversés.",
+            "thread.noteFilesSomeFailed":
+                "La note est enregistrée, mais {failed} fichiers sur {total} n'ont "
+                + "pas été téléversés.",
+            "thread.taskCreated": "Tâche créée.",
+            "thread.alreadyHasTask": "Ce message a déjà une tâche.",
+            "thread.markedAsSpam": "Marquée comme pourriel.",
+            "thread.markedAsNotSpam": "Marquée comme non pourriel. Elle reste fermée.",
+            "thread.spamCleared": "Merci. Nous ne signalerons plus celui-ci.",
+            "thread.snoozeLeadRemind": "Je vous le rappellerai — de retour",
+            "thread.snoozeLeadSnoozed": "Reportée — de retour",
+            "thread.reminderCancelled": "Rappel annulé.",
+            "thread.backInYourInbox": "De retour dans votre boîte de réception.",
+            "thread.audioMessage": "Message audio",
+            "thread.audioUnavailable": "Audio indisponible · touchez pour réessayer",
+            "thread.louPausedForBilling":
+                "Lou est en pause le temps de régler l'abonnement. Un propriétaire "
+                + "peut corriger cela dans Facturation.",
+            "thread.sysSomeone": "Quelqu'un",
+            "thread.sysATeammate": "un membre de l'équipe",
+            "thread.sysMovedTo": "{by} a fait passer ceci à {status}",
+            "thread.sysStatusChanged": "{by} a changé le statut",
+            "thread.sysUnassigned": "{by} a retiré l'assignation de cette conversation",
+            "thread.sysAssignedTo": "{by} a assigné celle-ci à {name}",
+            "thread.sysTagAdded": "{by} a ajouté l'étiquette « {name} »",
+            "thread.sysTagAddedGeneric": "{by} a ajouté une étiquette",
+            "thread.sysTagRemoved": "{by} a retiré une étiquette",
+            "thread.sysOptedOutSystem": "{name} s'est désabonné des textos",
+            "thread.sysOptedOutBy": "{by} a désabonné {name}",
+            "thread.sysOptedInSystem": "{name} s'est réabonné",
+            "thread.sysOptOutRevoked": "{by} a retiré le désabonnement",
+            "thread.sysConsentAttested":
+                "{by} a attesté du consentement à texter {name}",
+            "thread.sysQuietHours":
+                "{by} a envoyé pendant les heures de silence de ce client",
+            "thread.sysAppointmentConfirmed": "Le client a confirmé le rendez-vous",
+            "thread.sysJobRated": "Le client a noté le travail {score} sur 5",
+            "thread.sysSpamMarked": "{by} a marqué ceci comme pourriel",
+            "thread.sysSpamUnmarked": "{by} a marqué ceci comme non pourriel",
+            "thread.sysMessageDone": "{by} a marqué un message comme fait",
+            "thread.sysMessageUndone": "{by} a rouvert un message",
+            "thread.sysTaskCreated": "{by} a créé une tâche",
+            "thread.sysTaskAssigned": "{by} a assigné une tâche",
+            "thread.sysTaskDueSet": "{by} a fixé l'échéance d'une tâche",
+            "thread.sysTaskDeleted": "{by} a supprimé une tâche",
+            "thread.sysNoteAttachmentAdded": "{by} a joint un fichier à une note",
+            "thread.sysNoteAttachmentRemoved": "{by} a retiré un fichier d'une note",
+            "thread.sysTaskAttachmentAdded": "{by} a joint un fichier à une tâche",
+            "thread.sysTaskAttachmentRemoved": "{by} a retiré un fichier d'une tâche",
+            "thread.sysMissedCallFrom": "Appel manqué de {name}",
+            "thread.sysAutoReplySent": "Réponse automatique d'absence envoyée",
+            "thread.sysPaymentRequested": "{by} a demandé {amount}",
+            "thread.sysPaymentRequestedGeneric": "{by} a demandé un paiement",
+            "thread.sysPaymentCancelled": "{by} a annulé la demande de {amount}",
+            "thread.sysPaymentCancelledGeneric": "{by} a annulé la demande",
+            "thread.sysPaymentPaid": "Le client a payé {amount}",
+            "thread.sysPaymentPaidGeneric": "Le client a payé",
+            "thread.sysPaymentRefunded": "{amount} lui a été remboursé",
+            "thread.sysPaymentRefundedGeneric": "L'argent lui a été remboursé",
+            "thread.sysPaymentDisputed": "Sa banque a repris {amount}",
+            "thread.sysPaymentDisputedGeneric": "Sa banque a repris ce paiement",
+            "thread.sysPaymentWithDescription": "{line} — {description}",
+            "thread.sysMediaTooLarge":
+                "Un fichier envoyé par ce client était trop gros pour être conservé "
+                + "— demandez-lui d'en envoyer un plus petit",
+            "thread.sysMediaEmpty":
+                "Un fichier envoyé par ce client est arrivé vide — demandez-lui de "
+                + "l'envoyer de nouveau",
+            "thread.sysMediaTypeMismatch":
+                "Un fichier envoyé par ce client n'était pas du type qu'il "
+                + "annonçait, alors il n'a pas été conservé",
+            "thread.sysMediaUnsafe":
+                "Un fichier envoyé par ce client contenait quelque chose de "
+                + "dangereux, alors il n'a pas été conservé — demandez-lui une photo "
+                + "ou un PDF ordinaire",
+            "thread.sysMediaUnreadable":
+                "Un fichier envoyé par ce client n'a pas pu être vérifié, alors il "
+                + "n'a pas été conservé — demandez-lui de l'envoyer de nouveau",
+            "thread.sysMediaTooManyKept":
+                "Ce message contenait plus de fichiers que nous pouvons conserver — "
+                + "les {kept} premiers ont été gardés",
+            "thread.sysMediaTooMany":
+                "Ce message contenait plus de fichiers que nous pouvons conserver",
+            "thread.sysMediaUnsupported":
+                "Un fichier envoyé par ce client ne peut pas être affiché ici — "
+                + "demandez-lui d'envoyer une photo ou un PDF",
+            "thread.sysCalledNoAnswer": "Appel effectué, sans réponse",
+            "thread.sysYouCalled": "Vous avez appelé",
+            "thread.sysTransferredBy": "{from} a transféré l'appel à {to}",
+            "thread.sysTransferredTo": "Appel transféré à {to}",
+            "thread.sysTransferred": "Appel transféré",
+            "thread.sysLeftVoicemail": "Message vocal laissé",
+            "thread.sysWentToVoicemail": "L'appel s'est rendu à la boîte vocale",
+            "thread.sysMissedCall": "Appel manqué",
+            "thread.sysAnsweredBy": "Appel répondu par {name}",
+            "thread.sysAnswered": "Appel répondu",
+            "thread.sysWithDuration": "{line} · {duration}",
+            "domain.catchUpSectionAsked": "Ce que le client a demandé",
+            "domain.catchUpSectionWeSaid": "Ce que votre équipe a répondu",
+            "domain.catchUpSectionOpen": "Ce qui reste en suspens",
+            "domain.catchUpAttribution":
+                "Lou a lu cette conversation. Touchez une ligne pour voir le "
+                + "message d'où elle vient.",
+            "domain.catchUpDisabled":
+                "Les rattrapages sont désactivés pour cet espace de travail. "
+                + "Paramètres, Lou permet de les réactiver.",
+            "domain.catchUpRateLimited":
+                "Cela fait beaucoup de rattrapages d'un coup. Réessayez dans un "
+                + "moment.",
+            "thread.somethingWentWrongStatus": "Une erreur s'est produite ({status}).",
+            "thread.summaryOfferMessages": "{count} messages",
+            "thread.summaryOfferQuietDay": "silencieuse depuis un jour",
+            "thread.summaryOfferQuietDays": "silencieuse depuis {count} jours",
+            "thread.summarySpam":
+                "Cette conversation est marquée comme pourriel, alors Lou la saute. "
+                + "Retirez la marque pour demander un rattrapage.",
+            "thread.summaryTooShort":
+                "Il n'y a pas grand-chose ici encore — lire la conversation est "
+                + "plus rapide qu'un rattrapage.",
+            "thread.summaryOverCap":
+                "Les rattrapages de ce mois-ci sont épuisés. Ils reprennent le mois "
+                + "prochain. Lisez la conversation.",
+            "thread.summaryUnreachable":
+                "Impossible de joindre Lou pour l'instant. Réessayez, ou lisez la "
+                + "conversation.",
+            "thread.summaryUnusable":
+                "Rien de ce que Lou a écrit ne concordait avec la conversation, "
+                + "alors il n'a rien dit. Lisez la conversation.",
+            "thread.summaryForbidden":
+                "Votre rôle ne permet pas de demander un rattrapage — ils puisent "
+                + "dans le budget d'IA partagé de l'espace de travail. Un "
+                + "propriétaire ou un administrateur peut modifier cela, et la "
+                + "conversation est entièrement ici.",
+            "thread.summaryNotFound":
+                "Cette conversation n'est plus là. Fermez-la et rouvrez-la.",
+            "thread.summaryNetwork":
+                "Impossible de joindre Loonext. Vérifiez votre connexion, puis "
+                + "réessayez.",
+            "thread.summaryPaused":
+                "Les rattrapages sont en pause pour le moment. Réessayez sous peu, "
+                + "ou lisez la conversation.",
+            "thread.summaryNone":
+                "Aucun rattrapage cette fois-ci. Réessayez, ou lisez la "
+                + "conversation.",
+            "thread.summaryStopNotice":
+                "Ce contact a texté STOP. Rien ne peut lui être envoyé, peu importe "
+                + "ce qui est écrit ici.",
+            "thread.summaryOptedOutNotice":
+                "Ce contact est désabonné. Rien ne peut lui être envoyé, peu "
+                + "importe ce qui est écrit ici.",
+            "thread.summaryLeftAloneNotice":
+                "Quelqu'un ici a demandé à ne plus être contacté. Vérifiez la "
+                + "conversation avant de répondre.",
+            "thread.summaryRecentStretch":
+                "Ceci est la partie récente de la conversation, pas la totalité.",
+            "thread.wrapUpFailTooLong":
+                "C'était plus long que deux minutes. Dites la version courte et Lou "
+                + "la transcrira.",
+            "thread.wrapUpFailDisabled":
+                "La dictée des comptes rendus est désactivée pour cet espace de "
+                + "travail. Paramètres, IA permet de la réactiver.",
+            "thread.wrapUpFailOverCap":
+                "La dictée de ce mois-ci est épuisée. Elle reprend le mois prochain "
+                + "— tapez la note entre-temps.",
+            "thread.wrapUpFailUnreachable":
+                "Impossible de joindre Lou pour l'instant. Réessayez, ou tapez la "
+                + "note.",
+            "thread.wrapUpFailUnusable":
+                "Rien de ce qui est revenu ne ressemble à des mots. Réessayez plus "
+                + "près du micro, ou tapez la note.",
+            "thread.wrapUpFailDefault":
+                "Cela n'est pas revenu sous forme de mots. Tapez la note à la "
+                + "place.",
+            "thread.wrapUpRefusalCallInProgress":
+                "Terminez d'abord l'appel. Lou transcrit ce que vous dites ensuite, "
+                + "jamais l'appel.",
+            "thread.wrapUpRefusalMicDenied":
+                "Loonext a besoin du micro pour prendre un compte rendu. "
+                + "Autorisez-le dans Réglages › Loonext, ou tapez la note.",
+            "thread.wrapUpRefusalMicJustGranted":
+                "Le micro est activé. Maintenez-le et redites-le.",
+            "thread.wrapUpRefusalCouldNotStart":
+                "Impossible de démarrer l'enregistrement. Tapez la note à la place.",
         ]
     )
 }

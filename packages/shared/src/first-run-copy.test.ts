@@ -44,20 +44,22 @@ const CLIENTS = {
  * #228 moved Android's out of `GettingStartedLogic.kt` and into its Kotlin
  * catalogue, exactly as web's had already moved — that file now names keys and
  * holds no sentences, so comparing against it would be comparing against
- * nothing. iOS still writes them at the card, so it is unchanged.
+ * nothing. iOS made the same move into its Swift catalogue, so it points there
+ * too; `GettingStartedCard.swift` now names `inbox.started…` keys and carries
+ * no sentences of its own.
  */
 const COPY_SOURCES = {
   web: CLIENTS.web,
   android:
     "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/InboxStrings.kt",
-  ios: CLIENTS.ios,
+  ios: "apps/ios/Loonext/Core/I18n/InboxStrings.swift",
 } as const;
 
-/** Where each client keeps its two card TITLES (iOS holds them at the mount). */
+/** Where each client keeps its two card TITLES. */
 const TITLE_SOURCES = {
   web: CLIENTS.web,
   android: COPY_SOURCES.android,
-  ios: CLIENTS.ios,
+  ios: COPY_SOURCES.ios,
 } as const;
 
 const sources = Object.fromEntries(

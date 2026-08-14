@@ -885,7 +885,8 @@ struct ContactDetailView: View {
                     consentSource: contact.consent_source,
                     consentAt: contact.consent_at,
                     consentAttestedBy: contact.consent_attested_by,
-                    memberName: memberName
+                    memberName: memberName,
+                    locale: appLocale
                 )
             )
             .font(.golos(12.5))
@@ -945,7 +946,8 @@ struct ContactDetailView: View {
         let attribution = contactAttribution(
             createdByName: contact.created_by_name,
             createdAt: contact.created_at,
-            updatedByName: contact.updated_by_name
+            updatedByName: contact.updated_by_name,
+            locale: appLocale
         )
         if attribution.added != nil || attribution.edited != nil {
             VStack(alignment: .leading, spacing: 1) {
@@ -1161,7 +1163,12 @@ func contactAttribution(
     createdByName: String?,
     createdAt: String?,
     updatedByName: String?,
-    calendar: Calendar = .current
+    calendar: Calendar = .current,
+    // #228: LAST and DEFAULTED, exactly as the Android twin takes it — the
+    // tests that pin the English still pass nothing and still read English,
+    // and the screen passes the reader's language. A required parameter here
+    // would be a compile error in seven test call sites for a translation.
+    locale: String? = nil
 ) -> ContactAttribution {
     let added = createdByName
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -1170,17 +1177,27 @@ func contactAttribution(
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .flatMap { $0.isEmpty ? nil : $0 }
     let addedLine: String? = added.map { name in
-        guard let parsed = parseWireTimestamp(createdAt) else { return "Added by \(name)" }
+        guard let parsed = parseWireTimestamp(createdAt) else {
+            return AppStrings.translate(
+                locale, "contactsTasks.addedBy", ["who": name]
+            )
+        }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
         formatter.dateFormat = "MMM d, yyyy"
-        return "Added by \(name) on \(formatter.string(from: parsed))"
+        return AppStrings.translate(
+            locale,
+            "contactsTasks.addedByOn",
+            ["who": name, "date": formatter.string(from: parsed)]
+        )
     }
     let editedLine: String?
     if let edited, edited != added {
-        editedLine = "Edited by \(edited)"
+        editedLine = AppStrings.translate(
+            locale, "contactsTasks.editedBy", ["who": edited]
+        )
     } else {
         editedLine = nil
     }

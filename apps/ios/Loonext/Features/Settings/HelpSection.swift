@@ -24,7 +24,13 @@ let supportEmail = "support@loonext.com"
 /// unanswered form is a promise broken in writing." Two business days is what
 /// survives a bad week; the good weeks beat it, and beating a stated
 /// commitment costs nothing. MIRROR of SUPPORT_RESPONSE_TIME in packages/shared.
-let supportResponseTime = "within two business days, usually sooner"
+///
+/// #228: resolved against the ENGLISH table, exactly as Android's
+/// `SUPPORT_RESPONSE_TIME` getter is, and its French entry is deliberately the
+/// English words — web injects this same untranslated constant into its French
+/// `helpReplyPromise` too. Fixing that is a copy decision for all three clients
+/// at once; doing it on iOS alone would be the drift this pass exists to end.
+let supportResponseTime = AppStrings.translate(nil, "settings.helpResponseTime")
 
 /// #321 acceptance 4 — the loop, stated out loud.
 ///
@@ -33,9 +39,7 @@ let supportResponseTime = "within two business days, usually sooner"
 /// subject, so one inbox search finds all of them, and docs/RELEASING.md makes
 /// the reply a step of every release. MIRROR of SUPPORT_FIX_PROMISE in
 /// packages/shared.
-let supportFixPromise =
-    "If you tell us something's broken, we write back when it's fixed, not just "
-        + "when we've read it."
+let supportFixPromise = AppStrings.translate(nil, "settings.helpFixPromise")
 
 /// Mirror of SUPPORT_ERROR_LINES: a truncated mailto body carries NO diagnostics.
 private let supportErrorLines = 6
@@ -47,27 +51,47 @@ private let supportErrorLines = 6
 /// MIRROR of `supportSituation` in packages/shared/src/support.ts, keyed on the
 /// same strings, so one carrier suspension reported from three platforms lands
 /// in the inbox under one name.
-func supportSituation(_ kind: String) -> String? {
+///
+/// ## THE KEY, not the sentence
+///
+/// Because the two readers of it want different languages and both are right.
+/// `supportBody` renders it for the PERSON, in whatever they read; the SUBJECT
+/// renders the same key against the English table on purpose
+/// (`supportSubjectFor`). A subject line is the inbox's index, and one carrier
+/// suspension reported from Montreal and from Calgary has to arrive under one
+/// heading, or the pattern that matters most — five reports of one failure in a
+/// morning — is the one that stops being visible.
+func supportSituationKey(_ kind: String) -> String? {
     switch kind {
-    case "registration_pending": "US registration is pending approval"
-    case "registration_suspended": "the carrier suspended our US registration"
-    case "us_texting_off": "US texting is off for this workspace"
-    case "usage_cap": "sending is paused at the spending cap"
-    case "subscription": "the subscription is not active"
-    case "opted_out": "this customer is opted out"
-    case "opt_out_hint": "an opt-out was detected in the thread"
-    case "number_access": "I do not have texting access to this number"
-    case "read_only": "I have view-only access"
+    case "registration_pending": "settings.supportSituationRegistrationPending"
+    case "registration_suspended": "settings.supportSituationRegistrationSuspended"
+    case "us_texting_off": "settings.supportSituationUsTextingOff"
+    case "usage_cap": "settings.supportSituationUsageCap"
+    case "subscription": "settings.supportSituationSubscription"
+    case "opted_out": "settings.supportSituationOptedOut"
+    case "opt_out_hint": "settings.supportSituationOptOutHint"
+    case "number_access": "settings.supportSituationNumberAccess"
+    case "read_only": "settings.supportSituationReadOnly"
     default: nil
     }
 }
 
+func supportSituation(_ kind: String, _ locale: String? = nil) -> String? {
+    supportSituationKey(kind).map { AppStrings.translate(locale, $0) }
+}
+
 /// The subject a report from a failure banner carries.
 func supportSubjectFor(_ kind: String) -> String {
-    guard let situation = supportSituation(kind) else {
-        return "Help with my Loonext workspace"
+    // `translate(nil, …)` asks for the ENGLISH table by the same rule a missing
+    // locale always has. Deliberate, and the one place in this file that is:
+    // see `supportSituationKey` for why the index is one language.
+    guard let situation = supportSituationKey(kind).map({ AppStrings.translate(nil, $0) })
+    else {
+        return AppStrings.translate(nil, "settings.supportSubjectDefault")
     }
-    return "Problem: \(situation)"
+    return AppStrings.translate(
+        nil, "settings.supportSubjectProblem", ["situation": situation]
+    )
 }
 
 /// #253 — the questions that generate the most confusion, answered inside.
@@ -83,41 +107,30 @@ struct SupportTopic: Identifiable {
     var id: String { question }
 }
 
-let supportTopics: [SupportTopic] = [
-    SupportTopic(
-        question: "Why won't my text to a US number send?",
-        answer: "US carriers require every business number to be registered before it can "
-            + "text US phones. Approval usually takes 3 to 7 business days, and there is "
-            + "nothing to do while it runs. Calls to US numbers work the whole time, and "
-            + "Canadian texts are unaffected."
-    ),
-    SupportTopic(
-        question: "What does \u{201C}registration pending\u{201D} actually mean?",
-        answer: "We have submitted your business to the carriers and they have not answered "
-            + "yet. It is a queue, not a review of anything you did. You will get an email "
-            + "the moment it clears."
-    ),
-    SupportTopic(
-        question: "Why did my number stop sending after it was working?",
-        answer: "Two things do that. A carrier can suspend an approved registration, which "
-            + "we are told about and act on without you doing anything. Or your workspace "
-            + "has hit the spending cap the owner set, which is protection rather than a "
-            + "quota and an owner can raise it in Settings."
-    ),
-    SupportTopic(
-        question: "A customer says they never got my text. What now?",
-        answer: "Check whether they ever texted STOP: a carrier opt-out blocks us and only "
-            + "the customer can lift it, by texting START. If that is not it, email us the "
-            + "customer's number and roughly when you sent it, and we can trace the message "
-            + "with the carrier."
-    ),
-    SupportTopic(
-        question: "How long does moving my existing number take?",
-        answer: "Porting takes 7 to 10 business days once the carrier accepts the request, "
-            + "and your old number keeps working the entire time. Nothing goes dark at any "
-            + "point."
-    ),
+private let supportTopicKeys: [(question: String, answer: String)] = [
+    ("settings.helpFaqUsSendQ", "settings.helpFaqUsSendA"),
+    ("settings.helpFaqPendingQ", "settings.helpFaqPendingA"),
+    ("settings.helpFaqStoppedQ", "settings.helpFaqStoppedA"),
+    ("settings.helpFaqNotGotQ", "settings.helpFaqNotGotA"),
+    ("settings.helpFaqPortQ", "settings.helpFaqPortA"),
 ]
+
+/// The questions and their answers, in one language.
+///
+/// A differently-named function rather than an overload of `supportTopics`: a
+/// top-level `let` and a top-level `func` sharing a base name is an invalid
+/// redeclaration in Swift, and this file is only ever compiled in CI.
+func localisedSupportTopics(_ locale: String?) -> [SupportTopic] {
+    supportTopicKeys.map { pair in
+        SupportTopic(
+            question: AppStrings.translate(locale, pair.question),
+            answer: AppStrings.translate(locale, pair.answer)
+        )
+    }
+}
+
+/// The English, for the guards that compare this app against the shared module.
+let supportTopics: [SupportTopic] = localisedSupportTopics(nil)
 
 /// The customer's own words go at the TOP — nobody should scroll past our
 /// diagnostics to write the sentence they opened the app to write.
@@ -129,24 +142,45 @@ func supportBody(
     /// #253: what the person was looking at. A sentence, not a code.
     situation: String? = nil,
     /// #253: recent client failures, newest first, already scrubbed.
-    recentErrors: [String] = []
+    recentErrors: [String] = [],
+    /// The reader's language. This block is printed on the help screen for a
+    /// device with no mail app, so it is read HERE before it is read by us. The
+    /// values inside it — a workspace id, a plan slug, a version, an error line
+    /// — are the diagnostic and have no language at all.
+    locale: String? = nil
 ) -> String {
+    func say(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
     var lines = [
         "",
         "",
         "---",
-        "The details below help us look this up. Please leave them in.",
-        "Workspace: \(companyName ?? "(unnamed)") (\(companyId))",
+        say("settings.supportBodyLeadIn"),
+        say(
+            "settings.supportBodyWorkspace",
+            [
+                "name": companyName ?? say("settings.supportBodyUnnamed"),
+                "id": companyId,
+            ]
+        ),
     ]
-    if let plan, !plan.isEmpty { lines.append("Plan: \(plan)") }
-    let version = (appVersion?.isEmpty == false) ? " \(appVersion!)" : ""
-    lines.append("App: ios\(version)")
+    if let plan, !plan.isEmpty {
+        lines.append(say("settings.supportBodyPlan", ["plan": plan]))
+    }
+    if let appVersion, !appVersion.isEmpty {
+        lines.append(say("settings.supportBodyApp", ["version": appVersion]))
+    } else {
+        lines.append(say("settings.supportBodyAppNoVersion"))
+    }
     // The situation goes ABOVE the errors: it is the one line that says what
     // the person was trying to do, and it is true even when nothing errored.
-    if let situation, !situation.isEmpty { lines.append("Screen: \(situation)") }
+    if let situation, !situation.isEmpty {
+        lines.append(say("settings.supportBodyScreen", ["situation": situation]))
+    }
     let errors = recentErrors.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     if !errors.isEmpty {
-        lines.append("Recent errors on this device (newest first):")
+        lines.append(say("settings.supportBodyErrors"))
         for line in errors.prefix(supportErrorLines) { lines.append("  \(line)") }
     }
     return lines.joined(separator: "\n")
@@ -157,9 +191,10 @@ func supportMailto(
     companyName: String?,
     plan: String?,
     appVersion: String?,
-    subject: String = "Help with my Loonext workspace",
+    subject: String = AppStrings.translate(nil, "settings.supportSubjectDefault"),
     situation: String? = nil,
-    recentErrors: [String] = []
+    recentErrors: [String] = [],
+    locale: String? = nil
 ) -> URL? {
     let body = supportBody(
         companyId: companyId,
@@ -167,7 +202,8 @@ func supportMailto(
         plan: plan,
         appVersion: appVersion,
         situation: situation,
-        recentErrors: recentErrors
+        recentErrors: recentErrors,
+        locale: locale
     )
     var components = URLComponents()
     components.scheme = "mailto"
@@ -195,15 +231,19 @@ func feedbackMailto(
     /// empty array, and every call site here took the default — so the log that
     /// records a failure was never attached to anything. Web has always sent it.
     /// Recording a diagnosis nobody can collect is the same as not recording it.
-    recentErrors: [String] = []
+    recentErrors: [String] = [],
+    locale: String? = nil
 ) -> URL? {
     supportMailto(
         companyId: companyId,
         companyName: companyName,
         plan: plan,
         appVersion: appVersion,
-        subject: "Idea for Loonext",
-        recentErrors: recentErrors
+        // English, for the reason `supportSubjectFor` gives: a subject line is
+        // the inbox's index, not a sentence for the reader.
+        subject: AppStrings.translate(nil, "settings.supportSubjectIdea"),
+        recentErrors: recentErrors,
+        locale: locale
     )
 }
 
@@ -236,7 +276,8 @@ struct HelpSectionView: View {
             companyName: company.name,
             plan: company.plan,
             appVersion: appVersion,
-            recentErrors: recentErrors
+            recentErrors: recentErrors,
+            locale: appLocale
         )
     }
 
@@ -253,7 +294,8 @@ struct HelpSectionView: View {
                     companyName: company.name,
                     plan: company.plan,
                     appVersion: appVersion,
-                    recentErrors: recentErrors
+                    recentErrors: recentErrors,
+                    locale: appLocale
                 ) {
                     openURL(url)
                 }
@@ -287,7 +329,8 @@ struct HelpSectionView: View {
                     companyName: company.name,
                     plan: company.plan,
                     appVersion: appVersion,
-                    recentErrors: recentErrors
+                    recentErrors: recentErrors,
+                    locale: appLocale
                 ) {
                     openURL(url)
                 }
@@ -306,7 +349,7 @@ struct HelpSectionView: View {
             description: t("settings.helpFaqIntro")
         ) {
             VStack(alignment: .leading, spacing: 12) {
-                ForEach(supportTopics) { topic in
+                ForEach(localisedSupportTopics(appLocale)) { topic in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(topic.question)
                             .font(.golos(13.5, weight: .semibold))
@@ -323,17 +366,21 @@ struct HelpSectionView: View {
         ) {
             ReadOnlyLine(
                 // #253 acceptance 4: a stated commitment, from ONE mirrored
-                // constant. Two business days is what survives a bad week.
-                "We reply \(supportResponseTime). We're a small team, so this is email "
-                    + "rather than a chat window, and we read everything that comes in. "
-                    + "If your texts have stopped arriving, say so in the subject line "
-                    + "and we'll start there."
+                // constant. Two business days is what survives a bad week. The
+                // sentence around it is web's own `appShell.helpReplyPromise`,
+                // in both languages, and the window rides in as `{time}`
+                // exactly as it does there.
+                AppStrings.translate(
+                    appLocale,
+                    "settings.helpReplyPromise",
+                    ["time": t("settings.helpResponseTime")]
+                )
             )
             Spacer().frame(height: 8)
             // #321: the loop, stated. The reason to bother writing in is
             // knowing you will hear back — which makes the release step in
             // docs/RELEASING.md load-bearing, not optional.
-            Text(supportFixPromise)
+            Text(t("settings.helpFixPromise"))
                 .font(.golos(12.5, weight: .medium))
                 .foregroundStyle(BrandColor.ink)
         }

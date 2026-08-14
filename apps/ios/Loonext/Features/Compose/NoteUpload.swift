@@ -10,6 +10,13 @@ struct NoteFileUploader: Sendable {
     let sessionStore: SessionStore
     let meApi: MeApi
     var baseURL: URL = AppConfig.apiURL
+    /// #228 — the reader's language, for the two refusals below.
+    ///
+    /// DECLARED LAST and defaulted, so the memberwise initialiser every existing
+    /// construction site uses is unchanged; nil reads English. Passed in rather
+    /// than read from `UiLocaleStore`, because this runs off the main actor and
+    /// the store lives on it.
+    var locale: String? = nil
 
     func upload(
         companyId: String,
@@ -54,7 +61,7 @@ struct NoteFileUploader: Sendable {
         guard let session = sessionStore.current() else {
             throw ApiError(
                 code: ApiErrorCode.unauthorized,
-                message: "You're signed out.",
+                message: AppStrings.translate(locale, "thread.signedOut"),
                 httpStatus: 401
             )
         }
@@ -100,7 +107,7 @@ struct NoteFileUploader: Sendable {
         } catch {
             throw ApiError(
                 code: ApiErrorCode.network,
-                message: "Can't reach Loonext. Check your connection.",
+                message: AppStrings.translate(locale, "thread.cantReachLoonext"),
                 httpStatus: 0
             )
         }
@@ -159,7 +166,12 @@ struct NoteFileUploader: Sendable {
             let parsed = try? JSONDecoder().decode(ErrorEnvelope.self, from: response.data)
             throw ApiError(
                 code: parsed?.error.code ?? ApiErrorCode.internalError,
-                message: parsed?.error.message ?? "Something went wrong (\(response.status)).",
+                message: parsed?.error.message
+                    ?? AppStrings.translate(
+                        locale,
+                        "thread.somethingWentWrongStatus",
+                        ["status": String(response.status)]
+                    ),
                 httpStatus: response.status
             )
         }

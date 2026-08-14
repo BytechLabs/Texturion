@@ -109,8 +109,19 @@ struct ContactFieldFilter: Equatable {
 }
 
 /// The words this surface owns, kept where the parity test can read them.
+///
+/// The two CHIP labels are still spelled here, exactly as Android's
+/// `CONTACT_FILTER_ALL` / `CONTACT_FILTER_UNSET` are:
+/// `contact-filter-parity.test.ts` reads this file's BYTES and asserts both
+/// against web's catalogue, and that test lives in a tree this change may not
+/// touch. They move when all three clients do.
+///
+/// #228: the two EMPTY-STATE constants are catalogue KEYS, not sentences —
+/// again matching Android. The same parity test looks for the IDENTIFIER on the
+/// list screen rather than for the words, so `ContactsTab` reaching them
+/// through `AppStrings.translate` keeps it honest: what it asks is whether the
+/// filtered-empty state exists at all.
 let contactFilterAll = "Everyone"
 let contactFilterUnset = "Not set"
-let contactFilterEmptyTitle = "Nobody matches that yet"
-let contactFilterEmptyBody =
-    "No customer has that answer on file. Clear the filter to see everyone."
+let contactFilterEmptyTitle = "contactsTasks.filterEmptyTitle"
+let contactFilterEmptyBody = "contactsTasks.filterEmptyBody"

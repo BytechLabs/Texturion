@@ -217,6 +217,8 @@ private struct TaskMapContent: View {
     @State private var camera: MapCameraPosition = .region(continentalUSRegion)
     @State private var selectedGroupId: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     private var model: TaskMapModel { buildTaskMapModel(rows) }
 
     /// A stable signature of the pin set — the camera refits only when this
@@ -253,9 +255,18 @@ private struct TaskMapContent: View {
     }
 
     private var countText: String {
-        var text = "\(model.located) on the map"
-        if model.missing > 0 { text += " · \(model.missing) without a location" }
-        return text
+        guard model.missing > 0 else {
+            return AppStrings.translate(
+                appLocale,
+                "contactsTasks.mapCounts",
+                ["located": String(model.located)]
+            )
+        }
+        return AppStrings.translate(
+            appLocale,
+            "contactsTasks.mapCountsWithMissing",
+            ["located": String(model.located), "missing": String(model.missing)]
+        )
     }
 
     private var mapBody: some View {
@@ -306,16 +317,25 @@ private struct TaskMapContent: View {
         .padding(.bottom, 18)
     }
 
+    /// Under the empty-map heading: the count of tasks that CANNOT be plotted
+    /// when there is one, and how to get a pin on the map when there is not.
+    private var emptySubline: String {
+        guard model.missing > 0 else {
+            return AppStrings.translate(appLocale, "contactsTasks.mapAddAnAddress")
+        }
+        return AppStrings.translate(
+            appLocale,
+            "contactsTasks.mapMissingCount",
+            ["missing": String(model.missing)]
+        )
+    }
+
     private var emptyOverlay: some View {
         VStack(spacing: 3) {
-            Text("No located tasks yet.")
+            Text(AppStrings.translate(appLocale, "contactsTasks.mapNoLocatedTasks"))
                 .font(.golos(13, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
-            Text(
-                model.missing > 0
-                    ? "\(model.missing) without a location"
-                    : "Add an address to a contact and its tasks appear here."
-            )
+            Text(emptySubline)
             .font(.golos(11.5))
             .foregroundStyle(BrandColor.muted500)
             .multilineTextAlignment(.center)
@@ -335,7 +355,12 @@ private struct TaskMapContent: View {
         if let single = group.tasks.count == 1 ? group.tasks.first : nil {
             return single.title
         }
-        return group.contactName ?? "\(group.tasks.count) tasks"
+        if let contactName = group.contactName { return contactName }
+        return AppStrings.translate(
+            appLocale,
+            "contactsTasks.mapMarkerTasks",
+            ["count": String(group.tasks.count)]
+        )
     }
 
     /// Fit every pin with padding, a sane single-pin span, and the
@@ -377,6 +402,7 @@ private struct PinPeekCard: View {
     let onDismiss: @MainActor () -> Void
 
     @Environment(\.openURL) private var openURL
+    @Environment(\.appLocale) private var appLocale
 
     private var single: TaskItem? { group.tasks.count == 1 ? group.tasks.first : nil }
 
@@ -384,7 +410,13 @@ private struct PinPeekCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 4) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(single?.title ?? (group.contactName ?? "This location"))
+                    Text(
+                        single?.title
+                            ?? group.contactName
+                            ?? AppStrings.translate(
+                                appLocale, "contactsTasks.mapThisLocation"
+                            )
+                    )
                         .font(.golos(13.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
                         .lineLimit(2)
@@ -403,7 +435,7 @@ private struct PinPeekCard: View {
                         .frame(width: 30, height: 30)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Close")
+                .accessibilityLabel(AppStrings.translate(appLocale, "common.close"))
             }
             .padding(.horizontal, 15)
             .padding(.top, 12)
@@ -413,7 +445,7 @@ private struct PinPeekCard: View {
                     Button {
                         onOpenTask(single.id)
                     } label: {
-                        Text("Open task")
+                        Text(AppStrings.translate(appLocale, "contactsTasks.mapOpenTask"))
                             .font(.golos(12.5, weight: .semibold))
                             .foregroundStyle(BrandColor.olive)
                     }
@@ -425,7 +457,11 @@ private struct PinPeekCard: View {
                         Button {
                             openURL(directions)
                         } label: {
-                            Text("Directions")
+                            Text(
+                                AppStrings.translate(
+                                    appLocale, "contactsTasks.mapDirections"
+                                )
+                            )
                                 .font(.golos(12.5, weight: .semibold))
                                 .foregroundStyle(BrandColor.olive)
                         }
@@ -455,7 +491,13 @@ private struct PinPeekCard: View {
                     .buttonStyle(.plain)
                 }
                 if group.tasks.count > 5 {
-                    Text("+\(group.tasks.count - 5) more")
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            "contactsTasks.mapMore",
+                            ["count": String(group.tasks.count - 5)]
+                        )
+                    )
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted500)
                         .padding(.horizontal, 15)
@@ -476,6 +518,10 @@ private struct PinPeekCard: View {
 
     private var subline: String? {
         if single != nil { return group.contactName }
-        return "\(group.tasks.count) tasks here"
+        return AppStrings.translate(
+            appLocale,
+            "contactsTasks.mapTasksHere",
+            ["count": String(group.tasks.count)]
+        )
     }
 }

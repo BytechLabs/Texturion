@@ -85,11 +85,16 @@ extension PushCoordinator: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
         let content = notification.request.content
+        // #228: this delegate call is nonisolated and `UiLocaleStore` is
+        // main-actor, so the language is fetched with one hop before parsing.
+        // It only reaches the reader when the payload arrived with no words of
+        // its own — the server writes the real banner, and translates it there.
+        let locale = await MainActor.run { UiLocaleStore.shared.resolved }
         let push = parsePush(pushData(
             fromUserInfo: content.userInfo,
             fallbackTitle: content.title,
             fallbackBody: content.body
-        ))
+        ), locale)
         return await MainActor.run {
             if push.isCall {
                 if let handler = PushHooks.callWakeHandler {
@@ -125,11 +130,12 @@ extension PushCoordinator: UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse
     ) async {
         let content = response.notification.request.content
+        let locale = await MainActor.run { UiLocaleStore.shared.resolved }
         let push = parsePush(pushData(
             fromUserInfo: content.userInfo,
             fallbackTitle: content.title,
             fallbackBody: content.body
-        ))
+        ), locale)
         await MainActor.run {
             guard let route = parsePushRoute(url: push.url) else { return }
             PushHooks.route(route)

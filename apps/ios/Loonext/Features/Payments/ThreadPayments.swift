@@ -65,6 +65,8 @@ struct ThreadPaymentsPane: View {
     /// same reason.
     let onSent: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     @State private var model: ThreadPaymentsModel?
     @State private var asking = false
 
@@ -193,7 +195,7 @@ struct ThreadPaymentsPane: View {
             HStack(spacing: 6) {
                 Image(systemName: "dollarsign.circle")
                     .font(.scaled(13))
-                Text("Ask for payment")
+                Text(AppStrings.translate(appLocale, "payments.askAction"))
                     .font(.golos(12.5, weight: .semibold))
                 Spacer(minLength: 0)
             }
@@ -365,6 +367,8 @@ private struct PaymentStripRow: View {
     let busy: Bool
     let onCancel: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     /// Three tones, because there are three things a reader has to do about a
     /// row: act on it, note it, or ignore it.
     private var needsAttention: Bool {
@@ -410,11 +414,17 @@ private struct PaymentStripRow: View {
                 if request.resolvedState == .refunded,
                    let refunded = request.amount_refunded_cents {
                     Text(
-                        formatMoneyIn(
-                            refunded,
-                            request.billingCurrency,
-                            audience: request.billingCurrency
-                        ) + " went back to them."
+                        AppStrings.translate(
+                            appLocale,
+                            "payments.refundedBack",
+                            [
+                                "amount": formatMoneyIn(
+                                    refunded,
+                                    request.billingCurrency,
+                                    audience: request.billingCurrency
+                                ),
+                            ]
+                        )
                     )
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
@@ -424,7 +434,7 @@ private struct PaymentStripRow: View {
                     // Named rather than merely coloured. A chargeback is the one
                     // state on this strip with a deadline attached, and Stripe —
                     // not us — is the party that emailed the evidence request.
-                    Text("Their bank has pulled this back. Stripe has emailed you what it needs.")
+                    Text(AppStrings.translate(appLocale, "payments.disputedNote"))
                         .font(.golos(11))
                         .foregroundStyle(NoteAmber.ink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -447,7 +457,14 @@ private struct PaymentStripRow: View {
                 // — you can ask again — and the friction belongs on the ask,
                 // which is what the customer actually receives.
                 .accessibilityLabel(
-                    "Cancel the \(request.amountLabel) request for \(request.description)"
+                    AppStrings.translate(
+                        appLocale,
+                        "payments.cancelLabel",
+                        [
+                            "amount": request.amountLabel,
+                            "description": request.description,
+                        ]
+                    )
                 )
             }
         }
@@ -498,9 +515,17 @@ private struct AskForPaymentSheet: View {
     let onSend: @MainActor (Int, String, String) async -> String?
     let onDismiss: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     @State private var amountText = ""
-    // Smart Defaults: the ask this feature was built for, editable in one tap.
-    @State private var description = "Deposit"
+    /// Smart Defaults: the ask this feature was built for, editable in one tap.
+    ///
+    /// #228: seeded in `.onAppear` rather than here, because `@State` cannot
+    /// read the environment from an initialiser and the default is a SENTENCE
+    /// now — "Acompte" for a French reader. A one-frame empty field costs
+    /// nothing; a new required parameter on this sheet would have to be threaded
+    /// through a construction site that only CI's `Gate / iOS` can compile.
+    @State private var description = ""
     @State private var sending = false
     @State private var failure: String?
     /// One key per INTENT.
@@ -532,7 +557,7 @@ private struct AskForPaymentSheet: View {
     /// preview, rather than a text that begins with a colon.
     private var senderName: String {
         guard let businessName = businessName, !businessName.isBlank else {
-            return "Your business"
+            return AppStrings.translate(appLocale, "payments.yourBusiness")
         }
         return businessName
     }
@@ -558,13 +583,13 @@ private struct AskForPaymentSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Ask for payment")
+            Text(AppStrings.translate(appLocale, "payments.askAction"))
                 .font(.golos(17, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Amount")
+                    Text(AppStrings.translate(appLocale, "payments.amountLabel"))
                         .font(.golos(12, weight: .semibold))
                         .foregroundStyle(BrandColor.muted600)
                         .padding(.top, 14)
@@ -582,27 +607,34 @@ private struct AskForPaymentSheet: View {
                     }
                     .padding(.top, 4)
 
-                    Text("What for")
+                    Text(AppStrings.translate(appLocale, "payments.descriptionLabel"))
                         .font(.golos(12, weight: .semibold))
                         .foregroundStyle(BrandColor.muted600)
                         .padding(.top, 14)
-                    TextField("Deposit", text: $description)
+                    TextField(
+                        AppStrings.translate(appLocale, "payments.deposit"),
+                        text: $description
+                    )
                         .textFieldStyle(.roundedBorder)
                         .padding(.top, 4)
 
                     if let problem = problem {
-                        InlineError(paymentAmountProblemCopy(problem, currency))
+                        InlineError(
+                            paymentAmountProblemCopy(problem, currency, appLocale)
+                        )
                     }
                     if let preview = preview {
-                        PreviewBubble(label: "What the customer receives", text: preview)
+                        PreviewBubble(
+                            label: AppStrings.translate(
+                                appLocale, "payments.previewLabel"
+                            ),
+                            text: preview
+                        )
                     }
 
                     InlineError(failure)
 
-                    Text(
-                        "Goes out as a text with a secure payment link. The money lands "
-                            + "in your bank account — we take nothing on top."
-                    )
+                    Text(AppStrings.translate(appLocale, "payments.goesOutAsText"))
                     .font(.golos(11.5))
                     .foregroundStyle(BrandColor.muted500)
                     .fixedSize(horizontal: false, vertical: true)
@@ -612,7 +644,7 @@ private struct AskForPaymentSheet: View {
             }
 
             HStack {
-                Button("Cancel") { onDismiss() }
+                Button(AppStrings.translate(appLocale, "common.cancel")) { onDismiss() }
                     .buttonStyle(.bordered)
                     .disabled(sending)
                 Spacer()
@@ -629,6 +661,15 @@ private struct AskForPaymentSheet: View {
         // A send in flight must not be swiped away: the request would still go,
         // and the crew would be left unsure whether it had.
         .interactiveDismissDisabled(sending)
+        // #228: the Smart Default, in the reader's language. Guarded on empty so
+        // a re-appearance never overwrites what somebody has typed.
+        .onAppear {
+            if description.isEmpty {
+                description = AppStrings.translate(
+                    appLocale, "payments.deposit"
+                )
+            }
+        }
         // A changed figure is a different ask. See `idempotencyKey`.
         .onChange(of: amountText) { _, _ in idempotencyKey = UUID().uuidString }
         .onChange(of: description) { _, next in
@@ -650,9 +691,15 @@ private struct AskForPaymentSheet: View {
     /// The button says the amount, so the last thing read before the tap is the
     /// figure the customer will be charged.
     private var sendLabel: String {
-        if sending { return "Sending…" }
-        guard let chargeable = chargeable else { return "Ask for payment" }
-        return "Ask for " + formatMoneyIn(chargeable, currency, audience: currency)
+        if sending { return AppStrings.translate(appLocale, "payments.sending") }
+        guard let chargeable = chargeable else {
+            return AppStrings.translate(appLocale, "payments.askAction")
+        }
+        return AppStrings.translate(
+            appLocale,
+            "payments.askFor",
+            ["amount": formatMoneyIn(chargeable, currency, audience: currency)]
+        )
     }
 
     private func send() {

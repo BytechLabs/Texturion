@@ -307,10 +307,7 @@ struct InCallView: View {
             } else {
                 // A denial used to do NOTHING — the caller kept ringing and
                 // Answer kept looking tappable, with no explanation.
-                manager.reportUiError(
-                    "Loonext needs the microphone to answer calls. "
-                        + "Allow it in Settings › Loonext."
-                )
+                manager.reportUiError(t("contactsTasks.micNeededToAnswer"))
             }
         }
     }
@@ -322,8 +319,8 @@ struct InCallView: View {
                 ControlToggle(
                     on: featured.muted,
                     systemImage: featured.muted ? "mic.slash" : "mic",
-                    label: featured.muted ? "Unmute" : "Mute",
-                    title: featured.muted ? "Unmute" : "Mute"
+                    label: featured.muted ? t("contactsTasks.unmute") : t("contactsTasks.mute"),
+                    title: featured.muted ? t("contactsTasks.unmute") : t("contactsTasks.mute")
                 ) {
                     manager.setMuted(featured.id, muted: !featured.muted)
                 }
@@ -331,8 +328,8 @@ struct InCallView: View {
                 ControlToggle(
                     on: false,
                     systemImage: "circle.grid.3x3",
-                    label: "Keypad",
-                    title: "Keypad",
+                    label: t("contactsTasks.keypad"),
+                    title: t("contactsTasks.keypad"),
                     enabled: featured.phase == .active
                 ) {
                     dtmfOpen = true
@@ -341,8 +338,8 @@ struct InCallView: View {
                 ControlToggle(
                     on: featured.phase == .held,
                     systemImage: featured.phase == .held ? "play" : "pause",
-                    label: featured.phase == .held ? "Resume" : "Hold",
-                    title: featured.phase == .held ? "Resume" : "Hold"
+                    label: featured.phase == .held ? t("contactsTasks.resume") : t("contactsTasks.hold"),
+                    title: featured.phase == .held ? t("contactsTasks.resume") : t("contactsTasks.hold")
                 ) {
                     manager.toggleHold(featured.id)
                 }
@@ -352,8 +349,8 @@ struct InCallView: View {
                 ControlToggle(
                     on: false,
                     systemImage: "arrow.left.arrow.right",
-                    label: "Transfer",
-                    title: "Transfer",
+                    label: t("contactsTasks.transfer"),
+                    title: t("contactsTasks.transfer"),
                     // Transfer needs the CUSTOMER session — resolved via
                     // by-leg for inbound answers — AND a live record the server
                     // can address; disabled until both land.
@@ -365,7 +362,7 @@ struct InCallView: View {
                 ControlToggle(
                     on: false,
                     systemImage: "text.bubble",
-                    label: "Add a note in the conversation",
+                    label: t("contactsTasks.addNoteAction"),
                     title: noteControlLabel(
                         linked: conversationId != nil,
                         resolving: conversationId == nil && !noteLookupGaveUp
@@ -434,16 +431,18 @@ private struct ControlToggle: View {
 struct CallPhaseLine: View {
     let call: CallSnapshot
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         switch call.phase {
         case .ringing:
-            phaseText("Incoming call")
+            phaseText(AppStrings.translate(appLocale, "contactsTasks.phaseIncoming"))
         case .connecting:
-            phaseText("Calling…")
+            phaseText(AppStrings.translate(appLocale, "contactsTasks.phaseCalling"))
         case .held:
-            phaseText("On hold")
+            phaseText(AppStrings.translate(appLocale, "contactsTasks.phaseOnHold"))
         case .ended:
-            phaseText("Call ended")
+            phaseText(AppStrings.translate(appLocale, "contactsTasks.phaseEnded"))
         case .active:
             if let anchor = call.activeSince {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -470,11 +469,15 @@ private struct OtherCallRow: View {
     let call: CallSnapshot
     let manager: CallsManager
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
+
     private var statusLine: String {
         switch call.phase {
-        case .ringing: "Incoming call"
-        case .held: "On hold"
-        case .connecting: "Calling…"
+        case .ringing: t("contactsTasks.phaseIncoming")
+        case .held: t("contactsTasks.phaseOnHold")
+        case .connecting: t("contactsTasks.phaseCalling")
         default: ""
         }
     }
@@ -495,14 +498,14 @@ private struct OtherCallRow: View {
                     Haptics.reject()
                     manager.hangup(call.id)
                 } label: {
-                    Text("Decline")
+                    Text(t("contactsTasks.decline"))
                         .font(.golos(11.5, weight: .semibold))
                         .foregroundStyle(BrandColor.destructive)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Decline")
+                .accessibilityLabel(t("contactsTasks.decline"))
                 Button {
                     Haptics.confirm()
                     answerWithMicPreflight()
@@ -510,7 +513,7 @@ private struct OtherCallRow: View {
                     HStack(spacing: 6) {
                         Image(systemName: "phone")
                             .font(.scaled(12, weight: .semibold))
-                        Text("Answer")
+                        Text(t("contactsTasks.answer"))
                             .font(.golos(11.5, weight: .bold))
                     }
                     .foregroundStyle(BrandColor.onLime)
@@ -519,13 +522,13 @@ private struct OtherCallRow: View {
                     .background(BrandColor.lime, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Answer")
+                .accessibilityLabel(t("contactsTasks.answer"))
             } else if call.phase == .held {
                 Button {
                     Haptics.tap()
                     manager.toggleHold(call.id)
                 } label: {
-                    Text("Swap")
+                    Text(t("contactsTasks.swap"))
                         .font(.golos(11.5, weight: .semibold))
                         .foregroundStyle(BrandColor.muted900)
                         .padding(.horizontal, 15)
@@ -533,7 +536,7 @@ private struct OtherCallRow: View {
                         .background(BrandColor.inset, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Swap")
+                .accessibilityLabel(t("contactsTasks.swap"))
             }
         }
         .padding(.horizontal, 15)
@@ -553,10 +556,7 @@ private struct OtherCallRow: View {
             if await manager.requestMicPermission() {
                 manager.answer(call.id)
             } else {
-                manager.reportUiError(
-                    "Loonext needs the microphone to answer calls. "
-                        + "Allow it in Settings › Loonext."
-                )
+                manager.reportUiError(t("contactsTasks.micNeededToAnswer"))
             }
         }
     }
@@ -620,6 +620,9 @@ private struct TransferSheet: View {
     let sessionId: String
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
     private struct Row: Identifiable {
         let id: String
@@ -635,10 +638,10 @@ private struct TransferSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Transfer this call")
+                Text(t("contactsTasks.transferThisCall"))
                     .font(.display(21))
                     .foregroundStyle(BrandColor.ink)
-                Text("The customer stays on hold while we ring them.")
+                Text(t("contactsTasks.transferHoldNote"))
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted500)
             }
@@ -658,7 +661,7 @@ private struct TransferSheet: View {
                         .font(.golos(12.5))
                         .foregroundStyle(BrandColor.muted500)
                         .multilineTextAlignment(.center)
-                    Button("Try again") { reloadKey += 1 }
+                    Button(t("common.retry")) { reloadKey += 1 }
                         .font(.golos(12, weight: .semibold))
                         .foregroundStyle(BrandColor.olive)
                 }
@@ -666,7 +669,7 @@ private struct TransferSheet: View {
                 .padding(.vertical, 12)
             case .ready(let rows):
                 if rows.isEmpty {
-                    Text("No teammates can take this call right now.")
+                    Text(t("contactsTasks.noTeammatesAvailable"))
                         .font(.golos(12.5))
                         .foregroundStyle(BrandColor.muted500)
                         .padding(.vertical, 24)
@@ -689,7 +692,7 @@ private struct TransferSheet: View {
                     .font(.golos(11.5))
                     .foregroundStyle(BrandColor.muted500)
             }
-            Text("If they decline, the call snaps back to you.")
+            Text(t("contactsTasks.transferSnapBack"))
                 .font(.golos(11))
                 .foregroundStyle(BrandColor.muted300)
                 .frame(maxWidth: .infinity)
@@ -714,7 +717,7 @@ private struct TransferSheet: View {
                     Circle()
                         .fill(row.busy ? BrandColor.muted300 : BrandColor.lime)
                         .frame(width: 6, height: 6)
-                    Text(row.busy ? "On a call" : "Available")
+                    Text(row.busy ? t("contactsTasks.onACall") : t("contactsTasks.available"))
                         .font(.golos(11, weight: row.busy ? .regular : .semibold))
                         .foregroundStyle(row.busy ? BrandColor.muted500 : BrandColor.olive)
                 }
@@ -724,7 +727,7 @@ private struct TransferSheet: View {
                 Haptics.confirm()
                 transfer(to: row.id)
             } label: {
-                Text("Transfer")
+                Text(t("contactsTasks.transfer"))
                     .font(.golos(11.5, weight: .semibold))
                     .foregroundStyle(BrandColor.paper)
                     .padding(.horizontal, 15)

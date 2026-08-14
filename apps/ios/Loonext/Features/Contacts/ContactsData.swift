@@ -373,11 +373,15 @@ func consentLine(
     consentAt: String?,
     consentAttestedBy: String?,
     memberName: (String?) -> String?,
-    calendar: Calendar = .current
+    calendar: Calendar = .current,
+    // #228: LAST and DEFAULTED, exactly as the Android `consentLine` takes it.
+    // `ContactsDataTests` pins the English and passes nothing; a caller that
+    // has the reader's language passes it. A required parameter here would be
+    // a compile error in seven tests and in ContactPanelSheet.
+    locale: String? = nil
 ) -> String {
     guard let consentSource else {
-        return "No consent recorded yet. It's recorded when they text you first, "
-            + "or when you send them their first text, which attests they asked for it."
+        return AppStrings.translate(locale, "contactsTasks.consentNone")
     }
     let date: String? = parseWireTimestamp(consentAt).map { parsed in
         let formatter = DateFormatter()
@@ -389,10 +393,12 @@ func consentLine(
     }
     let suffix = date.map { " · \($0)" } ?? ""
     if consentSource == ConsentSource.inboundSms {
-        return "Texted you first\(suffix)"
+        return AppStrings.translate(locale, "contactsTasks.consentTextedFirst") + suffix
     }
     if let attester = memberName(consentAttestedBy) {
-        return "Consent recorded by \(attester)\(suffix)"
+        return AppStrings.translate(
+            locale, "contactsTasks.consentRecordedBy", ["name": attester]
+        ) + suffix
     }
-    return "Consent recorded\(suffix)"
+    return AppStrings.translate(locale, "contactsTasks.consentRecorded") + suffix
 }

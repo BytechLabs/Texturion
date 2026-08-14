@@ -23,27 +23,39 @@ private func appendToken(_ body: String, _ token: String) -> String {
 
 /// `relativeTime` speaks two dialects — durations ("now", "5m", "3h", "2d") and
 /// calendar dates ("Jul 8") — and only a duration reads right before "ago".
-private func updatedLine(_ iso: String, editor: String? = nil) -> String {
+private func updatedLine(
+    _ iso: String,
+    editor: String? = nil,
+    locale: String? = nil
+) -> String {
     let relative = relativeTime(iso)
+    // Whether there IS an edit to attribute, tracked as a flag rather than
+    // recovered by comparing the rendered sentence to "Saved reply" — which is
+    // what this did, and which stops being true the moment the sentence has a
+    // second language.
+    let neverEdited = relative.isEmpty
     let base: String
-    if relative.isEmpty {
-        base = "Saved reply"
+    if neverEdited {
+        base = AppStrings.translate(locale, "settingsMore.savedReply")
     } else if relative == "now" {
-        base = "Updated just now"
+        base = AppStrings.translate(locale, "settingsMore.updatedJustNow")
     } else if let last = relative.last, "mhd".contains(last) {
-        base = "Updated \(relative) ago"
+        base = AppStrings.translate(locale, "settingsMore.updatedAgo", ["ago": relative])
     } else {
-        base = "Updated \(relative)"
+        base = AppStrings.translate(
+            locale, "settingsMore.updatedOn", ["when": relative]
+        )
     }
     // #419: not a permission — visibility. A template is the only object here
     // where one person's edit changes what everyone else says to customers,
     // and in a crew of ten "Sam changed this on Tuesday" settles the question
     // before it becomes a dispute. "Saved reply" takes no byline: there is no
     // edit to attribute.
-    guard let editor, !editor.trimmingCharacters(in: .whitespaces).isEmpty,
-          base != "Saved reply"
+    guard let editor, !editor.trimmingCharacters(in: .whitespaces).isEmpty, !neverEdited
     else { return base }
-    return "\(base) by \(editor)"
+    return AppStrings.translate(
+        locale, "settingsMore.updatedBy", ["line": base, "editor": editor]
+    )
 }
 
 /// Templates (parity with apps/web settings/templates): saved replies the crew
@@ -70,6 +82,12 @@ struct TemplatesSectionView: View {
     @State private var creating = false
 
     private var repo: MessagingRepository { MessagingRepository(api: scope.graph.api) }
+
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
 
     var body: some View {
         // One child, so `.task`/`.sheet` attach once: a Group applies its
@@ -105,19 +123,17 @@ struct TemplatesSectionView: View {
     @ViewBuilder
     private func content(_ templates: [Template]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Replies you type all the time, saved once. Tap Templates in the composer "
-                + "to insert one. Anyone on the crew can add or change them.")
+            Text(t("settingsMore.templatesIntro"))
                 .font(.golos(12.5))
                 .foregroundStyle(BrandColor.muted600)
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
                 .padding(.bottom, 2)
 
-            SettingsCard(title: "Saved replies") {
+            SettingsCard(title: t("settingsMore.savedReplies")) {
                 VStack(alignment: .leading, spacing: 0) {
                     if templates.isEmpty {
-                        ReadOnlyLine("No templates yet. Save a reply you send often, then "
-                            + "insert it from Templates in the composer.")
+                        ReadOnlyLine(t("settingsMore.noTemplatesYet"))
                     } else {
                         // #274: gathered under whatever headings the crew has
                         // written. A shop that never uses categories sees the
@@ -142,7 +158,13 @@ struct TemplatesSectionView: View {
                         }
                     }
                     Spacer().frame(height: 10)
-                    Button(templates.isEmpty ? "Create your first template" : "New template") {
+                    Button(
+                        t(
+                            templates.isEmpty
+                                ? "settingsMore.createFirstTemplate"
+                                : "settingsMore.newTemplate"
+                        )
+                    ) {
                         creating = true
                     }
                     .buttonStyle(.borderedProminent)
@@ -219,6 +241,12 @@ private struct TemplateRowView: View {
     @State private var deleting = false
     @State private var deleteError: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
@@ -229,14 +257,20 @@ private struct TemplateRowView: View {
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
                     .lineLimit(2)
-                Text(updatedLine(template.updated_at, editor: template.updated_by_name))
+                Text(
+                    updatedLine(
+                        template.updated_at,
+                        editor: template.updated_by_name,
+                        locale: appLocale
+                    )
+                )
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted400)
             }
             Spacer(minLength: 8)
             // One presentation per view: each sheet hangs off the button that
             // raises it rather than stacking two modifiers on the row.
-            Button("Edit") { editing = true }
+            Button(t("settingsMore.edit")) { editing = true }
                 .font(.subheadline)
                 .buttonStyle(.borderless)
                 .sheet(isPresented: $editing) {
@@ -252,20 +286,21 @@ private struct TemplateRowView: View {
                         onDismiss: { editing = false }
                     )
                 }
-            Button("Delete") { confirmingDelete = true }
+            Button(t("common.delete")) { confirmingDelete = true }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .buttonStyle(.borderless)
                 .sheet(isPresented: $confirmingDelete) {
                     ConfirmSheet(
-                        title: "Delete \"\(template.name)\"?",
-                        message: "It disappears from the composer's Templates picker for "
-                            + "the whole crew. This can't be undone.",
-                        confirmLabel: "Delete",
+                        title: t(
+                            "settingsMore.deleteTemplateTitle", ["name": template.name]
+                        ),
+                        message: t("settingsMore.deleteTemplateBody"),
+                        confirmLabel: t("common.delete"),
                         destructive: true,
                         pending: deleting,
                         error: deleteError,
-                        dismissLabel: "Keep it",
+                        dismissLabel: t("settingsMore.keepIt"),
                         onConfirm: { delete() },
                         onDismiss: { confirmingDelete = false }
                     )
@@ -285,7 +320,7 @@ private struct TemplateRowView: View {
                     templateId: template.id
                 )
                 confirmingDelete = false
-                scope.showMessage("Template deleted.")
+                scope.showMessage(t("settingsMore.templateDeleted"))
                 onChanged()
             } catch {
                 deleteError = error.userMessage
@@ -317,6 +352,12 @@ private struct TemplateEditorSheet: View {
     @State private var category: String
     @State private var saving = false
     @State private var error: String?
+
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
 
     init(
         scope: SettingsScope,
@@ -360,13 +401,21 @@ private struct TemplateEditorSheet: View {
                 businessName: company.name
             )
         )
-        let unit = estimate.segments == 1 ? "segment" : "segments"
-        return "\(draft.count)/\(templateBodyMax) · \(estimate.segments) \(unit) per send"
+        // Two whole sentences for the tail rather than a "segment"/"segments"
+        // switch glued to a number: French agrees with the count differently,
+        // and Android already splits it the same way.
+        let tail = estimate.segments == 1
+            ? t("settingsMore.oneSegmentPerSend")
+            : t("settingsMore.segmentsPerSend", ["count": String(estimate.segments)])
+        return t(
+            "settingsMore.templateCounter",
+            ["used": String(draft.count), "max": String(templateBodyMax)]
+        ) + tail
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(template == nil ? "New template" : "Edit template")
+            Text(t(template == nil ? "settingsMore.newTemplate" : "settingsMore.editTemplate"))
                 .font(.golos(17, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
             ScrollView {
@@ -386,7 +435,7 @@ private struct TemplateEditorSheet: View {
                         // {address} renders as nothing — which is exactly what
                         // a broken token looks like.
                         PreviewBubble(
-                            label: "Preview for \(sampleFirstName)",
+                            label: t("settingsMore.previewFor", ["name": sampleFirstName]),
                             text: MergeFields.previewTemplate(
                                 trimmedBody,
                                 businessName: company.name,
@@ -400,7 +449,7 @@ private struct TemplateEditorSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
-                Button("Cancel") { onDismiss() }
+                Button(t("common.cancel")) { onDismiss() }
                     .buttonStyle(.bordered)
                     .disabled(saving)
                 Spacer()
@@ -419,8 +468,8 @@ private struct TemplateEditorSheet: View {
 
     private var nameField: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(label: "Name")
-            TextField("On my way", text: Binding(
+            SectionHeader(label: t("settingsMore.templateName"))
+            TextField(t("settingsMore.templateNameSample"), text: Binding(
                 get: { name },
                 set: { next in
                     if next.count <= templateNameMax { name = next }
@@ -433,8 +482,8 @@ private struct TemplateEditorSheet: View {
 
     private var messageField: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(label: "Message")
-            TextField("On our way. See you in about 20 minutes.", text: Binding(
+            SectionHeader(label: t("settingsMore.templateMessage"))
+            TextField(t("settingsMore.templateMessageSample"), text: Binding(
                 get: { draft },
                 set: { next in
                     if next.count <= templateBodyMax { draft = next }
@@ -455,8 +504,8 @@ private struct TemplateEditorSheet: View {
     /// tap and inventing one is still a free-text box away.
     private var categoryField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionHeader(label: "Category (optional)")
-            TextField("Quoting", text: $category)
+            SectionHeader(label: t("settingsMore.templateCategory"))
+            TextField(t("settingsMore.templateCategorySample"), text: $category)
                 .textFieldStyle(.roundedBorder)
                 .disabled(saving)
                 .onChange(of: category) { _, next in
@@ -484,7 +533,7 @@ private struct TemplateEditorSheet: View {
 
     private var variablesRow: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(label: "Variables")
+            SectionHeader(label: t("settingsMore.templateVariables"))
             // #274: seven variables now, so they WRAP. A single row would
             // push the last ones off an iPhone, and a variable you cannot see
             // is a variable that does not exist.
@@ -505,7 +554,7 @@ private struct TemplateEditorSheet: View {
                         .accessibilityHint(variable.hint)
                 }
             }
-            Text("Tap to insert. Each one fills in per contact when the message sends.")
+            Text(t("settingsMore.templateVariablesHint"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
@@ -513,8 +562,8 @@ private struct TemplateEditorSheet: View {
     }
 
     private var saveLabel: String {
-        if saving { return "Saving…" }
-        return template == nil ? "Create template" : "Save"
+        if saving { return t("common.saving") }
+        return t(template == nil ? "settingsMore.createTemplate" : "common.save")
     }
 
     private func save() {
@@ -533,7 +582,7 @@ private struct TemplateEditorSheet: View {
                         body: trimmedBody,
                         category: trimmedCategory
                     )
-                    scope.showMessage("Template saved.")
+                    scope.showMessage(t("settingsMore.templateSaved"))
                 } else {
                     _ = try await repo.createTemplate(
                         companyId: scope.companyId,
@@ -541,7 +590,7 @@ private struct TemplateEditorSheet: View {
                         body: trimmedBody,
                         category: trimmedCategory
                     )
-                    scope.showMessage("Template created.")
+                    scope.showMessage(t("settingsMore.templateCreated"))
                 }
                 onSaved()
             } catch {

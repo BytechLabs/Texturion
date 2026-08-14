@@ -84,13 +84,15 @@ struct OutboxMediaBytes: Sendable {
 let outboxAgeOutHours: Double = 24
 
 /// Said to the person, not logged — so it names the decision they now own.
-let outboxStaleMessage =
-    "Queued for over a day. The conversation may have moved on — send it now, or delete it."
+///
+/// #228: the sentence lives in `ThreadStrings` under Android's own key, and
+/// these two constants are its ENGLISH form — what a caller with no reader in
+/// hand gets, and what the assertion table compares against. The flusher below
+/// resolves the key itself, because it has a locale.
+let outboxStaleMessage = AppStrings.translate(nil, "thread.outboxStale")
 
 /// Said when the photo is gone but the words are still worth sending.
-let outboxMediaLostMessage =
-    "The photo for this message is no longer on this device. Send the text on its own, "
-        + "or delete it."
+let outboxMediaLostMessage = AppStrings.translate(nil, "thread.outboxMediaLost")
 
 /// Persistence for the outbox.
 ///
@@ -273,15 +275,22 @@ final class OutboxFlusher {
     private let send: (QueuedSend) async -> SendOutcome
     /// Injected so the age-out is assertable without waiting a day.
     private let now: () -> Date
+    /// #228: the reader's language, for the one sentence this class writes.
+    private let locale: String?
     private var isFlushing = false
 
+    /// `locale` sits BEFORE `send` deliberately: `send` is passed as a trailing
+    /// closure at every call site, so it has to stay last for those to keep
+    /// compiling. Defaulted, so none of them has to say anything.
     init(
         outbox: Outbox,
         now: @escaping () -> Date = { Date() },
+        locale: String? = nil,
         send: @escaping (QueuedSend) async -> SendOutcome
     ) {
         self.outbox = outbox
         self.now = now
+        self.locale = locale
         self.send = send
     }
 
@@ -301,7 +310,7 @@ final class OutboxFlusher {
             if !item.staleAcknowledged, agedOut(item, now()) {
                 var stale = item
                 stale.blocked = true
-                stale.lastError = outboxStaleMessage
+                stale.lastError = AppStrings.translate(locale, "thread.outboxStale")
                 outbox.put(stale)
                 result.blocked.append(item.localId)
                 continue

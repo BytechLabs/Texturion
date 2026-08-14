@@ -18,30 +18,45 @@ import SwiftUI
 /// sentences.
 
 /// The arc sentence, or nil when there is no arc worth drawing.
-func satisfactionArcSentence(_ report: SatisfactionReport) -> String? {
+///
+/// #228: `locale` is last and defaulted, the same arrangement as
+/// `ResponseTimeCard`'s three helpers, so any caller with no language to hand
+/// still gets the English the parity guard holds all three clients to.
+func satisfactionArcSentence(
+    _ report: SatisfactionReport,
+    _ locale: String? = nil
+) -> String? {
     guard let direction = SatisfactionFormat.arcDirection(report.improved_by),
           let baseline = report.baseline
     else { return nil }
     let then = SatisfactionFormat.format(baseline.average)
     return direction == "better"
-        ? "Up from \(then) the month before"
-        : "Down from \(then) the month before"
+        ? AppStrings.translate(locale, "inbox.satisfactionArcUp", ["then": then])
+        : AppStrings.translate(locale, "inbox.satisfactionArcDown", ["then": then])
 }
 
 /// Why there is no number yet — four different facts, never collapsed into one.
 ///
 /// Saying "no data" for all of them is what makes an owner think the feature is
 /// broken when it is working exactly as intended.
-func satisfactionGapReason(_ report: SatisfactionReport) -> String {
+func satisfactionGapReason(
+    _ report: SatisfactionReport,
+    _ locale: String? = nil
+) -> String {
     if report.asked == 0 {
-        return "No finished jobs have been asked about in this window. The question "
-            + "goes out a few hours after a job is marked done."
+        return AppStrings.translate(locale, "inbox.satisfactionGapNoneAsked")
     }
     if report.answered == 0 {
-        return "Nobody has answered yet. Most people do not, which is why one answer "
-            + "is worth reading rather than counting."
+        return AppStrings.translate(locale, "inbox.satisfactionGapNoneAnswered")
     }
-    return "Too few answers to average yet — \(report.answered) of \(report.minimum_sample)"
+    return AppStrings.translate(
+        locale,
+        "inbox.satisfactionGapTooFew",
+        [
+            "answered": String(report.answered),
+            "minimum": String(report.minimum_sample),
+        ]
+    )
 }
 
 struct SatisfactionCard: View {
@@ -53,9 +68,10 @@ struct SatisfactionCard: View {
     let onOpenPoor: () -> Void
 
     @State private var open = false
-    /// #228, and the same arrangement as the card above: the sentences this file
-    /// still writes out are the ones `satisfaction-parity.test.ts` reads OUT OF
-    /// THIS FILE for iOS. See the note in `ResponseTimeCard`.
+    /// #228, and the same arrangement as the card above: every sentence comes
+    /// from the catalogue, and `satisfaction-parity.test.ts` reads the Swift card
+    /// AND `Core/I18n/InboxStrings.swift` for iOS, so the wording is still held
+    /// word for word against web and Android.
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
@@ -113,7 +129,7 @@ struct SatisfactionCard: View {
     @ViewBuilder
     private func gap(for report: SatisfactionReport) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(satisfactionGapReason(report))
+            Text(satisfactionGapReason(report, appLocale))
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.muted600)
             if report.poor > 0 {
@@ -146,8 +162,14 @@ struct SatisfactionCard: View {
                 ProportionRing(
                     value: report.average ?? 0,
                     total: 5,
-                    label: "\(SatisfactionFormat.format(report.average)) out of 5, "
-                        + "from \(report.answered) answers",
+                    label: AppStrings.translate(
+                        appLocale,
+                        "inbox.satisfactionRingAria",
+                        [
+                            "score": SatisfactionFormat.format(report.average),
+                            "count": String(report.answered),
+                        ]
+                    ),
                     color: BrandColor.olive,
                     // #540: 26, not 18. At the smaller size a 4.6-out-of-5 arc
                     // and a closed circle are indistinguishable, so the mark
@@ -159,12 +181,18 @@ struct SatisfactionCard: View {
                 Text(SatisfactionFormat.format(report.average))
                     .font(.golos(24, weight: .semibold))
                     .monospacedDigit()
-                Text("out of 5, from \(report.answered) answers")
+                Text(
+                    AppStrings.translate(
+                        appLocale,
+                        "inbox.satisfactionOutOfFive",
+                        ["count": String(report.answered)]
+                    )
+                )
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted600)
             }
 
-            if let arc = satisfactionArcSentence(report) {
+            if let arc = satisfactionArcSentence(report, appLocale) {
                 let direction = SatisfactionFormat.arcDirection(report.improved_by)
                 HStack(spacing: 5) {
                     Image(
@@ -181,8 +209,8 @@ struct SatisfactionCard: View {
             } else {
                 Text(
                     report.baseline == nil
-                        ? "No month before this one to compare against yet"
-                        : "About the same as the month before"
+                        ? AppStrings.translate(appLocale, "inbox.satisfactionNoBaseline")
+                        : AppStrings.translate(appLocale, "inbox.satisfactionSame")
                 )
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.muted600)
@@ -249,27 +277,49 @@ struct SatisfactionCard: View {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach([5, 4, 3, 2, 1], id: \.self) { score in
                     satisfactionDetailRow(
-                        score == 1 ? "1 star" : "\(score) stars",
+                        score == 1
+                            ? AppStrings.translate(
+                                appLocale, "inbox.satisfactionStarsOne"
+                            )
+                            : AppStrings.translate(
+                                appLocale,
+                                "inbox.satisfactionStarsMany",
+                                ["count": String(score)]
+                            ),
                         "\(report.distribution[String(score)] ?? 0)"
                     )
                 }
-                satisfactionDetailRow("Asked", "\(report.asked) in \(days) days")
+                satisfactionDetailRow(
+                    AppStrings.translate(appLocale, "inbox.satisfactionAsked"),
+                    AppStrings.translate(
+                        appLocale,
+                        "inbox.satisfactionAskedValue",
+                        ["count": String(report.asked), "days": String(days)]
+                    )
+                )
 
                 if let members = report.by_member {
                     ForEach(members) { member in
                         satisfactionDetailRow(
-                            "\(member.name ?? "Member") · \(member.answered) answered",
+                            AppStrings.translate(
+                                appLocale,
+                                "inbox.satisfactionByMember",
+                                [
+                                    "name": member.name ?? AppStrings.translate(
+                                        appLocale, "inbox.satisfactionMemberFallback"
+                                    ),
+                                    "count": String(member.answered),
+                                ]
+                            ),
                             member.average == nil
-                                ? "Too few answers to average yet"
+                                ? AppStrings.translate(
+                                    appLocale, "inbox.satisfactionMemberTooFew"
+                                )
                                 : SatisfactionFormat.format(member.average)
                         )
                     }
                 } else {
-                    Text(
-                        "Per-person scores are off. In a small crew a bad week is "
-                            + "noise, so this stays a coaching signal rather than a "
-                            + "scoreboard — turn it on in Settings."
-                    )
+                    Text(AppStrings.translate(appLocale, "inbox.satisfactionByMemberOff"))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted600)
                     .padding(.top, 6)

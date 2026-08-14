@@ -33,29 +33,35 @@ enum PhotoMarkup {
     /// The two marks. Anything more is a drawing app, which this is not.
     static let tools = [arrow, circle]
 
-    static func label(_ tool: String) -> String {
+    /// #228: the wire values (`arrow`, `circle`) are never translated — they
+    /// are what a mark is stored as. Only the word on the control is.
+    static func label(_ tool: String, locale: String? = nil) -> String {
         switch tool {
-        case arrow: return "Arrow"
-        case circle: return "Circle"
+        case arrow: return AppStrings.translate(locale, "domain.markupArrow")
+        case circle: return AppStrings.translate(locale, "domain.markupCircle")
         default: return tool
         }
     }
 
     /// The one line of instruction, for somebody who has never opened this.
-    static let hint = "Drag on the photo, or tap twice, to point at something."
+    static let hintKey = "domain.markupHint"
+    static var hint: String { AppStrings.translate(nil, hintKey) }
 
     /// What it says once a first tap has landed.
     ///
     /// The tap-tap path is WCAG 2.5.7's requirement — every dragging movement needs a
     /// single-pointer alternative — and it only works if the person can tell the app
     /// is waiting for them rather than that their tap did nothing.
-    static let hintSecondTap = "Now tap where it should point."
+    static let hintSecondTapKey = "domain.markupHintSecondTap"
+    static var hintSecondTap: String { AppStrings.translate(nil, hintSecondTapKey) }
 
     /// Puts the marks on and closes.
-    static let save = "Done"
+    static let saveKey = "domain.markupSave"
+    static var save: String { AppStrings.translate(nil, saveKey) }
 
     /// Takes the last mark off. One step is what a thumb wants.
-    static let undo = "Undo"
+    static let undoKey = "domain.markupUndo"
+    static var undo: String { AppStrings.translate(nil, undoKey) }
 
     /// The mark: a strong red that reads as deliberate rather than decorative.
     static let ink: UInt32 = 0xE2_3D_28

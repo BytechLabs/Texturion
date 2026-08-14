@@ -26,7 +26,14 @@ enum AppleSignIn {
     }
 
     /// nil = the user canceled the Apple sheet (silent no-op per HIG).
-    static func credential(from result: Result<ASAuthorization, Error>) throws -> Credential? {
+    ///
+    /// #228: `locale` is last and defaulted. This enum is nonisolated so the
+    /// tests can call it directly, and `UiLocaleStore` is main-actor — so the
+    /// language is passed in by the button's handler rather than read here.
+    static func credential(
+        from result: Result<ASAuthorization, Error>,
+        locale: String? = nil
+    ) throws -> Credential? {
         switch result {
         case .failure(let error):
             if (error as? ASAuthorizationError)?.code == .canceled {
@@ -34,7 +41,7 @@ enum AppleSignIn {
             }
             throw ApiError(
                 code: "apple_authorization",
-                message: "Apple sign-in didn't complete. Try again.",
+                message: AppStrings.translate(locale, "shell.authAppleIncomplete"),
                 httpStatus: 0
             )
         case .success(let authorization):
@@ -45,7 +52,7 @@ enum AppleSignIn {
             else {
                 throw ApiError(
                     code: "apple_credential",
-                    message: "Apple didn't return a usable credential. Try again.",
+                    message: AppStrings.translate(locale, "shell.authAppleNoCredential"),
                     httpStatus: 0
                 )
             }

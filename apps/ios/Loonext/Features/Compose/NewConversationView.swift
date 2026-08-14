@@ -115,6 +115,16 @@ private struct NewConversationLoaded: View {
     @State private var noticeText: String?
     @State private var noticeDismissTask: Task<Void, Never>?
     @FocusState private var toFocused: Bool
+    @Environment(\.appLocale) private var appLocale
+
+    /// #228 — this screen's words, in the reader's language.
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
+    /// " · Opted out", assembled rather than written: the separator is
+    /// punctuation and the words are the catalogue's.
+    private var optedOutSuffix: String { " · " + t("thread.optedOut") }
 
     private var rawDigits: String { Nanp.nationalDigits(recipientInput) }
     private var rawE164: String? { Nanp.toE164(recipientInput) }
@@ -230,21 +240,26 @@ private struct NewConversationLoaded: View {
             )
         }
         .alert(
-            "It's late where they are",
+            t("thread.lateThereTitle"),
             isPresented: Binding(
                 get: { quietHoursPrompt != nil },
                 set: { if !$0 { quietHoursPrompt = nil } }
             )
         ) {
-            Button("Wait", role: .cancel) { quietHoursPrompt = nil }
-            Button("Send anyway") {
+            Button(t("thread.wait"), role: .cancel) { quietHoursPrompt = nil }
+            Button(t("thread.sendAnyway")) {
                 if let pending = quietHoursPrompt {
                     quietHoursPrompt = nil
                     send(resend: pending)
                 }
             }
         } message: {
-            Text("It's \(localTimeLabel ?? "between 8pm and 8am") at this number. Send anyway?")
+            Text(
+                t(
+                    "thread.lateThereBody",
+                    ["time": localTimeLabel ?? t("thread.lateThereUnknown")]
+                )
+            )
         }
     }
 
@@ -258,9 +273,9 @@ private struct NewConversationLoaded: View {
                     .background(Circle().fill(BrandColor.paper))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Back")
+            .accessibilityLabel(t("common.back"))
             Spacer()
-            Text("New text")
+            Text(t("thread.newTextTitle"))
                 .font(.golos(13, weight: .semibold))
                 .foregroundStyle(BrandColor.muted500)
             Spacer()
@@ -272,13 +287,10 @@ private struct NewConversationLoaded: View {
 
     private var noNumberState: some View {
         VStack(spacing: 6) {
-            Text("Your number isn't ready yet.")
+            Text(t("thread.numberNotReady"))
                 .font(.golos(13.5, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
-            Text(
-                "You need an active number to start a conversation. "
-                    + "Check the web app for its status."
-            )
+            Text(t("thread.numberNotReadyBody"))
             .font(.golos(12.5))
             .foregroundStyle(BrandColor.muted600)
             .multilineTextAlignment(.center)
@@ -303,8 +315,7 @@ private struct NewConversationLoaded: View {
                                 .foregroundStyle(BrandColor.overdueAmber)
                                 .padding(.top, 1)
                             Text(
-                                "It's \(localClock.label) for this customer. "
-                                    + "We'll ask before sending this late."
+                                t("thread.theirTimeAskFirst", ["time": localClock.label])
                             )
                             .font(.golos(11.5))
                             .foregroundStyle(BrandColor.overdueAmber)
@@ -321,7 +332,7 @@ private struct NewConversationLoaded: View {
                         // An ordinary hour is a FACT, not a warning: quiet text,
                         // no box, and no promise about the send — the server's
                         // per-state rule can still ask (Texas, Sunday).
-                        Text("It's \(localClock.label) for them.")
+                        Text(t("thread.theirTime", ["time": localClock.label]))
                             .font(.golos(11.5))
                             .foregroundStyle(BrandColor.muted500)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -353,7 +364,7 @@ private struct NewConversationLoaded: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(composer.photos.count >= maxPhotos)
-                    .accessibilityLabel("Attach a photo")
+                    .accessibilityLabel(t("thread.attachPhoto"))
 
                     // A text carries more than photos. This screen could only
                     // send those, so an audio clip or a PDF meant starting the
@@ -369,19 +380,19 @@ private struct NewConversationLoaded: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(composer.photos.count >= maxPhotos)
-                    .accessibilityLabel("Attach a file")
+                    .accessibilityLabel(t("thread.attachFile"))
 
                     Spacer()
 
                     Button {
                         templatePickerOpen = true
                     } label: {
-                        Text("Templates")
+                        Text(t("thread.templates"))
                             .font(.golos(11.5, weight: .semibold))
                             .foregroundStyle(BrandColor.olive)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Saved replies")
+                    .accessibilityLabel(t("thread.savedReplies"))
                 }
                 .padding(.top, 8)
 
@@ -418,13 +429,13 @@ private struct NewConversationLoaded: View {
     @ViewBuilder
     private var recipientField: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(label: "To")
+            SectionHeader(label: t("thread.toLabel"))
             if let selectedContact {
                 HStack {
                     HStack(spacing: 8) {
                         Text(
                             (selectedContact.name ?? formatPhone(selectedContact.phone_e164))
-                                + (selectedContact.opted_out ? " · Opted out" : "")
+                                + (selectedContact.opted_out ? optedOutSuffix : "")
                         )
                         .font(.golos(13.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
@@ -435,7 +446,7 @@ private struct NewConversationLoaded: View {
                                 .font(.scaled(11, weight: .semibold))
                                 .foregroundStyle(BrandColor.muted600)
                         }
-                        .accessibilityLabel("Clear recipient")
+                        .accessibilityLabel(t("thread.clearRecipient"))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -449,7 +460,7 @@ private struct NewConversationLoaded: View {
                 )
             } else {
                 TextField(
-                    "Name or phone number",
+                    t("thread.recipientPlaceholder"),
                     text: Binding(
                         get: { recipientInput },
                         set: { value in
@@ -482,9 +493,9 @@ private struct NewConversationLoaded: View {
                     Text(
                         validDestination
                             ? (contactMatches.isEmpty
-                                ? "No match in contacts — this starts a new conversation."
-                                : "Will text \(formatPhone(rawE164))")
-                            : "US and Canadian numbers only."
+                                ? t("thread.noContactMatch")
+                                : t("thread.willText", ["number": formatPhone(rawE164)]))
+                            : t("thread.nanpOnly")
                     )
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted300)
@@ -516,7 +527,7 @@ private struct NewConversationLoaded: View {
                                     .foregroundStyle(BrandColor.ink)
                                 Text(
                                     formatPhone(contact.phone_e164)
-                                        + (contact.opted_out ? " · Opted out" : "")
+                                        + (contact.opted_out ? optedOutSuffix : "")
                                 )
                                 .font(.golos(11))
                                 .foregroundStyle(BrandColor.muted500)
@@ -549,7 +560,9 @@ private struct NewConversationLoaded: View {
                     }
                 }
             } label: {
-                Text("From: \(formatPhone(selected?.number_e164))")
+                Text(
+                    t("thread.fromNumber", ["number": formatPhone(selected?.number_e164)])
+                )
                     .font(.golos(12, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
             }
@@ -559,9 +572,9 @@ private struct NewConversationLoaded: View {
 
     private func bodyField(composer: ComposerState) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(label: "Message")
+            SectionHeader(label: t("thread.messageLabel"))
             TextField(
-                "Text message",
+                t("thread.textPlaceholder"),
                 text: Binding(
                     get: { composer.text },
                     set: { composer.onTextChange(String($0.prefix(4096))) }
@@ -590,7 +603,7 @@ private struct NewConversationLoaded: View {
             send()
         } label: {
             HStack(spacing: 10) {
-                Text(sending ? "Sending…" : "Send text")
+                Text(sending ? t("thread.sending") : t("thread.sendText"))
                     .font(.golos(15, weight: .semibold))
                     .foregroundStyle(canSend ? BrandColor.paper : BrandColor.muted500)
                 Spacer()
@@ -704,14 +717,16 @@ private struct NewConversationLoaded: View {
                 trimmed = true
                 break
             }
-            switch stageMmsMedia(pickedURL: url) {
+            switch stageMmsMedia(pickedURL: url, locale: appLocale) {
             case .ready(let media):
                 composer.photos.append(media)
             case .rejected(let reason):
                 notify(reason)
             }
         }
-        if trimmed { notify("You can attach up to 3 files per text.") }
+        if trimmed {
+            notify(t("thread.attachLimitText", ["max": String(maxPhotos)]))
+        }
     }
 
     private func ingestPhotos(_ items: [PhotosPickerItem]) {
@@ -724,10 +739,13 @@ private struct NewConversationLoaded: View {
                     break
                 }
                 guard let data = try? await item.loadTransferable(type: Data.self) else {
-                    notify("Couldn't read that photo. Try attaching it again.")
+                    notify(t("thread.photoReadFailed"))
                     continue
                 }
-                let result = await Task.detached(operation: { preparePhoto(data: data) }).value
+                let locale = appLocale
+                let result = await Task.detached(
+                    operation: { preparePhoto(data: data, locale: locale) }
+                ).value
                 switch result {
                 case .ready(let photo):
                     composer.photos.append(photo)
@@ -735,7 +753,9 @@ private struct NewConversationLoaded: View {
                     notify(reason)
                 }
             }
-            if trimmed { notify("You can attach up to 3 photos per text.") }
+            if trimmed {
+                notify(t("thread.attachLimitPhotos", ["max": String(maxPhotos)]))
+            }
         }
     }
 }

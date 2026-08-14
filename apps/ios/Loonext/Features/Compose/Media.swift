@@ -133,16 +133,22 @@ private func sniffImageType(_ data: Data) -> String? {
 /// oversized photo — is transcoded to JPEG under 1 MB with the platform codecs
 /// (progressive downscale + quality steps). Pure and synchronous; call it off
 /// the main thread for large camera originals.
-nonisolated func preparePhoto(data: Data) -> PhotoPrepResult {
+///
+/// #228: `locale` is defaulted and declared LAST, so every existing call site
+/// compiles unchanged and a caller with no reader in hand still gets English.
+/// The keys are Android's `features/compose/Media.kt` twins, character for
+/// character — a rejection that reads differently on the two phones is a
+/// rejection two people cannot compare notes about.
+nonisolated func preparePhoto(data: Data, locale: String? = nil) -> PhotoPrepResult {
     if data.isEmpty {
-        return .rejected("Couldn't read that photo. Try attaching it again.")
+        return .rejected(AppStrings.translate(locale, "thread.photoReadFailed"))
     }
     if let sniffed = sniffImageType(data), acceptedPhotoTypes.contains(sniffed),
        data.count <= maxPhotoBytes {
         return .ready(StagedPhoto(id: UUID().uuidString, contentType: sniffed, bytes: data))
     }
     guard let jpeg = transcodeToJpeg(data) else {
-        return .rejected("That image can't be sent. Try a different photo.")
+        return .rejected(AppStrings.translate(locale, "thread.imageCantBeSent"))
     }
     return .ready(StagedPhoto(id: UUID().uuidString, contentType: "image/jpeg", bytes: jpeg))
 }
@@ -152,33 +158,38 @@ nonisolated func preparePhoto(data: Data) -> PhotoPrepResult {
 /// photo still becomes deliverable), and hold everything else to the 1 MB
 /// decoded ceiling. Rejection copy matches the web and Android composers word
 /// for word.
-nonisolated func stageMmsMedia(pickedURL: URL) -> PhotoPrepResult {
+nonisolated func stageMmsMedia(pickedURL: URL, locale: String? = nil) -> PhotoPrepResult {
     let accessing = pickedURL.startAccessingSecurityScopedResource()
     defer {
         if accessing { pickedURL.stopAccessingSecurityScopedResource() }
     }
 
     let name = pickedURL.lastPathComponent
-    let display = name.isEmpty ? "That file" : "\"\(name)\""
+    let display = name.isEmpty
+        ? AppStrings.translate(locale, "thread.thatFile")
+        : "\"\(name)\""
     let declared = try? pickedURL.resourceValues(forKeys: [.contentTypeKey])
         .contentType?.preferredMIMEType
 
     guard let contentType = mmsTypeForFile(declaredType: declared ?? nil, name: name) else {
         return .rejected(
-            "\(display) isn't something a text can carry. "
-                + "Try a photo, video, audio clip, contact card, or PDF."
+            AppStrings.translate(locale, "thread.mmsUnsupportedFile", ["name": display])
         )
     }
 
     guard let bytes = try? Data(contentsOf: pickedURL, options: .mappedIfSafe) else {
-        return .rejected("Couldn't read that file. Try picking it again.")
+        return .rejected(AppStrings.translate(locale, "thread.fileReadFailedPick"))
     }
-    if bytes.isEmpty { return .rejected("\(display) is empty.") }
+    if bytes.isEmpty {
+        return .rejected(
+            AppStrings.translate(locale, "thread.mmsFileEmpty", ["name": display])
+        )
+    }
 
     // Images go through the transcoder: an oversized or HEIC photo becomes
     // deliverable rather than being turned away.
     if contentType.hasPrefix("image/") {
-        switch preparePhoto(data: bytes) {
+        switch preparePhoto(data: bytes, locale: locale) {
         case .ready(let photo):
             return .ready(
                 StagedPhoto(
@@ -194,7 +205,9 @@ nonisolated func stageMmsMedia(pickedURL: URL) -> PhotoPrepResult {
     }
 
     if bytes.count > maxPhotoBytes {
-        return .rejected("\(display) is over 1 MB, the most a text can carry.")
+        return .rejected(
+            AppStrings.translate(locale, "thread.mmsFileTooBig", ["name": display])
+        )
     }
     return .ready(
         StagedPhoto(
@@ -292,7 +305,7 @@ nonisolated func isAllowedNoteFileType(_ contentType: String) -> Bool {
     return allowedNoteFileTypes.contains(type)
 }
 
-nonisolated func stageNoteFile(pickedURL: URL) -> FileStageResult {
+nonisolated func stageNoteFile(pickedURL: URL, locale: String? = nil) -> FileStageResult {
     let accessing = pickedURL.startAccessingSecurityScopedResource()
     defer {
         if accessing { pickedURL.stopAccessingSecurityScopedResource() }
@@ -300,7 +313,7 @@ nonisolated func stageNoteFile(pickedURL: URL) -> FileStageResult {
 
     let name = pickedURL.lastPathComponent
     guard !name.isEmpty else {
-        return .rejected("Couldn't read that file. Try picking it again.")
+        return .rejected(AppStrings.translate(locale, "thread.fileReadFailedPick"))
     }
 
     // Only reject a type that is PRESENT and explicitly disallowed: the server
@@ -308,21 +321,21 @@ nonisolated func stageNoteFile(pickedURL: URL) -> FileStageResult {
     let declaredType = (try? pickedURL.resourceValues(forKeys: [.contentTypeKey]))?
         .contentType?.preferredMIMEType ?? ""
     if !declaredType.isEmpty, !isAllowedNoteFileType(declaredType) {
-        return .rejected("That file type isn't allowed. Images, PDFs, and documents only.")
+        return .rejected(AppStrings.translate(locale, "thread.fileTypeBlocked"))
     }
 
     let size: Int64
     do {
         let values = try pickedURL.resourceValues(forKeys: [.fileSizeKey])
         guard let fileSize = values.fileSize else {
-            return .rejected("Couldn't read that file's size. Try picking it again.")
+            return .rejected(AppStrings.translate(locale, "thread.fileSizeReadFailed"))
         }
         size = Int64(fileSize)
     } catch {
-        return .rejected("Couldn't read that file's size. Try picking it again.")
+        return .rejected(AppStrings.translate(locale, "thread.fileSizeReadFailed"))
     }
     if size > maxNoteFileBytes {
-        return .rejected("Files can be up to 25 MB each.")
+        return .rejected(AppStrings.translate(locale, "thread.fileSizeLimit"))
     }
 
     let id = UUID().uuidString
@@ -333,7 +346,7 @@ nonisolated func stageNoteFile(pickedURL: URL) -> FileStageResult {
         try FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: pickedURL, to: destination)
     } catch {
-        return .rejected("Couldn't read that file. Try picking it again.")
+        return .rejected(AppStrings.translate(locale, "thread.fileReadFailedPick"))
     }
 
     let contentType = UTType(filenameExtension: pickedURL.pathExtension)?

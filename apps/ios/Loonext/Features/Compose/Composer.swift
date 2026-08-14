@@ -283,6 +283,13 @@ struct ThreadComposerView: View {
     @State private var wrapUpRecorder: WrapUpRecorder?
     @State private var wrapUpTicker: Task<Void, Never>?
 
+    @Environment(\.appLocale) private var appLocale
+
+    /// #228 — this view's own words, in the reader's language.
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var textBlocked: Bool { noteOnly || banner != nil }
 
     /// #520: whether the ETA choices are showing. One tap opens them, the next
@@ -349,7 +356,7 @@ struct ThreadComposerView: View {
                                 .font(.golos(13))
                                 .buttonStyle(.bordered)
                             }
-                            Button("Cancel") { choosingEta = false }
+                            Button(t("common.cancel")) { choosingEta = false }
                                 .font(.golos(13))
                                 .foregroundStyle(BrandColor.muted600)
                         }
@@ -373,7 +380,7 @@ struct ThreadComposerView: View {
 
             // #225: above the box, below any banner. Never for a notes-only
             // member — an internal note has no recipient to wake up.
-            if !noteOnly, let line = theirTimeLine(destinationClock) {
+            if !noteOnly, let line = theirTimeLine(destinationClock, locale: appLocale) {
                 Text(line)
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted600)
@@ -385,13 +392,13 @@ struct ThreadComposerView: View {
             if !textBlocked {
                 HStack(spacing: 4) {
                     modePill(
-                        label: "Text",
+                        label: t("thread.modeText"),
                         selected: state.mode == .text,
                         selectedBg: BrandColor.avatarTint,
                         selectedInk: BrandColor.muted900
                     ) { state.mode = .text }
                     modePill(
-                        label: "Note",
+                        label: t("thread.modeNote"),
                         selected: state.mode == .note,
                         selectedBg: NoteAmber.bg,
                         selectedInk: NoteAmber.ink
@@ -464,9 +471,9 @@ struct ThreadComposerView: View {
         // product creates the race on purpose — an unassigned inbound notifies
         // everyone, which is right for "never miss a lead". So this is a pause
         // at the moment the mistake becomes irreversible, not a lock.
-        .alert("Somebody already answered", isPresented: $confirmCollision) {
-            Button("Let me look", role: .cancel) {}
-            Button("Send anyway") { submit() }
+        .alert(t("thread.collisionTitle"), isPresented: $confirmCollision) {
+            Button(t("thread.letMeLook"), role: .cancel) {}
+            Button(t("thread.sendAnyway")) { submit() }
         } message: {
             Text(collisionMessage)
         }
@@ -554,21 +561,26 @@ struct ThreadComposerView: View {
             SendLaterPicker(clock: destinationClock) { at in scheduleFor(at) }
         }
         .alert(
-            "That lands late where they are",
+            t("thread.quietHoursTitle"),
             isPresented: Binding(
                 get: { quietConfirmFor != nil },
                 set: { if !$0 { quietConfirmFor = nil } }
             )
         ) {
-            Button("Pick another time", role: .cancel) { quietConfirmFor = nil }
-            Button("Schedule it anyway") {
+            Button(t("thread.pickAnotherTime"), role: .cancel) { quietConfirmFor = nil }
+            Button(t("thread.scheduleAnyway")) {
                 if let pending = quietConfirmFor {
                     quietConfirmFor = nil
                     scheduleFor(pending, quietHoursConfirmed: true)
                 }
             }
         } message: {
-            Text(quietHoursScheduleMessage(localHour: destinationClock?.local_hour))
+            Text(
+                quietHoursScheduleMessage(
+                    localHour: destinationClock?.local_hour,
+                    locale: appLocale
+                )
+            )
         }
         // #507: a recording must not outlive the composer that started it.
         .onDisappear { cancelWrapUp() }
@@ -588,7 +600,7 @@ struct ThreadComposerView: View {
     /// so two people sharing a display name stay distinguishable at send time.
     private func insertMention(_ member: MentionableMember) {
         let name = member.display_name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let label = name.isEmpty ? "Teammate" : name
+        let label = name.isEmpty ? t("thread.teammate") : name
         let next = MentionLogic.insertMention(
             text: state.text,
             caret: state.text.count,
@@ -636,7 +648,7 @@ struct ThreadComposerView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 AiOrb(state: suggesting ? .thinking : .done, size: 14)
-                Text(suggesting ? "Drafting…" : "Lou's drafts")
+                Text(suggesting ? t("thread.drafting") : t("thread.lousDrafts"))
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
                 Spacer()
@@ -646,7 +658,7 @@ struct ThreadComposerView: View {
                     // per-message cost into an unbounded one, for an answer
                     // that is a starting point you edit anyway. The next set
                     // comes when the thread moves.
-                    Button("Dismiss") {
+                    Button(t("thread.dismiss")) {
                         suggestions = []
                         // #431: closed the strip without taking one. Reported
                         // now rather than deferred to a send that may never come.
@@ -711,7 +723,7 @@ struct ThreadComposerView: View {
                 Button {
                     AppRouter.shared.openSettingsSection = .ai
                 } label: {
-                    Text("Lou doesn't know what you do yet. Tell it, and drafts get specific.")
+                    Text(t("thread.louNeedsBusiness"))
                         .font(.golos(11))
                         .foregroundStyle(BrandColor.olive)
                         .multilineTextAlignment(.leading)
@@ -731,7 +743,7 @@ struct ThreadComposerView: View {
                     Button {
                         photosPickerOpen = true
                     } label: {
-                        Label("Attach a photo", systemImage: "photo")
+                        Label(t("thread.attachPhoto"), systemImage: "photo")
                     }
                     .disabled(state.photos.count >= maxPhotos)
                     // A text carries more than photos, and this app could only
@@ -740,13 +752,13 @@ struct ThreadComposerView: View {
                     Button {
                         fileImporterOpen = true
                     } label: {
-                        Label("Attach a file", systemImage: "paperclip")
+                        Label(t("thread.attachFile"), systemImage: "paperclip")
                     }
                     .disabled(state.photos.count >= maxPhotos)
                     Button {
                         templatePickerOpen = true
                     } label: {
-                        Label("Saved reply", systemImage: "text.badge.plus")
+                        Label(t("thread.savedReply"), systemImage: "text.badge.plus")
                     }
                 } label: {
                     Image(systemName: "plus")
@@ -754,7 +766,7 @@ struct ThreadComposerView: View {
                         .foregroundStyle(BrandColor.muted500)
                         .frame(width: 36, height: 36)
                 }
-                .accessibilityLabel("Add to message")
+                .accessibilityLabel(t("thread.addToMessage"))
 
                 // Lou sits in the pill, not inside the overflow: asking for a
                 // draft was two taps and a menu, which is more work than
@@ -769,7 +781,9 @@ struct ThreadComposerView: View {
                     .buttonStyle(.plain)
                     .disabled(suggesting)
                     .accessibilityLabel(
-                        state.text.isBlank ? "Draft with Lou" : "Finish with Lou"
+                        state.text.isBlank
+                            ? t("thread.draftWithLou")
+                            : t("thread.finishWithLou")
                     )
                 }
             } else {
@@ -782,7 +796,7 @@ struct ThreadComposerView: View {
                         .frame(width: 36, height: 36)
                 }
                 .disabled(state.files.count >= maxNoteFiles)
-                .accessibilityLabel("Attach files to this note")
+                .accessibilityLabel(t("thread.attachFilesToNote"))
 
                 // #507: in the pill beside the paperclip rather than behind a
                 // menu, for the same reason Lou's orb is in text mode — this is
@@ -794,7 +808,7 @@ struct ThreadComposerView: View {
             }
 
             TextField(
-                isNote ? "Write an internal note…" : "Text message",
+                isNote ? t("thread.notePlaceholder") : t("thread.textPlaceholder"),
                 text: Binding(
                     get: { state.text },
                     set: { handleTextChange($0) }
@@ -820,7 +834,7 @@ struct ThreadComposerView: View {
                         .foregroundStyle(BrandColor.muted500)
                         .frame(width: 34, height: 34)
                 }
-                .accessibilityLabel("Send later")
+                .accessibilityLabel(t("thread.sendLater"))
             }
 
             Button {
@@ -843,7 +857,7 @@ struct ThreadComposerView: View {
                     )
             }
             .disabled(!canSend)
-            .accessibilityLabel(isNote ? "Save note" : "Send message")
+            .accessibilityLabel(isNote ? t("thread.saveNote") : t("thread.sendMessage"))
             .padding(.vertical, 3)
         }
         .padding(.horizontal, 6)
@@ -913,11 +927,8 @@ struct ThreadComposerView: View {
             }
         }
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("Hold to dictate a wrap-up")
-        .accessibilityHint(
-            "Say what was agreed after the call. Lou writes your words down for "
-                + "you to check before you post the note."
-        )
+        .accessibilityLabel(t("thread.holdToDictateWrapUp"))
+        .accessibilityHint(t("thread.wrapUpHint"))
     }
 
     /// What is happening, while it is happening.
@@ -933,11 +944,11 @@ struct ThreadComposerView: View {
         let transcribing = wrapUpPhase == .transcribing
         let label: String
         if transcribing {
-            label = "Writing down what you said\u{2026}"
+            label = t("thread.wrapUpTranscribing")
         } else if remaining <= 15 {
-            label = "Go ahead \u{2014} \(remaining)s left"
+            label = t("thread.wrapUpGoAheadLeft", ["seconds": String(remaining)])
         } else {
-            label = "Go ahead \u{2014} let go when you're done"
+            label = t("thread.wrapUpGoAhead")
         }
         return HStack(spacing: 5) {
             AiOrb(state: transcribing ? .thinking : .working, size: 12)
@@ -964,7 +975,7 @@ struct ThreadComposerView: View {
         case .granted:
             break
         case .denied:
-            onNotice(WrapUpStartRefusal.micDenied.message)
+            onNotice(WrapUpStartRefusal.micDenied.localizedMessage(appLocale))
             return
         case .unasked:
             // Asked at the point of use. The answer cannot rescue THIS press —
@@ -974,8 +985,8 @@ struct ThreadComposerView: View {
                 let granted = await recorder.requestMic()
                 onNotice(
                     granted
-                        ? WrapUpStartRefusal.micJustGranted.message
-                        : WrapUpStartRefusal.micDenied.message
+                        ? WrapUpStartRefusal.micJustGranted.localizedMessage(appLocale)
+                        : WrapUpStartRefusal.micDenied.localizedMessage(appLocale)
                 )
             }
             return
@@ -986,7 +997,7 @@ struct ThreadComposerView: View {
         // state, because a member can dismiss the in-call screen and land back
         // here with the call still up.
         if let refusal = recorder.start(callInProgress: wrapUp.callInProgress()) {
-            onNotice(refusal.message)
+            onNotice(refusal.localizedMessage(appLocale))
             return
         }
         wrapUpSeconds = 0
@@ -1034,7 +1045,7 @@ struct ThreadComposerView: View {
         guard let taken = recorder.finish() else {
             wrapUpPhase = .idle
             wrapUpSeconds = 0
-            onNotice("Hold the mic while you talk \u{2014} that was too short to write down.")
+            onNotice(t("thread.wrapUpTooShort"))
             return
         }
         wrapUpPhase = .transcribing
@@ -1167,8 +1178,8 @@ struct ThreadComposerView: View {
                 seconds = max(0, Int(Date().timeIntervalSince(parsed)))
             }
         }
-        return duplicateReplyPrompt(who: name, secondsAgo: seconds)
-            + " Send yours as well?"
+        return duplicateReplyPrompt(who: name, secondsAgo: seconds, locale: appLocale)
+            + t("thread.collisionAsk")
     }
 
     private func requestSend() {
@@ -1219,8 +1230,13 @@ struct ThreadComposerView: View {
                 // the customer's time unlabelled, so the one sentence telling
                 // somebody what they had just scheduled was the same trap as the
                 // queued row it was confirming.
+                let when = TwoClocks.bothClocks(
+                    sendAtLabel(at, in: destinationZone(destinationClock)),
+                    sendAtLabel(at, in: .current)
+                )
                 onNotice(
-                    "Sending \(TwoClocks.bothClocks(sendAtLabel(at, in: destinationZone(destinationClock)), sendAtLabel(at, in: .current))). "
+                    t("thread.scheduledConfirm", ["when": when])
+                        + " "
                         + ScheduledSend.copyLine("picker_reassurance")
                 )
             case .needsQuietHoursConfirm:
@@ -1286,10 +1302,13 @@ struct ThreadComposerView: View {
                     break
                 }
                 guard let data = try? await item.loadTransferable(type: Data.self) else {
-                    onNotice("Couldn't read that photo. Try attaching it again.")
+                    onNotice(t("thread.photoReadFailed"))
                     continue
                 }
-                let result = await Task.detached(operation: { preparePhoto(data: data) }).value
+                let locale = appLocale
+                let result = await Task.detached(
+                    operation: { preparePhoto(data: data, locale: locale) }
+                ).value
                 switch result {
                 case .ready(let photo):
                     state.photos.append(photo)
@@ -1297,7 +1316,9 @@ struct ThreadComposerView: View {
                     onNotice(reason)
                 }
             }
-            if trimmed { onNotice("You can attach up to 3 photos per text.") }
+            if trimmed {
+                onNotice(t("thread.attachLimitPhotos", ["max": String(maxPhotos)]))
+            }
         }
     }
 
@@ -1311,14 +1332,14 @@ struct ThreadComposerView: View {
                 trimmed = true
                 break
             }
-            switch stageMmsMedia(pickedURL: url) {
+            switch stageMmsMedia(pickedURL: url, locale: appLocale) {
             case .ready(let media):
                 state.photos.append(media)
             case .rejected(let reason):
                 onNotice(reason)
             }
         }
-        if trimmed { onNotice("You can attach up to 3 files per text.") }
+        if trimmed { onNotice(t("thread.attachLimitText", ["max": String(maxPhotos)])) }
     }
 
     private func stageFiles(_ result: Result<[URL], Error>) {
@@ -1329,14 +1350,14 @@ struct ThreadComposerView: View {
                 trimmed = true
                 break
             }
-            switch stageNoteFile(pickedURL: url) {
+            switch stageNoteFile(pickedURL: url, locale: appLocale) {
             case .ready(let file):
                 state.files.append(file)
             case .rejected(let reason):
                 onNotice(reason)
             }
         }
-        if trimmed { onNotice("Notes can carry up to 10 files.") }
+        if trimmed { onNotice(t("thread.attachLimitNote")) }
     }
 }
 
@@ -1359,6 +1380,8 @@ struct ComposerHints: View {
     var senderName: String? = nil
     /// #274: this conversation's number in E.164, for {our_number}.
     var ourNumberE164: String? = nil
+
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         // #415: measure what SENDS, not what was typed. This view already had
@@ -1392,7 +1415,7 @@ struct ComposerHints: View {
             ),
             suffix: identificationSuffix
         )
-        let meter = segmentMeter(sendsAs, hasMedia: hasMedia)
+        let meter = segmentMeter(sendsAs, hasMedia: hasMedia, locale: appLocale)
         // A plain draft about to be SIGNED needs the preview too, or the one
         // case where the sent text differs from the typed text with no {token}
         // to hint at it is the case with no preview at all.
@@ -1407,7 +1430,7 @@ struct ComposerHints: View {
                         .foregroundStyle(meter.warn ? BrandColor.overdueAmber : BrandColor.muted300)
                 }
                 if showPreview {
-                    Text("Sends as: " + sendsAs)
+                    Text(AppStrings.translate(appLocale, "thread.sendsAs") + sendsAs)
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted300)
                     .lineLimit(2)
@@ -1416,7 +1439,7 @@ struct ComposerHints: View {
                     // a teammate reschedules it, and a preview that is usually
                     // right is worse than one that says what it cannot show.
                     if MergeFields.hasServerOnlyTokens(text) {
-                        Text(MergeFields.serverOnlyTokensNote)
+                        Text(AppStrings.translate(appLocale, "thread.serverOnlyTokensNote"))
                             .font(.golos(10.5))
                             .foregroundStyle(BrandColor.muted300)
                     }
@@ -1482,6 +1505,8 @@ struct PhotoChipsRow: View {
     let photos: [StagedPhoto]
     let onRemove: @MainActor (String) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -1509,7 +1534,9 @@ struct PhotoChipsRow: View {
                                 .font(.scaled(16))
                                 .foregroundStyle(BrandColor.ink, BrandColor.paper)
                         }
-                        .accessibilityLabel("Remove attachment")
+                        .accessibilityLabel(
+                            AppStrings.translate(appLocale, "thread.removeAttachment")
+                        )
                         .offset(x: 6, y: -6)
                     }
                 }
@@ -1528,6 +1555,8 @@ struct FileChipsRow: View {
     /// sense — these chips carry documents too, and an editor on a PDF is a control
     /// that does nothing.
     var onMarkUp: (@MainActor (String) -> Void)?
+
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -1551,7 +1580,13 @@ struct FileChipsRow: View {
                                 .font(.scaled(11, weight: .semibold))
                                 .foregroundStyle(BrandColor.muted500)
                         }
-                        .accessibilityLabel("Remove \(file.name)")
+                        .accessibilityLabel(
+                            AppStrings.translate(
+                                appLocale,
+                                "thread.removeNamed",
+                                ["name": file.name]
+                            )
+                        )
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -1580,9 +1615,13 @@ struct TemplatePickerSheet: View {
     @State private var query = ""
     @State private var retryKey = 0
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Templates")
+            Text(t("thread.templates"))
                 .font(.display(21))
                 .foregroundStyle(BrandColor.ink)
             content
@@ -1612,7 +1651,7 @@ struct TemplatePickerSheet: View {
             CenteredError(message: message) { retryKey += 1 }
         case .ready(let templates):
             if templates.isEmpty {
-                Text("No saved replies yet. Create them on the web under Settings.")
+                Text(t("thread.noTemplates"))
                     .font(.golos(12.5))
                     .foregroundStyle(BrandColor.muted600)
                     .multilineTextAlignment(.center)
@@ -1628,7 +1667,7 @@ struct TemplatePickerSheet: View {
                 searchField
                 ScrollView {
                     if matches.isEmpty {
-                        Text("Nothing matches.")
+                        Text(t("thread.nothingMatches"))
                             .font(.golos(12.5))
                             .foregroundStyle(BrandColor.muted600)
                             .frame(maxWidth: .infinity)
@@ -1650,7 +1689,7 @@ struct TemplatePickerSheet: View {
                                                 .lineLimit(2)
                                         }
                                         Spacer(minLength: 11)
-                                        Text("Insert")
+                                        Text(t("thread.insert"))
                                             .font(.golos(11, weight: .semibold))
                                             .foregroundStyle(BrandColor.muted900)
                                             .padding(.horizontal, 13)
@@ -1670,7 +1709,7 @@ struct TemplatePickerSheet: View {
                     }
                 }
                 .scrollDismissesKeyboard(.interactively)
-                Text("Type / in the composer to open these inline · shared with the crew")
+                Text(t("thread.templateHint"))
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted300)
                     .multilineTextAlignment(.center)
@@ -1685,7 +1724,7 @@ struct TemplatePickerSheet: View {
             Image(systemName: "magnifyingglass")
                 .font(.scaled(14, weight: .medium))
                 .foregroundStyle(BrandColor.muted300)
-            TextField("Search templates", text: $query)
+            TextField(t("thread.searchTemplates"), text: $query)
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.ink)
                 .textInputAutocapitalization(.never)
@@ -1746,9 +1785,11 @@ struct MentionPickerSheet: View {
 
     @State private var members: [MentionableMember]?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Mention a teammate")
+            Text(AppStrings.translate(appLocale, "thread.mentionTeammate"))
                 .font(.display(21))
                 .foregroundStyle(BrandColor.ink)
             content
@@ -1766,7 +1807,7 @@ struct MentionPickerSheet: View {
     private var content: some View {
         if let rows = members {
             if rows.isEmpty {
-                Text("No teammates can see this conversation.")
+                Text(AppStrings.translate(appLocale, "thread.noMentionable"))
                     .font(.golos(12.5))
                     .foregroundStyle(BrandColor.muted600)
                     .padding(.vertical, 16)
@@ -1795,6 +1836,8 @@ struct MentionPickerSheet: View {
 
     private func displayName(_ member: MentionableMember) -> String {
         let trimmed = member.display_name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Teammate" : trimmed
+        return trimmed.isEmpty
+            ? AppStrings.translate(appLocale, "thread.teammate")
+            : trimmed
     }
 }

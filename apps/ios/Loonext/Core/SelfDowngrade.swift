@@ -36,13 +36,15 @@ enum SelfDowngrade {
     ///
     /// Written as things they DO. "team.manage" tells a developer what is being
     /// revoked and tells an owner nothing.
-    private static let plain: [String: String] = [
-        "billing.manage": "the plan and billing",
-        "settings.manage": "workspace settings",
-        "team.manage": "who is on the team and what they can do",
-        "numbers.manage": "phone numbers",
-        "history.read": "the history log",
-        "contacts.bulk": "importing and exporting customers",
+    /// #228: KEYS, not sentences. This map is built at type-init, before any
+    /// reader exists; `warning` resolves them for the one it is given.
+    private static let plainKeys: [String: String] = [
+        "billing.manage": "domain.capBilling",
+        "settings.manage": "domain.capSettings",
+        "team.manage": "domain.capTeam",
+        "numbers.manage": "domain.capNumbers",
+        "history.read": "domain.capHistory",
+        "contacts.bulk": "domain.capContactsBulk",
     ]
 
     /// The capability set for each role. Kept in step with the shared module by test.
@@ -118,24 +120,38 @@ enum SelfDowngrade {
     /// Names at most three things and then counts the rest: six revoked capabilities
     /// listed in full reads as legal boilerplate and gets skipped, which defeats the
     /// whole point of asking.
-    static func warning(from: String, to: String) -> String? {
+    static func warning(from: String, to: String, locale: String? = nil) -> String? {
+        func say(_ key: String, _ vars: [String: String] = [:]) -> String {
+            AppStrings.translate(locale, key, vars)
+        }
         let lost = capabilitiesLost(from: from, to: to)
         if lost.isEmpty { return nil }
-        let named = lost.compactMap { plain[$0] }
+        let named = lost.compactMap { plainKeys[$0] }.map { say($0) }
         let head = Array(named.prefix(3))
         let rest = named.count - head.count
         let list: String
         if head.isEmpty {
-            list = "some of what you can do now"
+            list = say("domain.selfDowngradeSomeOfWhat")
         } else if head.count == 1 {
             list = head[0]
         } else {
-            list = head.dropLast().joined(separator: ", ") + " and " + head[head.count - 1]
+            // The last two are joined by a whole-sentence key rather than by a
+            // literal " and ", because the conjunction and the comma before it
+            // are not the same in the two languages.
+            list = say(
+                "domain.selfDowngradeListPair",
+                [
+                    "first": head.dropLast().joined(separator: ", "),
+                    "last": head[head.count - 1],
+                ]
+            )
         }
-        let scope = rest > 0 ? "\(list), and \(rest) more" : list
+        let scope = rest > 0
+            ? say("domain.selfDowngradeMore", ["list": list, "count": String(rest)])
+            : list
         let undo = losesRoleControl(from: from, to: to)
-            ? " You won't be able to change it back yourself — only an owner can."
+            ? say("domain.selfDowngradeUndo")
             : ""
-        return "You'll lose access to \(scope).\(undo)"
+        return say("domain.selfDowngradeWarning", ["scope": scope, "undo": undo])
     }
 }

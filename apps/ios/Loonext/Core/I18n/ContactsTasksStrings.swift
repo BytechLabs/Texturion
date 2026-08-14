@@ -37,10 +37,27 @@ enum ContactsTasksStrings {
         name: "ContactsTasksStrings",
         en: [
             // ── Tasks: the list, the board, the calendar and the map ─────────
+            "contactsTasks.tasksTitle": "Tasks",
             "contactsTasks.taskHeading": "Task",
             "contactsTasks.searchTaskTitles": "Search task titles",
             "contactsTasks.clearSearch": "Clear search",
+            // The four view pills are icon-only; these are what they SAY.
+            "contactsTasks.viewList": "List view",
+            "contactsTasks.viewBoard": "Board view",
+            "contactsTasks.viewCalendar": "Calendar view",
+            "contactsTasks.viewMap": "Map view",
+            // The status tabs. `TasksTabKind.rawValue` stays an English
+            // identifier — it is the reload token and the cache key, matching
+            // the Android enum's `.name`; the WORDS are these four.
+            "contactsTasks.tabOpen": "Open",
+            "contactsTasks.tabMine": "Mine",
+            "contactsTasks.tabAll": "All",
+            "contactsTasks.tabDone": "Done",
+            "contactsTasks.dueOverdue": "Overdue",
+            "contactsTasks.dueToday": "Due today",
+            "contactsTasks.dueThisWeek": "Due this week",
             "contactsTasks.assignee": "Assignee",
+            "contactsTasks.clearAssigneeFilter": "Clear assignee filter",
             "contactsTasks.unassigned": "Unassigned",
             "contactsTasks.unassign": "Unassign",
             "contactsTasks.assignTo": "Assign to {who}",
@@ -50,20 +67,32 @@ enum ContactsTasksStrings {
             "contactsTasks.selected": "Selected",
             "contactsTasks.searchTeammates": "Search teammates",
             "contactsTasks.noTeammatesMatch": "No teammates match.",
+            // Two empty lists, and the difference decides what somebody does
+            // next: a filter excluded them, or there are none.
+            "contactsTasks.listEmptyFiltered": "Nothing on this list.",
+            "contactsTasks.listEmpty":
+                "No tasks yet. Promote a message from its ⋯ menu in a conversation.",
             "contactsTasks.loadMore": "Load more",
             "contactsTasks.loading": "Loading…",
             "contactsTasks.columnToDo": "To do",
-            "contactsTasks.done": "Done",
+            "contactsTasks.columnToDoEmpty": "Nothing to do here.",
+            "contactsTasks.columnDone": "Done",
+            "contactsTasks.columnDoneEmpty": "Nothing marked done yet.",
+            "contactsTasks.moveToDone": "Move to Done",
+            "contactsTasks.moveToToDo": "Move to To do",
             "contactsTasks.markDone": "Mark done",
             "contactsTasks.markNotDone": "Mark not done",
             "contactsTasks.dueWhen": "Due {when}",
             "contactsTasks.overdueDot": "Overdue · {due}",
+            "contactsTasks.overdueDueWhen": "Overdue · due {when}",
             "contactsTasks.today": "Today",
             "contactsTasks.tomorrow": "Tomorrow",
             "contactsTasks.clearSelection": "Clear selection",
             "contactsTasks.moreBulkActions": "More bulk actions",
             "contactsTasks.selectThese": "Select these {count}",
             "contactsTasks.selectAllMatching": "Select all matching",
+            "contactsTasks.bulkFailed": "That didn't go through. Nothing was changed.",
+            "contactsTasks.taskUpdateFailed": "Couldn't update the task",
             "contactsTasks.everyTaskLinksBack": "Every task links back to its message",
 
             // Calendar
@@ -88,6 +117,9 @@ enum ContactsTasksStrings {
             "contactsTasks.weekdaySun": "Sun",
 
             // Map
+            "contactsTasks.mapCounts": "{located} on the map",
+            "contactsTasks.mapCountsWithMissing":
+                "{located} on the map · {missing} without a location",
             "contactsTasks.mapMissingCount": "{missing} without a location",
             "contactsTasks.mapNoLocatedTasks": "No located tasks yet.",
             "contactsTasks.mapAddAnAddress":
@@ -97,6 +129,10 @@ enum ContactsTasksStrings {
             "contactsTasks.mapOpenTask": "Open task",
             "contactsTasks.mapDirections": "Directions",
             "contactsTasks.mapMore": "+{count} more",
+            // A pin with no contact name is titled by its count. Android's map
+            // has no marker title of its own (a Compose marker carries none),
+            // so this one key is iOS's — French written here, for review.
+            "contactsTasks.mapMarkerTasks": "{count} tasks",
 
             // Task detail
             "contactsTasks.taskGone": "This task doesn't exist or was removed.",
@@ -145,6 +181,18 @@ enum ContactsTasksStrings {
             "contactsTasks.postNote": "Post note",
             "contactsTasks.noteComposerTeam": "Add a note for your team",
             "contactsTasks.removeNamed": "Remove {name}",
+            "contactsTasks.noteFilesCap": "Up to {count} files per note.",
+            "contactsTasks.noteFileTooBig": "Files must be 25 MB or less.",
+            "contactsTasks.noteUploadFailedOne":
+                "The note posted, but {count} file didn't upload. Retry from the note "
+                + "in the thread.",
+            "contactsTasks.noteUploadFailedMany":
+                "The note posted, but {count} files didn't upload. Retry from the note "
+                + "in the thread.",
+
+            // The visit a strip of photos arrived on (#294)
+            "contactsTasks.photosFromCustomer": "From the customer",
+            "contactsTasks.photosFromCrew": "Added by the crew",
 
             // The task's job address
             "contactsTasks.address": "Address",
@@ -171,6 +219,11 @@ enum ContactsTasksStrings {
             "contactsTasks.addContact": "Add contact",
             "contactsTasks.adding": "Adding…",
             "contactsTasks.add": "Add",
+            // The FINISH-EDITING button, and Android carries the same key
+            // beside the same `columnDone`: one is a verb somebody presses,
+            // the other is a status a task is in. They read alike in both
+            // languages today and are still two different sentences.
+            "contactsTasks.done": "Done",
             "contactsTasks.change": "Change",
             "contactsTasks.changeTimezone": "Change timezone",
             "contactsTasks.changeLanguage": "Change language",
@@ -196,8 +249,30 @@ enum ContactsTasksStrings {
             "contactsTasks.noContactsYet":
                 "No contacts yet. They're added automatically when someone texts you, "
                 + "or add one yourself.",
+            // The filtered-empty list (#291). NOT `noContactsYet`: under a
+            // filter those customers are excluded, not missing, and "they're
+            // added automatically" reads as having none at all.
+            "contactsTasks.filterEmptyTitle": "Nobody matches that yet",
+            "contactsTasks.filterEmptyBody":
+                "No customer has that answer on file. Clear the filter to see everyone.",
             "contactsTasks.optedOut": "Opted out",
             "contactsTasks.contactGone": "This contact doesn't exist or was removed.",
+
+            // Who put this record here, and who last touched it (#191)
+            "contactsTasks.addedBy": "Added by {who}",
+            "contactsTasks.addedByOn": "Added by {who} on {date}",
+            "contactsTasks.editedBy": "Edited by {who}",
+
+            // The consent card (#226). Same words as web's `appShell.ts`, so a
+            // crew reading it on the phone and then on the laptop is not told
+            // two things about one customer.
+            "contactsTasks.consentNone":
+                "No consent recorded yet. It's recorded when they text you first, "
+                + "or when you send them their first text, which attests they asked "
+                + "for it.",
+            "contactsTasks.consentTextedFirst": "Texted you first",
+            "contactsTasks.consentRecorded": "Consent recorded",
+            "contactsTasks.consentRecordedBy": "Consent recorded by {name}",
             "contactsTasks.copyNumber": "Copy number",
             "contactsTasks.openConversation": "Open conversation",
             "contactsTasks.openTheConversation": "Open the conversation",
@@ -284,6 +359,28 @@ enum ContactsTasksStrings {
             "contactsTasks.nothingWasImported": "Nothing was imported",
             "contactsTasks.noContactsAddedOrChanged":
                 " · no contacts were added or changed",
+            "contactsTasks.exportFailed": "The export didn't go through. Try again.",
+            "contactsTasks.fileUnreadable": "Couldn't read that file. Try again.",
+
+            // THE CLAIM, copied from web's `consentLabelFile` through Android's
+            // `importAttestation`. It is never pre-ticked on any surface. What
+            // travels is `consent_attested=true`, never this sentence, so a
+            // translation here cannot change what a workspace attested to.
+            "contactsTasks.importAttestation":
+                "Everyone in this file agreed to be texted by this business.",
+            // The three facts under it, in the order somebody worries about
+            // them. iOS-only wording — Android says the second of these
+            // differently, and changing either to match would be a copy change
+            // wearing a translation's clothes. French written here, for review.
+            "contactsTasks.importRecordsYourName":
+                "We record your name and today's date against everyone in this file "
+                + "who has no consent recorded yet.",
+            "contactsTasks.importKeepsExistingConsent":
+                "Anyone who already has consent recorded keeps the one they have.",
+            // STOP is a carrier keyword: a carrier matches on the literal word.
+            "contactsTasks.importStopStaysBlocked":
+                "Anyone who has texted STOP stays blocked. Importing them again does "
+                + "not undo that.",
 
             // Duplicates and merging (#246)
             "contactsTasks.duplicatesOnePair": "These two look like the same customer",
@@ -407,10 +504,23 @@ enum ContactsTasksStrings {
         ],
         frCA: [
             // ── Tâches : la liste, le tableau, le calendrier et la carte ─────
+            "contactsTasks.tasksTitle": "Tâches",
             "contactsTasks.taskHeading": "Tâche",
             "contactsTasks.searchTaskTitles": "Rechercher un titre de tâche",
             "contactsTasks.clearSearch": "Effacer la recherche",
+            "contactsTasks.viewList": "Vue liste",
+            "contactsTasks.viewBoard": "Vue tableau",
+            "contactsTasks.viewCalendar": "Vue calendrier",
+            "contactsTasks.viewMap": "Vue carte",
+            "contactsTasks.tabOpen": "Ouvertes",
+            "contactsTasks.tabMine": "Les miennes",
+            "contactsTasks.tabAll": "Toutes",
+            "contactsTasks.tabDone": "Terminées",
+            "contactsTasks.dueOverdue": "En retard",
+            "contactsTasks.dueToday": "Échéance aujourd'hui",
+            "contactsTasks.dueThisWeek": "Échéance cette semaine",
             "contactsTasks.assignee": "Assignée à",
+            "contactsTasks.clearAssigneeFilter": "Effacer le filtre d'assignation",
             "contactsTasks.unassigned": "Non assignée",
             "contactsTasks.unassign": "Désassigner",
             "contactsTasks.assignTo": "Assigner à {who}",
@@ -420,20 +530,31 @@ enum ContactsTasksStrings {
             "contactsTasks.selected": "Sélectionné",
             "contactsTasks.searchTeammates": "Rechercher un coéquipier",
             "contactsTasks.noTeammatesMatch": "Aucun coéquipier ne correspond.",
+            "contactsTasks.listEmptyFiltered": "Rien dans cette liste.",
+            "contactsTasks.listEmpty":
+                "Aucune tâche pour l'instant. Transformez un texto en tâche depuis son "
+                + "menu ⋯ dans une conversation.",
             "contactsTasks.loadMore": "Charger plus",
             "contactsTasks.loading": "Chargement…",
             "contactsTasks.columnToDo": "À faire",
-            "contactsTasks.done": "Terminé",
+            "contactsTasks.columnToDoEmpty": "Rien à faire ici.",
+            "contactsTasks.columnDone": "Terminé",
+            "contactsTasks.columnDoneEmpty": "Rien n'est encore marqué comme terminé.",
+            "contactsTasks.moveToDone": "Déplacer vers Terminé",
+            "contactsTasks.moveToToDo": "Déplacer vers À faire",
             "contactsTasks.markDone": "Marquer comme terminée",
             "contactsTasks.markNotDone": "Marquer comme non terminée",
             "contactsTasks.dueWhen": "Échéance {when}",
             "contactsTasks.overdueDot": "En retard · {due}",
+            "contactsTasks.overdueDueWhen": "En retard · échéance {when}",
             "contactsTasks.today": "Aujourd'hui",
             "contactsTasks.tomorrow": "Demain",
             "contactsTasks.clearSelection": "Effacer la sélection",
             "contactsTasks.moreBulkActions": "Plus d'actions groupées",
             "contactsTasks.selectThese": "Sélectionner ces {count}",
             "contactsTasks.selectAllMatching": "Tout sélectionner",
+            "contactsTasks.bulkFailed": "L'opération n'a pas abouti. Rien n'a été modifié.",
+            "contactsTasks.taskUpdateFailed": "Impossible de mettre à jour la tâche",
             "contactsTasks.everyTaskLinksBack": "Chaque tâche renvoie à son texto",
 
             // Calendrier
@@ -458,6 +579,9 @@ enum ContactsTasksStrings {
             "contactsTasks.weekdaySun": "dim",
 
             // Carte
+            "contactsTasks.mapCounts": "{located} sur la carte",
+            "contactsTasks.mapCountsWithMissing":
+                "{located} sur la carte · {missing} sans emplacement",
             "contactsTasks.mapMissingCount": "{missing} sans emplacement",
             "contactsTasks.mapNoLocatedTasks": "Aucune tâche localisée pour l'instant.",
             "contactsTasks.mapAddAnAddress":
@@ -467,6 +591,7 @@ enum ContactsTasksStrings {
             "contactsTasks.mapOpenTask": "Ouvrir la tâche",
             "contactsTasks.mapDirections": "Itinéraire",
             "contactsTasks.mapMore": "+{count} de plus",
+            "contactsTasks.mapMarkerTasks": "{count} tâches",
 
             // Détail de la tâche
             "contactsTasks.taskGone": "Cette tâche n'existe pas ou a été supprimée.",
@@ -518,6 +643,18 @@ enum ContactsTasksStrings {
             "contactsTasks.postNote": "Publier la note",
             "contactsTasks.noteComposerTeam": "Ajoutez une note pour votre équipe",
             "contactsTasks.removeNamed": "Retirer {name}",
+            "contactsTasks.noteFilesCap": "Jusqu'à {count} fichiers par note.",
+            "contactsTasks.noteFileTooBig": "Les fichiers doivent faire 25 Mo ou moins.",
+            "contactsTasks.noteUploadFailedOne":
+                "La note a été publiée, mais {count} fichier n'a pas été téléversé. "
+                + "Réessayez depuis la note dans la conversation.",
+            "contactsTasks.noteUploadFailedMany":
+                "La note a été publiée, mais {count} fichiers n'ont pas été téléversés. "
+                + "Réessayez depuis la note dans la conversation.",
+
+            // La visite dont provient une bande de photos (#294)
+            "contactsTasks.photosFromCustomer": "Du client",
+            "contactsTasks.photosFromCrew": "Ajoutées par l'équipe",
 
             // L'adresse du travail
             "contactsTasks.address": "Adresse",
@@ -544,6 +681,7 @@ enum ContactsTasksStrings {
             "contactsTasks.addContact": "Ajouter le client",
             "contactsTasks.adding": "Ajout…",
             "contactsTasks.add": "Ajouter",
+            "contactsTasks.done": "Terminé",
             "contactsTasks.change": "Modifier",
             "contactsTasks.changeTimezone": "Changer le fuseau horaire",
             "contactsTasks.changeLanguage": "Changer la langue",
@@ -571,8 +709,27 @@ enum ContactsTasksStrings {
             "contactsTasks.noContactsYet":
                 "Aucun client pour l'instant. Ils sont ajoutés automatiquement quand "
                 + "quelqu'un vous texte, ou ajoutez-en un vous-même.",
+            // La liste vidée par un filtre (#291)
+            "contactsTasks.filterEmptyTitle": "Personne ne correspond pour l'instant",
+            "contactsTasks.filterEmptyBody":
+                "Aucun client n'a cette réponse au dossier. Retirez le filtre pour "
+                + "voir tout le monde.",
             "contactsTasks.optedOut": "Désabonné",
             "contactsTasks.contactGone": "Ce client n'existe pas ou a été supprimé.",
+
+            // Qui a créé cette fiche, et qui l'a modifiée en dernier (#191)
+            "contactsTasks.addedBy": "Ajouté par {who}",
+            "contactsTasks.addedByOn": "Ajouté par {who} le {date}",
+            "contactsTasks.editedBy": "Modifié par {who}",
+
+            // La carte de consentement (#226)
+            "contactsTasks.consentNone":
+                "Aucun consentement enregistré pour l'instant. Il est enregistré quand "
+                + "le client vous texte en premier, ou quand vous lui envoyez son "
+                + "premier texto, ce qui atteste qu'il l'a demandé.",
+            "contactsTasks.consentTextedFirst": "Vous a texté en premier",
+            "contactsTasks.consentRecorded": "Consentement enregistré",
+            "contactsTasks.consentRecordedBy": "Consentement enregistré par {name}",
             "contactsTasks.copyNumber": "Copier le numéro",
             "contactsTasks.openConversation": "Ouvrir la conversation",
             "contactsTasks.openTheConversation": "Ouvrir la conversation",
@@ -660,6 +817,23 @@ enum ContactsTasksStrings {
             "contactsTasks.nothingWasImported": "Rien n'a été importé",
             "contactsTasks.noContactsAddedOrChanged":
                 " · aucun client n'a été ajouté ni modifié",
+            "contactsTasks.exportFailed": "L'exportation n'a pas abouti. Réessayez.",
+            "contactsTasks.fileUnreadable": "Impossible de lire ce fichier. Réessayez.",
+
+            // LA déclaration : sa formulation est ce qui autorise l'envoi.
+            "contactsTasks.importAttestation":
+                "Toutes les personnes de ce fichier ont accepté de recevoir des textos "
+                + "de cette entreprise.",
+            "contactsTasks.importRecordsYourName":
+                "Nous enregistrons votre nom et la date d'aujourd'hui pour toutes les "
+                + "personnes de ce fichier qui n'ont pas encore de consentement "
+                + "enregistré.",
+            "contactsTasks.importKeepsExistingConsent":
+                "Toute personne qui a déjà un consentement enregistré conserve celui-ci.",
+            // STOP est un mot-clé de fournisseur : jamais traduit.
+            "contactsTasks.importStopStaysBlocked":
+                "Toute personne qui a texté STOP reste bloquée. L'importer de nouveau "
+                + "n'annule pas cela.",
 
             // Doublons et fusion (#246)
             "contactsTasks.duplicatesOnePair":

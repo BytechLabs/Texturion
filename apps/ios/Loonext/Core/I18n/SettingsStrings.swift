@@ -41,17 +41,46 @@ import Foundation
 ///                                   card hands the CSV to the system share
 ///                                   sheet rather than to a downloads folder.
 ///
-/// ## What is deliberately NOT here
+/// ## `SettingsLogic.swift` IS here now, and how
 ///
-/// Copy that lives outside a view and cannot reach a locale stays where it is:
-/// everything in `SettingsLogic.swift` (`pausedStateLines`, `cancellationOffer`,
-/// `planFacts`, `pauseOfferBody`, `deviceCountLabel`, `emergencyWordList`, …),
-/// the shared mirrors in `HelpSection.swift` (`supportTopics`,
-/// `supportFixPromise`, `supportResponseTime`), `emergencySafetyLine`,
-/// `defaultMctbMessage` and `ContactFields.Copy`. Each has a parity test pinning
-/// its English against another client, and threading a locale through to reach
-/// one of them is a bigger change than the extraction it would serve. They are
-/// named in the extraction report instead of being half-moved.
+/// This paragraph used to say the opposite — that copy living outside a view
+/// could not reach a locale and stayed put. It can, and the shape is the one
+/// Android settled on: every function that composes a sentence takes
+/// `locale: String? = nil` and looks the sentence up, so a screen hands it
+/// `appLocale` and everything else keeps reading English.
+///
+/// The DEFAULT is what makes that safe rather than a rewrite. `SettingsLogicTests`,
+/// `BillingPauseTests`, `HeldNumbersTests`, `RegistrationPauseTests`,
+/// `OwnershipCopyTests`, `DevicesLogicTests` and `ParityVectorsTests` all call
+/// those functions with no reader in scope and assert the PRODUCT's wording
+/// against `packages/shared` and the other two clients. They still do, and they
+/// still pass, because nil resolves to this file's English table.
+///
+/// ## What is still deliberately NOT here
+///
+///   `defaultVoicemailGreeting`      `inbound-ring.ts` SPEAKS this to a caller
+///                                   and takes no locale, so a French preview
+///                                   would show words no caller ever hears.
+///                                   Extract it the day the server learns the
+///                                   language.
+///   `holdSentence`                  the three hold sentences on the billing
+///   (BillingSection.swift)          screen, and the "Continue to cancel" label
+///   the cancel exit label           beside them. Both are ANCHORS for guards
+///                                   that read that file's own literals —
+///                                   `SettingsLogicTests` counts every
+///                                   "{days} days" on the screen and
+///                                   `CancelOneActionTests` derives its whole
+///                                   one-press property from finding the exit's
+///                                   English. The keys exist below in both
+///                                   languages; finishing this is a change to
+///                                   those two test files.
+///   the `HelpSection.swift` mirrors `supportTopics`, `supportFixPromise` and
+///                                   `supportResponseTime` — a parity test pins
+///                                   each against another client, and
+///                                   `settings.offerMissingBody` interpolates
+///                                   them rather than forking them.
+///   `emergencySafetyLine`,          each pinned word for word elsewhere.
+///   `ContactFields.Copy`
 enum SettingsStrings {
     static let section = AppStrings.Section(
         name: "SettingsStrings",
@@ -89,6 +118,7 @@ private let settingsStringsEnglish: [String: String] = settingsStringsFolded([
     settingsCallingEn,
     settingsHeldEn,
     settingsBillingEn,
+    settingsCoreEn,
 ])
 
 private let settingsStringsFrench: [String: String] = settingsStringsFolded([
@@ -104,6 +134,7 @@ private let settingsStringsFrench: [String: String] = settingsStringsFolded([
     settingsCallingFr,
     settingsHeldFr,
     settingsBillingFr,
+    settingsCoreFr,
 ])
 
 // ---------------------------------------------------------------------------
@@ -1605,4 +1636,1199 @@ private let settingsBillingFr: [String: String] = [
         "Rien de ce qui précède n'est obligatoire. Ceci vous amène de toute façon au "
         + "portail sécurisé de Stripe, où vous terminez l'annulation. Il s'ouvre dans "
         + "votre navigateur.",
+]
+
+// ---------------------------------------------------------------------------
+// Settings → the core screens (#228): workspace, calling, usage, billing, and
+// every sentence the pure logic in SettingsLogic.swift composes
+// ---------------------------------------------------------------------------
+
+/// The words the five settings-core files say, in both languages.
+///
+/// ## Why one block rather than one per surface
+///
+/// The rest of this file is split per card, and this is not. It is the output of
+/// ONE extraction pass over five source files — Workspace, Calling, Usage,
+/// Billing and the pure logic under them — run alongside five other agents in
+/// the same tree. A single insertion point is one merge conflict instead of
+/// fifteen, and the keys are sorted so the block stays navigable. It can be cut
+/// into per-surface maps once #228 is finished and nobody else is editing here.
+///
+/// ## Where these came from, and why the key names look borrowed
+///
+/// They are borrowed, deliberately. Roughly two thirds of these keys and their
+/// French are Android's `SettingsStrings.kt` / `SettingsMoreStrings.kt` verbatim,
+/// and most of the rest are `apps/web/src/i18n/sections/`. The same sentence has
+/// to reach the same key on every client or the cross-client comparisons stop
+/// meaning anything — so where a twin existed, its NAME and its FRENCH were
+/// copied character for character rather than written again.
+///
+/// That is also why `settingsMore.*` and `misc.*` keys are defined in this file:
+/// the key name belongs to the sentence, not to the file it happens to sit in.
+/// `AppStringsTests` checks that no two sections claim the same key, which is
+/// the property that actually matters.
+///
+/// ## Three keys hold iOS's English rather than Android's, and each is pinned
+///
+///   `settings.cancelConsequence`     iOS says "nothing changes until the end of
+///   `settings.cancelOwnerOnly`       your billing period" where Android says
+///                                    the plan "runs to" it. #524 rewrote this
+///                                    pair so it is true for a PAUSED workspace
+///                                    as well — see the docblock on
+///                                    `CancelCard.consequence`.
+///   `settings.enableUsStartedPaused` must OPEN with the whole unpaused receipt
+///                                    and then add to it; `RegistrationPauseTests`
+///                                    asserts exactly that, so the news is never
+///                                    traded away for the caveat. Android's twin
+///                                    rewrites the middle of the sentence.
+///
+/// ## The English here is the English that shipped
+///
+/// Most of these sentences are asserted word for word by `SettingsLogicTests`,
+/// `BillingPauseTests`, `HeldNumbersTests`, `RegistrationPauseTests` and
+/// `ParityVectorsTests`, which call the logic functions with no locale and read
+/// the English table. Editing an English value below is editing what those
+/// guards compare against `packages/shared` — do it on purpose or not at all.
+private let settingsCoreEn: [String: String] = [
+    "misc.ownershipDetailAcceptOffer":
+        "Accepting makes you responsible for billing, the spending cap and "
+            + "your numbers; the current owner stays on the team as an admin. "
+            + "Everyone is told either way. The offer expires {when}.",
+    "misc.ownershipDetailBackupStanding":
+        "If the owner ever can't get in — they leave, they lose access to "
+            + "their email, or worse — you're the one person who can ask to take "
+            + "over. They get a week to say no, and everyone on the team is "
+            + "told. Nothing changes until you ask.",
+    "misc.ownershipDetailClaimWaiting":
+        "The owner has been emailed and can stop this until {when}. If "
+            + "nobody stops it, you can complete the takeover after that.",
+    "misc.ownershipDetailCompleteClaim":
+        "The waiting period is over and nobody stopped it. Completing this "
+            + "makes you the owner — billing, the spending cap and your numbers "
+            + "— and puts the previous owner on the team as an admin.",
+    "settings.awayEmergencyNotMentioned":
+        "Nobody has been told they can. Mention it in your away message if "
+            + "you want customers to know.",
+    "settings.awayEmergencyOff":
+        "Your away message tells customers to reply for an emergency, but "
+            + "nothing will treat that reply as one. Turn this back on, or take "
+            + "the offer out of the message.",
+    "settings.awayEmergencyUnknownWord":
+        "Your away message tells customers to reply {word}, which nothing "
+            + "watches for. Use {words} instead, add {word} to your emergency "
+            + "words, or take the offer out of the message.",
+    "settings.cancelConsequence":
+        "Cancel anytime. Nothing changes until the end of your billing "
+            + "period — if your texting is on, it stays on until then. Your "
+            + "number is held for {days} days from the day you cancel — not from "
+            + "the day your plan ends — so it can go back to the phone company "
+            + "soon after. After that it is released for good.",
+    "settings.cancelExitAction": "Continue to cancel",
+    "settings.cancelExportHeading": "Take your contacts with you",
+    "settings.cancelNotInPortal":
+        "The payment portal above is for cards and invoices and has no "
+            + "cancellation on it, so this is not something to go looking for "
+            + "there.",
+    "settings.cancelOwnerOnly":
+        "Only the owner can cancel this plan. When they do, nothing "
+            + "changes until the end of the billing period — if your texting is "
+            + "on, it stays on until then. The number is held for {days} days "
+            + "from the day they cancel — not from the day the plan ends — so it "
+            + "can go back to the phone company soon after. After that it is "
+            + "released for good.",
+    "settings.cancelReasonMissingFeature": "Missing something I need",
+    "settings.cancelReasonNotUsing": "Not using it",
+    "settings.cancelReasonOther": "Something else",
+    "settings.cancelReasonSeasonal": "Quiet season, I'll be back",
+    "settings.cancelReasonSwitched": "Going with something else",
+    "settings.cancelReasonTooExpensive": "Too expensive",
+    "settings.capConfirmTitle": "Set the cap to {cap}?",
+    "settings.capLowered":
+        "Sending pauses at {next} messages this period. If you're already "
+            + "past that, sends pause right away.",
+    "settings.capRaised":
+        "Sending pauses at {next} messages this period instead of "
+            + "{current}.",
+    "settings.capRaisedToCeiling":
+        "Sending pauses at {next} messages this period instead of "
+            + "{current}. That's the highest the cap goes. Every message over "
+            + "your {included} included is billed at the overage rate until "
+            + "sending pauses.",
+    "settings.changePlanBackCountMany": "You're on Pro now, and {count} numbers are back.",
+    "settings.changePlanBackCountOne": "You're on Pro now, and {count} number is back.",
+    "settings.changePlanBackOne": "You're on Pro now, and {subject} is back.",
+    "settings.changePlanOnPro": "You're on Pro now.",
+    "settings.changePlanScheduled":
+        "Switch to Starter scheduled for the end of this period.",
+    "settings.deviceAndroid": "Android app",
+    "settings.deviceCountMany": "{count} devices",
+    "settings.deviceCountOne": "1 device",
+    "settings.deviceIos": "iPhone or iPad",
+    "settings.deviceUnknown": "Unrecognised device",
+    "settings.deviceWeb": "Web browser",
+    "settings.enableUsButton": "Enable US texting: {fee} one-time",
+    "settings.enableUsReadOnly":
+        "Ask your account owner to enable US texting; it's a one-time "
+            + "{fee} carrier registration.",
+    "settings.enableUsStarted":
+        "US registration started. We'll email you when it's approved.",
+    "settings.enableUsStartedPaused":
+        "US registration started. We'll email you when it's approved; US "
+            + "texts go out when you resume.",
+    "settings.handoverPromptAsked": "You have asked to take over this workspace.",
+    "settings.handoverPromptBackup": "You are the backup owner.",
+    "settings.handoverPromptOffered": "You have been offered ownership of this workspace.",
+    "settings.handoverPromptReady": "Your request to take over is ready to complete.",
+    "settings.handoverWithdraw": "Withdraw my request",
+    "settings.heldKept":
+        "A number on hold hasn't been given up. We're still holding it, "
+            + "texts and calls still reach it, and nothing in its history has "
+            + "been touched — you just can't send or answer from it while it's "
+            + "on hold.",
+    "settings.heldLead":
+        "Your plan covers {allowance} numbers, and you have more than that.",
+    "settings.heldLeadOne": "Your plan covers 1 number, and you have more than that.",
+    "settings.heldNoteLead": "This number is on hold.",
+    "settings.heldRouteAlsoPro":
+        "Or move to Pro from the plan card above: that brings back "
+            + "everything that fits, with no extra number to buy.",
+    "settings.heldRouteFull":
+        "Starter tops out at {max} numbers, so there's no extra to buy "
+            + "here. Move to Pro from the plan card above and everything that "
+            + "fits comes back.",
+    "settings.heldRouteHelpMany": "Get in touch and we'll bring them back.",
+    "settings.heldRouteHelpOne": "Get in touch and we'll bring it back.",
+    "settings.heldRoutePro":
+        "Move to Pro from the plan card above and everything that fits "
+            + "comes back.",
+    "settings.heldRouteResumeMany":
+        "Your plan is paused, so nothing can be added to it yet. Resume it "
+            + "from the plan card above, then you can bring them back.",
+    "settings.heldRouteResumeOne":
+        "Your plan is paused, so nothing can be added to it yet. Resume it "
+            + "from the plan card above, then you can bring it back.",
+    "settings.heldTailFacts":
+        "Texts and calls still reach it, but you can't send or answer from "
+            + "it.",
+    "settings.heldTailWhereMember": "Your account owner can bring it back from Billing.",
+    "settings.heldTailWhereOwner": "Settings › Billing says why, and how to bring it back.",
+    "settings.heldTitleMany": "{count} of your numbers are on hold",
+    "settings.heldTitleOne": "One of your numbers is on hold",
+    "settings.keywordAlphanumeric":
+        "Letters and numbers only. Punctuation is stripped from what "
+            + "customers send.",
+    "settings.keywordCarrierOwned":
+        "{word} is answered by the phone carrier before it reaches us, so "
+            + "it can't be an emergency word.",
+    "settings.keywordEmpty": "Type a word first.",
+    "settings.keywordOneWord":
+        "One word only — customers text a single word, so a phrase would "
+            + "never match.",
+    "settings.keywordTooLong": "Too long — 15 characters at most.",
+    "settings.keywordTooShort": "Too short — use at least 2 characters.",
+    "settings.numberAreaCodeEmpty":
+        "Area code {code} is out of new numbers right now. Choose another "
+            + "number to finish setup.",
+    "settings.numberSetupFailed":
+        "We couldn't finish setting up your number. Choose a number to try "
+            + "again.",
+    "settings.numberSetupSlow":
+        "We're still setting up your number. This is taking a little "
+            + "longer than usual.",
+    "settings.numberSetupStalled":
+        "Setup is taking longer than expected. Choose a number to finish — "
+            + "you won't be charged again.",
+    "settings.offerComeBackOnStarter": "Come back on Starter",
+    "settings.offerGetHelp": "Get help",
+    "settings.offerMissingBody":
+        "If the thing you needed is not here, the fastest way to change "
+            + "that is to tell us what it was. We answer {when}. {promise}",
+    "settings.offerMissingHeading": "Tell us what was missing",
+    "settings.offerPausedSeasonalBody":
+        "Your number and your whole message history are held for as long "
+            + "as you stay paused — nothing expires while your plan is paused, "
+            + "and there is no date you have to be back by. Cancelling instead "
+            + "ends the pause and starts a clock: {days} days from the day you "
+            + "cancel, not from the end of your billing period, and at the end "
+            + "of it the number goes back to the phone company.",
+    "settings.offerPausedSeasonalHeading":
+        "Your plan is already paused, and that hold has no deadline",
+    "settings.offerRegistrationFeePaid":
+        " You have already paid the one-time registration fee, and it is "
+            + "charged at most once per workspace, ever — coming back does not "
+            + "charge it again.",
+    "settings.offerSeasonalBody":
+        "It keeps receiving texts the whole time, so nothing a customer "
+            + "sends is lost — you cannot reply until you are back, and your "
+            + "message history stays put. The {days} days run from the day you "
+            + "cancel, not from the end of your billing period, so a quiet "
+            + "season longer than that outruns the hold and the number goes back "
+            + "to the phone company.",
+    "settings.offerSeasonalGraceBody":
+        "It is still receiving texts, so nothing a customer sends is lost, "
+            + "though you cannot reply until you are back. That date is {days} "
+            + "days from the day you cancelled, not from the end of your last "
+            + "billing period. Resubscribe before then and the number and your "
+            + "whole message history come back with you.",
+    "settings.offerSeasonalGraceHeading": "Your number is still yours until the date below",
+    "settings.offerSeasonalHeading":
+        "Your number is held for {days} days from the day you cancel",
+    "settings.offerStarterCovers":
+        "It covers {seats} people and {numbers} business numbers.",
+    "settings.offerStarterCoversOne":
+        "It covers {seats} people and {numbers} business number.",
+    "settings.offerStarterHeading":
+        "Starter is the same product, priced for a smaller crew",
+    "settings.offerStarterHeadingGrace": "There is a smaller plan to come back on",
+    "settings.offerStarterPrice":
+        "Starter is {starter} a month instead of {pro}, with smaller "
+            + "texting and calling allowances under the same fair-use policy.",
+    "settings.offerStarterTail":
+        "The switch takes effect at the end of your current billing "
+            + "period. Your message history comes with you, and so does the "
+            + "number you text from — a second number does not: the downgrade is "
+            + "refused until you release it, and until the crew is back inside "
+            + "{seats} seats.",
+    "settings.offerStarterTailGrace":
+        "Come back on Starter and your number and your whole message "
+            + "history come with you.",
+    "settings.offerStarterTailPaused":
+        "Your plan is paused, so this takes two steps in this order: "
+            + "resume first, then switch plans. The switch takes effect at the "
+            + "end of your current billing period. Your message history comes "
+            + "with you, and so does the number you text from — a second number "
+            + "does not: the downgrade is refused until you release it, and "
+            + "until the crew is back inside {seats} seats.",
+    "settings.pauseComeBack": "Come back whenever the work does.",
+    "settings.pauseComeBackOn": "Come back on {plan} whenever the work does.",
+    "settings.pauseConfirmMessage":
+        "You'll be billed {price} a month instead of your plan, starting "
+            + "now. Texting and calling stop straight away. Your number, your "
+            + "message history and anything you have scheduled stay exactly "
+            + "where they are, and texts your customers send keep arriving. "
+            + "There is no deadline on any of it — resume whenever you like.",
+    "settings.pauseOfferBody":
+        "{price} a month holds your number and your whole message history "
+            + "for as long as the quiet lasts. There is no {days}-day clock on a "
+            + "pause and nothing goes back to the phone company. Texting and "
+            + "calling stop; texts your customers send still arrive and are "
+            + "waiting for you, and anything you scheduled is held rather than "
+            + "cancelled.",
+    "settings.pauseResume": "Resume",
+    "settings.pauseResumeNamed": "Resume {plan}",
+    "settings.pausedConfirmPlain": "Paused. Texting is off until you resume.",
+    "settings.pausedConfirmPriced":
+        "Paused. You're billed {price} a month until you resume.",
+    "settings.pausedLineArriving":
+        "Texts your customers send still arrive, and anything you "
+            + "scheduled is held until you resume — nothing is lost.",
+    "settings.pausedLineNoDeadline":
+        "Your number and your whole message history stay exactly where "
+            + "they are, with no deadline on them.",
+    "settings.pausedLineOff": "Texting and calling are off.",
+    "settings.pausedLinePrice": "You're billed {price} a month while this is paused.",
+    "settings.planCheckFailed":
+        "We couldn't check whether this plan is paused, so anything that "
+            + "depends on the answer — the price, the status and the plan switch "
+            + "— is left out rather than guessed. Nothing about your plan has "
+            + "changed.",
+    "settings.planChecking": "Checking whether this plan is paused…",
+    "settings.portedHoldLead": "The transfer finished — it's the line that's on hold.",
+    "settings.prepaidConsentCredited": "End my prepaid year and credit me {credit}",
+    "settings.prepaidConsentPlain": "End my prepaid year",
+    "settings.prepaidEndsCredited":
+        "Switching ends the prepaid year and puts {credit} back on your "
+            + "account as credit, which comes off your next invoices. You then "
+            + "pay the normal {plan} monthly price.",
+    "settings.prepaidEndsPlain":
+        "Switching ends the prepaid year. You then pay the normal {plan} "
+            + "monthly price.",
+    "settings.prepaidHeading": "You have a prepaid {plan} year running.",
+    "settings.provisionWaitLong":
+        "Your number is taking a little longer than usual. We're still on "
+            + "it, you don't have to wait here.",
+    "settings.provisionWaitMedium":
+        "Still setting up your number, this is taking a little longer than "
+            + "usual. Hang tight.",
+    "settings.provisionWaitShort":
+        "We're setting up your number. This usually takes under a minute.",
+    "settings.reinstateAction": "Bring it back",
+    "settings.reinstateAlready": "{number} was already back.",
+    "settings.reinstateBody":
+        "{price} is added to your plan. You're charged a prorated amount "
+            + "for the rest of this period today, then the full price each "
+            + "month. The number can send and answer again as soon as it goes "
+            + "through.",
+    "settings.reinstateDone": "{number} is back. You can send and answer from it again.",
+    "settings.reinstateStuck":
+        "Your plan covers {number} now, and the charge went through — but "
+            + "it hasn't come back yet. Get in touch and we'll finish it; you "
+            + "won't be charged again.",
+    "settings.reinstateTitle": "Bring back {number}?",
+    "settings.releaseBodyHeld":
+        "This gives the number up for good. It's on hold, not gone — texts "
+            + "and calls still reach it, and releasing ends that too. You can't "
+            + "get the same number back, and bringing it back from Settings › "
+            + "Billing stops being an option. Type the number to confirm.",
+    "settings.releaseBodyPlain":
+        "This gives the number up for good. Customers who text it won't "
+            + "reach you, and you can't get the same number back. It doesn't "
+            + "change your plan or what you pay — a number is included, so you "
+            + "can set up a new one here afterward. Type the number to confirm.",
+    "settings.textBackDefault":
+        "Sorry we missed your call! This is {business_name}. Reply here "
+            + "with your address and what you need, and we'll get you booked in.",
+    "settings.wordListNothing": "nothing",
+    "settings.wordListOr": " or ",
+    "settingsMore.addressLabel": "Address",
+    "settingsMore.aiNearLimit": "Close to this month's limit. It resets on the 1st.",
+    "settingsMore.aiNoOutcomes": "Nothing recorded yet about whether these got used.",
+    "settingsMore.askMeToConfirm": "Ask me to confirm",
+    "settingsMore.askMeToConfirmSupporting":
+        "Only when you start the conversation. Replying to a customer who "
+            + "texted or called you is never interrupted.",
+    "settingsMore.atCapBody":
+        "You've reached the spending cap you set. Sending and calling are "
+            + "paused until you raise the cap. Nothing bills past it.",
+    "settingsMore.atCapTitle": "At your spending cap",
+    "settingsMore.automatedLanguageDesc":
+        "The language we write in when we text a customer for you: the "
+            + "after-hours away reply, the missed-call text-back, the emergency "
+            + "acknowledgment, and the rating ask after a job.",
+    "settingsMore.automatedLanguageNotApp":
+        "This does not change the app itself, and it never rewrites words "
+            + "somebody typed. An away message you wrote is sent exactly as you "
+            + "wrote it, in the language you wrote it in.",
+    "settingsMore.automatedLanguagePerContact":
+        "One customer who should hear from you in the other language can "
+            + "be set on their own contact.",
+    "settingsMore.automatedLanguageTitle": "Language for automated texts",
+    "settingsMore.businessIdCard": "Business identification",
+    "settingsMore.businessIdCardDesc":
+        "What carriers have on file for your business. It comes from your "
+            + "texting registration.",
+    "settingsMore.businessIdLoading": "Loading…",
+    "settingsMore.callingMinutes": "Calling minutes",
+    "settingsMore.capMax": "{cap} max",
+    "settingsMore.capReadOnly":
+        "Spending cap: {cap} your included usage. Only the account owner "
+            + "can change it.",
+    "settingsMore.capSetTo": "Spending cap set to {cap}.",
+    "settingsMore.changeRegistrationUnderNumbers":
+        "Need to change something? Manage registration under Numbers.",
+    "settingsMore.changeTimezone": "Change timezone",
+    "settingsMore.commaRange": ", {range}",
+    "settingsMore.contactLabel": "Contact",
+    "settingsMore.countryCa": "Canada",
+    "settingsMore.countryElsewhere": "Elsewhere",
+    "settingsMore.countryUs": "United States",
+    "settingsMore.deliveryByCountry": "{country}: {figure}",
+    "settingsMore.deliveryCounts": "{delivered} of {total}",
+    "settingsMore.deliveryDelivered": "{count} confirmed delivered",
+    "settingsMore.deliveryDesc":
+        "Carrier-reported delivery this period. A carrier confirming it "
+            + "took the message is not the same as someone reading it, so this "
+            + "is the most we can honestly tell you.",
+    "settingsMore.deliveryFailed": " · {count} didn't get through",
+    "settingsMore.deliveryFailureNote":
+        "A text that doesn't get through is usually a disconnected number "
+            + "or a handset that has been off for days. Open the conversation "
+            + "and the message itself says what the carrier reported.",
+    "settingsMore.deliveryNothingBounced": "Nothing has bounced this period.",
+    "settingsMore.deliveryPending": " · {count} still on their way",
+    "settingsMore.deliveryPercent": "{percent}%",
+    "settingsMore.deliveryTitle": "Are your texts arriving?",
+    "settingsMore.details": "Details",
+    "settingsMore.detailsBlurb": "The raw numbers, month by month, if you want them.",
+    "settingsMore.extraNumberCountry":
+        "Extra numbers are available for US and Canadian workspaces.",
+    "settingsMore.extraNumberCurrency":
+        "Extra numbers are priced in US dollars and can't be added to a "
+            + "subscription billed in another currency yet. Contact support and "
+            + "we'll sort it out.",
+    "settingsMore.extraNumberUsTexting":
+        "An extra number needs US texting turned on for your workspace "
+            + "first.",
+    "settingsMore.headsUp": "Heads up",
+    "settingsMore.hideNumbers": "Hide the numbers",
+    "settingsMore.howCounted": "How messages are counted",
+    "settingsMore.howCountedLine":
+        "A text up to 160 characters counts as one message; longer texts "
+            + "split into 160-character segments (70 with emoji or accents). A "
+            + "photo message counts as three. Incoming messages are always free.",
+    "settingsMore.languageUpdated": "Language updated.",
+    "settingsMore.lastSixMonths": "Last 6 months",
+    "settingsMore.lastSixMonthsLine": "Outbound messages by calendar month.",
+    "settingsMore.legalName": "Legal name",
+    "settingsMore.localTimeNow": "It's {time} in {zone} right now.",
+    "settingsMore.louThisMonth": "Lou this month",
+    "settingsMore.louThisMonthLine":
+        "What Lou has drafted, filled in, and written down. Each resets on "
+            + "the 1st.",
+    "settingsMore.messages": "Messages",
+    "settingsMore.messagesInbound":
+        "{count} messages received this period. Inbound is always free.",
+    "settingsMore.messagesNoOverage": "No overage this period. $0.00 extra so far.",
+    "settingsMore.messagesOverage":
+        "{over} over your included amount: {amount} in overage on your "
+            + "next invoice.",
+    "settingsMore.messagesPauseAt": "Sending pauses at {count} messages",
+    "settingsMore.messagesPauseMax":
+        ", the maximum, which is 10 times your included messages.",
+    "settingsMore.messagesThisPeriod": "messages this period",
+    "settingsMore.messagesUsed": "{used} of {included} included messages used{range}.",
+    "settingsMore.minutesBilled":
+        "Past your included minutes, extra minutes bill at 1¢ each. "
+            + "Calling pauses at your spending cap, never mid-call.",
+    "settingsMore.minutesNotBilled": "Extra minutes aren't billed on your plan.",
+    "settingsMore.minutesOverage":
+        "{extra} extra minutes so far: {amount} on your next invoice.",
+    "settingsMore.minutesUsed": "{used} of {included} included minutes used.",
+    "settingsMore.nameLength200": "1 to 200 characters.",
+    "settingsMore.nearCapBody":
+        "You've used {percent}% of the spending cap you set. At the cap, "
+            + "sending and calling pause until you raise it. Nothing bills past "
+            + "it.",
+    "settingsMore.nearCapTitle": "Approaching your spending cap",
+    "settingsMore.nightTextAutomatedNote":
+        "This does not change automated texts. Reminders and anything else "
+            + "we send on your behalf still wait for the customer's morning, "
+            + "whatever this is set to.",
+    "settingsMore.nightTextDesc":
+        "Starting a brand-new conversation between 8pm and 8am the "
+            + "customer's time asks you to confirm first.",
+    "settingsMore.nightTextTitle": "Texting a new customer at night",
+    "settingsMore.noRegistrationNeeded":
+        "No registration needed. Canadian texting works without one. "
+            + "Enabling US texting adds it.",
+    "settingsMore.noRegistrationYet":
+        "No registration details on file yet. Manage registration under "
+            + "Numbers.",
+    "settingsMore.noTimezoneMatch": "No timezone matches \"{query}\".",
+    "settingsMore.off": "Off",
+    "settingsMore.oneTimesIncluded": "1x included",
+    "settingsMore.onlyAdminsLanguage": "Only owners and admins can change the language.",
+    "settingsMore.onlyAdminsRename": "Only owners and admins can rename the workspace.",
+    "settingsMore.onlyAdminsSigning":
+        "Only owners and admins can change how texts are signed.",
+    "settingsMore.onlyAdminsThis": "Only owners and admins can change this.",
+    "settingsMore.onlyAdminsTimezone": "Only owners and admins can change the timezone.",
+    "settingsMore.ownershipAskedToTakeOver":
+        "{name} has asked to take over this workspace.",
+    "settingsMore.ownershipCompletesAt":
+        "This completes {when} unless the owner stops it. Stopping it "
+            + "takes effect immediately.",
+    "settingsMore.ownershipDecline": "Decline",
+    "settingsMore.ownershipOfferExpires":
+        "Nothing changes until they accept. The offer expires {when}.",
+    "settingsMore.ownershipOffered": "Ownership has been offered to {name}.",
+    "settingsMore.ownershipStopThis": "Stop this",
+    "settingsMore.ownershipWaitOver":
+        "The waiting period is over. They can complete this at any time.",
+    "settingsMore.pacingBody":
+        "{subject} are pacing past what your plan includes this period.",
+    "settingsMore.pacingBoth": "Messages and calling minutes",
+    "settingsMore.pacingMessages": "Messages",
+    "settingsMore.pacingMinutes": "Calling minutes",
+    "settingsMore.pacingProjection":
+        " At the current pace, that adds about {amount} in overage to your "
+            + "next invoice.",
+    "settingsMore.pacingReassurance":
+        "This is the early flag, not a surprise bill. Your spending cap "
+            + "below is the backstop: sending and calling pause there, and "
+            + "nothing bills past it.",
+    "settingsMore.quietHoursNote":
+        "Texting quiet hours use each customer's local time, not this "
+            + "timezone.",
+    "settingsMore.registrationApproved": "approved",
+    "settingsMore.registrationBeingPrepared": "Registration details are being prepared.",
+    "settingsMore.registrationIs":
+        "Registration is {state}. Owners and admins can see the full "
+            + "details.",
+    "settingsMore.registrationOnFile": "on file",
+    "settingsMore.saveCap": "Save cap",
+    "settingsMore.seeFairUse": "See the fair use policy",
+    "settingsMore.sendingPausesAt": "SENDING PAUSES AT",
+    "settingsMore.showNumbers": "Show the numbers",
+    "settingsMore.signFirstText": "Sign the first text to a new customer",
+    "settingsMore.signFirstTextSupporting":
+        "Once per customer. Replies and later texts are never signed.",
+    "settingsMore.signTextsDesc":
+        "Add your business name to the first text you send someone, so a "
+            + "message from an unknown number says who it is from.",
+    "settingsMore.signTextsTitle": "Sign your texts",
+    "settingsMore.signatureLength":
+        "That is {count} characters, so a long first text can be sent in "
+            + "two parts instead of one.",
+    "settingsMore.sinLast4": "SIN (last 4)",
+    "settingsMore.spendingCap": "Spending cap",
+    "settingsMore.spendingCapDesc":
+        "Your protection against surprise bills. The cap is a multiple of "
+            + "your included usage. At the cap, sending and calling pause until "
+            + "you raise it. Nothing bills past it.",
+    "settingsMore.ssnLast4": "SSN (last 4)",
+    "settingsMore.storage": "Storage",
+    "settingsMore.storageNotes": "Files on notes",
+    "settingsMore.storageOther": "Other files",
+    "settingsMore.storageReceived": "Attachments received",
+    "settingsMore.storageSent": "Attachments sent",
+    "settingsMore.storageVoicemail": "Voicemail recordings",
+    "settingsMore.storedFree": "{size} stored. Free on every plan, no caps.",
+    "settingsMore.timezoneDesc":
+        "Dates in emails about your workspace are framed in your "
+            + "business's local time.",
+    "settingsMore.timezoneSaved": "Timezone saved.",
+    "settingsMore.timezoneSearchHint": "Search, e.g. Toronto",
+    "settingsMore.usRegPausedHeading": "You can start this while your plan is paused",
+    "settingsMore.usRegPausedNote":
+        "Carrier review takes days either way, and none of it needs your "
+            + "plan running. Doing it now means the waiting happens in your "
+            + "quiet season rather than in your first week back.",
+    "settingsMore.usRegPausedTermLimit":
+        "Sending stays off until you resume. Approval means US texting is "
+            + "set up and waiting for you, not that a paused plan starts sending.",
+    "settingsMore.usRegPausedTermMoney":
+        "The {fee} is charged today, and it is charged once ever — not "
+            + "again when you come back.",
+    "settingsMore.usRegPausedTermWait":
+        "Carriers review you while your plan is paused. The pause does not "
+            + "hold the registration up.",
+    "settingsMore.usRegRunningTail": "We handle it and email you when it's live.",
+    "settingsMore.usRegTerms":
+        "A one-time {fee} registration fee is charged to your card on "
+            + "file, and we register your business with US carriers. Approval "
+            + "usually takes 3 to 7 business days.",
+    "settingsMore.usageNone":
+        "No usage yet. Finish setup under Billing to pick a plan and get "
+            + "your number.",
+    "settingsMore.usageQuiet":
+        "Well within fair use this month. Almost every crew stays inside "
+            + "what their plan covers, and we reach out early if usage ever "
+            + "paces past it.",
+    "settingsMore.usageTitle": "Usage",
+    "settingsMore.usedOfCap": "{used} of {cap}",
+    "settingsMore.websiteLabel": "Website",
+    "settingsMore.whatGetsAdded": "What gets added",
+    "settingsMore.withThisOff": "With this off",
+    "settingsMore.withThisOffBody":
+        "You will not be asked. A text you start at 2am goes straight out, "
+            + "and it is on you that the customer wanted to hear from you then.",
+    "settingsMore.workspaceName": "Workspace name",
+    "settingsMore.workspaceNameDesc":
+        "The name your customers know you by, used on your carrier "
+            + "registration and available as {business_name} in your texts.",
+    "settingsMore.workspaceNameSaved": "Workspace name saved.",
+]
+
+/// The French for the block above. Same keys, same {tokens} — `AppStringsTests`
+/// checks both, in both directions.
+private let settingsCoreFr: [String: String] = [
+    "misc.ownershipDetailAcceptOffer":
+        "En acceptant, vous devenez responsable de la facturation, du "
+            + "plafond de dépenses et de vos numéros ; le propriétaire actuel "
+            + "reste dans l'équipe comme administrateur. Tout le monde est "
+            + "informé dans les deux cas. L'offre expire {when}.",
+    "misc.ownershipDetailBackupStanding":
+        "Si le propriétaire ne peut plus accéder au compte un jour — il "
+            + "quitte, il perd l'accès à son courriel, ou pire — vous êtes la "
+            + "seule personne qui peut demander à reprendre. Il a une semaine "
+            + "pour refuser, et toute l'équipe en est informée. Rien ne change "
+            + "tant que vous ne demandez pas.",
+    "misc.ownershipDetailClaimWaiting":
+        "Le propriétaire a reçu un courriel et peut arrêter cette demande "
+            + "jusqu'au {when}. Si personne ne l'arrête, vous pourrez terminer "
+            + "la reprise après ce moment.",
+    "misc.ownershipDetailCompleteClaim":
+        "Le délai d'attente est écoulé et personne ne l'a arrêté. Terminer "
+            + "cette reprise fait de vous le propriétaire — la facturation, le "
+            + "plafond de dépenses et vos numéros — et place l'ancien "
+            + "propriétaire dans l'équipe comme administrateur.",
+    "settings.awayEmergencyNotMentioned":
+        "Personne n'a été informé qu'il le pouvait. Mentionnez-le dans "
+            + "votre message d'absence si vous voulez que les clients le sachent.",
+    "settings.awayEmergencyOff":
+        "Votre message d'absence dit aux clients de répondre en cas "
+            + "d'urgence, mais rien ne traitera cette réponse comme telle. "
+            + "Réactivez ce réglage, ou retirez cette offre du message.",
+    "settings.awayEmergencyUnknownWord":
+        "Votre message d'absence dit aux clients de répondre {word}, un "
+            + "mot que rien ne surveille. Utilisez plutôt {words}, ajoutez "
+            + "{word} à vos mots d'urgence, ou retirez cette offre du message.",
+    "settings.cancelConsequence":
+        "Annulez quand vous voulez. Rien ne change avant la fin de votre "
+            + "période de facturation — si vos textos sont actifs, ils le "
+            + "restent jusque-là. Votre numéro est conservé {days} jours à "
+            + "compter du jour de l'annulation — et non du jour où votre forfait "
+            + "se termine — il peut donc retourner à la compagnie de téléphone "
+            + "peu après. Après quoi il est libéré définitivement.",
+    "settings.cancelExitAction": "Continuer vers l'annulation",
+    "settings.cancelExportHeading": "Partez avec vos clients",
+    "settings.cancelNotInPortal":
+        "Le portail de paiement ci-dessus sert aux cartes et aux factures "
+            + "et ne contient aucune annulation : ce n'est donc pas là qu'il "
+            + "faut la chercher.",
+    "settings.cancelOwnerOnly":
+        "Seul le propriétaire peut annuler ce forfait. Quand il le fait, "
+            + "rien ne change avant la fin de la période de facturation — si vos "
+            + "textos sont actifs, ils le restent jusque-là. Le numéro est "
+            + "conservé {days} jours à compter du jour de l'annulation — et non "
+            + "du jour où le forfait se termine — il peut donc retourner à la "
+            + "compagnie de téléphone peu après. Après quoi il est libéré "
+            + "définitivement.",
+    "settings.cancelReasonMissingFeature": "Il manque quelque chose dont j'ai besoin",
+    "settings.cancelReasonNotUsing": "Je ne m'en sers pas",
+    "settings.cancelReasonOther": "Autre chose",
+    "settings.cancelReasonSeasonal": "Saison tranquille, je reviendrai",
+    "settings.cancelReasonSwitched": "Je passe à autre chose",
+    "settings.cancelReasonTooExpensive": "Trop cher",
+    "settings.capConfirmTitle": "Fixer le plafond à {cap} ?",
+    "settings.capLowered":
+        "Les envois s'arrêtent à {next} textos pour cette période. Si vous "
+            + "avez déjà dépassé ce nombre, les envois s'arrêtent tout de suite.",
+    "settings.capRaised":
+        "Les envois s'arrêtent à {next} textos pour cette période au lieu "
+            + "de {current}.",
+    "settings.capRaisedToCeiling":
+        "Les envois s'arrêtent à {next} textos pour cette période au lieu "
+            + "de {current}. C'est le plafond le plus élevé possible. Chaque "
+            + "texto au-delà des {included} compris est facturé au tarif de "
+            + "dépassement jusqu'à l'arrêt des envois.",
+    "settings.changePlanBackCountMany":
+        "Vous êtes sur Pro maintenant, et {count} numéros sont de retour.",
+    "settings.changePlanBackCountOne":
+        "Vous êtes sur Pro maintenant, et {count} numéro est de retour.",
+    "settings.changePlanBackOne":
+        "Vous êtes sur Pro maintenant, et {subject} est de retour.",
+    "settings.changePlanOnPro": "Vous êtes sur Pro maintenant.",
+    "settings.changePlanScheduled": "Passage à Starter prévu pour la fin de cette période.",
+    "settings.deviceAndroid": "Application Android",
+    "settings.deviceCountMany": "{count} appareils",
+    "settings.deviceCountOne": "1 appareil",
+    "settings.deviceIos": "iPhone ou iPad",
+    "settings.deviceUnknown": "Appareil non reconnu",
+    "settings.deviceWeb": "Navigateur web",
+    "settings.enableUsButton": "Activer les textos américains : {fee} une seule fois",
+    "settings.enableUsReadOnly":
+        "Demandez au propriétaire du compte d'activer les textos "
+            + "américains ; c'est une inscription unique de {fee} auprès des "
+            + "fournisseurs.",
+    "settings.enableUsStarted":
+        "Inscription américaine lancée. Nous vous écrirons quand elle sera "
+            + "approuvée.",
+    "settings.enableUsStartedPaused":
+        "Inscription américaine lancée. Nous vous écrirons quand elle sera "
+            + "approuvée ; les textos américains partiront à votre reprise.",
+    "settings.handoverPromptAsked": "Vous avez demandé à reprendre cet espace de travail.",
+    "settings.handoverPromptBackup": "Vous êtes le propriétaire de relève.",
+    "settings.handoverPromptOffered":
+        "La propriété de cet espace de travail vous a été offerte.",
+    "settings.handoverPromptReady": "Votre demande de reprise est prête à être conclue.",
+    "settings.handoverWithdraw": "Retirer ma demande",
+    "settings.heldKept":
+        "Un numéro en attente n'a pas été abandonné. Nous le conservons, "
+            + "les textos et les appels s'y rendent toujours, et rien dans son "
+            + "historique n'a été touché — vous ne pouvez simplement pas envoyer "
+            + "ni répondre à partir de lui pendant l'attente.",
+    "settings.heldLead":
+        "Votre forfait couvre {allowance} numéros, et vous en avez plus "
+            + "que cela.",
+    "settings.heldLeadOne": "Votre forfait couvre 1 numéro, et vous en avez plus que cela.",
+    "settings.heldNoteLead": "Ce numéro est en attente.",
+    "settings.heldRouteAlsoPro":
+        "Ou passez à Pro depuis la carte du forfait ci-dessus : cela "
+            + "ramène tout ce qui entre, sans numéro supplémentaire à acheter.",
+    "settings.heldRouteFull":
+        "Starter plafonne à {max} numéros : il n'y a donc rien de plus à "
+            + "acheter ici. Passez à Pro depuis la carte du forfait ci-dessus et "
+            + "tout ce qui entre revient.",
+    "settings.heldRouteHelpMany": "Écrivez-nous et nous les ramènerons.",
+    "settings.heldRouteHelpOne": "Écrivez-nous et nous le ramènerons.",
+    "settings.heldRoutePro":
+        "Passez à Pro depuis la carte du forfait ci-dessus et tout ce qui "
+            + "entre revient.",
+    "settings.heldRouteResumeMany":
+        "Votre forfait est en pause : rien ne peut encore y être ajouté. "
+            + "Reprenez-le depuis la carte du forfait ci-dessus, puis vous "
+            + "pourrez les ramener.",
+    "settings.heldRouteResumeOne":
+        "Votre forfait est en pause : rien ne peut encore y être ajouté. "
+            + "Reprenez-le depuis la carte du forfait ci-dessus, puis vous "
+            + "pourrez le ramener.",
+    "settings.heldTailFacts":
+        "Les textos et les appels s'y rendent toujours, mais vous ne "
+            + "pouvez pas envoyer ni répondre à partir de lui.",
+    "settings.heldTailWhereMember":
+        "Le propriétaire du compte peut le ramener depuis Facturation.",
+    "settings.heldTailWhereOwner":
+        "Paramètres › Facturation explique pourquoi, et comment le ramener.",
+    "settings.heldTitleMany": "{count} de vos numéros sont en attente",
+    "settings.heldTitleOne": "Un de vos numéros est en attente",
+    "settings.keywordAlphanumeric":
+        "Lettres et chiffres seulement. La ponctuation est retirée de ce "
+            + "que les clients envoient.",
+    "settings.keywordCarrierOwned":
+        "{word} reçoit une réponse du fournisseur avant de nous parvenir : "
+            + "ce mot ne peut donc pas servir d'urgence.",
+    "settings.keywordEmpty": "Tapez d'abord un mot.",
+    "settings.keywordOneWord":
+        "Un seul mot — les clients envoient un mot unique, alors une "
+            + "expression ne correspondrait jamais.",
+    "settings.keywordTooLong": "Trop long — 15 caractères au maximum.",
+    "settings.keywordTooShort": "Trop court — utilisez au moins 2 caractères.",
+    "settings.numberAreaCodeEmpty":
+        "L'indicatif régional {code} n'a plus de nouveaux numéros pour "
+            + "l'instant. Choisissez un autre numéro pour terminer la "
+            + "configuration.",
+    "settings.numberSetupFailed":
+        "Nous n'avons pas pu terminer la configuration de votre numéro. "
+            + "Choisissez un numéro pour réessayer.",
+    "settings.numberSetupSlow":
+        "Nous configurons encore votre numéro. Cela prend un peu plus de "
+            + "temps que d'habitude.",
+    "settings.numberSetupStalled":
+        "La configuration prend plus de temps que prévu. Choisissez un "
+            + "numéro pour terminer — vous ne serez pas facturé de nouveau.",
+    "settings.offerComeBackOnStarter": "Revenir sur Starter",
+    "settings.offerGetHelp": "Obtenir de l'aide",
+    "settings.offerMissingBody":
+        "Si ce dont vous aviez besoin n'est pas là, le plus rapide pour "
+            + "que cela change est de nous dire ce que c'était. Nous répondons "
+            + "{when}. {promise}",
+    "settings.offerMissingHeading": "Dites-nous ce qui manquait",
+    "settings.offerPausedSeasonalBody":
+        "Votre numéro et tout votre historique de messages sont conservés "
+            + "aussi longtemps que vous restez en pause — rien n'expire pendant "
+            + "la pause, et il n'y a aucune date de retour à respecter. Annuler "
+            + "plutôt met fin à la pause et démarre un compte à rebours : {days} "
+            + "jours à compter du jour de l'annulation, et non de la fin de "
+            + "votre période de facturation, au terme duquel le numéro retourne "
+            + "à la compagnie de téléphone.",
+    "settings.offerPausedSeasonalHeading":
+        "Votre forfait est déjà en pause, et cette conservation n'a aucune "
+            + "échéance",
+    "settings.offerRegistrationFeePaid":
+        " Vous avez déjà payé les frais d'inscription uniques, et ils sont "
+            + "facturés au plus une fois par espace de travail, à jamais — "
+            + "revenir ne les facture pas de nouveau.",
+    "settings.offerSeasonalBody":
+        "Il continue de recevoir les textos tout du long, alors rien de ce "
+            + "qu'un client envoie n'est perdu — vous ne pouvez pas répondre "
+            + "avant votre retour, et votre historique de messages reste en "
+            + "place. Les {days} jours courent à compter du jour de "
+            + "l'annulation, et non de la fin de votre période de facturation : "
+            + "une saison tranquille plus longue dépasse donc la conservation, "
+            + "et le numéro retourne à la compagnie de téléphone.",
+    "settings.offerSeasonalGraceBody":
+        "Il reçoit encore les textos, alors rien de ce qu'un client envoie "
+            + "n'est perdu, même si vous ne pouvez pas répondre avant votre "
+            + "retour. Cette date est à {days} jours du jour de l'annulation, et "
+            + "non de la fin de votre dernière période de facturation. "
+            + "Réabonnez-vous avant, et le numéro ainsi que tout votre "
+            + "historique de messages reviennent avec vous.",
+    "settings.offerSeasonalGraceHeading":
+        "Votre numéro vous appartient encore jusqu'à la date ci-dessous",
+    "settings.offerSeasonalHeading":
+        "Votre numéro est conservé {days} jours à compter du jour de "
+            + "l'annulation",
+    "settings.offerStarterCovers":
+        "Il couvre {seats} personnes et {numbers} numéros d'entreprise.",
+    "settings.offerStarterCoversOne":
+        "Il couvre {seats} personnes et {numbers} numéro d'entreprise.",
+    "settings.offerStarterHeading":
+        "Starter est le même produit, au prix d'une plus petite équipe",
+    "settings.offerStarterHeadingGrace": "Il existe un forfait plus petit pour revenir",
+    "settings.offerStarterPrice":
+        "Starter coûte {starter} par mois au lieu de {pro}, avec des "
+            + "quantités de textos et d'appels plus petites, sous la même "
+            + "politique d'usage raisonnable.",
+    "settings.offerStarterTail":
+        "Le changement prend effet à la fin de votre période de "
+            + "facturation en cours. Votre historique de messages vous suit, et "
+            + "le numéro d'où vous textez aussi — un deuxième numéro, non : le "
+            + "passage au forfait inférieur est refusé tant que vous ne l'avez "
+            + "pas libéré, et tant que l'équipe n'est pas revenue sous les "
+            + "{seats} places.",
+    "settings.offerStarterTailGrace":
+        "Revenez sur Starter et votre numéro ainsi que tout votre "
+            + "historique de messages vous suivent.",
+    "settings.offerStarterTailPaused":
+        "Votre forfait est en pause : cela se fait donc en deux étapes, "
+            + "dans cet ordre — reprenez d'abord, puis changez de forfait. Le "
+            + "changement prend effet à la fin de votre période de facturation "
+            + "en cours. Votre historique de messages vous suit, et le numéro "
+            + "d'où vous textez aussi — un deuxième numéro, non : le passage au "
+            + "forfait inférieur est refusé tant que vous ne l'avez pas libéré, "
+            + "et tant que l'équipe n'est pas revenue sous les {seats} places.",
+    "settings.pauseComeBack": "Revenez quand le travail revient.",
+    "settings.pauseComeBackOn": "Revenez sur {plan} quand le travail revient.",
+    "settings.pauseConfirmMessage":
+        "Vous serez facturé {price} par mois au lieu de votre forfait, à "
+            + "compter de maintenant. Les textos et les appels s'arrêtent "
+            + "immédiatement. Votre numéro, votre historique de messages et tout "
+            + "ce que vous aviez planifié restent exactement où ils sont, et les "
+            + "textos que vos clients envoient continuent d'arriver. Rien de "
+            + "tout cela n'a d'échéance — reprenez quand vous voulez.",
+    "settings.pauseOfferBody":
+        "{price} par mois conserve votre numéro et tout votre historique "
+            + "de messages aussi longtemps que dure la période tranquille. Une "
+            + "pause n'a aucun compte à rebours de {days} jours et rien ne "
+            + "retourne à la compagnie de téléphone. Les textos et les appels "
+            + "s'arrêtent ; les textos que vos clients envoient arrivent "
+            + "toujours et vous attendent, et tout ce que vous aviez planifié "
+            + "est conservé plutôt qu'annulé.",
+    "settings.pauseResume": "Reprendre",
+    "settings.pauseResumeNamed": "Reprendre {plan}",
+    "settings.pausedConfirmPlain":
+        "En pause. Les textos sont désactivés jusqu'à votre reprise.",
+    "settings.pausedConfirmPriced":
+        "En pause. Vous êtes facturé {price} par mois jusqu'à votre "
+            + "reprise.",
+    "settings.pausedLineArriving":
+        "Les textos que vos clients envoient arrivent toujours, et tout ce "
+            + "que vous aviez planifié est conservé jusqu'à votre reprise — rien "
+            + "n'est perdu.",
+    "settings.pausedLineNoDeadline":
+        "Votre numéro et tout votre historique de messages restent "
+            + "exactement où ils sont, sans aucune échéance.",
+    "settings.pausedLineOff": "Les textos et les appels sont désactivés.",
+    "settings.pausedLinePrice": "Vous êtes facturé {price} par mois pendant la pause.",
+    "settings.planCheckFailed":
+        "Nous n'avons pas pu vérifier si ce forfait est en pause : tout ce "
+            + "qui dépend de la réponse — le prix, l'état et le changement de "
+            + "forfait — est donc omis plutôt que deviné. Rien n'a changé dans "
+            + "votre forfait.",
+    "settings.planChecking": "Vérification : ce forfait est-il en pause…",
+    "settings.portedHoldLead":
+        "Le transfert est terminé — c'est la ligne qui est en attente.",
+    "settings.prepaidConsentCredited":
+        "Mettre fin à mon année prépayée et me créditer {credit}",
+    "settings.prepaidConsentPlain": "Mettre fin à mon année prépayée",
+    "settings.prepaidEndsCredited":
+        "Changer met fin à l'année prépayée et remet {credit} sur votre "
+            + "compte en crédit, qui est déduit de vos prochaines factures. Vous "
+            + "payez ensuite le prix mensuel normal de {plan}.",
+    "settings.prepaidEndsPlain":
+        "Changer met fin à l'année prépayée. Vous payez ensuite le prix "
+            + "mensuel normal de {plan}.",
+    "settings.prepaidHeading": "Vous avez une année {plan} prépayée en cours.",
+    "settings.provisionWaitLong":
+        "Votre numéro prend un peu plus de temps que d'habitude. Nous nous "
+            + "en occupons, vous n'avez pas à attendre ici.",
+    "settings.provisionWaitMedium":
+        "Nous configurons encore votre numéro, cela prend un peu plus de "
+            + "temps que d'habitude. Patientez un instant.",
+    "settings.provisionWaitShort":
+        "Nous configurons votre numéro. Cela prend habituellement moins "
+            + "d'une minute.",
+    "settings.reinstateAction": "Le ramener",
+    "settings.reinstateAlready": "{number} était déjà de retour.",
+    "settings.reinstateBody":
+        "{price} est ajouté à votre forfait. Un montant au prorata pour le "
+            + "reste de cette période vous est facturé aujourd'hui, puis le "
+            + "plein prix chaque mois. Le numéro pourra envoyer et répondre de "
+            + "nouveau dès que ce sera traité.",
+    "settings.reinstateDone":
+        "{number} est de retour. Vous pouvez de nouveau envoyer et "
+            + "répondre à partir de lui.",
+    "settings.reinstateStuck":
+        "Votre forfait couvre {number} maintenant, et le paiement a été "
+            + "traité — mais le numéro n'est pas encore revenu. Écrivez-nous et "
+            + "nous terminerons l'opération ; vous ne serez pas facturé de "
+            + "nouveau.",
+    "settings.reinstateTitle": "Ramener {number} ?",
+    "settings.releaseBodyHeld":
+        "Cela abandonne le numéro pour de bon. Il est en attente, pas "
+            + "perdu — les textos et les appels s'y rendent toujours, et le "
+            + "libérer met fin à cela aussi. Vous ne pouvez pas récupérer le "
+            + "même numéro, et le ramener depuis Paramètres › Facturation cesse "
+            + "d'être possible. Tapez le numéro pour confirmer.",
+    "settings.releaseBodyPlain":
+        "Cela abandonne le numéro pour de bon. Les clients qui le textent "
+            + "ne vous joindront plus, et vous ne pouvez pas récupérer le même "
+            + "numéro. Cela ne change ni votre forfait ni ce que vous payez — un "
+            + "numéro est inclus, alors vous pouvez en configurer un nouveau ici "
+            + "par la suite. Tapez le numéro pour confirmer.",
+    "settings.textBackDefault":
+        "Desole, nous avons manque votre appel. Ici {business_name}. "
+            + "Repondez ici avec votre adresse et ce dont vous avez besoin, et "
+            + "nous vous trouverons une place.",
+    "settings.wordListNothing": "rien",
+    "settings.wordListOr": " ou ",
+    "settingsMore.addressLabel": "Adresse",
+    "settingsMore.aiNearLimit": "Proche de la limite du mois. Elle se réinitialise le 1er.",
+    "settingsMore.aiNoOutcomes":
+        "Rien n'est encore enregistré sur l'utilisation qui en a été faite.",
+    "settingsMore.askMeToConfirm": "Me demander de confirmer",
+    "settingsMore.askMeToConfirmSupporting":
+        "Seulement quand c'est vous qui démarrez la conversation. Répondre "
+            + "à un client qui vous a écrit ou appelé n'est jamais interrompu.",
+    "settingsMore.atCapBody":
+        "Vous avez atteint le plafond de dépenses que vous avez fixé. Les "
+            + "envois et les appels sont en pause tant que vous ne l'augmentez "
+            + "pas. Rien n'est facturé au-delà.",
+    "settingsMore.atCapTitle": "À votre plafond de dépenses",
+    "settingsMore.automatedLanguageDesc":
+        "La langue dans laquelle nous écrivons quand nous textons un "
+            + "client pour vous : la réponse hors des heures, le texto d'appel "
+            + "manqué, l'accusé de réception d'urgence et la demande "
+            + "d'évaluation après un travail.",
+    "settingsMore.automatedLanguageNotApp":
+        "Cela ne change pas l'application elle-même, et cela ne réécrit "
+            + "jamais les mots que quelqu'un a tapés. Un message d'absence que "
+            + "vous avez écrit est envoyé exactement tel quel, dans la langue où "
+            + "vous l'avez écrit.",
+    "settingsMore.automatedLanguagePerContact":
+        "Un client qui devrait recevoir vos messages dans l'autre langue "
+            + "peut être réglé sur sa propre fiche.",
+    "settingsMore.automatedLanguageTitle": "Langue des textos automatisés",
+    "settingsMore.businessIdCard": "Identification de l'entreprise",
+    "settingsMore.businessIdCardDesc":
+        "Ce que les fournisseurs ont au dossier pour votre entreprise. "
+            + "Cela vient de votre inscription pour les textos.",
+    "settingsMore.businessIdLoading": "Chargement…",
+    "settingsMore.callingMinutes": "Minutes d'appel",
+    "settingsMore.capMax": "{cap} max",
+    "settingsMore.capReadOnly":
+        "Plafond de dépenses : {cap} l'utilisation comprise. Seul le "
+            + "propriétaire du compte peut le changer.",
+    "settingsMore.capSetTo": "Plafond de dépenses fixé à {cap}.",
+    "settingsMore.changeRegistrationUnderNumbers":
+        "Besoin de changer quelque chose ? Gérez l'inscription sous "
+            + "Numéros.",
+    "settingsMore.changeTimezone": "Changer le fuseau horaire",
+    "settingsMore.commaRange": ", {range}",
+    "settingsMore.contactLabel": "Contact",
+    "settingsMore.countryCa": "Canada",
+    "settingsMore.countryElsewhere": "Ailleurs",
+    "settingsMore.countryUs": "États-Unis",
+    "settingsMore.deliveryByCountry": "{country} : {figure}",
+    "settingsMore.deliveryCounts": "{delivered} sur {total}",
+    "settingsMore.deliveryDelivered": "{count} livrés avec confirmation",
+    "settingsMore.deliveryDesc":
+        "Livraison rapportée par les fournisseurs pour cette période. "
+            + "Qu'un fournisseur confirme avoir pris le message ne veut pas dire "
+            + "que quelqu'un l'a lu : c'est le plus que nous pouvons honnêtement "
+            + "vous dire.",
+    "settingsMore.deliveryFailed": " · {count} ne se sont pas rendus",
+    "settingsMore.deliveryFailureNote":
+        "Un texto qui ne se rend pas vient généralement d'un numéro "
+            + "débranché ou d'un appareil éteint depuis des jours. Ouvrez la "
+            + "conversation : le message lui-même dit ce que le fournisseur a "
+            + "rapporté.",
+    "settingsMore.deliveryNothingBounced": "Rien n'a rebondi pour cette période.",
+    "settingsMore.deliveryPending": " · {count} encore en route",
+    "settingsMore.deliveryPercent": "{percent} %",
+    "settingsMore.deliveryTitle": "Vos textos arrivent-ils ?",
+    "settingsMore.details": "Détails",
+    "settingsMore.detailsBlurb": "Les chiffres bruts, mois par mois, si vous les voulez.",
+    "settingsMore.extraNumberCountry":
+        "Les numéros supplémentaires sont offerts aux espaces de travail "
+            + "américains et canadiens.",
+    "settingsMore.extraNumberCurrency":
+        "Les numéros supplémentaires sont facturés en dollars américains "
+            + "et ne peuvent pas encore être ajoutés à un abonnement facturé "
+            + "dans une autre devise. Écrivez au soutien et nous arrangerons "
+            + "cela.",
+    "settingsMore.extraNumberUsTexting":
+        "Un numéro supplémentaire exige d'abord que les textos américains "
+            + "soient activés pour votre espace de travail.",
+    "settingsMore.headsUp": "À noter",
+    "settingsMore.hideNumbers": "Masquer les chiffres",
+    "settingsMore.howCounted": "Comment les textos sont comptés",
+    "settingsMore.howCountedLine":
+        "Un texto d'au plus 160 caractères compte pour un message ; les "
+            + "textos plus longs se divisent en segments de 160 caractères (70 "
+            + "avec des émojis ou des accents). Un message avec photo compte "
+            + "pour trois. Les messages entrants sont toujours gratuits.",
+    "settingsMore.languageUpdated": "Langue mise à jour.",
+    "settingsMore.lastSixMonths": "6 derniers mois",
+    "settingsMore.lastSixMonthsLine": "Textos sortants par mois civil.",
+    "settingsMore.legalName": "Dénomination sociale",
+    "settingsMore.localTimeNow": "Il est {time} à {zone} en ce moment.",
+    "settingsMore.louThisMonth": "Lou ce mois-ci",
+    "settingsMore.louThisMonthLine":
+        "Ce que Lou a rédigé, rempli et transcrit. Chaque compteur se "
+            + "réinitialise le 1er.",
+    "settingsMore.messages": "Textos",
+    "settingsMore.messagesInbound":
+        "{count} textos reçus pour cette période. La réception est "
+            + "toujours gratuite.",
+    "settingsMore.messagesNoOverage":
+        "Aucun dépassement pour cette période. 0,00 $ de plus jusqu'ici.",
+    "settingsMore.messagesOverage":
+        "{over} au-delà de ce qui est compris : {amount} en dépassement "
+            + "sur votre prochaine facture.",
+    "settingsMore.messagesPauseAt": "Les envois s'arrêtent à {count} textos",
+    "settingsMore.messagesPauseMax":
+        ", le maximum, soit 10 fois les textos compris dans votre forfait.",
+    "settingsMore.messagesThisPeriod": "textos pour cette période",
+    "settingsMore.messagesUsed": "{used} des {included} textos compris utilisés{range}.",
+    "settingsMore.minutesBilled":
+        "Au-delà des minutes comprises, chaque minute supplémentaire coûte "
+            + "1 ¢. Les appels s'arrêtent à votre plafond de dépenses, jamais en "
+            + "plein appel.",
+    "settingsMore.minutesNotBilled":
+        "Les minutes supplémentaires ne sont pas facturées sur votre "
+            + "forfait.",
+    "settingsMore.minutesOverage":
+        "{extra} minutes de plus jusqu'ici : {amount} sur votre prochaine "
+            + "facture.",
+    "settingsMore.minutesUsed": "{used} des {included} minutes comprises utilisées.",
+    "settingsMore.nameLength200": "De 1 à 200 caractères.",
+    "settingsMore.nearCapBody":
+        "Vous avez utilisé {percent} % du plafond de dépenses que vous "
+            + "avez fixé. Au plafond, les envois et les appels s'arrêtent tant "
+            + "que vous ne l'augmentez pas. Rien n'est facturé au-delà.",
+    "settingsMore.nearCapTitle": "Proche de votre plafond de dépenses",
+    "settingsMore.nightTextAutomatedNote":
+        "Cela ne change rien aux textos automatisés. Les rappels et tout "
+            + "ce que nous envoyons en votre nom attendent toujours le matin du "
+            + "client, quel que soit ce réglage.",
+    "settingsMore.nightTextDesc":
+        "Démarrer une toute nouvelle conversation entre 20 h et 8 h, heure "
+            + "du client, vous demande d'abord de confirmer.",
+    "settingsMore.nightTextTitle": "Écrire à un nouveau client la nuit",
+    "settingsMore.noRegistrationNeeded":
+        "Aucune inscription requise. Les textos au Canada fonctionnent "
+            + "sans. Activer les textos vers les États-Unis en ajoute une.",
+    "settingsMore.noRegistrationYet":
+        "Aucun renseignement d'inscription au dossier pour l'instant. "
+            + "Gérez l'inscription sous Numéros.",
+    "settingsMore.noTimezoneMatch": "Aucun fuseau horaire ne correspond à « {query} ».",
+    "settingsMore.off": "Désactivé",
+    "settingsMore.oneTimesIncluded": "1x compris",
+    "settingsMore.onlyAdminsLanguage":
+        "Seuls les propriétaires et les admins peuvent changer la langue.",
+    "settingsMore.onlyAdminsRename":
+        "Seuls les propriétaires et les admins peuvent renommer l'espace "
+            + "de travail.",
+    "settingsMore.onlyAdminsSigning":
+        "Seuls les propriétaires et les admins peuvent changer la "
+            + "signature des textos.",
+    "settingsMore.onlyAdminsThis":
+        "Seuls les propriétaires et les admins peuvent changer ce réglage.",
+    "settingsMore.onlyAdminsTimezone":
+        "Seuls les propriétaires et les admins peuvent changer le fuseau "
+            + "horaire.",
+    "settingsMore.ownershipAskedToTakeOver":
+        "{name} a demandé à reprendre cet espace de travail.",
+    "settingsMore.ownershipCompletesAt":
+        "Cela se conclut le {when} à moins que le propriétaire l'arrête. "
+            + "L'arrêter prend effet immédiatement.",
+    "settingsMore.ownershipDecline": "Refuser",
+    "settingsMore.ownershipOfferExpires":
+        "Rien ne change tant que la personne n'a pas accepté. L'offre "
+            + "expire le {when}.",
+    "settingsMore.ownershipOffered": "La propriété a été offerte à {name}.",
+    "settingsMore.ownershipStopThis": "Arrêter",
+    "settingsMore.ownershipWaitOver":
+        "La période d'attente est terminée. La personne peut compléter la "
+            + "reprise à tout moment.",
+    "settingsMore.pacingBody":
+        "{subject} dépassent le rythme de ce que votre forfait comprend "
+            + "pour cette période.",
+    "settingsMore.pacingBoth": "Les textos et les minutes d'appel",
+    "settingsMore.pacingMessages": "Les textos",
+    "settingsMore.pacingMinutes": "Les minutes d'appel",
+    "settingsMore.pacingProjection":
+        " À ce rythme, cela ajoute environ {amount} en dépassement à votre "
+            + "prochaine facture.",
+    "settingsMore.pacingReassurance":
+        "C'est un avertissement précoce, pas une facture-surprise. Votre "
+            + "plafond de dépenses ci-dessous est le filet : les envois et les "
+            + "appels s'arrêtent là, et rien n'est facturé au-delà.",
+    "settingsMore.quietHoursNote":
+        "Les heures de silence des textos suivent l'heure locale de chaque "
+            + "client, pas ce fuseau horaire.",
+    "settingsMore.registrationApproved": "approuvée",
+    "settingsMore.registrationBeingPrepared":
+        "Les renseignements d'inscription sont en préparation.",
+    "settingsMore.registrationIs":
+        "L'inscription est {state}. Les propriétaires et les admins "
+            + "peuvent voir tous les détails.",
+    "settingsMore.registrationOnFile": "au dossier",
+    "settingsMore.saveCap": "Enregistrer le plafond",
+    "settingsMore.seeFairUse": "Voir la politique d'usage raisonnable",
+    "settingsMore.sendingPausesAt": "LES ENVOIS S'ARRÊTENT À",
+    "settingsMore.showNumbers": "Afficher les chiffres",
+    "settingsMore.signFirstText": "Signer le premier texto à un nouveau client",
+    "settingsMore.signFirstTextSupporting":
+        "Une fois par client. Les réponses et les textos suivants ne sont "
+            + "jamais signés.",
+    "settingsMore.signTextsDesc":
+        "Ajoutez le nom de votre entreprise au premier texto que vous "
+            + "envoyez à quelqu'un, pour qu'un message venant d'un numéro "
+            + "inconnu dise de qui il vient.",
+    "settingsMore.signTextsTitle": "Signer vos textos",
+    "settingsMore.signatureLength":
+        "Cela fait {count} caractères : un premier texto long peut donc "
+            + "être envoyé en deux parties plutôt qu'une.",
+    "settingsMore.sinLast4": "NAS (4 derniers chiffres)",
+    "settingsMore.spendingCap": "Plafond de dépenses",
+    "settingsMore.spendingCapDesc":
+        "Votre protection contre les factures-surprises. Le plafond est un "
+            + "multiple de l'utilisation comprise dans votre forfait. Au "
+            + "plafond, les envois et les appels s'arrêtent tant que vous ne "
+            + "l'augmentez pas. Rien n'est facturé au-delà.",
+    "settingsMore.ssnLast4": "SSN (4 derniers chiffres)",
+    "settingsMore.storage": "Stockage",
+    "settingsMore.storageNotes": "Fichiers dans les notes",
+    "settingsMore.storageOther": "Autres fichiers",
+    "settingsMore.storageReceived": "Pièces jointes reçues",
+    "settingsMore.storageSent": "Pièces jointes envoyées",
+    "settingsMore.storageVoicemail": "Enregistrements de boîte vocale",
+    "settingsMore.storedFree":
+        "{size} stockés. Gratuit sur tous les forfaits, sans plafond.",
+    "settingsMore.timezoneDesc":
+        "Les dates dans les courriels au sujet de votre espace de travail "
+            + "sont exprimées dans l'heure locale de votre entreprise.",
+    "settingsMore.timezoneSaved": "Fuseau horaire enregistré.",
+    "settingsMore.timezoneSearchHint": "Rechercher, p. ex. Toronto",
+    "settingsMore.usRegPausedHeading":
+        "Vous pouvez commencer même si votre forfait est en pause",
+    "settingsMore.usRegPausedNote":
+        "L'examen par les fournisseurs prend des jours de toute façon, et "
+            + "rien n'exige que votre forfait soit actif. Le faire maintenant, "
+            + "c'est attendre pendant votre saison tranquille plutôt que pendant "
+            + "votre première semaine de retour.",
+    "settingsMore.usRegPausedTermLimit":
+        "L'envoi reste désactivé jusqu'à votre reprise. L'approbation "
+            + "signifie que les textos américains sont configurés et vous "
+            + "attendent, pas qu'un forfait en pause se met à envoyer.",
+    "settingsMore.usRegPausedTermMoney":
+        "Les {fee} sont facturés aujourd'hui, et une seule fois — pas de "
+            + "nouveau à votre retour.",
+    "settingsMore.usRegPausedTermWait":
+        "Les fournisseurs vous examinent pendant que votre forfait est en "
+            + "pause. La pause ne retarde pas l'inscription.",
+    "settingsMore.usRegRunningTail":
+        "Nous nous en occupons et vous écrivons quand c'est en service.",
+    "settingsMore.usRegTerms":
+        "Des frais d'inscription uniques de {fee} sont portés à la carte "
+            + "que nous avons au dossier, et nous inscrivons votre entreprise "
+            + "auprès des fournisseurs américains. L'approbation prend "
+            + "habituellement de 3 à 7 jours ouvrables.",
+    "settingsMore.usageNone":
+        "Aucune utilisation pour l'instant. Terminez la configuration sous "
+            + "Facturation pour choisir un forfait et obtenir votre numéro.",
+    "settingsMore.usageQuiet":
+        "Bien à l'intérieur de l'usage raisonnable ce mois-ci. Presque "
+            + "toutes les équipes restent dans ce que leur forfait couvre, et "
+            + "nous communiquons avec vous tôt si l'utilisation dépasse le "
+            + "rythme.",
+    "settingsMore.usageTitle": "Utilisation",
+    "settingsMore.usedOfCap": "{used} sur {cap}",
+    "settingsMore.websiteLabel": "Site Web",
+    "settingsMore.whatGetsAdded": "Ce qui est ajouté",
+    "settingsMore.withThisOff": "Avec ce réglage désactivé",
+    "settingsMore.withThisOffBody":
+        "On ne vous demandera rien. Un texto que vous démarrez à 2 h part "
+            + "directement, et c'est à vous de juger que le client voulait avoir "
+            + "de vos nouvelles à ce moment-là.",
+    "settingsMore.workspaceName": "Nom de l'espace de travail",
+    "settingsMore.workspaceNameDesc":
+        "Le nom sous lequel vos clients vous connaissent, utilisé pour "
+            + "votre inscription auprès des fournisseurs et offert comme "
+            + "{business_name} dans vos textos.",
+    "settingsMore.workspaceNameSaved": "Nom de l'espace de travail enregistré.",
 ]

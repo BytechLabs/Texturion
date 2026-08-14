@@ -54,7 +54,12 @@ final class TelnyxSdkClient: NSObject, SoftphoneSdk {
         guard let active = client else {
             throw ApiError(
                 code: ApiErrorCode.network,
-                message: "Calling isn't ready yet. Try again in a moment.",
+                // #228: `UiLocaleStore` rather than the `appLocale` environment
+                // — this is the SDK seam, not a view, and the store is the same
+                // answer the router publishes.
+                message: AppStrings.translate(
+                    UiLocaleStore.shared.resolved, "shell.callingNotReady"
+                ),
                 httpStatus: 0
             )
         }

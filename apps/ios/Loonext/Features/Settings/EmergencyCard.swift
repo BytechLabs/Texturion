@@ -51,6 +51,14 @@ struct EmergencyCard: View {
         _replyEnabled = State(initialValue: company.emergency_reply_enabled)
     }
 
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
+    /// The sentence no setting removes, in the reader's language — resolved
+    /// here rather than held as a constant, exactly as `EmergencyCard.kt` does.
+    private var safetyLine: String { t(emergencySafetyLineKey) }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
     private var savedWords: [String] { company.effectiveEmergencyWords }
     private var trimmedMessage: String {
@@ -71,25 +79,21 @@ struct EmergencyCard: View {
         let body = trimmedMessage.isEmpty
             ? company.emergency_effective_message
             : trimmedMessage
-        return body.contains(emergencySafetyLine)
+        return body.contains(safetyLine)
             ? body
-            : "\(body) \(emergencySafetyLine)"
+            : "\(body) \(safetyLine)"
     }
 
     var body: some View {
         SettingsCard(
-            title: "Emergency words and reply",
-            description: "Which words a customer can text to reach the whole crew "
-                + "straight away, and what goes back to them automatically."
+            title: t("settings.emergencyTitle"),
+            description: t("settings.emergencyIntro")
         ) {
-            Text("Words that count as an emergency")
+            Text(t("settings.emergencyWordsHeading"))
                 .font(.callout)
-            Text(
-                "Matched on the first word a customer sends, so \"URGENT no heat\" "
-                    + "counts. Use the words your customers would actually reach for."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
+            Text(t("settings.emergencyWordsHelp"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
 
             Spacer().frame(height: 8)
             // The word IS the content, so it stays legible and the remove
@@ -99,7 +103,7 @@ struct EmergencyCard: View {
             if canEdit {
                 Spacer().frame(height: 8)
                 HStack(spacing: 8) {
-                    TextField("LOCKEDOUT", text: $draft)
+                    TextField(t("settings.emergencyAddWordPlaceholder"), text: $draft)
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.characters)
@@ -107,18 +111,18 @@ struct EmergencyCard: View {
                         .onChange(of: draft) { _, value in
                             if value.count > 15 { draft = String(value.prefix(15)) }
                         }
-                    Button("Add") { add() }
+                    Button(t("settings.emergencyAddWordAction")) { add() }
                         .disabled(saving)
                 }
             }
             if !company.emergency_keywords_are_custom {
-                Text("These are the defaults. Change them and only your words are watched for.")
+                Text(t("settings.emergencyDefaults"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
             Spacer().frame(height: 16)
-            Text("Automatic reply")
+            Text(t("settings.emergencyReplyHeading"))
                 .font(.callout)
             // #553: the switch lives NEXT TO the thing it governs.
             //
@@ -131,24 +135,18 @@ struct EmergencyCard: View {
             // crew's behalf was to stop the product noticing emergencies. Turning
             // this one off keeps the crew escalation, the push and the inbox flag,
             // and withholds only the message.
-            Toggle("Text the customer back", isOn: $replyEnabled)
+            Toggle(t("settings.emergencyTextBack"), isOn: $replyEnabled)
                 .font(.callout)
                 .disabled(!canEdit || saving)
                 .onChange(of: replyEnabled) { _, next in saveReplyEnabled(next) }
                 .padding(.top, 4)
-            Text(
-                "Off means we still alert the crew and flag the thread — we just "
-                    + "don't message the customer for you."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
+            Text(t("settings.emergencyTextBackHelp"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             Spacer().frame(height: 6)
-            Text(
-                "Sent once per hour, at most, to a customer who texts one of these "
-                    + "words. Say what is true for your business."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
+            Text(t("settings.emergencyReplyHelp"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
 
             Spacer().frame(height: 6)
             TextField(
@@ -163,8 +161,12 @@ struct EmergencyCard: View {
                 if value.count > 1000 { message = String(value.prefix(1000)) }
             }
             Text(
-                "\(message.count)/1000"
-                    + (company.emergency_message_is_custom ? "" : " · using the default")
+                t(
+                    company.emergency_message_is_custom
+                        ? "settings.emergencyCount"
+                        : "settings.emergencyCountDefault",
+                    ["count": String(message.count)]
+                )
             )
             .font(.caption2)
             .foregroundStyle(.secondary)
@@ -173,28 +175,26 @@ struct EmergencyCard: View {
             // see that one sentence follows it whatever they write — otherwise
             // they will believe they removed it, and find out from a customer.
             Spacer().frame(height: 12)
-            PreviewBubble(label: "What the customer receives", text: preview)
-            Text(
-                "\"\(emergencySafetyLine)\" is always added and can't be edited. You "
-                    + "decide what is promised; whether someone in danger is told where "
-                    + "else to turn isn't ours to leave out."
-            )
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+            PreviewBubble(label: t("settings.emergencyPreviewLabel"), text: preview)
+            Text(t("settings.emergencySafetyLineNote", ["line": safetyLine]))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
             InlineError(error)
 
             if canEdit {
                 if dirty {
                     Spacer().frame(height: 10)
-                    Button(saving ? "Saving…" : "Save emergency settings") { save() }
+                    Button(
+                        saving ? t("common.saving") : t("settings.emergencySaveAction")
+                    ) { save() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(saving)
                 }
             } else {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change emergency settings.")
+                ReadOnlyLine(t("settings.emergencyReadOnly"))
             }
         }
     }
@@ -207,11 +207,11 @@ struct EmergencyCard: View {
         }
         let word = raw.uppercased()
         if words.contains(word) {
-            error = "\(word) is already on the list."
+            error = t("settings.emergencyDuplicateWord", ["word": word])
             return
         }
         if words.count >= 10 {
-            error = "Ten words is the limit — past that it stops being an emergency."
+            error = t("settings.emergencyTooManyWords")
             return
         }
         error = nil
@@ -224,8 +224,7 @@ struct EmergencyCard: View {
         // on the away card says that, honestly and reversibly. Watching for
         // nothing while the switch reads ON is the #414 defect.
         if words.count == 1 {
-            error = "Keep at least one word. To stop treating replies as emergencies, "
-                + "turn the switch off above."
+            error = t("settings.emergencyKeepOneWord")
             return
         }
         error = nil
@@ -270,7 +269,7 @@ struct EmergencyCard: View {
             do {
                 let updated = try await scope.repo.updateCompany(scope.companyId, patch: body)
                 onCompanyUpdated(updated)
-                scope.showMessage("Emergency settings saved.")
+                scope.showMessage(t("settings.emergencySaved"))
             } catch {
                 self.error = error.userMessage
             }
@@ -280,10 +279,19 @@ struct EmergencyCard: View {
 }
 
 /// The one sentence appended to every emergency reply, mirroring
-/// `EMERGENCY_SAFETY_LINE` in shared. Kept in Swift because this screen has to
-/// PREVIEW the composed message while the owner is still typing — the server's
-/// composed value is a round trip behind.
-let emergencySafetyLine = "If anyone is in danger, call 911."
+/// `EMERGENCY_SAFETY_LINE` in shared. Read from the catalogue because this
+/// screen has to PREVIEW the composed message while the owner is still typing —
+/// the server's composed value is a round trip behind.
+///
+/// BOTH LANGUAGES ARE THE SERVER'S OWN, copied character for character from
+/// `packages/shared/src/locale.ts`. This is the one sentence in the product
+/// with a SAFETY property: everything else degrades to "the reader gets
+/// English" when a translation is missing, and this would degrade to somebody
+/// in danger being told what to do in a language they may not read. A prettier
+/// French written here would preview a sentence the server never sends, which
+/// is the same failure with better spelling. 911 is the number in Canada and
+/// the US alike, so it is as region-neutral in French as it is in English.
+let emergencySafetyLineKey = "settings.emergencySafetyLine"
 
 /// The keyword chips, wrapped.
 ///
@@ -297,12 +305,18 @@ private struct WrappingWords: View {
     let canEdit: Bool
     let onRemove: (String) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     var body: some View {
         FlexibleRows(items: words) { word in
             Button {
                 if canEdit { onRemove(word) }
             } label: {
-                Text(canEdit ? "\(word)  ×" : word)
+                Text(canEdit ? t("settings.emergencyWordChip", ["word": word]) : word)
                     .font(.system(.footnote, design: .monospaced))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -315,7 +329,9 @@ private struct WrappingWords: View {
             }
             .buttonStyle(.plain)
             .disabled(!canEdit)
-            .accessibilityLabel(canEdit ? "Remove \(word)" : word)
+            .accessibilityLabel(
+                canEdit ? t("settings.emergencyRemoveWordLabel", ["word": word]) : word
+            )
         }
     }
 }

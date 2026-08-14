@@ -77,7 +77,7 @@ struct SettingsAuthClient: Sendable {
         guard let id = object?["id"]?.stringValue else {
             throw ApiError(
                 code: ApiErrorCode.network,
-                message: "Setup didn't start. Try again.",
+                message: AppStrings.translate(nil, "settingsMore.tfaSetupDidNotStart"),
                 httpStatus: 0
             )
         }
@@ -99,7 +99,7 @@ struct SettingsAuthClient: Sendable {
         guard let id = object?["id"]?.stringValue else {
             throw ApiError(
                 code: ApiErrorCode.network,
-                message: "Couldn't check that code. Try again.",
+                message: AppStrings.translate(nil, "settingsMore.tfaCodeCheckFailed"),
                 httpStatus: 0
             )
         }
@@ -136,11 +136,17 @@ struct SettingsAuthClient: Sendable {
 
     // MARK: - Internals
 
+    /// `locale` is the READER's, carried in rather than read here: this is not a
+    /// View and the two sentences below are ours rather than GoTrue's. Defaulted
+    /// to nil — the English table — so a caller with no environment to read one
+    /// from still gets a sentence rather than a key. The same shape, and the same
+    /// default, as `SettingsAuth.kt`'s `request`.
     private func request(
         method: String,
         path: String,
         body: [String: JSONValue]?,
-        bearer: String
+        bearer: String,
+        locale: String? = nil
     ) async throws -> Data {
         var request = URLRequest(url: supabaseURL.appending(path: "auth/v1/\(path)"))
         request.httpMethod = method
@@ -158,26 +164,38 @@ struct SettingsAuthClient: Sendable {
         } catch {
             throw ApiError(
                 code: ApiErrorCode.network,
-                message: "Can't reach the sign-in service. Check your connection.",
+                message: AppStrings.translate(locale, "settingsMore.cantReachSignIn"),
                 httpStatus: 0
             )
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200 ..< 300).contains(status) else {
-            throw Self.parseAuthError(data, status: status)
+            throw Self.parseAuthError(data, status: status, locale: locale)
         }
         return data
     }
 
     /// GoTrue error shapes vary ({error_code,msg} vs {error,error_description}).
-    private static func parseAuthError(_ data: Data, status: Int) -> ApiError {
+    ///
+    /// Only the LAST fallback is ours to translate. The two above it are the
+    /// identity provider's own sentence, and rewriting somebody's server error
+    /// into our voice is how a support call stops being able to find it.
+    private static func parseAuthError(
+        _ data: Data,
+        status: Int,
+        locale: String? = nil
+    ) -> ApiError {
         let object = (try? JSONDecoder().decode(JSONValue.self, from: data))?.objectValue
         let code = object?["error_code"]?.stringValue
             ?? object?["error"]?.stringValue
             ?? ApiErrorCode.unauthorized
         let message = object?["msg"]?.stringValue
             ?? object?["error_description"]?.stringValue
-            ?? "Something went wrong (\(status))."
+            ?? AppStrings.translate(
+                locale,
+                "settingsMore.somethingWentWrongStatus",
+                ["status": String(status)]
+            )
         return ApiError(code: code, message: message, httpStatus: status)
     }
 }

@@ -31,6 +31,7 @@ struct ScheduledSheet: View {
     let onCancel: @MainActor (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
 
     private var held: [ScheduledMessage] { rows.filter(\.isHeld) }
     private var pending: [ScheduledMessage] { rows.filter { !$0.isHeld } }
@@ -43,14 +44,16 @@ struct ScheduledSheet: View {
                     // sheet exists to settle is "is something about to go out
                     // that I don't know about", and "no" is a complete reply.
                     ContentUnavailableView(
-                        "Nothing scheduled",
+                        AppStrings.translate(appLocale, "inbox.scheduledEmptyTitle"),
                         systemImage: "calendar.badge.clock",
                         description: Text(ScheduledSend.copyLine("nothing_scheduled"))
                     )
                 } else {
                     List {
                         if !held.isEmpty {
-                            Section("Needs you") {
+                            Section(
+                                AppStrings.translate(appLocale, "inbox.scheduledNeedsYou")
+                            ) {
                                 ForEach(held) { row in
                                     ScheduledSheetRow(row: row, onCancel: onCancel) {
                                         dismiss()
@@ -60,7 +63,9 @@ struct ScheduledSheet: View {
                             }
                         }
                         if !pending.isEmpty {
-                            Section("Going out") {
+                            Section(
+                                AppStrings.translate(appLocale, "inbox.scheduledGoingOut")
+                            ) {
                                 ForEach(pending) { row in
                                     ScheduledSheetRow(row: row, onCancel: onCancel) {
                                         dismiss()
@@ -72,11 +77,11 @@ struct ScheduledSheet: View {
                     }
                 }
             }
-            .navigationTitle("Scheduled")
+            .navigationTitle(AppStrings.translate(appLocale, "inbox.scheduledTitle"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button(AppStrings.translate(appLocale, "inbox.done")) { dismiss() }
                 }
             }
         }
@@ -88,6 +93,8 @@ private struct ScheduledSheetRow: View {
     let row: ScheduledMessage
     let onCancel: @MainActor (String) -> Void
     let onOpen: @MainActor () -> Void
+
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         // The thread, not a detail screen. A queued text only makes sense
@@ -101,12 +108,18 @@ private struct ScheduledSheetRow: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(scheduledRecipient(row))
+                        Text(scheduledRecipient(row, appLocale))
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(BrandColor.ink)
                             .lineLimit(1)
                         Spacer(minLength: 0)
-                        Text(row.isHeld ? "Waiting" : sendAtOf(row))
+                        Text(
+                            row.isHeld
+                                ? AppStrings.translate(
+                                    appLocale, "inbox.scheduledWaiting"
+                                )
+                                : sendAtOf(row)
+                        )
                             .font(.caption2)
                             .monospacedDigit()
                             .foregroundStyle(row.isHeld ? NoteAmber.ink : BrandColor.muted500)
@@ -132,7 +145,10 @@ private struct ScheduledSheetRow: View {
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing) {
-            Button("Cancel", role: .destructive) { onCancel(row.id) }
+            Button(
+                AppStrings.translate(appLocale, "common.cancel"),
+                role: .destructive
+            ) { onCancel(row.id) }
         }
     }
 }
@@ -142,8 +158,10 @@ private struct ScheduledSheetRow: View {
 /// The list route embeds the contact, because the workspace view is a list of
 /// texts to DIFFERENT people and a list of bodies with no names is the surprise
 /// #233 asks us to prevent rather than the answer to it.
-func scheduledRecipient(_ row: ScheduledMessage) -> String {
-    guard let contact = row.conversations?.contacts else { return "This conversation" }
+func scheduledRecipient(_ row: ScheduledMessage, _ locale: String? = nil) -> String {
+    guard let contact = row.conversations?.contacts else {
+        return AppStrings.translate(locale, "inbox.scheduledThisConversation")
+    }
     let name = contact.name?.trimmingCharacters(in: .whitespaces) ?? ""
     return name.isEmpty ? formatPhone(contact.phone_e164) : name
 }

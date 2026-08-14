@@ -17,8 +17,20 @@ struct DocumentPickButton: View {
 
     @State private var importing = false
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
-        Button(label) { importing = true }
+        // Both failure sentences are resolved HERE, in `body`, and captured by
+        // value — for the same reason `fieldName` is copied into `field` below.
+        // The importer's callback runs after this view has been handed off, and
+        // the `Task` inside it would otherwise capture `self` to reach `t`.
+        let wrongKind = t("settings.docWrongKind")
+        let unreadable = t("settings.docUnreadable")
+        return Button(label) { importing = true }
             .buttonStyle(.bordered)
             .disabled(disabled)
             .fileImporter(
@@ -35,11 +47,11 @@ struct DocumentPickButton: View {
                         if let upload {
                             onPicked(upload)
                         } else {
-                            onError("Use a PDF, PNG, or JPEG up to 10 MB.")
+                            onError(wrongKind)
                         }
                     }
                 case .failure:
-                    onError("Couldn't read that file. Try another one.")
+                    onError(unreadable)
                 }
             }
     }

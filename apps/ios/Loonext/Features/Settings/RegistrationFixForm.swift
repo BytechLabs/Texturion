@@ -271,14 +271,28 @@ struct RegistrationFixForm: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var editBrand: Bool { registrationEditable(brand) }
     private var editCampaign: Bool { registrationEditable(campaign) }
     private var soleProp: Bool { brand?.sole_proprietor ?? false }
 
-    private var regionLabel: String { country == "US" ? "State" : "Province" }
-    private var postalLabel: String { country == "US" ? "ZIP code" : "Postal code" }
-    private var idLabel: String { country == "US" ? "EIN" : "Business number" }
-    private var last4Label: String { country == "US" ? "SSN" : "SIN" }
+    private var regionLabel: String {
+        t(country == "US" ? "settingsMore.stateLabel" : "settingsMore.provinceLabel")
+    }
+    private var postalLabel: String {
+        t(country == "US" ? "settingsMore.zipLabel" : "settingsMore.postalLabel")
+    }
+    private var idLabel: String {
+        t(country == "US" ? "settingsMore.einLabel" : "settingsMore.businessNumberLabel")
+    }
+    private var last4Label: String {
+        t(country == "US" ? "settingsMore.ssnLabel" : "settingsMore.sinLabel")
+    }
 
     var body: some View {
         // Grouped so the focus effect has somewhere to live: the branch below
@@ -306,7 +320,9 @@ struct RegistrationFixForm: View {
                     if editBrand { brandFields }
                     if editCampaign { campaignFields }
                     InlineError(error)
-                    Button(saving ? "Submitting…" : submitLabel) { save() }
+                    Button(
+                        saving ? t("settingsMore.submitting") : submitLabel
+                    ) { save() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(saving)
@@ -315,7 +331,7 @@ struct RegistrationFixForm: View {
                 .padding(.top, 8)
                 .onAppear(perform: seed)
             } else {
-                Button("Edit your details") { open = true }
+                Button(t("settingsMore.editDetails")) { open = true }
                     .buttonStyle(.bordered)
                     .padding(.top, 8)
             }
@@ -326,38 +342,54 @@ struct RegistrationFixForm: View {
 
     private var brandFields: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("These go to the carrier registry exactly as typed.")
+            Text(t("settingsMore.registryExactly"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             if soleProp {
-                field("First name", text: $form.firstName)
-                field("Last name", text: $form.lastName)
+                field(t("settingsMore.firstName"), text: $form.firstName)
+                field(t("settingsMore.lastName"), text: $form.lastName)
             } else {
-                field("Legal business name", text: $form.companyName, key: "companyName")
+                field(
+                    t("settingsMore.legalBusinessName"),
+                    text: $form.companyName,
+                    key: "companyName"
+                )
             }
-            field("Business name customers know", text: $form.displayName)
+            field(t("settingsMore.knownBusinessName"), text: $form.displayName)
             field(
-                soleProp ? "Last 4 of \(last4Label)" : idLabel,
+                soleProp
+                    ? t("settingsMore.last4Of", ["idLabel": last4Label])
+                    : idLabel,
                 text: $form.ein,
                 keyboard: soleProp ? .numberPad : .default,
                 key: "ein"
             )
-            field("Contact email", text: $form.email, keyboard: .emailAddress, key: "email")
-            field("Contact phone", text: $form.phone, keyboard: .phonePad)
+            field(
+                t("settingsMore.contactEmail"),
+                text: $form.email,
+                keyboard: .emailAddress,
+                key: "email"
+            )
+            field(t("settingsMore.contactPhone"), text: $form.phone, keyboard: .phonePad)
             if soleProp {
                 field(
-                    "Mobile for the verification text",
+                    t("settingsMore.mobileForCode"),
                     text: $form.mobilePhone,
                     keyboard: .phonePad
                 )
             }
-            field("Website (optional)", text: $form.website, keyboard: .URL, key: "website")
+            field(
+                t("settingsMore.websiteOptional"),
+                text: $form.website,
+                keyboard: .URL,
+                key: "website"
+            )
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Industry")
+                Text(t("settingsMore.industry"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Picker("Industry", selection: $form.vertical) {
+                Picker(t("settingsMore.industry"), selection: $form.vertical) {
                     ForEach(tcrVerticals, id: \.self) { vertical in
                         Text(verticalLabel(vertical)).tag(vertical)
                     }
@@ -367,8 +399,8 @@ struct RegistrationFixForm: View {
             }
             .padding(.vertical, 4)
 
-            field("Street address", text: $form.street, key: "street")
-            field("City", text: $form.city)
+            field(t("settingsMore.streetAddress"), text: $form.street, key: "street")
+            field(t("settingsMore.city"), text: $form.city)
             field(regionLabel, text: $form.state)
             field(postalLabel, text: $form.postalCode)
         }
@@ -377,15 +409,17 @@ struct RegistrationFixForm: View {
     private var campaignFields: some View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer().frame(height: 10)
-            Text(
-                "How customers ask you to text them, and two texts you actually send. "
-                    + "Carriers read these."
+            Text(t("settingsMore.campaignIntro"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            field(
+                t("settingsMore.howCustomersOptIn"),
+                text: $form.messageFlow,
+                lines: 3,
+                key: "messageFlow"
             )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            field("How customers opt in", text: $form.messageFlow, lines: 3, key: "messageFlow")
-            field("Sample text 1", text: $form.sample1, lines: 2, key: "sample1")
-            field("Sample text 2", text: $form.sample2, lines: 2)
+            field(t("settingsMore.sampleText1"), text: $form.sample1, lines: 2, key: "sample1")
+            field(t("settingsMore.sampleText2"), text: $form.sample2, lines: 2)
         }
     }
 
@@ -473,7 +507,7 @@ struct RegistrationFixForm: View {
                     )
                 )
                 _ = try await scope.repo.submitRegistration(scope.companyId)
-                scope.showMessage("Submitted. We'll email you when carriers approve it.")
+                scope.showMessage(t("settingsMore.registrationSubmitted"))
                 open = false
                 onSubmitted()
             } catch {

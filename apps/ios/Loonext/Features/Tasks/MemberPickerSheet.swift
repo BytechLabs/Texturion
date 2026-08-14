@@ -14,6 +14,7 @@ struct MemberPickerSheet: View {
 
     @State private var query = ""
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
 
     private var matches: [Member] {
         let active = members.filter { $0.deactivated_at == nil }
@@ -28,7 +29,10 @@ struct MemberPickerSheet: View {
                 Image(systemName: "magnifyingglass")
                     .font(.scaled(14, weight: .medium))
                     .foregroundStyle(BrandColor.muted400)
-                TextField("Search teammates", text: $query)
+                TextField(
+                    AppStrings.translate(appLocale, "contactsTasks.searchTeammates"),
+                    text: $query
+                )
                     .font(.golos(13))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -42,7 +46,7 @@ struct MemberPickerSheet: View {
             List {
                 if showUnassigned && query.isBlank {
                     pickerRow(
-                        name: "Unassigned",
+                        name: AppStrings.translate(appLocale, "contactsTasks.unassigned"),
                         avatarName: nil,
                         selected: selectedUserId == nil
                     ) {
@@ -51,9 +55,14 @@ struct MemberPickerSheet: View {
                     }
                 }
                 ForEach(matches, id: \.user_id) { member in
-                    let base = member.display_name.isBlank ? "Teammate" : member.display_name
+                    let base = member.display_name.isBlank
+                        ? AppStrings.translate(appLocale, "contactsTasks.teammate")
+                        : member.display_name
+                    let youSuffix = AppStrings.translate(
+                        appLocale, "contactsTasks.youSuffix"
+                    )
                     pickerRow(
-                        name: member.user_id == meUserId ? "\(base) (you)" : base,
+                        name: member.user_id == meUserId ? base + youSuffix : base,
                         avatarName: member.display_name.isBlank ? nil : member.display_name,
                         selected: selectedUserId == member.user_id
                     ) {
@@ -62,7 +71,7 @@ struct MemberPickerSheet: View {
                     }
                 }
                 if matches.isEmpty {
-                    Text("No teammates match.")
+                    Text(AppStrings.translate(appLocale, "contactsTasks.noTeammatesMatch"))
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted500)
                         .listRowSeparator(.hidden)
@@ -94,7 +103,9 @@ struct MemberPickerSheet: View {
             if selected {
                 Image(systemName: "checkmark")
                     .foregroundStyle(BrandColor.olive)
-                    .accessibilityLabel("Selected")
+                    .accessibilityLabel(
+                        AppStrings.translate(appLocale, "contactsTasks.selected")
+                    )
             }
         }
         .contentShape(Rectangle())

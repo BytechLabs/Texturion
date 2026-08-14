@@ -77,47 +77,59 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    var title: String {
+    /// #228: the CATALOGUE KEY for the row's name, and the same key Android's
+    /// `SettingsSection.titleKey` holds. Two properties rather than one
+    /// translated string, because this enum is reached from places that have no
+    /// reader — see `title` below.
+    var titleKey: String {
         switch self {
-        case .workspace: "Workspace"
-        case .hours: "Business hours & away reply"
-        case .calling: "Calling"
-        case .templates: "Templates & tags"
-        case .ai: "Lou"
-        case .team: "Team"
-        case .numbers: "Numbers"
-        case .usage: "Usage"
-        case .billing: "Billing"
-        case .payments: "Getting paid"
-        case .notifications: "Notifications"
-        case .profile: "Profile & account"
-        case .devices: "Signed-in devices"
-        case .help: "Help"
-        case .whatsNew: "What's new"
-        case .diagnostics: "Diagnostics"
+        case .workspace: "settingsMore.sectionWorkspace"
+        case .hours: "settingsMore.sectionHours"
+        case .calling: "settingsMore.sectionCalling"
+        case .templates: "settingsMore.sectionTemplates"
+        case .ai: "settingsMore.sectionAi"
+        case .team: "settingsMore.sectionTeam"
+        case .numbers: "settingsMore.sectionNumbers"
+        case .usage: "settingsMore.sectionUsage"
+        case .billing: "settingsMore.sectionBilling"
+        case .payments: "settingsMore.sectionPayments"
+        case .notifications: "settingsMore.sectionNotifications"
+        case .profile: "settingsMore.sectionProfile"
+        case .devices: "settingsMore.sectionDevices"
+        case .help: "settingsMore.sectionHelp"
+        case .whatsNew: "settingsMore.sectionWhatsNew"
+        case .diagnostics: "settingsMore.diagnostics"
         }
     }
 
-    var blurb: String {
+    var blurbKey: String {
         switch self {
-        case .workspace: "Name, business identification, timezone"
-        case .hours: "When you're open, and what after-hours texters hear"
-        case .calling: "Missed-call text-back, voicemail, screening, caller ID"
-        case .templates: "Saved replies, and the labels you file conversations under"
-        case .ai: "Pre-fill a task's address and due date from a message"
-        case .team: "Who can see and answer your customers' texts"
-        case .numbers: "Your numbers, ports, text-enablement, registration"
-        case .usage: "Messages, minutes, and your overage cap"
-        case .billing: "Plan, payment, and invoices"
-        case .payments: "Take a deposit or a final payment over the thread"
-        case .notifications: "Email and push for new conversations"
-        case .profile: "Your name, theme, email, and password"
-        case .devices: "Every browser and phone with access right now"
-        case .help: "Get in touch when something isn't right"
-        case .whatsNew: "What shipped recently, and where to find it"
-        case .diagnostics: "Build, connection, and recent events on this phone"
+        case .workspace: "settingsMore.sectionWorkspaceBlurb"
+        case .hours: "settingsMore.sectionHoursBlurb"
+        case .calling: "settingsMore.sectionCallingBlurb"
+        case .templates: "settingsMore.sectionTemplatesBlurb"
+        case .ai: "settingsMore.sectionAiBlurb"
+        case .team: "settingsMore.sectionTeamBlurb"
+        case .numbers: "settingsMore.sectionNumbersBlurb"
+        case .usage: "settingsMore.sectionUsageBlurb"
+        case .billing: "settingsMore.sectionBillingBlurb"
+        case .payments: "settingsMore.sectionPaymentsBlurb"
+        case .notifications: "settingsMore.sectionNotificationsBlurb"
+        case .profile: "settingsMore.sectionProfileBlurb"
+        case .devices: "settingsMore.sectionDevicesBlurb"
+        case .help: "settingsMore.sectionHelpBlurb"
+        case .whatsNew: "settingsMore.sectionWhatsNewBlurb"
+        case .diagnostics: "settingsMore.sectionDiagnosticsBlurb"
         }
     }
+
+    /// The English words, for callers with no reader to ask — previews, and any
+    /// guard that compares this enum against the shared tables. A View shows
+    /// `t(section.titleKey)` instead, which is the reader's language. Android
+    /// keeps exactly this pair for exactly this reason.
+    var title: String { AppStrings.translate(nil, titleKey) }
+
+    var blurb: String { AppStrings.translate(nil, blurbKey) }
 
     /// Outline SF Symbol for the spec-28 icon tile.
     var icon: String {
@@ -184,6 +196,12 @@ struct SettingsHome: View {
     @State private var askingToHandOver = false
     @State private var unsentAtHandover = 0
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var repo: SettingsRepository {
         SettingsRepository(api: graph.api, sessionStore: graph.sessionStore)
     }
@@ -228,7 +246,7 @@ struct SettingsHome: View {
                         }
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle(t("shell.settings"))
             .background(BrandColor.canvas.ignoresSafeArea())
         }
         .tint(BrandColor.olive)
@@ -294,7 +312,7 @@ struct SettingsHome: View {
     private func indexList(_ company: CompanyView) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 13) {
-                ScreenTitle(text: "Settings")
+                ScreenTitle(text: t("shell.settings"))
                 identityCard(company)
                 // Directly under the identity card and tight against it, because it
                 // belongs to "you are signed in as this person" — which is the
@@ -431,7 +449,7 @@ struct SettingsHome: View {
             if let number = activeNumber(company) {
                 Button {
                     copyToClipboard(number)
-                    showToast("Number copied.")
+                    showToast(t("settingsMore.numberCopied"))
                 } label: {
                     HStack(spacing: 6) {
                         Text(formatPhone(number))
@@ -446,7 +464,7 @@ struct SettingsHome: View {
                     .background(BrandColor.paper.opacity(0.1), in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Copy number")
+                .accessibilityLabel(t("settingsMore.copyNumber"))
             }
         }
         .padding(16)
@@ -540,7 +558,7 @@ struct SettingsHome: View {
             .contentMaxWidth()
         }
         .background(BrandColor.canvas)
-        .navigationTitle(section.title)
+        .navigationTitle(t(section.titleKey))
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -594,6 +612,8 @@ private struct SettingsSectionRow: View {
     /// #321: true only for the What's new row, and only when unseen.
     var showMarker: Bool = false
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: section.icon)
@@ -605,10 +625,10 @@ private struct SettingsSectionRow: View {
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                 )
             VStack(alignment: .leading, spacing: 1) {
-                Text(section.title)
+                Text(AppStrings.translate(appLocale, section.titleKey))
                     .font(.golos(13.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
-                Text(section.blurb)
+                Text(AppStrings.translate(appLocale, section.blurbKey))
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted400)
                     .lineLimit(1)
@@ -642,7 +662,7 @@ private struct SettingsIndexPreview: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 13) {
-                ScreenTitle(text: "Settings")
+                ScreenTitle(text: AppStrings.translate(nil, "shell.settings"))
                 PaperCard {
                     ForEach(Array(SettingsSection.allCases.enumerated()), id: \.element.id) { index, section in
                         if index > 0 { RowDivider() }

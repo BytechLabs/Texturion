@@ -173,9 +173,15 @@ private func handoverReproveFactor(
     // typed into the sheet can satisfy a demand for a factor this account does not
     // have, which is why finding none throws rather than asking again.
     guard let factorId = try await scope.repo.mfa().allFactors.first?.id else {
+        // The sentence the two-factor wall already owns, rather than a second
+        // one meaning the same thing. Resolved against the ENGLISH table on
+        // purpose: this is a thrown `ApiError`, and its one caller discards the
+        // message and shows the sheet's own refusal — so there is no reader here
+        // to have a language, and threading one down three signatures to reach
+        // a string nothing renders would be the change with all the risk in it.
         throw ApiError(
             code: ApiErrorCode.unauthorized,
-            message: "We couldn't find an authenticator on this account.",
+            message: AppStrings.translate(nil, "shell.mfaNoFactorFound"),
             httpStatus: 401
         )
     }

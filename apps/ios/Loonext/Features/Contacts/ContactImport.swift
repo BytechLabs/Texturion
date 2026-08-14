@@ -556,7 +556,15 @@ struct ContactImportConsentSheet: View {
 
     /// The sentence being sworn to. Held apart from the row that draws it so
     /// the VoiceOver label and the printed label cannot drift.
-    static let attestation = "Everyone in this file agreed to be texted by this business."
+    ///
+    /// #228: the sentence comes from the catalogue under Android's own key, so
+    /// the claim reads identically on both phones. What is POSTED is still
+    /// `ContactImport.consentField` = `consentValue` — a fixed wire pair, never
+    /// this sentence — so translating the display cannot change what a
+    /// workspace attested to.
+    private var attestation: String {
+        AppStrings.translate(appLocale, "contactsTasks.importAttestation")
+    }
 
     /// What VoiceOver reads out for the box. A `String`, not a literal in the
     /// modifier: `accessibilityValue` has both a `LocalizedStringKey` and a
@@ -720,7 +728,7 @@ struct ContactImportConsentSheet: View {
                     Image(systemName: attested ? "checkmark.square.fill" : "square")
                         .font(.scaled(17, weight: .regular))
                         .foregroundStyle(attested ? BrandColor.olive : BrandColor.muted400)
-                    Text(Self.attestation)
+                    Text(attestation)
                         .font(.golos(13.5, weight: .medium))
                         .foregroundStyle(BrandColor.ink)
                         .multilineTextAlignment(.leading)
@@ -732,7 +740,7 @@ struct ContactImportConsentSheet: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Self.attestation)
+            .accessibilityLabel(attestation)
             .accessibilityValue(attestationState)
         }
     }
@@ -1120,30 +1128,21 @@ struct ContactImportConsentSheet: View {
     /// and the sheet stops being read at all.
     private var consequences: some View {
         VStack(alignment: .leading, spacing: 9) {
-            consequence(
-                "person.badge.clock",
-                "We record your name and today's date against everyone in this "
-                    + "file who has no consent recorded yet."
-            )
-            consequence(
-                "checkmark.shield",
-                "Anyone who already has consent recorded keeps the one they have."
-            )
-            consequence(
-                "hand.raised",
-                "Anyone who has texted STOP stays blocked. Importing them again "
-                    + "does not undo that."
-            )
+            consequence("person.badge.clock", "contactsTasks.importRecordsYourName")
+            consequence("checkmark.shield", "contactsTasks.importKeepsExistingConsent")
+            consequence("hand.raised", "contactsTasks.importStopStaysBlocked")
         }
     }
 
-    private func consequence(_ icon: String, _ text: String) -> some View {
+    /// Takes the catalogue KEY rather than the sentence — there is one call
+    /// site per line and the lookup belongs where the row is drawn.
+    private func consequence(_ icon: String, _ key: String) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: icon)
                 .font(.scaled(12, weight: .medium))
                 .foregroundStyle(BrandColor.muted400)
                 .frame(width: 16, alignment: .center)
-            Text(text)
+            Text(AppStrings.translate(appLocale, key))
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted600)
                 .fixedSize(horizontal: false, vertical: true)

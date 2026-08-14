@@ -50,11 +50,17 @@ private struct NameCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     init(scope: SettingsScope, company: CompanyView, onCompanyUpdated: @escaping @MainActor (CompanyView) -> Void) {
         self.scope = scope
         self.company = company
         self.onCompanyUpdated = onCompanyUpdated
         _name = State(initialValue: company.name)
+    }
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
     }
 
     private var trimmed: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -63,22 +69,21 @@ private struct NameCard: View {
 
     var body: some View {
         SettingsCard(
-            title: "Workspace name",
-            description: "The name your customers know you by — used on your carrier "
-                + "registration and available as {business_name} in your texts."
+            title: t("settingsMore.workspaceName"),
+            description: t("settingsMore.workspaceNameDesc")
         ) {
             if SettingsRoleGate.canEditWorkspace(scope.role) {
-                TextField("Workspace name", text: $name)
+                TextField(t("settingsMore.workspaceName"), text: $name)
                     .textFieldStyle(.roundedBorder)
                 if dirty && !valid {
-                    Text("1 to 200 characters.")
+                    Text(t("settingsMore.nameLength200"))
                         .font(.footnote)
                         .foregroundStyle(BrandColor.destructive)
                         .padding(.top, 4)
                 }
                 InlineError(error)
                 if dirty {
-                    Button(saving ? "Saving…" : "Save") { save() }
+                    Button(saving ? t("common.saving") : t("common.save")) { save() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(!valid || saving)
@@ -88,7 +93,7 @@ private struct NameCard: View {
                 Text(company.name)
                     .font(.body)
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can rename the workspace.")
+                ReadOnlyLine(t("settingsMore.onlyAdminsRename"))
             }
         }
     }
@@ -97,6 +102,9 @@ private struct NameCard: View {
         error = nil
         saving = true
         let value = trimmed
+        // Read before the hop: `appLocale` is the environment of this view, and
+        // the confirmation is composed inside a detached Task.
+        let locale = appLocale
         Task {
             do {
                 let updated = try await scope.repo.updateCompany(
@@ -104,7 +112,9 @@ private struct NameCard: View {
                     patch: .object(["name": .string(value)])
                 )
                 onCompanyUpdated(updated)
-                scope.showMessage("Workspace name saved.")
+                scope.showMessage(
+                    AppStrings.translate(locale, "settingsMore.workspaceNameSaved")
+                )
             } catch {
                 self.error = error.userMessage
             }
@@ -122,22 +132,27 @@ private struct BusinessIdentificationCard: View {
     @State private var state: LoadState<RegistrationDetailPair> = .loading
     @State private var refreshKey = 0
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         SettingsCard(
-            title: "Business identification",
-            description: "What carriers have on file for your business. "
-                + "It comes from your texting registration."
+            title: t("settingsMore.businessIdCard"),
+            description: t("settingsMore.businessIdCardDesc")
         ) {
             switch state {
             case .loading:
-                Text("Loading…")
+                Text(t("settingsMore.businessIdLoading"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             case .failed(let message):
                 Text(message)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                Button("Try again") { refreshKey += 1 }
+                Button(t("common.retry")) { refreshKey += 1 }
                     .buttonStyle(.bordered)
                     .padding(.top, 8)
             case .ready(let pair):
@@ -145,23 +160,35 @@ private struct BusinessIdentificationCard: View {
                     if SettingsRoleGate.canEditWorkspace(scope.role) {
                         IdentityRows(brand: brand, country: company.country)
                         Spacer().frame(height: 8)
-                        ReadOnlyLine("Need to change something? Manage registration under Numbers.")
+                        ReadOnlyLine(t("settingsMore.changeRegistrationUnderNumbers"))
                     } else {
+                        // One sentence with the state interpolated rather than
+                        // three fragments glued together: French does not put
+                        // "approuvée" where English puts "approved", and a
+                        // concatenation hard-codes English word order.
                         Text(
-                            "Registration is "
-                                + (brand.status == RegistrationStatus.approved ? "approved" : "on file")
-                                + ". Owners and admins can see the full details."
+                            AppStrings.translate(
+                                appLocale,
+                                "settingsMore.registrationIs",
+                                [
+                                    "state": t(
+                                        brand.status == RegistrationStatus.approved
+                                            ? "settingsMore.registrationApproved"
+                                            : "settingsMore.registrationOnFile"
+                                    ),
+                                ]
+                            )
                         )
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     }
                 } else {
                     Text(
-                        company.country == "CA" && !company.us_texting_enabled
-                            ? "No registration needed. Canadian texting works without one. "
-                                + "Enabling US texting adds it."
-                            : "No registration details on file yet. "
-                                + "Manage registration under Numbers."
+                        t(
+                            company.country == "CA" && !company.us_texting_enabled
+                                ? "settingsMore.noRegistrationNeeded"
+                                : "settingsMore.noRegistrationYet"
+                        )
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -183,6 +210,12 @@ private struct IdentityRows: View {
     let brand: RegistrationDetail
     let country: String
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private func field(_ key: String) -> String {
         brand.data?[key]?.stringValue ?? ""
     }
@@ -193,29 +226,29 @@ private struct IdentityRows: View {
             : field("companyName")
         let identifierLabel: String
         if brand.sole_proprietor && country == "US" {
-            identifierLabel = "SSN (last 4)"
+            identifierLabel = t("settingsMore.ssnLast4")
         } else if brand.sole_proprietor {
-            identifierLabel = "SIN (last 4)"
+            identifierLabel = t("settingsMore.sinLast4")
         } else if country == "US" {
-            identifierLabel = "EIN"
+            identifierLabel = t("settingsMore.einLabel")
         } else {
-            identifierLabel = "Business number"
+            identifierLabel = t("settingsMore.businessNumberLabel")
         }
         let address = [field("street"), field("city"), field("state"), field("postalCode")]
             .filter { !$0.isEmpty }
             .joined(separator: ", ")
         return [
-            ("Legal name", legalName),
+            (t("settingsMore.legalName"), legalName),
             (identifierLabel, field("ein")),
-            ("Address", address),
-            ("Website", field("website")),
-            ("Contact", field("email")),
+            (t("settingsMore.addressLabel"), address),
+            (t("settingsMore.websiteLabel"), field("website")),
+            (t("settingsMore.contactLabel"), field("email")),
         ].filter { !$0.1.isEmpty }
     }
 
     var body: some View {
         if rows.isEmpty {
-            Text("Registration details are being prepared.")
+            Text(t("settingsMore.registrationBeingPrepared"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else {
@@ -256,33 +289,46 @@ private struct TimezoneCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         SettingsCard(
-            title: "Timezone",
-            description: "Dates in emails about your workspace are framed in your "
-                + "business's local time."
+            title: t("settingsMore.timezone"),
+            description: t("settingsMore.timezoneDesc")
         ) {
             Text(company.timezone)
                 .font(.body)
             // Live "It's 3:42 PM in …" preview — ticks with the clock.
             TimelineView(.periodic(from: .now, by: 15)) { context in
                 if let localTime = localTimeString(zoneId: company.timezone, at: context.date) {
-                    Text("It's \(localTime) in \(company.timezone) right now.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            "settingsMore.localTimeNow",
+                            ["time": localTime, "zone": company.timezone]
+                        )
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 }
             }
             Spacer().frame(height: 6)
-            ReadOnlyLine("Texting quiet hours use each customer's local time, not this timezone.")
+            ReadOnlyLine(t("settingsMore.quietHoursNote"))
             InlineError(error)
             if SettingsRoleGate.canEditWorkspace(scope.role) {
-                Button(saving ? "Saving…" : "Change timezone") { picking = true }
-                    .buttonStyle(.bordered)
-                    .disabled(saving)
-                    .padding(.top, 10)
+                Button(saving ? t("common.saving") : t("settingsMore.changeTimezone")) {
+                    picking = true
+                }
+                .buttonStyle(.bordered)
+                .disabled(saving)
+                .padding(.top, 10)
             } else {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change the timezone.")
+                ReadOnlyLine(t("settingsMore.onlyAdminsTimezone"))
             }
         }
         .sheet(isPresented: $picking) {
@@ -298,6 +344,7 @@ private struct TimezoneCard: View {
     private func save(_ zoneId: String) {
         error = nil
         saving = true
+        let locale = appLocale
         Task {
             do {
                 let updated = try await scope.repo.updateCompany(
@@ -305,7 +352,9 @@ private struct TimezoneCard: View {
                     patch: .object(["timezone": .string(zoneId)])
                 )
                 onCompanyUpdated(updated)
-                scope.showMessage("Timezone saved.")
+                scope.showMessage(
+                    AppStrings.translate(locale, "settingsMore.timezoneSaved")
+                )
             } catch {
                 self.error = error.userMessage
             }
@@ -322,6 +371,12 @@ struct TimezonePickerSheet: View {
 
     @State private var query = ""
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var filtered: [String] {
         let all = TimeZone.knownTimeZoneIdentifiers.sorted()
         let needle = query.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: " ", with: "_")
@@ -333,9 +388,15 @@ struct TimezonePickerSheet: View {
         NavigationStack {
             List {
                 if filtered.isEmpty {
-                    Text("No timezone matches \"\(query)\".")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            "settingsMore.noTimezoneMatch",
+                            ["query": query]
+                        )
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 } else {
                     ForEach(filtered, id: \.self) { zoneId in
                         Button {
@@ -357,12 +418,16 @@ struct TimezonePickerSheet: View {
                 }
             }
             .listStyle(.plain)
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search, e.g. Toronto")
-            .navigationTitle("Choose a timezone")
+            .searchable(
+                text: $query,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: t("settingsMore.timezoneSearchHint")
+            )
+            .navigationTitle(t("settingsMore.chooseTimezone"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }
+                    Button(t("common.cancel")) { onDismiss() }
                 }
             }
         }
@@ -385,6 +450,12 @@ private struct SignTextsCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
 
     /// Server-resolved, and only shown once the server confirms — composing the
@@ -399,13 +470,12 @@ private struct SignTextsCard: View {
 
     var body: some View {
         SettingsCard(
-            title: "Sign your texts",
-            description: "Add your business name to the first text you send "
-                + "someone, so a message from an unknown number says who it is from."
+            title: t("settingsMore.signTextsTitle"),
+            description: t("settingsMore.signTextsDesc")
         ) {
             LabeledToggleRow(
-                label: "Sign the first text to a new customer",
-                supporting: "Once per customer. Replies and later texts are never signed.",
+                label: t("settingsMore.signFirstText"),
+                supporting: t("settingsMore.signFirstTextSupporting"),
                 isOn: company.first_message_identification,
                 enabled: canEdit && !saving
             ) { next in
@@ -413,11 +483,14 @@ private struct SignTextsCard: View {
             }
 
             if let signature {
-                PreviewBubble(label: "What gets added", text: signature)
+                PreviewBubble(label: t("settingsMore.whatGetsAdded"), text: signature)
                 Spacer().frame(height: 6)
                 ReadOnlyLine(
-                    "That is \(signature.count) characters, so a long first text "
-                        + "can be sent in two parts instead of one."
+                    AppStrings.translate(
+                        appLocale,
+                        "settingsMore.signatureLength",
+                        ["count": "\(signature.count)"]
+                    )
                 )
             }
 
@@ -425,7 +498,7 @@ private struct SignTextsCard: View {
 
             if !canEdit {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change how texts are signed.")
+                ReadOnlyLine(t("settingsMore.onlyAdminsSigning"))
             }
         }
     }
@@ -462,18 +535,22 @@ private struct QuietHoursCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
 
     var body: some View {
         SettingsCard(
-            title: "Texting a new customer at night",
-            description: "Starting a brand-new conversation between 8pm and 8am "
-                + "the customer's time asks you to confirm first."
+            title: t("settingsMore.nightTextTitle"),
+            description: t("settingsMore.nightTextDesc")
         ) {
             LabeledToggleRow(
-                label: "Ask me to confirm",
-                supporting: "Only when you start the conversation. Replying to a "
-                    + "customer who texted or called you is never interrupted.",
+                label: t("settingsMore.askMeToConfirm"),
+                supporting: t("settingsMore.askMeToConfirmSupporting"),
                 isOn: company.quiet_hours_confirm_enabled,
                 enabled: canEdit && !saving
             ) { next in
@@ -485,24 +562,18 @@ private struct QuietHoursCard: View {
             // this permits automated night texts.
             if !company.quiet_hours_confirm_enabled {
                 PreviewBubble(
-                    label: "With this off",
-                    text: "You will not be asked. A text you start at 2am goes "
-                        + "straight out, and it is on you that the customer wanted "
-                        + "to hear from you then."
+                    label: t("settingsMore.withThisOff"),
+                    text: t("settingsMore.withThisOffBody")
                 )
                 Spacer().frame(height: 6)
-                ReadOnlyLine(
-                    "This does not change automated texts. Reminders and anything "
-                        + "else we send on your behalf still wait for the "
-                        + "customer's morning, whatever this is set to."
-                )
+                ReadOnlyLine(t("settingsMore.nightTextAutomatedNote"))
             }
 
             InlineError(error)
 
             if !canEdit {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change this.")
+                ReadOnlyLine(t("settingsMore.onlyAdminsThis"))
             }
         }
     }
@@ -536,10 +607,19 @@ private struct QuietHoursCard: View {
 /// The other two clients carry this same caveat. Three screens describing the
 /// reach of one setting differently is how an owner ends up trusting the most
 /// generous of the three.
-let localeScopeCaveat =
-    "It does not change the app's own language, and it does not translate a "
-        + "message one of you wrote. An away message you typed keeps the "
-        + "sentence you typed, in the language you typed it."
+///
+/// #228: the sentence itself now lives in the catalogue under the key Android
+/// already uses, `settingsMore.automatedLanguageNotApp`, and the card renders
+/// the READER's language. This constant survives as the ENGLISH of it, because
+/// `LocaleCopyTests` reads it alongside `localeContactScopeNote` to assert both
+/// screens still say the two things a misled owner would need — that the app
+/// itself does not change, and that nothing somebody typed is rewritten. A
+/// catalogue key cannot be asserted that way from a test that has no locale, and
+/// turning this into a function would break the array that test iterates.
+let localeScopeCaveat = AppStrings.translate(
+    MessageLocale.en,
+    "settingsMore.automatedLanguageNotApp"
+)
 
 /// #228: which language the automated texts go out in.
 ///
@@ -554,14 +634,18 @@ private struct LanguageCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
 
     var body: some View {
         SettingsCard(
-            title: "Language for automated texts",
-            description: "The after-hours away reply, the missed-call text-back, "
-                + "the emergency acknowledgment and the rating ask go out in "
-                + "this language."
+            title: t("settingsMore.automatedLanguageTitle"),
+            description: t("settingsMore.automatedLanguageDesc")
         ) {
             ForEach(MessageLocale.all, id: \.self) { locale in
                 // #228: resolve rather than compare raw. A row carrying a
@@ -589,19 +673,16 @@ private struct LanguageCard: View {
                 .disabled(!canEdit || saving)
             }
             Spacer().frame(height: 6)
-            ReadOnlyLine(localeScopeCaveat)
+            ReadOnlyLine(t("settingsMore.automatedLanguageNotApp"))
             Spacer().frame(height: 6)
             // Discoverability for the other half of the feature: an owner who
             // needs one language for the business and another for one customer
             // would otherwise conclude the product cannot do it.
-            ReadOnlyLine(
-                "One customer who reads the other language can be set on their "
-                    + "own contact, which overrides this for them."
-            )
+            ReadOnlyLine(t("settingsMore.automatedLanguagePerContact"))
             InlineError(error)
             if !canEdit {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change the language.")
+                ReadOnlyLine(t("settingsMore.onlyAdminsLanguage"))
             }
         }
     }
@@ -609,6 +690,7 @@ private struct LanguageCard: View {
     private func save(_ locale: String) {
         error = nil
         saving = true
+        let reader = appLocale
         Task {
             do {
                 let updated = try await scope.repo.updateCompany(
@@ -616,7 +698,9 @@ private struct LanguageCard: View {
                     patch: .object(["locale": .string(locale)])
                 )
                 onCompanyUpdated(updated)
-                scope.showMessage("Language saved.")
+                scope.showMessage(
+                    AppStrings.translate(reader, "settingsMore.languageUpdated")
+                )
             } catch {
                 self.error = error.userMessage
             }

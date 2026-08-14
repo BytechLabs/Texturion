@@ -32,10 +32,16 @@ struct RejectionGuidance: Equatable {
     let field: String?
 }
 
+/// #228: the catalogue holds KEYS, not sentences.
+///
+/// A `private let` array is built once at file-init, outside any view and
+/// before any reader exists, so a sentence written here could only ever be
+/// written in one language. `explainRejection` resolves them for the reader it
+/// is given.
 private struct CatalogueEntry {
     let match: [String]
-    let what: String
-    let fix: String
+    let whatKey: String
+    let fixKey: String
     let field: String?
 }
 
@@ -63,62 +69,62 @@ private func normalise(_ reason: String) -> String {
 private let registrationCatalogue: [CatalogueEntry] = [
     CatalogueEntry(
         match: ["ein", "tax id", "taxid", "federal tax"],
-        what: "The tax ID you gave does not match what the government registry holds for your business.",
-        fix: "Check the EIN or business number on a tax document and enter it exactly, digits only.",
+        whatKey: "domain.rejectRegEinWhat",
+        fixKey: "domain.rejectRegEinFix",
         field: "ein"
     ),
     CatalogueEntry(
         match: ["legal name", "business name", "brand name", "company name", "name mismatch"],
-        what: "The business name you gave does not match the one on your government registration.",
-        fix: "Use the exact legal name from your registration paperwork, including any Ltd, Inc or LLC — the name customers see is set separately.",
+        whatKey: "domain.rejectRegNameWhat",
+        fixKey: "domain.rejectRegNameFix",
         field: "companyName"
     ),
     CatalogueEntry(
         match: ["address", "street", "postal", "zip", "city", "state", "province"],
-        what: "The business address does not match the one on your government registration.",
-        fix: "Enter the registered business address rather than a mailing or job-site address.",
+        whatKey: "domain.rejectRegAddressWhat",
+        fixKey: "domain.rejectRegAddressFix",
         field: "street"
     ),
     CatalogueEntry(
         match: ["website", "web site", "url", "domain", "landing page"],
-        what: "The carrier could not confirm your business from the website you gave.",
-        fix: "Give a website that names your business and describes what you do, and make sure it loads publicly.",
+        whatKey: "domain.rejectRegWebsiteWhat",
+        fixKey: "domain.rejectRegWebsiteFix",
         field: "website"
     ),
     CatalogueEntry(
         match: ["opt in", "optin", "consent", "cta", "call to action", "disclosure", "message flow"],
-        what: "The carrier was not satisfied that customers agree to be texted before you text them.",
-        fix: "Describe exactly where a customer gives you their number and what they are told at that moment.",
+        whatKey: "domain.rejectRegConsentWhat",
+        fixKey: "domain.rejectRegConsentFix",
         field: "messageFlow"
     ),
     CatalogueEntry(
         match: ["sample", "example message", "content"],
-        what: "The sample texts did not show the carrier what you actually send.",
-        fix: "Use real messages you would send a customer, and include your business name in each one.",
+        whatKey: "domain.rejectRegSampleWhat",
+        fixKey: "domain.rejectRegSampleFix",
         field: "sample1"
     ),
     CatalogueEntry(
         match: ["use case", "usecase", "vertical", "campaign type", "industry"],
-        what: "The use case you picked does not match what your samples and website describe.",
-        fix: "Pick the category that matches the texts you actually send to customers.",
+        whatKey: "domain.rejectRegUseCaseWhat",
+        fixKey: "domain.rejectRegUseCaseFix",
         field: "vertical"
     ),
     CatalogueEntry(
         match: ["duplicate", "already registered", "already exists"],
-        what: "This business is already registered with the carriers, most likely by a provider you used before.",
-        fix: "Reply to us and we will get the existing registration released or transferred — this is not something the form can fix.",
+        whatKey: "domain.rejectRegDuplicateWhat",
+        fixKey: "domain.rejectRegDuplicateFix",
         field: nil
     ),
     CatalogueEntry(
         match: ["entity type", "sole prop", "sole proprietor", "organization type", "non profit", "nonprofit"],
-        what: "The business type you chose does not match how your business is registered.",
-        fix: "Choose the type that matches your paperwork — a sole trader and a limited company are registered differently.",
+        whatKey: "domain.rejectRegEntityWhat",
+        fixKey: "domain.rejectRegEntityFix",
         field: "companyName"
     ),
     CatalogueEntry(
         match: ["contact", "email", "phone number", "unreachable"],
-        what: "The carrier could not reach the contact details on the registration.",
-        fix: "Give a business email and phone number that reach a person and are not auto-replied.",
+        whatKey: "domain.rejectRegContactWhat",
+        fixKey: "domain.rejectRegContactFix",
         field: "email"
     ),
 ]
@@ -126,44 +132,44 @@ private let registrationCatalogue: [CatalogueEntry] = [
 private let portCatalogue: [CatalogueEntry] = [
     CatalogueEntry(
         match: ["account number", "acct no", "acct num"],
-        what: "The account number does not match the one your current provider has on file.",
-        fix: "Copy it from a recent bill from that provider — it is usually not the phone number itself.",
+        whatKey: "domain.rejectPortAccountWhat",
+        fixKey: "domain.rejectPortAccountFix",
         field: "account_number"
     ),
     CatalogueEntry(
         match: ["pin", "passcode", "password", "security code"],
-        what: "The transfer PIN was missing or wrong.",
-        fix: "Ask your current provider for a port-out PIN — most will only give it to the account holder, and it often expires within a few days.",
+        whatKey: "domain.rejectPortPinWhat",
+        fixKey: "domain.rejectPortPinFix",
         field: "account_number"
     ),
     CatalogueEntry(
         match: ["authorized person", "auth person", "signature", "loa", "letter of auth"],
-        what: "The person named on the request is not authorised on the account.",
-        fix: "Use the name of the person your current provider has as the account holder, spelled the same way.",
+        whatKey: "domain.rejectPortAuthWhat",
+        fixKey: "domain.rejectPortAuthFix",
         field: "auth_person_name"
     ),
     CatalogueEntry(
         match: ["entity name", "account holder", "name mismatch", "customer name"],
-        what: "The account holder name does not match your current provider's records.",
-        fix: "Use the name exactly as it appears on the bill, including any Ltd, Inc or LLC.",
+        whatKey: "domain.rejectPortEntityWhat",
+        fixKey: "domain.rejectPortEntityFix",
         field: "entity_name"
     ),
     CatalogueEntry(
         match: ["address", "service address", "street", "zip", "postal", "locality"],
-        what: "The service address does not match the one your current provider has on file.",
-        fix: "Use the address on the bill for this line, even if the business has since moved.",
+        whatKey: "domain.rejectPortAddressWhat",
+        fixKey: "domain.rejectPortAddressFix",
         field: "service_street"
     ),
     CatalogueEntry(
         match: ["pending order", "in progress", "another port"],
-        what: "Your current provider has another change in progress on this line.",
-        fix: "Ask them to cancel or finish it, then tell us and we will resubmit.",
+        whatKey: "domain.rejectPortPendingWhat",
+        fixKey: "domain.rejectPortPendingFix",
         field: nil
     ),
     CatalogueEntry(
         match: ["not found", "invalid number", "not active", "disconnected", "unportable", "not portable"],
-        what: "Your current provider says this number is not active on the account we asked about.",
-        fix: "Check the number is still in service and on the account you gave us — a number already cancelled cannot be moved.",
+        whatKey: "domain.rejectPortInactiveWhat",
+        fixKey: "domain.rejectPortInactiveFix",
         field: nil
     ),
 ]
@@ -173,7 +179,16 @@ private let portCatalogue: [CatalogueEntry] = [
 /// Nil is the honest answer and the UI depends on it: it then shows the
 /// carrier's own words plus an offer of help, rather than a generic sentence
 /// that hides the only concrete thing the customer was given.
-func explainRejection(_ domain: RejectionDomain, _ reason: String?) -> RejectionGuidance? {
+/// #228: `locale` is last and defaulted, so `ParityVectorsTests` and
+/// `PortRejectionRoutingTests` keep pinning the ROUTING in English while the
+/// rejection notice can pass the reader's language. Nothing about which entry
+/// matches depends on it — the matching is done against the carrier's own coded
+/// reason, which arrives in one language whoever is reading.
+func explainRejection(
+    _ domain: RejectionDomain,
+    _ reason: String?,
+    locale: String? = nil
+) -> RejectionGuidance? {
     guard let text = reason?.trimmingCharacters(in: .whitespacesAndNewlines),
           !text.isEmpty
     else { return nil }
@@ -182,17 +197,21 @@ func explainRejection(_ domain: RejectionDomain, _ reason: String?) -> Rejection
     guard let entry = catalogue.first(where: { candidate in
         candidate.match.contains { normalised.contains(" \($0) ") }
     }) else { return nil }
-    return RejectionGuidance(what: entry.what, fix: entry.fix, field: entry.field)
+    return RejectionGuidance(
+        what: AppStrings.translate(locale, entry.whatKey),
+        fix: AppStrings.translate(locale, entry.fixKey),
+        field: entry.field
+    )
 }
 
 /// How long a resubmission takes, stated because its absence is where people
 /// give up on a second wait of unknown length.
-func resubmissionWait(_ domain: RejectionDomain) -> String {
+func resubmissionWait(_ domain: RejectionDomain, locale: String? = nil) -> String {
     switch domain {
     case .registration:
-        return "Most resubmissions are decided within a business day or two."
+        return AppStrings.translate(locale, "domain.resubmitWaitRegistration")
     case .port:
-        return "Most resubmitted transfers are accepted within a few business days."
+        return AppStrings.translate(locale, "domain.resubmitWaitPort")
     }
 }
 

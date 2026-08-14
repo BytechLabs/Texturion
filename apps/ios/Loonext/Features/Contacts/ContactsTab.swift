@@ -415,9 +415,11 @@ struct ContactsTab: View {
             return t("contactsTasks.noMatchesFor", ["query": debouncedQ])
         }
         if fieldFilter != nil {
-            // Still English: the two halves are constants in ContactFilter.swift,
-            // which this slice does not own. Reported with the extraction.
-            return "\(contactFilterEmptyTitle). \(contactFilterEmptyBody)"
+            // The two constants are catalogue KEYS now, not sentences — see the
+            // note at the foot of ContactFilter.swift for why the parity test
+            // wants the identifier to appear on THIS screen. Same shape as
+            // Android's ContactsTab.
+            return "\(t(contactFilterEmptyTitle)). \(t(contactFilterEmptyBody))"
         }
         return t("contactsTasks.noContactsYet")
     }
@@ -698,7 +700,7 @@ struct ContactsTab: View {
                 exportedCsv = ExportedCsv(url: try stageCsvForSharing(csv))
             } catch {
                 notice = (error as? ApiError)?.message
-                    ?? "The export didn't go through. Try again."
+                    ?? t("contactsTasks.exportFailed")
             }
             exporting = false
         }
@@ -725,7 +727,7 @@ struct ContactsTab: View {
                 return
             }
             guard let bytes = try? Data(contentsOf: url) else {
-                notice = "Couldn't read that file. Try again."
+                notice = t("contactsTasks.fileUnreadable")
                 return
             }
             if bytes.count > kind.maxBytes { // providers may not report a size

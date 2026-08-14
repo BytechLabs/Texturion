@@ -936,11 +936,20 @@ struct MessagingRepository: Sendable {
 ///
 /// Hand-ported to three clients, so it has a test: the failure mode is one app
 /// telling somebody a different hour than another, which is worse than no hint.
-func theirTimeLine(_ clock: DestinationClock?) -> String? {
+/// #228: `locale` is defaulted and last, so the vector table above is untouched
+/// and nil still reads English.
+func theirTimeLine(_ clock: DestinationClock?, locale: String? = nil) -> String? {
     guard let clock, clock.isQuiet else { return nil }
     let suffix = clock.hour < 12 ? "am" : "pm"
     let twelve = clock.hour % 12 == 0 ? 12 : clock.hour % 12
-    let line = "It's about \(twelve)\(suffix) where they are (\(clockProvenance(clock.rung)))."
+    let line = AppStrings.translate(
+        locale,
+        "thread.theirTimeAbout",
+        [
+            "time": "\(twelve)\(suffix)",
+            "source": clockProvenance(clock.rung, locale: locale),
+        ]
+    )
     // #539: WHY theirs is the clock that counts, and that a wrong guess is
     // correctable. The issue asked "why are we deriving time from customers area
     // codes even? what if i bought my phone number in quebec but now live in
@@ -958,10 +967,10 @@ func theirTimeLine(_ clock: DestinationClock?) -> String? {
 /// The weakest one admits itself outright: showing our own timezone as though
 /// it were the customer's would be the quiet lie, and the whole value of the
 /// ladder is that a screen can say how much to trust it.
-func clockProvenance(_ source: String) -> String {
+func clockProvenance(_ source: String, locale: String? = nil) -> String {
     switch source {
-    case "contact": "set on their contact"
-    case "area_code": "from their area code"
-    default: "your workspace's timezone — we don't know theirs"
+    case "contact": AppStrings.translate(locale, "thread.clockFromContact")
+    case "area_code": AppStrings.translate(locale, "thread.clockFromAreaCode")
+    default: AppStrings.translate(locale, "thread.clockFromWorkspace")
     }
 }

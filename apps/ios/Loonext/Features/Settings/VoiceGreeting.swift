@@ -34,20 +34,29 @@ func formatGreetingDuration(_ ms: Int) -> String {
 }
 
 /// Why a recording could not start, in words the owner can act on.
+///
+/// #228: the words are the catalogue's, and the locale arrives as an argument
+/// defaulted to nil — the rule the two phones share for copy that lives outside
+/// a view. `nil` resolves the English table, so a test or a guard reading this
+/// enum keeps reading English, and the one composable call site hands it the
+/// reader's language.
 enum GreetingStartRefusal {
     case callInProgress
     case noPermission
     case couldNotStart
 
-    var message: String {
+    func message(_ locale: String? = nil) -> String {
         switch self {
         case .callInProgress:
-            return "You are on a call. End it and try again."
+            return AppStrings.translate(locale, "settingsMore.greetingOnACall")
         case .noPermission:
-            return "Loonext needs the microphone to record a greeting. "
-                + "Allow it in iOS Settings, then try again."
+            return AppStrings.translate(locale, "settingsMore.micRefused")
         case .couldNotStart:
-            return "The microphone is not available right now. Try again."
+            // Android's sentence, verbatim, and it is the better one: this card
+            // passes `callInProgress: false`, so a call holding the audio
+            // session arrives HERE rather than as `.callInProgress`, and "close
+            // any call" is the thing to do about it.
+            return AppStrings.translate(locale, "settingsMore.micUnavailable")
         }
     }
 }

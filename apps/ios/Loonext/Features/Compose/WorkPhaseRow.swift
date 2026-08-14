@@ -30,6 +30,8 @@ struct WorkPhaseRow: View {
     let value: String?
     let onChange: @MainActor (String?) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         HStack(spacing: 8) {
             ForEach(WorkPhase.all, id: \.self) { phase in
@@ -68,6 +70,6 @@ struct WorkPhaseRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("What these photos show")
+        .accessibilityLabel(AppStrings.translate(appLocale, "thread.workPhaseAria"))
     }
 }

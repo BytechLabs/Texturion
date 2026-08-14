@@ -30,6 +30,12 @@ enum TaskStatusFilter {
 }
 
 /// The segmented tabs, mirroring the web /tasks page.
+///
+/// The rawValue is an IDENTITY, not a label: it is the reload token, the
+/// cache key and the `Identifiable` id. `labelKey` is what a reader sees, and
+/// it names the same catalogue entry the Android `TasksTabKind.labelKey`
+/// names — the rawValues match that enum's `.name` for the same reason, so a
+/// cache key minted on one phone reads the same as the other's.
 enum TasksTabKind: String, CaseIterable, Identifiable, Sendable {
     case open = "Open"
     case mine = "Mine"
@@ -37,15 +43,35 @@ enum TasksTabKind: String, CaseIterable, Identifiable, Sendable {
     case done = "Done"
 
     var id: String { rawValue }
+
+    var labelKey: String {
+        switch self {
+        case .open: return "contactsTasks.tabOpen"
+        case .mine: return "contactsTasks.tabMine"
+        case .all: return "contactsTasks.tabAll"
+        case .done: return "contactsTasks.tabDone"
+        }
+    }
 }
 
 /// The due filter chip (single-select, mirrors DUE_LABELS on the web).
+///
+/// Same split as `TasksTabKind`: the rawValue identifies the chip, `labelKey`
+/// is the sentence, and both match the Android `DueChip`.
 enum DueChip: String, CaseIterable, Identifiable, Sendable {
     case overdue = "Overdue"
-    case today = "Due today"
-    case week = "Due this week"
+    case today = "Today"
+    case week = "Week"
 
     var id: String { rawValue }
+
+    var labelKey: String {
+        switch self {
+        case .overdue: return "contactsTasks.dueOverdue"
+        case .today: return "contactsTasks.dueToday"
+        case .week: return "contactsTasks.dueThisWeek"
+        }
+    }
 }
 
 /// One GET /v1/tasks query, pre-serialization. All fields optional.

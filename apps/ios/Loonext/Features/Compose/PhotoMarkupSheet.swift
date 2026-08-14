@@ -44,6 +44,8 @@ struct PhotoMarkupSheet: View {
     @State private var canvasSize: CGSize = .zero
     @State private var saving = false
 
+    @Environment(\.appLocale) private var appLocale
+
     private var pending: [PhotoMark] {
         if let dragging { return [dragging] }
         if let anchor { return [PhotoMark(tool: tool, from: anchor, to: anchor)] }
@@ -145,14 +147,21 @@ struct PhotoMarkupSheet: View {
                     .foregroundStyle(BrandColor.muted600)
             }
             .padding(16)
-            .navigationTitle("Point at something")
+            .navigationTitle(AppStrings.translate(appLocale, "thread.markupTitle"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onCancel() }.disabled(saving)
+                    Button(AppStrings.translate(appLocale, "common.cancel")) {
+                        onCancel()
+                    }
+                    .disabled(saving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(saving ? "Saving…" : PhotoMarkup.save) {
+                    Button(
+                        saving
+                            ? AppStrings.translate(appLocale, "common.saving")
+                            : PhotoMarkup.save
+                    ) {
                         saving = true
                         let rendered = preview
                         Task {

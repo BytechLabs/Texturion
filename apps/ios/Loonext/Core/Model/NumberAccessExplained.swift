@@ -30,11 +30,15 @@ struct MemberNumberAccess: Codable, Sendable {
 }
 
 /// What they can do, in the crew's words rather than the schema's.
-func numberAccessLevelLabel(_ level: String) -> String {
+///
+/// #228: `locale` is last and defaulted, so the hand-port tests that pin the
+/// English are untouched while the screen that knows the reader's language can
+/// pass it.
+func numberAccessLevelLabel(_ level: String, locale: String? = nil) -> String {
     switch level {
-    case "text": "Can text"
-    case "note": "Read and notes only"
-    default: "Hidden"
+    case "text": AppStrings.translate(locale, "domain.numberAccessCanText")
+    case "note": AppStrings.translate(locale, "domain.numberAccessNoteOnly")
+    default: AppStrings.translate(locale, "domain.numberAccessHidden")
     }
 }
 
@@ -57,23 +61,52 @@ func numberAccessReason(
     /// Labelled `isSelf` rather than `self`, which is a reserved word an
     /// argument label can only carry in backticks — and a backticked label on
     /// a function three clients call is a trap for the next reader.
-    isSelf: Bool = false
+    isSelf: Bool = false,
+    /// #228: the reader's language. LAST and defaulted, so the parity tests
+    /// that pin these clauses in English are untouched while the two screens
+    /// that know their reader can pass it.
+    locale: String? = nil
 ) -> String {
     switch decidedBy {
-    case "user": isSelf ? "A rule naming you" : "A rule naming them"
+    case "user":
+        AppStrings.translate(
+            locale,
+            isSelf ? "domain.numberAccessRuleNamingYou" : "domain.numberAccessRuleNamingThem"
+        )
     case "role":
-        principal.map { "A rule for \($0)s" }
-            ?? (isSelf ? "A rule for your role" : "A rule for their role")
-    case "all": "A rule for everyone"
+        // The role is the wire value the rule named, and it is not translated:
+        // it is the same word on the rule an owner would go and edit.
+        //
+        // `map`/`??` rather than an `if let` expression, keeping the shape the
+        // arm already had — this file compiles nowhere but CI, so a working
+        // expression is not worth swapping for a newer spelling of itself.
+        principal.map {
+            AppStrings.translate(locale, "domain.numberAccessRuleForRole", ["role": $0])
+        } ?? AppStrings.translate(
+            locale,
+            isSelf
+                ? "domain.numberAccessRuleForYourRole"
+                : "domain.numberAccessRuleForTheirRole"
+        )
+    case "all": AppStrings.translate(locale, "domain.numberAccessRuleForEveryone")
     case "no-match":
-        isSelf
-            ? "This number has rules, and none of them include you"
-            : "This number has rules, and none of them include them"
-    case "unruled": "Nobody has restricted this number"
+        AppStrings.translate(
+            locale,
+            isSelf ? "domain.numberAccessNoMatchYou" : "domain.numberAccessNoMatchThem"
+        )
+    case "unruled": AppStrings.translate(locale, "domain.numberAccessUnruled")
     case "role-override":
-        principal == "owner" ? "Owners reach every number" : "Admins reach every number"
+        AppStrings.translate(
+            locale,
+            principal == "owner"
+                ? "domain.numberAccessOwners"
+                : "domain.numberAccessAdmins"
+        )
     default:
-        isSelf ? "You are no longer in this workspace" : "No longer in this workspace"
+        AppStrings.translate(
+            locale,
+            isSelf ? "domain.numberAccessNotMemberYou" : "domain.numberAccessNotMemberThem"
+        )
     }
 }
 
@@ -90,21 +123,47 @@ func numberAccessReason(
  absence to account for, and a paragraph reassuring them about a problem they
  do not have is furniture.
  */
-func numberAccessSelfNote(_ rows: [NumberAccessExplanation]) -> String? {
+func numberAccessSelfNote(
+    _ rows: [NumberAccessExplanation],
+    locale: String? = nil
+) -> String? {
     let hidden = rows.filter { $0.level == "none" }.count
     let readOnly = rows.filter { $0.level == "note" }.count
     if hidden == 0 && readOnly == 0 { return nil }
 
+    // #228: WHOLE sentences with the count interpolated in, rather than a
+    // count glued to a fragment. French does not put the number, the noun and
+    // the verb in the order English does, and a sentence assembled from pieces
+    // can only ever be assembled in one word order.
     var parts: [String] = []
     if hidden > 0 {
-        parts.append("\(hidden) \(hidden == 1 ? "number is" : "numbers are") hidden from you")
+        parts.append(
+            AppStrings.translate(
+                locale,
+                hidden == 1
+                    ? "domain.numberAccessSelfHiddenOne"
+                    : "domain.numberAccessSelfHiddenMany",
+                ["count": String(hidden)]
+            )
+        )
     }
     if readOnly > 0 {
-        parts.append("\(readOnly) \(readOnly == 1 ? "is" : "are") read-only")
+        parts.append(
+            AppStrings.translate(
+                locale,
+                readOnly == 1
+                    ? "domain.numberAccessSelfReadOnlyOne"
+                    : "domain.numberAccessSelfReadOnlyMany",
+                ["count": String(readOnly)]
+            )
+        )
     }
-    return parts.joined(separator: " and ")
-        + ". That is deliberate — somebody set it up that way, and it is not "
-        + "the app failing. Ask an owner or admin if you need more."
+    let and = AppStrings.translate(locale, "domain.and")
+    return AppStrings.translate(
+        locale,
+        "domain.numberAccessSelfNote",
+        ["parts": parts.joined(separator: " \(and) ")]
+    )
 }
 
 /// Anything short of full use is a restriction worth showing first.

@@ -110,41 +110,45 @@ enum HandoverConfirmation {
     }
 
     /// The dialog's heading. The same every time, because the ask is the same.
-    static let title = "Confirm it's you"
+    static let titleKey = "domain.handoverTitle"
+    static var title: String { AppStrings.translate(nil, titleKey) }
 
     /// Where to find the code.
     ///
     /// Deliberately different sentences rather than one that covers both: "enter your
     /// code" is useless to somebody who does not know which code, and the two live in
     /// completely different places.
-    static func whereToLook(_ kind: Kind) -> String {
+    static func whereToLook(_ kind: Kind, locale: String? = nil) -> String {
         switch kind {
         case .authenticator:
-            return "Open your authenticator app and enter the six-digit code it shows."
-        // Word for word the same as above, and deliberately so: the person is doing
-        // the identical thing, and a second phrasing for the same physical act would
-        // read as a different demand. What differs is entirely on our side of the
-        // wire.
+            return AppStrings.translate(locale, "domain.handoverWhereAuthenticator")
+        // The same KEY as above, and deliberately so: the person is doing the
+        // identical thing, and a second phrasing for the same physical act
+        // would read as a different demand. What differs is entirely on our
+        // side of the wire — and one key rather than two identical ones is also
+        // one sentence for a translator to get right rather than two.
         case .reprove:
-            return "Open your authenticator app and enter the six-digit code it shows."
+            return AppStrings.translate(locale, "domain.handoverWhereAuthenticator")
         case .email:
-            return "We've emailed a six-digit code to the address on your account. "
-                + "It works once, and expires in ten minutes."
+            return AppStrings.translate(locale, "domain.handoverWhereEmail")
         }
     }
 
     /// The field's label, and its accessible name.
-    static let field = "Six-digit code"
+    static let fieldKey = "domain.handoverField"
+    static var field: String { AppStrings.translate(nil, fieldKey) }
 
     /// The button that goes through with it.
-    static let submit = "Confirm"
+    static let submitKey = "domain.handoverSubmit"
+    static var submit: String { AppStrings.translate(nil, submitKey) }
 
     /// Only offered on the email path.
     ///
     /// There is nothing to resend to somebody using an authenticator — the app is
     /// generating the codes — and a Resend button there would imply we could send
     /// them one, which we cannot. Same for `reprove`, for the same reason.
-    static let resend = "Send it again"
+    static let resendKey = "domain.handoverResend"
+    static var resend: String { AppStrings.translate(nil, resendKey) }
 
     /// What to say when the code did not work.
     ///
@@ -152,7 +156,8 @@ enum HandoverConfirmation {
     /// deliberately does not distinguish them — telling somebody which would tell an
     /// attacker whether they had the right digits — so the client must not invent a
     /// distinction the server refused to make.
-    static let rejected = "That code didn't work. Ask for a new one and try again."
+    static let rejectedKey = "domain.handoverRejected"
+    static var rejected: String { AppStrings.translate(nil, rejectedKey) }
 
     /// Is this six digits?
     ///

@@ -39,6 +39,8 @@ struct ShareJobPhotos: View {
     @State private var link: JobPhotoLink?
     @State private var busy = false
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         // Nothing to share, nothing to offer.
         if photoCount > 0 {
@@ -60,7 +62,12 @@ struct ShareJobPhotos: View {
                     }
                 } label: {
                     Label(
-                        busy ? "Making a link…" : "Share these photos",
+                        AppStrings.translate(
+                            appLocale,
+                            busy
+                                ? "contactsTasks.jobPhotosMakingLink"
+                                : "contactsTasks.jobPhotosShare"
+                        ),
                         systemImage: "link"
                     )
                     .font(.golos(13))
@@ -75,8 +82,11 @@ struct ShareJobPhotos: View {
     private func madeIt(_ link: JobPhotoLink) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(
-                "Anyone with this link can see the photos until "
-                    + "\(absoluteTime(link.expires_at))."
+                AppStrings.translate(
+                    appLocale,
+                    "contactsTasks.jobPhotosExpiry",
+                    ["when": absoluteTime(link.expires_at)]
+                )
             )
             .font(.golos(12.5))
             .foregroundStyle(BrandColor.muted600)
@@ -90,7 +100,10 @@ struct ShareJobPhotos: View {
                 Button {
                     UIPasteboard.general.string = link.url
                 } label: {
-                    Label("Copy", systemImage: "doc.on.doc")
+                    Label(
+                        AppStrings.translate(appLocale, "contactsTasks.copy"),
+                        systemImage: "doc.on.doc"
+                    )
                         .font(.golos(12.5))
                 }
                 .buttonStyle(.bordered)
@@ -111,7 +124,8 @@ struct ShareJobPhotos: View {
                     busy = false
                 }
             } label: {
-                Text("Turn this link off").font(.golos(12))
+                Text(AppStrings.translate(appLocale, "contactsTasks.jobPhotosTurnOff"))
+                    .font(.golos(12))
             }
             .buttonStyle(.plain)
             .foregroundStyle(BrandColor.muted600)

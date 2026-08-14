@@ -18,11 +18,17 @@ enum AddressProvenance {
 
 /// The provenance badge copy — shown only for AI sources (never manual/null),
 /// verbatim from the web's `provenanceLabel` / `addrProvenanceLabel`.
-func addressProvenanceLabel(_ provenance: String?) -> String? {
+/// #228: `locale` is last and defaulted, so `AiEnrichmentTests` keeps pinning
+/// the English badges while the task sheet that knows its reader passes
+/// `appLocale`.
+func addressProvenanceLabel(_ provenance: String?, locale: String? = nil) -> String? {
     switch provenance {
-    case AddressProvenance.message: return "From the message"
-    case AddressProvenance.contact: return "From the contact"
-    case AddressProvenance.company: return "Inferred from area code"
+    case AddressProvenance.message:
+        return AppStrings.translate(locale, "domain.addrFromMessage")
+    case AddressProvenance.contact:
+        return AppStrings.translate(locale, "domain.addrFromContact")
+    case AddressProvenance.company:
+        return AppStrings.translate(locale, "domain.addrFromAreaCode")
     default: return nil
     }
 }
@@ -161,29 +167,30 @@ struct ReplySuggestions: Codable, Sendable {
 /// hid real breakage behind what looked like a shrug, so each reason says what
 /// happened and whether trying again will help. Mirrors
 /// suggestionFailureMessage in apps/web/src/lib/api/reply-suggestions.ts.
-func replyDraftMessage(_ reason: String?) -> String {
+func replyDraftMessage(_ reason: String?, locale: String? = nil) -> String {
+    func say(_ key: String) -> String { AppStrings.translate(locale, key) }
     switch reason {
     case "disabled":
-        return "Drafting is turned off for this workspace. Settings, AI turns it back on."
+        return say("domain.draftsDisabled")
     // #250: a thread somebody marked as spam never spends AI budget.
     case "spam":
-        return "This thread is marked as spam, so Lou skips it. Unmark it to draft a reply."
+        return say("domain.draftsSpam")
     case "nothing_to_reply":
-        return "Nothing to draft from yet. Type a few words and try again."
+        return say("domain.draftsNothingToReply")
     // #581: billing, not breakage — so it must not say "try again", which is
     // not what fixes it. Same sentence everywhere Lou refuses for this reason.
     case "subscription_inactive":
-        return "Lou is paused while the subscription is sorted out. An owner can fix that in Billing."
+        return say("domain.louPausedForBilling")
     case "over_cap":
-        return "This month's drafting is used up. It starts again next month."
+        return say("domain.draftsOverCap")
     case "rate_limited":
-        return "That was a lot of drafts at once. Try again in a moment."
+        return say("domain.draftsRateLimited")
     case "model_error", "unavailable":
-        return "Couldn't reach Lou just now. Try again."
+        return say("domain.louUnreachable")
     case "unusable_output":
-        return "Nothing came back worth sending. Try again, or add a few words first."
+        return say("domain.draftsUnusable")
     default:
-        return "No drafts this time. Try again."
+        return say("domain.draftsNone")
     }
 }
 

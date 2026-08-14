@@ -14,12 +14,11 @@ import Foundation
 /// The wording lives in shared and is ported rather than reinvented, because
 /// three clients describing one access rule three different ways is the #437
 /// failure on the surface where a new member forms their first impression.
-func hiddenNumbersNotice(_ hiddenCount: Int) -> String? {
+func hiddenNumbersNotice(_ hiddenCount: Int, locale: String? = nil) -> String? {
     if hiddenCount <= 0 { return nil }
-    if hiddenCount == 1 {
-        return "One more number is on this account that is not shared with you. "
-            + "Ask an owner if you need it."
-    }
-    return "\(hiddenCount) more numbers are on this account that are not shared "
-        + "with you. Ask an owner if you need them."
+    return AppStrings.translate(
+        locale,
+        hiddenCount == 1 ? "domain.hiddenNumbersOne" : "domain.hiddenNumbersMany",
+        ["count": String(hiddenCount)]
+    )
 }

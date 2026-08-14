@@ -68,28 +68,32 @@ enum WrapUpOutcome: Sendable {
 /// Every one of them ends somewhere the member can still act, because the note
 /// composer is right there and typing always works. Mirrors the shape of
 /// `replyDraftMessage`.
-func wrapUpFailureMessage(_ reason: String?) -> String {
+///
+/// #228: the sentences live in `ThreadStrings`, and `locale` defaults to nil so
+/// the English is what a caller with no reader in hand still gets. The keys are
+/// this app's own (`thread.wrapUpFail…`) rather than Android's flat
+/// `thread.wrapUpTooLong` family, because the two clients say these in
+/// different words and one key holding two sentences is exactly the drift a
+/// shared catalogue exists to stop.
+func wrapUpFailureMessage(_ reason: String?, locale: String? = nil) -> String {
     switch reason {
     case "too_long":
-        return "That was longer than two minutes. Say the short version and "
-            + "Lou will write it down."
+        return AppStrings.translate(locale, "thread.wrapUpFailTooLong")
     case "disabled":
-        return "Wrap-up dictation is turned off for this workspace. Settings, "
-            + "AI turns it back on."
+        return AppStrings.translate(locale, "thread.wrapUpFailDisabled")
     // #581: billing, not breakage — so it must not say "try again", which is
-    // not what fixes it. Same sentence everywhere Lou refuses for this reason.
+    // not what fixes it. Same sentence everywhere Lou refuses for this reason,
+    // which is why this one DOES share Android's key.
     case "subscription_inactive":
-        return "Lou is paused while the subscription is sorted out. An owner can fix that in Billing."
+        return AppStrings.translate(locale, "thread.louPausedForBilling")
     case "over_cap":
-        return "This month's dictation is used up. It starts again next month "
-            + "\u{2014} type the note in the meantime."
+        return AppStrings.translate(locale, "thread.wrapUpFailOverCap")
     case "model_error", "unavailable":
-        return "Couldn't reach Lou just now. Try again, or type the note."
+        return AppStrings.translate(locale, "thread.wrapUpFailUnreachable")
     case "unusable_output":
-        return "Nothing came back that reads like words. Try again closer to "
-            + "the mic, or type the note."
+        return AppStrings.translate(locale, "thread.wrapUpFailUnusable")
     default:
-        return "That didn't come back as words. Type the note instead."
+        return AppStrings.translate(locale, "thread.wrapUpFailDefault")
     }
 }
 
@@ -154,26 +158,42 @@ enum WrapUpStartRefusal: Equatable, Sendable {
     case micJustGranted
     case couldNotStart
 
-    var message: String {
+    /// #228 — the catalogue key, so the reason and the sentence stay apart.
+    var messageKey: String {
         switch self {
         case .callInProgress:
             // The one refusal that is about D117 rather than about a device.
             // Says what to do next, and says it without ever suggesting the
             // call itself could be written down.
-            return "Finish the call first. Lou writes down what you say "
-                + "afterwards, never the call."
+            return "thread.wrapUpRefusalCallInProgress"
         case .micDenied:
-            return "Loonext needs the microphone to take a wrap-up. Allow it "
-                + "in Settings \u{203A} Loonext, or type the note."
+            // iOS's own permission path, which is why this is not Android's
+            // `thread.micDeniedWrapUp`: a member sent to
+            // "Settings › Apps › Loonext › Permissions" on an iPhone is being
+            // sent somewhere that does not exist.
+            return "thread.wrapUpRefusalMicDenied"
         case .micJustGranted:
             // The permission sheet ate the press: iOS asks, the member
             // answers, and by then whatever they said is gone. Saying so beats
             // an empty note and beats silence.
-            return "Microphone is on now. Hold the mic and say it again."
+            return "thread.wrapUpRefusalMicJustGranted"
         case .couldNotStart:
-            return "Couldn't start recording. Type the note instead."
+            return "thread.wrapUpRefusalCouldNotStart"
         }
     }
+
+    /// The sentence, in the reader's language.
+    ///
+    /// A method with its OWN name rather than an overload of `message`: that
+    /// property is read through a key path (`refusals.map(\.message)`), and a
+    /// property and a method sharing a base name is the kind of thing this
+    /// project cannot compile locally to find out about.
+    func localizedMessage(_ locale: String?) -> String {
+        AppStrings.translate(locale, messageKey)
+    }
+
+    /// The English, for callers with no reader in hand.
+    var message: String { localizedMessage(nil) }
 }
 
 /// Records one wrap-up to a temporary file and hands back its bytes.
@@ -362,7 +382,10 @@ extension MultipartClient {
         companyId: String,
         conversationId: String,
         audio: Data,
-        seconds: Int
+        seconds: Int,
+        /// #228 — declared LAST and defaulted, so every existing call site is
+        /// unchanged and the sentences below reach the reader in their language.
+        locale: String? = nil
     ) async -> WrapUpOutcome {
         let raw: Data
         do {
@@ -381,10 +404,10 @@ extension MultipartClient {
             return .failed(error.userMessage)
         }
         guard let decoded = try? JSONDecoder().decode(WrapUpTranscript.self, from: raw) else {
-            return .failed(wrapUpFailureMessage("unusable_output"))
+            return .failed(wrapUpFailureMessage("unusable_output", locale: locale))
         }
         guard let text = decoded.text, !text.isBlank else {
-            return .failed(wrapUpFailureMessage(decoded.reason))
+            return .failed(wrapUpFailureMessage(decoded.reason, locale: locale))
         }
         return .text(text)
     }

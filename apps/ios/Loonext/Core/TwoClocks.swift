@@ -38,10 +38,16 @@ import Foundation
 enum TwoClocks {
 
     /// What the destination's clock is called, in the product's voice.
-    static let there = "their time"
+    /// #228: the key, and the English over it. `TwoClocksTests` reads
+    /// `packages/shared/src/two-clocks.ts` and pins THIS spelling against
+    /// `CLOCK_THERE`, so the un-localised reading has to stay exactly what it
+    /// was; the locale-taking twins are the functions below.
+    static let thereKey = "domain.twoClocksThere"
+    static var there: String { AppStrings.translate(nil, thereKey) }
 
     /// ...and the reader's own. Not "my time": the screen is talking TO them.
-    static let here = "yours"
+    static let hereKey = "domain.twoClocksHere"
+    static var here: String { AppStrings.translate(nil, hereKey) }
 
     /// #539 — why the CUSTOMER'S clock decides, and how to fix a wrong guess.
     ///
@@ -49,9 +55,12 @@ enum TwoClocks {
     /// is, not the sender, so their clock governs whether a send is allowed. The area
     /// code is how we guess it when nobody has told us, and it goes wrong exactly the
     /// way the issue describes: a mobile keeps its code when its owner moves.
-    static let areaCodeNote =
-        "The rules about when you may text go by their clock, not yours. "
-        + "If this number moved, set their timezone on the contact."
+    static let areaCodeNoteKey = "domain.twoClocksAreaCodeNote"
+
+    /// `TwoClocksTests` reads the shared TypeScript and asserts it still
+    /// contains THIS sentence, so the un-localised reading stays the English it
+    /// has always been.
+    static var areaCodeNote: String { AppStrings.translate(nil, areaCodeNoteKey) }
 
     /// Are these two rendered wall clocks the same moment on the same clock face?
     ///
@@ -73,10 +82,25 @@ enum TwoClocks {
     /// The separator is a middot rather than a bracket or a slash: it reads as one
     /// line of two facts, which is what it is, and it survives a narrow row without
     /// looking like a truncation.
-    static func bothClocks(_ theirs: String, _ mine: String? = nil) -> String {
+    /// #228: one whole sentence with both clocks interpolated in, rather than
+    /// two labels glued around a middot. French does not put "their time" after
+    /// the hour the way English does, and a line assembled from pieces can only
+    /// ever be assembled in one word order.
+    static func bothClocks(
+        _ theirs: String,
+        _ mine: String? = nil,
+        locale: String? = nil
+    ) -> String {
         let t = theirs.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let mine, !sameClock(t, mine) else { return t }
-        return "\(t) \(there) · \(mine.trimmingCharacters(in: .whitespacesAndNewlines)) \(here)"
+        return AppStrings.translate(
+            locale,
+            "domain.twoClocksLine",
+            [
+                "there": t,
+                "here": mine.trimmingCharacters(in: .whitespacesAndNewlines),
+            ]
+        )
     }
 
     /// The same two facts spelled out, for VoiceOver.
@@ -84,11 +108,17 @@ enum TwoClocks {
     /// A middot is announced as "middle dot" or skipped entirely depending on the
     /// reader, and "8:00 AM their time middle dot 11:00 AM yours" is not a
     /// sentence.
-    static func bothClocksSpoken(_ theirs: String, _ mine: String? = nil) -> String {
+    static func bothClocksSpoken(
+        _ theirs: String,
+        _ mine: String? = nil,
+        locale: String? = nil
+    ) -> String {
         let t = theirs.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let mine, !sameClock(t, mine) else { return t }
         let m = mine.trimmingCharacters(in: .whitespacesAndNewlines)
-        return "\(t) \(there), which is \(m) \(here)"
+        return AppStrings.translate(
+            locale, "domain.twoClocksSpoken", ["there": t, "here": m]
+        )
     }
 
     /// Which clock a typed time is being read in — the switch #539 asks for
@@ -103,10 +133,14 @@ enum TwoClocks {
 
         var id: String { rawValue }
 
-        var label: String {
+        var label: String { localisedLabel() }
+
+        /// The same two words, in the reader's language. A distinct name rather
+        /// than an overload of `label` — see the note in `Model/Calls.swift`.
+        func localisedLabel(_ locale: String? = nil) -> String {
             switch self {
-            case .theirs: return "Their time"
-            case .yours: return "Your time"
+            case .theirs: return AppStrings.translate(locale, "domain.twoClocksChoiceTheirs")
+            case .yours: return AppStrings.translate(locale, "domain.twoClocksChoiceYours")
             }
         }
     }

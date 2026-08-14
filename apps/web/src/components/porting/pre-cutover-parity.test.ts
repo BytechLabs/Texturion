@@ -76,6 +76,50 @@ const SOURCES: Record<string, readonly string[]> = {
 };
 
 /**
+ * Where each client's ORDER is decided, which is not always where its words are.
+ *
+ * Both phones build the checklist from an array of KEYS in their screen file and
+ * resolve each against the catalogue. So the screen file is what orders the list
+ * and the catalogue is just a dictionary — its entries could be alphabetised
+ * tomorrow without changing a pixel. Web still declares the four items in order
+ * in the shared module, so for web the two are the same file.
+ */
+const ORDER_SOURCES: Record<string, readonly string[]> = {
+  web: SOURCES.web,
+  android: [ANDROID_SCREEN],
+  ios: [IOS_SCREEN],
+};
+
+/**
+ * The four items in the order they must appear, in whatever each client's
+ * ordering source actually names them by.
+ *
+ * "Keep your old service active" is the only one whose cost is unrecoverable —
+ * a customer who skips it can lose the number — so it leads, and nothing may
+ * push it down into the place people stop reading.
+ */
+const ORDERED_ANCHORS: Record<string, readonly string[]> = {
+  web: [
+    "Keep your old service active.",
+    "Export your message history.",
+    "Tell the crew the switch date.",
+    "Expect texting to trail calls.",
+  ],
+  android: [
+    "settingsMore.cutoverKeepOld",
+    "settingsMore.cutoverExport",
+    "settingsMore.cutoverTellCrew",
+    "settingsMore.cutoverTextsTrail",
+  ],
+  ios: [
+    "settingsMore.cutoverKeepOld",
+    "settingsMore.cutoverExport",
+    "settingsMore.cutoverTellCrew",
+    "settingsMore.cutoverTextsTrail",
+  ],
+};
+
+/**
  * Source with cross-line string concatenation folded away, so a sentence split
  * over two lines in Kotlin or Swift still matches the one written whole in TS.
  */
@@ -130,22 +174,33 @@ describe("#319 the pre-cutover checklist is the same on every client", () => {
     // Ordering is the design, not a detail. "Keep your old service active" is
     // the only one whose cost is unrecoverable, so it cannot drift down the
     // list into the place people stop reading.
-    for (const [platform, path] of Object.entries(SOURCES)) {
-      const text = flattened(path);
-      expect(
-        text.indexOf("Keep your old service active."),
-        platform,
-      ).toBeLessThan(text.indexOf("Export your message history."));
-      expect(
-        text.indexOf("Export your message history."),
-        platform,
-      ).toBeLessThan(text.indexOf("Tell the crew the switch date."));
-      expect(
-        text.indexOf("Tell the crew the switch date."),
-        platform,
-      ).toBeLessThan(text.indexOf("Expect texting to trail calls."));
+    //
+    // ASKED OF THE FILE THAT ORDERS THE LIST, which is not always the file that
+    // holds the words. Once a client's copy moves into a catalogue, the order
+    // of entries in that catalogue is AUTHORING order and decides nothing — a
+    // dictionary is not a screen. iOS is the case that proved it: its
+    // `preCutoverSteps` array is in exactly the right order while its catalogue
+    // happened to define "Export" above "Keep your old service active", and
+    // this check failed on a screen that was correct.
+    //
+    // Android passed the old way purely because its catalogue happened to be
+    // authored in checklist order. That is luck, not a guarantee, and it would
+    // have broken silently the first time somebody sorted the file.
+    for (const [platform, anchors] of Object.entries(ORDERED_ANCHORS)) {
+      const text = flattened(ORDER_SOURCES[platform]);
+      for (let i = 1; i < anchors.length; i += 1) {
+        const previous = text.indexOf(anchors[i - 1]);
+        const current = text.indexOf(anchors[i]);
+        expect(previous, `${platform}: ${anchors[i - 1]} not found`).toBeGreaterThan(-1);
+        expect(current, `${platform}: ${anchors[i]} not found`).toBeGreaterThan(-1);
+        expect(
+          previous,
+          `${platform}: "${anchors[i - 1]}" must come before "${anchors[i]}"`,
+        ).toBeLessThan(current);
+      }
     }
   });
+
 
   it("is shown for the same four transfer states everywhere", () => {
     // A client that dropped `in-process` would leave the customers most likely

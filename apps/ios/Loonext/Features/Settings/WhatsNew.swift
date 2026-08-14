@@ -23,6 +23,13 @@ import SwiftUI
 struct WhatsNewEntry: Identifiable, Sendable {
     /// ISO date the change reached customers.
     let date: String
+    /// #228: the CATALOGUE KEY, not the words — the same choice `WhatsNew.kt`
+    /// made, field for field.
+    ///
+    /// The list below is a top-level `let` built before anybody has a locale,
+    /// so an entry holding its own sentence could only ever hold one language's.
+    /// Everything that reads these — the unseen marker, the port tests — works
+    /// on the date and on identity, never on the prose.
     let title: String
     let body: String
 
@@ -37,43 +44,28 @@ struct WhatsNewEntry: Identifiable, Sendable {
 let whatsNewEntries: [WhatsNewEntry] = [
     WhatsNewEntry(
         date: "2026-08-01",
-        title: "Save the filters you use every morning",
-        body: """
-            Arrange the inbox how you want it, name it, and it is one tap away \
-            tomorrow. Share one with the crew and everybody opens the same list.
-            """
+        title: "settingsMore.whatsNewSavedViewsTitle",
+        body: "settingsMore.whatsNewSavedViewsBody"
     ),
     WhatsNewEntry(
         date: "2026-08-01",
-        title: "See how many quotes turned into work",
-        body: """
-            Your home screen now shows how many quotes you sent, how many you \
-            won, and how many are still waiting on an answer.
-            """
+        title: "settingsMore.whatsNewQuotesTitle",
+        body: "settingsMore.whatsNewQuotesBody"
     ),
     WhatsNewEntry(
         date: "2026-07-25",
-        title: "Voicemails are written down",
-        body: """
-            A missed call leaves a voicemail you can read at a red light \
-            instead of listening to it. It is searchable like any other message.
-            """
+        title: "settingsMore.whatsNewVoicemailTitle",
+        body: "settingsMore.whatsNewVoicemailBody"
     ),
     WhatsNewEntry(
         date: "2026-07-24",
-        title: "Lou drafts the reply for you",
-        body: """
-            Lou reads the thread and offers a reply you can edit before it \
-            goes. You send it, or you ignore it; nothing is sent on your behalf.
-            """
+        title: "settingsMore.whatsNewDraftsTitle",
+        body: "settingsMore.whatsNewDraftsBody"
     ),
     WhatsNewEntry(
         date: "2026-07-12",
-        title: "Answer calls in the app",
-        body: """
-            Calls to your business number ring your whole crew right here. \
-            Pick up, put someone on hold, or hand the call to a teammate.
-            """
+        title: "settingsMore.whatsNewCallsTitle",
+        body: "settingsMore.whatsNewCallsBody"
     ),
 ]
 
@@ -142,13 +134,22 @@ struct WhatsNewSectionView: View {
     /// they are being read.
     @State private var seenAtOpen: String? = readWhatsNewSeen()
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
+    /// Keyed on the entry's `title`, which is now its catalogue KEY — so the
+    /// marker survives a translation the way it never would have survived a
+    /// comparison of prose.
     private var unseenTitles: Set<String> {
         Set(unseenWhatsNewEntries(lastSeen: seenAtOpen, joinedAt: joinedAt).map(\.title))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Everything here has already shipped and is in the product now.")
+            Text(t("settingsMore.whatsNewIntro"))
                 .font(.golos(13, weight: .medium))
                 .foregroundStyle(BrandColor.muted700)
 
@@ -160,7 +161,7 @@ struct WhatsNewSectionView: View {
                                 .font(.golos(11, weight: .medium))
                                 .foregroundStyle(BrandColor.muted700)
                             if unseenTitles.contains(entry.title) {
-                                Text("New")
+                                Text(t("settingsMore.whatsNewBadge"))
                                     .font(.golos(11, weight: .semibold))
                                     .foregroundStyle(BrandColor.paper)
                                     .padding(.horizontal, 8)
@@ -168,10 +169,10 @@ struct WhatsNewSectionView: View {
                                     .background(BrandColor.ink, in: Capsule())
                             }
                         }
-                        Text(entry.title)
+                        Text(t(entry.title))
                             .font(.golos(15, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
-                        Text(entry.body)
+                        Text(t(entry.body))
                             .font(.golos(13.5))
                             .foregroundStyle(BrandColor.muted700)
                             .fixedSize(horizontal: false, vertical: true)
@@ -180,13 +181,7 @@ struct WhatsNewSectionView: View {
                 }
             }
 
-            Text(
-                """
-                Smaller repairs ship most days and are not listed. If you \
-                reported something and want to know where it got to, ask us on \
-                the Help page.
-                """
-            )
+            Text(t("settingsMore.whatsNewFooter"))
             .font(.golos(12))
             .foregroundStyle(BrandColor.muted700)
         }

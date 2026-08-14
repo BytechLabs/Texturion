@@ -73,6 +73,12 @@ private struct BusinessHoursCard: View {
         _days = State(initialValue: toFormState(company.business_hours))
     }
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
     private var dirty: Bool { days != toFormState(company.business_hours) }
     private var allValid: Bool {
@@ -81,21 +87,24 @@ private struct BusinessHoursCard: View {
 
     var body: some View {
         SettingsCard(
-            title: "Business hours",
-            description: "When you're open, in \(company.timezone.replacingOccurrences(of: "_", with: " ")). "
-                + "Texts that arrive outside these hours can get your away reply. This is "
-                + "separate from each customer's texting quiet hours."
+            title: t("settings.hoursTitle"),
+            description: t(
+                "settings.hoursIntro",
+                ["timezone": company.timezone.replacingOccurrences(of: "_", with: " ")]
+            )
         ) {
             ForEach($days, id: \.weekday) { $day in
                 WeekdayRow(day: $day, enabled: canEdit && !saving)
             }
             if !allValid {
-                ReadOnlyLine("Times are 24-hour HH:MM, and open and close can't match.")
+                ReadOnlyLine(t("settings.hoursInvalid"))
             }
             InlineError(error)
             if canEdit {
                 if dirty {
-                    Button(saving ? "Saving…" : "Save hours") { save() }
+                    Button(
+                        saving ? t("common.saving") : t("settings.hoursSaveAction")
+                    ) { save() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(!allValid || saving)
@@ -103,7 +112,7 @@ private struct BusinessHoursCard: View {
                 }
             } else {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change business hours.")
+                ReadOnlyLine(t("settings.hoursReadOnly"))
             }
         }
     }
@@ -120,7 +129,7 @@ private struct BusinessHoursCard: View {
             do {
                 let updated = try await scope.repo.updateCompany(scope.companyId, patch: body)
                 onCompanyUpdated(updated)
-                scope.showMessage("Business hours saved.")
+                scope.showMessage(t("settings.hoursSaved"))
             } catch {
                 self.error = error.userMessage
             }
@@ -172,6 +181,12 @@ private struct AwayReplyCard: View {
         _emergency = State(initialValue: company.emergency_keyword_enabled)
     }
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
     private var trimmed: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var dirty: Bool {
@@ -200,14 +215,12 @@ private struct AwayReplyCard: View {
 
     var body: some View {
         SettingsCard(
-            title: "Away reply",
-            description: "One automatic text back when someone reaches you outside your "
-                + "business hours, in your words, so you never lose an after-hours emergency."
+            title: t("settings.awayTitle"),
+            description: t("settings.awayIntro")
         ) {
             LabeledToggleRow(
-                label: "Reply automatically after hours",
-                supporting: "Fires once per conversation when a customer first texts "
-                    + "outside your hours.",
+                label: t("settings.awayEnable"),
+                supporting: t("settings.awayEnableHelp"),
                 isOn: enabled,
                 enabled: canEdit && !saving
             ) { enabled = $0 }
@@ -217,9 +230,13 @@ private struct AwayReplyCard: View {
             // while every US customer gets silence is the first week of every
             // US workspace.
             if enabled, !usSendApproved(company) {
-                ReachNote(text: usTextingOff(company)
-                    ? "Customers with US numbers won't get this reply: US texting isn't on for this workspace. Canadian numbers get it now."
-                    : "Customers with US numbers won't get this reply until your registration is approved. Canadian numbers get it now.")
+                ReachNote(
+                    text: t(
+                        usTextingOff(company)
+                            ? "settings.awayUsTextingOff"
+                            : "settings.awayUsPending"
+                    )
+                )
             }
             if canEdit {
                 TextField(company.away_effective_message, text: Binding(
@@ -232,7 +249,12 @@ private struct AwayReplyCard: View {
                 .lineLimit(3 ... 8)
                 .disabled(saving)
                 .padding(.top, 6)
-                Text("\(message.count)/1000 · {first_name} and {business_name} fill in automatically.")
+                // Only `{count}` is substituted. `{first_name}` and
+                // `{business_name}` are the MERGE FIELDS this sentence is
+                // teaching, so they have to survive into the rendered line —
+                // which `translate` does for free by only replacing what it is
+                // handed.
+                Text(t("settings.awayCount", ["count": String(message.count)]))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.top, 2)
@@ -243,16 +265,15 @@ private struct AwayReplyCard: View {
             // defect this issue is about, and an owner can only see it if the
             // two are on screen together.
             LabeledToggleRow(
-                label: "Treat an emergency word as an emergency",
+                label: t("settings.awayEmergencySwitch"),
                 // #460: names the words THIS workspace watches for. Hardcoding
                 // the product's four was fine until an owner could change them,
                 // at which point a switch naming words nothing matches is the
                 // #414 defect in a different place.
-                supporting: "Texts back starting with "
-                    + emergencyWordList(company.effectiveEmergencyWords)
-                    + " reach "
-                    + "everyone on the crew straight away, at the priority that wakes a phone — "
-                    + "no away reply, and never held back by your daily notification limit.",
+                supporting: t(
+                    "settings.awayEmergencySwitchHelp",
+                    ["words": emergencyWordList(company.effectiveEmergencyWords)]
+                ),
                 isOn: emergency,
                 enabled: canEdit && !saving
             ) { emergency = $0 }
@@ -270,7 +291,7 @@ private struct AwayReplyCard: View {
             // resolves to a sample name here because the away reply DOES carry
             // the contact.
             PreviewBubble(
-                label: "Preview",
+                label: t("settings.awayPreviewLabel"),
                 text: applyMergeFields(
                     effectiveMessage,
                     contactName: sampleFirstName,
@@ -280,7 +301,9 @@ private struct AwayReplyCard: View {
             InlineError(error)
             if canEdit {
                 if dirty {
-                    Button(saving ? "Saving…" : "Save away reply") { save() }
+                    Button(
+                        saving ? t("common.saving") : t("settings.awaySaveAction")
+                    ) { save() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(saving)
@@ -288,14 +311,14 @@ private struct AwayReplyCard: View {
                 }
             } else {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change the away reply.")
+                ReadOnlyLine(t("settings.awayReadOnly"))
             }
         }
     }
 
     private func save() {
         if enabled && trimmed.isEmpty {
-            error = "Write your away message before turning it on."
+            error = t("settings.awayNeedsMessage")
             return
         }
         error = nil
@@ -309,7 +332,7 @@ private struct AwayReplyCard: View {
             do {
                 let updated = try await scope.repo.updateCompany(scope.companyId, patch: body)
                 onCompanyUpdated(updated)
-                scope.showMessage("Away reply saved.")
+                scope.showMessage(t("settings.awaySaved"))
             } catch {
                 self.error = error.userMessage
             }
@@ -327,6 +350,12 @@ struct WeekdayRow: View {
     @Binding var day: DayForm
     let enabled: Bool
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             Toggle("", isOn: $day.enabled)
@@ -337,13 +366,13 @@ struct WeekdayRow: View {
                 .font(.callout)
                 .frame(width: 86, alignment: .leading)
             if day.enabled {
-                TimeField(label: "Open", value: $day.open, enabled: enabled)
-                Text("to")
+                TimeField(label: t("settings.hoursOpen"), value: $day.open, enabled: enabled)
+                Text(t("settings.hoursTo"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                TimeField(label: "Close", value: $day.close, enabled: enabled)
+                TimeField(label: t("settings.hoursClose"), value: $day.close, enabled: enabled)
             } else {
-                Text("Closed")
+                Text(t("settings.hoursClosed"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()

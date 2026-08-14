@@ -136,6 +136,8 @@ struct TaskCalendarView: View {
     @State private var undatedTruncated = false
     @State private var localRefresh = 0
 
+    @Environment(\.appLocale) private var appLocale
+
     private var calendar: Calendar { .current }
     private var month: Date { startOfMonth(monthAnchor, calendar: calendar) }
     private var query: String? { q.isEmpty ? nil : q }
@@ -249,7 +251,9 @@ struct TaskCalendarView: View {
                     .frame(width: 40, height: 40)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Previous month")
+            .accessibilityLabel(
+                AppStrings.translate(appLocale, "contactsTasks.calendarPreviousMonth")
+            )
 
             Text(monthTitle)
                 .font(.golos(14.5, weight: .semibold))
@@ -262,7 +266,7 @@ struct TaskCalendarView: View {
                     monthAnchor = Date()
                     selectedDay = calendar.startOfDay(for: Date())
                 } label: {
-                    Text("Today")
+                    Text(AppStrings.translate(appLocale, "contactsTasks.today"))
                         .font(.golos(12, weight: .semibold))
                         .foregroundStyle(BrandColor.olive)
                 }
@@ -278,7 +282,9 @@ struct TaskCalendarView: View {
                     .frame(width: 40, height: 40)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Next month")
+            .accessibilityLabel(
+                AppStrings.translate(appLocale, "contactsTasks.calendarNextMonth")
+            )
         }
         .padding(.horizontal, 6)
         .padding(.top, 6)
@@ -348,10 +354,7 @@ struct TaskCalendarView: View {
     // MARK: Below-grid sections
 
     private var emptyRangeCard: some View {
-        Text(
-            "Nothing is scheduled in this range. A task appears here once it has "
-                + "a due date. Set one from the task's detail screen."
-        )
+        Text(AppStrings.translate(appLocale, "contactsTasks.calendarEmptyRange"))
         .font(.golos(12.5))
         .foregroundStyle(BrandColor.muted500)
         .multilineTextAlignment(.center)
@@ -368,11 +371,23 @@ struct TaskCalendarView: View {
         let undatedText = undatedTruncated ? "\(undated)+" : "\(undated)"
         let text: String
         if scheduled > 0 && undated > 0 {
-            text = "\(scheduled) scheduled · \(undatedText) without a due date"
+            text = AppStrings.translate(
+                appLocale,
+                "contactsTasks.calendarScheduledAndUndated",
+                ["scheduled": String(scheduled), "undated": undatedText]
+            )
         } else if scheduled > 0 {
-            text = "\(scheduled) scheduled"
+            text = AppStrings.translate(
+                appLocale,
+                "contactsTasks.calendarScheduled",
+                ["scheduled": String(scheduled)]
+            )
         } else {
-            text = "\(undatedText) without a due date"
+            text = AppStrings.translate(
+                appLocale,
+                "contactsTasks.calendarUndated",
+                ["undated": undatedText]
+            )
         }
         return Text(text)
             .font(.golos(11.5))
@@ -389,7 +404,9 @@ struct TaskCalendarView: View {
             .padding(.horizontal, 18)
             .padding(.top, 14)
         if tasks.isEmpty {
-            Text("Nothing due this day.")
+            Text(
+                AppStrings.translate(appLocale, "contactsTasks.calendarNothingDueThisDay")
+            )
                 .font(.golos(12))
                 .foregroundStyle(BrandColor.muted500)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -479,7 +496,20 @@ struct TaskCalendarView: View {
 
     // MARK: Labels
 
-    private var weekdayLabels: [String] { ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] }
+    /// The Mon..Sun column heads. The GRID is always ISO Mon-first regardless
+    /// of the reader's calendar (see `calendarGridStart`); only the words come
+    /// from the catalogue.
+    private var weekdayLabels: [String] {
+        [
+            "contactsTasks.weekdayMon",
+            "contactsTasks.weekdayTue",
+            "contactsTasks.weekdayWed",
+            "contactsTasks.weekdayThu",
+            "contactsTasks.weekdayFri",
+            "contactsTasks.weekdaySat",
+            "contactsTasks.weekdaySun",
+        ].map { AppStrings.translate(appLocale, $0) }
+    }
 
     private var monthTitle: String {
         let formatter = DateFormatter()
@@ -494,17 +524,24 @@ struct TaskCalendarView: View {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = calendar
         formatter.dateFormat = "MMMM d"
-        let word = count == 1 ? "task" : "tasks"
-        return "\(formatter.string(from: day)), \(count) \(word)"
+        return AppStrings.translate(
+            appLocale,
+            count == 1
+                ? "contactsTasks.calendarDayCellOne"
+                : "contactsTasks.calendarDayCellMany",
+            ["date": formatter.string(from: day), "count": String(count)]
+        )
     }
 
     /// "Today" / "Tomorrow" / "Tue Jul 28" (+year off-year) for the day header.
     private func dayHeadingLabel(_ date: Date) -> String {
         let today = calendar.startOfDay(for: Date())
-        if calendar.isDate(date, inSameDayAs: today) { return "Today" }
+        if calendar.isDate(date, inSameDayAs: today) {
+            return AppStrings.translate(appLocale, "contactsTasks.today")
+        }
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
            calendar.isDate(date, inSameDayAs: tomorrow) {
-            return "Tomorrow"
+            return AppStrings.translate(appLocale, "contactsTasks.tomorrow")
         }
         let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: today)
         let formatter = DateFormatter()
@@ -582,6 +619,8 @@ private struct CalendarTaskRow: View {
     let assigneeName: String?
     let onToggleDone: @MainActor (Bool) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Button {
@@ -600,7 +639,12 @@ private struct CalendarTaskRow: View {
                 .frame(width: 22, height: 22)
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel(task.done ? "Mark not done" : "Mark done")
+            .accessibilityLabel(
+                AppStrings.translate(
+                    appLocale,
+                    task.done ? "contactsTasks.markNotDone" : "contactsTasks.markDone"
+                )
+            )
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.title)
@@ -615,9 +659,13 @@ private struct CalendarTaskRow: View {
                 if task.due_at != nil {
                     let overdue = isOverdue(task)
                     Text(
-                        overdue
-                            ? "Overdue · due \(formatDue(task.due_at))"
-                            : "Due \(formatDue(task.due_at))"
+                        AppStrings.translate(
+                            appLocale,
+                            overdue
+                                ? "contactsTasks.overdueDueWhen"
+                                : "contactsTasks.dueWhen",
+                            ["when": formatDue(task.due_at)]
+                        )
                     )
                     .font(.golos(11.5, weight: overdue ? .semibold : .regular))
                     .foregroundStyle(

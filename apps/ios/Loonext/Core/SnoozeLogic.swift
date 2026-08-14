@@ -46,12 +46,16 @@ enum SnoozePresetID: String, Sendable, CaseIterable {
     case nextWeek
 
     /// The wording, one place, so three clients cannot drift apart on it.
-    var label: String {
+    var label: String { localisedLabel() }
+
+    /// The same wording, in the reader's language. A distinct name rather than
+    /// an overload of `label` — see the note in `Model/Calls.swift`.
+    func localisedLabel(_ locale: String? = nil) -> String {
         switch self {
-        case .laterToday: return "This afternoon"
-        case .thisEvening: return "This evening"
-        case .tomorrow: return "Tomorrow morning"
-        case .nextWeek: return "Next week"
+        case .laterToday: return AppStrings.translate(locale, "domain.snoozePresetAfternoon")
+        case .thisEvening: return AppStrings.translate(locale, "domain.snoozePresetEvening")
+        case .tomorrow: return AppStrings.translate(locale, "domain.snoozePresetTomorrow")
+        case .nextWeek: return AppStrings.translate(locale, "domain.snoozePresetNextWeek")
         }
     }
 }
@@ -127,11 +131,16 @@ enum FollowUpPresetID: String, Sendable, CaseIterable {
     case nextWeek
     case twoWeeks
 
-    var label: String {
+    var label: String { localisedLabel() }
+
+    /// The same wording, in the reader's language.
+    func localisedLabel(_ locale: String? = nil) -> String {
         switch self {
-        case .threeDays: return "In 3 days"
-        case .nextWeek: return "Next week"
-        case .twoWeeks: return "In 2 weeks"
+        case .threeDays: return AppStrings.translate(locale, "domain.followUpPresetThreeDays")
+        // The same KEY the snooze ladder uses for this rung: one sentence for a
+        // translator to get right rather than two identical ones.
+        case .nextWeek: return AppStrings.translate(locale, "domain.snoozePresetNextWeek")
+        case .twoWeeks: return AppStrings.translate(locale, "domain.followUpPresetTwoWeeks")
         }
     }
 }
@@ -262,16 +271,20 @@ func isSnoozed(_ snoozedUntil: String?, now: Date = Date()) -> Bool {
 func snoozeReturnLabel(
     _ untilISO: String,
     now: Date = Date(),
-    calendar: Calendar = .current
+    calendar: Calendar = .current,
+    locale: String? = nil
 ) -> String {
-    guard let until = parseSnoozeInstant(untilISO) else { return "Snoozed" }
-    return snoozeReturnLabel(until, now: now, calendar: calendar)
+    guard let until = parseSnoozeInstant(untilISO) else {
+        return AppStrings.translate(locale, "domain.snoozeFallback")
+    }
+    return snoozeReturnLabel(until, now: now, calendar: calendar, locale: locale)
 }
 
 func snoozeReturnLabel(
     _ until: Date,
     now: Date = Date(),
-    calendar: Calendar = .current
+    calendar: Calendar = .current,
+    locale: String? = nil
 ) -> String {
     let time = DateFormatter()
     time.calendar = calendar
@@ -282,18 +295,28 @@ func snoozeReturnLabel(
     )
     let clock = time.string(from: until)
 
+    // #228: whole sentences with the clock interpolated in. The day name and
+    // the month still come from Foundation with the DEVICE's locale, for the
+    // reason the doc above gives — a hand-rolled month table is how a product
+    // ends up saying "Aug" to somebody whose phone is in French.
     switch snoozeReturnShape(until: until, now: now, calendar: calendar) {
     case .today:
-        return "Back at \(clock)"
+        return AppStrings.translate(locale, "domain.snoozeBackAt", ["time": clock])
     case .tomorrow:
-        return "Back tomorrow, \(clock)"
+        return AppStrings.translate(
+            locale, "domain.snoozeBackTomorrow", ["time": clock]
+        )
     case .weekday:
         let weekday = DateFormatter()
         weekday.calendar = calendar
         weekday.locale = .autoupdatingCurrent
         weekday.timeZone = calendar.timeZone
         weekday.dateFormat = "EEEE"
-        return "Back \(weekday.string(from: until)), \(clock)"
+        return AppStrings.translate(
+            locale,
+            "domain.snoozeBackWeekday",
+            ["day": weekday.string(from: until), "time": clock]
+        )
     case .date:
         let day = DateFormatter()
         day.calendar = calendar
@@ -302,7 +325,9 @@ func snoozeReturnLabel(
         day.dateFormat = DateFormatter.dateFormat(
             fromTemplate: "dMMM", options: 0, locale: .autoupdatingCurrent
         )
-        return "Back \(day.string(from: until))"
+        return AppStrings.translate(
+            locale, "domain.snoozeBackDate", ["date": day.string(from: until)]
+        )
     }
 }
 

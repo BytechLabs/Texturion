@@ -55,6 +55,7 @@ enum AppStrings {
     static let sections: [Section] = [
         CommonStrings.section,
         ContactsTasksStrings.section,
+        DomainStrings.section,
         InboxStrings.section,
         PaymentsStrings.section,
         SettingsStrings.section,

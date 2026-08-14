@@ -53,20 +53,20 @@ enum UsageExport {
     // the four clients import that file; this one cannot, so
     // `UsageExportCardTests` reads the TypeScript and compares it to these.
     // Never reworded here — reword it there, and the test will send you back.
+    //
+    // #228: the ENGLISH of these three now lives in the catalogue and these
+    // resolve it with no locale, so the parity test still reads the same
+    // sentence the TypeScript holds. The card shows the reader's language by
+    // asking for the same keys with one.
 
     /// `EXPORT_USAGE_ACTION`.
-    static let action = "Export usage"
+    static let action = AppStrings.translate(nil, "settingsMore.exportUsageAction")
 
     /// `EXPORT_USAGE_BLURB`.
-    static let blurb =
-        "Your texts, calls and storage for a period, as a file for whoever does "
-        + "your books."
+    static let blurb = AppStrings.translate(nil, "settingsMore.exportUsageBlurb")
 
     /// `EXPORT_USAGE_NOTE`.
-    static let note =
-        "It counts what we measured \u{2014} it is not a copy of your Stripe invoice, and "
-        + "nothing on it is priced. It is put together in the background and appears "
-        + "under Data export."
+    static let note = AppStrings.translate(nil, "settingsMore.exportUsageNote")
 
     // MARK: - Who this exists for
 
@@ -209,11 +209,14 @@ enum UsageExport {
     /// How a row says where it is up to. The default arm is the calm one, so a
     /// status added server-side reads as "not finished yet" rather than crashing
     /// or rendering a raw wire value at a customer.
-    static func statusLabel(_ status: String) -> String {
+    static func statusLabel(_ status: String, _ locale: String? = nil) -> String {
         switch status {
-        case DataExportStatus.ready: "Ready"
-        case DataExportStatus.failed: "Didn't finish"
-        default: "Being put together"
+        case DataExportStatus.ready:
+            AppStrings.translate(locale, "settingsMore.exportStatusReady")
+        case DataExportStatus.failed:
+            AppStrings.translate(locale, "settingsMore.exportStatusFailed")
+        default:
+            AppStrings.translate(locale, "settingsMore.exportStatusBuilding")
         }
     }
 
@@ -332,6 +335,12 @@ struct UsageExportCard: View {
     /// The poll gave up while something was still being built.
     @State private var stoppedWatching = false
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     init(scope: SettingsScope) {
         self.scope = scope
         // Smart Defaults: the form opens filled in, on the month a bookkeeper
@@ -354,7 +363,10 @@ struct UsageExportCard: View {
     /// because a phone with only the first half is a button that posts into a
     /// screen that does not exist.
     private var card: some View {
-        SettingsCard(title: "Data export", description: open ? nil : UsageExport.blurb) {
+        SettingsCard(
+            title: t("settingsMore.dataExport"),
+            description: open ? nil : t("settingsMore.exportUsageBlurb")
+        ) {
             VStack(alignment: .leading, spacing: 12) {
                 if open {
                     form
@@ -380,7 +392,7 @@ struct UsageExportCard: View {
             HStack(spacing: 6) {
                 Image(systemName: "doc")
                     .font(.footnote)
-                Text(UsageExport.action)
+                Text(t("settingsMore.exportUsageAction"))
                     .font(.subheadline.weight(.semibold))
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.down")
@@ -396,28 +408,39 @@ struct UsageExportCard: View {
 
     private var form: some View {
         VStack(alignment: .leading, spacing: 10) {
-            DatePicker("From", selection: $from, displayedComponents: [.date])
-                .datePickerStyle(.compact)
+            DatePicker(
+                t("settingsMore.exportFrom"),
+                selection: $from,
+                displayedComponents: [.date]
+            )
+            .datePickerStyle(.compact)
             // The end can never precede the start — the API refuses that pair,
             // and a picker that cannot express it is a better answer than an
             // error message explaining it.
-            DatePicker("To", selection: $to, in: from..., displayedComponents: [.date])
-                .datePickerStyle(.compact)
+            DatePicker(
+                t("settingsMore.exportTo"),
+                selection: $to,
+                in: from...,
+                displayedComponents: [.date]
+            )
+            .datePickerStyle(.compact)
 
             // Ethical Friction: what this file is NOT, before the button rather
             // than inside the file.
-            Text(UsageExport.note)
+            Text(t("settingsMore.exportUsageNote"))
                 .font(.golos(12))
                 .foregroundStyle(BrandColor.muted600)
 
             InlineError(problem)
 
             HStack(spacing: 10) {
-                Button(starting ? "Starting…" : "Start it") { start() }
+                Button(
+                    starting ? t("settingsMore.starting") : t("settingsMore.startIt")
+                ) { start() }
                     .buttonStyle(.borderedProminent)
                     .tint(BrandColor.olive)
                     .disabled(starting)
-                Button("Cancel") { open = false }
+                Button(t("common.cancel")) { open = false }
                     .buttonStyle(.plain)
                     .foregroundStyle(BrandColor.muted700)
                     .disabled(starting)
@@ -455,10 +478,10 @@ struct UsageExportCard: View {
                     if stoppedWatching {
                         // Honest about having stopped, rather than a spinner no
                         // longer attached to anything.
-                        Text("Still building. We stopped checking to save your data.")
+                        Text(t("settingsMore.exportStoppedWatching"))
                             .font(.golos(12))
                             .foregroundStyle(BrandColor.muted600)
-                        Button("Check again") {
+                        Button(t("settingsMore.exportCheckAgain")) {
                             stoppedWatching = false
                             reloadKey += 1
                         }
@@ -533,10 +556,11 @@ struct UsageExportCard: View {
                 // The same two sentences the web card says, so a crew comparing
                 // a laptop and a phone is told the same thing.
                 scope.showMessage(
-                    result.already_building
-                        ? "One is already being put together. It will appear under "
-                            + "Data export."
-                        : "Being put together now. It will appear under Data export."
+                    t(
+                        result.already_building
+                            ? "settingsMore.exportAlreadyBuilding"
+                            : "settingsMore.exportBuildingNow"
+                    )
                 )
                 // The form has done its job; the list below is now the thing
                 // worth looking at. Re-reading also restarts the poll, because
@@ -555,10 +579,16 @@ struct UsageExportCard: View {
 private struct UsageExportRow: View {
     let export: DataExport
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text(UsageExport.statusLabel(export.status))
+                Text(UsageExport.statusLabel(export.status, appLocale))
                     .font(.golos(12.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                 Spacer(minLength: 8)
@@ -571,7 +601,7 @@ private struct UsageExportRow: View {
                 // The server's own sentence first, as everywhere else: it is
                 // written to be read, and ours would be a guess about a failure
                 // we were told the shape of.
-                Text(export.error ?? "It didn't finish. Ask for another one.")
+                Text(export.error ?? t("settingsMore.exportDidNotFinish"))
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.destructive)
             }
@@ -595,10 +625,7 @@ private struct UsageExportRow: View {
             }
 
             if export.status == DataExportStatus.ready && export.files.isEmpty {
-                Text(
-                    "The links have expired and the copy has been deleted. Ask for a "
-                        + "fresh one above."
-                )
+                Text(t("settingsMore.exportLinksExpired"))
                 .font(.golos(12))
                 .foregroundStyle(BrandColor.muted600)
             }

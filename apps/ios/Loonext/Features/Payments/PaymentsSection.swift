@@ -46,6 +46,8 @@ import SwiftUI
 struct PaymentsSectionView: View {
     let scope: SettingsScope
 
+    @Environment(\.appLocale) private var appLocale
+
     @State private var state: LoadState<PayoutAccount> = .loading
     @State private var refreshKey = 0
     @State private var opening = false
@@ -81,7 +83,10 @@ struct PaymentsSectionView: View {
 
     @ViewBuilder
     private func accountCard(_ account: PayoutAccount) -> some View {
-        SettingsCard(title: "Getting paid", description: account.title) {
+        SettingsCard(
+            title: AppStrings.translate(appLocale, "payments.settingsTitle"),
+            description: account.title
+        ) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(account.detail)
                     .font(.golos(13))
@@ -94,7 +99,11 @@ struct PaymentsSectionView: View {
                 }
 
                 if let label = account.action {
-                    Button(opening ? "Opening…" : label) { open(account) }
+                    Button(
+                        opening
+                            ? AppStrings.translate(appLocale, "payments.opening")
+                            : label
+                    ) { open(account) }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(opening)
@@ -104,7 +113,9 @@ struct PaymentsSectionView: View {
                     // required — App Store rules treat a webview wrapped around
                     // an external payment page as a violation — and a reader who
                     // is not told is a reader who thinks the app crashed.
-                    Text("Opens Stripe in your browser.")
+                    Text(
+                        AppStrings.translate(appLocale, "payments.opensStripeInBrowser")
+                    )
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted500)
                         .padding(.top, 6)
@@ -125,8 +136,7 @@ struct PaymentsSectionView: View {
                     // bookkeeper pressing the button above would collect a 403
                     // and no explanation.
                     ReadOnlyLine(
-                        "Only the account owner can connect Stripe — it needs their "
-                            + "business details and their bank account."
+                        AppStrings.translate(appLocale, "payments.onlyOwnerConnectsStripe")
                     )
                     .padding(.top, 10)
                 }
@@ -137,11 +147,11 @@ struct PaymentsSectionView: View {
     /// What Stripe is still waiting for, in words an owner can act on.
     private func requirements(_ due: [String]) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("Stripe still needs:")
+            Text(AppStrings.translate(appLocale, "payments.stripeNeeds"))
                 .font(.golos(12.5, weight: .semibold))
                 .foregroundStyle(BrandColor.overdueAmber)
             ForEach(due, id: \.self) { requirement in
-                Text("· " + payoutRequirementCopy(requirement))
+                Text("· " + payoutRequirementCopy(requirement, appLocale))
                     .font(.golos(12.5))
                     .foregroundStyle(BrandColor.overdueAmber)
                     .fixedSize(horizontal: false, vertical: true)
@@ -161,20 +171,19 @@ struct PaymentsSectionView: View {
     /// underneath them. Only drawn when payments are live: a payouts row on an
     /// account that cannot charge yet answers a question nobody has reached.
     private func settledFacts(_ account: PayoutAccount) -> some View {
-        SettingsCard(title: "Where the money goes") {
+        SettingsCard(title: AppStrings.translate(appLocale, "payments.whereMoneyGoes")) {
             VStack(alignment: .leading, spacing: 8) {
                 Fact(
-                    label: "Payouts",
+                    label: AppStrings.translate(appLocale, "payments.payouts"),
                     value: account.payouts_enabled
-                        ? "On — money reaches your bank"
-                        : "Stripe has not switched payouts on yet"
+                        ? AppStrings.translate(appLocale, "payments.payoutsOn")
+                        : AppStrings.translate(appLocale, "payments.payoutsOff")
                 )
-                Fact(label: "Charged in", value: account.payoutCurrency.rawValue.uppercased())
-                Text(
-                    "Refunds, receipts and payout history all live in your Stripe "
-                        + "dashboard. We never hold your money and we take nothing on top "
-                        + "of what you charge — Stripe's own card fee is the only deduction."
+                Fact(
+                    label: AppStrings.translate(appLocale, "payments.chargedIn"),
+                    value: account.payoutCurrency.rawValue.uppercased()
                 )
+                Text(AppStrings.translate(appLocale, "payments.stripeDashboardNote"))
                 .font(.golos(12))
                 .foregroundStyle(BrandColor.muted600)
                 .fixedSize(horizontal: false, vertical: true)

@@ -105,14 +105,27 @@ func threadCatchUpOffer(for messages: [Message], now: Date = Date()) -> ThreadCa
 
 /// The offer's reason, in the words that go on the control. Nil when there is
 /// nothing to offer, so the caller renders no control rather than a blank chip.
-func threadCatchUpOfferLabel(_ offer: ThreadCatchUpOffer) -> String? {
+func threadCatchUpOfferLabel(
+    _ offer: ThreadCatchUpOffer,
+    locale: String? = nil
+) -> String? {
     switch offer {
     case .notOffered:
         return nil
     case .long(let messages):
-        return "\(messages) messages"
+        return AppStrings.translate(
+            locale,
+            "thread.summaryOfferMessages",
+            ["count": String(messages)]
+        )
     case .idle(let days):
-        return days == 1 ? "quiet for a day" : "quiet for \(days) days"
+        return days == 1
+            ? AppStrings.translate(locale, "thread.summaryOfferQuietDay")
+            : AppStrings.translate(
+                locale,
+                "thread.summaryOfferQuietDays",
+                ["count": String(days)]
+            )
     }
 }
 
@@ -131,9 +144,17 @@ enum ThreadSummarySectionId {
 }
 
 /// One section id and the heading that goes with it.
+///
+/// #228: TWO spellings of the heading, and both are load-bearing. `label` is the
+/// ENGLISH, which `ThreadSummaryTests` holds against the shared TypeScript
+/// source character for character — three clients each inventing a heading for
+/// "what we committed to" is the failure that check exists for, and a key would
+/// not be findable in that file. `labelKey` is where the French lives, and it is
+/// Android's own key so the same heading reaches the same name on both phones.
 struct ThreadSummarySection: Sendable {
     let id: String
     let label: String
+    let labelKey: String
 }
 
 /// The three sections in the order a person reads them, with the headings
@@ -147,9 +168,21 @@ struct ThreadSummarySection: Sendable {
 /// statement about the conversation; an action item is an instruction, and this
 /// surface does not get to give the crew instructions.
 let threadSummarySections: [ThreadSummarySection] = [
-    ThreadSummarySection(id: ThreadSummarySectionId.asked, label: "What they asked"),
-    ThreadSummarySection(id: ThreadSummarySectionId.weSaid, label: "What we said"),
-    ThreadSummarySection(id: ThreadSummarySectionId.open, label: "Still open"),
+    ThreadSummarySection(
+        id: ThreadSummarySectionId.asked,
+        label: AppStrings.translate(nil, "domain.catchUpSectionAsked"),
+        labelKey: "domain.catchUpSectionAsked"
+    ),
+    ThreadSummarySection(
+        id: ThreadSummarySectionId.weSaid,
+        label: AppStrings.translate(nil, "domain.catchUpSectionWeSaid"),
+        labelKey: "domain.catchUpSectionWeSaid"
+    ),
+    ThreadSummarySection(
+        id: ThreadSummarySectionId.open,
+        label: AppStrings.translate(nil, "domain.catchUpSectionOpen"),
+        labelKey: "domain.catchUpSectionOpen"
+    ),
 ]
 
 /// The line shown beside the catch-up, in one place for all three clients.
@@ -159,8 +192,13 @@ let threadSummarySections: [ThreadSummarySection] = [
 /// — so the surface has to say whose reading it is and that the thread is still
 /// the arbiter. Every line taps through to the message it came from, which is
 /// what makes that sentence true rather than a disclaimer.
-let threadSummaryAttribution =
-    "Lou read this thread. Tap any line to see the message it came from."
+///
+/// #228: the ENGLISH, because `ThreadSummaryTests` holds this against the shared
+/// TypeScript source verbatim. The card draws `threadSummaryAttributionKey`.
+let threadSummaryAttribution = AppStrings.translate(nil, "domain.catchUpAttribution")
+
+/// The same sentence, as the key the card reads it through.
+let threadSummaryAttributionKey = "domain.catchUpAttribution"
 
 // MARK: - The wire
 
@@ -478,11 +516,18 @@ struct ThreadSummaryGroup: Identifiable {
 /// timestamp so the later word reads last. That is the only defence this
 /// feature has against a correctly-cited line that a later message superseded,
 /// and re-sorting here would throw it away.
-func groupThreadSummary(_ lines: [ThreadSummaryLine]) -> [ThreadSummaryGroup] {
+func groupThreadSummary(
+    _ lines: [ThreadSummaryLine],
+    locale: String? = nil
+) -> [ThreadSummaryGroup] {
     threadSummarySections.compactMap { section in
         let matching = lines.filter { $0.section == section.id }
         guard !matching.isEmpty else { return nil }
-        return ThreadSummaryGroup(id: section.id, label: section.label, lines: matching)
+        return ThreadSummaryGroup(
+            id: section.id,
+            label: AppStrings.translate(locale, section.labelKey),
+            lines: matching
+        )
     }
 }
 
@@ -526,23 +571,29 @@ func threadCatchUpFailureReason(_ error: Error) -> String? {
 /// body at all (`threadCatchUpFailureReason`). They share exactly one spelling —
 /// `rate_limited`, where the limiter's 429 and the AI gate's refusal mean the
 /// same thing to a reader and deserve the same sentence.
-func threadCatchUpMessage(_ reason: String?) -> String {
+///
+/// #228: `locale` is defaulted and LAST. It has to be — `ThreadSummaryTests`
+/// SCANS THE CARD'S SOURCE for the exact spelling `threadCatchUpMessage(result.
+/// reason)`, so the two call sites in `ThreadSummaryCard` cannot pass one until
+/// that scan is re-pointed. Every sentence is in the catalogue either way; the
+/// only thing still missing is the argument at those two sites.
+func threadCatchUpMessage(_ reason: String?, locale: String? = nil) -> String {
     // Switched on a non-optional so a case can be the shipped `ApiErrorCode`
     // constant itself rather than a second copy of the same string typed here.
     switch reason ?? "" {
     case "disabled":
-        return "Catch-ups are turned off for this workspace. Settings, AI turns them back on."
+        return AppStrings.translate(locale, "domain.catchUpDisabled")
     // #250: a thread somebody marked as spam never spends AI budget.
     case "spam":
-        return "This thread is marked as spam, so Lou skips it. Unmark it to ask for a catch-up."
+        return AppStrings.translate(locale, "thread.summarySpam")
     case "too_short":
-        return "There isn't much here yet \u{2014} reading the thread is quicker than a catch-up."
+        return AppStrings.translate(locale, "thread.summaryTooShort")
     case "over_cap":
-        return "This month's catch-ups are used up. They start again next month. Read the thread."
+        return AppStrings.translate(locale, "thread.summaryOverCap")
     case "rate_limited":
-        return "That was a lot of catch-ups at once. Try again in a moment."
+        return AppStrings.translate(locale, "domain.catchUpRateLimited")
     case "model_error", "unavailable":
-        return "Couldn't reach Lou just now. Try again, or read the thread."
+        return AppStrings.translate(locale, "thread.summaryUnreachable")
     // The four rules firing, and worth its own sentence: Lou answered and
     // nothing it wrote survived the checking, which is exactly the output that
     // must never reach a crew. Saying less is the honest failure.
@@ -554,15 +605,13 @@ func threadCatchUpMessage(_ reason: String?) -> String {
     // perfectly and does not REPRODUCE the message it cites, which is no longer
     // that message but a sentence about it.
     case "unusable_output":
-        return "Nothing Lou wrote checked out against the thread, so it said "
-            + "nothing. Read the thread."
+        return AppStrings.translate(locale, "thread.summaryUnusable")
 
     // #581: billing, not breakage. Deliberately does NOT say "try again" —
     // trying again is not what fixes it — and names the one place that does,
     // in the same words the send paths already use for a lapsed subscription.
     case "subscription_inactive":
-        return "Lou is paused while the subscription is sorted out. "
-            + "An owner can fix that in Billing."
+        return AppStrings.translate(locale, "thread.louPausedForBilling")
 
     // ---- the request never came back with a body (see
     //      `threadCatchUpFailureReason`) --------------------------------------
@@ -575,29 +624,26 @@ func threadCatchUpMessage(_ reason: String?) -> String {
         // gate is there, because "you can read this thread but not summarise it"
         // is otherwise arbitrary: a catch-up spends from one monthly budget the
         // whole workspace shares.
-        return "Your role can't ask for catch-ups \u{2014} they spend the "
-            + "workspace's shared AI budget. An owner or admin can change that, "
-            + "and the thread is all here."
+        return AppStrings.translate(locale, "thread.summaryForbidden")
     case ApiErrorCode.notFound:
         // The conversation is gone, or this person's access to its number was
         // taken away while they had it open. Same shape on purpose (#106): a
         // hidden number's conversations must not even be enumerable.
-        return "This thread isn't there any more. Close it and open it again."
+        return AppStrings.translate(locale, "thread.summaryNotFound")
     case ApiErrorCode.network:
         // Not "couldn't reach Lou": Lou was never asked. The phrasing is
         // `ApiClient`'s own, so the app says one thing about connectivity.
-        return "Can't reach Loonext. Check your connection, then try again."
+        return AppStrings.translate(locale, "thread.summaryNetwork")
     case ApiErrorCode.serviceUnavailable:
         // #283: switched off at the runtime kill switch. Temporary and nobody's
         // fault, so "paused, try shortly" — never "you cannot do this".
-        return "Catch-ups are paused right now. Try again shortly, or read the "
-            + "thread."
+        return AppStrings.translate(locale, "thread.summaryPaused")
 
     default:
         // Everything unnamed, which now includes a reason a newer server adds
         // and a failure that was not an `ApiError` at all. Vague and true beats
         // specific and false.
-        return "No catch-up this time. Try again, or read the thread."
+        return AppStrings.translate(locale, "thread.summaryNone")
     }
 }
 
@@ -617,19 +663,27 @@ func threadCatchUpMessage(_ reason: String?) -> String {
 /// Takes the CARRIER rather than the whole result so the sentence can be written
 /// in a phase that has no result: a pending re-ask holds the standing and
 /// nothing else (`ThreadCatchUpState.asking`).
-func threadCatchUpOptOutNotice(_ carrier: ThreadCatchUpCarrier) -> String? {
+///
+/// #228: `locale` defaulted and LAST, and for the moment it is never passed —
+/// `ThreadSummaryTests` scans the card's source for the exact spelling
+/// `threadCatchUpOptOutNotice(state.visibleCarrier)`. See the note on
+/// `threadCatchUpMessage`.
+func threadCatchUpOptOutNotice(
+    _ carrier: ThreadCatchUpCarrier,
+    locale: String? = nil
+) -> String? {
     if let optOut = carrier.optOut {
         // The customer's own STOP is a different fact from a crew member
         // recording one, and only one of them can be undone here. Naming which
         // is what stops somebody "fixing" a carrier block they cannot fix.
         return isCarrierEnforcedOptOut(optOut.source)
-            ? "This contact texted STOP. Nothing can be sent to them, whatever this says."
-            : "This contact is opted out. Nothing can be sent to them, whatever this says."
+            ? AppStrings.translate(locale, "thread.summaryStopNotice")
+            : AppStrings.translate(locale, "thread.summaryOptedOutNotice")
     }
     if carrier.hintAt != nil {
         // #396: not a carrier STOP, so it does not block anything — but the
         // person replying is often not the person who read the request.
-        return "Somebody here asked to be left alone. Check the thread before replying."
+        return AppStrings.translate(locale, "thread.summaryLeftAloneNotice")
     }
     return nil
 }
@@ -639,5 +693,7 @@ func threadCatchUpOptOutNotice(_ carrier: ThreadCatchUpCarrier) -> String? {
 /// No figure: the window size is the server's and it does not travel on the
 /// wire, so a number typed here would be a second copy that drifts. The shape of
 /// the truth is what a reader needs.
-let threadCatchUpTruncatedNote =
-    "This is the recent stretch of the thread, not all of it."
+/// #228: the key, read where it is drawn. iOS says this in its own words —
+/// Android's `thread.summaryTruncated` is a different sentence — so the key is
+/// this app's rather than that one's.
+let threadCatchUpTruncatedNoteKey = "thread.summaryRecentStretch"

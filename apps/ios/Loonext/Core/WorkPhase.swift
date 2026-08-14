@@ -36,10 +36,15 @@ enum WorkPhase {
     static let all = [before, after]
 
     /// What each is called on screen.
-    static func label(_ phase: String) -> String {
+    ///
+    /// #228: `locale` is last and defaulted, so `WorkPhaseTests` keeps pinning
+    /// the English while the row that knows its reader passes `appLocale`. The
+    /// wire values (`before`, `after`) are never translated — they are what the
+    /// server stores.
+    static func label(_ phase: String, locale: String? = nil) -> String {
         switch phase {
-        case before: return "Before"
-        case after: return "After"
+        case before: return AppStrings.translate(locale, "domain.workPhaseBefore")
+        case after: return AppStrings.translate(locale, "domain.workPhaseAfter")
         default: return phase
         }
     }
@@ -49,11 +54,12 @@ enum WorkPhase {
     /// Named rather than "None", because most notes are neither: a note saying the
     /// part is on order is not an unlabelled before. Offering "None" invites a tech to
     /// think they have failed to fill something in.
-    static let unsetLabel = "Not a before or after"
+    static let unsetLabelKey = "domain.workPhaseUnset"
+    static var unsetLabel: String { AppStrings.translate(nil, unsetLabelKey) }
 
     /// One line under the control, for somebody who has never seen it.
-    static let hint =
-        "Marks these photos as how it looked when you arrived, or how you left it."
+    static let hintKey = "domain.workPhaseHint"
+    static var hint: String { AppStrings.translate(nil, hintKey) }
 
     static func isPhase(_ value: String?) -> Bool {
         value == before || value == after
@@ -130,12 +136,24 @@ func groupJobPhotos<T: JobPhotoLike>(_ items: [T]) -> [JobPhotoGroup<T>] {
 /// Nil when there is nothing labelled, so a caller renders no summary at all rather
 /// than "0 before, 0 after" — which reads as a broken count rather than as a job whose
 /// photos nobody classified.
-func jobPhaseSummary(_ items: [JobPhotoLike]) -> String? {
+func jobPhaseSummary(_ items: [JobPhotoLike], locale: String? = nil) -> String? {
     let before = items.filter { $0.workPhase == WorkPhase.before }.count
     let after = items.filter { $0.workPhase == WorkPhase.after }.count
     if before == 0 && after == 0 { return nil }
     var parts: [String] = []
-    if before > 0 { parts.append("\(before) before") }
-    if after > 0 { parts.append("\(after) after") }
+    if before > 0 {
+        parts.append(
+            AppStrings.translate(
+                locale, "domain.jobPhaseCountBefore", ["count": String(before)]
+            )
+        )
+    }
+    if after > 0 {
+        parts.append(
+            AppStrings.translate(
+                locale, "domain.jobPhaseCountAfter", ["count": String(after)]
+            )
+        )
+    }
     return parts.joined(separator: ", ")
 }

@@ -30,6 +30,8 @@ struct TagsCard: View {
         MemberRole.has(scope.role, Capability.settingsManage)
     }
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         Group {
             switch state {
@@ -76,10 +78,8 @@ struct TagsCard: View {
                     )
                 }
                 SettingsCard(
-                    title: "Tags",
-                    description: "What the crew has been tagging, and how often. The "
-                        + "quiet ones at the bottom are usually duplicates of "
-                        + "something above."
+                    title: AppStrings.translate(appLocale, "settingsMore.tagsTitle"),
+                    description: AppStrings.translate(appLocale, "settingsMore.tagsDesc")
                 ) {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(rows.enumerated()), id: \.element.tag_id) { index, row in
@@ -141,6 +141,12 @@ private struct TagUsageRow: View {
 
     private var repo: MessagingRepository { MessagingRepository(api: scope.graph.api) }
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
@@ -151,11 +157,20 @@ private struct TagUsageRow: View {
                 // Last used beside the count: a tag with forty uses and nothing
                 // since March is a category the crew has stopped believing in,
                 // and the count alone cannot say that.
-                Text(usesLabel(row.uses) + lastUsedSuffix(row.last_used))
+                Text(
+                    usesLabel(row.uses, appLocale)
+                        + lastUsedSuffix(row.last_used, appLocale)
+                )
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
                 if canManage {
-                    Button(row.description?.isEmpty == false ? "Edit" : "Describe") {
+                    Button(
+                        t(
+                            row.description?.isEmpty == false
+                                ? "settingsMore.edit"
+                                : "settingsMore.describe"
+                        )
+                    ) {
                         draft = row.description ?? ""
                         editing.toggle()
                     }
@@ -164,7 +179,7 @@ private struct TagUsageRow: View {
                     .foregroundStyle(BrandColor.olive)
                 }
                 if canMerge {
-                    Button("Merge") { onMerge() }
+                    Button(t("settingsMore.merge")) { onMerge() }
                         .font(.subheadline)
                         .buttonStyle(.plain)
                         .foregroundStyle(BrandColor.olive)
@@ -172,7 +187,7 @@ private struct TagUsageRow: View {
             }
 
             if editing {
-                TextField("What does this one mean?", text: $draft)
+                TextField(t("settingsMore.tagDescribePlaceholder"), text: $draft)
                     .font(.golos(12.5))
                     .textFieldStyle(.roundedBorder)
                     .disabled(saving)
@@ -183,12 +198,12 @@ private struct TagUsageRow: View {
                         }
                     }
                 HStack(spacing: 12) {
-                    Button(saving ? "Saving…" : "Save") { save() }
+                    Button(saving ? t("common.saving") : t("common.save")) { save() }
                         .font(.subheadline)
                         .buttonStyle(.plain)
                         .foregroundStyle(BrandColor.olive)
                         .disabled(saving)
-                    Button("Cancel") { editing = false }
+                    Button(t("common.cancel")) { editing = false }
                         .font(.subheadline)
                         .buttonStyle(.plain)
                         .foregroundStyle(BrandColor.muted500)
@@ -231,18 +246,24 @@ private struct TagUsageRow: View {
 private let tagDescriptionMax = 200
 
 /// " · last 2d" when it has ever been used; nothing when it has not.
-private func lastUsedSuffix(_ iso: String?) -> String {
+private func lastUsedSuffix(_ iso: String?, _ locale: String? = nil) -> String {
     guard let iso, !iso.isEmpty else { return "" }
     let relative = relativeTime(iso)
-    return relative.isEmpty ? "" : " · last \(relative)"
+    return relative.isEmpty
+        ? ""
+        : AppStrings.translate(locale, "settingsMore.tagLastUsed", ["ago": relative])
 }
 
 /// "never used" reads as a verdict; "0 threads" reads as a loading state.
-func usesLabel(_ uses: Int) -> String {
+///
+/// `locale` defaulted to nil — the English table — so the guards that pin these
+/// three answers keep reading English, and the row hands it the reader's.
+func usesLabel(_ uses: Int, _ locale: String? = nil) -> String {
     switch uses {
-    case 0: "never used"
-    case 1: "1 thread"
-    default: "\(uses) threads"
+    case 0: AppStrings.translate(locale, "settingsMore.tagNeverUsed")
+    case 1: AppStrings.translate(locale, "settingsMore.tagOneThread")
+    default:
+        AppStrings.translate(locale, "settingsMore.tagThreads", ["count": String(uses)])
     }
 }
 
@@ -268,17 +289,21 @@ private struct MergeTagSheet: View {
 
     private var repo: MessagingRepository { MessagingRepository(api: scope.graph.api) }
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Text("Every conversation tagged \u{201C}\(from.name)\u{201D} keeps its "
-                        + "place under the tag you pick, and this one goes away. "
-                        + "Nothing is untagged.")
+                    Text(t("settingsMore.mergeBody", ["tag": from.name]))
                         .font(.golos(12.5))
                         .foregroundStyle(BrandColor.muted600)
                 }
-                Section("Keep which tag?") {
+                Section(t("settingsMore.mergeKeepWhich")) {
                     ForEach(others, id: \.tag_id) { tag in
                         Button {
                             into = tag
@@ -300,25 +325,34 @@ private struct MergeTagSheet: View {
                     // into B" is ambiguous to almost everybody; a sentence
                     // naming what survives is not.
                     Section {
-                        Text("\(usesLabel(from.uses).capitalizedFirst) moves to "
-                            + "\u{201C}\(into.name)\u{201D}. \u{201C}\(from.name)\u{201D} "
-                            + "stops existing.")
-                            .font(.golos(12.5))
-                            .foregroundStyle(BrandColor.muted600)
+                        Text(
+                            t(
+                                "settingsMore.mergeDirection",
+                                [
+                                    "uses": usesLabel(from.uses, appLocale).capitalizedFirst,
+                                    "target": into.name,
+                                    "tag": from.name,
+                                ]
+                            )
+                        )
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.muted600)
                     }
                 }
                 if let error {
                     Section { InlineError(error) }
                 }
             }
-            .navigationTitle("Merge \u{201C}\(from.name)\u{201D}")
+            .navigationTitle(t("settingsMore.mergeTitle", ["tag": from.name]))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }.disabled(merging)
+                    Button(t("common.cancel")) { onDismiss() }.disabled(merging)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(merging ? "Merging…" : "Merge") { merge() }
+                    Button(
+                        merging ? t("settingsMore.merging") : t("settingsMore.merge")
+                    ) { merge() }
                         .disabled(into == nil || merging)
                 }
             }
@@ -337,7 +371,7 @@ private struct MergeTagSheet: View {
                     fromTagId: from.tag_id,
                     intoTagId: target.tag_id
                 )
-                scope.showMessage("Merged into \u{201C}\(target.name)\u{201D}.")
+                scope.showMessage(t("settingsMore.mergedInto", ["target": target.name]))
                 onMerged()
             } catch {
                 self.error = error.userMessage
@@ -381,16 +415,20 @@ private struct TagLockCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         SettingsCard(
-            title: "Who can create tags",
-            description: "Anyone on the crew can add a tag by default. Lock it once "
-                + "your list is the list."
+            title: t("settingsMore.tagLockTitle"),
+            description: t("settingsMore.tagLockDesc")
         ) {
             LabeledToggleRow(
-                label: "Only owners and admins can create tags",
-                supporting: "Everyone can still use every tag you already have. This "
-                    + "only stops new ones being invented mid-job.",
+                label: t("settingsMore.tagLockLabel"),
+                supporting: t("settingsMore.tagLockSupporting"),
                 isOn: company.tags_locked,
                 enabled: !saving
             ) { next in
@@ -399,9 +437,7 @@ private struct TagLockCard: View {
 
             if company.tags_locked {
                 Spacer().frame(height: 6)
-                ReadOnlyLine("A tech who needs a category you do not have will leave "
-                    + "the thread untagged rather than ask. Check the list below now "
-                    + "and then.")
+                ReadOnlyLine(t("settingsMore.tagLockedNote"))
             }
 
             InlineError(error)

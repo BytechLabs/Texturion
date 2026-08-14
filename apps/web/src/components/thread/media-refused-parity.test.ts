@@ -57,6 +57,10 @@ const COPY: Record<string, string> = {
     REPO_ROOT,
     "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/ThreadStrings.kt",
   ),
+  // And iOS one sweep later, so the comment above about it still keeping both
+  // in `Timeline.swift` is no longer true — all three now separate the file
+  // that DECIDES from the file that holds the words.
+  ios: join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/ThreadStrings.swift"),
 };
 
 /**
@@ -180,7 +184,13 @@ describe("#317 refused-attachment copy is the same on every client", () => {
   it("carries every sentence on every platform, verbatim", () => {
     const missing: string[] = [];
     for (const [platform, path] of Object.entries(COPY)) {
-      const text = readFileSync(path, "utf8");
+      // Wrapped literals glued back before comparing. A catalogue entry longer
+      // than the line limit is written `"…send a " + "smaller one"`, and a
+      // verbatim check cannot span that — it would report six sentences missing
+      // that are plainly present, which is a guard failing on line breaks.
+      const text = readFileSync(path, "utf8")
+        .replace(/"\s*\+\s*\n\s*"/g, "")
+        .replace(/"\s*\n\s*\+\s*"/g, "");
       for (const sentence of SENTENCES) {
         if (!text.includes(sentence)) missing.push(`${platform}: ${sentence}`);
       }

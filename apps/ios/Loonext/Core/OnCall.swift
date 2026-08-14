@@ -25,104 +25,183 @@ enum OnCall {
         let detail: String
     }
 
-    static let presets: [Preset] = [
-        Preset(key: "tonight", label: "Tonight", detail: "6pm until 8am tomorrow"),
-        Preset(
-            key: "weekend",
-            label: "This weekend",
-            detail: "Friday 6pm until Monday 8am"
-        ),
-        Preset(key: "week", label: "The next 7 days", detail: "Starting now"),
-    ]
+    /// #228 — how every sentence in this namespace reaches a reader.
+    ///
+    /// Nothing in `Core/` has an `@Environment(\.appLocale)` to read: this is a
+    /// plain `enum` whose constants are built at type-init, long before any
+    /// view exists. So each sentence is a KEY, resolved by a function that
+    /// takes the reader's language LAST and DEFAULTED — the shape
+    /// `AppLock.headline` already uses.
+    ///
+    /// The old constant names are kept as computed `static var`s over those
+    /// keys, so a card that has not been given a reader keeps rendering exactly
+    /// what it rendered before rather than a bare key. A screen that HAS one
+    /// moves to the `…Key` constant and `AppStrings.translate`, or to the
+    /// locale-taking function beside it.
+    private static func say(_ key: String, _ locale: String? = nil) -> String {
+        AppStrings.translate(locale, key)
+    }
+
+    /// The three offers, in the reader's language.
+    ///
+    /// A DIFFERENT NAME from the `presets` property below rather than an
+    /// overload of it: whether Swift accepts a property and a method sharing
+    /// one base name in one type is a question this repo cannot answer
+    /// locally — Swift compiles only in CI's `Gate / iOS` — and there is no
+    /// precedent for the pair anywhere in this app to copy.
+    static func localisedPresets(_ locale: String? = nil) -> [Preset] {
+        [
+            Preset(
+                key: "tonight",
+                label: say("domain.onCallPresetTonight", locale),
+                detail: say("domain.onCallPresetTonightDetail", locale)
+            ),
+            Preset(
+                key: "weekend",
+                label: say("domain.onCallPresetWeekend", locale),
+                detail: say("domain.onCallPresetWeekendDetail", locale)
+            ),
+            Preset(
+                key: "week",
+                label: say("domain.onCallPresetWeek", locale),
+                detail: say("domain.onCallPresetWeekDetail", locale)
+            ),
+        ]
+    }
+
+    /// The English, for the card that has not been handed a reader yet.
+    static var presets: [Preset] { localisedPresets() }
 
     /// Nobody holding it — states the CONSEQUENCE, which is the decision.
-    static let nobody =
-        "Nobody is on call, so an after-hours call wakes everyone who can see "
-        + "the number. Put one person on and the rest get a quiet night."
+    static let nobodyKey = "domain.onCallNobody"
+    static var nobody: String { say(nobodyKey) }
 
-    static let until = "on call until"
+    static let untilKey = "domain.onCallUntil"
+    static var until: String { say(untilKey) }
 
-    static let escalation =
-        "If they do not pick it up, everyone else is told a few minutes later."
+    static let escalationKey = "domain.onCallEscalation"
+    static var escalation: String { say(escalationKey) }
 
-    static let readOnly = "Only an owner or admin can change who is on call."
+    static let readOnlyKey = "domain.onCallReadOnly"
+    static var readOnly: String { say(readOnlyKey) }
 
-    static func line(_ name: String, until value: String) -> String {
-        "\(name) is \(until) \(value)"
+    /// One whole sentence rather than a name glued to a fragment: the verb sits
+    /// in a different place in the two languages, and a sentence assembled from
+    /// pieces can only ever be assembled in one word order.
+    static func line(
+        _ name: String,
+        until value: String,
+        locale: String? = nil
+    ) -> String {
+        AppStrings.translate(
+            locale, "domain.onCallLine", ["name": name, "until": value]
+        )
     }
 
     // MARK: - #244 the unclaimed-page banner
 
     /// Unclaimed. Says what is owed, not what happened.
-    static let bannerWaiting = "Nobody has picked this up yet"
+    static let bannerWaitingKey = "domain.onCallBannerWaiting"
+    static var bannerWaiting: String { say(bannerWaitingKey) }
 
     /// The action. First person, because that is what tapping it means.
-    static let bannerClaim = "I have this"
+    static let bannerClaimKey = "domain.onCallBannerClaim"
+    static var bannerClaim: String { say(bannerClaimKey) }
 
     /// Claimed by somebody else — the sentence that stops a second callback.
-    static let bannerTaken = "has this"
+    static let bannerTakenKey = "domain.onCallBannerTaken"
+    static var bannerTaken: String { say(bannerTakenKey) }
 
     /// Claimed by you. Confirms it stuck, and that the others were told.
-    static let bannerYours = "You have this. The rest of the crew has been told."
+    static let bannerYoursKey = "domain.onCallBannerYours"
+    static var bannerYours: String { say(bannerYoursKey) }
 
-    static func alertTakenLine(_ name: String) -> String {
-        "\(name) \(bannerTaken)"
+    /// One whole sentence, for the same reason `line` is one.
+    static func alertTakenLine(_ name: String, locale: String? = nil) -> String {
+        AppStrings.translate(locale, "domain.onCallTakenLine", ["name": name])
     }
 
     // MARK: - #244 a member's own quiet hours
 
-    static let quietHeading = "Quiet hours"
+    static let quietHeadingKey = "domain.quietHoursHeading"
+    static var quietHeading: String { say(quietHeadingKey) }
 
     /// THE LOAD-BEARING SENTENCE. The reason people do not set quiet hours is
     /// the fear of missing the emergency, so a control that offers silence
     /// without saying what still gets through does not get switched on — and
     /// the member goes back to turning notifications off entirely.
-    static let quietReassurance =
-        "Your phone stays quiet for ordinary messages. If you are on call, or "
-        + "an alert nobody picked up widens to the crew, it still comes through."
+    static let quietReassuranceKey = "domain.quietHoursReassurance"
+    static var quietReassurance: String { say(quietReassuranceKey) }
 
-    static let quietOff = "Off — every notification reaches you at any hour."
+    static let quietOffKey = "domain.quietHoursOff"
+    static var quietOff: String { say(quietOffKey) }
 
-    static let quietOn = "Quiet from"
+    static let quietOnKey = "domain.quietHoursOn"
+    static var quietOn: String { say(quietOnKey) }
 
-    static let quietScope = "This applies to this workspace only."
+    static let quietScopeKey = "domain.quietHoursScope"
+    static var quietScope: String { say(quietScopeKey) }
 
     /// The window most people want, offered rather than imposed.
     static let quietDefaultFrom = "22:00"
     static let quietDefaultTo = "07:00"
 
-    static func quietHoursLine(from: String, to: String) -> String {
-        "\(quietOn) \(from) to \(to)"
+    /// One whole sentence, for the same reason `line` is one.
+    static func quietHoursLine(
+        from: String,
+        to: String,
+        locale: String? = nil
+    ) -> String {
+        AppStrings.translate(
+            locale, "domain.quietHoursLine", ["from": from, "to": to]
+        )
     }
 
     // MARK: - #297 how loud each kind of notification is
 
-    static let deliveryHeading = "How much we tell you"
+    static let deliveryHeadingKey = "domain.deliveryHeading"
+    static var deliveryHeading: String { say(deliveryHeadingKey) }
 
     /// THE PROMISE THAT MAKES A QUIETER SETTING PICKABLE. Without it nobody
     /// chooses one, because the fear is missing the call that mattered — and
     /// they go back to turning notifications off entirely.
-    static let deliveryUrgentAlways =
-        "An emergency, a page while you are on call, or an alert nobody picked "
-        + "up always arrives straight away, whatever you choose here."
+    static let deliveryUrgentAlwaysKey = "domain.deliveryUrgentAlways"
+    static var deliveryUrgentAlways: String { say(deliveryUrgentAlwaysKey) }
 
-    static let deliveryImmediate = "Straight away"
-    static let deliveryBatched = "Grouped up"
-    static let deliverySummary = "Once a day"
+    static let deliveryImmediateKey = "domain.deliveryImmediate"
+    static var deliveryImmediate: String { say(deliveryImmediateKey) }
+
+    static let deliveryBatchedKey = "domain.deliveryBatched"
+    static var deliveryBatched: String { say(deliveryBatchedKey) }
+
+    static let deliverySummaryKey = "domain.deliverySummary"
+    static var deliverySummary: String { say(deliverySummaryKey) }
 
     /// Said next to "Once a day", the option people misread as off.
-    static let deliverySummaryDetail =
-        "Held for your daily summary, not discarded."
+    static let deliverySummaryDetailKey = "domain.deliverySummaryDetail"
+    static var deliverySummaryDetail: String { say(deliverySummaryDetailKey) }
 
     /// The categories, in the words a member would use, in display order.
-    static let categoryLabels: [(key: String, label: String)] = [
-        ("messages_mine", "Texts on my jobs"),
-        ("messages_all", "Texts on anyone's jobs"),
-        ("mentions", "When somebody @s me"),
-        ("assignments", "Work handed to me"),
-        ("missed_calls", "Missed calls"),
-        ("voicemails", "Voicemails"),
-    ]
+    ///
+    /// The wire key is the CATEGORY's, which the server reads and which is
+    /// never translated; only the label beside it is.
+    static func localisedCategoryLabels(
+        _ locale: String? = nil
+    ) -> [(key: String, label: String)] {
+        [
+            ("messages_mine", say("domain.categoryMessagesMine", locale)),
+            ("messages_all", say("domain.categoryMessagesAll", locale)),
+            ("mentions", say("domain.categoryMentions", locale)),
+            ("assignments", say("domain.categoryAssignments", locale)),
+            ("missed_calls", say("domain.categoryMissedCalls", locale)),
+            ("voicemails", say("domain.categoryVoicemails", locale)),
+        ]
+    }
+
+    /// The English, for the card that has not been handed a reader yet.
+    static var categoryLabels: [(key: String, label: String)] {
+        localisedCategoryLabels()
+    }
 
     static let deliveryModes = ["immediate", "batched", "summary"]
 

@@ -18,6 +18,7 @@ struct ThreadView: View {
 
     @State private var controller: ThreadController?
     @State private var composer: ComposerState?
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         Group {
@@ -42,7 +43,8 @@ struct ThreadView: View {
                     meApi: graph.meApi,
                     uploader: NoteFileUploader(
                         sessionStore: graph.sessionStore,
-                        meApi: graph.meApi
+                        meApi: graph.meApi,
+                        locale: appLocale
                     ),
                     contacts: ContactMutations(
                         api: graph.api,
@@ -203,7 +205,7 @@ private struct ThreadBody: View {
     @ViewBuilder
     private var loaded: some View {
         if let detail = controller.conversation {
-            let names = memberNames(controller.members)
+            let names = memberNames(controller.members, locale: appLocale)
             let contactName = detail.contact.name ?? formatPhone(detail.contact.phone_e164)
             // #224: this viewer's role in THIS workspace. Resolved here rather
             // than inside the payments pane so the pane stays presentational,
@@ -849,7 +851,12 @@ private struct ThreadBody: View {
             // the jump goes through `ensureMessageLoaded`, the same path the
             // search highlight uses, rather than a presence check that would
             // silently do nothing.
-            let sentence = eventLine(event, memberNames: names, contactName: contactName)
+            let sentence = eventLine(
+                event,
+                memberNames: names,
+                contactName: contactName,
+                locale: appLocale
+            )
             EventLine(
                 text: sentence,
                 timeIso: event.created_at,
@@ -1134,7 +1141,8 @@ private struct ThreadBody: View {
                     companyId: wrapUpCompanyId,
                     conversationId: wrapUpConversationId,
                     audio: audio,
-                    seconds: seconds
+                    seconds: seconds,
+                    locale: appLocale
                 )
             }
         )

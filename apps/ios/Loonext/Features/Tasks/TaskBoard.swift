@@ -61,6 +61,8 @@ struct TaskBoardView: View {
     @State private var localRefresh = 0
     @State private var page = 0
 
+    @Environment(\.appLocale) private var appLocale
+
     private var boardTab: TasksTabKind { tab == .all ? .all : .mine }
 
     private var reloadToken: String {
@@ -80,11 +82,13 @@ struct TaskBoardView: View {
             case .ready:
                 TabView(selection: $page) {
                     BoardColumn(
-                        title: "To do",
+                        title: AppStrings.translate(appLocale, "contactsTasks.columnToDo"),
                         tasks: todo,
-                        emptyCopy: "Nothing to do here.",
+                        emptyCopy: AppStrings.translate(
+                            appLocale, "contactsTasks.columnToDoEmpty"
+                        ),
                         hasMore: todoHasMore,
-                        moveLabel: "Move to Done",
+                        moveLabel: AppStrings.translate(appLocale, "contactsTasks.moveToDone"),
                         moveIcon: "arrow.right.circle",
                         onOpenTask: onOpenTask,
                         onLoadMore: { loadMore(doneColumn: false) },
@@ -93,11 +97,13 @@ struct TaskBoardView: View {
                     )
                     .tag(0)
                     BoardColumn(
-                        title: "Done",
+                        title: AppStrings.translate(appLocale, "contactsTasks.columnDone"),
                         tasks: done,
-                        emptyCopy: "Nothing marked done yet.",
+                        emptyCopy: AppStrings.translate(
+                            appLocale, "contactsTasks.columnDoneEmpty"
+                        ),
                         hasMore: doneHasMore,
-                        moveLabel: "Move to To do",
+                        moveLabel: AppStrings.translate(appLocale, "contactsTasks.moveToToDo"),
                         moveIcon: "arrow.uturn.backward.circle",
                         onOpenTask: onOpenTask,
                         onLoadMore: { loadMore(doneColumn: true) },
@@ -211,6 +217,8 @@ private struct BoardColumn: View {
 
     @State private var dropTargeted = false
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(label: title, count: tasks.count)
@@ -235,7 +243,10 @@ private struct BoardColumn: View {
                             )
                         }
                         if hasMore {
-                            Button("Load more", action: onLoadMore)
+                            Button(
+                                AppStrings.translate(appLocale, "contactsTasks.loadMore"),
+                                action: onLoadMore
+                            )
                                 .buttonStyle(.plain)
                                 .font(.golos(12, weight: .semibold))
                                 .foregroundStyle(BrandColor.olive)
@@ -265,6 +276,8 @@ private struct BoardCard: View {
     let moveIcon: String
     let onOpen: @MainActor () -> Void
     let onMove: @MainActor () -> Void
+
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -311,7 +324,12 @@ private struct BoardCard: View {
 
     private func dueLine(overdue: Bool) -> String {
         guard task.due_at != nil else { return "" }
-        return overdue ? "Overdue" : "Due \(formatDue(task.due_at))"
+        if overdue { return AppStrings.translate(appLocale, "contactsTasks.dueOverdue") }
+        return AppStrings.translate(
+            appLocale,
+            "contactsTasks.dueWhen",
+            ["when": formatDue(task.due_at)]
+        )
     }
 }
 

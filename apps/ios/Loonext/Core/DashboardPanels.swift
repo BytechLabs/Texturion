@@ -37,13 +37,13 @@ enum DashboardPanels {
     ///
     /// The label has to be the heading shown on the screen, or the switch is a
     /// guess.
-    static func label(_ panel: Panel) -> String {
+    static func label(_ panel: Panel, locale: String? = nil) -> String {
         switch panel {
-        case .responseTime: return "Response time"
-        case .pipeline: return "Quotes"
-        case .satisfaction: return "Satisfaction"
-        case .leadSources: return "Where your customers come from"
-        case .recentCalls: return "Recent calls"
+        case .responseTime: return AppStrings.translate(locale, "domain.panelResponseTime")
+        case .pipeline: return AppStrings.translate(locale, "domain.panelPipeline")
+        case .satisfaction: return AppStrings.translate(locale, "domain.panelSatisfaction")
+        case .leadSources: return AppStrings.translate(locale, "domain.panelLeadSources")
+        case .recentCalls: return AppStrings.translate(locale, "domain.panelRecentCalls")
         }
     }
 
@@ -52,13 +52,13 @@ enum DashboardPanels {
     /// Somebody deciding whether to keep a panel is deciding about the QUESTION it
     /// answers, and four headings alone do not distinguish "Pipeline" from
     /// "Response time" for anybody who has not read both cards.
-    static func note(_ panel: Panel) -> String {
+    static func note(_ panel: Panel, locale: String? = nil) -> String {
         switch panel {
-        case .responseTime: return "How fast new customers got an answer this week."
-        case .pipeline: return "What you quoted this month, and how much of it landed."
-        case .satisfaction: return "Whether the people you answered were happy."
-        case .leadSources: return "Which channels are actually bringing work in."
-        case .recentCalls: return "The last few calls, in and out."
+        case .responseTime: return AppStrings.translate(locale, "domain.panelResponseTimeNote")
+        case .pipeline: return AppStrings.translate(locale, "domain.panelPipelineNote")
+        case .satisfaction: return AppStrings.translate(locale, "domain.panelSatisfactionNote")
+        case .leadSources: return AppStrings.translate(locale, "domain.panelLeadSourcesNote")
+        case .recentCalls: return AppStrings.translate(locale, "domain.panelRecentCallsNote")
         }
     }
 

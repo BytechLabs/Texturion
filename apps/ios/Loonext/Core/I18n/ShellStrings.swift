@@ -86,6 +86,29 @@ enum ShellStrings {
             "shell.authCaptchaRejected":
                 "That security check didn't go through. Please try again.",
 
+            /*
+             * ── The two native sign-in buttons, when they go wrong ────────────
+             *
+             * Android's `auth.googleNotConfigured` and its French are copied
+             * verbatim; so is `settingsMore.cantReachSignIn`'s. The rest have no
+             * twin on either other client and are written here: Android hands
+             * OAuth to an external browser and has no Apple button at all, so
+             * its failures are not these failures.
+             *
+             * Google and Apple are product names and are never translated.
+             */
+            "shell.authGoogleNotConfigured": "Google sign-in isn't set up for this app yet.",
+            "shell.authSignInInterrupted": "Sign-in was interrupted. Try again.",
+            "shell.authGoogleFailed": "Google sign-in failed ({error}). Try again.",
+            "shell.authGoogleNoCode": "Google didn't return a sign-in code. Try again.",
+            "shell.authGoogleWindowFailed":
+                "Couldn't open the Google sign-in window. Try again.",
+            "shell.authSignInUnreachable":
+                "Can't reach the sign-in service. Check your connection.",
+            "shell.authAppleIncomplete": "Apple sign-in didn't complete. Try again.",
+            "shell.authAppleNoCredential":
+                "Apple didn't return a usable credential. Try again.",
+
             // ── The captcha bridge ────────────────────────────────────────────
             "shell.captchaTitle": "Quick security check",
             "shell.captchaLoadFailed":
@@ -265,6 +288,48 @@ enum ShellStrings {
             "shell.countrySearch": "Search countries",
             "shell.countryNoMatch": "No countries match \"{query}\".",
 
+            /*
+             * ── When calling itself refuses (#136…) ──────────────────────────
+             *
+             * The live call's own words — Answer, Decline, Hold, the transfer
+             * sheet — are NOT here: `ContactsTasksStrings` carries them, because
+             * that is where Android files the whole call screen
+             * (`contactsTasks.answer`, `contactsTasks.transferThisCall`) and
+             * where this app's `CallsView` already reads them from. A second
+             * copy under `shell.` would be the drift the catalogue exists to
+             * prevent.
+             *
+             * What IS here is the handful `SoftphoneCore` throws before there is
+             * a call to talk about, plus the four words the ongoing-call CARD
+             * says. Those have no `contactsTasks.` twin, and web keeps its
+             * equivalents under `shell.` (`i18n/sections/shell.ts`:
+             * `tooManyCalls`, `lineUnreachable`), so the key names below are
+             * that file's.
+             */
+            "shell.ringing": "Ringing…",
+            "shell.withMember": "With {who}",
+            "shell.onTheLine": "On the line",
+            "shell.leavingVoicemail": "Leaving a voicemail",
+            "shell.callingTemporarilyUnavailable": "Calling is temporarily unavailable.",
+            "shell.callingNotReady": "Calling isn't ready yet. Try again in a moment.",
+            "shell.tooManyCalls": "You're already on two calls.",
+            "shell.callStartFailedPleaseRetry": "Couldn't start the call. Please try again.",
+            "shell.lineUnreachable": "Couldn't reach the line. Please try again.",
+            "shell.phoneConnectFailed":
+                "Couldn't connect your phone. Check your connection and try again.",
+
+            /*
+             * ── What a push says when the server sent no words ────────────────
+             *
+             * The server writes the real title and body; these are the
+             * last-resort fallbacks for a payload that arrived with neither, and
+             * they are the Android twin's (`push/PushPayload.kt`) verbatim so a
+             * crew carrying one of each phone reads one product.
+             */
+            "shell.pushCallTitle": "Incoming call",
+            "shell.pushCallBody": "Someone is calling your business number.",
+            "shell.pushGenericBody": "You have a new notification.",
+
             // ── A voicemail's words, and lifting them off the screen (#566) ───
             "shell.copyTranscript": "Copy transcript",
 
@@ -334,6 +399,22 @@ enum ShellStrings {
             "shell.authResetFailed": "Impossible d'envoyer le courriel de réinitialisation.",
             "shell.authCaptchaRejected":
                 "La vérification de sécurité n'a pas abouti. Veuillez réessayer.",
+
+            "shell.authGoogleNotConfigured":
+                "La connexion avec Google n'est pas encore configurée pour cette application.",
+            "shell.authSignInInterrupted": "La connexion a été interrompue. Réessayez.",
+            "shell.authGoogleFailed":
+                "La connexion avec Google a échoué ({error}). Réessayez.",
+            "shell.authGoogleNoCode":
+                "Google n'a pas renvoyé de code de connexion. Réessayez.",
+            "shell.authGoogleWindowFailed":
+                "Impossible d'ouvrir la fenêtre de connexion avec Google. Réessayez.",
+            "shell.authSignInUnreachable":
+                "Impossible de joindre le service de connexion. Vérifiez votre connexion.",
+            "shell.authAppleIncomplete":
+                "La connexion avec Apple ne s'est pas terminée. Réessayez.",
+            "shell.authAppleNoCredential":
+                "Apple n'a pas renvoyé d'identifiant utilisable. Réessayez.",
 
             "shell.captchaTitle": "Petite vérification de sécurité",
             "shell.captchaLoadFailed":
@@ -481,6 +562,27 @@ enum ShellStrings {
             "shell.countryNotSet": "Non défini",
             "shell.countrySearch": "Rechercher un pays",
             "shell.countryNoMatch": "Aucun pays ne correspond à « {query} ».",
+
+            // ── When calling itself refuses ───────────────────────────────────
+            "shell.ringing": "Sonnerie…",
+            "shell.withMember": "Avec {who}",
+            "shell.onTheLine": "En ligne",
+            "shell.leavingVoicemail": "Laisse un message vocal",
+            "shell.callingTemporarilyUnavailable":
+                "Les appels sont temporairement indisponibles.",
+            "shell.callingNotReady":
+                "Les appels ne sont pas encore prêts. Réessayez dans un moment.",
+            "shell.tooManyCalls": "Vous avez déjà deux appels en cours.",
+            "shell.callStartFailedPleaseRetry":
+                "Impossible de lancer l'appel. Veuillez réessayer.",
+            "shell.lineUnreachable": "Impossible de joindre la ligne. Veuillez réessayer.",
+            "shell.phoneConnectFailed":
+                "Impossible de connecter votre téléphone. Vérifiez votre connexion "
+                + "et réessayez.",
+
+            "shell.pushCallTitle": "Appel entrant",
+            "shell.pushCallBody": "Quelqu'un appelle le numéro de votre entreprise.",
+            "shell.pushGenericBody": "Vous avez une nouvelle notification.",
 
             "shell.copyTranscript": "Copier la transcription",
 

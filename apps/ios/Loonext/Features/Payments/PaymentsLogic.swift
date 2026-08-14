@@ -165,19 +165,29 @@ func paymentAmountProblem(_ cents: Int) -> PaymentAmountProblem? {
 /// The two bounds are rendered through the money formatter rather than typed,
 /// which is the #522 rule: a typed "$25,000" is a figure in a currency nobody
 /// chose, and a Canadian account settles in CAD.
+/// #228: the bound is interpolated into the sentence in BOTH languages, and
+/// `locale` is last and defaulted so `PaymentsLogicTests` keeps reading the
+/// English it holds against Android and web.
 func paymentAmountProblemCopy(
     _ problem: PaymentAmountProblem,
-    _ currency: BillingCurrency
+    _ currency: BillingCurrency,
+    _ locale: String? = nil
 ) -> String {
     switch problem {
     case .tooSmall:
-        return "The smallest payment we can take is "
-            + formatMoneyIn(paymentMinCents, currency, audience: currency) + "."
+        return AppStrings.translate(
+            locale,
+            "payments.amountTooSmall",
+            ["amount": formatMoneyIn(paymentMinCents, currency, audience: currency)]
+        )
     case .tooLarge:
-        return "The largest payment we can take by text is "
-            + formatMoneyIn(paymentMaxCents, currency, audience: currency) + "."
+        return AppStrings.translate(
+            locale,
+            "payments.amountTooLarge",
+            ["amount": formatMoneyIn(paymentMaxCents, currency, audience: currency)]
+        )
     case .notWhole:
-        return "Enter an amount in dollars and cents."
+        return AppStrings.translate(locale, "payments.amountNotWhole")
     }
 }
 
@@ -321,8 +331,10 @@ func payoutReadiness(_ account: PayoutAccountFacts?) -> PayoutReadiness {
 /// The prefix strip is spelled out rather than written as `^(individual|company|
 /// representative)\.`, because a regex here would be a third place this rule is
 /// written and the operation is a `hasPrefix` in every language that has one.
-func payoutRequirementCopy(_ requirement: String) -> String {
-    if let known = payoutRequirementNames[requirement] { return known }
+func payoutRequirementCopy(_ requirement: String, _ locale: String? = nil) -> String {
+    if let known = payoutRequirementKeys[requirement] {
+        return AppStrings.translate(locale, known)
+    }
     var cleaned = requirement
     for prefix in ["individual.", "company.", "representative."] where cleaned.hasPrefix(prefix) {
         cleaned = String(cleaned.dropFirst(prefix.count))
@@ -334,25 +346,29 @@ func payoutRequirementCopy(_ requirement: String) -> String {
     return String(first).uppercased() + String(spaced.dropFirst())
 }
 
-/// The identifiers we have seen, in the words an owner reads.
+/// The identifiers we have seen, each pointing at the sentence an owner reads.
 ///
 /// Kept beside the function rather than inside it so the port can be compared
 /// against the TypeScript table line by line — the failure mode is one entry
 /// quietly missing, which reads as correct because the fallback still produces
 /// a sentence.
-private let payoutRequirementNames: [String: String] = [
-    "external_account": "Your bank account details",
-    "business_profile.url": "Your website or a description of what you do",
-    "business_profile.mcc": "What kind of work you do",
-    "individual.verification.document": "Photo ID for the business owner",
-    "individual.verification.additional_document": "A second document for the business owner",
-    "individual.id_number": "The owner's SIN or SSN",
-    "individual.address.line1": "The owner's address",
-    "individual.dob.day": "The owner's date of birth",
-    "company.tax_id": "Your business number",
-    "company.verification.document": "A document proving the business exists",
-    "tos_acceptance.date": "Accepting Stripe's terms",
-    "representative.verification.document": "Photo ID for whoever signs for the business",
+///
+/// #228: the values are CATALOGUE KEYS now rather than English, and the key
+/// names are Android's `payments.req…` set verbatim. Stripe's own identifiers
+/// stay untranslated on the left, because that is what Stripe sends.
+private let payoutRequirementKeys: [String: String] = [
+    "external_account": "payments.reqBankAccount",
+    "business_profile.url": "payments.reqWebsite",
+    "business_profile.mcc": "payments.reqWorkKind",
+    "individual.verification.document": "payments.reqOwnerId",
+    "individual.verification.additional_document": "payments.reqOwnerIdSecond",
+    "individual.id_number": "payments.reqOwnerSin",
+    "individual.address.line1": "payments.reqOwnerAddress",
+    "individual.dob.day": "payments.reqOwnerDob",
+    "company.tax_id": "payments.reqBusinessNumber",
+    "company.verification.document": "payments.reqBusinessDocument",
+    "tos_acceptance.date": "payments.reqTos",
+    "representative.verification.document": "payments.reqSignatoryId",
 ]
 
 // MARK: - What the thread strip shows

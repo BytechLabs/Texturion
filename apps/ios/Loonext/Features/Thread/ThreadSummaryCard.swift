@@ -121,7 +121,7 @@ struct ThreadSummaryCard: View {
                 Text(AppStrings.translate(appLocale, "thread.summaryOffer"))
                     .font(.golos(12.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
-                if let reason = threadCatchUpOfferLabel(offer) {
+                if let reason = threadCatchUpOfferLabel(offer, locale: appLocale) {
                     // The signal that placed this, never a score. It is also the
                     // honest price tag: somebody can see the thread is long
                     // before they spend a unit finding out.
@@ -189,7 +189,7 @@ struct ThreadSummaryCard: View {
 
     @ViewBuilder
     private func resultBody(_ result: ThreadCatchUp) -> some View {
-        let groups = groupThreadSummary(result.lines)
+        let groups = groupThreadSummary(result.lines, locale: appLocale)
         VStack(alignment: .leading, spacing: 8) {
             // The carrier notice is NOT drawn here — `body` draws it above this
             // whole view, which is the only place that puts it above the
@@ -210,12 +210,12 @@ struct ThreadSummaryCard: View {
                     sectionView(group)
                 }
                 if result.truncated {
-                    Text(threadCatchUpTruncatedNote)
+                    Text(AppStrings.translate(appLocale, threadCatchUpTruncatedNoteKey))
                         .font(.golos(10.5))
                         .foregroundStyle(BrandColor.muted500)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(threadSummaryAttribution)
+                Text(AppStrings.translate(appLocale, threadSummaryAttributionKey))
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted500)
                     .fixedSize(horizontal: false, vertical: true)

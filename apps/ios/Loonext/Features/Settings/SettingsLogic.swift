@@ -221,7 +221,28 @@ func groupDigits(_ value: Int) -> String {
 
 /// Confirm-dialog copy for a cap change — mirrors describeCapChange in the
 /// web's cap-control.ts so all clients promise the same pause point.
-func describeCapChange(current: Double?, next: Double?, includedSegments: Int) -> CapChange {
+///
+/// #228: `locale` is DEFAULTED, and every function in this file that produces a
+/// sentence now follows the same rule. Two reasons, both of them about what can
+/// be verified on this machine.
+///
+/// A view has the reader's language in `@Environment(\.appLocale)`; a pure
+/// function does not, and threading a REQUIRED parameter through would break
+/// every existing call site at once — including the `#Preview` blocks, which no
+/// compiler here can check (see `swift-preview-call-sites`). Defaulting it makes
+/// each screen's wiring a separate, reversible change.
+///
+/// And the default is ENGLISH on purpose: the parity guards that hold this file
+/// against `packages/shared` and against the two other clients call these
+/// functions with no reader at all, and they are asserting the product's own
+/// wording. A default that resolved a locale would make those tests read
+/// whichever language happened to be current.
+func describeCapChange(
+    current: Double?,
+    next: Double?,
+    includedSegments: Int,
+    locale: String? = nil
+) -> CapChange {
     let currentValue = normalizeCapMultiplier(current)
     let nextValue = normalizeCapMultiplier(next)
     if currentValue == nextValue {
@@ -229,26 +250,28 @@ func describeCapChange(current: Double?, next: Double?, includedSegments: Int) -
     }
     let nextTotal = capSegments(includedSegments: includedSegments, multiplier: nextValue)
     let currentTotal = capSegments(includedSegments: includedSegments, multiplier: currentValue)
-    let title = "Set the cap to \(capLabel(nextValue))?"
+    let title = AppStrings.translate(
+        locale, "settings.capConfirmTitle", ["cap": capLabel(nextValue)]
+    )
     if nextValue > currentValue {
         let atCeiling = nextValue >= maxCapMultiplier
-        let summary: String
-        if atCeiling {
-            summary = "Sending pauses at \(groupDigits(nextTotal)) messages this period instead of "
-                + "\(groupDigits(currentTotal)). That's the highest the cap goes. Every message "
-                + "over your \(groupDigits(includedSegments)) included is billed at the overage "
-                + "rate until sending pauses."
-        } else {
-            summary = "Sending pauses at \(groupDigits(nextTotal)) messages this period instead of "
-                + "\(groupDigits(currentTotal))."
-        }
+        let summary = AppStrings.translate(
+            locale,
+            atCeiling ? "settings.capRaisedToCeiling" : "settings.capRaised",
+            [
+                "next": groupDigits(nextTotal),
+                "current": groupDigits(currentTotal),
+                "included": groupDigits(includedSegments),
+            ]
+        )
         return CapChange(requiresConfirmation: true, title: title, summary: summary)
     }
     return CapChange(
         requiresConfirmation: true,
         title: title,
-        summary: "Sending pauses at \(groupDigits(nextTotal)) messages this period. "
-            + "If you're already past that, sends pause right away."
+        summary: AppStrings.translate(
+            locale, "settings.capLowered", ["next": groupDigits(nextTotal)]
+        )
     )
 }
 
@@ -307,6 +330,18 @@ func applyMergeFields(_ text: String, contactName: String?, businessName: String
 // MARK: - Voicemail default — mirror of apps/api messaging/inbound-ring.ts
 
 /// The greeting spoken when the owner has not written one.
+///
+/// #228 — DELIBERATELY STILL ENGLISH, and it is the honest answer rather than a
+/// gap. `defaultGreeting` in `apps/api/src/messaging/inbound-ring.ts` is what
+/// Telnyx actually speaks to a caller, and it takes no locale: this sentence
+/// reaches a caller in English whatever anybody's app is set to. Translating the
+/// PREVIEW would show a French owner words their callers never hear, which is
+/// the same argument `mctbDefaultKey` makes in the other direction — that one is
+/// translated because the SERVER sends it per locale. Android leaves this
+/// English for the same reason.
+///
+/// Worth extracting on the day `inbound-ring.ts` learns the workspace's
+/// language, and misleading before then.
 func defaultVoicemailGreeting(companyName: String) -> String {
     "You've reached \(companyName). We can't take your call right now. "
         + "Please leave a message after the beep, or hang up and text us at this number."
@@ -321,19 +356,19 @@ func needsNumberChoice(_ number: PhoneNumberSummary) -> Bool {
 }
 
 /// Honest, reason-driven copy for a provision_failed number.
-func failedNumberCopy(_ number: PhoneNumberSummary) -> String {
+func failedNumberCopy(_ number: PhoneNumberSummary, locale: String? = nil) -> String {
     if !needsNumberChoice(number) {
-        return "We're still setting up your number. This is taking a little longer than usual."
+        return AppStrings.translate(locale, "settings.numberSetupSlow")
     }
     if number.failure_reason == "timeout" {
-        return "Setup is taking longer than expected. Choose a number to finish — "
-            + "you won't be charged again."
+        return AppStrings.translate(locale, "settings.numberSetupStalled")
     }
     if number.failure_reason == "no_inventory", let areaCode = number.requested_area_code {
-        return "Area code \(areaCode) is out of new numbers right now. "
-            + "Choose another number to finish setup."
+        return AppStrings.translate(
+            locale, "settings.numberAreaCodeEmpty", ["code": areaCode]
+        )
     }
-    return "We couldn't finish setting up your number. Choose a number to try again."
+    return AppStrings.translate(locale, "settings.numberSetupFailed")
 }
 
 // MARK: - Business hours (weekday map mon..sun → { open, close } HH:MM, nil=closed)
@@ -614,14 +649,15 @@ func extraNumberMonthly(_ plan: String?, audience: BillingCurrency) -> String? {
 func extraNumberBlockedReason(
     country: String,
     usTextingEnabled: Bool,
-    billingCurrency: String?
+    billingCurrency: String?,
+    locale: String? = nil
 ) -> String? {
     if country != "US" && country != "CA" {
-        return "Extra numbers are available for US and Canadian workspaces."
+        return AppStrings.translate(locale, "settingsMore.extraNumberCountry")
     }
     // US only: the carriers must approve the brand before a US number can text.
     if country == "US" && !usTextingEnabled {
-        return "An extra number needs US texting turned on for your workspace first."
+        return AppStrings.translate(locale, "settingsMore.extraNumberUsTexting")
     }
     // #522: a Stripe subscription bills in ONE currency and every item on it has
     // to carry an amount in that currency, so a USD-only price cannot join a
@@ -635,9 +671,7 @@ func extraNumberBlockedReason(
         .trimmingCharacters(in: .whitespacesAndNewlines)
         .lowercased()
     if let currency, !currency.isEmpty, currency != extraNumberCurrency.rawValue {
-        return "Extra numbers are priced in US dollars and can't be added to a "
-            + "subscription billed in another currency yet. Contact support and "
-            + "we'll sort it out."
+        return AppStrings.translate(locale, "settingsMore.extraNumberCurrency")
     }
     return nil
 }
@@ -739,26 +773,26 @@ struct EnableUsTextingCopy: Equatable, Sendable {
 /// on that line mentioning the pause at all.
 func enableUsTextingCopy(
     _ currency: BillingCurrency,
-    paused: Bool
+    paused: Bool,
+    locale: String? = nil
 ) -> EnableUsTextingCopy {
     let fee = formatMonthlyCents(usRegistrationFeeCents(currency))
+    func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
     // The terms EVERY reader gets: what is charged, who reviews it, how long
     // that takes. Word for word what this sheet has always said, split at the
     // sentence boundary so the branch below drops a promise rather than
     // rewriting the agreement.
-    let terms = "A one-time \(fee) registration fee is charged to your card on "
-        + "file, and we register your business with US carriers. Approval "
-        + "usually takes 3 to 7 business days."
+    let terms = t("settingsMore.usRegTerms", ["fee": fee])
     // Hoisted and explicitly typed rather than written as ternaries inside the
     // initialiser: several branches nested in a struct literal is the shape
     // that makes Swift's type checker give up on an expression, and each branch
     // reads better on its own line anyway.
     let note: UsRegistrationPausedNote? = paused
         ? UsRegistrationPausedNote(
-            heading: "You can start this while your plan is paused",
-            detail: "Carrier review takes days either way, and none of it needs "
-                + "your plan running. Doing it now means the waiting happens in "
-                + "your quiet season rather than in your first week back."
+            heading: t("settingsMore.usRegPausedHeading"),
+            detail: t("settingsMore.usRegPausedNote")
         )
         : nil
     // THREE FACTS AS THREE LINES, not a fourth clause on a 45-word paragraph.
@@ -771,31 +805,34 @@ func enableUsTextingCopy(
     // pause is not paying again in spring.
     let extraTerms: [String] = paused
         ? [
-            "The \(fee) is charged today, and it is charged once ever — not "
-                + "again when you come back.",
-            "Carriers review you while your plan is paused. The pause does not "
-                + "hold the registration up.",
-            "Sending stays off until you resume. Approval means US texting is "
-                + "set up and waiting for you, not that a paused plan starts "
-                + "sending.",
+            t("settingsMore.usRegPausedTermMoney", ["fee": fee]),
+            t("settingsMore.usRegPausedTermWait"),
+            t("settingsMore.usRegPausedTermLimit"),
         ]
         : []
     // The promise is DROPPED for a paused reader rather than qualified. Left in
     // place with a caveat beneath it, the false sentence is still on the screen
     // above its own correction, and it is the sentence somebody quotes back at
     // us when their texts do not send.
+    //
+    // Joined with a space rather than carried inside the terms: the tail is its
+    // own sentence in both languages, and the two halves are separately true.
     let body: String = paused
         ? terms
-        : terms + " We handle it and email you when it's live."
+        : terms + " " + t("settingsMore.usRegRunningTail")
+    // `settings.enableUsStartedPaused` holds iOS's OWN sentence rather than
+    // Android's, and the difference is load-bearing rather than a missed reuse:
+    // `RegistrationPauseTests` requires the paused receipt to OPEN with the
+    // whole unpaused one and then add to it, so the news is never traded away
+    // for the caveat. Android's twin rewrites the middle of the sentence, which
+    // fails that property. See the note in `SettingsStrings`.
     let started: String = paused
-        ? "US registration started. We'll email you when it's approved; US texts "
-            + "go out when you resume."
-        : "US registration started. We'll email you when it's approved."
+        ? t("settings.enableUsStartedPaused")
+        : t("settings.enableUsStarted")
     return EnableUsTextingCopy(
-        buttonLabel: "Enable US texting: \(fee) one-time",
+        buttonLabel: t("settings.enableUsButton", ["fee": fee]),
         confirmMessage: body,
-        readOnlyLine: "Ask your account owner to enable US texting; it's a "
-            + "one-time \(fee) carrier registration.",
+        readOnlyLine: t("settings.enableUsReadOnly", ["fee": fee]),
         pausedNote: note,
         pausedTerms: extraTerms,
         startedMessage: started
@@ -871,18 +908,20 @@ func planIncludedSegments(_ plan: String?) -> Int {
 /// minute and a lie for every one after it, and a number that stalls is exactly
 /// when a stale promise reads worst. The web twin is provisioningWaitCopy in
 /// apps/web/src/components/registration/copy.ts.
-func provisioningWaitCopy(_ createdAtIso: String?, now: Date = Date()) -> String {
+func provisioningWaitCopy(
+    _ createdAtIso: String?,
+    now: Date = Date(),
+    locale: String? = nil
+) -> String {
     let elapsed = parseWireTimestamp(createdAtIso)
         .map { now.timeIntervalSince($0) } ?? 0
     if elapsed >= 240 {
-        return "Your number is taking a little longer than usual. We're still on "
-            + "it, you don't have to wait here."
+        return AppStrings.translate(locale, "settings.provisionWaitLong")
     }
     if elapsed >= 90 {
-        return "Still setting up your number, this is taking a little longer "
-            + "than usual. Hang tight."
+        return AppStrings.translate(locale, "settings.provisionWaitMedium")
     }
-    return "We're setting up your number. This usually takes under a minute."
+    return AppStrings.translate(locale, "settings.provisionWaitShort")
 }
 
 /// "(416) 555-0182" → "+14165550182"; nil when it isn't a NANP number.
@@ -1012,10 +1051,14 @@ extension CompanyView {
 /// "URGENT, EMERGENCY, 911 or SOS" — an owner reads a list, not an array.
 /// Mirror of `emergencyWordList` in shared; keep the joining identical or the
 /// same switch reads differently on three phones.
-func emergencyWordList(_ words: [String]) -> String {
-    if words.isEmpty { return "nothing" }
+func emergencyWordList(_ words: [String], locale: String? = nil) -> String {
+    if words.isEmpty { return AppStrings.translate(locale, "settings.wordListNothing") }
     if words.count == 1 { return words[0] }
-    return words.dropLast().joined(separator: ", ") + " or " + (words.last ?? "")
+    // The conjunction is a key rather than " or ": French joins the last pair
+    // with "ou", and the spaces around it belong to the word.
+    return words.dropLast().joined(separator: ", ")
+        + AppStrings.translate(locale, "settings.wordListOr")
+        + (words.last ?? "")
 }
 
 /// #460 — why a keyword was refused, in the owner's terms, or nil when it is
@@ -1024,21 +1067,25 @@ func emergencyWordList(_ words: [String]) -> String {
 /// The client checks first so an owner is told immediately rather than after a
 /// round trip, but the server and the CHECK constraint remain the authority —
 /// this is a courtesy, not the gate.
-func emergencyKeywordError(_ rawInput: String) -> String? {
+func emergencyKeywordError(_ rawInput: String, locale: String? = nil) -> String? {
     let trimmed = rawInput.trimmingCharacters(in: .whitespaces)
     let word = trimmed.uppercased()
-    if word.isEmpty { return "Type a word first." }
+    if word.isEmpty { return AppStrings.translate(locale, "settings.keywordEmpty") }
     if trimmed.contains(where: { $0.isWhitespace }) {
-        return "One word only — customers text a single word, so a phrase would never match."
+        return AppStrings.translate(locale, "settings.keywordOneWord")
     }
     if !word.allSatisfy({ ($0.isLetter && $0.isUppercase) || $0.isNumber }) {
-        return "Letters and numbers only. Punctuation is stripped from what customers send."
+        return AppStrings.translate(locale, "settings.keywordAlphanumeric")
     }
-    if word.count < 2 { return "Too short — use at least 2 characters." }
-    if word.count > 15 { return "Too long — 15 characters at most." }
+    if word.count < 2 { return AppStrings.translate(locale, "settings.keywordTooShort") }
+    if word.count > 15 { return AppStrings.translate(locale, "settings.keywordTooLong") }
     if carrierReplyKeywords.contains(word) {
-        return "\(word) is answered by the phone carrier before it reaches us, "
-            + "so it can't be an emergency word."
+        // The keyword is interpolated rather than prefixed: the word is the
+        // SUBJECT of the sentence, and French puts the verb somewhere English
+        // does not.
+        return AppStrings.translate(
+            locale, "settings.keywordCarrierOwned", ["word": word]
+        )
     }
     return nil
 }
@@ -1060,7 +1107,8 @@ struct AwayEmergencyNotice {
 func awayEmergencyNotice(
     emergencyEnabled: Bool,
     awayMessage: String,
-    keywords: [String] = emergencyKeywords
+    keywords: [String] = emergencyKeywords,
+    locale: String? = nil
 ) -> AwayEmergencyNotice? {
     let invites = mentionsEmergencyKeyword(awayMessage, keywords: keywords)
     let unknown = unrecognizedReplyKeyword(awayMessage, keywords: keywords)
@@ -1069,26 +1117,25 @@ func awayEmergencyNotice(
         if !invites, unknown == nil { return nil }
         return AwayEmergencyNotice(
             tone: .warn,
-            text: "Your away message tells customers to reply for an emergency, but nothing "
-                + "will treat that reply as one. Turn this back on, or take the offer out of "
-                + "the message."
+            text: AppStrings.translate(locale, "settings.awayEmergencyOff")
         )
     }
 
     if let unknown {
         return AwayEmergencyNotice(
             tone: .warn,
-            text: "Your away message tells customers to reply \(unknown), which nothing "
-                + "watches for. Use \(emergencyWordList(keywords)) instead, add \(unknown) to "
-                + "your emergency words, or take the offer out of the message."
+            text: AppStrings.translate(
+                locale,
+                "settings.awayEmergencyUnknownWord",
+                ["word": unknown, "words": emergencyWordList(keywords, locale: locale)]
+            )
         )
     }
 
     if !invites {
         return AwayEmergencyNotice(
             tone: .hint,
-            text: "Nobody has been told they can. Mention it in your away message if you "
-                + "want customers to know."
+            text: AppStrings.translate(locale, "settings.awayEmergencyNotMentioned")
         )
     }
 
@@ -1102,12 +1149,12 @@ func awayEmergencyNotice(
 /// `unknown` is a real answer, not a gap: it is what a client that predates
 /// the X-Client header looks like, and a row that says "Unrecognised device"
 /// is exactly the row somebody should look twice at.
-func deviceClientLabel(_ client: String) -> String {
+func deviceClientLabel(_ client: String, locale: String? = nil) -> String {
     switch client {
-    case SessionClient.web: "Web browser"
-    case SessionClient.android: "Android app"
-    case SessionClient.ios: "iPhone or iPad"
-    default: "Unrecognised device"
+    case SessionClient.web: AppStrings.translate(locale, "settings.deviceWeb")
+    case SessionClient.android: AppStrings.translate(locale, "settings.deviceAndroid")
+    case SessionClient.ios: AppStrings.translate(locale, "settings.deviceIos")
+    default: AppStrings.translate(locale, "settings.deviceUnknown")
     }
 }
 
@@ -1123,8 +1170,10 @@ func deviceClientSymbol(_ client: String) -> String {
 
 /// "1 device" / "3 devices" — used in three sentences that each read wrong
 /// otherwise.
-func deviceCountLabel(_ count: Int) -> String {
-    count == 1 ? "1 device" : "\(count) devices"
+func deviceCountLabel(_ count: Int, locale: String? = nil) -> String {
+    count == 1
+        ? AppStrings.translate(locale, "settings.deviceCountOne")
+        : AppStrings.translate(locale, "settings.deviceCountMany", ["count": "\(count)"])
 }
 
 /// The order a person reads their own device list in: the one they are
@@ -1147,10 +1196,14 @@ func orderMyDevices(_ sessions: [DeviceSession]) -> [DeviceSession] {
 /// Hand-ported to three clients, so it lives here with a test rather than
 /// inline in a view — the failure mode is one client telling a workspace
 /// something subtly different about who is taking it over.
-func handoverHeadline(_ kind: String, who: String) -> String {
-    kind == HandoverKind.offer
-        ? "Ownership has been offered to \(who)."
-        : "\(who) has asked to take over this workspace."
+func handoverHeadline(_ kind: String, who: String, locale: String? = nil) -> String {
+    AppStrings.translate(
+        locale,
+        kind == HandoverKind.offer
+            ? "settingsMore.ownershipOffered"
+            : "settingsMore.ownershipAskedToTakeOver",
+        ["name": who]
+    )
 }
 
 /// The line underneath it: what happens next, and by when.
@@ -1162,17 +1215,20 @@ func handoverDetail(
     _ kind: String,
     ready: Bool,
     ripensAt: String,
-    expiresAt: String
+    expiresAt: String,
+    locale: String? = nil
 ) -> String {
     if kind == HandoverKind.offer {
-        return "Nothing changes until they accept. The offer expires "
-            + "\(absoluteTime(expiresAt))."
+        return AppStrings.translate(
+            locale, "settingsMore.ownershipOfferExpires", ["when": absoluteTime(expiresAt)]
+        )
     }
     if ready {
-        return "The waiting period is over. They can complete this at any time."
+        return AppStrings.translate(locale, "settingsMore.ownershipWaitOver")
     }
-    return "This completes \(absoluteTime(ripensAt)) unless the owner stops it. "
-        + "Stopping it takes effect immediately."
+    return AppStrings.translate(
+        locale, "settingsMore.ownershipCompletesAt", ["when": absoluteTime(ripensAt)]
+    )
 }
 
 /// What the button that ends a handover says.
@@ -1180,8 +1236,13 @@ func handoverDetail(
 /// "Stop this" and "Decline" are the same call and the same outcome, but a
 /// person reading them is doing two different things: an owner is vetoing
 /// something aimed at them, and a recipient is turning something down.
-func handoverCancelLabel(isOwner: Bool, isMine: Bool) -> String {
-    isOwner && !isMine ? "Stop this" : "Decline"
+func handoverCancelLabel(isOwner: Bool, isMine: Bool, locale: String? = nil) -> String {
+    AppStrings.translate(
+        locale,
+        isOwner && !isMine
+            ? "settingsMore.ownershipStopThis"
+            : "settingsMore.ownershipDecline"
+    )
 }
 
 // MARK: - The handover, read by the person it is happening TO (#515)
@@ -1223,16 +1284,16 @@ func viewerHandoverPrompt(_ state: Ownership) -> String? {
 }
 
 /// The one sentence the prompt leads with.
-func handoverPromptHeadline(_ kind: String) -> String {
+func handoverPromptHeadline(_ kind: String, locale: String? = nil) -> String {
     switch kind {
     case HandoverPrompt.acceptOffer:
-        return "You have been offered ownership of this workspace."
+        return AppStrings.translate(locale, "settings.handoverPromptOffered")
     case HandoverPrompt.completeClaim:
-        return "Your request to take over is ready to complete."
+        return AppStrings.translate(locale, "settings.handoverPromptReady")
     case HandoverPrompt.claimWaiting:
-        return "You have asked to take over this workspace."
+        return AppStrings.translate(locale, "settings.handoverPromptAsked")
     default:
-        return "You are the backup owner."
+        return AppStrings.translate(locale, "settings.handoverPromptBackup")
     }
 }
 
@@ -1241,25 +1302,25 @@ func handoverPromptHeadline(_ kind: String) -> String {
 /// The `backupStanding` branch is loss aversion, stated once and plainly, and
 /// it is deliberately the same sentence the OWNER read when they named this
 /// person — both ends of the arrangement should understand it identically.
-func handoverPromptDetail(_ kind: String, ripensAt: String, expiresAt: String) -> String {
+func handoverPromptDetail(
+    _ kind: String,
+    ripensAt: String,
+    expiresAt: String,
+    locale: String? = nil
+) -> String {
     switch kind {
     case HandoverPrompt.acceptOffer:
-        return "Accepting makes you responsible for billing, the spending cap and your "
-            + "numbers; the current owner stays on the team as an admin. Everyone is "
-            + "told either way. The offer expires \(absoluteTime(expiresAt))."
+        return AppStrings.translate(
+            locale, "misc.ownershipDetailAcceptOffer", ["when": absoluteTime(expiresAt)]
+        )
     case HandoverPrompt.completeClaim:
-        return "The waiting period is over and nobody stopped it. Completing this makes "
-            + "you the owner — billing, the spending cap and your numbers — and puts "
-            + "the previous owner on the team as an admin."
+        return AppStrings.translate(locale, "misc.ownershipDetailCompleteClaim")
     case HandoverPrompt.claimWaiting:
-        return "The owner has been emailed and can stop this until "
-            + "\(absoluteTime(ripensAt)). If nobody stops it, you can complete the "
-            + "takeover after that."
+        return AppStrings.translate(
+            locale, "misc.ownershipDetailClaimWaiting", ["when": absoluteTime(ripensAt)]
+        )
     default:
-        return "If the owner ever can't get in — they leave, they lose access to their "
-            + "email, or worse — you're the one person who can ask to take over. They "
-            + "get a week to say no, and everyone on the team is told. Nothing changes "
-            + "until you ask."
+        return AppStrings.translate(locale, "misc.ownershipDetailBackupStanding")
     }
 }
 
@@ -1269,12 +1330,12 @@ func handoverPromptDetail(_ kind: String, ripensAt: String, expiresAt: String) -
 /// crew. Neither of its labels fits a claimant reading about their OWN request —
 /// being told to "decline" something you asked for is the app misreading the
 /// room. Nil for the standing nomination, which has nothing to call off.
-func handoverPromptCancelLabel(_ kind: String) -> String? {
+func handoverPromptCancelLabel(_ kind: String, locale: String? = nil) -> String? {
     switch kind {
     case HandoverPrompt.acceptOffer:
-        return "Decline"
+        return AppStrings.translate(locale, "settingsMore.ownershipDecline")
     case HandoverPrompt.completeClaim, HandoverPrompt.claimWaiting:
-        return "Withdraw my request"
+        return AppStrings.translate(locale, "settings.handoverWithdraw")
     default:
         return nil
     }
@@ -1293,8 +1354,27 @@ func handoverPromptCancelLabel(_ kind: String) -> String? {
 struct CancellationReason: Equatable, Sendable, Identifiable {
     /// The short code the API stores. Max 40 characters, server-side.
     let code: String
-    /// What the person choosing it reads.
-    let label: String
+    /// The catalogue key for what the person choosing it reads.
+    ///
+    /// #228: a KEY rather than a sentence, so the row renders in the reader's
+    /// language. `label` below keeps the English available to the guards that
+    /// hold this list against web and Android word for word.
+    let labelKey: String
+
+    /// The English, read from the catalogue rather than stored twice.
+    ///
+    /// A computed property on purpose: `SettingsLogicTests` pins
+    /// `cancellationReasons.map(\.label)` against the six sentences every client
+    /// offers, and that assertion is about the PRODUCT's wording rather than
+    /// about the reader's. Storing the English here as well as in the catalogue
+    /// would be two definitions of one sentence, which is the drift this whole
+    /// pass exists to end.
+    ///
+    /// Deliberately NOT paired with a `label(_ locale:)` method: a property and
+    /// a method sharing a base name is a shape this repo has already been bitten
+    /// by (`swift-private-shadows-internal`), and there is no compiler here to
+    /// settle it. The view reads `labelKey` and translates it itself.
+    var label: String { AppStrings.translate(MessageLocale.en, labelKey) }
 
     var id: String { code }
 }
@@ -1311,12 +1391,12 @@ let cancellationReasonSeasonal = "seasonal"
 /// There is no default and there is no "prefer not to say" row: the way to not
 /// answer is to not answer, and the button that leaves works either way.
 let cancellationReasons: [CancellationReason] = [
-    CancellationReason(code: "too_expensive", label: "Too expensive"),
-    CancellationReason(code: cancellationReasonSeasonal, label: "Quiet season, I'll be back"),
-    CancellationReason(code: "missing_feature", label: "Missing something I need"),
-    CancellationReason(code: "switched", label: "Going with something else"),
-    CancellationReason(code: "not_using", label: "Not using it"),
-    CancellationReason(code: "other", label: "Something else"),
+    CancellationReason(code: "too_expensive", labelKey: "settings.cancelReasonTooExpensive"),
+    CancellationReason(code: cancellationReasonSeasonal, labelKey: "settings.cancelReasonSeasonal"),
+    CancellationReason(code: "missing_feature", labelKey: "settings.cancelReasonMissingFeature"),
+    CancellationReason(code: "switched", labelKey: "settings.cancelReasonSwitched"),
+    CancellationReason(code: "not_using", labelKey: "settings.cancelReasonNotUsing"),
+    CancellationReason(code: "other", labelKey: "settings.cancelReasonOther"),
 ]
 
 /// The server's ceiling on the free-text half. Over-length is a 422.
@@ -1541,7 +1621,8 @@ func cancellationOffer(
     billingCurrency: String? = nil,
     country: String? = nil,
     registrationFeePaidAt: String? = nil,
-    paused: Bool? = nil
+    paused: Bool? = nil,
+    locale: String? = nil
 ) -> CancellationOffer? {
     // The shared list is the contract, so a code this build has never heard of
     // renders nothing instead of falling through to a guessed answer.
@@ -1571,22 +1652,25 @@ func cancellationOffer(
             phase: phase,
             billingCurrency: billingCurrency,
             country: country,
-            paused: isPaused
+            paused: isPaused,
+            locale: locale
         )
     case "seasonal":
         return isPaused
             ? pausedSeasonalCancellationOffer(
-                registrationFeePaidAt: registrationFeePaidAt
+                registrationFeePaidAt: registrationFeePaidAt,
+                locale: locale
             )
             : seasonalCancellationOffer(
                 phase: phase,
-                registrationFeePaidAt: registrationFeePaidAt
+                registrationFeePaidAt: registrationFeePaidAt,
+                locale: locale
             )
     // The support promise does not change because the plan is paused, for the
     // same reason it does not change between the two phases: it is a promise
     // about us answering, not about the state of their subscription.
     case "missing_feature":
-        return missingFeatureCancellationOffer()
+        return missingFeatureCancellationOffer(locale: locale)
     // switched / not_using / other: nothing honest to add, paused or not — a
     // pause does not tell us what they switched to. See the header.
     default:
@@ -1659,11 +1743,15 @@ private func tooExpensiveCancellationOffer(
     phase: CancellationOfferPhase,
     billingCurrency: String?,
     country: String?,
-    paused: Bool
+    paused: Bool,
+    locale: String? = nil
 ) -> CancellationOffer? {
     // Still nothing below Starter, and a pause does not invent one.
     guard plan == "pro" else { return nil }
 
+    func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
     let currency = billingCurrencyFor(stored: billingCurrency, country: country)
     // Unprefixed "$": it is the reader's own money. `formatMonthlyCents` drops
     // the cents on a whole dollar, which is what `formatMoney` does too.
@@ -1671,11 +1759,16 @@ private func tooExpensiveCancellationOffer(
     let pro = formatMonthlyCents(planPriceCents("pro", currency))
     // True on both routes back: both end at a Starter subscription built from
     // the Starter prices, and the metered allowances ride those same prices.
-    let price = "Starter is \(starter) a month instead of \(pro), with smaller "
-        + "texting and calling allowances under the same fair-use policy."
+    let price = t(
+        "settings.offerStarterPrice", ["starter": starter, "pro": pro]
+    )
     // Seats and numbers, and so only for the phase whose route refuses them.
-    let limits = "It covers \(starterSeats) people and \(starterNumbers) business "
-        + "number\(starterNumbers == 1 ? "" : "s")."
+    // The singular is its own key: French pluralises the noun and its article
+    // together, so an appended "s" cannot express it.
+    let limits = t(
+        starterNumbers == 1 ? "settings.offerStarterCoversOne" : "settings.offerStarterCovers",
+        ["seats": "\(starterSeats)", "numbers": "\(starterNumbers)"]
+    )
 
     // Same heading as the unpaused answer, on purpose: it is a fact about the
     // two plans and the pause does not touch it. A second heading would be a
@@ -1688,15 +1781,9 @@ private func tooExpensiveCancellationOffer(
     if paused {
         return CancellationOffer(
             reason: "too_expensive",
-            heading: "Starter is the same product, priced for a smaller crew",
-            body: price + " " + limits
-                + " Your plan is paused, so this takes two steps in this order: "
-                + "resume first, then switch plans. The switch takes effect at "
-                + "the end of your current billing period. Your message history "
-                + "comes with you, and so does the number you text from — a "
-                + "second number does not: the downgrade is refused until you "
-                + "release it, and until the crew is back inside "
-                + "\(starterSeats) seats.",
+            heading: t("settings.offerStarterHeading"),
+            body: price + " " + limits + " "
+                + t("settings.offerStarterTailPaused", ["seats": "\(starterSeats)"]),
             // No `resume` control either: Resume is already on the paused card
             // at the top of this same screen, and a second one here would be
             // this module growing a control.
@@ -1708,25 +1795,19 @@ private func tooExpensiveCancellationOffer(
     if phase == .grace {
         return CancellationOffer(
             reason: "too_expensive",
-            heading: "There is a smaller plan to come back on",
-            body: price
-                + " Come back on Starter and your number and your whole message "
-                + "history come with you.",
+            heading: t("settings.offerStarterHeadingGrace"),
+            body: price + " " + t("settings.offerStarterTailGrace"),
             action: .resubscribeStarter,
-            actionLabel: "Come back on Starter"
+            actionLabel: t("settings.offerComeBackOnStarter")
         )
     }
     return CancellationOffer(
         reason: "too_expensive",
-        heading: "Starter is the same product, priced for a smaller crew",
-        body: price + " " + limits
-            + " The switch takes effect at the end of your current billing "
-            + "period. Your message history comes with you, and so does the "
-            + "number you text from — a second number does not: the downgrade is "
-            + "refused until you release it, and until the crew is back inside "
-            + "\(starterSeats) seats.",
+        heading: t("settings.offerStarterHeading"),
+        body: price + " " + limits + " "
+            + t("settings.offerStarterTail", ["seats": "\(starterSeats)"]),
         action: .changePlan,
-        actionLabel: "Switch to Starter"
+        actionLabel: t("settings.planSwitchToStarter")
     )
 }
 
@@ -1744,13 +1825,16 @@ private func tooExpensiveCancellationOffer(
 /// it again. Lifted out of `seasonalCancellationOffer` when the paused answer
 /// needed the same sentence — one copy, because two would be one promise about
 /// money typed twice.
-private func registrationFeeSentence(_ registrationFeePaidAt: String?) -> String {
+private func registrationFeeSentence(
+    _ registrationFeePaidAt: String?,
+    locale: String? = nil
+) -> String {
     let paid = !(registrationFeePaidAt ?? "")
         .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     guard paid else { return "" }
-    return " You have already paid the one-time registration fee, and it is "
-        + "charged at most once per workspace, ever — coming back does not "
-        + "charge it again."
+    // The leading space rides inside the key: this is appended to a paragraph
+    // that may or may not be there, and the separator belongs to the appendix.
+    return AppStrings.translate(locale, "settings.offerRegistrationFeePaid")
 }
 
 /// The seasonal answer for somebody who ALREADY PAUSED, and is cancelling anyway.
@@ -1781,18 +1865,17 @@ private func registrationFeeSentence(_ registrationFeePaidAt: String?) -> String
 /// one should know that is the trade. It is not an argument either: two facts,
 /// in the order they matter, and no sentence telling them which to pick.
 private func pausedSeasonalCancellationOffer(
-    registrationFeePaidAt: String?
+    registrationFeePaidAt: String?,
+    locale: String? = nil
 ) -> CancellationOffer {
     CancellationOffer(
         reason: "seasonal",
-        heading: "Your plan is already paused, and that hold has no deadline",
-        body: "Your number and your whole message history are held for as long as "
-            + "you stay paused — nothing expires while your plan is paused, and "
-            + "there is no date you have to be back by. Cancelling instead ends "
-            + "the pause and starts a clock: \(cancellationGraceDays) days from "
-            + "the day you cancel, not from the end of your billing period, and "
-            + "at the end of it the number goes back to the phone company."
-            + registrationFeeSentence(registrationFeePaidAt),
+        heading: AppStrings.translate(locale, "settings.offerPausedSeasonalHeading"),
+        body: AppStrings.translate(
+            locale,
+            "settings.offerPausedSeasonalBody",
+            ["days": "\(cancellationGraceDays)"]
+        ) + registrationFeeSentence(registrationFeePaidAt, locale: locale),
         action: nil,
         actionLabel: nil
     )
@@ -1832,34 +1915,28 @@ private func pausedSeasonalCancellationOffer(
 /// head.
 private func seasonalCancellationOffer(
     phase: CancellationOfferPhase,
-    registrationFeePaidAt: String?
+    registrationFeePaidAt: String?,
+    locale: String? = nil
 ) -> CancellationOffer {
     // The same sentence the paused answer above uses, from the same gate.
-    let fee = registrationFeeSentence(registrationFeePaidAt)
+    let fee = registrationFeeSentence(registrationFeePaidAt, locale: locale)
+    let days = ["days": "\(cancellationGraceDays)"]
 
     if phase == .grace {
         return CancellationOffer(
             reason: "seasonal",
-            heading: "Your number is still yours until the date below",
-            body: "It is still receiving texts, so nothing a customer sends is lost, "
-                + "though you cannot reply until you are back. That date is "
-                + "\(cancellationGraceDays) days from the day you cancelled, not from "
-                + "the end of your last billing period. Resubscribe before then and "
-                + "the number and your whole message history come back with you." + fee,
+            heading: AppStrings.translate(locale, "settings.offerSeasonalGraceHeading"),
+            body: AppStrings.translate(
+                locale, "settings.offerSeasonalGraceBody", days
+            ) + fee,
             action: nil,
             actionLabel: nil
         )
     }
     return CancellationOffer(
         reason: "seasonal",
-        heading: "Your number is held for \(cancellationGraceDays) days from the "
-            + "day you cancel",
-        body: "It keeps receiving texts the whole time, so nothing a customer sends "
-            + "is lost — you cannot reply until you are back, and your message "
-            + "history stays put. The \(cancellationGraceDays) days run from the day "
-            + "you cancel, not from the end of your billing period, so a quiet season "
-            + "longer than that outruns the hold and the number goes back to the "
-            + "phone company." + fee,
+        heading: AppStrings.translate(locale, "settings.offerSeasonalHeading", days),
+        body: AppStrings.translate(locale, "settings.offerSeasonalBody", days) + fee,
         action: nil,
         actionLabel: nil
     )
@@ -1872,15 +1949,22 @@ private func seasonalCancellationOffer(
 /// separately is a promise somebody made without knowing they were making it.
 /// Same words the help screen shows, so the offer cannot promise something the
 /// help screen does not.
-private func missingFeatureCancellationOffer() -> CancellationOffer {
+private func missingFeatureCancellationOffer(locale: String? = nil) -> CancellationOffer {
     CancellationOffer(
         reason: "missing_feature",
-        heading: "Tell us what was missing",
-        body: "If the thing you needed is not here, the fastest way to change that is "
-            + "to tell us what it was. We answer \(supportResponseTime). "
-            + supportFixPromise,
+        heading: AppStrings.translate(locale, "settings.offerMissingHeading"),
+        // `supportResponseTime` and `supportFixPromise` are the SHARED support
+        // constants and stay where they are: `HelpSection` pins them word for
+        // word against the other clients, so this sentence must not fork them.
+        // Interpolated rather than concatenated so the two halves can sit in
+        // whatever order French wants them.
+        body: AppStrings.translate(
+            locale,
+            "settings.offerMissingBody",
+            ["when": supportResponseTime, "promise": supportFixPromise]
+        ),
         action: .openHelp,
-        actionLabel: "Get help"
+        actionLabel: AppStrings.translate(locale, "settings.offerGetHelp")
     )
 }
 
@@ -1979,26 +2063,28 @@ func pauseAnswerPrice(reason: String?, pause: BillingPause?) -> String? {
 /// seasonal copy this replaces has to end with "a quiet season longer than that
 /// outruns the hold and the number goes back to the phone company", and the
 /// whole point of the pause is that this sentence stops being true.
-func pauseOfferBody(price: String, resumePlanName: String?) -> String {
-    "\(price) a month holds your number and your whole message history for as long "
-        + "as the quiet lasts. There is no \(cancellationGraceDays)-day clock on a "
-        + "pause and nothing goes back to the phone company. Texting and calling "
-        + "stop; texts your customers send still arrive and are waiting for you, and "
-        + "anything you scheduled is held rather than cancelled. "
-        + (resumePlanName.map { "Come back on \($0) whenever the work does." }
-            ?? "Come back whenever the work does.")
+func pauseOfferBody(
+    price: String,
+    resumePlanName: String?,
+    locale: String? = nil
+) -> String {
+    AppStrings.translate(
+        locale,
+        "settings.pauseOfferBody",
+        ["price": price, "days": "\(cancellationGraceDays)"]
+    ) + " " + (
+        resumePlanName.map {
+            AppStrings.translate(locale, "settings.pauseComeBackOn", ["plan": $0])
+        } ?? AppStrings.translate(locale, "settings.pauseComeBack")
+    )
 }
 
 /// The same facts once more, where the recurring charge is actually agreed to.
 ///
 /// Repetition on purpose: the note above is an offer somebody may have scrolled
 /// past, and this is the sentence they read with their thumb over the button.
-func pauseConfirmMessage(price: String) -> String {
-    "You'll be billed \(price) a month instead of your plan, starting now. Texting "
-        + "and calling stop straight away. Your number, your message history and "
-        + "anything you have scheduled stay exactly where they are, and texts your "
-        + "customers send keep arriving. There is no deadline on any of it — resume "
-        + "whenever you like."
+func pauseConfirmMessage(price: String, locale: String? = nil) -> String {
+    AppStrings.translate(locale, "settings.pauseConfirmMessage", ["price": price])
 }
 
 /// The paused state, as separate facts rather than one paragraph.
@@ -2006,16 +2092,17 @@ func pauseConfirmMessage(price: String) -> String {
 /// Three of them, plus the price when there is one, because a reader checking
 /// "wait, am I still receiving?" is scanning rather than reading. The price goes
 /// FIRST when it exists: it is the one line that changes what they owe.
-func pausedStateLines(price: String?) -> [String] {
+func pausedStateLines(price: String?, locale: String? = nil) -> [String] {
     var lines: [String] = [
-        "Texting and calling are off.",
-        "Texts your customers send still arrive, and anything you scheduled is held "
-            + "until you resume — nothing is lost.",
-        "Your number and your whole message history stay exactly where they are, with "
-            + "no deadline on them.",
+        AppStrings.translate(locale, "settings.pausedLineOff"),
+        AppStrings.translate(locale, "settings.pausedLineArriving"),
+        AppStrings.translate(locale, "settings.pausedLineNoDeadline"),
     ]
     if let price {
-        lines.insert("You're billed \(price) a month while this is paused.", at: 0)
+        lines.insert(
+            AppStrings.translate(locale, "settings.pausedLinePrice", ["price": price]),
+            at: 0
+        )
     }
     return lines
 }
@@ -2024,8 +2111,10 @@ func pausedStateLines(price: String?) -> [String] {
 ///
 /// `resume_plan` is a real answer months in — the pause never touches `plan` —
 /// so naming it is naming what they are getting back, not a guess.
-func pauseResumeLabel(planName: String?) -> String {
-    planName.map { "Resume \($0)" } ?? "Resume"
+func pauseResumeLabel(planName: String?, locale: String? = nil) -> String {
+    planName.map {
+        AppStrings.translate(locale, "settings.pauseResumeNamed", ["plan": $0])
+    } ?? AppStrings.translate(locale, "settings.pauseResume")
 }
 
 /// What is said after the pause lands, built from the RESPONSE.
@@ -2033,10 +2122,15 @@ func pauseResumeLabel(planName: String?) -> String {
 /// The API re-reads its own mirror and 409s when it disagrees, so this sentence
 /// is only ever composed from a pause that demonstrably exists. No figure when
 /// the response carried none — a confirmation is a bad place to invent a price.
-func pausedConfirmationMessage(monthlyCents: Int?) -> String {
-    guard let monthlyCents else { return "Paused. Texting is off until you resume." }
-    return "Paused. You're billed \(formatMonthlyCents(monthlyCents)) a month until "
-        + "you resume."
+func pausedConfirmationMessage(monthlyCents: Int?, locale: String? = nil) -> String {
+    guard let monthlyCents else {
+        return AppStrings.translate(locale, "settings.pausedConfirmPlain")
+    }
+    return AppStrings.translate(
+        locale,
+        "settings.pausedConfirmPriced",
+        ["price": formatMonthlyCents(monthlyCents)]
+    )
 }
 
 // MARK: - What the screen KNOWS about the pause (#277)
@@ -2179,12 +2273,11 @@ func planCardShape(_ read: PauseRead) -> PlanCardShape {
 /// reader's question on seeing a thinner card is "where did my price go". And it
 /// says the plan has not changed, because the second question is "did something
 /// happen to my subscription".
-func planUnconfirmedLine(checking: Bool) -> String {
-    checking
-        ? "Checking whether this plan is paused…"
-        : "We couldn't check whether this plan is paused, so anything that depends on "
-            + "the answer — the price, the status and the plan switch — is left out "
-            + "rather than guessed. Nothing about your plan has changed."
+func planUnconfirmedLine(checking: Bool, locale: String? = nil) -> String {
+    AppStrings.translate(
+        locale,
+        checking ? "settings.planChecking" : "settings.planCheckFailed"
+    )
 }
 
 /// May a control that CHARGES be offered?
@@ -2247,7 +2340,12 @@ func cancellationOffer(
     plan: String?,
     billingCurrency: String? = nil,
     country: String? = nil,
-    registrationFeePaidAt: String? = nil
+    registrationFeePaidAt: String? = nil,
+    // #228: the read-based overload needed this too. Its twin above grew a
+    // `locale` and this one did not, while the billing screen was already
+    // passing `locale: appLocale` here — a call with no matching parameter,
+    // which is a compile error and the only one this sweep actually produced.
+    locale: String? = nil
 ) -> CancellationOffer? {
     func answer(paused: Bool?) -> CancellationOffer? {
         cancellationOffer(
@@ -2257,7 +2355,8 @@ func cancellationOffer(
             billingCurrency: billingCurrency,
             country: country,
             registrationFeePaidAt: registrationFeePaidAt,
-            paused: paused
+            paused: paused,
+            locale: locale
         )
     }
     switch read {
@@ -2443,22 +2542,26 @@ func heldNumbersCopy(
     allowance: Int,
     heldCount: Int,
     offer: HeldNumbersOffer,
-    canUpgrade: Bool
+    canUpgrade: Bool,
+    locale: String? = nil
 ) -> HeldNumbersCopy {
+    func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
     let one = heldCount == 1
     let title = one
-        ? "One of your numbers is on hold"
-        : "\(heldCount) of your numbers are on hold"
-    let lead = "Your plan covers \(allowance) number\(allowance == 1 ? "" : "s"), "
-        + "and you have more than that."
+        ? t("settings.heldTitleOne")
+        : t("settings.heldTitleMany", ["count": "\(heldCount)"])
+    // Singular and plural are separate keys rather than an appended "s": the
+    // noun and its article agree together in French.
+    let lead = allowance == 1
+        ? t("settings.heldLeadOne")
+        : t("settings.heldLead", ["allowance": "\(allowance)"])
     // The mail's own sentence, in the same order. It leads with what a hold is
     // NOT, because the reader's first question is whether they have lost the
     // number on the side of their van, and the answer is no.
-    let kept = "A number on hold hasn't been given up. We're still holding it, "
-        + "texts and calls still reach it, and nothing in its history has been "
-        + "touched — you just can't send or answer from it while it's on hold."
+    let kept = t("settings.heldKept")
 
-    let them = one ? "it" : "them"
     switch offer {
     case .buy:
         return HeldNumbersCopy(
@@ -2468,10 +2571,7 @@ func heldNumbersCopy(
             // Only the OTHER route. The paid one is a button on the row an inch
             // below with its own price on it, and restating it here would give
             // one figure two homes on one card.
-            routes: canUpgrade
-                ? "Or move to Pro from the plan card above: that brings back "
-                    + "everything that fits, with no extra number to buy."
-                : nil,
+            routes: canUpgrade ? t("settings.heldRouteAlsoPro") : nil,
             offerHelp: false
         )
     case .resumeFirst:
@@ -2481,9 +2581,12 @@ func heldNumbersCopy(
             kept: kept,
             // The API's 409 names the two steps in this order — resume first,
             // then bring it back — and a client that put them the other way
-            // round would be walking somebody into that refusal.
-            routes: "Your plan is paused, so nothing can be added to it yet. "
-                + "Resume it from the plan card above, then you can bring \(them) back.",
+            // round would be walking somebody into that refusal. The pronoun is
+            // a whole sentence per number: "it" and "them" do not decline the
+            // same way in French, so each count gets its own key.
+            routes: t(
+                one ? "settings.heldRouteResumeOne" : "settings.heldRouteResumeMany"
+            ),
             offerHelp: false
         )
     case .planIsFull(let maxTotal):
@@ -2491,9 +2594,7 @@ func heldNumbersCopy(
             title: title,
             lead: lead,
             kept: kept,
-            routes: "Starter tops out at \(maxTotal) numbers, so there's no extra "
-                + "to buy here. Move to Pro from the plan card above and everything "
-                + "that fits comes back.",
+            routes: t("settings.heldRouteFull", ["max": "\(maxTotal)"]),
             offerHelp: false
         )
     case .noPurchase:
@@ -2502,9 +2603,8 @@ func heldNumbersCopy(
             lead: lead,
             kept: kept,
             routes: canUpgrade
-                ? "Move to Pro from the plan card above and everything that fits "
-                    + "comes back."
-                : "Get in touch and we'll bring \(them) back.",
+                ? t("settings.heldRoutePro")
+                : t(one ? "settings.heldRouteHelpOne" : "settings.heldRouteHelpMany"),
             // Pro, with nothing to sell and nothing to upgrade to. A person is
             // the only honest route left.
             offerHelp: !canUpgrade
@@ -2522,19 +2622,28 @@ func heldNumbersCopy(
 ///
 /// The reinstated list comes off the response rather than being guessed from the
 /// plan: an ordinary upgrade reinstates nothing and must not claim otherwise.
-func changePlanMessage(_ result: ChangePlanResult) -> String {
+func changePlanMessage(_ result: ChangePlanResult, locale: String? = nil) -> String {
+    func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
     guard result.effective == "now" else {
-        return "Switch to Starter scheduled for the end of this period."
+        return t("settings.changePlanScheduled")
     }
     let back = result.reinstated.count
-    if back == 0 { return "You're on Pro now." }
+    if back == 0 { return t("settings.changePlanOnPro") }
     // One number gets named. A suspended row has always been active so it has a
     // number, but the nil branch is here rather than force-unwrapped: a toast
     // reading "and () is back" would be worse than the count.
+    //
+    // The subject is a whole phrase substituted into a whole sentence: English
+    // agrees its verb with the count ("is"/"are") and French agrees a participle
+    // as well, so each count gets its own sentence rather than a spliced verb.
     if back == 1, let e164 = result.reinstated[0].number_e164, !e164.isEmpty {
-        return "You're on Pro now, and \(formatPhone(e164)) is back."
+        return t("settings.changePlanBackOne", ["subject": formatPhone(e164)])
     }
-    return "You're on Pro now, and \(back) number\(back == 1 ? " is" : "s are") back."
+    return back == 1
+        ? t("settings.changePlanBackCountOne", ["count": "\(back)"])
+        : t("settings.changePlanBackCountMany", ["count": "\(back)"])
 }
 
 /// The sheet that takes consent for the charge.
@@ -2552,13 +2661,19 @@ struct ReinstateNumberCopy: Equatable, Sendable {
 /// `proration: always_invoice`, so the customer pays now for the rest of this
 /// period and then the full price monthly. A sheet that said only "a month"
 /// would be taking consent for a charge whose timing it never mentioned.
-func reinstateNumberCopy(number: String, price: String) -> ReinstateNumberCopy {
+func reinstateNumberCopy(
+    number: String,
+    price: String,
+    locale: String? = nil
+) -> ReinstateNumberCopy {
     ReinstateNumberCopy(
-        title: "Bring back \(number)?",
-        message: "\(price) is added to your plan. You're charged a prorated amount "
-            + "for the rest of this period today, then the full price each month. "
-            + "The number can send and answer again as soon as it goes through.",
-        confirmLabel: "Bring it back"
+        title: AppStrings.translate(
+            locale, "settings.reinstateTitle", ["number": number]
+        ),
+        message: AppStrings.translate(
+            locale, "settings.reinstateBody", ["price": price]
+        ),
+        confirmLabel: AppStrings.translate(locale, "settings.reinstateAction")
     )
 }
 
@@ -2577,14 +2692,20 @@ func reinstateNumberCopy(number: String, price: String) -> ReinstateNumberCopy {
 /// `already_active` is not a failure and gets no apology. It is a double-press,
 /// or an upgrade that reinstated the number between this screen loading and the
 /// button being pressed, and nothing was bought either way.
-func reinstateOutcomeMessage(_ result: ReinstatedNumber, number: String) -> String {
-    if result.already_active { return "\(number) was already back." }
-    if result.reinstated {
-        return "\(number) is back. You can send and answer from it again."
+func reinstateOutcomeMessage(
+    _ result: ReinstatedNumber,
+    number: String,
+    locale: String? = nil
+) -> String {
+    if result.already_active {
+        return AppStrings.translate(
+            locale, "settings.reinstateAlready", ["number": number]
+        )
     }
-    return "Your plan covers \(number) now, and the charge went through — but it "
-        + "hasn't come back yet. Get in touch and we'll finish it; you won't be "
-        + "charged again."
+    if result.reinstated {
+        return AppStrings.translate(locale, "settings.reinstateDone", ["number": number])
+    }
+    return AppStrings.translate(locale, "settings.reinstateStuck", ["number": number])
 }
 
 /// What the NUMBERS screen says about a suspended row.
@@ -2605,8 +2726,9 @@ func reinstateOutcomeMessage(_ result: ReinstatedNumber, number: String) -> Stri
 /// two it is, and deriving it here from `subscription_status` would put a second
 /// opinion about one state into the product. This says what is true in BOTH
 /// cases and points at the one screen that says which.
-func suspendedNumberLine(canManageBilling: Bool) -> String {
-    "This number is on hold. " + heldNumberTail(canManageBilling: canManageBilling)
+func suspendedNumberLine(canManageBilling: Bool, locale: String? = nil) -> String {
+    AppStrings.translate(locale, "settings.heldNoteLead") + " "
+        + heldNumberTail(canManageBilling: canManageBilling, locale: locale)
 }
 
 /// What is true of EVERY hold, and where the reader goes next.
@@ -2624,11 +2746,12 @@ func suspendedNumberLine(canManageBilling: Bool) -> String {
 /// which of the two reasons applies, and re-deriving it from
 /// `subscription_status` would put a second opinion about one state into the
 /// product. Both sentences are true of an allowance hold and of a past-due one.
-func heldNumberTail(canManageBilling: Bool) -> String {
-    "Texts and calls still reach it, but you can't send or answer from it. "
-        + (canManageBilling
-            ? "Settings › Billing says why, and how to bring it back."
-            : "Your account owner can bring it back from Billing.")
+func heldNumberTail(canManageBilling: Bool, locale: String? = nil) -> String {
+    AppStrings.translate(locale, "settings.heldTailFacts") + " "
+        + AppStrings.translate(
+            locale,
+            canManageBilling ? "settings.heldTailWhereOwner" : "settings.heldTailWhereMember"
+        )
 }
 
 /// #523 — has this COMPLETED transfer delivered a line that is now on hold?
@@ -2679,9 +2802,9 @@ func portedLineIsOnHold(_ port: PortRequest, in numbers: [PhoneNumberSummary]) -
 ///
 /// The rest is `heldNumberTail`, byte-identical to the number card's, so the two
 /// cards about one line cannot disagree about what a hold is.
-func portedLineOnHoldLine(canManageBilling: Bool) -> String {
-    "The transfer finished — it's the line that's on hold. "
-        + heldNumberTail(canManageBilling: canManageBilling)
+func portedLineOnHoldLine(canManageBilling: Bool, locale: String? = nil) -> String {
+    AppStrings.translate(locale, "settings.portedHoldLead") + " "
+        + heldNumberTail(canManageBilling: canManageBilling, locale: locale)
 }
 
 /// #523 — may this number be given up right now? ONE RULE, THREE CLIENTS.
@@ -2765,17 +2888,11 @@ func mayReleaseNumber(
 /// The price of the alternative belongs to the served answer on the billing
 /// screen (`HeldNumbersCard`). A number typed here would be a second price book,
 /// on a screen taking consent for something irreversible.
-func releaseNumberMessage(heldOverAllowance: Bool) -> String {
-    if heldOverAllowance {
-        return "This gives the number up for good. It's on hold, not gone — texts "
-            + "and calls still reach it, and releasing ends that too. You can't get "
-            + "the same number back, and bringing it back from Settings › Billing "
-            + "stops being an option. Type the number to confirm."
-    }
-    return "This gives the number up for good. Customers who text it won't reach "
-        + "you, and you can't get the same number back. It doesn't change your plan "
-        + "or what you pay — a number is included, so you can set up a new one here "
-        + "afterward. Type the number to confirm."
+func releaseNumberMessage(heldOverAllowance: Bool, locale: String? = nil) -> String {
+    AppStrings.translate(
+        locale,
+        heldOverAllowance ? "settings.releaseBodyHeld" : "settings.releaseBodyPlain"
+    )
 }
 
 // MARK: - #583 / D131 — the two sentences that promise a customer their money back
@@ -2809,23 +2926,27 @@ private func prepaidPlanLabel(_ plan: String) -> String {
 func prepaidConversionCopy(
     from fromPlan: String,
     to toPlan: String,
-    credit: String?
+    credit: String?,
+    locale: String? = nil
 ) -> PrepaidConversionCopy {
-    let heading = "You have a prepaid \(prepaidPlanLabel(fromPlan)) year running."
+    func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
+    // The plan names are product names and stay as they are in both languages.
+    let heading = t("settings.prepaidHeading", ["plan": prepaidPlanLabel(fromPlan)])
     let target = prepaidPlanLabel(toPlan)
     guard let credit else {
         return PrepaidConversionCopy(
             heading: heading,
-            explanation: "Switching ends the prepaid year. You then pay the normal "
-                + "\(target) monthly price.",
-            acknowledgement: "End my prepaid year"
+            explanation: t("settings.prepaidEndsPlain", ["plan": target]),
+            acknowledgement: t("settings.prepaidConsentPlain")
         )
     }
     return PrepaidConversionCopy(
         heading: heading,
-        explanation: "Switching ends the prepaid year and puts \(credit) back on your "
-            + "account as credit, which comes off your next invoices. You then pay the "
-            + "normal \(target) monthly price.",
-        acknowledgement: "End my prepaid year and credit me \(credit)"
+        explanation: t(
+            "settings.prepaidEndsCredited", ["credit": credit, "plan": target]
+        ),
+        acknowledgement: t("settings.prepaidConsentCredited", ["credit": credit])
     )
 }

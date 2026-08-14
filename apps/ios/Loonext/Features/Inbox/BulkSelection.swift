@@ -71,17 +71,30 @@ enum BulkSelection: Equatable {
         return loadedIds.allSatisfy { ids.contains($0) }
     }
 
-    /// The bar's label. NEVER invents a total.
+    /// The bar's label, in the reader's language. NEVER invents a total.
     ///
     /// Filter mode deliberately carries no number: the server counts the set when it
     /// runs the action, and until then the honest phrasing is the one that does not
     /// commit to a figure.
-    var label: String {
+    ///
+    /// #228: a METHOD beside the property below rather than a locale parameter on
+    /// `label` itself — Swift will not let a property and a method share a name,
+    /// and `BulkSelectionTests` calls the property.
+    func labelText(_ locale: String?) -> String {
         switch self {
-        case .filter: return "All matching this filter"
-        case let .ids(ids): return "\(ids.count) selected"
+        case .filter:
+            return AppStrings.translate(locale, "common.bulkSelectedAllMatching")
+        case let .ids(ids):
+            return AppStrings.translate(
+                locale,
+                "common.bulkSelectedCount",
+                ["count": String(ids.count)]
+            )
         }
     }
+
+    /// The English label, for callers with no locale to hand (the tests).
+    var label: String { labelText(nil) }
 
     /// The ids to send, or nil when the server should resolve the filter itself.
     var idsOrNil: [String]? {
@@ -102,6 +115,15 @@ func selectLoaded(_ loadedIds: [String]) -> BulkSelection {
 /// Built from the RESPONSE, never the selection: those two numbers differ whenever
 /// a row was on a denied number, already gone, or past the cap, and that difference
 /// is exactly what #275 says must not be swallowed.
+/// #228: the glue between the counts is KEYED, and the verb and the noun stay the
+/// caller's — which action ran, and what it ran on, are facts this function is told
+/// rather than facts it knows. Both are interpolated rather than concatenated so a
+/// translator can put them where the sentence needs them, which is web's
+/// `lib/inbox/bulk-selection.ts` arrangement exactly.
+///
+/// `locale` is LAST and defaulted, so `BulkSelectionTests` — which pins the English
+/// word for word against the other two clients — keeps compiling and keeps reading
+/// the same sentence.
 func bulkResultMessage(
     verb: String,
     applied: Int,
@@ -109,19 +131,37 @@ func bulkResultMessage(
     matched: Int,
     capped: Bool,
     /// #478: what was acted on. Defaulted so every existing call is unchanged.
-    nounOne: String = "conversation",
-    nounMany: String = "conversations"
+    nounOne: String? = nil,
+    nounMany: String? = nil,
+    locale: String? = nil
 ) -> String {
-    let thing = applied == 1 ? nounOne : nounMany
-    var message = "\(verb) \(applied) \(thing)"
+    let one = nounOne ?? AppStrings.translate(locale, "inbox.bulkNounOne")
+    let many = nounMany ?? AppStrings.translate(locale, "inbox.bulkNounMany")
+    let thing = applied == 1 ? one : many
+    var message = AppStrings.translate(
+        locale,
+        "inbox.bulkResultApplied",
+        ["verb": verb, "count": String(applied), "thing": thing]
+    )
     // The cap is where "it worked" and "it finished" are different answers, so the
     // remainder is named rather than left to be discovered.
     if capped, matched > applied {
-        message += ". \(matched - applied) more matched than one go can handle, so run it again"
+        message += AppStrings.translate(
+            locale,
+            "inbox.bulkResultCapped",
+            ["count": String(matched - applied)]
+        )
     }
     if failed > 0 {
-        let was = failed == 1 ? "was" : "were"
-        message += ". \(failed) couldn't be reached and \(was) left alone"
+        // One and many are separate keys rather than one sentence with a word
+        // swapped in: the agreement moves more than a word in French.
+        message += failed == 1
+            ? AppStrings.translate(
+                locale, "inbox.bulkResultFailedOne", ["count": String(failed)]
+            )
+            : AppStrings.translate(
+                locale, "inbox.bulkResultFailedMany", ["count": String(failed)]
+            )
     }
     return message
 }

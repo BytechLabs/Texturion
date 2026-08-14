@@ -1027,13 +1027,23 @@ struct SettingsRepository: Sendable {
     /// this routes through `ApiClient`'s single-flight refresh (via a cheap
     /// company-exempt read) instead of refreshing here — two refreshers racing
     /// would burn the rotated refresh token and kill the session.
-    func freshAccessToken() async throws -> String {
+    ///
+    /// `locale` is the READER's, carried in and defaulted to nil — the English
+    /// table — the way `SettingsRepository.kt` carries its own. This is not a
+    /// View, and the one sentence below is ours rather than the server's:
+    /// everything the API refuses with arrives already phrased for a person and
+    /// is shown as written.
+    func freshAccessToken(locale: String? = nil) async throws -> String {
         if let session = sessionStore.current(), !session.isExpired {
             return session.accessToken
         }
         let _: Me = try await api.get("/v1/me")
         guard let session = sessionStore.current() else {
-            throw ApiError(code: ApiErrorCode.unauthorized, message: "You're signed out.", httpStatus: 401)
+            throw ApiError(
+                code: ApiErrorCode.unauthorized,
+                message: AppStrings.translate(locale, "settingsMore.signedOut"),
+                httpStatus: 401
+            )
         }
         return session.accessToken
     }
@@ -1047,9 +1057,12 @@ struct SettingsRepository: Sendable {
     private func multipartPut(
         path: String,
         companyId: String,
-        parts: [DocumentUpload]
+        parts: [DocumentUpload],
+        /// The READER's language, carried in from the view that started the
+        /// upload. Defaulted to nil for the reason `freshAccessToken` gives.
+        locale: String? = nil
     ) async throws -> Data {
-        let token = try await freshAccessToken()
+        let token = try await freshAccessToken(locale: locale)
         let boundary = "loonext-\(UUID().uuidString)"
         var body = Data()
         for part in parts {
@@ -1081,7 +1094,7 @@ struct SettingsRepository: Sendable {
         } catch {
             throw ApiError(
                 code: ApiErrorCode.network,
-                message: "Can't reach Loonext. Check your connection.",
+                message: AppStrings.translate(locale, "settingsMore.cantReachLoonext"),
                 httpStatus: 0
             )
         }
@@ -1090,7 +1103,12 @@ struct SettingsRepository: Sendable {
             let parsed = try? JSONDecoder().decode(ErrorEnvelope.self, from: data)
             throw ApiError(
                 code: parsed?.error.code ?? ApiErrorCode.internalError,
-                message: parsed?.error.message ?? "Something went wrong (\(status)).",
+                message: parsed?.error.message
+                    ?? AppStrings.translate(
+                        locale,
+                        "settingsMore.somethingWentWrongStatus",
+                        ["status": String(status)]
+                    ),
                 httpStatus: status
             )
         }

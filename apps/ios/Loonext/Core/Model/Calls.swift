@@ -88,7 +88,16 @@ struct VoicemailIntakeLine: Identifiable, Equatable {
 /// The provenance label, per PORTAL-UX §3.1. The Lou mark beside it already says
 /// a machine did this; these words say WHERE it read it, which is the half a
 /// person can check against the transcript underneath.
-let voicemailIntakeSourceLabel = "From the voicemail"
+let voicemailIntakeSourceKey = "domain.voicemailIntakeSource"
+
+/// The English, for the callers that have not been handed a reader yet.
+///
+/// Computed rather than stored: a stored global in Swift 6 language mode brings
+/// sendability and initialisation-order rules with it, and none of that is
+/// worth carrying for a dictionary lookup.
+var voicemailIntakeSourceLabel: String {
+    AppStrings.translate(nil, voicemailIntakeSourceKey)
+}
 
 extension VoicemailIntake {
     /// The rows worth drawing: present fields, in a fixed order, empties dropped.
@@ -100,12 +109,24 @@ extension VoicemailIntake {
     ///
     /// Order matches web and Android: whether to go, then where, then how to
     /// reach them.
-    var lines: [VoicemailIntakeLine] {
+    var lines: [VoicemailIntakeLine] { localisedLines() }
+
+    /// The same rows, in the reader's language.
+    ///
+    /// #228. A property cannot take a parameter, so the reader's language needs
+    /// a function — and it is a DIFFERENT NAME rather than an overload of
+    /// `lines`. Whether Swift accepts a property and a method sharing one base
+    /// name in one type is a question this repo cannot answer locally: Swift
+    /// compiles only in CI's `Gate / iOS`, and there is no precedent for the
+    /// pair anywhere in this app to copy. A distinct name has no such question
+    /// attached, and `lines` above keeps every call site that has not been
+    /// handed a reader compiling and rendering exactly what it did before.
+    func localisedLines(_ locale: String? = nil) -> [VoicemailIntakeLine] {
         let fields: [(String, String, String?)] = [
-            ("problem", "Problem", problem),
-            ("address", "Address", address),
-            ("callback", "Call back", callback),
-            ("name", "Name", name),
+            ("problem", AppStrings.translate(locale, "domain.voicemailIntakeProblem"), problem),
+            ("address", AppStrings.translate(locale, "domain.voicemailIntakeAddress"), address),
+            ("callback", AppStrings.translate(locale, "domain.voicemailIntakeCallback"), callback),
+            ("name", AppStrings.translate(locale, "domain.voicemailIntakeName"), name),
         ]
         return fields.compactMap { (key, label, raw) -> VoicemailIntakeLine? in
             let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

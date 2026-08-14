@@ -36,16 +36,22 @@ struct ReminderRulesCard: View {
     @State private var cap = AppointmentReminders.rulesCap
     @State private var saving = false
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
     private var dirty: Bool { draft != saved }
 
     var body: some View {
         SettingsCard(
-            title: "Appointment reminders",
-            description: "A text before the job, so fewer people forget."
+            title: t("settingsMore.remindersTitle"),
+            description: t("settingsMore.remindersDesc")
         ) {
             if !loaded {
-                Text("Loading…")
+                Text(t("settingsMore.loading"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else if draft.isEmpty {
@@ -60,16 +66,13 @@ struct ReminderRulesCard: View {
     /// The honest empty state: off is a state, not a gap.
     @ViewBuilder
     private var emptyState: some View {
-        Text(
-            "Reminders are off. Nothing goes out automatically until you set one "
-                + "up — a job booked for tomorrow gets no text from us today."
-        )
-        .font(.footnote)
-        .foregroundStyle(.secondary)
+        Text(t("settingsMore.remindersOffBody"))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
 
         if canEdit, !suggested.isEmpty {
             Spacer().frame(height: 10)
-            Button("Set up the usual two") {
+            Button(t("settingsMore.remindersSetUpUsual")) {
                 draft = suggested.map { rule in
                     var copy = rule
                     copy.enabled = true
@@ -94,7 +97,7 @@ struct ReminderRulesCard: View {
 
         if canEdit, draft.count < cap {
             Spacer().frame(height: 8)
-            Button("Add another") {
+            Button(t("settingsMore.remindersAddAnother")) {
                 let free = AppointmentReminders.offsetChoices.first { choice in
                     !draft.contains { $0.offset_minutes == choice }
                 } ?? 120
@@ -112,7 +115,7 @@ struct ReminderRulesCard: View {
         if draft.count >= cap {
             // The ceiling, shown rather than enforced by a refusal at save.
             Spacer().frame(height: 8)
-            Text("Two is the most we send. Past that, customers stop reading them.")
+            Text(t("settingsMore.remindersCap"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -120,11 +123,11 @@ struct ReminderRulesCard: View {
         if canEdit {
             Spacer().frame(height: 10)
             HStack(spacing: 8) {
-                Button("Save reminders") { Task { await commit() } }
+                Button(t("settingsMore.remindersSave")) { Task { await commit() } }
                     .buttonStyle(.borderedProminent)
                     .disabled(!dirty || saving)
                 if dirty {
-                    Button("Discard") { draft = saved }
+                    Button(t("settingsMore.discard")) { draft = saved }
                         .buttonStyle(.plain)
                 }
             }
@@ -156,9 +159,11 @@ struct ReminderRulesCard: View {
             saved = result.rules
             draft = result.rules
             scope.showMessage(
-                result.rules.isEmpty
-                    ? "Reminders are off. Nothing will go out automatically."
-                    : "Saved. New jobs will carry these reminders."
+                t(
+                    result.rules.isEmpty
+                        ? "settingsMore.remindersNowOff"
+                        : "settingsMore.remindersSaved"
+                )
             )
         } catch {
             scope.showMessage(error.userMessage)
@@ -174,15 +179,21 @@ private struct ReminderRuleRow: View {
     let onChange: @MainActor (ReminderRule) -> Void
     let onRemove: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 // A fixed list rather than a free number field: "how many
                 // minutes before?" is a question nobody in a van wants to
                 // answer, and the ones that matter are already the industry's.
-                Menu(AppointmentReminders.offsetLabel(rule.offset_minutes)) {
+                Menu(AppointmentReminders.offsetLabel(rule.offset_minutes, locale: appLocale)) {
                     ForEach(AppointmentReminders.offsetChoices, id: \.self) { minutes in
-                        Button(AppointmentReminders.offsetLabel(minutes)) {
+                        Button(AppointmentReminders.offsetLabel(minutes, locale: appLocale)) {
                             var updated = rule
                             updated.offset_minutes = minutes
                             onChange(updated)
@@ -215,14 +226,14 @@ private struct ReminderRuleRow: View {
                 Spacer()
 
                 if canEdit {
-                    Button("Remove", role: .destructive, action: onRemove)
+                    Button(t("settingsMore.remove"), role: .destructive, action: onRemove)
                         .buttonStyle(.plain)
                         .font(.footnote)
                 }
             }
 
             TextField(
-                "What it says",
+                t("settingsMore.remindersBodyLabel"),
                 text: Binding(
                     get: { rule.body },
                     set: { body in

@@ -155,7 +155,13 @@ const TEAM_SOURCES = {
     // here for the same reason it follows web's into `i18n/sections/appShell.ts`.
     "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/SettingsMoreStrings.kt",
   ],
-  ios: ["apps/ios/Loonext/Features/Settings/TeamSection.swift"],
+  ios: [
+    "apps/ios/Loonext/Features/Settings/TeamSection.swift",
+    // And now iOS's too, for the same reason and one sweep later. Both phones
+    // reached the same shape as web: the screen names a key and the sentence
+    // lives in the catalogue beside its French.
+    "apps/ios/Loonext/Core/I18n/SettingsMoreStrings.swift",
+  ],
 } as const;
 
 /** The buttons. A skip labelled three different ways is three flows. */

@@ -27,20 +27,32 @@ struct RejectionNotice: View {
     let submissionCount: Int?
     let onGoToField: (String) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var guidance: RejectionGuidance? { explainRejection(domain, reason) }
-    private var subject: String { domain == .port ? "transfer" : "registration" }
+
+    /// The word that drops into `{subject}`. Two keys rather than one sentence
+    /// per domain, because that is the shape Android's `rejectionUnknownWhat`
+    /// already has and the two have to agree token for token.
+    private var subject: String {
+        t(domain == .port ? "settingsMore.subjectTransfer" : "settingsMore.subjectRegistration")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(
                 guidance?.what
-                    ?? "The carrier turned down this \(subject) and did not say why in a way we can translate."
+                    ?? t("settingsMore.rejectionUnknownWhat", ["subject": subject])
             )
             .font(.subheadline)
 
             Text(
                 guidance?.fix
-                    ?? "Check the details below against your official registration paperwork, and reply to us if nothing looks wrong."
+                    ?? t("settingsMore.rejectionUnknownFix")
             )
             .font(.footnote)
 
@@ -48,7 +60,7 @@ struct RejectionNotice: View {
                 // Carrier-authored, unbounded, and frequently one long token.
                 // Kept visible so a support conversation can quote the same
                 // string the customer is looking at.
-                Text("The carrier said: \(reason)")
+                Text(t("settingsMore.carrierSaid", ["reason": reason]))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -60,18 +72,27 @@ struct RejectionNotice: View {
             if guidance?.field != nil || needsHumanHelp(submissionCount) {
                 HStack(spacing: 12) {
                     if let field = guidance?.field {
-                        Button("Take me to it") { onGoToField(field) }
+                        Button(t("settingsMore.takeMeToIt")) { onGoToField(field) }
                             .font(.footnote)
                     }
                     if needsHumanHelp(submissionCount) {
+                        // A whole sentence per domain rather than the `{subject}`
+                        // word dropped into one: web words the port subject as
+                        // "My number transfer…", and a support inbox sorted on
+                        // that line should read the same from all three clients.
+                        let mailSubject = t(
+                            domain == .port
+                                ? "settingsMore.rejectionMailSubjectPort"
+                                : "settingsMore.rejectionMailSubjectRegistration"
+                        )
                         let encoded =
-                            "My \(subject) keeps getting rejected"
+                            mailSubject
                             .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
                             ?? "Rejected"
                         if let url = URL(
                             string: "mailto:support@loonext.com?subject=\(encoded)"
                         ) {
-                            Link("Get help from us", destination: url)
+                            Link(t("settingsMore.getHelp"), destination: url)
                                 .font(.footnote)
                         }
                     }

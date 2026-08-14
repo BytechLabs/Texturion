@@ -11,15 +11,19 @@ private let fairUseUrl = "https://loonext.com/legal/fair-use"
 /// still happening?", and "yesterday" answers it where an ISO string makes them
 /// work it out. Past a couple of days the date is the more useful answer,
 /// because by then the question has become "how long has this been going on".
-private func relativeDay(_ iso: String?) -> String? {
+private func relativeDay(_ iso: String?, locale: String? = nil) -> String? {
     guard let iso, let when = parseWireTimestamp(iso) else { return nil }
     let cal = Calendar.current
-    if cal.isDateInToday(when) { return "today" }
-    if cal.isDateInYesterday(when) { return "yesterday" }
+    if cal.isDateInToday(when) { return AppStrings.translate(locale, "settings.dayToday") }
+    if cal.isDateInYesterday(when) {
+        return AppStrings.translate(locale, "settings.dayYesterday")
+    }
     let fmt = DateFormatter()
     fmt.locale = Locale(identifier: "en_US_POSIX")
     fmt.dateFormat = "d MMMM"
-    return "on " + fmt.string(from: when)
+    // "on 12 July" in English, "le 12 juillet" in French — the preposition is
+    // part of the phrase, so it travels with it rather than being prefixed here.
+    return AppStrings.translate(locale, "settings.dayOn", ["date": fmt.string(from: when)])
 }
 
 private func fullDate(_ iso: String?) -> String? {
@@ -107,6 +111,8 @@ struct BillingSectionView: View {
     /// Bumped by a pause, a resume, or a retry, so the read runs again.
     @State private var pauseRefresh = 0
 
+    @Environment(\.appLocale) private var appLocale
+
     private var canManage: Bool { SettingsRoleGate.canManageBilling(scope.role) }
 
     /// The read as every card on this screen must see it, derived in ONE place.
@@ -177,11 +183,13 @@ struct BillingSectionView: View {
         }
         if canManage {
             SettingsCard(
-                title: "Payment & invoices",
-                description: "Cards, receipts, and billing details live in the secure "
-                    + "Stripe portal. It opens in your browser."
+                title: AppStrings.translate(appLocale, "settings.billingPortalTitle"),
+                description: AppStrings.translate(appLocale, "settings.billingPortalIntro")
             ) {
-                PortalButton(scope: scope, label: "Manage payment & invoices")
+                PortalButton(
+                    scope: scope,
+                    label: AppStrings.translate(appLocale, "settings.billingPortalAction")
+                )
             }
             if company.subscriptionActive {
                 CancelCard(
@@ -226,8 +234,8 @@ struct BillingSectionView: View {
                 ReferralCardSection(scope: scope)
             }
         } else {
-            SettingsCard(title: "Billing") {
-                ReadOnlyLine("Only owners and admins can change billing.")
+            SettingsCard(title: AppStrings.translate(appLocale, "settings.billingTitle")) {
+                ReadOnlyLine(AppStrings.translate(appLocale, "settings.billingReadOnly"))
             }
         }
     }
@@ -244,15 +252,21 @@ private struct PortalButton: View {
     @State private var opening = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private var caption: String {
+        opening ? AppStrings.translate(appLocale, "settings.billingOpening") : label
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if solid {
-                Button(opening ? "Opening…" : label) { open() }
+                Button(caption) { open() }
                     .buttonStyle(.borderedProminent)
                     .tint(BrandColor.olive)
                     .disabled(opening)
             } else {
-                Button(opening ? "Opening…" : label) { open() }
+                Button(caption) { open() }
                     .buttonStyle(.bordered)
                     .disabled(opening)
             }
@@ -308,16 +322,18 @@ private struct StatusNotices: View {
     let company: CompanyView
     let canManage: Bool
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var notice: (String, String)? {
         if company.subscription_status == SubscriptionStatus.pastDue {
-            return (
-                "Your last payment didn't go through. Update your payment method to keep "
-                    + "sending messages.",
-                "Update payment method"
-            )
+            return (t("settings.noticePastDue"), t("settings.noticeUpdatePayment"))
         }
         if company.subscription_status == SubscriptionStatus.unpaid {
-            return ("Sending is paused until your payment method is updated.", "Update payment method")
+            return (t("settings.noticeUnpaid"), t("settings.noticeUpdatePayment"))
         }
         if company.subscriptionActive && company.cancel_at_period_end {
             let date = fullDate(company.current_period_end)
@@ -328,14 +344,18 @@ private struct StatusNotices: View {
             // reader to count from the period end and can overstate the real
             // deadline by most of a month. The exact date cannot be shown here
             // (nothing has stamped `canceled_at` yet), so the anchor is named.
+            //
+            // TWO WHOLE SENTENCES rather than one with a date spliced into it:
+            // "on {date}" and "at the end of this period" land in different
+            // places in French, and a concatenation nails them to the English.
             return (
-                "Your plan is set to cancel"
-                    + (date.map { " on \($0)" } ?? " at the end of this period")
-                    + ". Texting stops then. Your number is held for "
-                    + "\(cancellationGraceDays) days from the day you cancelled — not "
-                    + "from that date — so it can be released soon afterwards. You can "
-                    + "undo this from the payment portal.",
-                "Keep my plan"
+                date.map {
+                    t(
+                        "settings.noticeCancellingOn",
+                        ["date": $0, "days": "\(cancellationGraceDays)"]
+                    )
+                } ?? t("settings.noticeCancelling", ["days": "\(cancellationGraceDays)"]),
+                t("settings.noticeKeepMyPlan")
             )
         }
         return nil
@@ -384,6 +404,12 @@ private struct PlanCard: View {
     @State private var changingPlan = false
     @State private var resuming = false
     @State private var resumeError: String?
+
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
 
     /// #277 — the pause read, hung on the whole if/else chain below.
     ///
@@ -436,8 +462,8 @@ private struct PlanCard: View {
         // itself mid-render.
         let shape = planCardShape(read)
         if company.subscription_status == SubscriptionStatus.canceled {
-            SettingsCard(title: "Subscription") {
-                Text("Your subscription is canceled.")
+            SettingsCard(title: t("settings.subscriptionTitle")) {
+                Text(t("settings.subscriptionCanceled"))
                     .font(.callout)
                 // #277 follow-up: the answer to what they told us on the way
                 // out, said once more while the number can still be saved.
@@ -459,7 +485,11 @@ private struct PlanCard: View {
                     // what you had". The win-back's own control is quieter,
                     // because steering somebody who has already left toward the
                     // cheaper plan is a decision that should be theirs.
-                    Button(opening ? "Opening…" : "Resubscribe") {
+                    Button(
+                        opening
+                            ? t("settings.billingOpening")
+                            : t("settings.resubscribe")
+                    ) {
                         resubscribe(plan: company.plan ?? "starter")
                     }
                     .buttonStyle(.borderedProminent)
@@ -476,7 +506,7 @@ private struct PlanCard: View {
             // precisely to stop that one rendering on a fact nobody has read.
             unconfirmedPlan(facts: facts, checking: checking)
         } else if let facts = planFacts(company.plan, company.billedIn) {
-            SettingsCard(title: "Plan") {
+            SettingsCard(title: t("settings.planTitle")) {
                 HStack(spacing: 10) {
                     // #328: priced in what this workspace's card is actually
                     // charged, not a hardcoded dollar sign. A Canadian owner
@@ -485,39 +515,47 @@ private struct PlanCard: View {
                     // two prices for the same plan, on one screen, one of them
                     // provably wrong, at the moment they are deciding whether
                     // to leave.
-                    Text("\(facts.name) · \(facts.price)")
-                        .font(.title3.weight(.semibold))
+                    Text(
+                        t(
+                            "settings.planNameAndPrice",
+                            ["name": facts.name, "price": facts.price]
+                        )
+                    )
+                    .font(.title3.weight(.semibold))
                     if company.subscriptionActive && !company.cancel_at_period_end {
-                        StatusPill(label: "Active", tone: .positive)
+                        StatusPill(label: t("settings.planPillActive"), tone: .positive)
                     }
                 }
                 Spacer().frame(height: 8)
-                ForEach([
-                    "Texting for your crew, bound by fair use",
-                    "Calling included on every plan — it's never an add-on",
-                    "Extra texts bill under fair use, up to a cap you control",
-                    "\(facts.seats) team members",
-                    "\(facts.numbers) phone number" + (facts.numbers == 1 ? "" : "s"),
-                ], id: \.self) { line in
-                    Text("· \(line)")
+                // The bullet is its own key so the marker can differ; the lines
+                // are keys rather than sentences so the seat and number counts
+                // land inside a translated phrase instead of in front of one.
+                ForEach(allowanceLines(facts), id: \.self) { line in
+                    Text(t("settings.planAllowanceLine", ["line": line]))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 1)
                 }
                 Spacer().frame(height: 6)
-                Button("Allowances reflect fair use. See the policy") {
+                Button(t("settings.planFairUse")) {
                     openExternal(fairUseUrl)
                 }
                 .font(.subheadline)
                 .buttonStyle(.borderless)
                 if let date = fullDate(company.current_period_end) {
-                    Text("Current period ends \(date).")
+                    Text(t("settings.planPeriodEnds", ["date": date]))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 if canManage && company.subscriptionActive {
                     if company.billing_writes_enabled {
-                        Button(company.plan == "pro" ? "Switch to Starter" : "Upgrade to Pro") {
+                        Button(
+                            t(
+                                company.plan == "pro"
+                                    ? "settings.planSwitchToStarter"
+                                    : "settings.planUpgradeToPro"
+                            )
+                        ) {
                             changingPlan = true
                         }
                         .buttonStyle(.bordered)
@@ -527,7 +565,10 @@ private struct PlanCard: View {
                         // plan management rides the existing external-browser
                         // Stripe portal path (store-rules posture).
                         Spacer().frame(height: 10)
-                        PortalButton(scope: scope, label: "Manage your plan in the browser")
+                        PortalButton(
+                            scope: scope,
+                            label: t("settings.planManageInBrowser")
+                        )
                     }
                 }
             }
@@ -540,12 +581,30 @@ private struct PlanCard: View {
                 }
             }
         } else {
-            SettingsCard(title: "Plan") {
-                Text("No plan yet. Finish setup on the web to pick one and get your number.")
+            SettingsCard(title: t("settings.planTitle")) {
+                Text(t("settings.planNone"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// The five allowance lines, translated, with the two counted ones counted.
+    ///
+    /// The singular number line is a SEPARATE KEY rather than an "s" appended
+    /// when the count is not one: French pluralises the noun AND its article,
+    /// and there is no suffix that does that. Android's twin splits the same
+    /// pair.
+    private func allowanceLines(_ facts: PlanFacts) -> [String] {
+        [
+            t("settings.planLineTexting"),
+            t("settings.planLineCalling"),
+            t("settings.planLineExtraTexts"),
+            t("settings.planLineSeats", ["seats": "\(facts.seats)"]),
+            facts.numbers == 1
+                ? t("settings.planLineNumberOne")
+                : t("settings.planLineNumbers", ["numbers": "\(facts.numbers)"]),
+        ]
     }
 
     /// #277 — the plan, with every part that depends on an unread fact left out.
@@ -577,11 +636,11 @@ private struct PlanCard: View {
     /// these states — `CancelOneActionTests` is what says so out loud.
     @ViewBuilder
     private func unconfirmedPlan(facts: PlanFacts, checking: Bool) -> some View {
-        SettingsCard(title: "Plan") {
+        SettingsCard(title: t("settings.planTitle")) {
             Text(facts.name)
                 .font(.title3.weight(.semibold))
             Spacer().frame(height: 8)
-            Text(planUnconfirmedLine(checking: checking))
+            Text(planUnconfirmedLine(checking: checking, locale: appLocale))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -589,7 +648,7 @@ private struct PlanCard: View {
             // one fact that keeps this from looking like a card that lost its
             // contents.
             if let date = fullDate(company.current_period_end) {
-                Text("Current period ends \(date).")
+                Text(t("settings.planPeriodEnds", ["date": date]))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.top, 6)
@@ -597,7 +656,7 @@ private struct PlanCard: View {
             // Only once it has actually failed. A retry offered against a request
             // still in flight is a button that races itself.
             if !checking && canManage {
-                Button("Try again") { onRetryPause() }
+                Button(t("common.retry")) { onRetryPause() }
                     .buttonStyle(.bordered)
                     .padding(.top, 10)
             }
@@ -643,25 +702,35 @@ private struct PlanCard: View {
         // ever describing different pauses.
         let paused = read.answer
         let facts = planFacts(paused?.resume_plan ?? company.plan, company.billedIn)
-        SettingsCard(title: "Plan") {
+        SettingsCard(title: t("settings.planTitle")) {
             HStack(spacing: 10) {
-                Text(facts.map { "\($0.name) · paused" } ?? "Paused")
-                    .font(.title3.weight(.semibold))
-                StatusPill(label: "Paused", tone: .neutral)
+                Text(
+                    facts.map { t("settings.planNamePausedLine", ["name": $0.name]) }
+                        ?? t("settings.planPillPaused")
+                )
+                .font(.title3.weight(.semibold))
+                StatusPill(label: t("settings.planPillPaused"), tone: .neutral)
             }
             Spacer().frame(height: 8)
             // The price line is inside this list and only when the API sent a
             // figure — see `pausedStateLines`. Nothing here falls back to the
             // plan price.
-            ForEach(pausedStateLines(price: pausedMonthlyPrice(paused)), id: \.self) { line in
-                Text("· \(line)")
+            ForEach(
+                pausedStateLines(price: pausedMonthlyPrice(paused), locale: appLocale),
+                id: \.self
+            ) { line in
+                Text(t("settings.planAllowanceLine", ["line": line]))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.vertical, 1)
             }
             if canManage {
-                Button(resuming ? "Resuming…" : pauseResumeLabel(planName: facts?.name)) {
+                Button(
+                    resuming
+                        ? t("settings.pauseResuming")
+                        : pauseResumeLabel(planName: facts?.name, locale: appLocale)
+                ) {
                     resume()
                 }
                 .buttonStyle(.borderedProminent)
@@ -687,12 +756,20 @@ private struct PlanCard: View {
     private func resume() {
         resuming = true
         resumeError = nil
+        let locale = appLocale
         Task {
             do {
                 let resumed = try await scope.repo.resumePlan(scope.companyId)
                 scope.showMessage(
                     planFacts(resumed.plan, company.billedIn)
-                        .map { "You're back on \($0.name)." } ?? "Your plan is back on."
+                        .map {
+                            AppStrings.translate(
+                                locale,
+                                "settings.pauseResumedOn",
+                                ["name": $0.name]
+                            )
+                        }
+                        ?? AppStrings.translate(locale, "settings.pauseResumedPlain")
                 )
                 onPauseChanged()
             } catch {
@@ -726,6 +803,29 @@ private struct PlanCard: View {
     /// them was gone. What is certain at that boundary is that we can no longer
     /// PROMISE it, and that is what it says. It does not promise the reverse
     /// either: inviting somebody to race a cron is not an offer.
+    /// #228 — THE THREE SENTENCES THAT STAY ENGLISH, AND A GUARD SAYS WHY.
+    ///
+    /// `settings.holdRule`, `settings.holdUntil` and `settings.holdEndedOn`
+    /// exist in the catalogue in both languages and this branch is one edit from
+    /// reading them. It does not, because two assertions in `SettingsLogicTests`
+    /// read THIS FILE'S string literals and require these exact words to be
+    /// here: `testEverySentenceOnTheBillingScreenCountsTheHoldFromTheCancellation`
+    /// counts every "{days} days" on the screen and fails when there are none,
+    /// and `testTheScreenSaysTheHoldEndedRatherThanThatTheNumberIsGone` looks
+    /// for "hold on your number ended on" and "can't promise it any more".
+    ///
+    /// Those two guards are worth more than these three translations. Between
+    /// them they hold the anchor of the hold (counted from the cancellation, not
+    /// from the period end — a miscount that costs somebody the number on their
+    /// van) and the tense of the expired branch (the release is a once-daily
+    /// cron, so "your number is gone" can be false for a day). Moving the words
+    /// out silently blinds both, and neither failure would show up anywhere but
+    /// on a customer.
+    ///
+    /// Finishing this means re-pointing those two at
+    /// `AppStrings.en["settings.hold*"]`, which is where the sentences now live
+    /// as well. That is a test-file change, not this file's, and it is reported
+    /// rather than done here.
     private var holdSentence: String {
         guard let day = numberReleaseDay(company.canceled_at) else {
             return "We hold your number for \(cancellationGraceDays) days from the day "
@@ -781,6 +881,12 @@ private struct ChangePlanSheet: View {
     @State private var prepaid: OpenPrepaidYear?
     @State private var endPrepaid = false
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var upgrading: Bool { company.plan != "pro" }
     private var targetPlan: String { upgrading ? "pro" : "starter" }
 
@@ -794,25 +900,50 @@ private struct ChangePlanSheet: View {
     // non-released number, held ones included — in `countNonReleasedNumbers`.
     private var numbersOk: Bool { activeNumbers <= starterNumbers }
     private var seatsOk: Bool { (activeMembers ?? Int.max) <= starterSeats }
-    /// "1 phone number" — plural-safe, the way the plan card's bullet is, so
-    /// raising the allowance cannot leave "2 phone number" on a checklist.
-    private var starterNumberWord: String {
-        "\(starterNumbers) phone number" + (starterNumbers == 1 ? "" : "s")
-    }
     private var downgradeBlocked: Bool { !upgrading && (!numbersOk || !seatsOk || membersFailed) }
+
+    /// The numbers row of the fit checklist.
+    ///
+    /// Four whole sentences rather than a tick glued to a phrase glued to a
+    /// count: the singular and plural forms of "phone number" differ by more
+    /// than an "s" in French, and the ✓/✗ marker is part of each sentence in the
+    /// catalogue so a translator can see what it is agreeing with.
+    private var checklistNumbersLine: String {
+        if numbersOk {
+            return starterNumbers == 1
+                ? t("settings.downgradeNumbersOkOne")
+                : t("settings.downgradeNumbersOk", ["numbers": "\(starterNumbers)"])
+        }
+        return starterNumbers == 1
+            ? t("settings.downgradeNumbersBlockedOne", ["have": "\(activeNumbers)"])
+            : t(
+                "settings.downgradeNumbersBlocked",
+                ["numbers": "\(starterNumbers)", "have": "\(activeNumbers)"]
+            )
+    }
 
     var body: some View {
         ConfirmSheet(
-            title: upgrading ? "Upgrade to Pro?" : "Switch to Starter?",
-            message: upgrading
-                ? "The upgrade happens right away. You're charged the prorated difference "
-                    + "for the rest of this period, and your allowances go up immediately."
-                : "Starter is smaller, so your workspace has to fit it first.",
-            confirmLabel: upgrading ? "Upgrade now" : "Schedule the switch",
+            title: t(
+                upgrading
+                    ? "settings.changePlanUpgradeTitle"
+                    : "settings.changePlanDowngradeTitle"
+            ),
+            message: t(
+                upgrading
+                    ? "settings.changePlanUpgradeBody"
+                    : "settings.changePlanDowngradeBody"
+            ),
+            confirmLabel: t(
+                upgrading
+                    ? "settings.changePlanUpgradeAction"
+                    : "settings.changePlanDowngradeAction"
+            ),
             pending: pending,
             error: error,
             // #583: and never while a prepaid year is running and unacknowledged.
             confirmEnabled: !downgradeBlocked && (prepaid == nil || endPrepaid),
+            dismissLabel: t("common.cancel"),
             onConfirm: { change() },
             onDismiss: { onDismiss() }
         ) {
@@ -820,23 +951,14 @@ private struct ChangePlanSheet: View {
             if !upgrading {
                 VStack(alignment: .leading, spacing: 6) {
                     Spacer().frame(height: 10)
-                    Text(
-                        (numbersOk ? "✓" : "✗")
-                            + (numbersOk
-                                ? " \(starterNumberWord). You're set."
-                                : " Starter includes \(starterNumberWord); you have "
-                                    + "\(activeNumbers). Release under Settings › Numbers first.")
-                    )
-                    .font(.footnote)
+                    Text(checklistNumbersLine)
+                        .font(.footnote)
                     Text(checklistMembersLine)
                         .font(.footnote)
                     Spacer().frame(height: 8)
-                    Text(
-                        "The change happens at the end of your current period. You keep Pro "
-                            + "until then, and nothing is refunded mid-period."
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    Text(t("settings.downgradeTiming"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 .task {
                     do {
@@ -881,18 +1003,28 @@ private struct ChangePlanSheet: View {
                 formatMoneyIn($0.credit_cents, paid, audience: paid)
             }
             let copy = prepaidConversionCopy(
-                from: prepaid.plan, to: targetPlan, credit: credit
+                from: prepaid.plan, to: targetPlan, credit: credit, locale: appLocale
             )
             VStack(alignment: .leading, spacing: 6) {
                 Spacer().frame(height: 10)
                 Text(copy.heading).font(.subheadline.weight(.medium))
-                Text("Paid up front: \(formatMoneyIn(prepaid.amount_cents, paid, audience: paid))")
-                    .font(.footnote)
+                Text(
+                    t(
+                        "settings.prepaidPaidUpFront",
+                        ["amount": formatMoneyIn(prepaid.amount_cents, paid, audience: paid)]
+                    )
+                )
+                .font(.footnote)
                 if let conversion = prepaid.conversion {
-                    Text("Months used: \(conversion.consumed_months) of 12")
-                        .font(.footnote)
+                    Text(
+                        t(
+                            "settings.prepaidMonthsUsed",
+                            ["months": "\(conversion.consumed_months)"]
+                        )
+                    )
+                    .font(.footnote)
                     if let credit {
-                        Text("Back on your account: \(credit)")
+                        Text(t("settings.prepaidCredit", ["amount": credit]))
                             .font(.footnote.weight(.medium))
                     }
                 }
@@ -905,17 +1037,34 @@ private struct ChangePlanSheet: View {
         }
     }
 
+    /// The members row of the fit checklist.
+    ///
+    /// `starterSeats` rather than the literal 3 the sentence used to carry: a
+    /// checklist that disagrees with the allowance it is checking against is the
+    /// same defect `numbersOk` was fixed for.
     private var checklistMembersLine: String {
-        if membersFailed { return "✗ Couldn't check your member count. Try again." }
-        guard let activeMembers else { return "Checking your member count…" }
-        if activeMembers <= 3 { return "✓ Up to 3 members; you have \(activeMembers)." }
-        return "✗ Starter includes 3 members; you have \(activeMembers) active. "
-            + "Deactivate \(activeMembers - 3) under Settings › Team first."
+        if membersFailed { return t("settings.downgradeSeatsUnknown") }
+        guard let activeMembers else { return t("settings.downgradeSeatsChecking") }
+        if activeMembers <= starterSeats {
+            return t(
+                "settings.downgradeSeatsOk",
+                ["seats": "\(starterSeats)", "have": "\(activeMembers)"]
+            )
+        }
+        return t(
+            "settings.downgradeSeatsBlocked",
+            [
+                "seats": "\(starterSeats)",
+                "have": "\(activeMembers)",
+                "excess": "\(activeMembers - starterSeats)",
+            ]
+        )
     }
 
     private func change() {
         pending = true
         error = nil
+        let locale = appLocale
         Task {
             do {
                 let result = try await scope.repo.changePlan(
@@ -927,7 +1076,7 @@ private struct ChangePlanSheet: View {
                 // second effect — the bigger allowance can bring held numbers
                 // back — and the sentence has to read it off the RESPONSE
                 // rather than assume it from the plan.
-                scope.showMessage(changePlanMessage(result))
+                scope.showMessage(changePlanMessage(result, locale: locale))
                 onChanged()
             } catch {
                 self.error = error.userMessage
@@ -948,6 +1097,12 @@ private struct ModulesCard: View {
     @State private var pending = false
     @State private var dialogError: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     var body: some View {
         Group {
             switch state {
@@ -958,12 +1113,23 @@ private struct ModulesCard: View {
             case .ready(let modules):
                 if !modules.isEmpty {
                     SettingsCard(
-                        title: "Add-ons",
-                        description: "Optional extras billed with your plan."
+                        title: t("settings.modulesTitle"),
+                        description: t("settings.modulesIntro")
                     ) {
                         ForEach(modules, id: \.id) { module in
+                            // `module.label` and `module.blurb` are the SERVER's
+                            // words for the add-on and stay as they arrive, the
+                            // same way every client renders `cause.message`: a
+                            // catalogue copy of a catalog the API owns goes stale
+                            // the first time a module is added.
                             LabeledToggleRow(
-                                label: "\(module.label) · \(formatMonthlyCents(module.monthly_cents))/mo",
+                                label: t(
+                                    "settings.moduleRow",
+                                    [
+                                        "name": module.label,
+                                        "price": formatMonthlyCents(module.monthly_cents),
+                                    ]
+                                ),
                                 supporting: module.blurb,
                                 isOn: module.enabled,
                                 enabled: module.available || module.enabled
@@ -995,16 +1161,22 @@ private struct ModulesCard: View {
             if let module = confirming {
                 let enabling = !module.enabled
                 ConfirmSheet(
-                    title: enabling ? "Add \(module.label)?" : "Remove \(module.label)?",
+                    title: t(
+                        enabling ? "settings.moduleAddTitle" : "settings.moduleRemoveTitle",
+                        ["name": module.label]
+                    ),
                     message: enabling
-                        ? "\(formatMonthlyCents(module.monthly_cents))/mo is added to your plan. "
-                            + "You're charged a prorated amount for the rest of this period today, "
-                            + "then the full price each month."
-                        : "\(module.label) comes off your plan now, with a prorated credit for "
-                            + "the unused part of this period on your next invoice.",
-                    confirmLabel: enabling ? "Add it" : "Remove it",
+                        ? t(
+                            "settings.moduleAddBody",
+                            ["price": formatMonthlyCents(module.monthly_cents)]
+                        )
+                        : t("settings.moduleRemoveBody", ["name": module.label]),
+                    confirmLabel: t(
+                        enabling ? "settings.moduleAddAction" : "settings.moduleRemoveAction"
+                    ),
                     pending: pending,
                     error: dialogError,
+                    dismissLabel: t("common.cancel"),
                     onConfirm: { toggle(module, enabling: enabling) },
                     onDismiss: { confirming = nil }
                 )
@@ -1015,11 +1187,18 @@ private struct ModulesCard: View {
     private func toggle(_ module: BillingModule, enabling: Bool) {
         pending = true
         dialogError = nil
+        let locale = appLocale
         Task {
             do {
                 try await scope.repo.setModule(scope.companyId, module: module.id, enabled: enabling)
                 confirming = nil
-                scope.showMessage(enabling ? "\(module.label) added." : "\(module.label) removed.")
+                scope.showMessage(
+                    AppStrings.translate(
+                        locale,
+                        enabling ? "settings.moduleAdded" : "settings.moduleRemoved",
+                        ["name": module.label]
+                    )
+                )
                 refreshKey += 1
             } catch {
                 dialogError = error.userMessage
@@ -1053,6 +1232,12 @@ private struct MissedWhileOffNote: View {
 
     @State private var missed: MissedWhileOff?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var show: Bool { !company.subscriptionActive }
 
     var body: some View {
@@ -1061,14 +1246,15 @@ private struct MissedWhileOffNote: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(
                         missed.total == 1
-                            ? "1 customer called while your number was off"
-                            : "\(missed.total) customers called while your number was off"
+                            ? t("settings.missedWhileOffOne")
+                            : t("settings.missedWhileOff", ["count": "\(missed.total)"])
                     )
                     .font(.golos(13, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                     Text(
-                        "They heard that the number isn't taking calls."
-                            + (relativeDay(missed.last_at).map { " The most recent was \($0)." } ?? "")
+                        relativeDay(missed.last_at, locale: appLocale).map {
+                            t("settings.missedWhileOffNoteDated", ["day": $0])
+                        } ?? t("settings.missedWhileOffNote")
                     )
                     .font(.golos(11.5))
                     .foregroundStyle(BrandColor.muted600)
@@ -1115,6 +1301,12 @@ private struct OffRampCard: View {
     @State private var draft = ""
     @State private var busy = false
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var saved: String? { company.offramp_message }
     private var trimmed: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -1122,7 +1314,7 @@ private struct OffRampCard: View {
         Group {
             if company.subscription_status == SubscriptionStatus.canceled,
                SettingsRoleGate.canManageBilling(scope.role) {
-                SettingsCard(title: "Tell your customers where you went") {
+                SettingsCard(title: t("settings.offRampTitle")) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(blurb)
                             .font(.golos(12.5))
@@ -1130,7 +1322,7 @@ private struct OffRampCard: View {
                             .fixedSize(horizontal: false, vertical: true)
 
                         TextField(
-                            "We've moved to (416) 555-0123 — call or text us there and we'll pick right up.",
+                            t("settings.offRampPlaceholder"),
                             text: $draft,
                             axis: .vertical
                         )
@@ -1145,14 +1337,19 @@ private struct OffRampCard: View {
 
                         Text(
                             trimmed.isEmpty
-                                ? "Nothing is sent until you write something here."
-                                : "\(trimmed.count) of \(Self.maxCharacters) characters. Your words, sent as they are."
+                                ? t("settings.offRampEmpty")
+                                : t(
+                                    "settings.offRampCount",
+                                    ["count": "\(trimmed.count)", "max": "\(Self.maxCharacters)"]
+                                )
                         )
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted600)
 
                         HStack(spacing: 12) {
-                            Button(saved == nil ? "Start sending this" : "Save") {
+                            Button(
+                                saved == nil ? t("settings.offRampStart") : t("common.save")
+                            ) {
                                 Task { await save(trimmed) }
                             }
                             .font(.golos(13, weight: .semibold))
@@ -1161,7 +1358,7 @@ private struct OffRampCard: View {
                             .disabled(busy || trimmed.isEmpty || trimmed == (saved ?? ""))
 
                             if saved != nil {
-                                Button("Turn off") {
+                                Button(t("settings.offRampTurnOff")) {
                                     draft = ""
                                     Task { await save(nil) }
                                 }
@@ -1178,18 +1375,19 @@ private struct OffRampCard: View {
         }
     }
 
+    /// Through `numberReleaseDay`, which is the one place on this screen the
+    /// release date is computed. This card used to add its own 30 days in its own
+    /// arithmetic; the Subscription card above it now names the same day, and two
+    /// independently-derived deadlines is one drift away from telling an owner
+    /// two different days they lose their number.
+    ///
+    /// Two whole paragraphs rather than one with a clause spliced into its
+    /// middle: the dated and undated readings put the date in different places in
+    /// French, and a splice fixes it where English wants it.
     private var blurb: String {
-        // Through `numberReleaseDay`, which is the one place on this screen the
-        // release date is computed. This card used to add its own 30 days in
-        // its own arithmetic; the Subscription card above it now names the same
-        // day, and two independently-derived deadlines is one drift away from
-        // telling an owner two different days they lose their number.
-        let stops = numberReleaseDay(company.canceled_at)
-            .map { "It stops on \($0), when " } ?? "It stops when "
-        return "Anyone who texts your old number gets this back, once each. "
-            + stops
-            + "the number goes back to the phone company. After that we can't "
-            + "answer it, and texts to it reach whoever gets it next."
+        numberReleaseDay(company.canceled_at)
+            .map { t("settings.offRampIntroDated", ["date": $0]) }
+            ?? t("settings.offRampIntro")
     }
 
     private func save(_ message: String?) async {
@@ -1202,12 +1400,10 @@ private struct OffRampCard: View {
                 patch: .object(["offramp_message": message.map { .string($0) } ?? .null])
             )
             scope.showMessage(
-                message == nil
-                    ? "Turned off."
-                    : "Saved. We'll send this once to each customer who texts you."
+                t(message == nil ? "settings.offRampTurnedOff" : "settings.offRampSaved")
             )
         } catch {
-            scope.showMessage("Couldn't save that. Try again.")
+            scope.showMessage(t("settings.offRampSaveFailed"))
         }
     }
 }
@@ -1300,6 +1496,12 @@ private struct CancelCard: View {
     @State private var exportError: String?
     @State private var exported: StagedContactsCsv?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var canCancel: Bool { SettingsRoleGate.canCancelSubscription(scope.role) }
 
     /// Already scheduled to end. The notice at the top of this screen says so
@@ -1362,31 +1564,20 @@ private struct CancelCard: View {
     /// with it, from "the day texting stops" to the day the plan ends, which is
     /// the date the sentence before actually put in their head.
     private var consequence: String {
-        canCancel
-            ? "Cancel anytime. Nothing changes until the end of your billing period — "
-                + "if your texting is on, it stays on until then. Your number is held "
-                + "for \(cancellationGraceDays) days from the day you cancel — not from "
-                + "the day your plan ends — so it can go back to the phone company soon "
-                + "after. After that it is released for good."
-            : "Only the owner can cancel this plan. When they do, nothing changes until "
-                + "the end of the billing period — if your texting is on, it stays on "
-                + "until then. The number is held for \(cancellationGraceDays) days from "
-                + "the day they cancel — not from the day the plan ends — so it can go "
-                + "back to the phone company soon after. After that it is released for "
-                + "good."
+        t(
+            canCancel ? "settings.cancelConsequence" : "settings.cancelOwnerOnly",
+            ["days": "\(cancellationGraceDays)"]
+        )
     }
 
     var body: some View {
-        SettingsCard(title: "Cancel", description: consequence) {
+        SettingsCard(title: t("settings.cancelTitle"), description: consequence) {
             if !canCancel {
                 // Said out loud rather than by omission: being sent to hunt for
                 // a button that is not on that page is worse than being told.
                 // "above", not "an admin reaches": a bookkeeper reads this line
                 // too, and lands on the same card-only portal an admin does.
-                ReadOnlyLine(
-                    "The payment portal above is for cards and invoices and has no "
-                        + "cancellation on it, so this is not something to go looking for there."
-                )
+                ReadOnlyLine(t("settings.cancelNotInPortal"))
             } else if alreadyEnding {
                 EmptyView()
             } else {
@@ -1407,11 +1598,28 @@ private struct CancelCard: View {
             Spacer().frame(height: 20)
             exportOffer
             Spacer().frame(height: 20)
-            Text("Nothing above has to be filled in. This opens the secure Stripe portal "
-                + "in your browser, where you finish cancelling.")
+            Text(t("settings.cancelHandoffNote"))
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted600)
                 .fixedSize(horizontal: false, vertical: true)
+            // #228 — THE ONE LITERAL LEFT ON THIS SCREEN, AND IT IS PINNED HERE
+            // BY A GUARD RATHER THAN BY AN OVERSIGHT.
+            //
+            // `CancelOneActionTests` anchors its entire one-press property on
+            // finding the exact phrase "Continue to cancel" on a CODE line
+            // inside `leaving` (`exitLabel`, and `code()` blanks whole-line
+            // comments so it cannot be satisfied by one). From that anchor it
+            // derives the modifier chain, the allowlist of what may touch this
+            // button, and the walk that proves nothing branches in front of it.
+            // Swapping the label for `t("settings.cancelExitAction")` removes
+            // the anchor and every one of those assertions fails with "the way
+            // out moved or was renamed" — trading a guard on the control
+            // somebody presses to stop paying us for one translated word.
+            //
+            // The key EXISTS and holds both languages; finishing this is a
+            // one-line change in that test (anchor on the key rather than on
+            // the English), which is not this pass's file to touch. Left
+            // English, on purpose, and reported.
             Button(opening ? "Opening…" : "Continue to cancel") { handOff() }
                 .buttonStyle(.borderedProminent)
                 .tint(BrandColor.olive)
@@ -1454,7 +1662,8 @@ private struct CancelCard: View {
                 plan: company.plan,
                 billingCurrency: company.billing_currency,
                 country: company.country,
-                registrationFeePaidAt: company.registration_fee_paid_at
+                registrationFeePaidAt: company.registration_fee_paid_at,
+                locale: appLocale
             ) {
                 CancellationAnswerNote(
                     offer: offer,
@@ -1478,11 +1687,11 @@ private struct CancelCard: View {
             // 12, not larger: SettingsCard renders its description at 12, and a
             // question subordinate to that copy cannot be set above it. Colour
             // alone was carrying the hierarchy while the type contradicted it.
-            Text("If you want to say why, it helps us fix it.")
+            Text(t("settings.cancelWhyAsk"))
                 .font(.golos(12))
                 .foregroundStyle(BrandColor.muted600)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Optional, and it changes nothing about cancelling.")
+            Text(t("settings.cancelWhyAskOptional"))
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted500)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1499,7 +1708,7 @@ private struct CancelCard: View {
             }
             Spacer().frame(height: 8)
             TextField(
-                "Anything you want to add (optional)",
+                t("settings.cancelDetailLabel"),
                 text: Binding(
                     get: { detail },
                     // Capped where the server caps it, the same way the invite
@@ -1518,20 +1727,23 @@ private struct CancelCard: View {
 
     private var exportOffer: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Take your contacts with you")
+            Text(t("settings.cancelExportHeading"))
                 .font(.golos(13.5, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
             // The columns are named because this is a promise to somebody who is
             // leaving and cannot come back to check it. GET /v1/contacts/export
             // carries name, phone, tags, consent source and dates. Custom fields
             // are not in it, so nothing here may imply they are.
-            Text("Every contact in this workspace as a CSV: names, numbers, tags and when "
-                + "they opted in. AirDrop it, mail it, or save it to Files. Yours either way.")
+            Text(t("settings.cancelExportIntro"))
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted600)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
-            Button(exporting ? "Preparing…" : "Export contacts") { exportContacts() }
+            Button(
+                exporting
+                    ? t("settings.cancelExporting")
+                    : t("settings.cancelExportAction")
+            ) { exportContacts() }
                 .buttonStyle(.bordered)
                 .disabled(exporting)
                 .padding(.top, 10)
@@ -1603,6 +1815,8 @@ private struct CancellationReasonRow: View {
     let selected: Bool
     let onTap: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         Button {
             onTap()
@@ -1610,7 +1824,7 @@ private struct CancellationReasonRow: View {
             HStack(alignment: .center, spacing: 10) {
                 Image(systemName: selected ? "largecircle.fill.circle" : "circle")
                     .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
-                Text(reason.label)
+                Text(AppStrings.translate(appLocale, reason.labelKey))
                     .font(.body)
                     .foregroundStyle(Color.primary)
                 Spacer(minLength: 0)
@@ -1773,21 +1987,33 @@ private struct PauseOfferNote: View {
     @State private var pending = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Pause instead — the number stays, the texting stops")
+            Text(t("settings.pauseOfferHeading"))
                 .font(.golos(13.5, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(pauseOfferBody(price: price, resumePlanName: resumePlanName))
-                .font(.golos(12))
-                .foregroundStyle(BrandColor.muted600)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 3)
+            Text(
+                pauseOfferBody(
+                    price: price,
+                    resumePlanName: resumePlanName,
+                    locale: appLocale
+                )
+            )
+            .font(.golos(12))
+            .foregroundStyle(BrandColor.muted600)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 3)
             // Outline, never the prominent olive. That is reserved for "Continue
             // to cancel" on this card: a loud stay above a quiet leave is the
             // asymmetry the card's own docblock exists to avoid.
-            Button("Pause for \(price)/mo") { confirming = true }
+            Button(t("settings.pauseOfferAction", ["price": price])) { confirming = true }
                 .buttonStyle(.bordered)
                 .disabled(pending)
                 .padding(.top, 10)
@@ -1802,14 +2028,15 @@ private struct PauseOfferNote: View {
         // is the case a Cancel-button reset would miss.
         .sheet(isPresented: $confirming, onDismiss: { error = nil }) {
             ConfirmSheet(
-                title: "Pause your plan?",
-                message: pauseConfirmMessage(price: price),
-                confirmLabel: "Pause my plan",
+                title: t("settings.pauseConfirmTitle"),
+                message: pauseConfirmMessage(price: price, locale: appLocale),
+                confirmLabel: t("settings.pauseConfirmAction"),
                 pending: pending,
                 // The failure is shown INSIDE the sheet, which is the only place
                 // it can be read: the sheet stays open on an error, and a 409
                 // here carries a sentence written for the customer.
                 error: error,
+                dismissLabel: t("common.cancel"),
                 onConfirm: { pauseNow() },
                 onDismiss: { confirming = false }
             )
@@ -1825,12 +2052,16 @@ private struct PauseOfferNote: View {
     private func pauseNow() {
         pending = true
         error = nil
+        let locale = appLocale
         Task {
             do {
                 let paused = try await scope.repo.pausePlan(scope.companyId)
                 confirming = false
                 scope.showMessage(
-                    pausedConfirmationMessage(monthlyCents: paused.monthly_cents)
+                    pausedConfirmationMessage(
+                        monthlyCents: paused.monthly_cents,
+                        locale: locale
+                    )
                 )
                 onPaused()
             } catch {
@@ -1891,6 +2122,12 @@ private struct WinbackNote: View {
     @State private var opening = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     /// Worth asking the server anything about.
     private var open: Bool {
         !dismissed
@@ -1909,7 +2146,8 @@ private struct WinbackNote: View {
             phase: .grace,
             billingCurrency: company.billing_currency,
             country: company.country,
-            registrationFeePaidAt: company.registration_fee_paid_at
+            registrationFeePaidAt: company.registration_fee_paid_at,
+            locale: appLocale
         )
     }
 
@@ -1925,7 +2163,7 @@ private struct WinbackNote: View {
                         Button {
                             waveAway()
                         } label: {
-                            Text("No thanks")
+                            Text(t("settings.winbackNoThanks"))
                                 .font(.golos(13, weight: .semibold))
                                 .foregroundStyle(BrandColor.muted600)
                                 .padding(.vertical, 8)
@@ -1977,9 +2215,11 @@ private struct WinbackNote: View {
         // leave the win-back with nothing to press at the one moment it is
         // worth anything.
         case .resubscribeStarter:
-            Button(opening ? "Opening…" : label) { comeBack(on: "starter") }
-                .buttonStyle(.bordered)
-                .disabled(opening)
+            Button(opening ? t("settings.billingOpening") : label) {
+                comeBack(on: "starter")
+            }
+            .buttonStyle(.bordered)
+            .disabled(opening)
         case .openHelp:
             NavigationLink(label, value: SettingsSection.help)
                 .buttonStyle(.bordered)
@@ -2016,11 +2256,14 @@ private struct WinbackNote: View {
     /// it is honest about being one, and it stops for good on the next launch.
     private func waveAway() {
         dismissed = true
+        let locale = appLocale
         Task {
             do {
                 try await scope.repo.dismissWinback(scope.companyId)
             } catch {
-                scope.showMessage("Couldn't save that — you may see this again.")
+                scope.showMessage(
+                    AppStrings.translate(locale, "settings.winbackDismissFailed")
+                )
             }
         }
     }

@@ -106,10 +106,16 @@ struct SpamReviewPage: Codable, Sendable {
 /// #342: why this thread was raised, in the order the signals are trusted. A
 /// count alone reads as a counter; naming the signal reads as the mistake it
 /// probably is.
-func spamReviewReason(_ item: SpamReviewItem) -> String {
-    if item.we_texted_them { return "You texted them before this was marked" }
-    if item.sustained { return "Still texting, over several days" }
-    return "\(item.inbound_since) messages since it was marked"
+func spamReviewReason(_ item: SpamReviewItem, locale: String? = nil) -> String {
+    if item.we_texted_them {
+        return AppStrings.translate(locale, "domain.spamWhyTexted")
+    }
+    if item.sustained {
+        return AppStrings.translate(locale, "domain.spamWhySustained")
+    }
+    return AppStrings.translate(
+        locale, "domain.spamWhyCount", ["count": String(item.inbound_since)]
+    )
 }
 
 /// #306 — what each section ACTUALLY holds, independent of the 20 rows returned.

@@ -13,7 +13,15 @@ enum GoogleOAuth {
 
     /// Honest copy for the unprovisioned founder-step paths (PRODUCTION.md §8:
     /// enable the Google provider + allow-list the native redirect URLs).
-    static let notConfiguredMessage = "Google sign-in isn't set up for this app yet."
+    ///
+    /// #228: a function taking the reader's language rather than a `static let`,
+    /// because this enum is NONISOLATED — it is exercised straight from the unit
+    /// tests — and `UiLocaleStore` is main-actor. The flow below is on the main
+    /// actor and passes the language in; a caller with none gets English, which
+    /// is what `AuthFlowsTests` reads.
+    static func notConfiguredMessage(_ locale: String? = nil) -> String {
+        AppStrings.translate(locale, "shell.authGoogleNotConfigured")
+    }
 
     /// GoTrue's browser entry point. `state` is sent for defense in depth and
     /// validated when echoed (`parseCallback`); GoTrue signs its OWN state
@@ -44,11 +52,15 @@ enum GoogleOAuth {
         case failed(String)
     }
 
-    static func parseCallback(_ url: URL, expectedState: String) -> Callback {
+    static func parseCallback(
+        _ url: URL,
+        expectedState: String,
+        _ locale: String? = nil
+    ) -> Callback {
         guard url.scheme?.lowercased() == callbackScheme,
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         else {
-            return .failed("Sign-in was interrupted. Try again.")
+            return .failed(AppStrings.translate(locale, "shell.authSignInInterrupted"))
         }
         let items = components.queryItems ?? []
         func value(_ name: String) -> String? {
@@ -60,13 +72,15 @@ enum GoogleOAuth {
                 // GoTrue form-encodes the description (spaces become "+").
                 return .failed(description.replacingOccurrences(of: "+", with: " "))
             }
-            return .failed("Google sign-in failed (\(error)). Try again.")
+            return .failed(
+                AppStrings.translate(locale, "shell.authGoogleFailed", ["error": error])
+            )
         }
         if let state = value("state"), state != expectedState {
-            return .failed("Sign-in was interrupted. Try again.")
+            return .failed(AppStrings.translate(locale, "shell.authSignInInterrupted"))
         }
         guard let code = value("code"), !code.isEmpty else {
-            return .failed("Google didn't return a sign-in code. Try again.")
+            return .failed(AppStrings.translate(locale, "shell.authGoogleNoCode"))
         }
         return .code(code)
     }
@@ -74,14 +88,18 @@ enum GoogleOAuth {
     /// Classifies the /authorize preflight: GoTrue answers with a redirect
     /// (302 → Google) when the provider is configured and a JSON error when
     /// it is not. nil = proceed to the browser.
-    static func preflightError(status: Int, data: Data) -> ApiError? {
+    static func preflightError(
+        status: Int,
+        data: Data,
+        _ locale: String? = nil
+    ) -> ApiError? {
         if (300 ..< 400).contains(status) { return nil }
         let parsed = SupabaseAuth.parseAuthError(data, status: status)
         if SupabaseAuth.isProviderSetupError(parsed) || status == 400 {
             // The founder-step copy — never a browser sheet full of raw JSON.
             return ApiError(
                 code: "provider_not_configured",
-                message: notConfiguredMessage,
+                message: notConfiguredMessage(locale),
                 httpStatus: status
             )
         }
@@ -111,6 +129,12 @@ final class GoogleSignInFlow: NSObject {
         super.init()
     }
 
+    /// #228 — the reader's language, read where a sentence is needed rather
+    /// than captured, so a setting changed mid-session lands. This flow is on
+    /// the main actor, so it can ask the store the router publishes from; the
+    /// nonisolated helpers above take it as a parameter instead.
+    private var locale: String { UiLocaleStore.shared.resolved }
+
     /// nil = the user closed the sheet (or backed out at Google's consent
     /// screen) — the caller treats it as a calm no-op.
     func signIn() async throws -> AuthSession? {
@@ -122,7 +146,7 @@ final class GoogleSignInFlow: NSObject {
         )
         try await preflight(url)
         guard let callback = try await startSession(url) else { return nil }
-        switch GoogleOAuth.parseCallback(callback, expectedState: state) {
+        switch GoogleOAuth.parseCallback(callback, expectedState: state, locale) {
         case .denied:
             return nil
         case .failed(let message):
@@ -135,7 +159,10 @@ final class GoogleSignInFlow: NSObject {
     // MARK: - Browser leg
 
     private func startSession(_ url: URL) async throws -> URL? {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL?, Error>) in
+        // Captured BEFORE the continuation: the SDK's completion handler is not
+        // main-actor isolated, and `UiLocaleStore` is.
+        let localeForSession = locale
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL?, Error>) in
             let session = ASWebAuthenticationSession(
                 url: url,
                 callback: .customScheme(GoogleOAuth.callbackScheme)
@@ -147,7 +174,9 @@ final class GoogleSignInFlow: NSObject {
                 if let error, (error as? ASWebAuthenticationSessionError)?.code != .canceledLogin {
                     continuation.resume(throwing: ApiError(
                         code: "oauth_browser",
-                        message: "Couldn't open the Google sign-in window. Try again.",
+                        message: AppStrings.translate(
+                            localeForSession, "shell.authGoogleWindowFailed"
+                        ),
                         httpStatus: 0
                     ))
                     return
@@ -161,7 +190,9 @@ final class GoogleSignInFlow: NSObject {
                 // start() == false means the completion handler never fires.
                 continuation.resume(throwing: ApiError(
                     code: "oauth_browser",
-                    message: "Couldn't open the Google sign-in window. Try again.",
+                    message: AppStrings.translate(
+                        localeForSession, "shell.authGoogleWindowFailed"
+                    ),
                     httpStatus: 0
                 ))
             }
@@ -184,12 +215,12 @@ final class GoogleSignInFlow: NSObject {
         } catch {
             throw ApiError(
                 code: ApiErrorCode.network,
-                message: "Can't reach the sign-in service. Check your connection.",
+                message: AppStrings.translate(locale, "shell.authSignInUnreachable"),
                 httpStatus: 0
             )
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if let failure = GoogleOAuth.preflightError(status: status, data: data) {
+        if let failure = GoogleOAuth.preflightError(status: status, data: data, locale) {
             throw failure
         }
     }

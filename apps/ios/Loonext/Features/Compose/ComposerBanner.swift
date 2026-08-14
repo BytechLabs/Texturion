@@ -134,36 +134,32 @@ func usTextingOff(_ company: CompanyView) -> Bool {
     company.country == "CA" && !company.us_texting_enabled
 }
 
-/// Honest, calm one-liner copy per banner (Loonext voice — no hype).
-func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
+/// Honest, calm one-liner copy per banner (Loonext voice — no hype), as the
+/// CATALOGUE KEYS that hold it.
+///
+/// #228: split from `bannerCopy` exactly the way Android's
+/// `bannerCopyKeys`/`bannerCopy` pair is, so the selector above can be tested
+/// against a key — a name that does not move when a sentence is reworded —
+/// while the screen still gets words. Every key here is Android's, character for
+/// character, because a crew that switches phones must not meet a different
+/// explanation of why their texts are blocked.
+func bannerCopyKeys(_ banner: ComposerBanner) -> (title: String, body: String) {
     switch banner {
     // Say what can actually be done about it, rather than covering both cases
     // at once and leaving the reader to guess which one they are in.
     case .optedOut(let carrierBlocked):
         return carrierBlocked
-            ? (
-                "This customer opted out",
-                "They texted STOP, so their carrier is blocking your texts. Only they can undo it, by texting START to your number. Internal notes still work."
-            )
-            : (
-                "This customer opted out",
-                "Someone marked them opted out. You can undo that on their contact. Internal notes still work."
-            )
+            ? ("thread.bannerOptedOutTitle", "thread.bannerOptedOutCarrierBody")
+            : ("thread.bannerOptedOutTitle", "thread.bannerOptedOutManualBody")
     case .subscription:
-        return (
-            "Texting is paused",
-            "Your subscription isn't active, so outbound texts are blocked. An owner can fix this in billing. Internal notes still work."
-        )
+        return ("thread.bannerSubscriptionTitle", "thread.bannerSubscriptionBody")
     case .registrationPending:
         return (
-            "US texting isn't approved yet",
-            "Carriers are still reviewing your registration. Texts to US numbers will send once it's approved. Internal notes still work."
+            "thread.bannerRegistrationPendingTitle",
+            "thread.bannerRegistrationPendingBody"
         )
     case .usTextingOff:
-        return (
-            "US texting isn't on for this workspace",
-            "This is a US number, and texting US numbers is an add-on your workspace hasn't turned on. An owner can add it in settings. Calls to this customer still work, and internal notes still work."
-        )
+        return ("thread.bannerUsTextingOffTitle", "thread.bannerUsTextingOffBody")
     // #423. Deliberately NOT the pending copy: promising approval to a
     // workspace that WAS approved is a wait that never ends, and it sends them
     // hunting for a form to fill in. Say what happened, who is acting on it,
@@ -171,36 +167,37 @@ func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
     // never contradict each other.
     case .registrationSuspended:
         return (
-            "US texting is paused",
-            "The carrier paused your US registration, so texts to US numbers won't send. We've been told and we're on it, and you'll get an email when it's back. Canadian texts, calls and internal notes all still work."
+            "thread.bannerRegistrationSuspendedTitle",
+            "thread.bannerRegistrationSuspendedBody"
         )
     case .usageCap:
-        return (
-            "You've hit this month's cap",
-            "Outbound texts pause until the cap is raised or the month rolls over. Internal notes still work."
-        )
+        return ("thread.bannerUsageCapTitle", "thread.bannerUsageCapBody")
     // #315: names the ROLE, not the number — an accountant sent to "ask for
     // access to this number" would go looking in the wrong place.
     case .readOnly:
-        return (
-            "You have view-only access",
-            "You can read this conversation but not reply or leave notes. An owner or admin can change your access."
-        )
+        return ("thread.bannerReadOnlyTitle", "thread.bannerReadOnlyBody")
     // #363: what is true, and what to do.
     case .numberAccess:
-        return (
-            "You can't text from this number",
-            "You can read this conversation and add internal notes, but texting this customer needs access an owner or admin grants. Calls to this number won't ring you either. Ask them if you need it."
-        )
+        return ("thread.bannerNumberAccessTitle", "thread.bannerNumberAccessBody")
     // #396: says what was seen and who decides. It does NOT opt anyone out —
     // only the customer can, and only they can lift it, so a wrong guess would
     // silence a real lead for good.
     case .optOutHint:
-        return (
-            "They asked not to be contacted",
-            "Someone on this thread asked to be left alone. That request is binding however it's worded, so don't reply unless you're sure it wasn't one. To stop texts for good, they need to text STOP."
-        )
+        return ("thread.bannerOptOutHintTitle", "thread.bannerOptOutHintBody")
     }
+}
+
+/// The same copy, resolved. `locale` is defaulted and last, so every existing
+/// caller and the assertion table read English exactly as before.
+func bannerCopy(
+    _ banner: ComposerBanner,
+    locale: String? = nil
+) -> (title: String, body: String) {
+    let keys = bannerCopyKeys(banner)
+    return (
+        title: AppStrings.translate(locale, keys.title),
+        body: AppStrings.translate(locale, keys.body)
+    )
 }
 
 /// Whether this banner should offer the call as a way forward.
@@ -259,8 +256,10 @@ struct ComposerBannerCard: View {
     /// in it costs a round trip before anyone can act on it.
     var onReport: (@MainActor () -> Void)?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
-        let copy = bannerCopy(banner)
+        let copy = bannerCopy(banner, locale: appLocale)
         VStack(alignment: .leading, spacing: 3) {
             Text(copy.title)
                 .font(.golos(13, weight: .semibold))
@@ -269,7 +268,10 @@ struct ComposerBannerCard: View {
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted600)
             if let onCallInstead, offersCallInstead(banner) {
-                Button("Call them instead", action: onCallInstead)
+                Button(
+                    AppStrings.translate(appLocale, "thread.callThemInstead"),
+                    action: onCallInstead
+                )
                     .font(.golos(12, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
                     .buttonStyle(.plain)
@@ -284,7 +286,10 @@ struct ComposerBannerCard: View {
             // Deliberately quieter than "Call them instead" — where a remedy
             // exists, taking it is the right move and the layout must say so.
             if let onReport {
-                Button("Report this", action: onReport)
+                Button(
+                    AppStrings.translate(appLocale, "thread.reportThis"),
+                    action: onReport
+                )
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
                     .buttonStyle(.plain)

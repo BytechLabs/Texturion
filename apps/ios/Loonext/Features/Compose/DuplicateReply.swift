@@ -66,21 +66,38 @@ func duplicateReplyWarning(
 /// The sentence the confirmation opens with. Names the person when we know
 /// them, because "Sam replied" is a fact somebody can act on — they can ask Sam
 /// — and "someone replied" is not.
-func duplicateReplyPrompt(who: String?, secondsAgo: Int) -> String {
+///
+/// #228: the sentence and the "how long ago" fragment are both catalogue
+/// entries, under Android's own keys — a warning that reads differently on the
+/// two phones is a warning two techs cannot compare. `locale` is defaulted and
+/// last, so existing callers and the assertion table are untouched.
+func duplicateReplyPrompt(
+    who: String?,
+    secondsAgo: Int,
+    locale: String? = nil
+) -> String {
     let ago: String
     if secondsAgo < 60 {
-        ago = "just now"
+        ago = AppStrings.translate(locale, "thread.agoJustNow")
     } else if secondsAgo < 3600 {
         let m = secondsAgo / 60
-        ago = "\(m) minute\(m == 1 ? "" : "s") ago"
+        ago = m == 1
+            ? AppStrings.translate(locale, "thread.agoOneMinute")
+            : AppStrings.translate(locale, "thread.agoMinutes", ["count": String(m)])
     } else if secondsAgo < 86_400 {
         let h = secondsAgo / 3600
-        ago = "\(h) hour\(h == 1 ? "" : "s") ago"
+        ago = h == 1
+            ? AppStrings.translate(locale, "thread.agoOneHour")
+            : AppStrings.translate(locale, "thread.agoHours", ["count": String(h)])
     } else {
-        ago = "since you started writing"
+        ago = AppStrings.translate(locale, "thread.agoSinceWriting")
     }
     let name = who?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return name.isEmpty
-        ? "An automatic reply went out \(ago)."
-        : "\(name) replied \(ago)."
+        ? AppStrings.translate(locale, "thread.duplicateReplyAuto", ["ago": ago])
+        : AppStrings.translate(
+            locale,
+            "thread.duplicateReplyNamed",
+            ["name": name, "ago": ago]
+        )
 }

@@ -48,17 +48,21 @@ struct VoiceGreetingCard: View {
     /// phone path stops being an alternative and starts being the way through.
     @State private var micRefused = false
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     var body: some View {
         SettingsCard(
-            title: "Your own voice",
-            description: "Record the greeting yourself instead of having it read "
-                + "aloud. Callers hear a person, which is the thing you are "
-                + "actually selling."
+            title: t("settingsMore.ownVoiceTitle"),
+            description: t("settingsMore.ownVoiceDesc")
         ) {
             Text(
                 rows.isEmpty
-                    ? "Nothing recorded yet — callers hear the written greeting, read aloud."
-                    : "Pick one on a number under Numbers to use it. Anything you have not chosen stays unused."
+                    ? t("settingsMore.noGreetingsYet")
+                    : t("settingsMore.pickGreetingOnNumber")
             )
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -71,7 +75,7 @@ struct VoiceGreetingCard: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     if canEdit {
-                        Button("Delete") { confirmDelete = row }
+                        Button(t("common.delete")) { confirmDelete = row }
                             .font(.caption)
                             .disabled(pending)
                     }
@@ -86,22 +90,19 @@ struct VoiceGreetingCard: View {
         .task { await refresh() }
         .onDisappear { recorder.discard() }
         .alert(
-            "Delete \"\(confirmDelete?.name ?? "")\"?",
+            t("settingsMore.deleteGreetingTitle", ["name": confirmDelete?.name ?? ""]),
             isPresented: Binding(
                 get: { confirmDelete != nil },
                 set: { if !$0 { confirmDelete = nil } }
             )
         ) {
-            Button("Keep it", role: .cancel) { confirmDelete = nil }
-            Button("Delete", role: .destructive) {
+            Button(t("settingsMore.keepIt"), role: .cancel) { confirmDelete = nil }
+            Button(t("common.delete"), role: .destructive) {
                 if let target = confirmDelete { remove(target) }
                 confirmDelete = nil
             }
         } message: {
-            Text(
-                "Any number using it goes back to the written words, read aloud. "
-                    + "Callers hear the change on the next call."
-            )
+            Text(t("settingsMore.deleteGreetingBody"))
         }
         .sheet(
             isPresented: Binding(
@@ -122,28 +123,25 @@ struct VoiceGreetingCard: View {
             Form {
                 if capture?.phase == .calling {
                     Section {
-                        Text("Answer, and you'll hear what to do.")
-                        Text("1. Wait for the beep.")
-                        Text("2. Say what you want your callers to hear.")
-                        Text("3. Hang up. It saves itself.")
+                        Text(t("settingsMore.answerAndListen"))
+                        Text(t("settingsMore.captureStep1"))
+                        Text(t("settingsMore.captureStep2"))
+                        Text(t("settingsMore.captureStep3"))
                     } header: {
-                        Text(verbatim: "Calling " + (capture?.to ?? "") + " now")
+                        Text(t("settingsMore.callingNow", ["number": capture?.to ?? ""]))
                     } footer: {
-                        // Assembled rather than interpolated: a quoted name
-                        // inside an interpolation inside an escaped quote is
-                        // exactly the Swift that reads fine and compiles
-                        // differently, and this file is only ever compiled by
-                        // CI — so there is no cheap way to find out.
-                        Text(
-                            verbatim: "It'll appear in your list as \u{201C}"
-                                + (capture?.name ?? "")
-                                + "\u{201D} when it lands. You can close this."
-                        )
+                        // The name rides in as `{name}` rather than being
+                        // assembled around a pair of escaped quotes, which is
+                        // what this used to do and the comment that stood here
+                        // was right to be wary of: the quotation marks are now
+                        // the catalogue's problem, and French gets « » without
+                        // this file knowing about it.
+                        Text(t("settingsMore.captureWillAppear", ["name": capture?.name ?? ""]))
                     }
                 } else {
                     Section {
                         TextField(
-                            "Your number",
+                            t("settingsMore.yourNumber"),
                             text: Binding(
                                 get: { capture?.to ?? "" },
                                 set: { capture?.to = $0 }
@@ -152,30 +150,35 @@ struct VoiceGreetingCard: View {
                         .keyboardType(.phonePad)
                         .textContentType(.telephoneNumber)
                         TextField(
-                            "Name it",
+                            t("settingsMore.nameIt"),
                             text: Binding(
                                 get: { capture?.name ?? "" },
                                 set: { capture?.name = $0 }
                             )
                         )
                     } footer: {
-                        Text(
-                            "We'll ring you, you speak after the beep, and you hang "
-                                + "up. No microphone permission, nothing to hold."
-                        )
+                        Text(t("settingsMore.recordOnPhoneBody"))
                     }
                 }
                 InlineError(error)
             }
-            .navigationTitle(capture?.phase == .calling ? "On the way" : "Record it on the phone")
+            .navigationTitle(
+                capture?.phase == .calling
+                    ? t("settingsMore.captureOnTheWay")
+                    : t("settingsMore.recordOnPhone")
+            )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(capture?.phase == .calling ? "Close" : "Cancel") { capture = nil }
+                    Button(
+                        capture?.phase == .calling ? t("common.close") : t("common.cancel")
+                    ) { capture = nil }
                 }
                 if capture?.phase != .calling {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button(pending ? "Calling…" : "Call me") { startCaptureCall() }
+                        Button(
+                            pending ? t("settingsMore.calling") : t("settingsMore.callMe")
+                        ) { startCaptureCall() }
                             .disabled(
                                 pending
                                     || (capture?.to ?? "").trimmingCharacters(in: .whitespaces).isEmpty
@@ -192,56 +195,67 @@ struct VoiceGreetingCard: View {
         VStack(alignment: .leading, spacing: 8) {
             if let current = take {
                 HStack {
-                    Text("Recorded \(formatGreetingDuration(current.durationMs))")
-                        .font(.footnote)
+                    Text(
+                        t(
+                            "settingsMore.recordedLength",
+                            ["length": formatGreetingDuration(current.durationMs)]
+                        )
+                    )
+                    .font(.footnote)
                     Spacer()
-                    Button("Hear it back") {
+                    Button(t("settingsMore.hearItBack")) {
                         if !recorder.play(current) {
-                            error = "That recording would not play back. Record it again."
+                            error = t("settingsMore.takeWontPlay")
                         }
                     }
                     .font(.caption)
                     .disabled(pending)
                 }
-                Text("This is exactly what a caller gets.")
+                Text(t("settingsMore.exactlyWhatCallerGets"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("Name it", text: $name)
+                TextField(t("settingsMore.nameIt"), text: $name)
                     .textFieldStyle(.roundedBorder)
                     .disabled(pending)
                 HStack {
-                    Button("Record again") {
+                    Button(t("settingsMore.recordAgain")) {
                         recorder.discard()
                         take = nil
                     }
                     .disabled(pending)
                     Spacer()
-                    Button(pending ? "Saving…" : "Save greeting") { save() }
+                    Button(
+                        pending ? t("common.saving") : t("settingsMore.saveGreeting")
+                    ) { save() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(pending || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             } else if recording {
                 HStack {
-                    Text("Recording… speak now.").font(.callout)
+                    Text(t("settingsMore.recordingNow")).font(.callout)
                     Spacer()
-                    Button("Stop") { stop() }
+                    Button(t("settingsMore.stop")) { stop() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                 }
             } else {
                 HStack {
-                    Text("Up to two minutes.")
+                    Text(t("settingsMore.upToTwoMinutes"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Button("Record") { begin() }
+                    Button(t("settingsMore.record")) { begin() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                 }
             }
             if take == nil && !recording {
-                Button(micRefused ? "Have us call you instead" : "Rather do it on the phone?") {
+                Button(
+                    micRefused
+                        ? t("settingsMore.haveUsCallYou")
+                        : t("settingsMore.ratherOnThePhone")
+                ) {
                     error = nil
                     capture = CaptureState(phase: .form, name: defaultGreetingName, to: "")
                 }
@@ -267,7 +281,7 @@ struct VoiceGreetingCard: View {
         // actually fails if a call holds the audio — which surfaces as
         // `.couldNotStart` with a message that says to try again.
         if let refusal = recorder.start(callInProgress: false) {
-            error = refusal.message
+            error = refusal.message(appLocale)
             micRefused = true
             return
         }
@@ -279,7 +293,7 @@ struct VoiceGreetingCard: View {
         recording = false
         take = recorder.finish()
         if take == nil {
-            error = "Nothing was recorded. Try holding the phone closer."
+            error = t("settingsMore.nothingRecorded")
         }
     }
 

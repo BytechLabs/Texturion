@@ -76,7 +76,14 @@ enum InboxReadSwipe {
     static func marksRead(unread: Bool) -> Bool { unread }
 
     /// The swipe button title for the row's current state.
-    static func title(unread: Bool) -> String { unread ? "Read" : "Unread" }
+    ///
+    /// #228: the locale is LAST and defaulted, so `InboxReadSwipeTests` — which
+    /// pins the English against the Android twin — keeps calling this unchanged.
+    static func title(unread: Bool, locale: String? = nil) -> String {
+        unread
+            ? AppStrings.translate(locale, "inbox.swipeRead")
+            : AppStrings.translate(locale, "inbox.swipeUnread")
+    }
 
     /// The SF Symbol for the row's current state.
     static func symbol(unread: Bool) -> String {
@@ -98,8 +105,12 @@ enum InboxStatusSwipe {
         status == ConversationStatus.closed
     }
 
-    static func notice(to status: String) -> String {
-        isClosing(to: status) ? "Conversation closed" : "Conversation reopened"
+    /// #228: `locale` is last and defaulted, so `InboxStatusSwipeTests` keeps
+    /// reading the English it holds the three clients to.
+    static func notice(to status: String, locale: String? = nil) -> String {
+        isClosing(to: status)
+            ? AppStrings.translate(locale, "inbox.conversationClosed")
+            : AppStrings.translate(locale, "inbox.conversationReopened")
     }
 
     /// The status to revert to, or nil when no Undo should be offered.
@@ -124,6 +135,22 @@ private enum InboxStatusTab: String, CaseIterable, Identifiable, Sendable {
     case closed = "Closed"
 
     var id: String { rawValue }
+
+    /// The pill's label in the reader's language.
+    ///
+    /// The `rawValue` stays the English id — it is this enum's identity and the
+    /// saved-view code keys off it — so the WORD on screen comes from here
+    /// instead. Four literal `translate` calls rather than a computed key,
+    /// because `check-ios-catalogue-keys` reads the literal argument and a key
+    /// chosen at runtime is invisible to it.
+    func title(_ locale: String?) -> String {
+        switch self {
+        case .open: return AppStrings.translate(locale, "inbox.segmentOpen")
+        case .mine: return AppStrings.translate(locale, "inbox.segmentMine")
+        case .all: return AppStrings.translate(locale, "inbox.segmentAll")
+        case .closed: return AppStrings.translate(locale, "inbox.segmentClosed")
+        }
+    }
 }
 
 @MainActor
@@ -136,6 +163,16 @@ private final class InboxController {
     private let companyId: String
     /// Read by the rows so "assigned to me" shows as "You".
     let meUserId: String
+
+    /// #228 — the reader's language, pushed in by the view.
+    ///
+    /// This controller is built inside `.task`, where the environment is not
+    /// readable from an initialiser, and a locale captured once at init would go
+    /// stale the moment somebody changed it. So the view assigns it and
+    /// re-assigns on change, and the controller's own sentences (the swipe
+    /// notices and the bulk result) are said in it. The same division
+    /// `NotificationsFeedModel` uses.
+    var locale: String = MessageLocale.en
 
     private(set) var tab: InboxStatusTab = .open
     /// #548: the FILTER is an id. The `Member` is only how that id gets a name.
@@ -690,15 +727,15 @@ private final class InboxController {
                 if let previous,
                    let undoTo = InboxStatusSwipe.undoTarget(to: status, from: previous) {
                     notify(
-                        InboxStatusSwipe.notice(to: status),
-                        actionLabel: "Undo"
+                        InboxStatusSwipe.notice(to: status, locale: locale),
+                        actionLabel: AppStrings.translate(locale, "inbox.undo")
                     ) { [weak self] in
                         // The revert itself announces nothing: a toast for the
                         // undo of a toast is noise.
                         self?.setRowStatus(conversationId, status: undoTo)
                     }
                 } else {
-                    notify(InboxStatusSwipe.notice(to: status))
+                    notify(InboxStatusSwipe.notice(to: status, locale: locale))
                 }
             } catch {
                 notify(error.userMessage)
@@ -827,10 +864,14 @@ private final class InboxController {
                     applied: result.applied.count,
                     failed: result.failed.count,
                     matched: result.matched,
-                    capped: result.capped
+                    capped: result.capped,
+                    locale: locale
                 )
                 if let plan = bulkUndoPlan(result) {
-                    notify(message, actionLabel: "Undo") { [weak self] in
+                    notify(
+                        message,
+                        actionLabel: AppStrings.translate(locale, "inbox.undo")
+                    ) { [weak self] in
                         self?.runBulkUndo(plan)
                     }
                 } else {
@@ -967,6 +1008,8 @@ private struct InboxList: View {
     let onTextContact: @MainActor (String) -> Void
     let onCompose: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     @State private var controller: InboxController?
     @State private var assigneeSheetOpen = false
     @State private var tagSheetOpen = false
@@ -1032,7 +1075,7 @@ private struct InboxList: View {
                         .shadow(color: BrandColor.inkFixed.opacity(0.28), radius: 14, x: 0, y: 8)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("New message")
+                .accessibilityLabel(AppStrings.translate(appLocale, "inbox.composeAria"))
                 .padding(.trailing, 18)
                 .padding(.bottom, 12)
             }
@@ -1057,6 +1100,11 @@ private struct InboxList: View {
                 if !Task.isCancelled { visibleNotice = nil }
             }
         }
+        // #228: the controller says its own sentences (the swipe notices, the
+        // bulk result), so it is told the reader's language here — and told
+        // again whenever it changes, because the setting is a person's and can
+        // be changed while this screen is up.
+        .onChange(of: appLocale) { _, next in controller?.locale = next }
         .task(id: companyId) {
             if controller == nil {
                 let created = InboxController(
@@ -1064,8 +1112,11 @@ private struct InboxList: View {
                     companyId: companyId,
                     meUserId: me.user_id
                 )
+                created.locale = appLocale
                 controller = created
                 created.start()
+            } else {
+                controller?.locale = appLocale
             }
             // #508: the command may have arrived before this list had a
             // controller to apply it to — the response-time card's tap creates
@@ -1117,7 +1168,7 @@ private struct InboxList: View {
         @Bindable var controller = controller
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                ScreenTitle(text: "Inbox")
+                ScreenTitle(text: AppStrings.translate(appLocale, "inbox.title"))
                 Spacer(minLength: 0)
                 // #233: self-surfacing rather than buried. The whole ask is "so
                 // nobody is surprised", and a control that only appears when
@@ -1136,8 +1187,12 @@ private struct InboxList: View {
                     }
                     .accessibilityLabel(
                         controller.scheduled.count == 1
-                            ? "1 text waiting to send"
-                            : "\(controller.scheduled.count) texts waiting to send"
+                            ? AppStrings.translate(appLocale, "inbox.scheduledOneAria")
+                            : AppStrings.translate(
+                                appLocale,
+                                "inbox.scheduledManyAria",
+                                ["count": String(controller.scheduled.count)]
+                            )
                     )
                 }
             }
@@ -1232,21 +1287,35 @@ private struct InboxList: View {
         // other people open every morning, and the person deleting it cannot
         // see who that affects.
         .confirmationDialog(
-            "Delete this crew view?",
+            AppStrings.translate(appLocale, "inbox.viewDeleteTitle"),
             isPresented: Binding(
                 get: { deletingSharedView != nil },
                 set: { if !$0 { deletingSharedView = nil } }
             ),
             titleVisibility: .visible
         ) {
-            Button("Delete for everyone", role: .destructive) {
+            Button(
+                AppStrings.translate(appLocale, "inbox.viewDeleteConfirm"),
+                role: .destructive
+            ) {
                 if let view = deletingSharedView { controller.deleteView(id: view.id) }
                 deletingSharedView = nil
             }
-            Button("Keep it", role: .cancel) { deletingSharedView = nil }
+            Button(
+                AppStrings.translate(appLocale, "inbox.viewDeleteKeep"),
+                role: .cancel
+            ) { deletingSharedView = nil }
         } message: {
+            // The whole sentence web and Android say, name included — this
+            // screen used to print only its second half, so the one fact that
+            // makes the warning land ("the whole crew uses THIS one") was the
+            // part iOS left out.
             Text(
-                "Anyone who opens the app there will land on the ordinary inbox instead."
+                AppStrings.translate(
+                    appLocale,
+                    "inbox.viewDeleteBody",
+                    ["name": deletingSharedView?.name ?? ""]
+                )
             )
         }
         .sheet(isPresented: $assigneeSheetOpen) {
@@ -1304,7 +1373,10 @@ private struct InboxList: View {
             Image(systemName: "magnifyingglass")
                 .font(.scaled(15, weight: .medium))
                 .foregroundStyle(BrandColor.muted700)
-            TextField("Search texts, tasks, contacts…", text: $controller.query)
+            TextField(
+                AppStrings.translate(appLocale, "inbox.searchPlaceholder"),
+                text: $controller.query
+            )
                 .font(.golos(13.5))
                 .foregroundStyle(BrandColor.ink)
                 .textInputAutocapitalization(.never)
@@ -1322,7 +1394,9 @@ private struct InboxList: View {
                         .foregroundStyle(BrandColor.muted400)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Clear search")
+                .accessibilityLabel(
+                    AppStrings.translate(appLocale, "inbox.clearSearchAria")
+                )
             }
         }
         .padding(.horizontal, 16)
@@ -1352,7 +1426,7 @@ private struct InboxList: View {
         onTap: @escaping @MainActor () -> Void
     ) -> some View {
         Button(action: onTap) {
-            Text(item.rawValue)
+            Text(item.title(appLocale))
                 .font(.golos(12.5, weight: selected ? .semibold : .medium))
                 .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
                 .padding(.horizontal, 16)
@@ -1371,13 +1445,19 @@ private struct FilterChipRow: View {
     let onPickAssignee: @MainActor () -> Void
     let onPickTag: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     // Chip labels/clear-actions extracted with explicit types — the inline
     // map/ternary optional-closure expressions made swiftc's type checker
     // give up (CI run 7).
     private var assigneeLabel: String {
-        guard let assignee = controller.assignee else { return "Assignee" }
-        let name = assignee.display_name.isBlank ? "Teammate" : assignee.display_name
-        return "Assignee: \(name)"
+        guard let assignee = controller.assignee else {
+            return AppStrings.translate(appLocale, "inbox.chipAssignee")
+        }
+        let name = assignee.display_name.isBlank
+            ? AppStrings.translate(appLocale, "inbox.teammateFallback")
+            : assignee.display_name
+        return AppStrings.translate(appLocale, "inbox.chipAssigneeNamed", ["name": name])
     }
 
     private var assigneeClear: (@MainActor () -> Void)? {
@@ -1386,8 +1466,10 @@ private struct FilterChipRow: View {
     }
 
     private var tagLabel: String {
-        guard let tag = controller.tag else { return "Tag" }
-        return "Tag: \(tag.name)"
+        guard let tag = controller.tag else {
+            return AppStrings.translate(appLocale, "inbox.chipTag")
+        }
+        return AppStrings.translate(appLocale, "inbox.chipTagNamed", ["name": tag.name])
     }
 
     private var tagClear: (@MainActor () -> Void)? {
@@ -1418,19 +1500,19 @@ private struct FilterChipRow: View {
                 // a filter you can reach from exactly one card is one most of
                 // the crew never learns exists.
                 FilterChip(
-                    label: "Unanswered",
+                    label: AppStrings.translate(appLocale, "inbox.chipUnanswered"),
                     selected: controller.awaitingOnly,
                     onTap: { controller.toggleAwaiting() },
                     onClear: nil
                 )
                 FilterChip(
-                    label: "Unread",
+                    label: AppStrings.translate(appLocale, "inbox.chipUnread"),
                     selected: controller.unreadOnly,
                     onTap: { controller.toggleUnread() },
                     onClear: nil
                 )
                 FilterChip(
-                    label: "Spam",
+                    label: AppStrings.translate(appLocale, "inbox.chipSpam"),
                     selected: controller.spamOnly,
                     onTap: { controller.toggleSpam() },
                     onClear: nil
@@ -1439,7 +1521,7 @@ private struct FilterChipRow: View {
                 // thread with no way to find it would be worse than the
                 // clutter it solved.
                 FilterChip(
-                    label: "Snoozed",
+                    label: AppStrings.translate(appLocale, "inbox.chipSnoozed"),
                     selected: controller.snoozedOnly,
                     onTap: { controller.toggleSnoozed() },
                     onClear: nil
@@ -1459,7 +1541,7 @@ private struct FilterChipRow: View {
                 // is the exit, not the first thing to reach for.
                 if controller.isFiltered {
                     FilterChip(
-                        label: "Clear filters",
+                        label: AppStrings.translate(appLocale, "inbox.chipClearFilters"),
                         selected: false,
                         onTap: { controller.clearFilters() },
                         onClear: nil
@@ -1477,6 +1559,8 @@ private struct FilterChip: View {
     let selected: Bool
     let onTap: @MainActor () -> Void
     let onClear: (@MainActor () -> Void)?
+
+    @Environment(\.appLocale) private var appLocale
 
     // #548: the pill's padding belongs to the BUTTONS, not to the HStack around
     // them. Outside, it made the bare text glyph the only place a tap counted —
@@ -1512,7 +1596,9 @@ private struct FilterChip: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Clear filter")
+                .accessibilityLabel(
+                    AppStrings.translate(appLocale, "inbox.clearFilterAria")
+                )
             }
         }
         .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
@@ -1525,6 +1611,8 @@ private struct ConversationListPane: View {
     @Binding var selection: String?
     let onOpen: @MainActor (String) -> Void
     let onAssign: @MainActor (ConversationListItem) -> Void
+
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         let empty = controller.rows.isEmpty && controller.pinnedRows.isEmpty
@@ -1559,7 +1647,9 @@ private struct ConversationListPane: View {
                             rowCell(row, pinned: true)
                         }
                     } header: {
-                        SectionHeader(label: "Pinned")
+                        SectionHeader(
+                            label: AppStrings.translate(appLocale, "inbox.sectionPinned")
+                        )
                     }
                 }
                 Section {
@@ -1582,7 +1672,11 @@ private struct ConversationListPane: View {
                     }
                 } header: {
                     if !controller.pinnedRows.isEmpty, !controller.rows.isEmpty {
-                        SectionHeader(label: "Conversations")
+                        SectionHeader(
+                            label: AppStrings.translate(
+                                appLocale, "inbox.sectionConversations"
+                            )
+                        )
                     }
                 }
             }
@@ -1600,10 +1694,14 @@ private struct ConversationListPane: View {
     /// Android's assigneeName in InboxTab.kt.
     private func assigneeName(_ row: ConversationListItem) -> String? {
         guard let userId = row.assigned_user_id else { return nil }
-        if userId == controller.meUserId { return "You" }
+        if userId == controller.meUserId {
+            return AppStrings.translate(appLocale, "inbox.assigneeYou")
+        }
         guard let member = controller.members.first(where: { $0.user_id == userId })
         else { return nil }
-        return member.display_name.isBlank ? "Teammate" : member.display_name
+        return member.display_name.isBlank
+            ? AppStrings.translate(appLocale, "inbox.teammateFallback")
+            : member.display_name
     }
 
     /// One row + its swipe actions. Done/Reopen IS the close/open status flip
@@ -1644,7 +1742,7 @@ private struct ConversationListPane: View {
                     controller.toggleRead(row)
                 } label: {
                     Label(
-                        InboxReadSwipe.title(unread: row.unread),
+                        InboxReadSwipe.title(unread: row.unread, locale: appLocale),
                         systemImage: InboxReadSwipe.symbol(unread: row.unread)
                     )
                 }
@@ -1666,7 +1764,9 @@ private struct ConversationListPane: View {
                     )
                 } label: {
                     Label(
-                        closed ? "Reopen" : "Done",
+                        closed
+                            ? AppStrings.translate(appLocale, "inbox.swipeReopen")
+                            : AppStrings.translate(appLocale, "inbox.swipeDone"),
                         systemImage: closed ? "arrow.uturn.backward" : "checkmark"
                     )
                 }
@@ -1675,7 +1775,10 @@ private struct ConversationListPane: View {
                     Haptics.tap()
                     onAssign(row)
                 } label: {
-                    Label("Assign", systemImage: "person")
+                    Label(
+                        AppStrings.translate(appLocale, "inbox.swipeAssign"),
+                        systemImage: "person"
+                    )
                 }
                 .tint(Color(.systemGray))
             }
@@ -1685,13 +1788,17 @@ private struct ConversationListPane: View {
         // #508: an empty Unanswered list is the best news this screen can give,
         // and "nothing matches these filters" reports it as an absence. Said as
         // the result it is.
-        if controller.awaitingOnly { return "Everyone has been answered." }
-        if controller.hasSecondaryFilters { return "Nothing matches these filters." }
+        if controller.awaitingOnly {
+            return AppStrings.translate(appLocale, "inbox.emptyEveryoneAnswered")
+        }
+        if controller.hasSecondaryFilters {
+            return AppStrings.translate(appLocale, "inbox.emptyNoFilterMatch")
+        }
         switch controller.tab {
-        case .open: return "Nothing waiting on you."
-        case .mine: return "Nothing assigned to you."
-        case .closed: return "No closed conversations."
-        case .all: return "No conversations yet."
+        case .open: return AppStrings.translate(appLocale, "inbox.emptyNothingWaiting")
+        case .mine: return AppStrings.translate(appLocale, "inbox.emptyNothingAssigned")
+        case .closed: return AppStrings.translate(appLocale, "inbox.emptyNoClosed")
+        case .all: return AppStrings.translate(appLocale, "inbox.emptyNoConversations")
         }
     }
 }
@@ -1704,6 +1811,8 @@ private struct ConversationRow: View {
     /// like yours; web and Android both show it, so the row does too.
     var assigneeName: String?
     let onTap: @MainActor () -> Void
+
+    @Environment(\.appLocale) private var appLocale
 
     private var name: String {
         row.contact.name ?? formatPhone(row.contact.phone_e164)
@@ -1723,10 +1832,12 @@ private struct ConversationRow: View {
             body = last.body
         }
         switch last.direction {
-        case "note": return "Note · \(body)"
+        case "note":
+            return AppStrings.translate(appLocale, "inbox.rowPreviewNote", ["body": body])
         // Whose turn it is, at a glance: without this a row you already
         // answered looks exactly like one still waiting.
-        case "outbound": return "You: \(body)"
+        case "outbound":
+            return AppStrings.translate(appLocale, "inbox.rowPreviewYou", ["body": body])
         default: return body
         }
     }
@@ -1760,7 +1871,7 @@ private struct ConversationRow: View {
                                 .lineLimit(1)
                         }
                         if row.is_spam {
-                            Text("Spam")
+                            Text(AppStrings.translate(appLocale, "inbox.spamLabel"))
                                 .font(.golos(10, weight: .bold))
                                 .foregroundStyle(BrandColor.muted600)
                                 .padding(.horizontal, 7)
@@ -1806,7 +1917,13 @@ private struct ConversationRow: View {
                                 TagChip(tag: tag)
                             }
                             if row.tags.count > 3 {
-                                Text("+\(row.tags.count - 3)")
+                                Text(
+                                    AppStrings.translate(
+                                        appLocale,
+                                        "inbox.tagOverflow",
+                                        ["count": String(row.tags.count - 3)]
+                                    )
+                                )
                                     .font(.golos(10.5, weight: .semibold))
                                     .foregroundStyle(BrandColor.muted500)
                             }
@@ -1837,8 +1954,16 @@ private struct ConversationRow: View {
         // Announce read/unread to VoiceOver — the AttentionDot that conveys it
         // to sighted users isn't otherwise exposed, so read and unread
         // conversations sounded identical. Matches NotificationsView.
-        .accessibilityValue(row.unread ? "Unread" : "")
-        .accessibilityHint(assigneeName.map { "Assigned to \($0)" } ?? "")
+        .accessibilityValue(
+            row.unread ? AppStrings.translate(appLocale, "inbox.rowStateUnread") : ""
+        )
+        .accessibilityHint(
+            assigneeName.map {
+                AppStrings.translate(
+                    appLocale, "inbox.rowAssignedToTitle", ["name": $0]
+                )
+            } ?? ""
+        )
     }
 }
 
@@ -1879,16 +2004,30 @@ private struct AssigneeFilterSheet: View {
     let selected: Member?
     let onPick: @MainActor (Member?) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         NavigationStack {
             List {
-                pickerRow(label: "Anyone", avatarName: nil, isSelected: selected == nil) {
+                pickerRow(
+                    label: AppStrings.translate(appLocale, "inbox.filterAnyone"),
+                    avatarName: nil,
+                    isSelected: selected == nil
+                ) {
                     onPick(nil)
                 }
                 ForEach(members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
                     pickerRow(
-                        label: (member.display_name.isBlank ? "Teammate" : member.display_name)
-                            + (member.user_id == meUserId ? " (you)" : ""),
+                        label: (
+                            member.display_name.isBlank
+                                ? AppStrings.translate(appLocale, "inbox.teammateFallback")
+                                : member.display_name
+                        )
+                            + (
+                                member.user_id == meUserId
+                                    ? AppStrings.translate(appLocale, "inbox.youSuffix")
+                                    : ""
+                            ),
                         avatarName: member.display_name.isBlank ? nil : member.display_name,
                         isSelected: selected?.user_id == member.user_id
                     ) {
@@ -1897,7 +2036,9 @@ private struct AssigneeFilterSheet: View {
                 }
             }
             .listStyle(.plain)
-            .navigationTitle("Filter by assignee")
+            .navigationTitle(
+                AppStrings.translate(appLocale, "inbox.filterByAssigneeTitle")
+            )
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
@@ -1933,6 +2074,8 @@ private struct TagFilterSheet: View {
     let selected: Tag?
     let onPick: @MainActor (Tag?) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         NavigationStack {
             List {
@@ -1940,7 +2083,7 @@ private struct TagFilterSheet: View {
                     onPick(nil)
                 } label: {
                     HStack {
-                        Text("Any tag")
+                        Text(AppStrings.translate(appLocale, "inbox.filterAnyTag"))
                             .font(.golos(13.5, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
                         Spacer()
@@ -1951,7 +2094,7 @@ private struct TagFilterSheet: View {
                     }
                 }
                 if tags.isEmpty {
-                    Text("No tags yet. Add tags from a conversation on the web.")
+                    Text(AppStrings.translate(appLocale, "inbox.filterNoTags"))
                         .font(.golos(12.5))
                         .foregroundStyle(BrandColor.muted500)
                 }
@@ -1973,7 +2116,7 @@ private struct TagFilterSheet: View {
                 }
             }
             .listStyle(.plain)
-            .navigationTitle("Filter by tag")
+            .navigationTitle(AppStrings.translate(appLocale, "inbox.filterByTagTitle"))
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
@@ -2001,6 +2144,8 @@ private struct SearchResultsPane: View {
     let onOpenTask: @MainActor (String) -> Void
     let onTextContact: @MainActor (String) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     /// Dispatch a computed `SearchResultRoute` (the tested routing decision).
     private func dispatch(_ route: SearchResultRoute) {
         switch route {
@@ -2026,7 +2171,13 @@ private struct SearchResultsPane: View {
             result.tasks.isEmpty && result.attachments.isEmpty && result.templates.isEmpty
             && result.voicemails.isEmpty
         if empty {
-            Text("Nothing matches \"\(controller.query.trimmingCharacters(in: .whitespaces))\".")
+            Text(
+                AppStrings.translate(
+                    appLocale,
+                    "inbox.searchNoMatches",
+                    ["query": controller.query.trimmingCharacters(in: .whitespaces)]
+                )
+            )
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.muted600)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -2040,7 +2191,15 @@ private struct SearchResultsPane: View {
                                 .listRowSeparatorTint(BrandColor.inset)
                         }
                         if result.next_cursor != nil {
-                            Button(controller.searchLoadingMore ? "Loading…" : "More results") {
+                            Button(
+                                controller.searchLoadingMore
+                                    ? AppStrings.translate(
+                                        appLocale, "inbox.searchLoadingMore"
+                                    )
+                                    : AppStrings.translate(
+                                        appLocale, "inbox.searchMoreResults"
+                                    )
+                            ) {
                                 controller.searchMore()
                             }
                             .font(.golos(12.5, weight: .semibold))
@@ -2050,7 +2209,12 @@ private struct SearchResultsPane: View {
                             .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        SectionHeader(label: "Conversations", count: result.conversations.count)
+                        SectionHeader(
+                            label: AppStrings.translate(
+                                appLocale, "inbox.searchHeadingConversations"
+                            ),
+                            count: result.conversations.count
+                        )
                     }
                 }
                 if !result.contacts.isEmpty {
@@ -2061,7 +2225,12 @@ private struct SearchResultsPane: View {
                                 .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        SectionHeader(label: "Contacts", count: result.contacts.count)
+                        SectionHeader(
+                            label: AppStrings.translate(
+                                appLocale, "inbox.searchHeadingContacts"
+                            ),
+                            count: result.contacts.count
+                        )
                     }
                 }
                 if !result.tasks.isEmpty {
@@ -2075,7 +2244,15 @@ private struct SearchResultsPane: View {
                                     Text(task.title)
                                         .font(.golos(13, weight: .semibold))
                                         .foregroundStyle(BrandColor.ink)
-                                    Text(task.done ? "Done" : "Open task")
+                                    Text(
+                                        task.done
+                                            ? AppStrings.translate(
+                                                appLocale, "inbox.taskDone"
+                                            )
+                                            : AppStrings.translate(
+                                                appLocale, "inbox.taskOpen"
+                                            )
+                                    )
                                         .font(.golos(11))
                                         .foregroundStyle(BrandColor.muted400)
                                 }
@@ -2085,7 +2262,12 @@ private struct SearchResultsPane: View {
                             .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        SectionHeader(label: "Tasks", count: result.tasks.count)
+                        SectionHeader(
+                            label: AppStrings.translate(
+                                appLocale, "inbox.searchHeadingTasks"
+                            ),
+                            count: result.tasks.count
+                        )
                     }
                 }
                 if !result.attachments.isEmpty {
@@ -2096,7 +2278,12 @@ private struct SearchResultsPane: View {
                                 .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        SectionHeader(label: "Attachments", count: result.attachments.count)
+                        SectionHeader(
+                            label: AppStrings.translate(
+                                appLocale, "inbox.searchHeadingAttachments"
+                            ),
+                            count: result.attachments.count
+                        )
                     }
                 }
                 // #409: the words somebody SPOKE. Above saved replies because
@@ -2116,7 +2303,10 @@ private struct SearchResultsPane: View {
                         ForEach(result.voicemails, id: \.id) { hit in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(
-                                    hit.caller_e164.map { formatPhone($0) } ?? "Voicemail"
+                                    hit.caller_e164.map { formatPhone($0) }
+                                        ?? AppStrings.translate(
+                                            appLocale, "inbox.voicemailFallback"
+                                        )
                                 )
                                 .font(.golos(13, weight: .semibold))
                                 .foregroundStyle(BrandColor.ink)
@@ -2129,7 +2319,12 @@ private struct SearchResultsPane: View {
                             .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        SectionHeader(label: "Voicemails", count: result.voicemails.count)
+                        SectionHeader(
+                            label: AppStrings.translate(
+                                appLocale, "inbox.searchHeadingVoicemails"
+                            ),
+                            count: result.voicemails.count
+                        )
                     }
                 }
                 if !result.templates.isEmpty {
@@ -2148,7 +2343,12 @@ private struct SearchResultsPane: View {
                             .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        SectionHeader(label: "Saved replies", count: result.templates.count)
+                        SectionHeader(
+                            label: AppStrings.translate(
+                                appLocale, "inbox.searchHeadingTemplates"
+                            ),
+                            count: result.templates.count
+                        )
                     }
                 }
             }
@@ -2171,7 +2371,11 @@ private struct SearchResultsPane: View {
                         .font(.golos(13.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
                     Text(
-                        (hit.direction == "note" ? "Note · " : "")
+                        (
+                            hit.direction == "note"
+                                ? AppStrings.translate(appLocale, "inbox.searchNotePrefix")
+                                : ""
+                        )
                             + stripHighlight(hit.snippet)
                     )
                     .font(.golos(12))
@@ -2324,6 +2528,8 @@ private func previewListItem(
 private struct BulkSelectionBar: View {
     let controller: InboxController
 
+    @Environment(\.appLocale) private var appLocale
+
     private var loadedIds: [String] { controller.rows.map(\.id) }
 
     private var showSelectLoaded: Bool {
@@ -2342,9 +2548,11 @@ private struct BulkSelectionBar: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(controller.bulkRunning)
-                .accessibilityLabel("Clear selection")
+                .accessibilityLabel(
+                    AppStrings.translate(appLocale, "inbox.bulkClearSelectionAria")
+                )
 
-                Text(controller.bulkSelection.label)
+                Text(controller.bulkSelection.labelText(appLocale))
                     .font(.golos(13, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
 
@@ -2355,29 +2563,57 @@ private struct BulkSelectionBar: View {
                 Menu {
                     ForEach(controller.members.filter { $0.deactivated_at == nil }, id: \.user_id) {
                         member in
-                        Button("Assign to \(member.display_name.isBlank ? "Teammate" : member.display_name)") {
+                        Button(
+                            AppStrings.translate(
+                                appLocale,
+                                "inbox.bulkAssignTo",
+                                [
+                                    "name": member.display_name.isBlank
+                                        ? AppStrings.translate(
+                                            appLocale, "inbox.teammateFallback"
+                                        )
+                                        : member.display_name,
+                                ]
+                            )
+                        ) {
                             controller.runBulk(
                                 action: "assign",
-                                verb: "Assigned",
+                                verb: AppStrings.translate(
+                                    appLocale, "inbox.bulkVerbAssigned"
+                                ),
                                 targetUserId: member.user_id
                             )
                         }
                     }
-                    Button("Unassign") {
-                        controller.runBulk(action: "assign", verb: "Unassigned", unassign: true)
+                    Button(AppStrings.translate(appLocale, "inbox.bulkUnassign")) {
+                        controller.runBulk(
+                            action: "assign",
+                            verb: AppStrings.translate(
+                                appLocale, "inbox.bulkVerbUnassigned"
+                            ),
+                            unassign: true
+                        )
                     }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.scaled(13, weight: .semibold))
                 }
                 .disabled(controller.bulkRunning)
-                .accessibilityLabel("More bulk actions")
+                .accessibilityLabel(
+                    AppStrings.translate(appLocale, "inbox.bulkMoreAria")
+                )
             }
 
             // The escalation ladder: the page first, then the filter. Never one
             // "select all" that quietly means whichever of the two it feels like.
             if showSelectLoaded {
-                Button("Select all \(loadedIds.count) loaded") {
+                Button(
+                    AppStrings.translate(
+                        appLocale,
+                        "inbox.bulkSelectAllLoaded",
+                        ["count": String(loadedIds.count)]
+                    )
+                ) {
                     controller.selectAllLoaded()
                 }
                 .font(.golos(12.5, weight: .semibold))
@@ -2389,7 +2625,9 @@ private struct BulkSelectionBar: View {
                 loadedIds: loadedIds,
                 hasMore: controller.hasMorePages
             ) {
-                Button("Select all matching this filter") {
+                Button(
+                    AppStrings.translate(appLocale, "inbox.bulkSelectAllMatching")
+                ) {
                     controller.selectAllMatchingFilter()
                 }
                 .font(.golos(12.5, weight: .semibold))
@@ -2399,18 +2637,34 @@ private struct BulkSelectionBar: View {
             }
 
             HStack(spacing: 8) {
-                BulkActionButton(title: "Mark read", disabled: controller.bulkRunning) {
-                    controller.runBulk(action: "mark_read", verb: "Marked read")
+                BulkActionButton(
+                    title: AppStrings.translate(appLocale, "inbox.bulkMarkRead"),
+                    disabled: controller.bulkRunning
+                ) {
+                    controller.runBulk(
+                        action: "mark_read",
+                        verb: AppStrings.translate(appLocale, "inbox.bulkVerbMarkedRead")
+                    )
                 }
-                BulkActionButton(title: "Close", disabled: controller.bulkRunning) {
+                BulkActionButton(
+                    title: AppStrings.translate(appLocale, "inbox.bulkClose"),
+                    disabled: controller.bulkRunning
+                ) {
                     controller.runBulk(
                         action: "set_status",
-                        verb: "Closed",
+                        verb: AppStrings.translate(appLocale, "inbox.bulkVerbClosed"),
                         targetStatus: ConversationStatus.closed
                     )
                 }
-                BulkActionButton(title: "Spam", disabled: controller.bulkRunning) {
-                    controller.runBulk(action: "set_spam", verb: "Marked as spam", targetSpam: true)
+                BulkActionButton(
+                    title: AppStrings.translate(appLocale, "inbox.bulkSpam"),
+                    disabled: controller.bulkRunning
+                ) {
+                    controller.runBulk(
+                        action: "set_spam",
+                        verb: AppStrings.translate(appLocale, "inbox.bulkVerbMarkedSpam"),
+                        targetSpam: true
+                    )
                 }
             }
         }
@@ -2478,7 +2732,9 @@ extension InboxList {
                     .buttonStyle(.plain)
                     .contextMenu { savedViewMenu(controller, view: view) }
                 }
-                Button("Save this view") { savedViewSheetOpen = true }
+                Button(AppStrings.translate(appLocale, "inbox.viewsSave")) {
+                    savedViewSheetOpen = true
+                }
                     .font(.golos(12.5, weight: .medium))
                     .foregroundStyle(BrandColor.muted700)
                     .buttonStyle(.plain)
@@ -2500,12 +2756,18 @@ extension InboxList {
         view: SavedView
     ) -> some View {
         let isDefault = view.id == controller.defaultViewId
-        Button(isDefault ? "Stop opening here" : "Open here by default") {
+        Button(
+            isDefault
+                ? AppStrings.translate(appLocale, "inbox.viewStopOpeningHere")
+                : AppStrings.translate(appLocale, "inbox.viewOpenHereByDefault")
+        ) {
             controller.setDefaultView(isDefault ? nil : view.id)
         }
         if !view.shared || canShareSavedViews {
-            Button("Rename") { renamingView = view }
-            Button("Delete", role: .destructive) {
+            Button(AppStrings.translate(appLocale, "inbox.viewRename")) {
+                renamingView = view
+            }
+            Button(AppStrings.translate(appLocale, "common.delete"), role: .destructive) {
                 if view.shared {
                     deletingSharedView = view
                 } else {
@@ -2534,6 +2796,8 @@ private struct SaveViewSheet: View {
     let canShare: Bool
     let onClose: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     @State private var name: String
     @State private var shared = false
     @State private var error: String?
@@ -2555,33 +2819,41 @@ private struct SaveViewSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Name", text: $name)
+                    TextField(
+                        AppStrings.translate(appLocale, "inbox.viewNameLabel"),
+                        text: $name
+                    )
                 } header: {
-                    Text("Save this view")
+                    Text(AppStrings.translate(appLocale, "inbox.viewsSave"))
                 } footer: {
-                    Text("The filters you have on now, under a name, one tap away tomorrow.")
+                    Text(AppStrings.translate(appLocale, "inbox.viewSaveDescription"))
                 }
                 if canShare {
                     Section {
-                        Toggle("Share it with the crew", isOn: $shared)
-                    } footer: {
-                        Text(
-                            "Everyone gets the same view, and each person sees only the numbers they already have access to."
+                        Toggle(
+                            AppStrings.translate(appLocale, "inbox.viewShareToggle"),
+                            isOn: $shared
                         )
+                    } footer: {
+                        Text(AppStrings.translate(appLocale, "inbox.viewShareNote"))
                     }
                 }
                 if let error {
                     Section { Text(error).foregroundStyle(.red) }
                 }
             }
-            .navigationTitle("Save this view")
+            .navigationTitle(AppStrings.translate(appLocale, "inbox.viewsSave"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onClose() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) { onClose() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(saving ? "Saving" : "Save") {
+                    Button(
+                        saving
+                            ? AppStrings.translate(appLocale, "inbox.viewSaving")
+                            : AppStrings.translate(appLocale, "common.save")
+                    ) {
                         saving = true
                         controller.saveCurrentView(name: name, shared: shared) { failure in
                             saving = false
@@ -2600,6 +2872,8 @@ private struct RenameViewSheet: View {
     let view: SavedView
     let onClose: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     @State private var draft: String
 
     init(
@@ -2616,16 +2890,19 @@ private struct RenameViewSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $draft)
+                TextField(
+                    AppStrings.translate(appLocale, "inbox.viewNameLabel"),
+                    text: $draft
+                )
             }
-            .navigationTitle("Rename view")
+            .navigationTitle(AppStrings.translate(appLocale, "inbox.viewRenameTitle"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onClose() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) { onClose() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(AppStrings.translate(appLocale, "common.save")) {
                         controller.renameView(id: view.id, name: draft)
                         onClose()
                     }

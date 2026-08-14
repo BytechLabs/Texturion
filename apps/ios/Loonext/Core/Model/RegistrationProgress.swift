@@ -47,14 +47,23 @@ func registrationStage(brand: String?, campaign: String?) -> RegistrationStage {
 /// anything has been sent. A bar sitting at 0% for four days is the spinner
 /// this exists to replace. The value marks how many steps are BEHIND you — a
 /// true statement, rather than a fabricated estimate of time remaining.
-func registrationProgress(brand: String?, campaign: String?) -> RegistrationProgress {
+/// #228: `locale` is last and defaulted, so `RegistrationProgressTests` keeps
+/// pinning the English table while the card that knows its reader passes
+/// `appLocale`. The STAGE and the percentage are decided before any of it, from
+/// carrier statuses that arrive in one language whoever is reading.
+func registrationProgress(
+    brand: String?,
+    campaign: String?,
+    locale: String? = nil
+) -> RegistrationProgress {
+    func say(_ key: String) -> String { AppStrings.translate(locale, key) }
     switch registrationStage(brand: brand, campaign: campaign) {
     case .needsDetails:
         return RegistrationProgress(
             stage: .needsDetails,
             percent: 10,
-            title: "We need a few business details",
-            next: "Finish the texting registration form and we'll send it on.",
+            title: say("domain.regStageNeedsDetailsTitle"),
+            next: say("domain.regStageNeedsDetailsNext"),
             expected: nil,
             actionNeeded: true
         )
@@ -62,26 +71,26 @@ func registrationProgress(brand: String?, campaign: String?) -> RegistrationProg
         return RegistrationProgress(
             stage: .submitting,
             percent: 40,
-            title: "Sent to the carriers",
-            next: "The carriers review it next. Nothing needed from you.",
-            expected: "Usually 3–7 business days, sometimes longer",
+            title: say("domain.regStageSubmittingTitle"),
+            next: say("domain.regStageSubmittingNext"),
+            expected: say("domain.regStageExpected"),
             actionNeeded: false
         )
     case .underReview:
         return RegistrationProgress(
             stage: .underReview,
             percent: 70,
-            title: "Under review by the carriers",
-            next: "We'll text and email you the moment it clears.",
-            expected: "Usually 3–7 business days, sometimes longer",
+            title: say("domain.regStageUnderReviewTitle"),
+            next: say("domain.regStageUnderReviewNext"),
+            expected: say("domain.regStageExpected"),
             actionNeeded: false
         )
     case .approved:
         return RegistrationProgress(
             stage: .approved,
             percent: 100,
-            title: "Your texting is live",
-            next: "You can text customers now.",
+            title: say("domain.regStageApprovedTitle"),
+            next: say("domain.regStageApprovedNext"),
             expected: nil,
             actionNeeded: false
         )
@@ -89,8 +98,8 @@ func registrationProgress(brand: String?, campaign: String?) -> RegistrationProg
         return RegistrationProgress(
             stage: .rejected,
             percent: 40,
-            title: "The carriers need something changed",
-            next: "Check the details on your registration and resubmit.",
+            title: say("domain.regStageRejectedTitle"),
+            next: say("domain.regStageRejectedNext"),
             expected: nil,
             actionNeeded: true
         )

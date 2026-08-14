@@ -52,6 +52,9 @@ struct SendLaterSheet: View {
     let onPickCustom: @MainActor () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
     var body: some View {
         NavigationStack {
@@ -78,17 +81,17 @@ struct SendLaterSheet: View {
                         dismiss()
                         onPickCustom()
                     } label: {
-                        Label("Pick a time…", systemImage: "calendar.badge.clock")
+                        Label(t("thread.pickATime"), systemImage: "calendar.badge.clock")
                     }
                 } header: {
                     Text(headerLine)
                 }
             }
-            .navigationTitle("Send later")
+            .navigationTitle(t("thread.sendLater"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("common.cancel")) { dismiss() }
                 }
             }
         }
@@ -105,7 +108,7 @@ struct SendLaterSheet: View {
     }
 
     private var headerLine: String {
-        guard let clock else { return "Your workspace's time" }
+        guard let clock else { return t("thread.workspaceTime") }
         return ScheduledSend.clockProvenance(clock.rung)
     }
 }
@@ -124,6 +127,7 @@ struct SendLaterPicker: View {
     let onConfirm: @MainActor (Date) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
     @State private var value: Date
     /// #539: which clock the picked time is in — the switch the issue asks for
     /// ("why cant i choose? let me switch?").
@@ -142,7 +146,7 @@ struct SendLaterPicker: View {
         NavigationStack {
             Form {
                 DatePicker(
-                    "Send at",
+                    t("thread.sendAt"),
                     selection: $value,
                     in: horizon,
                     displayedComponents: [.date, .hourAndMinute]
@@ -151,7 +155,7 @@ struct SendLaterPicker: View {
                     // Two buttons, not a zone picker. The question a sender has is
                     // "did I mean 8am here or 8am there"; offering 400 IANA zones
                     // to answer it would be a worse version of the same confusion.
-                    Picker("Which clock", selection: $choice) {
+                    Picker(t("thread.whichClock"), selection: $choice) {
                         ForEach(TwoClocks.Choice.allCases) { option in
                             Text(option.label).tag(option)
                         }
@@ -162,14 +166,14 @@ struct SendLaterPicker: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-            .navigationTitle("Send later")
+            .navigationTitle(t("thread.sendLater"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("common.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Schedule") {
+                    Button(t("thread.schedule")) {
                         dismiss()
                         // #539: resolved against whichever clock is selected. The
                         // digits on screen do not change; what they mean does.
@@ -179,6 +183,10 @@ struct SendLaterPicker: View {
             }
         }
         .presentationDetents([.medium])
+    }
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
     }
 
     /// The destination's zone, or the device's when there is nothing to resolve.
@@ -209,10 +217,18 @@ struct SendLaterPicker: View {
     /// time rather than an hours-apart number, which is wrong every day in the
     /// half-hour zones and twice a year everywhere else.
     private var clockNote: String {
-        guard canSwitch else { return senderClockNote(clock, device: .current) }
+        guard canSwitch else {
+            return senderClockNote(clock, device: .current, locale: appLocale)
+        }
         return choice == .theirs
-            ? "That's \(clockOf(resolved, in: .current)) \(TwoClocks.here)"
-            : "That's \(clockOf(resolved, in: theirZone)) \(TwoClocks.there)"
+            ? t(
+                "thread.pickerThats",
+                ["time": clockOf(resolved, in: .current), "clock": TwoClocks.here]
+            )
+            : t(
+                "thread.pickerThats",
+                ["time": clockOf(resolved, in: theirZone), "clock": TwoClocks.there]
+            )
     }
 
     /// Both bounds mirror the API's, so the wheel simply cannot reach a time
@@ -255,7 +271,14 @@ func destinationZone(_ clock: DestinationClock?) -> TimeZone {
 ///
 /// Measured against the real calendars rather than an offset table, so it stays
 /// right across a DST boundary where two zones change on different dates.
-func senderClockNote(_ clock: DestinationClock?, device: TimeZone) -> String {
+///
+/// #228: `locale` is defaulted and last, so the assertion table above is
+/// untouched and nil still reads English.
+func senderClockNote(
+    _ clock: DestinationClock?,
+    device: TimeZone,
+    locale: String? = nil
+) -> String {
     let reassurance = ScheduledSend.copyLine("picker_reassurance")
     guard
         let clock,
@@ -263,21 +286,49 @@ func senderClockNote(_ clock: DestinationClock?, device: TimeZone) -> String {
         let zone = TimeZone(identifier: clock.timezone),
         zone != device
     else {
-        return "This is your own time. \(reassurance)"
+        return AppStrings.translate(
+            locale,
+            "thread.senderClockOwn",
+            ["reassurance": reassurance]
+        )
     }
-    return "This is your own time, and they are \(hoursApart(zone, from: device)). \(reassurance)"
+    return AppStrings.translate(
+        locale,
+        "thread.senderClockApart",
+        [
+            "delta": hoursApart(zone, from: device, locale: locale),
+            "reassurance": reassurance,
+        ]
+    )
 }
 
 /// "3 hours behind you", wrapped into (-12, 12] so 23 ahead reads as 1 behind.
-func hoursApart(_ there: TimeZone, from here: TimeZone, at now: Date = Date()) -> String {
+///
+/// #228: four whole sentences rather than a magnitude glued to a direction.
+/// French does not assemble this the way English does — "une heure en avance
+/// sur vous" puts the direction in the middle — so a client that builds the
+/// phrase from parts can only ever be translated into English word order.
+func hoursApart(
+    _ there: TimeZone,
+    from here: TimeZone,
+    at now: Date = Date(),
+    locale: String? = nil
+) -> String {
     let minutes =
         (there.secondsFromGMT(for: now) - here.secondsFromGMT(for: now)) / 60
     var delta = minutes / 60
     if delta > 12 { delta -= 24 }
     if delta < -12 { delta += 24 }
-    if delta == 0 { return "on the same clock" }
-    let magnitude = abs(delta) == 1 ? "an hour" : "\(abs(delta)) hours"
-    return "\(magnitude) \(delta > 0 ? "ahead of" : "behind") you"
+    if delta == 0 { return AppStrings.translate(locale, "thread.clockSame") }
+    let count = abs(delta)
+    if count == 1 {
+        return delta > 0
+            ? AppStrings.translate(locale, "thread.clockAnHourAhead")
+            : AppStrings.translate(locale, "thread.clockAnHourBehind")
+    }
+    return delta > 0
+        ? AppStrings.translate(locale, "thread.clockHoursAhead", ["count": String(count)])
+        : AppStrings.translate(locale, "thread.clockHoursBehind", ["count": String(count)])
 }
 
 /// #225 — the body of the "that lands late where they are" alert.
@@ -286,13 +337,18 @@ func hoursApart(_ there: TimeZone, from here: TimeZone, at now: Date = Date()) -
 /// both doors rather than refusing. A function rather than a view because
 /// SwiftUI alerts take their message as `Text`, and the buttons belong to the
 /// composer that owns the retry.
-func quietHoursScheduleMessage(localHour: Int?) -> String {
+func quietHoursScheduleMessage(localHour: Int?, locale: String? = nil) -> String {
     guard let localHour else {
         return ScheduledSend.copyLine("quiet_hours_unknown") + " "
             + ScheduledSend.copyLine("quiet_hours_choice")
     }
     let suffix = localHour < 12 ? "am" : "pm"
     let twelve = localHour % 12 == 0 ? 12 : localHour % 12
-    return "That is around \(twelve)\(suffix) for this customer. "
+    return AppStrings.translate(
+        locale,
+        "thread.quietHoursAround",
+        ["hour": "\(twelve)\(suffix)"]
+    )
+        + " "
         + ScheduledSend.copyLine("quiet_hours_choice")
 }

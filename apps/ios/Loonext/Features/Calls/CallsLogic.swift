@@ -369,17 +369,29 @@ func ongoingPhase(_ call: Call) -> OngoingPhase {
 /// The card's status line. Ringing shows no member (nobody has the line yet);
 /// an answered call names who does; an answered call whose member cannot be
 /// resolved still says the line is taken instead of naming no one.
-func ongoingStatusLabel(_ phase: OngoingPhase, memberName: String?) -> String {
+///
+/// #228: `locale` is last and defaulted, so `OngoingCallTests` — which pins the
+/// English against the Android twin — keeps calling this unchanged.
+func ongoingStatusLabel(
+    _ phase: OngoingPhase,
+    memberName: String?,
+    _ locale: String? = nil
+) -> String {
     switch phase {
     case .ringing:
-        return "Ringing…"
+        return AppStrings.translate(locale, "shell.ringing")
     case .dialing:
-        return "Calling…"
+        // The call screen's own vocabulary, which lives in `ContactsTasksStrings`
+        // — the same key Android and `CallsView` use. The other three words on
+        // this card have no twin there, so they are `shell.`'s.
+        return AppStrings.translate(locale, "contactsTasks.phaseCalling")
     case .voicemail:
-        return "Leaving a voicemail"
+        return AppStrings.translate(locale, "shell.leavingVoicemail")
     case .answered:
-        if let memberName, !memberName.isBlank { return "With \(memberName)" }
-        return "On the line"
+        if let memberName, !memberName.isBlank {
+            return AppStrings.translate(locale, "shell.withMember", ["who": memberName])
+        }
+        return AppStrings.translate(locale, "shell.onTheLine")
     }
 }
 

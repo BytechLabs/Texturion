@@ -26,10 +26,12 @@ import Foundation
 enum OnCallSilence {
 
     /// The confirm button, which says what happens rather than "OK".
-    static let confirm = "Turn it off anyway"
+    static let confirmKey = "domain.onCallSilenceConfirm"
+    static var confirm: String { AppStrings.translate(nil, confirmKey) }
 
     /// ...and the way out.
-    static let cancel = "Leave it on"
+    static let cancelKey = "domain.onCallSilenceCancel"
+    static var cancel: String { AppStrings.translate(nil, cancelKey) }
 
     /// One shift, reduced to what this decision needs.
     struct Shift {
@@ -68,13 +70,18 @@ enum OnCallSilence {
     static func warning(
         onCall: Bool,
         turningOff: Bool,
-        channel: String
+        channel: String,
+        locale: String? = nil
     ) -> String? {
         guard onCall, turningOff else { return nil }
-        let what = channel == "push" ? "Push alerts" : "Emails"
-        return "You're on call right now. \(what) are how a new customer nobody has "
-            + "answered reaches you, and with this off those pages go nowhere — no "
-            + "one else is told. Hand the shift over first if you need to be "
-            + "unreachable."
+        let what = AppStrings.translate(
+            locale,
+            channel == "push"
+                ? "domain.onCallSilenceChannelPush"
+                : "domain.onCallSilenceChannelEmail"
+        )
+        return AppStrings.translate(
+            locale, "domain.onCallSilenceWarning", ["what": what]
+        )
     }
 }

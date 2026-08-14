@@ -109,7 +109,12 @@ struct PushContent: Sendable, Equatable {
 /// Parse a push data map into displayable content. Every field is optional on
 /// the wire; missing/garbage input degrades to a generic notice in the
 /// Messages category with the inbox fallback link.
-func parsePush(_ data: [String: String]) -> PushContent {
+///
+/// #228: `locale` is last and defaulted, so `NotificationsPushPayloadTests` —
+/// which pins the English fallbacks against the Android twin — keeps calling
+/// this unchanged. The two banners the fallbacks replace are the server's own
+/// words and are translated there.
+func parsePush(_ data: [String: String], _ locale: String? = nil) -> PushContent {
     let kind = trimmedNonEmpty(data["kind"])
     let url = normalizeDeepLink(data["url"])
     let title = trimmedNonEmpty(data["title"])
@@ -119,8 +124,10 @@ func parsePush(_ data: [String: String]) -> PushContent {
     if kind == PushKind.call {
         return PushContent(
             kind: kind,
-            title: title ?? "Incoming call",
-            body: body.isEmpty ? "Someone is calling your business number." : body,
+            title: title ?? AppStrings.translate(locale, "shell.pushCallTitle"),
+            body: body.isEmpty
+                ? AppStrings.translate(locale, "shell.pushCallBody")
+                : body,
             url: url,
             tag: tag,
             category: PushCategory.incomingCalls
@@ -129,7 +136,9 @@ func parsePush(_ data: [String: String]) -> PushContent {
     return PushContent(
         kind: kind,
         title: title ?? "Loonext",
-        body: body.isEmpty ? "You have a new notification." : body,
+        body: body.isEmpty
+            ? AppStrings.translate(locale, "shell.pushGenericBody")
+            : body,
         url: url,
         tag: tag,
         category: pushCategory(for: kind)

@@ -506,6 +506,8 @@ private struct OngoingCallRow: View {
     let numbers: [PhoneNumberSummary]
     let openConversation: (String) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     private var name: String { callerDisplayName(call) }
 
     private var phase: OngoingPhase { ongoingPhase(call) }
@@ -523,7 +525,8 @@ private struct OngoingCallRow: View {
                     // reserves for live/attention accents, never an error red.
                     Text(ongoingStatusLabel(
                         phase,
-                        memberName: memberDisplayName(call.answered_by_user_id, in: members)
+                        memberName: memberDisplayName(call.answered_by_user_id, in: members),
+                        appLocale
                     ))
                     .font(.golos(11.5, weight: .semibold))
                     .foregroundStyle(BrandColor.coral)

@@ -41,6 +41,12 @@ struct TwoFactorCard: View {
 
     private let authClient = SettingsAuthClient()
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     var body: some View {
         Group {
             switch state {
@@ -75,11 +81,9 @@ struct TwoFactorCard: View {
         }
         .sheet(isPresented: $confirmingOff) {
             ConfirmSheet(
-                title: "Turn off two-factor authentication?",
-                message: "Your account goes back to a password alone. If this workspace "
-                    + "requires two-factor, you will be asked to set it up again the next "
-                    + "time you open the app.",
-                confirmLabel: "Turn it off",
+                title: t("settingsMore.turnOffTwoFactorTitle"),
+                message: t("settingsMore.turnOffTwoFactorBody"),
+                confirmLabel: t("settingsMore.turnItOff"),
                 destructive: true,
                 pending: busy,
                 error: actionError,
@@ -94,42 +98,44 @@ struct TwoFactorCard: View {
     @ViewBuilder
     private func card(_ mfa: MfaState) -> some View {
         SettingsCard(
-            title: "Two-factor authentication",
-            description: "A code from an app, on top of your password. It is what stops a "
-                + "stolen password becoming somebody texting your customers as you."
+            title: t("settingsMore.twoFactorTitle"),
+            description: t("settingsMore.twoFactorDesc")
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 if mfa.isEnrolled {
-                    Text("Authenticator app is on")
+                    Text(t("settingsMore.authenticatorOn"))
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.ink)
                     if mfa.codesRemaining > 0 {
+                        // Two whole sentences rather than a plural glued on
+                        // mid-string: "1 recovery code left" and "{count}
+                        // recovery codes left" agree in French too, which
+                        // assembling "code"/"codes" around a number cannot.
                         ReadOnlyLine(
-                            "\(mfa.codesRemaining) recovery "
-                                + (mfa.codesRemaining == 1 ? "code" : "codes") + " left."
+                            mfa.codesRemaining == 1
+                                ? t("settingsMore.oneRecoveryCodeLeft")
+                                : t(
+                                    "settingsMore.recoveryCodesLeft",
+                                    ["count": String(mfa.codesRemaining)]
+                                )
                         )
                     } else {
                         // Nought left is a lockout waiting for a lost phone,
                         // so it reads as something to fix, not a statistic.
-                        StatusPill(label: "No recovery codes left", tone: .warn)
+                        StatusPill(label: t("settingsMore.noRecoveryCodesLeft"), tone: .warn)
                     }
                     HStack(spacing: 10) {
-                        Button("New recovery codes") { issueCodes() }
+                        Button(t("settingsMore.newRecoveryCodes")) { issueCodes() }
                             .buttonStyle(.bordered)
                             .disabled(busy)
-                        Button("Turn off") { confirmingOff = true }
+                        Button(t("settingsMore.turnOff")) { confirmingOff = true }
                             .font(.golos(13))
                             .foregroundStyle(BrandColor.muted600)
                             .disabled(busy)
                     }
                 } else {
-                    ReadOnlyLine(
-                        "You will add Loonext to an authenticator app — Google "
-                            + "Authenticator, 1Password, whatever you already use — and enter "
-                            + "the six-digit code it shows. We will give you backup codes for "
-                            + "the day you lose the phone."
-                    )
-                    Button("Set up two-factor") { beginEnrolment() }
+                    ReadOnlyLine(t("settingsMore.twoFactorHow"))
+                    Button(t("settingsMore.setUpTwoFactor")) { beginEnrolment() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(busy)
@@ -145,10 +151,9 @@ struct TwoFactorCard: View {
 
     private func verifySheet(factorId: String, secret: String, uri: String) -> some View {
         ConfirmSheet(
-            title: "Add Loonext to your authenticator",
-            message: "Tap below to hand it to your authenticator app, or copy the key in by "
-                + "hand. Then enter the six-digit code it shows.",
-            confirmLabel: "Turn it on",
+            title: t("settingsMore.addToAuthenticator"),
+            message: t("settingsMore.addToAuthenticatorBody"),
+            confirmLabel: t("settingsMore.turnItOn"),
             pending: busy,
             error: actionError,
             confirmEnabled: code.filter(\.isNumber).count >= 6,
@@ -162,19 +167,19 @@ struct TwoFactorCard: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let url = URL(string: uri) {
                         // The mobile answer to "scan this QR with this phone".
-                        Link("Open my authenticator app", destination: url)
+                        Link(t("settingsMore.openAuthenticator"), destination: url)
                             .font(.golos(13, weight: .semibold))
                             .foregroundStyle(BrandColor.olive)
                     }
-                    ReadOnlyLine("Or enter this key by hand:")
+                    ReadOnlyLine(t("settingsMore.orEnterKey"))
                     Text(secret)
                         .font(.system(.footnote, design: .monospaced))
                         .foregroundStyle(BrandColor.ink)
                         .textSelection(.enabled)
-                    Button("Copy key") { UIPasteboard.general.string = secret }
+                    Button(t("settingsMore.copyKey")) { UIPasteboard.general.string = secret }
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.olive)
-                    TextField("Six-digit code", text: $code)
+                    TextField(t("settingsMore.sixDigitCode"), text: $code)
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
                         .textFieldStyle(.roundedBorder)
@@ -186,11 +191,9 @@ struct TwoFactorCard: View {
 
     private func codesSheet(_ codes: [String]) -> some View {
         ConfirmSheet(
-            title: "Save your recovery codes",
-            message: "This is the only time you will see these. If you lose your phone, one "
-                + "of these codes is how you get back in — without them, getting back into "
-                + "your business line takes us weeks.",
-            confirmLabel: "I've saved them",
+            title: t("settingsMore.saveRecoveryCodes"),
+            message: t("settingsMore.saveRecoveryCodesBody"),
+            confirmLabel: t("settingsMore.savedThem"),
             // The friction is the feature: this is the step people skip and
             // then need six months later.
             confirmEnabled: savedCodes,
@@ -199,7 +202,7 @@ struct TwoFactorCard: View {
                 step = nil
                 savedCodes = false
                 refreshKey += 1
-                scope.showMessage("Two-factor authentication is on.")
+                scope.showMessage(t("settingsMore.twoFactorOn"))
             },
             onDismiss: {},
             extra: {
@@ -209,7 +212,9 @@ struct TwoFactorCard: View {
                             .font(.system(.footnote, design: .monospaced))
                             .foregroundStyle(BrandColor.ink)
                     }
-                    Button(savedCodes ? "Copied" : "Copy all codes") {
+                    Button(
+                        savedCodes ? t("settingsMore.copied") : t("settingsMore.copyAllCodes")
+                    ) {
                         UIPasteboard.general.string = codes.joined(separator: "\n")
                         savedCodes = true
                     }
@@ -226,12 +231,17 @@ struct TwoFactorCard: View {
     private func beginEnrolment() {
         busy = true
         actionError = nil
+        // The name this factor carries inside the reader's own authenticator
+        // app, which is the one place it is ever read — so it follows the
+        // reader's language, exactly as Android's twin key does. Loonext and
+        // iPhone are a product and a platform and stay as they are in both.
+        let factorName = t("settingsMore.tfaFactorName")
         Task {
             do {
                 let token = try await scope.repo.freshAccessToken()
                 let enrolment = try await authClient.enrollTotp(
                     accessToken: token,
-                    friendlyName: "Loonext on iPhone"
+                    friendlyName: factorName
                 )
                 step = .verify(
                     factorId: enrolment.factorId,
@@ -268,7 +278,7 @@ struct TwoFactorCard: View {
                 savedCodes = false
                 step = .codes(issued.all)
             } catch {
-                actionError = "That code didn't match. Check your app and try the next one."
+                actionError = t("settingsMore.codeDidNotMatch")
             }
             busy = false
         }
@@ -304,7 +314,7 @@ struct TwoFactorCard: View {
                 }
                 confirmingOff = false
                 refreshKey += 1
-                scope.showMessage("Two-factor authentication is off.")
+                scope.showMessage(t("settingsMore.twoFactorOff"))
             } catch {
                 actionError = error.userMessage
             }

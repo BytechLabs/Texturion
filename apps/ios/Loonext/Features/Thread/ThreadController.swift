@@ -159,6 +159,19 @@ final class ThreadController {
         ).url
     }
 
+    /// #228 — the language this member reads, for the sentences below.
+    ///
+    /// Read from the store rather than passed in at construction, the same way
+    /// `AuthScreens` does: this object is built inside a `.task` before any of
+    /// its words are drawn, and a member who changes their language would
+    /// otherwise be stuck with whatever was current when they opened the
+    /// thread.
+    private var locale: String { UiLocaleStore.shared.resolved }
+
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
+
     private func notify(
         _ text: String,
         actionLabel: String? = nil,
@@ -179,7 +192,7 @@ final class ThreadController {
     }
 
     func markCopied() {
-        notify("Copied.")
+        notify(t("thread.copied"))
     }
 
     // MARK: - Loading
@@ -737,7 +750,11 @@ final class ThreadController {
     }
 
     private func flushOutboxNow() async {
-        let flusher = OutboxFlusher(outbox: outbox) { [weak self] item in
+        // Read ONCE, here on the main actor, and captured as a plain String:
+        // the closure below is not main-actor isolated, and `locale` reads a
+        // @MainActor store.
+        let locale = self.locale
+        let flusher = OutboxFlusher(outbox: outbox, locale: locale) { [weak self] item in
             guard let self else { return .unreachable("gone") }
             // The photos, read back from our own container. A file that is
             // gone must NOT become a quiet text-only send: the person attached
@@ -749,7 +766,9 @@ final class ThreadController {
                 }
             }
             guard media.count == item.media.count else {
-                return .refused(outboxMediaLostMessage)
+                return .refused(
+                    AppStrings.translate(locale, "thread.outboxMediaLost")
+                )
             }
             do {
                 let message = try await self.repo.send(
@@ -905,8 +924,14 @@ final class ThreadController {
             if failedCount > 0 {
                 notify(
                     failedCount == files.count
-                        ? "The note saved, but its files didn't upload."
-                        : "The note saved, but \(failedCount) of \(files.count) files didn't upload."
+                        ? t("thread.noteFilesAllFailed")
+                        : t(
+                            "thread.noteFilesSomeFailed",
+                            [
+                                "failed": String(failedCount),
+                                "total": String(files.count),
+                            ]
+                        )
                 )
             }
         }
@@ -983,10 +1008,10 @@ final class ThreadController {
                 replaceMessage(
                     message.replacingPromotedTask(MessageTaskLink(id: task.id, title: task.title))
                 )
-                notify("Task created.")
+                notify(t("thread.taskCreated"))
             } catch {
                 if (error as? ApiError)?.code == ApiErrorCode.conflict {
-                    notify("This message already has a task.")
+                    notify(t("thread.alreadyHasTask"))
                     try? await refreshMessagesFirstPage()
                 } else {
                     notify(error.userMessage)
@@ -1176,11 +1201,14 @@ final class ThreadController {
                 )
                 try? await refreshEvents()
                 if spam {
-                    notify("Marked as spam.", actionLabel: "Undo") { [weak self] in
+                    notify(
+                        t("thread.markedAsSpam"),
+                        actionLabel: t("thread.undo")
+                    ) { [weak self] in
                         self?.setSpam(false)
                     }
                 } else {
-                    notify("Marked as not spam. It stays closed.")
+                    notify(t("thread.markedAsNotSpam"))
                 }
             } catch {
                 notify(error.userMessage)
@@ -1202,7 +1230,7 @@ final class ThreadController {
                         conversationId: conversationId
                     )
                 )
-                notify("Thanks. We won't flag this one.")
+                notify(t("thread.spamCleared"))
             } catch {
                 notify(error.userMessage)
             }
@@ -1232,12 +1260,23 @@ final class ThreadController {
                 conversation?.snoozed_until = untilISO
                 conversation?.snooze_note = note
                 conversation?.snooze_kind = kind.rawValue
+                // #228 CAUTION: `snoozeReturnLabel` is Core/SnoozeLogic's and
+                // still answers in English, and this splice swaps its first
+                // word. Swapping "Back" for a lead phrase is a rule about
+                // ENGLISH GRAMMAR written as a `replacingOccurrences`, and it
+                // does nothing at all once that label is French. The two LEADS
+                // are in the catalogue now; the when-clause behind them cannot
+                // be until `SnoozeLogic.swift` is extracted, and the day it is,
+                // this call has to become web's two-part `snoozeWhen*` +
+                // `snoozeLead*` rather than a substring swap. Same note sits on
+                // the Android twin.
                 notify(
                     snoozeReturnLabel(untilISO)
                         .replacingOccurrences(
                             of: "Back",
                             with: kind == .followUp
-                                ? "I'll remind you — back" : "Snoozed — back"
+                                ? t("thread.snoozeLeadRemind")
+                                : t("thread.snoozeLeadSnoozed")
                         )
                 )
             } catch {
@@ -1259,7 +1298,11 @@ final class ThreadController {
                 conversation?.snoozed_until = nil
                 conversation?.snooze_note = nil
                 conversation?.snooze_kind = nil
-                notify(wasFollowUp ? "Reminder cancelled." : "Back in your inbox.")
+                notify(
+                    wasFollowUp
+                        ? t("thread.reminderCancelled")
+                        : t("thread.backInYourInbox")
+                )
             } catch {
                 notify(error.userMessage)
             }
