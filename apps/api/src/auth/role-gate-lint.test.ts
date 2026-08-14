@@ -133,6 +133,12 @@ const SELF_SCOPED_WRITES = new Set([
 const UNGATED_WRITES: Record<string, string> = {
   // PUBLIC — unauthenticated marketing surfaces.
   "POST /contact": "public — the marketing contact form, no session",
+  "POST /widget/start":
+    "#232: public — the Text-us widget, embedded on the CUSTOMER's own website, " +
+    "where there is no session and never will be. Ungated is not unguarded: it " +
+    "carries an opaque widget key rather than a workspace id, and runs a " +
+    "honeypot, a per-IP limit, Turnstile, the full send gates (including " +
+    "opt-out) and three budgets before anything costs a segment",
   "POST /marketing/comparison": "public — the comparison tool, no session",
   "POST /marketing/unsubscribe":
     "public — an unsubscribe must work from an email link, where the reader " +

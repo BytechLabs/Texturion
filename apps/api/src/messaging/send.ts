@@ -472,6 +472,53 @@ function sendIdempotencyKey(messageId: string): string {
   return `message:${messageId}`;
 }
 
+/**
+ * #232 — a text that is NOT a conversation message.
+ *
+ * The website widget has to send a verification code to a stranger before any
+ * conversation exists, so `dispatchOutbound` is the wrong shape twice over: it
+ * needs a persisted `messages` row, and writing one would put a six-digit code
+ * in the customer's thread as though the crew had sent it.
+ *
+ * WHAT THIS DOES NOT SKIP is the point. It takes a {@link SendClearance},
+ * which only {@link runPreSendGates} can produce — so the kill switch, the AUP
+ * ladder, the subscription gate, the NANP check and, above all, the OPT-OUT
+ * check all still ran. A stranger who once texted STOP to this workspace's
+ * number does not receive a code because they typed their number into a
+ * website form; that gate is carrier truth and has no exceptions.
+ *
+ * The clearance is re-checked against the destination here for the same reason
+ * `dispatchOutbound` does it: the compiler proves a clearance exists, only this
+ * proves it is the right one.
+ *
+ * Returns the Telnyx result rather than throwing, because the caller decides
+ * what a failed code send means to a visitor standing on somebody's website.
+ */
+export async function sendSystemText(
+  env: Env,
+  args: {
+    from: string;
+    to: string;
+    text: string;
+    clearance: SendClearance;
+    /** Stable per attempt, so a retry cannot double-send (and double-bill). */
+    idempotencyKey: string;
+  },
+): Promise<TelnyxSendResult> {
+  if (args.clearance.destinationE164 !== args.to) {
+    throw new Error(
+      `send clearance is for a different destination than ${args.to}`,
+    );
+  }
+  return telnyxCreateMessage(env, {
+    from: args.from,
+    to: args.to,
+    text: args.text,
+    mediaUrls: [],
+    idempotencyKey: args.idempotencyKey,
+  });
+}
+
 /** Telnyx POST /v2/messages (SPEC §8): from, to, text, media_urls. */
 async function telnyxCreateMessage(
   env: Env,

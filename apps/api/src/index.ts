@@ -78,6 +78,7 @@ import { companiesRoutes } from "./routes/companies";
 import { composeRoutes } from "./routes/compose";
 import { contactRoutes } from "./routes/contact";
 import { marketingRoutes } from "./routes/marketing";
+import { widgetRoutes } from "./routes/widget";
 import { contactsRoutes } from "./routes/contacts";
 import { conversationsRoutes } from "./routes/conversations";
 import { devicePushTokensRoutes } from "./routes/device-push-tokens";
@@ -319,6 +320,11 @@ app.route("/", contactRoutes);
  * deliberately unauthenticated — the token in the email is the whole credential.
  */
 app.route("/", marketingRoutes);
+// #232: the website widget's public intake. Mounted beside the other public
+// surfaces rather than under /v1 — there is no session, no member and no
+// company context to establish, and its own five layers are what stand in for
+// the chain /v1 gets.
+app.route("/", widgetRoutes);
 
 app.notFound((c) => errorResponse(c, "not_found", "No such route."));
 
