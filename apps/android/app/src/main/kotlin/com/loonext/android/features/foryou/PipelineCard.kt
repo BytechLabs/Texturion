@@ -81,7 +81,16 @@ fun PipelineCard(report: PipelineReportResponse?) {
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
-                if (rate != null) {
+                // #540: the figure rides with its SENTENCE, not with the
+                // arithmetic. `pipelineInsight` is deliberately silent below
+                // five decided jobs — "a 100% win rate off two quotes is noise
+                // presented as an achievement, and an owner who acts on it has
+                // been misled by us" — and this card printed that rate as the
+                // largest thing on it, next to the words "too early to call a
+                // win rate". The panel contradicted itself, on all three
+                // clients. `insight` is the server's own answer to whether the
+                // number is callable, so reading it needs no second rule.
+                if (rate != null && report.insight != null) {
                     Spacer(Modifier.width(12.dp))
                     Column(horizontalAlignment = Alignment.End) {
                         Text(

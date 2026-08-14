@@ -10,13 +10,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.LeadSourceCount
+import com.loonext.android.core.model.PipelineReport
+import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.core.model.LeadSourceReport
 import com.loonext.android.features.foryou.LeadSourcesCard
+import com.loonext.android.features.foryou.PipelineCard
 import com.loonext.android.ui.theme.LoonextTheme
 import java.io.File
 import org.junit.Assert.assertFalse
@@ -150,6 +155,93 @@ class DashboardScreenshotTest {
             "a zero-total month must draw nothing at all",
             drawPanel("sources-silent-month", LeadSourceReport()),
         )
+    }
+
+    @Test
+    fun `the quotes panel draws`() {
+        // #540: "quotes gets a bar, because that panel asks what the month is
+        // MADE OF — won, still waiting on the customer, gone quiet". Rendered
+        // so the three parts can be seen to be three parts.
+        compose.setContent {
+            LoonextTheme {
+                Column(
+                    Modifier
+                        .width(360.dp)
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(16.dp),
+                ) {
+                    PipelineCard(
+                        report = PipelineReportResponse(
+                            days = 30,
+                            current = PipelineReport(
+                                quoted = 6,
+                                won = 2,
+                                lost = 0,
+                                open = 4,
+                                median_days_to_win = 3.0,
+                            ),
+                            previous = PipelineReport(quoted = 4, won = 1, lost = 1, open = 2),
+                            win_rate = 33,
+                            previous_win_rate = 25,
+                        ),
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        writePng(bitmap, "quotes")
+        assertTrue("quotes drew nothing", drewSomething(bitmap))
+    }
+
+    @Test
+    fun `the quotes panel never prints a rate it has just called uncallable`() {
+        // The defect the screenshot found: `pipelineInsight` withholds its
+        // sentence below five decided jobs — "a 100% win rate off two quotes is
+        // noise presented as an achievement" — and the card printed that very
+        // rate at headline size beside the words "too early to call a win
+        // rate". The panel contradicted itself, on all three clients.
+        compose.setContent {
+            LoonextTheme {
+                PipelineCard(
+                    report = PipelineReportResponse(
+                        current = PipelineReport(quoted = 6, won = 2, lost = 0, open = 4),
+                        previous = PipelineReport(quoted = 4, won = 1, lost = 1, open = 2),
+                        win_rate = 33,
+                        previous_win_rate = 25,
+                        insight = null,
+                    ),
+                )
+            }
+        }
+
+        compose.onNodeWithText("33%").assertDoesNotExist()
+        compose.onNodeWithText("+8 pts").assertDoesNotExist()
+        // The substance stays: the counts are facts, and only the CLAIM is
+        // withheld. A card that hid everything would be a worse answer than
+        // one that over-claimed.
+        compose.onNodeWithText("6").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the quotes panel does print a rate it can stand behind`() {
+        // The other half of the pairing, without which the test above passes
+        // just as well on a card that never shows a rate at all.
+        compose.setContent {
+            LoonextTheme {
+                PipelineCard(
+                    report = PipelineReportResponse(
+                        current = PipelineReport(quoted = 12, won = 4, lost = 2, open = 6),
+                        previous = PipelineReport(quoted = 8, won = 2, lost = 2, open = 4),
+                        win_rate = 67,
+                        previous_win_rate = 50,
+                        insight = "You win 67% of the quotes that get an answer.",
+                    ),
+                )
+            }
+        }
+
+        compose.onNodeWithText("67%").assertIsDisplayed()
     }
 
     /** Compose the panel, write the picture, and report whether anything landed. */

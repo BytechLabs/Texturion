@@ -96,6 +96,30 @@ describe("#354 pipelineInsight", () => {
   });
 });
 
+describe("#540 a rate without its sentence", () => {
+  it("exists — which is the trap every client fell into", () => {
+    // These two functions disagree ON PURPOSE, and the disagreement is the
+    // whole point: a rate is arithmetic and an insight is a claim. Two won and
+    // nothing lost is a real 100%, and `pipelineInsight` refuses to say it
+    // because "a 100% win rate off two quotes is noise presented as an
+    // achievement, and an owner who acts on it has been misled by us".
+    //
+    // All three clients then rendered that number as the LARGEST thing on the
+    // card, beside their own words saying it was too early to call. Pinned
+    // here, at the source, so the next reader of these two functions meets the
+    // trap before the card does.
+    const tooEarly = { quoted: 6, won: 2, lost: 0, open: 4, median_days_to_win: null };
+
+    expect(pipelineWinRate(tooEarly)).toBe(100);
+    expect(pipelineInsight(tooEarly)).toBeNull();
+
+    // And the pairing a client may show: five decided jobs gets both.
+    const callable = { quoted: 12, won: 4, lost: 2, open: 6, median_days_to_win: 3 };
+    expect(pipelineWinRate(callable)).not.toBeNull();
+    expect(pipelineInsight(callable)).not.toBeNull();
+  });
+});
+
 describe("#354 pipelineDeleteWarning", () => {
   it("names the consequence and points at the safe alternative", () => {
     // #354 is explicit that a crew should be able to change their stages

@@ -47,6 +47,23 @@ import { cn } from "@/lib/utils";
  * Null rather than "0%" when one side is missing: "unchanged" and "we do not
  * know yet" are different facts, and only one of them is reassuring.
  */
+/**
+ * #540 — may this card print the win rate?
+ *
+ * The figure rides with its SENTENCE, not with the arithmetic. `pipelineInsight`
+ * deliberately says nothing below five decided jobs — "a 100% win rate off two
+ * quotes is noise presented as an achievement, and an owner who acts on it has
+ * been misled by us" — and this card printed exactly that rate in its largest
+ * type, beside its own words saying it was too early to call. The panel
+ * contradicted itself, on all three clients.
+ *
+ * Reading `insight` rather than re-deriving the threshold means there is one
+ * rule, decided server-side, that three clients cannot drift apart on.
+ */
+export function showsRate(rate: number | null, insight: string | null): boolean {
+  return rate !== null && insight !== null;
+}
+
 export function rateDelta(
   current: number | null,
   previous: number | null,
@@ -108,7 +125,16 @@ export function PipelineCard() {
               )}
           </p>
         </div>
-        {rate !== null && (
+        {/* #540: the figure rides with its SENTENCE, not with the arithmetic.
+            `pipelineInsight` deliberately says nothing below five decided jobs
+            — "a 100% win rate off two quotes is noise presented as an
+            achievement, and an owner who acts on it has been misled by us" —
+            and this card then printed that very rate in the largest type on it,
+            beside the words "too early to call a win rate". The panel
+            contradicted itself. `insight` is the server's own answer to whether
+            the number is callable, so reading it here needs no second rule for
+            three clients to drift apart on. */}
+        {showsRate(rate, insight) && (
           <div className="shrink-0 text-right">
             <div className="text-2xl font-semibold tabular-nums text-app-ink">
               {rate}%

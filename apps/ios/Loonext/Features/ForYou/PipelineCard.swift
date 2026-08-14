@@ -130,7 +130,12 @@ struct PipelineCard: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 0)
-                        if let rate = report.win_rate {
+                        // #540: the figure rides with its SENTENCE. The
+                        // shared rule withholds an insight below five decided
+                        // jobs because a rate off two quotes is noise presented
+                        // as an achievement — and this card printed that rate at
+                        // 24pt beside the words saying it was too early to call.
+                        if let rate = report.win_rate, report.insight != nil {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text("\(rate)%")
                                     .font(.golos(24, weight: .semibold))
