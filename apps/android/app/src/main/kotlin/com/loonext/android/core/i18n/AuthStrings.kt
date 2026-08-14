@@ -93,6 +93,50 @@ object AuthStrings : AppStrings.Section {
         "auth.googleFailed" to "Google sign-in failed. Try again.",
         "auth.googleUnfinished" to "Google sign-in didn't finish. Try again.",
         "auth.googleNoBrowser" to "No browser is available for Google sign-in.",
+        "auth.googleCancelled" to "Google sign-in was cancelled.",
+        "auth.googleNotConfigured" to "Google sign-in isn't set up for this app yet.",
+        "auth.googleExpired" to "That Google sign-in expired. Start it again.",
+        // The CSRF refusal. Deliberately says what happened without naming the
+        // mechanism: the person who meets it did nothing wrong and can only
+        // start again, and "state mismatch" tells them nothing they can act on.
+        "auth.googleStateMismatch" to
+            "That sign-in response didn't match the one this app started. Try again.",
+
+        // ── The captcha sheet ────────────────────────────────────────────────
+        "auth.captchaTitle" to "Quick security check",
+        "auth.captchaBody" to "Confirm you're human, then we'll finish signing you in.",
+        "auth.captchaLoadFailed" to
+            "Couldn't load the security check. Check your connection.",
+        "auth.tryAgain" to "Try again",
+
+        // ── Two-factor at the door ───────────────────────────────────────────
+        "auth.mfaEnrolTitle" to "This workspace needs two-factor",
+        "auth.mfaRecoveryTitle" to "Use a recovery code",
+        "auth.mfaChallengeTitle" to "Enter your code",
+        "auth.mfaEnrolBody" to
+            "The owner turned it on, and the grace period has ended. Open your " +
+            "authenticator app, add the key below, then type the six digits it shows.",
+        "auth.mfaRecoveryBody" to
+            "One of the ten codes you saved when you set two-factor up. Using one " +
+            "turns two-factor OFF so you can get in and set it up again.",
+        "auth.mfaChallengeBody" to
+            "Open your authenticator app and type the six digits it shows.",
+        "auth.mfaOpenAuthenticator" to "Open my authenticator",
+        "auth.mfaNoAuthenticator" to
+            "No authenticator app answered. Copy the key below instead.",
+        "auth.mfaRecoveryLabel" to "Recovery code",
+        "auth.mfaCodeLabel" to "Six-digit code",
+        "auth.mfaUseThisCode" to "Use this code",
+        "auth.mfaContinue" to "Continue",
+        "auth.mfaHaveAuthenticator" to "I have my authenticator after all",
+        "auth.mfaNoAuthenticatorSwitch" to "I don't have my authenticator",
+        "auth.mfaSetupFailed" to "Couldn't start setup. Pull down to try again.",
+        // One sentence for every verify failure, on purpose: telling a wrong
+        // code apart from an expired one helps an attacker more than the person
+        // holding the phone, who tries the next one either way.
+        "auth.mfaCodeRejected" to "That code didn't match. Check your app and try the next one.",
+        "auth.mfaRecoveryRejected" to "That code is not valid.",
+        "auth.signOut" to "Sign out",
     )
 
     override val frCA = mapOf(
@@ -159,5 +203,52 @@ object AuthStrings : AppStrings.Section {
             "La connexion avec Google ne s'est pas terminée. Réessayez.",
         "auth.googleNoBrowser" to
             "Aucun navigateur n'est disponible pour la connexion avec Google.",
+        "auth.googleCancelled" to "La connexion avec Google a été annulée.",
+        "auth.googleNotConfigured" to
+            "La connexion avec Google n'est pas encore configurée pour cette application.",
+        "auth.googleExpired" to "Cette connexion avec Google a expiré. Recommencez.",
+        "auth.googleStateMismatch" to
+            "Cette réponse de connexion ne correspond pas à celle que cette " +
+            "application a lancée. Réessayez.",
+
+        // ── The captcha sheet ────────────────────────────────────────────────
+        "auth.captchaTitle" to "Vérification de sécurité rapide",
+        "auth.captchaBody" to
+            "Confirmez que vous êtes une personne, puis nous terminerons votre connexion.",
+        "auth.captchaLoadFailed" to
+            "Nous n'avons pas pu charger la vérification de sécurité. Vérifiez votre connexion.",
+        "auth.tryAgain" to "Réessayer",
+
+        // ── Two-factor at the door ───────────────────────────────────────────
+        // Copied from web's `onboarding.ts`: the same wall, the same words. Web
+        // says "double authentification" throughout, so this does too.
+        "auth.mfaEnrolTitle" to "Cet espace de travail exige la double authentification",
+        "auth.mfaRecoveryTitle" to "Utiliser un code de secours",
+        "auth.mfaChallengeTitle" to "Entrez votre code",
+        "auth.mfaEnrolBody" to
+            "Le propriétaire l'a activée et la période de grâce est terminée. " +
+            "Ouvrez votre application d'authentification, ajoutez la clé " +
+            "ci-dessous, puis tapez les six chiffres affichés.",
+        "auth.mfaRecoveryBody" to
+            "Un des dix codes que vous avez enregistrés à l'activation de la double " +
+            "authentification. En utiliser un DÉSACTIVE la double authentification, " +
+            "pour que vous puissiez entrer et la réactiver.",
+        "auth.mfaChallengeBody" to
+            "Ouvrez votre application d'authentification et tapez les six chiffres affichés.",
+        "auth.mfaOpenAuthenticator" to "Ouvrir mon application d'authentification",
+        "auth.mfaNoAuthenticator" to
+            "Aucune application d'authentification n'a répondu. Copiez plutôt la clé ci-dessous.",
+        "auth.mfaRecoveryLabel" to "Code de secours",
+        "auth.mfaCodeLabel" to "Code à six chiffres",
+        "auth.mfaUseThisCode" to "Utiliser ce code",
+        "auth.mfaContinue" to "Continuer",
+        "auth.mfaHaveAuthenticator" to "J'ai finalement mon application d'authentification",
+        "auth.mfaNoAuthenticatorSwitch" to "Je n'ai pas mon application d'authentification",
+        "auth.mfaSetupFailed" to
+            "Impossible de démarrer la configuration. Tirez vers le bas pour réessayer.",
+        "auth.mfaCodeRejected" to
+            "Ce code ne correspond pas. Vérifiez votre application et essayez le suivant.",
+        "auth.mfaRecoveryRejected" to "Ce code n'est pas valide.",
+        "auth.signOut" to "Se déconnecter",
     )
 }

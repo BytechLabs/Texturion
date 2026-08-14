@@ -143,7 +143,7 @@ sealed interface AuthError {
  * person could read — a network drop, a parse error — which is exactly when a
  * screen showing nothing at all is the worst outcome.
  */
-private fun authError(serverMessage: String, fallbackKey: String): AuthError =
+internal fun authError(serverMessage: String, fallbackKey: String): AuthError =
     if (serverMessage.isBlank()) {
         AuthError.Ours(fallbackKey)
     } else {
@@ -242,11 +242,11 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
                 errorDescription = uri.getQueryParameter("error_description"),
             )
             // Success saves the session — Root observes it and unmounts us.
-            // The provider's own words when it refuses, so they are shown as
-            // written rather than re-phrased by us.
+            // Already an AuthError: GoogleSignIn.complete decides whether the
+            // reason is the provider's sentence or one of our keys.
             _state.value = _state.value.copy(
                 busy = false,
-                error = failure?.let(AuthError::Server),
+                error = failure,
             )
         }
     }

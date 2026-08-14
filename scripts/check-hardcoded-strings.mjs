@@ -599,9 +599,31 @@ export function findKotlinLiterals(source) {
    * guard was wrong, not because the code got worse.
    */
   for (const match of code.matchAll(/"([^"\n]{12,})"/g)) {
+    if (isKotlinPrecondition(code, match.index)) continue;
     if (isSentenceLiteral(match[1])) found.push(match[1]);
   }
   return dedupe(found);
+}
+
+/**
+ * `require(length in 43..128) { "PKCE verifier must be 43-128 chars" }`.
+ *
+ * Kotlin's preconditions take a lazily-evaluated MESSAGE LAMBDA, and nothing a
+ * customer reads is written that way — this is a programmer telling another
+ * programmer that a caller is wrong.
+ *
+ * Deliberately narrow. The obvious version of this rule excludes every
+ * assertion-ish call including `error(…)` and `throw …Error(…)`, and measuring
+ * that on this repo found 26 literals of which 24 were REAL user-facing copy:
+ * Swift throws custom errors carrying sentences the UI renders verbatim, and
+ * Kotlin does the same with "Calling is temporarily unavailable." Excluding
+ * those to silence two developer strings would have hidden two dozen.
+ */
+function isKotlinPrecondition(code, matchIndex) {
+  const window = code.slice(Math.max(0, matchIndex - 160), matchIndex);
+  return /\b(?:require|requireNotNull|check|checkNotNull|assert)\s*\([^;]*\)\s*\{\s*$/.test(
+    window,
+  );
 }
 
 /**

@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.net.ApiDecodeException
 import com.loonext.android.core.net.ApiException
 import java.time.Duration
@@ -97,7 +98,7 @@ fun CenteredError(message: String, onRetry: () -> Unit, modifier: Modifier = Mod
                 modifier = Modifier.padding(horizontal = 32.dp),
             )
             Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
-                Text("Try again")
+                Text(t("auth.tryAgain"))
             }
         }
     }

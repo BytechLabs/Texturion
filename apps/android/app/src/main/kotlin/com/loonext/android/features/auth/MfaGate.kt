@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.loonext.android.AppGraph
+import com.loonext.android.core.i18n.t
 import com.loonext.android.features.settings.SettingsRepository
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.jsonObject
@@ -91,6 +92,21 @@ fun MfaGate(
     val context = LocalContext.current
     val repo = remember(graph) { SettingsRepository(graph.api) }
 
+    /*
+     * #228 — the four failure sentences, resolved HERE.
+     *
+     * Every one of them is assigned from inside a `scope.launch { }` or a
+     * `runCatching { }.onFailure { }`, and neither is a composable scope, so
+     * `t()` cannot be called at the point the failure happens. Reading them
+     * once in composition and letting the lambdas close over the result keeps
+     * the words in the reader's language without moving the error state out of
+     * this function.
+     */
+    val setupFailed = t("auth.mfaSetupFailed")
+    val codeRejected = t("auth.mfaCodeRejected")
+    val recoveryRejected = t("auth.mfaRecoveryRejected")
+    val noAuthenticator = t("auth.mfaNoAuthenticator")
+
     LaunchedEffect(enrolmentRequired) {
         step = if (enrolmentRequired) {
             try {
@@ -103,7 +119,7 @@ fun MfaGate(
                     secret = totp?.get("secret")?.jsonPrimitive?.content.orEmpty(),
                 )
             } catch (cause: Exception) {
-                error = "Couldn't start setup. Pull down to try again."
+                error = setupFailed
                 GateStep.Challenge
             }
         } else {
@@ -138,7 +154,7 @@ fun MfaGate(
                 // One message for every failure mode: telling a wrong code apart
                 // from an expired one helps an attacker more than the person
                 // holding the phone, who tries the next one either way.
-                error = "That code didn't match. Check your app and try the next one."
+                error = codeRejected
             } finally {
                 busy = false
             }
@@ -158,7 +174,7 @@ fun MfaGate(
                 code = ""
                 onSatisfied()
             } catch (cause: Exception) {
-                error = "That code is not valid."
+                error = recoveryRejected
             } finally {
                 busy = false
             }
@@ -180,9 +196,9 @@ fun MfaGate(
 
         Text(
             when (current) {
-                is GateStep.Enrol -> "This workspace needs two-factor"
-                GateStep.Recovery -> "Use a recovery code"
-                else -> "Enter your code"
+                is GateStep.Enrol -> t("auth.mfaEnrolTitle")
+                GateStep.Recovery -> t("auth.mfaRecoveryTitle")
+                else -> t("auth.mfaChallengeTitle")
             },
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
@@ -190,17 +206,9 @@ fun MfaGate(
         Spacer(Modifier.height(8.dp))
         Text(
             when (current) {
-                is GateStep.Enrol ->
-                    "The owner turned it on, and the grace period has ended. " +
-                        "Open your authenticator app, add the key below, then type " +
-                        "the six digits it shows."
-
-                GateStep.Recovery ->
-                    "One of the ten codes you saved when you set two-factor up. " +
-                        "Using one turns two-factor OFF so you can get in and set " +
-                        "it up again."
-
-                else -> "Open your authenticator app and type the six digits it shows."
+                is GateStep.Enrol -> t("auth.mfaEnrolBody")
+                GateStep.Recovery -> t("auth.mfaRecoveryBody")
+                else -> t("auth.mfaChallengeBody")
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -216,11 +224,11 @@ fun MfaGate(
                     runCatching {
                         context.startActivity(Intent(Intent.ACTION_VIEW, current.uri.toUri()))
                     }.onFailure {
-                        error = "No authenticator app answered. Copy the key below instead."
+                        error = noAuthenticator
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Open my authenticator") }
+            ) { Text(t("auth.mfaOpenAuthenticator")) }
             Spacer(Modifier.height(8.dp))
             Text(
                 current.secret,
@@ -241,7 +249,13 @@ fun MfaGate(
             enabled = !busy,
             isError = error != null,
             label = {
-                Text(if (current is GateStep.Recovery) "Recovery code" else "Six-digit code")
+                Text(
+                    if (current is GateStep.Recovery) {
+                        t("auth.mfaRecoveryLabel")
+                    } else {
+                        t("auth.mfaCodeLabel")
+                    },
+                )
             },
             keyboardOptions = KeyboardOptions(
                 keyboardType = if (current is GateStep.Recovery) {
@@ -280,7 +294,13 @@ fun MfaGate(
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
             } else {
-                Text(if (current is GateStep.Recovery) "Use this code" else "Continue")
+                Text(
+                    if (current is GateStep.Recovery) {
+                        t("auth.mfaUseThisCode")
+                    } else {
+                        t("auth.mfaContinue")
+                    },
+                )
             }
         }
 
@@ -295,15 +315,15 @@ fun MfaGate(
             }) {
                 Text(
                     if (current is GateStep.Recovery) {
-                        "I have my authenticator after all"
+                        t("auth.mfaHaveAuthenticator")
                     } else {
-                        "I don't have my authenticator"
+                        t("auth.mfaNoAuthenticatorSwitch")
                     },
                 )
             }
         }
         // Sign-out stays reachable on every gate in this app (#207): a person
         // who can satisfy neither path must still be able to get out.
-        TextButton(onClick = onSignOut) { Text("Sign out") }
+        TextButton(onClick = onSignOut) { Text(t("auth.signOut")) }
     }
 }

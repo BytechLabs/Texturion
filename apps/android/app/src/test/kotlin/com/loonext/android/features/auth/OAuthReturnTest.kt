@@ -46,8 +46,8 @@ class OAuthReturnTest {
         val result = resolve(code = "auth-code-1", state = "someone-elses-nonce")
         assertTrue(result is OAuthReturn.Failed)
         assertEquals(
-            "That sign-in response didn't match the one this app started. Try again.",
-            (result as OAuthReturn.Failed).message,
+            "auth.googleStateMismatch",
+            (result as OAuthReturn.Failed).messageKey,
         )
     }
 
@@ -56,8 +56,8 @@ class OAuthReturnTest {
         val result = resolve(code = "auth-code-1", state = "state-nonce-123", pending = null)
         assertTrue(result is OAuthReturn.Failed)
         assertEquals(
-            "That Google sign-in expired. Start it again.",
-            (result as OAuthReturn.Failed).message,
+            "auth.googleExpired",
+            (result as OAuthReturn.Failed).messageKey,
         )
     }
 
@@ -87,7 +87,7 @@ class OAuthReturnTest {
     fun `access_denied maps to the cancelled message`() {
         val result = resolve(error = "access_denied")
         assertEquals(
-            OAuthReturn.Failed("Google sign-in was cancelled."),
+            OAuthReturn.Failed("auth.googleCancelled"),
             result,
         )
     }
@@ -99,7 +99,7 @@ class OAuthReturnTest {
             errorDescription = "Unsupported provider: provider is not enabled",
         )
         assertEquals(
-            OAuthReturn.Failed("Google sign-in isn't set up for this app yet."),
+            OAuthReturn.Failed("auth.googleNotConfigured"),
             result,
         )
     }
@@ -110,7 +110,7 @@ class OAuthReturnTest {
             error = "server_error",
             errorDescription = "<script>alert(1)</script>",
         )
-        assertEquals(OAuthReturn.Failed("Google sign-in failed. Try again."), result)
+        assertEquals(OAuthReturn.Failed("auth.googleFailed"), result)
     }
 
     @Test
@@ -124,7 +124,7 @@ class OAuthReturnTest {
     @Test
     fun `no code and no error fails without exchanging`() {
         val result = resolve(state = "state-nonce-123")
-        assertEquals(OAuthReturn.Failed("Google sign-in failed. Try again."), result)
+        assertEquals(OAuthReturn.Failed("auth.googleFailed"), result)
     }
 
     @Test

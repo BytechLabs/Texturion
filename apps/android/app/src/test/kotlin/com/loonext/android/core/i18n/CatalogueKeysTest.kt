@@ -55,6 +55,61 @@ class CatalogueKeysTest {
     }
 
     @Test
+    fun `a key that travels as DATA still names something the catalogue has`() {
+        /*
+         * The hole the test above cannot see.
+         *
+         * Not every key reaches `t()` at the place it is written. A ViewModel
+         * runs outside composition, so it names a failure with a key and hands
+         * it to the screen to resolve — `AuthError.Ours("auth.googleFailed")`,
+         * `PendingAuthAction.fallbackKey`, `OAuthReturn.Failed(messageKey)`.
+         * Those literals never appear inside a `t(` and a typo in one renders
+         * `auth.googleFaild` on a person's screen, because `translate` fails
+         * open. This is the mechanism that let 225 keys render their own names.
+         *
+         * Anything SHAPED like a key — `prefix.name`, where the prefix is one
+         * the catalogue actually uses — has to be a key.
+         */
+        val prefixes = AppStrings.en.keys.mapNotNull { it.substringBefore('.').ifBlank { null } }
+            .toSet()
+        assertTrue("no section prefixes — the catalogue moved", prefixes.size >= 5)
+
+        val sources = kotlinSources()
+        /*
+         * CAPABILITIES look exactly like keys and are not.
+         *
+         * `settings.manage`, `billing.manage`, `team.manage` are the capability
+         * names from #315, and `settings.` is also a catalogue section — so the
+         * shape alone cannot tell them apart, and two of the three appear
+         * inline rather than as a constant.
+         *
+         * The reserved vocabulary is read from its own DECLARATION rather than
+         * listed here, so a capability added next year is excluded without
+         * anybody remembering this file exists. A hand-written list is the
+         * version that goes stale and starts failing on somebody else's change.
+         */
+        val capabilities = sources
+            .flatMap { CONSTANT.findAll(it.readText()).map { m -> m.groupValues[1] } }
+            .toSet()
+        assertTrue("no capability constants found — the declaration moved", capabilities.size >= 4)
+
+        val missing = mutableListOf<String>()
+        var checked = 0
+        for (file in sources) {
+            for (match in KEY_SHAPED.findAll(file.readText())) {
+                val key = match.groupValues[1]
+                if (key.substringBefore('.') !in prefixes) continue
+                if (key in capabilities) continue
+                checked += 1
+                if (key !in AppStrings.en) missing += "${file.name}: $key"
+            }
+        }
+
+        assertTrue("checked $checked key-shaped literals — the pattern broke", checked > 200)
+        assertEquals("key-shaped literals with no entry", emptyList<String>(), missing)
+    }
+
+    @Test
     fun `the pattern really matches a call, which a broken escape would not`() {
         // The proof that the regex above is not quietly matching nothing. Two
         // guards in this repo have been lost to an escape that became a
@@ -75,6 +130,13 @@ class CatalogueKeysTest {
      * `t(` at the start of an expression still can.
      */
     private val CALL = Regex("""(?:^|[^A-Za-z0-9_.])t\(\s*"([A-Za-z0-9_.]+)"""")
+
+    /** `"section.name"` — one dot, both halves identifier-shaped. */
+    private val KEY_SHAPED = Regex(""""([a-z][A-Za-z0-9]*\.[a-zA-Z][A-Za-z0-9]*)"""")
+
+    /** `const val SETTINGS_MANAGE = "settings.manage"` — a capability's declaration. */
+    private val CONSTANT =
+        Regex("""\bconst\s+val\s+[A-Z][A-Z0-9_]*\s*=\s*"([a-z][A-Za-z0-9]*\.[a-zA-Z][A-Za-z0-9]*)"""")
 
     /** Every Kotlin file the app ships, tests excluded. */
     private fun kotlinSources(): List<File> {

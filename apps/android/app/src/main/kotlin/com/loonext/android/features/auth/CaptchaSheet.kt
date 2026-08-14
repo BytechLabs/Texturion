@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CenteredLoading
@@ -54,6 +55,29 @@ private const val CAPTCHA_HOST = "app.loonext.com"
 fun isCaptchaRejection(cause: Throwable): Boolean {
     val api = cause as? ApiException ?: return false
     return api.code == "captcha_failed" || api.message.contains("captcha", ignoreCase = true)
+}
+
+/**
+ * The sheet's two sentences, on their own so a test can photograph them.
+ *
+ * `internal` and extracted rather than inlined below: a modal needs a host to
+ * render, and the thing worth checking here is whether the FRENCH fits the
+ * width — which is a property of this Column, not of the sheet around it.
+ */
+@Composable
+internal fun CaptchaCopy() {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+        Text(
+            t("auth.captchaTitle"),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            t("auth.captchaBody"),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+        )
+    }
 }
 
 /**
@@ -81,18 +105,7 @@ fun CaptchaSheet(onResult: (String?) -> Unit) {
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
-            Text(
-                "Quick security check",
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                "Confirm you're human, then we'll finish signing you in.",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
-            )
-        }
+        CaptchaCopy()
         // #180: the widget height derives from the space the sheet actually
         // has (360dp when it fits, less on short viewports). Never wrap a
         // WebView in a scroll container; Turnstile lays itself out inside.
@@ -106,7 +119,7 @@ fun CaptchaSheet(onResult: (String?) -> Unit) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            "Couldn't load the security check. Check your connection.",
+                            t("auth.captchaLoadFailed"),
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center,
                         )
@@ -117,7 +130,7 @@ fun CaptchaSheet(onResult: (String?) -> Unit) {
                                 retryKey++
                             },
                             modifier = Modifier.padding(top = 16.dp),
-                        ) { Text("Try again") }
+                        ) { Text(t("auth.tryAgain")) }
                     }
                 } else {
                     // retryKey remounts the WebView for a clean reload after an error.

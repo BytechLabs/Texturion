@@ -68,7 +68,14 @@ object AuthCallbacks {
 /** What to do with an auth-callback redirect, decided from pure inputs. */
 sealed interface OAuthReturn {
     data class Exchange(val code: String, val verifier: String) : OAuthReturn
-    data class Failed(val message: String) : OAuthReturn
+    /**
+     * #228: a catalogue KEY, not a sentence.
+     *
+     * `resolveOAuthReturn` is a pure function outside composition, so it
+     * has no reader and therefore no language. A sentence written here
+     * could only ever be English. The key is resolved on the screen.
+     */
+    data class Failed(val messageKey: String) : OAuthReturn
 }
 
 /**
@@ -91,25 +98,25 @@ fun resolveOAuthReturn(
         val description = errorDescription.orEmpty()
         return OAuthReturn.Failed(
             when {
-                error == "access_denied" -> "Google sign-in was cancelled."
+                error == "access_denied" -> "auth.googleCancelled"
                 description.contains("provider is not enabled", ignoreCase = true) ||
                     description.contains("unsupported provider", ignoreCase = true) ->
-                    "Google sign-in isn't set up for this app yet."
+                    "auth.googleNotConfigured"
 
-                else -> "Google sign-in failed. Try again."
+                else -> "auth.googleFailed"
             },
         )
     }
     if (pending == null || nowMillis - pending.createdAtMillis > OAUTH_PENDING_TTL_MILLIS) {
-        return OAuthReturn.Failed("That Google sign-in expired. Start it again.")
+        return OAuthReturn.Failed("auth.googleExpired")
     }
     if (returnedState != null && returnedState != pending.state) {
         return OAuthReturn.Failed(
-            "That sign-in response didn't match the one this app started. Try again.",
+            "auth.googleStateMismatch",
         )
     }
     if (code.isNullOrBlank()) {
-        return OAuthReturn.Failed("Google sign-in failed. Try again.")
+        return OAuthReturn.Failed("auth.googleFailed")
     }
     return OAuthReturn.Exchange(code, pending.verifier)
 }
@@ -134,28 +141,34 @@ class GoogleSignIn(private val authManager: AuthManager) {
 
     /**
      * Handles the auth-callback redirect. Returns null when signed in (the
-     * session store flips the app), else a user-facing error message.
+     * session store flips the app), else the reason to put on the screen.
+     *
+     * An [AuthError] rather than a `String?` because the two failures here have
+     * different authors: everything this file decides is OURS and travels as a
+     * key, while an [ApiException] carries a sentence the API already phrased
+     * for a person. Collapsing both into one string is what made every OAuth
+     * failure English regardless of who was reading.
      */
     suspend fun complete(
         code: String?,
         state: String?,
         error: String?,
         errorDescription: String?,
-    ): String? {
+    ): AuthError? {
         // Read-and-clear: a redirect is single-use even when it fails.
         val pending = authManager.takePendingOAuth()
         val resolved = resolveOAuthReturn(
             code, state, error, errorDescription, pending, System.currentTimeMillis(),
         )
         return when (resolved) {
-            is OAuthReturn.Failed -> resolved.message
+            is OAuthReturn.Failed -> AuthError.Ours(resolved.messageKey)
             is OAuthReturn.Exchange -> try {
                 authManager.signInWithPkce(resolved.code, resolved.verifier)
                 null
             } catch (cause: ApiException) {
-                cause.message.ifBlank { "Google sign-in failed. Try again." }
+                authError(cause.message, "auth.googleFailed")
             } catch (_: Exception) {
-                "Google sign-in failed. Try again."
+                AuthError.Ours("auth.googleFailed")
             }
         }
     }

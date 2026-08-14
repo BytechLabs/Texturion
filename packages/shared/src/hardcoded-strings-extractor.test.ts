@@ -240,6 +240,22 @@ describe("the sentence rule, which is where most of the copy actually is", () =>
     expect(findKotlinLiterals('val fmt = "EEE, d MMM yyyy"')).toEqual([]);
   });
 
+  it("rejects a Kotlin precondition's message lambda", () => {
+    const source =
+      'require(length in 43..128) { "PKCE verifier must be 43-128 chars" }';
+    expect(findKotlinLiterals(source)).toEqual([]);
+  });
+
+  it("still counts a sentence thrown as an error", () => {
+    // The reason the precondition rule is narrow rather than "anything that
+    // looks like an assertion". Measured on this repo, the broad version
+    // rejected 26 literals of which 24 were real copy — errors carry sentences
+    // the UI renders verbatim.
+    expect(
+      findKotlinLiterals('throw ApiException("Calling is temporarily unavailable.")'),
+    ).toContain("Calling is temporarily unavailable.");
+  });
+
   it("does NOT reject a sentence made of short words", () => {
     // The nearest real sentence to a date pattern: several short tokens. It
     // survives because its tokens are not single repeated letters.

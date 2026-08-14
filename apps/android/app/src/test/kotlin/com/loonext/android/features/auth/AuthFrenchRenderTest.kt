@@ -108,6 +108,29 @@ class AuthFrenchRenderTest {
         compose.onNodeWithText("Retour à la connexion").assertIsDisplayed()
     }
 
+    @Test
+    fun `the captcha sheet's copy renders in French`() {
+        // Not the sheet itself — a modal needs a host — but the two sentences
+        // it shows, at the width it shows them, which is what French length
+        // threatens.
+        compose.setContent {
+            CompositionLocalProvider(LocalAppLocale provides MessageLocale.FR_CA) {
+                LoonextTheme {
+                    Box(Modifier.width(360.dp).background(MaterialTheme.colorScheme.background)) {
+                        CaptchaCopy()
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        writePng(compose.onRoot().captureToImage().asAndroidBitmap(), "auth-captcha-fr")
+
+        compose.onNodeWithText("Vérification de sécurité rapide").assertIsDisplayed()
+        compose.onNodeWithText(
+            "Confirmez que vous êtes une personne, puis nous terminerons votre connexion.",
+        ).assertIsDisplayed()
+    }
+
     /**
      * Compose one screen in one language at phone width, and write the picture.
      *
