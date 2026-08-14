@@ -71,6 +71,24 @@ import org.robolectric.annotation.GraphicsMode
  * The blank check is the load-bearing half. A Compose surface that fails to
  * measure renders a uniform background and every other assertion in the suite
  * still passes, which is exactly the failure mode "it compiles" already misses.
+ *
+ * ## THE LIMITATION, WRITTEN DOWN BECAUSE IT ALREADY CAUGHT ME
+ *
+ * These compose a card DIRECTLY. That is not the app: `Shell.kt` wraps every
+ * tab's content in `contentMaxWidth()`, which caps at 640dp and centres on wide
+ * viewports (#180). A card rendered here has no shell above it, so at a tablet
+ * qualifier it stretches to the full window — and it looks exactly like a
+ * layout defect.
+ *
+ * I believed that picture, "fixed" a stretch that only existed in this harness,
+ * and shipped a second cap inside an already-capped container before reading
+ * `WindowSize.kt`. The rule for anything about WIDTH, INSETS or SAFE AREAS is
+ * therefore: check the shell before believing the picture. What these renders
+ * are trustworthy about is what a card draws INSIDE the width it is given —
+ * glyphs, arcs, wrapping, alignment, and whether anything drew at all.
+ *
+ * The wide-window test below applies the shell's own cap by hand for exactly
+ * this reason: without it, the picture is of a layout the product never ships.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
