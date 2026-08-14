@@ -199,6 +199,10 @@ enum InboxStrings {
             "inbox.forYouWhyOpenTask": "Open task",
 
             // --- Customise this screen (#540 CustomiseSheet.swift) ---------------------------
+            "inbox.responseDetails": "Details",
+            "inbox.responseHideDetails": "Hide details",
+            "inbox.satisfactionDetails": "Details",
+            "inbox.satisfactionHideDetails": "Hide details",
             "inbox.forYouNotificationsAria": "Notifications",
             "inbox.customiseAria": "Customise this screen",
             "inbox.customiseAriaPutAwayOne":
@@ -498,6 +502,10 @@ enum InboxStrings {
             "inbox.forYouWhyOpenTask": "Tâche ouverte",
 
             // --- Customise this screen (#540 CustomiseSheet.swift) ---------------------------
+            "inbox.responseDetails": "Détails",
+            "inbox.responseHideDetails": "Masquer les détails",
+            "inbox.satisfactionDetails": "Détails",
+            "inbox.satisfactionHideDetails": "Masquer les détails",
             "inbox.forYouNotificationsAria": "Notifications",
             "inbox.customiseAria": "Personnaliser cet écran",
             "inbox.customiseAriaPutAwayOne":

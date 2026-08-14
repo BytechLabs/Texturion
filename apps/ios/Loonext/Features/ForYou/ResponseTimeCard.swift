@@ -222,12 +222,30 @@ struct ResponseTimeCard: View {
         Button {
             open.toggle()
         } label: {
-            Text(open ? "Hide details" : "Details")
-                .font(.golos(11.5, weight: .medium))
-                .foregroundStyle(BrandColor.muted600)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+            // #540: a chevron, so the one control on this card that expands
+            // does not look like the copy above it — and the label comes
+            // from the catalogue, because this read "Details" in English to
+            // a French crew while Android and web both translated it.
+            HStack(spacing: 0) {
+                // Two literal calls rather than a ternary INSIDE translate:
+                // check-ios-catalogue-keys reads the literal argument, so a
+                // key chosen at runtime is invisible to it — the guard would
+                // never notice these going missing.
+                Text(open
+                    ? AppStrings.translate(appLocale, "inbox.responseHideDetails")
+                    : AppStrings.translate(appLocale, "inbox.responseDetails"))
+                    .font(.golos(11.5, weight: .medium))
+                    .foregroundStyle(BrandColor.muted600)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.down")
+                    .font(.scaled(11, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted600)
+                    // Points down when closed and up when open, so the glyph
+                    // says which way the control goes.
+                    .rotationEffect(.degrees(open ? 180 : 0))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
         }
         .buttonStyle(.plain)
 
