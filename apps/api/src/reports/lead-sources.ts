@@ -38,7 +38,28 @@ export interface LeadSourceReport {
   days: number;
   /** Every source with at least one conversation, biggest first. */
   sources: LeadSourceCount[];
-  /** Conversations in the window with no source at all. */
+  /**
+   * #232 — conversations that started at the website widget.
+   *
+   * Its own field rather than a row in `sources`, because it is not one: a
+   * lead source is a thing somebody configured and named, and this is a fact
+   * about which door the conversation came through. Keeping it out of the list
+   * also keeps the label on the client, where it can be translated — a name
+   * invented by the server would be English on all three clients forever.
+   *
+   * DISJOINT from `sources` and from `unknown`: the SQL credits a conversation
+   * that started at the widget to the widget and to nothing else, so these
+   * three buckets partition the window and sum to `total`. Without that a card
+   * drawing all three as rows would show rows adding up past its own footer.
+   *
+   * The one exception is a conversation a PERSON tagged, which stays with the
+   * source they named — their answer outranks our inference.
+   */
+  widget: number;
+  /**
+   * Conversations in the window with no source at all — and, since #232, none
+   * of the widget ones, which we can place exactly.
+   */
   unknown: number;
   /** Every conversation in the window, attributed or not. */
   total: number;
@@ -57,6 +78,13 @@ export interface LeadSourceRollupRow {
   name: string | null;
   by_number: number;
   by_person: number;
+  /**
+   * #232: started at the website widget, and therefore NOT in the two counts
+   * above or in this row's `total` — the SQL takes them out. See the migration
+   * for why the fact of where a conversation started beats the inference from
+   * which line rang, and why a person's own tag beats both.
+   */
+  by_widget: number;
   /**
    * Every conversation in the group, and NOT `by_number + by_person`.
    *
@@ -83,13 +111,20 @@ export function buildLeadSourceReport(
 ): LeadSourceReport {
   const sources: LeadSourceCount[] = [];
   let unknown = 0;
+  let widget = 0;
 
   for (const row of rows) {
     const byNumber = Number(row.by_number) || 0;
     const byPerson = Number(row.by_person) || 0;
+    const byWidget = Number(row.by_widget) || 0;
     // The group's own count — see the note on `total` above. Deriving it from
     // the two sub-counts would silently drop every unattributed conversation.
     const total = Number(row.total) || 0;
+    // #232 BEFORE the empty check, not after. A group whose conversations ALL
+    // came through the website has a `total` of zero and is not a row — and
+    // dropping it here would take its widget count with it, which is the one
+    // case where the website mattered most.
+    widget += byWidget;
     if (total === 0) continue;
     if (row.lead_source_id === null) {
       unknown += total;
@@ -110,11 +145,19 @@ export function buildLeadSourceReport(
   // Biggest first, then by name so equal counts do not shuffle between loads.
   sources.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 
-  const attributed = sources.reduce((sum, row) => sum + row.total, 0);
+  const configured = sources.reduce((sum, row) => sum + row.total, 0);
+  // #232: a website conversation is accounted for. Coverage is the whole point
+  // of this report — it is what tells somebody whether the ranking above it is
+  // worth acting on — so a channel we can name exactly has to count towards it,
+  // or installing the widget would make the report look WORSE the more it was
+  // used. Safe to add because the SQL takes these OUT of the source groups:
+  // the three buckets partition the window rather than overlapping it.
+  const attributed = configured + widget;
   const total = attributed + unknown;
   return {
     days,
     sources,
+    widget,
     unknown,
     total,
     coverage: total === 0 ? null : attributed / total,

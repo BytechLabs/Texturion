@@ -55,6 +55,7 @@ function report(over: Record<string, unknown> = {}) {
   return {
     days: 30,
     sources: [source("Truck", 30), source("Google", 10)],
+    widget: 0,
     unknown: 10,
     total: 50,
     coverage: 0.8,
@@ -113,6 +114,55 @@ describe("#301 where your customers come from", () => {
     expect(screen.getByRole("link", { name: /set one up/i })).toBeTruthy();
     // And no bar chart of a single bleak row.
     expect(screen.queryByText("Don't know")).toBeNull();
+  });
+
+  it("LC-8: the website is ranked with the sources, not pinned under them (#232)", () => {
+    // A workspace whose site brings in most of the work should read that at
+    // the TOP of the list. A row pinned last says the opposite by position
+    // while its number says otherwise, and position is what an owner reads
+    // first. *Applying: Meaningful Highlights & Context.*
+    reportRef.current = report({
+      sources: [source("Truck", 30), source("Google", 10)],
+      widget: 45,
+      unknown: 10,
+      total: 95,
+      coverage: 0.89,
+    });
+    render(<LeadSourcesCard />);
+    const list = screen.getByText("Truck").closest("ul");
+    const names = Array.from(list?.querySelectorAll("li") ?? []).map(
+      (li) => li.firstElementChild?.textContent,
+    );
+    expect(names).toEqual(["Your website", "Truck", "Google", "Don't know"]);
+    // And it can carry the headline, because "most of your work came from your
+    // website" is exactly the sentence #232 exists to be able to say.
+    expect(screen.getByText(/most of the work you can account for/i).textContent)
+      .toMatch(/your website — 45 of 85/);
+  });
+
+  it("LC-9: a website-only workspace is not told to go set sources up", () => {
+    // Its attribution is already working. The "you haven't told us yet"
+    // paragraph would be a reproach aimed at somebody doing it right.
+    reportRef.current = report({
+      sources: [],
+      widget: 40,
+      unknown: 0,
+      total: 40,
+      coverage: 1,
+    });
+    render(<LeadSourcesCard />);
+    expect(screen.queryByText(/haven't told us yet/i)).toBeNull();
+    expect(screen.getByText("Your website")).toBeTruthy();
+  });
+
+  it("LC-10: an API without #232 yet draws no broken row", () => {
+    // The Worker and this bundle deploy separately, so for the length of a
+    // release these browsers talk to an API whose payload has no `widget`.
+    // `undefined` reaching a bar width renders `NaN%`.
+    reportRef.current = report({ widget: undefined });
+    const { container } = render(<LeadSourcesCard />);
+    expect(screen.queryByText("Your website")).toBeNull();
+    expect(container.innerHTML).not.toContain("NaN");
   });
 
   it("LC-6: a leader too small to lead gets no sentence", () => {

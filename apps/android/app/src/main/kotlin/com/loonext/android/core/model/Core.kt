@@ -631,6 +631,14 @@ data class LeadSourceCount(
 data class LeadSourceReport(
     val days: Int = 30,
     val sources: List<LeadSourceCount> = emptyList(),
+    /**
+     * #232: conversations that started at the workspace's own website.
+     *
+     * Disjoint from [sources] and [unknown] — the server credits a widget
+     * conversation to the website and to nothing else, so the three add up to
+     * [total] and can be drawn as rows in one list.
+     */
+    val widget: Int = 0,
     /** Conversations with no source at all. A row, never an omission. */
     val unknown: Int = 0,
     val total: Int = 0,

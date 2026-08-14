@@ -49,6 +49,57 @@ import { useLeadSourceReport, type LeadSourceReport } from "@/lib/api/reports";
 const TOP_N = 4;
 
 /**
+ * The website's count, or zero from an API that has not shipped #232 yet.
+ *
+ * The Worker and this bundle deploy separately, so for the length of a release
+ * there are browsers holding this code talking to an API whose payload has no
+ * `widget` at all. `undefined > 0` is false and would have been survivable;
+ * `total: undefined` rendered into a bar width is `NaN%`, which is a visibly
+ * broken row. Kotlin and Swift get this from their decoders' defaults — only
+ * TypeScript has to say it out loud.
+ */
+function widgetCount(report: LeadSourceReport): number {
+  return report.widget ?? 0;
+}
+
+/**
+ * Every channel this window can name, biggest first.
+ *
+ * #232 puts the website in HERE rather than pinning it under the configured
+ * sources. It is a channel like any other — a workspace whose site brings in
+ * most of the work should read that at the top of the list, and a row pinned
+ * last says the opposite by position while its number says otherwise. The
+ * server keeps it disjoint from `sources` precisely so it can be ranked
+ * against them without double-counting anybody.
+ *
+ * Same tie-break as the server's, so equal counts do not shuffle between a
+ * phone and a laptop looking at the same month.
+ */
+function rankedChannels(
+  report: LeadSourceReport,
+  t: Translate,
+): { name: string; sentenceName: string; total: number }[] {
+  const channels = report.sources.map((source) => ({
+    name: source.name,
+    // A source the workspace named themselves reads the same in a row and in a
+    // sentence, because it is their own words either way.
+    sentenceName: source.name,
+    total: source.total,
+  }));
+  if (widgetCount(report) > 0) {
+    channels.push({
+      name: t("inbox.leadSourcesWebsite"),
+      // "came from Your website" is the kind of thing only a rendered picture
+      // shows you. A row label is a title and takes a capital; the same words
+      // mid-sentence do not.
+      sentenceName: t("inbox.leadSourcesWebsiteInline"),
+      total: widgetCount(report),
+    });
+  }
+  return channels.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+}
+
+/**
  * The headline, in words, or null when no honest one exists.
  *
  * Silent when the leading source is under a third of the attributed work: at
@@ -59,14 +110,14 @@ export function leadingSentence(
   report: LeadSourceReport,
   t: Translate,
 ): string | null {
-  const top = report.sources[0];
+  const top = rankedChannels(report, t)[0];
   if (!top) return null;
   const attributed = report.total - report.unknown;
   if (attributed === 0) return null;
   const share = top.total / attributed;
   if (share < 0.34) return null;
   return t("inbox.leadSourcesLeading", {
-    name: top.name,
+    name: top.sentenceName,
     count: top.total,
     total: attributed,
   });
@@ -77,10 +128,9 @@ export function visibleRows(
   report: LeadSourceReport,
   t: Translate,
 ): { name: string; total: number }[] {
-  const rows = report.sources
-    .slice(0, TOP_N)
-    .map((source) => ({ name: source.name, total: source.total }));
-  const rest = report.sources.slice(TOP_N);
+  const ranked = rankedChannels(report, t);
+  const rows = ranked.slice(0, TOP_N).map(({ name, total }) => ({ name, total }));
+  const rest = ranked.slice(TOP_N);
   if (rest.length > 0) {
     rows.push({
       name: t("inbox.leadSourcesMore", { count: rest.length }),
@@ -104,7 +154,11 @@ export function LeadSourcesCard() {
   // Sources exist as a feature but this workspace has set none up, so every
   // conversation is unknown. One sentence about how to start beats a table
   // whose only row is a reproach.
-  if (data.sources.length === 0) {
+  //
+  // #232: unless the website is answering, in which case there IS something
+  // true to show and "you haven't set any sources up" would be a reproach
+  // aimed at somebody whose attribution is already working.
+  if (data.sources.length === 0 && widgetCount(data) === 0) {
     return (
       // #540: the same micro-header as the populated branch and as the other
       // three measures. BOTH branches need it — patching only the one with data

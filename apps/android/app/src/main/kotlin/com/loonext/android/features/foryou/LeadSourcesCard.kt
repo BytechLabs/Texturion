@@ -83,7 +83,11 @@ fun LeadSourcesCard(
     PaperCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
 
-            if (report.sources.isEmpty()) {
+            // #232: unless the website is answering, in which case there IS
+            // something true to show and "you haven't set any sources up"
+            // would be a reproach aimed at somebody whose attribution is
+            // already working.
+            if (report.sources.isEmpty() && report.widget == 0) {
                 // Sources exist as a feature and this workspace has set none
                 // up, so every conversation is unknown.
                 Text(
@@ -214,8 +218,52 @@ private const val TOP_N = 4
  * that point "most of your work came from X" is simply false, and the table
  * says it better than a wrong sentence would.
  */
+/**
+ * Every channel this window can name, biggest first.
+ *
+ * #232 puts the website in HERE rather than pinning it under the configured
+ * sources. It is a channel like any other — a workspace whose site brings in
+ * most of the work should read that at the top of the list, and a row pinned
+ * last says the opposite by position while its number says otherwise. The
+ * server keeps it disjoint from [LeadSourceReport.sources] precisely so it can
+ * be ranked against them without double-counting anybody.
+ *
+ * Same tie-break as the server's and as the web card's, so equal counts do not
+ * shuffle between a phone and a laptop looking at the same month.
+ */
+private data class RankedChannel(
+    /** The row label. A title, so it takes a capital. */
+    val name: String,
+    /**
+     * The same channel inside the headline sentence. "came from Your website"
+     * is the kind of thing only a rendered picture shows you; a source the
+     * workspace named themselves reads the same either way.
+     */
+    val sentenceName: String,
+    val total: Int,
+)
+
+private fun rankedChannels(
+    report: LeadSourceReport,
+    locale: String,
+): List<RankedChannel> {
+    val channels = report.sources
+        .map { RankedChannel(it.name, it.name, it.total) }
+        .toMutableList()
+    if (report.widget > 0) {
+        channels.add(
+            RankedChannel(
+                name = AppStrings.translate(locale, "inbox.leadSourcesWebsite"),
+                sentenceName = AppStrings.translate(locale, "inbox.leadSourcesWebsiteInline"),
+                total = report.widget,
+            )
+        )
+    }
+    return channels.sortedWith(compareByDescending<RankedChannel> { it.total }.thenBy { it.name })
+}
+
 internal fun leadingSentence(report: LeadSourceReport, locale: String): String? {
-    val top = report.sources.firstOrNull() ?: return null
+    val top = rankedChannels(report, locale).firstOrNull() ?: return null
     val attributed = report.total - report.unknown
     if (attributed <= 0) return null
     if (top.total.toDouble() / attributed < 0.34) return null
@@ -223,7 +271,7 @@ internal fun leadingSentence(report: LeadSourceReport, locale: String): String? 
         locale,
         "inbox.leadSourcesLeading",
         mapOf(
-            "name" to top.name,
+            "name" to top.sentenceName,
             "count" to top.total.toString(),
             "total" to attributed.toString(),
         ),
@@ -235,8 +283,9 @@ internal fun visibleRows(
     report: LeadSourceReport,
     locale: String,
 ): List<Pair<String, Int>> {
-    val rows = report.sources.take(TOP_N).map { it.name to it.total }.toMutableList()
-    val rest = report.sources.drop(TOP_N)
+    val ranked = rankedChannels(report, locale)
+    val rows = ranked.take(TOP_N).map { it.name to it.total }.toMutableList()
+    val rest = ranked.drop(TOP_N)
     if (rest.isNotEmpty()) {
         val label = AppStrings.translate(
             locale,

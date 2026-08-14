@@ -338,6 +338,10 @@ export const inboxEn = {
     "one on the truck, the one in the ad — and every call and text to them is " +
     "counted from then on, with nobody tapping anything.",
   leadSourcesSetOneUp: "Set one up",
+  /** #232: the widget on the workspace's own site, ranked with the rest. */
+  leadSourcesWebsite: "Your website",
+  /** The same channel INSIDE the headline sentence, where a capital reads wrong. */
+  leadSourcesWebsiteInline: "your website",
   leadSourcesUnknown: "Don't know",
   leadSourcesFooterOne: "Last 30 days · {count} conversation",
   leadSourcesFooterMany: "Last 30 days · {count} conversations",
@@ -765,6 +769,8 @@ export const inboxFr: Translated<typeof inboxEn> = {
     "appel et texto vers ces numéros est compté à partir de là, sans que " +
     "personne n'ait à toucher à quoi que ce soit.",
   leadSourcesSetOneUp: "En configurer une",
+  leadSourcesWebsite: "Votre site web",
+  leadSourcesWebsiteInline: "votre site web",
   leadSourcesUnknown: "Inconnue",
   leadSourcesFooterOne: "30 derniers jours · {count} conversation",
   leadSourcesFooterMany: "30 derniers jours · {count} conversations",

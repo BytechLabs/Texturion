@@ -118,6 +118,14 @@ export interface LeadSourceCount {
 export interface LeadSourceReport {
   days: number;
   sources: LeadSourceCount[];
+  /**
+   * #232 — conversations that started at the workspace's own website.
+   *
+   * Disjoint from `sources` and `unknown`: the server credits a widget
+   * conversation to the website and to nothing else, so the three add up to
+   * `total` and can be drawn as rows in one list.
+   */
+  widget: number;
   /** Conversations with no source at all. A row, never an omission. */
   unknown: number;
   total: number;

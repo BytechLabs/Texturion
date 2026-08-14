@@ -268,6 +268,8 @@ object InboxStrings : AppStrings.Section {
             "Most of the work you can account for came from {name} — " +
             "{count} of {total}.",
         "inbox.leadSourcesMore" to "{count} more",
+        "inbox.leadSourcesWebsite" to "Your website",
+        "inbox.leadSourcesWebsiteInline" to "your website",
         "inbox.leadSourcesUnknown" to "Don't know",
         "inbox.leadSourcesFooterOne" to "Last 30 days · {count} conversation",
         "inbox.leadSourcesFooterMany" to "Last 30 days · {count} conversations",
@@ -584,6 +586,8 @@ object InboxStrings : AppStrings.Section {
             "La majorité du travail que vous pouvez attribuer vient de {name} — " +
             "{count} sur {total}.",
         "inbox.leadSourcesMore" to "{count} de plus",
+        "inbox.leadSourcesWebsite" to "Votre site web",
+        "inbox.leadSourcesWebsiteInline" to "votre site web",
         "inbox.leadSourcesUnknown" to "Inconnue",
         "inbox.leadSourcesFooterOne" to "30 derniers jours · {count} conversation",
         "inbox.leadSourcesFooterMany" to "30 derniers jours · {count} conversations",

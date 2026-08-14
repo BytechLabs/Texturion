@@ -739,6 +739,12 @@ struct LeadSourceReport: Codable, Sendable {
     /// from its own constant, which is the value the API is asked for.
     @Default<DefaultZero> var days: Int
     @Default<DefaultEmptyList<LeadSourceCount>> var sources: [LeadSourceCount]
+    /// #232: conversations that started at the workspace's own website.
+    ///
+    /// Disjoint from `sources` and `unknown` — the server credits a widget
+    /// conversation to the website and to nothing else, so the three add up to
+    /// `total` and can be drawn as rows in one list.
+    @Default<DefaultZero> var widget: Int
     /// Conversations with no source at all. A row, never an omission.
     @Default<DefaultZero> var unknown: Int
     @Default<DefaultZero> var total: Int

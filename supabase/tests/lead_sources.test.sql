@@ -330,4 +330,119 @@ begin
   raise notice 'LS-8 PASSED: the report counts the unknowns';
 end $$;
 
+-- LS-9 (#232): a conversation that started at the customer's own website is
+-- credited to the website — not left among the ones we could not place, and
+-- not double-counted against the line it happened to land on.
+--
+-- Three cases, because the rule has three edges and each one is a different
+-- wrong answer if it drifts.
+do $$
+declare
+  v_widget    bigint;
+  v_unknown   bigint;
+  v_number    bigint;
+  v_total     bigint;
+  v_person    bigint;
+begin
+  -- (1) THE COMMON CASE: a widget visitor did not ring an advertised number,
+  -- so nothing puts a source on the conversation and it groups under the NULL
+  -- id — right beside the ones we genuinely cannot explain. Without by_widget
+  -- a workspace whose website produced most of its work would read "most of
+  -- your conversations, we don't know where they came from".
+  --
+  -- d2 on the untracked line b2: a pair no earlier case used, because
+  -- `conversations_open_uq` allows one open thread per (workspace, number,
+  -- contact) and reusing one fails on the constraint rather than the report.
+  insert into public.conversations (company_id, contact_id, phone_number_id, first_source)
+  values ('7c000000-0000-4000-8000-0000000000c1'::uuid,
+          '7c000000-0000-4000-8000-0000000000d2'::uuid,
+          '7c000000-0000-4000-8000-0000000000b2'::uuid,
+          'widget');
+
+  select by_widget, total into v_widget, v_unknown
+    from public.api_lead_source_report(
+      '7c000000-0000-4000-8000-0000000000c1'::uuid,
+      now() - interval '1 day', now() + interval '1 day')
+   where lead_source_id is null;
+
+  if coalesce(v_widget, 0) is distinct from 1 then
+    raise exception 'LS-9: expected 1 widget conversation in the NULL group, got %', v_widget;
+  end if;
+  -- And it LEFT the unknown bucket rather than sitting in both. The group's
+  -- total is still the one conversation LS-8 counted; the website's is
+  -- reported beside it. Buckets that overlap make a card whose rows add up
+  -- past its own footer.
+  if coalesce(v_unknown, 0) is distinct from 1 then
+    raise exception 'LS-9: the unknown bucket should still be 1, got %', v_unknown;
+  end if;
+
+  -- (2) A widget conversation landing on a line that carries a source. That
+  -- source is an inference from which line rang; "started at the widget" is a
+  -- fact, and the fact wins. b1 points at e3 by now — LS-4 repointed it — so
+  -- the trigger stamps e3 and the report must still credit the website.
+  insert into public.conversations (company_id, contact_id, phone_number_id, first_source)
+  values ('7c000000-0000-4000-8000-0000000000c1'::uuid,
+          '7c000000-0000-4000-8000-0000000000d1'::uuid,
+          '7c000000-0000-4000-8000-0000000000b1'::uuid,
+          'widget');
+
+  select by_widget, by_number, total into v_widget, v_number, v_total
+    from public.api_lead_source_report(
+      '7c000000-0000-4000-8000-0000000000c1'::uuid,
+      now() - interval '1 day', now() + interval '1 day')
+   where lead_source_id = '7c000000-0000-4000-8000-0000000000e3'::uuid;
+
+  if coalesce(v_widget, 0) is distinct from 1 then
+    raise exception 'LS-9: a widget conversation on a sourced line should count as widget, got %',
+      v_widget;
+  end if;
+  -- Taken OUT of that source's own counts rather than added alongside them.
+  -- e3 has no other conversations, so it reports zero of both — a group that
+  -- was ENTIRELY website. The Worker must read by_widget before it discards
+  -- empty groups, or the one case where the website did all the work is the
+  -- one case the card shows nothing for.
+  if coalesce(v_number, 0) is distinct from 0 or coalesce(v_total, 0) is distinct from 0 then
+    raise exception 'LS-9: the website conversation was double-counted (% by number, % total)',
+      v_number, v_total;
+  end if;
+  -- And the truck group LS-8 measured is untouched by any of this.
+  select by_number, total into v_number, v_total
+    from public.api_lead_source_report(
+      '7c000000-0000-4000-8000-0000000000c1'::uuid,
+      now() - interval '1 day', now() + interval '1 day')
+   where lead_source_id = '7c000000-0000-4000-8000-0000000000e1'::uuid;
+  if coalesce(v_number, 0) is distinct from 1 or coalesce(v_total, 0) is distinct from 1 then
+    raise exception 'LS-9: the truck group moved (% by number, % total)', v_number, v_total;
+  end if;
+
+  -- (3) EXCEPT AGAINST A PERSON. `manual` means somebody looked at the thread
+  -- and said where this customer came from. A visitor can perfectly well find
+  -- the website because a neighbour recommended the company, and overriding
+  -- that with "Website" would erase a human's explicit answer in favour of our
+  -- own inference — the move #301 forbids, run backwards.
+  insert into public.conversations
+    (company_id, contact_id, phone_number_id, lead_source_id, lead_source_set_by, first_source)
+  values ('7c000000-0000-4000-8000-0000000000c1'::uuid,
+          '7c000000-0000-4000-8000-0000000000d3'::uuid,
+          '7c000000-0000-4000-8000-0000000000b2'::uuid,
+          '7c000000-0000-4000-8000-0000000000e2'::uuid,
+          '7c000000-0000-4000-8000-00000000000a'::uuid,
+          'widget');
+
+  select by_widget, by_person into v_widget, v_person
+    from public.api_lead_source_report(
+      '7c000000-0000-4000-8000-0000000000c1'::uuid,
+      now() - interval '1 day', now() + interval '1 day')
+   where lead_source_id = '7c000000-0000-4000-8000-0000000000e2'::uuid;
+
+  if coalesce(v_widget, 0) is distinct from 0 then
+    raise exception 'LS-9: the website overrode a person''s own answer, got % widget', v_widget;
+  end if;
+  if coalesce(v_person, 0) is distinct from 2 then
+    raise exception 'LS-9: expected 2 person-tagged conversations, got %', v_person;
+  end if;
+
+  raise notice 'LS-9 PASSED: a website conversation is credited to the website, once';
+end $$;
+
 rollback;

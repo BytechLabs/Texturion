@@ -225,6 +225,8 @@ enum InboxStrings {
             // #540: the door out of the paragraph above. Web has always had it;
             // both phones printed the instruction and offered no way to follow it.
             "inbox.leadSourcesSetOneUp": "Set one up",
+            "inbox.leadSourcesWebsite": "Your website",
+            "inbox.leadSourcesWebsiteInline": "your website",
             "inbox.leadSourcesUnknown": "Don't know",
             "inbox.leadSourcesFooterOne": "Last 30 days · {count} conversation",
             "inbox.leadSourcesFooterMany": "Last 30 days · {count} conversations",
@@ -520,6 +522,8 @@ enum InboxStrings {
                 + "compté à partir de là, sans que personne n'ait à toucher à "
                 + "quoi que ce soit.",
             "inbox.leadSourcesSetOneUp": "En configurer une",
+            "inbox.leadSourcesWebsite": "Votre site web",
+            "inbox.leadSourcesWebsiteInline": "votre site web",
             "inbox.leadSourcesUnknown": "Inconnue",
             "inbox.leadSourcesFooterOne": "30 derniers jours · {count} conversation",
             "inbox.leadSourcesFooterMany": "30 derniers jours · {count} conversations",

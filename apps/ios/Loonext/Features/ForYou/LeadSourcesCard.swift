@@ -47,7 +47,11 @@ struct LeadSourcesCard: View {
             PaperCard {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    if report.sources.isEmpty {
+                    // #232: unless the website is answering, in which case
+                    // there IS something true to show and "you haven't set any
+                    // sources up" would be a reproach aimed at somebody whose
+                    // attribution is already working.
+                    if report.sources.isEmpty && report.widget == 0 {
                         // Sources exist as a feature and this workspace has
                         // set none up, so every conversation is unknown.
                         Text(AppStrings.translate(appLocale, "inbox.leadSourcesNoneSetUp"))
@@ -88,10 +92,10 @@ struct LeadSourcesCard: View {
 
     @ViewBuilder
     private func body(for report: LeadSourceReport) -> some View {
-        let rows = leadSourceRows(report)
+        let rows = leadSourceRows(report, locale: appLocale)
         let max = ([report.unknown, 1] + rows.map(\.total)).max() ?? 1
 
-        if let headline = leadSourceHeadline(report) {
+        if let headline = leadSourceHeadline(report, locale: appLocale) {
             Text(headline).font(.callout).padding(.top, 6)
         }
         if let note = report.note {
@@ -181,21 +185,76 @@ private let leadSourceTopN = 4
  that point "most of your work came from X" is simply false, and the table says
  it better than a wrong sentence would.
  */
-func leadSourceHeadline(_ report: LeadSourceReport) -> String? {
-    guard let top = report.sources.first else { return nil }
+/**
+ Every channel this window can name, biggest first.
+
+ #232 puts the website in HERE rather than pinning it under the configured
+ sources. It is a channel like any other — a workspace whose site brings in most
+ of the work should read that at the top of the list, and a row pinned last says
+ the opposite by position while its number says otherwise. The server keeps it
+ disjoint from `sources` precisely so it can be ranked against them without
+ double-counting anybody.
+
+ Same tie-break as the server's and as the other two clients', so equal counts
+ do not shuffle between a phone and a laptop looking at the same month.
+
+ `locale` is defaulted rather than required: the two callers below are a view
+ that knows the locale and a test that does not care, and a new required
+ parameter is how every `#Preview` in a file stops compiling.
+ */
+struct RankedChannel {
+    /// The row label. A title, so it takes a capital.
+    let name: String
+    /// The same channel inside the headline sentence. "came from Your website"
+    /// is the kind of thing only a rendered picture shows you; a source the
+    /// workspace named themselves reads the same either way.
+    let sentenceName: String
+    let total: Int
+}
+
+func leadSourceChannels(
+    _ report: LeadSourceReport,
+    locale: String = "en"
+) -> [RankedChannel] {
+    var channels = report.sources.map {
+        RankedChannel(name: $0.name, sentenceName: $0.name, total: $0.total)
+    }
+    if report.widget > 0 {
+        channels.append(
+            RankedChannel(
+                name: AppStrings.translate(locale, "inbox.leadSourcesWebsite"),
+                sentenceName: AppStrings.translate(locale, "inbox.leadSourcesWebsiteInline"),
+                total: report.widget
+            )
+        )
+    }
+    return channels.sorted {
+        $0.total != $1.total ? $0.total > $1.total : $0.name < $1.name
+    }
+}
+
+func leadSourceHeadline(
+    _ report: LeadSourceReport,
+    locale: String = "en"
+) -> String? {
+    guard let top = leadSourceChannels(report, locale: locale).first else { return nil }
     let attributed = report.total - report.unknown
     guard attributed > 0 else { return nil }
     guard Double(top.total) / Double(attributed) >= 0.34 else { return nil }
-    return "Most of the work you can account for came from \(top.name) — "
+    return "Most of the work you can account for came from \(top.sentenceName) — "
         + "\(top.total) of \(attributed)."
 }
 
 /** The rows to render: the top few, then everything else as one. */
-func leadSourceRows(_ report: LeadSourceReport) -> [LeadSourceRowValue] {
-    var rows = report.sources.prefix(leadSourceTopN).map {
+func leadSourceRows(
+    _ report: LeadSourceReport,
+    locale: String = "en"
+) -> [LeadSourceRowValue] {
+    let ranked = leadSourceChannels(report, locale: locale)
+    var rows = ranked.prefix(leadSourceTopN).map {
         LeadSourceRowValue(name: $0.name, total: $0.total)
     }
-    let rest = report.sources.dropFirst(leadSourceTopN)
+    let rest = ranked.dropFirst(leadSourceTopN)
     if !rest.isEmpty {
         rows.append(
             LeadSourceRowValue(

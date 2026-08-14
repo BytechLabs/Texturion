@@ -83,6 +83,31 @@ class LeadSourcesCardTest {
     }
 
     @Test
+    fun `the website is ranked with the sources, not pinned under them`() {
+        // #232. A workspace whose site brings in most of the work should read
+        // that at the TOP of the list — position is what an owner reads first,
+        // and a row pinned last says the opposite of its own number. Same
+        // order as web's LC-8 and iOS's, because a hand-port is exactly where
+        // two platforms start showing different pictures of one month.
+        val report = LeadSourceReport(
+            sources = listOf(source("Truck", 30), source("Google", 10)),
+            widget = 45,
+            unknown = 10,
+            total = 95,
+        )
+        assertEquals(
+            listOf("Your website" to 45, "Truck" to 30, "Google" to 10),
+            visibleRows(report, locale),
+        )
+        // And it can carry the headline, because "most of your work came from
+        // your website" is the sentence #232 exists to be able to say.
+        assertEquals(
+            "Most of the work you can account for came from your website — 45 of 85.",
+            leadingSentence(report, locale),
+        )
+    }
+
+    @Test
     fun `a short list is not folded at all`() {
         val few = LeadSourceReport(
             sources = listOf(source("A", 10), source("B", 9)),

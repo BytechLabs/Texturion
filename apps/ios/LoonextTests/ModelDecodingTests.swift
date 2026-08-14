@@ -55,6 +55,46 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertNotNil(leadSourceHeadline(thin))
     }
 
+    /// #232 — the website is ranked with the sources, not pinned under them.
+    ///
+    /// A workspace whose site brings in most of the work should read that at
+    /// the TOP of the list: position is what an owner reads first, and a row
+    /// pinned last says the opposite of its own number. The order asserted here
+    /// is the same one web's LC-8 and Android's twin assert, because a
+    /// hand-port is exactly where two platforms start showing different
+    /// pictures of one month.
+    func testWebsiteIsRankedAmongTheSources() throws {
+        let report: LeadSourceReport = try decode(#"""
+        {"days":30,"widget":45,"unknown":10,"total":95,"coverage":0.89,
+         "sources":[{"lead_source_id":"s1","name":"Truck","by_number":30,"by_person":0,"total":30},
+                    {"lead_source_id":"s2","name":"Google","by_number":10,"by_person":0,"total":10}]}
+        """#)
+        XCTAssertEqual(report.widget, 45)
+        XCTAssertEqual(
+            leadSourceRows(report).map(\.name),
+            ["Your website", "Truck", "Google"]
+        )
+        // Lowercase inside the sentence: "came from Your website" is the kind
+        // of thing only a rendered picture shows you.
+        XCTAssertEqual(
+            leadSourceHeadline(report),
+            "Most of the work you can account for came from your website — 45 of 85."
+        )
+    }
+
+    /// #232 on deploy day: a payload from an API that predates the field.
+    ///
+    /// The Worker and this app ship separately, and an installed build talks to
+    /// whichever server is live. No website row, and nothing broken.
+    func testReportWithoutWidgetFieldReadsAsNone() throws {
+        let old: LeadSourceReport = try decode(#"""
+        {"days":30,"unknown":10,"total":40,"coverage":0.75,
+         "sources":[{"lead_source_id":"s1","name":"Truck","by_number":30,"by_person":0,"total":30}]}
+        """#)
+        XCTAssertEqual(old.widget, 0)
+        XCTAssertEqual(leadSourceRows(old).map(\.name), ["Truck"])
+    }
+
     func testCompanyViewMinimalPayloadFallsToDefaults() throws {
         let company: CompanyView = try decode(#"""
         {"id":"c1","name":"Acme","country":"US","us_texting_enabled":true,

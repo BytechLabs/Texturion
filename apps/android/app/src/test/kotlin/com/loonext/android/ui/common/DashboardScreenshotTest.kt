@@ -170,6 +170,26 @@ class DashboardScreenshotTest {
     }
 
     @Test
+    fun `the lead sources panel draws the website row`() {
+        // #232. "Your website" is the longest label this list has ever had to
+        // draw, and the name column is a fixed 112dp before the bar — long
+        // enough to truncate is exactly the kind of thing that only shows up in
+        // a picture. Ranked first here because that is what its count earns.
+        val report = LeadSourceReport(
+            days = 30,
+            sources = listOf(
+                LeadSourceCount("s1", "Google", by_number = 6, by_person = 2, total = 8),
+                LeadSourceCount("s2", "Word of mouth", by_person = 5, total = 5),
+            ),
+            widget = 14,
+            unknown = 3,
+            total = 30,
+            coverage = 0.9,
+        )
+        assertTrue("sources-with-website drew nothing", drawPanel("sources-with-website", report))
+    }
+
+    @Test
     fun `a month with nothing in it draws no panel at all`() {
         // The card's own rule: "Loading, or a month in which nothing happened.
         // Silence, not a zero." Worth an assertion because it is invisible —
