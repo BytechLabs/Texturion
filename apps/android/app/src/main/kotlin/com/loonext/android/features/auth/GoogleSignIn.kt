@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.auth.AuthManager
 import com.loonext.android.core.auth.PendingOAuth
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.net.ApiException
 
 /**
@@ -194,7 +195,7 @@ fun GoogleSignInButton(
             )
             Spacer(Modifier.width(9.dp))
             Text(
-                "Continue with Google",
+                t("auth.continueWithGoogle"),
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.SemiBold,

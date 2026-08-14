@@ -61,6 +61,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.loonext.android.core.auth.AuthManager
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.contentMaxWidth
@@ -73,7 +74,7 @@ import kotlinx.coroutines.launch
 
 data class AuthUiState(
     val busy: Boolean = false,
-    val error: String? = null,
+    val error: AuthError? = null,
     /** Signup ended with "check your email" instead of a session. */
     val confirmationSent: Boolean = false,
     /** Password-reset email fired. */
@@ -90,10 +91,17 @@ data class AuthUiState(
  * freshly minted token (sign-up keeps its display name through the loop).
  */
 private sealed interface PendingAuthAction {
-    val fallback: String
+    /**
+     * #228: a KEY, not a sentence.
+     *
+     * This is a plain interface property and `t()` is `@Composable`, so a
+     * sentence written here could only ever be written in one language. The
+     * key travels to the screen, which has a reader and therefore a language.
+     */
+    val fallbackKey: String
 
     data class SignIn(val email: String, val password: String) : PendingAuthAction {
-        override val fallback get() = "Sign-in failed."
+        override val fallbackKey get() = "auth.signInFailed"
     }
 
     data class SignUp(
@@ -101,13 +109,46 @@ private sealed interface PendingAuthAction {
         val email: String,
         val password: String,
     ) : PendingAuthAction {
-        override val fallback get() = "Sign-up failed."
+        override val fallbackKey get() = "auth.signUpFailed"
     }
 
     data class Reset(val email: String) : PendingAuthAction {
-        override val fallback get() = "Couldn't send the reset email."
+        override val fallbackKey get() = "auth.resetEmailFailed"
     }
 }
+
+/**
+ * #228 — why the screen is showing a red line, in a form that can be translated
+ * at the point somebody reads it.
+ *
+ * Two shapes, because there are two AUTHORS. [Server] is a sentence the API
+ * wrote and has already phrased for a person; we would be re-translating
+ * somebody else's words to touch it. [Ours] is a key, because the ViewModel
+ * that decides it runs outside composition and has no reader — the language
+ * only exists on the screen.
+ *
+ * A single `String?` held both and could distinguish neither, which is why
+ * every auth error on this phone was English regardless of the reader.
+ */
+sealed interface AuthError {
+    data class Server(val text: String) : AuthError
+
+    data class Ours(val key: String) : AuthError
+}
+
+/**
+ * The server's sentence when it wrote one, otherwise our own key.
+ *
+ * `userMessage()` returns a blank string when the failure carried nothing a
+ * person could read — a network drop, a parse error — which is exactly when a
+ * screen showing nothing at all is the worst outcome.
+ */
+private fun authError(serverMessage: String, fallbackKey: String): AuthError =
+    if (serverMessage.isBlank()) {
+        AuthError.Ours(fallbackKey)
+    } else {
+        AuthError.Server(serverMessage)
+    }
 
 class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
     private val _state = MutableStateFlow(AuthUiState())
@@ -133,7 +174,8 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
         val action = pendingAction
         if (token == null) {
             pendingAction = null
-            _state.value = _state.value.copy(error = "Sign-in needs the security check.")
+            _state.value =
+                _state.value.copy(error = AuthError.Ours("auth.captchaNeeded"))
             return
         }
         if (action != null) attempt(action, token)
@@ -149,7 +191,7 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
             } catch (cause: Exception) {
                 _state.value = _state.value.copy(
                     busy = false,
-                    error = cause.userMessage().ifBlank { "Google sign-in failed. Try again." },
+                    error = authError(cause.userMessage(), "auth.googleFailed"),
                 )
             }
         }
@@ -162,7 +204,7 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
             error = if (launched) {
                 _state.value.error
             } else {
-                "No browser is available for Google sign-in."
+                AuthError.Ours("auth.googleNoBrowser")
             },
         )
     }
@@ -182,7 +224,7 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
             if (System.currentTimeMillis() - pending.createdAtMillis > 10_000) {
                 authManager.clearPendingOAuth()
                 _state.value = _state.value.copy(
-                    error = "Google sign-in didn't finish. Try again.",
+                    error = AuthError.Ours("auth.googleUnfinished"),
                 )
             }
         }
@@ -200,7 +242,12 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
                 errorDescription = uri.getQueryParameter("error_description"),
             )
             // Success saves the session — Root observes it and unmounts us.
-            _state.value = _state.value.copy(busy = false, error = failure)
+            // The provider's own words when it refuses, so they are shown as
+            // written rather than re-phrased by us.
+            _state.value = _state.value.copy(
+                busy = false,
+                error = failure?.let(AuthError::Server),
+            )
         }
     }
 
@@ -243,7 +290,7 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
                     pendingAction = null
                     _state.value = _state.value.copy(
                         busy = false,
-                        error = cause.userMessage().ifBlank { action.fallback },
+                        error = authError(cause.userMessage(), action.fallbackKey),
                     )
                 }
             }
@@ -251,7 +298,8 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
     }
 }
 
-private enum class AuthScreen { Login, SignUp, Forgot }
+/** `internal` so [AuthFrontDoorPreviewBody] can be asked for one of the three. */
+internal enum class AuthScreen { Login, SignUp, Forgot }
 
 /**
  * The signed-out surface: login / signup / forgot-password, one calm column
@@ -403,7 +451,7 @@ private fun SsoBlock(busy: Boolean, onGoogle: () -> Unit) {
     ) {
         HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
         Text(
-            "or",
+            t("auth.or"),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -467,7 +515,8 @@ private fun AuthField(
                 if (isPassword) {
                     Icon(
                         if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                        contentDescription = if (showPassword) "Hide password" else "Show password",
+                        contentDescription =
+                            if (showPassword) t("auth.hidePassword") else t("auth.showPassword"),
                         tint = MaterialTheme.colorScheme.outline,
                         modifier = Modifier
                             .size(16.dp)
@@ -598,7 +647,7 @@ private fun FooterLink(prefix: String, action: String, onClick: () -> Unit) {
 @Composable
 private fun LoginForm(
     busy: Boolean,
-    error: String?,
+    error: AuthError?,
     onSubmit: (String, String) -> Unit,
     onGoogle: () -> Unit,
     onForgot: () -> Unit,
@@ -610,20 +659,20 @@ private fun LoginForm(
     Wordmark()
     Spacer(Modifier.height(18.dp))
     Headline(
-        title = "Your number. One inbox.\nThe whole crew.",
-        body = "Texts, calls, and the jobs that come from them, together in one inbox.",
+        title = t("auth.loginTitle"),
+        body = t("auth.loginBody"),
     )
     Spacer(Modifier.height(26.dp))
     SsoBlock(busy = busy, onGoogle = onGoogle)
     AuthField(
-        label = "Work email",
+        label = t("auth.workEmail"),
         value = email,
         onValueChange = { email = it },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
     )
     Spacer(Modifier.height(12.dp))
     AuthField(
-        label = "Password",
+        label = t("auth.password"),
         value = password,
         onValueChange = { password = it },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -632,13 +681,13 @@ private fun LoginForm(
     ErrorLine(error)
     Spacer(Modifier.height(14.dp))
     InkPillButton(
-        text = if (busy) "Signing in…" else "Sign in",
+        text = if (busy) t("auth.signingIn") else t("auth.signIn"),
         enabled = !busy && email.isNotBlank() && password.isNotBlank(),
         onClick = { onSubmit(email, password) },
     )
     Spacer(Modifier.height(10.dp))
     Text(
-        "Forgot password?",
+        t("auth.forgotPassword"),
         style = MaterialTheme.typography.labelMedium.copy(
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
@@ -651,27 +700,31 @@ private fun LoginForm(
             .padding(vertical = 8.dp),
     )
     Spacer(Modifier.height(18.dp))
-    FooterLink("New to Loonext?", "Create your account", onClick = onSignUp)
+    FooterLink(
+        t("auth.newToLoonext"),
+        t("auth.createYourAccount"),
+        onClick = onSignUp,
+    )
 }
 
 @Composable
 private fun SignUpForm(
     busy: Boolean,
-    error: String?,
+    error: AuthError?,
     confirmationSent: Boolean,
     onSubmit: (String, String, String) -> Unit,
     onGoogle: () -> Unit,
     onLogin: () -> Unit,
 ) {
-    BackCircle(contentDescription = "Back to sign in", onClick = onLogin)
+    BackCircle(contentDescription = t("auth.backToSignIn"), onClick = onLogin)
     Spacer(Modifier.height(26.dp))
 
     if (confirmationSent) {
-        Headline(title = "Check your email", body = null)
+        Headline(title = t("auth.confirmTitle"), body = null)
         Spacer(Modifier.height(16.dp))
-        SuccessBanner("Confirm your account from the email we just sent, then sign in.")
+        SuccessBanner(t("auth.confirmBody"))
         Spacer(Modifier.height(18.dp))
-        FooterLink("Done confirming?", "Back to sign in", onClick = onLogin)
+        FooterLink(t("auth.doneConfirming"), t("auth.backToSignIn"), onClick = onLogin)
         return
     }
     var name by rememberSaveable { mutableStateOf("") }
@@ -679,70 +732,70 @@ private fun SignUpForm(
     var password by rememberSaveable { mutableStateOf("") }
 
     Headline(
-        title = "Create your account",
-        body = "Your business number in minutes.",
+        title = t("auth.signUpTitle"),
+        body = t("auth.signUpBody"),
     )
     Spacer(Modifier.height(24.dp))
     SsoBlock(busy = busy, onGoogle = onGoogle)
     AuthField(
-        label = "Your name",
+        label = t("auth.yourName"),
         value = name,
         onValueChange = { name = it },
     )
     Spacer(Modifier.height(12.dp))
     AuthField(
-        label = "Work email",
+        label = t("auth.workEmail"),
         value = email,
         onValueChange = { email = it },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
     )
     Spacer(Modifier.height(12.dp))
     AuthField(
-        label = "Password",
+        label = t("auth.password"),
         value = password,
         onValueChange = { password = it },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         isPassword = true,
-        helper = "At least 8 characters.",
+        helper = t("auth.passwordHelper"),
     )
     ErrorLine(error)
     Spacer(Modifier.height(14.dp))
     InkPillButton(
-        text = if (busy) "Creating account…" else "Create account",
+        text = if (busy) t("auth.creatingAccount") else t("auth.createAccount"),
         enabled = !busy && name.isNotBlank() && email.isNotBlank() && password.length >= 8,
         onClick = { onSubmit(name, email, password) },
     )
     Spacer(Modifier.height(12.dp))
     Text(
-        "By continuing you agree to the Terms and the Acceptable Use Policy.",
+        t("auth.legal"),
         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, lineHeight = 16.5.sp),
         color = MaterialTheme.colorScheme.outline,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(14.dp))
-    FooterLink("Already have an account?", "Sign in", onClick = onLogin)
+    FooterLink(t("auth.alreadyHaveAccount"), t("auth.signIn"), onClick = onLogin)
 }
 
 @Composable
 private fun ForgotForm(
     busy: Boolean,
-    error: String?,
+    error: AuthError?,
     resetSent: Boolean,
     onSubmit: (String) -> Unit,
     onLogin: () -> Unit,
 ) {
     var email by rememberSaveable { mutableStateOf("") }
 
-    BackCircle(contentDescription = "Back to sign in", onClick = onLogin)
+    BackCircle(contentDescription = t("auth.backToSignIn"), onClick = onLogin)
     Spacer(Modifier.height(26.dp))
     Headline(
-        title = "Reset your password",
-        body = "We'll email you a reset link. It works for an hour.",
+        title = t("auth.resetTitle"),
+        body = t("auth.resetBody"),
     )
     Spacer(Modifier.height(24.dp))
     AuthField(
-        label = "Work email",
+        label = t("auth.workEmail"),
         value = email,
         onValueChange = { email = it },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -750,7 +803,7 @@ private fun ForgotForm(
     ErrorLine(error)
     Spacer(Modifier.height(14.dp))
     InkPillButton(
-        text = if (busy) "Sending…" else "Send reset link",
+        text = if (busy) t("auth.sending") else t("auth.sendResetLink"),
         enabled = !busy && email.isNotBlank(),
         onClick = { onSubmit(email) },
     )
@@ -758,22 +811,27 @@ private fun ForgotForm(
         Spacer(Modifier.height(12.dp))
         SuccessBanner(
             if (email.isBlank()) {
-                "If that email has an account, a reset link is on its way. Didn't get it? Check spam."
+                t("auth.resetSentGeneric")
             } else {
-                "Link sent to $email (if it has an account). Didn't get it? Check spam."
+                t("auth.resetSentTo", "email" to email)
             },
         )
     }
     Spacer(Modifier.height(18.dp))
-    FooterLink("Remembered it?", "Back to sign in", onClick = onLogin)
+    FooterLink(t("auth.rememberedIt"), t("auth.backToSignIn"), onClick = onLogin)
 }
 
 @Composable
-private fun ErrorLine(error: String?) {
+private fun ErrorLine(error: AuthError?) {
     if (error != null) {
         Spacer(Modifier.height(10.dp))
         Text(
-            error,
+            // Resolved HERE, which is the whole point of the type: this is the
+            // first place in the flow that knows who is reading.
+            when (error) {
+                is AuthError.Server -> error.text
+                is AuthError.Ours -> t(error.key)
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
         )
@@ -805,8 +863,18 @@ private fun AuthFlowThemePreview() {
     PreviewHarness { AuthFrontDoorPreviewBody() }
 }
 
+/**
+ * The front door with no ViewModel behind it — one of the three screens, in the
+ * same column [AuthFlow] puts them in.
+ *
+ * `internal` rather than private so `AuthFrenchRenderTest` can photograph
+ * exactly what the IDE preview draws. A test that built its own column would be
+ * a second arrangement of this screen, free to agree with the real one on the
+ * day it was written and drift after — and the thing being checked here is
+ * whether the words FIT, which is a property of the arrangement.
+ */
 @Composable
-private fun AuthFrontDoorPreviewBody() {
+internal fun AuthFrontDoorPreviewBody(screen: AuthScreen = AuthScreen.Login) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -816,13 +884,32 @@ private fun AuthFrontDoorPreviewBody() {
             .padding(horizontal = 24.dp)
             .padding(top = 18.dp, bottom = 24.dp),
     ) {
-        LoginForm(
-            busy = false,
-            error = null,
-            onSubmit = { _, _ -> },
-            onGoogle = {},
-            onForgot = {},
-            onSignUp = {},
-        )
+        when (screen) {
+            AuthScreen.Login -> LoginForm(
+                busy = false,
+                error = null,
+                onSubmit = { _, _ -> },
+                onGoogle = {},
+                onForgot = {},
+                onSignUp = {},
+            )
+
+            AuthScreen.SignUp -> SignUpForm(
+                busy = false,
+                error = null,
+                confirmationSent = false,
+                onSubmit = { _, _, _ -> },
+                onGoogle = {},
+                onLogin = {},
+            )
+
+            AuthScreen.Forgot -> ForgotForm(
+                busy = false,
+                error = null,
+                resetSent = false,
+                onSubmit = {},
+                onLogin = {},
+            )
+        }
     }
 }
