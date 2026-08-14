@@ -7,7 +7,7 @@ it is maintained by hand — but every row names a test, and
 
 **Standard:** WCAG 2.2 Level AA
 **Applies to:** the Loonext web application, and the Android and iOS apps where stated
-**Last verified:** 2026-08-04
+**Last verified:** 2026-08-14
 **Basis:** `docs/APP-LAYOUT-V2.md` §7, `docs/APP-UI-ELEVATION.md` §6
 
 This document exists to be handed to a buyer who asks (#285). Everything in it
@@ -44,7 +44,7 @@ is nothing verified that is not here.
 | **1.4.3** Contrast (Minimum) | Text token pairs recomputed from the actual hex values in `globals.css`, in **both** themes | `apps/web/src/app/globals.contrast.test.ts` |
 | **1.4.3** Contrast, rendered | Rendered text measured against its actual background on real pages, both themes | `scripts/theme-audit.mjs` (CI) |
 | **2.3.3** Animation from Interactions | One base rule zeroes motion under `prefers-reduced-motion`; the rule cannot be weakened or deleted | `apps/web/src/app/reduced-motion.test.ts` |
-| **2.5.7** Dragging Movements | Every file that starts a drag records the code implementing its single-pointer alternative | `apps/web/src/app/dragging-alternatives.test.ts` |
+| **2.5.7** Dragging Movements | Every file that starts a drag records the code implementing its single-pointer alternative — on **all three** clients | `apps/web/src/app/dragging-alternatives.test.ts`, `scripts/check-gesture-alternatives.mjs` |
 | **2.4.7** Focus Visible | Every control reached by pressing `Tab` has an outline or a ring, measured on the rendered page in both themes | `scripts/theme-audit.mjs` (CI), `apps/web/src/app/focus-appearance.test.ts` |
 | **1.4.11** Non-text Contrast — focus | That indicator clears 3:1 against the surface behind it, with its alpha composited rather than assumed away | `scripts/theme-audit.mjs` (CI), `apps/web/src/app/focus-appearance.test.ts` |
 | **2.4.11** Focus Not Obscured (Minimum) | The focused control is not entirely covered by a sticky header or overlay, sampled from the compositor rather than computed from rectangles | `scripts/theme-audit.mjs` (CI), `apps/web/src/app/focus-appearance.test.ts` |
@@ -82,7 +82,8 @@ from the source:
 
 | Point | Android | iOS |
 |---|---|---|
-| Icon-only controls with no accessible name | **None found** (scanned 2026-08-03) | **None found** (scanned 2026-08-03) |
+| Icon-only controls with no accessible name | **None**, and enforced — `scripts/check-screen-reader-names.mjs` | **None**, and enforced — `scripts/check-screen-reader-names.mjs` |
+| A layout that survives the reader's largest text setting | **Rendered at 200% and fixed** — `DashboardScreenshotTest.the panels at 200 percent font scale` writes a PNG on every run | **Not rendered.** The same two defects were fixed on the same evidence, because the frames were the identical 104 and 28 points — but no iOS render exists on this machine |
 | Text sizes are declared in a scaling unit | **Yes**, and enforced — `scripts/check-native-a11y.mjs` | **Yes**, and enforced — `scripts/check-native-a11y.mjs` |
 
 ### The iOS row above used to say "Partly", and the number in it was wrong
@@ -129,7 +130,16 @@ believing the rest of the document.
   only one width; an arbitrary width without dragging is keyboard-only.
 - **No third-party audit** has been carried out. Everything here is
   first-party, which is exactly why each claim names the test behind it.
-- **Native screen-reader flows are untested**, as above.
+- **Native screen-reader flows are untested end to end.** Every icon-only
+  control now has a name and a build fails if one loses it — but a name is
+  necessary and nowhere near sufficient. Reading ORDER, whether a live region
+  speaks at the right moment, whether a custom control exposes the right role
+  and state, and whether a whole flow can be driven by TalkBack or VoiceOver
+  all need a person with a phone. None of that is claimed.
+- **iOS is not rendered anywhere.** Android's layout at 200% text is a picture
+  produced on every test run; iOS has no equivalent on this machine, so its
+  matching fix rests on the two apps having had identical measurements rather
+  than on a second picture.
 
 ---
 

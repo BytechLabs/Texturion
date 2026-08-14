@@ -40,18 +40,22 @@
  *
  *   1. The 16px field rule, at mobile widths only (it is an iOS zoom defence).
  *   2. Reduced motion.
- *   3. **WCAG 2.2 2.4.11 Focus Not Obscured** — walked with real focus moves,
- *      because whether a sticky bar sits on top of what the browser just
- *      focused is not answerable from source.
  *
- * Every one of those reports how much it actually covered. The focus walk is
- * why: it shipped visiting ZERO controls on all ten surfaces and reporting
- * clean, because a fresh page has `document.activeElement === document.body`
- * and the loop read that as "focus has left the page". Then it stopped after
- * two controls on the busiest screens, because its cycle detection keyed on
- * tag+class and an app rail is full of identically-classed links. Both were
- * found by making it state its own coverage, and neither would have shown up
- * in a pass/fail line.
+ * FOCUS IS NOT HERE. `scripts/theme-audit.mjs` already walks it for 2.4.7,
+ * 1.4.11 and 2.4.11, with a shared classifier and unit tests. I built a second
+ * walk in this file before reading that one, and removing it is the correction:
+ * mine moved focus with `el.focus()`, which does not match `:focus-visible`, so
+ * it measured a state no keyboard user ever produces. Two implementations of
+ * one criterion is the drift #238 asked to avoid.
+ *
+ * That walk did leave one lesson behind, which is why the checks that remain
+ * report their own coverage. It shipped visiting ZERO controls on all ten
+ * surfaces and reporting clean, because a fresh page has
+ * `document.activeElement === document.body` and the loop read that as "focus
+ * has left the page". Then it stopped after two controls on the busiest
+ * screens, because its cycle detection keyed on tag+class and an app rail is
+ * full of identically-classed links. Neither would have shown up in a
+ * pass/fail line.
  */
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -276,116 +280,18 @@ try {
       });
       notes.push(`${where}: probe transition-duration ${honoursReducedMotion}`);
 
-      // ---------------------------------------------------------------
-      // WCAG 2.2 — 2.4.11 Focus Not Obscured (Minimum), AA.
-      // ---------------------------------------------------------------
+      // 2.4.11 Focus Not Obscured is NOT checked here, and that is a
+      // correction rather than an omission. `scripts/theme-audit.mjs`
+      // already walks focus for it, with a shared classifier
+      // (`focus-classify.mjs`) and unit tests behind it.
       //
-      // "When a user interface component receives keyboard focus, the
-      // component is not entirely hidden due to author-created content."
-      //
-      // This is the 2.2 delta #238 names, and it is the one no source scan can
-      // answer: whether a sticky header, a bottom bar or an overlay happens to
-      // sit on top of whatever the browser just focused. §7 requires a
-      // complete keyboard path through the shell — a path that runs UNDER the
-      // furniture is not one, and the person it fails is the person who cannot
-      // see where focus went.
-      //
-      // Walked with real Tab presses rather than by reasoning about z-index,
-      // because the browser decides the order and the scrolling, and both are
-      // the point.
-      const obscured = await page.evaluate(async (limit) => {
-        const seen = new Set();
-        const hits = [];
-        const press = () => new Promise((r) => setTimeout(r, 0));
-
-        // START THE WALK. On a freshly loaded page `document.activeElement` is
-        // `document.body`, and the loop's first line treats that as "focus has
-        // left the page" and stops — so this walked NOTHING and reported clean
-        // on every surface until the visited-count below was added. A guard
-        // that cannot fail is worse than no guard, because it is read as
-        // coverage.
-        const first = document.querySelector(
-          "a[href], button:not([disabled]), input:not([disabled]), " +
-          "select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
-        );
-        if (first instanceof HTMLElement) first.focus();
-
-        for (let i = 0; i < limit; i += 1) {
-          const active = document.activeElement;
-          if (!active || active === document.body) break;
-          // Identity, not a tag+class key. Keying on the string stopped the
-          // walk the moment two controls looked alike — an app rail full of
-          // identically-classed links ended it after two, and the surfaces
-          // with the most controls were the ones checked least.
-          if (seen.has(active)) break; // genuinely cycled back round
-          seen.add(active);
-          const box = active.getBoundingClientRect();
-          // Zero-sized and off-viewport elements are somebody else's problem:
-          // the browser scrolls focus into view, so an element still outside it
-          // is either hidden on purpose or not really focusable.
-          const onScreen =
-            box.width > 0 && box.height > 0 &&
-            box.top >= 0 && box.left >= 0 &&
-            box.bottom <= innerHeight && box.right <= innerWidth;
-          if (onScreen) {
-            // ENTIRELY hidden is the AA bar, so all four corners plus the
-            // centre have to be covered before this counts — a header clipping
-            // the top edge of a tall element is 2.4.12 (AAA) and not this.
-            const probes = [
-              [box.left + box.width / 2, box.top + box.height / 2],
-              [box.left + 1, box.top + 1],
-              [box.right - 1, box.top + 1],
-              [box.left + 1, box.bottom - 1],
-              [box.right - 1, box.bottom - 1],
-            ];
-            const covered = probes.every(([x, y]) => {
-              const top = document.elementFromPoint(x, y);
-              return top !== null && top !== active && !active.contains(top) &&
-                !top.contains(active);
-            });
-            if (covered) {
-              hits.push(
-                (active.getAttribute("aria-label") ||
-                  (active.textContent || "").trim().slice(0, 40) ||
-                  `${active.tagName}#${active.id}`).slice(0, 60),
-              );
-            }
-          }
-          await press();
-          // Tab from inside the page, which is what a person does.
-          const focusables = [...document.querySelectorAll(
-            "a[href], button:not([disabled]), input:not([disabled]), " +
-            "select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
-          )].filter((el) => el.offsetParent !== null || el === document.activeElement);
-          const at = focusables.indexOf(active);
-          const next = focusables[at + 1];
-          if (!next) break;
-          next.focus();
-        }
-        return { hits, visited: seen.size };
-      }, 40);
-
-      // How many controls the walk actually reached. A walk that visits
-      // nothing reports "clean" forever, which is the decorative-guard shape —
-      // so the count is stated, and an empty walk on a page that plainly has
-      // controls is a failure rather than a pass.
-      notes.push(`${where}: focus walk visited ${obscured.visited} control(s)`);
-      if (obscured.visited === 0) {
-        problems.push(
-          `${where}: the focus walk reached no controls at all, so its clean ` +
-            `result means nothing. Either the page renders none — which would ` +
-            `itself be the finding — or the walk is broken.`,
-        );
-      }
-
-      for (const label of obscured.hits) {
-        problems.push(
-          `${where}: focus lands on "${label}" and it is completely covered by ` +
-            `something else. WCAG 2.2 2.4.11 — a keyboard path that runs under ` +
-            `the furniture is not a keyboard path, and the person it fails is ` +
-            `the one who cannot see where focus went.`,
-        );
-      }
+      // I wrote a second walk here before reading that one, and it was worse
+      // in a way worth recording: it moved focus with `el.focus()`, which
+      // does NOT match `:focus-visible`. So it could never have judged a
+      // focus ring, and it measured a state no keyboard user ever produces.
+      // Two implementations of one criterion is also the exact drift #238
+      // asked to avoid when it said this work should share #320's capture
+      // rather than be built twice.
     } finally {
       await page.close();
     }
