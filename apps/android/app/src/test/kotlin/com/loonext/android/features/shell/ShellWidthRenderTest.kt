@@ -7,8 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
@@ -69,6 +72,17 @@ class ShellWidthRenderTest {
     }
 
     @Test
+    @Config(sdk = [34], qualifiers = "w411dp-h891dp")
+    fun `the shell survives 200 percent font scale`() {
+        // The pill is a FIXED 66dp tall and its avatar draws initials in a 34dp
+        // circle. Icons do not scale with font size but text does, so the one
+        // thing in there that can overflow its container is the two letters —
+        // and an accessibility font scale is the setting most likely to be on
+        // for the people who need the nav most.
+        renderShell("shell-phone-411dp-fontscale2", fontScale = 2f)
+    }
+
+    @Test
     @Config(sdk = [34], qualifiers = "w840dp-h1000dp")
     fun `the shell draws on an unfolded foldable`() {
         // 840dp is the widest window this app realistically meets on Android:
@@ -117,8 +131,14 @@ class ShellWidthRenderTest {
         return kotlin.math.abs(luminance(a) - luminance(b))
     }
 
-    private fun renderShell(name: String) {
+    private fun renderShell(name: String, fontScale: Float = 1f) {
         compose.setContent {
+            CompositionLocalProvider(
+                LocalDensity provides Density(
+                    density = LocalDensity.current.density,
+                    fontScale = fontScale,
+                ),
+            ) {
             LoonextTheme {
                 MainShell(
                     me = ME,
@@ -137,6 +157,7 @@ class ShellWidthRenderTest {
                             .background(MaterialTheme.colorScheme.surface),
                     ) { Text("content column") }
                 }
+            }
             }
         }
         compose.waitForIdle()
