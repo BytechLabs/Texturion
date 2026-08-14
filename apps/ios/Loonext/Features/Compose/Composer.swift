@@ -1173,6 +1173,11 @@ struct ThreadComposerView: View {
 
     private func requestSend() {
         guard canSend else { return }
+        // COMMITTED. Fired here rather than inside `submit()` so it also lands
+        // on the path that stops to ask about a duplicate reply — the press was
+        // still taken, and a silent button under a modal that has not appeared
+        // yet is exactly when somebody presses twice.
+        Haptics.confirm()
         let collision = duplicateReplyWarning(
             draftStartedAt: state.draftStartedAt,
             lastOutboundAt: duplicateReply?.lastOutbound?.created_at,

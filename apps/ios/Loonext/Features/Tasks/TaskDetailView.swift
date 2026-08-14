@@ -257,6 +257,7 @@ struct TaskDetailView: View {
     private func toggleDone() {
         guard let detail else { return }
         let next = !detail.done
+        if next { Haptics.confirm() } else { Haptics.tap() }
         Task {
             actionError = nil
             do {

@@ -229,6 +229,7 @@ struct InCallView: View {
     /// The warm-brick full-width End-call pill (specs 26/32).
     private var endCallBar: some View {
         Button {
+            Haptics.reject()
             if let featured { manager.hangup(featured.id) }
         } label: {
             HStack(spacing: 10) {
@@ -258,6 +259,7 @@ struct InCallView: View {
         HStack {
             VStack(spacing: 8) {
                 Button {
+                    Haptics.reject()
                     manager.hangup(call.id)
                 } label: {
                     Image(systemName: "phone.down")
@@ -275,6 +277,7 @@ struct InCallView: View {
             Spacer()
             VStack(spacing: 8) {
                 Button {
+                    Haptics.confirm()
                     answerWithMicPreflight(call.id)
                 } label: {
                     Image(systemName: "phone")
@@ -489,6 +492,7 @@ private struct OtherCallRow: View {
             Spacer()
             if call.phase == .ringing {
                 Button {
+                    Haptics.reject()
                     manager.hangup(call.id)
                 } label: {
                     Text("Decline")
@@ -500,6 +504,7 @@ private struct OtherCallRow: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Decline")
                 Button {
+                    Haptics.confirm()
                     answerWithMicPreflight()
                 } label: {
                     HStack(spacing: 6) {
@@ -517,6 +522,7 @@ private struct OtherCallRow: View {
                 .accessibilityLabel("Answer")
             } else if call.phase == .held {
                 Button {
+                    Haptics.tap()
                     manager.toggleHold(call.id)
                 } label: {
                     Text("Swap")
@@ -580,6 +586,7 @@ private struct DtmfSheet: View {
                 HStack(spacing: 24) {
                     ForEach(row, id: \.self) { key in
                         Button {
+                            Haptics.tap()
                             sent += key
                             onDigit(key)
                         } label: {
@@ -714,6 +721,7 @@ private struct TransferSheet: View {
             }
             Spacer()
             Button {
+                Haptics.confirm()
                 transfer(to: row.id)
             } label: {
                 Text("Transfer")

@@ -178,6 +178,7 @@ struct DialerSheet: View {
                         ForEach(numbers, id: \.id) { number in
                             let selected = fromId == number.id
                             Button {
+                                Haptics.tap()
                                 fromId = number.id
                             } label: {
                                 Text(
@@ -210,6 +211,7 @@ struct DialerSheet: View {
                     HStack(spacing: keySpacing) {
                         ForEach(row, id: \.self) { key in
                             Button {
+                                Haptics.tap()
                                 if digits.count < 15 {
                                     picked = nil
                                     digits += key
@@ -248,6 +250,7 @@ struct DialerSheet: View {
                     Spacer()
                     if let onMessage {
                         Button {
+                            Haptics.tap()
                             if let to = picked?.number ?? dialable {
                                 dismiss()
                                 onMessage(to)
@@ -284,6 +287,7 @@ struct DialerSheet: View {
                 HStack {
                     Spacer()
                     Button {
+                        Haptics.tap()
                         picked = nil
                         digits = String(digits.dropLast())
                     } label: {
@@ -406,6 +410,11 @@ struct DialerSheet: View {
     /// Mic first, then authorize — a denial never reserves the line.
     private func preflightThenCall() {
         guard dialable != nil else { return }
+        // COMMITTED, and fired before the permission detour rather than after
+        // the call connects: this is the beat that answers "did it take my
+        // press", on the one screen where the answer can otherwise be a
+        // permission sheet appearing several hundred milliseconds later.
+        Haptics.confirm()
         if manager.hasMicPermission {
             placeCall()
             return

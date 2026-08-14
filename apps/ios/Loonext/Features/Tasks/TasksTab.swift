@@ -512,6 +512,11 @@ struct TasksTab: View {
     }
 
     private func toggleDone(_ task: TaskItem, done: Bool) {
+        // One semantic haptic per done flip, shared by list rows and board
+        // moves — marking done COMMITS, unmarking is a light touch. Fired
+        // before the write, because the row animates optimistically and a
+        // haptic that waited for the server would arrive after the checkmark.
+        if done { Haptics.confirm() } else { Haptics.tap() }
         Task {
             // Derived-done invariant: the write path is the SOURCE MESSAGE.
             do {

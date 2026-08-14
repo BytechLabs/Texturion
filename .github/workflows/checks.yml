@@ -355,6 +355,13 @@ jobs:
       - name: Guard push kinds against splitting the crew
         run: node scripts/check-push-kinds.mjs
 
+      # #556: an absent buzz is invisible to every check that reads output, so
+      # iOS shipped with ZERO haptics while Android fired 362 times. This holds
+      # the two vocabularies equal and keeps the list of still-silent iOS areas
+      # shrinking — a new one fails, and a closed one fails until it is pruned.
+      - name: Guard haptics against a silent phone
+        run: node scripts/check-haptic-parity.mjs
+
       # #569: an initials badge sized in fixed `dp` around a glyph sized in `sp`
       # lets the letters outgrow the box at large OS text. `InitialsAvatar` was
       # meant to be the one implementation; a survey found EIGHT hand-rolled copies,
