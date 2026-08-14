@@ -244,6 +244,9 @@ struct AccountSheet: View {
                 label: AppStrings.translate(appLocale, "shell.signOut"),
                 destructive: true
             ) {
+                // A refusal, not a tap: this ends the session and is the one
+                // row on this sheet somebody can hit by accident.
+                Haptics.reject()
                 onSignOut()
                 dismiss()
             }

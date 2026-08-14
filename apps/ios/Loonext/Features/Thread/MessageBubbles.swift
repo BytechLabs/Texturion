@@ -199,6 +199,7 @@ struct MessageBubble: View {
     private var menuItems: some View {
         if !message.body.isBlank {
             Button {
+                Haptics.tap()
                 UIPasteboard.general.string = message.body
                 actions.onCopied()
             } label: {
@@ -215,7 +216,13 @@ struct MessageBubble: View {
         Toggle(
             isOn: Binding(
                 get: { message.done_at != nil },
-                set: { _ in actions.onToggleDone() }
+                // Marking done COMMITS and unmarking is a light touch — the
+                // same split the tasks list makes, because it is the same act
+                // reached from a different surface.
+                set: { done in
+                    if done { Haptics.confirm() } else { Haptics.tap() }
+                    actions.onToggleDone()
+                }
             )
         ) {
             Label(
@@ -226,7 +233,10 @@ struct MessageBubble: View {
         Toggle(
             isOn: Binding(
                 get: { message.pinned_at != nil },
-                set: { _ in actions.onTogglePin() }
+                set: { _ in
+                    Haptics.tap()
+                    actions.onTogglePin()
+                }
             )
         ) {
             Label(
@@ -236,6 +246,8 @@ struct MessageBubble: View {
         }
         if message.retryable {
             Button {
+                // A retry is a send, and a send commits.
+                Haptics.confirm()
                 actions.onRetry()
             } label: {
                 Label(
@@ -247,6 +259,7 @@ struct MessageBubble: View {
         if !message.has_task, message.promoted_task == nil,
            message.direction != MessageDirection.note {
             Button {
+                Haptics.confirm()
                 actions.onMakeTask()
             } label: {
                 Label(

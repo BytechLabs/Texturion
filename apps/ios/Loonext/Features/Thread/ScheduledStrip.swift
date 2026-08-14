@@ -81,7 +81,13 @@ private struct ScheduledStripRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button(action: onCancel) {
+            Button {
+                // Calling off a queued message is a refusal, not a tap: it is
+                // the one press on this strip that destroys something somebody
+                // wrote.
+                Haptics.reject()
+                onCancel()
+            } label: {
                 Image(systemName: "xmark")
                     .font(.caption)
                     .foregroundStyle(BrandColor.muted500)

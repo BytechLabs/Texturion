@@ -558,6 +558,10 @@ struct ShellView: View {
     /// glyph at 52%.
     private func navSlot(_ value: ShellTab, icon: String, label: String) -> some View {
         Button {
+            // Only on an actual MOVE. A tap on the tab you are already on
+            // scrolls to top and changes nothing else; buzzing for it would
+            // teach the hand that the buzz means nothing.
+            if tab != value { Haptics.tap() }
             tab = value
         } label: {
             ZStack {
@@ -585,6 +589,7 @@ struct ShellView: View {
     /// unread notifications (never a numeral).
     private var avatarButton: some View {
         Button {
+            Haptics.tap()
             activeSheet = .account
         } label: {
             InitialsAvatar(
@@ -643,6 +648,7 @@ struct ShellView: View {
     /// pill nav.
     private var composeButton: some View {
         Button {
+            Haptics.tap()
             activeSheet = .compose(prefillContactId: nil, prefillPhone: nil)
         } label: {
             Image(systemName: "pencil")

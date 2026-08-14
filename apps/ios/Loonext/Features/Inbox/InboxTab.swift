@@ -1640,6 +1640,7 @@ private struct ConversationListPane: View {
             // the thread still mark read the ordinary way.
             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                 Button {
+                    Haptics.tap()
                     controller.toggleRead(row)
                 } label: {
                     Label(
@@ -1651,6 +1652,10 @@ private struct ConversationListPane: View {
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 Button {
+                    // A full swipe COMMITS — the row leaves the list. On a
+                    // swipe the finger is already moving, so the buzz is what
+                    // separates "it took" from "it sprang back".
+                    Haptics.confirm()
                     controller.setRowStatus(
                         row.id,
                         status: closed ? ConversationStatus.open : ConversationStatus.closed,
@@ -1667,6 +1672,7 @@ private struct ConversationListPane: View {
                 }
                 .tint(BrandColor.olive)
                 Button {
+                    Haptics.tap()
                     onAssign(row)
                 } label: {
                     Label("Assign", systemImage: "person")

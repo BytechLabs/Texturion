@@ -72,11 +72,8 @@ const SILENT_ON_IOS = {
   contacts: 5,
   diagnostics: 1,
   foryou: 1,
-  inbox: 3,
   notifications: 1,
   settings: 13,
-  shell: 2,
-  thread: 7,
 };
 
 /** `apps` has no iOS twin directory — its haptics live in the shell there. */

@@ -103,6 +103,10 @@ struct SnoozeDatePicker: View {
                             kind == .followUp ? "thread.remindMe" : "thread.snooze"
                         )
                     ) {
+                        // The thread is about to leave the inbox on a promise
+                        // to come back. That is a commitment, and the sheet
+                        // dismissing is easy to miss on a phone held low.
+                        Haptics.confirm()
                         let trimmed = note.trimmingCharacters(
                             in: .whitespacesAndNewlines
                         )

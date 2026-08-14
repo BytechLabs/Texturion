@@ -62,6 +62,7 @@ struct ThreadTagsRow: View {
                             .font(.golos(11, weight: .medium))
                             .foregroundStyle(BrandColor.muted700)
                         Button {
+                            Haptics.tap()
                             onRemove(tag)
                         } label: {
                             Image(systemName: "xmark")
@@ -197,6 +198,10 @@ struct TagManageSheet: View {
                             }
                         }
                     Button {
+                        // Attaching a tag COMMITS — Android says so too, and
+                        // the sheet stays open afterwards, so the buzz is the
+                        // only thing that says the tag landed.
+                        Haptics.confirm()
                         if let plan {
                             onAttach(plan)
                             input = ""
@@ -220,6 +225,7 @@ struct TagManageSheet: View {
                 if let suggestion, !suggestion.exact,
                    !attachedIds.contains(suggestion.tag.id) {
                     Button {
+                        Haptics.confirm()
                         onAttach(.existing(suggestion.tag))
                         input = ""
                     } label: {
