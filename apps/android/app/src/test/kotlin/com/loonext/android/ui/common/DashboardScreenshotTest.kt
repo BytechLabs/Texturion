@@ -466,6 +466,78 @@ class DashboardScreenshotTest {
         assertTrue("tablet-840dp drew nothing", drewSomething(bitmap))
     }
 
+    @Test
+    @Config(sdk = [34], qualifiers = "w411dp-h891dp-night")
+    fun `the panels in dark`() {
+        /*
+         * #556 — every screenshot this repository had ever taken was in LIGHT.
+         *
+         * That is not a small gap. It is exactly why the nav capsule shipped
+         * invisible on the dark canvas: `BrandColor.Ink` at 0x1A1A1A on a
+         * 0x151515 ground, five parts in 255, and nothing had ever drawn it to
+         * look. The dashboard panels are the surfaces #540 and #556 both care
+         * about most and no one had seen them in the other theme either.
+         *
+         * All four in one picture, because what goes wrong in dark goes wrong
+         * BETWEEN elements — a card that stops separating from the canvas, a
+         * ring that stops reading against its fill — and those are visible in a
+         * column and invisible in four separate crops.
+         */
+        compose.setContent {
+            LoonextTheme {
+                Column(
+                    Modifier
+                        .width(360.dp)
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(16.dp),
+                ) {
+                    LeadSourcesCard(
+                        report = LeadSourceReport(
+                            days = 30,
+                            sources = listOf(
+                                LeadSourceCount("s1", "Google", by_number = 6, by_person = 2, total = 8),
+                                LeadSourceCount("s2", "Word of mouth", by_person = 5, total = 5),
+                            ),
+                            unknown = 3,
+                            total = 16,
+                            coverage = 0.81,
+                        ),
+                        onSetUpSources = {},
+                    )
+                    ResponseTimeCard(
+                        report = ResponseTimeReport(
+                            leads = 4,
+                            answered = 2,
+                            unanswered = 2,
+                            median_seconds = 372.0,
+                            p90_seconds = 1840.0,
+                        ),
+                        days = 30,
+                        onWindow = {},
+                        onOpenUnanswered = {},
+                    )
+                    SatisfactionCard(
+                        report = SatisfactionReport(
+                            asked = 8,
+                            answered = 5,
+                            average = 4.6,
+                            distribution = mapOf("5" to 3, "4" to 2),
+                            poor = 0,
+                            minimum_sample = 3,
+                        ),
+                        days = 30,
+                        onWindow = {},
+                        onOpenPoor = {},
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        writePng(bitmap, "panels-dark")
+        assertTrue("panels-dark drew nothing", drewSomething(bitmap))
+    }
+
     /** Compose the panel, write the picture, and report whether anything landed. */
     private fun drawPanel(name: String, report: LeadSourceReport): Boolean {
         compose.setContent {
