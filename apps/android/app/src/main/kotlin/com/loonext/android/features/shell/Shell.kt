@@ -287,6 +287,24 @@ fun MainShell(
                     .navigationBarsPadding()
                     .padding(start = 14.dp, end = 14.dp, bottom = 14.dp)
                     .fillMaxWidth()
+                    // #556: the same cap the CONTENT gets. Every tab's
+                    // content is drawn through contentMaxWidth() -- 640dp,
+                    // centred on a wide window -- and this bar was not. So on
+                    // a tablet or an unfolded foldable the four slots spread
+                    // across the whole window while the column they navigate
+                    // sat in the middle, and the moving pill under a tab
+                    // pointed at nothing above it.
+                    //
+                    // *Applying: Relationship Strength -- the bar and the
+                    // content it drives are one thing, and one thing has one
+                    // width.*
+                    //
+                    // The SMALL half of this issue's bottom-bar-vs-side-bar
+                    // question. A NavigationRail is the Material answer above
+                    // 600dp and a larger decision; a bar that does not line up
+                    // with its own content is a defect either way, and fixing
+                    // it does not foreclose the rail.
+                    .contentMaxWidth()
                     .height(66.dp)
                     .shadow(24.dp, CircleShape, spotColor = BrandColor.Ink.copy(alpha = 0.4f))
                     .background(BrandColor.Ink, CircleShape)
