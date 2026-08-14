@@ -19,9 +19,13 @@ import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.LeadSourceCount
 import com.loonext.android.core.model.PipelineReport
 import com.loonext.android.core.model.PipelineReportResponse
+import com.loonext.android.core.model.ResponseTimeReport
+import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.core.model.LeadSourceReport
 import com.loonext.android.features.foryou.LeadSourcesCard
 import com.loonext.android.features.foryou.PipelineCard
+import com.loonext.android.features.foryou.ResponseTimeCard
+import com.loonext.android.features.foryou.SatisfactionCard
 import com.loonext.android.ui.theme.LoonextTheme
 import java.io.File
 import org.junit.Assert.assertFalse
@@ -242,6 +246,69 @@ class DashboardScreenshotTest {
         }
 
         compose.onNodeWithText("67%").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the response time panel draws`() {
+        compose.setContent {
+            LoonextTheme {
+                Column(
+                    Modifier
+                        .width(360.dp)
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(16.dp),
+                ) {
+                    ResponseTimeCard(
+                        report = ResponseTimeReport(
+                            leads = 4,
+                            answered = 2,
+                            unanswered = 2,
+                            median_seconds = 372.0,
+                            p90_seconds = 1840.0,
+                        ),
+                        days = 30,
+                        onWindow = {},
+                        onOpenUnanswered = {},
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        writePng(bitmap, "response-time")
+        assertTrue("response-time drew nothing", drewSomething(bitmap))
+    }
+
+    @Test
+    fun `the satisfaction panel draws`() {
+        compose.setContent {
+            LoonextTheme {
+                Column(
+                    Modifier
+                        .width(360.dp)
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(16.dp),
+                ) {
+                    SatisfactionCard(
+                        report = SatisfactionReport(
+                            asked = 8,
+                            answered = 5,
+                            average = 4.6,
+                            distribution = mapOf("5" to 3, "4" to 2),
+                            poor = 0,
+                            minimum_sample = 3,
+                        ),
+                        days = 30,
+                        onWindow = {},
+                        onOpenPoor = {},
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        writePng(bitmap, "satisfaction")
+        assertTrue("satisfaction drew nothing", drewSomething(bitmap))
     }
 
     /** Compose the panel, write the picture, and report whether anything landed. */

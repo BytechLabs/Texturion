@@ -202,14 +202,23 @@ private fun ResponseTimeBody(
                         "leads" to report.leads.toString(),
                     ),
                     color = MaterialTheme.colorScheme.secondary,
-                    size = 22.dp,
+                    // #540: the same mark web draws — 40, with the count
+                    // inside it. At 22 the arc is an icon, and there is no room
+                    // for the figure that says what it is counting.
+                    size = 40.dp,
+                    centre = report.answered.toString(),
                     modifier = Modifier.padding(bottom = 2.dp),
                 )
             }
             Icon(
                 Icons.Outlined.Schedule,
                 contentDescription = null,
-                modifier = Modifier.size(15.dp).padding(start = 7.dp, bottom = 2.dp),
+                // #540: PADDING FIRST, THEN SIZE. Compose applies modifiers
+                // outside-in, so `.size(15.dp).padding(start = 7.dp)` gave the
+                // glyph 15 - 7 = 8dp to draw a clock face in — it rendered as an
+                // unrecognisable dot beside the number. Found by looking at a
+                // screenshot; a compile and every existing test were happy.
+                modifier = Modifier.padding(start = 7.dp, bottom = 2.dp).size(15.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(

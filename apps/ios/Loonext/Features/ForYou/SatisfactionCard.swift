@@ -149,7 +149,12 @@ struct SatisfactionCard: View {
                     label: "\(SatisfactionFormat.format(report.average)) out of 5, "
                         + "from \(report.answered) answers",
                     color: BrandColor.olive,
-                    size: 18
+                    // #540: 26, not 18. At the smaller size a 4.6-out-of-5 arc
+                    // and a closed circle are indistinguishable, so the mark
+                    // carried nothing — it read as an icon that happened to be
+                    // round. Web made this change; both phones kept the size
+                    // its own comment rejects.
+                    size: 26
                 )
                 Text(SatisfactionFormat.format(report.average))
                     .font(.golos(24, weight: .semibold))

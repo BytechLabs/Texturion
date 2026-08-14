@@ -362,6 +362,12 @@ jobs:
       - name: Guard haptics against a silent phone
         run: node scripts/check-haptic-parity.mjs
 
+      # #540: `.size(n.dp).padding(...)` takes the padding from INSIDE the box,
+      # so a 15dp clock icon drew in 8dp and read as a dot. It compiles, every
+      # test passes, and only a rendered picture shows it.
+      - name: Guard Compose modifier order
+        run: node scripts/check-compose-modifier-order.mjs
+
       # #569: an initials badge sized in fixed `dp` around a glyph sized in `sp`
       # lets the letters outgrow the box at large OS text. `InitialsAvatar` was
       # meant to be the one implementation; a survey found EIGHT hand-rolled copies,

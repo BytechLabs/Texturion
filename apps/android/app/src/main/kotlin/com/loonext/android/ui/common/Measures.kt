@@ -2,6 +2,7 @@ package com.loonext.android.ui.common
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -73,14 +75,23 @@ fun ProportionRing(
     color: Color,
     modifier: Modifier = Modifier,
     size: Dp = 22.dp,
+    /**
+     * #540: the figure INSIDE the ring, where web has always drawn one.
+     *
+     * Only legible on a ring large enough to hold it, which is why it arrives
+     * with the size change rather than before it. Absent by default, so the
+     * small rings elsewhere are unaffected.
+     */
+    centre: String? = null,
 ) {
     val safeTotal = total.coerceAtLeast(0f)
     val safeValue = value.coerceIn(0f, safeTotal)
     val fraction = if (safeTotal == 0f) 0f else safeValue / safeTotal
     val strokeDp = (size.value / 9f).coerceAtLeast(2.5f).dp
 
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
     Canvas(
-        modifier
+        Modifier
             .size(size)
             .semantics { contentDescription = label },
     ) {
@@ -112,6 +123,19 @@ fun ProportionRing(
                 style = Stroke(width = stroke, cap = StrokeCap.Round),
             )
         }
+    }
+    // The ring already SAYS the sentence to TalkBack, so the glyph is
+    // decorative to a screen reader and would otherwise be read twice.
+    centre?.let {
+        Text(
+            it,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = color,
+            modifier = Modifier.clearAndSetSemantics {},
+        )
+    }
     }
 }
 

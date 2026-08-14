@@ -151,7 +151,11 @@ struct ResponseTimeCard: View {
                             ]
                         ),
                         color: BrandColor.olive,
-                        size: 20
+                        // #540: the same mark web draws — 40, with the count
+                        // inside it. At 20 the arc is an icon, and there is no
+                        // room for the figure that says what it is counting.
+                        size: 40,
+                        centre: String(report.answered)
                     )
                 }
                 Image(systemName: "clock")

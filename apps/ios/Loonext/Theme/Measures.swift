@@ -37,6 +37,12 @@ struct ProportionRing: View {
     let label: String
     let color: Color
     var size: CGFloat = 22
+    /// #540: the figure INSIDE the ring, where web has always drawn one.
+    ///
+    /// Only legible on a ring large enough to hold it, which is why it arrives
+    /// with the size change rather than before it. Nil by default, so the small
+    /// rings elsewhere are unaffected.
+    var centre: String?
 
     private var fraction: Double {
         let safeTotal = max(0, total)
@@ -63,6 +69,15 @@ struct ProportionRing: View {
                     // From the top rather than from three o'clock, which is where
                     // every reader expects a progress ring to start.
                     .rotationEffect(.degrees(-90))
+            }
+            // The ring already SAYS the sentence to VoiceOver, so the glyph is
+            // decorative there and would otherwise be read twice.
+            if let centre {
+                Text(centre)
+                    .font(.golos(11, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+                    .accessibilityHidden(true)
             }
         }
         .padding(stroke / 2)

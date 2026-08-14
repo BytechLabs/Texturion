@@ -391,7 +391,11 @@ private fun DeviceRow(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            modifier = Modifier.size(20.dp).padding(top = 2.dp),
+            // #540: padding first, then size — the other instance of the same
+            // slip. `.size(20.dp).padding(top = 2.dp)` leaves the device glyph
+            // 18dp of height inside a 20dp box, so it draws squashed and one
+            // pixel high of where the text expects it.
+            modifier = Modifier.padding(top = 2.dp).size(20.dp),
         )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

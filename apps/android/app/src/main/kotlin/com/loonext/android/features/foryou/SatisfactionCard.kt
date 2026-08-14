@@ -230,7 +230,12 @@ private fun SatisfactionBody(
                     "count" to report.answered.toString(),
                 ),
                 color = MaterialTheme.colorScheme.secondary,
-                size = 18.dp,
+                // #540: 26, not 18. At the smaller size a 4.6-out-of-5 arc
+                // and a closed circle are indistinguishable, so the mark
+                // carried nothing — it read as an icon that happened to be
+                // round. Web made this change and both phones kept the size
+                // its own comment rejects.
+                size = 26.dp,
                 modifier = Modifier.padding(bottom = 2.dp),
             )
             Text(
