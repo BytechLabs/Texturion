@@ -49,6 +49,11 @@ vi.mock("@/lib/api/companies", () => ({
     data: state.company,
     refetch: vi.fn(),
   }),
+  // #232: the widget card asks for its key only once somebody opens it, so on
+  // this page it never resolves. Stubbed pending, which is the state these
+  // tests actually render it in.
+  useWidgetKey: () => ({ isPending: true, isError: false, data: undefined }),
+  useRotateWidgetKey: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 vi.mock("@/lib/api/numbers", () => ({
   useNumbers: () => ({

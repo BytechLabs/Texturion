@@ -194,3 +194,42 @@ export function useCloseWorkspace() {
       }),
   });
 }
+
+/**
+ * #232 — the key the embed snippet carries.
+ *
+ * Its own query rather than a field on `useCompany`, mirroring the API: the
+ * company view is fetched by every member at startup and this is only wanted by
+ * the one person installing a widget.
+ */
+export function useWidgetKey(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [...keys.company(companyId), "widget-key"],
+    queryFn: () =>
+      apiFetch<{ widget_key: string }>("/v1/company/widget-key", { companyId }),
+    enabled,
+  });
+}
+
+/**
+ * Replace it, invalidating every embed of the old one.
+ *
+ * The response carries the new key and is written straight into the cache: the
+ * one thing somebody must do immediately after rotating is paste the new
+ * snippet, and a refetch could race the write and show them the old one.
+ */
+export function useRotateWidgetKey() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ widget_key: string }>("/v1/company/widget-key/rotate", {
+        method: "POST",
+        companyId,
+      }),
+    onSuccess: (next) => {
+      queryClient.setQueryData([...keys.company(companyId), "widget-key"], next);
+    },
+  });
+}

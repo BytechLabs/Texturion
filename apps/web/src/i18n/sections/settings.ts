@@ -642,6 +642,28 @@ export const settingsEn = {
   planUpgradedManyBack: "You're on Pro, and {count} numbers are back.",
   planStarterStarts: "Starter starts {date}. You keep Pro until then.",
   planChangeFailed: "Couldn't change the plan. Try again.",
+
+  /* #232 — the Text-us widget's snippet. */
+  widgetTitle: "Text us button for your website",
+  widgetBlurb:
+    "A button on your own site that turns a visitor into a conversation here. " +
+    "They type their number, we text them a code, and their message lands in " +
+    "your inbox like any other text.",
+  widgetShow: "Get the snippet",
+  widgetStepCopy: "Copy the line below.",
+  widgetStepPaste: "Paste it into your website, just before </body>.",
+  widgetStepSave: "Save and reload your site — the button appears bottom right.",
+  widgetCopy: "Copy",
+  widgetCopied: "Copied.",
+  widgetCopyFailed: "Couldn't copy it. Select the line and copy it by hand.",
+  widgetLoadFailed: "Couldn't load your snippet. Try again.",
+  widgetRotate: "Replace the key",
+  widgetRotateWarning:
+    "The button stops working on every site using the old snippet, " +
+    "immediately. You'll need to paste the new one everywhere you installed it.",
+  widgetRotateConfirm: "Replace it",
+  widgetRotated: "Replaced. Paste the new snippet on your site.",
+  widgetRotateFailed: "Couldn't replace the key. Try again.",
 } as const;
 
 /**
@@ -1309,4 +1331,28 @@ export const settingsFr: Translated<typeof settingsEn> = {
   planStarterStarts:
     "Starter commence le {date}. Vous gardez Pro jusque-là.",
   planChangeFailed: "Impossible de changer le forfait. Réessayez.",
+
+  widgetTitle: "Bouton « Écrivez-nous » pour votre site Web",
+  widgetBlurb:
+    "Un bouton sur votre propre site qui transforme un visiteur en " +
+    "conversation ici. Il entre son numéro, nous lui envoyons un code, et son " +
+    "message arrive dans votre boîte comme n'importe quel texto.",
+  widgetShow: "Obtenir le code à coller",
+  widgetStepCopy: "Copiez la ligne ci-dessous.",
+  widgetStepPaste: "Collez-la dans votre site, juste avant </body>.",
+  widgetStepSave:
+    "Enregistrez et rechargez votre site — le bouton apparaît en bas à droite.",
+  widgetCopy: "Copier",
+  widgetCopied: "Copié.",
+  widgetCopyFailed:
+    "Impossible de copier. Sélectionnez la ligne et copiez-la à la main.",
+  widgetLoadFailed: "Impossible de charger votre code. Réessayez.",
+  widgetRotate: "Remplacer la clé",
+  widgetRotateWarning:
+    "Le bouton cessera de fonctionner sur tous les sites utilisant l'ancien " +
+    "code, immédiatement. Vous devrez coller le nouveau partout où vous l'avez " +
+    "installé.",
+  widgetRotateConfirm: "Remplacer",
+  widgetRotated: "Remplacée. Collez le nouveau code sur votre site.",
+  widgetRotateFailed: "Impossible de remplacer la clé. Réessayez.",
 };

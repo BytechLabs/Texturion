@@ -10,8 +10,10 @@ import { ProvisionNumberDialog } from "@/components/settings/provision-number-di
 import { RegistrationSection } from "@/components/settings/registration-section";
 import { LoadError, SettingsPage } from "@/components/settings/section";
 import { TextEnableSection } from "@/components/settings/text-enable-section";
+import { WebsiteWidgetCard } from "@/components/settings/website-widget-card";
 import { splitHostedNumbers } from "@/components/settings/text-enable-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { publicEnv } from "@/env";
 import { useT } from "@/i18n/provider";
 import { useHeldNumbers } from "@/lib/api/billing";
 import { useCompany } from "@/lib/api/companies";
@@ -26,8 +28,19 @@ import {
 /** SPEC §2: Pro includes 2 numbers, Starter 1. */
 const PLAN_NUMBER_LIMIT = { starter: 1, pro: 2 } as const;
 
+/**
+ * #232: where the snippet points. The configured app origin when there is one,
+ * and otherwise wherever this page is being served from — so a snippet copied
+ * out of a preview or a local run resolves instead of pointing at production.
+ */
+function widgetOrigin(): string {
+  if (publicEnv.NEXT_PUBLIC_APP_ORIGIN) return publicEnv.NEXT_PUBLIC_APP_ORIGIN;
+  return typeof window === "undefined" ? "" : window.location.origin;
+}
+
 export default function NumbersSettingsPage() {
   const t = useT();
+  const appOrigin = widgetOrigin();
   const { role } = useActiveCompany();
   const company = useCompany();
   const numbers = useNumbers();
@@ -143,6 +156,17 @@ export default function NumbersSettingsPage() {
                   after being asked to pick from it is a list they have to go
                   and find. *Applying: Prioritize Intent.* */}
               <LeadSourcesCard canEdit={role === "owner" || role === "admin"} />
+              {/* #232: on the NUMBERS page rather than a page of its own. The
+                  widget's whole job is to turn a website visitor into a
+                  conversation on one of these numbers, and a lone settings page
+                  for one button is a page nobody finds. Gated on the same
+                  capability the API gates the key with — a card that renders a
+                  403 is a worse answer than a card that is not there.
+                  *Applying: the Safety principle — put a thing where somebody
+                  would look for it.* */}
+              {roleHasCapability(role, "settings.manage") ? (
+                <WebsiteWidgetCard appOrigin={appOrigin} />
+              ) : null}
               {hasAnyNumber ? (
                 provisioned.map((number) => (
                   <NumberCard
