@@ -28,10 +28,11 @@ import { describe, expect, it } from "vitest";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
-const { findKotlinLiterals, findSwiftLiterals, isScannable } = (await import(
+const { findKotlinLiterals, findSwiftLiterals, findWebLiterals, isScannable } = (await import(
   join(REPO, "scripts", "check-hardcoded-strings.mjs")
 )) as {
   findKotlinLiterals: (source: string) => string[];
+  findWebLiterals: (source: string, path?: string) => string[];
   findSwiftLiterals: (source: string) => string[];
   isScannable: (path: string, exts: string[]) => boolean;
 };
@@ -261,6 +262,48 @@ describe("the sentence rule, which is where most of the copy actually is", () =>
     // survives because its tokens are not single repeated letters.
     expect(findKotlinLiterals('val s = "We do not have it yet"')).toContain(
       "We do not have it yet",
+    );
+  });
+});
+
+describe("the web extractor knows a generic from a tag", () => {
+  it("does not read a .ts module's interfaces as JSX text", () => {
+    /*
+     * The JSX rule matches between a `>` and the next `<` and allows newlines,
+     * which is correct for markup and catastrophic for a plain module: in
+     * `lib/api/types.ts` it ran from the `>` closing one generic to the `<`
+     * opening the next and reported every line between as copy. That file was
+     * credited with 66 literals — `export interface Membership` among them,
+     * which is not a string at all — and 66 was 53% of the entire web ledger.
+     */
+    const source = [
+      "export interface Wrapper {",
+      "  rows: Record<string, string>;",
+      "}",
+      "",
+      "export interface Membership {",
+      "  role: string;",
+      "}",
+      "",
+      "export type Bag = Array<Membership>;",
+    ].join("\n");
+    expect(findWebLiterals(source, "apps/web/src/lib/api/types.ts")).toEqual([]);
+  });
+
+  it("still reads real JSX text in a .tsx component", () => {
+    // The other half. `.ts` is scanned for rule 4's sake, and skipping the
+    // tag-shaped rules there must not blind them where tags actually live.
+    const source = "<p>Your subscription has lapsed, so this has not been sent.</p>";
+    expect(findWebLiterals(source, "apps/web/src/components/x.tsx")).toContain(
+      "Your subscription has lapsed, so this has not been sent.",
+    );
+  });
+
+  it("still reads a sentence held in a .ts module", () => {
+    // Rule 4 is exactly why `.ts` is scanned at all, so it must survive.
+    const source = 'export const copy = { lapsed: "Your subscription has lapsed." };';
+    expect(findWebLiterals(source, "apps/web/src/lib/copy.ts")).toContain(
+      "Your subscription has lapsed.",
     );
   });
 });

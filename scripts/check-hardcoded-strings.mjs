@@ -312,7 +312,7 @@ function looksLikeProse(value) {
  * precision it would buy is precision about EDGE cases; the ledger is what
  * absorbs those, and each one is visible as a count rather than hidden.
  */
-export function findWebLiterals(source) {
+export function findWebLiterals(source, path = "") {
   const found = [];
   // Strip comments so prose ABOUT the UI is not counted as UI.
   const code = source
@@ -334,7 +334,24 @@ export function findWebLiterals(source) {
    * The class still excludes `<`, `>` and braces, so a match can neither cross
    * a tag boundary nor swallow an expression; what it gains is the indent.
    */
-  for (const match of code.matchAll(/(=?)>([^<>]+)</g)) {
+  /*
+   * ONLY IN FILES THAT CAN CONTAIN JSX.
+   *
+   * In a plain `.ts` module `<` and `>` are GENERICS, not tags, and this rule's
+   * class allows newlines — so it ran from the `>` closing one `Record<…>` to
+   * the `<` opening the next, and reported every line between as JSX text.
+   * `lib/api/types.ts` was credited with 66 literals on that basis: things like
+   * `export interface Membership`, none of which is a string at all. That is
+   * 53% of the whole web ledger, pointing at a file with no user-facing copy in
+   * it.
+   *
+   * `.ts` is scanned for rule 4's sake — the sentences somebody lifted out of a
+   * component into `copy.ts` — and rule 4 needs no tags. So the tag-shaped rules
+   * are skipped where there are no tags.
+   */
+  const mayHaveJsx = !path.endsWith(".ts");
+
+  for (const match of mayHaveJsx ? code.matchAll(/(=?)>([^<>]+)</g) : []) {
     // An ARROW, not a closing tag. `() => { … }` puts a `>` in front of a body
     // that is entirely code, and every fragment after it reads as English.
     if (match[1] === "=") continue;
@@ -680,7 +697,7 @@ function scan(client) {
   const all = walk(client.root);
   for (const file of all) {
     if (!isScannable(file, client.exts)) continue;
-    const literals = client.find(readFileSync(file, "utf8"));
+    const literals = client.find(readFileSync(file, "utf8"), file);
     if (literals.length > 0) {
       literalsByFile[relative(client.root, file).replaceAll("\\", "/")] =
         literals;
