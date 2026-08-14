@@ -87,6 +87,13 @@
     ".panelwrap{position:relative}",
     ".note{margin:10px 0 0;font-size:12px;color:#5b6157}",
     ".err{margin:10px 0 0;font-size:13px;color:#a4342b}",
+    // Quiet enough to be furniture and still legible: 11px at #6b7168 on the
+    // panel's own white is 4.9:1, past AA for small text. A mark nobody can
+    // read is not a channel, and one that fails contrast is a violation we
+    // shipped onto somebody else's website.
+    ".by{margin:12px 0 0;text-align:center;font-size:11px}",
+    ".by a{color:#6b7168;text-decoration:none}",
+    ".by a:hover,.by a:focus-visible{text-decoration:underline}",
     // The honeypot. Off-screen rather than display:none, because some bots
     // skip hidden fields and the point is that they fill it in.
     ".hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}",
@@ -101,9 +108,15 @@
   wrap.innerHTML =
     '<button class="launch" type="button" aria-haspopup="dialog" aria-expanded="false">' +
     "<span></span></button>" +
-    '<div class="panelwrap"><div class="panel" role="dialog" aria-modal="true" hidden>' +
+    // `aria-labelledby`, pointing at the heading this panel already had.
+    // Without it a screen reader announces "dialog" and nothing else — axe's
+    // `aria-dialog-name`, serious, and the one violation the audit found on the
+    // expanded panel. The id is prefixed like every other in here because this
+    // markup lands inside a shadow root on somebody else's page.
+    '<div class="panelwrap"><div class="panel" role="dialog" aria-modal="true" ' +
+    'aria-labelledby="lx-title" hidden>' +
     '<button class="close" type="button" aria-label="Close">&times;</button>' +
-    "<h2></h2><p class=\"sub\"></p>" +
+    "<h2 id=\"lx-title\"></h2><p class=\"sub\"></p>" +
     '<form novalidate>' +
     '<div class="step-one">' +
     '<label for="lx-name">Your name</label>' +
@@ -124,6 +137,22 @@
     "</form>" +
     '<p class="note" role="status" aria-live="polite"></p>' +
     '<p class="err" role="alert"></p>' +
+    // #232's acquisition loop: a small mark on our customers' sites, in front
+    // of their customers, who are often small business owners themselves.
+    //
+    // INSIDE the panel, never on the collapsed bubble. The bubble sits on
+    // somebody else's homepage all day and has one job; a badge riding on it
+    // is our advertising in their layout, and the first thing an owner would
+    // ask us to remove. Here it is seen only by a visitor who has already
+    // decided to text them — the moment the product has just worked, which is
+    // the only moment a "powered by" earns anything.
+    //
+    // A plain link. No beacon, no pixel, no id: `?ref=widget` says which
+    // surface sent them and carries nothing about the person who clicked.
+    // `rel="noopener"` because it opens in a new tab, and `noreferrer` would
+    // throw away the one thing we want to know.
+    '<p class="by"><a href="https://loonext.com/?ref=widget" target="_blank" ' +
+    'rel="noopener">Powered by Loonext</a></p>' +
     "</div></div>";
   root.appendChild(wrap);
 

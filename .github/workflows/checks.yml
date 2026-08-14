@@ -685,6 +685,18 @@ jobs:
       - name: Audit both themes on rendered output
         run: node scripts/theme-audit.mjs --public
 
+      # #232 phase 5: the embed's accessibility pass and its 15KB budget, run
+      # against a stand-in customer website rather than our own app — the widget
+      # has to survive a stranger's WordPress theme, so it is loaded the way an
+      # owner loads it. Runs HERE because this job already has Chromium.
+      #
+      # Not Lighthouse. Lighthouse's accessibility category is axe with a score
+      # attached, and it would score the page as loaded — where the widget is
+      # one button and every labelled field, the live region and the focus trap
+      # do not exist yet. This opens the panel and audits that.
+      - name: Audit the website widget (a11y + bundle budget)
+        run: node scripts/check-widget-a11y.mjs
+
   # ---------------------------------------------------------------------------
   # #320: the AUTHENTICATED half of the theme audit.
   #

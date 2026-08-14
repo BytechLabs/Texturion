@@ -91,6 +91,12 @@ describe("the embed", () => {
     expect(launcher.getAttribute("aria-expanded")).toBe("true");
     expect(panel.getAttribute("role")).toBe("dialog");
     expect(panel.getAttribute("aria-modal")).toBe("true");
+    // NAMED. `role="dialog"` with no accessible name announces itself as
+    // "dialog" and nothing else — axe's `aria-dialog-name`, serious, and the
+    // one violation the browser audit found on the expanded panel. The heading
+    // it points at was already there; nothing pointed at it.
+    expect(panel.getAttribute("aria-labelledby")).toBe("lx-title");
+    expect(root.querySelector("#lx-title")).not.toBeNull();
     // The first thing a keyboard or screen-reader user needs is to BE in the
     // dialog they just opened.
     expect((root.activeElement as HTMLElement)?.id).toBe("lx-name");
@@ -138,6 +144,31 @@ describe("the embed", () => {
     expect(honeypot.getAttribute("tabindex")).toBe("-1");
     expect(SOURCE).toContain("left:-9999px");
     expect(SOURCE).not.toContain(".hp{display:none");
+  });
+
+  it("carries the mark, in the panel and never on the bubble", () => {
+    // #232's acquisition loop: a small mark on our customers' sites, in front
+    // of their customers, who are often small business owners themselves.
+    //
+    // The PLACEMENT is the rule worth pinning. The collapsed bubble sits on
+    // somebody else's homepage all day; a badge riding on it is our
+    // advertising in their layout, and the first thing an owner would ask us
+    // to remove. In the panel it is seen only by a visitor who has already
+    // decided to text them.
+    const root = mount();
+    const launcher = root.querySelector(".launch") as HTMLButtonElement;
+    expect(launcher.textContent).not.toMatch(/loonext/i);
+
+    const mark = root.querySelector(".by a") as HTMLAnchorElement;
+    expect(mark).not.toBeNull();
+    expect(mark.textContent).toBe("Powered by Loonext");
+    expect(mark.closest(".panel")).not.toBeNull();
+    // A plain link and nothing else: no beacon, no pixel, and no id. `ref`
+    // says which surface sent them and carries nothing about the person.
+    expect(mark.getAttribute("href")).toBe("https://loonext.com/?ref=widget");
+    // `noopener` because it opens a new tab. NOT `noreferrer`, which would
+    // throw away the one thing this link exists to tell us.
+    expect(mark.getAttribute("rel")).toBe("noopener");
   });
 
   it("stays inside its size budget", () => {

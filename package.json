@@ -105,6 +105,7 @@
     "gate": "node scripts/gate.mjs"
   },
   "devDependencies": {
+    "axe-core": "^4.12.1",
     "playwright": "^1.61.1"
   },
   "pnpm": {
