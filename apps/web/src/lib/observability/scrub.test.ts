@@ -195,9 +195,29 @@ describe("scrubEvent (SPEC §10: no bodies, names, or phone numbers reach Sentry
   });
 });
 
+/**
+ * A crumb this test expects to SURVIVE.
+ *
+ * #585 made `scrubBreadcrumb` return null for a console crumb, so every call
+ * site now has to say which outcome it expects. This says kept, and fails with
+ * the crumb printed rather than throwing on a property of null — so a future
+ * change that starts dropping one of these reads as a sentence instead of a
+ * TypeError. Mirrors the helper in apps/api/src/observability/sentry.test.ts.
+ */
+function kept(breadcrumb: Parameters<typeof scrubBreadcrumb>[0]) {
+  const crumb = scrubBreadcrumb(breadcrumb);
+  if (crumb === null) {
+    throw new Error(
+      `scrubBreadcrumb dropped a crumb this test expects to survive: ` +
+        JSON.stringify(breadcrumb),
+    );
+  }
+  return crumb;
+}
+
 describe("scrubBreadcrumb (beforeBreadcrumb defense-in-depth)", () => {
   it("redacts phones in message and data", () => {
-    const crumb = scrubBreadcrumb({
+    const crumb = kept({
       message: `sms to ${PHONE}`,
       data: { name: "Jane" },
     });
@@ -206,7 +226,7 @@ describe("scrubBreadcrumb (beforeBreadcrumb defense-in-depth)", () => {
   });
 
   it("cuts query strings from url/from/to before the crumb is stored", () => {
-    const fetchCrumb = scrubBreadcrumb({
+    const fetchCrumb = kept({
       category: "fetch",
       data: { url: "https://api.loonext.com/v1/search?q=Jane%20Doe", method: "GET" },
     });
@@ -215,11 +235,80 @@ describe("scrubBreadcrumb (beforeBreadcrumb defense-in-depth)", () => {
       method: "GET",
     });
 
-    const navCrumb = scrubBreadcrumb({
+    const navCrumb = kept({
       category: "navigation",
       data: { from: "/inbox?q=Jane+Doe", to: "/inbox?q=Jane+Doe&page=2" },
     });
     expect(navCrumb.data).toEqual({ from: "/inbox", to: "/inbox" });
+  });
+});
+
+/*
+ * #585 — a URL cannot reach Sentry through a console breadcrumb.
+ *
+ * The Worker half shipped first and this side was left behind, which nobody
+ * noticed because the parity test below compares the token prefixes and the two
+ * regexes and has never compared the BREADCRUMB rule. The leak was live: 
+ * `components/tasks/views/map-island.tsx` logs `Sample: ${sample}` where sample
+ * is a basemap tile URL.
+ *
+ * The crumb shapes here are the ones `breadcrumbsIntegration` actually builds
+ * (`{ category: "console", message, data: { arguments, logger } }`), not a
+ * shape invented for the test — a test that plants a crumb the SDK never
+ * produces proves nothing about the SDK.
+ */
+describe("#585 a URL cannot reach Sentry through a console crumb", () => {
+  it("drops a console crumb carrying a URL in its message", () => {
+    expect(
+      scrubBreadcrumb({
+        category: "console",
+        level: "error",
+        message: "#428 basemap tiles are not loading (3 failures). Sample: https://tile.example.com/12/34/56.png?key=abc",
+        data: { logger: "console" },
+      }),
+    ).toBeNull();
+  });
+
+  it("drops a console crumb carrying a URL inside data.arguments", () => {
+    // The argument array is where the RAW values sit. `scrubUnknown` walks it
+    // for phone numbers only, and no key in it ever matches URL_KEY_PATTERN.
+    expect(
+      scrubBreadcrumb({
+        category: "console",
+        level: "error",
+        message: "tiles failed",
+        data: {
+          arguments: ["tiles failed", "https://tile.example.com/12/34/56.png?q=Jane+Doe"],
+          logger: "console",
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("drops an ordinary console crumb too, because the rule is structural", () => {
+    // Not a filter on URL-shaped text: a pattern list is a vocabulary and the
+    // next thing worth redacting is always the one not in it.
+    expect(
+      scrubBreadcrumb({ category: "console", level: "log", message: "hello" }),
+    ).toBeNull();
+  });
+
+  it("keeps the fetch crumb, which is the one that carries the trail", () => {
+    expect(kept({ category: "fetch", data: { url: "https://api.loonext.com/v1/me" } }))
+      .not.toBeNull();
+  });
+
+  it("filters console crumbs out of an event, not just off the scope", () => {
+    // Crumbs already on the scope reach `beforeSend` inside the event, so the
+    // rule has to hold in both places. A `.map` here would leave a null hole.
+    const event = scrubEvent({
+      breadcrumbs: [
+        { category: "console", message: "https://tile.example.com/a.png" },
+        { category: "fetch", data: { url: "https://api.loonext.com/v1/me" } },
+      ],
+    } as Parameters<typeof scrubEvent>[0]);
+    expect(event.breadcrumbs).toHaveLength(1);
+    expect(event.breadcrumbs?.[0]?.category).toBe("fetch");
   });
 });
 
@@ -238,6 +327,50 @@ describe("#296 the duplicated allow-list cannot drift", () => {
       expect(sanitizeAttributionValue(bad)).toBeNull();
       expect(stripQueryAndHash(`/x?utm_source=${encodeURIComponent(bad)}`)).toBe("/x");
     }
+  });
+});
+
+describe("#585 the two clients' breadcrumb rules cannot drift apart", () => {
+  /*
+   * The check that was missing, and its absence is why this took a second pass.
+   *
+   * The Worker learned to drop console crumbs in 9739c944 and the browser did
+   * not. Nothing failed, because the parity tests in this file compare the
+   * token prefixes and the two regexes and had never compared the BREADCRUMB
+   * rule — so a promise in SPEC §10 held on one client and not the other, with
+   * a live call site interpolating a tile URL into console.error.
+   *
+   * Read off the API source rather than asserted as prose. A comment saying
+   * the two agree is the thing that was already there and was already wrong:
+   * this file's own header said "No drift as of 2026-08-09", which was the day
+   * the drift was introduced.
+   */
+  const API_SCRUB = join(
+    __dirname,
+    "../../../../../apps/api/src/observability/sentry.ts",
+  );
+
+  it("the API really does drop console crumbs, and this test can see it", () => {
+    // Coverage before verdict: if the file moves or the rule is rewritten in
+    // some other shape, this must fail loudly rather than quietly comparing
+    // nothing and passing.
+    const source = readFileSync(API_SCRUB, "utf8");
+    expect(
+      source.includes('breadcrumb.category === "console"'),
+      "apps/api/src/observability/sentry.ts no longer contains the console rule " +
+        "this test reads — find where it went before deleting this assertion",
+    ).toBe(true);
+  });
+
+  it("drops the same console crumb the API drops", () => {
+    // The behaviour, not the source text. Both sides are handed the shape
+    // `breadcrumbsIntegration` and `consoleIntegration` actually build.
+    const crumb = {
+      category: "console" as const,
+      message: "Sample: https://tile.example.com/12/34/56.png",
+      data: { arguments: ["Sample:", "https://tile.example.com/12/34/56.png"] },
+    };
+    expect(scrubBreadcrumb(crumb)).toBeNull();
   });
 });
 

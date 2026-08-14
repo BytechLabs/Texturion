@@ -6,17 +6,25 @@
  * sync with apps/api/src/observability/sentry.ts (same patterns, same
  * markers; only the Sentry SDK the types come from differs).
  *
- * No drift as of 2026-08-09, and the note that used to sit here is worth
- * remembering rather than deleting silently. It recorded that this file strips
- * query strings from URL-carrying fields and the Worker did not — a real gap,
- * written down, in both files, for a year. Every outbound fetch the Worker made
- * breadcrumbed its full URL: a customer's street address to the geocoder, a
- * typed search term, and a presigned URL to a recorded voicemail.
+ * THIS HEADER HAS NOW BEEN WRONG TWICE, THE SAME WAY, AND THAT IS THE POINT.
  *
- * It survived because it was PROSE. The token-prefix list these two share had a
- * test comparing both files and stayed in step; the URL treatment had a comment
- * and did not. `scrub.test.ts` now compares the source of both patterns, so the
- * next divergence fails a build instead of being described in a header.
+ * The first note recorded that this file strips query strings from URL-carrying
+ * fields and the Worker did not — a real gap, written down in both files, for a
+ * year. Every outbound fetch the Worker made breadcrumbed its full URL: a
+ * customer's street address to the geocoder, a typed search term, a presigned
+ * URL to a recorded voicemail. It survived because it was PROSE. The
+ * token-prefix list these two share had a test comparing both files and stayed
+ * in step; the URL treatment had a comment and did not.
+ *
+ * Its replacement then said "No drift as of 2026-08-09" — which was the very day
+ * #585 taught the Worker to drop console breadcrumbs and left this file behind.
+ * A sentence asserting parity was the only thing standing where a test should
+ * have been, for the second time, in the same file, about the same two clients.
+ *
+ * So `scrub.test.ts` now compares the BEHAVIOUR of both breadcrumb rules as well
+ * as the source of both URL patterns, and reads the Worker's rule off disk with
+ * a coverage assertion in front of it. Do not replace these tests with a claim
+ * about them.
  */
 import type { Breadcrumb, ErrorEvent } from "@sentry/browser";
 
@@ -181,7 +189,46 @@ export function scrubUnknown(value: unknown): unknown {
   return value;
 }
 
-export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb {
+/**
+ * `beforeBreadcrumb`.
+ *
+ * # Console crumbs are DROPPED, exactly as the Worker drops them (#585)
+ *
+ * `breadcrumbsIntegration` is a default in `@sentry/browser` with `console:
+ * true`, and it builds the identical shape the Worker refuses: a formatted
+ * `message` plus a `data.arguments` array of the raw values. Everything else in
+ * this file is keyed on a field NAME — `url`, `*_name` — and free text has no
+ * field name, so a URL interpolated into a log line walks straight past all of
+ * it. `data.arguments` is an array, so `scrubUnknown` maps its strings through
+ * `redactPhones` and no key ever matches `URL_KEY_PATTERN`.
+ *
+ * That was not hypothetical. `components/tasks/views/map-island.tsx` logs
+ * `#428 basemap tiles are not loading (…). Sample: ${sample}` where `sample` is
+ * a tile URL, and that line reached Sentry whole.
+ *
+ * The full reasoning for dropping rather than pattern-matching is written once,
+ * at `apps/api/src/observability/sentry.ts`: a pattern list is a vocabulary and
+ * the next thing worth redacting is always the one not in it, while SPEC §10
+ * states as a COMMITMENT that names, addresses and message bodies never reach
+ * Sentry. A commitment cannot rest on a definitionally incomplete matcher.
+ *
+ * # Where the browser's trade differs from the Worker's, and it is worse
+ *
+ * The Worker can afford this cheaply: `consoleIntegration` instruments console
+ * rather than replacing it, so every `console.error` still lands in Cloudflare
+ * Workers Logs in full. **A browser has no such log store.** What is lost here
+ * is lost, not relocated.
+ *
+ * It is still the right trade, because the thing being protected is a promise
+ * about a customer's data and the thing being spent is a developer's
+ * convenience — but it is a real cost and is recorded rather than glossed. The
+ * remedy when a console line genuinely matters for debugging is to capture it
+ * deliberately, with the fields named, so the scrubbers above can see them.
+ */
+export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb | null {
+  // Returning null drops the crumb — `addBreadcrumb` bails on a null
+  // `beforeBreadcrumb` result before it ever reaches the scope.
+  if (breadcrumb.category === "console") return null;
   if (breadcrumb.message) {
     breadcrumb.message = redactPhones(breadcrumb.message);
   }
@@ -221,7 +268,13 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
     }
   }
   if (event.breadcrumbs) {
-    event.breadcrumbs = event.breadcrumbs.map(scrubBreadcrumb);
+    // FILTER, not map: `scrubBreadcrumb` now returns null for a console crumb,
+    // and a mapped null would leave a hole in the array rather than removing
+    // the entry. Crumbs already on the scope when an event is built pass
+    // through here, so this is the second place the console rule has to hold.
+    event.breadcrumbs = event.breadcrumbs
+      .map(scrubBreadcrumb)
+      .filter((crumb): crumb is Breadcrumb => crumb !== null);
   }
   if (event.request) {
     delete event.request.data; // page payloads never leave the browser (§10)

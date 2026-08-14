@@ -670,14 +670,20 @@ export const handler = {
         // Reporting must never mask the response.
       }
       // The PATH, never the full URL — the same cut the `route` tag above makes,
-      // for the same reason and by a route the scrubber cannot reach. Sentry's
-      // `consoleIntegration` is a default integration and turns this line into a
-      // breadcrumb carrying both the formatted message and `data.arguments`, an
-      // array of bare strings. `scrubBreadcrumb` keys off FIELD NAMES to find a
-      // URL, so it sees neither: a query string in here would go to Sentry
-      // untouched, which is what `?q=<a customer's street address>` looks like
-      // when it lands in a third-party log. SPEC §10 says addresses never reach
-      // Sentry, and this is the one path where honouring that is the caller's job.
+      // and still the caller's job even though the breadcrumb no longer leaves.
+      //
+      // This comment used to say the reason was that `scrubBreadcrumb` keys off
+      // FIELD NAMES and free text has none, so a query string here would reach
+      // Sentry untouched. That stopped being true when #585 made the scrubber
+      // drop console crumbs outright, and the comment was not updated with it —
+      // so it described a mechanism that no longer existed.
+      //
+      // The rule survives its old justification. This line still goes to
+      // Cloudflare Workers Logs in full, where a query string carrying
+      // `?q=<a customer's street address>` is retained under our own retention
+      // rather than a third party's; SPEC §10 is about where a customer's data
+      // ends up, not only about Sentry. Cutting at the path is cheap and keeps
+      // the promise on both destinations.
       console.error(
         `[fetch-guard] uncaught ${request.method} ${new URL(request.url).pathname} ` +
           `ray=${rayId ?? "-"}:`,
