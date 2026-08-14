@@ -603,6 +603,66 @@ companiesRoutes.get("/company", requireCapability("workspace.access"), async (c)
   return c.json(company);
 });
 
+/**
+ * #232 — the key that goes in the embed snippet, and the button that replaces it.
+ *
+ * ## Why it is not on the company view
+ *
+ * `GET /company` is read by every member on every client at startup. The widget
+ * key is public in the sense that it ends up in a page's source, but that is
+ * not a reason to hand it to a bookkeeper's phone on every cold start — and the
+ * ROTATE below is the reason it needs a capability of its own: replacing the
+ * key breaks every embed of the old one on the customer's website, which is a
+ * settings act with an outage attached, not a read.
+ *
+ * `settings.manage` for both. Reading the key is how somebody installs the
+ * widget; the same person is the one who would rotate it.
+ */
+companiesRoutes.get(
+  "/company/widget-key",
+  requireCapability("settings.manage"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const { data, error } = await db
+      .from("companies")
+      .select("widget_key")
+      .eq("id", c.get("companyId"))
+      .maybeSingle();
+    if (error) throw new Error(`widget key read failed: ${error.message}`);
+    const row = data as { widget_key?: string } | null;
+    if (!row?.widget_key) return errorResponse(c, "not_found", "No such company.");
+    return c.json({ widget_key: row.widget_key });
+  },
+);
+
+/**
+ * Rotate it.
+ *
+ * DESTRUCTIVE IN A WAY A READ IS NOT: every embed carrying the old key stops
+ * working the moment this returns, which is the entire point — an abused key
+ * has to be revocable — and also the reason the client has to say so before
+ * anybody presses it. The new key is returned so the snippet on screen updates
+ * without a refetch, because the one thing somebody must do immediately after
+ * rotating is paste the new snippet.
+ */
+companiesRoutes.post(
+  "/company/widget-key/rotate",
+  requireCapability("settings.manage"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const { data, error } = await db
+      .from("companies")
+      .update({ widget_key: crypto.randomUUID() })
+      .eq("id", c.get("companyId"))
+      .select("widget_key")
+      .maybeSingle();
+    if (error) throw new Error(`widget key rotate failed: ${error.message}`);
+    const row = data as { widget_key?: string } | null;
+    if (!row?.widget_key) return errorResponse(c, "not_found", "No such company.");
+    return c.json({ widget_key: row.widget_key });
+  },
+);
+
 // #214: per-company AI enrichment opt-in. Reads are member-visible (the task
 // composer needs to know which enrichments are on before calling /tasks/enrich);
 // writes are admin-only — it is company config that spends money. Defaults to

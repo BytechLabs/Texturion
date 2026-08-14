@@ -662,6 +662,73 @@ describe("GET /v1/company", () => {
  * the redaction lives there rather than at a route gate — /v1/me is
  * company-exempt and has no role for a gate to read.
  */
+describe("#232 the widget key", () => {
+  it("is readable by somebody who can manage settings", async () => {
+    // The key ends up in a page's source, so it is public in effect — but it
+    // is behind `settings.manage` because the person who reads it is the
+    // person installing the widget, and the rotate beside it is destructive.
+    const sb = stubWithRole("owner");
+    sb.on("GET", "/rest/v1/companies", () => [
+      { widget_key: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company/widget-key", {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      widget_key: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+    });
+  });
+
+  it("is not readable by a member who cannot manage settings", async () => {
+    // A bookkeeper or a tech has no reason to hold the key that identifies the
+    // workspace's embeds, and the rotate on the same capability is an outage.
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company/widget-key", {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns the NEW key when rotated, so the snippet on screen is the live one", async () => {
+    // The one thing somebody must do immediately after rotating is paste the
+    // new snippet. Returning the key means the screen can update without a
+    // refetch that might race the write.
+    const sb = stubWithRole("owner");
+    let updated: unknown = null;
+    sb.on("PATCH", "/rest/v1/companies", (call) => {
+      updated = call.body;
+      return [{ widget_key: "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb" }];
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/company/widget-key/rotate",
+      { companyId: COMPANY_ID, method: "POST" },
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      widget_key: "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb",
+    });
+    // The new key is minted SERVER-side. A client-supplied one would let a
+    // caller choose a key somebody else's embed already carries.
+    expect(updated).toHaveProperty("widget_key");
+    expect(String((updated as { widget_key: string }).widget_key)).toMatch(
+      /^[0-9a-f-]{36}$/,
+    );
+  });
+});
+
 describe("GET /v1/company — billing fields follow billing.manage (#515)", () => {
   /** Every money column, populated, so redaction has something to remove. */
   const COMMERCIAL_ROW = {
