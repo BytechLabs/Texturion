@@ -463,6 +463,15 @@ jobs:
       - name: Guard locale forwarding
         run: node scripts/check-locale-forwarding.mjs
 
+      # There is no Swift compiler on a developer machine here — CI's `Gate /
+      # iOS` is the only build, and a round trip to it is ~15 minutes. So the
+      # cheap classes of Swift mistake are worth catching in the fast job. This
+      # one cost a near-miss during #228: `AppStrings.en[…]` added to a test that
+      # imports XCTest and nothing else, deliberately, because it is a source
+      # scan.
+      - name: Guard Swift test imports
+        run: node scripts/check-swift-test-imports.mjs
+
       # #522: three passes over the same class. #328 found plan prices typed as
       # "$29/mo" on both phones; #522 found the registration fee typed as "$29"
       # while Stripe invoices a Canadian workspace CA$39, and the extra-number
