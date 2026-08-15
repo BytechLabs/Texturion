@@ -15,7 +15,7 @@ import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateOnCallShift,
@@ -79,6 +79,9 @@ function formatUntil(iso: string): string {
 
 export function OnCallCard({ canEdit }: { canEdit: boolean }) {
   const t = useT();
+  // #228: the shared on-call copy names catalogue keys, so this says them in
+  // the reader's language.
+  const say = sayWith(t);
   const shifts = useOnCallShifts();
   const members = useMembers();
   const create = useCreateOnCallShift();
@@ -120,15 +123,15 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
 
   return (
     <SettingsCard
-      title={ON_CALL_COPY.heading}
-      description={ON_CALL_COPY.escalation}
+      title={say(ON_CALL_COPY.heading)}
+      description={say(ON_CALL_COPY.escalation)}
     >
       {shifts.isPending ? (
         <Skeleton className="h-5 w-64" />
       ) : live ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-[14px] text-app-ink">
-            {onCallLine(nameOf(live.user_id), formatUntil(live.ends_at))}
+            {onCallLine(nameOf(live.user_id), formatUntil(live.ends_at), say)}
           </p>
           {canEdit ? (
             <Button
@@ -143,7 +146,7 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
         </div>
       ) : (
         // Not "no shifts". The sentence says what the current state costs.
-        <p className="text-[14px] text-app-muted-2">{ON_CALL_COPY.nobody}</p>
+        <p className="text-[14px] text-app-muted-2">{say(ON_CALL_COPY.nobody)}</p>
       )}
 
       {upcoming.length > 0 ? (
@@ -203,14 +206,14 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
             ))}
           </div>
           <p className={cn("text-[12px] text-app-muted-2")}>
-            {ON_CALL_PRESETS.map((preset) => `${preset.label}: ${preset.detail}`).join(
+            {ON_CALL_PRESETS.map((preset) => `${say(preset.label)}: ${say(preset.detail)}`).join(
               " · ",
             )}
           </p>
         </div>
       ) : (
         <p className="mt-3 text-[12px] text-app-muted-2">
-          {ON_CALL_COPY.read_only}
+          {say(ON_CALL_COPY.read_only)}
         </p>
       )}
     </SettingsCard>

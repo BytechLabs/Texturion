@@ -20,15 +20,17 @@ export interface OnCallWindow {
 }
 
 /** The choices, in the order a crew thinks of them. */
+import type { SayKey } from "./support";
+
 export const ON_CALL_PRESETS: {
   key: OnCallPreset;
   label: string;
   /** What it means, said out loud — the hours are the whole content. */
   detail: string;
 }[] = [
-  { key: "tonight", label: "Tonight", detail: "6pm until 8am tomorrow" },
-  { key: "weekend", label: "This weekend", detail: "Friday 6pm until Monday 8am" },
-  { key: "week", label: "The next 7 days", detail: "Starting now" },
+  { key: "tonight", label: "domain.onCallPresetTonight", detail: "domain.onCallPresetTonightDetail" },
+  { key: "weekend", label: "domain.onCallPresetWeekend", detail: "domain.onCallPresetWeekendDetail" },
+  { key: "week", label: "domain.onCallPresetWeek", detail: "domain.onCallPresetWeekDetail" },
 ];
 
 /** When the evening shift starts and ends, in workspace-local hours. */
@@ -101,23 +103,20 @@ export function onCallWindow(
  * somebody forgot to fill.
  */
 export const ON_CALL_COPY = {
-  heading: "On call",
+  heading: "settingsMore.onCallTitle",
   /** Nobody holding it. States the consequence, because that is the decision. */
-  nobody:
-    "Nobody is on call, so an after-hours call wakes everyone who can see the " +
-    "number. Put one person on and the rest get a quiet night.",
+  nobody: "domain.onCallNobody",
   /** Somebody is, and this is only ever shown with their name in front. */
-  until: "on call until",
+  until: "domain.onCallUntil",
   /** The escalation promise, so an owner knows the risk they are taking. */
-  escalation:
-    "If they do not pick it up, everyone else is told a few minutes later.",
+  escalation: "domain.onCallEscalation",
   /** A member looking at a card they cannot change. */
-  read_only: "Only an owner or admin can change who is on call.",
+  read_only: "domain.onCallReadOnly",
 } as const;
 
 /** "Dana is on call until 8:00 AM" — assembled in one place, not three. */
-export function onCallLine(name: string, until: string): string {
-  return `${name} is ${ON_CALL_COPY.until} ${until}`;
+export function onCallLine(name: string, until: string, say: SayKey): string {
+  return say("domain.onCallLine").replace("{name}", name).replace("{until}", until);
 }
 
 /**
@@ -133,16 +132,16 @@ export function onCallLine(name: string, until: string): string {
  */
 export const ALERT_BANNER_COPY = {
   /** Unclaimed. Says what is owed, not what happened. */
-  waiting: "Nobody has picked this up yet",
+  waiting: "domain.onCallBannerWaiting",
   /** The action. First person, because that is what tapping it means. */
-  claim: "I have this",
+  claim: "domain.onCallBannerClaim",
   /** Claimed by somebody else — the sentence that stops a second callback. */
-  taken: "has this",
+  taken: "domain.onCallBannerTaken",
   /** Claimed by you. Confirms it stuck, and that the others were told. */
-  yours: "You have this. The rest of the crew has been told.",
+  yours: "domain.onCallBannerYours",
 } as const;
 
 /** "Sam has this" — one place, so three clients cannot word it differently. */
-export function alertTakenLine(name: string): string {
-  return `${name} ${ALERT_BANNER_COPY.taken}`;
+export function alertTakenLine(name: string, say: SayKey): string {
+  return say("domain.onCallTakenLine").replace("{name}", name);
 }

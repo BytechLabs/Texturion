@@ -26,6 +26,32 @@ import type { Translated } from "../translated";
 
 export const domainEn = {
   /*
+   * #244 — who is on call, and the banner that turns 'somebody should call these people' into 'I have this'. Both phones have said these since #228 reached them. The two assembled lines are TEMPLATE keys rather than concatenations: putting the subject first and the clause after is English word order stated as code.
+   */
+  onCallBannerClaim: "I have this",
+  onCallBannerTaken: "has this",
+  onCallBannerWaiting: "Nobody has picked this up yet",
+  onCallBannerYours: "You have this. The rest of the crew has been told.",
+  onCallEscalation: "If they do not pick it up, everyone else is told a few minutes later.",
+  onCallLine: "{name} is on call until {until}",
+  onCallNobody: "Nobody is on call, so an after-hours call wakes everyone who can see the number. Put one person on and the rest get a quiet night.",
+  onCallPresetTonight: "Tonight",
+  onCallPresetTonightDetail: "6pm until 8am tomorrow",
+  onCallPresetWeek: "The next 7 days",
+  onCallPresetWeekDetail: "Starting now",
+  onCallPresetWeekend: "This weekend",
+  onCallPresetWeekendDetail: "Friday 6pm until Monday 8am",
+  onCallReadOnly: "Only an owner or admin can change who is on call.",
+  onCallSilenceCancel: "Leave it on",
+  onCallSilenceChannelEmail: "Emails",
+  onCallSilenceChannelPush: "Push alerts",
+  onCallSilenceConfirm: "Turn it off anyway",
+  onCallSilenceWarning: "You're on call right now. {what} are how a new customer nobody has answered reaches you, and with this off those pages go nowhere — no one else is told. Hand the shift over first if you need to be unreachable.",
+  onCallTakenLine: "{name} has this",
+  onCallUntil: "on call until",
+
+
+  /*
    * #537 — confirming a handover of the business. Both phones have said these since #228 reached them; the web imported the shared constants and rendered whatever English came back.
    */
   handoverField: "Six-digit code",
@@ -246,6 +272,29 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  onCallBannerClaim: "Je m'en occupe",
+  onCallBannerTaken: "s'en occupe",
+  onCallBannerWaiting: "Personne ne s'en est encore occupé",
+  onCallBannerYours: "Vous vous en occupez. Le reste de l'équipe a été prévenu.",
+  onCallEscalation: "Si cette personne ne répond pas, tout le monde est prévenu quelques minutes plus tard.",
+  onCallLine: "{name} est de garde jusqu'à {until}",
+  onCallNobody: "Personne n'est de garde, alors un appel en dehors des heures réveille toutes les personnes qui voient le numéro. Mettez une seule personne de garde et le reste de l'équipe passe une nuit tranquille.",
+  onCallPresetTonight: "Ce soir",
+  onCallPresetTonightDetail: "De 18 h à 8 h demain",
+  onCallPresetWeek: "Les 7 prochains jours",
+  onCallPresetWeekDetail: "À partir de maintenant",
+  onCallPresetWeekend: "Cette fin de semaine",
+  onCallPresetWeekendDetail: "Du vendredi 18 h au lundi 8 h",
+  onCallReadOnly: "Seul un propriétaire ou un administrateur peut changer qui est de garde.",
+  onCallSilenceCancel: "La laisser activée",
+  onCallSilenceChannelEmail: "Les courriels",
+  onCallSilenceChannelPush: "Les alertes push",
+  onCallSilenceConfirm: "La désactiver quand même",
+  onCallSilenceWarning: "Vous êtes de garde en ce moment. {what} sont la façon dont un nouveau client à qui personne n'a répondu vous joint. Avec ce réglage désactivé, ces appels ne mènent nulle part et personne d'autre n'est prévenu. Passez le quart à quelqu'un d'abord si vous devez être injoignable.",
+  onCallTakenLine: "{name} s'en occupe",
+  onCallUntil: "de garde jusqu'à",
+
+
   handoverField: "Code à six chiffres",
   handoverRejected: "Ce code n'a pas fonctionné. Demandez-en un nouveau et réessayez.",
   handoverResend: "Envoyer de nouveau",

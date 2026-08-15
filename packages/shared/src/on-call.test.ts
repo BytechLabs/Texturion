@@ -1,6 +1,26 @@
 import { describe, expect, it } from "vitest";
 
-import { onCallWindow } from "./on-call";
+import {
+  ALERT_BANNER_COPY,
+  ON_CALL_COPY,
+  ON_CALL_PRESETS,
+  alertTakenLine,
+  onCallLine,
+  onCallWindow,
+} from "./on-call";
+
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/* #228 — this module names keys, so the assertions resolve them. */
+function lookUp(table: unknown, key: string, lang: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  return value;
+}
+
+const say = (key: string): string => lookUp(WEB_EN, key, "English");
+const sayFr = (key: string): string => lookUp(WEB_FR, key, "French");
 
 /** Toronto in August: UTC-4, so a -240 minute offset. */
 const TORONTO = -240;
@@ -78,5 +98,55 @@ describe("onCallWindow", () => {
         }
       }
     }
+  });
+});
+
+describe("#228 the on-call copy reads in both languages", () => {
+  it("resolves every preset, every line and every banner state", () => {
+    const keys = [
+      ...ON_CALL_PRESETS.flatMap((preset) => [preset.label, preset.detail]),
+      ...Object.values(ON_CALL_COPY),
+      ...Object.values(ALERT_BANNER_COPY),
+    ];
+    for (const key of keys) {
+      expect(say(key).length, key).toBeGreaterThan(0);
+      expect(sayFr(key).length, key).toBeGreaterThan(0);
+      expect(sayFr(key), `${key} is not translated`).not.toBe(say(key));
+    }
+    expect(keys.length).toBeGreaterThan(12);
+  });
+
+  it("gives each preset its own label and its own hours", () => {
+    // Three presets sharing a label would satisfy every assertion above while
+    // making the picker unusable — and the hours ARE the content here, so two
+    // presets sharing a detail is the same defect one line down.
+    const labels = ON_CALL_PRESETS.map((preset) => say(preset.label));
+    const details = ON_CALL_PRESETS.map((preset) => say(preset.detail));
+    expect(new Set(labels).size).toBe(ON_CALL_PRESETS.length);
+    expect(new Set(details).size).toBe(ON_CALL_PRESETS.length);
+  });
+
+  it("assembles both lines from a template rather than by concatenation", () => {
+    // The reason these are template keys: a name and a clause joined with a
+    // space is English word order written as code. Asserting the NAME survives
+    // and the sentence differs by language is what proves the template is doing
+    // the joining rather than the function.
+    expect(onCallLine("Dana", "8:00 AM", say)).toContain("Dana");
+    expect(onCallLine("Dana", "8:00 AM", say)).toContain("8:00 AM");
+    expect(onCallLine("Dana", "8:00 AM", sayFr)).toContain("Dana");
+    expect(onCallLine("Dana", "8:00 AM", sayFr)).not.toBe(
+      onCallLine("Dana", "8:00 AM", say),
+    );
+
+    expect(alertTakenLine("Sam", say)).toContain("Sam");
+    expect(alertTakenLine("Sam", sayFr)).toContain("Sam");
+    expect(alertTakenLine("Sam", sayFr)).not.toBe(alertTakenLine("Sam", say));
+  });
+
+  it("still says nobody is on call as a consequence, not a status", () => {
+    // "Nobody is on call" alone is a fact. The sentence exists to say what it
+    // COSTS — everyone gets woken — because that is the decision being made.
+    expect(say(ON_CALL_COPY.nobody)).toMatch(/wakes everyone/i);
+    expect(sayFr(ON_CALL_COPY.nobody)).toMatch(/réveille|tout le monde/i);
   });
 });

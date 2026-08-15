@@ -13,6 +13,12 @@
 import type { Translated } from "../translated";
 
 export const settingsMoreEn = {
+  /*
+   * #244 — the on-call card's heading. Both phones read it from settingsMore.onCallTitle; the shared module held the English.
+   */
+  onCallTitle: "On call",
+
+
   beforeSwitch: "Before your number switches",
   cutoverKeepOld: "Keep your old service active.",
   cutoverKeepOldDetail: "Cancelling before the transfer finishes can release the number back to the carrier, and that is the one way to genuinely lose it.",
@@ -1194,6 +1200,9 @@ export const settingsMoreEn = {
 } as const;
 
 export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
+  onCallTitle: "De garde",
+
+
   beforeSwitch: "Avant la bascule de votre numéro",
   cutoverKeepOld: "Gardez votre ancien service actif.",
   cutoverKeepOldDetail: "Annuler avant la fin du transfert peut rendre le numéro au fournisseur, et c'est la seule façon de le perdre pour de bon.",

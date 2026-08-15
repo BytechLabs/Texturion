@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { ALERT_BANNER_COPY, alertTakenLine } from "@loonext/shared";
 
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useAcknowledgeAlert } from "@/lib/api/on-call";
 import { cn } from "@/lib/utils";
@@ -53,6 +53,9 @@ export function AlertBanner({
 }) {
   const acknowledge = useAcknowledgeAlert(conversationId);
   const t = useT();
+  // #228: the shared on-call copy names catalogue keys, so this says them in
+  // the reader's language.
+  const say = sayWith(t);
 
   // Absent on nearly every thread, and reserving space for it would be a
   // permanent cost paid for a rare event.
@@ -67,8 +70,12 @@ export function AlertBanner({
       // with extra steps.
       toast.success(
         result.outcome === "already_acknowledged"
-          ? alertTakenLine("Somebody else")
-          : ALERT_BANNER_COPY.yours,
+          // "Somebody else" is the NAME slot of the sentence and has no key on
+          // any client — an extraction gap, not a dropped argument, and the
+          // phones carry the same literal. The sentence around it is the
+          // reader's now.
+          ? alertTakenLine("Somebody else", say)
+          : say(ALERT_BANNER_COPY.yours),
       );
     } catch (cause) {
       toast.error(
@@ -92,7 +99,7 @@ export function AlertBanner({
         aria-hidden
       />
       <p className="flex-1 text-[13px] text-app-ink">
-        {ALERT_BANNER_COPY.waiting}
+        {say(ALERT_BANNER_COPY.waiting)}
         {pagedName && paged !== viewerId ? (
           <span className="text-app-muted-2">
             {" · "}
@@ -106,7 +113,7 @@ export function AlertBanner({
         disabled={acknowledge.isPending}
         className="tap-target rounded-app-input bg-app-ink px-3 py-1 text-[13px] font-semibold text-app-paper transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        {ALERT_BANNER_COPY.claim}
+        {say(ALERT_BANNER_COPY.claim)}
       </button>
     </div>
   );
