@@ -52,6 +52,7 @@ import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { answerersByCall } from "../calls/answerers";
 import { getDb } from "../db";
+import { emitWebhookEvent } from "../webhooks/outbound";
 import { getEnv, type Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage, encodeCursor } from "../http/pagination";
@@ -1562,6 +1563,25 @@ contactsRoutes.post("/contacts", requireCapability("conversations.note"), async 
           .select(CONTACT_COLUMNS),
         "contact upsert",
       );
+  // #243: only on the branch that made a live contact where there was none.
+  // The `live` branch above is an EDIT, and an integration told a contact was
+  // created every time somebody fixes a typo in a name is one that creates a
+  // duplicate in the CRM every time. A resurrect counts as a creation, because
+  // from outside this system that is exactly what it is.
+  //
+  // Fire-and-forget: this path has a response somebody is waiting on, and a
+  // webhook subscription must never be what stands between them and it.
+  if (!live) {
+    emitWebhookEvent(c, db, {
+      companyId,
+      type: "contact.created",
+      data: {
+        contact_id: rows[0]?.id,
+        phone_e164: phone,
+        name: body.name ?? null,
+      },
+    });
+  }
   return c.json(rows[0], 201);
 });
 

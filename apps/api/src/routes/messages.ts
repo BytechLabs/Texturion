@@ -48,6 +48,7 @@ import {
 } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
+import { enqueueWebhookEvent } from "../webhooks/outbound";
 import { getEnv } from "../env";
 import { askForJobRating } from "../messaging/job-ratings";
 import { ApiError } from "../http/errors";
@@ -673,7 +674,7 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
   // and the RPC behind it is idempotent per job, so a lost one costs a signal
   // rather than correctness.
   if (result.outcome === "updated" && body.done === true) {
-    askForRatingAfterDone(c, {
+    onPromotedMessageDone(c, {
       companyId,
       messageId: updated.id,
       userId,
@@ -685,34 +686,50 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
 });
 
 /**
- * #313 — find the job this message was promoted into, and ask about it.
+ * A promoted message just went done — do the two things that follow.
  *
- * The lookup lives here rather than inside `askForJobRating` because the done
- * route knows a MESSAGE and the rating knows a TASK, and putting the join in
- * the messaging module would make it take an argument every other caller has
- * to translate into.
+ * #313 — find the job this message was promoted into, and ask the customer how
+ * it went. The lookup lives here rather than inside `askForJobRating` because
+ * the done route knows a MESSAGE and the rating knows a TASK, and putting the
+ * join in the messaging module would make it take an argument every other
+ * caller has to translate into.
+ *
+ * #243 — and tell the workspace's own systems, off the SAME lookup. A second
+ * message→task join for the webhook would be a second round trip on a hot
+ * action to answer a question this one already answered, and the honest place
+ * for `task.completed` is wherever the product decides a job is finished —
+ * which is right here, not in a route named after tasks.
  */
-function askForRatingAfterDone(
+function onPromotedMessageDone(
   c: Context<AppEnv>,
   input: { companyId: string; messageId: string; userId: string },
 ): void {
   const db = getDb(getEnv(c.env));
   const work = (async () => {
-    const tasks = unwrap<{ id: string }[]>(
+    const tasks = unwrap<{ id: string; title: string | null }[]>(
       await db
         .from("tasks")
-        .select("id")
+        .select("id,title")
         .eq("company_id", input.companyId)
         .eq("message_id", input.messageId)
         .is("deleted_at", null)
         .limit(1),
       "rating task lookup",
     );
-    const taskId = tasks[0]?.id;
-    if (!taskId) return;
+    const task = tasks[0];
+    if (!task) return;
+    await enqueueWebhookEvent(db, {
+      companyId: input.companyId,
+      type: "task.completed",
+      data: {
+        task_id: task.id,
+        title: task.title,
+        message_id: input.messageId,
+      },
+    });
     await askForJobRating(db, {
       companyId: input.companyId,
-      taskId,
+      taskId: task.id,
       userId: input.userId,
     });
   })().catch((cause: unknown) => {

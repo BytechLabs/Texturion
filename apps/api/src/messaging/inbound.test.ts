@@ -1170,3 +1170,74 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     }
   });
 });
+
+describe("handleInboundMessage — #243 the workspace's own systems get told", () => {
+  it("queues one delivery per subscribed endpoint, carrying the message", async () => {
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
+      { id: "eeeeeeee-1111-4222-8333-444444444444" },
+    ]);
+    const deliveries = stubRoute(
+      restMatch(env, "POST", "webhook_deliveries"),
+      () => Response.json([], { status: 201 }),
+    );
+    serve(numberStub(), threadStub({}), awayDisabledStub(), endpoints, deliveries);
+
+    await handleInboundMessage(env, inboundEvent({}));
+
+    expect(deliveries.calls, "no delivery was queued").toHaveLength(1);
+    const rows = deliveries.calls[0].body as {
+      event_type: string;
+      payload: { type: string; data: { message_id: string; body: string } };
+    }[];
+    expect(rows[0].event_type).toBe("message.received");
+    expect(rows[0].payload.data.message_id).toBe(MESSAGE_ID);
+
+    // Asked for the RIGHT endpoints: this workspace, active, subscribed to
+    // this name. A query missing any of those fans a customer's messages out
+    // to somebody who did not ask for them.
+    const query = endpoints.calls[0].url.searchParams;
+    expect(query.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(query.get("active")).toBe("eq.true");
+    expect(query.get("events")).toBe("cs.{message.received}");
+  });
+
+  it("does not re-tell anybody when the §11 sweeper replays the same message", async () => {
+    // THE ONE THAT MATTERS. This handler is replayed on failure, and an
+    // integration that receives the same customer message as two different
+    // deliveries is one that books the job twice. `created: false` is what a
+    // replay looks like.
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
+      { id: "eeeeeeee-1111-4222-8333-444444444444" },
+    ]);
+    const deliveries = stubRoute(
+      restMatch(env, "POST", "webhook_deliveries"),
+      () => Response.json([], { status: 201 }),
+    );
+    serve(
+      numberStub(),
+      threadStub({ created: false }),
+      awayDisabledStub(),
+      endpoints,
+      deliveries,
+    );
+
+    await handleInboundMessage(env, inboundEvent({}));
+
+    expect(deliveries.calls, "a replay queued a second delivery").toHaveLength(0);
+  });
+
+  it("still stores the message when the integration ledger refuses the write", async () => {
+    // A workspace's integration preference must never be able to lose a
+    // customer's message. The enqueue swallows and the handler completes.
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
+      { id: "eeeeeeee-1111-4222-8333-444444444444" },
+    ]);
+    const deliveries = stubRoute(
+      restMatch(env, "POST", "webhook_deliveries"),
+      () => new Response("boom", { status: 500 }),
+    );
+    serve(numberStub(), threadStub({}), awayDisabledStub(), endpoints, deliveries);
+
+    await expect(handleInboundMessage(env, inboundEvent({}))).resolves.toBeUndefined();
+  });
+});

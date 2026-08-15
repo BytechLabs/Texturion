@@ -142,6 +142,16 @@ export function supabaseStub(env: Env): SupabaseStub {
     },
     { method: "GET", matcher: "/rest/v1/email_suppressions", respond: () => [] },
     {
+      // #243: outbound webhooks hang off the send, inbound, task and contact
+      // paths. The ambient answer is "this workspace has no endpoints", which
+      // is the state every test written before them was asserting against —
+      // and the state of every workspace that has not set one up. A suite that
+      // wants endpoints registers this path itself and wins.
+      method: "GET",
+      matcher: "/rest/v1/webhook_endpoints",
+      respond: () => [],
+    },
+    {
       // #106/D88: number access is resolved on any route that must not leak
       // across numbers, which since #410 includes the contact detail. The
       // ambient answer is UNRESTRICTED — no rules in the company — which is

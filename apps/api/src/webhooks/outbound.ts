@@ -47,6 +47,24 @@ export async function enqueueWebhookEvent(
   db: SupabaseClient,
   event: OutboundWebhookEvent,
 ): Promise<number> {
+  try {
+    return await enqueue(db, event);
+  } catch (cause) {
+    // This function is awaited from the middle of a send and the middle of the
+    // inbound handler, and every caller's comment says it cannot throw. That
+    // has to be TRUE rather than merely intended: a transport failure reaching
+    // `dispatchOutbound` would turn a text that already left the building into
+    // a 500, and a workspace's integration preference must never be able to do
+    // that. The event is lost and the message is not.
+    console.error("webhook enqueue failed:", cause);
+    return 0;
+  }
+}
+
+async function enqueue(
+  db: SupabaseClient,
+  event: OutboundWebhookEvent,
+): Promise<number> {
   const { data: endpoints, error } = await db
     .from("webhook_endpoints")
     .select("id")

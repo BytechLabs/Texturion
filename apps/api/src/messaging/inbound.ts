@@ -33,6 +33,7 @@ import { qualifyReferralForSender } from "../referrals/referrals";
 import { scanAttachment } from "../attachments/scan";
 import { bytesMatchDeclaredType } from "../routes/core/attachments";
 import { insertConversationEvents } from "../routes/core/events";
+import { enqueueWebhookEvent } from "../webhooks/outbound";
 import { maybeSendAwayReply } from "./away-reply";
 import { maybeSendOffRamp } from "./off-ramp";
 import { sendEmergencyAcknowledgment } from "./emergency-ack";
@@ -302,6 +303,31 @@ export async function handleInboundMessage(
       alreadyStampedAt: company?.first_inbound_reply_at,
       country: company?.country,
       usTextingEnabled: company?.us_texting_enabled,
+    });
+  }
+
+  // #243: tell the workspace's own systems. Gated on `created` for the same
+  // reason the activation capture above is — the §11 sweeper replays this
+  // handler on failure, and an integration that receives the same message
+  // twice as two DIFFERENT events (different delivery ids) is one that books
+  // the job twice.
+  //
+  // Awaited rather than fired and forgotten, because this path has no
+  // execution context to hand a promise to and a dropped enqueue is an event
+  // the customer never learns about. `enqueueWebhookEvent` cannot throw and
+  // cannot slow anything down when nobody is subscribed: it is one indexed
+  // lookup that returns no rows.
+  if (threaded.created) {
+    await enqueueWebhookEvent(db, {
+      companyId: number.company_id,
+      type: "message.received",
+      data: {
+        message_id: threaded.message_id,
+        conversation_id: threaded.conversation_id,
+        from: fromE164,
+        to: toE164,
+        body: payload.text ?? "",
+      },
     });
   }
 

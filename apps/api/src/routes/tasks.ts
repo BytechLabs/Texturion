@@ -64,6 +64,7 @@ import {
 } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
+import { emitWebhookEvent } from "../webhooks/outbound";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
@@ -495,6 +496,22 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     companyId,
     taskId: result.task.id as string,
     userId,
+  });
+
+  // #243: the job just booked, told to whatever the workspace runs alongside
+  // us. After the `conflict` branch above, so a second promotion of the same
+  // message — which the partial-unique index already refuses — can never emit
+  // a second creation.
+  emitWebhookEvent(c, db, {
+    companyId,
+    type: "task.created",
+    data: {
+      task_id: result.task.id,
+      title: result.task.title ?? null,
+      due_at: result.task.due_at ?? null,
+      assigned_user_id: body.assigned_user_id ?? null,
+      message_id: body.message_id,
+    },
   });
 
   return c.json(result.task, 201);

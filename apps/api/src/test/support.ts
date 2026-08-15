@@ -229,6 +229,18 @@ const ambientEmailRoutes: FetchRoute[] = [
     && url.searchParams.get("select") === "push_include_content"
       ? Response.json([{ push_include_content: true }])
       : undefined,
+  // #243: a workspace with no outbound webhook endpoints, which is what every
+  // suite that is not about webhooks means.
+  //
+  // Ambient rather than added to twelve messaging suites, and the reason is
+  // the one #543 recorded: a change that needs a new stub in every existing
+  // test is usually the wrong change, and the right shape for "the default
+  // workspace has none of these" is a default. A suite that wants endpoints
+  // registers this path itself and shadows this, exactly like the line above.
+  (url) =>
+    url.pathname === "/rest/v1/webhook_endpoints"
+      ? Response.json([])
+      : undefined,
 ];
 
 export function stubFetch(...routes: FetchRoute[]): void {

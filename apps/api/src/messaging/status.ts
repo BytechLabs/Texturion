@@ -22,6 +22,7 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import type { TelnyxEvent, TelnyxMessagePayload } from "./types";
 import { MMS_SEGMENTS } from "./media";
+import { enqueueWebhookEvent } from "../webhooks/outbound";
 
 /** message.sent / message.finalized entry point (dispatched from §7 route). */
 export async function handleStatusEvent(
@@ -65,14 +66,24 @@ async function finalize(
 
   const { data: rows, error: lookupError } = await db
     .from("messages")
-    .select("id,company_id,direction")
+    // #243: `status` rides along so the webhook below can tell a TRANSITION
+    // into failure from a replay of one. The §11 sweeper re-runs this handler
+    // on failure, and an integration told twice that the same text failed is
+    // one that notifies the crew twice.
+    .select("id,company_id,direction,status,conversation_id")
     .eq("telnyx_message_id", telnyxMessageId)
     .limit(1);
   if (lookupError) {
     throw new Error(`finalized lookup failed: ${lookupError.message}`);
   }
   const message = (rows ?? [])[0] as
-    | { id: string; company_id: string; direction: string }
+    | {
+        id: string;
+        company_id: string;
+        direction: string;
+        status: string;
+        conversation_id: string | null;
+      }
     | undefined;
   if (!message) return; // unknown id → acked no-op (§8)
 
@@ -124,6 +135,25 @@ async function finalize(
   }
 
   if (message.direction !== "outbound") return;
+
+  // #243: a send that came back refused is the event an integration most wants
+  // — it is the one that needs a human. Only on the transition, never on a
+  // replay of a row that was already failed.
+  if (finalStatus === "failed" && message.status !== "failed") {
+    await enqueueWebhookEvent(db, {
+      companyId: message.company_id,
+      type: "message.failed",
+      data: {
+        message_id: message.id,
+        conversation_id: message.conversation_id,
+        error_code: firstError?.code ?? null,
+        // The carrier's own description of why it refused. Never our decode of
+        // the message — #513's lesson is that an error string built from the
+        // thing that failed carries the thing that failed.
+        error_detail: firstError ? (firstError.detail || firstError.title || null) : null,
+      },
+    });
+  }
 
   // §9 metering: MMS meters as 3 segments (§2); SMS meters Telnyx's
   // authoritative parts. Sent-but-undelivered parts are still metered;

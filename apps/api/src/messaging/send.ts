@@ -13,6 +13,7 @@ import { lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
 import { qualifyReferralForSender } from "../referrals/referrals";
+import { enqueueWebhookEvent } from "../webhooks/outbound";
 import { GRACE_PERIOD_DAYS } from "../billing/grace";
 import { getDb } from "../db";
 import type { Env } from "../env";
@@ -886,6 +887,25 @@ export async function dispatchOutbound(
     // a no-op, and it swallows its own failures because referral bookkeeping
     // must never be able to fail a text that already went out.
     await qualifyReferralForSender(env, db, row.company_id);
+    // #243: the carrier accepted it, so the workspace's own systems can be
+    // told. Here rather than at the status webhook because `message.sent` is
+    // about the handoff — whether it was DELIVERED is a later fact, and one
+    // this product deliberately does not promise (§4 honest status).
+    //
+    // Last in the block, after everything a customer's money or history
+    // depends on. An integration ledger must never be what stands between a
+    // sent text and its referral credit.
+    await enqueueWebhookEvent(db, {
+      companyId: row.company_id,
+      type: "message.sent",
+      data: {
+        message_id: row.id,
+        conversation_id: row.conversation_id,
+        from: args.from,
+        to: args.to,
+        body: args.text,
+      },
+    });
   }
   return row;
 }
