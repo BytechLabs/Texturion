@@ -63,6 +63,11 @@ export type SettingsSectionId =
   // #321: what shipped, in the product. Beside Help because it is the other
   // thing you go looking for rather than pass through.
   | "whatsNew"
+  // #243: where this workspace's own systems get told what happened. Its own
+  // section rather than a card inside Workspace, because it is the only place
+  // in the product that sends message content OUT of it, and a thing with that
+  // consequence should not be found by scrolling past business hours.
+  | "webhooks"
   | "diagnostics";
 
 /**
@@ -92,6 +97,13 @@ const SECTION_CAPABILITY: Record<SettingsSectionId, Capability> = {
   // Words the whole crew sends in the business's name — same axis as the away
   // message and the voicemail greeting (#461).
   templates: "settings.manage",
+  // #243: `settings.manage` on the READ as well, and it is the strictest thing
+  // in this table for a reason — the endpoint list names the third parties this
+  // workspace's messages flow to, and those URLs routinely carry a per-tenant
+  // token in the path. The API refuses the read at the same capability, so the
+  // nav row and the route agree with the server rather than merely with each
+  // other.
+  webhooks: "settings.manage",
   /**
    * #286: EVERY role, not just the ones who can change it.
    *

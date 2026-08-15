@@ -13,6 +13,7 @@ import {
   MonitorSmartphone,
   Phone,
   PhoneMissed,
+  Plug,
   ScrollText,
   ShieldCheck,
   Sparkles,
@@ -223,6 +224,18 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "settingsMore.navWhatsNew",
     description: "settingsMore.navWhatsNewDesc",
     icon: Sparkles,
+  },
+  {
+    // #243 — where this workspace's own systems get told what happened. Last,
+    // beside Help and What's new, because all three are things a person goes
+    // LOOKING for rather than passes through, and because a row that sends
+    // customer messages to a third party should not sit in the middle of the
+    // list somebody scans while trying to change their hours.
+    id: "webhooks",
+    slug: "webhooks",
+    label: "webhooks.navWebhooks",
+    description: "webhooks.navWebhooksDesc",
+    icon: Plug,
   },
 ];
 

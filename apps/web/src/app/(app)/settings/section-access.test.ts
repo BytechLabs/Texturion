@@ -55,6 +55,10 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     "history",
     "help",
     "whatsNew",
+    // #243: connections to the workspace's own systems. settings.manage on
+    // the READ too — the list names the third parties this workspace's
+    // messages flow to, and those URLs routinely carry a per-tenant token.
+    "webhooks",
   ],
   admin: [
     "workspace",
@@ -75,6 +79,10 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     "history",
     "help",
     "whatsNew",
+    // #243: connections to the workspace's own systems. settings.manage on
+    // the READ too — the list names the third parties this workspace's
+    // messages flow to, and those URLs routinely carry a per-tenant token.
+    "webhooks",
   ],
   // Theirs, and only theirs: their login, their notifications, their devices,
   // the help route and what shipped — plus, since #286, the crew list.

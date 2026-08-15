@@ -61,6 +61,8 @@ export const WEB_SECTION_ROUTES: Record<
   devices: "route",
   help: "route",
   whatsNew: "route",
+  // #243: connections to the workspace's own systems.
+  webhooks: "route",
   // A phone-only screen: what this build is, what it last synced, what it can
   // reach. The browser answers all three itself (the URL bar, devtools, the
   // network tab), so the web has never had a page for it.

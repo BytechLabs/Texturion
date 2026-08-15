@@ -74,6 +74,11 @@ export const keys = {
   /** Badges are keyed on the ids ASKED FOR, so a changed set refetches. */
   savedViewCounts: (companyId: string, surface: string, ids: string[]) =>
     [companyId, "saved-views", surface, "counts", ids.join(",")] as const,
+  /** #243: the endpoint list, and one delivery log per endpoint. */
+  webhookEndpoints: (companyId: string) =>
+    [companyId, "webhook-endpoints"] as const,
+  webhookDeliveries: (companyId: string, endpointId: string) =>
+    [companyId, "webhook-endpoints", endpointId, "deliveries"] as const,
   templates: (companyId: string) => [companyId, "templates"] as const,
   /**
    * #274: the picker's use-sorted list and the settings alphabetical one
