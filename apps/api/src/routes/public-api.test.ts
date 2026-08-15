@@ -591,3 +591,89 @@ describe("REST hooks — how Zapier and Make actually work", () => {
     expect(removed.status).toBe(403);
   });
 });
+
+describe("#243 acceptance: a key cannot reach a number its owner cannot", () => {
+  /**
+   * The issue's fourth acceptance line, asserted on every route that touches a
+   * number rather than on the one that was easiest to stub.
+   *
+   * Three routes reach conversation data: the thread list, one thread's
+   * messages, and the send. Each resolves #106 through a different helper, so
+   * "the send is fine because the list is" is not an argument — it is the
+   * assumption that leaves one of three open.
+   */
+  const HIDDEN = "nnnnnnnn-1111-4222-8333-444444444444";
+
+  /** A restricted MEMBER: owner/admin short-circuit to unrestricted. */
+  function restrictedKey(scopes: string[]): SupabaseStub {
+    const sb = stubWithKey(scopes, "member");
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: HIDDEN, level: "none" },
+    ]);
+    return sb;
+  }
+
+  it("the thread list is filtered by the deny list", async () => {
+    const sb = restrictedKey(["conversations:read"]);
+    sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await publicRequest("/public/v1/conversations");
+
+    const body = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0].body as {
+      p_hidden_number_ids: string[];
+    };
+    expect(body.p_hidden_number_ids).toEqual([HIDDEN]);
+  });
+
+  it("a thread on a hidden number 404s, and its messages are never read", async () => {
+    const sb = restrictedKey(["messages:read"]);
+    sb.on("GET", "/rest/v1/conversations", (call) =>
+      call.url.searchParams.get("select") === "created_at"
+        ? []
+        : [{ id: CONVERSATION_ID, phone_number_id: HIDDEN }],
+    );
+    sb.on("GET", "/rest/v1/messages", () => [{ id: "m-1" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest(
+      `/public/v1/conversations/${CONVERSATION_ID}/messages`,
+    );
+    expect(res.status).toBe(404);
+    expect(sb.find("GET", "/rest/v1/messages")).toHaveLength(0);
+  });
+
+  it("a send to a hidden number is refused before the carrier is reached", async () => {
+    // THE ONE MOST WORTH PINNING. The send runs the deny list through a THIRD
+    // helper — `assertNumberLevel` with need "text", inside the shared
+    // sequence — so it is the route where "the others are filtered" proves
+    // nothing at all.
+    const sb = restrictedKey(["messages:send"]);
+    sb.on("GET", "/rest/v1/conversations", (call) =>
+      call.url.searchParams.get("select") === "created_at"
+        ? []
+        : [
+            {
+              id: CONVERSATION_ID,
+              contact_id: "ct-1",
+              phone_number_id: HIDDEN,
+              contact_phone_e164: "+14165550100",
+              contacts: { id: "ct-1", name: "Maria", address: null, timezone: null },
+              phone_numbers: { id: HIDDEN, number_e164: "+14165550111", status: "active" },
+              companies: { id: COMPANY_ID, name: "Ace Plumbing" },
+            },
+          ],
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/messages", {
+      method: "POST",
+      headers: { "Idempotency-Key": "k-1" },
+      body: JSON.stringify({ conversation_id: CONVERSATION_ID, body: "on my way" }),
+    });
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    // Nothing was queued and nothing reached Telnyx.
+    expect(sb.find("POST", "/rest/v1/rpc/gate_outbound_send")).toHaveLength(0);
+  });
+});
