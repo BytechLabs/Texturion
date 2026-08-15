@@ -53,6 +53,20 @@ enum PaymentsStrings {
              *
              * Stripe is a product name and is never translated.
              */
+            "payments.payoutNotConnectedTitle": "Not set up yet",
+            "payments.payoutNotConnectedDetail": "Connect a Stripe account and you can ask a customer for a deposit or a final payment straight from the thread. Money goes to your bank account — we never hold it, and we take nothing on top.",
+            "payments.payoutIncompleteTitle": "Nearly there",
+            "payments.payoutIncompleteDetail": "Stripe still needs a few details about your business before it can take a payment. Picking up where you left off takes a couple of minutes.",
+            "payments.payoutPendingTitle": "Stripe is checking your details",
+            "payments.payoutPendingDetail": "You have given Stripe everything it asked for. Verification is usually minutes, occasionally a day or two. We will switch payment requests on the moment it clears — nothing for you to do.",
+            "payments.payoutRestrictedTitle": "Payments are paused",
+            "payments.payoutRestrictedDetail": "Stripe has paused payments on your account and needs something from you before it can take another one. Your Stripe dashboard says what.",
+            "payments.payoutReadyTitle": "Ready to take payments",
+            "payments.payoutReadyDetail": "Ask for a deposit or a final payment from any thread. It arrives as an ordinary text with a link, and the money goes to your bank account.",
+            "payments.payoutActionSetUp": "Set up payments",
+            "payments.payoutActionFinish": "Finish setting up",
+            "payments.payoutActionOpenStripe": "Open Stripe",
+
             "payments.reqBankAccount": "Your bank account details",
             "payments.reqWebsite": "Your website or a description of what you do",
             "payments.reqWorkKind": "What kind of work you do",
@@ -111,6 +125,20 @@ enum PaymentsStrings {
             "payments.amountNotWhole": "Entrez un montant en dollars et en cents.",
 
             // ── Stripe's outstanding requirements, in plain words ─────────────
+            "payments.payoutNotConnectedTitle": "Pas encore configuré",
+            "payments.payoutNotConnectedDetail": "Connectez un compte Stripe et vous pourrez demander un acompte ou un paiement final directement depuis la conversation. L'argent va dans votre compte bancaire — nous ne le détenons jamais et nous ne prenons rien au passage.",
+            "payments.payoutIncompleteTitle": "Presque terminé",
+            "payments.payoutIncompleteDetail": "Stripe a encore besoin de quelques renseignements sur votre entreprise avant de pouvoir encaisser un paiement. Reprendre où vous en étiez prend quelques minutes.",
+            "payments.payoutPendingTitle": "Stripe vérifie vos renseignements",
+            "payments.payoutPendingDetail": "Vous avez donné à Stripe tout ce qu'il a demandé. La vérification prend habituellement quelques minutes, parfois un jour ou deux. Nous activerons les demandes de paiement dès que ce sera fait — rien à faire de votre côté.",
+            "payments.payoutRestrictedTitle": "Les paiements sont suspendus",
+            "payments.payoutRestrictedDetail": "Stripe a suspendu les paiements sur votre compte et a besoin de quelque chose de votre part avant d'en encaisser un autre. Votre tableau de bord Stripe précise quoi.",
+            "payments.payoutReadyTitle": "Prêt à encaisser des paiements",
+            "payments.payoutReadyDetail": "Demandez un acompte ou un paiement final depuis n'importe quelle conversation. Cela arrive comme un texto ordinaire avec un lien, et l'argent va dans votre compte bancaire.",
+            "payments.payoutActionSetUp": "Configurer les paiements",
+            "payments.payoutActionFinish": "Terminer la configuration",
+            "payments.payoutActionOpenStripe": "Ouvrir Stripe",
+
             "payments.reqBankAccount": "Les coordonnées de votre compte bancaire",
             "payments.reqWebsite":
                 "Votre site web ou une description de ce que vous faites",

@@ -24,10 +24,24 @@ import { keys } from "./keys";
 export interface PayoutAccount {
   connected: boolean;
   readiness: PayoutReadiness;
-  /** Server-composed, so all three clients say the same sentence. */
+  /**
+   * Server-composed English, and what a client reads when talking to a Worker
+   * that predates the keys below.
+   *
+   * #228: prefer `*_key`. These stay on the wire until every build that only
+   * understands them is gone — see the note on `accountJson` in the API.
+   */
   title: string;
   detail: string;
   action: string | null;
+  /**
+   * The same five states, named rather than written out, so the reader's own
+   * language decides the words. Optional because an older Worker does not send
+   * them; null on `action_key` means the state has nothing to press.
+   */
+  title_key?: string | null;
+  detail_key?: string | null;
+  action_key?: string | null;
   country: string | null;
   currency: string | null;
   charges_enabled: boolean;

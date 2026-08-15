@@ -42,8 +42,24 @@ data class PayoutAccount(
     val readiness: String = PayoutReadiness.NOT_CONNECTED.wire,
     val title: String = "",
     val detail: String = "",
+    /**
+     * #228 — the key travels beside the sentence, and the key wins.
+     *
+     * The server picks WHICH of the five states is true; the reader's own
+     * language decides the words. It cannot decide them itself —
+     * `profiles.locale`'s null means "ask the device", and only this client
+     * knows what the device says.
+     *
+     * The sentence is the fallback for a Worker that predates the keys, which
+     * is the expand half of an expand-and-contract rather than defensive
+     * padding. Both shapes are on the wire at once, on purpose.
+     */
+    val title_key: String? = null,
+    val detail_key: String? = null,
     /** The one button's label, or null when there is nothing to press. */
     val action: String? = null,
+    /** Null both when the state has nothing to press and when the Worker is old. */
+    val action_key: String? = null,
     /** The Stripe account's country, not the workspace's. */
     val country: String? = null,
     val currency: String? = null,

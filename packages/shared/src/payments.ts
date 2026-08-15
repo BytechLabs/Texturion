@@ -163,7 +163,89 @@ export function payoutReadiness(account: PayoutAccountFacts | null): PayoutReadi
   return "pending_verification";
 }
 
-/** What the owner is told, and what to do about it. */
+/**
+ * The catalogue keys for the same five states.
+ *
+ * #228: these cannot replace [payoutReadinessCopy] — they sit beside it, and
+ * the reason is the wire. The API composes those sentences server-side and
+ * sends them; a phone built last month renders `title` verbatim and has never
+ * heard of `title_key`. #339 says those builds are around for months, so the
+ * English below stays on the wire until they are gone. This is the expand half
+ * of an expand-and-contract, and the sentences are what contracts.
+ *
+ * THE SERVER CANNOT RESOLVE THE LANGUAGE ITSELF, which is what forces a key
+ * rather than a translated sentence. `profiles.locale` is nullable and its
+ * null means "ask the device, then the workspace" — the device half only exists
+ * on the client, and no client sends it. A server that translated here would be
+ * answering in the company's language to somebody whose phone is set to the
+ * other one, silently overriding the resolution order that migration
+ * establishes.
+ */
+export function payoutReadinessKeys(readiness: PayoutReadiness): {
+  titleKey: PayoutReadinessKey;
+  detailKey: PayoutReadinessKey;
+  /** Null where the state has nothing for the owner to do — see below. */
+  actionKey: PayoutReadinessKey | null;
+} {
+  switch (readiness) {
+    case "not_connected":
+      return {
+        titleKey: "payments.payoutNotConnectedTitle",
+        detailKey: "payments.payoutNotConnectedDetail",
+        actionKey: "payments.payoutActionSetUp",
+      };
+    case "onboarding_incomplete":
+      return {
+        titleKey: "payments.payoutIncompleteTitle",
+        detailKey: "payments.payoutIncompleteDetail",
+        actionKey: "payments.payoutActionFinish",
+      };
+    case "pending_verification":
+      // Null on purpose, and it is the honest answer: there is nothing to press
+      // while Stripe checks. A button here would be one that does nothing.
+      return {
+        titleKey: "payments.payoutPendingTitle",
+        detailKey: "payments.payoutPendingDetail",
+        actionKey: null,
+      };
+    case "restricted":
+      return {
+        titleKey: "payments.payoutRestrictedTitle",
+        detailKey: "payments.payoutRestrictedDetail",
+        actionKey: "payments.payoutActionOpenStripe",
+      };
+    case "ready":
+      return {
+        titleKey: "payments.payoutReadyTitle",
+        detailKey: "payments.payoutReadyDetail",
+        actionKey: "payments.payoutActionOpenStripe",
+      };
+  }
+}
+
+/** Every catalogue key the five readiness states can name. */
+export type PayoutReadinessKey =
+  | "payments.payoutNotConnectedTitle"
+  | "payments.payoutNotConnectedDetail"
+  | "payments.payoutIncompleteTitle"
+  | "payments.payoutIncompleteDetail"
+  | "payments.payoutPendingTitle"
+  | "payments.payoutPendingDetail"
+  | "payments.payoutRestrictedTitle"
+  | "payments.payoutRestrictedDetail"
+  | "payments.payoutReadyTitle"
+  | "payments.payoutReadyDetail"
+  | "payments.payoutActionSetUp"
+  | "payments.payoutActionFinish"
+  | "payments.payoutActionOpenStripe";
+
+/**
+ * What the owner is told, and what to do about it — in English.
+ *
+ * STILL ENGLISH ON PURPOSE. This is what the API puts on the wire for clients
+ * that predate [payoutReadinessKeys]; new ones read the key. When those builds
+ * are gone this function goes with them.
+ */
 export function payoutReadinessCopy(readiness: PayoutReadiness): {
   title: string;
   detail: string;

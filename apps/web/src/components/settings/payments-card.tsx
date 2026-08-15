@@ -29,10 +29,12 @@ import {
  *
  * ## The decisions
  *
- * - **One sentence, one button.** The state copy is composed on the SERVER, so
- *   web, Android and iOS say the same thing and none of them can drift into
- *   paraphrase. *Applying: Chunking — three or four items is the ceiling, and a
- *   status page that lists nine booleans is nine.*
+ * - **One sentence, one button.** The server decides WHICH sentence, so web,
+ *   Android and iOS say the same thing and none of them can drift into
+ *   paraphrase. Since #228 it names the sentence rather than writing it out —
+ *   the choice is still the server's, the language is the reader's. *Applying:
+ *   Chunking — three or four items is the ceiling, and a status page that lists
+ *   nine booleans is nine.*
  *
  * - **No progress bar.** Onboarding progress belongs to Stripe, which owns the
  *   flow and is the only thing that knows how far through it somebody is. A bar
@@ -116,8 +118,13 @@ export function PaymentsCard() {
   const busy = onboarding.isPending || dashboard.isPending;
 
   return (
-    <SettingsCard title={t("payments.settingsTitle")} description={state.title}>
-      <p className="text-sm text-muted-foreground">{state.detail}</p>
+    <SettingsCard
+      title={t("payments.settingsTitle")}
+      description={readinessWords(state.title_key, state.title, t)}
+    >
+      <p className="text-sm text-muted-foreground">
+        {readinessWords(state.detail_key, state.detail, t)}
+      </p>
 
       {state.requirements_due.length > 0 && (
         <div className="mt-4 rounded-app-ctrl border border-app-amber-line bg-app-amber-bg/60 px-3 py-2.5">
@@ -147,7 +154,7 @@ export function PaymentsCard() {
             }
             className="gap-1"
           >
-            {state.action}
+            {readinessWords(state.action_key, state.action, t)}
             {/* A right chevron on a forward action, an out-arrow on one that
                 leaves the product. The difference tells somebody whether they
                 are about to leave before they tap. */}
@@ -202,6 +209,24 @@ export function PaymentsCard() {
 function requirementWords(requirement: string, t: Translate): string {
   const copy = payoutRequirementCopy(requirement);
   return copy.key ? t(copy.key) : (copy.literal ?? requirement);
+}
+
+/**
+ * The readiness sentence in the reader's language.
+ *
+ * #228: the server sends both a key and its English. Prefer the key — that is
+ * the whole point of it — and fall back to the sentence, which is what a client
+ * talking to a Worker that predates the keys will get. The fallback is not
+ * defensive padding: expand-and-contract means both shapes are on the wire at
+ * once, on purpose, for as long as the old builds live.
+ */
+function readinessWords(
+  key: string | null | undefined,
+  sentence: string | null | undefined,
+  t: Translate,
+): string {
+  if (key) return t(key as Parameters<Translate>[0]);
+  return sentence ?? "";
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

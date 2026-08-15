@@ -37,6 +37,7 @@ import {
   paymentRequestSms,
   paymentRequestState,
   payoutReadinessCopy,
+  payoutReadinessKeys,
   roleHasCapability,
   type BillingCurrency,
   type MemberRole,
@@ -171,22 +172,37 @@ function accountJson(
 ): Record<string, unknown> {
   const readiness = readinessOf(row);
   const copy = payoutReadinessCopy(readiness);
+  /*
+   * #228 — the key travels BESIDE the sentence, not instead of it.
+   *
+   * We cannot resolve the reader's language here: profiles.locale is nullable
+   * and its null means "ask the device", which only the client knows. So the
+   * client translates, and a build that predates these fields keeps rendering
+   * the sentence exactly as it did. #339 puts those builds on real phones for
+   * months; the sentences come off the wire when they are gone, not before.
+   */
+  const keys = payoutReadinessKeys(readiness);
   const shared = {
     connected: row !== null,
     readiness,
     title: copy.title,
     detail: copy.detail,
+    title_key: keys.titleKey,
+    detail_key: keys.detailKey,
     currency: row?.default_currency ?? null,
     charges_enabled: row?.charges_enabled ?? false,
   };
   if (scope === "sender") {
     // No `action` either: every action on this object leads to a screen the
-    // sender cannot open, and offering one would be a dead end.
-    return { ...shared, action: null };
+    // sender cannot open, and offering one would be a dead end. The key is
+    // nulled with it, or a new client would draw the button the old one knew
+    // better than to draw.
+    return { ...shared, action: null, action_key: null };
   }
   return {
     ...shared,
     action: copy.action,
+    action_key: keys.actionKey,
     country: row?.country ?? null,
     payouts_enabled: row?.payouts_enabled ?? false,
     details_submitted: row?.details_submitted ?? false,

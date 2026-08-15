@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.MemberRole
@@ -150,9 +151,12 @@ private fun PayoutCard(
         account.state == PayoutReadiness.ONBOARDING_INCOMPLETE
     val isOwner = scope.role == MemberRole.OWNER
 
-    SettingsCard(title = t("payments.settingsTitle"), description = account.title) {
+    SettingsCard(
+        title = t("payments.settingsTitle"),
+        description = readinessWords(account.title_key, account.title, locale),
+    ) {
         Text(
-            account.detail,
+            readinessWords(account.detail_key, account.detail, locale),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -162,7 +166,7 @@ private fun PayoutCard(
             OutstandingRequirements(account.requirements_due)
         }
 
-        val label = account.action
+        val label = account.action?.let { readinessWords(account.action_key, it, locale) }
         if (label != null) {
             Spacer(Modifier.height(14.dp))
             if (needsOnboarding && !isOwner) {
@@ -301,3 +305,18 @@ private fun Fact(label: String, value: String) {
         )
     }
 }
+
+/**
+ * A readiness sentence in the reader's language, or the server's English.
+ *
+ * #228: the key wins when it is there. It is absent only when this build is
+ * talking to a Worker that predates the keys, which is the expand half of an
+ * expand-and-contract — both shapes are on the wire at once, on purpose, until
+ * the builds that only understand sentences are gone (#339).
+ *
+ * Takes the LOCALE rather than a translate function, because `t` is
+ * @Composable here and cannot be passed as a value. The screen already reads
+ * `LocalAppLocale.current` for its own copy, so the locale is in hand.
+ */
+private fun readinessWords(key: String?, sentence: String, locale: String?): String =
+    if (key != null) AppStrings.translate(locale, key) else sentence

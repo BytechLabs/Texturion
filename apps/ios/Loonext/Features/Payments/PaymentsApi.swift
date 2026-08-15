@@ -23,8 +23,22 @@ struct PayoutAccount: Codable, Sendable {
     @Default<DefaultEmptyString> var readiness: String
     @Default<DefaultEmptyString> var title: String
     @Default<DefaultEmptyString> var detail: String
+    /// #228 — the key travels beside the sentence, and the key wins.
+    ///
+    /// The server picks WHICH of the five states is true; the reader's own
+    /// language decides the words. It cannot decide them itself —
+    /// `profiles.locale`'s null means "ask the device", and only this client
+    /// knows what the device says.
+    ///
+    /// The sentence is the fallback for a Worker that predates the keys, which
+    /// is the expand half of an expand-and-contract rather than defensive
+    /// padding. Both shapes are on the wire at once, on purpose.
+    var title_key: String?
+    var detail_key: String?
     /// Nil for `pending_verification`, which is the one state with nothing to do.
     var action: String?
+    /// Null both when the state has nothing to press and when the Worker is old.
+    var action_key: String?
     var country: String?
     /// Stripe's `default_currency` for the account — what the business is
     /// actually paid in, which is not necessarily what WE bill them in.

@@ -130,6 +130,28 @@ const paymentsEn = {
   reqTos: "Accepting Stripe's terms",
   reqSignatoryId: "Photo ID for whoever signs for the business",
 
+  /*
+   * #228 — the five states of a Stripe account, named by the server and said
+   * here.
+   *
+   * The server picks WHICH of the five is true and sends its key; the words
+   * are the reader's. It cannot pick the words itself: profiles.locale's null
+   * means "ask the device", and only the client knows what the device says.
+   */
+  payoutNotConnectedTitle: "Not set up yet",
+  payoutNotConnectedDetail: "Connect a Stripe account and you can ask a customer for a deposit or a final payment straight from the thread. Money goes to your bank account — we never hold it, and we take nothing on top.",
+  payoutIncompleteTitle: "Nearly there",
+  payoutIncompleteDetail: "Stripe still needs a few details about your business before it can take a payment. Picking up where you left off takes a couple of minutes.",
+  payoutPendingTitle: "Stripe is checking your details",
+  payoutPendingDetail: "You have given Stripe everything it asked for. Verification is usually minutes, occasionally a day or two. We will switch payment requests on the moment it clears — nothing for you to do.",
+  payoutRestrictedTitle: "Payments are paused",
+  payoutRestrictedDetail: "Stripe has paused payments on your account and needs something from you before it can take another one. Your Stripe dashboard says what.",
+  payoutReadyTitle: "Ready to take payments",
+  payoutReadyDetail: "Ask for a deposit or a final payment from any thread. It arrives as an ordinary text with a link, and the money goes to your bank account.",
+  payoutActionSetUp: "Set up payments",
+  payoutActionFinish: "Finish setting up",
+  payoutActionOpenStripe: "Open Stripe",
+
   stripeNeeds: "Stripe still needs:",
   payouts: "Payouts",
   payoutsOn: "On — money reaches your bank",
@@ -209,6 +231,20 @@ const paymentsFr: Translated<typeof paymentsEn> = {
   reqBusinessDocument: "Un document prouvant l'existence de l'entreprise",
   reqTos: "L'acceptation des conditions de Stripe",
   reqSignatoryId: "Une pièce d'identité avec photo de la personne qui signe pour l'entreprise",
+
+  payoutNotConnectedTitle: "Pas encore configuré",
+  payoutNotConnectedDetail: "Connectez un compte Stripe et vous pourrez demander un acompte ou un paiement final directement depuis la conversation. L'argent va dans votre compte bancaire — nous ne le détenons jamais et nous ne prenons rien au passage.",
+  payoutIncompleteTitle: "Presque terminé",
+  payoutIncompleteDetail: "Stripe a encore besoin de quelques renseignements sur votre entreprise avant de pouvoir encaisser un paiement. Reprendre où vous en étiez prend quelques minutes.",
+  payoutPendingTitle: "Stripe vérifie vos renseignements",
+  payoutPendingDetail: "Vous avez donné à Stripe tout ce qu'il a demandé. La vérification prend habituellement quelques minutes, parfois un jour ou deux. Nous activerons les demandes de paiement dès que ce sera fait — rien à faire de votre côté.",
+  payoutRestrictedTitle: "Les paiements sont suspendus",
+  payoutRestrictedDetail: "Stripe a suspendu les paiements sur votre compte et a besoin de quelque chose de votre part avant d'en encaisser un autre. Votre tableau de bord Stripe précise quoi.",
+  payoutReadyTitle: "Prêt à encaisser des paiements",
+  payoutReadyDetail: "Demandez un acompte ou un paiement final depuis n'importe quelle conversation. Cela arrive comme un texto ordinaire avec un lien, et l'argent va dans votre compte bancaire.",
+  payoutActionSetUp: "Configurer les paiements",
+  payoutActionFinish: "Terminer la configuration",
+  payoutActionOpenStripe: "Ouvrir Stripe",
 
   stripeNeeds: "Stripe a encore besoin de :",
   payouts: "Versements",

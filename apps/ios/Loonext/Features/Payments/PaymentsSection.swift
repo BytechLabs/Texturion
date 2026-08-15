@@ -85,10 +85,10 @@ struct PaymentsSectionView: View {
     private func accountCard(_ account: PayoutAccount) -> some View {
         SettingsCard(
             title: AppStrings.translate(appLocale, "payments.settingsTitle"),
-            description: account.title
+            description: readinessWords(account.title_key, account.title)
         ) {
             VStack(alignment: .leading, spacing: 0) {
-                Text(account.detail)
+                Text(readinessWords(account.detail_key, account.detail))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted600)
                     .fixedSize(horizontal: false, vertical: true)
@@ -102,7 +102,7 @@ struct PaymentsSectionView: View {
                     Button(
                         opening
                             ? AppStrings.translate(appLocale, "payments.opening")
-                            : label
+                            : readinessWords(account.action_key, label)
                     ) { open(account) }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
@@ -142,6 +142,18 @@ struct PaymentsSectionView: View {
                 }
             }
         }
+    }
+
+    /// A readiness sentence in the reader's language, or the server's English.
+    ///
+    /// #228: the key wins when it is there. It is absent only when this build
+    /// is talking to a Worker that predates the keys, which is the expand half
+    /// of an expand-and-contract — both shapes are on the wire at once, on
+    /// purpose, until the builds that only understand sentences are gone
+    /// (#339).
+    private func readinessWords(_ key: String?, _ sentence: String) -> String {
+        guard let key = key else { return sentence }
+        return AppStrings.translate(appLocale, key)
     }
 
     /// What Stripe is still waiting for, in words an owner can act on.

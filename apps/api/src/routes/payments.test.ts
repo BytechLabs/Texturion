@@ -235,6 +235,30 @@ describe("#224 the account", () => {
     expect(body.connected).toBe(false);
     expect(body.readiness).toBe("not_connected");
     expect(body.action).toBe("Set up payments");
+    // #228: the key travels BESIDE the sentence. Both, on purpose — a phone
+    // built before the keys renders `action` and has never heard of
+    // `action_key`, and #339 puts those builds on real phones for months.
+    expect(body.title_key).toBe("payments.payoutNotConnectedTitle");
+    expect(body.detail_key).toBe("payments.payoutNotConnectedDetail");
+    expect(body.action_key).toBe("payments.payoutActionSetUp");
+  });
+
+  it("nulls the action KEY wherever it nulls the action", async () => {
+    /*
+     * A sender sees the state and no button, because every action on this
+     * object opens a screen they cannot reach. If the key survived while the
+     * sentence was nulled, a client that prefers the key would draw exactly the
+     * dead end the old one knew better than to draw.
+     */
+    // A member, so `scopeFor` answers "sender": no `billing.manage`.
+    const harness = buildHarness({ account: null, role: "member" });
+    const response = await harness.request("/v1/payments/account");
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body.action).toBeNull();
+    expect(body.action_key).toBeNull();
+    // The state itself still speaks: a workspace that cannot charge has to be
+    // able to say so on every surface.
+    expect(body.title_key).toBe("payments.payoutNotConnectedTitle");
   });
 
   it("names the outstanding requirements rather than saying 'pending'", async () => {
