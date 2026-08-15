@@ -33,9 +33,18 @@ import {
   DASHBOARD_TILE_LABELS,
 } from "@loonext/shared";
 
-import { makeTranslate, type MessageKey } from "@/i18n/provider";
+import { makeTranslate, type MessageKey, sayEnglish } from "@/i18n/provider";
 
 import { CustomiseDashboard } from "./customise-dashboard";
+
+/*
+ * #228 — the shared panel table names catalogue KEYS, so a test looking for the
+ * words on the screen resolves them the way the panel itself does. Reading the
+ * table as if it still held headings is how this file failed: every query went
+ * looking for "domain.panelPipeline".
+ */
+const say = sayEnglish;
+
 
 beforeEach(() => {
   state.hidden = [];
@@ -57,13 +66,13 @@ describe("CustomiseDashboard (#540)", () => {
     expect(
       screen.getByRole("button", { name: /Customise this screen/ }),
     ).toBeTruthy();
-    expect(screen.queryByText(DASHBOARD_PANEL_LABELS.pipeline)).toBeNull();
+    expect(screen.queryByText(say(DASHBOARD_PANEL_LABELS.pipeline))).toBeNull();
   });
 
   it("lists every panel, each with the reason it exists", () => {
     open();
     for (const id of DASHBOARD_PANEL_IDS) {
-      expect(screen.getByText(DASHBOARD_PANEL_LABELS[id])).toBeTruthy();
+      expect(screen.getByText(say(DASHBOARD_PANEL_LABELS[id]))).toBeTruthy();
     }
     // A switch with only a name is a guess for anybody who has not already read
     // both cards it might refer to.
@@ -76,10 +85,10 @@ describe("CustomiseDashboard (#540)", () => {
     state.hidden = ["pipeline"];
     open();
     const pipeline = screen.getByRole("switch", {
-      name: DASHBOARD_PANEL_LABELS.pipeline,
+      name: say(DASHBOARD_PANEL_LABELS.pipeline),
     });
     const satisfaction = screen.getByRole("switch", {
-      name: DASHBOARD_PANEL_LABELS.satisfaction,
+      name: say(DASHBOARD_PANEL_LABELS.satisfaction),
     });
     expect(pipeline.getAttribute("aria-checked")).toBe("false");
     expect(satisfaction.getAttribute("aria-checked")).toBe("true");
@@ -91,7 +100,7 @@ describe("CustomiseDashboard (#540)", () => {
     state.hidden = ["pipeline"];
     open();
     fireEvent.click(
-      screen.getByRole("switch", { name: DASHBOARD_PANEL_LABELS.recent_calls }),
+      screen.getByRole("switch", { name: say(DASHBOARD_PANEL_LABELS.recent_calls) }),
     );
     expect(mutate).toHaveBeenCalledWith(["pipeline", "recent_calls"]);
   });
@@ -100,7 +109,7 @@ describe("CustomiseDashboard (#540)", () => {
     state.hidden = ["pipeline", "recent_calls"];
     open();
     fireEvent.click(
-      screen.getByRole("switch", { name: DASHBOARD_PANEL_LABELS.pipeline }),
+      screen.getByRole("switch", { name: say(DASHBOARD_PANEL_LABELS.pipeline) }),
     );
     expect(mutate).toHaveBeenCalledWith(["recent_calls"]);
   });
@@ -257,7 +266,9 @@ describe("the switch is named after the card it controls (#540)", () => {
       expect(text, `${id}'s heading did not resolve to words`).not.toMatch(
         /^inbox\./,
       );
-      const label = DASHBOARD_PANEL_LABELS[id as keyof typeof DASHBOARD_PANEL_LABELS];
+      const label = say(
+        DASHBOARD_PANEL_LABELS[id as keyof typeof DASHBOARD_PANEL_LABELS],
+      );
       // A prefix, case-insensitively: the heading may carry a window the switch
       // does not need to repeat ("Quotes" for "Quotes, last 30 days").
       expect(

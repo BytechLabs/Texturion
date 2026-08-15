@@ -145,13 +145,49 @@ final class DashboardPanelsTests: XCTestCase {
     /// A crew comparing a laptop and a phone over a van bonnet is comparing these
     /// exact words; "Lead sources" here against "Where customers came from" there
     /// reads as two different settings.
+    /// Where the panel WORDS live since #228: the web catalogue.
+    ///
+    /// Only the label assertion follows them. The other two read panel IDS and
+    /// their order — wire values that never moved — and pointing those here
+    /// would have them find no ids at all and pass on an empty comparison.
+    ///
+    /// Sliced to the English half: the French holds the same keys, and a
+    /// `contains` over the whole file would ask whether a label appears in
+    /// EITHER language.
+    private func repoPath(_ relative: String) throws -> URL {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while true {
+            let candidate = dir.appendingPathComponent(relative)
+            if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+            let parent = dir.deletingLastPathComponent()
+            if parent.path == dir.path { break }
+            dir = parent
+        }
+        XCTFail("\(relative) is not reachable from \(#filePath)")
+        throw CocoaError(.fileNoSuchFile)
+    }
+
+    private func panelCopy() throws -> String {
+        let raw = try String(
+            contentsOf: try repoPath("apps/web/src/i18n/sections/domain.ts"),
+            encoding: .utf8
+        )
+        guard let start = raw.range(of: "export const domainEn"),
+              let end = raw.range(of: "export const domainFr")
+        else {
+            XCTFail("domain.ts no longer has both language blocks")
+            return ""
+        }
+        return String(raw[start.upperBound ..< end.lowerBound])
+    }
+
     func testThePanelLabelsMatchTheSharedModule() throws {
-        let shared = try sharedSource()
+        let shared = try panelCopy()
         for panel in DashboardPanels.Panel.allCases {
             let label = DashboardPanels.label(panel)
             XCTAssertTrue(
-                shared.contains("\(panel.rawValue): \"\(label)\""),
-                "the label for \(panel.rawValue) has drifted: \(label)"
+                shared.contains("\"\(label)\""),
+                "the label for \(panel.rawValue) has drifted from the catalogue: \(label)"
             )
         }
     }

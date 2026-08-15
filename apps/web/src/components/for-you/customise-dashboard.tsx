@@ -15,7 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import { useHiddenPanels, useSetHiddenPanels } from "@/lib/api/me-company";
 
 /**
@@ -61,6 +61,9 @@ import { useHiddenPanels, useSetHiddenPanels } from "@/lib/api/me-company";
  */
 export function CustomiseDashboard() {
   const t = useT();
+  // #228: the shared panel tables name catalogue keys, so this list says
+  // them in the reader's language.
+  const say = sayWith(t);
   const hidden = useHiddenPanels();
   const save = useSetHiddenPanels();
 
@@ -165,6 +168,10 @@ function PanelGroup({
   onToggle: (panel: DashboardPanelId, visible: boolean) => void;
   className?: string;
 }) {
+  // #228: the shared panel tables name catalogue keys, so the rows say them in
+  // the reader's language. `heading` arrives already said by the caller — the
+  // group titles are the page's own copy, not the shared module's.
+  const say = sayWith(useT());
   return (
     <div className={className}>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted">
@@ -185,13 +192,13 @@ function PanelGroup({
                   id={`panel-${id}-label`}
                   className="block text-[13px] font-medium text-app-ink"
                 >
-                  {DASHBOARD_PANEL_LABELS[id]}
+                  {say(DASHBOARD_PANEL_LABELS[id])}
                 </span>
                 <span
                   id={`panel-${id}-note`}
                   className="mt-0.5 block text-[12px] leading-snug text-app-muted"
                 >
-                  {DASHBOARD_PANEL_NOTES[id]}
+                  {say(DASHBOARD_PANEL_NOTES[id])}
                 </span>
               </label>
               {/* The switch is a `button role="switch"`, so `<label for>` gives

@@ -121,14 +121,30 @@ class DashboardPanelsTest {
      * exact words; "Lead sources" here against "Where customers came from" there
      * reads as two different settings.
      */
+    /**
+     * Where the panel WORDS live since #228: the web catalogue.
+     *
+     * Only this assertion follows them. The two above read panel IDS and their
+     * order — wire values that never moved — and pointing those here would have
+     * them find no ids at all and pass on an empty comparison.
+     *
+     * Sliced to the English half: the French holds the same keys, and a
+     * `contains` over the whole file would ask whether a label appears in
+     * EITHER language.
+     */
+    private fun panelCopy(): String =
+        repoFile("apps/web/src/i18n/sections/domain.ts")
+            .substringAfter("export const domainEn")
+            .substringBefore("export const domainFr")
+
     @Test
     fun `the panel labels match the shared module`() {
-        val shared = repoFile("packages/shared/src/dashboard-panels.ts")
+        val shared = panelCopy()
         for (panel in DashboardPanels.Panel.entries) {
             val label = DashboardPanels.label(panel)
             assertTrue(
-                "the label for ${panel.id} has drifted from the shared module: $label",
-                shared.contains("${panel.id}: \"$label\""),
+                "the label for ${panel.id} has drifted from the catalogue: $label",
+                shared.contains("\"$label\""),
             )
         }
     }

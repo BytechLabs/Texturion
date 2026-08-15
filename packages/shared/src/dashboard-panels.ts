@@ -49,12 +49,20 @@ export type DashboardPanelId = (typeof DASHBOARD_PANEL_IDS)[number];
  * The label a member reads in the list has to be the heading they see on the
  * screen, or the switch is a guess. These match the card headings, not the ids.
  */
+/*
+ * #228: catalogue KEYS, not headings.
+ *
+ * The rule above still holds and is why these are worth keeping in one place:
+ * the label in the list has to be the heading on the card, or the switch is a
+ * guess. Naming the key rather than the words means that stays true in both
+ * languages instead of only in the one somebody typed.
+ */
 export const DASHBOARD_PANEL_LABELS: Record<DashboardPanelId, string> = {
-  response_time: "Response time",
-  pipeline: "Quotes",
-  satisfaction: "Satisfaction",
-  lead_sources: "Where your customers come from",
-  recent_calls: "Recent calls",
+  response_time: "domain.panelResponseTime",
+  pipeline: "domain.panelPipeline",
+  satisfaction: "domain.panelSatisfaction",
+  lead_sources: "domain.panelLeadSources",
+  recent_calls: "domain.panelRecentCalls",
 };
 
 /**
@@ -65,11 +73,11 @@ export const DASHBOARD_PANEL_LABELS: Record<DashboardPanelId, string> = {
  * "Response time" for anybody who has not already read both cards.
  */
 export const DASHBOARD_PANEL_NOTES: Record<DashboardPanelId, string> = {
-  response_time: "How fast new customers got an answer this week.",
-  pipeline: "What you quoted this month, and how much of it landed.",
-  satisfaction: "Whether the people you answered were happy.",
-  lead_sources: "Which channels are actually bringing work in.",
-  recent_calls: "The last few calls, in and out.",
+  response_time: "domain.panelResponseTimeNote",
+  pipeline: "domain.panelPipelineNote",
+  satisfaction: "domain.panelSatisfactionNote",
+  lead_sources: "domain.panelLeadSourcesNote",
+  recent_calls: "domain.panelRecentCallsNote",
 };
 
 /** Nothing hidden. A new member gets the whole screen and takes things off it. */

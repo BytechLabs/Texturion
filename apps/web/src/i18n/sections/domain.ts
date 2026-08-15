@@ -26,6 +26,21 @@ import type { Translated } from "../translated";
 
 export const domainEn = {
   /*
+   * #540 — the dashboard panels a member may put away, and what each one answers. Both phones have said these since #228 reached them; the web imported the shared tables and rendered whatever English came back.
+   */
+  panelLeadSources: "Where your customers come from",
+  panelLeadSourcesNote: "Which channels are actually bringing work in.",
+  panelPipeline: "Quotes",
+  panelPipelineNote: "What you quoted this month, and how much of it landed.",
+  panelRecentCalls: "Recent calls",
+  panelRecentCallsNote: "The last few calls, in and out.",
+  panelResponseTime: "Response time",
+  panelResponseTimeNote: "How fast new customers got an answer this week.",
+  panelSatisfaction: "Satisfaction",
+  panelSatisfactionNote: "Whether the people you answered were happy.",
+
+
+  /*
    * #244 — who is on call, and the banner that turns 'somebody should call these people' into 'I have this'. Both phones have said these since #228 reached them. The two assembled lines are TEMPLATE keys rather than concatenations: putting the subject first and the clause after is English word order stated as code.
    */
   onCallBannerClaim: "I have this",
@@ -272,6 +287,18 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  panelLeadSources: "D'où viennent vos clients",
+  panelLeadSourcesNote: "Quels canaux amènent réellement du travail.",
+  panelPipeline: "Devis",
+  panelPipelineNote: "Ce que vous avez proposé en devis ce mois-ci, et quelle part vous avez décrochée.",
+  panelRecentCalls: "Appels récents",
+  panelRecentCallsNote: "Les derniers appels, entrants et sortants.",
+  panelResponseTime: "Temps de réponse",
+  panelResponseTimeNote: "À quelle vitesse les nouveaux clients ont eu une réponse cette semaine.",
+  panelSatisfaction: "Satisfaction",
+  panelSatisfactionNote: "Si les personnes à qui vous avez répondu étaient satisfaites.",
+
+
   onCallBannerClaim: "Je m'en occupe",
   onCallBannerTaken: "s'en occupe",
   onCallBannerWaiting: "Personne ne s'en est encore occupé",
