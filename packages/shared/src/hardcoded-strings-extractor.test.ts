@@ -340,3 +340,71 @@ describe("the Swift extractor", () => {
     expect(found).not.toContain("Jordan Lee calling");
   });
 });
+
+describe("#228 a statement is not a sentence", () => {
+  /**
+   * Nineteen of the web ledger's forty-five entries were shapes like these —
+   * `finally` six times, `catch (cause)`, `interface NavRow`. Every one of them
+   * sent whoever picked the file up next to look at a keyword.
+   *
+   * Each exclusion below is paired with the nearest REAL sentence it must not
+   * eat, because a guard that silently drops copy is the failure this whole
+   * file exists to prevent.
+   */
+  it("drops a reserved word standing alone", () => {
+    for (const code of ["finally", "const", "catch", "interface"]) {
+      expect(findWebLiterals(`<p>${code}</p>`, "a.tsx")).toEqual([]);
+    }
+  });
+
+  it("drops a statement that OPENS with a reserved word", () => {
+    for (const code of [
+      "catch (cause)",
+      "if (data.session)",
+      "interface NavRow",
+      "as const satisfies Record",
+      "typeof window",
+    ]) {
+      expect(findWebLiterals(`<p>${code}</p>`, "a.tsx"), code).toEqual([]);
+    }
+  });
+
+  it("keeps copy that merely CONTAINS a reserved word", () => {
+    // THE ONE THAT MATTERS. "Delete this if you are sure" contains `if`, and a
+    // rule reading "contains a keyword" would eat it. The rule keys on the
+    // word OPENING the text, which a sentence about deleting does not.
+    const kept = [
+      "Delete this if you are sure.",
+      "Try again in a moment.",
+      "New customers are added here.",
+      "Export everything as a spreadsheet.",
+    ];
+    for (const copy of kept) {
+      expect(findWebLiterals(`<p>${copy}</p>`, "a.tsx"), copy).toContain(copy);
+    }
+  });
+
+  it("keeps a one-word label that is not a keyword", () => {
+    // The rule has to be narrow enough that "Update", "Dismiss" and "Back"
+    // survive — those are real buttons, and they are one word each.
+    for (const label of ["Update", "Dismiss", "Back", "Waiting"]) {
+      expect(findWebLiterals(`<p>${label}</p>`, "a.tsx"), label).toContain(label);
+    }
+  });
+
+  it("drops an expression carrying a boolean or arrow operator", () => {
+    for (const code of [
+      "0 && !markAllRead.isPending)",
+      "value === other",
+      "left !== right",
+    ]) {
+      expect(findWebLiterals(`<p>${code}</p>`, "a.tsx"), code).toEqual([]);
+    }
+  });
+
+  it("keeps an ampersand a person would actually type", () => {
+    // `&&` is code; a single `&` is how a trade writes its own name.
+    const copy = "Ace Plumbing & Heating";
+    expect(findWebLiterals(`<p>${copy}</p>`, "a.tsx")).toContain(copy);
+  });
+});

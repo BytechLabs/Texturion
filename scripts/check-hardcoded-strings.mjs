@@ -203,6 +203,38 @@ const TYPE_ARGUMENTS = new Set([
 ]);
 
 /** Prose, or an identifier that happens to be spelled with letters? */
+/**
+ * JavaScript and TypeScript reserved words, plus the handful of contextual
+ * keywords that open a statement.
+ *
+ * Closed by the language spec rather than by us — that is the whole reason
+ * this is allowed to be a list at all. Compare `TYPE_ARGUMENTS` above, which
+ * is OUR names and needs an entry whenever a new type shows up between
+ * brackets; this one needs an entry when TC39 ships a keyword.
+ */
+const RESERVED_WORDS = new Set([
+  "as", "async", "await", "break", "case", "catch", "class", "const",
+  "continue", "declare", "default", "delete", "do", "else", "enum", "export",
+  "extends", "finally", "for", "function", "if", "implements", "import", "in",
+  "instanceof", "interface", "let", "new", "of", "readonly", "return",
+  "satisfies", "static", "switch", "throw", "try", "type", "typeof", "var",
+  "void", "while", "yield",
+]);
+
+/**
+ * Is this a fragment of a statement rather than a sentence?
+ *
+ * True when a reserved word IS the text, or opens it followed by a space or a
+ * bracket. Deliberately not "contains a reserved word": "Delete this if you
+ * are sure" is copy, and a rule that ate it would be the silent-drop failure
+ * this file exists to prevent.
+ */
+function isStatementFragment(text) {
+  const first = /^([A-Za-z]+)(?=$|[\s(])/.exec(text);
+  if (!first) return false;
+  return RESERVED_WORDS.has(first[1]);
+}
+
 function looksLikeProse(value) {
   const text = value.trim();
   if (text.length < 4) return false;
@@ -286,6 +318,38 @@ function looksLikeProse(value) {
    * unlike a threshold, which goes wrong quietly (a-shape-test-is-a-vocabulary).
    */
   if (TYPE_ARGUMENTS.has(text)) return false;
+
+  /*
+   * A STATEMENT, caught by the same JSX/plain-module reach as the rules above.
+   *
+   * `finally`, `const`, `catch (cause)`, `if (data.session)`,
+   * `interface NavRow`, `as const satisfies Record` — nineteen of the web
+   * ledger's forty-five were shapes like these, and every one of them sends the
+   * next person to look at a keyword.
+   *
+   * A RESERVED-WORD test is safe here in a way a list of hook names or type
+   * names is not, and the distinction is worth stating because this file
+   * already refuses two vocabularies on principle
+   * (a-shape-test-is-a-vocabulary): the set below is closed by the LANGUAGE
+   * SPEC. It does not grow when the product does, so it cannot go stale the way
+   * a list of our own identifiers would.
+   *
+   * The rule is narrow on purpose. It fires when a reserved word is the WHOLE
+   * text, or opens it followed by a space or a bracket — never when one merely
+   * appears inside a sentence, because "Delete this if you are sure" is copy
+   * and must survive.
+   */
+  if (isStatementFragment(text)) return false;
+
+  /*
+   * A BOOLEAN or ARROW operator.
+   *
+   * `0 && !markAllRead.isPending)`, `x => y`, `a !== b`. None of these
+   * sequences occurs in English — `&&`, `||`, `=>`, `===` and `!==` are
+   * punctuation a sentence has no use for, which is the same discriminator the
+   * semicolon rule above uses.
+   */
+  if (/&&|\|\||=>|===|!==/.test(text)) return false;
 
   /*
    * A COMPARISON, spanning a `<` or a `>` operator.
