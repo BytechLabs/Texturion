@@ -1588,6 +1588,22 @@ private val BILLING_EN = mapOf(
     "settings.numberSetupFailed" to
         "We couldn't finish setting up your number. Choose a number to try " +
         "again.",
+    /*
+     * #228 — the confirm dialog for a spending cap. It names the exact
+     * message count where sending stops, so the number is the sentence and
+     * the sentence is a promise; the raise/lower/ceiling cases say different
+     * things about money and are separate keys for that reason.
+     */
+    "settings.capConfirmTitle" to "Set the cap to {cap}?",
+    "settings.capRaised" to
+        "Sending pauses at {next} messages this period instead of {current}.",
+    "settings.capRaisedToCeiling" to
+        "Sending pauses at {next} messages this period instead of {current}. " +
+        "That's the highest the cap goes. Every message over your {included} " +
+        "included is billed at the overage rate until sending pauses.",
+    "settings.capLowered" to
+        "Sending pauses at {next} messages this period. If you're already " +
+        "past that, sends pause right away.",
     "settings.offerComeBackOnStarter" to "Come back on Starter",
     "settings.offerGetHelp" to "Get help",
     "settings.offerMissingBody" to "If the thing you needed is not here, the fastest way to change that is to tell us what it was. We answer {when}. {promise}",
@@ -1922,6 +1938,18 @@ private val BILLING_FR = mapOf(
     "settings.numberSetupFailed" to
         "Nous n'avons pas pu terminer la configuration de votre numéro. " +
         "Choisissez un numéro pour réessayer.",
+    "settings.capConfirmTitle" to "Fixer le plafond à {cap} ?",
+    "settings.capRaised" to
+        "Les envois s'arrêtent à {next} textos pour cette période au lieu " +
+        "de {current}.",
+    "settings.capRaisedToCeiling" to
+        "Les envois s'arrêtent à {next} textos pour cette période au lieu " +
+        "de {current}. C'est le plafond le plus élevé possible. Chaque " +
+        "texto au-delà des {included} compris est facturé au tarif de " +
+        "dépassement jusqu'à l'arrêt des envois.",
+    "settings.capLowered" to
+        "Les envois s'arrêtent à {next} textos pour cette période. Si vous " +
+        "avez déjà dépassé ce nombre, les envois s'arrêtent tout de suite.",
     "settings.offerComeBackOnStarter" to "Revenir sur Starter",
     "settings.offerGetHelp" to "Obtenir de l'aide",
     "settings.offerMissingBody" to "Si ce dont vous aviez besoin n'est pas là, le plus rapide pour que cela change est de nous dire ce que c'était. Nous répondons {when}. {promise}",

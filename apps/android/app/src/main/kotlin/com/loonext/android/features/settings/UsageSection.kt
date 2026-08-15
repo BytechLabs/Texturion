@@ -318,7 +318,12 @@ private fun CapCard(
                 if (dirty) {
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        describeCapChange(current, pending, usage.included_segments).summary,
+                        describeCapChange(
+                            current,
+                            pending,
+                            usage.included_segments,
+                            locale,
+                        ).summary,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -360,7 +365,7 @@ private fun CapCard(
 
     val next = proposed
     if (next != null) {
-        val change = describeCapChange(current, next, usage.included_segments)
+        val change = describeCapChange(current, next, usage.included_segments, locale)
         ConfirmDialog(
             title = change.title,
             body = change.summary,

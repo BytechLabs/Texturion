@@ -330,7 +330,12 @@ fun groupDigits(value: Long): String = String.format(Locale.US, "%,d", value)
  * Confirm-dialog copy for a cap change — mirrors describeCapChange in the
  * web's cap-control.ts so both clients promise the same pause point.
  */
-fun describeCapChange(current: Double?, next: Double?, includedSegments: Long): CapChange {
+fun describeCapChange(
+    current: Double?,
+    next: Double?,
+    includedSegments: Long,
+    locale: String? = null,
+): CapChange {
     val currentValue = normalizeCapMultiplier(current)
     val nextValue = normalizeCapMultiplier(next)
     if (currentValue == nextValue) {
@@ -338,25 +343,32 @@ fun describeCapChange(current: Double?, next: Double?, includedSegments: Long): 
     }
     val nextTotal = capSegments(includedSegments, nextValue)
     val currentTotal = capSegments(includedSegments, currentValue)
-    val title = "Set the cap to ${capLabel(nextValue)}?"
+    val title = AppStrings.translate(
+        locale,
+        "settings.capConfirmTitle",
+        mapOf("cap" to capLabel(nextValue)),
+    )
     if (nextValue > currentValue) {
         val atCeiling = nextValue >= MAX_CAP_MULTIPLIER
-        val summary = if (atCeiling) {
-            "Sending pauses at ${groupDigits(nextTotal)} messages this period instead of " +
-                "${groupDigits(currentTotal)}. That's the highest the cap goes. Every message " +
-                "over your ${groupDigits(includedSegments)} included is billed at the overage " +
-                "rate until sending pauses."
-        } else {
-            "Sending pauses at ${groupDigits(nextTotal)} messages this period instead of " +
-                "${groupDigits(currentTotal)}."
-        }
+        val summary = AppStrings.translate(
+            locale,
+            if (atCeiling) "settings.capRaisedToCeiling" else "settings.capRaised",
+            mapOf(
+                "next" to groupDigits(nextTotal),
+                "current" to groupDigits(currentTotal),
+                "included" to groupDigits(includedSegments),
+            ),
+        )
         return CapChange(requiresConfirmation = true, title = title, summary = summary)
     }
     return CapChange(
         requiresConfirmation = true,
         title = title,
-        summary = "Sending pauses at ${groupDigits(nextTotal)} messages this period. " +
-            "If you're already past that, sends pause right away.",
+        summary = AppStrings.translate(
+            locale,
+            "settings.capLowered",
+            mapOf("next" to groupDigits(nextTotal)),
+        ),
     )
 }
 

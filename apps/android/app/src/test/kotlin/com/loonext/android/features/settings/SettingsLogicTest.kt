@@ -271,6 +271,42 @@ class SettingsLogicTest {
         assertFalse(describeCapChange(null, 10.0, 500).requiresConfirmation)
     }
 
+    /*
+     * #228 — the cap dialog, read in French.
+     *
+     * The English cases above are the RULE: which sentence each direction
+     * gets, and that both pause points are named when the cap goes up. This
+     * one checks the NUMBERS survive, because the number is the promise here
+     * — a sentence that lost {next} would be asking somebody to approve a
+     * spending change with the amount missing.
+     */
+    @Test
+    fun `a French reader approves the same cap, with the same numbers`() {
+        val raised = describeCapChange(2.0, 3.0, 500, MessageLocale.FR_CA)
+        assertTrue(raised.title, raised.title.contains("3×"))
+        // Asked through `groupDigits` rather than spelled out. It formats with
+        // Locale.US, so today a French reader sees "1,500" where Quebec writes
+        // "1 500" — a separate, cross-client question about the FORMATTER, not
+        // this sentence. Deriving it here means fixing the separator does not
+        // also break this test.
+        assertTrue(raised.summary, raised.summary.contains(groupDigits(1500)))
+        assertTrue(raised.summary, raised.summary.contains(groupDigits(1000)))
+        assertTrue(raised.summary, !raised.summary.contains("{"))
+        assertTrue(raised.title, !raised.title.contains("settings."))
+
+        val ceiling = describeCapChange(2.0, 10.0, 2500, MessageLocale.FR_CA)
+        // The ceiling case is the one that says money changes hands. The
+        // overage rate has to still be in it.
+        assertTrue(ceiling.summary, ceiling.summary.contains("dépassement"))
+        assertTrue(ceiling.summary, !ceiling.summary.contains("{included}"))
+
+        val lowered = describeCapChange(5.0, 2.0, 500, MessageLocale.FR_CA)
+        // And lowering has to keep its warning: this one can stop sending the
+        // moment it is saved.
+        assertTrue(lowered.summary, lowered.summary.contains("tout de suite"))
+        assertTrue(lowered.summary, !lowered.summary.contains("settings."))
+    }
+
     // -- merge fields (drop-empty wire semantics) -------------------------------
 
     @Test
