@@ -392,8 +392,10 @@ export {
 
 export {
   CARRIER_OPT_OUT_ERROR_CODE,
-  GENERIC_SEND_FAILURE,
-  sendFailureMessage,
+  GENERIC_SEND_FAILURE_KEY,
+  SEND_FAILURE_MESSAGE_KEYS,
+  type SendFailureMessageKey,
+  sendFailureMessageKey,
 } from "./send-failures";
 
 export {

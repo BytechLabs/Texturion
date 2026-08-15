@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import {
   failureReasonOf,
   mmsMediaKind,
-  sendFailureMessage,
+  sendFailureMessageKey,
 } from "@loonext/shared";
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
@@ -44,8 +44,10 @@ import { MessageActions } from "./message-actions";
  * Delivery-state line (G5): "Sending…" → "Sent ✓" → "Delivered ✓✓";
  * Failed = a red line saying WHY, plus Retry (retry only while the Telnyx API
  * call never assigned an id, SPEC §7). The reason comes from the provider's
- * error code through the shared sendFailureMessage, so "Not delivered" is now
- * only what an unexplainable failure says. Includes screen-reader text (G11). Hovering the time shows
+ * error code through the shared sendFailureMessageKey, so "Not delivered" is
+ * now only what an unexplainable failure says. #228: the shared module names a
+ * key and this component looks it up, because it is the one that knows the
+ * reader's language. Includes screen-reader text (G11). Hovering the time shows
  * the absolute datetime with zone abbreviation (D15).
  */
 export function DeliveryState({
@@ -70,7 +72,7 @@ export function DeliveryState({
         className="text-[12px] text-destructive dark:text-red-400"
         role="status"
       >
-        {sendFailureMessage(message.error_code)}
+        {t(sendFailureMessageKey(message.error_code))}
         {retryable && (
           <>
             {". "}

@@ -18,62 +18,111 @@
 /** The customer texted STOP: a carrier block only they can lift. */
 export const CARRIER_OPT_OUT_ERROR_CODE = "40300";
 
-/** The fallback, and the whole of what a failed send used to say. */
-export const GENERIC_SEND_FAILURE = "Not delivered";
+/**
+ * The fallback, and the whole of what a failed send used to say.
+ *
+ * #228: the KEY is the constant now, not the sentence. This module is rendered
+ * by three clients and each has its own catalogue; a sentence here would be the
+ * English one on all three, which is exactly what a French reader was getting
+ * under a message bubble in an otherwise French app.
+ */
+export const GENERIC_SEND_FAILURE_KEY = "domain.sendFailureGeneric";
 
-const MESSAGES: Record<string, string> = {
+const SEND_FAILURE_KEYS = {
   // The recipient's own choice. Only they can undo it, by texting START.
-  [CARRIER_OPT_OUT_ERROR_CODE]: "This customer opted out",
+  [CARRIER_OPT_OUT_ERROR_CODE]: "domain.sendFailureOptedOut",
 
   // Nothing on the other end can receive it.
-  "40001": "That number can't receive texts",
-  "40012": "That number isn't textable",
-  "40310": "That number isn't textable",
+  "40001": "domain.sendFailureUnreachable",
+  "40012": "domain.sendFailureNotTextable",
+  "40310": "domain.sendFailureNotTextable",
 
   // Carriers judged the content. Worth rewording and trying again in the
   // temporary cases; pointless in the permanent ones, so the wording differs.
-  "40002": "Carriers are blocking this right now",
-  "40017": "Carriers are blocking this right now",
-  "40003": "Carriers blocked this as spam",
-  "40015": "Carriers blocked this as spam",
-  "40322": "Carriers blocked this as spam",
+  "40002": "domain.sendFailureBlockedNow",
+  "40017": "domain.sendFailureBlockedNow",
+  "40003": "domain.sendFailureSpam",
+  "40015": "domain.sendFailureSpam",
+  "40322": "domain.sendFailureSpam",
 
   // Volume, not content.
-  "40011": "Sent too fast for carriers. Try again shortly",
-  "40016": "Sent too fast for carriers. Try again shortly",
-  "40018": "Sent too fast for carriers. Try again shortly",
-  "40318": "Sent too fast for carriers. Try again shortly",
+  "40011": "domain.sendFailureRateLimited",
+  "40016": "domain.sendFailureRateLimited",
+  "40018": "domain.sendFailureRateLimited",
+  "40318": "domain.sendFailureRateLimited",
 
   // Their phone, momentarily.
-  "40004": "Their phone rejected it",
-  "40006": "Their phone couldn't receive it",
-  "40008": "Their phone couldn't receive it",
+  "40004": "domain.sendFailureHandsetRejected",
+  "40006": "domain.sendFailureHandsetUnavailable",
+  "40008": "domain.sendFailureHandsetUnavailable",
 
   // It sat too long to still be worth sending.
-  "40005": "It expired before it could send",
-  "40014": "It expired before it could send",
+  "40005": "domain.sendFailureExpired",
+  "40014": "domain.sendFailureExpired",
 
   // Something about the message itself.
-  "40009": "Carriers wouldn't accept this message",
-  "40316": "There was nothing to send",
-  "40317": "Carriers wouldn't accept that attachment",
-  "40328": "Too long to send",
+  "40009": "domain.sendFailureContent",
+  "40316": "domain.sendFailureEmpty",
+  "40317": "domain.sendFailureAttachment",
+  "40328": "domain.sendFailureTooLong",
 
   // Registration and number setup, which the owner can actually go and fix.
-  "40010": "Your US texting registration isn't approved yet",
-  "40329": "Your US texting registration isn't approved yet",
-  "40330": "This number isn't set up for texting yet",
-  "40100": "This number isn't set up for texting yet",
-  "40314": "Texting is turned off for this number",
-  "40305": "This number can't send texts",
-  "40308": "This number can't send pictures",
-};
+  "40010": "domain.sendFailureRegistration",
+  "40329": "domain.sendFailureRegistration",
+  "40330": "domain.sendFailureNumberNotReady",
+  "40100": "domain.sendFailureNumberNotReady",
+  "40314": "domain.sendFailureTextingOff",
+  "40305": "domain.sendFailureNoSms",
+  "40308": "domain.sendFailureNoMms",
+} as const;
 
 /**
- * The sentence to show under a failed message. Falls back to the plain
- * "Not delivered" for a code we cannot explain honestly.
+ * Every key this module can name, as a type.
+ *
+ * The web's `t()` takes a key drawn from its catalogue, so typing the return
+ * this way makes `tsc` prove the catalogue holds every one of them. A
+ * `string` return would have needed a cast at the call site, and the cast
+ * would have silenced the single error that matters: a key this module can
+ * produce and the reader's catalogue cannot answer renders as its own name.
  */
-export function sendFailureMessage(errorCode: string | null | undefined): string {
-  if (!errorCode) return GENERIC_SEND_FAILURE;
-  return MESSAGES[errorCode.trim()] ?? GENERIC_SEND_FAILURE;
+export type SendFailureMessageKey =
+  | typeof GENERIC_SEND_FAILURE_KEY
+  | (typeof SEND_FAILURE_KEYS)[keyof typeof SEND_FAILURE_KEYS];
+
+/**
+ * The catalogue key for a failed send. Falls back to the plain "Not delivered"
+ * key for a code we cannot explain honestly.
+ *
+ * Returns a KEY rather than a sentence because three clients render this and
+ * each holds its own catalogue. The caller is the one that knows the reader's
+ * language, and it is the only place that does.
+ */
+export function sendFailureMessageKey(
+  errorCode: string | null | undefined,
+): SendFailureMessageKey {
+  if (!errorCode) return GENERIC_SEND_FAILURE_KEY;
+  const code = errorCode.trim() as keyof typeof SEND_FAILURE_KEYS;
+  return SEND_FAILURE_KEYS[code] ?? GENERIC_SEND_FAILURE_KEY;
 }
+
+/**
+ * The table itself, for the parity test.
+ *
+ * Exported as data rather than left to be parsed out of this file, because one
+ * of these entries is written with a computed key — `[CARRIER_OPT_OUT_ERROR_CODE]`
+ * — and a test that read the source text would report the opt-out mapping
+ * missing when it is the one mapping with a legal meaning.
+ *
+ * @internal No client should read the table; they call
+ * {@link sendFailureMessageKey}, which is where the trimming and the fallback
+ * live. A caller that indexed this directly would silently answer nothing for a
+ * code stored with whitespace around it.
+ */
+export const SEND_FAILURE_KEYS_BY_CODE: Readonly<Record<string, SendFailureMessageKey>> =
+  SEND_FAILURE_KEYS;
+
+/** Every key this module can name — the parity test reads it. */
+export const SEND_FAILURE_MESSAGE_KEYS: readonly SendFailureMessageKey[] = [
+  GENERIC_SEND_FAILURE_KEY,
+  ...new Set(Object.values(SEND_FAILURE_KEYS)),
+];
