@@ -13,6 +13,7 @@ import {
   MonitorSmartphone,
   Phone,
   PhoneMissed,
+  KeyRound,
   Plug,
   ScrollText,
   ShieldCheck,
@@ -236,6 +237,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "webhooks.navWebhooks",
     description: "webhooks.navWebhooksDesc",
     icon: Plug,
+  },
+  {
+    // #243 — the other half of the integration story: what may reach IN.
+    // Directly after Connections because the two are one subject seen from
+    // opposite ends, and a person setting up an integration needs both.
+    id: "apiKeys",
+    slug: "api-keys",
+    label: "apiKeys.navApiKeys",
+    description: "apiKeys.navApiKeysDesc",
+    icon: KeyRound,
   },
 ];
 

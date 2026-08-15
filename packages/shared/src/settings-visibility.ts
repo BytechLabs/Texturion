@@ -68,6 +68,9 @@ export type SettingsSectionId =
   // in the product that sends message content OUT of it, and a thing with that
   // consequence should not be found by scrolling past business hours.
   | "webhooks"
+  // #243: the workspace API keys. Beside Connections because they are the two
+  // halves of one subject — what leaves the building, and what may reach in.
+  | "apiKeys"
   | "diagnostics";
 
 /**
@@ -104,6 +107,10 @@ const SECTION_CAPABILITY: Record<SettingsSectionId, Capability> = {
   // nav row and the route agree with the server rather than merely with each
   // other.
   webhooks: "settings.manage",
+  // #243: strictest in the table, with Connections. A key list names what can
+  // reach this workspace's data, and creating one mints a credential — so the
+  // read is gated exactly as the writes are, matching the API.
+  apiKeys: "settings.manage",
   /**
    * #286: EVERY role, not just the ones who can change it.
    *

@@ -100,6 +100,18 @@ export type AuditAction =
   | "webhook.endpoint_updated"
   | "webhook.endpoint_deleted"
   | "webhook.secret_rotated"
+  /**
+   * #243: an API key. Its own actions for the same reason the webhook ones
+   * are: this is a credential that reaches the workspace's customer data, and
+   * "what could that key do, and who gave it that" is a question with a
+   * different urgency to any other settings change.
+   *
+   * The revocation is recorded as well as the creation, because after an
+   * incident the useful timeline is both — when the reach was granted, and
+   * when it was taken away.
+   */
+  | "api_key.created"
+  | "api_key.revoked"
   // #419: saved replies. Recorded because a template is the only object where
   // one person's edit changes what EVERYONE says to customers — a bad message
   // is one message, a bad template is every future send by every crew member

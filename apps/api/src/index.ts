@@ -97,6 +97,7 @@ import { referralRoutes } from "./routes/referrals";
 import { savedViewsRoutes } from "./routes/saved-views";
 import { webhooksRoutes } from "./routes/webhooks";
 import { publicApiRoutes } from "./routes/public-api";
+import { apiKeysRoutes } from "./routes/api-keys";
 import { appointmentReminderRoutes } from "./routes/appointment-reminders";
 import { onCallRoutes } from "./routes/on-call";
 import { scheduledMessageRoutes } from "./routes/scheduled-messages";
@@ -263,6 +264,7 @@ app.route("/v1", composeRoutes); // POST /v1/conversations — before conversati
 // overlap. Saved views are query parameters, never conversation rows.
 app.route("/v1", savedViewsRoutes);
 app.route("/v1", webhooksRoutes);
+app.route("/v1", apiKeysRoutes);
 // #243: the public surface. Mounted at the ROOT rather than under /v1 because
 // it carries its own version in the path and its own credential — a shared
 // prefix is how a key ends up reaching a route nobody scoped.

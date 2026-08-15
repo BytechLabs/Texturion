@@ -59,6 +59,9 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     // the READ too — the list names the third parties this workspace's
     // messages flow to, and those URLs routinely carry a per-tenant token.
     "webhooks",
+    // #243: the other half — what may reach IN. Same capability, and
+    // deliberately adjacent so the two are decided together.
+    "apiKeys",
   ],
   admin: [
     "workspace",
@@ -83,6 +86,9 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     // the READ too — the list names the third parties this workspace's
     // messages flow to, and those URLs routinely carry a per-tenant token.
     "webhooks",
+    // #243: the other half — what may reach IN. Same capability, and
+    // deliberately adjacent so the two are decided together.
+    "apiKeys",
   ],
   // Theirs, and only theirs: their login, their notifications, their devices,
   // the help route and what shipped — plus, since #286, the crew list.

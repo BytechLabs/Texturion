@@ -56,6 +56,7 @@ import { miscEn, miscFr } from "./sections/misc";
 import { onboardingEn, onboardingFr } from "./sections/onboarding";
 import { settingsEn, settingsFr } from "./sections/settings";
 import { settingsMoreEn, settingsMoreFr } from "./sections/settingsMore";
+import { apiKeysEn, apiKeysFr } from "./sections/apiKeys";
 import { webhooksEn, webhooksFr } from "./sections/webhooks";
 import { shellEn, shellFr } from "./sections/shell";
 import { tasksEn, tasksFr } from "./sections/tasks";
@@ -218,6 +219,7 @@ export const EN = {
   settings: settingsEn,
   settingsMore: settingsMoreEn,
   webhooks: webhooksEn,
+  apiKeys: apiKeysEn,
   appShell: appShellEn,
   thread: threadEn,
   onboarding: onboardingEn,
@@ -239,6 +241,7 @@ export const FR_CA: Catalog = {
   settings: settingsFr,
   settingsMore: settingsMoreFr,
   webhooks: webhooksFr,
+  apiKeys: apiKeysFr,
   appShell: appShellFr,
   thread: threadFr,
   onboarding: onboardingFr,
