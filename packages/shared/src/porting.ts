@@ -53,30 +53,35 @@ export interface PortPreCutoverItem {
  * while a transfer is in flight, and shouting under a "locked in" banner reads as
  * a contradiction of it.
  */
+/*
+ * #228: the three copy fields are catalogue KEYS.
+ *
+ * The ORDER is still the copy here, and that is the point of the list rather
+ * than a detail of it: cancelling early is the one mistake that can genuinely
+ * lose the number, so it stays first in every language. The keys move; the
+ * sequence does not.
+ */
 export const PORT_PRE_CUTOVER_CHECKLIST: {
   heading: string;
   items: readonly PortPreCutoverItem[];
 } = {
-  heading: "Before your number switches",
+  heading: "settingsMore.beforeSwitch",
   items: [
     {
-      lead: "Keep your old service active.",
-      detail:
-        "Cancelling before the transfer finishes can release the number back to the carrier, and that is the one way to genuinely lose it.",
+      lead: "settingsMore.cutoverKeepOld",
+      detail: "settingsMore.cutoverKeepOldDetail",
     },
     {
-      lead: "Export your message history.",
-      detail: "The number moves, your old conversations do not.",
+      lead: "settingsMore.cutoverExport",
+      detail: "settingsMore.cutoverExportDetail",
     },
     {
-      lead: "Tell the crew the switch date.",
-      detail:
-        "From that morning, calls and texts arrive in this inbox instead of the old one.",
+      lead: "settingsMore.cutoverTellCrew",
+      detail: "settingsMore.cutoverTellCrewDetail",
     },
     {
-      lead: "Expect texting to trail calls.",
-      detail:
-        "Voice and texting can finish on different clocks, so texts may take an extra day. We will tell you when both are live.",
+      lead: "settingsMore.cutoverTextsTrail",
+      detail: "settingsMore.cutoverTextsTrailDetail",
     },
   ],
 };

@@ -13,6 +13,21 @@
 import type { Translated } from "../translated";
 
 export const settingsMoreEn = {
+  beforeSwitch: "Before your number switches",
+  cutoverKeepOld: "Keep your old service active.",
+  cutoverKeepOldDetail: "Cancelling before the transfer finishes can release the number back to the carrier, and that is the one way to genuinely lose it.",
+  cutoverExport: "Export your message history.",
+  cutoverExportDetail: "The number moves, your old conversations do not.",
+  cutoverTellCrew: "Tell the crew the switch date.",
+  cutoverTellCrewDetail: "From that morning, calls and texts arrive in this inbox instead of the old one.",
+  cutoverTextsTrail: "Expect texting to trail calls.",
+  cutoverTextsTrailDetail: "Voice and texting can finish on different clocks, so texts may take an extra day. We will tell you when both are live.",
+
+  /*
+   * #319 — what to do before a number transfer completes. Both phones have said these since #228 reached them; the web imported the shared checklist and rendered whatever English came back. The ORDER is the copy: cancelling early is the one mistake that can genuinely lose the number, so it stays first in every language.
+   */
+
+
   /*
    * #321 — the changelog, in the words the phones already say. Both hold these under settingsMore.whatsNew*; the web rendered the shared module's English. The marketing copy of this list resolves against English on purpose: that site is its own deliverable.
    */
@@ -1179,6 +1194,18 @@ export const settingsMoreEn = {
 } as const;
 
 export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
+  beforeSwitch: "Avant la bascule de votre numéro",
+  cutoverKeepOld: "Gardez votre ancien service actif.",
+  cutoverKeepOldDetail: "Annuler avant la fin du transfert peut rendre le numéro au fournisseur, et c'est la seule façon de le perdre pour de bon.",
+  cutoverExport: "Exportez votre historique de messages.",
+  cutoverExportDetail: "Le numéro change de main, pas vos anciennes conversations.",
+  cutoverTellCrew: "Dites la date de bascule à l'équipe.",
+  cutoverTellCrewDetail: "À partir de ce matin-là, les appels et les textos arrivent dans cette boîte de réception plutôt que dans l'ancienne.",
+  cutoverTextsTrail: "Les textos peuvent suivre les appels avec du retard.",
+  cutoverTextsTrailDetail: "La voix et les textos peuvent se terminer à des moments différents : les textos peuvent prendre une journée de plus. Nous vous dirons quand les deux seront actifs.",
+
+
+
   whatsNewBadge: "Nouveau",
   whatsNewCallsBody: "Les appels à votre numéro d'affaires font sonner toute votre équipe ici même. Répondez, mettez quelqu'un en attente, ou transférez l'appel à un coéquipier.",
   whatsNewCallsTitle: "Répondez aux appels dans l'application",

@@ -34,7 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useT, type Translate } from "@/i18n/provider";
+import { sayWith, useT, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import {
@@ -139,16 +139,19 @@ function StepRow({
  * and can stop there.
  */
 function PreCutoverChecklist() {
+  // #228: the pre-cutover checklist names catalogue keys, so it is said in
+  // the reader's language rather than in whichever one it was written in.
+  const say = sayWith(useT());
   return (
     <div className="border-t border-border-subtle pt-4">
       <h3 className="text-sm font-medium">
-        {PORT_PRE_CUTOVER_CHECKLIST.heading}
+        {say(PORT_PRE_CUTOVER_CHECKLIST.heading)}
       </h3>
       <ul className="mt-2 space-y-3">
         {PORT_PRE_CUTOVER_CHECKLIST.items.map((item) => (
           <li key={item.lead}>
-            <p className="text-[13px] font-medium">{item.lead}</p>
-            <p className="text-[13px] text-muted-foreground">{item.detail}</p>
+            <p className="text-[13px] font-medium">{say(item.lead)}</p>
+            <p className="text-[13px] text-muted-foreground">{say(item.detail)}</p>
           </li>
         ))}
       </ul>

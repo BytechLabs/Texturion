@@ -135,6 +135,16 @@ class PortRejectionWiringTest {
         error("unreachable")
     }
 
+    /**
+     * The shared module, still — this pin reads STATUSES, not sentences.
+     *
+     * #228 moved the pre-cutover COPY out of `porting.ts` and into the
+     * catalogues, and the reflex is to follow it. This guard did not need to:
+     * `PORT_PRE_CUTOVER_STATUSES` is a list of wire values ("submitted",
+     * "in-process") and they never moved. Repointing it at the catalogue would
+     * have made it read a file with no such list and assert an empty set
+     * against an empty set — green, and watching nothing.
+     */
     private fun sharedPorting(): String = repoFile("packages/shared/src/porting.ts")
 
     /**

@@ -49,7 +49,13 @@ const SOURCES: Record<string, readonly string[]> = {
   // every call site on web is unchanged. This path follows the definition; the
   // guard is unaffected, because what it checks is that all three languages say
   // the same sentences and that is still hand-kept on two of them.
-  web: [join(REPO_ROOT, "packages/shared/src/porting.ts")],
+  /*
+   * #228: web's copy moved into its catalogue, exactly as Android's and iOS's
+   * did below. `porting.ts` names the keys now, so reading it asks whether a
+   * file holds sentences it no longer holds — and this guard checks that all
+   * three say the same words, which is a question about where the words are.
+   */
+  web: [join(REPO_ROOT, "apps/web/src/i18n/sections/settingsMore.ts")],
   /*
    * #228: Android's copy moved into the string catalogue, so the screen file no
    * longer contains these sentences — it contains the KEYS that reach them.
