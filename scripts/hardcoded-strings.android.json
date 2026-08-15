@@ -20,12 +20,9 @@
   "com/loonext/android/features/tasks/TasksTab.kt": 1,
   "com/loonext/android/MainActivity.kt": 2,
   "com/loonext/android/push/Channels.kt": 8,
-  "com/loonext/android/push/LoonextMessagingService.kt": 2,
   "com/loonext/android/push/PushPayload.kt": 2,
-  "com/loonext/android/push/PushRegistrar.kt": 12,
   "com/loonext/android/telephony/CallForegroundService.kt": 1,
-  "com/loonext/android/telephony/SoftphoneCore.kt": 9,
+  "com/loonext/android/telephony/SoftphoneCore.kt": 8,
   "com/loonext/android/telephony/SoftphoneManager.kt": 3,
-  "com/loonext/android/telephony/TelecomCallRegistry.kt": 2,
   "com/loonext/android/ui/common/ImeContract.kt": 3
 }

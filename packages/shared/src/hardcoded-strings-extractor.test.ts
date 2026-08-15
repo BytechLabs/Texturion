@@ -127,6 +127,44 @@ describe("the Kotlin extractor rejects what nobody reads", () => {
     expect(findKotlinLiterals(source)).toEqual([]);
   });
 
+  it("rejects a sentence that only logcat will ever read", () => {
+    expect(
+      findKotlinLiterals(
+        'Log.w(TAG, "Device push token registration failed.", cause)',
+      ),
+    ).toEqual([]);
+  });
+
+  it("rejects a log from this app's own logger, not just android.util.Log", () => {
+    expect(
+      findKotlinLiterals(
+        'CallFlowLog.log("socket", "Socket reconnected after the network came back.")',
+      ),
+    ).toEqual([]);
+  });
+
+  /*
+   * The rule that would have been wrong. A wider "looks diagnostic" exclusion
+   * takes this with it, and this one IS on a screen — it is what somebody reads
+   * when a call will not connect. The receiver has to be a log, and
+   * `CallStateMachine` is not.
+   */
+  it("still counts a sentence thrown by something that merely sounds diagnostic", () => {
+    expect(
+      findKotlinLiterals(
+        'CallStateMachine.error(down, "Calling is temporarily unavailable.")',
+      ),
+    ).toEqual(["Calling is temporarily unavailable."]);
+  });
+
+  it("still counts copy on the line AFTER a log call", () => {
+    expect(
+      findKotlinLiterals(
+        'Log.i(TAG, "Device push token registered.")\nText("Your number is ready to use.")',
+      ),
+    ).toEqual(["Your number is ready to use."]);
+  });
+
   it("rejects a literal that is nothing but interpolation", () => {
     expect(findKotlinLiterals('RawResponse(code, body, label = "$method $path")')).toEqual(
       [],

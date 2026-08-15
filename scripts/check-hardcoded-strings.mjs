@@ -681,6 +681,7 @@ export function findKotlinLiterals(source) {
    */
   for (const match of code.matchAll(/"([^"\n]{12,})"/g)) {
     if (isKotlinPrecondition(code, match.index)) continue;
+    if (isDiagnosticLog(code, match.index)) continue;
     if (isSentenceLiteral(match[1])) found.push(match[1]);
   }
   return dedupe(found);
@@ -705,6 +706,32 @@ function isKotlinPrecondition(code, matchIndex) {
   return /\b(?:require|requireNotNull|check|checkNotNull|assert)\s*\([^;]*\)\s*\{\s*$/.test(
     window,
   );
+}
+
+/**
+ * `Log.w(TAG, "Device push token registration failed.")`.
+ *
+ * Logcat is not a screen. These read like copy — they are whole sentences with
+ * capitals and full stops, because the person who wrote them was being kind to
+ * whoever reads the log next — and rule 4 counted all seventeen of them as work
+ * somebody had to translate into French. Nobody holding a phone will ever see
+ * one.
+ *
+ * Told apart by the CALL, never by the string: "Device push token registered."
+ * and a sentence on a screen are the same shape, and any rule that guessed from
+ * the words would eventually drop a real one. The receiver must end in `Log`
+ * — which covers `android.util.Log` and this app's own `CallFlowLog` — and
+ * our literal must sit inside its still-open argument list.
+ *
+ * Narrow on purpose, in the same way [isKotlinPrecondition] is. The tempting
+ * wider rule excludes anything that looks diagnostic, and the docblock above
+ * records what that costs: `CallStateMachine.error(down, "Calling is
+ * temporarily unavailable.")` is a sentence a customer reads during a failed
+ * call, and it survives this rule because `CallStateMachine` is not a log.
+ */
+function isDiagnosticLog(code, matchIndex) {
+  const window = code.slice(Math.max(0, matchIndex - 200), matchIndex);
+  return /\b(?:Log|[A-Z][A-Za-z]*Log)\.(?:v|d|i|w|e|wtf|log)\s*\([^)]*$/.test(window);
 }
 
 /**
