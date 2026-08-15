@@ -7,6 +7,18 @@ import {
   contactFieldValueError,
 } from "./contact-fields";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/** #228 — the copy above names keys now, so these read the catalogue. */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[
+    name
+  ];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
 describe("contactFieldKey", () => {
   it("CF-1: turns a label into something a CSV header can survive", () => {
     // The same string becomes a JSON key AND a column head for import mapping
@@ -103,14 +115,33 @@ describe("the privacy line", () => {
     // "Be careful what you store" is advice nobody acts on. The three classes
     // named here are the ones our store declarations (#254) and retention
     // policy (#284) do not cover, so they are the ones worth naming.
-    expect(CONTACT_FIELDS_COPY.privacy).toContain("card numbers");
-    expect(CONTACT_FIELDS_COPY.privacy).toContain("government IDs");
-    expect(CONTACT_FIELDS_COPY.privacy).toContain("health information");
+    const en = look(WEB_EN, CONTACT_FIELDS_COPY.privacy);
+    expect(en).toContain("card numbers");
+    expect(en).toContain("government IDs");
+    expect(en).toContain("health information");
+
+    // #228 — and in French, because this is the line that exists for a legal
+    // reason. A translation that softened it to "soyez prudent" would pass a
+    // key-only check and lose the whole point of the sentence.
+    const fr = look(WEB_FR, CONTACT_FIELDS_COPY.privacy);
+    expect(fr).toContain("carte");
+    expect(fr).toContain("identité");
+    expect(fr).toMatch(/médica|santé/);
   });
 
   it("CF-10: says what happens to what people already typed", () => {
     // Removing a definition hides the field; it does not erase the values.
     // A workspace that assumed otherwise would think it had deleted something.
-    expect(CONTACT_FIELDS_COPY.delete_warning).toContain("stays");
+    expect(look(WEB_EN, CONTACT_FIELDS_COPY.delete_warning)).toContain("stays");
+    expect(look(WEB_FR, CONTACT_FIELDS_COPY.delete_warning)).toContain("reste");
+  });
+
+  it("CF-11: the cap sentence names a count rather than a number (#228)", () => {
+    // It used to bake CONTACT_FIELDS_CAP in, while the card gated on the cap
+    // the SERVER sent. Same screen, two numbers, and only one of them true.
+    for (const table of [WEB_EN, WEB_FR]) {
+      expect(look(table, CONTACT_FIELDS_COPY.cap_reached)).toContain("{count}");
+      expect(look(table, CONTACT_FIELDS_COPY.cap_reached)).not.toMatch(/\b10\b/);
+    }
   });
 });

@@ -100,28 +100,26 @@ object ContactFields {
         }
     }
 
-    /** What the settings screen says, in one place. */
+    /**
+     * What the settings screen says, in one place — catalogue KEYS since #228.
+     *
+     * CAP_REACHED names {count} rather than baking $CAP in, and that fixed a
+     * real mismatch: the card gates on the cap the SERVER sent, while this
+     * sentence always said the client's constant.
+     */
     object Copy {
-        const val HEADING = "Your own contact fields"
-        const val INTRO =
-            "Boiler model, gate code, warranty date — the things your crew needs " +
-                "before the truck leaves. They show on every customer and come back in " +
-                "search and exports."
+        const val HEADING = "settings.contactFieldsHeading"
+        const val INTRO = "settings.contactFieldsIntro"
 
         /**
          * THE LINE THAT MATTERS. Said where fields are defined, because that
          * is the only moment somebody is deciding what goes in one.
          */
-        const val PRIVACY =
-            "Do not put card numbers, government IDs or health information here. " +
-                "These fields are stored and exported like a customer's name, which is " +
-                "not the handling those need."
+        const val PRIVACY = "settings.contactFieldsPrivacy"
 
-        const val CAP_REACHED = "That is all $CAP fields. Remove one to add another."
+        const val CAP_REACHED = "settings.contactFieldsCapReached"
 
         /** Deleting a definition does not delete what people typed into it. */
-        const val DELETE_WARNING =
-            "Removing a field hides it everywhere. What your crew typed into it stays " +
-                "on each customer until you edit them."
+        const val DELETE_WARNING = "settings.contactFieldsDeleteWarning"
     }
 }

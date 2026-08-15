@@ -107,26 +107,22 @@ enum ContactFields {
         }
     }
 
-    /// What the settings screen says, in one place.
+    /// What the settings screen says, in one place — catalogue KEYS since #228.
+    ///
+    /// `capReached` names {count} rather than interpolating `ContactFields.cap`,
+    /// and that fixed a real mismatch: the card gates on the cap the SERVER
+    /// sent, while this sentence always said the client's constant.
     enum Copy {
-        static let heading = "Your own contact fields"
-        static let intro =
-            "Boiler model, gate code, warranty date — the things your crew needs "
-            + "before the truck leaves. They show on every customer and come back in "
-            + "search and exports."
+        static let heading = "settings.contactFieldsHeading"
+        static let intro = "settings.contactFieldsIntro"
 
         /// THE LINE THAT MATTERS. Said where fields are defined, because that
         /// is the only moment somebody is deciding what goes in one.
-        static let privacy =
-            "Do not put card numbers, government IDs or health information here. "
-            + "These fields are stored and exported like a customer's name, which is "
-            + "not the handling those need."
+        static let privacy = "settings.contactFieldsPrivacy"
 
-        static let capReached = "That is all \(ContactFields.cap) fields. Remove one to add another."
+        static let capReached = "settings.contactFieldsCapReached"
 
         /// Deleting a definition does not delete what people typed into it.
-        static let deleteWarning =
-            "Removing a field hides it everywhere. What your crew typed into it stays "
-            + "on each customer until you edit them."
+        static let deleteWarning = "settings.contactFieldsDeleteWarning"
     }
 }

@@ -48,6 +48,24 @@ const PORTS: Record<string, string> = {
   ios: join(REPO_ROOT, "apps/ios/Loonext/Core/ContactFields.swift"),
 };
 
+/**
+ * #228 — where the SENTENCES live now.
+ *
+ * The ports above still hold the rule (kinds, caps, key derivation); what they
+ * no longer hold is the copy, which moved to each client's catalogue. So the
+ * phrase assertions read these three, and the "does this screen reach the
+ * privacy line at all" assertions keep reading the screens — those are two
+ * different questions and pointing both at one file is how a guard goes quiet.
+ */
+const CATALOGUES: Record<string, string> = {
+  web: join(REPO_ROOT, "apps/web/src/i18n/sections/settings.ts"),
+  android: join(
+    REPO_ROOT,
+    "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/SettingsStrings.kt",
+  ),
+  ios: join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/SettingsStrings.swift"),
+};
+
 /** Where the values are filled in on a contact. */
 const VALUE_SURFACES: Record<string, string> = {
   web: join(REPO_ROOT, "apps/web/src/components/contacts/custom-fields.tsx"),
@@ -128,11 +146,16 @@ describe("#291 the contact fields read the same everywhere", () => {
       "government IDs",
       "health information",
     ]) {
-      expect(CONTACT_FIELDS_COPY.privacy, phrase).toContain(phrase);
-      for (const [platform, path] of Object.entries(PORTS)) {
+      // #228: the shared constant names a key, so the words are checked where
+      // they now live — in all three catalogues, so no client can soften it.
+      for (const [platform, path] of Object.entries(CATALOGUES)) {
         expect(code(path), `${platform}: ${phrase}`).toContain(phrase);
       }
     }
+    // And the key itself still points at the privacy line rather than at some
+    // other sentence — the check above would pass on a catalogue that held
+    // these words anywhere.
+    expect(CONTACT_FIELDS_COPY.privacy).toBe("settings.contactFieldsPrivacy");
   });
 
   it("warns that removing a field keeps the values, on every client", () => {

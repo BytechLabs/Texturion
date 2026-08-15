@@ -116,24 +116,31 @@ export function contactFieldValueError(
   }
 }
 
-/** What the settings screen says, in one place. */
+/**
+ * What the settings screen says, in one place.
+ *
+ * #228 — catalogue KEYS. The prefix is `settings` because that is what the
+ * rest of this same card already uses (contactFieldsNameLabel, …Remove,
+ * …NeedName): one screen, one section, rather than a second prefix for the
+ * five sentences that happened to live in shared.
+ *
+ * `capReached` names {count} rather than baking the cap in. The number is
+ * {@link CONTACT_FIELDS_CAP} and a French translator should not have to be
+ * told to keep "10" in the sentence when the constant changes.
+ *
+ * NOT here: {@link contactFieldValueError}. The API calls that one to refuse a
+ * write, so its sentences go on the wire and moving them is an expand-and-
+ * contract rather than a catalogue edit.
+ */
 export const CONTACT_FIELDS_COPY = {
-  heading: "Your own contact fields",
-  intro:
-    "Boiler model, gate code, warranty date — the things your crew needs " +
-    "before the truck leaves. They show on every customer and come back in " +
-    "search and exports.",
+  heading: "settings.contactFieldsHeading",
+  intro: "settings.contactFieldsIntro",
   /**
    * THE LINE THAT MATTERS. Said where fields are defined, because that is the
    * only moment somebody is deciding what goes in one.
    */
-  privacy:
-    "Do not put card numbers, government IDs or health information here. " +
-    "These fields are stored and exported like a customer's name, which is " +
-    "not the handling those need.",
-  cap_reached: `That is all ${CONTACT_FIELDS_CAP} fields. Remove one to add another.`,
+  privacy: "settings.contactFieldsPrivacy",
+  cap_reached: "settings.contactFieldsCapReached",
   /** Deleting a definition does not delete what people typed into it. */
-  delete_warning:
-    "Removing a field hides it everywhere. What your crew typed into it stays " +
-    "on each customer until you edit them.",
+  delete_warning: "settings.contactFieldsDeleteWarning",
 } as const;

@@ -276,6 +276,12 @@ private val CLOSED_DATES_FR = mapOf(
  */
 private val CONTACT_FIELDS_EN = mapOf(
     "settings.contactFieldsLoading" to "Loading…",
+    // #228 — the five sentences that used to live in packages/shared.
+    "settings.contactFieldsHeading" to "Your own contact fields",
+    "settings.contactFieldsIntro" to "Boiler model, gate code, warranty date — the things your crew needs before the truck leaves. They show on every customer and come back in search and exports.",
+    "settings.contactFieldsPrivacy" to "Do not put card numbers, government IDs or health information here. These fields are stored and exported like a customer's name, which is not the handling those need.",
+    "settings.contactFieldsCapReached" to "That is all {count} fields. Remove one to add another.",
+    "settings.contactFieldsDeleteWarning" to "Removing a field hides it everywhere. What your crew typed into it stays on each customer until you edit them.",
     "settings.contactFieldsEmpty" to
         "You have not added any yet. Your contacts show the standard fields — " +
         "name, phone, email, address and notes.",
@@ -297,6 +303,11 @@ private val CONTACT_FIELDS_EN = mapOf(
 
 private val CONTACT_FIELDS_FR = mapOf(
     "settings.contactFieldsLoading" to "Chargement…",
+    "settings.contactFieldsHeading" to "Vos propres champs de contact",
+    "settings.contactFieldsIntro" to "Modèle de chaudière, code de portail, date de garantie — ce que votre équipe doit savoir avant que le camion parte. Ces champs apparaissent sur chaque client et reviennent dans la recherche et les exportations.",
+    "settings.contactFieldsPrivacy" to "N'y mettez pas de numéros de carte, de pièces d'identité ni de renseignements médicaux. Ces champs sont stockés et exportés comme le nom d'un client, ce qui n'est pas le traitement que ces données exigent.",
+    "settings.contactFieldsCapReached" to "Vous avez vos {count} champs. Retirez-en un pour en ajouter un autre.",
+    "settings.contactFieldsDeleteWarning" to "Retirer un champ le masque partout. Ce que votre équipe y a inscrit reste sur chaque client jusqu'à ce que vous les modifiiez.",
     "settings.contactFieldsEmpty" to
         "Vous n'en avez pas encore ajouté. Vos clients affichent les champs " +
         "standards : nom, téléphone, courriel, adresse et notes.",

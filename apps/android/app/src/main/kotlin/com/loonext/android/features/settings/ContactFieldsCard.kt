@@ -113,8 +113,8 @@ fun ContactFieldsCard(scope: SettingsScope) {
     }
 
     SettingsCard(
-        title = ContactFields.Copy.HEADING,
-        description = ContactFields.Copy.INTRO,
+        title = t(ContactFields.Copy.HEADING),
+        description = t(ContactFields.Copy.INTRO),
     ) {
         if (!loaded) {
             Text(
@@ -264,7 +264,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
 
         if (draft.size >= cap) {
             Text(
-                ContactFields.Copy.CAP_REACHED,
+                t(ContactFields.Copy.CAP_REACHED, "count" to cap.toString()),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -273,7 +273,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
 
         // Said where fields are DEFINED, which is the only moment it lands.
         Text(
-            ContactFields.Copy.PRIVACY,
+            t(ContactFields.Copy.PRIVACY),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp),
@@ -283,7 +283,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
             // What a removal actually does, said before it is committed.
             if (saved.any { field -> draft.none { it.key == field.key } }) {
                 Text(
-                    ContactFields.Copy.DELETE_WARNING,
+                    t(ContactFields.Copy.DELETE_WARNING),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),

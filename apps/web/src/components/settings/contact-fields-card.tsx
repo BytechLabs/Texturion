@@ -89,8 +89,8 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
   if (query.isPending || draft === null) {
     return (
       <SettingsCard
-        title={CONTACT_FIELDS_COPY.heading}
-        description={CONTACT_FIELDS_COPY.intro}
+        title={t(CONTACT_FIELDS_COPY.heading)}
+        description={t(CONTACT_FIELDS_COPY.intro)}
       >
         <Skeleton className="h-24 w-full" />
       </SettingsCard>
@@ -149,8 +149,8 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
 
   return (
     <SettingsCard
-      title={CONTACT_FIELDS_COPY.heading}
-      description={CONTACT_FIELDS_COPY.intro}
+      title={t(CONTACT_FIELDS_COPY.heading)}
+      description={t(CONTACT_FIELDS_COPY.intro)}
     >
       <div className="space-y-4">
         {draft.length === 0 && (
@@ -281,13 +281,17 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
 
         {draft.length >= cap && (
           <p className="text-[12px] text-app-muted-2">
-            {CONTACT_FIELDS_COPY.cap_reached}
+            {/* `cap`, not the constant: the server may send its own, and the
+                line right above this one gates on `cap`. A sentence naming a
+                different number from the rule that produced it is worse than
+                no sentence. */}
+            {t(CONTACT_FIELDS_COPY.cap_reached, { count: String(cap) })}
           </p>
         )}
 
         {/* Said where fields are DEFINED, which is the only moment it lands. */}
         <p className="text-[12px] text-app-muted-2">
-          {CONTACT_FIELDS_COPY.privacy}
+          {t(CONTACT_FIELDS_COPY.privacy)}
         </p>
 
         {canEdit && dirty && (
@@ -297,7 +301,7 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
               (field) => !draft.some((row) => row.key === field.key),
             ) && (
               <p className="text-[12px] text-app-muted">
-                {CONTACT_FIELDS_COPY.delete_warning}
+                {t(CONTACT_FIELDS_COPY.delete_warning)}
               </p>
             )}
             <div className="flex items-center gap-2">

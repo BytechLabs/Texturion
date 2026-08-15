@@ -367,6 +367,12 @@ private let settingsClosedDatesFr: [String: String] = [
 /// catalogue would fork the thing that test exists to keep single.
 private let settingsContactFieldsEn: [String: String] = [
     "settings.contactFieldsLoading": "Loading…",
+    // #228 — the five sentences that used to live in packages/shared.
+    "settings.contactFieldsHeading": "Your own contact fields",
+    "settings.contactFieldsIntro": "Boiler model, gate code, warranty date — the things your crew needs before the truck leaves. They show on every customer and come back in search and exports.",
+    "settings.contactFieldsPrivacy": "Do not put card numbers, government IDs or health information here. These fields are stored and exported like a customer's name, which is not the handling those need.",
+    "settings.contactFieldsCapReached": "That is all {count} fields. Remove one to add another.",
+    "settings.contactFieldsDeleteWarning": "Removing a field hides it everywhere. What your crew typed into it stays on each customer until you edit them.",
     "settings.contactFieldsEmpty":
         "You have not added any yet. Your contacts show the standard fields — "
         + "name, phone, email, address and notes.",
@@ -390,6 +396,11 @@ private let settingsContactFieldsEn: [String: String] = [
 
 private let settingsContactFieldsFr: [String: String] = [
     "settings.contactFieldsLoading": "Chargement…",
+    "settings.contactFieldsHeading": "Vos propres champs de contact",
+    "settings.contactFieldsIntro": "Modèle de chaudière, code de portail, date de garantie — ce que votre équipe doit savoir avant que le camion parte. Ces champs apparaissent sur chaque client et reviennent dans la recherche et les exportations.",
+    "settings.contactFieldsPrivacy": "N'y mettez pas de numéros de carte, de pièces d'identité ni de renseignements médicaux. Ces champs sont stockés et exportés comme le nom d'un client, ce qui n'est pas le traitement que ces données exigent.",
+    "settings.contactFieldsCapReached": "Vous avez vos {count} champs. Retirez-en un pour en ajouter un autre.",
+    "settings.contactFieldsDeleteWarning": "Retirer un champ le masque partout. Ce que votre équipe y a inscrit reste sur chaque client jusqu'à ce que vous les modifiiez.",
     "settings.contactFieldsEmpty":
         "Vous n'en avez pas encore ajouté. Vos clients affichent les champs "
         + "standards : nom, téléphone, courriel, adresse et notes.",

@@ -13,6 +13,17 @@
 import type { Translated } from "../translated";
 
 export const settingsEn = {
+  /* #228 — the five sentences that used to live in
+     packages/shared/src/contact-fields.ts. */
+  contactFieldsHeading: "Your own contact fields",
+  contactFieldsIntro:
+    "Boiler model, gate code, warranty date — the things your crew needs before the truck leaves. They show on every customer and come back in search and exports.",
+  contactFieldsPrivacy:
+    "Do not put card numbers, government IDs or health information here. These fields are stored and exported like a customer's name, which is not the handling those need.",
+  contactFieldsCapReached: "That is all {count} fields. Remove one to add another.",
+  contactFieldsDeleteWarning:
+    "Removing a field hides it everywhere. What your crew typed into it stays on each customer until you edit them.",
+
   /* #228 — the emergency-word screen, named by packages/shared/src/emergency.ts
      and spelled the way iOS already spells it. */
   keywordEmpty: "Type a word first.",
@@ -782,6 +793,15 @@ export const settingsEn = {
  * translated — a machine matches on those.
  */
 export const settingsFr: Translated<typeof settingsEn> = {
+  contactFieldsHeading: "Vos propres champs de contact",
+  contactFieldsIntro:
+    "Modèle de chaudière, code de portail, date de garantie — ce que votre équipe doit savoir avant que le camion parte. Ces champs apparaissent sur chaque client et reviennent dans la recherche et les exportations.",
+  contactFieldsPrivacy:
+    "N'y mettez pas de numéros de carte, de pièces d'identité ni de renseignements médicaux. Ces champs sont stockés et exportés comme le nom d'un client, ce qui n'est pas le traitement que ces données exigent.",
+  contactFieldsCapReached: "Vous avez vos {count} champs. Retirez-en un pour en ajouter un autre.",
+  contactFieldsDeleteWarning:
+    "Retirer un champ le masque partout. Ce que votre équipe y a inscrit reste sur chaque client jusqu'à ce que vous les modifiiez.",
+
   keywordEmpty: "Tapez d'abord un mot.",
   keywordOneWord:
     "Un seul mot — les clients envoient un mot unique, alors une expression ne correspondrait jamais.",

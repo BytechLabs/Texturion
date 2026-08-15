@@ -3,7 +3,6 @@
   "Core/ApiError.swift": 1,
   "Core/AppGraph.swift": 1,
   "Core/AppLock.swift": 1,
-  "Core/ContactFields.swift": 6,
   "Core/Diagnostics/CrashDiagnostics.swift": 1,
   "Core/Diagnostics/DiagnosticsReport.swift": 1,
   "Core/HandOverPhone.swift": 6,

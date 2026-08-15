@@ -51,8 +51,8 @@ struct ContactFieldsCard: View {
 
     var body: some View {
         SettingsCard(
-            title: ContactFields.Copy.heading,
-            description: ContactFields.Copy.intro
+            title: t(ContactFields.Copy.heading),
+            description: t(ContactFields.Copy.intro)
         ) {
             if !loaded {
                 Text(t("settings.contactFieldsLoading"))
@@ -101,14 +101,20 @@ struct ContactFieldsCard: View {
 
         if draft.count >= cap {
             Spacer().frame(height: 8)
-            Text(ContactFields.Copy.capReached)
+            Text(
+                AppStrings.translate(
+                    appLocale,
+                    ContactFields.Copy.capReached,
+                    ["count": String(cap)]
+                )
+            )
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
 
         // Said where fields are DEFINED, which is the only moment it lands.
         Spacer().frame(height: 10)
-        Text(ContactFields.Copy.privacy)
+        Text(t(ContactFields.Copy.privacy))
             .font(.caption)
             .foregroundStyle(.secondary)
 
@@ -116,7 +122,7 @@ struct ContactFieldsCard: View {
             // What a removal actually does, said before it is committed.
             if saved.contains(where: { field in !draft.contains { $0.key == field.key } }) {
                 Spacer().frame(height: 10)
-                Text(ContactFields.Copy.deleteWarning)
+                Text(t(ContactFields.Copy.deleteWarning))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
