@@ -61,6 +61,23 @@ describe("which files get scanned at all", () => {
   it("skips tests, which are not read by a customer", () => {
     expect(isScannable("apps/android/.../AuthScreensTest.kt", [".kt"])).toBe(false);
   });
+
+  it("skips locale.ts, whose French is finished rather than outstanding", () => {
+    // A catalogue that is one file rather than a directory, so SKIP_DIRS cannot
+    // see it. Scanning it counted fifteen completed French message bodies as
+    // French translations still to do.
+    expect(isScannable("packages/shared/src/locale.ts", [".ts"])).toBe(false);
+  });
+
+  it("still scans the shared modules whose copy every client renders", () => {
+    // The blind spot the fourth ledger exists for: 325 sentences, none counted,
+    // while the web ledger read 26 and implied the app was nearly finished.
+    expect(isScannable("packages/shared/src/send-failures.ts", [".ts"])).toBe(true);
+  });
+
+  it("does not let the locale.ts skip swallow a same-named file elsewhere", () => {
+    expect(isScannable("apps/web/src/lib/locale.ts", [".ts"])).toBe(true);
+  });
 });
 
 describe("the Kotlin extractor still finds real copy", () => {

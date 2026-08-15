@@ -80,12 +80,25 @@
  * copy; "px-4" and "conversation_id" are not.
  *
  * ---------------------------------------------------------------------------
- * THREE CLIENTS, THREE LEDGERS
+ * THREE CLIENTS AND WHAT THEY SHARE — FOUR LEDGERS
  *
  * #228's acceptance is "zero user-facing hardcoded literals on ANY client", and
  * a check that watched only the web app would report the web app finished while
  * two thirds of the product was untouched — which is the precise shape of the
  * parity failure #338 exists about.
+ *
+ * The fourth ledger exists because watching the three app trees turned out to
+ * be the same mistake one level up. `packages/shared` held 325 user-facing
+ * sentences — more than all three app ledgers put together — and not one of
+ * them was counted. The web ledger read 26 and implied the web app was three
+ * dozen strings from finished, while `send-failures.ts` alone put 29 English
+ * sentences into a message bubble on every client.
+ *
+ * The blind spot has the same shape as the one rule 4 was written for, and the
+ * note under `web.exts` below states it exactly: copy that somebody
+ * deliberately lifted OUT of a component is invisible to a component-shaped
+ * scanner. Lifting it into a shared package is that same move, one directory
+ * further, and it hid an order of magnitude more.
  *
  * Each client keeps its own ledger because each has its own destination format
  * (a TypeScript catalogue, `strings.xml`, a String Catalog) and its own pace.
@@ -129,6 +142,26 @@ const CLIENTS = {
     find: findKotlinLiterals,
     fix: "move them into res/values/strings.xml and read them with stringResource()",
   },
+  /*
+   * Not a client — the copy all three of them render.
+   *
+   * Scanned with the WEB detector because the source is TypeScript, and the
+   * question rule 4 asks ("is this literal a sentence?") does not care which
+   * app eventually renders it. What differs is the fix: a string here is
+   * hand-ported into Kotlin and Swift, so leaving it English leaves it English
+   * on three platforms at once, and translating it in one place fixes all
+   * three. That leverage is the reason this ledger is worth its own line rather
+   * than being folded into the web's.
+   */
+  shared: {
+    root: "packages/shared/src",
+    ledger: "scripts/hardcoded-strings.shared.json",
+    exts: [".ts"],
+    find: findWebLiterals,
+    fix:
+      "give the function a locale parameter and move the sentences into a " +
+      "catalogue the three clients share, the way cancellation-offers.ts will",
+  },
   ios: {
     root: "apps/ios/Loonext",
     ledger: "scripts/hardcoded-strings.ios.json",
@@ -159,10 +192,27 @@ const SKIP_DIRS = new Set([
   "brand", // wordmarks and asset names
 ]);
 
+/*
+ * Catalogues that are FILES rather than directories.
+ *
+ * Everywhere else the catalogue is a directory and [SKIP_DIRS] handles it.
+ * `locale.ts` is one file holding both languages, and it is deliberate: its
+ * docblock explains that these are carrier message bodies billed by the
+ * segment, so the French is written to the GSM-7 alphabet — one character
+ * outside it halves what fits in a segment. That editorial constraint is why
+ * the copy is not in a translation file, and scanning it counted fifteen
+ * FINISHED French translations as French translations outstanding.
+ *
+ * Matched on the path suffix so a same-named file elsewhere is unaffected.
+ */
+const SKIP_FILES = ["packages/shared/src/locale.ts"];
+
 /** A file whose strings are not read by a person. */
 export function isScannable(path, exts) {
   if (!exts.some((ext) => path.endsWith(ext))) return false;
   if (/\.test\.|\.stories\.|Test\.kt$|Tests\.swift$/.test(path)) return false;
+  const unix = path.split("\\").join("/");
+  if (SKIP_FILES.some((skip) => unix.endsWith(skip))) return false;
   /*
    * Case-INSENSITIVE, because the three clients disagree about capitals and the
    * Set does not. Android keeps its catalogue in `core/i18n`, iOS in
