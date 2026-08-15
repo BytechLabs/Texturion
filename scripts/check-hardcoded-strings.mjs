@@ -684,7 +684,77 @@ export function findWebLiterals(source, path = "") {
     if (isSentenceLiteral(match[1])) found.push(match[1]);
   }
 
+  /*
+   * 5. A SENTENCE HELD IN A TEMPLATE LITERAL — invisible to rule 4, and the
+   *    reason the web number read as nearly done while whole live dialogs sat
+   *    outside it.
+   *
+   * Rule 4 matches double quotes on ONE line. A sentence with a count, a price
+   * or a name in the middle of it is written with backticks instead, and a
+   * sentence long enough to need translating is usually long enough to be
+   * wrapped across lines. So the two shapes that most reliably mark real copy —
+   * being interpolated into, and being long — were the two this file could not
+   * see. The spending-cap confirm dialog, the add-on billing confirms, the
+   * attachment refusals and the segment meter were all found by hand, one at a
+   * time, after Android had already been converted.
+   *
+   * The test is ENDS-LIKE-A-SENTENCE rather than starts-with-a-capital, which
+   * is what rule 4 uses. A template literal frequently opens with its variable
+   * (`${name} here. Your quote is ready.`), so the capital test rejects exactly
+   * the interpolated sentences this rule exists for. Terminal punctuation
+   * cannot be faked by a className, a URL or a query.
+   *
+   * Measured on the tree before being turned on: 11 in-scope matches, every one
+   * of them real. Marketing is skipped by the same path list as everything else
+   * here — that site is its own deliverable.
+   */
+  for (const match of code.matchAll(/`((?:[^`\\]|\\.)*)`/g)) {
+    const raw = match[1].replace(/\s+/g, " ").trim();
+    const stripped = raw.replace(/\$\{[^{}]*\}/g, " ").replace(/\s+/g, " ").trim();
+    if (BILINGUAL_PAIR_ENGLISH.has(raw) || BILINGUAL_PAIR_ENGLISH.has(stripped)) continue;
+    /*
+     * Judged on the STRIPPED text, reported RAW.
+     *
+     * Stripping is what makes the sentence testable — a variable is not a word
+     * and would skew the letter ratio — but a stripped sentence is not
+     * greppable, and the report exists so somebody can go and find the thing.
+     * "You win % of the quotes that get an answer." appears in no file; the
+     * raw literal it came from does.
+     */
+    if (isTemplateSentence(stripped)) found.push(raw);
+  }
+
   return found;
+}
+
+/**
+ * A template literal that reads as a sentence once its variables are removed.
+ *
+ * Shares rule 4's rejections — class soup, URLs, paths, dotted identifiers,
+ * date patterns, nothing-but-interpolation — and swaps the opening-capital test
+ * for a closing-punctuation one, because the sentences this rule exists to
+ * catch usually open with their variable.
+ */
+function isTemplateSentence(text) {
+  if (text.length < 12) return false;
+  // A leftover brace means an interpolation was nested or unbalanced, so what
+  // is left is code rather than the tail of a sentence.
+  if (/[{}]/.test(text)) return false;
+  if (!/[.?!]$/.test(text)) return false;
+  if (text.includes("://") || text.startsWith("/") || text.startsWith("#")) return false;
+  if (/^[\w\-.]+$/.test(text)) return false;
+  if (
+    /\b(px|py|mt|mb|ml|mr|pt|pb|pl|pr|text|bg|flex|grid|rounded|border|gap|w|h|min|max|top|left|right|bottom|z|opacity|shadow|ring|hover|focus|dark|sm|md|lg|xl)-/.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+  if (text.split(/\s+/).filter(Boolean).length < 3) return false;
+  if (isOnlyInterpolation(text)) return false;
+  if (isDateFormatPattern(text)) return false;
+  const letters = (text.match(/[A-Za-z]/g) ?? []).length;
+  return letters / text.length > 0.6;
 }
 
 /** Three or more words, mostly letters, opening like a sentence. */

@@ -590,3 +590,64 @@ describe("the ledger does not count a finished bilingual pair", () => {
     ]);
   });
 });
+
+/*
+ * #228 — a sentence in a TEMPLATE LITERAL, which rule 4 cannot see.
+ *
+ * Rule 4 matches double quotes on one line. The two shapes that most reliably
+ * mark real copy — being interpolated into, and being long enough to wrap —
+ * are exactly the shapes that forces backticks. So the sentences that mattered
+ * most were the ones the ledger could not count, and the web number read as
+ * nearly done while whole live dialogs sat outside it.
+ *
+ * Tested as a pair, like every other rule here: what it must catch, and the
+ * nearest thing it must not.
+ */
+describe("the ledger counts a sentence written with backticks", () => {
+  it("catches one that opens with its variable", () => {
+    // The case the rule exists for, and the reason it tests the END rather
+    // than the opening capital rule 4 uses: a template literal frequently
+    // starts with the name or the count it is about.
+    expect(
+      findWebLiterals("const x = `${name} here. Your quote is ready for you.`;"),
+    ).toEqual(["${name} here. Your quote is ready for you."]);
+  });
+
+  it("catches one wrapped across lines", () => {
+    const source = [
+      "const x =",
+      "  `Sending pauses at ${next} messages this period instead of",
+      "   ${current}.`;",
+    ].join("\n");
+    expect(findWebLiterals(source)).toHaveLength(1);
+  });
+
+  it("reports the RAW literal, because a stripped one is not greppable", () => {
+    // The report exists so somebody can go and find the thing. "You win % of
+    // the quotes" appears in no file; the literal it came from does.
+    expect(findWebLiterals("const x = `You win ${rate}% of the quotes you send.`;")).toEqual([
+      "You win ${rate}% of the quotes you send.",
+    ]);
+  });
+
+  it("leaves a className, a URL and a query alone", () => {
+    // All three are long, mostly letters, and full of words. Terminal
+    // punctuation is what separates them from prose, and none of them has it.
+    expect(findWebLiterals("const x = `flex items-center gap-2 ${extra}`;")).toEqual([]);
+    expect(findWebLiterals("const x = `https://example.com/${id}/edit`;")).toEqual([]);
+    expect(findWebLiterals("const x = `select id from contacts where company = ${id}`;")).toEqual(
+      [],
+    );
+  });
+
+  it("leaves a path and a bare identifier alone", () => {
+    expect(findWebLiterals("const x = `/v1/companies/${id}/members`;")).toEqual([]);
+    expect(findWebLiterals("const x = `${a}.${b}.${c}`;")).toEqual([]);
+  });
+
+  it("does not count a template that is nothing but variables", () => {
+    // Whatever a person reads here is whatever those variables hold, and that
+    // copy lives wherever they came from.
+    expect(findWebLiterals("const x = `${greeting} ${name}.`;")).toEqual([]);
+  });
+});
