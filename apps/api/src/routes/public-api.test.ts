@@ -10,6 +10,9 @@
  * Only the network edge is stubbed, so the token hashing is real SHA-256 and
  * the request bodies go through real supabase-js encoding.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { API_KEY_PREFIX, PUBLIC_API_VERSION_HEADER } from "@loonext/shared";
@@ -30,6 +33,7 @@ import {
   stubFetch,
   type TestAuth,
 } from "../test/support";
+import { stripComments } from "../test/source-tree";
 import { publicApiRoutes } from "./public-api";
 
 const env = completeEnv();
@@ -352,6 +356,67 @@ describe("#106 travels with the key", () => {
     // A deliberate subset. Every column published becomes a shape somebody
     // parses, and `error_detail` is the carrier's sentence, not ours to promise.
     expect(call.url.searchParams.get("select")).not.toContain("error_detail");
+  });
+});
+
+describe("sending", () => {
+  it("refuses a send with no Idempotency-Key, before anything is written", async () => {
+    // An integration retries — that is what makes it an integration — and a
+    // send endpoint without a key turns every network blip into a second text
+    // to a real customer.
+    const sb = stubWithKey(["messages:send"]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/messages", {
+      method: "POST",
+      body: JSON.stringify({ conversation_id: CONVERSATION_ID, body: "on my way" }),
+    });
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/rpc/gate_outbound_send")).toHaveLength(0);
+  });
+
+  it("refuses a send to a key without messages:send, even one that can read", async () => {
+    const sb = stubWithKey(["conversations:read", "messages:read"]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/messages", {
+      method: "POST",
+      headers: { "Idempotency-Key": "k-1" },
+      body: JSON.stringify({ conversation_id: CONVERSATION_ID, body: "on my way" }),
+    });
+    // Reading a thread never grants the right to speak on the workspace's
+    // number — the only scope that can put the business's number on a
+    // stranger's phone is its own.
+    expect(res.status).toBe(403);
+  });
+
+  it("owns no part of the send order — it delegates the whole sequence", () => {
+    // THE ONE THAT MATTERS, and it is asserted on the SOURCE for the same
+    // reason `send-paths.test.ts` is: the claim is about which code exists,
+    // not about what one request did. Opt-out is carrier truth — a STOP can
+    // only be lifted by the customer — and the danger is not that this route
+    // gets the order wrong today. It is that it grows its own copy of it, and
+    // the copy drifts.
+    //
+    // So: this file may call the shared sequence, and may not reach for any of
+    // the pieces the sequence is made of.
+    const source = stripComments(
+      readFileSync(join(import.meta.dirname, "public-api.ts"), "utf8"),
+    );
+
+    expect(source).toContain("sendTextToConversation(");
+    for (const piece of [
+      "runPreSendGates(",
+      "gateOutboundSend(",
+      "dispatchOutbound(",
+      "applySendMergeFields(",
+    ]) {
+      expect(
+        source.includes(piece),
+        `public-api.ts calls ${piece} directly — that is a second copy of the ` +
+          `send order, and the opt-out gate is the part that must never have one.`,
+      ).toBe(false);
+    }
   });
 });
 

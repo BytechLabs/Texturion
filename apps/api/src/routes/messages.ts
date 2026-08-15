@@ -33,10 +33,7 @@
  *        (created_at, id) DESC, default 50 max 100; message objects carry
  *        `attachments: [{ id, content_type, size_bytes }]`.
  */
-import {
-  estimateSegments,
-  formatNanpNumber,
-} from "@loonext/shared";
+
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -58,14 +55,10 @@ import {
   MAX_OUTBOUND_MEDIA_BODY_BYTES,
   MAX_OUTBOUND_MEDIA_BYTES,
   MAX_OUTBOUND_MEDIA_ITEMS,
-  MMS_SEGMENTS,
   signedMediaUrls,
   uploadOutboundMedia,
 } from "../messaging/media";
-import {
-  applySendMergeFields,
-  resolveSendMergeFields,
-} from "../messaging/merge";
+
 import {
   claimMessageRetry,
   dispatchOutbound,
@@ -74,6 +67,11 @@ import {
   runPreSendGates,
   STUCK_SEND_SECONDS,
 } from "../messaging/send";
+import {
+  loadSendView,
+  prepareSend,
+  requireActiveSendingNumber,
+} from "../messaging/send-text";
 import type { AttachmentSummary, MessageRow } from "../messaging/types";
 import {
   assertBodyWithinLimit,
@@ -164,82 +162,7 @@ const messagePatchSchema = z
     message: "Set exactly one of `done` or `pinned`.",
   });
 
-interface ConversationSendView {
-  id: string;
-  contact_id: string;
-  phone_number_id: string;
-  /**
-   * #291: the number this THREAD is with, which is the destination for every
-   * send below. `contacts.phone_e164` is the customer's PRIMARY, which is a
-   * different number the moment they have two — and a text to the wrong line
-   * is indistinguishable from one that never sent.
-   */
-  contact_phone_e164: string;
-  contacts: {
-    id: string;
-    name: string | null;
-    /** #274: the service address, for {address}. */
-    address: string | null;
-    /** #274: the contact's zone, so {job_day}/{job_time} read in THEIR day. */
-    timezone: string | null;
-  };
-  phone_numbers: { id: string; number_e164: string | null; status: string };
-  companies: { id: string; name: string };
-}
-
 type Db = ReturnType<typeof getDb>;
-
-/** Conversation + contact + number + company, company-scoped (§10). */
-async function loadSendView(
-  db: Db,
-  companyId: string,
-  conversationId: string,
-): Promise<ConversationSendView> {
-  const rows = unwrap<ConversationSendView[]>(
-    await db
-      .from("conversations")
-      .select(
-        "id,contact_id,phone_number_id,contact_phone_e164," +
-          // #274: address + timezone on a query already running, so
-          // {address} and the visit day/time cost nothing extra.
-          "contacts(id,name,address,timezone)," +
-          "phone_numbers(id,number_e164,status)," +
-          "companies(id,name)",
-      )
-      .eq("company_id", companyId)
-      .eq("id", conversationId)
-      .limit(1),
-    "conversation lookup",
-  );
-  const view = rows[0];
-  if (!view) throw new ApiError("not_found", "No such conversation.");
-  return view;
-}
-
-/**
- * #46: the conversation's sending number must be provisioned AND `active`
- * (the same gate compose enforces). Numbers keep their e164 forever after
- * release, and old conversations still reference them — sending from a
- * released/suspended number would die at Telnyx with an opaque carrier error,
- * or worse, go out from a number the company no longer pays for. Returns the
- * usable from-number.
- */
-function requireActiveSendingNumber(view: ConversationSendView): string {
-  const fromNumber = view.phone_numbers.number_e164;
-  if (!fromNumber) {
-    throw new ApiError(
-      "conflict",
-      "This conversation's number is still provisioning.",
-    );
-  }
-  if (view.phone_numbers.status !== "active") {
-    throw new ApiError(
-      "conflict",
-      "This conversation's number is not active, so it can't send texts.",
-    );
-  }
-  return fromNumber;
-}
 
 /** Attachment summaries for a set of message rows, keyed by message id. */
 export async function loadAttachments(
@@ -321,54 +244,27 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
   const media = body.media ? decodeOutboundMedia(body.media) : [];
 
   const db = getDb(env);
-  const view = await loadSendView(db, companyId, body.conversation_id);
-  // #106: sending needs level 'text' on the conversation's number (notes-only
-  // members get the honest 403; hidden numbers already 404 upstream).
-  await assertNumberLevel(db, {
+
+  // #243: the load, the number level, the pre-send gates, the merge fields and
+  // the segment estimate all live in `prepareSend` now, because the public API
+  // sends too and the ORDER is a safety rule. Two copies of it would put the
+  // opt-out gate in two places, and opt-out is carrier truth.
+  const prepared = await prepareSend(env, db, {
     companyId,
+    conversationId: body.conversation_id,
     userId: c.get("userId"),
     role: c.get("role"),
-    phoneNumberId: view.phone_number_id ?? null,
-    need: "text",
+    body: body.body,
+    hasMedia: media.length > 0,
   });
-  const fromNumber = requireActiveSendingNumber(view);
+  const { view, fromNumber, clearance } = prepared;
 
-  // §7 gate order: subscription → destination US/CA → registration.
-  const clearance = await runPreSendGates(env, companyId, view.contact_phone_e164);
-
-  // #97: picture messages are ungated — MMS meters as 3 segments (MMS_SEGMENTS,
-  // below) through gateOutboundSend, counting against the plan allowance + the
-  // #85 fair-use overage exactly like text. No paid module, no separate MMS cap.
-  // (Incoming pictures are always free — this path is outbound-only.)
-
-  // Step 0a merge-fields: applied server-side at SEND time to the composed body
-  // (and to any saved-reply text the composer pasted in), reusing the contact +
-  // company already loaded here — no extra query. Unknown/empty tokens degrade
-  // cleanly. Runs BEFORE the segment estimate so it sees the substituted text.
-  //
-  // #274: the address and the reply-to number come free from what is already
-  // loaded here. {my_name} and the visit day/time each cost a read, so
-  // resolveSendMergeFields fetches them ONLY when the text asks — a message
-  // with no tokens, which is almost all of them, does no work at all.
-  const resolved = await resolveSendMergeFields(db, body.body, {
-    companyId,
-    conversationId: view.id,
-    userId: c.get("userId"),
-    timeZone: view.contacts.timezone ?? null,
-  });
-  const merged = applySendMergeFields(body.body, {
-    contactName: view.contacts.name,
-    businessName: view.companies.name,
-    contactAddress: view.contacts.address,
-    ourNumber: formatNanpNumber(fromNumber),
-    ...resolved,
-  });
-
-  const text = merged;
-
-  // §9/§10 estimate: MMS meters (and pre-checks) as 3 segments.
-  const segmentsEstimate =
-    media.length > 0 ? MMS_SEGMENTS : estimateSegments(text).segments;
+  // #97: picture messages are ungated — MMS meters as 3 segments through
+  // gateOutboundSend, counting against the plan allowance + the #85 fair-use
+  // overage exactly like text. No paid module, no separate MMS cap. (Incoming
+  // pictures are always free — this path is outbound-only.)
+  const text = prepared.text;
+  const segmentsEstimate = prepared.segmentsEstimate;
 
   // §7/§10: opt-out → rate → cap, atomic with the queued insert.
   const { message, existing } = await gateOutboundSend(db, {

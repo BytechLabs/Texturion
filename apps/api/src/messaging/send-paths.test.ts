@@ -111,6 +111,14 @@ describe("the outbound gate cannot be bypassed (#331)", () => {
       // schedule time, which is what makes a STOP arriving in between fatal to
       // the message rather than ignored.
       "messaging/scheduled-send.ts",
+      // #243: the ONE outbound text sequence, extracted so the public API
+      // could send without a second copy of the order. It is named here for
+      // the reason this roster exists — it reaches the carrier — and it is the
+      // path that makes the OTHERS smaller rather than adding to them: the
+      // thread send now delegates its gate order here instead of spelling it
+      // out. It mints nothing; the clearance comes from runPreSendGates like
+      // every other path.
+      "messaging/send-text.ts",
       // The dispatch tail itself.
       "messaging/send.ts",
       // Compose: the first text to a new number.

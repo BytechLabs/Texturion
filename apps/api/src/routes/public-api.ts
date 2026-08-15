@@ -6,6 +6,7 @@
  *   POST /public/v1/contacts   { phone_e164, name?, email?, notes? }
  *   GET  /public/v1/conversations           the thread list, newest first.
  *   GET  /public/v1/conversations/:id/messages
+ *   POST /public/v1/messages   { conversation_id, body } + Idempotency-Key.
  *   GET  /public/v1/tasks      the job list, newest first.
  *   POST /public/v1/tasks      { message_id, title?, due_at?, description? }
  *
@@ -49,6 +50,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
+import { sendTextToConversation } from "../messaging/send-text";
 import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
 /**
@@ -81,6 +83,14 @@ const createContactSchema = z.object({
   name: z.string().trim().max(120).optional(),
   email: z.email().max(200).optional(),
   notes: z.string().trim().max(2000).optional(),
+});
+
+const sendMessageSchema = z.object({
+  conversation_id: z.uuid(),
+  // Text only in v1. Media means an upload, a signed URL and a size budget,
+  // and every one of those is a shape we would be promising forever — the
+  // honest way to add it is to add it, once somebody has asked.
+  body: z.string().trim().min(1).max(1600),
 });
 
 const createTaskSchema = z.object({
@@ -256,6 +266,61 @@ publicApiRoutes.get(
       "public messages list",
     );
     return c.json({ data: rows, limit });
+  },
+);
+
+publicApiRoutes.post(
+  `${PUBLIC_API_BASE}/messages`,
+  requireScope("messages:send"),
+  requireCapability("conversations.send"),
+  async (c) => {
+    const body = await parseJsonBody(c, sendMessageSchema);
+    const env = getEnv(c.env);
+
+    // Required, not optional, and that is a decision about who is calling. An
+    // integration retries — that is what makes it an integration — and a send
+    // endpoint without an idempotency key turns every network blip into a
+    // second text to a real customer. The first-party clients are held to the
+    // same rule for the same reason.
+    const idempotencyKey = c.req.header("Idempotency-Key")?.trim();
+    if (!idempotencyKey || idempotencyKey.length > 255) {
+      return errorResponse(
+        c,
+        "validation_failed",
+        "An `Idempotency-Key` header is required so a retry cannot send twice.",
+      );
+    }
+
+    // The SAME sequence the thread send runs, from the same function: number
+    // level, the pre-send gates, merge fields, then the atomic
+    // opt-out/rate/cap insert, then dispatch. There is no second copy of that
+    // order, which is the whole reason it was extracted.
+    const { message, existing } = await sendTextToConversation(
+      env,
+      getDb(env),
+      {
+        companyId: c.get("companyId"),
+        conversationId: body.conversation_id,
+        userId: c.get("userId"),
+        role: c.get("role"),
+        body: body.body,
+        idempotencyKey,
+      },
+    );
+
+    return c.json(
+      {
+        id: message.id,
+        conversation_id: message.conversation_id,
+        direction: message.direction,
+        body: message.body,
+        status: message.status,
+        created_at: message.created_at,
+      },
+      // 200 on a replay, 201 on a new send — so a caller can tell whether its
+      // retry actually did anything.
+      existing ? 200 : 201,
+    );
   },
 );
 

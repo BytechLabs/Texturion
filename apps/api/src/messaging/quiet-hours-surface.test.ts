@@ -57,6 +57,24 @@ const SEND_SITES: Record<string, { shape: string; why: string }> = {
       "a person starting a NEW conversation. Gated: 409 " +
       "quiet_hours_confirmation_required, confirmable — warned, never blocked",
   },
+  "messaging/send-text.ts": {
+    shape: "reply-exempt",
+    why:
+      "#243 — the ONE outbound text sequence, extracted so the public API " +
+      "could send without a second copy of the gate order. It is a MECHANISM " +
+      "rather than a site: it has no shape of its own and inherits its " +
+      "caller's. " +
+      "Classified reply-exempt because both callers are, on the same ground " +
+      "and by the same structural fact — routes/messages.ts and " +
+      "routes/public-api.ts each take a conversation id and CANNOT start a " +
+      "conversation, so neither is ever the new outbound solicitation SPEC §5 " +
+      "scopes the gate to. " +
+      "The line to watch: this classification is only true while that stays " +
+      "true. A caller that can ORIGINATE a conversation through this function " +
+      "is a human-initiating send wearing a reply-exempt label, and it needs " +
+      "compose's 409 rather than this entry. Adding one means re-deciding " +
+      "here, not inheriting",
+  },
   "routes/messages.ts": {
     shape: "reply-exempt",
     why:
