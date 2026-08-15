@@ -1304,6 +1304,17 @@ private val BILLING_EN = mapOf(
     "settings.billingPortalAction" to "Manage payment & invoices",
 
     "settings.cancelTitle" to "Cancel",
+
+    /*
+     * #277's six answers. The CODES are frozen in SettingsLogic and land in the
+     * database; these are only the words, and changing one is free.
+     */
+    "settings.cancelReasonTooExpensive" to "Too expensive",
+    "settings.cancelReasonSeasonal" to "Quiet season, I'll be back",
+    "settings.cancelReasonMissingFeature" to "Missing something I need",
+    "settings.cancelReasonSwitched" to "Going with something else",
+    "settings.cancelReasonNotUsing" to "Not using it",
+    "settings.cancelReasonOther" to "Something else",
     "settings.cancelOwnerOnly" to
         "Only the owner can cancel this plan. When they do, the plan runs to the end " +
         "of the billing period and nothing sends after that. The number is held for " +
@@ -1478,6 +1489,13 @@ private val BILLING_FR = mapOf(
     "settings.billingPortalAction" to "Gérer le paiement et les factures",
 
     "settings.cancelTitle" to "Annuler",
+
+    "settings.cancelReasonTooExpensive" to "Trop cher",
+    "settings.cancelReasonSeasonal" to "Saison tranquille, je reviens",
+    "settings.cancelReasonMissingFeature" to "Il manque quelque chose dont j'ai besoin",
+    "settings.cancelReasonSwitched" to "Je passe à autre chose",
+    "settings.cancelReasonNotUsing" to "Je ne m'en sers pas",
+    "settings.cancelReasonOther" to "Autre chose",
     "settings.cancelOwnerOnly" to
         "Seul le propriétaire peut annuler ce forfait. Quand il le fait, le forfait " +
         "se poursuit jusqu'à la fin de la période de facturation et plus rien ne part " +

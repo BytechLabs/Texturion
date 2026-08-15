@@ -67,7 +67,7 @@ class CancellationFlowTest {
                 "Not using it",
                 "Something else",
             ),
-            CANCELLATION_REASONS.map { it.label },
+            CANCELLATION_REASONS.map { AppStrings.en[it.labelKey] },
         )
     }
 

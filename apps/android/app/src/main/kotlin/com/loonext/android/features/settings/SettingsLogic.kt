@@ -670,8 +670,17 @@ fun planIncludedSegments(plan: String?): Long = when (plan) {
 // #277 — why a workspace is leaving, asked once, before the Stripe handoff
 // ---------------------------------------------------------------------------
 
-/** One answer: the code the API stores, and the words the owner reads. */
-data class CancellationReason(val code: String, val label: String)
+/**
+ * One answer: the code the API stores, and the KEY of the words the owner
+ * reads.
+ *
+ * #228: a key rather than a sentence, because this list is built outside
+ * composition — it is a top-level `val` — and `t()` is @Composable. The row
+ * that renders it resolves the key, which is the same shape `AuthError.Ours`
+ * and `ApiException.messageKey` use, and the one `CatalogueKeysTest` already
+ * walks the sources for.
+ */
+data class CancellationReason(val code: String, val labelKey: String)
 
 /**
  * The six answers, in this order, identical on every client.
@@ -685,12 +694,12 @@ data class CancellationReason(val code: String, val label: String)
  * one reason into two in every report that spans the change.
  */
 val CANCELLATION_REASONS: List<CancellationReason> = listOf(
-    CancellationReason("too_expensive", "Too expensive"),
-    CancellationReason("seasonal", "Quiet season, I'll be back"),
-    CancellationReason("missing_feature", "Missing something I need"),
-    CancellationReason("switched", "Going with something else"),
-    CancellationReason("not_using", "Not using it"),
-    CancellationReason("other", "Something else"),
+    CancellationReason("too_expensive", "settings.cancelReasonTooExpensive"),
+    CancellationReason("seasonal", "settings.cancelReasonSeasonal"),
+    CancellationReason("missing_feature", "settings.cancelReasonMissingFeature"),
+    CancellationReason("switched", "settings.cancelReasonSwitched"),
+    CancellationReason("not_using", "settings.cancelReasonNotUsing"),
+    CancellationReason("other", "settings.cancelReasonOther"),
 )
 
 /** The API's ceiling on the free-text half (`detail`, trimmed then max 2000). */

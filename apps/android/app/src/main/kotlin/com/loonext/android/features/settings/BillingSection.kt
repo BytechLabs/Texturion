@@ -526,7 +526,7 @@ private fun CancelCard(
                 ) {
                     RadioButton(selected = selected, onClick = null, enabled = !opening)
                     Spacer(Modifier.width(10.dp))
-                    Text(choice.label, style = MaterialTheme.typography.bodyLarge)
+                    Text(t(choice.labelKey), style = MaterialTheme.typography.bodyLarge)
                 }
             }
         }
