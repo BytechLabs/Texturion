@@ -901,23 +901,40 @@ fun prepaidConversionCopy(
     fromPlan: String,
     toPlan: String,
     credit: String?,
+    locale: String? = null,
 ): PrepaidConversionCopy {
-    val heading = "You have a prepaid ${prepaidPlanLabel(fromPlan)} year running."
+    val heading = AppStrings.translate(
+        locale,
+        "settings.prepaidHeading",
+        mapOf("plan" to prepaidPlanLabel(fromPlan)),
+    )
     val target = prepaidPlanLabel(toPlan)
+    // #228: the credited and uncredited forms are separate keys. The credited
+    // one is not the other with a clause bolted on — it says a different thing
+    // about the money, and French orders it differently.
     if (credit == null) {
         return PrepaidConversionCopy(
             heading = heading,
-            explanation = "Switching ends the prepaid year. You then pay the normal " +
-                "$target monthly price.",
-            acknowledgement = "End my prepaid year",
+            explanation = AppStrings.translate(
+                locale,
+                "settings.prepaidEndsPlain",
+                mapOf("plan" to target),
+            ),
+            acknowledgement = AppStrings.translate(locale, "settings.prepaidAckPlain"),
         )
     }
     return PrepaidConversionCopy(
         heading = heading,
-        explanation = "Switching ends the prepaid year and puts $credit back on your " +
-            "account as credit, which comes off your next invoices. You then pay the " +
-            "normal $target monthly price.",
-        acknowledgement = "End my prepaid year and credit me $credit",
+        explanation = AppStrings.translate(
+            locale,
+            "settings.prepaidEndsCredited",
+            mapOf("plan" to target, "credit" to credit),
+        ),
+        acknowledgement = AppStrings.translate(
+            locale,
+            "settings.prepaidAckCredited",
+            mapOf("credit" to credit),
+        ),
     )
 }
 

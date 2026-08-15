@@ -1850,7 +1850,7 @@ private fun ColumnScope.PrepaidYearPanel(
     val credit = open.conversion?.let { formatMoney(it.credit_cents, paid) }
     // The sentences are the promise, so they come from the shared rule rather than
     // being typed out here — see `prepaidConversionCopy`.
-    val copy = prepaidConversionCopy(open.plan, targetPlan, credit)
+    val copy = prepaidConversionCopy(open.plan, targetPlan, credit, LocalAppLocale.current)
 
     Spacer(Modifier.height(10.dp))
     Text(

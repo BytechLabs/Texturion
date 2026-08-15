@@ -1317,6 +1317,23 @@ private val BILLING_EN = mapOf(
      * which is the wording SettingsMoreStrings already uses.
      */
     /*
+     * #523 — switching away from a prepaid year.
+     *
+     * The credited and uncredited forms are separate keys rather than one
+     * sentence with a clause bolted on: they say different things about the
+     * money, and French orders them differently.
+     */
+    "settings.prepaidHeading" to "You have a prepaid {plan} year running.",
+    "settings.prepaidEndsPlain" to
+        "Switching ends the prepaid year. You then pay the normal {plan} monthly price.",
+    "settings.prepaidEndsCredited" to
+        "Switching ends the prepaid year and puts {credit} back on your account as " +
+        "credit, which comes off your next invoices. You then pay the normal {plan} " +
+        "monthly price.",
+    "settings.prepaidAckPlain" to "End my prepaid year",
+    "settings.prepaidAckCredited" to "End my prepaid year and credit me {credit}",
+
+    /*
      * #277 — the pause, offered and then lived in.
      *
      * The named-plan and unnamed forms are SEPARATE KEYS rather than one
@@ -1550,6 +1567,18 @@ private val BILLING_FR = mapOf(
     "settings.billingPortalAction" to "Gérer le paiement et les factures",
 
     "settings.cancelTitle" to "Annuler",
+
+    "settings.prepaidHeading" to "Vous avez une année prépayée {plan} en cours.",
+    "settings.prepaidEndsPlain" to
+        "Changer met fin à l'année prépayée. Vous payez ensuite le prix mensuel " +
+        "normal du forfait {plan}.",
+    "settings.prepaidEndsCredited" to
+        "Changer met fin à l'année prépayée et remet {credit} en crédit sur votre " +
+        "compte, qui sera déduit de vos prochaines factures. Vous payez ensuite le " +
+        "prix mensuel normal du forfait {plan}.",
+    "settings.prepaidAckPlain" to "Mettre fin à mon année prépayée",
+    "settings.prepaidAckCredited" to
+        "Mettre fin à mon année prépayée et me créditer {credit}",
 
     "settings.pauseStops" to
         "Vous ne pouvez ni envoyer de textos ni prendre d'appels pendant la pause, " +
