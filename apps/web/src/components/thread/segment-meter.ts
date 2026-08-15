@@ -26,9 +26,24 @@ export interface SegmentMeterState {
   warn: boolean;
 }
 
+/** Every catalogue key this module names. */
+export type SegmentMeterKey =
+  | "thread.mmsSegments"
+  | "thread.sentInOnePart"
+  | "thread.sentInParts"
+  | "thread.segmentTipOnePart"
+  | "thread.segmentTipParts";
+
+/** The reader's resolver. */
+export type SaySegmentMeter = (
+  key: SegmentMeterKey,
+  vars?: Record<string, string>,
+) => string;
+
 export function segmentMeter(
   text: string,
-  hasMedia = false,
+  hasMedia: boolean,
+  say: SaySegmentMeter,
 ): SegmentMeterState {
   // Attaching anything makes this an MMS, billed at a flat 3 parts whatever
   // the body says. Counting the text alone told people a photo with "ok" on
@@ -39,7 +54,7 @@ export function segmentMeter(
       visible: true,
       segments: MMS_SEGMENTS,
       encoding: "GSM-7",
-      label: `MMS · sent in ${MMS_SEGMENTS} parts`,
+      label: say("thread.mmsSegments", { count: String(MMS_SEGMENTS) }),
       warn: false,
     };
   }
@@ -48,7 +63,16 @@ export function segmentMeter(
     visible: estimate.segments >= 2,
     segments: estimate.segments,
     encoding: estimate.encoding,
-    label: `Sent in ${estimate.segments} part${estimate.segments === 1 ? "" : "s"}`,
+    /*
+     * ONE and MANY are separate keys, not one sentence with an "s" appended.
+     * French agrees the noun with the count — "1 partie", "2 parties" — and a
+     * language that also agreed an article or a verb would have nowhere to
+     * put it. Both phones have carried the pair since their own pass.
+     */
+    label:
+      estimate.segments === 1
+        ? say("thread.sentInOnePart")
+        : say("thread.sentInParts", { count: String(estimate.segments) }),
     warn: estimate.segments >= METER_WARN_AT_SEGMENTS,
   };
 }
@@ -58,6 +82,10 @@ export function segmentMeter(
  * "parts" split in plain language, and states the current count. Never the word
  * "segment".
  */
-export function segmentTooltip(parts: number): string {
-  return `Longer texts are sent in parts. This one's ${parts} part${parts === 1 ? "" : "s"}.`;
+export function segmentTooltip(parts: number, say: SaySegmentMeter): string {
+  // Web-only: the phones have no hover, so this pair exists on this client
+  // alone. Split the same way as the label above, and for the same reason.
+  return parts === 1
+    ? say("thread.segmentTipOnePart")
+    : say("thread.segmentTipParts", { count: String(parts) });
 }

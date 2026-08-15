@@ -23,6 +23,25 @@ import { describe, expect, it } from "vitest";
 
 import { segmentMeter } from "./segment-meter";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "@/i18n/catalog";
+
+/** #228 — the module names keys now, so the tests resolve them. */
+function resolver(table: unknown) {
+  return (key: string, vars: Record<string, string> = {}): string => {
+    const [section, name] = key.split(".");
+    const text = (table as Record<string, Record<string, string>>)[section]?.[name];
+    if (typeof text !== "string") throw new Error(`no entry for ${key}`);
+    return Object.entries(vars).reduce(
+      (out, [token, value]) => out.split(`{${token}}`).join(value),
+      text,
+    );
+  };
+}
+
+const sayEn = resolver(WEB_EN);
+const sayFr = resolver(WEB_FR);
+
+
 /** What the composer now meters. */
 function meterFor(
   draft: string,
@@ -39,6 +58,7 @@ function meterFor(
       values.identificationSuffix,
     ),
     false,
+    sayEn,
   );
 }
 
@@ -102,7 +122,7 @@ describe("#415 — the meter measures the merged message", () => {
     // messages. Substitution returns a token-free string byte-for-byte.
     const draft = "On our way, about twenty minutes out.";
     expect(meterFor(draft, { businessName: "Anything" })).toEqual(
-      segmentMeter(draft, false),
+      segmentMeter(draft, false, sayEn),
     );
   });
 
@@ -150,7 +170,7 @@ describe("#393 — the meter counts the signature", () => {
     // been signed to once.
     const draft = "x".repeat(150);
     expect(meterFor(draft, { identificationSuffix: null })).toEqual(
-      segmentMeter(draft, false),
+      segmentMeter(draft, false, sayEn),
     );
   });
 
@@ -172,6 +192,6 @@ describe("#393 — the meter counts the signature", () => {
     const draft = `On my way${SIGNATURE}`;
     expect(
       meterFor(draft, { identificationSuffix: SIGNATURE }).segments,
-    ).toBe(segmentMeter(draft, false).segments);
+    ).toBe(segmentMeter(draft, false, sayEn).segments);
   });
 });

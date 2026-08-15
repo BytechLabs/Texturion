@@ -18,6 +18,15 @@
 import type { Translated } from "../translated";
 
 export const threadEn = {
+  /* #228 — how many parts a text will send in. ONE and MANY are separate
+     keys, never one sentence with an "s" appended: French agrees the
+     noun with the count (1 partie, 2 parties). The tooltip pair is
+     web-only — the phones have no hover. */
+  mmsSegments: "MMS · sent in {count} parts",
+  sentInOnePart: "Sent in 1 part",
+  sentInParts: "Sent in {count} parts",
+  segmentTipOnePart: "Longer texts are sent in parts. This one's 1 part.",
+  segmentTipParts: "Longer texts are sent in parts. This one's {count} parts.",
   /* #228 — why a file was refused. The name is INTERPOLATED rather than
      glued to the front: the subject is not where every language starts
      its sentence, and both phone catalogues carry the same note against
@@ -744,6 +753,11 @@ export const threadEn = {
  * and a translated keyword is a keyword that does nothing.
  */
 export const threadFr: Translated<typeof threadEn> = {
+  mmsSegments: "MMS · envoyé en {count} parties",
+  sentInOnePart: "Envoyé en 1 partie",
+  sentInParts: "Envoyé en {count} parties",
+  segmentTipOnePart: "Les longs textos sont envoyés en plusieurs parties. Celui-ci en compte 1.",
+  segmentTipParts: "Les longs textos sont envoyés en plusieurs parties. Celui-ci en compte {count}.",
   thatFile: "Ce fichier",
   attachLimitText: "Vous pouvez joindre jusqu'à {max} fichiers par texto.",
   mmsUnsupportedFile: "{name} n'est pas quelque chose qu'un texto peut transporter. Essayez une photo, une vidéo, un clip audio, une fiche de contact ou un PDF.",

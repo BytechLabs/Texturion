@@ -361,6 +361,7 @@ export function SegmentMeterLabel({
    */
   identificationSuffix?: string | null;
 }) {
+  const t = useT();
   // #415: measure what SENDS, not what was typed. The preview one line below
   // has always substituted; the meter counted the raw draft, so a message
   // built around {business_name} — 15 characters, against "Wilson & Sons
@@ -385,6 +386,7 @@ export function SegmentMeterLabel({
       identificationSuffix,
     ),
     hasMedia,
+    t,
   );
   if (!meter.visible) return null;
   return (
@@ -404,7 +406,7 @@ export function SegmentMeterLabel({
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-64">
-        {segmentTooltip(meter.segments)}
+        {segmentTooltip(meter.segments, t)}
       </TooltipContent>
     </Tooltip>
   );
