@@ -93,6 +93,12 @@ const commonFr: Translated<typeof commonEn> = {
 
 /** Text-to-pay (#224), the first surface extracted. */
 const paymentsEn = {
+  /* #228 — why an amount was refused. Also sent by the API as an ApiError
+     message, so the English must stay word-for-word what packages/shared
+     sends: an old client renders that verbatim. */
+  amountTooSmall: "The smallest payment we can take is {amount}.",
+  amountTooLarge: "The largest payment we can take by text is {amount}.",
+  amountNotWhole: "Enter an amount in dollars and cents.",
   settingsTitle: "Getting paid",
   settingsDescription:
     "Ask a customer for a deposit or a final payment, right in the thread.",
@@ -220,6 +226,9 @@ const paymentsEn = {
  *   to a professional, matching the register of the English.
  */
 const paymentsFr: Translated<typeof paymentsEn> = {
+  amountTooSmall: "Le plus petit paiement que nous pouvons prendre est de {amount}.",
+  amountTooLarge: "Le plus gros paiement que nous pouvons prendre par texto est de {amount}.",
+  amountNotWhole: "Entrez un montant en dollars et en cents.",
   settingsTitle: "Encaisser les paiements",
   settingsDescription:
     "Demandez un acompte ou le paiement final à un client, directement dans la conversation.",

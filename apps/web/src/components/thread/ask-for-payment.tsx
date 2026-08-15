@@ -189,7 +189,7 @@ export function AskForPayment({ conversationId }: { conversationId: string }) {
 
       {problem !== null && (
         <p className="mt-2 text-[12px] text-app-amber-ink">
-          {paymentAmountProblemCopy(problem, currency)}
+          {paymentAmountProblemCopy(problem, currency, t)}
         </p>
       )}
 

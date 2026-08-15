@@ -23,17 +23,49 @@ import {
 } from "./payments";
 
 /** The sentence a crew member reads when the amount is refused. */
+/** Every catalogue key this module names. */
+export type PaymentAmountKey =
+  | "payments.amountTooSmall"
+  | "payments.amountTooLarge"
+  | "payments.amountNotWhole";
+
+/** The reader's resolver. */
+export type SayPaymentAmount = (key: PaymentAmountKey) => string;
+
 export function paymentAmountProblemCopy(
   problem: PaymentAmountProblem,
   currency: BillingCurrency,
+  /**
+   * #228 — the reader's resolver.
+   *
+   * The API passes an English one: this refusal leaves as an `ApiError`
+   * message, so it is on the wire and a client built last month renders it
+   * verbatim. The three clients check the same rule locally before the round
+   * trip and pass the reader's — which is the copy a person actually sees,
+   * because the local check fires first.
+   */
+  say: SayPaymentAmount,
 ): string {
+  /*
+   * #228 — the AMOUNT is formatted here and the sentence around it is a key.
+   *
+   * `formatMoney` already knows the currency; what it does not know is the
+   * language the sentence is in. Both phones have said these three from
+   * `payments.amount*` for months.
+   */
   switch (problem) {
     case "too_small":
-      return `The smallest payment we can take is ${formatMoney(PAYMENT_MIN_CENTS, currency)}.`;
+      return say("payments.amountTooSmall").replace(
+        "{amount}",
+        formatMoney(PAYMENT_MIN_CENTS, currency),
+      );
     case "too_large":
-      return `The largest payment we can take by text is ${formatMoney(PAYMENT_MAX_CENTS, currency)}.`;
+      return say("payments.amountTooLarge").replace(
+        "{amount}",
+        formatMoney(PAYMENT_MAX_CENTS, currency),
+      );
     case "not_whole":
-      return "Enter an amount in dollars and cents.";
+      return say("payments.amountNotWhole");
   }
 }
 

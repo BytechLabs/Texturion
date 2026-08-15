@@ -60,6 +60,7 @@ import {
   type ConnectAccountRow,
 } from "../billing/connect";
 import { getStripe } from "../billing/stripe";
+import { englishAmountProblem } from "../billing/payment-amount-copy";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
@@ -398,7 +399,11 @@ paymentRequestRoutes.post(
     if (problem) {
       throw new ApiError(
         "validation_failed",
-        paymentAmountProblemCopy(problem, currency),
+        // ENGLISH, deliberately: this leaves as an ApiError message, so it is
+        // on the wire and a client built last month renders it verbatim. All
+        // three clients check the same rule locally first and show the
+        // reader's language — this is the fallback nobody should reach.
+        paymentAmountProblemCopy(problem, currency, englishAmountProblem),
       );
     }
 

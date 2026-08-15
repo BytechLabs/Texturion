@@ -25,6 +25,9 @@ function look(table: unknown, key: string): string {
   return value;
 }
 
+const sayEn = (key: string): string => look(WEB_EN, key);
+const sayFr = (key: string): string => look(WEB_FR, key);
+
 /**
  * #224 — the vectors the Kotlin and Swift ports are checked against.
  *
@@ -148,8 +151,23 @@ describe("paymentAmountProblem", () => {
   });
 
   it("states the bound in the reader's own currency", () => {
-    expect(paymentAmountProblemCopy("too_small", "cad")).toContain("$1");
-    expect(paymentAmountProblemCopy("too_large", "usd")).toContain("$25,000");
+    expect(paymentAmountProblemCopy("too_small", "cad", sayEn)).toContain("$1");
+    expect(paymentAmountProblemCopy("too_large", "usd", sayEn)).toContain("$25,000");
+  });
+
+  it("#228: states it in the reader's own LANGUAGE too", () => {
+    // The figure is formatted by `formatMoney` and the sentence around it is
+    // a key. Both halves have to survive: a French refusal that lost the
+    // amount would tell somebody they are outside a limit without saying
+    // which, and that is the one fact they need to fix it.
+    const small = paymentAmountProblemCopy("too_small", "cad", sayFr);
+    expect(small).toMatch(/^Le plus petit paiement/);
+    expect(small).toContain("$1");
+    expect(small, "a variable survived the fill").not.toMatch(/\{/);
+
+    const large = paymentAmountProblemCopy("too_large", "usd", sayFr);
+    expect(large).toContain("$25,000");
+    expect(large).not.toBe(paymentAmountProblemCopy("too_large", "usd", sayEn));
   });
 });
 

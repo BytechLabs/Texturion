@@ -894,7 +894,12 @@ export {
  * The two sentences that need the money formatter, kept in their own module so
  * the RULES above stay importable by the parity-vector generator.
  */
-export { paymentAmountProblemCopy, paymentRequestSms } from "./payments-copy";
+export {
+  paymentAmountProblemCopy,
+  paymentRequestSms,
+  type PaymentAmountKey,
+  type SayPaymentAmount,
+} from "./payments-copy";
 
 /**
  * #307 — per-number identity. One implementation of "the number's value if it
