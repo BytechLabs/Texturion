@@ -258,10 +258,17 @@ export const SCHEDULED_PRESET_HOUR = 8;
 export interface SchedulePreset {
   /** Stable id, so three clients agree on what "tomorrow" means. */
   id: "tomorrow" | "monday" | "custom";
+  /** The words, already said — see the `say` parameter below. */
   label: string;
   /** Absolute instant, or null for the one that opens a picker. */
   at: Date | null;
 }
+
+/** The three catalogue keys the presets name. */
+export type SchedulePresetKey =
+  | "domain.scheduledPresetTomorrow"
+  | "domain.scheduledPresetMonday"
+  | "domain.scheduledPresetCustom";
 
 /**
  * The two presets plus the escape hatch.
@@ -274,20 +281,30 @@ export interface SchedulePreset {
  * Computed in the DESTINATION's zone, because "tomorrow 8am" means 8am where
  * the customer is reading it. `timeZone` is the resolved rung — see
  * {@link scheduledClockProvenance} for why the UI must say which one.
+ *
+ * #228: `say` is the reader's resolver, and it is REQUIRED and second-to-last
+ * rather than defaulted. A default here would have every existing call site
+ * keep compiling and quietly render `domain.scheduledPresetTomorrow` in the
+ * menu — the failure mode this whole conversion exists to avoid. Both phones
+ * already resolve inside their own port, so `label` holds words on all three.
  */
-export function schedulePresets(now: Date, timeZone: string): SchedulePreset[] {
+export function schedulePresets(
+  now: Date,
+  timeZone: string,
+  say: (key: SchedulePresetKey) => string,
+): SchedulePreset[] {
   return [
     {
       id: "tomorrow",
-      label: "Tomorrow, 8:00am",
+      label: say("domain.scheduledPresetTomorrow"),
       at: nextLocalHour(now, timeZone, 1),
     },
     {
       id: "monday",
-      label: "Monday, 8:00am",
+      label: say("domain.scheduledPresetMonday"),
       at: nextLocalHour(now, timeZone, daysUntilMonday(now, timeZone)),
     },
-    { id: "custom", label: "Pick a time", at: null },
+    { id: "custom", label: say("domain.scheduledPresetCustom"), at: null },
   ];
 }
 

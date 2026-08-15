@@ -80,7 +80,7 @@ export function SendLaterMenuItems({
   // Resolved on every render rather than memoized, matching the snooze ladder:
   // the presets only change when the clock crosses 8am there, and on that
   // render the NEW pair is the correct one.
-  const presets = schedulePresets(new Date(), zone);
+  const presets = schedulePresets(new Date(), zone, t);
 
   return (
     <>
@@ -146,7 +146,7 @@ export function SendLaterDialog({
   // than a blank form. Read at OPEN time, not at mount, so a dialog opened
   // tomorrow does not still offer yesterday.
   const initial = () =>
-    schedulePresets(new Date(), zone)[0]?.at ?? new Date(Date.now() + 3_600_000);
+    schedulePresets(new Date(), zone, t)[0]?.at ?? new Date(Date.now() + 3_600_000);
   const [value, setValue] = useState(() => toLocalInput(initial()));
 
   // The instant the typed wall clock means, in whichever clock is selected.

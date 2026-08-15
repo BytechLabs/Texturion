@@ -19,6 +19,24 @@ import {
   scheduledReasonRecovers,
 } from "./scheduled-send";
 
+/**
+ * #228 — the presets take the reader's resolver now, so the tests supply one.
+ *
+ * English here: these cases are about WHEN a preset lands, and a French label
+ * would not make a DST assertion any truer. The words themselves are asserted
+ * in both languages in their own case at the bottom of this block.
+ */
+const sayEn = (key: string): string => look(WEB_EN, key);
+const sayFr = (key: string): string => look(WEB_FR, key);
+
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
+
 /** The local wall-clock hour of an instant, in a zone. */
 function hourIn(instant: Date, timeZone: string): number {
   return Number(
@@ -41,7 +59,7 @@ describe("#233 presets land on the destination's wall clock", () => {
     // Mid-afternoon UTC, which is still the morning in Los Angeles — the case
     // where "tomorrow" is ambiguous if you do the arithmetic in the wrong zone.
     const now = new Date("2026-06-15T21:00:00Z");
-    const [tomorrow] = schedulePresets(now, "America/Los_Angeles");
+    const [tomorrow] = schedulePresets(now, "America/Los_Angeles", sayEn);
     expect(tomorrow.at).not.toBeNull();
     expect(hourIn(tomorrow.at as Date, "America/Los_Angeles")).toBe(8);
   });
@@ -50,7 +68,7 @@ describe("#233 presets land on the destination's wall clock", () => {
     // 2026-03-08 is when US clocks jump 2am -> 3am. A fixed-offset
     // implementation returns 9am here and nobody notices until a customer does.
     const now = new Date("2026-03-07T12:00:00Z");
-    const [tomorrow] = schedulePresets(now, "America/New_York");
+    const [tomorrow] = schedulePresets(now, "America/New_York", sayEn);
     expect(hourIn(tomorrow.at as Date, "America/New_York")).toBe(8);
   });
 
@@ -58,13 +76,13 @@ describe("#233 presets land on the destination's wall clock", () => {
     // 2026-11-01, clocks go back. The mirror of the case above, and the one
     // that produces a 7am text.
     const now = new Date("2026-10-31T12:00:00Z");
-    const [tomorrow] = schedulePresets(now, "America/New_York");
+    const [tomorrow] = schedulePresets(now, "America/New_York", sayEn);
     expect(hourIn(tomorrow.at as Date, "America/New_York")).toBe(8);
   });
 
   it("lands Monday on a Monday, in that zone", () => {
     const now = new Date("2026-06-17T15:00:00Z"); // a Wednesday
-    const monday = schedulePresets(now, "America/New_York")[1];
+    const monday = schedulePresets(now, "America/New_York", sayEn)[1];
     expect(weekdayIn(monday.at as Date, "America/New_York")).toBe("Mon");
     expect(hourIn(monday.at as Date, "America/New_York")).toBe(8);
   });
@@ -73,7 +91,7 @@ describe("#233 presets land on the destination's wall clock", () => {
     // Otherwise "Monday 8am" on a Monday afternoon is a time that has passed,
     // which the API would reject as in_the_past — a preset that cannot be used.
     const now = new Date("2026-06-15T18:00:00Z"); // Monday
-    const monday = schedulePresets(now, "America/New_York")[1];
+    const monday = schedulePresets(now, "America/New_York", sayEn)[1];
     expect(weekdayIn(monday.at as Date, "America/New_York")).toBe("Mon");
     expect((monday.at as Date).getTime()).toBeGreaterThan(now.getTime());
   });
@@ -83,7 +101,7 @@ describe("#233 presets land on the destination's wall clock", () => {
     // refuse is worse than no preset.
     for (let hour = 0; hour < 24; hour += 1) {
       const now = new Date(Date.UTC(2026, 5, 15, hour));
-      for (const preset of schedulePresets(now, "America/Los_Angeles")) {
+      for (const preset of schedulePresets(now, "America/Los_Angeles", sayEn)) {
         if (preset.at) expect(preset.at.getTime()).toBeGreaterThan(now.getTime());
       }
     }
@@ -92,10 +110,31 @@ describe("#233 presets land on the destination's wall clock", () => {
   it("offers two presets and a way out, in that order", () => {
     // Two, not five: a list long enough to read is slower than the picker it
     // replaced.
-    const presets = schedulePresets(new Date("2026-06-15T12:00:00Z"), "UTC");
+    const presets = schedulePresets(new Date("2026-06-15T12:00:00Z"), "UTC", sayEn);
     expect(presets.map((p) => p.id)).toEqual(["tomorrow", "monday", "custom"]);
     expect(presets[2].at).toBeNull();
   });
+
+  it("says the presets in the reader's language (#228)", () => {
+    // The failure this replaces: the labels were English inside the shared
+    // module, so a French member opened the menu and read "Tomorrow, 8:00am"
+    // above a French confirmation sentence.
+    const en = schedulePresets(new Date("2026-06-15T12:00:00Z"), "UTC", sayEn);
+    const fr = schedulePresets(new Date("2026-06-15T12:00:00Z"), "UTC", sayFr);
+    expect(en.map((p) => p.label)).toEqual([
+      "Tomorrow, 8:00am",
+      "Monday, 8:00am",
+      "Pick a time",
+    ]);
+    for (const [i, preset] of fr.entries()) {
+      expect(preset.label, `${preset.id} is not translated`).not.toBe(
+        en[i].label,
+      );
+      // And it is words, not the key falling through the resolver.
+      expect(preset.label).not.toMatch(/^domain\./);
+    }
+  });
+
 });
 
 describe("#233 what we tell somebody when it did not send", () => {

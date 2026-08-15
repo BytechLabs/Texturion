@@ -738,6 +738,7 @@ export {
   SCHEDULED_SEND_COPY,
   isScheduledMessageLive,
   schedulePresets,
+  type SchedulePresetKey,
   scheduledClockProvenance,
   type ScheduledClockKey,
   scheduledReasonRecovers,
