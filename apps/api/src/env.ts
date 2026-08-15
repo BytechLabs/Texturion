@@ -322,6 +322,19 @@ const envSchema = z.object({
    */
   SEND_RATE_LIMITER: rateLimiterSchema.optional(),
   /**
+   * #243 item 4: the per-KEY ceiling on the public API.
+   *
+   * "An integration that polls every second must cost the workspace something
+   * or it costs us." Keyed on the api_key id rather than the company, so one
+   * runaway connector cannot starve the workspace's other integrations — the
+   * blast radius of a bad script is the script.
+   *
+   * OPTIONAL, like its neighbours: absent in local dev and tests, where the
+   * gate is skipped. That is safe here because the limiter bounds COST rather
+   * than authority; nothing about who may reach what depends on it.
+   */
+  PUBLIC_API_RATE_LIMITER: rateLimiterSchema.optional(),
+  /**
    * Per-number limiter for the keep-your-number ownership-verification
    * endpoints (SPEC §10 DoS posture), declared in wrangler.jsonc like
    * SEND_RATE_LIMITER. POST /v1/text-enablements/:id/verification-codes makes

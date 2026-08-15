@@ -46,6 +46,17 @@ export interface AppVariables {
    * long ago", which is the question a confirmation is actually asking.
    */
   factorProvedAt: number | null;
+  /**
+   * #243 — set ONLY on the public surface, by `apiKeyAuth`.
+   *
+   * Optional because the first-party `/v1` chain never sets them, and that
+   * asymmetry is load-bearing rather than incidental: `requireScope` reads
+   * `apiKeyScopes` and refuses when it is absent, so a public route
+   * accidentally mounted on the member chain fails closed rather than granting
+   * every scope to every signed-in person.
+   */
+  apiKeyId?: string;
+  apiKeyScopes?: string[];
 }
 
 /** SPEC §10 / GoTrue: `aal1` = password or OAuth alone, `aal2` = with MFA. */

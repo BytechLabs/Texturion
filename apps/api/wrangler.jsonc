@@ -248,6 +248,25 @@
         "type": "ratelimit",
         "namespace_id": "1011",
         "simple": { "limit": 10, "period": 60 }
+      },
+      {
+        // #243 item 4: the public API's per-KEY ceiling. "An integration that
+        // polls every second must cost the workspace something or it costs
+        // us."
+        //
+        // Keyed on the api_key id rather than the company, deliberately: one
+        // runaway connector must not be able to starve the workspace's other
+        // integrations, so the blast radius of a bad script is the script.
+        //
+        // 60/60s is generous for anything event-driven — a connector needing
+        // more than one request a second is polling, and polling is what the
+        // webhooks in this same issue exist to replace. Local dev/tests run
+        // without the binding (optional in src/env.ts) → the gate is skipped,
+        // which is safe because this bounds COST rather than authority.
+        "name": "PUBLIC_API_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1012",
+        "simple": { "limit": 60, "period": 60 }
       }
     ]
   },
