@@ -1095,4 +1095,5 @@ export {
   markupStrokeWidth,
   type MarkupPoint,
   type MarkupTool,
+  type MarkupKey,
 } from "./photo-markup";

@@ -25,6 +25,13 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  /* #228 — pointing at something in a photo. Both phones have had all six. */
+  markupArrow: "Arrow",
+  markupCircle: "Circle",
+  markupHint: "Drag on the photo, or tap twice, to point at something.",
+  markupHintSecondTap: "Now tap where it should point.",
+  markupSave: "Done",
+  markupUndo: "Undo",
   /* #228 — the on-my-way control. "En route", not "Sur mon chemin":
      the first is what a Quebec tech says, the second is a translation of
      the English idiom. */
@@ -343,6 +350,12 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  markupArrow: "Flèche",
+  markupCircle: "Cercle",
+  markupHint: "Glissez sur la photo, ou touchez deux fois, pour pointer quelque chose.",
+  markupHintSecondTap: "Touchez maintenant l'endroit à pointer.",
+  markupSave: "Terminé",
+  markupUndo: "Annuler",
   onMyWayAction: "En route",
   onMyWayPrompt: "Dans combien de temps ?",
   onMyWayGatedNote: "S'envoie immédiatement, et suit les mêmes règles que n'importe quel texto.",

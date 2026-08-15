@@ -132,7 +132,17 @@ class PhotoMarkupTest {
 
     @Test
     fun `the copy matches the shared module`() {
-        val shared = repoFile("packages/shared/src/photo-markup.ts")
+        // #228: all six pieces of copy moved to the catalogue together, so
+        // this reads it rather than the shared module. The tool IDS
+        // ("arrow"/"circle") are wire values and are asserted against the
+        // shared file by the test below.
+        //
+        // Sliced to the English half: the French holds the same keys, and a
+        // `contains` over the whole file would ask whether a label appears in
+        // EITHER language.
+        val shared = repoFile("apps/web/src/i18n/sections/domain.ts")
+            .substringAfter("export const domainEn")
+            .substringBefore("export const domainFr")
         for (label in listOf(
             PhotoMarkup.label("arrow"),
             PhotoMarkup.label("circle"),

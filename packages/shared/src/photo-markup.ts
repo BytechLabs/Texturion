@@ -33,12 +33,29 @@ export const MARKUP_TOOLS = ["arrow", "circle"] as const;
 export type MarkupTool = (typeof MARKUP_TOOLS)[number];
 
 export const MARKUP_TOOL_LABELS: Record<MarkupTool, string> = {
-  arrow: "Arrow",
-  circle: "Circle",
+  arrow: "domain.markupArrow",
+  circle: "domain.markupCircle",
 };
 
 /** The one line of instruction, for somebody who has never opened this. */
-export const MARKUP_HINT = "Drag on the photo, or tap twice, to point at something.";
+/**
+ * Every catalogue key this module names.
+ *
+ * All six, not the two the string ledger counts. "Arrow", "Circle", "Done" and
+ * "Undo" are below its prose threshold — they are single words — but they are
+ * read by a person on a photo editor and both phones have said them in French
+ * for months. Converting only the sentences would have left four words English
+ * on the web while the Kotlin pin that checks all six had to be split in half.
+ */
+export type MarkupKey =
+  | "domain.markupArrow"
+  | "domain.markupCircle"
+  | "domain.markupHint"
+  | "domain.markupHintSecondTap"
+  | "domain.markupSave"
+  | "domain.markupUndo";
+
+export const MARKUP_HINT: MarkupKey = "domain.markupHint";
 
 /**
  * What it says once a first tap has landed.
@@ -47,13 +64,13 @@ export const MARKUP_HINT = "Drag on the photo, or tap twice, to point at somethi
  * single-pointer alternative — and it only works if the person can tell the app is
  * waiting for them rather than that their tap did nothing.
  */
-export const MARKUP_HINT_SECOND_TAP = "Now tap where it should point.";
+export const MARKUP_HINT_SECOND_TAP: MarkupKey = "domain.markupHintSecondTap";
 
 /** Puts the marks on and closes. */
-export const MARKUP_SAVE = "Done";
+export const MARKUP_SAVE: MarkupKey = "domain.markupSave";
 
 /** Takes the last mark off. Not a full undo stack — one step is what a thumb wants. */
-export const MARKUP_UNDO = "Undo";
+export const MARKUP_UNDO: MarkupKey = "domain.markupUndo";
 
 /** The mark itself: a strong red that reads as deliberate rather than decorative. */
 export const MARKUP_INK = "#E23D28";

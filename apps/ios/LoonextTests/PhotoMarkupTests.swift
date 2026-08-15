@@ -159,8 +159,32 @@ final class PhotoMarkupTests: XCTestCase {
         )
     }
 
+    /// Where the markup WORDS live since #228: the web catalogue.
+    ///
+    /// All six moved together — the two hints and the four single words — so
+    /// this whole test reads the catalogue. The tool IDS ("arrow"/"circle")
+    /// are wire values and are still asserted against the shared module by the
+    /// tests below, which is why `sharedSource()` stays.
+    ///
+    /// Sliced to the English half: the French holds the same keys, and a
+    /// `contains` over the whole file would ask whether a label appears in
+    /// EITHER language.
+    private func catalogueEnglish() throws -> String {
+        let raw = try String(
+            contentsOf: try repoPath("apps/web/src/i18n/sections/domain.ts"),
+            encoding: .utf8
+        )
+        guard let start = raw.range(of: "export const domainEn"),
+              let end = raw.range(of: "export const domainFr")
+        else {
+            XCTFail("domain.ts no longer has both language blocks")
+            return ""
+        }
+        return String(raw[start.upperBound ..< end.lowerBound])
+    }
+
     func testTheCopyMatchesTheSharedModule() throws {
-        let shared = try sharedSource()
+        let shared = try catalogueEnglish()
         for label in [
             PhotoMarkup.label("arrow"),
             PhotoMarkup.label("circle"),
