@@ -253,7 +253,10 @@ final class HandoverConfirmationTests: XCTestCase {
     }
 
     func testTheLabelsMatchTheSharedModule() throws {
-        let shared = try sharedSource()
+        // #228: same move as the sentences above — the copy lives in the
+        // catalogue now, so this follows it there. The other three uses of
+        // `sharedSource()` read wire values and stay put.
+        let shared = try handoverCopy()
         for label in [
             HandoverConfirmation.title,
             HandoverConfirmation.field,
