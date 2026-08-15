@@ -218,6 +218,7 @@ export function ContactPanel({
   const relationship = contactRelationshipLine(
     contact.conversation_count,
     contact.first_conversation_at,
+    t,
   );
 
   const nameAndPhone = (

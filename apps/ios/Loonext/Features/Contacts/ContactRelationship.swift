@@ -13,9 +13,14 @@ import Foundation
 /// observations, while a score or a segment is a judgement, and the line this
 /// product holds is that it never tells a crew what a customer is worth.
 
-private let relationshipMonths = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+/// #228 — catalogue KEYS. The old table was fixed rather than locale-derived
+/// because a DEVICE locale is not a shared input; the app locale is, and every
+/// screen here already resolves against it.
+private let relationshipMonthKeys = [
+    "domain.monthJanuary", "domain.monthFebruary", "domain.monthMarch",
+    "domain.monthApril", "domain.monthMay", "domain.monthJune",
+    "domain.monthJuly", "domain.monthAugust", "domain.monthSeptember",
+    "domain.monthOctober", "domain.monthNovember", "domain.monthDecember",
 ]
 
 /// "March 2026" from an ISO timestamp, or nil when it cannot be read.
@@ -23,7 +28,7 @@ private let relationshipMonths = [
 /// Parsed off the STRING rather than through `Date`, so a device timezone
 /// cannot shift a midnight-UTC first conversation into the previous month on
 /// one client and not another.
-func monthYear(_ iso: String?) -> String? {
+func monthYear(_ iso: String?, locale: String? = nil) -> String? {
     guard let trimmed = iso?.trimmingCharacters(in: .whitespacesAndNewlines),
           trimmed.count >= 7
     else { return nil }
@@ -39,7 +44,7 @@ func monthYear(_ iso: String?) -> String? {
           month <= 12
     else { return nil }
 
-    return "\(relationshipMonths[month - 1]) \(parts[0])"
+    return "\(AppStrings.translate(locale, relationshipMonthKeys[month - 1])) \(parts[0])"
 }
 
 /// The identity line, or nil when there is nothing worth saying.
@@ -49,15 +54,30 @@ func monthYear(_ iso: String?) -> String? {
 /// honestly mean "nothing to tell you".
 func contactRelationshipLine(
     _ conversationCount: Int?,
-    _ firstConversationAt: String?
+    _ firstConversationAt: String?,
+    locale: String? = nil
 ) -> String? {
     let count = conversationCount ?? 0
     if count <= 0 { return nil }
-    let conversations = count == 1 ? "1 conversation" : "\(count) conversations"
+    // One and many are separate keys: English gets away with an "s", a language
+    // that agrees the noun with the number does not.
+    let conversations = count == 1
+        ? AppStrings.translate(locale, "domain.contactConversationOne")
+        : AppStrings.translate(
+            locale,
+            "domain.contactConversationMany",
+            ["count": String(count)]
+        )
     // A count with no date still earns its place: "3 conversations" answers the
     // question this exists for, and inventing a date would not.
-    guard let since = monthYear(firstConversationAt) else { return conversations }
-    return "Customer since \(since) · \(conversations)"
+    guard let since = monthYear(firstConversationAt, locale: locale) else {
+        return conversations
+    }
+    return AppStrings.translate(
+        locale,
+        "domain.contactSince",
+        ["since": since, "conversations": conversations]
+    )
 }
 
 /// Two, because the conversation on screen is one of them.
@@ -88,12 +108,16 @@ let repeatCustomerMinimum = 2
 /// The count is the number-access-filtered one the server derived (#106/D88).
 /// A member kept off a number must not learn the customer's history from a chip
 /// either, so nothing here re-counts or re-filters anything.
-func contactRepeatBadge(_ conversationCount: Int?) -> String? {
+func contactRepeatBadge(_ conversationCount: Int?, locale: String? = nil) -> String? {
     let count = conversationCount ?? 0
     // A count that arrived negative is not a repeat customer either: fail quiet
     // rather than printing "-3 conversations" beside somebody's name.
     if count < repeatCustomerMinimum { return nil }
     // No singular branch, unlike `contactRelationshipLine` above — nothing
     // below two reaches this line, so "1 conversations" cannot be reached.
-    return "\(count) conversations"
+    return AppStrings.translate(
+        locale,
+        "domain.contactConversationMany",
+        ["count": String(count)]
+    )
 }

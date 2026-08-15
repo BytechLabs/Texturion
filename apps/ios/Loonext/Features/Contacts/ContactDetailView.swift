@@ -333,7 +333,8 @@ struct ContactDetailView: View {
             // two facts do not earn a heading.
             if let line = contactRelationshipLine(
                 contact.conversation_count,
-                contact.first_conversation_at
+                contact.first_conversation_at,
+                locale: appLocale
             ) {
                 Text(line)
                     .font(.golos(11.5))

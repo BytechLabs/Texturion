@@ -785,6 +785,8 @@ export {
   contactRelationshipLine,
   contactRepeatBadge,
   monthYear,
+  type ContactRelationshipKey,
+  type SayRelationship,
 } from "./contact-relationship";
 export {
   ATTRIBUTION_PARAMS,

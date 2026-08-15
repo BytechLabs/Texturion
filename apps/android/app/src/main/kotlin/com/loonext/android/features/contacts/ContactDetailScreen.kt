@@ -421,6 +421,7 @@ private fun ContactDetailBody(
             contactRelationshipLine(
                 contact.conversation_count,
                 contact.first_conversation_at,
+                locale,
             )?.let { line ->
                 Text(
                     line,

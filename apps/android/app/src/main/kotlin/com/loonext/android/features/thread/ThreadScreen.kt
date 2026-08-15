@@ -1551,7 +1551,7 @@ private fun ThreadHeader(
                     // the conversation embed carries no relationship summary,
                     // and reading a defaulted 0 off it would badge nobody.
                     val repeatBadge =
-                        contactRepeatBadge(controller.contact?.conversation_count)
+                        contactRepeatBadge(controller.contact?.conversation_count, locale)
                     val subtitle = buildString {
                         // Absent entirely below two conversations: a first-time
                         // caller's header is what it always was.

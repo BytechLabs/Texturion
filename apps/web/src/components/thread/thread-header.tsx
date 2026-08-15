@@ -167,7 +167,7 @@ export function ThreadHeader({
   // it arrives already scoped, so there is nothing to filter here. `contact`
   // is undefined until the detail query lands, and an absent badge is the
   // honest reading of "we do not know yet".
-  const repeatBadge = contactRepeatBadge(contact?.conversation_count);
+  const repeatBadge = contactRepeatBadge(contact?.conversation_count, t);
   // #565: the thread an urgent notification opens has to say it is one. Same
   // rule as the inbox row, from the shared module rather than a fourth copy of
   // it, so the crew reads one mark in both places and it clears in both at once.

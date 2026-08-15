@@ -1310,7 +1310,7 @@ private struct ThreadHeader: View {
     /// read lands, so the chip simply arrives with the header's other late
     /// facts rather than being a second thing that flickers.
     private var repeatBadge: String? {
-        contactRepeatBadge(controller.contact?.conversation_count)
+        contactRepeatBadge(controller.contact?.conversation_count, locale: appLocale)
     }
 
     /// VoiceOver hears the chip too.

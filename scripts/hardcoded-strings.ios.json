@@ -17,7 +17,6 @@
   "Features/Contacts/ContactColumns.swift": 8,
   "Features/Contacts/ContactDetailView.swift": 4,
   "Features/Contacts/ContactImport.swift": 3,
-  "Features/Contacts/ContactRelationship.swift": 1,
   "Features/Contacts/Multipart.swift": 4,
   "Features/Contacts/VCardProperties.swift": 5,
   "Features/Payments/PaymentsLogic.swift": 1,

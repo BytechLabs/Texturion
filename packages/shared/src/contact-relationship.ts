@@ -20,22 +20,43 @@
  * there.
  */
 
-/** Months as the clients spell them. Fixed, not locale-derived: the three
- *  ports must agree, and a device locale is not a shared input. */
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+/**
+ * Months as catalogue KEYS.
+ *
+ * The old comment said "fixed, not locale-derived: a device locale is not a
+ * shared input", and that reasoning survives intact — it is about the DEVICE
+ * locale, which differs per phone and would make three clients disagree. The
+ * app locale is not that. It is the one the reader chose, every client already
+ * resolves against it, and it is exactly as shared an input as this table was.
+ *
+ * French months are lower case mid-sentence — "Client depuis mars 2026" — and
+ * that is the catalogue's business rather than this file's, which is the point
+ * of naming keys here.
+ */
+const MONTH_KEYS = [
+  "domain.monthJanuary",
+  "domain.monthFebruary",
+  "domain.monthMarch",
+  "domain.monthApril",
+  "domain.monthMay",
+  "domain.monthJune",
+  "domain.monthJuly",
+  "domain.monthAugust",
+  "domain.monthSeptember",
+  "domain.monthOctober",
+  "domain.monthNovember",
+  "domain.monthDecember",
+] as const;
+
+/** Every key this module names. */
+export type ContactRelationshipKey =
+  | (typeof MONTH_KEYS)[number]
+  | "domain.contactSince"
+  | "domain.contactConversationOne"
+  | "domain.contactConversationMany";
+
+/** The reader's resolver. */
+export type SayRelationship = (key: ContactRelationshipKey) => string;
 
 /**
  * The identity-card line, or null when there is nothing worth saying.
@@ -47,34 +68,58 @@ const MONTHS = [
 export function contactRelationshipLine(
   conversationCount: number | null | undefined,
   firstConversationAt: string | null | undefined,
+  say: SayRelationship,
 ): string | null {
   const count = conversationCount ?? 0;
   if (count <= 0) return null;
 
-  const conversations = count === 1 ? "1 conversation" : `${count} conversations`;
+  // One and many are separate keys, not one string with a count in it. English
+  // gets away with an "s"; a language that agrees the noun, its article and its
+  // verb with the number does not, and a single key would force whoever
+  // translates this to pick one of the two and be wrong half the time.
+  const conversations =
+    count === 1
+      ? say("domain.contactConversationOne")
+      : say("domain.contactConversationMany").replace("{count}", String(count));
 
-  const since = monthYear(firstConversationAt);
+  const since = monthYear(firstConversationAt, say);
   // A count with no date still earns its place: "3 conversations" answers the
   // question this feature exists for, and inventing a date would not.
-  return since ? `Customer since ${since} · ${conversations}` : conversations;
+  return since
+    ? say("domain.contactSince")
+        .replace("{since}", since)
+        .replace("{conversations}", conversations)
+    : conversations;
 }
 
 /** "March 2026" from an ISO timestamp, or null when it cannot be read. */
-export function monthYear(iso: string | null | undefined): string | null {
+export function monthYear(
+  iso: string | null | undefined,
+  say: SayRelationship,
+): string | null {
   if (!iso) return null;
   // Parsed off the STRING rather than through a Date, so a device timezone
   // cannot shift a January 1st booking into the previous December on one
   // client and not another.
   const match = /^(\d{4})-(\d{2})/.exec(iso.trim());
   if (!match) return null;
-  const month = MONTHS[Number(match[2]) - 1];
-  return month ? `${month} ${match[1]}` : null;
+  const key = MONTH_KEYS[Number(match[2]) - 1];
+  // "mars 2026" in French too: month then year is the order in both, so the
+  // join stays here rather than becoming a fourth key nobody would translate
+  // differently.
+  return key ? `${say(key)} ${match[1]}` : null;
 }
 
 /**
  * The canonical cases. Kotlin and Swift hand-port this table case for case.
  *
  * [count, firstConversationAt, expected line]
+ *
+ * #228: the expectations stay ENGLISH. What these pin is the RULE — when a
+ * line appears, which half it drops, where the boundary months land — and
+ * every client checks them with an English resolver. Translating the fixture
+ * would test the catalogue instead, which is a different job and is done in
+ * this module's own test.
  */
 export const CONTACT_RELATIONSHIP_CASES: [
   number | null,
@@ -131,10 +176,12 @@ export const CONTACT_RELATIONSHIP_CASES: [
  */
 export function contactRepeatBadge(
   conversationCount: number | null | undefined,
+  say: SayRelationship,
 ): string | null {
   const count = conversationCount ?? 0;
   if (count < REPEAT_CUSTOMER_MINIMUM) return null;
-  return `${count} conversations`;
+  // Always the plural key: the threshold is two, so this can never be one.
+  return say("domain.contactConversationMany").replace("{count}", String(count));
 }
 
 /**

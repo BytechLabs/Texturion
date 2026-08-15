@@ -25,6 +25,25 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  /* #228 — the relationship line on a contact, and the months it names.
+     Keys rather than a fixed English table: the reason that table was fixed
+     was the DEVICE locale, which is not this. French months are lower case,
+     which is why they are the catalogue's business and not the module's. */
+  monthJanuary: "January",
+  monthFebruary: "February",
+  monthMarch: "March",
+  monthApril: "April",
+  monthMay: "May",
+  monthJune: "June",
+  monthJuly: "July",
+  monthAugust: "August",
+  monthSeptember: "September",
+  monthOctober: "October",
+  monthNovember: "November",
+  monthDecember: "December",
+  contactSince: "Customer since {since} · {conversations}",
+  contactConversationOne: "1 conversation",
+  contactConversationMany: "{count} conversations",
   /*
    * #540 — the dashboard panels a member may put away, and what each one answers. Both phones have said these since #228 reached them; the web imported the shared tables and rendered whatever English came back.
    */
@@ -289,6 +308,21 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  monthJanuary: "janvier",
+  monthFebruary: "février",
+  monthMarch: "mars",
+  monthApril: "avril",
+  monthMay: "mai",
+  monthJune: "juin",
+  monthJuly: "juillet",
+  monthAugust: "août",
+  monthSeptember: "septembre",
+  monthOctober: "octobre",
+  monthNovember: "novembre",
+  monthDecember: "décembre",
+  contactSince: "Client depuis {since} · {conversations}",
+  contactConversationOne: "1 conversation",
+  contactConversationMany: "{count} conversations",
   panelLeadSources: "D'où viennent vos clients",
   panelLeadSourcesNote: "Quels canaux amènent réellement du travail.",
   panelPipeline: "Devis",
