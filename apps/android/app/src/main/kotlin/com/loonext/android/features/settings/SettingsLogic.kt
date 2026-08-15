@@ -405,7 +405,22 @@ fun applyMergeFields(text: String, contactName: String?, businessName: String?):
 // Voicemail default — mirror of apps/api messaging/inbound-ring.ts
 // ---------------------------------------------------------------------------
 
-/** The greeting spoken when the owner has not written one. */
+/**
+ * The greeting spoken when the owner has not written one.
+ *
+ * #228 — DELIBERATELY STILL ENGLISH, and it is the honest answer rather than a
+ * gap. `defaultGreeting` in `apps/api/src/messaging/inbound-ring.ts` is what
+ * Telnyx actually speaks to a caller, and it takes no locale: this sentence
+ * reaches a caller in English whatever anybody's app is set to. Translating the
+ * PREVIEW would show a French owner words their callers never hear, which is
+ * the same argument the missed-call default makes in the other direction —
+ * that one is translated because the SERVER sends it per locale. The iOS twin
+ * says so in its own header and names this file; now this one says it back,
+ * because a reader working down the ledger finds this side first.
+ *
+ * Worth extracting on the day `inbound-ring.ts` learns the workspace's
+ * language, and misleading before then.
+ */
 fun defaultVoicemailGreeting(companyName: String): String =
     "You've reached $companyName. We can't take your call right now. " +
         "Please leave a message after the beep, or hang up and text us at this number."
@@ -426,38 +441,42 @@ fun needsNumberChoice(number: PhoneNumberSummary): Boolean =
  * when a stale promise reads worst. The web twin is provisioningWaitCopy in
  * apps/web/src/components/registration/copy.ts.
  */
-fun provisioningWaitCopy(createdAtIso: String?, nowMillis: Long): String {
+fun provisioningWaitCopy(
+    createdAtIso: String?,
+    nowMillis: Long,
+    locale: String? = null,
+): String {
     val created = createdAtIso?.let {
         runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
     }
     val elapsed = created?.let { nowMillis - it } ?: 0L
     return when {
         elapsed >= 4 * 60_000L ->
-            "Your number is taking a little longer than usual. We're still on it, " +
-                "you don't have to wait here."
+            AppStrings.translate(locale, "settings.provisionWaitLong")
 
         elapsed >= 90_000L ->
-            "Still setting up your number, this is taking a little longer than " +
-                "usual. Hang tight."
+            AppStrings.translate(locale, "settings.provisionWaitMedium")
 
-        else -> "We're setting up your number. This usually takes under a minute."
+        else -> AppStrings.translate(locale, "settings.provisionWaitShort")
     }
 }
 
 /** Honest, reason-driven copy for a provision_failed number. */
-fun failedNumberCopy(number: PhoneNumberSummary): String = when {
+fun failedNumberCopy(number: PhoneNumberSummary, locale: String? = null): String = when {
     !needsNumberChoice(number) ->
-        "We're still setting up your number. This is taking a little longer than usual."
+        AppStrings.translate(locale, "settings.numberSetupSlow")
 
     number.failure_reason == "timeout" ->
-        "Setup is taking longer than expected. Choose a number to finish. " +
-            "You won't be charged again."
+        AppStrings.translate(locale, "settings.numberSetupStalled")
 
     number.failure_reason == "no_inventory" && number.requested_area_code != null ->
-        "Area code ${number.requested_area_code} is out of new numbers right now. " +
-            "Choose another number to finish setup."
+        AppStrings.translate(
+            locale,
+            "settings.numberAreaCodeEmpty",
+            mapOf("code" to number.requested_area_code),
+        )
 
-    else -> "We couldn't finish setting up your number. Choose a number to try again."
+    else -> AppStrings.translate(locale, "settings.numberSetupFailed")
 }
 
 // ---------------------------------------------------------------------------

@@ -1562,6 +1562,32 @@ private val BILLING_EN = mapOf(
      * with an appended "s": French pluralises the noun and its article
      * together, and a suffix cannot express that.
      */
+    /*
+     * #228 — what a workspace reads while its number is being set up, and
+     * what it reads when that stops working. Three tiers on the wait,
+     * because the flat "under a minute" line was true for the first minute
+     * and a lie for every one after it.
+     */
+    "settings.provisionWaitShort" to
+        "We're setting up your number. This usually takes under a minute.",
+    "settings.provisionWaitMedium" to
+        "Still setting up your number, this is taking a little longer than " +
+        "usual. Hang tight.",
+    "settings.provisionWaitLong" to
+        "Your number is taking a little longer than usual. We're still on " +
+        "it, you don't have to wait here.",
+    "settings.numberSetupSlow" to
+        "We're still setting up your number. This is taking a little " +
+        "longer than usual.",
+    "settings.numberSetupStalled" to
+        "Setup is taking longer than expected. Choose a number to finish — " +
+        "you won't be charged again.",
+    "settings.numberAreaCodeEmpty" to
+        "Area code {code} is out of new numbers right now. Choose another " +
+        "number to finish setup.",
+    "settings.numberSetupFailed" to
+        "We couldn't finish setting up your number. Choose a number to try " +
+        "again.",
     "settings.offerComeBackOnStarter" to "Come back on Starter",
     "settings.offerGetHelp" to "Get help",
     "settings.offerMissingBody" to "If the thing you needed is not here, the fastest way to change that is to tell us what it was. We answer {when}. {promise}",
@@ -1874,6 +1900,28 @@ private val BILLING_FR = mapOf(
     "settings.planOpenNumbers" to "Ouvrir vos numéros",
     "settings.planPeriodEnds" to "La période en cours se termine le {date}.",
     "settings.pausedSince" to "En pause depuis le {date}.",
+    "settings.provisionWaitShort" to
+        "Nous configurons votre numéro. Cela prend habituellement moins " +
+        "d'une minute.",
+    "settings.provisionWaitMedium" to
+        "Nous configurons encore votre numéro, cela prend un peu plus de " +
+        "temps que d'habitude. Patientez un instant.",
+    "settings.provisionWaitLong" to
+        "Votre numéro prend un peu plus de temps que d'habitude. Nous nous " +
+        "en occupons, vous n'avez pas à attendre ici.",
+    "settings.numberSetupSlow" to
+        "Nous configurons encore votre numéro. Cela prend un peu plus de " +
+        "temps que d'habitude.",
+    "settings.numberSetupStalled" to
+        "La configuration prend plus de temps que prévu. Choisissez un " +
+        "numéro pour terminer — vous ne serez pas facturé de nouveau.",
+    "settings.numberAreaCodeEmpty" to
+        "L'indicatif régional {code} n'a plus de nouveaux numéros pour " +
+        "l'instant. Choisissez un autre numéro pour terminer la " +
+        "configuration.",
+    "settings.numberSetupFailed" to
+        "Nous n'avons pas pu terminer la configuration de votre numéro. " +
+        "Choisissez un numéro pour réessayer.",
     "settings.offerComeBackOnStarter" to "Revenir sur Starter",
     "settings.offerGetHelp" to "Obtenir de l'aide",
     "settings.offerMissingBody" to "Si ce dont vous aviez besoin n'est pas là, le plus rapide pour que cela change est de nous dire ce que c'était. Nous répondons {when}. {promise}",

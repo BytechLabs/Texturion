@@ -409,14 +409,14 @@ private fun NumberCard(
             }
 
             number.status == NumberStatus.PROVISIONING -> Text(
-                provisioningWaitCopy(number.created_at, System.currentTimeMillis()),
+                provisioningWaitCopy(number.created_at, System.currentTimeMillis(), locale),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             number.status == NumberStatus.PROVISION_FAILED -> {
                 Text(
-                    failedNumberCopy(number),
+                    failedNumberCopy(number, locale),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

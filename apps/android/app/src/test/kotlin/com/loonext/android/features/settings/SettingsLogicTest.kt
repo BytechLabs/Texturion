@@ -3,6 +3,7 @@ package com.loonext.android.features.settings
 import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
 import org.junit.Assert.assertEquals
@@ -365,11 +366,62 @@ class SettingsLogicTest {
     fun `a stalled order promises no double charge`() {
         val stalled = number(NumberStatus.PROVISION_FAILED, "timeout", attempts = 5)
         assertTrue(needsNumberChoice(stalled))
+        // #228: the em dash comes from the catalogue, which the web and iOS
+        // have both read for a while. Android had written the same sentence
+        // with a full stop — one of the two small drifts that turn up whenever
+        // a sentence is typed out three times instead of resolved once.
         assertEquals(
-            "Setup is taking longer than expected. Choose a number to finish. You " +
+            "Setup is taking longer than expected. Choose a number to finish — you " +
                 "won't be charged again.",
             failedNumberCopy(stalled),
         )
+    }
+
+    /*
+     * #228 — the same four states, read in French.
+     *
+     * The English cases above are the RULE: which sentence each failure
+     * reason gets, and that the area code is named rather than described.
+     * This asks whether the catalogue answers, because the resolver falls
+     * back to the key it was given: an unported one reaches a screen as
+     * `settings.numberSetupFailed` and nothing in the build goes red.
+     */
+    @Test
+    fun `a French reader is told the same thing about a number that stalled`() {
+        val dry = number(
+            NumberStatus.PROVISION_FAILED,
+            "no_inventory",
+            attempts = 1,
+            areaCode = "416",
+        )
+        val text = failedNumberCopy(dry, MessageLocale.FR_CA)
+        assertTrue(text, text.contains("416"))
+        assertTrue(text, text.contains("indicatif régional"))
+        assertTrue(text, !text.contains("{code}"))
+        assertTrue(text, !text.contains("settings."))
+
+        // The promise this one carries is that choosing again is free. It has
+        // to survive the translation or the sentence is worse than useless.
+        val stalled = failedNumberCopy(
+            number(NumberStatus.PROVISION_FAILED, "timeout", attempts = 5),
+            MessageLocale.FR_CA,
+        )
+        assertTrue(stalled, stalled.contains("pas facturé"))
+
+        // And the three-tier wait, which is the same honesty problem in time.
+        // Anchored to the fixture's own timestamp rather than a literal
+        // epoch: a hand-copied one is off by a year and the three tiers
+        // collapse to one without saying so.
+        val created = "2026-08-05T12:00:00Z"
+        val start = java.time.Instant.parse(created).toEpochMilli()
+        val waits = listOf(0L, 100_000L, 300_000L).map {
+            provisioningWaitCopy(created, start + it, MessageLocale.FR_CA)
+        }
+        assertEquals(3, waits.toSet().size)
+        for (wait in waits) {
+            assertTrue(wait, wait.contains("numéro"))
+            assertTrue(wait, !wait.contains("settings."))
+        }
     }
 
     // -- port stepper -----------------------------------------------------------
