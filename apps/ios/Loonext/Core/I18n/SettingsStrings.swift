@@ -1410,9 +1410,14 @@ private let settingsBillingEn: [String: String] = [
     "settings.moduleAddAction": "Add it",
     "settings.moduleAdded": "{name} added.",
     "settings.moduleRemoveTitle": "Remove {name}?",
+    // CONDITIONAL, and it has to stay that way. A grandfathered module was
+    // seeded with no Stripe line item, so the disable path finds nothing to
+    // delete and no credit is ever issued. The API does not tell us which
+    // cohort a workspace is in, so this is the only sentence true for both.
     "settings.moduleRemoveBody":
-        "{name} comes off your plan now, with a prorated credit for the unused part "
-        + "of this period on your next invoice.",
+        "{name} comes off your plan now, and anything it unlocks stops working "
+        + "immediately. If this add-on is on your bill, the unused part of this "
+        + "period comes back as a prorated credit on your next invoice.",
     "settings.moduleRemoveAction": "Remove it",
     "settings.moduleRemoved": "{name} removed.",
 
@@ -1589,8 +1594,10 @@ private let settingsBillingFr: [String: String] = [
     "settings.moduleAdded": "{name} ajouté.",
     "settings.moduleRemoveTitle": "Retirer {name} ?",
     "settings.moduleRemoveBody":
-        "{name} est retiré de votre forfait dès maintenant, avec un crédit au prorata "
-        + "pour la partie inutilisée de cette période sur votre prochaine facture.",
+        "{name} est retiré de votre forfait dès maintenant, et tout ce qu'il "
+        + "débloque cesse de fonctionner immédiatement. Si ce module figure sur "
+        + "votre facture, la partie inutilisée de cette période revient en crédit "
+        + "au prorata sur votre prochaine facture.",
     "settings.moduleRemoveAction": "Le retirer",
     "settings.moduleRemoved": "{name} retiré.",
 

@@ -6,6 +6,24 @@ import {
   planModuleCardFromApi,
 } from "./module-billing";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "@/i18n/catalog";
+
+/** #228 — the module names keys now, so the tests resolve them. */
+function resolver(table: unknown) {
+  return (key: string, vars: Record<string, string> = {}): string => {
+    const [section, name] = key.split(".");
+    const text = (table as Record<string, Record<string, string>>)[section]?.[name];
+    if (typeof text !== "string") throw new Error(`no entry for ${key}`);
+    return Object.entries(vars).reduce(
+      (out, [token, value]) => out.split(`{${token}}`).join(value),
+      text,
+    );
+  };
+}
+
+const sayEn = resolver(WEB_EN);
+const sayFr = resolver(WEB_FR);
+
 describe("formatMonthlyCents", () => {
   it("drops cents on whole dollars and keeps them otherwise", () => {
     expect(formatMonthlyCents(500)).toBe("$5");
@@ -21,7 +39,7 @@ describe("describeModuleToggle (#45 confirmation flow)", () => {
       label: "Picture messages",
       monthlyCents: 500,
       enable: true,
-    });
+    }, sayEn);
     expect(change.title).toBe("Add Picture messages?");
     expect(change.summary).toContain("$5/month");
     expect(change.summary).toContain("prorated");
@@ -36,7 +54,7 @@ describe("describeModuleToggle (#45 confirmation flow)", () => {
       label: "Canada numbers",
       monthlyCents: 500,
       enable: false,
-    });
+    }, sayEn);
     expect(change.title).toBe("Turn off Canada numbers?");
     expect(change.summary).toContain("right away");
     expect(change.summary).toContain("not at the end of the period");
@@ -55,7 +73,7 @@ describe("describeModuleToggle (#45 confirmation flow)", () => {
       label: "Picture messages",
       monthlyCents: 500,
       enable: false,
-    });
+    }, sayEn);
     expect(change.summary).toContain("If this add-on is on your bill");
     expect(change.summary).not.toMatch(/The unused part .* comes back/);
   });
@@ -65,7 +83,7 @@ describe("describeModuleToggle (#45 confirmation flow)", () => {
       label: "Extra storage",
       monthlyCents: 500,
       enable: true,
-    });
+    }, sayEn);
     // The only dollar figures are the flat monthly price — the prorated
     // amount is described, not invented.
     const dollarMentions = enable.summary.match(/\$\d+(\.\d+)?/g) ?? [];
@@ -105,5 +123,48 @@ describe("planModuleCardFromApi (#59 single-sourcing)", () => {
     });
     expect(card.detail).toBeUndefined();
     expect("detail" in card).toBe(false);
+  });
+});
+
+describe("#228 the same add-on toggle, read in French", () => {
+  const canada = { label: "Canada numbers", monthlyCents: 500 };
+
+  it("keeps the credit CONDITIONAL, which is the whole point of the sentence", () => {
+    // The defect this pins is a false billing promise, not a wording
+    // preference. A grandfathered module was seeded with no Stripe line
+    // item, so the disable path finds nothing to delete and no credit is
+    // ever issued — and the API does not say which cohort a workspace is
+    // in. A translation that tidied the "if" away would promise money that
+    // never arrives. Both phone catalogues said it flatly until this change.
+    const off = describeModuleToggle({ ...canada, enable: false }, sayFr);
+    expect(off.summary).toMatch(/^.*\bSi ce module figure sur votre facture\b/s);
+    expect(off.summary).toContain("crédit au prorata");
+    expect(off.summary).not.toMatch(/\{/);
+  });
+
+  it("still says the turn-off is immediate, not at period end", () => {
+    const off = describeModuleToggle({ ...canada, enable: false }, sayFr);
+    expect(off.summary).toContain("immédiatement");
+    expect(off.summary).toContain("non à la fin de la période");
+  });
+
+  it("carries the price into every slot that names money", () => {
+    const on = describeModuleToggle({ ...canada, enable: true }, sayFr);
+    expect(on.summary).toContain("$5");
+    expect(on.confirmLabel).toContain("$5");
+    expect(on.title).toContain("Canada numbers");
+    expect(on.summary).not.toMatch(/\{/);
+  });
+
+  it("resolves in both languages, so a missing key fails here", () => {
+    for (const say of [sayEn, sayFr]) {
+      for (const enable of [true, false]) {
+        const change = describeModuleToggle({ ...canada, enable }, say);
+        for (const text of [change.title, change.summary, change.confirmLabel]) {
+          expect(text).not.toContain("settingsMore.");
+          expect(text).not.toMatch(/\{/);
+        }
+      }
+    }
   });
 });

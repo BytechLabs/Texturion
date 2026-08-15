@@ -101,6 +101,40 @@ final class AppStringsTests: XCTestCase {
         }
     }
 
+    /// Turning off an add-on never promises a credit unconditionally.
+    ///
+    /// A false BILLING promise, not a wording preference.
+    /// `POST /v1/billing/modules` disables a module with
+    /// `if (existingItem) { stripe.subscriptionItems.del(..) }` and no else.
+    /// A grandfathered module was seeded free by migrations with no Stripe
+    /// line item, so it reaches that branch with nothing to delete: no Stripe
+    /// call, no charge ever existed, no credit. `GET /v1/billing/modules`
+    /// does not say which cohort a workspace is in, so the only sentence true
+    /// for both makes the credit CONDITIONAL on the add-on being billed.
+    ///
+    /// The web has said "if this add-on is on your bill" since #45. Both
+    /// phones said it flatly until #228 came through here — a sentence typed
+    /// out three times, drifting on the clients nobody re-read.
+    func testTurningOffAnAddOnNeverPromisesACreditUnconditionally() {
+        for locale in [MessageLocale.en, MessageLocale.frCA] {
+            let body = AppStrings.translate(locale, "settings.moduleRemoveBody")
+            XCTAssertFalse(
+                body.contains("settings."),
+                "\(locale): the key did not resolve"
+            )
+            XCTAssertTrue(
+                body.contains(locale == MessageLocale.frCA ? "Si ce module" : "If this add-on"),
+                "\(locale): the credit is promised unconditionally: \(body)"
+            )
+            // And the other half a person needs before pressing it: the thing
+            // stops working now, not at the end of the period.
+            XCTAssertTrue(
+                body.contains(locale == MessageLocale.frCA ? "immédiatement" : "immediately"),
+                "\(locale): does not say the turn-off is immediate: \(body)"
+            )
+        }
+    }
+
     /// `{name}` occurrences, as a sorted list.
     ///
     /// Written by hand rather than with a regular expression on purpose. This

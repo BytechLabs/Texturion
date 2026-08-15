@@ -44,31 +44,46 @@ export interface ModuleToggleDescription {
  * match the API's actual proration behavior ('always_invoice' both ways) —
  * see the module doc above.
  */
-export function describeModuleToggle(input: {
-  label: string;
-  monthlyCents: number;
-  /** The state the user is switching TO. */
-  enable: boolean;
-}): ModuleToggleDescription {
+/** Every catalogue key this module names. */
+export type ModuleToggleKey =
+  | "settingsMore.moduleAddTitle"
+  | "settingsMore.moduleAddBody"
+  | "settingsMore.moduleAddAction"
+  | "settingsMore.moduleOffTitle"
+  | "settingsMore.moduleOffBody"
+  | "settingsMore.moduleOffAction";
+
+/** The reader's resolver. */
+export type SayModuleToggle = (
+  key: ModuleToggleKey,
+  vars?: Record<string, string>,
+) => string;
+
+export function describeModuleToggle(
+  input: {
+    label: string;
+    monthlyCents: number;
+    /** The state the user is switching TO. */
+    enable: boolean;
+  },
+  say: SayModuleToggle,
+): ModuleToggleDescription {
   const price = formatMonthlyCents(input.monthlyCents);
   if (input.enable) {
     return {
-      title: `Add ${input.label}?`,
-      summary:
-        `Adds ${input.label} to your plan for ${price}/month. ` +
-        `You'll be charged a prorated share of ${price} today, covering the rest of this billing period, then the full ${price} with each renewal.`,
-      confirmLabel: `Add for ${price}/mo`,
+      title: say("settingsMore.moduleAddTitle", { name: input.label }),
+      summary: say("settingsMore.moduleAddBody", { name: input.label, price }),
+      confirmLabel: say("settingsMore.moduleAddAction", { price }),
     };
   }
   return {
-    title: `Turn off ${input.label}?`,
-    summary:
-      `${input.label} turns off right away. Anything it unlocks stops working now, not at the end of the period. ` +
-      // Conditional on purpose: grandfathered legacy modules were never
-      // billed (no Stripe line item), so no credit exists for them — see the
-      // module doc above.
-      `If this add-on is on your bill, the part of its ${price} you've paid for time you won't use comes back as a prorated credit toward your next invoice.`,
-    confirmLabel: "Turn off",
+    title: say("settingsMore.moduleOffTitle", { name: input.label }),
+    // The credit half stays CONDITIONAL in every language. Grandfathered
+    // legacy modules were never billed, so no credit exists for them — see
+    // the module doc above. A translation that tidied the "if" away would
+    // make a billing promise the API cannot keep.
+    summary: say("settingsMore.moduleOffBody", { name: input.label, price }),
+    confirmLabel: say("settingsMore.moduleOffAction"),
   };
 }
 

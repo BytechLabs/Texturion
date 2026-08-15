@@ -103,6 +103,44 @@ class AppStringsTest {
     }
 
     @Test
+    fun `turning off an add-on never promises a credit unconditionally`() {
+        /*
+         * A false BILLING promise, not a wording preference.
+         *
+         * POST /v1/billing/modules disables a module with
+         *   if (existingItem) { stripe.subscriptionItems.del(..) }
+         * and no else. A grandfathered module was seeded free by migrations
+         * with no Stripe line item, so it reaches that branch with nothing to
+         * delete: no Stripe call, no charge ever existed, no credit. And
+         * GET /v1/billing/modules does not say which cohort a workspace is
+         * in, so the only sentence true for both makes the credit
+         * CONDITIONAL on the add-on being billed.
+         *
+         * The web has said "if this add-on is on your bill" since #45. Both
+         * phones said it flatly until #228 came through here, which is how a
+         * sentence typed out three times drifts on the one client nobody
+         * re-read.
+         */
+        for (locale in listOf(MessageLocale.EN, MessageLocale.FR_CA)) {
+            val body = AppStrings.translate(locale, "settings.moduleRemoveBody")
+            assertTrue(
+                "$locale: the key did not resolve",
+                !body.contains("settings."),
+            )
+            assertTrue(
+                "$locale: the credit is promised unconditionally: $body",
+                body.contains(if (locale == MessageLocale.FR_CA) "Si ce module" else "If this add-on"),
+            )
+            // And the other half a person needs before they press it: the
+            // thing stops working now, not at the end of the period.
+            assertTrue(
+                "$locale: does not say the turn-off is immediate: $body",
+                body.contains(if (locale == MessageLocale.FR_CA) "immédiatement" else "immediately"),
+            )
+        }
+    }
+
+    @Test
     fun `the two languages agree about which keys interpolate`() {
         // A French sentence that drops {amount} shows a bill with no figure on
         // it. Cheap to check, and invisible to every other test here.

@@ -62,11 +62,14 @@ export function PlanModulesCard() {
   // Derived from `pending` so the dialog copy stays put during the close
   // animation instead of flashing empty.
   const change = pending
-    ? describeModuleToggle({
-        label: pending.module.label,
-        monthlyCents: pending.module.monthly_cents,
-        enable: pending.enable,
-      })
+    ? describeModuleToggle(
+        {
+          label: pending.module.label,
+          monthlyCents: pending.module.monthly_cents,
+          enable: pending.enable,
+        },
+        t,
+      )
     : null;
 
   function request(module: BillingModule, enable: boolean) {

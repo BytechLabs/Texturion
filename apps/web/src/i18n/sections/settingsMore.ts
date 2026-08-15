@@ -13,6 +13,18 @@
 import type { Translated } from "../translated";
 
 export const settingsMoreEn = {
+  /* #228 — the add-on confirm dialogs. The credit sentence is
+     CONDITIONAL in both languages and has to stay that way:
+     grandfathered modules were seeded with no Stripe line item, so the
+     disable path takes the no-item branch and no credit is ever
+     issued. Tidying the "if" away makes a billing promise the API
+     cannot keep. */
+  moduleAddTitle: "Add {name}?",
+  moduleAddBody: "Adds {name} to your plan for {price}/month. You'll be charged a prorated share of {price} today, covering the rest of this billing period, then the full {price} with each renewal.",
+  moduleAddAction: "Add for {price}/mo",
+  moduleOffTitle: "Turn off {name}?",
+  moduleOffBody: "{name} turns off right away. Anything it unlocks stops working now, not at the end of the period. If this add-on is on your bill, the part of its {price} you've paid for time you won't use comes back as a prorated credit toward your next invoice.",
+  moduleOffAction: "Turn off",
   /* #228 — why an extra number cannot be bought. Also sent by the API as
      an error body, so the English here has to stay word-for-word what
      packages/shared sends: an old client renders that verbatim. */
@@ -1211,6 +1223,12 @@ export const settingsMoreEn = {
 } as const;
 
 export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
+  moduleAddTitle: "Ajouter {name} ?",
+  moduleAddBody: "Ajoute {name} à votre forfait pour {price}/mois. Vous êtes facturé aujourd'hui une part au prorata de {price}, couvrant le reste de cette période de facturation, puis le plein tarif de {price} à chaque renouvellement.",
+  moduleAddAction: "Ajouter pour {price}/mois",
+  moduleOffTitle: "Désactiver {name} ?",
+  moduleOffBody: "{name} se désactive immédiatement. Tout ce qu'il débloque cesse de fonctionner maintenant, et non à la fin de la période. Si ce module figure sur votre facture, la partie des {price} payée pour du temps que vous n'utiliserez pas revient en crédit au prorata sur votre prochaine facture.",
+  moduleOffAction: "Désactiver",
   extraNumberUsTexting: "Un numéro supplémentaire exige d'abord que les textos américains soient activés pour votre espace de travail.",
   extraNumberStarterCap: "Le forfait Starter s'arrête à {max} numéros (1 inclus + 1 supplémentaire). Passez à Pro pour en avoir plus.",
   extraNumberCurrency: "Les numéros supplémentaires sont facturés en dollars américains et ne peuvent pas encore être ajoutés à un abonnement facturé dans une autre devise. Écrivez au soutien et nous arrangerons cela.",
