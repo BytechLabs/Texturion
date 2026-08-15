@@ -469,13 +469,14 @@ export type { ApiKeyScope } from "./api-keys";
 export {
   SUPPORT_EMAIL,
   SUPPORT_ERROR_LINES,
-  SUPPORT_FIX_PROMISE,
-  SUPPORT_RESPONSE_TIME,
+  SUPPORT_FIX_PROMISE_KEY,
+  SUPPORT_RESPONSE_TIME_KEY,
   SUPPORT_TOPICS,
   feedbackMailto,
   supportBody,
   supportMailto,
-  supportSituation,
+  supportSituationKey,
+  type SayKey,
   supportSubjectFor,
 } from "./support";
 export type { SupportContext, SupportTopic } from "./support";

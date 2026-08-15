@@ -11,7 +11,7 @@ import {
 } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
-import { useT } from "@/i18n/provider";
+import { sayEnglish, sayWith, useT } from "@/i18n/provider";
 
 /**
  * #352 — what a rejected customer reads, and the one thing they do next.
@@ -65,6 +65,10 @@ export function RejectionNotice({
   company: { id: string; name: string; plan: string | null };
 }) {
   const t = useT();
+  // #228: the shared support module takes the lookup. `say` is this reader's
+  // language; `sayEnglish` is the mail SUBJECT, which stays one heading so the
+  // support inbox stays searchable.
+  const say = sayWith(t);
   const guidance = explainRejection(domain, reason);
   const stuck = needsHumanHelp(submissionCount);
 
@@ -131,7 +135,7 @@ export function RejectionNotice({
                     domain === "port"
                       ? t("settingsMore.rejectionMailSubjectPort")
                       : t("settingsMore.rejectionMailSubjectRegistration"),
-                })}
+                }, say, sayEnglish)}
               >
                 {t("settingsMore.rejectionGetHelp")}
               </a>

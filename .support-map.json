@@ -1,0 +1,104 @@
+{
+  "matched": {
+    "settings.helpResponseTime": {
+      "en": "within two business days, usually sooner",
+      "fr": "within two business days, usually sooner"
+    },
+    "settings.helpFixPromise": {
+      "en": "If you tell us something's broken, we write back when it's fixed, not just when we've read it.",
+      "fr": "Si vous nous signalez un problème, nous vous réécrivons quand il est corrigé, pas seulement quand nous l'avons lu."
+    },
+    "settings.supportSituationRegistrationPending": {
+      "en": "US registration is pending approval",
+      "fr": "l'inscription américaine est en attente d'approbation"
+    },
+    "settings.supportBodyLeadIn": {
+      "en": "The details below help us look this up. Please leave them in.",
+      "fr": "Les renseignements ci-dessous nous aident à retrouver votre dossier. Laissez-les dans le message."
+    },
+    "settings.supportBodyErrors": {
+      "en": "Recent errors on this device (newest first):",
+      "fr": "Erreurs récentes sur cet appareil (les plus récentes d'abord) :"
+    },
+    "settings.supportSubjectDefault": {
+      "en": "Help with my Loonext workspace",
+      "fr": "Aide avec mon espace de travail Loonext"
+    },
+    "settings.supportSubjectIdea": {
+      "en": "Idea for Loonext",
+      "fr": "Idée pour Loonext"
+    },
+    "settings.supportSituationRegistrationSuspended": {
+      "en": "the carrier suspended our US registration",
+      "fr": "le fournisseur a suspendu notre inscription américaine"
+    },
+    "settings.supportSituationUsTextingOff": {
+      "en": "US texting is off for this workspace",
+      "fr": "les textos américains sont désactivés pour cet espace de travail"
+    },
+    "settings.supportSituationUsageCap": {
+      "en": "sending is paused at the spending cap",
+      "fr": "l'envoi est suspendu au plafond de dépenses"
+    },
+    "settings.supportSituationSubscription": {
+      "en": "the subscription is not active",
+      "fr": "l'abonnement n'est pas actif"
+    },
+    "settings.supportSituationOptedOut": {
+      "en": "this customer is opted out",
+      "fr": "ce client s'est désabonné"
+    },
+    "settings.supportSituationOptOutHint": {
+      "en": "an opt-out was detected in the thread",
+      "fr": "un désabonnement a été détecté dans la conversation"
+    },
+    "settings.supportSituationNumberAccess": {
+      "en": "I do not have texting access to this number",
+      "fr": "je n'ai pas accès aux textos de ce numéro"
+    },
+    "settings.supportSituationReadOnly": {
+      "en": "I have view-only access",
+      "fr": "j'ai un accès en lecture seule"
+    },
+    "settings.helpFaqUsSendQ": {
+      "en": "Why won't my text to a US number send?",
+      "fr": "Pourquoi mon texto vers un numéro américain ne part-il pas ?"
+    },
+    "settings.helpFaqUsSendA": {
+      "en": "US carriers require every business number to be registered before it can text US phones. Approval usually takes 3 to 7 business days, and there is nothing to do while it runs. Calls to US numbers work the whole time, and Canadian texts are unaffected.",
+      "fr": "Les fournisseurs américains exigent que chaque numéro d'entreprise soit inscrit avant de pouvoir texter des téléphones américains. L'approbation prend habituellement de 3 à 7 jours ouvrables, et il n'y a rien à faire pendant ce temps. Les appels vers les numéros américains fonctionnent tout du long, et les textos canadiens ne sont pas touchés."
+    },
+    "settings.helpFaqPendingQ": {
+      "en": "What does “registration pending” actually mean?",
+      "fr": "Que veut dire « inscription en attente », au juste ?"
+    },
+    "settings.helpFaqPendingA": {
+      "en": "We have submitted your business to the carriers and they have not answered yet. It is a queue, not a review of anything you did. You will get an email the moment it clears.",
+      "fr": "Nous avons soumis votre entreprise aux fournisseurs et ils n'ont pas encore répondu. C'est une file d'attente, pas un examen de quoi que ce soit que vous auriez fait. Vous recevrez un courriel dès que ce sera réglé."
+    },
+    "settings.helpFaqStoppedQ": {
+      "en": "Why did my number stop sending after it was working?",
+      "fr": "Pourquoi mon numéro a-t-il cessé d'envoyer après avoir fonctionné ?"
+    },
+    "settings.helpFaqStoppedA": {
+      "en": "Two things do that. A carrier can suspend an approved registration, which we are told about and act on without you doing anything. Or your workspace has hit the spending cap the owner set, which is protection rather than a quota and an owner can raise it in Settings.",
+      "fr": "Deux choses causent cela. Un fournisseur peut suspendre une inscription approuvée ; on nous en avise et nous agissons sans que vous ayez rien à faire. Ou votre espace de travail a atteint le plafond de dépenses fixé par le propriétaire, qui est une protection plutôt qu'un quota et qu'un propriétaire peut relever dans les paramètres."
+    },
+    "settings.helpFaqNotGotQ": {
+      "en": "A customer says they never got my text. What now?",
+      "fr": "Un client dit qu'il n'a jamais reçu mon texto. Que faire ?"
+    },
+    "settings.helpFaqNotGotA": {
+      "en": "Check whether they ever texted STOP: a carrier opt-out blocks us and only the customer can lift it, by texting START. If that is not it, email us the customer's number and roughly when you sent it, and we can trace the message with the carrier.",
+      "fr": "Vérifiez s'il a déjà envoyé STOP : un désabonnement chez le fournisseur nous bloque et seul le client peut le lever, en textant START. Si ce n'est pas cela, écrivez-nous le numéro du client et le moment approximatif de l'envoi, et nous pourrons retracer le message avec le fournisseur."
+    },
+    "settings.helpFaqPortQ": {
+      "en": "How long does moving my existing number take?",
+      "fr": "Combien de temps prend le transfert de mon numéro actuel ?"
+    },
+    "settings.helpFaqPortA": {
+      "en": "Porting takes 7 to 10 business days once the carrier accepts the request, and your old number keeps working the entire time. Nothing goes dark at any point.",
+      "fr": "Le transfert prend de 7 à 10 jours ouvrables une fois que le fournisseur accepte la demande, et votre ancien numéro continue de fonctionner pendant tout ce temps. Rien ne s'éteint à aucun moment."
+    }
+  }
+}

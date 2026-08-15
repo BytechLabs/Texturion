@@ -13,6 +13,46 @@
 import type { Translated } from "../translated";
 
 export const settingsEn = {
+  /*
+   * #228 — the words packages/shared/src/support.ts names.
+   *
+   * Both phones have had these since #228 reached them; the web called the
+   * shared function and rendered whatever English came back. The keys are the
+   * phones' own, so one wording change lands on three clients.
+   *
+   * The SITUATION keys are read twice and in two languages on purpose: in the
+   * mail body they are the reader's, and in the subject line they are always
+   * English, because a subject is the inbox's index and one failure reported
+   * from Montreal and from Calgary has to arrive under one heading. See
+   * supportSubjectFor.
+   */
+  helpResponseTime: "within two business days, usually sooner",
+  helpFixPromise: "If you tell us something's broken, we write back when it's fixed, not just when we've read it.",
+  supportBodyLeadIn: "The details below help us look this up. Please leave them in.",
+  supportBodyErrors: "Recent errors on this device (newest first):",
+  supportSubjectDefault: "Help with my Loonext workspace",
+  supportSubjectIdea: "Idea for Loonext",
+  supportSituationRegistrationPending: "US registration is pending approval",
+  supportSituationRegistrationSuspended: "the carrier suspended our US registration",
+  supportSituationUsTextingOff: "US texting is off for this workspace",
+  supportSituationUsageCap: "sending is paused at the spending cap",
+  supportSituationSubscription: "the subscription is not active",
+  supportSituationOptedOut: "this customer is opted out",
+  supportSituationOptOutHint: "an opt-out was detected in the thread",
+  supportSituationNumberAccess: "I do not have texting access to this number",
+  supportSituationReadOnly: "I have view-only access",
+  helpFaqUsSendQ: "Why won't my text to a US number send?",
+  helpFaqUsSendA: "US carriers require every business number to be registered before it can text US phones. Approval usually takes 3 to 7 business days, and there is nothing to do while it runs. Calls to US numbers work the whole time, and Canadian texts are unaffected.",
+  helpFaqPendingQ: "What does “registration pending” actually mean?",
+  helpFaqPendingA: "We have submitted your business to the carriers and they have not answered yet. It is a queue, not a review of anything you did. You will get an email the moment it clears.",
+  helpFaqStoppedQ: "Why did my number stop sending after it was working?",
+  helpFaqStoppedA: "Two things do that. A carrier can suspend an approved registration, which we are told about and act on without you doing anything. Or your workspace has hit the spending cap the owner set, which is protection rather than a quota and an owner can raise it in Settings.",
+  helpFaqNotGotQ: "A customer says they never got my text. What now?",
+  helpFaqNotGotA: "Check whether they ever texted STOP: a carrier opt-out blocks us and only the customer can lift it, by texting START. If that is not it, email us the customer's number and roughly when you sent it, and we can trace the message with the carrier.",
+  helpFaqPortQ: "How long does moving my existing number take?",
+  helpFaqPortA: "Porting takes 7 to 10 business days once the carrier accepts the request, and your old number keeps working the entire time. Nothing goes dark at any point.",
+
+
   /* Shared across the settings screens. */
   saveFailed: "Couldn't save. Try again.",
   clearAction: "Clear",
@@ -686,6 +726,33 @@ export const settingsEn = {
  * translated — a machine matches on those.
  */
 export const settingsFr: Translated<typeof settingsEn> = {
+  helpResponseTime: "within two business days, usually sooner",
+  helpFixPromise: "Si vous nous signalez un problème, nous vous réécrivons quand il est corrigé, pas seulement quand nous l'avons lu.",
+  supportBodyLeadIn: "Les renseignements ci-dessous nous aident à retrouver votre dossier. Laissez-les dans le message.",
+  supportBodyErrors: "Erreurs récentes sur cet appareil (les plus récentes d'abord) :",
+  supportSubjectDefault: "Aide avec mon espace de travail Loonext",
+  supportSubjectIdea: "Idée pour Loonext",
+  supportSituationRegistrationPending: "l'inscription américaine est en attente d'approbation",
+  supportSituationRegistrationSuspended: "le fournisseur a suspendu notre inscription américaine",
+  supportSituationUsTextingOff: "les textos américains sont désactivés pour cet espace de travail",
+  supportSituationUsageCap: "l'envoi est suspendu au plafond de dépenses",
+  supportSituationSubscription: "l'abonnement n'est pas actif",
+  supportSituationOptedOut: "ce client s'est désabonné",
+  supportSituationOptOutHint: "un désabonnement a été détecté dans la conversation",
+  supportSituationNumberAccess: "je n'ai pas accès aux textos de ce numéro",
+  supportSituationReadOnly: "j'ai un accès en lecture seule",
+  helpFaqUsSendQ: "Pourquoi mon texto vers un numéro américain ne part-il pas ?",
+  helpFaqUsSendA: "Les fournisseurs américains exigent que chaque numéro d'entreprise soit inscrit avant de pouvoir texter des téléphones américains. L'approbation prend habituellement de 3 à 7 jours ouvrables, et il n'y a rien à faire pendant ce temps. Les appels vers les numéros américains fonctionnent tout du long, et les textos canadiens ne sont pas touchés.",
+  helpFaqPendingQ: "Que veut dire « inscription en attente », au juste ?",
+  helpFaqPendingA: "Nous avons soumis votre entreprise aux fournisseurs et ils n'ont pas encore répondu. C'est une file d'attente, pas un examen de quoi que ce soit que vous auriez fait. Vous recevrez un courriel dès que ce sera réglé.",
+  helpFaqStoppedQ: "Pourquoi mon numéro a-t-il cessé d'envoyer après avoir fonctionné ?",
+  helpFaqStoppedA: "Deux choses causent cela. Un fournisseur peut suspendre une inscription approuvée ; on nous en avise et nous agissons sans que vous ayez rien à faire. Ou votre espace de travail a atteint le plafond de dépenses fixé par le propriétaire, qui est une protection plutôt qu'un quota et qu'un propriétaire peut relever dans les paramètres.",
+  helpFaqNotGotQ: "Un client dit qu'il n'a jamais reçu mon texto. Que faire ?",
+  helpFaqNotGotA: "Vérifiez s'il a déjà envoyé STOP : un désabonnement chez le fournisseur nous bloque et seul le client peut le lever, en textant START. Si ce n'est pas cela, écrivez-nous le numéro du client et le moment approximatif de l'envoi, et nous pourrons retracer le message avec le fournisseur.",
+  helpFaqPortQ: "Combien de temps prend le transfert de mon numéro actuel ?",
+  helpFaqPortA: "Le transfert prend de 7 à 10 jours ouvrables une fois que le fournisseur accepte la demande, et votre ancien numéro continue de fonctionner pendant tout ce temps. Rien ne s'éteint à aucun moment.",
+
+
   saveFailed: "Impossible d'enregistrer. Réessayez.",
   clearAction: "Effacer",
   opening: "Ouverture…",

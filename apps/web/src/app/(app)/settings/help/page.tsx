@@ -5,8 +5,8 @@ import {
   supportBody,
   supportMailto,
   SUPPORT_EMAIL,
-  SUPPORT_FIX_PROMISE,
-  SUPPORT_RESPONSE_TIME,
+  SUPPORT_FIX_PROMISE_KEY,
+  SUPPORT_RESPONSE_TIME_KEY,
   SUPPORT_TOPICS,
 } from "@loonext/shared";
 import { Lightbulb, LifeBuoy, Mail } from "lucide-react";
@@ -18,7 +18,7 @@ import {
 } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT } from "@/i18n/provider";
+import { sayEnglish, sayWith, useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { recentClientErrors } from "@/lib/observability/recent-errors";
 
@@ -38,6 +38,10 @@ import { recentClientErrors } from "@/lib/observability/recent-errors";
  */
 export default function HelpPage() {
   const t = useT();
+  // #228: the shared support module composes text from keys and takes the
+  // lookup. `say` is this reader's language; `sayEnglish` is the mail SUBJECT,
+  // which stays one heading so the inbox stays searchable.
+  const say = sayWith(t);
   const company = useCompany();
 
   return (
@@ -69,7 +73,7 @@ export default function HelpPage() {
                     // along. The customer should not have to know what we need
                     // in order to be helped, and they cannot read a console.
                     recentErrors: recentClientErrors(),
-                  })}
+                  }, say, sayEnglish)}
                 >
                   <Mail aria-hidden className="size-4" />
                   {t("appShell.helpEmailAddress", { email: SUPPORT_EMAIL })}
@@ -92,13 +96,16 @@ export default function HelpPage() {
             })}
           >
             <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-              {supportBody({
-                companyId: company.data.id,
-                companyName: company.data.name,
-                plan: company.data.plan,
-                platform: "web",
-                recentErrors: recentClientErrors(),
-              }).trim()}
+              {supportBody(
+                {
+                  companyId: company.data.id,
+                  companyName: company.data.name,
+                  plan: company.data.plan,
+                  platform: "web",
+                  recentErrors: recentClientErrors(),
+                },
+                say,
+              ).trim()}
             </pre>
           </SettingsCard>
 
@@ -120,7 +127,7 @@ export default function HelpPage() {
                     companyName: company.data.name,
                     plan: company.data.plan,
                     platform: "web",
-                  })}
+                  }, say, sayEnglish)}
                 >
                   <Lightbulb aria-hidden className="size-4" />
                   {t("appShell.helpSendIdea")}
@@ -142,10 +149,10 @@ export default function HelpPage() {
           >
             <dl className="divide-y divide-border">
               {SUPPORT_TOPICS.map((topic) => (
-                <div key={topic.question} className="py-3 first:pt-0 last:pb-0">
-                  <dt className="text-sm font-medium">{topic.question}</dt>
+                <div key={topic.questionKey} className="py-3 first:pt-0 last:pb-0">
+                  <dt className="text-sm font-medium">{say(topic.questionKey)}</dt>
                   <dd className="mt-1 text-sm text-muted-foreground">
-                    {topic.answer}
+                    {say(topic.answerKey)}
                   </dd>
                 </div>
               ))}
@@ -164,13 +171,13 @@ export default function HelpPage() {
                     an unanswered promise is worse than a vague one, and the
                     good weeks beat it at no cost. */}
                 {t("appShell.helpReplyPromise", {
-                  time: SUPPORT_RESPONSE_TIME,
+                  time: say(SUPPORT_RESPONSE_TIME_KEY),
                 })}
                 {/* #321: the loop, stated. The reason to bother writing in is
                     knowing you will hear back — which makes the release step
                     in docs/RELEASING.md load-bearing, not optional. */}
                 <span className="mt-2 block font-medium text-foreground">
-                  {SUPPORT_FIX_PROMISE}
+                  {say(SUPPORT_FIX_PROMISE_KEY)}
                 </span>
               </span>
             </p>

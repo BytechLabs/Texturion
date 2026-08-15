@@ -130,7 +130,7 @@ import {
   type BillingCurrency,
 } from "./billing-currency";
 import { PLAN_NUMBERS, PLAN_SEATS, type SeatPlan } from "./seats";
-import { SUPPORT_FIX_PROMISE, SUPPORT_RESPONSE_TIME } from "./support";
+import { SUPPORT_FIX_PROMISE_EN, SUPPORT_RESPONSE_TIME_EN } from "./support";
 
 /**
  * The reason codes the cancel card offers, on every client.
@@ -603,8 +603,8 @@ function missingFeatureOffer(): CancellationOffer {
     heading: "Tell us what was missing",
     body:
       "If the thing you needed is not here, the fastest way to change that is " +
-      `to tell us what it was. We answer ${SUPPORT_RESPONSE_TIME}. ` +
-      SUPPORT_FIX_PROMISE,
+      `to tell us what it was. We answer ${SUPPORT_RESPONSE_TIME_EN}. ` +
+      SUPPORT_FIX_PROMISE_EN,
     action: "open_help",
     actionLabel: "Get help",
   };

@@ -40,7 +40,7 @@ import {
   type CancellationOfferPhase,
 } from "./cancellation-offers";
 import { PLAN_NUMBERS, PLAN_SEATS } from "./seats";
-import { SUPPORT_FIX_PROMISE, SUPPORT_RESPONSE_TIME } from "./support";
+import { SUPPORT_FIX_PROMISE_EN, SUPPORT_RESPONSE_TIME_EN } from "./support";
 
 /** A US Pro workspace, the case with the most to say. */
 const PRO_US: CancellationOfferInput = {
@@ -535,8 +535,8 @@ describe("seasonal, while paused (#277)", () => {
 describe("missing feature", () => {
   it("quotes the support constants rather than restating them", () => {
     const body = offer({ reason: "missing_feature" })!.body;
-    expect(body).toContain(SUPPORT_RESPONSE_TIME);
-    expect(body).toContain(SUPPORT_FIX_PROMISE);
+    expect(body).toContain(SUPPORT_RESPONSE_TIME_EN);
+    expect(body).toContain(SUPPORT_FIX_PROMISE_EN);
   });
 
   it("points at the in-product help surface", () => {

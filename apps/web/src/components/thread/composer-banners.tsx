@@ -2,14 +2,14 @@
 
 import {
   supportMailto,
-  supportSituation,
+  supportSituationKey,
   supportSubjectFor,
 } from "@loonext/shared";
 import { toast } from "sonner";
 
 import { CallButton } from "@/components/calls/call-button";
 import { Button } from "@/components/ui/button";
-import { useT, type Translate } from "@/i18n/provider";
+import { sayEnglish, sayWith, useT, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useBillingPortal } from "@/lib/api/billing";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
@@ -35,6 +35,10 @@ export function ComposerBannerCard({
   thread?: { conversationId: string; contactName: string; canCall: boolean };
 }) {
   const t = useT();
+  // #228: the shared support module takes the lookup. `say` is this reader's
+  // language; `sayEnglish` is the mail SUBJECT, which stays one heading so the
+  // support inbox stays searchable.
+  const say = sayWith(t);
   const { role } = useActiveCompany();
   const isOwner = role === "owner";
   const isAdminUp = role === "owner" || role === "admin";
@@ -259,7 +263,12 @@ function ReportThis({
 }) {
   // A situation we have no sentence for would send a support email that says
   // nothing the customer did not already have to type — worse than no link.
-  if (company === null || supportSituation(kind) === null) return null;
+  const situationKey = supportSituationKey(kind);
+  // #228: `t` arrives as a prop here rather than from the hook, so the shared
+  // module's lookup is built from it rather than from a second `useT()` — one
+  // component reading two translators is how half a screen changes language.
+  const say = sayWith(t);
+  if (company === null || situationKey === null) return null;
 
   return (
     <a
@@ -269,12 +278,15 @@ function ReportThis({
         companyName: company.name,
         plan: company.plan,
         platform: "web",
-        subject: supportSubjectFor(kind),
-        situation: supportSituation(kind),
+        // The subject is ENGLISH and the situation is the reader's, on
+        // purpose: one is the inbox's index and the other is a sentence the
+        // person reads in their mail client before they send it.
+        subject: supportSubjectFor(kind, sayEnglish),
+        situation: say(situationKey),
         // Read at click time, not at render: the useful errors are the ones
         // that happened while the person was staring at this banner.
         recentErrors: recentClientErrors(),
-      })}
+      }, say, sayEnglish)}
     >
       {t("thread.reportThis")}
     </a>

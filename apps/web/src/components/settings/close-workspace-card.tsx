@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useT } from "@/i18n/provider";
+import { sayEnglish, sayWith, useT } from "@/i18n/provider";
 import { useCloseWorkspace } from "@/lib/api/companies";
 import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
 import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
@@ -44,6 +44,10 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
  */
 export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
   const t = useT();
+  // #228: the shared support module takes the lookup. `say` is this reader's
+  // language; `sayEnglish` is the mail SUBJECT, which stays one heading so the
+  // support inbox stays searchable.
+  const say = sayWith(t);
   const router = useRouter();
   const close = useCloseWorkspace();
   // #537 audit: this file's own copy calls the closure irreversible after 30 days,
@@ -135,7 +139,7 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
                 plan: company.plan,
                 platform: "web",
                 subject: `Please undo the closure of ${company.name}`,
-              })}
+              }, say, sayEnglish)}
             >
               {t("settings.closeWorkspaceEmailUs")}
             </a>{" "}

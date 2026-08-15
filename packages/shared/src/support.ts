@@ -25,6 +25,17 @@
 export const SUPPORT_EMAIL = "support@loonext.com";
 
 /**
+ * Resolves a catalogue key to a sentence.
+ *
+ * #228: this module composes text out of keys and does not own a catalogue, so
+ * the caller supplies the lookup. Each client passes its own — `t` on web,
+ * `AppStrings.translate` on the phones — and the same function is handed an
+ * ENGLISH resolver where the words must not vary by reader. See
+ * [supportSubjectFor] for the one place that matters.
+ */
+export type SayKey = (key: string) => string;
+
+/**
  * #253 acceptance 4 — the response time, stated once and everywhere.
  *
  * "A support channel a solo founder cannot service is worse than none — an
@@ -37,7 +48,25 @@ export const SUPPORT_EMAIL = "support@loonext.com";
  * clients separately is a number that drifts, and the drifted one is a promise
  * somebody made without knowing they were making it.
  */
-export const SUPPORT_RESPONSE_TIME = "within two business days, usually sooner";
+export const SUPPORT_RESPONSE_TIME_KEY = "settings.helpResponseTime";
+
+/**
+ * The same promise in English, for the one caller that cannot take a resolver
+ * yet.
+ *
+ * `cancellation-offers.ts` builds a sentence around this, and that module is
+ * still composing English for all three clients — its own conversion is the
+ * next one. Until then it reads THIS rather than typing the words again,
+ * because the whole reason this constant exists is that a response time typed
+ * out twice is a promise somebody made without knowing they were making it.
+ *
+ * Goes away with that conversion. It is the English half of
+ * [SUPPORT_RESPONSE_TIME_KEY] and must stay identical to the `en` entry the
+ * three catalogues hold — `support.test.ts` asserts that.
+ *
+ * @internal
+ */
+export const SUPPORT_RESPONSE_TIME_EN = "within two business days, usually sooner";
 
 /**
  * #321 acceptance 4 — the loop, stated out loud.
@@ -56,7 +85,15 @@ export const SUPPORT_RESPONSE_TIME = "within two business days, usually sooner";
  * Which makes the release step load-bearing — this sentence is a lie the first
  * time it is skipped.
  */
-export const SUPPORT_FIX_PROMISE =
+export const SUPPORT_FIX_PROMISE_KEY = "settings.helpFixPromise";
+
+/**
+ * The English half of [SUPPORT_FIX_PROMISE_KEY], for the same one caller and
+ * the same reason as [SUPPORT_RESPONSE_TIME_EN]. Goes away with it.
+ *
+ * @internal
+ */
+export const SUPPORT_FIX_PROMISE_EN =
   "If you tell us something's broken, we write back when it's fixed, not just when we've read it.";
 
 /**
@@ -105,13 +142,21 @@ export interface SupportContext {
  * The body we pre-fill. Ends with a blank line and a prompt, so the customer's
  * own words go at the TOP — nobody should have to scroll past our diagnostics
  * to write the sentence they came to write.
+ *
+ * #228: [say] resolves a catalogue key in THE CUSTOMER'S language, because they
+ * read this in their mail client before they send it. The subject does the
+ * opposite — see [supportSubjectFor].
+ *
+ * The field labels stay English on purpose. `Workspace:` and `App:` are how
+ * the inbox is read, not sentences addressed to anybody, and a diagnostics
+ * block that changes shape by locale is one nobody can grep.
  */
-export function supportBody(ctx: SupportContext): string {
+export function supportBody(ctx: SupportContext, say: SayKey): string {
   const lines = [
     "",
     "",
     "---",
-    "The details below help us look this up. Please leave them in.",
+    say("settings.supportBodyLeadIn"),
     `Workspace: ${ctx.companyName ?? "(unnamed)"} (${ctx.companyId})`,
   ];
   if (ctx.plan) lines.push(`Plan: ${ctx.plan}`);
@@ -121,7 +166,7 @@ export function supportBody(ctx: SupportContext): string {
   if (ctx.situation) lines.push(`Screen: ${ctx.situation}`);
   const errors = (ctx.recentErrors ?? []).filter((line) => line.trim() !== "");
   if (errors.length > 0) {
-    lines.push("Recent errors on this device (newest first):");
+    lines.push(say("settings.supportBodyErrors"));
     for (const line of errors.slice(0, SUPPORT_ERROR_LINES)) {
       lines.push(`  ${line}`);
     }
@@ -136,12 +181,12 @@ export function supportBody(ctx: SupportContext): string {
  * clients differ on how forgiving they are, and a subject with an apostrophe in
  * the workspace name should not truncate the body.
  */
-export function supportMailto(ctx: SupportContext): string {
-  const subject = ctx.subject ?? "Help with my Loonext workspace";
+export function supportMailto(ctx: SupportContext, say: SayKey, sayEnglish: SayKey): string {
+  const subject = ctx.subject ?? sayEnglish("settings.supportSubjectDefault");
   return (
     `mailto:${SUPPORT_EMAIL}` +
     `?subject=${encodeURIComponent(subject)}` +
-    `&body=${encodeURIComponent(supportBody(ctx))}`
+    `&body=${encodeURIComponent(supportBody(ctx, say))}`
   );
 }
 
@@ -158,8 +203,12 @@ export function supportMailto(ctx: SupportContext): string {
  * monitor, and [[observability-state]] is already the lesson about channels
  * nobody watches.
  */
-export function feedbackMailto(ctx: SupportContext): string {
-  return supportMailto({ ...ctx, subject: "Idea for Loonext" });
+export function feedbackMailto(ctx: SupportContext, say: SayKey, sayEnglish: SayKey): string {
+  return supportMailto(
+    { ...ctx, subject: sayEnglish("settings.supportSubjectIdea") },
+    say,
+    sayEnglish,
+  );
 }
 
 /**
@@ -171,16 +220,16 @@ export function feedbackMailto(ctx: SupportContext): string {
  * carrier suspension in one morning is a signal, and it is invisible if they
  * arrive under five different names.
  */
-const SITUATIONS: Record<string, string> = {
-  registration_pending: "US registration is pending approval",
-  registration_suspended: "the carrier suspended our US registration",
-  us_texting_off: "US texting is off for this workspace",
-  usage_cap: "sending is paused at the spending cap",
-  subscription: "the subscription is not active",
-  opted_out: "this customer is opted out",
-  opt_out_hint: "an opt-out was detected in the thread",
-  number_access: "I do not have texting access to this number",
-  read_only: "I have view-only access",
+const SITUATION_KEYS: Record<string, string> = {
+  registration_pending: "settings.supportSituationRegistrationPending",
+  registration_suspended: "settings.supportSituationRegistrationSuspended",
+  us_texting_off: "settings.supportSituationUsTextingOff",
+  usage_cap: "settings.supportSituationUsageCap",
+  subscription: "settings.supportSituationSubscription",
+  opted_out: "settings.supportSituationOptedOut",
+  opt_out_hint: "settings.supportSituationOptOutHint",
+  number_access: "settings.supportSituationNumberAccess",
+  read_only: "settings.supportSituationReadOnly",
 };
 
 /**
@@ -189,16 +238,30 @@ const SITUATIONS: Record<string, string> = {
  * Null rather than a guessed fallback: an invented sentence in a support email
  * is worse than none, because the reader trusts it and it came from nowhere.
  */
-export function supportSituation(kind: string): string | null {
-  return SITUATIONS[kind] ?? null;
+export function supportSituationKey(kind: string): string | null {
+  return SITUATION_KEYS[kind] ?? null;
 }
 
-/** The subject a report from a failure banner carries. */
-export function supportSubjectFor(kind: string): string {
-  const situation = supportSituation(kind);
-  return situation === null
-    ? "Help with my Loonext workspace"
-    : `Problem: ${situation}`;
+/**
+ * The subject a report from a failure banner carries — IN ENGLISH, always.
+ *
+ * #228: the two readers of this key want different languages and both are
+ * right. The body renders it for the person, in whatever they read; the subject
+ * renders it against the English table on purpose. A subject line is the
+ * inbox's index, and one carrier suspension reported from Montreal and from
+ * Calgary has to arrive under one heading — or the pattern that matters most,
+ * five reports of one failure in a morning, is the one that stops being
+ * visible.
+ *
+ * So [sayEnglish] must resolve against the English catalogue whatever the
+ * reader's own language is. It is a separate parameter from [supportBody]'s
+ * `say` for exactly that reason.
+ */
+export function supportSubjectFor(kind: string, sayEnglish: SayKey): string {
+  const key = supportSituationKey(kind);
+  return key === null
+    ? sayEnglish("settings.supportSubjectDefault")
+    : `Problem: ${sayEnglish(key)}`;
 }
 
 /**
@@ -214,42 +277,21 @@ export function supportSubjectFor(kind: string): string {
  * banner copy the way a hosted article would.
  */
 export interface SupportTopic {
-  question: string;
-  answer: string;
+  questionKey: string;
+  answerKey: string;
 }
 
+/**
+ * #228: pairs of KEYS, in the order they are read.
+ *
+ * The order is the content. These are not sorted or ranked — they run from the
+ * question most people arrive with to the one fewest do, and a client that
+ * reordered them would be answering a different person first.
+ */
 export const SUPPORT_TOPICS: readonly SupportTopic[] = [
-  {
-    question: "Why won't my text to a US number send?",
-    answer:
-      "US carriers require every business number to be registered before it can text US phones. " +
-      "Approval usually takes 3 to 7 business days, and there is nothing to do while it runs. " +
-      "Calls to US numbers work the whole time, and Canadian texts are unaffected.",
-  },
-  {
-    question: "What does “registration pending” actually mean?",
-    answer:
-      "We have submitted your business to the carriers and they have not answered yet. " +
-      "It is a queue, not a review of anything you did. You will get an email the moment it clears.",
-  },
-  {
-    question: "Why did my number stop sending after it was working?",
-    answer:
-      "Two things do that. A carrier can suspend an approved registration, which we are told about and act on " +
-      "without you doing anything. Or your workspace has hit the spending cap the owner set, which is " +
-      "protection rather than a quota and an owner can raise it in Settings.",
-  },
-  {
-    question: "A customer says they never got my text. What now?",
-    answer:
-      "Check whether they ever texted STOP: a carrier opt-out blocks us and only the customer can lift it, " +
-      "by texting START. If that is not it, email us the customer's number and roughly when you sent it, " +
-      "and we can trace the message with the carrier.",
-  },
-  {
-    question: "How long does moving my existing number take?",
-    answer:
-      "Porting takes 7 to 10 business days once the carrier accepts the request, and your old number keeps " +
-      "working the entire time. Nothing goes dark at any point.",
-  },
+  { questionKey: "settings.helpFaqUsSendQ", answerKey: "settings.helpFaqUsSendA" },
+  { questionKey: "settings.helpFaqPendingQ", answerKey: "settings.helpFaqPendingA" },
+  { questionKey: "settings.helpFaqStoppedQ", answerKey: "settings.helpFaqStoppedA" },
+  { questionKey: "settings.helpFaqNotGotQ", answerKey: "settings.helpFaqNotGotA" },
+  { questionKey: "settings.helpFaqPortQ", answerKey: "settings.helpFaqPortA" },
 ];

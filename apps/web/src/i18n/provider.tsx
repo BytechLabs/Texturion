@@ -131,3 +131,27 @@ export function useLocale(): LocaleValue {
 export function useT(): Translate {
   return useContext(LocaleContext).t;
 }
+
+/**
+ * A resolver for `packages/shared`, whose keys are plain strings.
+ *
+ * #228: shared modules compose text out of keys and do not own a catalogue, so
+ * they take a lookup. They cannot take a {@link Translate} — its key type comes
+ * from this app's catalogue and the shared package cannot see it — so the key
+ * widens to `string` here, at the one boundary, rather than every shared module
+ * carrying a cast.
+ */
+export function sayWith(t: Translate): (key: string) => string {
+  return (key) => t(key as MessageKey);
+}
+
+/**
+ * The same lookup, forced to ENGLISH whatever the reader's language is.
+ *
+ * There is exactly one caller and it is deliberate: `supportSubjectFor` puts
+ * this in a mail subject, and a subject line is the support inbox's index. One
+ * carrier suspension reported from Montreal and from Calgary has to arrive
+ * under one heading, or the pattern that matters most — five reports of one
+ * failure in a morning — is the one that stops being visible.
+ */
+export const sayEnglish = sayWith(makeTranslate(DEFAULT_LOCALE));
