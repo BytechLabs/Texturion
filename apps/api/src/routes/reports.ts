@@ -40,6 +40,7 @@ import {
   SATISFACTION_MIN_SAMPLE,
   SATISFACTION_POOR_AT_OR_BELOW,
   pipelineInsight,
+  pipelineInsightKeys,
   pipelineWinRate,
   type PipelineReport,
 } from "@loonext/shared";
@@ -432,13 +433,29 @@ reportsRoutes.get("/reports/pipeline", requireCapability("conversations.read"), 
     "pipeline stage tags",
   );
 
+  const insightMessage = pipelineInsightKeys(current);
+
   return c.json({
     days,
     current,
     previous,
     win_rate: pipelineWinRate(current),
     previous_win_rate: pipelineWinRate(previous),
+    /*
+     * BOTH, and the English is not redundant.
+     *
+     * `insight` is the sentence an app build that predates these fields
+     * renders; `insight_key` + `insight_vars` are what a current one
+     * translates. The server cannot resolve the language itself — profiles.locale
+     * is nullable and its null means "ask the device", which only the client
+     * knows — so it sends the key and lets the reader's own catalogue answer.
+     *
+     * Same arrangement the payout states got (#339). The sentence comes off the
+     * wire when those builds are gone, not before.
+     */
     insight: pipelineInsight(current),
+    insight_key: insightMessage?.key ?? null,
+    insight_vars: insightMessage?.vars ?? null,
     stages: tags.map((tag) => ({
       stage: tag.pipeline_stage,
       tag_id: tag.id,

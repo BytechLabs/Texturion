@@ -81,7 +81,15 @@ export function PipelineCard() {
   }
   if (!report.data) return null;
 
-  const { current, win_rate: rate, previous_win_rate: previous, insight, stages } =
+  const {
+    current,
+    win_rate: rate,
+    previous_win_rate: previous,
+    insight,
+    insight_key: insightKey,
+    insight_vars: insightVars,
+    stages,
+  } =
     report.data;
 
   // Nothing quoted in the window is nothing to say. A panel that appears anyway
@@ -116,7 +124,14 @@ export function PipelineCard() {
           {/* The sentence leads, not the figure. It is the part somebody
               repeats, and the part they can act on. */}
           <p className="mt-1 text-[15px] font-medium text-app-ink">
-            {insight ??
+            {/*
+              #228: the KEY first, the sentence second.
+              `insight` is English the server composed, and it is still on the
+              wire for app builds that predate the key. This client can
+              translate, so it prefers the key and falls back to the sentence
+              only if it is talking to an older server.
+            */}
+            {(insightKey ? t(insightKey, insightVars ?? {}) : insight) ??
               t(
                 current.quoted === 1
                   ? "inbox.pipelineTooEarlyOne"

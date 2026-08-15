@@ -102,6 +102,15 @@ export function pipelineWinRate(report: PipelineReport): number | null {
  * an achievement, and an owner who acts on it has been misled by us.
  */
 export function pipelineInsight(report: PipelineReport): string | null {
+  /*
+   * #228 — the ENGLISH the wire still sends, and it stays until the app builds
+   * that only understand a sentence are gone.
+   *
+   * `pipelineInsightKeys` below is what a current client reads. This one is
+   * kept in step with the catalogue by a test rather than by care: see
+   * pipeline.test.ts, which resolves the same keys and asserts the two agree
+   * word for word. Same arrangement the payout states got (#339).
+   */
   const rate = pipelineWinRate(report);
   const decided = report.won + report.lost;
   if (rate === null || decided < 5) return null;
@@ -111,4 +120,53 @@ export function pipelineInsight(report: PipelineReport): string | null {
     } still waiting on one.`;
   }
   return `You win ${rate}% of the quotes that get an answer.`;
+}
+
+/** Every catalogue key the insight can name. */
+export type PipelineInsightKey =
+  | "inbox.pipelineWinRate"
+  | "inbox.pipelineWinRateOneOpen"
+  | "inbox.pipelineWinRateManyOpen";
+
+/** A key and what to substitute into it — resolved by whoever renders it. */
+export interface PipelineInsightMessage {
+  key: PipelineInsightKey;
+  vars: Record<string, string>;
+}
+
+/**
+ * The same insight as a KEY, for a client that can translate it.
+ *
+ * THE SERVER CANNOT RESOLVE THE LANGUAGE ITSELF, which is what forces a key
+ * rather than a translated sentence. `profiles.locale` is nullable and its
+ * null means "ask the device, then the workspace" — the device half only
+ * exists on the client, and no client sends it. A server that translated here
+ * would answer in the company's language to somebody whose phone is set to the
+ * other one.
+ *
+ * Null on exactly the same terms as [pipelineInsight]: below five decided jobs
+ * there is nothing honest to say, and a 100% win rate off two quotes is noise
+ * presented as an achievement.
+ *
+ * One open quote and many are SEPARATE KEYS. French agrees the noun, the
+ * article and the verb with the count, so "quote is"/"quotes are" cannot be a
+ * substitution — the card beside this one already splits
+ * `pipelineTooEarlyOne`/`Many` for the same reason.
+ */
+export function pipelineInsightKeys(
+  report: PipelineReport,
+): PipelineInsightMessage | null {
+  const rate = pipelineWinRate(report);
+  const decided = report.won + report.lost;
+  if (rate === null || decided < 5) return null;
+  if (report.open === 0) {
+    return { key: "inbox.pipelineWinRate", vars: { rate: String(rate) } };
+  }
+  return {
+    key:
+      report.open === 1
+        ? "inbox.pipelineWinRateOneOpen"
+        : "inbox.pipelineWinRateManyOpen",
+    vars: { rate: String(rate), open: String(report.open) },
+  };
 }

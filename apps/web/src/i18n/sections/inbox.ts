@@ -351,6 +351,13 @@ export const inboxEn = {
   pipelineWindow: "last 30 days",
   pipelineTooEarlyOne: "{count} quote sent. Too early to call a win rate.",
   pipelineTooEarlyMany: "{count} quotes sent. Too early to call a win rate.",
+  /* #228 — the insight the report card leads with. ONE open quote and MANY
+     are separate keys: French agrees the noun, the article and the verb
+     with the count, so "quote is"/"quotes are" cannot be substituted. */
+  pipelineWinRate: "You win {rate}% of the quotes that get an answer.",
+  pipelineWinRateOneOpen: "You win {rate}% of the quotes that get an answer. 1 quote is still waiting on one.",
+  pipelineWinRateManyOpen: "You win {rate}% of the quotes that get an answer. {open} quotes are still waiting on one.",
+
   pipelineDeltaPoints: "{delta} pts",
   pipelineQuoted: "Quoted",
   pipelineWon: "Won",
@@ -791,6 +798,10 @@ export const inboxFr: Translated<typeof inboxEn> = {
     "{count} devis envoyé. Trop tôt pour parler d'un taux de réussite.",
   pipelineTooEarlyMany:
     "{count} devis envoyés. Trop tôt pour parler d'un taux de réussite.",
+  pipelineWinRate: "Vous gagnez {rate} % des devis qui obtiennent une réponse.",
+  pipelineWinRateOneOpen: "Vous gagnez {rate} % des devis qui obtiennent une réponse. 1 devis attend encore la sienne.",
+  pipelineWinRateManyOpen: "Vous gagnez {rate} % des devis qui obtiennent une réponse. {open} devis attendent encore la leur.",
+
   pipelineDeltaPoints: "{delta} pts",
   pipelineQuoted: "Envoyés",
   pipelineWon: "Gagnés",

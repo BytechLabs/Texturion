@@ -14,9 +14,28 @@ import {
   isPipelineStage,
   pipelineDeleteWarning,
   pipelineInsight,
+  pipelineInsightKeys,
   pipelineWinRate,
   type PipelineReport,
 } from "./pipeline";
+
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/* #228 — the insight names keys now, so the assertions resolve them. */
+function resolver(table: unknown) {
+  return (key: string, vars: Record<string, string>): string => {
+    const [section, name] = key.split(".");
+    const text = (table as Record<string, Record<string, string>>)[section]?.[name];
+    if (typeof text !== "string") throw new Error(`no entry for ${key}`);
+    return Object.entries(vars).reduce(
+      (out, [token, value]) => out.split(`{${token}}`).join(value),
+      text,
+    );
+  };
+}
+
+const sayEn = resolver(WEB_EN);
+const sayFr = resolver(WEB_FR);
 
 const report = (over: Partial<PipelineReport> = {}): PipelineReport => ({
   quoted: 10,
@@ -129,5 +148,66 @@ describe("#354 pipelineDeleteWarning", () => {
     expect(text).toContain("Won");
     expect(text).toContain("stop counting");
     expect(text.toLowerCase()).toContain("renaming it is safe");
+  });
+});
+
+describe("#228 the insight as a key, and the English it must not drift from", () => {
+  /*
+   * TWO COPIES OF THE SAME SENTENCE, which is only safe because of this test.
+   *
+   * `pipelineInsight` composes English for the wire; the catalogue holds the
+   * same words for a client that can translate. That duplication exists so an
+   * app build predating `insight_key` keeps rendering the sentence it always
+   * did (#339 puts those on real phones for months). The moment the two
+   * disagree, half the customers read one thing and half another — so they are
+   * compared here rather than trusted.
+   */
+  const cases: PipelineReport[] = [
+    { quoted: 20, won: 8, lost: 7, open: 0, median_days_to_win: null },
+    { quoted: 20, won: 8, lost: 7, open: 1, median_days_to_win: null },
+    { quoted: 20, won: 8, lost: 7, open: 5, median_days_to_win: null },
+  ];
+
+  it("says exactly what the wire says, word for word", () => {
+    for (const report of cases) {
+      const message = pipelineInsightKeys(report);
+      expect(message, JSON.stringify(report)).not.toBeNull();
+      if (message === null) continue;
+      expect(sayEn(message.key, message.vars)).toBe(pipelineInsight(report));
+    }
+  });
+
+  it("goes silent on exactly the same terms", () => {
+    // Below five decided jobs there is nothing honest to say. Two functions
+    // that disagreed about WHEN would show a card on one client and not the
+    // other.
+    for (const report of [
+      { quoted: 4, won: 2, lost: 2, open: 0, median_days_to_win: null },
+      { quoted: 3, won: 0, lost: 0, open: 3, median_days_to_win: null },
+    ] as PipelineReport[]) {
+      expect(pipelineInsight(report)).toBeNull();
+      expect(pipelineInsightKeys(report)).toBeNull();
+    }
+  });
+
+  it("gives one open quote and many DIFFERENT keys", () => {
+    // The whole reason this is three keys and not one. French agrees the noun,
+    // the article and the verb with the count.
+    const one = pipelineInsightKeys({ quoted: 20, won: 8, lost: 7, open: 1, median_days_to_win: null });
+    const many = pipelineInsightKeys({ quoted: 20, won: 8, lost: 7, open: 5, median_days_to_win: null });
+    expect(one?.key).not.toBe(many?.key);
+    expect(sayFr(one!.key, one!.vars)).toContain("devis attend");
+    expect(sayFr(many!.key, many!.vars)).toContain("devis attendent");
+  });
+
+  it("reads in French with every variable filled", () => {
+    for (const report of cases) {
+      const message = pipelineInsightKeys(report);
+      if (message === null) continue;
+      const french = sayFr(message.key, message.vars);
+      expect(french).not.toMatch(/\{/);
+      expect(french).not.toContain("inbox.");
+      expect(french).toContain("%");
+    }
   });
 });

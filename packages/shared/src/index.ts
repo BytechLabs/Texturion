@@ -781,9 +781,15 @@ export {
   isPipelineStage,
   pipelineDeleteWarning,
   pipelineInsight,
+  pipelineInsightKeys,
   pipelineWinRate,
 } from "./pipeline";
-export type { PipelineReport, PipelineStage } from "./pipeline";
+export type {
+  PipelineInsightKey,
+  PipelineInsightMessage,
+  PipelineReport,
+  PipelineStage,
+} from "./pipeline";
 export {
   WHATS_NEW,
   hasUnseenWhatsNew,

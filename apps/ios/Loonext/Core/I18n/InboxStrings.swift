@@ -310,6 +310,16 @@ enum InboxStrings {
                 "{count} quote sent. Too early to call a win rate.",
             "inbox.pipelineTooEarlyMany":
                 "{count} quotes sent. Too early to call a win rate.",
+            // #228 — ONE open quote and MANY are separate keys, like the two
+            // lines above: French agrees the noun, the article and the verb
+            // with the count.
+            "inbox.pipelineWinRate":
+                "You win {rate}% of the quotes that get an answer.",
+            "inbox.pipelineWinRateOneOpen":
+                "You win {rate}% of the quotes that get an answer. 1 quote is still waiting on one.",
+            "inbox.pipelineWinRateManyOpen":
+                "You win {rate}% of the quotes that get an answer. {open} quotes are still waiting on one.",
+
             "inbox.pipelineDeltaPoints": "{delta} pts",
             "inbox.pipelineQuoted": "Quoted",
             "inbox.pipelineWon": "Won",
@@ -709,6 +719,13 @@ enum InboxStrings {
                 "{count} devis envoyé. Trop tôt pour parler d'un taux de réussite.",
             "inbox.pipelineTooEarlyMany":
                 "{count} devis envoyés. Trop tôt pour parler d'un taux de réussite.",
+            "inbox.pipelineWinRate":
+                "Vous gagnez {rate} % des devis qui obtiennent une réponse.",
+            "inbox.pipelineWinRateOneOpen":
+                "Vous gagnez {rate} % des devis qui obtiennent une réponse. 1 devis attend encore la sienne.",
+            "inbox.pipelineWinRateManyOpen":
+                "Vous gagnez {rate} % des devis qui obtiennent une réponse. {open} devis attendent encore la leur.",
+
             "inbox.pipelineDeltaPoints": "{delta} pts",
             "inbox.pipelineQuoted": "Envoyés",
             "inbox.pipelineWon": "Gagnés",

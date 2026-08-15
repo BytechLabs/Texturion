@@ -279,6 +279,18 @@ object InboxStrings : AppStrings.Section {
         "inbox.pipelineWindow" to "last 30 days",
         "inbox.pipelineTooEarlyOne" to "{count} quote sent. Too early to call a win rate.",
         "inbox.pipelineTooEarlyMany" to "{count} quotes sent. Too early to call a win rate.",
+        /*
+         * #228 — ONE open quote and MANY are separate keys, like the two
+         * lines above: French agrees the noun, the article and the verb with
+         * the count.
+         */
+        "inbox.pipelineWinRate" to
+            "You win {rate}% of the quotes that get an answer.",
+        "inbox.pipelineWinRateOneOpen" to
+            "You win {rate}% of the quotes that get an answer. 1 quote is still waiting on one.",
+        "inbox.pipelineWinRateManyOpen" to
+            "You win {rate}% of the quotes that get an answer. {open} quotes are still waiting on one.",
+
         "inbox.pipelineQuoted" to "Quoted",
         "inbox.pipelineWon" to "Won",
         "inbox.pipelineStillOut" to "Still out",
@@ -601,6 +613,13 @@ object InboxStrings : AppStrings.Section {
             "{count} devis envoyé. Trop tôt pour parler d'un taux de réussite.",
         "inbox.pipelineTooEarlyMany" to
             "{count} devis envoyés. Trop tôt pour parler d'un taux de réussite.",
+        "inbox.pipelineWinRate" to
+            "Vous gagnez {rate} % des devis qui obtiennent une réponse.",
+        "inbox.pipelineWinRateOneOpen" to
+            "Vous gagnez {rate} % des devis qui obtiennent une réponse. 1 devis attend encore la sienne.",
+        "inbox.pipelineWinRateManyOpen" to
+            "Vous gagnez {rate} % des devis qui obtiennent une réponse. {open} devis attendent encore la leur.",
+
         "inbox.pipelineQuoted" to "Envoyés",
         "inbox.pipelineWon" to "Gagnés",
         "inbox.pipelineStillOut" to "En attente",

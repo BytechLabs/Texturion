@@ -5,7 +5,11 @@
  * server computes all of it: this hook does no arithmetic, because a median
  * computed twice is a median that can disagree with itself.
  */
-import type { PipelineReport, PipelineStage } from "@loonext/shared";
+import type {
+  PipelineInsightKey,
+  PipelineReport,
+  PipelineStage,
+} from "@loonext/shared";
 import { useQuery } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
@@ -92,8 +96,23 @@ export interface PipelineReportResponse {
   previous: PipelineReport;
   win_rate: number | null;
   previous_win_rate: number | null;
-  /** Null when there is not enough decided work to say anything honest. */
+  /**
+   * Null when there is not enough decided work to say anything honest.
+   *
+   * #228: ENGLISH, composed by the server, and still here for app builds that
+   * predate `insight_key`. This client prefers the key.
+   */
   insight: string | null;
+  /**
+   * The same insight as a catalogue key, for a client that can translate.
+   *
+   * The server cannot resolve the language itself — `profiles.locale`'s null
+   * means "ask the device", which only the client knows — so it names the
+   * sentence and the reader's own catalogue answers.
+   */
+  insight_key: PipelineInsightKey | null;
+  /** What to substitute into it. Null exactly when `insight_key` is. */
+  insight_vars: Record<string, string> | null;
   stages: PipelineStageTag[];
 }
 
