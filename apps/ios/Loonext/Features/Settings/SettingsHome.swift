@@ -33,6 +33,12 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     /// voicemail transcripts or saved views, because nothing pointed at them.
     /// Beside Help because both are what you go looking for.
     case whatsNew
+    /// #243: where this workspace's own systems get told what happened. Last
+    /// of the visible rows, beside Help and What's new, because all three are
+    /// things a person goes LOOKING for rather than passes through — and
+    /// because a row that sends customer messages to a third party should not
+    /// sit in the middle of the list somebody scans while changing their hours.
+    case webhooks
     /// #337: hidden until seven taps on the version footer unlock it, the same
     /// gesture and the same copy as Android's. Below Help because that is the
     /// order of escalation: try the humans first.
@@ -64,6 +70,11 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         // The business's, each behind the axis that actually governs it.
         case .workspace, .hours, .calling, .templates, .ai:
             Capability.settingsManage
+        // #243: the endpoint list names the third parties this workspace's
+        // messages flow to, and those URLs routinely carry a per-tenant token
+        // in the path — so the READ is gated exactly as the writes are, which
+        // is what the API does too.
+        case .webhooks: Capability.settingsManage
         case .numbers: Capability.numbersManage
         // #224: `billing.manage` for payments, and NOT `workspace.own` — even
         // though CONNECTING the account is owner-only on the server. The two
@@ -98,6 +109,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .devices: "settingsMore.sectionDevices"
         case .help: "settingsMore.sectionHelp"
         case .whatsNew: "settingsMore.sectionWhatsNew"
+        case .webhooks: "webhooks.navWebhooks"
         case .diagnostics: "settingsMore.diagnostics"
         }
     }
@@ -119,6 +131,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .devices: "settingsMore.sectionDevicesBlurb"
         case .help: "settingsMore.sectionHelpBlurb"
         case .whatsNew: "settingsMore.sectionWhatsNewBlurb"
+        case .webhooks: "webhooks.navWebhooksDesc"
         case .diagnostics: "settingsMore.sectionDiagnosticsBlurb"
         }
     }
@@ -152,6 +165,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .devices: "laptopcomputer.and.iphone"
         case .help: "lifepreserver"
         case .whatsNew: "sparkles"
+        case .webhooks: "powerplug"
         case .diagnostics: "stethoscope"
         }
     }
@@ -548,6 +562,8 @@ struct SettingsHome: View {
                     HelpSectionView(scope: scope, company: company)
                 case .whatsNew:
                     WhatsNewSectionView(joinedAt: company.created_at)
+                case .webhooks:
+                    WebhooksSectionView(scope: scope)
                 case .diagnostics:
                     DiagnosticsSectionView(graph: graph, companyId: companyId)
                 }

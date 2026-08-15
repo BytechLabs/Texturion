@@ -62,6 +62,7 @@ enum AppStrings {
         SettingsMoreStrings.section,
         ShellStrings.section,
         ThreadStrings.section,
+        WebhooksStrings.section,
     ]
 
     static let en: [String: String] = merged { $0.en }

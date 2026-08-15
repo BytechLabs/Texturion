@@ -74,6 +74,65 @@ struct SettingsRepository: Sendable {
         try await api.delete("/v1/on-call/\(id)", companyId: companyId)
     }
 
+    // MARK: - #243 connections (outbound webhooks)
+
+    /// Every endpoint this workspace points at, and the cap.
+    ///
+    /// The cap rides along on the list rather than being a constant here,
+    /// because the screen has to say "you have reached the limit of ten" and a
+    /// number written twice is a number that disagrees with itself the day it
+    /// changes.
+    func webhookEndpoints(_ companyId: String) async throws -> WebhookEndpointList {
+        try await api.get("/v1/webhooks", companyId: companyId)
+    }
+
+    /// Create one. The ONLY response that carries the signing key.
+    func createWebhookEndpoint(
+        _ companyId: String,
+        body: CreateWebhookEndpointBody
+    ) async throws -> MintedWebhookSecret {
+        try await api.post("/v1/webhooks", body: body, companyId: companyId)
+    }
+
+    func updateWebhookEndpoint(
+        _ companyId: String,
+        id: String,
+        body: UpdateWebhookEndpointBody
+    ) async throws -> WebhookEndpointEnvelope {
+        try await api.patch("/v1/webhooks/\(id)", body: body, companyId: companyId)
+    }
+
+    func deleteWebhookEndpoint(_ companyId: String, id: String) async throws {
+        try await api.delete("/v1/webhooks/\(id)", companyId: companyId)
+    }
+
+    /// The other response that carries a signing key, and the last one.
+    func rotateWebhookSecret(
+        _ companyId: String,
+        id: String
+    ) async throws -> MintedWebhookSecret {
+        try await api.post("/v1/webhooks/\(id)/secret", companyId: companyId)
+    }
+
+    /// Send a signed ping and relay what came back.
+    ///
+    /// Never throws for a refusal: the route answers 200 with `ok: false`,
+    /// because the person pressed the button to find out and a refused ping is
+    /// the button working.
+    func testWebhookEndpoint(
+        _ companyId: String,
+        id: String
+    ) async throws -> WebhookTestResult {
+        try await api.post("/v1/webhooks/\(id)/test", companyId: companyId)
+    }
+
+    func webhookDeliveries(
+        _ companyId: String,
+        id: String
+    ) async throws -> WebhookDeliveryList {
+        try await api.get("/v1/webhooks/\(id)/deliveries", companyId: companyId)
+    }
+
     func reminderRules(_ companyId: String) async throws -> ReminderRulesResponse {
         try await api.get("/v1/appointment-reminders", companyId: companyId)
     }
