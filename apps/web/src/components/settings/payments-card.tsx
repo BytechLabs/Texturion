@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { payoutRequirementCopy } from "@loonext/shared";
 
 import { LoadError, SettingsCard } from "@/components/settings/section";
-import { useT } from "@/i18n/provider";
+import { useT, type Translate } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/error";
@@ -130,7 +130,7 @@ export function PaymentsCard() {
                 key={requirement}
                 className="text-[13px] text-app-amber-ink/90"
               >
-                {payoutRequirementCopy(requirement)}
+                {requirementWords(requirement, t)}
               </li>
             ))}
           </ul>
@@ -184,6 +184,24 @@ export function PaymentsCard() {
       )}
     </SettingsCard>
   );
+}
+
+/**
+ * A Stripe requirement in the reader's language, or in Stripe's.
+ *
+ * #228: the shared module answers with a catalogue key for the twelve
+ * requirements we have words for, and with Stripe's own identifier tidied up
+ * for anything else. Exactly one of the two is set.
+ *
+ * The untranslated branch is deliberate rather than unfinished. Stripe adds
+ * requirement keys without telling anybody, and an outstanding requirement
+ * nobody can see is where an owner concludes the product is broken — so an
+ * English-shaped phrase beats a silent list. Inventing French for a
+ * requirement we do not recognise would be inventing the requirement.
+ */
+function requirementWords(requirement: string, t: Translate): string {
+  const copy = payoutRequirementCopy(requirement);
+  return copy.key ? t(copy.key) : (copy.literal ?? requirement);
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

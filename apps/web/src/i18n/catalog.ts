@@ -106,6 +106,30 @@ const paymentsEn = {
   footnote:
     "Goes out as a text with a secure payment link. The money lands in your " +
     "bank account — we take nothing on top.",
+
+  /*
+   * What Stripe is still waiting for, in words rather than in its own
+   * identifiers. `individual.verification.document` on a settings screen is a
+   * stack trace shown to a plumber.
+   *
+   * Only the twelve we recognise live here. An identifier we have no words for
+   * is shown as Stripe's own, tidied — see payoutRequirementCopy. Inventing
+   * French for a requirement we do not recognise would be inventing the
+   * requirement.
+   */
+  reqBankAccount: "Your bank account details",
+  reqWebsite: "Your website or a description of what you do",
+  reqWorkKind: "What kind of work you do",
+  reqOwnerId: "Photo ID for the business owner",
+  reqOwnerIdSecond: "A second document for the business owner",
+  reqOwnerSin: "The owner's SIN or SSN",
+  reqOwnerAddress: "The owner's address",
+  reqOwnerDob: "The owner's date of birth",
+  reqBusinessNumber: "Your business number",
+  reqBusinessDocument: "A document proving the business exists",
+  reqTos: "Accepting Stripe's terms",
+  reqSignatoryId: "Photo ID for whoever signs for the business",
+
   stripeNeeds: "Stripe still needs:",
   payouts: "Payouts",
   payoutsOn: "On — money reaches your bank",
@@ -173,6 +197,19 @@ const paymentsFr: Translated<typeof paymentsEn> = {
   footnote:
     "Envoyé par texto avec un lien de paiement sécurisé. L'argent arrive dans " +
     "votre compte bancaire — nous ne prenons rien de plus.",
+  reqBankAccount: "Les coordonnées de votre compte bancaire",
+  reqWebsite: "Votre site web ou une description de ce que vous faites",
+  reqWorkKind: "Le type de travail que vous faites",
+  reqOwnerId: "Une pièce d'identité avec photo du propriétaire de l'entreprise",
+  reqOwnerIdSecond: "Un deuxième document pour le propriétaire de l'entreprise",
+  reqOwnerSin: "Le NAS ou le SSN du propriétaire",
+  reqOwnerAddress: "L'adresse du propriétaire",
+  reqOwnerDob: "La date de naissance du propriétaire",
+  reqBusinessNumber: "Votre numéro d'entreprise",
+  reqBusinessDocument: "Un document prouvant l'existence de l'entreprise",
+  reqTos: "L'acceptation des conditions de Stripe",
+  reqSignatoryId: "Une pièce d'identité avec photo de la personne qui signe pour l'entreprise",
+
   stripeNeeds: "Stripe a encore besoin de :",
   payouts: "Versements",
   payoutsOn: "Actifs — l'argent se rend à votre banque",

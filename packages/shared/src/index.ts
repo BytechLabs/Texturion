@@ -844,6 +844,8 @@ export {
   payoutReadiness,
   payoutReadinessCopy,
   payoutRequirementCopy,
+  type PayoutRequirementCopy,
+  type PayoutRequirementKey,
   type PaymentAmountProblem,
   type PaymentRequestFacts,
   type PaymentRequestState,

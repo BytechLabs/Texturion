@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
 import {
   PAYMENT_MAX_CENTS,
   PAYMENT_MIN_CENTS,
@@ -231,13 +233,52 @@ describe("payoutReadinessCopy", () => {
 });
 
 describe("payoutRequirementCopy", () => {
+  /*
+   * #228 — resolved through the catalogue the card reads, not against a copy
+   * of the sentence held here. An assertion holding its own copy keeps passing
+   * after the catalogue moves underneath it, and the screen becomes the only
+   * place the two disagree.
+   */
+  const say = (key: keyof typeof WEB_EN.payments): string => WEB_EN.payments[key];
+
   it("turns Stripe's identifiers into words a plumber reads", () => {
-    expect(payoutRequirementCopy("external_account")).toBe(
-      "Your bank account details",
-    );
-    expect(payoutRequirementCopy("individual.verification.document")).toBe(
-      "Photo ID for the business owner",
-    );
+    expect(payoutRequirementCopy("external_account")).toEqual({
+      key: "payments.reqBankAccount",
+      literal: null,
+    });
+    expect(say("reqBankAccount")).toBe("Your bank account details");
+
+    expect(payoutRequirementCopy("individual.verification.document")).toEqual({
+      key: "payments.reqOwnerId",
+      literal: null,
+    });
+    expect(say("reqOwnerId")).toBe("Photo ID for the business owner");
+  });
+
+  it("says all twelve in French, which is the half nobody re-reads", () => {
+    // A key present in English and missing in French falls back to English by
+    // design, so this never surfaces as a broken screen — it surfaces as a
+    // French owner reading an English list of what Stripe still wants.
+    for (const requirement of [
+      "external_account",
+      "business_profile.url",
+      "business_profile.mcc",
+      "individual.verification.document",
+      "individual.verification.additional_document",
+      "individual.id_number",
+      "individual.address.line1",
+      "individual.dob.day",
+      "company.tax_id",
+      "company.verification.document",
+      "tos_acceptance.date",
+      "representative.verification.document",
+    ]) {
+      const { key } = payoutRequirementCopy(requirement);
+      expect(key, requirement).not.toBeNull();
+      const name = key!.slice("payments.".length) as keyof typeof WEB_FR.payments;
+      expect(typeof WEB_FR.payments[name], requirement).toBe("string");
+      expect(WEB_FR.payments[name], requirement).not.toBe(WEB_EN.payments[name]);
+    }
   });
 
   /**
@@ -247,11 +288,22 @@ describe("payoutRequirementCopy", () => {
    * unknown identifier is made readable rather than dropped.
    */
   it("renders an unknown identifier rather than swallowing it", () => {
-    expect(payoutRequirementCopy("company.owners_provided")).toBe(
-      "Owners provided",
-    );
-    expect(payoutRequirementCopy("individual.political_exposure")).toBe(
-      "Political exposure",
-    );
+    // And as a LITERAL rather than a key, because inventing French for a
+    // requirement we do not recognise would be inventing the requirement.
+    expect(payoutRequirementCopy("company.owners_provided")).toEqual({
+      key: null,
+      literal: "Owners provided",
+    });
+    expect(payoutRequirementCopy("individual.political_exposure")).toEqual({
+      key: null,
+      literal: "Political exposure",
+    });
+  });
+
+  it("sets exactly one of the two, so a caller cannot read the wrong field", () => {
+    for (const requirement of ["external_account", "company.owners_provided"]) {
+      const copy = payoutRequirementCopy(requirement);
+      expect((copy.key === null) !== (copy.literal === null), requirement).toBe(true);
+    }
   });
 });

@@ -223,25 +223,48 @@ export function payoutReadinessCopy(readiness: PayoutReadiness): {
  * Unknown identifiers fall back to a readable version of the identifier itself
  * rather than being dropped — an outstanding requirement nobody can see is the
  * state where an owner concludes the product is broken.
+ *
+ * #228: the twelve we recognise are KEYS; the fallback stays a sentence and is
+ * never translated, because it is Stripe's own identifier tidied up rather than
+ * anything we wrote. Exactly one of the two fields is set, and the caller reads
+ * whichever it is — the same shape `ApiException.messageKey` uses for the
+ * server's own sentences.
  */
-export function payoutRequirementCopy(requirement: string): string {
-  const known: Record<string, string> = {
-    external_account: "Your bank account details",
-    "business_profile.url": "Your website or a description of what you do",
-    "business_profile.mcc": "What kind of work you do",
-    "individual.verification.document": "Photo ID for the business owner",
-    "individual.verification.additional_document": "A second document for the business owner",
-    "individual.id_number": "The owner's SIN or SSN",
-    "individual.address.line1": "The owner's address",
-    "individual.dob.day": "The owner's date of birth",
-    "company.tax_id": "Your business number",
-    "company.verification.document": "A document proving the business exists",
-    "tos_acceptance.date": "Accepting Stripe's terms",
-    "representative.verification.document": "Photo ID for whoever signs for the business",
-  };
-  const hit = known[requirement];
-  if (hit) return hit;
+const PAYOUT_REQUIREMENT_KEYS = {
+  external_account: "payments.reqBankAccount",
+  "business_profile.url": "payments.reqWebsite",
+  "business_profile.mcc": "payments.reqWorkKind",
+  "individual.verification.document": "payments.reqOwnerId",
+  "individual.verification.additional_document": "payments.reqOwnerIdSecond",
+  "individual.id_number": "payments.reqOwnerSin",
+  "individual.address.line1": "payments.reqOwnerAddress",
+  "individual.dob.day": "payments.reqOwnerDob",
+  "company.tax_id": "payments.reqBusinessNumber",
+  "company.verification.document": "payments.reqBusinessDocument",
+  "tos_acceptance.date": "payments.reqTos",
+  "representative.verification.document": "payments.reqSignatoryId",
+} as const;
+
+/** Every catalogue key this module can name for a Stripe requirement. */
+export type PayoutRequirementKey =
+  (typeof PAYOUT_REQUIREMENT_KEYS)[keyof typeof PAYOUT_REQUIREMENT_KEYS];
+
+/** A requirement said in our words (`key`) or in Stripe's (`literal`). */
+export interface PayoutRequirementCopy {
+  /** Catalogue key, or null when Stripe named something we have no words for. */
+  key: PayoutRequirementKey | null;
+  /**
+   * Stripe's identifier tidied into something readable, or null when `key`
+   * answered. Deliberately NOT translated: inventing French for a requirement
+   * we do not recognise would be inventing the requirement.
+   */
+  literal: string | null;
+}
+
+export function payoutRequirementCopy(requirement: string): PayoutRequirementCopy {
+  const known = PAYOUT_REQUIREMENT_KEYS[requirement as keyof typeof PAYOUT_REQUIREMENT_KEYS];
+  if (known) return { key: known, literal: null };
   const cleaned = requirement.replace(/^(individual|company|representative)\./, "");
   const words = cleaned.replace(/[._]/g, " ").trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  return { key: null, literal: words.charAt(0).toUpperCase() + words.slice(1) };
 }
