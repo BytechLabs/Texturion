@@ -10,7 +10,24 @@ import { WHATS_NEW } from "@loonext/shared";
  * of work. So the changelog's keys resolve against ENGLISH here rather than
  * against a reader whose language this page does not ask about.
  */
-import { sayEnglish } from "@/i18n/provider";
+import { EN } from "@/i18n/catalog";
+
+/**
+ * The changelog's keys, said in English, on the server.
+ *
+ * NOT `sayEnglish` from the provider, and the difference is not stylistic: that
+ * module is `"use client"`, so calling it from this server component fails the
+ * build with "Attempted to call sayEnglish() from the server". `catalog.ts` is
+ * plain data with no directive, so it is safe on either side.
+ *
+ * English on purpose. The marketing site is its own deliverable with its own
+ * URLs — `check-hardcoded-strings.mjs` skips the whole tree — and this page
+ * never asks the reader what language they want.
+ */
+const sayEnglish = (key: string): string => {
+  const [section, name] = key.split(".");
+  return (EN as unknown as Record<string, Record<string, string>>)[section]?.[name] ?? key;
+};
 
 import { FrCard, FrSection } from "@/components/marketing/fr";
 import { Breadcrumbs } from "@/components/marketing/ui/breadcrumbs";
