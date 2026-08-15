@@ -554,7 +554,7 @@ function SummaryTile({
         {tile.count}
       </p>
       <p className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.06em] text-app-muted-2">
-        {DASHBOARD_TILE_LABELS[tile.id]}
+        {t(DASHBOARD_TILE_LABELS[tile.id])}
       </p>
       {/* Reserved whether or not there is a signal, so the tiles keep one height
           and the strip does not jump as items age past four hours. */}

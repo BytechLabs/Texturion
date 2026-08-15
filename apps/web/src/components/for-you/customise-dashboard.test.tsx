@@ -155,8 +155,13 @@ describe("what CustomiseDashboard refuses to offer (#540)", () => {
     // than a hand-written list, so a new queue section cannot end up on this
     // panel by accident later.
     open();
-    for (const label of Object.values(DASHBOARD_TILE_LABELS)) {
-      expect(screen.queryByRole("switch", { name: label })).toBeNull();
+    // #228: the tile table holds catalogue KEYS now, so this says them
+    // first. Left querying the key it would look for a switch named
+    // "inbox.forYouSectionUnassigned", find nothing, and pass forever — a
+    // guard about the ONE thing this panel must never offer, reporting clean
+    // because it was asking the wrong question.
+    for (const key of Object.values(DASHBOARD_TILE_LABELS)) {
+      expect(screen.queryByRole("switch", { name: say(key) })).toBeNull();
     }
     expect(screen.getAllByRole("switch")).toHaveLength(
       DASHBOARD_PANEL_IDS.length,

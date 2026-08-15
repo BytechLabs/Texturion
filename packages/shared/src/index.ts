@@ -949,6 +949,7 @@ export {
   type DashboardTile,
   type DashboardTileId,
   type DashboardTileInput,
+  type DashboardTileKey,
 } from "./dashboard-tiles";
 
 // #540: which panels a member has put away, and the line between a preference

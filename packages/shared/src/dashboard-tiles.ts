@@ -179,9 +179,23 @@ export function dashboardTiles(input: DashboardTileInput): DashboardTile[] {
 }
 
 /** What each tile is called, and where tapping it goes. */
-export const DASHBOARD_TILE_LABELS: Record<DashboardTileId, string> = {
-  unassigned: "Unassigned",
-  waiting: "Waiting on you",
-  tasks: "My tasks",
-  unread: "Unread",
+/**
+ * Every catalogue key the four tiles name.
+ *
+ * The prefix is `inbox.forYouSection` because all three clients have said
+ * these four from those keys for months — the section headings on the For You
+ * screen and the queue tiles are the same words for the same thing, and
+ * minting a second set would put "Unassigned" in two catalogues.
+ */
+export type DashboardTileKey =
+  | "inbox.forYouSectionUnassigned"
+  | "inbox.forYouSectionWaiting"
+  | "inbox.forYouSectionTasks"
+  | "inbox.forYouSectionUnread";
+
+export const DASHBOARD_TILE_LABELS: Record<DashboardTileId, DashboardTileKey> = {
+  unassigned: "inbox.forYouSectionUnassigned",
+  waiting: "inbox.forYouSectionWaiting",
+  tasks: "inbox.forYouSectionTasks",
+  unread: "inbox.forYouSectionUnread",
 };
