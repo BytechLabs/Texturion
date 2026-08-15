@@ -13,6 +13,13 @@
 import type { Translated } from "../translated";
 
 export const settingsEn = {
+  /* #228 — ending a prepaid year. {plan} is "Pro" or "Starter", which
+     are product names and are not translated. */
+  prepaidHeading: "You have a prepaid {plan} year running.",
+  prepaidEndsPlain: "Switching ends the prepaid year. You then pay the normal {plan} monthly price.",
+  prepaidEndsCredited: "Switching ends the prepaid year and puts {credit} back on your account as credit, which comes off your next invoices. You then pay the normal {plan} monthly price.",
+  prepaidAckPlain: "End my prepaid year",
+  prepaidAckCredited: "End my prepaid year and credit me {credit}",
   /* #228 — the ownership prompt, read by the person it is happening to.
      Spelled the way iOS spells it; that client converted this screen first. */
   handoverPromptOffered: "You have been offered ownership of this workspace.",
@@ -800,6 +807,11 @@ export const settingsEn = {
  * translated — a machine matches on those.
  */
 export const settingsFr: Translated<typeof settingsEn> = {
+  prepaidHeading: "Vous avez une année prépayée {plan} en cours.",
+  prepaidEndsPlain: "Changer met fin à l'année prépayée. Vous payez ensuite le prix mensuel normal du forfait {plan}.",
+  prepaidEndsCredited: "Changer met fin à l'année prépayée et remet {credit} en crédit sur votre compte, qui sera déduit de vos prochaines factures. Vous payez ensuite le prix mensuel normal du forfait {plan}.",
+  prepaidAckPlain: "Mettre fin à mon année prépayée",
+  prepaidAckCredited: "Mettre fin à mon année prépayée et me créditer {credit}",
   handoverPromptOffered: "La propriété de cet espace de travail vous a été offerte.",
   handoverPromptReady: "Votre demande de reprise est prête à être conclue.",
   handoverPromptAsked: "Vous avez demandé à reprendre cet espace de travail.",

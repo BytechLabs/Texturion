@@ -58,28 +58,49 @@ export interface PrepaidConversionCopy {
  *   with no conversion recorded. Null means the sentences state that the year ends
  *   and promise no number, which is the only honest thing to say without one.
  */
+/** Every catalogue key this module names. */
+export type PrepaidConversionKey =
+  | "settings.prepaidHeading"
+  | "settings.prepaidEndsPlain"
+  | "settings.prepaidEndsCredited"
+  | "settings.prepaidAckPlain"
+  | "settings.prepaidAckCredited";
+
+/** The reader's resolver. */
+export type SayPrepaidConversion = (key: PrepaidConversionKey) => string;
+
 export function prepaidConversionCopy(
   fromPlan: PrepaidPlan,
   toPlan: PrepaidPlan,
   credit: string | null,
+  say: SayPrepaidConversion,
 ): PrepaidConversionCopy {
-  const heading = `You have a prepaid ${planLabel(fromPlan)} year running.`;
+  /*
+   * #228 — the PLAN NAME is not translated and the sentence around it is.
+   *
+   * "Pro" and "Starter" are what the plans are called on the pricing page, in
+   * Stripe and in a customer's invoice; a French reader picks "Pro" too. So
+   * `planLabel` stays as it is and rides in as {plan}, while every sentence
+   * holding it became a key. Both phones have had these five since their own
+   * pass.
+   */
+  const heading = say("settings.prepaidHeading").replace(
+    "{plan}",
+    planLabel(fromPlan),
+  );
   const target = planLabel(toPlan);
   if (credit === null) {
     return {
       heading,
-      explanation:
-        `Switching ends the prepaid year. You then pay the normal ${target} ` +
-        `monthly price.`,
-      acknowledgement: "End my prepaid year",
+      explanation: say("settings.prepaidEndsPlain").replace("{plan}", target),
+      acknowledgement: say("settings.prepaidAckPlain"),
     };
   }
   return {
     heading,
-    explanation:
-      `Switching ends the prepaid year and puts ${credit} back on your account as ` +
-      `credit, which comes off your next invoices. You then pay the normal ` +
-      `${target} monthly price.`,
-    acknowledgement: `End my prepaid year and credit me ${credit}`,
+    explanation: say("settings.prepaidEndsCredited")
+      .replace("{credit}", credit)
+      .replace("{plan}", target),
+    acknowledgement: say("settings.prepaidAckCredited").replace("{credit}", credit),
   };
 }

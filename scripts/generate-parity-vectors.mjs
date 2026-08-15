@@ -84,6 +84,24 @@ import { isUsCaDestination, lookupAreaCode } from "../packages/shared/src/nanp.t
 import { explainRejection } from "../packages/shared/src/rejection-guidance.ts";
 import { avatarInitials } from "../packages/shared/src/avatar-initials.ts";
 import { prepaidConversionCopy } from "../packages/shared/src/prepaid-conversion-copy.ts";
+/*
+ * The SECTION file, not `catalog.ts`. The catalogue re-exports its sections
+ * with extensionless specifiers, which Node's type-stripping loader cannot
+ * resolve; a section imports only a type, which is erased. Every key this
+ * script resolves lives under `settings.`, so the narrower import is also the
+ * honest one.
+ */
+import { settingsEn } from "../apps/web/src/i18n/sections/settings.ts";
+
+/** The English half of the catalogue, for the vectors above. */
+const englishPrepaidCopy = (key) => {
+  const [section, name] = key.split(".");
+  const value = section === "settings" ? settingsEn[name] : undefined;
+  if (typeof value !== "string") {
+    throw new Error(`no English for ${key} — the vectors cannot be generated`);
+  }
+  return value;
+};
 import { lastCompleteMonth } from "../packages/shared/src/usage-export.ts";
 import {
   paymentAmountProblem,
@@ -305,12 +323,22 @@ const PREPAID_COPY_INPUTS = [
   ["pro", "starter", null],
 ];
 
+/**
+ * #228 — the vectors stay ENGLISH, and that is the decision rather than the
+ * default.
+ *
+ * What these pin is the RULE: which sentence each case gets, where the credit
+ * goes, that a null figure promises no number. Both phone ports check them
+ * with their own English resolution. Generating them in the reader's language
+ * would test a catalogue instead, which is a different job and is done in the
+ * module's own test.
+ */
 function prepaidConversionCopyVectors() {
   return PREPAID_COPY_INPUTS.map(([fromPlan, toPlan, credit]) => ({
     from_plan: fromPlan,
     to_plan: toPlan,
     credit,
-    ...prepaidConversionCopy(fromPlan, toPlan, credit),
+    ...prepaidConversionCopy(fromPlan, toPlan, credit, englishPrepaidCopy),
   }));
 }
 

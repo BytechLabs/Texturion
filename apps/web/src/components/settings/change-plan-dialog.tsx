@@ -245,7 +245,7 @@ function PrepaidYearNotice({
   // The sentences are the promise, so they come from the shared rule rather than
   // being typed out here — Kotlin and Swift read the same one, held to it by
   // generated parity vectors.
-  const copy = prepaidConversionCopy(open.plan, target, credit);
+  const copy = prepaidConversionCopy(open.plan, target, credit, t);
 
   return (
     <div className="space-y-3 rounded-lg border border-warning/40 bg-warning/5 p-4">

@@ -1039,7 +1039,9 @@ export { avatarInitials } from "./avatar-initials";
 export {
   prepaidConversionCopy,
   type PrepaidConversionCopy,
+  type PrepaidConversionKey,
   type PrepaidPlan,
+  type SayPrepaidConversion,
 } from "./prepaid-conversion-copy";
 
 export {

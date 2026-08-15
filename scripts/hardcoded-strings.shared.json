@@ -10,7 +10,6 @@
   "mctb.ts": 1,
   "notification-delivery.ts": 2,
   "payments.ts": 11,
-  "prepaid-conversion-copy.ts": 1,
   "scheduled-send.ts": 10,
   "self-downgrade.ts": 1
 }
