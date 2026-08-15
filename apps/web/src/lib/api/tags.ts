@@ -54,26 +54,17 @@ export function useUpdateTag() {
   });
 }
 
-/** DELETE /v1/tags/:id — owner/admin; conversation_tags cascade (SPEC §7). */
-export function useDeleteTag() {
-  const companyId = useCompanyId();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (tagId: string) =>
-      apiFetch<void>(`/v1/tags/${tagId}`, { method: "DELETE", companyId }),
-    onSuccess: (_void, tagId) => {
-      queryClient.setQueryData<Page<Tag>>(keys.tags(companyId), (page) =>
-        page
-          ? { ...page, data: page.data.filter((t) => t.id !== tagId) }
-          : page,
-      );
-      queryClient.invalidateQueries({
-        queryKey: keys.conversations.lists(companyId),
-        refetchType: "none",
-      });
-    },
-  });
-}
+/*
+ * `useDeleteTag` was here and is gone: nothing imported it, on this client or
+ * in a test, and the tag card in Settings offers rename and merge but never
+ * delete. It also never sent `?confirm_pipeline=true`, which
+ * DELETE /v1/tags/:id requires for a pipeline stage — so a hook that reached a
+ * screen would have hit a conflict it had no way to answer.
+ *
+ * The endpoint and its guard stay. Deleting a stage really does stop those
+ * jobs counting, and that check belongs on the server whether or not a client
+ * ever calls it.
+ */
 
 /**
  * #298 — GET /v1/tags/usage: how much each tag is actually used.

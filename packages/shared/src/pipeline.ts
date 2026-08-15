@@ -56,6 +56,25 @@ export const PIPELINE_SEED_NAMES: Record<PipelineStage, string> = {
  * crew should be able to change their stages deliberately; what they should not
  * do is lose their win rate by accident on a Tuesday.
  */
+/*
+ * #228 — ENGLISH, and not because translating it is hard.
+ *
+ * This sentence reaches a person only as the `message` of a 409 from
+ * DELETE /v1/tags/:id, and as of 2026-08-15 NO CLIENT CALLS THAT. Web's tag
+ * card offers rename and merge; neither phone has tag management at all; and
+ * nothing anywhere sends the `?confirm_pipeline=true` the endpoint needs to
+ * proceed past this warning. Checked on all three before writing this down.
+ *
+ * So it is unreachable rather than untranslated, and converting it would be
+ * work on a sentence nobody can read. The guard itself stays — deleting a
+ * stage really does stop those jobs counting, and that check belongs on the
+ * server whether or not a client ever calls it.
+ *
+ * The day a client offers stage deletion, this needs the same treatment
+ * `pipelineInsight` got: a key on the wire, resolved by whoever renders it.
+ * The error envelope carries a `code` and a `message` and nothing else today,
+ * so that is a shape change, not a catalogue edit.
+ */
 export function pipelineDeleteWarning(stage: PipelineStage): string {
   const label = PIPELINE_SEED_NAMES[stage];
   return (
