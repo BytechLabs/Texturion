@@ -34,6 +34,7 @@ import {
   type PlanId,
 } from "../billing/plans";
 import { getDb } from "../db";
+import { enqueueWebhookEvent } from "../webhooks/outbound";
 import type { Env } from "../env";
 import { notifyMissedCall } from "../notifications/missed-call";
 import { telnyxRequest } from "../telnyx/client";
@@ -609,7 +610,7 @@ export async function handleVoicemailSaved(
   });
   const conversationId = thread?.conversationId ?? call?.conversation_id;
   if (conversationId) {
-    await insertVoicemailEvent(db, {
+    const wroteTheLine = await insertVoicemailEvent(db, {
       companyId: resolved.companyId,
       conversationId,
       callSessionId: sessionId,
@@ -617,6 +618,27 @@ export async function handleVoicemailSaved(
       seconds: stored.seconds,
       transcript: stored.transcript,
     });
+
+    // #243: tell the workspace's own systems, on the pass that actually wrote
+    // the line and no other. This handler replays — that is what the
+    // `voicemail_path` recovery above exists for — and the conversation-event
+    // guard is the only thing in the flow that knows whether this voicemail is
+    // new. Gating on the recovery flag instead would lose the event whenever a
+    // first pass stored the audio and then threw before threading, which is
+    // precisely the case the recovery was written for.
+    if (wroteTheLine) {
+      await enqueueWebhookEvent(db, {
+        companyId: resolved.companyId,
+        type: "voicemail.received",
+        data: {
+          call_session_id: sessionId,
+          conversation_id: conversationId,
+          from: call?.caller_e164 ?? stored.caller,
+          duration_seconds: stored.seconds,
+          transcript: stored.transcript ?? null,
+        },
+      });
+    }
   }
 
   // ONLY now — after the outcome, thread, and timeline line are durable —
@@ -1106,6 +1128,35 @@ export async function threadCallSession(
   if (linkError) {
     throw new Error(`calls link failed: ${linkError.message}`);
   }
+
+  // #243: every call path in the product reaches its verdict here, so this is
+  // where the workspace's own systems hear about it — one place rather than
+  // one per outcome, which is what stops the next call outcome shipping
+  // without an event.
+  //
+  // Gated on the RPC's own `event_inserted`, which is already the answer to
+  // "did this session's line get written by THIS pass". Every voice webhook
+  // replays.
+  //
+  // Voicemail is excluded because it has its own event and its own payload
+  // (the recording, the transcript). A workspace subscribed to both would
+  // otherwise be told twice about one call, in two shapes, and have to work
+  // out that they were the same thing.
+  if (thread.event_inserted === true && input.outcome !== "voicemail") {
+    await enqueueWebhookEvent(db, {
+      companyId: input.companyId,
+      type: "call.completed",
+      data: {
+        call_session_id: input.callSessionId,
+        conversation_id: thread.conversation_id,
+        from: input.caller,
+        direction: input.direction,
+        outcome: input.outcome,
+        duration_seconds: input.forwardSeconds,
+      },
+    });
+  }
+
   return {
     conversationId: thread.conversation_id,
     eventInserted: thread.event_inserted === true,

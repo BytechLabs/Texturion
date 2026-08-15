@@ -33,6 +33,7 @@ import {
   OUTBOUND_CUSTOMER_STATE,
   parseOutboundPlacerState,
   parseOutboundSessionId,
+  threadCallSession,
 } from "./voice-webhook";
 import type { TelnyxEvent } from "./types";
 
@@ -1534,5 +1535,103 @@ describe("handleCallEvent — #132 crew alert without a text-back", () => {
 
     expect(sms.calls).toHaveLength(0);
     expect(conv.calls).toHaveLength(1);
+  });
+});
+
+describe("#243 a finished call reaches the workspace's own systems", () => {
+  const COMPANY = "aaaaaaaa-0000-4000-8000-00000000000a";
+  const CONVERSATION = "bbbbbbbb-0000-4000-8000-00000000000b";
+
+  function endpointStub(): Stub {
+    return stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
+      { id: "eeeeeeee-1111-4222-8333-444444444444" },
+    ]);
+  }
+
+  function callInput(outcome: string) {
+    return {
+      companyId: COMPANY,
+      phoneNumberId: "cccccccc-0000-4000-8000-00000000000c",
+      callSessionId: "session-1",
+      caller: "+14165550100",
+      outcome,
+      forwardSeconds: 42,
+      direction: "inbound" as const,
+    };
+  }
+
+  it("queues one delivery when this pass wrote the session's line", async () => {
+    const endpoints = endpointStub();
+    const deliveries = stubRoute(
+      restMatch(env, "POST", "webhook_deliveries"),
+      () => Response.json([], { status: 201 }),
+    );
+    stubFetch(
+      threadCallStub({
+        contact_id: "ct-1",
+        conversation_id: CONVERSATION,
+        event_inserted: true,
+      }).route,
+      callsLinkStub().route,
+      endpoints.route,
+      deliveries.route,
+    );
+
+    await threadCallSession(getDb(env), callInput("missed"));
+
+    expect(deliveries.calls, "no delivery was queued").toHaveLength(1);
+    const rows = deliveries.calls[0].body as {
+      event_type: string;
+      payload: { data: { outcome: string; duration_seconds: number } };
+    }[];
+    expect(rows[0].event_type).toBe("call.completed");
+    expect(rows[0].payload.data.outcome).toBe("missed");
+    expect(rows[0].payload.data.duration_seconds).toBe(42);
+  });
+
+  it("says nothing when the line was already there — every voice webhook replays", async () => {
+    const endpoints = endpointStub();
+    const deliveries = stubRoute(
+      restMatch(env, "POST", "webhook_deliveries"),
+      () => Response.json([], { status: 201 }),
+    );
+    stubFetch(
+      threadCallStub({
+        contact_id: "ct-1",
+        conversation_id: CONVERSATION,
+        event_inserted: false,
+      }).route,
+      callsLinkStub().route,
+      endpoints.route,
+      deliveries.route,
+    );
+
+    await threadCallSession(getDb(env), callInput("answered"));
+
+    expect(deliveries.calls, "a replay queued a second delivery").toHaveLength(0);
+  });
+
+  it("leaves a voicemail to its own event, so one call is never told twice", async () => {
+    // A workspace subscribed to both would otherwise hear about the same call
+    // in two shapes and have to work out they were the same thing.
+    const endpoints = endpointStub();
+    const deliveries = stubRoute(
+      restMatch(env, "POST", "webhook_deliveries"),
+      () => Response.json([], { status: 201 }),
+    );
+    stubFetch(
+      threadCallStub({
+        contact_id: "ct-1",
+        conversation_id: CONVERSATION,
+        event_inserted: true,
+      }).route,
+      callsLinkStub().route,
+      endpoints.route,
+      deliveries.route,
+    );
+
+    await threadCallSession(getDb(env), callInput("voicemail"));
+
+    expect(deliveries.calls).toHaveLength(0);
   });
 });

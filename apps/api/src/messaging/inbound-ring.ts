@@ -585,7 +585,11 @@ export async function insertVoicemailEvent(
     seconds: number;
     transcript?: string | null;
   },
-): Promise<void> {
+  // #243: true when THIS call wrote the line, false when it was already
+  // there. The caller needs the difference — a replay of this handler must
+  // not tell an integration about the same voicemail twice, and the
+  // already-exists guard below is the only place that knows.
+): Promise<boolean> {
   const { data: existing, error: scanError } = await db
     .from("conversation_events")
     .select("id")
@@ -597,7 +601,7 @@ export async function insertVoicemailEvent(
   if (scanError) {
     throw new Error(`voicemail event scan failed: ${scanError.message}`);
   }
-  if ((existing ?? []).length > 0) return;
+  if ((existing ?? []).length > 0) return false;
 
   const { error } = await db.from("conversation_events").insert({
     company_id: input.companyId,
@@ -619,4 +623,5 @@ export async function insertVoicemailEvent(
   if (error) {
     throw new Error(`voicemail event insert failed: ${error.message}`);
   }
+  return true;
 }
