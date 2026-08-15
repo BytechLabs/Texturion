@@ -15,7 +15,7 @@ import {
 
 import { SettingsCard } from "@/components/settings/section";
 import { Label } from "@/components/ui/label";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import type { NotificationPrefs } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -48,6 +48,8 @@ import { cn } from "@/lib/utils";
 
 /** The label under each mode, kept next to the mode it describes. */
 const MODE_LABEL: Record<DeliveryMode, string> = {
+  // #228: catalogue keys, said by the component. This table is module scope
+  // and cannot reach a hook.
   immediate: DELIVERY_COPY.immediate,
   batched: DELIVERY_COPY.batched,
   summary: DELIVERY_COPY.summary,
@@ -63,6 +65,9 @@ export function DeliveryModesCard({
   saving: boolean;
 }) {
   const t = useT();
+  // #228: the shared delivery tables name keys, so this card says them in
+  // the reader's language.
+  const say = sayWith(t);
   const delivery = (prefs.delivery ?? {}) as Partial<
     Record<NotificationCategory, DeliveryMode>
   >;
@@ -112,8 +117,8 @@ export function DeliveryModesCard({
 
   return (
     <SettingsCard
-      title={DELIVERY_COPY.heading}
-      description={DELIVERY_COPY.urgent_always}
+      title={say(DELIVERY_COPY.heading)}
+      description={say(DELIVERY_COPY.urgent_always)}
     >
       <div className="space-y-1">
         {NOTIFICATION_CATEGORIES.map((category) => (
@@ -122,12 +127,12 @@ export function DeliveryModesCard({
             className="flex flex-wrap items-center justify-between gap-2 py-1.5"
           >
             <span className="text-[14px] text-app-ink">
-              {CATEGORY_LABELS[category]}
+              {say(CATEGORY_LABELS[category])}
             </span>
             <span
               className="flex items-center gap-0.5"
               role="group"
-              aria-label={CATEGORY_LABELS[category]}
+              aria-label={say(CATEGORY_LABELS[category])}
             >
               {DELIVERY_MODES.map((mode) => (
                 <button
@@ -143,7 +148,7 @@ export function DeliveryModesCard({
                       : "text-app-muted-2 hover:bg-app-hover",
                   )}
                 >
-                  {MODE_LABEL[mode]}
+                  {say(MODE_LABEL[mode])}
                 </button>
               ))}
             </span>
@@ -153,7 +158,7 @@ export function DeliveryModesCard({
 
       {anySummary ? (
         <p className="pt-1 text-[12px] text-app-muted-2">
-          {DELIVERY_COPY.summary_detail}
+          {say(DELIVERY_COPY.summary_detail)}
         </p>
       ) : null}
 

@@ -26,6 +26,23 @@ import type { Translated } from "../translated";
 
 export const domainEn = {
   /*
+   * #293 — how much the app tells you, and about what. Both phones have said these since #228 reached them; the web imported the shared tables and rendered whatever English came back. The digest and daily-summary lines above them stay English: the server composes those into a push body.
+   */
+  categoryAssignments: "Work handed to me",
+  categoryMentions: "When somebody @s me",
+  categoryMessagesAll: "Texts on anyone's jobs",
+  categoryMessagesMine: "Texts on my jobs",
+  categoryMissedCalls: "Missed calls",
+  categoryVoicemails: "Voicemails",
+  deliveryBatched: "Grouped up",
+  deliveryHeading: "How much we tell you",
+  deliveryImmediate: "Straight away",
+  deliverySummary: "Once a day",
+  deliverySummaryDetail: "Held for your daily summary, not discarded.",
+  deliveryUrgentAlways: "An emergency, a page while you are on call, or an alert nobody picked up always arrives straight away, whatever you choose here.",
+
+
+  /*
    * #228 — the referral share sheet and the ask that precedes it. Both phones have said these since #228 reached them. The ask headline's singular and plural are separate keys: French agrees the noun with the count, and "1 client" reads as a form field rather than a sentence about somebody's month.
    */
   referralAction: "Share",
@@ -217,6 +234,20 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  categoryAssignments: "Travail qui m'est confié",
+  categoryMentions: "Quand quelqu'un me mentionne avec @",
+  categoryMessagesAll: "Textos sur les tâches de tout le monde",
+  categoryMessagesMine: "Textos sur mes tâches",
+  categoryMissedCalls: "Appels manqués",
+  categoryVoicemails: "Messages vocaux",
+  deliveryBatched: "Regroupées",
+  deliveryHeading: "Ce que nous vous disons",
+  deliveryImmediate: "Immédiatement",
+  deliverySummary: "Une fois par jour",
+  deliverySummaryDetail: "Conservées pour votre résumé quotidien, pas supprimées.",
+  deliveryUrgentAlways: "Une urgence, un appel pendant que vous êtes de garde, ou une alerte que personne n'a prise arrive toujours immédiatement, quel que soit votre choix ici.",
+
+
   referralAction: "Partager",
   referralAskAction: "Partager votre lien",
   referralAskBody: "Vous connaissez une autre équipe qui fait encore rouler son entreprise sur le cellulaire d'une seule personne ? Envoyez-lui votre lien — vous obtenez tous les deux un mois gratuit.",

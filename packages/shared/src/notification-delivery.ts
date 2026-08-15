@@ -126,27 +126,33 @@ export function digestLine(messages: number, conversations: number): string {
   return `${m} across ${conversations} conversations`;
 }
 
-/** What the settings screen says, in one place. */
+/**
+ * What the settings screen says, in one place.
+ *
+ * #228: KEYS from here down. Everything ABOVE stays English on purpose —
+ * `digestLine`, `summaryLine` and `SUMMARY_TITLE` are composed by the server
+ * into a push notification body, so a key there would reach a lock screen as
+ * its own name. Those need the wire change the payout states got, not a
+ * catalogue edit.
+ */
 export const DELIVERY_COPY = {
-  heading: "How much we tell you",
+  heading: "domain.deliveryHeading",
   /** The promise that makes batching safe to choose. */
-  urgent_always:
-    "An emergency, a page while you are on call, or an alert nobody picked " +
-    "up always arrives straight away, whatever you choose here.",
-  immediate: "Straight away",
-  batched: "Grouped up",
-  summary: "Once a day",
+  urgent_always: "domain.deliveryUrgentAlways",
+  immediate: "domain.deliveryImmediate",
+  batched: "domain.deliveryBatched",
+  summary: "domain.deliverySummary",
   /** Said next to `summary`, because it is the one people misread as off. */
-  summary_detail: "Held for your daily summary, not discarded.",
+  summary_detail: "domain.deliverySummaryDetail",
 } as const;
 
 export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
-  messages_mine: "Texts on my jobs",
-  messages_all: "Texts on anyone's jobs",
-  mentions: "When somebody @s me",
-  assignments: "Work handed to me",
-  missed_calls: "Missed calls",
-  voicemails: "Voicemails",
+  messages_mine: "domain.categoryMessagesMine",
+  messages_all: "domain.categoryMessagesAll",
+  mentions: "domain.categoryMentions",
+  assignments: "domain.categoryAssignments",
+  missed_calls: "domain.categoryMissedCalls",
+  voicemails: "domain.categoryVoicemails",
 };
 
 /**

@@ -121,6 +121,27 @@ const EXTRA_DELIVERY: Record<string, string> = {
 };
 
 /**
+ * #228: the delivery half of web's vocabulary, which the CATALOGUE now owns.
+ *
+ * `notification-delivery.ts` named these sentences out loud until its settings
+ * tables moved to keys, so reading only that module reports web as having
+ * dropped seven sentences it still says. Exactly the note on CATALOGUES below,
+ * one module further along.
+ *
+ * Web-only, deliberately. The phones have carried these in `DomainStrings`
+ * since #228 reached them, and CATALOGUES already points each of them at it —
+ * so adding `domain.ts` there would be reading the same words twice rather
+ * than covering a gap.
+ *
+ * The digest and daily-summary lines in that module are NOT here and are still
+ * English: the server composes those into a push body, so they stay a wire
+ * concern rather than a catalogue one.
+ */
+const EXTRA_DELIVERY_CATALOGUE: Record<string, string> = {
+  shared: join(REPO_ROOT, "apps/web/src/i18n/sections/domain.ts"),
+};
+
+/**
  * The banner's own file per client.
  *
  * Keyed to match SOURCES, so `shared` maps to WEB's banner: the shared module
@@ -190,6 +211,9 @@ describe("#244 on-call copy is the same on every client", () => {
             : "") +
           (EXTRA_DELIVERY[platform]
             ? readFileSync(EXTRA_DELIVERY[platform], "utf8")
+            : "") +
+          (EXTRA_DELIVERY_CATALOGUE[platform]
+            ? readFileSync(EXTRA_DELIVERY_CATALOGUE[platform], "utf8")
             : ""),
       );
       for (const fragment of FRAGMENTS) {
