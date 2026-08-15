@@ -347,6 +347,42 @@ describe("the web extractor knows a generic from a tag", () => {
 });
 
 describe("the Swift extractor", () => {
+  it("rejects a sentence only the Console will ever read", () => {
+    expect(
+      findSwiftLiterals(
+        'let pushLog = Logger(subsystem: "app", category: "push")\n' +
+          'pushLog.info("Device push token registered.")',
+      ),
+    ).toEqual([]);
+  });
+
+  /*
+   * The reason the rule reads the declarations instead of matching names. A
+   * method list alone would take this with it, and `.error` on something that
+   * is not a logger is how a Swift view model hands a sentence to the screen.
+   */
+  it("still counts .error on a value that was never declared a Logger", () => {
+    // The declaration has to be PRESENT for this to test anything. Without one
+    // the rule short-circuits on "this file has no loggers" and the assertion
+    // passes for a reason that has nothing to do with what it claims to check.
+    expect(
+      findSwiftLiterals(
+        'let pushLog = Logger(subsystem: "app", category: "push")\n' +
+          'state.error("We could not reach your number.")',
+      ),
+    ).toEqual(["We could not reach your number."]);
+  });
+
+  it("still counts copy on the line AFTER a log call", () => {
+    expect(
+      findSwiftLiterals(
+        'let pushLog = Logger(subsystem: "app", category: "push")\n' +
+          'pushLog.info("Device push token registered.")\n' +
+          'Text("Your number is ready to use.")',
+      ),
+    ).toEqual(["Your number is ready to use."]);
+  });
+
   it("finds a sentence in a Text", () => {
     expect(findSwiftLiterals('Text("Your texting is live")')).toContain(
       "Your texting is live",

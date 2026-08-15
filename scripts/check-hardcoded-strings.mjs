@@ -768,10 +768,57 @@ export function findSwiftLiterals(source) {
   }
   // Rule 4, for the same reason it exists on web and now on Compose: the copy
   // somebody lifted out of a view is exactly what a view-shaped scanner misses.
+  const loggers = swiftLoggerNames(code);
   for (const match of code.matchAll(/"([^"\n]{12,})"/g)) {
+    if (isSwiftDiagnosticLog(code, match.index, loggers)) continue;
     if (isSentenceLiteral(match[1])) found.push(match[1]);
   }
   return dedupe(found);
+}
+
+/**
+ * The names bound to an `os.Logger` in this file.
+ *
+ * The Kotlin twin of this rule can key off the receiver's NAME, because
+ * `android.util.Log` is a global object and this app's own logger is called
+ * `CallFlowLog`. Swift has no such convention: the two loggers in this app are
+ * `pushLog` and `coordinatorLog`, and nothing about either name says "log"
+ * to a regex that has to be safe for the next one somebody adds.
+ *
+ * So the file is asked instead of guessed at. A name counts only if it is
+ * declared here as a `Logger`, which means a new logger is covered the day it
+ * is written and a property that merely happens to answer to `.error` is not.
+ */
+function swiftLoggerNames(code) {
+  const names = new Set();
+  for (const match of code.matchAll(
+    /\b(?:let|var)\s+(\w+)\s*(?::\s*Logger\s*)?=\s*Logger\s*\(/g,
+  )) {
+    names.add(match[1]);
+  }
+  return names;
+}
+
+/**
+ * `pushLog.info("Device push token registered.")` — the Console is not a screen.
+ *
+ * Same finding as [isDiagnosticLog] and the same nine sentences, because the
+ * two push registrars are hand-ports of each other: what reads as untranslated
+ * copy on one phone reads as untranslated copy on the other.
+ *
+ * `.error` is in the method list here where the Kotlin rule refuses it, and
+ * that is safe only because [swiftLoggerNames] has already established that the
+ * receiver is a `Logger`. On a value that is not one, `.error(…)` stays
+ * counted.
+ */
+function isSwiftDiagnosticLog(code, matchIndex, loggers) {
+  if (loggers.size === 0) return false;
+  const window = code.slice(Math.max(0, matchIndex - 200), matchIndex);
+  const call =
+    /\b(\w+)\.(?:debug|info|notice|warning|error|critical|fault|log|trace)\s*\([^)]*$/.exec(
+      window,
+    );
+  return call !== null && loggers.has(call[1]);
 }
 
 /**
