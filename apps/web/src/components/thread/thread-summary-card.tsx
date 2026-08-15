@@ -311,7 +311,7 @@ export function ThreadSummaryCard({
               One shared string (#437) so three clients cannot word it three
               ways. */}
           <p className="px-3 pb-1.5 text-[11px] leading-[1.4] text-app-muted-2">
-            {THREAD_SUMMARY_ATTRIBUTION}
+            {t(THREAD_SUMMARY_ATTRIBUTION)}
           </p>
 
           {askedAt.current !== newestMessageId ? (
@@ -335,7 +335,7 @@ export function ThreadSummaryCard({
                     sections is the wider one, carried by the padding above.
                     *Applying: Relationship Strength.* */}
                 <h4 className="px-3 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-                  {group.label}
+                  {t(group.label)}
                 </h4>
                 <ul>
                   {group.lines.map((line) => (

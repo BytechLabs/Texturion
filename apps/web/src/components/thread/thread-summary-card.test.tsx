@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/error";
+import { sayEnglish } from "@/i18n/provider";
 import {
   threadSummaryRequestFailure,
   type ThreadSummaryResult,
@@ -51,6 +52,14 @@ function result(over: Partial<ThreadSummaryResult> = {}): ThreadSummaryResult {
 }
 
 const [ASKED, WE_SAID, OPEN] = THREAD_SUMMARY_SECTIONS;
+
+/**
+ * #228 — the shared module names catalogue KEYS now, so a test looking for
+ * the words on the screen resolves them the way the card does. English,
+ * because these cases are about WHICH heading appears and in what order; the
+ * French is asserted where the copy lives, in packages/shared.
+ */
+const say = sayEnglish;
 
 function line(
   section: (typeof THREAD_SUMMARY_SECTIONS)[number],
@@ -278,8 +287,8 @@ describe("the catch-up card — never invent a fact", () => {
   it("says whose reading this is, in the shared words, before the lines", () => {
     ask(result({ lines: [line(ASKED, "Asked about Tuesday", "msg-a")] }));
     const text = bodyText();
-    expect(text).toContain(THREAD_SUMMARY_ATTRIBUTION);
-    expect(text.indexOf(THREAD_SUMMARY_ATTRIBUTION)).toBeLessThan(
+    expect(text).toContain(say(THREAD_SUMMARY_ATTRIBUTION));
+    expect(text.indexOf(say(THREAD_SUMMARY_ATTRIBUTION))).toBeLessThan(
       text.indexOf("Asked about Tuesday"),
     );
   });
@@ -290,9 +299,9 @@ describe("the catch-up card — never invent a fact", () => {
    */
   it("shows only the sections that came back with lines", () => {
     ask(result({ lines: [line(WE_SAID, "Quoted 2,400", "msg-a")] }));
-    expect(screen.getByText(WE_SAID.label)).toBeTruthy();
-    expect(screen.queryByText(ASKED.label)).toBeNull();
-    expect(screen.queryByText(OPEN.label)).toBeNull();
+    expect(screen.getByText(say(WE_SAID.label))).toBeTruthy();
+    expect(screen.queryByText(say(ASKED.label))).toBeNull();
+    expect(screen.queryByText(say(OPEN.label))).toBeNull();
   });
 
   /**

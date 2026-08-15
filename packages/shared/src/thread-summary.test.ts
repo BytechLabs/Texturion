@@ -24,6 +24,18 @@ import {
   THREAD_SUMMARY_SECTIONS,
 } from "./thread-summary";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/** #228 — the module names keys now, so the copy assertions resolve them. */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[
+    name
+  ];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
 const MINUTE = 60 * 1000;
 
 describe("shouldOfferThreadSummary", () => {
@@ -123,9 +135,30 @@ describe("the three sections", () => {
     // "Still open" is a statement about the conversation. "Action items" would
     // be this surface telling a crew what to do, which #247 is explicit it must
     // not do: a summary is not a decision.
+    // #228: resolved, not read off the key. "domain.catchUpSectionOpen" does
+    // not contain "action" either, so left pointed at the constant this would
+    // have passed forever while the heading said whatever it liked.
     const open = THREAD_SUMMARY_SECTIONS.find((section) => section.id === "open");
-    expect(open?.label.toLowerCase()).not.toContain("action");
-    expect(open?.label.toLowerCase()).not.toContain("todo");
+    const en = look(WEB_EN, open!.label).toLowerCase();
+    expect(en).not.toContain("action");
+    expect(en).not.toContain("todo");
+
+    // The French has its own version of the same trap — "Actions à faire" and
+    // "À faire" are what a translator reaches for when the English is "Still
+    // open" and they are trying to be helpful.
+    const fr = look(WEB_FR, open!.label).toLowerCase();
+    expect(fr).not.toContain("action");
+    expect(fr).not.toMatch(/à faire/);
+  });
+
+  it("#228: names all three sections distinctly, in both languages", () => {
+    for (const table of [WEB_EN, WEB_FR]) {
+      const labels = THREAD_SUMMARY_SECTIONS.map((section) =>
+        look(table, section.label),
+      );
+      expect(new Set(labels).size).toBe(THREAD_SUMMARY_SECTIONS.length);
+      for (const label of labels) expect(label).not.toMatch(/^domain\./);
+    }
   });
 });
 
@@ -134,7 +167,16 @@ describe("attribution", () => {
     // #247: summaries must be visibly Lou-generated and one tap from the raw
     // thread. The second half is what makes the first half more than a
     // disclaimer, so both have to be in the sentence.
-    expect(THREAD_SUMMARY_ATTRIBUTION).toContain("Lou");
-    expect(THREAD_SUMMARY_ATTRIBUTION.toLowerCase()).toContain("tap");
+    expect(look(WEB_EN, THREAD_SUMMARY_ATTRIBUTION)).toContain("Lou");
+    expect(look(WEB_EN, THREAD_SUMMARY_ATTRIBUTION).toLowerCase()).toContain("tap");
+
+    // #228 — and in French, where BOTH halves have to survive: naming Lou is
+    // what makes the summary visibly machine-read, and "touchez une ligne" is
+    // what makes that more than a disclaimer. A translation that kept only the
+    // first half would leave the sentence claiming provenance it does not let
+    // the reader check.
+    const fr = look(WEB_FR, THREAD_SUMMARY_ATTRIBUTION);
+    expect(fr).toContain("Lou");
+    expect(fr.toLowerCase()).toContain("touchez");
   });
 });

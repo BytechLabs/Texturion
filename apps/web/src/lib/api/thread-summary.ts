@@ -5,6 +5,7 @@ import {
   DEFAULT_LOCALE,
   shouldOfferThreadSummary,
   THREAD_SUMMARY_SECTIONS,
+  type ThreadSummaryKey,
   type ThreadSummarySection,
 } from "@loonext/shared";
 
@@ -314,7 +315,14 @@ export function threadSummaryRequestFailure(
 /** A section with its heading and the lines that landed in it, ready to render. */
 export interface ThreadSummaryGroup {
   id: ThreadSummarySection;
-  label: string;
+  /**
+   * #228 — a catalogue KEY, not the heading.
+   *
+   * Typed as the union rather than `string` so tsc proves the catalogue
+   * answers all three. A `string` here would need a cast at the render and
+   * the cast silences the one error worth having.
+   */
+  label: ThreadSummaryKey;
   lines: ThreadSummaryLine[];
 }
 

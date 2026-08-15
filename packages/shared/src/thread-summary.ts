@@ -93,16 +93,25 @@ export type ThreadSummarySection = "asked" | "we_said" | "open";
  * is the order the question is asked in when somebody opens a thread cold, and
  * "open" is last because it is the part a person acts on.
  */
+/** Every catalogue key this module names. */
+export type ThreadSummaryKey =
+  | "domain.catchUpSectionAsked"
+  | "domain.catchUpSectionWeSaid"
+  | "domain.catchUpSectionOpen"
+  | "domain.catchUpAttribution";
+
 export const THREAD_SUMMARY_SECTIONS: readonly {
   id: ThreadSummarySection;
-  label: string;
+  /** #228 — a catalogue key. Both phones have said these three for months. */
+  label: ThreadSummaryKey;
 }[] = [
-  { id: "asked", label: "What they asked" },
-  { id: "we_said", label: "What we said" },
+  { id: "asked", label: "domain.catchUpSectionAsked" },
+  { id: "we_said", label: "domain.catchUpSectionWeSaid" },
   // Not "action items". A loop is open because nobody closed it, which is a
   // statement about the conversation; an action item is an instruction, and
-  // this surface does not get to give the crew instructions.
-  { id: "open", label: "Still open" },
+  // this surface does not get to give the crew instructions. The French keeps
+  // that: "Ce qui reste en suspens", not "Actions à faire".
+  { id: "open", label: "domain.catchUpSectionOpen" },
 ] as const;
 
 /** Every section id, for validating model output and iterating in order. */
@@ -125,5 +134,5 @@ export function isThreadSummarySection(
  * arbiter. Every line taps through to the message it came from, which is what
  * makes that sentence true rather than a disclaimer.
  */
-export const THREAD_SUMMARY_ATTRIBUTION =
-  "Lou read this thread. Tap any line to see the message it came from.";
+export const THREAD_SUMMARY_ATTRIBUTION: ThreadSummaryKey =
+  "domain.catchUpAttribution";

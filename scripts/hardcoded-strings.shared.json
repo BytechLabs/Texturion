@@ -22,7 +22,6 @@
   "prepaid-conversion-copy.ts": 1,
   "scheduled-send.ts": 10,
   "self-downgrade.ts": 2,
-  "thread-summary.ts": 3,
   "two-clocks.ts": 1,
   "usage-export.ts": 2,
   "voicemail-intake.ts": 1,

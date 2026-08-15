@@ -317,6 +317,7 @@ export {
   THREAD_SUMMARY_MIN_MESSAGES,
   THREAD_SUMMARY_SECTION_IDS,
   THREAD_SUMMARY_SECTIONS,
+  type ThreadSummaryKey,
   type ThreadSummaryOffer,
   type ThreadSummarySection,
 } from "./thread-summary";

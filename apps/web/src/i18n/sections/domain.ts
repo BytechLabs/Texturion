@@ -25,6 +25,13 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  /* #228 — the catch-up's three sections and the line that says whose
+     reading it is. Both phones have had these; the web read the English
+     off the shared module. */
+  catchUpSectionAsked: "What they asked",
+  catchUpSectionWeSaid: "What we said",
+  catchUpSectionOpen: "Still open",
+  catchUpAttribution: "Lou read this thread. Tap any line to see the message it came from.",
   /* #228 — a member's quiet hours. `quietHoursLine` is a TEMPLATE and not
      the label plus " to ": French joins the window with a different
      preposition than it introduces it with. */
@@ -325,6 +332,10 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  catchUpSectionAsked: "Ce que le client a demandé",
+  catchUpSectionWeSaid: "Ce que votre équipe a répondu",
+  catchUpSectionOpen: "Ce qui reste en suspens",
+  catchUpAttribution: "Lou a lu cette conversation. Touchez une ligne pour voir le message d'où elle vient.",
   quietHoursHeading: "Heures de silence",
   quietHoursReassurance: "Votre téléphone reste silencieux pour les messages ordinaires. Si vous êtes de garde, ou si une alerte que personne n'a prise s'élargit à l'équipe, elle passe quand même.",
   quietHoursOff: "Désactivé — toutes les notifications vous parviennent à toute heure.",
