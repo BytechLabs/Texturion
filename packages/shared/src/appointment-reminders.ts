@@ -52,17 +52,44 @@ export const DEFAULT_REMINDER_RULES: readonly {
   },
 ];
 
-/** "The day before", "2 hours before" — the offset, said the way a person would. */
-export function reminderOffsetLabel(minutes: number): string {
+/** Every catalogue key this module names. */
+export type ReminderCopyKey =
+  | "domain.reminderOffsetDayBefore"
+  | "domain.reminderOffsetDays"
+  | "domain.reminderOffsetHour"
+  | "domain.reminderOffsetHours"
+  | "domain.reminderOffsetMinutes"
+  | "thread.sysAppointmentConfirmed";
+
+/** The reader's resolver. */
+export type SayReminder = (key: ReminderCopyKey) => string;
+
+/**
+ * "The day before", "2 hours before" — the offset, said the way a person would.
+ *
+ * #228: five keys rather than two, and the singular ones are not an English
+ * quirk. "The day before" is a phrase, not a count — French says "La veille",
+ * which shares no word with "{count} jours avant". A single key with a number
+ * in it would have forced that to be "1 jour avant", which is correct and
+ * reads like a machine wrote it.
+ *
+ * Both phones have said these five since their own pass; this module and the
+ * web were the ones still in English.
+ */
+export function reminderOffsetLabel(minutes: number, say: SayReminder): string {
   if (minutes % 1440 === 0) {
     const days = minutes / 1440;
-    return days === 1 ? "The day before" : `${days} days before`;
+    return days === 1
+      ? say("domain.reminderOffsetDayBefore")
+      : say("domain.reminderOffsetDays").replace("{count}", String(days));
   }
   if (minutes % 60 === 0) {
     const hours = minutes / 60;
-    return hours === 1 ? "1 hour before" : `${hours} hours before`;
+    return hours === 1
+      ? say("domain.reminderOffsetHour")
+      : say("domain.reminderOffsetHours").replace("{count}", String(hours));
   }
-  return `${minutes} minutes before`;
+  return say("domain.reminderOffsetMinutes").replace("{count}", String(minutes));
 }
 
 /**
@@ -133,6 +160,9 @@ export function isAppointmentConfirmation(body: string): boolean {
  */
 export const APPOINTMENT_CONFIRMED_EVENT = "appointment_confirmed";
 
-/** The line the timeline shows for that event, on every client. */
-export const APPOINTMENT_CONFIRMED_LINE =
-  "They confirmed the appointment";
+/**
+ * The line the timeline shows for that event, on every client — a catalogue
+ * KEY since #228, and both phones have rendered it from this key for months.
+ */
+export const APPOINTMENT_CONFIRMED_LINE: ReminderCopyKey =
+  "thread.sysAppointmentConfirmed";

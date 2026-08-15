@@ -155,7 +155,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                   >
                     {OFFSET_CHOICES.map((minutes) => (
                       <option key={minutes} value={minutes}>
-                        {reminderOffsetLabel(minutes)}
+                        {reminderOffsetLabel(minutes, t)}
                       </option>
                     ))}
                   </select>
@@ -163,7 +163,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                     checked={rule.enabled}
                     disabled={!canEdit}
                     aria-label={t("settingsMore.remindersToggleAria", {
-                      when: reminderOffsetLabel(rule.offset_minutes),
+                      when: reminderOffsetLabel(rule.offset_minutes, t),
                     })}
                     onCheckedChange={(enabled) => update(index, { enabled })}
                   />
@@ -174,6 +174,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                     aria-label={t("settingsMore.remindersRemoveAria", {
                       when: reminderOffsetLabel(
                         rule.offset_minutes,
+                        t,
                       ).toLowerCase(),
                     })}
                     onClick={() =>
@@ -192,7 +193,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                 disabled={!canEdit}
                 rows={3}
                 aria-label={t("settingsMore.remindersBodyAria", {
-                  when: reminderOffsetLabel(rule.offset_minutes).toLowerCase(),
+                  when: reminderOffsetLabel(rule.offset_minutes, t).toLowerCase(),
                 })}
                 onChange={(event) => update(index, { body: event.target.value })}
                 className={cn(!rule.enabled && "opacity-60")}

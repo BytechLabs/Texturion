@@ -25,6 +25,14 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  /* #228 — the reminder ladder's offsets. "The day before" is a phrase
+     rather than a count: French says "La veille", which shares no word
+     with "{count} jours avant". Hence five keys, not two. */
+  reminderOffsetDayBefore: "The day before",
+  reminderOffsetDays: "{count} days before",
+  reminderOffsetHour: "1 hour before",
+  reminderOffsetHours: "{count} hours before",
+  reminderOffsetMinutes: "{count} minutes before",
   /* #228 — the relationship line on a contact, and the months it names.
      Keys rather than a fixed English table: the reason that table was fixed
      was the DEVICE locale, which is not this. French months are lower case,
@@ -308,6 +316,11 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  reminderOffsetDayBefore: "La veille",
+  reminderOffsetDays: "{count} jours avant",
+  reminderOffsetHour: "1 heure avant",
+  reminderOffsetHours: "{count} heures avant",
+  reminderOffsetMinutes: "{count} minutes avant",
   monthJanuary: "janvier",
   monthFebruary: "février",
   monthMarch: "mars",

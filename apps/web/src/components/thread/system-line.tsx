@@ -112,7 +112,7 @@ export function eventSentence(
     // confirmed the appointment" would credit the crew with the customer's
     // answer, which is the whole value of the reply.
     case APPOINTMENT_CONFIRMED_EVENT:
-      return APPOINTMENT_CONFIRMED_LINE;
+      return t(APPOINTMENT_CONFIRMED_LINE);
     // #313: the customer again, so no name here either. The SCORE is the whole
     // line — "they rated it" without the number is a notification that makes
     // you open something else to learn anything.

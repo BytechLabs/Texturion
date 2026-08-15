@@ -736,6 +736,8 @@ export {
   REMINDER_RULES_CAP,
   isAppointmentConfirmation,
   reminderOffsetLabel,
+  type ReminderCopyKey,
+  type SayReminder,
 } from "./appointment-reminders";
 export {
   SCHEDULED_BODY_MAX,
