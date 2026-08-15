@@ -100,20 +100,57 @@ export function duplicateReplyWarning(
  * can act on — they can ask Sam — and "someone replied" is not. An automatic
  * send says so plainly rather than borrowing a name it does not have.
  */
+/** Every catalogue key this module names. */
+export type DuplicateReplyKey =
+  | "thread.duplicateReplyNamed"
+  | "thread.duplicateReplyAuto"
+  | "thread.agoJustNow"
+  | "thread.agoOneMinute"
+  | "thread.agoMinutes"
+  | "thread.agoOneHour"
+  | "thread.agoHours"
+  | "thread.agoSinceWriting";
+
+/** The reader's resolver. */
+export type SayDuplicateReply = (key: DuplicateReplyKey) => string;
+
 export function duplicateReplyPrompt(
   who: string | null,
   secondsAgo: number,
+  say: SayDuplicateReply,
 ): string {
+  /*
+   * #228 — the WHOLE sentence is a template per case, not a stem plus a tail.
+   *
+   * The English builds "{actor} replied {when}." by concatenation because
+   * English lets it: the "ago" hangs off the end of the phrase. French puts it
+   * at the FRONT — "il y a 5 minutes" — so a tail spliced onto a translated
+   * stem would read "Sam a répondu 5 minutes il y a." Both phones have carried
+   * these eight keys since #408; this module was the last place still writing
+   * the sentence.
+   *
+   * One and many are separate keys for the same reason they are everywhere
+   * else in this sweep: English changes an "s" and other languages change more.
+   */
+  const minutes = Math.floor(secondsAgo / 60);
+  const hours = Math.floor(secondsAgo / 3600);
   const when =
     secondsAgo < 60
-      ? "just now"
+      ? say("thread.agoJustNow")
       : secondsAgo < 3600
-        ? `${Math.floor(secondsAgo / 60)} minute${Math.floor(secondsAgo / 60) === 1 ? "" : "s"} ago`
+        ? minutes === 1
+          ? say("thread.agoOneMinute")
+          : say("thread.agoMinutes").replace("{count}", String(minutes))
         : secondsAgo < 86_400
-          ? `${Math.floor(secondsAgo / 3600)} hour${Math.floor(secondsAgo / 3600) === 1 ? "" : "s"} ago`
-          : "since you started writing";
-  const actor = who?.trim() || "An automatic reply went out";
-  return who?.trim()
-    ? `${actor} replied ${when}.`
-    : `${actor} ${when}.`;
+          ? hours === 1
+            ? say("thread.agoOneHour")
+            : say("thread.agoHours").replace("{count}", String(hours))
+          : say("thread.agoSinceWriting");
+
+  const name = who?.trim();
+  return name
+    ? say("thread.duplicateReplyNamed")
+        .replace("{name}", name)
+        .replace("{ago}", when)
+    : say("thread.duplicateReplyAuto").replace("{ago}", when);
 }

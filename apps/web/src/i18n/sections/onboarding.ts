@@ -23,6 +23,12 @@
 import type { Translated } from "../translated";
 
 export const onboardingEn = {
+  /* #228 — how big the crew is. People rather than "seats" or "users":
+     a plumber has a crew and a licence count is our word, not theirs. */
+  crewSizeSolo: "Just me",
+  crewSize2to3: "2 to 3 of us",
+  crewSize4to10: "4 to 10",
+  crewSize11Plus: "More than 10",
   /* #228 — the signup question. Web-only: there is no signup flow on
      either phone, so these six have no Kotlin or Swift twin. */
   signupSourceAnotherBusiness: "Another business told me",
@@ -673,6 +679,10 @@ export const onboardingEn = {
  * workspace, **forfait** for a plan, **paramètres** for settings.
  */
 export const onboardingFr: Translated<typeof onboardingEn> = {
+  crewSizeSolo: "Juste moi",
+  crewSize2to3: "2 ou 3 personnes",
+  crewSize4to10: "4 à 10",
+  crewSize11Plus: "Plus de 10",
   signupSourceAnotherBusiness: "Une autre entreprise m'en a parlé",
   signupSourceSearch: "Google ou un autre moteur de recherche",
   signupSourceSocial: "Les réseaux sociaux",

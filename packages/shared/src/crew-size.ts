@@ -39,12 +39,25 @@ export function isCrewSizeBucket(value: string): value is CrewSizeBucket {
  * What the customer sees. Phrased as people rather than "seats" or "users",
  * because a plumber has a crew and a licence count is our word, not theirs.
  */
-export const CREW_SIZE_LABELS: Record<CrewSizeBucket, string> = {
-  solo: "Just me",
-  "2_3": "2 to 3 of us",
-  "4_10": "4 to 10",
-  "11_plus": "More than 10",
+export const CREW_SIZE_LABELS: Record<CrewSizeBucket, CrewSizeKey> = {
+  solo: "onboarding.crewSizeSolo",
+  "2_3": "onboarding.crewSize2to3",
+  "4_10": "onboarding.crewSize4to10",
+  "11_plus": "onboarding.crewSize11Plus",
 };
+
+/**
+ * Every catalogue key this module names.
+ *
+ * Web-only, like the signup question beside it: there is no signup flow on
+ * either phone, because you sign a business up on a keyboard. So these four
+ * have no Kotlin or Swift twin to keep in step.
+ */
+export type CrewSizeKey =
+  | "onboarding.crewSizeSolo"
+  | "onboarding.crewSize2to3"
+  | "onboarding.crewSize4to10"
+  | "onboarding.crewSize11Plus";
 
 /**
  * Which plan the bucket implies, for the signup hint and for plan-fit

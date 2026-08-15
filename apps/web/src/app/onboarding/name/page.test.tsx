@@ -15,6 +15,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CREW_SIZE_LABELS } from "@loonext/shared";
 
+import { sayEnglish } from "@/i18n/provider";
+
+/** #228 — the labels are catalogue KEYS now, so this says them. */
+const say = sayEnglish;
+
 import { readOnboardingDraft } from "../local-draft";
 
 const push = vi.fn();
@@ -68,7 +73,8 @@ function typeName(value = "Mike's Plumbing") {
 describe("#370 crew size on the name step", () => {
   it("offers every bucket, in people rather than seats", () => {
     render(<CompanyNamePage />);
-    for (const label of Object.values(CREW_SIZE_LABELS)) {
+    for (const key of Object.values(CREW_SIZE_LABELS)) {
+      const label = say(key);
       expect(screen.getByText(label)).toBeTruthy();
     }
   });
@@ -86,20 +92,20 @@ describe("#370 crew size on the name step", () => {
 
   it("answers back the moment a bucket is picked", () => {
     render(<CompanyNamePage />);
-    fireEvent.click(screen.getByText(CREW_SIZE_LABELS["4_10"]));
+    fireEvent.click(screen.getByText(say(CREW_SIZE_LABELS["4_10"])));
     expect(screen.getByText(/^Pro covers up to/)).toBeTruthy();
   });
 
   it("recommends no plan for a crew past ten", () => {
     render(<CompanyNamePage />);
-    fireEvent.click(screen.getByText(CREW_SIZE_LABELS["11_plus"]));
+    fireEvent.click(screen.getByText(say(CREW_SIZE_LABELS["11_plus"])));
     expect(screen.getByText(/Our biggest plan covers/)).toBeTruthy();
   });
 
   it("carries the answer into the draft the create call reads", async () => {
     render(<CompanyNamePage />);
     typeName();
-    fireEvent.click(screen.getByText(CREW_SIZE_LABELS["2_3"]));
+    fireEvent.click(screen.getByText(say(CREW_SIZE_LABELS["2_3"])));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await vi.waitFor(() => expect(push).toHaveBeenCalledWith("/onboarding/number"));
     expect(readOnboardingDraft().crewSize).toBe("2_3");
@@ -117,7 +123,7 @@ describe("#370 crew size on the name step", () => {
 
   it("still refuses to continue without a company name", async () => {
     render(<CompanyNamePage />);
-    fireEvent.click(screen.getByText(CREW_SIZE_LABELS.solo));
+    fireEvent.click(screen.getByText(say(CREW_SIZE_LABELS.solo)));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await vi.waitFor(() =>
       expect(screen.getByText("Enter your company name.")).toBeTruthy(),

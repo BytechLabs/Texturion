@@ -200,7 +200,7 @@ export default function CompanyNamePage() {
                             two-option fork on the business step can afford and
                             this row cannot. */}
                         <RadioGroupItem value={bucket} className="sr-only" />
-                        {CREW_SIZE_LABELS[bucket]}
+                        {t(CREW_SIZE_LABELS[bucket])}
                       </Label>
                     ))}
                   </RadioGroup>

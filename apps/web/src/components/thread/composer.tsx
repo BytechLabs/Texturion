@@ -1756,6 +1756,7 @@ export function Composer({
                       ),
                     )
                   : 0,
+                t,
               )}{" "}
               {t("thread.sendYoursAsWell")}
             </DialogDescription>

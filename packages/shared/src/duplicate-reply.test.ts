@@ -10,6 +10,19 @@ import { describe, expect, it } from "vitest";
 
 import { duplicateReplyPrompt, duplicateReplyWarning } from "./duplicate-reply";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/** #228 — the module names keys now, so the tests resolve them. */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
+const sayEn = (key: string): string => look(WEB_EN, key);
+const sayFr = (key: string): string => look(WEB_FR, key);
+
 const ME = "user-me";
 const SAM = "user-sam";
 
@@ -121,20 +134,57 @@ describe("duplicateReplyWarning", () => {
 
 describe("duplicateReplyPrompt", () => {
   it("names the person, because that is a fact somebody can act on", () => {
-    expect(duplicateReplyPrompt("Sam", 40)).toBe("Sam replied just now.");
-    expect(duplicateReplyPrompt("Sam", 120)).toBe("Sam replied 2 minutes ago.");
-    expect(duplicateReplyPrompt("Sam", 60)).toBe("Sam replied 1 minute ago.");
-    expect(duplicateReplyPrompt("Sam", 7200)).toBe("Sam replied 2 hours ago.");
+    expect(duplicateReplyPrompt("Sam", 40, sayEn)).toBe("Sam replied just now.");
+    expect(duplicateReplyPrompt("Sam", 120, sayEn)).toBe("Sam replied 2 minutes ago.");
+    expect(duplicateReplyPrompt("Sam", 60, sayEn)).toBe("Sam replied 1 minute ago.");
+    expect(duplicateReplyPrompt("Sam", 7200, sayEn)).toBe("Sam replied 2 hours ago.");
   });
 
   it("does not borrow a name it does not have", () => {
-    expect(duplicateReplyPrompt(null, 5)).toBe("An automatic reply went out just now.");
-    expect(duplicateReplyPrompt("  ", 5)).toBe("An automatic reply went out just now.");
+    expect(duplicateReplyPrompt(null, 5, sayEn)).toBe("An automatic reply went out just now.");
+    expect(duplicateReplyPrompt("  ", 5, sayEn)).toBe("An automatic reply went out just now.");
   });
 
   it("stops counting past a day rather than saying '31 hours ago'", () => {
-    expect(duplicateReplyPrompt("Sam", 200_000)).toBe(
+    expect(duplicateReplyPrompt("Sam", 200_000, sayEn)).toBe(
       "Sam replied since you started writing.",
     );
+  });
+});
+
+describe("#228 the warning in French", () => {
+  it("puts the ago at the FRONT, which is why the sentence is a template", () => {
+    // THE case. English hangs "ago" off the end — "5 minutes ago" — and French
+    // leads with it: "il y a 5 minutes". A translated stem with a tail glued
+    // on would read "Sam a répondu 5 minutes il y a."
+    expect(duplicateReplyPrompt("Sam", 300, sayFr)).toBe(
+      "Sam a répondu il y a 5 minutes.",
+    );
+    expect(duplicateReplyPrompt("Sam", 300, sayEn)).toBe("Sam replied 5 minutes ago.");
+  });
+
+  it("keeps one apart from many, in both languages", () => {
+    expect(duplicateReplyPrompt("Sam", 60, sayEn)).toContain("1 minute ago");
+    expect(duplicateReplyPrompt("Sam", 60, sayFr)).toContain("il y a 1 minute");
+    expect(duplicateReplyPrompt("Sam", 3600, sayEn)).toContain("1 hour ago");
+    expect(duplicateReplyPrompt("Sam", 3600, sayFr)).toContain("il y a 1 heure");
+  });
+
+  it("says an automatic reply went out without borrowing a name", () => {
+    // The distinction the English docblock draws: "Sam replied" is a fact
+    // somebody can act on, and an automatic send has no name to offer. That
+    // has to survive translation or the French claims a person sent it.
+    const fr = duplicateReplyPrompt(null, 30, sayFr);
+    expect(fr).toBe("Une réponse automatique est partie à l'instant.");
+    expect(fr).not.toMatch(/\{/);
+  });
+
+  it("leaves no variable unfilled at any rung", () => {
+    for (const seconds of [0, 30, 60, 300, 3600, 7200, 90_000]) {
+      for (const say of [sayEn, sayFr]) {
+        expect(duplicateReplyPrompt("Sam", seconds, say)).not.toMatch(/\{/);
+        expect(duplicateReplyPrompt(null, seconds, say)).not.toMatch(/\{/);
+      }
+    }
   });
 });

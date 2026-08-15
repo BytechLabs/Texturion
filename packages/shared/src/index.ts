@@ -236,6 +236,8 @@ export {
   duplicateReplyWarning,
   type DuplicateReplyInput,
   type DuplicateReplyWarning,
+  type DuplicateReplyKey,
+  type SayDuplicateReply,
 } from "./duplicate-reply";
 
 export {
@@ -636,6 +638,7 @@ export {
   isBeyondSupportedCrew,
   isCrewSizeBucket,
   planFitForCrew,
+  type CrewSizeKey,
 } from "./crew-size";
 export type { CrewSizeBucket } from "./crew-size";
 export {

@@ -18,6 +18,16 @@
 import type { Translated } from "../translated";
 
 export const threadEn = {
+  /* #228 — somebody already answered (#408). Both phones have had these
+     eight; the web read the sentence off packages/shared in English. */
+  duplicateReplyNamed: "{name} replied {ago}.",
+  duplicateReplyAuto: "An automatic reply went out {ago}.",
+  agoJustNow: "just now",
+  agoOneMinute: "1 minute ago",
+  agoMinutes: "{count} minutes ago",
+  agoOneHour: "1 hour ago",
+  agoHours: "{count} hours ago",
+  agoSinceWriting: "since you started writing",
   sysAppointmentConfirmed: "They confirmed the appointment",
   /*
    * #274 — what each merge token fills in. Both phones have said these since #228 reached them; the web imported the shared table and rendered whatever English came back. The token itself stays English on every client: it is what a person types between braces and what the server matches on.
@@ -725,6 +735,14 @@ export const threadEn = {
  * and a translated keyword is a keyword that does nothing.
  */
 export const threadFr: Translated<typeof threadEn> = {
+  duplicateReplyNamed: "{name} a répondu {ago}.",
+  duplicateReplyAuto: "Une réponse automatique est partie {ago}.",
+  agoJustNow: "à l'instant",
+  agoOneMinute: "il y a 1 minute",
+  agoMinutes: "il y a {count} minutes",
+  agoOneHour: "il y a 1 heure",
+  agoHours: "il y a {count} heures",
+  agoSinceWriting: "depuis que vous avez commencé à écrire",
   sysAppointmentConfirmed: "Le client a confirmé le rendez-vous",
   mergeAddress: "L'adresse inscrite à sa fiche de contact",
   mergeBusinessName: "Le nom de votre entreprise",
