@@ -45,6 +45,7 @@ import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SupportAgent
+import androidx.compose.material.icons.outlined.Power
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -237,6 +238,23 @@ enum class SettingsSection(
         "settingsMore.sectionWhatsNew",
         "settingsMore.sectionWhatsNewBlurb",
         Capability.WORKSPACE_ACCESS,
+    ),
+
+    /**
+     * #243: where this workspace's own systems get told what happened. Last,
+     * beside Help and What's new, because all three are things a person goes
+     * LOOKING for rather than passes through — and because a row that sends
+     * customer messages to a third party should not sit in the middle of the
+     * list somebody scans while trying to change their hours.
+     *
+     * SETTINGS_MANAGE on the READ as well as the writes, matching the API: the
+     * endpoint list names the third parties this workspace's messages flow to,
+     * and those URLs routinely carry a per-tenant token in the path.
+     */
+    Webhooks(
+        "webhooks.navWebhooks",
+        "webhooks.navWebhooksDesc",
+        Capability.SETTINGS_MANAGE,
     ),
     ;
 
@@ -499,6 +517,9 @@ fun SettingsHome(
                                 settingsScope,
                                 joinedAt = company.created_at,
                             )
+
+                            SettingsSection.Webhooks ->
+                                WebhooksSection(settingsScope)
                         }
                     }
                 }
@@ -1073,6 +1094,7 @@ private fun iconFor(section: SettingsSection): ImageVector = when (section) {
     SettingsSection.Devices -> Icons.Outlined.Devices
     SettingsSection.Help -> Icons.Outlined.SupportAgent
     SettingsSection.WhatsNew -> Icons.Outlined.AutoAwesome
+    SettingsSection.Webhooks -> Icons.Outlined.Power
 }
 
 /**

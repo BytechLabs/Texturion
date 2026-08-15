@@ -30,6 +30,13 @@ import com.loonext.android.core.model.ReminderRule
 import com.loonext.android.core.model.ReminderRulesBody
 import com.loonext.android.core.model.ReminderRulesResponse
 import com.loonext.android.core.model.ReminderRulesSaved
+import com.loonext.android.core.model.CreateWebhookEndpointBody
+import com.loonext.android.core.model.MintedWebhookSecret
+import com.loonext.android.core.model.UpdateWebhookEndpointBody
+import com.loonext.android.core.model.WebhookDeliveryList
+import com.loonext.android.core.model.WebhookEndpointEnvelope
+import com.loonext.android.core.model.WebhookEndpointList
+import com.loonext.android.core.model.WebhookTestResult
 import com.loonext.android.core.model.WidgetKey
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -120,6 +127,63 @@ class SettingsRepository(
     suspend fun endOnCallShift(companyId: String, id: String) {
         api.delete("/v1/on-call/$id", companyId = companyId)
     }
+
+    // -- #243 connections (outbound webhooks) -------------------------------
+
+    /**
+     * Every endpoint this workspace points at, and the cap.
+     *
+     * The cap rides along on the list rather than being a constant here,
+     * because the screen has to say "you have reached the limit of ten" and a
+     * number written twice is a number that disagrees with itself the day it
+     * changes.
+     */
+    suspend fun webhookEndpoints(companyId: String): WebhookEndpointList =
+        api.get("/v1/webhooks", companyId = companyId)
+
+    /** Create one. The ONLY response that carries the signing key. */
+    suspend fun createWebhookEndpoint(
+        companyId: String,
+        body: CreateWebhookEndpointBody,
+    ): MintedWebhookSecret =
+        api.post("/v1/webhooks", body = body, companyId = companyId)
+
+    suspend fun updateWebhookEndpoint(
+        companyId: String,
+        id: String,
+        body: UpdateWebhookEndpointBody,
+    ): WebhookEndpointEnvelope =
+        api.patch("/v1/webhooks/$id", body = body, companyId = companyId)
+
+    suspend fun deleteWebhookEndpoint(companyId: String, id: String) {
+        api.delete("/v1/webhooks/$id", companyId = companyId)
+    }
+
+    /** The other response that carries a signing key, and the last one. */
+    suspend fun rotateWebhookSecret(
+        companyId: String,
+        id: String,
+    ): MintedWebhookSecret =
+        api.post("/v1/webhooks/$id/secret", companyId = companyId)
+
+    /**
+     * Send a signed ping and relay what came back.
+     *
+     * Never throws for a refusal: the route answers 200 with `ok: false`,
+     * because the person pressed the button to find out and a refused ping is
+     * the button working.
+     */
+    suspend fun testWebhookEndpoint(
+        companyId: String,
+        id: String,
+    ): WebhookTestResult =
+        api.post("/v1/webhooks/$id/test", companyId = companyId)
+
+    suspend fun webhookDeliveries(
+        companyId: String,
+        id: String,
+    ): WebhookDeliveryList =
+        api.get("/v1/webhooks/$id/deliveries", companyId = companyId)
 
     suspend fun reminderRules(companyId: String): ReminderRulesResponse =
         api.get("/v1/appointment-reminders", companyId = companyId)

@@ -72,6 +72,7 @@ object AppStrings {
         SettingsStrings,
         ShellStrings,
         ThreadStrings,
+        WebhooksStrings,
     )
 
     /**
