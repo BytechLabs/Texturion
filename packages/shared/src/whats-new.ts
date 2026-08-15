@@ -33,9 +33,15 @@
 export interface WhatsNewEntry {
   /** ISO date the change reached customers, not the date it was written. */
   date: string;
-  /** One line, in the customer's language. What they can now do. */
+  /**
+   * Catalogue key for one line: what they can now do.
+   *
+   * #228: a key rather than the sentence. Three clients render this list, and
+   * a changelog is exactly the surface where an English paragraph in a French
+   * app reads as the product not being finished.
+   */
   title: string;
-  /** Two sentences at most. Why it matters, not how it works. */
+  /** Catalogue key for two sentences at most: why it matters, not how it works. */
   body: string;
   /**
    * Where the thing IS, as an in-app path.
@@ -58,42 +64,32 @@ export interface WhatsNewEntry {
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: "2026-08-01",
-    title: "Save the filters you use every morning",
-    body:
-      "Arrange the inbox how you want it, name it, and it is one tap away " +
-      "tomorrow. Share one with the crew and everybody opens the same list.",
+    title: "settingsMore.whatsNewSavedViewsTitle",
+    body: "settingsMore.whatsNewSavedViewsBody",
     href: "/inbox",
   },
   {
     date: "2026-08-01",
-    title: "See how many quotes turned into work",
-    body:
-      "Your home screen now shows how many quotes you sent, how many you won, " +
-      "and how many are still waiting on an answer.",
+    title: "settingsMore.whatsNewQuotesTitle",
+    body: "settingsMore.whatsNewQuotesBody",
     href: "/for-you",
   },
   {
     date: "2026-07-25",
-    title: "Voicemails are written down",
-    body:
-      "A missed call leaves a voicemail you can read at a red light instead of " +
-      "listening to it. It is searchable like any other message.",
+    title: "settingsMore.whatsNewVoicemailTitle",
+    body: "settingsMore.whatsNewVoicemailBody",
     href: "/calls",
   },
   {
     date: "2026-07-24",
-    title: "Lou drafts the reply for you",
-    body:
-      "Lou reads the thread and offers a reply you can edit before it goes. " +
-      "You send it, or you ignore it; nothing is sent on your behalf.",
+    title: "settingsMore.whatsNewDraftsTitle",
+    body: "settingsMore.whatsNewDraftsBody",
     href: "/inbox",
   },
   {
     date: "2026-07-12",
-    title: "Answer calls in the app",
-    body:
-      "Calls to your business number ring your whole crew right here. Pick up, " +
-      "put someone on hold, or hand the call to a teammate.",
+    title: "settingsMore.whatsNewCallsTitle",
+    body: "settingsMore.whatsNewCallsBody",
     href: "/calls",
   },
 ];

@@ -2,6 +2,16 @@ import type { Metadata } from "next";
 
 import { WHATS_NEW } from "@loonext/shared";
 
+/*
+ * #228 — the marketing site is English, deliberately and separately.
+ *
+ * `check-hardcoded-strings.mjs` skips this tree because it is its own
+ * deliverable with its own URLs; the French marketing site is a different piece
+ * of work. So the changelog's keys resolve against ENGLISH here rather than
+ * against a reader whose language this page does not ask about.
+ */
+import { sayEnglish } from "@/i18n/provider";
+
 import { FrCard, FrSection } from "@/components/marketing/fr";
 import { Breadcrumbs } from "@/components/marketing/ui/breadcrumbs";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
@@ -85,7 +95,7 @@ export default function WhatsNewPage() {
 
           <ol className="mt-10 space-y-4">
             {WHATS_NEW.map((entry) => (
-              <li key={`${entry.date}-${entry.title}`}>
+              <li key={`${entry.date}-${sayEnglish(entry.title)}`}>
                 <Reveal>
                   <FrCard className="p-6">
                     <time
@@ -95,10 +105,10 @@ export default function WhatsNewPage() {
                       {readableDate(entry.date)}
                     </time>
                     <h2 className="fr-h3 mt-2 text-[color:var(--fr-ink)]">
-                      {entry.title}
+                      {sayEnglish(entry.title)}
                     </h2>
                     <p className="mt-2 text-[0.9375rem] leading-relaxed text-[color:var(--fr-ink-70)]">
-                      {entry.body}
+                      {sayEnglish(entry.body)}
                     </p>
                   </FrCard>
                 </Reveal>

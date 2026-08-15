@@ -20,6 +20,8 @@ import {
   type WhatsNewEntry,
 } from "./whats-new";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
 const entries: WhatsNewEntry[] = [
   { date: "2026-07-01", title: "Older", body: "b", href: null },
   { date: "2026-08-01", title: "Newer", body: "b", href: "/inbox" },
@@ -123,5 +125,42 @@ describe("#321 the marker", () => {
   it("finds the newest date regardless of order", () => {
     expect(latestWhatsNewDate(entries)).toBe("2026-08-01");
     expect(latestWhatsNewDate([])).toBe("");
+  });
+});
+
+/*
+ * #228 — every entry's words exist, in both languages.
+ *
+ * A changelog is the surface where a half-translated app is most obvious: the
+ * reader is scrolling a list of sentences and nothing else is on screen to
+ * distract from one of them being in the wrong language.
+ */
+describe("#228 the changelog reads in both languages", () => {
+  const lookUp = (table: unknown, key: string, lang: string): string => {
+    const [section, name] = key.split(".");
+    const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+    if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+    return value;
+  };
+  const say = (key: string) => lookUp(WEB_EN, key, "English");
+  const sayFr = (key: string) => lookUp(WEB_FR, key, "French");
+
+  it("resolves every title and body", () => {
+    for (const entry of WHATS_NEW) {
+      for (const key of [entry.title, entry.body]) {
+        expect(say(key).length, key).toBeGreaterThan(0);
+        expect(sayFr(key).length, key).toBeGreaterThan(0);
+        expect(sayFr(key), `${key} is not translated`).not.toBe(say(key));
+      }
+    }
+    expect(WHATS_NEW.length).toBeGreaterThan(2);
+  });
+
+  it("gives every entry its own title", () => {
+    // Two entries sharing a title would satisfy every assertion above while
+    // making the list unreadable — and the marker keys on the newest entry, so
+    // a duplicate is also a badge that lights for the wrong change.
+    const titles = WHATS_NEW.map((entry) => say(entry.title));
+    expect(new Set(titles).size).toBe(WHATS_NEW.length);
   });
 });

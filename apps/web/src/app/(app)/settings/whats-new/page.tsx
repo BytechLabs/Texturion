@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { markWhatsNewSeen, readWhatsNewSeen } from "@/lib/whats-new/seen";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,9 @@ import { cn } from "@/lib/utils";
  */
 export default function WhatsNewSettingsPage() {
   const t = useT();
+  // #228: the changelog names catalogue keys, so it reads in the reader's
+  // language rather than in whichever one it was written in.
+  const say = sayWith(t);
   const company = useCompany();
   const joinedAt = company.data?.created_at ?? null;
 
@@ -61,7 +64,7 @@ export default function WhatsNewSettingsPage() {
       description={t("appShell.whatsNewDescription")}
     >
       {WHATS_NEW.map((entry) => (
-        <SettingsCard key={`${entry.date}-${entry.title}`} title={entry.title}>
+        <SettingsCard key={`${entry.date}-${entry.title}`} title={say(entry.title)}>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <time
@@ -86,7 +89,7 @@ export default function WhatsNewSettingsPage() {
                 </span>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">{entry.body}</p>
+            <p className="text-sm text-muted-foreground">{say(entry.body)}</p>
             {entry.href && (
               <Link
                 href={entry.href}

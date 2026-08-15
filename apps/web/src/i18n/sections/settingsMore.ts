@@ -13,6 +13,24 @@
 import type { Translated } from "../translated";
 
 export const settingsMoreEn = {
+  /*
+   * #321 — the changelog, in the words the phones already say. Both hold these under settingsMore.whatsNew*; the web rendered the shared module's English. The marketing copy of this list resolves against English on purpose: that site is its own deliverable.
+   */
+  whatsNewBadge: "New",
+  whatsNewCallsBody: "Calls to your business number ring your whole crew right here. Pick up, put someone on hold, or hand the call to a teammate.",
+  whatsNewCallsTitle: "Answer calls in the app",
+  whatsNewDraftsBody: "Lou reads the thread and offers a reply you can edit before it goes. You send it, or you ignore it; nothing is sent on your behalf.",
+  whatsNewDraftsTitle: "Lou drafts the reply for you",
+  whatsNewFooter: "Smaller repairs ship most days and are not listed. If you reported something and want to know where it got to, ask us on the Help page.",
+  whatsNewIntro: "Everything here has already shipped and is in the product now.",
+  whatsNewQuotesBody: "Your home screen now shows how many quotes you sent, how many you won, and how many are still waiting on an answer.",
+  whatsNewQuotesTitle: "See how many quotes turned into work",
+  whatsNewSavedViewsBody: "Arrange the inbox how you want it, name it, and it is one tap away tomorrow. Share one with the crew and everybody opens the same list.",
+  whatsNewSavedViewsTitle: "Save the filters you use every morning",
+  whatsNewVoicemailBody: "A missed call leaves a voicemail you can read at a red light instead of listening to it. It is searchable like any other message.",
+  whatsNewVoicemailTitle: "Voicemails are written down",
+
+
   /* Words this half of Settings says in more than one card. */
   saveFailed: "Couldn't save. Try again.",
   teammate: "Teammate",
@@ -1161,6 +1179,21 @@ export const settingsMoreEn = {
 } as const;
 
 export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
+  whatsNewBadge: "Nouveau",
+  whatsNewCallsBody: "Les appels à votre numéro d'affaires font sonner toute votre équipe ici même. Répondez, mettez quelqu'un en attente, ou transférez l'appel à un coéquipier.",
+  whatsNewCallsTitle: "Répondez aux appels dans l'application",
+  whatsNewDraftsBody: "Lou lit la conversation et propose une réponse que vous pouvez modifier avant l'envoi. Vous l'envoyez, ou vous l'ignorez ; rien n'est envoyé en votre nom.",
+  whatsNewDraftsTitle: "Lou rédige la réponse pour vous",
+  whatsNewFooter: "De petites corrections sortent presque tous les jours et ne sont pas listées. Si vous avez signalé quelque chose et voulez savoir où ça en est, écrivez-nous depuis la page Aide.",
+  whatsNewIntro: "Tout ce qui est ici est déjà livré et se trouve dans le produit.",
+  whatsNewQuotesBody: "Votre écran d'accueil montre maintenant combien de devis vous avez envoyés, combien vous avez obtenus, et combien attendent encore une réponse.",
+  whatsNewQuotesTitle: "Voyez combien de devis sont devenus des contrats",
+  whatsNewSavedViewsBody: "Organisez la boîte de réception comme vous voulez, nommez-la, et elle est à une touche demain matin. Partagez-en une avec l'équipe et tout le monde ouvre la même liste.",
+  whatsNewSavedViewsTitle: "Enregistrez les filtres que vous utilisez chaque matin",
+  whatsNewVoicemailBody: "Un appel manqué laisse un message vocal que vous pouvez lire à un feu rouge au lieu de l'écouter. Il se cherche comme n'importe quel autre message.",
+  whatsNewVoicemailTitle: "Les messages vocaux sont transcrits",
+
+
   saveFailed: "Impossible d'enregistrer. Réessayez.",
   teammate: "Coéquipier",
 
