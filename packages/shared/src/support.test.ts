@@ -11,9 +11,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 import {
   SUPPORT_EMAIL,
   SUPPORT_ERROR_LINES,
-  SUPPORT_FIX_PROMISE_EN,
   SUPPORT_FIX_PROMISE_KEY,
-  SUPPORT_RESPONSE_TIME_EN,
   SUPPORT_RESPONSE_TIME_KEY,
   SUPPORT_TOPICS,
   feedbackMailto,
@@ -185,21 +183,13 @@ describe("#253 the response time is stated, not implied", () => {
   it("is one sentence every surface renders", () => {
     // A number typed into three clients separately is a number that drifts,
     // and the drifted one is a promise somebody made without knowing it.
-    expect(SUPPORT_RESPONSE_TIME_EN).toContain("two business days");
-  });
-
-  it("keeps the English constants and the catalogue saying one thing", () => {
-    // SUPPORT_RESPONSE_TIME_EN survives only until cancellation-offers.ts takes
-    // a resolver. While it exists it is a second copy of a promise, and a
-    // second copy that drifts is how a response time gets made twice.
-    expect(say(SUPPORT_RESPONSE_TIME_KEY)).toBe(SUPPORT_RESPONSE_TIME_EN);
-    expect(say(SUPPORT_FIX_PROMISE_KEY)).toBe(SUPPORT_FIX_PROMISE_EN);
+    expect(say(SUPPORT_RESPONSE_TIME_KEY)).toContain("two business days");
   });
 
   it("promises what a bad week can still keep", () => {
     // "A support channel a solo founder cannot service is worse than none."
     // Never an hours-scale commitment, which one flight breaks.
-    expect(SUPPORT_RESPONSE_TIME_EN).not.toMatch(/hour|minute|immediately|instantly/i);
+    expect(say(SUPPORT_RESPONSE_TIME_KEY)).not.toMatch(/hour|minute|immediately|instantly/i);
   });
 });
 
@@ -257,13 +247,13 @@ describe("#321 telling the reporter when it ships", () => {
   it("states the loop rather than implying it", () => {
     // The reason to bother writing in is knowing you will hear back. A promise
     // nobody is told about changes nobody's behaviour.
-    expect(SUPPORT_FIX_PROMISE_EN).toMatch(/fixed/i);
+    expect(say(SUPPORT_FIX_PROMISE_KEY)).toMatch(/fixed/i);
   });
 
   it("promises a reply on the FIX, not merely on receipt", () => {
     // "We read everything that comes in" is not the loop #321 asks for — a
     // report that vanishes after an acknowledgement teaches the same lesson as
     // one that vanishes immediately.
-    expect(SUPPORT_FIX_PROMISE_EN).toMatch(/not just when/i);
+    expect(say(SUPPORT_FIX_PROMISE_KEY)).toMatch(/not just when/i);
   });
 });

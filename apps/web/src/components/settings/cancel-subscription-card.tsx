@@ -19,7 +19,7 @@ import {
   readSaysPaused,
 } from "@/components/settings/pause-read";
 import { SettingsCard } from "@/components/settings/section";
-import { makeTranslate, useT, type MessageKey } from "@/i18n/provider";
+import { makeTranslate, sayWith, useT, type MessageKey } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -241,6 +241,9 @@ export function CancelSubscriptionCard({
   company: CompanyView;
 }) {
   const t = useT();
+  // #228: cancellationOffer names its sentences and takes the lookup, so the
+  // cancel card says them in the reader's language.
+  const say = sayWith(t);
   /*
    * The exit's own label, in the reader's language.
    *
@@ -328,7 +331,7 @@ export function CancelSubscriptionCard({
     country: company.country,
     registrationFeePaidAt: company.registration_fee_paid_at,
     paused: readSaysPaused(pause),
-  });
+  }, say);
 
   /**
    * The same answer, with nothing to press that the product would refuse.

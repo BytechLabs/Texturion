@@ -130,7 +130,11 @@ import {
   type BillingCurrency,
 } from "./billing-currency";
 import { PLAN_NUMBERS, PLAN_SEATS, type SeatPlan } from "./seats";
-import { SUPPORT_FIX_PROMISE_EN, SUPPORT_RESPONSE_TIME_EN } from "./support";
+import {
+  SUPPORT_FIX_PROMISE_KEY,
+  SUPPORT_RESPONSE_TIME_KEY,
+  type SayKey,
+} from "./support";
 
 /**
  * The reason codes the cancel card offers, on every client.
@@ -371,6 +375,7 @@ function tooExpensiveOffer(
   input: CancellationOfferInput,
   phase: CancellationOfferPhase,
   paused: boolean,
+  say: SayKey,
 ): CancellationOffer | null {
   if (resolvePlan(input.plan) !== "pro") return null;
 
@@ -385,31 +390,36 @@ function tooExpensiveOffer(
    * session a resubscribe checks out through. The metered allowances ride those
    * same prices, so the fair-use sentence travels with the figure.
    */
-  const price =
-    `Starter is ${starter} a month instead of ${pro}, with smaller texting ` +
-    `and calling allowances under the same fair-use policy.`;
+  const price = say("settings.offerStarterPrice")
+    .replace("{starter}", starter)
+    .replace("{pro}", pro);
 
-  /** Seats and numbers, and so only for the phase whose route refuses them. */
-  const limits =
-    `It covers ${PLAN_SEATS.starter} people and ${numbers} business ` +
-    `number${numbers === 1 ? "" : "s"}.`;
+  /**
+   * Seats and numbers, and so only for the phase whose route refuses them.
+   *
+   * The singular is ITS OWN KEY rather than an appended "s". French pluralises
+   * the noun and its article together, so a suffix cannot express it, and this
+   * is the kind of sentence that reads fine in English right up until it is
+   * translated.
+   */
+  const limits = say(
+    numbers === 1 ? "settings.offerStarterCoversOne" : "settings.offerStarterCovers",
+  )
+    .replace("{seats}", String(PLAN_SEATS.starter))
+    .replace("{numbers}", String(numbers));
 
   /**
    * Same heading as the unpaused answer, on purpose. It is a fact about the two
    * plans and the pause does not touch it; a second heading would be a second
    * string for three clients to hand-port and drift.
    */
+  const seats = String(PLAN_SEATS.starter);
+
   if (paused) {
     return {
       reason: "too_expensive",
-      heading: "Starter is the same product, priced for a smaller crew",
-      body:
-        `${price} ${limits} Your plan is paused, so this takes two steps in ` +
-        `this order: resume first, then switch plans. The switch takes effect ` +
-        `at the end of your current billing period. Your message history ` +
-        `comes with you, and so does the number you text from — a second ` +
-        `number does not: the downgrade is refused until you release it, and ` +
-        `until the crew is back inside ${PLAN_SEATS.starter} seats.`,
+      heading: say("settings.offerStarterHeading"),
+      body: `${price} ${limits} ${say("settings.offerStarterTailPaused").replace("{seats}", seats)}`,
       action: null,
       actionLabel: null,
     };
@@ -418,24 +428,17 @@ function tooExpensiveOffer(
   return phase === "grace"
     ? {
         reason: "too_expensive",
-        heading: "There is a smaller plan to come back on",
-        body:
-          `${price} Come back on Starter and your number and your whole ` +
-          `message history come with you.`,
+        heading: say("settings.offerStarterHeadingGrace"),
+        body: `${price} ${say("settings.offerStarterTailGrace")}`,
         action: "resubscribe_starter",
-        actionLabel: "Come back on Starter",
+        actionLabel: say("settings.offerComeBackOnStarter"),
       }
     : {
         reason: "too_expensive",
-        heading: "Starter is the same product, priced for a smaller crew",
-        body:
-          `${price} ${limits} The switch takes effect at the end of your ` +
-          `current billing period. Your message history comes with you, and so ` +
-          `does the number you text from — a second number does not: the ` +
-          `downgrade is refused until you release it, and until the crew is ` +
-          `back inside ${PLAN_SEATS.starter} seats.`,
+        heading: say("settings.offerStarterHeading"),
+        body: `${price} ${limits} ${say("settings.offerStarterTail").replace("{seats}", seats)}`,
         action: "change_plan",
-        actionLabel: "Switch to Starter",
+        actionLabel: say("settings.planSwitchToStarter"),
       };
 }
 
@@ -454,12 +457,10 @@ function tooExpensiveOffer(
  * again. Lifted out of `seasonalOffer` when the paused answer needed the same
  * sentence — one copy, because two would be one promise about money typed twice.
  */
-function registrationFeeSentence(input: CancellationOfferInput): string {
+function registrationFeeSentence(input: CancellationOfferInput, say: SayKey): string {
   return typeof input.registrationFeePaidAt === "string" &&
     input.registrationFeePaidAt.trim() !== ""
-    ? " You have already paid the one-time registration fee, and it is " +
-        "charged at most once per workspace, ever — coming back does not " +
-        "charge it again."
+    ? say("settings.offerRegistrationFeePaid")
     : "";
 }
 
@@ -493,18 +494,18 @@ function registrationFeeSentence(input: CancellationOfferInput): string {
  * here and only here: they are in a pause, so it is a description of their
  * account rather than an offer we cannot see the eligibility of.
  */
-function pausedSeasonalOffer(input: CancellationOfferInput): CancellationOffer {
+function pausedSeasonalOffer(
+  input: CancellationOfferInput,
+  say: SayKey,
+): CancellationOffer {
   return {
     reason: "seasonal",
-    heading: "Your plan is already paused, and that hold has no deadline",
+    heading: say("settings.offerPausedSeasonalHeading"),
     body:
-      "Your number and your whole message history are held for as long as you " +
-      "stay paused — nothing expires while your plan is paused, and there is " +
-      "no date you have to be back by. Cancelling instead ends the pause and " +
-      `starts a clock: ${CANCELLATION_GRACE_DAYS} days from the day you ` +
-      "cancel, not from the end of your billing period, and at the end of it " +
-      "the number goes back to the phone company." +
-      registrationFeeSentence(input),
+      say("settings.offerPausedSeasonalBody").replace(
+        "{days}",
+        String(CANCELLATION_GRACE_DAYS),
+      ) + registrationFeeSentence(input, say),
     action: null,
     actionLabel: null,
   };
@@ -555,35 +556,23 @@ function pausedSeasonalOffer(input: CancellationOfferInput): CancellationOffer {
 function seasonalOffer(
   input: CancellationOfferInput,
   phase: CancellationOfferPhase,
+  say: SayKey,
 ): CancellationOffer {
-  const fee = registrationFeeSentence(input);
+  const fee = registrationFeeSentence(input, say);
+  const days = String(CANCELLATION_GRACE_DAYS);
 
   return phase === "grace"
     ? {
         reason: "seasonal",
-        heading: "Your number is still yours until the date below",
-        body:
-          "It is still receiving texts, so nothing a customer sends is lost, " +
-          "though you cannot reply until you are back. That date is " +
-          `${CANCELLATION_GRACE_DAYS} days from the day you cancelled, not ` +
-          "from the end of your last billing period. Resubscribe before then " +
-          "and the number and your whole message history come back with " +
-          `you.${fee}`,
+        heading: say("settings.offerSeasonalGraceHeading"),
+        body: say("settings.offerSeasonalGraceBody").replace("{days}", days) + fee,
         action: null,
         actionLabel: null,
       }
     : {
         reason: "seasonal",
-        heading:
-          `Your number is held for ${CANCELLATION_GRACE_DAYS} days from the ` +
-          "day you cancel",
-        body:
-          "It keeps receiving texts the whole time, so nothing a customer " +
-          "sends is lost — you cannot reply until you are back, and your " +
-          `message history stays put. The ${CANCELLATION_GRACE_DAYS} days run ` +
-          "from the day you cancel, not from the end of your billing period, " +
-          "so a quiet season longer than that outruns the hold and the number " +
-          `goes back to the phone company.${fee}`,
+        heading: say("settings.offerSeasonalHeading").replace("{days}", days),
+        body: say("settings.offerSeasonalBody").replace("{days}", days) + fee,
         action: null,
         actionLabel: null,
       };
@@ -597,16 +586,15 @@ function seasonalOffer(
  * promise somebody made without knowing they were making it. Same words the help
  * screen shows, so the offer cannot promise something the help screen does not.
  */
-function missingFeatureOffer(): CancellationOffer {
+function missingFeatureOffer(say: SayKey): CancellationOffer {
   return {
     reason: "missing_feature",
-    heading: "Tell us what was missing",
-    body:
-      "If the thing you needed is not here, the fastest way to change that is " +
-      `to tell us what it was. We answer ${SUPPORT_RESPONSE_TIME_EN}. ` +
-      SUPPORT_FIX_PROMISE_EN,
+    heading: say("settings.offerMissingHeading"),
+    body: say("settings.offerMissingBody")
+      .replace("{when}", say(SUPPORT_RESPONSE_TIME_KEY))
+      .replace("{promise}", say(SUPPORT_FIX_PROMISE_KEY)),
     action: "open_help",
-    actionLabel: "Get help",
+    actionLabel: say("settings.offerGetHelp"),
   };
 }
 
@@ -620,6 +608,14 @@ function missingFeatureOffer(): CancellationOffer {
  */
 export function cancellationOffer(
   input: CancellationOfferInput,
+  /**
+   * #228 — resolves a catalogue key in the reader's language.
+   *
+   * This module names its sentences and does not own a catalogue, so the caller
+   * supplies the lookup. The keys are iOS's, which converted first; the web and
+   * Android read the same ones, so a wording change lands on three clients.
+   */
+  say: SayKey,
 ): CancellationOffer | null {
   if (!isCancellationReasonCode(input.reason)) return null;
   const phase = input.phase ?? "before";
@@ -638,14 +634,14 @@ export function cancellationOffer(
 
   switch (input.reason) {
     case "too_expensive":
-      return tooExpensiveOffer(input, phase, paused);
+      return tooExpensiveOffer(input, phase, paused, say);
     case "seasonal":
-      return paused ? pausedSeasonalOffer(input) : seasonalOffer(input, phase);
+      return paused ? pausedSeasonalOffer(input, say) : seasonalOffer(input, phase, say);
     // The support promise does not change because the plan is paused, for the
     // same reason it does not change between the two phases: it is a promise
     // about us, not about their subscription.
     case "missing_feature":
-      return missingFeatureOffer();
+      return missingFeatureOffer(say);
     // switched / not_using / other: nothing honest to add, paused or not — a
     // pause does not tell us what they switched to. See the header.
     default:

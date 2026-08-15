@@ -11,6 +11,7 @@ import {
   PLAN_PRICE_CENTS,
 } from "@loonext/shared";
 
+import { sayEnglish } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { PLAN_PRICING, type CompanyView } from "@/lib/api/types";
 
@@ -862,7 +863,7 @@ const TEXTING_STOPS_UNQUALIFIED = /texting stops\b(?![\s\S]{0,40}?(alread|yet))/
  * never quietly assert nothing.
  */
 function offerFor(input: Parameters<typeof cancellationOffer>[0]) {
-  const offer = cancellationOffer(input);
+  const offer = cancellationOffer(input, sayEnglish);
   if (!offer) throw new Error(`expected an offer for ${JSON.stringify(input)}`);
   return offer;
 }
@@ -893,7 +894,7 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     // has answered.
     renderCard();
     for (const { code } of CANCELLATION_REASONS) {
-      const offer = cancellationOffer({ reason: code, plan: "pro" });
+      const offer = cancellationOffer({ reason: code, plan: "pro" }, sayEnglish);
       if (offer) expect(screen.queryByText(offer.heading), code).toBeNull();
     }
   });

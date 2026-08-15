@@ -51,24 +51,6 @@ export type SayKey = (key: string) => string;
 export const SUPPORT_RESPONSE_TIME_KEY = "settings.helpResponseTime";
 
 /**
- * The same promise in English, for the one caller that cannot take a resolver
- * yet.
- *
- * `cancellation-offers.ts` builds a sentence around this, and that module is
- * still composing English for all three clients — its own conversion is the
- * next one. Until then it reads THIS rather than typing the words again,
- * because the whole reason this constant exists is that a response time typed
- * out twice is a promise somebody made without knowing they were making it.
- *
- * Goes away with that conversion. It is the English half of
- * [SUPPORT_RESPONSE_TIME_KEY] and must stay identical to the `en` entry the
- * three catalogues hold — `support.test.ts` asserts that.
- *
- * @internal
- */
-export const SUPPORT_RESPONSE_TIME_EN = "within two business days, usually sooner";
-
-/**
  * #321 acceptance 4 — the loop, stated out loud.
  *
  * "When a reported issue ships, tell the person who reported it. That is the
@@ -86,15 +68,6 @@ export const SUPPORT_RESPONSE_TIME_EN = "within two business days, usually soone
  * time it is skipped.
  */
 export const SUPPORT_FIX_PROMISE_KEY = "settings.helpFixPromise";
-
-/**
- * The English half of [SUPPORT_FIX_PROMISE_KEY], for the same one caller and
- * the same reason as [SUPPORT_RESPONSE_TIME_EN]. Goes away with it.
- *
- * @internal
- */
-export const SUPPORT_FIX_PROMISE_EN =
-  "If you tell us something's broken, we write back when it's fixed, not just when we've read it.";
 
 /**
  * How many recent client errors travel with a report.

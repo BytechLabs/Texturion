@@ -40,7 +40,26 @@ import {
   type CancellationOfferPhase,
 } from "./cancellation-offers";
 import { PLAN_NUMBERS, PLAN_SEATS } from "./seats";
-import { SUPPORT_FIX_PROMISE_EN, SUPPORT_RESPONSE_TIME_EN } from "./support";
+import { SUPPORT_FIX_PROMISE_KEY, SUPPORT_RESPONSE_TIME_KEY } from "./support";
+
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/*
+ * #228 — the offers name keys now, so the assertions resolve them.
+ *
+ * Through the same catalogue the cancel card reads. An assertion holding its
+ * own copy of the sentence would keep passing after the catalogue moved
+ * underneath it, and the screen would be the only place the two disagreed.
+ */
+function lookUp(table: unknown, key: string, lang: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  return value;
+}
+
+const say = (key: string): string => lookUp(WEB_EN, key, "English");
+const sayFr = (key: string): string => lookUp(WEB_FR, key, "French");
 
 /** A US Pro workspace, the case with the most to say. */
 const PRO_US: CancellationOfferInput = {
@@ -51,12 +70,12 @@ const PRO_US: CancellationOfferInput = {
 };
 
 function offer(overrides: Partial<CancellationOfferInput>) {
-  return cancellationOffer({ ...PRO_US, ...overrides });
+  return cancellationOffer({ ...PRO_US, ...overrides }, say);
 }
 
 /** Every string a client would put on screen for this input. */
 function rendered(input: CancellationOfferInput): string {
-  const result = cancellationOffer(input);
+  const result = cancellationOffer(input, say);
   if (result === null) return "";
   return [result.heading, result.body, result.actionLabel ?? ""].join(" ");
 }
@@ -123,7 +142,7 @@ function allOffers(
             billingCurrency: "usd",
             country: "US",
           };
-          const result = cancellationOffer(input);
+          const result = cancellationOffer(input, say);
           if (result !== null) out.push({ input, offer: result });
         }
       }
@@ -535,8 +554,8 @@ describe("seasonal, while paused (#277)", () => {
 describe("missing feature", () => {
   it("quotes the support constants rather than restating them", () => {
     const body = offer({ reason: "missing_feature" })!.body;
-    expect(body).toContain(SUPPORT_RESPONSE_TIME_EN);
-    expect(body).toContain(SUPPORT_FIX_PROMISE_EN);
+    expect(body).toContain(say(SUPPORT_RESPONSE_TIME_KEY));
+    expect(body).toContain(say(SUPPORT_FIX_PROMISE_KEY));
   });
 
   it("points at the in-product help surface", () => {
@@ -737,5 +756,85 @@ describe("the reason codes", () => {
     expect(isCancellationReasonCode("Seasonal")).toBe(false);
     expect(isCancellationReasonCode(null)).toBe(false);
     expect(isCancellationReasonCode(7)).toBe(false);
+  });
+});
+
+/*
+ * #228 — the same answers, in the language the reader is actually using.
+ *
+ * The cancel card is where somebody is deciding whether to leave, and a French
+ * owner meeting an English paragraph there reads it as the product not being
+ * for them. Every branch is covered rather than a sample, because the branch
+ * nobody translates is the one nobody looks at.
+ */
+describe("every offer says itself in French too", () => {
+  const CASES: CancellationOfferInput[] = [];
+  for (const reason of CANCELLATION_REASON_CODES) {
+    for (const plan of ["pro", "starter"] as const) {
+      for (const phase of ["before", "grace"] as const) {
+        for (const paused of [false, true]) {
+          CASES.push({
+            reason,
+            plan,
+            phase,
+            paused,
+            billingCurrency: "usd",
+            country: "US",
+            registrationFeePaidAt: "2026-01-01T00:00:00Z",
+          });
+        }
+      }
+    }
+  }
+
+  it("gives a different sentence in each language, on every branch", () => {
+    let answered = 0;
+    for (const input of CASES) {
+      const en = cancellationOffer(input, say);
+      const fr = cancellationOffer(input, sayFr);
+      // Null on both sides or neither: the DECISION is language-independent,
+      // and an offer that appeared in one language only would be a different
+      // product in French.
+      expect(fr === null, JSON.stringify(input)).toBe(en === null);
+      if (en === null || fr === null) continue;
+      answered += 1;
+      const where = `${input.reason}/${input.plan}/${input.phase}/paused=${input.paused}`;
+      expect(fr.heading, where).not.toBe(en.heading);
+      expect(fr.body, where).not.toBe(en.body);
+      if (en.actionLabel !== null) {
+        expect(fr.actionLabel, where).not.toBe(en.actionLabel);
+      }
+      // The control is a decision, not copy, and must not move with the words.
+      expect(fr.action, where).toBe(en.action);
+    }
+    // A loop that answered nothing would pass in silence, and most of these
+    // inputs legitimately return null.
+    expect(answered).toBeGreaterThan(10);
+  });
+
+  it("keeps the registration-fee sentence attached in both languages", () => {
+    // It rides on the END of another sentence rather than standing alone, so a
+    // translation that dropped it would read as a complete paragraph.
+    const paid: CancellationOfferInput = {
+      reason: "seasonal",
+      plan: "pro",
+      billingCurrency: "usd",
+      country: "US",
+      registrationFeePaidAt: "2026-01-01T00:00:00Z",
+    };
+    const unpaid = { ...paid, registrationFeePaidAt: null };
+    const suffix: string[] = [];
+    for (const words of [say, sayFr]) {
+      const withFee = cancellationOffer(paid, words);
+      const without = cancellationOffer(unpaid, words);
+      expect(withFee!.body.length).toBeGreaterThan(without!.body.length);
+      expect(withFee!.body.startsWith(without!.body)).toBe(true);
+      suffix.push(withFee!.body.slice(without!.body.length));
+    }
+    // And the SENTENCE ITSELF is translated, not just present. Comparing whole
+    // bodies cannot see this: the rest of the paragraph is French either way,
+    // so an English fee sentence riding on the end of it still produces two
+    // different bodies and passes a body-level check.
+    expect(suffix[0]).not.toBe(suffix[1]);
   });
 });

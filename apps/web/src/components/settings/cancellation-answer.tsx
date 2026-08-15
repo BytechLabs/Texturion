@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ChangePlanDialog } from "@/components/settings/change-plan-dialog";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";
 import {
   useCancellationReason,
@@ -129,6 +129,9 @@ function releaseDay(canceledAt: string | null): string | null {
  */
 export function HoldSentence({ company }: { company: CompanyView }) {
   const t = useT();
+  // #228: cancellationOffer names its sentences and takes the lookup, so the
+  // cancel card says them in the reader's language.
+  const say = sayWith(t);
   const day = releaseDay(company.canceled_at);
 
   if (day === null) {
@@ -394,6 +397,9 @@ export function ResubscribeButton({
  */
 export function WinbackAnswer({ company }: { company: CompanyView }) {
   const t = useT();
+  // #228: cancellationOffer names its sentences and takes the lookup, so this
+  // note says them in the reader's language.
+  const say = sayWith(t);
   const [dismissedNow, setDismissedNow] = useState(false);
   const dismiss = useDismissWinback();
 
@@ -423,7 +429,7 @@ export function WinbackAnswer({ company }: { company: CompanyView }) {
     billingCurrency: company.billing_currency,
     country: company.country,
     registrationFeePaidAt: company.registration_fee_paid_at,
-  });
+  }, say);
   // Null is a real answer: they said "switched", or "not using it", or they are
   // already on the cheapest plan. Nothing honest to add, so nothing is added.
   if (!offer) return null;

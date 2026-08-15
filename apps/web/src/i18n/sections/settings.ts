@@ -14,6 +14,40 @@ import type { Translated } from "../translated";
 
 export const settingsEn = {
   /*
+   * #228 — the cancel card's answers, which packages/shared names.
+   *
+   * iOS converted these first and its key names are the ones all three clients
+   * use, so a wording change lands everywhere at once. The web called
+   * cancellationOffer and rendered whatever English came back.
+   *
+   * The singular "business number" is its OWN key rather than the plural with
+   * an appended "s": French pluralises the noun and its article together, and
+   * a suffix cannot express that. It is the kind of sentence that reads fine
+   * in English right up until somebody translates it.
+   */
+  offerComeBackOnStarter: "Come back on Starter",
+  offerGetHelp: "Get help",
+  offerMissingBody: "If the thing you needed is not here, the fastest way to change that is to tell us what it was. We answer {when}. {promise}",
+  offerMissingHeading: "Tell us what was missing",
+  offerPausedSeasonalBody: "Your number and your whole message history are held for as long as you stay paused — nothing expires while your plan is paused, and there is no date you have to be back by. Cancelling instead ends the pause and starts a clock: {days} days from the day you cancel, not from the end of your billing period, and at the end of it the number goes back to the phone company.",
+  offerPausedSeasonalHeading: "Your plan is already paused, and that hold has no deadline",
+  offerRegistrationFeePaid: " You have already paid the one-time registration fee, and it is charged at most once per workspace, ever — coming back does not charge it again.",
+  offerSeasonalBody: "It keeps receiving texts the whole time, so nothing a customer sends is lost — you cannot reply until you are back, and your message history stays put. The {days} days run from the day you cancel, not from the end of your billing period, so a quiet season longer than that outruns the hold and the number goes back to the phone company.",
+  offerSeasonalGraceBody: "It is still receiving texts, so nothing a customer sends is lost, though you cannot reply until you are back. That date is {days} days from the day you cancelled, not from the end of your last billing period. Resubscribe before then and the number and your whole message history come back with you.",
+  offerSeasonalGraceHeading: "Your number is still yours until the date below",
+  offerSeasonalHeading: "Your number is held for {days} days from the day you cancel",
+  offerStarterCovers: "It covers {seats} people and {numbers} business numbers.",
+  offerStarterCoversOne: "It covers {seats} people and {numbers} business number.",
+  offerStarterHeading: "Starter is the same product, priced for a smaller crew",
+  offerStarterHeadingGrace: "There is a smaller plan to come back on",
+  offerStarterPrice: "Starter is {starter} a month instead of {pro}, with smaller texting and calling allowances under the same fair-use policy.",
+  offerStarterTail: "The switch takes effect at the end of your current billing period. Your message history comes with you, and so does the number you text from — a second number does not: the downgrade is refused until you release it, and until the crew is back inside {seats} seats.",
+  offerStarterTailGrace: "Come back on Starter and your number and your whole message history come with you.",
+  offerStarterTailPaused: "Your plan is paused, so this takes two steps in this order: resume first, then switch plans. The switch takes effect at the end of your current billing period. Your message history comes with you, and so does the number you text from — a second number does not: the downgrade is refused until you release it, and until the crew is back inside {seats} seats.",
+  planSwitchToStarter: "Switch to Starter",
+
+
+  /*
    * #228 — the words packages/shared/src/support.ts names.
    *
    * Both phones have had these since #228 reached them; the web called the
@@ -726,6 +760,28 @@ export const settingsEn = {
  * translated — a machine matches on those.
  */
 export const settingsFr: Translated<typeof settingsEn> = {
+  offerComeBackOnStarter: "Revenir sur Starter",
+  offerGetHelp: "Obtenir de l'aide",
+  offerMissingBody: "Si ce dont vous aviez besoin n'est pas là, le plus rapide pour que cela change est de nous dire ce que c'était. Nous répondons {when}. {promise}",
+  offerMissingHeading: "Dites-nous ce qui manquait",
+  offerPausedSeasonalBody: "Votre numéro et tout votre historique de messages sont conservés aussi longtemps que vous restez en pause — rien n'expire pendant la pause, et il n'y a aucune date de retour à respecter. Annuler plutôt met fin à la pause et démarre un compte à rebours : {days} jours à compter du jour de l'annulation, et non de la fin de votre période de facturation, au terme duquel le numéro retourne à la compagnie de téléphone.",
+  offerPausedSeasonalHeading: "Votre forfait est déjà en pause, et cette conservation n'a aucune échéance",
+  offerRegistrationFeePaid: " Vous avez déjà payé les frais d'inscription uniques, et ils sont facturés au plus une fois par espace de travail, à jamais — revenir ne les facture pas de nouveau.",
+  offerSeasonalBody: "Il continue de recevoir les textos tout du long, alors rien de ce qu'un client envoie n'est perdu — vous ne pouvez pas répondre avant votre retour, et votre historique de messages reste en place. Les {days} jours courent à compter du jour de l'annulation, et non de la fin de votre période de facturation : une saison tranquille plus longue dépasse donc la conservation, et le numéro retourne à la compagnie de téléphone.",
+  offerSeasonalGraceBody: "Il reçoit encore les textos, alors rien de ce qu'un client envoie n'est perdu, même si vous ne pouvez pas répondre avant votre retour. Cette date est à {days} jours du jour de l'annulation, et non de la fin de votre dernière période de facturation. Réabonnez-vous avant, et le numéro ainsi que tout votre historique de messages reviennent avec vous.",
+  offerSeasonalGraceHeading: "Votre numéro vous appartient encore jusqu'à la date ci-dessous",
+  offerSeasonalHeading: "Votre numéro est conservé {days} jours à compter du jour de l'annulation",
+  offerStarterCovers: "Il couvre {seats} personnes et {numbers} numéros d'entreprise.",
+  offerStarterCoversOne: "Il couvre {seats} personnes et {numbers} numéro d'entreprise.",
+  offerStarterHeading: "Starter est le même produit, au prix d'une plus petite équipe",
+  offerStarterHeadingGrace: "Il existe un forfait plus petit pour revenir",
+  offerStarterPrice: "Starter coûte {starter} par mois au lieu de {pro}, avec des quantités de textos et d'appels plus petites, sous la même politique d'usage raisonnable.",
+  offerStarterTail: "Le changement prend effet à la fin de votre période de facturation en cours. Votre historique de messages vous suit, et le numéro d'où vous textez aussi — un deuxième numéro, non : le passage au forfait inférieur est refusé tant que vous ne l'avez pas libéré, et tant que l'équipe n'est pas revenue sous les {seats} places.",
+  offerStarterTailGrace: "Revenez sur Starter et votre numéro ainsi que tout votre historique de messages vous suivent.",
+  offerStarterTailPaused: "Votre forfait est en pause : cela se fait donc en deux étapes, dans cet ordre — reprenez d'abord, puis changez de forfait. Le changement prend effet à la fin de votre période de facturation en cours. Votre historique de messages vous suit, et le numéro d'où vous textez aussi — un deuxième numéro, non : le passage au forfait inférieur est refusé tant que vous ne l'avez pas libéré, et tant que l'équipe n'est pas revenue sous les {seats} places.",
+  planSwitchToStarter: "Passer à Starter",
+
+
   helpResponseTime: "within two business days, usually sooner",
   helpFixPromise: "Si vous nous signalez un problème, nous vous réécrivons quand il est corrigé, pas seulement quand nous l'avons lu.",
   supportBodyLeadIn: "Les renseignements ci-dessous nous aident à retrouver votre dossier. Laissez-les dans le message.",
