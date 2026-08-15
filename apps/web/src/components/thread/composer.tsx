@@ -45,7 +45,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ReplySuggestionChips } from "./reply-suggestion-chips";
-import { useT, type Translate } from "@/i18n/provider";
+import { sayWith, useT, type Translate } from "@/i18n/provider";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCompany } from "@/lib/api/companies";
 import {
@@ -436,6 +436,9 @@ export function MergeFieldPreview({
   identificationSuffix?: string | null;
 }) {
   const t = useT();
+  // #228: the shared note names a catalogue key, so the composer says it in
+  // the reader's language.
+  const say = sayWith(t);
   // #393: a plain draft about to be SIGNED needs the preview too — otherwise
   // the one case where the sent text differs from the typed text without any
   // {token} to hint at it is the case with no preview at all.
@@ -461,7 +464,7 @@ export function MergeFieldPreview({
           "next visit" would be confidently wrong the moment a teammate
           reschedules it, and a preview that is usually right is worse than
           one that says which part it cannot show. */}
-      {hasServerOnlyTokens(text) && <p>{SERVER_ONLY_TOKENS_NOTE}</p>}
+      {hasServerOnlyTokens(text) && <p>{say(SERVER_ONLY_TOKENS_NOTE)}</p>}
     </div>
   );
 }

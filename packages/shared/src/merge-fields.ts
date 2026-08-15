@@ -223,14 +223,29 @@ export interface MergeFieldVariable {
   hint: string;
 }
 
+/*
+ * #228: `hint` is a catalogue KEY from here down.
+ *
+ * `token` is NOT and must never be: it is the thing a person types between
+ * braces in a message body, and the server matches on it. Translating a token
+ * would break every template already written with the English one, in the
+ * language it was meant to serve.
+ *
+ * `label` is NOT YET, and that is a gap rather than a decision. All three
+ * clients still hold these one and two-word labels in English — `MergeFields.kt`
+ * keeps them beside the key it did convert — and the ledger does not count them
+ * because a prose filter drops anything this short. Converting them means
+ * inventing keys for three catalogues at once.
+ */
+
 export const MERGE_FIELD_VARIABLES: readonly MergeFieldVariable[] = [
-  { token: "first_name", label: "First name", hint: "The customer's first name" },
-  { token: "address", label: "Address", hint: "The address on their contact" },
-  { token: "job_day", label: "Day", hint: "The day of their next booked visit" },
-  { token: "job_time", label: "Time", hint: "The time of it" },
-  { token: "my_name", label: "My name", hint: "Your first name" },
-  { token: "business_name", label: "Business", hint: "Your business name" },
-  { token: "our_number", label: "Our number", hint: "The number they reply to" },
+  { token: "first_name", label: "First name", hint: "thread.mergeFirstName" },
+  { token: "address", label: "Address", hint: "thread.mergeAddress" },
+  { token: "job_day", label: "Day", hint: "thread.mergeJobDay" },
+  { token: "job_time", label: "Time", hint: "thread.mergeJobTime" },
+  { token: "my_name", label: "My name", hint: "thread.mergeMyName" },
+  { token: "business_name", label: "Business", hint: "thread.mergeBusinessName" },
+  { token: "our_number", label: "Our number", hint: "thread.mergeOurNumber" },
 ];
 
 /**
@@ -297,5 +312,4 @@ export function hasServerOnlyTokens(text: string): boolean {
  * One sentence, in the product's voice, from one place — three clients writing
  * their own would each be describing the same mechanism slightly differently.
  */
-export const SERVER_ONLY_TOKENS_NOTE =
-  "The day and time fill in when you send.";
+export const SERVER_ONLY_TOKENS_NOTE = "thread.serverOnlyTokensNote";

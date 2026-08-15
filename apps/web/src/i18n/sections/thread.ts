@@ -18,6 +18,19 @@
 import type { Translated } from "../translated";
 
 export const threadEn = {
+  /*
+   * #274 — what each merge token fills in. Both phones have said these since #228 reached them; the web imported the shared table and rendered whatever English came back. The token itself stays English on every client: it is what a person types between braces and what the server matches on.
+   */
+  mergeAddress: "The address on their contact",
+  mergeBusinessName: "Your business name",
+  mergeFirstName: "The customer's first name",
+  mergeJobDay: "The day of their next booked visit",
+  mergeJobTime: "The time of it",
+  mergeMyName: "Your first name",
+  mergeOurNumber: "The number they reply to",
+  serverOnlyTokensNote: "The day and time fill in when you send.",
+
+
   // --- Attachments in a bubble (attachment-audio / -file / -image) ----------
   audioMessage: "Audio message",
   /** `from` is already a phrase — see `audioFromLabel` / `audioSentToLabel`. */
@@ -711,6 +724,16 @@ export const threadEn = {
  * and a translated keyword is a keyword that does nothing.
  */
 export const threadFr: Translated<typeof threadEn> = {
+  mergeAddress: "L'adresse inscrite à sa fiche de contact",
+  mergeBusinessName: "Le nom de votre entreprise",
+  mergeFirstName: "Le prénom du client",
+  mergeJobDay: "Le jour de sa prochaine visite prévue",
+  mergeJobTime: "L'heure de celle-ci",
+  mergeMyName: "Votre prénom",
+  mergeOurNumber: "Le numéro auquel il répond",
+  serverOnlyTokensNote: "Le jour et l'heure se remplissent à l'envoi.",
+
+
   // --- Attachments in a bubble ---------------------------------------------
   audioMessage: "Message audio",
   audioMessageAria: "Message audio {from}",
