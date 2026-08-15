@@ -72,19 +72,42 @@ export const EXTRA_NUMBER_CURRENCY = "usd";
  * The string is customer-facing and is the ONLY explanation they get, so it
  * names the actual gate and what clears it — never a bare "not available".
  */
+/** Every catalogue key this module names. */
+export type ExtraNumberKey =
+  | "settingsMore.extraNumberUsTexting"
+  | "settingsMore.extraNumberStarterCap"
+  | "settingsMore.extraNumberCurrency";
+
+/** The reader's resolver. */
+export type SayExtraNumber = (key: ExtraNumberKey) => string;
+
 export function extraNumberBlockedReason(
   args: ExtraNumberEligibility,
+  /**
+   * #228 — the reader's resolver.
+   *
+   * The API passes an ENGLISH one on purpose: this sentence goes out as an
+   * `errorResponse` body, so it is on the wire and a client built last month
+   * renders it verbatim. The web and Android pass the reader's, because they
+   * compute the same gate locally to decide whether to offer the button at
+   * all — the same string, two audiences, and only one of them is a client
+   * this repo controls the age of.
+   */
+  say: SayExtraNumber,
 ): string | null {
   // US only: the carriers must approve the brand before a US number can text,
   // so selling a second one first would sell something that cannot be used.
   if (args.country === "US" && !args.usTextingEnabled) {
-    return "An extra number needs US texting turned on for your workspace first.";
+    return say("settingsMore.extraNumberUsTexting");
   }
   if (
     args.plan === "starter" &&
     args.currentCount >= STARTER_MAX_TOTAL_NUMBERS
   ) {
-    return `Starter tops out at ${STARTER_MAX_TOTAL_NUMBERS} numbers (1 included + 1 extra). Move to Pro for more.`;
+    return say("settingsMore.extraNumberStarterCap").replace(
+      "{max}",
+      String(STARTER_MAX_TOTAL_NUMBERS),
+    );
   }
   // #522: a Stripe subscription bills in ONE currency, and every item on it has
   // to carry an amount in that currency. The extra-number prices are filed in
@@ -101,16 +124,22 @@ export function extraNumberBlockedReason(
   // mattering the day CAD is genuinely filed — which is exactly the day this
   // would otherwise have become a support ticket nobody could explain.
   if (args.billingCurrency.trim().toLowerCase() !== EXTRA_NUMBER_CURRENCY) {
-    return (
-      "Extra numbers are priced in US dollars and can't be added to a " +
-      "subscription billed in another currency yet. Contact support and we'll " +
-      "sort it out."
-    );
+    return say("settingsMore.extraNumberCurrency");
   }
   return null;
 }
 
 /** Convenience for call sites that only need the yes/no. */
-export function canBuyExtraNumber(args: ExtraNumberEligibility): boolean {
-  return extraNumberBlockedReason(args) === null;
+export function canBuyExtraNumber(
+  args: ExtraNumberEligibility,
+  /**
+   * Only the yes/no is wanted here, so the resolver never matters — but taking
+   * it keeps the two functions honest about being the same decision. Defaulted
+   * to a resolver that returns the KEY: any caller that ignores the answer
+   * gets the right boolean, and one that prints it gets something obviously
+   * unfinished rather than a plausible English sentence.
+   */
+  say: SayExtraNumber = (key) => key,
+): boolean {
+  return extraNumberBlockedReason(args, say) === null;
 }

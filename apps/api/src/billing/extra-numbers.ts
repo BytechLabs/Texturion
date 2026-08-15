@@ -36,7 +36,16 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { extraNumberBlockedReason, type BillingCurrency } from "@loonext/shared";
+import {
+  extraNumberBlockedReason,
+  type BillingCurrency,
+  type ExtraNumberKey,
+} from "@loonext/shared";
+
+import { EXTRA_NUMBER_REASONS_EN } from "./extra-number-copy";
+
+/** The wire's language. See the call site for why it is not the reader's. */
+const englishReason = (key: ExtraNumberKey): string => EXTRA_NUMBER_REASONS_EN[key];
 
 import type { Env } from "../env";
 import { idempotencyKey } from "./idempotency";
@@ -120,13 +129,22 @@ export function extraNumberPurchasable(args: {
       reason: "Extra numbers are available for US and Canadian workspaces.",
     };
   }
-  const reason = extraNumberBlockedReason({
-    plan: args.plan,
-    currentCount: args.currentCount,
-    country: args.country,
-    usTextingEnabled: args.usTextingEnabled,
-    billingCurrency: args.billingCurrency,
-  });
+  const reason = extraNumberBlockedReason(
+    {
+      plan: args.plan,
+      currentCount: args.currentCount,
+      country: args.country,
+      usTextingEnabled: args.usTextingEnabled,
+      billingCurrency: args.billingCurrency,
+    },
+    // ENGLISH, deliberately. This sentence leaves as an `errorResponse` body
+    // and a client built last month renders it verbatim — the server cannot
+    // pick the reader's language anyway, because `profiles.locale`'s null
+    // means "ask the device" and no client sends that. The web and both
+    // phones compute the same gate locally with the reader's resolver, which
+    // is what a person actually sees before they tap.
+    englishReason,
+  );
   return reason === null ? { ok: true } : { ok: false, reason };
 }
 

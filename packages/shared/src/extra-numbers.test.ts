@@ -11,7 +11,22 @@ import {
   EXTRA_NUMBER_CURRENCY,
   extraNumberBlockedReason,
   STARTER_MAX_TOTAL_NUMBERS,
+  type ExtraNumberEligibility,
 } from "./extra-numbers";
+
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/** #228 — the module names keys now, so the tests resolve them. */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
+const sayEn = (key: string): string => look(WEB_EN, key);
+const sayFr = (key: string): string => look(WEB_FR, key);
+
 
 describe("extraNumberBlockedReason", () => {
   it("lets a Canadian workspace buy one, with no registration wait", () => {
@@ -25,7 +40,7 @@ describe("extraNumberBlockedReason", () => {
         country: "CA",
         usTextingEnabled: false,
         billingCurrency: "usd",
-      }),
+      }, sayEn),
     ).toBeNull();
   });
 
@@ -36,7 +51,7 @@ describe("extraNumberBlockedReason", () => {
       country: "US",
       usTextingEnabled: false,
       billingCurrency: "usd",
-    });
+    }, sayEn);
     expect(reason).toBe(
       "An extra number needs US texting turned on for your workspace first.",
     );
@@ -62,7 +77,7 @@ describe("extraNumberBlockedReason", () => {
         country,
         usTextingEnabled: true,
         billingCurrency: "usd",
-      });
+      }, sayEn);
       expect(reason, `${country} should still hit the Starter cap`).toContain(
         "Starter tops out",
       );
@@ -89,7 +104,7 @@ describe("extraNumberBlockedReason", () => {
       { plan: "starter-capped", args: { plan: "starter" as const, currentCount: 2, country: "CA" as const, usTextingEnabled: false, billingCurrency: "usd" } },
     ];
     for (const { plan, args } of blocked) {
-      const reason = extraNumberBlockedReason(args);
+      const reason = extraNumberBlockedReason(args, sayEn);
       expect(reason, `${plan} must explain itself`).toBeTruthy();
       expect(reason!.length, `${plan} must explain itself`).toBeGreaterThan(20);
     }
@@ -117,7 +132,7 @@ describe("extra numbers are a USD line (#522)", () => {
     const reason = extraNumberBlockedReason({
       ...canadianPro,
       billingCurrency: "cad",
-    });
+    }, sayEn);
     expect(reason).toContain("US dollars");
     // Names a way forward rather than stopping at "unavailable".
     expect(reason).toContain("support");
@@ -164,5 +179,57 @@ describe("extra numbers are a USD line (#522)", () => {
         billingCurrency: EXTRA_NUMBER_CURRENCY,
       }),
     ).toBeTruthy();
+  });
+});
+
+describe("#228 the refusal a Quebec workspace reads", () => {
+  it("says why in French, and fills the cap in", () => {
+    const starter = extraNumberBlockedReason(
+      {
+        plan: "starter",
+        currentCount: STARTER_MAX_TOTAL_NUMBERS,
+        country: "US",
+        usTextingEnabled: true,
+        billingCurrency: "usd",
+      } satisfies ExtraNumberEligibility,
+      sayFr,
+    );
+    expect(starter).toMatch(/^Le forfait Starter/);
+    expect(starter).toContain(String(STARTER_MAX_TOTAL_NUMBERS));
+    expect(starter, "a variable survived the fill").not.toMatch(/\{/);
+  });
+
+  it("keeps the remedy in both languages, because a refusal without one reads as a bug", () => {
+    // Every branch here names what would have to change. That is the rule the
+    // module's own docblock states, and a translation that dropped the second
+    // half would leave a workspace refused with nothing to do about it.
+    const args: ExtraNumberEligibility = {
+      plan: "pro",
+      currentCount: 3,
+      country: "US",
+      usTextingEnabled: false,
+      billingCurrency: "usd",
+    };
+    expect(extraNumberBlockedReason(args, sayEn)).toMatch(/turned on/i);
+    expect(extraNumberBlockedReason(args, sayFr)).toMatch(/activ[ée]s/i);
+
+    const currency = { ...args, usTextingEnabled: true, billingCurrency: "cad" };
+    expect(extraNumberBlockedReason(currency, sayEn)).toMatch(/Contact support/i);
+    expect(extraNumberBlockedReason(currency, sayFr)).toMatch(/soutien/i);
+  });
+
+  it("still answers yes or no without a resolver", () => {
+    // canBuyExtraNumber defaults to a resolver that returns the key: the
+    // boolean is what it is for, and a caller that printed the reason would
+    // see something obviously unfinished rather than a plausible sentence.
+    expect(
+      canBuyExtraNumber({
+        plan: "pro",
+        currentCount: 3,
+        country: "US",
+        usTextingEnabled: true,
+        billingCurrency: "usd",
+      } satisfies ExtraNumberEligibility),
+    ).toBe(true);
   });
 });

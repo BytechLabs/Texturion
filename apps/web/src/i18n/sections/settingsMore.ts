@@ -13,6 +13,12 @@
 import type { Translated } from "../translated";
 
 export const settingsMoreEn = {
+  /* #228 — why an extra number cannot be bought. Also sent by the API as
+     an error body, so the English here has to stay word-for-word what
+     packages/shared sends: an old client renders that verbatim. */
+  extraNumberUsTexting: "An extra number needs US texting turned on for your workspace first.",
+  extraNumberStarterCap: "Starter tops out at {max} numbers (1 included + 1 extra). Move to Pro for more.",
+  extraNumberCurrency: "Extra numbers are priced in US dollars and can't be added to a subscription billed in another currency yet. Contact support and we'll sort it out.",
   /* #228 — the usage export. Both phones have had these three; the web
      read the English off packages/shared. */
   exportUsageAction: "Export usage",
@@ -1205,6 +1211,9 @@ export const settingsMoreEn = {
 } as const;
 
 export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
+  extraNumberUsTexting: "Un numéro supplémentaire exige d'abord que les textos américains soient activés pour votre espace de travail.",
+  extraNumberStarterCap: "Le forfait Starter s'arrête à {max} numéros (1 inclus + 1 supplémentaire). Passez à Pro pour en avoir plus.",
+  extraNumberCurrency: "Les numéros supplémentaires sont facturés en dollars américains et ne peuvent pas encore être ajoutés à un abonnement facturé dans une autre devise. Écrivez au soutien et nous arrangerons cela.",
   exportUsageAction: "Exporter l'utilisation",
   exportUsageBlurb: "Vos textos, vos appels et votre stockage pour une période, sous forme de fichier pour la personne qui tient vos livres.",
   exportUsageNote: "Le fichier compte ce que nous avons mesuré — ce n'est pas une copie de votre facture Stripe, et rien n'y est chiffré en dollars. Il est assemblé en arrière-plan et apparaît sous Exportation de données.",

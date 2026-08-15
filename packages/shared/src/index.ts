@@ -41,6 +41,8 @@ export {
   type ExtraNumberEligibility,
   type ExtraNumberPlan,
   type NumberCountry,
+  type ExtraNumberKey,
+  type SayExtraNumber,
 } from "./extra-numbers";
 
 export {

@@ -136,7 +136,7 @@ export default function NumbersSettingsPage() {
                 billingCurrency: billingCurrencyOf(
                   company.data.billing_currency,
                 ),
-              })
+              }, t)
             : t("appShell.numbersNoPlanYet");
           const canBuyExtra = paidExtra && extraBlockedReason === null;
           // #74: a plan-included number can be (re)provisioned in-app whenever a
