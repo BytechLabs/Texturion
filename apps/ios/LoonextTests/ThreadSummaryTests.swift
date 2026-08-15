@@ -727,12 +727,15 @@ final class ThreadSummaryTests: XCTestCase {
         // owned the words. Three clients each inventing a heading for "what we
         // committed to" is that failure waiting to happen again.
         let shared = try sharedThreadSummarySource()
+        let catalogue = try catalogueEnglish()
         XCTAssertEqual(threadSummarySections.count, 3)
         for section in threadSummarySections {
+            // The heading, where headings live since #228.
             XCTAssertTrue(
-                shared.contains("label: \"\(section.label)\""),
-                "the heading \"\(section.label)\" is not in the shared source"
+                catalogue.contains("\"\(section.label)\""),
+                "the heading \"\(section.label)\" is not in the catalogue"
             )
+            // The id, which is a wire value and stayed put.
             XCTAssertTrue(
                 shared.contains("id: \"\(section.id)\""),
                 "the section id \"\(section.id)\" is not in the shared source"
@@ -743,10 +746,10 @@ final class ThreadSummaryTests: XCTestCase {
     func testTheAttributionLineIsTheSharedOneVerbatim() throws {
         // The sentence that makes the card honest: whose reading this is, and
         // that the thread is still the arbiter.
-        let shared = try sharedThreadSummarySource()
+        let catalogue = try catalogueEnglish()
         XCTAssertTrue(
-            shared.contains(threadSummaryAttribution),
-            "the attribution differs from the shared source: \(threadSummaryAttribution)"
+            catalogue.contains(threadSummaryAttribution),
+            "the attribution differs from the catalogue: \(threadSummaryAttribution)"
         )
     }
 
@@ -1109,6 +1112,30 @@ final class ThreadSummaryTests: XCTestCase {
     }
 
     /// The TypeScript this file was hand-ported from.
+    /// Where the catch-up's WORDS live since #228: the web catalogue.
+    ///
+    /// The shared module names keys now. The section IDS are still asserted
+    /// against it — those are wire values a line carries in its `section`
+    /// field and did not move — so both readers exist rather than one
+    /// replacing the other.
+    ///
+    /// Sliced to the English half: the French holds the same keys, and a
+    /// `contains` over the whole file would ask whether a heading appears in
+    /// EITHER language.
+    private func catalogueEnglish() throws -> String {
+        let url = repoRoot()
+            .appendingPathComponent("apps/web/src/i18n/sections/domain.ts")
+        guard let source = try? String(contentsOf: url, encoding: .utf8) else {
+            throw missingSource(url.path)
+        }
+        guard let start = source.range(of: "export const domainEn"),
+              let end = source.range(of: "export const domainFr")
+        else {
+            throw missingSource("both language blocks in \(url.path)")
+        }
+        return String(source[start.upperBound ..< end.lowerBound])
+    }
+
     private func sharedThreadSummarySource() throws -> String {
         let url = repoRoot()
             .appendingPathComponent("packages/shared/src/thread-summary.ts")
