@@ -899,26 +899,38 @@ class CancellationOfferTest {
     }
 
     /**
-     * THE PAUSED SENTENCES, PINNED AGAINST THE TYPESCRIPT THEY WERE PORTED FROM.
+     * THE PAUSED SENTENCES, PINNED AGAINST THE CATALOGUE THEY WERE PORTED FROM.
      *
      * This is the cross-language half applied to the new copy, and it is the
      * only thing standing between three hand-ported clients and three different
      * paragraphs about the same pause. The other pins in this file compare
      * NUMBERS; these compare the sentences, because that is what was ported.
      *
-     * Compared after normalising the TypeScript's own seams — a template literal
-     * broken across five lines with `+` between the pieces is one string at
-     * runtime, and a guard reading raw source would see a sentence that ends
-     * mid-clause. The two interpolations that survive into the text are resolved
-     * to the values this client prints, which is exactly what makes a drift in
-     * either one fail here.
+     * #228 MOVED THE SOURCE, not the guard's job. `cancellation-offers.ts` used
+     * to hold these sentences and now names catalogue keys, so the English it
+     * names lives in the web catalogue — which is the same vocabulary all three
+     * clients look up. Reading the shared module for a sentence it no longer
+     * contains is how this test went red on a correct change, and repointing it
+     * is the fix rather than deleting it: this client still TYPES these
+     * paragraphs out, so the drift it guards against is still available.
      *
-     * FAILS RATHER THAN SKIPS when the shared file cannot be read — [sharedSource]
+     * When this client's cancel copy moves to keys too, this becomes a
+     * catalogue-to-catalogue comparison and stops needing the normalisation
+     * below at all.
+     *
+     * Compared after normalising the source's own seams — a string broken across
+     * five lines with `+` between the pieces is one string at runtime, and a
+     * guard reading raw source would see a sentence that ends mid-clause. The
+     * two placeholders that survive into the text are resolved to the values
+     * this client prints, which is exactly what makes a drift in either one fail
+     * here.
+     *
+     * FAILS RATHER THAN SKIPS when the file cannot be read — [catalogueSource]
      * sees to that.
      */
     @Test
     fun `pins the paused sentences against the TypeScript they were ported from`() {
-        val ts = tsCopy(sharedSource("cancellation-offers.ts"))
+        val ts = catalogueCopy(catalogueSource())
 
         val seasonal = cancellationOffer("seasonal", "pro", paused = true)!!
         assertTrue(
@@ -1583,6 +1595,47 @@ class CancellationOfferTest {
      *   whitespace flattens a literal wrapped across five indented lines is one
      *                      run of spaces to a reader and five newlines on disk.
      */
+    /**
+     * The web catalogue, which is where the shared module's English now lives.
+     *
+     * Reached the same way [sharedSource] reaches `packages/shared`, and it
+     * fails rather than skipping for the same reason: a cross-language pin that
+     * quietly does nothing is worse than no pin, because the file it was
+     * watching keeps being edited.
+     */
+    private fun catalogueSource(): String {
+        listOf("", "../../", "../../../").forEach { prefix ->
+            val f = File("${prefix}apps/web/src/i18n/sections/settings.ts")
+            if (f.exists()) return f.readText()
+        }
+        fail(
+            "apps/web/src/i18n/sections/settings.ts not found from " +
+                "${File(".").absolutePath}. This guard compares the Kotlin " +
+                "hand-port against the catalogue it was ported from, so it fails " +
+                "rather than skipping",
+        )
+        error("unreachable")
+    }
+
+    /**
+     * The catalogue's ENGLISH half, as the runtime sees its strings.
+     *
+     * Sliced to `settingsEn` before anything else. The French half holds the
+     * same keys, and a `contains` over the whole file would be asking whether a
+     * sentence appears in EITHER language — which is exactly the question this
+     * guard must not answer yes to.
+     */
+    private fun catalogueCopy(source: String): String = source
+        .substringAfter("export const settingsEn")
+        .substringBefore("export const settingsFr")
+        .replace(Regex("/\\*.*?\\*/", RegexOption.DOT_MATCHES_ALL), "")
+        .replace(Regex("(?m)//.*$"), "")
+        .replace(Regex("[\"]\\s*\\+\\s*[\"]"), "")
+        .replace("{days}", CANCELLATION_GRACE_DAYS.toString())
+        .replace("{seats}", STARTER_SEATS.toString())
+        .replace("{numbers}", STARTER_NUMBERS.toString())
+        .replace(Regex("\\s+"), " ")
+
     private fun tsCopy(source: String): String = source
         .replace(Regex("/\\*.*?\\*/", RegexOption.DOT_MATCHES_ALL), "")
         .replace(Regex("(?m)//.*$"), "")

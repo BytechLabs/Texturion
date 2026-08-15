@@ -42,6 +42,14 @@ apps/api/src
 
 # #607 A3: web's timeline, for the payment-line agreement guard.
 apps/web/src/components/thread
+
+# #228: the cancel card's sentences. They used to be typed out in
+# cancellation-offers.ts, which `packages/shared/src` above already covered;
+# that module names catalogue keys now, so the English moved here and the
+# cross-language pin in CancellationOfferTest followed it. The single file
+# rather than the sections directory: an edit to any of these re-runs the whole
+# Android suite, and the other sections are nothing a Kotlin test reads.
+apps/web/src/i18n/sections/settings.ts
 # DeepLinkTest lists these directories to prove every settings slug it maps has
 # a route on the server's side of the link.
 apps/web/src/app/(app)/settings
