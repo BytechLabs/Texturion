@@ -26,6 +26,18 @@ import type { Translated } from "../translated";
 
 export const domainEn = {
   /*
+   * #537 — confirming a handover of the business. Both phones have said these since #228 reached them; the web imported the shared constants and rendered whatever English came back.
+   */
+  handoverField: "Six-digit code",
+  handoverRejected: "That code didn't work. Ask for a new one and try again.",
+  handoverResend: "Send it again",
+  handoverSubmit: "Confirm",
+  handoverTitle: "Confirm it's you",
+  handoverWhereAuthenticator: "Open your authenticator app and enter the six-digit code it shows.",
+  handoverWhereEmail: "We've emailed a six-digit code to the address on your account. It works once, and expires in ten minutes.",
+
+
+  /*
    * #293 — how much the app tells you, and about what. Both phones have said these since #228 reached them; the web imported the shared tables and rendered whatever English came back. The digest and daily-summary lines above them stay English: the server composes those into a push body.
    */
   categoryAssignments: "Work handed to me",
@@ -234,6 +246,15 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  handoverField: "Code à six chiffres",
+  handoverRejected: "Ce code n'a pas fonctionné. Demandez-en un nouveau et réessayez.",
+  handoverResend: "Envoyer de nouveau",
+  handoverSubmit: "Confirmer",
+  handoverTitle: "Confirmez votre identité",
+  handoverWhereAuthenticator: "Ouvrez votre application d'authentification et entrez le code à six chiffres qu'elle affiche.",
+  handoverWhereEmail: "Nous avons envoyé un code à six chiffres par courriel à l'adresse de votre compte. Il fonctionne une seule fois et expire dans dix minutes.",
+
+
   categoryAssignments: "Travail qui m'est confié",
   categoryMentions: "Quand quelqu'un me mentionne avec @",
   categoryMessagesAll: "Textos sur les tâches de tout le monde",

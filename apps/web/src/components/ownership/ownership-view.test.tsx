@@ -128,6 +128,7 @@ import {
   HANDOVER_CONFIRM_SUBMITTING,
 } from "@loonext/shared";
 import { toast } from "sonner";
+import { sayEnglish } from "@/i18n/provider";
 
 import { ApiError } from "@/lib/api/error";
 
@@ -163,13 +164,13 @@ function refuseOnce(errorCode: string) {
 
 /** Type six digits into the confirmation dialog and press Confirm. */
 async function answer(digits: string) {
-  fireEvent.change(screen.getByLabelText(HANDOVER_CONFIRM_FIELD), {
+  fireEvent.change(screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)), {
     target: { value: digits },
   });
   // Awaited: the `reprove` path talks to Supabase before it retries, and every
   // assertion is about what happened by the time that answer came back.
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }));
+    fireEvent.click(screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_SUBMIT) }));
   });
 }
 
@@ -286,10 +287,10 @@ describe("accepting a workspace when the server asks who is asking", () => {
 
     await answer("123456");
 
-    expect(screen.queryByText(HANDOVER_CONFIRM_REJECTED)).toBeNull();
+    expect(screen.queryByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toBeNull();
     // And the prompt is gone, rather than left standing over a workspace that has
     // already changed hands.
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     expect(toast.success).toHaveBeenCalledWith("You now own this workspace.");
   });
 
@@ -303,9 +304,9 @@ describe("accepting a workspace when the server asks who is asking", () => {
 
     await answer("000000");
 
-    expect(screen.queryByText(HANDOVER_CONFIRM_REJECTED)).not.toBeNull();
+    expect(screen.queryByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).not.toBeNull();
     // Still open, because the next code the app shows will work.
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).not.toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
     // And the action was NOT retried on a proof that never landed.
     expect(mutate).toHaveBeenCalledTimes(1);
   });
@@ -324,10 +325,10 @@ describe("accepting a workspace when the server asks who is asking", () => {
     refuseOnce("mfa_reprove_required");
     acceptTheOffer();
 
-    fireEvent.change(screen.getByLabelText(HANDOVER_CONFIRM_FIELD), {
+    fireEvent.change(screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)), {
       target: { value: "123456" },
     });
-    fireEvent.click(screen.getByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }));
+    fireEvent.click(screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_SUBMIT) }));
     await act(async () => {});
 
     // Named by its shared constant, like the field and the idle label above it. The
@@ -365,7 +366,7 @@ describe("accepting a workspace when the server asks who is asking", () => {
     );
     acceptTheOffer();
 
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     expect(toast.error).toHaveBeenCalledWith(
       "Somebody else is taking this over.",
     );
@@ -414,7 +415,7 @@ describe("stopping one is never gated", () => {
     render(<OwnershipView />);
     fireEvent.click(screen.getByRole("button", { name: "Decline" }));
 
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     expect(toast.error).toHaveBeenCalled();
   });
 });

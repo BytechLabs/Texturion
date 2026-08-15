@@ -103,6 +103,8 @@ import {
   HANDOVER_CONFIRM_SUBMIT,
 } from "@loonext/shared";
 
+import { sayEnglish } from "@/i18n/provider";
+
 import { ApiError } from "@/lib/api/error";
 import { toast } from "sonner";
 
@@ -177,13 +179,13 @@ function pressClose() {
 
 /** Type six digits into the confirmation dialog and press Confirm. */
 async function answer(digits: string) {
-  fireEvent.change(screen.getByLabelText(HANDOVER_CONFIRM_FIELD), {
+  fireEvent.change(screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)), {
     target: { value: digits },
   });
   // Awaited: the `reprove` path talks to Supabase before it retries, and the
   // assertions are all about what happens after that answer comes back.
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }));
+    fireEvent.click(screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_SUBMIT) }));
   });
 }
 
@@ -230,14 +232,14 @@ describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
     // offers to close it.
     refuseOnce("mfa_reprove_required");
     pressClose();
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).not.toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
     // And it does not open already accusing them. "That code didn't work" on a
     // prompt nobody has typed into yet is not just wrong copy: the dialog clears
     // the field every time `rejected` flips, so a prompt stuck on rejected wipes
     // the correct digits as they are entered and the workspace can never close.
     // The refusal being SHOWN is proven below; this is the other direction, and
     // without it `rejected={true}` passes the whole file.
-    expect(screen.queryByText(HANDOVER_CONFIRM_REJECTED)).toBeNull();
+    expect(screen.queryByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toBeNull();
   });
 
   it("spends a stale-proof code on Supabase and retries with NO code", async () => {
@@ -265,7 +267,7 @@ describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
     // false when this comment was first written: `onSuccess` never told the gate,
     // so the six digits stayed on screen over a workspace that was already gone.
     expect(replace).toHaveBeenCalledWith("/login");
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
   });
 
   it("leaves nothing to press once the workspace is closed", async () => {
@@ -361,9 +363,9 @@ describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
     // so counting the node proves nothing; what can actually go wrong is silence,
     // which somebody answering a code prompt reads as "nothing happened" and
     // answers by pressing it again.
-    expect(screen.queryByText(HANDOVER_CONFIRM_REJECTED)).not.toBeNull();
+    expect(screen.queryByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).not.toBeNull();
     // Still askable — the prompt stays up so the next code has somewhere to go.
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).not.toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
     // Nothing was retried off the back of the refusal either.
     expect(attempts).toHaveLength(2);
   });
@@ -379,7 +381,7 @@ describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
     });
     pressClose();
 
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     expect(toast.error).toHaveBeenCalledWith("This workspace is already closed.");
   });
 });

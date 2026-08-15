@@ -247,9 +247,27 @@ class HandoverConfirmationTest {
         .replace(Regex("\\s+"), " ")
         .trim()
 
+    /**
+     * The web catalogue's ENGLISH half, which is where these sentences went.
+     *
+     * #228 moved the handover copy out of `handover-confirmation.ts`, which
+     * names keys now. ONLY THIS TEST follows it: the two above read error codes
+     * and a code-to-destination map, both of which are wire values that never
+     * moved, so pointing them here would have them compare an empty set against
+     * an empty set and pass while watching nothing.
+     *
+     * Sliced to the English half — the French holds the same keys, and a
+     * `contains` over the whole file would ask whether a sentence appears in
+     * EITHER language.
+     */
+    private fun handoverCopy(): String =
+        repoFile("apps/web/src/i18n/sections/domain.ts")
+            .substringAfter("export const domainEn")
+            .substringBefore("export const domainFr")
+
     @Test
     fun `both sentences match the shared module, whole`() {
-        val shared = bare(repoFile("packages/shared/src/handover-confirmation.ts"))
+        val shared = bare(handoverCopy())
         for (kind in HandoverConfirmation.Kind.entries) {
             val sentence = bare(HandoverConfirmation.where(kind))
             assertTrue(
@@ -318,7 +336,9 @@ class HandoverConfirmationTest {
 
     @Test
     fun `the labels match the shared module`() {
-        val shared = repoFile("packages/shared/src/handover-confirmation.ts")
+        // #228: same move as the sentences above — the copy lives in the
+        // catalogue now, so this follows it there.
+        val shared = handoverCopy()
         for (label in listOf(
             HandoverConfirmation.TITLE,
             HandoverConfirmation.FIELD,

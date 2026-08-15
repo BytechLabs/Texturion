@@ -120,6 +120,8 @@ import {
   type ApiErrorCode,
 } from "@loonext/shared";
 
+import { sayEnglish } from "@/i18n/provider";
+
 import { ApiError } from "@/lib/api/error";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { toast } from "sonner";
@@ -341,14 +343,14 @@ function turnItOff() {
 
 /** Type six digits into the confirmation dialog and press Confirm. */
 async function answer(digits: string) {
-  fireEvent.change(screen.getByLabelText(HANDOVER_CONFIRM_FIELD), {
+  fireEvent.change(screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)), {
     target: { value: digits },
   });
   // Awaited: the `reprove` path talks to Supabase before it retries, and the
   // assertions are all about what happens after that answer comes back.
   await act(async () => {
     fireEvent.click(
-      screen.getByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }),
+      screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_SUBMIT) }),
     );
   });
 }
@@ -386,7 +388,7 @@ describe("…and when the server asks who is doing this", () => {
     refuseOnce("mfa_reprove_required");
     mount(card());
     turnItOff();
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).not.toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
   });
 
   it("spends a stale-proof code on Supabase and retries with NO code", async () => {
@@ -432,10 +434,10 @@ describe("…and when the server asks who is doing this", () => {
 
     await answer("123456");
 
-    expect(screen.queryByText(HANDOVER_CONFIRM_REJECTED)).toBeNull();
+    expect(screen.queryByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toBeNull();
     // And the prompt is gone rather than left standing over a save that has
     // already happened.
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
   });
 
   it("posts an emailed code to OUR API, and asks for one on open", async () => {
@@ -474,7 +476,7 @@ describe("…and when the server asks who is doing this", () => {
     await answer("123456");
 
     expect(
-      screen.queryByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }),
+      screen.queryByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_SUBMIT) }),
     ).toBeNull();
     expect(busySubmit().disabled).toBe(true);
 
@@ -511,7 +513,7 @@ describe("…and when the server asks who is doing this", () => {
     await answer("123456");
 
     expect(
-      screen.queryByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }),
+      screen.queryByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_SUBMIT) }),
     ).toBeNull();
     expect(busySubmit().disabled).toBe(true);
     // "Send it again" goes with it. A fresh code minted over a save already carrying
@@ -520,7 +522,7 @@ describe("…and when the server asks who is doing this", () => {
     expect(
       (
         screen.getByRole("button", {
-          name: HANDOVER_CONFIRM_RESEND,
+          name: sayEnglish(HANDOVER_CONFIRM_RESEND),
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -550,8 +552,8 @@ describe("…and when the server asks who is doing this", () => {
     // The second attempt, down the card's own retry — which is that same closure.
     await answer("123456");
 
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).not.toBeNull();
-    expect(screen.getAllByText(HANDOVER_CONFIRM_REJECTED)).toHaveLength(1);
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
+    expect(screen.getAllByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toHaveLength(1);
     expect(requestCode).toHaveBeenCalledTimes(1);
     // And a refused code is never reported as a failed save. The prompt is still up;
     // the next move is another code, not another flip of the switch.
@@ -572,7 +574,7 @@ describe("…and when the server asks who is doing this", () => {
     mount(card());
     turnItOff();
 
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     expect(toast.error).toHaveBeenCalledWith("Only the owner can change this.");
   });
 
@@ -600,11 +602,11 @@ describe("…and when the server asks who is doing this", () => {
     mount(card());
     turnItOff();
     // The prompt really is up, so the assertion after the answer is about it closing.
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).not.toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
 
     await answer("123456");
 
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     // And the reason is said out loud rather than hidden behind digits that could not
     // have helped.
     expect(toast.error).toHaveBeenCalledWith("Only the owner can change this.");
@@ -619,7 +621,7 @@ describe("…and when the server asks who is doing this", () => {
     refuseAlways("confirmation_code_required");
     mount(card());
     turnItOff();
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).not.toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
 
     // Unambiguous: the grace prompt is the other way through this card and is closed
     // here, so this is the confirmation prompt's own Cancel.
@@ -627,7 +629,7 @@ describe("…and when the server asks who is doing this", () => {
       fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     });
 
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     // And backing out is not a save. The one call is the refused attempt that opened
     // the prompt; leaving does not quietly retry it.
     expect(mutate).toHaveBeenCalledTimes(1);

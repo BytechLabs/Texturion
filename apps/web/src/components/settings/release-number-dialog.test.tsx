@@ -84,6 +84,8 @@ import {
   HANDOVER_CONFIRM_SUBMIT,
 } from "@loonext/shared";
 
+import { sayEnglish } from "@/i18n/provider";
+
 import { ApiError } from "@/lib/api/error";
 
 import { ReleaseNumberDialog } from "./release-number-dialog";
@@ -169,13 +171,13 @@ function attemptRelease() {
 
 /** Type six digits into the confirmation dialog and press Confirm. */
 async function answer(digits: string) {
-  fireEvent.change(screen.getByLabelText(HANDOVER_CONFIRM_FIELD), {
+  fireEvent.change(screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)), {
     target: { value: digits },
   });
   // Awaited: the `reprove` path talks to Supabase before it retries, and the
   // assertions are all about what happens after that answer comes back.
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }));
+    fireEvent.click(screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_SUBMIT) }));
   });
 }
 
@@ -226,7 +228,7 @@ describe("ReleaseNumberDialog — answering the proof the server asks for", () =
     // Nothing was emailed either: their app makes the codes.
     expect(requestCode).not.toHaveBeenCalled();
     // The prompt is gone rather than left standing over a release that happened.
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
   });
 
   it("posts an emailed code to OUR API, and asks for one on open", async () => {
@@ -280,9 +282,9 @@ describe("ReleaseNumberDialog — answering the proof the server asks for", () =
 
     // Still open, still asking — a code prompt that vanishes on a refusal leaves
     // the number un-released with nothing on screen to say why.
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).not.toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
     // Said once. Not zero times (the defect), not twice.
-    expect(screen.getAllByText(HANDOVER_CONFIRM_REJECTED)).toHaveLength(1);
+    expect(screen.getAllByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toHaveLength(1);
     // And no second code minted behind the one being read.
     expect(requestCode).toHaveBeenCalledTimes(1);
   });
@@ -301,7 +303,7 @@ describe("ReleaseNumberDialog — answering the proof the server asks for", () =
     );
     attemptRelease();
 
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     expect(screen.getByRole("alert").textContent).toBe(
       "That number is already gone.",
     );

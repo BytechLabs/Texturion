@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 
 /**
  * #537 — the confirmation in front of a handover.
@@ -82,6 +82,9 @@ export function HandoverConfirmDialog({
   onCancel: () => void;
 }) {
   const t = useT();
+  // #228: the shared handover copy names catalogue keys, so this dialog says
+  // them in the reader's language.
+  const say = sayWith(t);
   const [code, setCode] = useState("");
 
   // Cleared whenever the dialog opens for a new demand. Without this, a second
@@ -106,14 +109,14 @@ export function HandoverConfirmDialog({
     <Dialog open={kind !== null} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>{HANDOVER_CONFIRM_TITLE}</DialogTitle>
+          <DialogTitle>{say(HANDOVER_CONFIRM_TITLE)}</DialogTitle>
           <DialogDescription>
-            {kind ? HANDOVER_CONFIRM_WHERE[kind] : ""}
+            {kind ? say(HANDOVER_CONFIRM_WHERE[kind]) : ""}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">
-          <Label htmlFor="handover-code">{HANDOVER_CONFIRM_FIELD}</Label>
+          <Label htmlFor="handover-code">{say(HANDOVER_CONFIRM_FIELD)}</Label>
           <Input
             id="handover-code"
             // `text` with a numeric keypad rather than `number`: a number input
@@ -131,7 +134,7 @@ export function HandoverConfirmDialog({
           />
           {rejected && (
             <p role="status" className="text-[12.5px] text-app-clay">
-              {HANDOVER_CONFIRM_REJECTED}
+              {say(HANDOVER_CONFIRM_REJECTED)}
             </p>
           )}
         </div>
@@ -139,7 +142,7 @@ export function HandoverConfirmDialog({
         <DialogFooter className="sm:justify-between">
           {kind === "email" ? (
             <Button variant="ghost" onClick={onResend} disabled={pending}>
-              {HANDOVER_CONFIRM_RESEND}
+              {say(HANDOVER_CONFIRM_RESEND)}
             </Button>
           ) : (
             <span />
@@ -152,7 +155,7 @@ export function HandoverConfirmDialog({
               disabled={!valid || pending}
               onClick={() => onConfirm(code)}
             >
-              {pending ? HANDOVER_CONFIRM_SUBMITTING : HANDOVER_CONFIRM_SUBMIT}
+              {pending ? HANDOVER_CONFIRM_SUBMITTING : say(HANDOVER_CONFIRM_SUBMIT)}
             </Button>
           </span>
         </DialogFooter>

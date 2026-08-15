@@ -89,6 +89,31 @@ final class HandoverConfirmationTests: XCTestCase {
         )
     }
 
+    /// The web catalogue's ENGLISH half, which is where the SENTENCES went.
+    ///
+    /// #228 moved the handover copy out of `handover-confirmation.ts`, which
+    /// names keys now. Only the sentence comparison follows it — the other use
+    /// of `sharedSource()` reads `errorCode -> kind`, wire values that never
+    /// moved, and pointing that one here would have it find no mappings and
+    /// pass on an empty set.
+    ///
+    /// Sliced to the English half: the French holds the same keys, and a
+    /// `contains` over the whole file would ask whether a sentence appears in
+    /// EITHER language.
+    private func handoverCopy() throws -> String {
+        let raw = try String(
+            contentsOf: try repoPath("apps/web/src/i18n/sections/domain.ts"),
+            encoding: .utf8
+        )
+        guard let start = raw.range(of: "export const domainEn"),
+              let end = raw.range(of: "export const domainFr")
+        else {
+            XCTFail("domain.ts no longer has both language blocks")
+            return ""
+        }
+        return String(raw[start.upperBound ..< end.lowerBound])
+    }
+
     /// Every `errorCode -> kind` the shared module maps, read out of its source.
     ///
     /// READ rather than typed out here, because a list typed here is a second copy of
@@ -127,7 +152,7 @@ final class HandoverConfirmationTests: XCTestCase {
     }
 
     func testBothSentencesMatchTheSharedModuleWhole() throws {
-        let shared = bare(try sharedSource())
+        let shared = bare(try handoverCopy())
         for kind in HandoverConfirmation.Kind.allCases {
             let sentence = bare(HandoverConfirmation.whereToLook(kind))
             XCTAssertTrue(

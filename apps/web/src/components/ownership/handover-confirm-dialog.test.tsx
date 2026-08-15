@@ -21,6 +21,7 @@ import {
   HANDOVER_CONFIRM_SUBMIT,
 } from "@loonext/shared";
 
+import { sayEnglish } from "@/i18n/provider";
 import { HandoverConfirmDialog } from "./handover-confirm-dialog";
 
 afterEach(cleanup);
@@ -41,7 +42,7 @@ function open(
   return { ...props, rerender: view.rerender };
 }
 
-const field = () => screen.getByLabelText(HANDOVER_CONFIRM_FIELD) as HTMLInputElement;
+const field = () => screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)) as HTMLInputElement;
 /**
  * Radix renders the real attribute, and this project has no jest-dom matchers.
  *
@@ -51,7 +52,7 @@ const field = () => screen.getByLabelText(HANDOVER_CONFIRM_FIELD) as HTMLInputEl
  */
 const confirmButton = () =>
   screen.getByRole("button", {
-    name: HANDOVER_CONFIRM_SUBMIT,
+    name: sayEnglish(HANDOVER_CONFIRM_SUBMIT),
   }) as HTMLButtonElement;
 
 describe("answering the demand", () => {
@@ -121,7 +122,7 @@ describe("when the code came back refused", () => {
       />,
     );
 
-    expect(screen.getByText(HANDOVER_CONFIRM_REJECTED)).toBeTruthy();
+    expect(screen.getByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toBeTruthy();
     expect(field().value).toBe("");
     expect(confirmButton().disabled).toBe(true);
   });
@@ -133,13 +134,13 @@ describe("what can be resent", () => {
     // button would imply we could send them one. Same for the stale-factor demand,
     // which reads identically on screen and is answered the same way.
     open({ kind: "email" });
-    expect(screen.getByRole("button", { name: HANDOVER_CONFIRM_RESEND })).toBeTruthy();
+    expect(screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_RESEND) })).toBeTruthy();
     cleanup();
 
     for (const kind of ["authenticator", "reprove"] as const) {
       open({ kind });
       expect(
-        screen.queryByRole("button", { name: HANDOVER_CONFIRM_RESEND }),
+        screen.queryByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_RESEND) }),
         kind,
       ).toBeNull();
       cleanup();

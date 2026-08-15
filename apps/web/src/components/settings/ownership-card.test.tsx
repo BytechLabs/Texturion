@@ -111,6 +111,8 @@ import {
   HANDOVER_CONFIRM_SUBMIT,
 } from "@loonext/shared";
 
+import { sayEnglish } from "@/i18n/provider";
+
 import { ApiError } from "@/lib/api/error";
 import { toast } from "sonner";
 
@@ -291,13 +293,13 @@ function refuseOnce(errorCode: string) {
  * spreads either way.
  */
 async function answer(digits: string) {
-  fireEvent.change(screen.getByLabelText(HANDOVER_CONFIRM_FIELD), {
+  fireEvent.change(screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)), {
     target: { value: digits },
   });
   // Awaited: the `reprove` path talks to Supabase before it retries, and the
   // assertions are all about what happens after that answer comes back.
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }));
+    fireEvent.click(screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_SUBMIT) }));
   });
 }
 
@@ -359,7 +361,7 @@ describe("…and when the server asks who is doing this", () => {
     refuseOnce("mfa_reprove_required");
     mount(<OwnershipCard members={members} />);
     fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).not.toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
   });
 
   it("spends a stale-proof code on Supabase and retries with NO code", async () => {
@@ -430,10 +432,10 @@ describe("…and when the server asks who is doing this", () => {
 
     await answer("123456");
 
-    expect(screen.queryByText(HANDOVER_CONFIRM_REJECTED)).toBeNull();
+    expect(screen.queryByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toBeNull();
     // The prompt is gone too, rather than left standing over a handover that has
     // already happened.
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
   });
 
   it("still reports a refusal no code could fix", async () => {
@@ -447,7 +449,7 @@ describe("…and when the server asks who is doing this", () => {
     mount(<OwnershipCard members={members} />);
     fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));
 
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     expect(toast.error).toHaveBeenCalledWith("Already in flight");
   });
 
@@ -499,7 +501,7 @@ describe("…and when the server asks who is doing this", () => {
     mount(<OwnershipCard members={members} />);
     fireEvent.click(screen.getByRole("button", { name: "Decline" }));
 
-    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     expect(toast.error).toHaveBeenCalled();
   });
 });

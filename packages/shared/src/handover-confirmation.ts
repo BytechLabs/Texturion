@@ -99,7 +99,7 @@ export const HANDOVER_CODE_DESTINATION: Record<
 };
 
 /** The dialog's heading. The same for both, because the ask is the same. */
-export const HANDOVER_CONFIRM_TITLE = "Confirm it's you";
+export const HANDOVER_CONFIRM_TITLE = "domain.handoverTitle";
 
 /**
  * Where to find the code.
@@ -109,22 +109,19 @@ export const HANDOVER_CONFIRM_TITLE = "Confirm it's you";
  * completely different places.
  */
 export const HANDOVER_CONFIRM_WHERE: Record<HandoverConfirmationKind, string> = {
-  authenticator:
-    "Open your authenticator app and enter the six-digit code it shows.",
+  authenticator: "domain.handoverWhereAuthenticator",
   // Word for word the same as above, and deliberately so: the person is doing the
   // identical thing, and a second phrasing for the same physical act would read as
   // a different demand. What differs is entirely on our side of the wire.
-  reprove:
-    "Open your authenticator app and enter the six-digit code it shows.",
-  email:
-    "We've emailed a six-digit code to the address on your account. It works once, and expires in ten minutes.",
+  reprove: "domain.handoverWhereAuthenticator",
+  email: "domain.handoverWhereEmail",
 };
 
 /** The field's label, and its accessible name. */
-export const HANDOVER_CONFIRM_FIELD = "Six-digit code";
+export const HANDOVER_CONFIRM_FIELD = "domain.handoverField";
 
 /** The button that goes through with it. */
-export const HANDOVER_CONFIRM_SUBMIT = "Confirm";
+export const HANDOVER_CONFIRM_SUBMIT = "domain.handoverSubmit";
 
 /**
  * The same button while the answer is being checked.
@@ -142,6 +139,14 @@ export const HANDOVER_CONFIRM_SUBMIT = "Confirm";
  * the sort of difference a retyped copy loses: `getByRole` matches the accessible
  * name exactly, so the two spellings are simply different buttons.
  */
+/*
+ * #228: NOT a key, and that is a gap rather than a decision.
+ *
+ * No client has one for it — neither phone catalogue holds a handover
+ * "confirming" state at all, so converting this means inventing a key in three
+ * catalogues for a button label that shows for the length of one request. Left
+ * English and counted, so the ledger keeps saying so.
+ */
 export const HANDOVER_CONFIRM_SUBMITTING = "Confirming…";
 
 /**
@@ -151,7 +156,7 @@ export const HANDOVER_CONFIRM_SUBMITTING = "Confirming…";
  * generating the codes — and a Resend button there would imply we could send them
  * one, which we cannot. Same for `reprove`, for the same reason.
  */
-export const HANDOVER_CONFIRM_RESEND = "Send it again";
+export const HANDOVER_CONFIRM_RESEND = "domain.handoverResend";
 
 /**
  * What to say when the code did not work.
@@ -162,7 +167,7 @@ export const HANDOVER_CONFIRM_RESEND = "Send it again";
  * distinction the server refused to make.
  */
 export const HANDOVER_CONFIRM_REJECTED =
-  "That code didn't work. Ask for a new one and try again.";
+  "domain.handoverRejected";
 
 /**
  * Is this six digits?

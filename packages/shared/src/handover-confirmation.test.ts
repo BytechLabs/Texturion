@@ -3,12 +3,33 @@ import { describe, expect, it } from "vitest";
 import { ERROR_CODES } from "./error-codes";
 import {
   HANDOVER_CODE_DESTINATION,
+  HANDOVER_CONFIRM_FIELD,
   HANDOVER_CONFIRM_REJECTED,
   HANDOVER_CONFIRM_RESEND,
+  HANDOVER_CONFIRM_SUBMIT,
+  HANDOVER_CONFIRM_TITLE,
   HANDOVER_CONFIRM_WHERE,
   handoverConfirmationKind,
   isHandoverCode,
 } from "./handover-confirmation";
+
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/*
+ * #228 — the dialog names keys, so these resolve them through the catalogue it
+ * reads. Better than the assertions they replace: those read the module's own
+ * English back to itself, and these read what somebody is shown while being
+ * asked to prove they are the owner of a business.
+ */
+function lookUp(table: unknown, key: string, lang: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  return value;
+}
+
+const say = (key: string): string => lookUp(WEB_EN, key, "English");
+const sayFr = (key: string): string => lookUp(WEB_FR, key, "French");
 
 describe("which prompt to show (#537)", () => {
   it("#581/#7: a stale factor is its OWN kind, not an alias for the wall", () => {
@@ -29,8 +50,8 @@ describe("which prompt to show (#537)", () => {
     );
     // Same words for the same physical act. A second phrasing would read as a
     // different demand to somebody who meets both in one afternoon.
-    expect(HANDOVER_CONFIRM_WHERE.reprove).toBe(
-      HANDOVER_CONFIRM_WHERE.authenticator,
+    expect(say(HANDOVER_CONFIRM_WHERE.reprove)).toBe(
+      say(HANDOVER_CONFIRM_WHERE.authenticator),
     );
   });
 
@@ -145,15 +166,15 @@ describe("where the digits go (#581/#7)", () => {
     // different code, and one of them ALSO wants the retry to happen within five
     // minutes. A client that switched on the sentence rather than the kind would be
     // right today and wrong the next time either half moved.
-    expect(HANDOVER_CONFIRM_WHERE.reprove).toBe(
-      HANDOVER_CONFIRM_WHERE.authenticator,
+    expect(say(HANDOVER_CONFIRM_WHERE.reprove)).toBe(
+      say(HANDOVER_CONFIRM_WHERE.authenticator),
     );
     expect(handoverConfirmationKind("mfa_reprove_required")).not.toBe(
       handoverConfirmationKind("mfa_challenge_required"),
     );
     // And the one that genuinely differs still differs, in both directions.
-    expect(HANDOVER_CONFIRM_WHERE.email).not.toBe(
-      HANDOVER_CONFIRM_WHERE.authenticator,
+    expect(say(HANDOVER_CONFIRM_WHERE.email)).not.toBe(
+      say(HANDOVER_CONFIRM_WHERE.authenticator),
     );
     expect(HANDOVER_CODE_DESTINATION.email).not.toBe(
       HANDOVER_CODE_DESTINATION.authenticator,
@@ -165,25 +186,25 @@ describe("what the dialog says (#537)", () => {
   it("tells each kind where to look, in different words", () => {
     // "Enter your code" is useless to somebody who does not know which code, and
     // the two live in completely different places.
-    expect(HANDOVER_CONFIRM_WHERE.authenticator).toContain("authenticator app");
-    expect(HANDOVER_CONFIRM_WHERE.email).toContain("emailed");
-    expect(HANDOVER_CONFIRM_WHERE.authenticator).not.toBe(
-      HANDOVER_CONFIRM_WHERE.email,
+    expect(say(HANDOVER_CONFIRM_WHERE.authenticator)).toContain("authenticator app");
+    expect(say(HANDOVER_CONFIRM_WHERE.email)).toContain("emailed");
+    expect(say(HANDOVER_CONFIRM_WHERE.authenticator)).not.toBe(
+      say(HANDOVER_CONFIRM_WHERE.email),
     );
   });
 
   it("mentions the email code's limits where somebody can act on them", () => {
     // Ten minutes and one use are the two things that turn "it didn't work" into
     // "ask for another", which is the next thing they need to do.
-    expect(HANDOVER_CONFIRM_WHERE.email).toContain("once");
-    expect(HANDOVER_CONFIRM_WHERE.email).toContain("ten minutes");
+    expect(say(HANDOVER_CONFIRM_WHERE.email)).toContain("once");
+    expect(say(HANDOVER_CONFIRM_WHERE.email)).toContain("ten minutes");
   });
 
   it("never promises to resend an authenticator code", () => {
     // There is nothing to resend — the app generates them. A Resend button on
     // that path would imply we could send one, which we cannot.
-    expect(HANDOVER_CONFIRM_RESEND.toLowerCase()).toContain("again");
-    expect(HANDOVER_CONFIRM_WHERE.authenticator).not.toContain("again");
+    expect(say(HANDOVER_CONFIRM_RESEND).toLowerCase()).toContain("again");
+    expect(say(HANDOVER_CONFIRM_WHERE.authenticator)).not.toContain("again");
   });
 
   it("says one thing when a code is refused, inventing no distinction", () => {
@@ -210,5 +231,46 @@ describe("isHandoverCode (#537)", () => {
     for (const bad of ["", "12345", "1234567", "12345a", "abcdef", "12 34 56"]) {
       expect(isHandoverCode(bad), bad).toBe(false);
     }
+  });
+});
+
+/*
+ * #228 — the dialog reads in French too.
+ *
+ * This is the screen where somebody proves they are the person a business is
+ * being handed to. A half-translated challenge reads as a phishing page, which
+ * is the one impression this dialog cannot afford.
+ */
+describe("#228 the handover challenge reads in both languages", () => {
+  it("resolves every line, and translates it", () => {
+    const keys = [
+      HANDOVER_CONFIRM_TITLE,
+      HANDOVER_CONFIRM_FIELD,
+      HANDOVER_CONFIRM_SUBMIT,
+      HANDOVER_CONFIRM_RESEND,
+      HANDOVER_CONFIRM_REJECTED,
+      ...Object.values(HANDOVER_CONFIRM_WHERE),
+    ];
+    for (const key of keys) {
+      expect(say(key).length, key).toBeGreaterThan(0);
+      expect(sayFr(key).length, key).toBeGreaterThan(0);
+      expect(sayFr(key), `${key} is not translated`).not.toBe(say(key));
+    }
+  });
+
+  it("still sends the two kinds to different places in French", () => {
+    // The whole job of these two sentences. A catalogue that answered the same
+    // string for both would send somebody to their inbox for a code their
+    // authenticator is showing.
+    expect(sayFr(HANDOVER_CONFIRM_WHERE.authenticator)).not.toBe(
+      sayFr(HANDOVER_CONFIRM_WHERE.email),
+    );
+  });
+
+  it("keeps the email code's limits in the French too", () => {
+    // "Once, and expires in ten minutes" is the part somebody acts on. A
+    // translation that dropped it would leave a French reader waiting on a code
+    // that died while they looked for it.
+    expect(sayFr(HANDOVER_CONFIRM_WHERE.email)).toMatch(/dix minutes|10 minutes/i);
   });
 });
