@@ -263,7 +263,6 @@ export const AI_INFERENCE_LOCATION_SOURCE =
  */
 export const AI_INFERENCE_LOCATION_STATEMENT: AiDisclosureStatementKey =
   "misc.aiInferenceLocation";
-  "United States, and we will not imply otherwise.";
 
 /**
  * The retention half of the same question, also from Cloudflare's published
@@ -276,4 +275,3 @@ export const AI_INFERENCE_LOCATION_STATEMENT: AiDisclosureStatementKey =
  */
 export const AI_INFERENCE_RETENTION_STATEMENT: AiDisclosureStatementKey =
   "misc.aiInferenceRetention";
-  "workspace like any other message data, and delete with it.";
