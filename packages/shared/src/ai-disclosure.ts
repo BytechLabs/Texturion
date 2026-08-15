@@ -32,10 +32,25 @@ export interface AiDisclosure {
     | "voicemail_intake"
     | "call_wrapup"
     | "thread_summary";
-  /** What a customer would call it. */
-  label: string;
-  /** Exactly what leaves the product for this feature. No euphemisms. */
-  sends: string;
+  /**
+   * What a customer would call it — a catalogue KEY since #228.
+   *
+   * The page this renders is the Bill 96 sharp edge named in that issue: a
+   * legal disclosure a Quebec customer relies on to meet their OWN obligations
+   * as a controller. It is still served in English today, because the
+   * marketing tree has no French route yet; the keys are what makes the French
+   * one a routing change rather than a second copy of the facts.
+   */
+  label: AiDisclosureKey;
+  /**
+   * Exactly what leaves the product for this feature. No euphemisms.
+   *
+   * Also a key, and the reason the tests below check the FRENCH for the window
+   * size and the notes exclusion: a translation that rounded "up to the 40
+   * most recent messages" to "les messages récents" would be a false
+   * disclosure in French while every English assertion stayed green.
+   */
+  sends: AiDisclosureKey;
   /**
    * The model identifiers, verbatim.
    *
@@ -49,13 +64,31 @@ export interface AiDisclosure {
   defaultOn: boolean;
 }
 
+/** The two statements that are OURS to write, and so ours to translate. */
+export type AiDisclosureStatementKey =
+  | "misc.aiInferenceLocation"
+  | "misc.aiInferenceRetention";
+
+/** Every catalogue key this module names. */
+export type AiDisclosureKey =
+  | "misc.aiSuggestRepliesLabel"
+  | "misc.aiSuggestRepliesSends"
+  | "misc.aiEnrichLabel"
+  | "misc.aiEnrichSends"
+  | "misc.aiVoicemailTranscriptLabel"
+  | "misc.aiVoicemailTranscriptSends"
+  | "misc.aiVoicemailIntakeLabel"
+  | "misc.aiVoicemailIntakeSends"
+  | "misc.aiCallWrapupLabel"
+  | "misc.aiCallWrapupSends"
+  | "misc.aiThreadSummaryLabel"
+  | "misc.aiThreadSummarySends";
+
 export const AI_DISCLOSURES: readonly AiDisclosure[] = [
   {
     key: "suggest_reply",
-    label: "Suggested replies",
-    sends:
-      "the recent messages in that conversation and your business description, " +
-      "to draft a reply for a person to edit and send",
+    label: "misc.aiSuggestRepliesLabel",
+    sends: "misc.aiSuggestRepliesSends",
     models: ["@cf/meta/llama-3.1-8b-instruct-fast"],
     // Corrected 2026-07-30 (#367). This said `false` while
     // `company_ai_settings.suggest_replies` has defaulted to `true` since the
@@ -70,15 +103,15 @@ export const AI_DISCLOSURES: readonly AiDisclosure[] = [
   },
   {
     key: "enrich",
-    label: "Task details",
-    sends: "the text of the message a task was made from, to fill in the task's details",
+    label: "misc.aiEnrichLabel",
+    sends: "misc.aiEnrichSends",
     models: ["@cf/meta/llama-3.2-1b-instruct"],
     defaultOn: true,
   },
   {
     key: "voicemail_transcript",
-    label: "Voicemail transcripts",
-    sends: "the voicemail recording, to write it down so it can be read instead of played",
+    label: "misc.aiVoicemailTranscriptLabel",
+    sends: "misc.aiVoicemailTranscriptSends",
     // Two, because the fallback is a real model that real audio reaches. A
     // disclosure that names only the happy path is a disclosure with a hole in
     // it exactly when something went wrong.
@@ -87,10 +120,8 @@ export const AI_DISCLOSURES: readonly AiDisclosure[] = [
   },
   {
     key: "voicemail_intake",
-    label: "Voicemail intake",
-    sends:
-      "the voicemail transcript, to pull out what the caller said the problem " +
-      "was and the address they gave",
+    label: "misc.aiVoicemailIntakeLabel",
+    sends: "misc.aiVoicemailIntakeSends",
     models: ["@cf/meta/llama-3.1-8b-instruct-fast"],
     // The only AI feature in the product that is OFF until a business turns it
     // on, and the difference is who it speaks to. Every other one produces a
@@ -101,20 +132,18 @@ export const AI_DISCLOSURES: readonly AiDisclosure[] = [
   },
   {
     key: "call_wrapup",
-    label: "Call wrap-ups",
+    label: "misc.aiCallWrapupLabel",
     // Precise about WHOSE voice, because that is the entire difference between
     // this feature and the one D117 declined. A crew member dictating after
     // hanging up is not the call, and a disclosure that blurred the two would
     // claim we listen to calls — which we do not.
-    sends:
-      "the crew member's own dictation after a call has ended, to write it " +
-      "down as a note. Never the call itself and never the customer's voice",
+    sends: "misc.aiCallWrapupSends",
     models: ["@cf/openai/whisper-large-v3-turbo", "@cf/openai/whisper"],
     defaultOn: true,
   },
   {
     key: "thread_summary",
-    label: "Thread catch-ups",
+    label: "misc.aiThreadSummaryLabel",
     // The widest disclosure in this list, and it says the number out loud. A
     // customer reading "the recent messages in that conversation" under
     // suggested replies would not conclude that a different feature sends forty
@@ -122,10 +151,7 @@ export const AI_DISCLOSURES: readonly AiDisclosure[] = [
     // of thing this page exists to stop being left to inference. The figure is
     // THREAD_SUMMARY_CONTEXT_MESSAGES, asserted against the constant by test so
     // it cannot become last quarter's number.
-    sends:
-      "up to the 40 most recent messages in that conversation, to write a " +
-      "short catch-up for somebody on the crew who has not read it. Internal " +
-      "notes are never included",
+    sends: "misc.aiThreadSummarySends",
     models: ["@cf/meta/llama-3.1-8b-instruct-fast"],
     defaultOn: true,
   },
@@ -175,6 +201,15 @@ export const AI_VENDOR_NAMES: Record<string, string> = {
  * 2026-07-28. It is quoted because "we don't train on your data" is the first
  * question every customer asks, and the answer has to be attributable to the
  * vendor who is actually bound by it rather than to us.
+ *
+ * #228 — AND THIS ONE STAYS ENGLISH, deliberately, while the two statements
+ * below became catalogue keys. Those are ours to write. This is a QUOTATION,
+ * and its entire value is that the words belong to the party bound by them.
+ * Translating it would silently turn Cloudflare's commitment into our
+ * paraphrase of it, presented in quotation marks. On a French page it wants
+ * the English original with a French gloss beside it — a page-design decision
+ * that belongs with the French legal route, not with a catalogue edit. It is
+ * the one literal left in this file and it is left on purpose.
  */
 export const AI_TRAINING_STATEMENT =
   "Cloudflare does not use your Customer Content to (1) train any AI models " +
@@ -226,11 +261,8 @@ export const AI_INFERENCE_LOCATION_SOURCE =
  * class of processing, and the reason is a published vendor limitation rather
  * than a choice we made and could reverse.
  */
-export const AI_INFERENCE_LOCATION_STATEMENT =
-  "AI inference runs on Cloudflare's global network and is not restricted to " +
-  "any one country. Cloudflare's own data-localization compatibility list " +
-  "marks Workers AI as not compatible with Regional Services, the feature that " +
-  "confines processing to a region. So we cannot pin it to Canada or to the " +
+export const AI_INFERENCE_LOCATION_STATEMENT: AiDisclosureStatementKey =
+  "misc.aiInferenceLocation";
   "United States, and we will not imply otherwise.";
 
 /**
@@ -242,7 +274,6 @@ export const AI_INFERENCE_LOCATION_STATEMENT =
  * does it stay there" are one question in a customer's head, and answering only
  * the first invites the worst assumption about the second.
  */
-export const AI_INFERENCE_RETENTION_STATEMENT =
-  "Cloudflare does not store what is sent for inference unless the application " +
-  "writes it to a storage service itself. What comes back, we store in your " +
+export const AI_INFERENCE_RETENTION_STATEMENT: AiDisclosureStatementKey =
+  "misc.aiInferenceRetention";
   "workspace like any other message data, and delete with it.";

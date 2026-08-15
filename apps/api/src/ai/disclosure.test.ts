@@ -16,9 +16,38 @@
  * calls, not eyeballed: a disclosure that names last quarter's model is a
  * disclosure that is wrong, and wrong on a legal page is worse than absent.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { AI_DISCLOSURES } from "@loonext/shared";
+
+/**
+ * The English sentence behind a disclosure key.
+ *
+ * #228 moved these words out of `ai-disclosure.ts` and into the web
+ * catalogue. This package does not import `apps/web` source and should not
+ * start, so the catalogue is READ as text — the same thing the client-parity
+ * guards do with Kotlin and Swift. What has to be preserved is the binding
+ * this file owns: THREAD_SUMMARY_CONTEXT_MESSAGES lives in
+ * `../messaging/thread-summary` and the public page must name it.
+ *
+ * Anchored to the key's own line rather than searched for anywhere in the
+ * file: a substring check over a catalogue would pass on the number appearing
+ * in some unrelated sentence, which is the way a guard like this goes quiet.
+ */
+function catalogueSentence(key: string): string {
+  const file = readFileSync(
+    join(import.meta.dirname, "../../../../apps/web/src/i18n/sections/misc.ts"),
+    "utf8",
+  );
+  const name = key.split(".")[1];
+  const match = new RegExp(`^  ${name}:\\s*("(?:[^"\\\\]|\\\\.)*")`, "m").exec(file);
+  if (!match) throw new Error(`no catalogue entry for ${key}`);
+  return JSON.parse(match[1]) as string;
+}
+
 
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import { VOICEMAIL_INTAKE_MODEL } from "../calls/voicemail-intake";
@@ -69,20 +98,31 @@ describe("every AI feature is publicly disclosed", () => {
     // the sentence cannot go on claiming a window somebody has since widened.
     // That is the same failure #389 was: a fact about the data, kept in step
     // with the data by memory.
+    //
+    // #228: `sends` is a catalogue key now, so the sentence is resolved
+    // through the ENGLISH catalogue here — this side owns the binding between
+    // the page and THREAD_SUMMARY_CONTEXT_MESSAGES, which is a constant that
+    // lives in this package. That the number and the notes clause survive
+    // into FRENCH is asserted in packages/shared/src/ai-disclosure.test.ts,
+    // which can read the web catalogue; this package does not import it.
     const row = AI_DISCLOSURES.find((entry) => entry.key === "thread_summary");
-    expect(row?.sends).toContain(String(THREAD_SUMMARY_CONTEXT_MESSAGES));
+    expect(row, "the catch-up disclosure is missing").toBeTruthy();
+    const sends = catalogueSentence(row!.sends);
+    expect(sends).toContain(String(THREAD_SUMMARY_CONTEXT_MESSAGES));
     // And it must say what does NOT leave. Notes are excluded by the route's
     // direction filter; a page that omitted it would leave a crew to assume
     // their private "this guy never pays" went to a model.
-    expect(row?.sends).toContain("notes are never included");
+    expect(sends).toContain("notes are never included");
   });
 
-  it("says what each feature sends, in words a customer can act on", () => {
+  it("names a model for every feature, and names it precisely", () => {
+    // #228: the length checks on `label` and `sends` moved to
+    // packages/shared/src/ai-disclosure.test.ts. They were checking the length
+    // of a SENTENCE; those fields hold keys now, so here they would only have
+    // been checking that a key is longer than three characters — a guard that
+    // passes forever and guards nothing. What stays here is the half bound to
+    // this package's own constants.
     for (const row of AI_DISCLOSURES) {
-      expect(row.label.length, `${row.key} label`).toBeGreaterThan(3);
-      // "Data may be processed for service improvement" is the sentence this
-      // length check exists to make impossible to get away with.
-      expect(row.sends.length, `${row.key} sends`).toBeGreaterThan(30);
       expect(row.models.length, `${row.key} models`).toBeGreaterThan(0);
       for (const model of row.models) {
         // Workers AI identifiers. A bare product name ("Whisper") would hide

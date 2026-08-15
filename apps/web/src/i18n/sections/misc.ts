@@ -13,6 +13,25 @@
 import type { Translated } from "../translated";
 
 export const miscEn = {
+  /* #228 — the AI disclosure table on /legal/subprocessors.
+     Descriptive statements of fact about what leaves the product, which is why
+     they are translated here while the contract pages still need a person. The
+     40 and the "notes are never included" clause survive into the French on
+     purpose; a test asserts both, in both languages. */
+  aiInferenceLocation: "AI inference runs on Cloudflare's global network and is not restricted to any one country. Cloudflare's own data-localization compatibility list marks Workers AI as not compatible with Regional Services, the feature that confines processing to a region. So we cannot pin it to Canada or to the United States, and we will not imply otherwise.",
+  aiInferenceRetention: "Cloudflare does not store what is sent for inference unless the application writes it to a storage service itself. What comes back, we store in your workspace like any other message data, and delete with it.",
+  aiSuggestRepliesLabel: "Suggested replies",
+  aiSuggestRepliesSends: "the recent messages in that conversation and your business description, to draft a reply for a person to edit and send",
+  aiEnrichLabel: "Task details",
+  aiEnrichSends: "the text of the message a task was made from, to fill in the task's details",
+  aiVoicemailTranscriptLabel: "Voicemail transcripts",
+  aiVoicemailTranscriptSends: "the voicemail recording, to write it down so it can be read instead of played",
+  aiVoicemailIntakeLabel: "Voicemail intake",
+  aiVoicemailIntakeSends: "the voicemail transcript, to pull out what the caller said the problem was and the address they gave",
+  aiCallWrapupLabel: "Call wrap-ups",
+  aiCallWrapupSends: "the crew member's own dictation after a call has ended, to write it down as a note. Never the call itself and never the customer's voice",
+  aiThreadSummaryLabel: "Thread catch-ups",
+  aiThreadSummarySends: "up to the 40 most recent messages in that conversation, to write a short catch-up for somebody on the crew who has not read it. Internal notes are never included",
   // The job-photo page a homeowner opens (#294), drawn in the crew's language.
   photoLinkUnavailableTitle: "This link isn't available",
   photoLinkUnavailableDetail:
@@ -334,6 +353,20 @@ export const miscEn = {
 } as const;
 
 export const miscFr: Translated<typeof miscEn> = {
+  aiInferenceLocation: "L'inférence de l'IA s'exécute sur le réseau mondial de Cloudflare et n'est restreinte à aucun pays. La liste de compatibilité de localisation des données de Cloudflare indique que Workers AI n'est pas compatible avec Regional Services, la fonction qui confine le traitement à une région. Nous ne pouvons donc pas la limiter au Canada ni aux États-Unis, et nous ne laisserons pas entendre le contraire.",
+  aiInferenceRetention: "Cloudflare ne conserve pas ce qui est envoyé pour l'inférence, à moins que l'application ne l'écrive elle-même dans un service de stockage. Ce qui revient, nous le conservons dans votre espace de travail comme toute autre donnée de message, et nous le supprimons avec elle.",
+  aiSuggestRepliesLabel: "Réponses suggérées",
+  aiSuggestRepliesSends: "les messages récents de cette conversation et la description de votre entreprise, pour rédiger une réponse qu'une personne modifie et envoie",
+  aiEnrichLabel: "Détails de la tâche",
+  aiEnrichSends: "le texte du message à partir duquel la tâche a été créée, pour en remplir les détails",
+  aiVoicemailTranscriptLabel: "Transcriptions des messages vocaux",
+  aiVoicemailTranscriptSends: "l'enregistrement du message vocal, pour le mettre par écrit afin qu'il puisse être lu plutôt qu'écouté",
+  aiVoicemailIntakeLabel: "Tri des messages vocaux",
+  aiVoicemailIntakeSends: "la transcription du message vocal, pour en extraire le problème décrit par l'appelant et l'adresse qu'il a donnée",
+  aiCallWrapupLabel: "Comptes rendus d'appel",
+  aiCallWrapupSends: "la dictée du membre de l'équipe après la fin de l'appel, pour la mettre par écrit sous forme de note. Jamais l'appel lui-même et jamais la voix du client",
+  aiThreadSummaryLabel: "Récapitulatifs de conversation",
+  aiThreadSummarySends: "jusqu'aux 40 messages les plus récents de cette conversation, pour rédiger un court récapitulatif à l'intention d'un membre de l'équipe qui ne l'a pas lue. Les notes internes ne sont jamais incluses",
   photoLinkUnavailableTitle: "Ce lien n'est pas disponible",
   photoLinkUnavailableDetail:
     "Il a peut-être expiré. Demandez-en un nouveau à la personne qui vous l'a envoyé.",

@@ -1,3 +1,5 @@
+import { EN } from "@/i18n/catalog";
+
 import type { Metadata } from "next";
 
 import {
@@ -16,6 +18,19 @@ import {
   PRIVACY_OFFICER_NAME,
 } from "@/lib/marketing/business";
 import { buildMetadata } from "@/lib/marketing/seo";
+
+/**
+ * A catalogue key, said in English, on the server.
+ *
+ * NOT `sayEnglish` from the provider: that module is `"use client"`, so a
+ * server component calling it fails the build. `catalog.ts` is plain data and
+ * safe on either side — the reasoning `whats-new/page.tsx` carries.
+ */
+const sayEnglish = (key: string): string => {
+  const [section, name] = key.split(".");
+  return (EN as unknown as Record<string, Record<string, string>>)[section]?.[name] ?? key;
+};
+
 
 const PATH = "/legal/privacy";
 const LAST_UPDATED = "July 30, 2026";
@@ -155,10 +170,10 @@ export default function PrivacyPage() {
               was true of storage and not true of AI inference. Naming the
               exception is the whole point of the section. */}
           <strong>One exception, and we would rather name it than have you
-          find it.</strong> {AI_INFERENCE_LOCATION_STATEMENT} It applies only
+          find it.</strong> {sayEnglish(AI_INFERENCE_LOCATION_STATEMENT)} It applies only
           to the features in section 7, only to what those features send, and
           only while the request is being answered.{" "}
-          {AI_INFERENCE_RETENTION_STATEMENT}
+          {sayEnglish(AI_INFERENCE_RETENTION_STATEMENT)}
         </p>
         <p>
           The full list of

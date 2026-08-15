@@ -270,6 +270,8 @@ export {
   AI_VENDOR_NAMES,
   aiModelsByVendor,
   type AiDisclosure,
+  type AiDisclosureKey,
+  type AiDisclosureStatementKey,
 } from "./ai-disclosure";
 
 export {

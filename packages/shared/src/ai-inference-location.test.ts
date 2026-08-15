@@ -26,22 +26,54 @@ import {
   AI_INFERENCE_RETENTION_STATEMENT,
 } from "./ai-disclosure";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/**
+ * #228 — the two statements are catalogue keys now, so this resolves them.
+ *
+ * And it checks BOTH languages. "Somebody softens the words" was already the
+ * second failure this file names; a translation is the easiest place in the
+ * product for that to happen, because the person doing it is optimising for
+ * how a sentence reads rather than for what it has to keep saying.
+ */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[
+    name
+  ];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
 describe("the inference-location disclosure", () => {
   it("says we cannot confine it, not merely that it is global", () => {
     // The load-bearing half. "Runs on a global network" is a description of an
     // architecture; "cannot be pinned to a country" is the fact with a legal
     // consequence, and it is the one that must survive an edit.
-    expect(AI_INFERENCE_LOCATION_STATEMENT).toMatch(/not restricted to any one country/i);
-    expect(AI_INFERENCE_LOCATION_STATEMENT).toMatch(/cannot pin it/i);
+    const en = look(WEB_EN, AI_INFERENCE_LOCATION_STATEMENT);
+    expect(en).toMatch(/not restricted to any one country/i);
+    expect(en).toMatch(/cannot pin it/i);
     // Names the mechanism, so the claim is checkable rather than asserted.
-    expect(AI_INFERENCE_LOCATION_STATEMENT).toMatch(/Regional Services/);
+    expect(en).toMatch(/Regional Services/);
+
+    // The same three facts in French. A translation that said only "s'exécute
+    // sur le réseau mondial" would describe the architecture and drop the
+    // consequence — which is the whole reason this statement exists, and the
+    // reason it matters most to the reader who needs the French.
+    const fr = look(WEB_FR, AI_INFERENCE_LOCATION_STATEMENT);
+    expect(fr).toMatch(/restreinte à aucun pays/i);
+    expect(fr).toMatch(/ne pouvons donc pas la limiter/i);
+    expect(fr).toMatch(/Regional Services/);
   });
 
   it("answers the retention half too", () => {
     // "Where does it go" and "how long does it stay" are one question in a
     // customer's head; answering only the first invites the worst assumption
     // about the second.
-    expect(AI_INFERENCE_RETENTION_STATEMENT).toMatch(/does not store/i);
+    expect(look(WEB_EN, AI_INFERENCE_RETENTION_STATEMENT)).toMatch(/does not store/i);
+    expect(look(WEB_FR, AI_INFERENCE_RETENTION_STATEMENT)).toMatch(
+      /ne conserve pas/i,
+    );
   });
 
   it("cites a primary source a reader can open", () => {

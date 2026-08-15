@@ -5,6 +5,8 @@ import {
   LegalPage,
   LegalSectionBlock,
 } from "@/components/marketing/legal/legal-page";
+import { EN } from "@/i18n/catalog";
+
 import {
   AI_DISCLOSURES,
   AI_INFERENCE_LOCATION_SOURCE,
@@ -18,6 +20,25 @@ import {
 
 import { PRIVACY_EMAIL } from "@/lib/marketing/business";
 import { buildMetadata } from "@/lib/marketing/seo";
+
+/**
+ * The AI disclosure table's keys, said in English, on the server.
+ *
+ * NOT `sayEnglish` from the provider: that module is `"use client"`, so a
+ * server component calling it fails the build with "Attempted to call
+ * sayEnglish() from the server". `catalog.ts` is plain data and safe on
+ * either side — the same reasoning `whats-new/page.tsx` carries.
+ *
+ * English because this route is English. The French of every one of these
+ * lines exists in the catalogue already (#228 phase 2 names legal pages as the
+ * Bill 96 sharp edge); what is missing is a French ROUTE, which is a change to
+ * the marketing tree's structure rather than to this table.
+ */
+const sayEnglish = (key: string): string => {
+  const [section, name] = key.split(".");
+  return (EN as unknown as Record<string, Record<string, string>>)[section]?.[name] ?? key;
+};
+
 
 const PATH = "/legal/subprocessors";
 const LAST_UPDATED = "July 30, 2026";
@@ -269,10 +290,10 @@ export default function SubprocessorsPage() {
                   className={i % 2 === 0 ? "bg-[color:var(--fr-frost)]" : undefined}
                 >
                   <td className="rounded-l-[6px] px-4 py-3 align-top font-semibold text-[color:var(--fr-ink)]">
-                    {row.label}
+                    {sayEnglish(row.label)}
                   </td>
                   <td className="px-4 py-3 align-top text-[color:var(--fr-ink-70)]">
-                    {row.sends}
+                    {sayEnglish(row.sends)}
                   </td>
                   <td className="fr-mono-data px-4 py-3 align-top text-[0.8125rem] text-[color:var(--fr-ink-70)]">
                     {row.models.join(", ")}
@@ -301,7 +322,7 @@ export default function SubprocessorsPage() {
               in its own data-localization compatibility list, and it is the
               uncomfortable one — so it is stated in full rather than
               summarised into something more comfortable. */}
-          <strong>Where this happens.</strong> {AI_INFERENCE_LOCATION_STATEMENT}{" "}
+          <strong>Where this happens.</strong> {sayEnglish(AI_INFERENCE_LOCATION_STATEMENT)}{" "}
           Everything else on the list above stays where its row says: your
           database, files and backups are in the United States.{" "}
           <LegalLink href={AI_INFERENCE_LOCATION_SOURCE}>
@@ -310,7 +331,7 @@ export default function SubprocessorsPage() {
           is the source, read {AI_INFERENCE_LOCATION_VERIFIED_ON}.
         </p>
         <p>
-          {AI_INFERENCE_RETENTION_STATEMENT}
+          {sayEnglish(AI_INFERENCE_RETENTION_STATEMENT)}
         </p>
         <p>
           On training, Cloudflare&rsquo;s published Workers AI policy states:{" "}
