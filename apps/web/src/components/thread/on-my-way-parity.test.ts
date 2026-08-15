@@ -152,7 +152,11 @@ describe("#520 the on-my-way text reads the same everywhere", () => {
     // for five other things, so a bare /!noteOnly/ passed with the gate taken
     // off this control entirely — found by removing it.
     const gate: Record<string, RegExp> = {
-      web: /!noteOnly && <OnMyWay/,
+      // The gate must still sit immediately before the mount. The optional
+      // paren and whitespace let the JSX wrap onto its own line — which it did
+      // once the component took a second prop — while still allowing nothing
+      // between the condition and the component.
+      web: /!noteOnly && \(?\s*<OnMyWay/,
       android: /if \(!noteOnly && hasJobToday/,
       ios: /if !noteOnly, hasJobToday/,
     };

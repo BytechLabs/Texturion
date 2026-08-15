@@ -5,6 +5,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import {
+  copyFor,
+  resolveLocale,
   ON_MY_WAY_COPY,
   ON_MY_WAY_PRESETS,
   onMyWayPresetLabel,
@@ -13,6 +15,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
+import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useSendMessage } from "@/lib/api/messages";
 import { useTasks } from "@/lib/api/tasks";
@@ -48,8 +51,28 @@ import { flattenPages } from "@/lib/api/pagination";
  * outbound, so the opt-out gate, quiet hours and number access all apply. Fast
  * is not a reason for an exemption.
  */
-export function OnMyWay({ conversationId }: { conversationId: string }) {
+export function OnMyWay({
+  conversationId,
+  /**
+   * #228 — the CUSTOMER's language, for the body they receive.
+   *
+   * Passed rather than fetched: `thread-view` already holds the contact, and
+   * a second query for one field on the one control meant to be instant would
+   * be paying for the shortcut this feature exists to remove.
+   *
+   * The button's own words come from `useT()` — the CREW's language. Those
+   * are two different readers and this is the only component in the thread
+   * where they diverge, which is exactly why it is spelled out here.
+   */
+  contactLocale,
+}: {
+  conversationId: string;
+  contactLocale?: string | null;
+}) {
   const t = useT();
+  // The workspace default, which is the second rung of resolveLocale: a
+  // contact with no language of their own reads the business's.
+  const company = useCompany();
   const [open, setOpen] = useState(false);
   const send = useSendMessage(conversationId);
 
@@ -76,7 +99,12 @@ export function OnMyWay({ conversationId }: { conversationId: string }) {
   async function sendEta(minutes: number) {
     setOpen(false);
     try {
-      await send.mutateAsync({ body: onMyWayText(minutes) });
+      await send.mutateAsync({
+        body: onMyWayText(
+          minutes,
+          copyFor(resolveLocale(contactLocale, company.data?.locale ?? null)).onMyWay,
+        ),
+      });
     } catch (cause) {
       // The server's words. A refusal here is usually a RULE — they opted out,
       // it is outside quiet hours — and "couldn't send" would read as the

@@ -52,6 +52,7 @@ import { DEFAULT_EMERGENCY_MESSAGE, EMERGENCY_SAFETY_LINE } from "./emergency";
 import { IDENTIFICATION_SUFFIX_TEMPLATE } from "./first-message-identification";
 import { RATING_ASK_BODY } from "./job-ratings";
 import { DEFAULT_MCTB_MESSAGE } from "./mctb";
+import { ON_MY_WAY_TEMPLATE } from "./on-my-way";
 
 /** The languages an automated message can be sent in. */
 export const LOCALES = ["en", "fr-CA"] as const;
@@ -126,6 +127,16 @@ export interface AutomatedCopy {
   identificationSuffix: string;
   /** The default reminder ladder. Offsets are the language-independent half. */
   appointmentReminders: readonly { offset_minutes: number; body: string }[];
+  /**
+   * "On my way - about 20 minutes." — `{minutes}` is substituted.
+   *
+   * The first body here that the CLIENT composes rather than the server. Every
+   * other one is picked on the send path from the contact's row; this one is
+   * built in a thread view and posted as an ordinary message, so the three
+   * clients resolve the locale themselves and pass the result to
+   * `onMyWayText`.
+   */
+  onMyWay: string;
 }
 
 /**
@@ -177,6 +188,8 @@ export const FR_CA_COPY: AutomatedCopy = {
         "Repondez C pour confirmer.",
     },
   ],
+  // Fully ASCII, so GSM-7 is not even a question here — see the header.
+  onMyWay: "En route - environ {minutes} minutes.",
 };
 
 /**
@@ -201,6 +214,7 @@ export const EN_COPY: AutomatedCopy = {
     offset_minutes: rule.offset_minutes,
     body: rule.body,
   })),
+  onMyWay: ON_MY_WAY_TEMPLATE,
 };
 
 const COPY: Record<Locale, AutomatedCopy> = {

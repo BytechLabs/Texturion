@@ -7,6 +7,8 @@ import {
   onMyWayText,
 } from "./on-my-way";
 
+import { copyFor, resolveLocale } from "./locale";
+
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
 /** #228 — the module names keys now, so the copy assertions resolve them. */
@@ -92,5 +94,47 @@ describe("#520 the on-my-way text", () => {
     for (const table of [WEB_EN, WEB_FR]) {
       expect(look(table, ON_MY_WAY_COPY.action).toLowerCase()).not.toContain("eta");
     }
+  });
+});
+
+describe("#228 the body the CUSTOMER reads", () => {
+  it("is French for a French-speaking contact", () => {
+    // The gap this closes: every other automated body is picked on the send
+    // path from the contact's row, and this one is composed in a thread view
+    // and posted as an ordinary message — so nothing on the path ever asked
+    // what language the customer reads. It does now.
+    const fr = copyFor("fr-CA").onMyWay;
+    expect(onMyWayText(20, fr)).toBe("En route - environ 20 minutes.");
+    expect(onMyWayText(20, fr), "a variable survived").not.toMatch(/\{/);
+  });
+
+  it("falls back to English rather than to nothing", () => {
+    // The default is deliberate here and nowhere else in this conversion. A
+    // caller that has not been taught about the contact's language sends what
+    // it always sent, rather than failing — this is the control somebody taps
+    // one-handed walking to a van, and a translation gap must not become an
+    // outage on it.
+    expect(onMyWayText(20)).toBe("On my way - about 20 minutes.");
+    expect(onMyWayText(20, copyFor("en").onMyWay)).toBe(onMyWayText(20));
+  });
+
+  it("resolves the contact over the company, and neither over nothing", () => {
+    // The rung order resolveLocale exists for: this customer's own language
+    // first, the workspace's next, English last.
+    expect(copyFor(resolveLocale("fr-CA", "en")).onMyWay).toContain("En route");
+    expect(copyFor(resolveLocale(null, "fr-CA")).onMyWay).toContain("En route");
+    expect(copyFor(resolveLocale(null, null)).onMyWay).toContain("On my way");
+    // An unrecognised locale on either rung falls back rather than throwing:
+    // a row carrying a language some later migration added must not stop a
+    // text reaching a customer.
+    expect(copyFor(resolveLocale("de-DE", null)).onMyWay).toContain("On my way");
+  });
+
+  it("keeps the hedge in both languages", () => {
+    // "About" is doing real work: a tech who says 20 and arrives at 28 has not
+    // broken a promise. "environ" is that same word, and a French body that
+    // dropped it would turn an estimate into a commitment.
+    expect(onMyWayText(20, copyFor("en").onMyWay)).toContain("about");
+    expect(onMyWayText(20, copyFor("fr-CA").onMyWay)).toContain("environ");
   });
 });

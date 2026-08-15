@@ -53,8 +53,28 @@ export type OnMyWayPreset = (typeof ON_MY_WAY_PRESETS)[number];
  * that the hedge costs nothing. The alternative — an exact time, "arriving at
  * 2:40" — is a claim about traffic nobody can make from a van.
  */
-export function onMyWayText(minutes: number): string {
-  return `On my way - about ${minutes} minutes.`;
+export const ON_MY_WAY_TEMPLATE = "On my way - about {minutes} minutes.";
+
+export function onMyWayText(
+  minutes: number,
+  /**
+   * #228 — the body, in the CUSTOMER's language.
+   *
+   * The already-resolved template rather than a locale, matching
+   * `effectiveEmergencyMessage` and for the same reason: `locale.ts` imports
+   * the English constant above, so taking a locale here would close an import
+   * cycle.
+   *
+   * Defaulted to the English, and this is the one place in the sweep where a
+   * default is right rather than a trap. A caller that has not been taught
+   * about the contact's language sends what it sent before — an English text
+   * to a customer who was already getting one — instead of failing to send. A
+   * required parameter would turn a translation gap into an outage on the one
+   * control used one-handed walking to a van.
+   */
+  template: string = ON_MY_WAY_TEMPLATE,
+): string {
+  return template.replace("{minutes}", String(minutes));
 }
 
 /**

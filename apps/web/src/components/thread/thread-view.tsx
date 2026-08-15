@@ -401,6 +401,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
               conversationId={conversationId}
               noteOnly={conversation.viewer_level === "note"}
               onTyping={presence.onTyping}
+              contactLocale={contact.data?.locale ?? null}
             />
           </>
         )}

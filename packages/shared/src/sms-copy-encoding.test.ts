@@ -85,22 +85,59 @@ const AUTOMATED_BODIES: readonly [string, string][] = [
   // guard was written FOR: the French copy is where the temptation to spell
   // `bientôt` correctly meets a bill, and it is the one place a reviewer would
   // read a hyphen for an accent as sloppiness rather than as the constraint.
+  /*
+   * DERIVED from the copy object, not listed by hand.
+   *
+   * It was a hand-written list of six fields, and `AutomatedCopy` has eight.
+   * Two were missing — `emergencySafetyLine`, which is the one body in the
+   * product with a safety property, and `onMyWay`, added the day this comment
+   * was written. Neither failed anything; the list simply did not look at
+   * them, which is the way a guard reports a clean run over half its subject.
+   *
+   * Walking the object closes that for good: a ninth field is covered the
+   * moment it exists, because TypeScript already forces every locale to
+   * define it.
+   */
   ...LOCALES.flatMap((locale) => {
     const copy = copyFor(locale);
-    return [
-      [`${locale}.missedCallTextBack`, copy.missedCallTextBack],
-      [`${locale}.awayReply`, copy.awayReply],
-      [`${locale}.emergencyAck`, copy.emergencyAck],
-      [`${locale}.ratingAsk`, copy.ratingAsk],
-      [`${locale}.identificationSuffix`, copy.identificationSuffix],
-      [`${locale}.helpReply`, copy.helpReply],
-      ...copy.appointmentReminders.map((rule) => [
-        `${locale}.appointmentReminders[${rule.offset_minutes}m]`,
-        rule.body,
-      ]),
-    ] as [string, string][];
+    return Object.entries(copy).flatMap(([field, value]) => {
+      if (typeof value === "string") {
+        return [[`${locale}.${field}`, value] as [string, string]];
+      }
+      // The one array field: the reminder ladder, whose bodies are the strings.
+      if (Array.isArray(value)) {
+        return value.map(
+          (rule: { offset_minutes: number; body: string }) =>
+            [`${locale}.${field}[${rule.offset_minutes}m]`, rule.body] as [string, string],
+        );
+      }
+      throw new Error(`${field} is neither a string nor a list of bodies`);
+    });
   }),
 ];
+
+/**
+ * Every field of the copy object reaches the check above.
+ *
+ * The assertion the derivation makes possible, and the one the hand-written
+ * list could not: a count, so "covered everything" is a claim with a number
+ * behind it rather than an impression.
+ */
+describe("#228 the encoding guard covers the whole copy object", () => {
+  it("checks every field of every locale", () => {
+    for (const locale of LOCALES) {
+      const copy = copyFor(locale);
+      const fields = Object.keys(copy);
+      expect(fields.length, `${locale} has no fields`).toBeGreaterThan(7);
+      for (const field of fields) {
+        expect(
+          AUTOMATED_BODIES.some(([label]) => label.startsWith(`${locale}.${field}`)),
+          `${locale}.${field} is not checked for GSM-7`,
+        ).toBe(true);
+      }
+    }
+  });
+});
 
 describe("#228 automated SMS copy stays inside GSM-7", () => {
   it.each(AUTOMATED_BODIES)("%s is GSM-7 encodable", (label, body) => {

@@ -510,9 +510,12 @@ export function Composer({
   conversationId,
   noteOnly = false,
   onTyping,
+  contactLocale,
 }: {
   conversationId: string;
   noteOnly?: boolean;
+  /** #228 — the customer's language, for the one body this view composes. */
+  contactLocale?: string | null;
   /**
    * #302: called on each keystroke so teammates on this thread can see that
    * somebody is replying. Throttled by the caller — the keystroke rate is not
@@ -1276,7 +1279,9 @@ export function Composer({
           rather than inside the toolbar: sending an ETA is a whole act, not a
           sixth way to change the draft. Not on a note — a note goes to the
           crew, and "on my way" is for the customer. */}
-      {!noteOnly && <OnMyWay conversationId={conversationId} />}
+      {!noteOnly && (
+        <OnMyWay conversationId={conversationId} contactLocale={contactLocale} />
+      )}
       {/* #224: what this thread is owed, and what it was paid. Above the input
           for the same reason the scheduled strip is — it is state, not history,
           and it changes without anybody here doing anything. Never on a note. */}
