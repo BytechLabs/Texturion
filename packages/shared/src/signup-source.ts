@@ -49,22 +49,40 @@ export type SignupSource = (typeof SIGNUP_SOURCES)[number];
  * invites them to think about our programme and answer about the link, when what
  * is being asked is whether a human recommended us at all.
  */
-export const SIGNUP_SOURCE_LABELS: Record<SignupSource, string> = {
-  another_business: "Another business told me",
-  search: "Google or another search",
-  social: "Social media",
-  other: "Somewhere else",
+export const SIGNUP_SOURCE_LABELS: Record<SignupSource, SignupSourceKey> = {
+  another_business: "onboarding.signupSourceAnotherBusiness",
+  search: "onboarding.signupSourceSearch",
+  social: "onboarding.signupSourceSocial",
+  other: "onboarding.signupSourceOther",
 };
 
-/** The question itself. */
-export const SIGNUP_SOURCE_PROMPT = "How did you hear about us?";
+/** Every catalogue key this module names. */
+export type SignupSourceKey =
+  | "onboarding.signupSourceAnotherBusiness"
+  | "onboarding.signupSourceSearch"
+  | "onboarding.signupSourceSocial"
+  | "onboarding.signupSourceOther"
+  | "onboarding.signupSourcePrompt"
+  | "onboarding.signupSourceHint";
+
+/**
+ * The question itself.
+ *
+ * #228: web-only, unlike most of this sweep — there is no signup flow on
+ * either phone, because you sign a business up on a keyboard. So these six
+ * keys live in the web's onboarding section and have no Kotlin or Swift twin
+ * to keep in step.
+ */
+export const SIGNUP_SOURCE_PROMPT: SignupSourceKey =
+  "onboarding.signupSourcePrompt";
 
 /**
  * Said out loud, because an optional question in a signup flow reads as required
  * unless it says otherwise — and a required one here would be friction on the
  * screen that can least afford it.
  */
-export const SIGNUP_SOURCE_HINT = "Optional. It helps us know what is working.";
+export const SIGNUP_SOURCE_HINT: SignupSourceKey =
+  "onboarding.signupSourceHint";
 
 export function isSignupSource(value: string): value is SignupSource {
   return (SIGNUP_SOURCES as readonly string[]).includes(value);

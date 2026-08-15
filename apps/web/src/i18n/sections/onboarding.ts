@@ -23,6 +23,14 @@
 import type { Translated } from "../translated";
 
 export const onboardingEn = {
+  /* #228 — the signup question. Web-only: there is no signup flow on
+     either phone, so these six have no Kotlin or Swift twin. */
+  signupSourceAnotherBusiness: "Another business told me",
+  signupSourceSearch: "Google or another search",
+  signupSourceSocial: "Social media",
+  signupSourceOther: "Somewhere else",
+  signupSourcePrompt: "How did you hear about us?",
+  signupSourceHint: "Optional. It helps us know what is working.",
   // ── Shared across the wizard ──────────────────────────────────────────────
   continue: "Continue",
   saveAndContinue: "Save and continue",
@@ -665,6 +673,12 @@ export const onboardingEn = {
  * workspace, **forfait** for a plan, **paramètres** for settings.
  */
 export const onboardingFr: Translated<typeof onboardingEn> = {
+  signupSourceAnotherBusiness: "Une autre entreprise m'en a parlé",
+  signupSourceSearch: "Google ou un autre moteur de recherche",
+  signupSourceSocial: "Les réseaux sociaux",
+  signupSourceOther: "Ailleurs",
+  signupSourcePrompt: "Comment avez-vous entendu parler de nous ?",
+  signupSourceHint: "Facultatif. Cela nous aide à savoir ce qui fonctionne.",
   // ── Shared across the wizard ──────────────────────────────────────────────
   continue: "Continuer",
   saveAndContinue: "Enregistrer et continuer",

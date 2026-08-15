@@ -233,7 +233,7 @@ export default function CompanyNamePage() {
             name="signupSource"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{SIGNUP_SOURCE_PROMPT}</FormLabel>
+                <FormLabel>{t(SIGNUP_SOURCE_PROMPT)}</FormLabel>
                 <FormControl>
                   <RadioGroup
                     value={field.value ?? ""}
@@ -252,12 +252,12 @@ export default function CompanyNamePage() {
                         )}
                       >
                         <RadioGroupItem value={source} className="sr-only" />
-                        {SIGNUP_SOURCE_LABELS[source]}
+                        {t(SIGNUP_SOURCE_LABELS[source])}
                       </Label>
                     ))}
                   </RadioGroup>
                 </FormControl>
-                <FormDescription>{SIGNUP_SOURCE_HINT}</FormDescription>
+                <FormDescription>{t(SIGNUP_SOURCE_HINT)}</FormDescription>
                 <FormMessage />
               </FormItem>
             )}

@@ -622,6 +622,7 @@ export {
   SIGNUP_SOURCE_LABELS,
   SIGNUP_SOURCE_PROMPT,
   isSignupSource,
+  type SignupSourceKey,
 } from "./signup-source";
 export type { SignupSource } from "./signup-source";
 
