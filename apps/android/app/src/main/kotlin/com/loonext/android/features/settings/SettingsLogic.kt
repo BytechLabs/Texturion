@@ -2204,11 +2204,14 @@ fun viewerHandoverPrompt(state: Ownership): String? {
 }
 
 /** The one sentence the prompt leads with. */
-fun handoverPromptHeadline(kind: String): String = when (kind) {
-    HandoverPrompt.ACCEPT_OFFER -> "You have been offered ownership of this workspace."
-    HandoverPrompt.COMPLETE_CLAIM -> "Your request to take over is ready to complete."
-    HandoverPrompt.CLAIM_WAITING -> "You have asked to take over this workspace."
-    else -> "You are the backup owner."
+fun handoverPromptHeadline(kind: String, locale: String? = null): String = when (kind) {
+    HandoverPrompt.ACCEPT_OFFER ->
+        AppStrings.translate(locale, "settings.handoverPromptOffered")
+    HandoverPrompt.COMPLETE_CLAIM ->
+        AppStrings.translate(locale, "settings.handoverPromptReady")
+    HandoverPrompt.CLAIM_WAITING ->
+        AppStrings.translate(locale, "settings.handoverPromptAsked")
+    else -> AppStrings.translate(locale, "settings.handoverPromptBackup")
 }
 
 /**
@@ -2218,29 +2221,31 @@ fun handoverPromptHeadline(kind: String): String = when (kind) {
  * it is deliberately the same sentence the OWNER read when they named this
  * person — both ends of the arrangement should understand it identically.
  */
-fun handoverPromptDetail(kind: String, ripensAt: String, expiresAt: String): String =
-    when (kind) {
-        HandoverPrompt.ACCEPT_OFFER ->
-            "Accepting makes you responsible for billing, the spending cap and your " +
-                "numbers; the current owner stays on the team as an admin. Everyone " +
-                "is told either way. The offer expires ${absoluteTime(expiresAt)}."
+fun handoverPromptDetail(
+    kind: String,
+    ripensAt: String,
+    expiresAt: String,
+    locale: String? = null,
+): String = when (kind) {
+    HandoverPrompt.ACCEPT_OFFER ->
+        AppStrings.translate(
+            locale,
+            "misc.ownershipDetailAcceptOffer",
+            mapOf("when" to absoluteTime(expiresAt)),
+        )
 
-        HandoverPrompt.COMPLETE_CLAIM ->
-            "The waiting period is over and nobody stopped it. Completing this makes " +
-                "you the owner — billing, the spending cap and your numbers — and puts " +
-                "the previous owner on the team as an admin."
+    HandoverPrompt.COMPLETE_CLAIM ->
+        AppStrings.translate(locale, "misc.ownershipDetailCompleteClaim")
 
-        HandoverPrompt.CLAIM_WAITING ->
-            "The owner has been emailed and can stop this until " +
-                "${absoluteTime(ripensAt)}. If nobody stops it, you can complete the " +
-                "takeover after that."
+    HandoverPrompt.CLAIM_WAITING ->
+        AppStrings.translate(
+            locale,
+            "misc.ownershipDetailClaimWaiting",
+            mapOf("when" to absoluteTime(ripensAt)),
+        )
 
-        else ->
-            "If the owner ever can't get in — they leave, they lose access to their " +
-                "email, or worse — you're the one person who can ask to take over. " +
-                "They get a week to say no, and everyone on the team is told. " +
-                "Nothing changes until you ask."
-    }
+    else -> AppStrings.translate(locale, "misc.ownershipDetailBackupStanding")
+}
 
 /**
  * What the button that ends it says, to the person it is happening to.
@@ -2250,8 +2255,10 @@ fun handoverPromptDetail(kind: String, ripensAt: String, expiresAt: String): Str
  * being told to "decline" something you asked for is the app misreading the
  * room. Null for the standing nomination, which has nothing to call off.
  */
-fun handoverPromptCancelLabel(kind: String): String? = when (kind) {
-    HandoverPrompt.ACCEPT_OFFER -> "Decline"
-    HandoverPrompt.COMPLETE_CLAIM, HandoverPrompt.CLAIM_WAITING -> "Withdraw my request"
+fun handoverPromptCancelLabel(kind: String, locale: String? = null): String? = when (kind) {
+    HandoverPrompt.ACCEPT_OFFER ->
+        AppStrings.translate(locale, "settingsMore.ownershipDecline")
+    HandoverPrompt.COMPLETE_CLAIM, HandoverPrompt.CLAIM_WAITING ->
+        AppStrings.translate(locale, "settings.handoverWithdraw")
     else -> null
 }

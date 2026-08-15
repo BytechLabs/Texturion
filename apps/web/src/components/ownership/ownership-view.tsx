@@ -335,7 +335,7 @@ function PromptCard({
   onCancel: () => void;
   onAskToClaim: () => void;
 }) {
-  const cancelLabel = handoverPromptCancelLabel(kind);
+  const cancelLabel = handoverPromptCancelLabel(kind, t);
   const acceptLabel =
     kind === "accept_offer"
       ? t("misc.ownershipAcceptAction")
@@ -347,7 +347,7 @@ function PromptCard({
     <SettingsCard title={t("misc.ownershipForYou")}>
       <div className="space-y-4">
         <Notice>
-          <p className="text-sm font-medium">{handoverPromptHeadline(kind)}</p>
+          <p className="text-sm font-medium">{handoverPromptHeadline(kind, t)}</p>
           <p className="text-sm text-muted-foreground">
             {detailFor(state, t, kind)}
           </p>

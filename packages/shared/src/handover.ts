@@ -91,16 +91,38 @@ export function viewerHandoverPrompt(
  * differently is a client telling a workspace something subtly different about
  * what is happening to it.
  */
-export function handoverPromptHeadline(kind: HandoverPromptKind): string {
+/**
+ * Every catalogue key this module names.
+ *
+ * #228, and the spellings are iOS's: that client converted this screen first
+ * and its French has shipped. The two labels sit under different prefixes on
+ * purpose — `ownershipDecline` is shared with the Team card, which is the
+ * point of it being one key rather than two words that mean the same thing.
+ */
+export type HandoverPromptKey =
+  | "settings.handoverPromptOffered"
+  | "settings.handoverPromptReady"
+  | "settings.handoverPromptAsked"
+  | "settings.handoverPromptBackup"
+  | "settings.handoverWithdraw"
+  | "settingsMore.ownershipDecline";
+
+/** The reader's resolver. */
+export type SayHandover = (key: HandoverPromptKey) => string;
+
+export function handoverPromptHeadline(
+  kind: HandoverPromptKind,
+  say: SayHandover,
+): string {
   switch (kind) {
     case "accept_offer":
-      return "You have been offered ownership of this workspace.";
+      return say("settings.handoverPromptOffered");
     case "complete_claim":
-      return "Your request to take over is ready to complete.";
+      return say("settings.handoverPromptReady");
     case "claim_waiting":
-      return "You have asked to take over this workspace.";
+      return say("settings.handoverPromptAsked");
     case "backup_standing":
-      return "You are the backup owner.";
+      return say("settings.handoverPromptBackup");
   }
 }
 
@@ -115,13 +137,14 @@ export function handoverPromptHeadline(kind: HandoverPromptKind): string {
  */
 export function handoverPromptCancelLabel(
   kind: HandoverPromptKind,
+  say: SayHandover,
 ): string | null {
   switch (kind) {
     case "accept_offer":
-      return "Decline";
+      return say("settingsMore.ownershipDecline");
     case "complete_claim":
     case "claim_waiting":
-      return "Withdraw my request";
+      return say("settings.handoverWithdraw");
     case "backup_standing":
       return null;
   }

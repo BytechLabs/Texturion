@@ -49,7 +49,7 @@ export function HandoverBanner() {
   return (
     <div
       role="status"
-      aria-label={handoverPromptHeadline(prompt)}
+      aria-label={handoverPromptHeadline(prompt, t)}
       // Same berth as InviteBanner: above the mobile tab bar, bottom-left of
       // the desktop content column, never over the sidebar. Both cards showing
       // at once is possible and stacks readably — they are different sizes and
@@ -58,7 +58,7 @@ export function HandoverBanner() {
       style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
     >
       <p className="min-w-0 text-sm text-app-ink">
-        {handoverPromptHeadline(prompt)}
+        {handoverPromptHeadline(prompt, t)}
       </p>
       <Button asChild size="sm" className="shrink-0">
         <Link href="/ownership">{t("misc.ownershipReview")}</Link>

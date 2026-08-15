@@ -13,6 +13,13 @@
 import type { Translated } from "../translated";
 
 export const settingsEn = {
+  /* #228 — the ownership prompt, read by the person it is happening to.
+     Spelled the way iOS spells it; that client converted this screen first. */
+  handoverPromptOffered: "You have been offered ownership of this workspace.",
+  handoverPromptReady: "Your request to take over is ready to complete.",
+  handoverPromptAsked: "You have asked to take over this workspace.",
+  handoverPromptBackup: "You are the backup owner.",
+  handoverWithdraw: "Withdraw my request",
   /* #228 — the five sentences that used to live in
      packages/shared/src/contact-fields.ts. */
   contactFieldsHeading: "Your own contact fields",
@@ -793,6 +800,11 @@ export const settingsEn = {
  * translated — a machine matches on those.
  */
 export const settingsFr: Translated<typeof settingsEn> = {
+  handoverPromptOffered: "La propriété de cet espace de travail vous a été offerte.",
+  handoverPromptReady: "Votre demande de reprise est prête à être conclue.",
+  handoverPromptAsked: "Vous avez demandé à reprendre cet espace de travail.",
+  handoverPromptBackup: "Vous êtes le propriétaire de relève.",
+  handoverWithdraw: "Retirer ma demande",
   contactFieldsHeading: "Vos propres champs de contact",
   contactFieldsIntro:
     "Modèle de chaudière, code de portail, date de garantie — ce que votre équipe doit savoir avant que le camion parte. Ces champs apparaissent sur chaque client et reviennent dans la recherche et les exportations.",

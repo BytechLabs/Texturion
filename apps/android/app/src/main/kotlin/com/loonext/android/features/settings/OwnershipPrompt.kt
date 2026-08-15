@@ -179,7 +179,7 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                handoverPromptHeadline(kind),
+                handoverPromptHeadline(kind, locale),
                 style = MaterialTheme.typography.titleSmall,
             )
             Spacer(Modifier.height(4.dp))
@@ -188,6 +188,7 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
                     kind,
                     ripensAt = pending?.ripens_at.orEmpty(),
                     expiresAt = pending?.expires_at.orEmpty(),
+                    locale = locale,
                 ),
             )
             Spacer(Modifier.height(12.dp))
@@ -231,7 +232,7 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
                         }
                     }
                 }
-                val cancelLabel = handoverPromptCancelLabel(kind)
+                val cancelLabel = handoverPromptCancelLabel(kind, locale)
                 if (cancelLabel != null && current.can_cancel) {
                     LinkButton(
                         onClick = {

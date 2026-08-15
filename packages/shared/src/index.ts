@@ -27,7 +27,9 @@ export {
   handoverPromptHeadline,
   handoverPromptIsUrgent,
   viewerHandoverPrompt,
+  type HandoverPromptKey,
   type HandoverPromptKind,
+  type SayHandover,
   type HandoverViewer,
 } from "./handover";
 

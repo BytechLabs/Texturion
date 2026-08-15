@@ -1436,6 +1436,17 @@ private val BILLING_EN = mapOf(
     "settings.wordListNothing" to "nothing",
     // The spaces belong to the word: French joins the last pair with "ou".
     "settings.wordListOr" to " or ",
+    // #228 — the ownership prompt. Spelled the way iOS spells it.
+    "settings.handoverPromptOffered" to "You have been offered ownership of this workspace.",
+    "settings.handoverPromptReady" to "Your request to take over is ready to complete.",
+    "settings.handoverPromptAsked" to "You have asked to take over this workspace.",
+    "settings.handoverPromptBackup" to "You are the backup owner.",
+    "settings.handoverWithdraw" to "Withdraw my request",
+    "settingsMore.ownershipDecline" to "Decline",
+    "misc.ownershipDetailAcceptOffer" to "Accepting makes you responsible for billing, the spending cap and your numbers; the current owner stays on the team as an admin. Everyone is told either way. The offer expires {when}.",
+    "misc.ownershipDetailCompleteClaim" to "The waiting period is over and nobody stopped it. Completing this makes you the owner — billing, the spending cap and your numbers — and puts the previous owner on the team as an admin.",
+    "misc.ownershipDetailClaimWaiting" to "The owner has been emailed and can stop this until {when}. If nobody stops it, you can complete the takeover after that.",
+    "misc.ownershipDetailBackupStanding" to "If the owner ever can't get in — they leave, they lose access to their email, or worse — you're the one person who can ask to take over. They get a week to say no, and everyone on the team is told. Nothing changes until you ask.",
     "settings.cancelConsequence" to
         "Cancel anytime. Your plan runs to the end of your billing period, and you " +
         "can't send once it ends. Your number is held for {days} days from the day " +
@@ -1732,6 +1743,16 @@ private val BILLING_FR = mapOf(
         "Personne n'a été informé qu'il le pouvait. Mentionnez-le dans votre message d'absence si vous voulez que les clients le sachent.",
     "settings.wordListNothing" to "rien",
     "settings.wordListOr" to " ou ",
+    "settings.handoverPromptOffered" to "La propriété de cet espace de travail vous a été offerte.",
+    "settings.handoverPromptReady" to "Votre demande de reprise est prête à être conclue.",
+    "settings.handoverPromptAsked" to "Vous avez demandé à reprendre cet espace de travail.",
+    "settings.handoverPromptBackup" to "Vous êtes le propriétaire de relève.",
+    "settings.handoverWithdraw" to "Retirer ma demande",
+    "settingsMore.ownershipDecline" to "Refuser",
+    "misc.ownershipDetailAcceptOffer" to "En acceptant, vous devenez responsable de la facturation, du plafond de dépenses et de vos numéros ; le propriétaire actuel reste dans l'équipe comme administrateur. Tout le monde est informé dans les deux cas. L'offre expire {when}.",
+    "misc.ownershipDetailCompleteClaim" to "Le délai d'attente est écoulé et personne ne l'a arrêté. Terminer cette reprise fait de vous le propriétaire — la facturation, le plafond de dépenses et vos numéros — et place l'ancien propriétaire dans l'équipe comme administrateur.",
+    "misc.ownershipDetailClaimWaiting" to "Le propriétaire a reçu un courriel et peut arrêter cette demande jusqu'au {when}. Si personne ne l'arrête, vous pourrez terminer la reprise après ce moment.",
+    "misc.ownershipDetailBackupStanding" to "Si le propriétaire ne peut plus accéder au compte un jour — il quitte, il perd l'accès à son courriel, ou pire — vous êtes la seule personne qui peut demander à reprendre. Il a une semaine pour refuser, et toute l'équipe en est informée. Rien ne change tant que vous ne demandez pas.",
     "settings.cancelConsequence" to
         "Annulez quand vous voulez. Votre forfait se poursuit jusqu'à la fin de votre " +
         "période de facturation, et vous ne pouvez plus envoyer une fois qu'elle est " +
