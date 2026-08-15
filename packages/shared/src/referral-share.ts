@@ -1,3 +1,5 @@
+import type { SayKey } from "./support";
+
 /**
  * #288 — one tap, a pre-written message they can edit, sent from the phone they
  * are already holding.
@@ -46,12 +48,10 @@
  * whose first message says "we both get a free month" is just being straight.
  */
 export const REFERRAL_SHARE_NOTE =
-  "We run our business line through Loonext — calls and texts land in one " +
-  "inbox and whoever's free answers. Flat price, no per-seat fee. Sign up " +
-  "with my link and we both get a free month.";
+  "domain.referralNote";
 
 /** The heading over the share control, on all three clients. */
-export const REFERRAL_SHARE_TITLE = "Refer another crew";
+export const REFERRAL_SHARE_TITLE = "domain.referralTitle";
 
 /**
  * What the referrer gets, and when.
@@ -68,8 +68,7 @@ export const REFERRAL_SHARE_TITLE = "Refer another crew";
  * quote no number rather than hardcoding one that would be wrong in Canada.
  */
 export const REFERRAL_REWARD_LINE =
-  "Send this to another business. When they sign up and a customer texts them " +
-  "back, you both get a month free";
+  "domain.referralRewardLine";
 
 /**
  * The four states a referral passes through, in the words the referrer reads.
@@ -83,15 +82,15 @@ export const REFERRAL_STAGE_LABELS: Record<
   "invited" | "signed_up" | "active" | "rewarded" | "voided",
   string
 > = {
-  invited: "Signed up, no replies yet",
-  signed_up: "Up and running",
-  active: "Still going after 30 days",
-  rewarded: "Free month applied",
-  voided: "Not counted",
+  invited: "domain.referralStageInvited",
+  signed_up: "domain.referralStageSignedUp",
+  active: "domain.referralStageActive",
+  rewarded: "domain.referralStageRewarded",
+  voided: "domain.referralStageVoided",
 };
 
 /** The one tap. */
-export const REFERRAL_SHARE_ACTION = "Share";
+export const REFERRAL_SHARE_ACTION = "domain.referralAction";
 
 /**
  * The fallback, where no share sheet exists — a desktop browser, mostly.
@@ -99,19 +98,19 @@ export const REFERRAL_SHARE_ACTION = "Share";
  * Kept as a SECOND action rather than a replacement: an owner at a laptop who
  * wants the text in their own email client is not a degraded case.
  */
-export const REFERRAL_SHARE_COPY = "Copy";
+export const REFERRAL_SHARE_COPY = "domain.referralCopy";
 
 /** Confirmation after the copy. */
-export const REFERRAL_SHARE_COPIED = "Copied";
+export const REFERRAL_SHARE_COPIED = "domain.referralCopied";
 
 /** The label on the editable draft. */
-export const REFERRAL_SHARE_DRAFT_LABEL = "Your message";
+export const REFERRAL_SHARE_DRAFT_LABEL = "domain.referralDraftLabel";
 
 /**
  * Said out loud, because an editable box next to a fixed link invites the
  * question of whether the link is going too.
  */
-export const REFERRAL_SHARE_LINK_NOTE = "Your link goes on the end automatically.";
+export const REFERRAL_SHARE_LINK_NOTE = "domain.referralLinkNote";
 
 /**
  * The message as it will actually be sent: the owner's words, then the link.
@@ -266,10 +265,17 @@ export function referralAskDecision(
  * asked for anything, and that ordering is the difference between a prompt that
  * feels earned and one that feels like a pop-up.
  */
-export function referralAskHeadline(customers: number): string {
+export function referralAskHeadline(customers: number, say: SayKey): string {
+  /*
+   * #228: singular and plural are SEPARATE KEYS, not one sentence with the
+   * number swapped in. French agrees "client" and its article with the count,
+   * and the one-customer case does not carry a numeral at all in either
+   * language — "1 client" reads as a form field, not as a sentence about
+   * somebody's month.
+   */
   return customers === 1
-    ? "You replied to 1 customer this month."
-    : `You replied to ${customers} customers this month.`;
+    ? say("domain.referralAskHeadlineOne")
+    : say("domain.referralAskHeadlineMany").replace("{count}", String(customers));
 }
 
 /**
@@ -280,11 +286,10 @@ export function referralAskHeadline(customers: number): string {
  * knows one who is still running the business off their own cell.
  */
 export const REFERRAL_ASK_BODY =
-  "Know another crew still running their business off one person's cell? " +
-  "Send them your link — you both get a free month.";
+  "domain.referralAskBody";
 
 /** The primary action on the ask. */
-export const REFERRAL_ASK_ACTION = "Share your link";
+export const REFERRAL_ASK_ACTION = "domain.referralAskAction";
 
 /**
  * The way out.
@@ -293,4 +298,4 @@ export const REFERRAL_ASK_ACTION = "Share your link";
  * equal weight, not a greyed-out afterthought. A prompt asking for a favour has
  * no business making "no" hard to find.
  */
-export const REFERRAL_ASK_DISMISS = "Not now";
+export const REFERRAL_ASK_DISMISS = "domain.referralAskDismiss";

@@ -10,6 +10,7 @@ import { REFERRAL_ASK_DISMISS, referralAskHeadline } from "@loonext/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { sayEnglish } from "@/i18n/provider";
 import type { ReferralMomentView, ReferralsView } from "@/lib/api/billing";
 
 const state = vi.hoisted(() => ({
@@ -50,7 +51,7 @@ describe("#288 ReferralAsk", () => {
     // Reciprocity: a fact about their business is handed over first. The number
     // is also the evidence that the moment was earned, so it is not decoration.
     const html = render();
-    expect(html).toContain(referralAskHeadline(37));
+    expect(html).toContain(referralAskHeadline(37, sayEnglish));
   });
 
   it("renders nothing when the server says this is not the moment", () => {
@@ -77,11 +78,11 @@ describe("#288 ReferralAsk", () => {
     // #315 made roles capability sets rather than ranks, and billing.manage is
     // the capability that decides this — not "is this person the owner".
     state.role = "bookkeeper";
-    expect(render()).toContain(referralAskHeadline(37));
+    expect(render()).toContain(referralAskHeadline(37, sayEnglish));
   });
 
   it("offers a way out of equal weight to the ask", () => {
-    expect(render()).toContain(REFERRAL_ASK_DISMISS);
+    expect(render()).toContain(sayEnglish(REFERRAL_ASK_DISMISS));
   });
 
   it("does not fetch the link until somebody says yes to being asked", () => {
@@ -99,6 +100,6 @@ describe("#288 ReferralAsk", () => {
 
   it("survives a missing customer count rather than saying 'undefined'", () => {
     state.moment = { ask: true };
-    expect(render()).toContain(referralAskHeadline(0));
+    expect(render()).toContain(referralAskHeadline(0, sayEnglish));
   });
 });

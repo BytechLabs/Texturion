@@ -26,6 +26,30 @@ import type { Translated } from "../translated";
 
 export const domainEn = {
   /*
+   * #228 — the referral share sheet and the ask that precedes it. Both phones have said these since #228 reached them. The ask headline's singular and plural are separate keys: French agrees the noun with the count, and "1 client" reads as a form field rather than a sentence about somebody's month.
+   */
+  referralAction: "Share",
+  referralAskAction: "Share your link",
+  referralAskBody: "Know another crew still running their business off one person's cell? Send them your link — you both get a free month.",
+  referralAskDismiss: "Not now",
+  referralAskHeadlineMany: "You replied to {count} customers this month.",
+  referralAskHeadlineOne: "You replied to 1 customer this month.",
+  referralCodeFallback: "Use my code {code} when you sign up.",
+  referralCopied: "Copied",
+  referralCopy: "Copy",
+  referralDraftLabel: "Your message",
+  referralLinkNote: "Your link goes on the end automatically.",
+  referralNote: "We run our business line through Loonext — calls and texts land in one inbox and whoever's free answers. Flat price, no per-seat fee. Sign up with my link and we both get a free month.",
+  referralRewardLine: "Send this to another business. When they sign up and a customer texts them back, you both get a month free",
+  referralStageActive: "Still going after 30 days",
+  referralStageInvited: "Signed up, no replies yet",
+  referralStageRewarded: "Free month applied",
+  referralStageSignedUp: "Up and running",
+  referralStageVoided: "Not counted",
+  referralTitle: "Refer another crew",
+
+
+  /*
    * #228 — where a US texting registration has got to. Both phones have said these since #228 reached them; the web imported the shared module and rendered whatever English came back, on the screen somebody opens because they are waiting.
    */
   regStageApprovedNext: "You can text customers now.",
@@ -193,6 +217,27 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  referralAction: "Partager",
+  referralAskAction: "Partager votre lien",
+  referralAskBody: "Vous connaissez une autre équipe qui fait encore rouler son entreprise sur le cellulaire d'une seule personne ? Envoyez-lui votre lien — vous obtenez tous les deux un mois gratuit.",
+  referralAskDismiss: "Pas maintenant",
+  referralAskHeadlineMany: "Vous avez répondu à {count} clients ce mois-ci.",
+  referralAskHeadlineOne: "Vous avez répondu à 1 client ce mois-ci.",
+  referralCodeFallback: "Utilisez mon code {code} à votre inscription.",
+  referralCopied: "Copié",
+  referralCopy: "Copier",
+  referralDraftLabel: "Votre message",
+  referralLinkNote: "Votre lien s'ajoute automatiquement à la fin.",
+  referralNote: "Nous passons notre ligne d'affaires par Loonext — les appels et les textos arrivent dans une seule boîte de réception et la personne libre répond. Prix fixe, aucuns frais par utilisateur. Inscrivez-vous avec mon lien et nous obtenons tous les deux un mois gratuit.",
+  referralRewardLine: "Envoyez ceci à une autre entreprise. Quand elle s'inscrit et qu'un client lui répond par texto, vous obtenez tous les deux un mois gratuit",
+  referralStageActive: "Toujours active après 30 jours",
+  referralStageInvited: "Inscrite, aucune réponse encore",
+  referralStageRewarded: "Mois gratuit appliqué",
+  referralStageSignedUp: "En service",
+  referralStageVoided: "Non comptabilisée",
+  referralTitle: "Recommander une autre équipe",
+
+
   regStageApprovedNext: "Vous pouvez texter vos clients dès maintenant.",
   regStageApprovedTitle: "Vos textos sont en service",
   regStageExpected: "Habituellement de 3 à 7 jours ouvrables, parfois plus",

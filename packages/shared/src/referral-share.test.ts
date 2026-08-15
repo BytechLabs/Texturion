@@ -5,12 +5,36 @@ import {
   REFERRAL_ASK_MIN_CUSTOMERS,
   REFERRAL_ASK_MIN_DAYS,
   REFERRAL_ASK_QUIET_DAYS,
+  REFERRAL_ASK_ACTION,
+  REFERRAL_ASK_BODY,
+  REFERRAL_ASK_DISMISS,
+  REFERRAL_REWARD_LINE,
+  REFERRAL_SHARE_ACTION,
+  REFERRAL_SHARE_COPIED,
+  REFERRAL_SHARE_COPY,
+  REFERRAL_SHARE_DRAFT_LABEL,
+  REFERRAL_SHARE_LINK_NOTE,
   REFERRAL_SHARE_NOTE,
+  REFERRAL_SHARE_TITLE,
+  REFERRAL_STAGE_LABELS,
   referralAskDecision,
   referralAskHeadline,
   referralShareText,
   type ReferralAskFacts,
 } from "./referral-share";
+
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/* #228 — this module names keys, so the assertions resolve them. */
+function lookUp(table: unknown, key: string, lang: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  return value;
+}
+
+const say = (key: string): string => lookUp(WEB_EN, key, "English");
+const sayFr = (key: string): string => lookUp(WEB_FR, key, "French");
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = new Date("2026-08-08T12:00:00.000Z");
@@ -183,10 +207,59 @@ describe("referralAskDecision", () => {
 
 describe("referralAskHeadline", () => {
   it("counts in customers, in their own numbers", () => {
-    expect(referralAskHeadline(37)).toBe("You replied to 37 customers this month.");
+    expect(referralAskHeadline(37, say)).toBe("You replied to 37 customers this month.");
   });
 
   it("does not say '1 customers'", () => {
-    expect(referralAskHeadline(1)).toBe("You replied to 1 customer this month.");
+    expect(referralAskHeadline(1, say)).toBe("You replied to 1 customer this month.");
+  });
+
+  it("does not say it in French either", () => {
+    // The reason singular and plural are separate keys rather than one sentence
+    // with the number swapped in. A French translation that reused the plural
+    // would read "1 clients", which is the exact defect the English test above
+    // exists to prevent, in the language nobody re-reads.
+    expect(referralAskHeadline(1, sayFr)).not.toMatch(/1 clients/);
+    expect(referralAskHeadline(37, sayFr)).toContain("37");
+    expect(referralAskHeadline(1, sayFr)).not.toBe(referralAskHeadline(37, sayFr));
+  });
+});
+
+/*
+ * #228 — every key this module names, resolved in both languages.
+ *
+ * Written up front rather than after a break-test found the gap: these are
+ * fifteen exported constants that clients render directly, so a typo in any one
+ * reaches a screen as its own name and nothing else here would notice.
+ */
+describe("#228 every referral string exists in both languages", () => {
+  it("resolves all of them", () => {
+    const keys = [
+      REFERRAL_SHARE_NOTE,
+      REFERRAL_SHARE_TITLE,
+      REFERRAL_REWARD_LINE,
+      REFERRAL_SHARE_ACTION,
+      REFERRAL_SHARE_COPY,
+      REFERRAL_SHARE_COPIED,
+      REFERRAL_SHARE_DRAFT_LABEL,
+      REFERRAL_SHARE_LINK_NOTE,
+      REFERRAL_ASK_BODY,
+      REFERRAL_ASK_ACTION,
+      REFERRAL_ASK_DISMISS,
+      ...Object.values(REFERRAL_STAGE_LABELS),
+    ];
+    for (const key of keys) {
+      expect(say(key).length, key).toBeGreaterThan(0);
+      expect(sayFr(key).length, key).toBeGreaterThan(0);
+      expect(sayFr(key), `${key} is not translated`).not.toBe(say(key));
+    }
+    expect(keys.length).toBeGreaterThan(14);
+  });
+
+  it("gives each referral stage its own words", () => {
+    // Five stages sharing a label would satisfy every assertion above while
+    // making the progress list say nothing.
+    const labels = Object.values(REFERRAL_STAGE_LABELS).map(say);
+    expect(new Set(labels).size).toBe(Object.keys(REFERRAL_STAGE_LABELS).length);
   });
 });

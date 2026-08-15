@@ -12,7 +12,7 @@ import { useState } from "react";
 
 import { ReferralShare } from "@/components/settings/referral-share";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import {
   useDismissReferralAsk,
   useReferralMoment,
@@ -62,6 +62,9 @@ import { useActiveCompany } from "@/lib/company/provider";
  */
 export function ReferralAsk() {
   const t = useT();
+  // #228: the shared referral copy names keys, so this says them in the
+  // reader's language.
+  const say = sayWith(t);
   const { role } = useActiveCompany();
   // The reward is a month off the invoice. A tech cannot see the invoice, so an
   // offer of one is an offer we have no way to keep — and the endpoint is behind
@@ -92,10 +95,10 @@ export function ReferralAsk() {
         <div className="min-w-0 flex-1">
           {/* Their number, in the largest type on the card. */}
           <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-app-ink">
-            {referralAskHeadline(customers)}
+            {referralAskHeadline(customers, say)}
           </h2>
           <p className="mt-1 text-[13px] leading-[1.45] text-app-muted">
-            {REFERRAL_ASK_BODY}
+            {say(REFERRAL_ASK_BODY)}
           </p>
 
           {opened ? (
@@ -116,14 +119,14 @@ export function ReferralAsk() {
           ) : (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={() => setOpened(true)}>
-                {REFERRAL_ASK_ACTION}
+                {say(REFERRAL_ASK_ACTION)}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => dismiss.mutate()}
               >
-                {REFERRAL_ASK_DISMISS}
+                {say(REFERRAL_ASK_DISMISS)}
               </Button>
             </div>
           )}

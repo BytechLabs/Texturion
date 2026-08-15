@@ -9,6 +9,8 @@ import {
   REFERRAL_SHARE_NOTE,
   referralShareText,
 } from "@loonext/shared";
+
+import { sayWith, useT } from "@/i18n/provider";
 import { Check, Copy, Share2 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
@@ -59,7 +61,20 @@ export function ReferralShare({
   link: string | null;
   code: string;
 }) {
-  const [note, setNote] = useState(REFERRAL_SHARE_NOTE);
+  const t = useT();
+  // #228: the shared referral copy names keys, so this says them in the
+  // reader's language.
+  const say = sayWith(t);
+  /*
+   * Resolved LAZILY, and it is the draft rather than a label — seeding the
+   * textarea with `domain.referralNote` would hand somebody a catalogue key to
+   * send to another business.
+   *
+   * Not re-resolved when the locale changes: by then it is a draft this person
+   * may have edited, and replacing their words because they switched language
+   * would lose work. A fresh visit gets the new language.
+   */
+  const [note, setNote] = useState(() => say(REFERRAL_SHARE_NOTE));
   const [copied, setCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
   const draftId = useId();
@@ -79,7 +94,7 @@ export function ReferralShare({
         htmlFor={draftId}
         className="block text-xs font-medium text-muted-foreground"
       >
-        {REFERRAL_SHARE_DRAFT_LABEL}
+        {say(REFERRAL_SHARE_DRAFT_LABEL)}
       </label>
       <Textarea
         id={draftId}
@@ -89,7 +104,7 @@ export function ReferralShare({
         className="text-sm"
       />
       <p className="text-xs text-muted-foreground">
-        {REFERRAL_SHARE_LINK_NOTE}{" "}
+        {say(REFERRAL_SHARE_LINK_NOTE)}{" "}
         <span className="break-all font-mono">{link ?? code}</span>
       </p>
       <div className="flex flex-wrap items-center gap-2">
@@ -103,7 +118,7 @@ export function ReferralShare({
             }}
           >
             <Share2 strokeWidth={1.75} aria-hidden />
-            {REFERRAL_SHARE_ACTION}
+            {say(REFERRAL_SHARE_ACTION)}
           </Button>
         )}
         <Button

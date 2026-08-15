@@ -11,7 +11,7 @@ import { Users } from "lucide-react";
 
 import { ReferralShare } from "@/components/settings/referral-share";
 import { SettingsCard } from "@/components/settings/section";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import { useReferrals } from "@/lib/api/billing";
 import { type PlanId } from "@/lib/api/types";
 
@@ -71,6 +71,9 @@ export function ReferralCard({
   show: boolean;
 }) {
   const t = useT();
+  // #228: the shared referral copy names keys, so this says them in the
+  // reader's language.
+  const say = sayWith(t);
   const referrals = useReferrals(show);
 
   // Never a skeleton and never an error box: this is an offer on somebody
@@ -100,7 +103,7 @@ export function ReferralCard({
               naming the wrong condition is worse than a vague one: the referrer
               watches their friend send a text and concludes we did not pay. */}
           <p className="text-sm text-muted-foreground">
-            {REFERRAL_REWARD_LINE}{" "}
+            {say(REFERRAL_REWARD_LINE)}{" "}
             {t("settingsMore.referralRewardEach", { amount: monthly })}
           </p>
 
@@ -123,7 +126,7 @@ export function ReferralCard({
                   className="flex items-center justify-between gap-3 text-sm"
                 >
                   <span className="text-muted-foreground">
-                    {REFERRAL_STAGE_LABELS[row.stage]}
+                    {say(REFERRAL_STAGE_LABELS[row.stage])}
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                     {new Date(row.created_at).toLocaleDateString("en-US", {
