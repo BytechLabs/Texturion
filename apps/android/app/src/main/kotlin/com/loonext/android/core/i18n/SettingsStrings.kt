@@ -1309,6 +1309,21 @@ private val BILLING_EN = mapOf(
      * #277's six answers. The CODES are frozen in SettingsLogic and land in the
      * database; these are only the words, and changing one is free.
      */
+    /*
+     * #228 — what a plan gives you, on the compare card.
+     *
+     * Every line is either a fact about the plan or a limit on it. "fair use"
+     * is the product's own term and reads as "usage raisonnable" throughout,
+     * which is the wording SettingsMoreStrings already uses.
+     */
+    "settings.planLineTexting" to "Texting for your crew, bound by fair use",
+    "settings.planLineCalling" to "Calling included on every plan, never an add-on",
+    "settings.planLineExtraTexts" to
+        "Extra texts bill under fair use, up to a cap you control",
+    "settings.planLineSeats" to "{count} team members",
+    "settings.planLineNumberOne" to "{count} phone number",
+    "settings.planLineNumbers" to "{count} phone numbers",
+
     "settings.cancelReasonTooExpensive" to "Too expensive",
     "settings.cancelReasonSeasonal" to "Quiet season, I'll be back",
     "settings.cancelReasonMissingFeature" to "Missing something I need",
@@ -1489,6 +1504,17 @@ private val BILLING_FR = mapOf(
     "settings.billingPortalAction" to "Gérer le paiement et les factures",
 
     "settings.cancelTitle" to "Annuler",
+
+    "settings.planLineTexting" to
+        "Messagerie pour votre équipe, encadrée par l'usage raisonnable",
+    "settings.planLineCalling" to
+        "Les appels sont inclus dans tous les forfaits, jamais en supplément",
+    "settings.planLineExtraTexts" to
+        "Les textos supplémentaires sont facturés selon l'usage raisonnable, " +
+        "jusqu'à un plafond que vous contrôlez",
+    "settings.planLineSeats" to "{count} membres de l'équipe",
+    "settings.planLineNumberOne" to "{count} numéro de téléphone",
+    "settings.planLineNumbers" to "{count} numéros de téléphone",
 
     "settings.cancelReasonTooExpensive" to "Trop cher",
     "settings.cancelReasonSeasonal" to "Saison tranquille, je reviens",

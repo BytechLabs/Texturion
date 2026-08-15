@@ -83,6 +83,28 @@ function takesLocale(params) {
   return /\blocale\s*:\s*String\?/.test(params);
 }
 
+/**
+ * The OTHER way a function comes to hold a locale, and the commonest one.
+ *
+ * A composable does not take the locale as a parameter — it reads it out of the
+ * environment: `val locale = LocalAppLocale.current` on Android,
+ * `@Environment(\.appLocale) private var appLocale` on iOS. That is the ENTRY
+ * POINT, where the reader's language actually arrives, and every threaded chain
+ * below it starts at one of these.
+ *
+ * The guard did not know that shape, so it watched the chain and missed the
+ * door: a composable holding `locale` could call a locale-taking function
+ * without it, and nothing said so. Found by breaking it — dropping the argument
+ * from a real call site and watching the guard still report success.
+ *
+ * Shape-based, like the rest of this file: it keys on how the value is
+ * obtained, not on a list of composable names that would go stale.
+ */
+function readsLocaleFromEnvironment(body) {
+  return /\bval\s+locale\s*=\s*LocalAppLocale\.current/.test(body)
+    || /@Environment\(\\\.appLocale\)\s+(?:private\s+)?var\s+(\w+)/.test(body);
+}
+
 const findings = [];
 let inspected = 0;
 let acceptCount = 0;
@@ -200,11 +222,13 @@ function stripComments(text) {
     localDeclarations.set(decl[1], takesLocale(decl[2]));
   }
   for (const match of source.matchAll(DECLARES_LOCALE)) {
-    if (!takesLocale(match[2])) continue;
     const start = match.index + match[0].length;
     const lineStart = source.lastIndexOf("\n", match.index) + 1;
     const ownIndent = /^[ \t]*/.exec(source.slice(lineStart, match.index))?.[0].length ?? 0;
     const body = bodyAfter(source, start, ownIndent, DECL_START[client.name]);
+    // A locale in hand, however it got there: declared as a parameter, or read
+    // out of the environment by a composable.
+    if (!takesLocale(match[2]) && !readsLocaleFromEnvironment(body)) continue;
     inspected += 1;
 
     for (const call of body.matchAll(/(?<![A-Za-z0-9_.])([A-Za-z][A-Za-z0-9_]*)\(([^()]*)\)/g)) {

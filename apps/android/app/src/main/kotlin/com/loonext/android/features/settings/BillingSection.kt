@@ -1419,7 +1419,7 @@ private fun PlanCard(
             // pause at all. Blanking the plan's own terms would punish the one
             // reader who has no control on this card to be misled about, and the
             // pill — the only thing that CLAIMS a state — is already withheld.
-            planAllowanceLines(facts).forEach { line ->
+            planAllowanceLines(facts, locale).forEach { line ->
                 Text(
                     // The bullet only; `line` itself is `planAllowanceLines`', in
                     // SettingsLogic.kt, and still English — see the report.

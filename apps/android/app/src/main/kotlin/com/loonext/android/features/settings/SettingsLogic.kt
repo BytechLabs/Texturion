@@ -650,12 +650,20 @@ private fun planPrice(plan: String, billingCurrency: String?, country: String?):
  * true of a paused or a lapsed workspace, which is why the render site gates
  * them on the pause read rather than on "we have no pause in hand".
  */
-fun planAllowanceLines(facts: PlanFacts): List<String> = listOf(
-    "Texting for your crew, bound by fair use",
-    "Calling included on every plan, never an add-on",
-    "Extra texts bill under fair use, up to a cap you control",
-    "${facts.seats} team members",
-    "${facts.numbers} phone number" + if (facts.numbers == 1) "" else "s",
+fun planAllowanceLines(facts: PlanFacts, locale: String? = null): List<String> = listOf(
+    AppStrings.translate(locale, "settings.planLineTexting"),
+    AppStrings.translate(locale, "settings.planLineCalling"),
+    AppStrings.translate(locale, "settings.planLineExtraTexts"),
+    AppStrings.translate(locale, "settings.planLineSeats", mapOf("count" to facts.seats.toString())),
+    // #228: the plural is TWO KEYS rather than an English "s" appended to a
+    // translated stem. French forms this one the same way, which is exactly why
+    // the append looks safe and is not — the next language to arrive would get
+    // an English suffix welded onto its own noun, and nothing would fail.
+    AppStrings.translate(
+        locale,
+        if (facts.numbers == 1) "settings.planLineNumberOne" else "settings.planLineNumbers",
+        mapOf("count" to facts.numbers.toString()),
+    ),
 )
 
 /** Included outbound segments (SPEC §2) — for downgrade checklists only;
