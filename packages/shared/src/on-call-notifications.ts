@@ -53,22 +53,45 @@ export function isOnCallNow(
  * Null when there is nothing to warn about — not on call, or switching something
  * ON — so a caller can ask unconditionally.
  */
+/** Every catalogue key this module names. */
+export type OnCallSilenceKey =
+  | "domain.onCallSilenceWarning"
+  | "domain.onCallSilenceChannelPush"
+  | "domain.onCallSilenceChannelEmail"
+  | "domain.onCallSilenceConfirm"
+  | "domain.onCallSilenceCancel";
+
+/** The reader's resolver. */
+export type SayOnCallSilence = (key: OnCallSilenceKey) => string;
+
 export function onCallSilenceWarning(
   onCall: boolean,
   turningOff: boolean,
   channel: "email" | "push",
+  say: SayOnCallSilence,
 ): string | null {
   if (!onCall || !turningOff) return null;
-  const what = channel === "push" ? "Push alerts" : "Emails";
-  return (
-    `You're on call right now. ${what} are how a new customer nobody has ` +
-    `answered reaches you, and with this off those pages go nowhere — no one ` +
-    `else is told. Hand the shift over first if you need to be unreachable.`
+  /*
+   * #228 — the channel noun is its own key, not an English word dropped into
+   * a translated sentence.
+   *
+   * French carries the article on it: "LES alertes push sont…" against "LES
+   * courriels sont…". Interpolating a bare "Push alerts" into a French
+   * sentence would produce "Vous êtes de garde. Push alerts sont…", which is
+   * the shape a half-translated string always takes.
+   */
+  const what = say(
+    channel === "push"
+      ? "domain.onCallSilenceChannelPush"
+      : "domain.onCallSilenceChannelEmail",
   );
+  return say("domain.onCallSilenceWarning").replace("{what}", what);
 }
 
 /** The confirm button, which says what happens rather than "OK". */
-export const ON_CALL_SILENCE_CONFIRM = "Turn it off anyway";
+export const ON_CALL_SILENCE_CONFIRM: OnCallSilenceKey =
+  "domain.onCallSilenceConfirm";
 
 /** ...and the way out. */
-export const ON_CALL_SILENCE_CANCEL = "Leave it on";
+export const ON_CALL_SILENCE_CANCEL: OnCallSilenceKey =
+  "domain.onCallSilenceCancel";

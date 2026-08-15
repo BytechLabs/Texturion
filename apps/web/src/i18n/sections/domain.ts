@@ -25,6 +25,7 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  voicemailIntakeSource: "From the voicemail",
   /* #228 — whose clock the rules follow (#225), and the numbers a member
      cannot see (#286). Both phones have had all three. */
   twoClocksAreaCodeNote: "The rules about when you may text go by their clock, not yours. If this number moved, set their timezone on the contact.",
@@ -369,6 +370,7 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  voicemailIntakeSource: "Tiré du message vocal",
   twoClocksAreaCodeNote: "Les règles sur les heures où vous pouvez texter suivent leur horloge, pas la vôtre. Si ce numéro a déménagé, réglez son fuseau horaire sur la fiche du client.",
   hiddenNumbersOne: "Un autre numéro se trouve sur ce compte sans être partagé avec vous. Demandez-le à un propriétaire si vous en avez besoin.",
   hiddenNumbersMany: "{count} autres numéros se trouvent sur ce compte sans être partagés avec vous. Demandez-les à un propriétaire si vous en avez besoin.",

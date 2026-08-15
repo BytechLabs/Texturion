@@ -13,6 +13,16 @@ import {
   VOICEMAIL_INTAKE_SOURCE_LABEL,
 } from "./voicemail-intake";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/** #228 — the module names a key now, so the test resolves it. */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
 const empty = { problem: null, address: null, callback: null, name: null };
 
 describe("voicemailIntakeLines", () => {
@@ -75,6 +85,10 @@ describe("voicemailIntakeLines", () => {
     // PORTAL-UX §3.1: the mark already says Lou did it; the label says where it
     // came from, which is the half a person can check against the transcript
     // sitting underneath.
-    expect(VOICEMAIL_INTAKE_SOURCE_LABEL).toBe("From the voicemail");
+    expect(look(WEB_EN, VOICEMAIL_INTAKE_SOURCE_LABEL)).toBe("From the voicemail");
+    // "Tiré du message vocal" — where it came FROM, not what made it. A
+    // French label naming the machine would undo the same distinction.
+    expect(look(WEB_FR, VOICEMAIL_INTAKE_SOURCE_LABEL)).toBe("Tiré du message vocal");
+    expect(look(WEB_FR, VOICEMAIL_INTAKE_SOURCE_LABEL).toLowerCase()).not.toContain("lou");
   });
 });

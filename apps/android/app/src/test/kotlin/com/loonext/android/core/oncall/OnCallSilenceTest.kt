@@ -158,34 +158,45 @@ class OnCallSilenceTest {
      * channel name blanked, whitespace collapsed — and compared whole. A reworded
      * warning on any client fails; a rewrapped one does not.
      */
+    /**
+     * #228 — the sentence lives in the web catalogue now, as ONE string.
+     *
+     * That simplifies what this had to do. The shared module wrote it as a
+     * line-broken template literal, so the old version stripped backticks,
+     * plus signs and the interpolation before comparing — normalising away
+     * TypeScript's formatting to reach the words. A catalogue entry is a
+     * single JSON string, so only the {what} slot has to be blanked on both
+     * sides.
+     *
+     * Sliced to the English half: the French holds the same key.
+     */
     @Test
-    fun `the warning matches the shared module`() {
-        val shared = repoFile("packages/shared/src/on-call-notifications.ts")
-        val start = shared.indexOf("`You're on call right now.")
-        assertTrue("the warning is no longer a template literal", start > 0)
-        val end = shared.indexOf("`\n  );", start)
-        assertTrue("the warning's literal never closes", end > start)
+    fun `the warning matches the catalogue`() {
+        val catalogue = repoFile("apps/web/src/i18n/sections/domain.ts")
+            .substringAfter("export const domainEn")
+            .substringBefore("export const domainFr")
 
         fun bare(text: String): String = text
-            .replace("`", "")
-            .replace("+", "")
-            .replace("\${what}", "")
+            .replace("{what}", "")
             .replace("Push alerts", "")
             .replace("Emails", "")
             .replace(Regex("\\s+"), " ")
             .trim()
 
-        assertEquals(
-            "the warning has drifted from the shared module",
-            bare(shared.substring(start, end)),
-            bare(OnCallSilence.warning(true, true, "push")!!),
+        val rendered = bare(OnCallSilence.warning(true, true, "push")!!)
+        assertTrue(
+            "the warning has drifted from the catalogue: $rendered",
+            catalogue.split("\n").any { bare(it).contains(rendered) },
         )
     }
 
     /** And the two button labels, which are the decision a thumb reads. */
     @Test
     fun `the button labels match the shared module`() {
-        val shared = repoFile("packages/shared/src/on-call-notifications.ts")
+        // #228: the labels moved to the catalogue with the warning above.
+        val shared = repoFile("apps/web/src/i18n/sections/domain.ts")
+            .substringAfter("export const domainEn")
+            .substringBefore("export const domainFr")
         assertTrue(
             "the confirm label has drifted: ${OnCallSilence.CONFIRM}",
             shared.contains("\"${OnCallSilence.CONFIRM}\""),

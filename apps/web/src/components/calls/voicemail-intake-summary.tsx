@@ -1,4 +1,5 @@
 import { AiOrb } from "@/components/ui/ai-orb";
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 import {
   voicemailIntakeLines,
@@ -36,6 +37,7 @@ export function VoicemailIntakeSummary({
   intake: VoicemailIntake | null | undefined;
   className?: string;
 }) {
+  const t = useT();
   const lines = voicemailIntakeLines(intake);
   if (lines.length === 0) return null;
 
@@ -43,7 +45,7 @@ export function VoicemailIntakeSummary({
     <span className={cn("block", className)}>
       <span className="flex items-center gap-1 text-[11px] font-medium text-app-muted-2">
         <AiOrb state="idle" size={12} />
-        {VOICEMAIL_INTAKE_SOURCE_LABEL}
+        {t(VOICEMAIL_INTAKE_SOURCE_LABEL)}
       </span>
       {/* A definition list in spirit, built from spans because this whole row
           renders inside an anchor — a <dl> inside an <a> is invalid, and the

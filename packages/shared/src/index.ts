@@ -303,6 +303,7 @@ export {
   VOICEMAIL_INTAKE_SOURCE_LABEL,
   type VoicemailIntake,
   type VoicemailIntakeLine,
+  type VoicemailIntakeKey,
 } from "./voicemail-intake";
 
 /**
@@ -1012,6 +1013,8 @@ export {
   ON_CALL_SILENCE_CANCEL,
   ON_CALL_SILENCE_CONFIRM,
   onCallSilenceWarning,
+  type OnCallSilenceKey,
+  type SayOnCallSilence,
 } from "./on-call-notifications";
 
 // #537: the words in front of a handover. Three mechanisms, one dialog — sending

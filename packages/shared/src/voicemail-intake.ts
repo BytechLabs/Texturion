@@ -37,7 +37,11 @@ export interface VoicemailIntakeLine {
  * so these words say WHERE it came from, which is the part a person can check.
  * The transcript is right underneath, which is what makes it checkable.
  */
-export const VOICEMAIL_INTAKE_SOURCE_LABEL = "From the voicemail";
+export const VOICEMAIL_INTAKE_SOURCE_LABEL: VoicemailIntakeKey =
+  "domain.voicemailIntakeSource";
+
+/** Every catalogue key this module names. */
+export type VoicemailIntakeKey = "domain.voicemailIntakeSource";
 
 /**
  * Field order and labels. Ordered by what a tradesperson needs first: whether

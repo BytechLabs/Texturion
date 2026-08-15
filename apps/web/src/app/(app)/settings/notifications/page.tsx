@@ -109,12 +109,13 @@ export default function NotificationsSettingsPage() {
               true,
               true,
               silencing === "push_enabled" ? "push" : "email",
+              t,
             )}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setSilencing(null)}>
-            {ON_CALL_SILENCE_CANCEL}
+            {t(ON_CALL_SILENCE_CANCEL)}
           </Button>
           <Button
             variant="destructive"
@@ -124,7 +125,7 @@ export default function NotificationsSettingsPage() {
               if (key) save(key, false);
             }}
           >
-            {ON_CALL_SILENCE_CONFIRM}
+            {t(ON_CALL_SILENCE_CONFIRM)}
           </Button>
         </DialogFooter>
       </DialogContent>
