@@ -26,6 +26,9 @@ import { describe, expect, it } from "vitest";
  * and the nearest real sentence it must NOT.
  */
 
+import { DEFAULT_MCTB_MESSAGE } from "./mctb";
+import { EMERGENCY_SAFETY_LINE } from "./emergency";
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 const { findKotlinLiterals, findSwiftLiterals, findWebLiterals, isScannable } = (await import(
@@ -497,5 +500,34 @@ describe("#228 a statement is not a sentence", () => {
     // `&&` is code; a single `&` is how a trade writes its own name.
     const copy = "Ace Plumbing & Heating";
     expect(findWebLiterals(`<p>${copy}</p>`, "a.tsx")).toContain(copy);
+  });
+});
+
+/*
+ * #228 — a finished translation, read from the wrong end.
+ *
+ * `locale.ts` holds the French for every automated message and imports the
+ * English from the module that owns it, so each of those sentences is one half
+ * of a completed pair. Counting the English half as outstanding is the same
+ * mistake that had the ledger reporting iOS's finished catalogue as work to do,
+ * and it is the reason the shared count could never legitimately reach zero.
+ */
+describe("the ledger does not count a finished bilingual pair", () => {
+  it("skips a carrier message whose French locale.ts already holds", () => {
+    // The real constant, not a fixture: the rule reads locale.ts's imports, so
+    // a made-up sentence would prove nothing about the mechanism.
+    expect(findWebLiterals(`const x = ${JSON.stringify(EMERGENCY_SAFETY_LINE)};`)).toEqual([]);
+    expect(
+      findWebLiterals(`const x = ${JSON.stringify(DEFAULT_MCTB_MESSAGE)};`),
+    ).toEqual([]);
+  });
+
+  it("still counts an ordinary sentence in the same file", () => {
+    // The half that makes the rule safe. It excludes six named constants, not
+    // "anything that looks like a text message" — a rule keyed on the shape of
+    // the sentence would have swallowed most of the shared package.
+    expect(
+      findWebLiterals('const x = "Type a word first, then we can check it.";'),
+    ).toEqual(["Type a word first, then we can check it."]);
   });
 });

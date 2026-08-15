@@ -11,7 +11,7 @@
   "dashboard-tiles.ts": 1,
   "deletion-promises.ts": 1,
   "duplicate-reply.ts": 1,
-  "emergency.ts": 9,
+  "emergency.ts": 7,
   "extra-numbers.ts": 2,
   "hand-over-phone.ts": 7,
   "handover-confirmation.ts": 6,

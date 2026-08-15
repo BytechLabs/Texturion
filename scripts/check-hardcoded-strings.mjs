@@ -109,7 +109,7 @@
  * identifier" is not a platform question.
  */
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -426,6 +426,74 @@ function looksLikeProse(value) {
  * precision it would buy is precision about EDGE cases; the ledger is what
  * absorbs those, and each one is visible as a count rather than hidden.
  */
+/**
+ * The English half of a bilingual pair, which is FINISHED rather than pending.
+ *
+ * `packages/shared/src/locale.ts` holds the French for every automated message
+ * this product sends, and imports the English from the module that owns it — so
+ * there is exactly one definition of each sentence, which is the point of that
+ * arrangement. The ledger counted those English constants as translation work
+ * outstanding, which is the same error that had it counting iOS's finished
+ * catalogue: a completed pair, read from the wrong end.
+ *
+ * These must never become app catalogue keys either, and that is load-bearing
+ * rather than tidy. They are carrier message bodies: their language comes from
+ * `contacts.locale` and the customer receiving them, not from whoever is
+ * holding the phone, and `locale.ts` writes them to the GSM-7 alphabet because
+ * one character outside it halves what fits in a segment. Routing them through
+ * a `t()` would answer in the CREW's language and drop the segment constraint
+ * in the same move.
+ *
+ * Derived from `locale.ts`'s own import list rather than a hand-kept roster, so
+ * a seventh message added there is covered the day it is added. Only plain
+ * string constants: `DEFAULT_REMINDER_RULES` is an array and has no single
+ * sentence to exclude.
+ */
+function bilingualPairEnglish() {
+  /*
+   * Anchored to THIS FILE, not to the working directory.
+   *
+   * The first version joined from `process.cwd()`, which is the repo root when
+   * the guard runs and `packages/shared` when vitest runs — so the test found
+   * `packages/shared/packages/shared/src/locale.ts`, caught the ENOENT, and
+   * returned an empty set. The rule then excluded nothing while every
+   * assertion about it still ran. Same shape as the ENOENT this file's own
+   * header records.
+   */
+  const shared = join(dirname(fileURLToPath(import.meta.url)), "..", "packages", "shared", "src");
+
+  let locale;
+  try {
+    locale = readFileSync(join(shared, "locale.ts"), "utf8");
+  } catch {
+    // No shared package in reach. Nothing to exclude, and not an error.
+    return new Set();
+  }
+
+  const values = new Set();
+  for (const line of locale.matchAll(/^import \{([^}]+)\} from "\.\/([\w-]+)";$/gm)) {
+    let owner;
+    try {
+      owner = readFileSync(join(shared, `${line[2]}.ts`), "utf8");
+    } catch {
+      continue;
+    }
+    for (const name of line[1].split(",").map((part) => part.trim()).filter(Boolean)) {
+      const declaration = new RegExp(
+        `export const ${name}(?::[^=]+)?\\s*=\\s*((?:"(?:[^"\\\\]|\\\\.)*"(?:\\s*\\+\\s*\\n?\\s*)?)+);`,
+        "m",
+      );
+      const hit = declaration.exec(owner);
+      if (!hit) continue;
+      values.add([...hit[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]).join(""));
+    }
+  }
+  return values;
+}
+
+/** Computed once: it reads seven files and the scan asks per literal. */
+const BILINGUAL_PAIR_ENGLISH = bilingualPairEnglish();
+
 export function findWebLiterals(source, path = "") {
   const found = [];
   // Strip comments so prose ABOUT the UI is not counted as UI.
@@ -534,6 +602,7 @@ export function findWebLiterals(source, path = "") {
    * attribute by rule 2.
    */
   for (const match of code.matchAll(/"([^"\n]{12,})"/g)) {
+    if (BILINGUAL_PAIR_ENGLISH.has(match[1])) continue;
     if (isSentenceLiteral(match[1])) found.push(match[1]);
   }
 
