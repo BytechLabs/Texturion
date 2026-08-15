@@ -34,6 +34,18 @@ function lookUp(table: unknown, key: string, lang: string): string {
 }
 
 const say = (key: string): string => lookUp(WEB_EN, key, "English");
+
+/* The share fallback carries {code}, so its resolver substitutes. */
+function withVars(table: unknown, lang: string) {
+  return (key: string, vars: Record<string, string>): string =>
+    Object.entries(vars).reduce(
+      (out, [token, value]) => out.split(`{${token}}`).join(value),
+      lookUp(table, key, lang),
+    );
+}
+
+const sayVars = withVars(WEB_EN, "English");
+const sayVarsFr = withVars(WEB_FR, "French");
 const sayFr = (key: string): string => lookUp(WEB_FR, key, "French");
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -58,14 +70,14 @@ function earned(overrides: Partial<ReferralAskFacts> = {}): ReferralAskFacts {
 
 describe("referralShareText", () => {
   it("puts the link on the end so an edited message keeps it", () => {
-    const text = referralShareText("Come try this", "https://loonext.com/?ref=ABCD2345", "ABCD2345");
+    const text = referralShareText("Come try this", "https://loonext.com/?ref=ABCD2345", "ABCD2345", sayVars);
     expect(text).toBe("Come try this\n\nhttps://loonext.com/?ref=ABCD2345");
   });
 
   it("survives the owner deleting every word of it", () => {
     // The whole reason the link is not inside the editable box. An empty draft
     // must still send something usable rather than a lone blank line.
-    expect(referralShareText("   ", "https://loonext.com/?ref=ABCD2345", "ABCD2345")).toBe(
+    expect(referralShareText("   ", "https://loonext.com/?ref=ABCD2345", "ABCD2345", sayVars)).toBe(
       "https://loonext.com/?ref=ABCD2345",
     );
   });
@@ -73,13 +85,34 @@ describe("referralShareText", () => {
   it("falls back to the code when there is no link to give", () => {
     // SITE_ORIGIN unset. A code read aloud at a supply counter is how a fair
     // share of these will travel anyway; "undefined/?ref=" is not.
-    expect(referralShareText("Have a look", null, "ABCD2345")).toBe(
+    expect(referralShareText("Have a look", null, "ABCD2345", sayVars)).toBe(
       "Have a look\n\nUse my code ABCD2345 when you sign up.",
     );
   });
 
+  it("#228 gives a French owner a French line under their own words", () => {
+    // Unlike the automated bodies in locale.ts, this is not sent by us. It is
+    // dropped into a share sheet for the OWNER to send, sitting under words
+    // they typed - so one English line at the bottom of a French message is
+    // the product speaking out of turn in somebody else's conversation.
+    const text = referralShareText("Essayez ceci", null, "ABCD2345", sayVarsFr);
+    expect(text).toContain("ABCD2345");
+    expect(text).toContain("Utilisez mon code");
+    expect(text).not.toContain("when you sign up");
+    expect(text).not.toMatch(/\{/);
+  });
+
+  it("#228 never reaches the fallback sentence when a link exists", () => {
+    // The link case is the common one and carries no sentence at all, in
+    // either language - a URL is not copy.
+    for (const resolve of [sayVars, sayVarsFr]) {
+      const text = referralShareText("x", "https://x.test/?ref=A", "A", resolve);
+      expect(text).toBe("x\n\nhttps://x.test/?ref=A");
+    }
+  });
+
   it("trims the draft rather than sending trailing whitespace", () => {
-    expect(referralShareText("Look  \n\n", "https://x.test/?ref=A", "A")).toBe(
+    expect(referralShareText("Look  \n\n", "https://x.test/?ref=A", "A", sayVars)).toBe(
       "Look\n\nhttps://x.test/?ref=A",
     );
   });

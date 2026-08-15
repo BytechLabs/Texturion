@@ -621,6 +621,7 @@ export type {
   ReferralAskDecision,
   ReferralAskFacts,
   ReferralAskRefusal,
+  SayReferralShare,
 } from "./referral-share";
 
 export {

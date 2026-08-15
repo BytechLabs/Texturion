@@ -168,9 +168,23 @@ class ReferralShareTest {
 
     @Test
     fun `the fallback sentence for a missing link matches too`() {
-        // Built by interpolation on both sides, so it is compared as its shape
-        // rather than as a whole string.
-        assertTrue(joined(shared()).contains("Use my code \${code} when you sign up."))
+        /*
+         * #228: the sentence moved to the catalogue, so the assertion follows
+         * it — and splits, the way the stage-label test above already does.
+         *
+         * Pointing BOTH halves at the catalogue is the trap: the key half
+         * would search a file that never held keys and pass on an empty
+         * comparison. So the shared module is asked which key it names, and
+         * the catalogue is asked what that key says.
+         */
+        assertTrue(
+            "referralShareText no longer names the fallback key",
+            joined(shared()).contains("\"domain.referralCodeFallback\""),
+        )
+        assertTrue(
+            "the fallback sentence has drifted from the catalogue",
+            joined(catalogue()).contains("Use my code {code} when you sign up."),
+        )
     }
 
     /**

@@ -9,7 +9,6 @@
   "payments.ts": 11,
   "pipeline.ts": 3,
   "prohibited-categories.ts": 1,
-  "referral-share.ts": 1,
   "scheduled-send.ts": 10,
   "self-downgrade.ts": 1
 }

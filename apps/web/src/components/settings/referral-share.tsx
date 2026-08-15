@@ -86,7 +86,7 @@ export function ReferralShare({
     setCanShare(typeof navigator !== "undefined" && typeof navigator.share === "function");
   }, []);
 
-  const text = referralShareText(note, link, code);
+  const text = referralShareText(note, link, code, t);
 
   return (
     <div className="space-y-2">

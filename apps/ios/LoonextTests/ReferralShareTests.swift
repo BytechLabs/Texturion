@@ -191,10 +191,22 @@ final class ReferralShareTests: XCTestCase {
     }
 
     func testTheFallbackSentenceForAMissingLinkMatchesToo() throws {
-        // Built by interpolation on both sides, so it is compared as its shape
-        // rather than as a whole string.
+        /*
+         * #228: the sentence moved to the catalogue, so the assertion follows
+         * it — and splits, the way the stage-label test above already does.
+         *
+         * Pointing BOTH halves at the catalogue is the trap: the key half
+         * would search a file that never held keys and pass on an empty
+         * comparison. So the shared module is asked which key it NAMES, and
+         * the catalogue is asked what that key SAYS.
+         */
         XCTAssertTrue(
-            try sharedSource().contains("Use my code ${code} when you sign up.")
+            try sharedSource().contains("\"domain.referralCodeFallback\""),
+            "referralShareText no longer names the fallback key"
+        )
+        XCTAssertTrue(
+            try catalogueSource().contains("Use my code {code} when you sign up."),
+            "the fallback sentence has drifted from the catalogue"
         )
     }
 }

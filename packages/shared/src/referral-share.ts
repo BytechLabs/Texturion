@@ -120,13 +120,35 @@ export const REFERRAL_SHARE_LINK_NOTE = "domain.referralLinkNote";
  * travel anyway. A blank line between the two so the URL is tappable in every
  * messaging app rather than running into the last word.
  */
+/**
+ * The resolver for the fallback, which carries the code.
+ *
+ * Separate from [SayKey] above because that one takes no variables, and the
+ * one sentence this function can produce is built around one.
+ */
+export type SayReferralShare = (
+  key: "domain.referralCodeFallback",
+  vars: { code: string },
+) => string;
+
 export function referralShareText(
   note: string,
   link: string | null,
   code: string,
+  say: SayReferralShare,
 ): string {
   const written = note.trim();
-  const tail = link ? link : `Use my code ${code} when you sign up.`;
+  /*
+   * #228 — the OWNER's language, not the recipient's.
+   *
+   * Unlike the automated bodies in locale.ts, this sentence is not sent by us.
+   * It is dropped into a share sheet for somebody to send themselves, sitting
+   * under words they typed, and a French owner handing their phone to a
+   * customer should not find one English line at the bottom of their own
+   * message. Both phones have carried this key since their own pass; the web
+   * built it inline.
+   */
+  const tail = link ? link : say("domain.referralCodeFallback", { code });
   return written.length === 0 ? tail : `${written}\n\n${tail}`;
 }
 
