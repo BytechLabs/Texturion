@@ -64,12 +64,12 @@ enum MeteredMedia {
      spinner that never resolves, or a generic "couldn't load" — is how a
      deliberate setting gets reported as a bug.
      */
-    static let meteredHint = "You're on mobile data. Tap to load the full-size photo."
+    /// #228 — catalogue KEYS, said at the call site. Android has resolved
+    /// these three from the same keys since its own pass.
+    static let meteredHint = "shell.meteredHint"
 
-    static let settingLabel = "Full-size photos on Wi-Fi only"
-    static let settingDescription =
-        "Threads and galleries always load. Only full-size photos and downloads "
-        + "wait for Wi-Fi — tap one to load it anyway."
+    static let settingLabel = "shell.wifiOnlyLabel"
+    static let settingDescription = "shell.wifiOnlyDescription"
 }
 
 /**

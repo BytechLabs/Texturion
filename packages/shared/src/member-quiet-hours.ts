@@ -95,24 +95,49 @@ export function isMemberQuietNow(
  * and the member goes back to turning notifications off entirely, which is the
  * failure this whole thing exists to prevent.
  */
+/** Every catalogue key this module names. */
+export type QuietHoursKey =
+  | "domain.quietHoursHeading"
+  | "domain.quietHoursReassurance"
+  | "domain.quietHoursOff"
+  | "domain.quietHoursOn"
+  | "domain.quietHoursScope"
+  | "domain.quietHoursLine";
+
+/** The reader's resolver. */
+export type SayQuietHours = (key: QuietHoursKey) => string;
+
 export const QUIET_HOURS_COPY = {
-  heading: "Quiet hours",
+  heading: "domain.quietHoursHeading",
   /** Said before they choose, not after. */
-  reassurance:
-    "Your phone stays quiet for ordinary messages. If you are on call, or an " +
-    "alert nobody picked up widens to the crew, it still comes through.",
+  reassurance: "domain.quietHoursReassurance",
   /** Off, which is every existing member. */
-  off: "Off — every notification reaches you at any hour.",
+  off: "domain.quietHoursOff",
   /** On, with the window filled in by the caller. */
-  on: "Quiet from",
+  on: "domain.quietHoursOn",
   /** Per workspace, because the preference is. */
-  scope: "This applies to this workspace only.",
+  scope: "domain.quietHoursScope",
 } as const;
 
 /** The window most people want, offered rather than imposed. */
 export const QUIET_HOURS_DEFAULT = { from: "22:00", to: "07:00" } as const;
 
-/** "Quiet from 10:00 PM to 7:00 AM" — assembled once, not three times. */
-export function quietHoursLine(from: string, to: string): string {
-  return `${QUIET_HOURS_COPY.on} ${from} to ${to}`;
+/**
+ * "Quiet from 10:00 PM to 7:00 AM" — assembled once, not three times.
+ *
+ * #228: a TEMPLATE key rather than the label plus " to ". The two are not the
+ * same sentence in French and the difference is the preposition — the label is
+ * "Silence à partir de" and the assembled line is "Silence de {from} à {to}".
+ * Concatenating the label with a translated " to " would have produced
+ * "Silence à partir de 22:00 à 07:00", which is wrong in a way an English
+ * reader would never see. Android has had both keys for months.
+ */
+export function quietHoursLine(
+  from: string,
+  to: string,
+  say: SayQuietHours,
+): string {
+  return say("domain.quietHoursLine")
+    .replace("{from}", from)
+    .replace("{to}", to);
 }

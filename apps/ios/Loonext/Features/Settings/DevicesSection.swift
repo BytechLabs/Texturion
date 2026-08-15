@@ -507,8 +507,9 @@ private struct DataUseCard: View {
                 set: { scope.graph.prefs.wifiOnlyOriginals = $0 }
             )) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(MeteredMedia.settingLabel).font(.body)
-                    Text(MeteredMedia.settingDescription)
+                    Text(AppStrings.translate(appLocale, MeteredMedia.settingLabel))
+                        .font(.body)
+                    Text(AppStrings.translate(appLocale, MeteredMedia.settingDescription))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

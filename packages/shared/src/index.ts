@@ -137,6 +137,7 @@ export {
   mayFetchMedia,
   type ConnectionKind,
   type MediaFetchInput,
+  type MeteredMediaKey,
 } from "./metered-media";
 
 export {
@@ -675,6 +676,8 @@ export {
   QUIET_HOURS_DEFAULT,
   isMemberQuietNow,
   quietHoursLine,
+  type QuietHoursKey,
+  type SayQuietHours,
 } from "./member-quiet-hours";
 export type { MemberQuietWindow } from "./member-quiet-hours";
 export {

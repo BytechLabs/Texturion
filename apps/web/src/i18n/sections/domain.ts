@@ -25,6 +25,15 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  /* #228 — a member's quiet hours. `quietHoursLine` is a TEMPLATE and not
+     the label plus " to ": French joins the window with a different
+     preposition than it introduces it with. */
+  quietHoursHeading: "Quiet hours",
+  quietHoursReassurance: "Your phone stays quiet for ordinary messages. If you are on call, or an alert nobody picked up widens to the crew, it still comes through.",
+  quietHoursOff: "Off — every notification reaches you at any hour.",
+  quietHoursOn: "Quiet from",
+  quietHoursLine: "Quiet from {from} to {to}",
+  quietHoursScope: "This applies to this workspace only.",
   /* #228 — the reminder ladder's offsets. "The day before" is a phrase
      rather than a count: French says "La veille", which shares no word
      with "{count} jours avant". Hence five keys, not two. */
@@ -316,6 +325,12 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  quietHoursHeading: "Heures de silence",
+  quietHoursReassurance: "Votre téléphone reste silencieux pour les messages ordinaires. Si vous êtes de garde, ou si une alerte que personne n'a prise s'élargit à l'équipe, elle passe quand même.",
+  quietHoursOff: "Désactivé — toutes les notifications vous parviennent à toute heure.",
+  quietHoursOn: "Silence à partir de",
+  quietHoursLine: "Silence de {from} à {to}",
+  quietHoursScope: "Ceci s'applique à cet espace de travail seulement.",
   reminderOffsetDayBefore: "La veille",
   reminderOffsetDays: "{count} jours avant",
   reminderOffsetHour: "1 heure avant",

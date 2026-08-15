@@ -13,6 +13,10 @@
 import type { Translated } from "../translated";
 
 export const shellEn = {
+  /* #228 — the Wi-Fi-only photo setting and the tap-to-load hint. */
+  meteredHint: "You're on mobile data. Tap to load the full-size photo.",
+  wifiOnlyLabel: "Full-size photos on Wi-Fi only",
+  wifiOnlyDescription: "Threads and galleries always load. Only full-size photos and downloads wait for Wi-Fi — tap one to load it anyway.",
   /*
    * #265 — handing the phone to somebody else. Both phones have said these since #228 reached them; the web imported the shared constants and rendered whatever English came back. The unsent-message warning's singular and plural are separate keys: French agrees the noun and its verb with the count.
    */
@@ -381,6 +385,9 @@ export const shellEn = {
  * translating a label the browser will not use.
  */
 export const shellFr: Translated<typeof shellEn> = {
+  meteredHint: "Vous êtes sur les données mobiles. Touchez pour charger la photo en pleine résolution.",
+  wifiOnlyLabel: "Photos en pleine résolution sur Wi-Fi seulement",
+  wifiOnlyDescription: "Les conversations et les galeries se chargent toujours. Seules les photos en pleine résolution et les téléchargements attendent le Wi-Fi — touchez-en une pour la charger quand même.",
   handOverAction: "Confier ce téléphone à quelqu'un d'autre",
   handOverBody: "Vous serez déconnecté et tout ce qui vient de cet espace de travail quittera ce téléphone : les conversations, les coordonnées de vos clients et les compteurs de messages non lus. La prochaine personne se connectera en son propre nom.",
   handOverCancel: "Rester connecté",

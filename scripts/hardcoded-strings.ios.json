@@ -12,7 +12,6 @@
   "Core/OnMyWay.swift": 2,
   "Core/RealtimeClient.swift": 2,
   "Core/SupabaseAuth.swift": 1,
-  "Features/Attachments/MeteredMedia.swift": 3,
   "Features/Compose/NoteUpload.swift": 1,
   "Features/Contacts/ContactColumns.swift": 8,
   "Features/Contacts/ContactDetailView.swift": 4,

@@ -882,7 +882,7 @@ private struct ThreadBody: View {
             requested: requested
         ) else {
             controller.notifyExternally(
-                MeteredMedia.meteredHint,
+                AppStrings.translate(appLocale, MeteredMedia.meteredHint),
                 actionLabel: AppStrings.translate(appLocale, "thread.loadAnyway"),
                 action: { openFile(attachment, requested: true) }
             )

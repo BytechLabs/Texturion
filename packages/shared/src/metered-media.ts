@@ -76,6 +76,12 @@ export function mayFetchMedia(input: MediaFetchInput): boolean {
   return input.requested;
 }
 
+/** Every catalogue key this module names. */
+export type MeteredMediaKey =
+  | "shell.meteredHint"
+  | "shell.wifiOnlyLabel"
+  | "shell.wifiOnlyDescription";
+
 /**
  * The sentence shown in place of a full-size photo that is waiting for a tap.
  *
@@ -83,11 +89,9 @@ export function mayFetchMedia(input: MediaFetchInput): boolean {
  * spinner that never resolves, or a generic "couldn't load" — is how a
  * deliberate setting gets reported as a bug.
  */
-export const METERED_ORIGINAL_HINT =
-  "You're on mobile data. Tap to load the full-size photo.";
+export const METERED_ORIGINAL_HINT: MeteredMediaKey = "shell.meteredHint";
 
 /** The settings row's label and explanation, shared so both phones agree. */
-export const WIFI_ONLY_LABEL = "Full-size photos on Wi-Fi only";
-export const WIFI_ONLY_DESCRIPTION =
-  "Threads and galleries always load. Only full-size photos and downloads " +
-  "wait for Wi-Fi — tap one to load it anyway.";
+export const WIFI_ONLY_LABEL: MeteredMediaKey = "shell.wifiOnlyLabel";
+export const WIFI_ONLY_DESCRIPTION: MeteredMediaKey =
+  "shell.wifiOnlyDescription";

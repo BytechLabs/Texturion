@@ -2,9 +2,23 @@ import { describe, expect, it } from "vitest";
 
 import {
   METERED_ORIGINAL_HINT,
+  WIFI_ONLY_DESCRIPTION,
+  WIFI_ONLY_LABEL,
   mayFetchMedia,
   type ConnectionKind,
 } from "./metered-media";
+
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/** #228 — the module names keys now, so the copy assertions resolve them. */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[
+    name
+  ];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
 
 /**
  * #289 — "download photos on Wi-Fi only, at minimum".
@@ -112,7 +126,32 @@ describe("what the reader is told", () => {
   it("names the condition and the remedy in one line", () => {
     // The alternative — a spinner that never resolves, or a generic "couldn't
     // load" — is how a deliberate setting gets reported as a bug.
-    expect(METERED_ORIGINAL_HINT).toContain("mobile data");
-    expect(METERED_ORIGINAL_HINT.toLowerCase()).toContain("tap");
+    const en = look(WEB_EN, METERED_ORIGINAL_HINT);
+    expect(en).toContain("mobile data");
+    expect(en.toLowerCase()).toContain("tap");
+
+    // #228 — both halves in French too. A translation that kept only the
+    // condition ("Vous êtes sur les données mobiles.") would leave a reader
+    // looking at a photo that never arrives with nothing to do about it, which
+    // is the exact failure this sentence was written to prevent.
+    const fr = look(WEB_FR, METERED_ORIGINAL_HINT);
+    expect(fr.toLowerCase()).toContain("données mobiles");
+    expect(fr.toLowerCase()).toContain("touchez");
+  });
+
+  it("#228: the setting says what still loads, in both languages", () => {
+    // The description exists to stop the label reading as "photos are off".
+    // Threads and galleries always load; only the full-size fetch waits.
+    for (const [language, table] of [
+      ["English", WEB_EN],
+      ["French", WEB_FR],
+    ] as const) {
+      const description = look(table, WIFI_ONLY_DESCRIPTION);
+      expect(description.length, language).toBeGreaterThan(40);
+      expect(description, language).not.toBe(look(table, WIFI_ONLY_LABEL));
+    }
+    expect(look(WEB_FR, WIFI_ONLY_LABEL)).not.toBe(
+      look(WEB_EN, WIFI_ONLY_LABEL),
+    );
   });
 });

@@ -67,10 +67,10 @@ export function QuietHoursRow({
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <Label htmlFor="quiet-hours" className="text-[14px]">
-            {QUIET_HOURS_COPY.heading}
+            {t(QUIET_HOURS_COPY.heading)}
           </Label>
           <p className="text-[13px] text-app-muted-2">
-            {QUIET_HOURS_COPY.reassurance}
+            {t(QUIET_HOURS_COPY.reassurance)}
           </p>
         </div>
         <Switch
@@ -117,18 +117,18 @@ export function QuietHoursRow({
             className="h-9 rounded-app-input border border-app-line bg-app-paper px-2 text-[13px] tabular-nums text-app-ink"
           />
           <span className="text-[12px] text-app-muted-2">
-            {QUIET_HOURS_COPY.scope}
+            {t(QUIET_HOURS_COPY.scope)}
           </span>
         </div>
       ) : (
         <p className="pt-1 text-[13px] text-app-muted-2">
-          {QUIET_HOURS_COPY.off}
+          {t(QUIET_HOURS_COPY.off)}
         </p>
       )}
 
       {on && prefs.quiet_from && prefs.quiet_to ? (
         <p className="sr-only">
-          {quietHoursLine(prefs.quiet_from, prefs.quiet_to)}
+          {quietHoursLine(prefs.quiet_from, prefs.quiet_to, t)}
         </p>
       ) : null}
     </div>
