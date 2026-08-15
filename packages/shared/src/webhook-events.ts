@@ -39,6 +39,18 @@ export function isWebhookEventType(value: string): value is WebhookEventType {
 }
 
 /**
+ * The type carried by a manual test send, and deliberately NOT subscribable.
+ *
+ * An integrator setting up an endpoint needs to know it works before the first
+ * real message arrives, and the alternative — firing a fake `message.received`
+ * — is worse than useless: it teaches their code to act on an event that never
+ * happened. So a ping is its own type, it is never queued, and it is never in
+ * `WEBHOOK_EVENT_TYPES`, which is what stops anybody subscribing to it and
+ * then wondering why it never fires on its own.
+ */
+export const WEBHOOK_PING_EVENT = "ping";
+
+/**
  * The catalogue key that names an event to a human.
  *
  * Derived rather than listed: the event name IS the key suffix, dot-segments

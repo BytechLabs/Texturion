@@ -81,6 +81,25 @@ export type AuditAction =
   | "number_access.changed"
   // Settings that change what customers receive
   | "settings.changed"
+  /**
+   * #243: an outbound webhook endpoint.
+   *
+   * Its own actions rather than `settings.changed`, because this is the only
+   * setting in the product that sends the workspace's message content to a
+   * third party. "When did our customers' messages start going to that
+   * address, and who pointed them there" is a question with a different
+   * urgency to every other configuration change, and an entry that reads the
+   * same as a business-hours edit cannot answer it.
+   *
+   * The rotation is separate from the update for the reason
+   * `member.self_downgraded` is separate from `member.role_changed`: rotating
+   * a signing secret is what somebody does after a leak, and it is also what
+   * somebody does to lock the real owner out of their own integration.
+   */
+  | "webhook.endpoint_created"
+  | "webhook.endpoint_updated"
+  | "webhook.endpoint_deleted"
+  | "webhook.secret_rotated"
   // #419: saved replies. Recorded because a template is the only object where
   // one person's edit changes what EVERYONE says to customers — a bad message
   // is one message, a bad template is every future send by every crew member

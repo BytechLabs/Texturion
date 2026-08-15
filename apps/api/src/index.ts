@@ -95,6 +95,7 @@ import { messageRoutes } from "./routes/messages";
 import { notificationsRoutes } from "./routes/notifications";
 import { referralRoutes } from "./routes/referrals";
 import { savedViewsRoutes } from "./routes/saved-views";
+import { webhooksRoutes } from "./routes/webhooks";
 import { appointmentReminderRoutes } from "./routes/appointment-reminders";
 import { onCallRoutes } from "./routes/on-call";
 import { scheduledMessageRoutes } from "./routes/scheduled-messages";
@@ -260,6 +261,7 @@ app.route("/v1", composeRoutes); // POST /v1/conversations — before conversati
 // #280: before conversationsRoutes only for tidiness — the paths do not
 // overlap. Saved views are query parameters, never conversation rows.
 app.route("/v1", savedViewsRoutes);
+app.route("/v1", webhooksRoutes);
 app.route("/v1", scheduledMessageRoutes);
 app.route("/v1", appointmentReminderRoutes); // #237 reminder rules
 app.route("/v1", onCallRoutes); // #244 rota + acknowledge
