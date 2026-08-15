@@ -37,6 +37,7 @@ const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const CREATOR = "6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01";
 const KEY_ID = "cccccccc-1111-4222-8333-444444444444";
+const CONVERSATION_ID = "dddddddd-1111-4222-8333-444444444444";
 const TOKEN = `${API_KEY_PREFIX}0123456789abcdef0123456789abcdef`;
 
 let auth: TestAuth;
@@ -281,6 +282,76 @@ describe("scopes are the second gate", () => {
     const res = await publicRequest("/public/v1/contacts");
     expect(res.status).toBe(403);
     expect(sb.find("GET", "/rest/v1/contacts")).toHaveLength(0);
+  });
+});
+
+describe("#106 travels with the key", () => {
+  it("filters the conversation list by the CREATOR's number access", async () => {
+    // A restricted MEMBER, not an owner: resolveNumberAccess short-circuits
+    // to unrestricted for owner/admin, so an owner here would exercise none of
+    // the deny-list path this test is about.
+    const sb = stubWithKey(["conversations:read"], "member");
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: "nnnnnnnn-1111-4222-8333-444444444444", level: "none" },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/conversations");
+    expect(res.status).toBe(200);
+
+    // THE ONE THAT MATTERS. A key must not enumerate conversations on a number
+    // its creator cannot see, and the deny list has to reach the query — not
+    // merely be computed and dropped.
+    const call = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0];
+    const body = call.body as { p_hidden_number_ids: string[] };
+    expect(body.p_hidden_number_ids).toEqual([
+      "nnnnnnnn-1111-4222-8333-444444444444",
+    ]);
+  });
+
+  it("404s a thread on a number the creator cannot see", async () => {
+    const sb = stubWithKey(["messages:read"], "member");
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: "nnnnnnnn-1111-4222-8333-444444444444", level: "none" },
+    ]);
+    // The conversation exists, on the denied number.
+    sb.on("GET", "/rest/v1/conversations", (call) =>
+      call.url.searchParams.get("select") === "created_at"
+        ? []
+        : [{ id: CONVERSATION_ID, phone_number_id: "nnnnnnnn-1111-4222-8333-444444444444" }],
+    );
+    sb.on("GET", "/rest/v1/messages", () => [{ id: "m-1" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest(`/public/v1/conversations/${CONVERSATION_ID}/messages`);
+    // 404, not 403: a thread on a hidden number is indistinguishable from one
+    // that does not exist, which is what stops a key probing for them.
+    expect(res.status).toBe(404);
+    expect(sb.find("GET", "/rest/v1/messages")).toHaveLength(0);
+  });
+
+  it("reads a thread the creator can see, scoped to the workspace", async () => {
+    const sb = stubWithKey(["messages:read"]);
+    sb.on("GET", "/rest/v1/conversations", (call) =>
+      call.url.searchParams.get("select") === "created_at"
+        ? []
+        : [{ id: CONVERSATION_ID, phone_number_id: null }],
+    );
+    sb.on("GET", "/rest/v1/messages", () => [
+      { id: "m-1", direction: "inbound", body: "the boiler is out" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest(`/public/v1/conversations/${CONVERSATION_ID}/messages`);
+    expect(res.status).toBe(200);
+
+    const call = sb.find("GET", "/rest/v1/messages")[0];
+    expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(call.url.searchParams.get("conversation_id")).toBe(`eq.${CONVERSATION_ID}`);
+    // A deliberate subset. Every column published becomes a shape somebody
+    // parses, and `error_detail` is the carrier's sentence, not ours to promise.
+    expect(call.url.searchParams.get("select")).not.toContain("error_detail");
   });
 });
 

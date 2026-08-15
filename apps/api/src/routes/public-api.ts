@@ -4,6 +4,8 @@
  *   GET  /public/v1/me         what this key is, and what it may do.
  *   GET  /public/v1/contacts   the customer list, newest first.
  *   POST /public/v1/contacts   { phone_e164, name?, email?, notes? }
+ *   GET  /public/v1/conversations           the thread list, newest first.
+ *   GET  /public/v1/conversations/:id/messages
  *   GET  /public/v1/tasks      the job list, newest first.
  *   POST /public/v1/tasks      { message_id, title?, due_at?, description? }
  *
@@ -39,11 +41,15 @@ import { z } from "zod";
 
 import { apiKeyAuth, requireScope } from "../auth/api-key";
 import { requireCapability } from "../auth/company";
+import {
+  requireConversationAccess,
+  resolveNumberAccess,
+} from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
-import { parseJsonBody, unwrap } from "./core/http";
+import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
 /**
  * What a public read returns for a contact.
@@ -159,6 +165,97 @@ publicApiRoutes.post(
       "public contact upsert",
     );
     return c.json(rows[0], 201);
+  },
+);
+
+publicApiRoutes.get(
+  `${PUBLIC_API_BASE}/conversations`,
+  requireScope("conversations:read"),
+  requireCapability("conversations.read"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const limit = pageSize(c.req.query("limit"));
+
+    // #106: the same deny list the first-party inbox resolves, from the same
+    // function, against the KEY'S CREATOR. A key must not be able to enumerate
+    // conversations on a number its creator cannot see — which is the whole
+    // reason the middleware resolves a real member rather than inventing a
+    // service identity with no access rules attached to it.
+    const access = await resolveNumberAccess(db, {
+      companyId: c.get("companyId"),
+      userId: c.get("userId"),
+      role: c.get("role"),
+    });
+
+    const rows = unwrap<Record<string, unknown>[]>(
+      await db.rpc("api_list_conversations", {
+        p_company_id: c.get("companyId"),
+        p_user_id: c.get("userId"),
+        p_limit: limit,
+        p_status: c.req.query("status") ?? null,
+        p_assigned_user_id: null,
+        p_tag_id: null,
+        p_is_spam: false,
+        p_unread: false,
+        p_q: null,
+        p_cursor_ts: null,
+        p_cursor_id: null,
+        p_pinned: null,
+        p_hidden_number_ids: access.hiddenNumberIds,
+        p_snoozed: "all",
+        p_awaiting: null,
+      }),
+      "public conversations list",
+    );
+
+    // Reshaped rather than passed through. The internal row carries embedded
+    // tags, unread state and a snippet shaped for our own inbox; publishing it
+    // would make every one of those a promise, and they change whenever the
+    // inbox does.
+    return c.json({
+      data: rows.map((row) => ({
+        id: row.id,
+        contact_id: row.contact_id,
+        status: row.status,
+        last_message_at: row.last_message_at,
+        assigned_user_id: row.assigned_user_id,
+      })),
+      limit,
+    });
+  },
+);
+
+publicApiRoutes.get(
+  `${PUBLIC_API_BASE}/conversations/:id/messages`,
+  requireScope("messages:read"),
+  requireCapability("conversations.read"),
+  async (c) => {
+    const conversationId = pathUuid(c, "id");
+    const db = getDb(getEnv(c.env));
+    const limit = pageSize(c.req.query("limit"));
+
+    // #106 again, and this one 404s rather than 403s: a thread on a number the
+    // creator cannot see is indistinguishable from a thread that does not
+    // exist, which is what stops a key being used to probe for them.
+    await requireConversationAccess(db, {
+      companyId: c.get("companyId"),
+      userId: c.get("userId"),
+      role: c.get("role"),
+      conversationId,
+      need: "read",
+    });
+
+    const rows = unwrap<unknown[]>(
+      await db
+        .from("messages")
+        .select("id,conversation_id,direction,body,status,created_at")
+        .eq("company_id", c.get("companyId"))
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: false })
+        .limit(limit),
+      "public messages list",
+    );
+    return c.json({ data: rows, limit });
   },
 );
 
