@@ -167,6 +167,10 @@ private fun PaymentRow(row: PaymentRequest, onCancel: (() -> Unit)?, cancelling:
                 .padding(top = 1.dp)
                 .size(15.dp),
         )
+        // Said before the builder rather than inside it: `t` is
+        // @ReadOnlyComposable and `buildString`'s lambda is a place a reader
+        // has to reason about inlining to know whether that is legal.
+        val stateLabel = t(Payments.label(state))
         Column(Modifier.weight(1f)) {
             Text(
                 // "Paid · $250 — Deposit". The state and the amount lead
@@ -174,7 +178,7 @@ private fun PaymentRow(row: PaymentRequest, onCancel: (() -> Unit)?, cancelling:
                 // checking; the description is what it was for, and it is the
                 // part that can be truncated without losing the answer.
                 buildString {
-                    append(Payments.label(state))
+                    append(stateLabel)
                     append(" · ")
                     append(amount)
                     if (row.description.isNotBlank()) {

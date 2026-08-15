@@ -5,7 +5,7 @@
       "status": "requested"
     },
     "state": "requested",
-    "label": "Waiting",
+    "label": "payments.stateWaiting",
     "cancellable": true
   },
   {
@@ -14,7 +14,7 @@
       "status": "paid"
     },
     "state": "paid",
-    "label": "Paid",
+    "label": "payments.statePaid",
     "cancellable": false
   },
   {
@@ -23,7 +23,7 @@
       "status": "cancelled"
     },
     "state": "cancelled",
-    "label": "Cancelled",
+    "label": "payments.stateCancelled",
     "cancellable": false
   },
   {
@@ -32,7 +32,7 @@
       "status": "expired"
     },
     "state": "expired",
-    "label": "Expired",
+    "label": "payments.stateExpired",
     "cancellable": false
   },
   {
@@ -42,7 +42,7 @@
       "paid_at": "2026-08-01T00:00:00Z"
     },
     "state": "paid",
-    "label": "Paid",
+    "label": "payments.statePaid",
     "cancellable": false
   },
   {
@@ -52,7 +52,7 @@
       "paid_at": "2026-08-01T00:00:00Z"
     },
     "state": "paid",
-    "label": "Paid",
+    "label": "payments.statePaid",
     "cancellable": false
   },
   {
@@ -62,7 +62,7 @@
       "paid_at": "2026-08-01T00:00:00Z"
     },
     "state": "paid",
-    "label": "Paid",
+    "label": "payments.statePaid",
     "cancellable": false
   },
   {
@@ -73,7 +73,7 @@
       "refunded_at": "2026-08-02T00:00:00Z"
     },
     "state": "refunded",
-    "label": "Refunded",
+    "label": "payments.stateRefunded",
     "cancellable": false
   },
   {
@@ -84,7 +84,7 @@
       "disputed_at": "2026-08-02T00:00:00Z"
     },
     "state": "disputed",
-    "label": "Disputed",
+    "label": "payments.stateDisputed",
     "cancellable": false
   },
   {
@@ -96,7 +96,7 @@
       "disputed_at": "2026-08-02T00:00:00Z"
     },
     "state": "disputed",
-    "label": "Disputed",
+    "label": "payments.stateDisputed",
     "cancellable": false
   },
   {

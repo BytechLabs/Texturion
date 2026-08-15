@@ -854,6 +854,7 @@ export {
   type PaymentRequestFacts,
   type PaymentRequestState,
   type PaymentRequestStatus,
+  type PaymentStateKey,
   type PayoutAccountFacts,
   type PayoutReadiness,
 } from "./payments";

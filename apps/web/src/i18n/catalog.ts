@@ -149,6 +149,20 @@ const paymentsEn = {
   payoutReadyTitle: "Ready to take payments",
   payoutReadyDetail: "Ask for a deposit or a final payment from any thread. It arrives as an ordinary text with a link, and the money goes to your bank account.",
   payoutActionSetUp: "Set up payments",
+
+  /*
+   * #228 — the six states of a payment request, one word each.
+   *
+   * Derived on the client from a row it already holds, never sent by the
+   * server, which is why these could become keys while the payout sentences
+   * below could not.
+   */
+  stateWaiting: "Waiting",
+  statePaid: "Paid",
+  stateRefunded: "Refunded",
+  stateDisputed: "Disputed",
+  stateCancelled: "Cancelled",
+  stateExpired: "Expired",
   payoutActionFinish: "Finish setting up",
   payoutActionOpenStripe: "Open Stripe",
 
@@ -243,6 +257,14 @@ const paymentsFr: Translated<typeof paymentsEn> = {
   payoutReadyTitle: "Prêt à encaisser des paiements",
   payoutReadyDetail: "Demandez un acompte ou un paiement final depuis n'importe quelle conversation. Cela arrive comme un texto ordinaire avec un lien, et l'argent va dans votre compte bancaire.",
   payoutActionSetUp: "Configurer les paiements",
+
+  /* #228 — the six states of a payment request. See the English. */
+  stateWaiting: "En attente",
+  statePaid: "Payé",
+  stateRefunded: "Remboursé",
+  stateDisputed: "Contesté",
+  stateCancelled: "Annulé",
+  stateExpired: "Expiré",
   payoutActionFinish: "Terminer la configuration",
   payoutActionOpenStripe: "Ouvrir Stripe",
 

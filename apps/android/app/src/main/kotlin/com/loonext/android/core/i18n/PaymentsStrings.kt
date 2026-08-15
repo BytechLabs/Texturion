@@ -65,6 +65,15 @@ object PaymentsStrings : AppStrings.Section {
         "payments.payoutReadyTitle" to "Ready to take payments",
         "payments.payoutReadyDetail" to "Ask for a deposit or a final payment from any thread. It arrives as an ordinary text with a link, and the money goes to your bank account.",
         "payments.payoutActionSetUp" to "Set up payments",
+        // #228 — the six states of a payment request, one word each. Masculine
+        // singular: the badge sits beside the amount, so what it describes
+        // reads as le paiement.
+        "payments.stateWaiting" to "Waiting",
+        "payments.statePaid" to "Paid",
+        "payments.stateRefunded" to "Refunded",
+        "payments.stateDisputed" to "Disputed",
+        "payments.stateCancelled" to "Cancelled",
+        "payments.stateExpired" to "Expired",
         "payments.payoutActionFinish" to "Finish setting up",
         "payments.payoutActionOpenStripe" to "Open Stripe",
 
@@ -124,6 +133,12 @@ object PaymentsStrings : AppStrings.Section {
         "payments.payoutReadyTitle" to "Prêt à encaisser des paiements",
         "payments.payoutReadyDetail" to "Demandez un acompte ou un paiement final depuis n'importe quelle conversation. Cela arrive comme un texto ordinaire avec un lien, et l'argent va dans votre compte bancaire.",
         "payments.payoutActionSetUp" to "Configurer les paiements",
+        "payments.stateWaiting" to "En attente",
+        "payments.statePaid" to "Payé",
+        "payments.stateRefunded" to "Remboursé",
+        "payments.stateDisputed" to "Contesté",
+        "payments.stateCancelled" to "Annulé",
+        "payments.stateExpired" to "Expiré",
         "payments.payoutActionFinish" to "Terminer la configuration",
         "payments.payoutActionOpenStripe" to "Ouvrir Stripe",
 

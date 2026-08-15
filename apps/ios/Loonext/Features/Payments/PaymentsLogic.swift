@@ -95,14 +95,19 @@ private func isStamped(_ instant: String?) -> Bool {
 }
 
 /// One word for the state, as the crew reads it in the thread.
+/// One word for the state — a catalogue KEY, as of #228.
+///
+/// Nothing server-side composes this: every client derives the state from a row
+/// it already holds, so unlike the payout sentences there is no build in the
+/// field rendering the return value verbatim.
 func paymentRequestLabel(_ state: PaymentRequestState) -> String {
     switch state {
-    case .requested: "Waiting"
-    case .paid: "Paid"
-    case .refunded: "Refunded"
-    case .disputed: "Disputed"
-    case .cancelled: "Cancelled"
-    case .expired: "Expired"
+    case .requested: "payments.stateWaiting"
+    case .paid: "payments.statePaid"
+    case .refunded: "payments.stateRefunded"
+    case .disputed: "payments.stateDisputed"
+    case .cancelled: "payments.stateCancelled"
+    case .expired: "payments.stateExpired"
     }
 }
 

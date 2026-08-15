@@ -394,7 +394,11 @@ private struct PaymentStripRow: View {
     /// choosing between `LocalizedStringKey` and `StringProtocol` on a line
     /// nothing on this machine can compile.
     private var summary: String {
-        "\(paymentRequestLabel(request.resolvedState)) · \(request.amountLabel)"
+        let state = AppStrings.translate(
+            appLocale,
+            paymentRequestLabel(request.resolvedState)
+        )
+        return "\(state) · \(request.amountLabel)"
             + " — \(request.description)"
     }
 

@@ -144,7 +144,7 @@ function PaymentRow({
       <div className="min-w-0 flex-1">
         <p className="truncate">
           <span className="font-medium text-foreground">
-            {paymentRequestLabel(row.state)} · {amount}
+            {t(paymentRequestLabel(row.state))} · {amount}
           </span>
           {" — "}
           {row.description}

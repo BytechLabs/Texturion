@@ -55,21 +55,41 @@ export function paymentRequestState(row: PaymentRequestFacts): PaymentRequestSta
   return "requested";
 }
 
-/** One word for the state, as the crew reads it in the thread. */
-export function paymentRequestLabel(state: PaymentRequestState): string {
+/** Every catalogue key the six states can name. */
+export type PaymentStateKey =
+  | "payments.stateWaiting"
+  | "payments.statePaid"
+  | "payments.stateRefunded"
+  | "payments.stateDisputed"
+  | "payments.stateCancelled"
+  | "payments.stateExpired";
+
+/**
+ * One word for the state, as the crew reads it in the thread.
+ *
+ * #228: a KEY, and unlike [payoutReadinessCopy] below this one could be — the
+ * difference is the wire. Nothing server-side calls this; the three clients
+ * each derive the state from a row they already hold and label it themselves,
+ * so there is no build in the field rendering its return value verbatim.
+ *
+ * The union is the point of the type. It is what makes `tsc` say which of the
+ * six a catalogue has failed to answer, rather than `string`, which would let
+ * a typo ship as a badge reading `payments.statePayd`.
+ */
+export function paymentRequestLabel(state: PaymentRequestState): PaymentStateKey {
   switch (state) {
     case "requested":
-      return "Waiting";
+      return "payments.stateWaiting";
     case "paid":
-      return "Paid";
+      return "payments.statePaid";
     case "refunded":
-      return "Refunded";
+      return "payments.stateRefunded";
     case "disputed":
-      return "Disputed";
+      return "payments.stateDisputed";
     case "cancelled":
-      return "Cancelled";
+      return "payments.stateCancelled";
     case "expired":
-      return "Expired";
+      return "payments.stateExpired";
   }
 }
 

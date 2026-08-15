@@ -64,6 +64,15 @@ enum PaymentsStrings {
             "payments.payoutReadyTitle": "Ready to take payments",
             "payments.payoutReadyDetail": "Ask for a deposit or a final payment from any thread. It arrives as an ordinary text with a link, and the money goes to your bank account.",
             "payments.payoutActionSetUp": "Set up payments",
+            // #228 — the six states of a payment request, one word each.
+            // Masculine singular: the badge sits beside the amount, so what it
+            // describes reads as le paiement.
+            "payments.stateWaiting": "Waiting",
+            "payments.statePaid": "Paid",
+            "payments.stateRefunded": "Refunded",
+            "payments.stateDisputed": "Disputed",
+            "payments.stateCancelled": "Cancelled",
+            "payments.stateExpired": "Expired",
             "payments.payoutActionFinish": "Finish setting up",
             "payments.payoutActionOpenStripe": "Open Stripe",
 
@@ -136,6 +145,12 @@ enum PaymentsStrings {
             "payments.payoutReadyTitle": "Prêt à encaisser des paiements",
             "payments.payoutReadyDetail": "Demandez un acompte ou un paiement final depuis n'importe quelle conversation. Cela arrive comme un texto ordinaire avec un lien, et l'argent va dans votre compte bancaire.",
             "payments.payoutActionSetUp": "Configurer les paiements",
+            "payments.stateWaiting": "En attente",
+            "payments.statePaid": "Payé",
+            "payments.stateRefunded": "Remboursé",
+            "payments.stateDisputed": "Contesté",
+            "payments.stateCancelled": "Annulé",
+            "payments.stateExpired": "Expiré",
             "payments.payoutActionFinish": "Terminer la configuration",
             "payments.payoutActionOpenStripe": "Ouvrir Stripe",
 

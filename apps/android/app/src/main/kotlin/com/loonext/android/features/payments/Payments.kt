@@ -127,14 +127,20 @@ object Payments {
         else -> PaymentState.REQUESTED
     }
 
-    /** One word for the state, as the crew reads it in the thread. */
+    /**
+     * One word for the state — a catalogue KEY, as of #228.
+     *
+     * Nothing server-side composes this: every client derives the state from a
+     * row it already holds, so unlike the payout sentences there is no build in
+     * the field rendering the return value verbatim.
+     */
     fun label(state: PaymentState): String = when (state) {
-        PaymentState.REQUESTED -> "Waiting"
-        PaymentState.PAID -> "Paid"
-        PaymentState.REFUNDED -> "Refunded"
-        PaymentState.DISPUTED -> "Disputed"
-        PaymentState.CANCELLED -> "Cancelled"
-        PaymentState.EXPIRED -> "Expired"
+        PaymentState.REQUESTED -> "payments.stateWaiting"
+        PaymentState.PAID -> "payments.statePaid"
+        PaymentState.REFUNDED -> "payments.stateRefunded"
+        PaymentState.DISPUTED -> "payments.stateDisputed"
+        PaymentState.CANCELLED -> "payments.stateCancelled"
+        PaymentState.EXPIRED -> "payments.stateExpired"
     }
 
     /**

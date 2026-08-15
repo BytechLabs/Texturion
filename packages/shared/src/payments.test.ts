@@ -15,6 +15,16 @@ import {
 } from "./payments";
 import { paymentAmountProblemCopy, paymentRequestSms } from "./payments-copy";
 
+/** #228 — resolve a catalogue key the way the three strips do. */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[
+    name
+  ];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
 /**
  * #224 — the vectors the Kotlin and Swift ports are checked against.
  *
@@ -86,18 +96,24 @@ describe("paymentRequestLabel", () => {
       "cancelled",
       "expired",
     ] as const;
-    const labels = states.map((state) => paymentRequestLabel(state));
-    expect(labels).toEqual([
-      "Waiting",
-      "Paid",
-      "Refunded",
-      "Disputed",
-      "Cancelled",
-      "Expired",
+    const keys = states.map((state) => paymentRequestLabel(state));
+    expect(keys).toEqual([
+      "payments.stateWaiting",
+      "payments.statePaid",
+      "payments.stateRefunded",
+      "payments.stateDisputed",
+      "payments.stateCancelled",
+      "payments.stateExpired",
     ]);
     // No two states share a word: a reader must never have to guess which of
-    // two situations a row is in.
-    expect(new Set(labels).size).toBe(labels.length);
+    // two situations a row is in. Checked on the WORDS, in both languages —
+    // six distinct keys resolving to five distinct words is the same defect
+    // wearing a disguise the key comparison cannot see.
+    for (const table of [WEB_EN, WEB_FR]) {
+      const words = keys.map((key) => look(table, key));
+      expect(new Set(words).size).toBe(words.length);
+      for (const word of words) expect(word.length).toBeGreaterThan(0);
+    }
   });
 });
 
