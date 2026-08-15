@@ -345,6 +345,8 @@ object InboxStrings : AppStrings.Section {
             "noise, so this stays a coaching signal rather than a " +
             "scoreboard — turn it on in Settings.",
         "inbox.satisfactionMemberFallback" to "Member",
+        "inbox.satisfactionPoorOne" to "1 job needed a call back",
+        "inbox.satisfactionPoorMany" to "{count} jobs needed a call back",
         "inbox.satisfactionByMember" to "{name} · {count} answered",
         "inbox.satisfactionMemberTooFew" to "Too few answers to average yet",
         "inbox.satisfactionTruncated" to "Showing the most recent {count} ratings.",
@@ -670,6 +672,8 @@ object InboxStrings : AppStrings.Section {
             "d'accompagnement plutôt qu'un tableau de classement — activez-les " +
             "dans les paramètres.",
         "inbox.satisfactionMemberFallback" to "Membre",
+        "inbox.satisfactionPoorOne" to "1 travail a nécessité un rappel",
+        "inbox.satisfactionPoorMany" to "{count} travaux ont nécessité un rappel",
         "inbox.satisfactionByMember" to "{name} · {count} avec réponse",
         "inbox.satisfactionMemberTooFew" to "Trop peu de réponses pour faire une moyenne",
         "inbox.satisfactionTruncated" to

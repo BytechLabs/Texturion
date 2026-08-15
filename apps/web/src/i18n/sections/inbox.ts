@@ -395,6 +395,15 @@ export const inboxEn = {
   // --- Satisfaction (satisfaction-card.tsx) ---------------------------------
   // Read verbatim by components/for-you/satisfaction-parity.test.ts.
   satisfactionTitle: "Satisfaction",
+  /* #228 — five sentences that lived in packages/shared as English only,
+     feeding this card while both phones already said them in French, plus
+     the poor-rating line, which no client had converted. */
+  satisfactionGapNoneAnswered: "Nobody has answered yet. Most people do not, which is why one answer is worth reading rather than counting.",
+  satisfactionMemberTooFew: "Too few answers to average yet",
+  satisfactionGapNoneAsked: "No finished jobs have been asked about in this window. The question goes out a few hours after a job is marked done.",
+  satisfactionByMemberOff: "Per-person scores are off. In a small crew a bad week is noise, so this stays a coaching signal rather than a scoreboard — turn it on in Settings.",
+  satisfactionPoorOne: "1 job needed a call back",
+  satisfactionPoorMany: "{count} jobs needed a call back",
   satisfactionLoadFailed: "Could not load your ratings.",
   satisfactionArcUp: "Up from {then} the month before",
   satisfactionArcDown: "Down from {then} the month before",
@@ -825,6 +834,12 @@ export const inboxFr: Translated<typeof inboxEn> = {
 
   // --- Satisfaction ----------------------------------------------------------
   satisfactionTitle: "Satisfaction",
+  satisfactionGapNoneAnswered: "Personne n'a répondu encore. La plupart des gens ne répondent pas, c'est pourquoi une seule réponse vaut la peine d'être lue plutôt que comptée.",
+  satisfactionMemberTooFew: "Trop peu de réponses pour faire une moyenne",
+  satisfactionGapNoneAsked: "Aucun travail terminé n'a fait l'objet d'une question durant cette période. La question part quelques heures après qu'un travail est marqué comme fait.",
+  satisfactionByMemberOff: "Les scores par personne sont désactivés. Dans une petite équipe, une mauvaise semaine n'est que du bruit ; cela reste donc un signal d'accompagnement plutôt qu'un tableau de classement — activez-les dans les paramètres.",
+  satisfactionPoorOne: "1 travail a nécessité un rappel",
+  satisfactionPoorMany: "{count} travaux ont nécessité un rappel",
   satisfactionLoadFailed: "Impossible de charger vos évaluations.",
   satisfactionArcUp: "En hausse depuis {then} le mois précédent",
   satisfactionArcDown: "En baisse depuis {then} le mois précédent",

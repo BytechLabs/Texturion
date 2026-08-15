@@ -388,6 +388,8 @@ enum InboxStrings {
                 + "noise, so this stays a coaching signal rather than a "
                 + "scoreboard — turn it on in Settings.",
             "inbox.satisfactionMemberFallback": "Member",
+            "inbox.satisfactionPoorOne": "1 job needed a call back",
+            "inbox.satisfactionPoorMany": "{count} jobs needed a call back",
             "inbox.satisfactionByMember": "{name} · {count} answered",
             "inbox.satisfactionMemberTooFew": "Too few answers to average yet",
             "inbox.satisfactionPoorHint":
@@ -779,6 +781,8 @@ enum InboxStrings {
                 + "d'accompagnement plutôt qu'un tableau de classement — activez-les "
                 + "dans les paramètres.",
             "inbox.satisfactionMemberFallback": "Membre",
+            "inbox.satisfactionPoorOne": "1 travail a nécessité un rappel",
+            "inbox.satisfactionPoorMany": "{count} travaux ont nécessité un rappel",
             "inbox.satisfactionByMember": "{name} · {count} avec réponse",
             "inbox.satisfactionMemberTooFew":
                 "Trop peu de réponses pour faire une moyenne",

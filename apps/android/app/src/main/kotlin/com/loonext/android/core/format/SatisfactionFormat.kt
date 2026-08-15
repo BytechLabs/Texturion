@@ -1,5 +1,6 @@
 package com.loonext.android.core.format
 
+import com.loonext.android.core.i18n.AppStrings
 import java.util.Locale
 
 /**
@@ -52,7 +53,20 @@ object SatisfactionFormat {
      *
      * "2 jobs needed a call back" is a fact an owner can check; "customer
      * satisfaction: 87%" is a number nobody can do anything with.
+     *
+     * Two whole sentences rather than a count glued to a shared tail: French
+     * agrees the verb with the number — "1 travail A nécessité un rappel"
+     * against "3 travaux ONT nécessité un rappel" — so a shared fragment is
+     * wrong in one of the two cases whichever way it is written.
      */
-    fun poorRatingLine(count: Int): String =
-        if (count == 1) "1 job needed a call back" else "$count jobs needed a call back"
+    fun poorRatingLine(count: Int, locale: String? = null): String =
+        if (count == 1) {
+            AppStrings.translate(locale, "inbox.satisfactionPoorOne")
+        } else {
+            AppStrings.translate(
+                locale,
+                "inbox.satisfactionPoorMany",
+                mapOf("count" to count.toString()),
+            )
+        }
 }

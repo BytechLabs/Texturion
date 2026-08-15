@@ -56,7 +56,18 @@ enum SatisfactionFormat {
     ///
     /// "2 jobs needed a call back" is a fact an owner can check; "customer
     /// satisfaction: 87%" is a number nobody can do anything with.
-    static func poorRatingLine(_ count: Int) -> String {
-        count == 1 ? "1 job needed a call back" : "\(count) jobs needed a call back"
+    ///
+    /// Two whole sentences rather than a count glued to a shared tail: French
+    /// agrees the verb with the number — "1 travail A nécessité un rappel"
+    /// against "3 travaux ONT nécessité un rappel" — so a shared fragment is
+    /// wrong in one of the two cases whichever way it is written.
+    static func poorRatingLine(_ count: Int, locale: String? = nil) -> String {
+        count == 1
+            ? AppStrings.translate(locale, "inbox.satisfactionPoorOne")
+            : AppStrings.translate(
+                locale,
+                "inbox.satisfactionPoorMany",
+                ["count": String(count)]
+            )
     }
 }

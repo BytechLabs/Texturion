@@ -199,6 +199,46 @@ ${readFileSync(IOS_CATALOGUE, "utf8")}`;
     // "1 jobs needed a call back" is the kind of thing that makes a careful
     // reader stop trusting the rest of the panel — and this line is the one
     // they are most likely to be reading closely.
+    //
+    // #228 moved the words to the catalogues, so this reads those. What it
+    // checks is not "the string exists" but that ONE and MANY are two
+    // different sentences on every client and in both languages — which is
+    // the property the singular is about, and the one a translator working
+    // from a single key would have quietly destroyed.
+    const catalogues: Record<string, string> = {
+      web: join(REPO_ROOT, "apps/web/src/i18n/sections/inbox.ts"),
+      android: join(
+        REPO_ROOT,
+        "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/InboxStrings.kt",
+      ),
+      ios: join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/InboxStrings.swift"),
+    };
+    for (const [platform, path] of Object.entries(catalogues)) {
+      const text = readFileSync(path, "utf8");
+      // Both keys, both language halves: two occurrences of each.
+      expect(
+        text.split("satisfactionPoorOne").length - 1,
+        `${platform} is missing a language half of satisfactionPoorOne`,
+      ).toBe(2);
+      expect(
+        text.split("satisfactionPoorMany").length - 1,
+        `${platform} is missing a language half of satisfactionPoorMany`,
+      ).toBe(2);
+      expect(text, `${platform} English singular`).toContain("1 job needed a call back");
+      expect(text, `${platform} English plural`).toContain(
+        "{count} jobs needed a call back",
+      );
+      // The French, where the difference is the VERB rather than an "s".
+      expect(text, `${platform} French singular`).toContain(
+        "1 travail a nécessité un rappel",
+      );
+      expect(text, `${platform} French plural`).toContain(
+        "{count} travaux ont nécessité un rappel",
+      );
+    }
+
+    // And the formatters still choose between the two rather than having
+    // quietly collapsed to one key while the catalogues kept both.
     const formatters: Record<string, string> = {
       shared: SOURCES.shared,
       android: join(
@@ -209,8 +249,12 @@ ${readFileSync(IOS_CATALOGUE, "utf8")}`;
     };
     for (const [platform, path] of Object.entries(formatters)) {
       const text = readFileSync(path, "utf8");
-      expect(text, platform).toContain("1 job ");
-      expect(text, platform).toContain("needed a call back");
+      expect(text, `${platform} singular branch`).toContain(
+        "inbox.satisfactionPoorOne",
+      );
+      expect(text, `${platform} plural branch`).toContain(
+        "inbox.satisfactionPoorMany",
+      );
     }
   });
 

@@ -85,26 +85,40 @@ export function satisfactionArcDirection(
  * as broken, and a panel that guesses reads as untrustworthy the first time it
  * is wrong.
  */
+/**
+ * What the panel says — catalogue KEYS since #228.
+ *
+ * Four of these are the keys BOTH PHONES have been saying for months. Their
+ * cards were converted and the web's was not, so the same five sentences
+ * existed twice: once as French under `inbox.satisfaction*` and once as
+ * English here, feeding only the web. Naming the phones' keys collapses that
+ * rather than minting a third spelling.
+ *
+ * There is no `heading` any more. It held "How customers rate the work" and
+ * nothing on any client rendered it: the web card titles itself from
+ * `inbox.satisfactionTitle` and both phone cards say "SATISFACTION". The
+ * conversion is what surfaced it — a sentence with no reader has no language
+ * to be in.
+ */
 export const SATISFACTION_COPY = {
-  /** The headline when there is a number to show. */
-  heading: "How customers rate the work",
   /** Asked, nobody answered yet. Not a failure — most people do not reply. */
-  none_answered:
-    "Nobody has answered yet. Most people do not, which is why one answer is " +
-    "worth reading rather than counting.",
+  none_answered: "inbox.satisfactionGapNoneAnswered",
   /** Asked too few times to average. Says the count so it is not a mystery. */
-  too_few: "Too few answers to average yet",
+  too_few: "inbox.satisfactionMemberTooFew",
   /** Nothing asked at all in the window. */
-  none_asked:
-    "No finished jobs have been asked about in this window. The question goes " +
-    "out a few hours after a job is marked done.",
+  none_asked: "inbox.satisfactionGapNoneAsked",
   /** Per-member is off, which is a choice rather than an omission. */
-  per_member_off:
-    "Per-person scores are off. In a small crew a bad week is noise, so this " +
-    "stays a coaching signal rather than a scoreboard — turn it on in Settings.",
-  /** The poor-rating count, framed as work rather than as a statistic. */
-  poor_label: "needed a call back",
+  per_member_off: "inbox.satisfactionByMemberOff",
 } as const;
+
+/** Every key this module names. */
+export type SatisfactionKey =
+  | (typeof SATISFACTION_COPY)[keyof typeof SATISFACTION_COPY]
+  | "inbox.satisfactionPoorOne"
+  | "inbox.satisfactionPoorMany";
+
+/** The reader's resolver. */
+export type SaySatisfaction = (key: SatisfactionKey) => string;
 
 /**
  * The count of poor ratings, said as a sentence.
@@ -116,8 +130,13 @@ export const SATISFACTION_COPY = {
  * *Applying: Loss Aversion & Meaningful Highlights — the actionable count, not
  * the flattering percentage.*
  */
-export function poorRatingLine(count: number): string {
+export function poorRatingLine(count: number, say: SaySatisfaction): string {
+  // Two whole sentences, not a count glued to a shared fragment. The fragment
+  // was "needed a call back", and French cannot use it: the verb agrees with
+  // the number — "1 travail A nécessité un rappel" against "3 travaux ONT
+  // nécessité un rappel" — so a shared tail would be wrong in one of the two
+  // cases no matter which way it was written.
   return count === 1
-    ? `1 job ${SATISFACTION_COPY.poor_label}`
-    : `${count} jobs ${SATISFACTION_COPY.poor_label}`;
+    ? say("inbox.satisfactionPoorOne")
+    : say("inbox.satisfactionPoorMany").replace("{count}", String(count));
 }

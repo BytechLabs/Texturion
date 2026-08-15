@@ -81,10 +81,10 @@ export function satisfactionGap(
   report: SatisfactionReport,
   t: Translate,
 ): string {
-  if (report.asked === 0) return SATISFACTION_COPY.none_asked;
-  if (report.answered === 0) return SATISFACTION_COPY.none_answered;
+  if (report.asked === 0) return t(SATISFACTION_COPY.none_asked);
+  if (report.answered === 0) return t(SATISFACTION_COPY.none_answered);
   return t("inbox.satisfactionGapTooFew", {
-    copy: SATISFACTION_COPY.too_few,
+    copy: t(SATISFACTION_COPY.too_few),
     answered: report.answered,
     minimum: report.minimum_sample,
   });
@@ -169,7 +169,7 @@ export function SatisfactionCard() {
                 href="/inbox"
                 className="inline-flex items-center gap-1 text-[13px] font-medium text-app-ink underline-offset-2 hover:underline"
               >
-                {poorRatingLine(report.data.poor)}
+                {poorRatingLine(report.data.poor, t)}
                 <ArrowRight className="size-3.5" strokeWidth={1.75} aria-hidden />
               </Link>
             ) : null}
@@ -247,7 +247,7 @@ export function SatisfactionCard() {
                   href="/inbox"
                   className="mt-2 inline-flex items-center gap-1 text-[13px] font-medium text-app-ink underline-offset-2 hover:underline"
                 >
-                  {poorRatingLine(report.data.poor)}
+                  {poorRatingLine(report.data.poor, t)}
                   <ArrowRight
                     className="size-3.5"
                     strokeWidth={1.75}
@@ -295,7 +295,7 @@ export function SatisfactionCard() {
                       as a missing feature. */}
                   {report.data.by_member === null ? (
                     <p className="border-t border-app-line pt-2 text-[13px] text-app-muted-2">
-                      {SATISFACTION_COPY.per_member_off}
+                      {t(SATISFACTION_COPY.per_member_off)}
                     </p>
                   ) : (
                     <div className="border-t border-app-line pt-1">
@@ -310,7 +310,7 @@ export function SatisfactionCard() {
                           })}
                           value={
                             member.average === null
-                              ? SATISFACTION_COPY.too_few
+                              ? t(SATISFACTION_COPY.too_few)
                               : formatSatisfaction(member.average)
                           }
                         />

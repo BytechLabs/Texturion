@@ -708,6 +708,8 @@ export {
   formatSatisfaction,
   poorRatingLine,
   satisfactionArcDirection,
+  type SatisfactionKey,
+  type SaySatisfaction,
 } from "./satisfaction";
 export {
   JOB_RATED_EVENT,
