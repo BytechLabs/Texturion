@@ -1,0 +1,54 @@
+{
+  "domain.numberAccessNoteOnly": {
+    "en": "Read and notes only",
+    "fr": "Consultation et notes seulement"
+  },
+  "domain.numberAccessRuleNamingYou": {
+    "en": "A rule naming you",
+    "fr": "Une règle qui vous nomme"
+  },
+  "domain.numberAccessRuleNamingThem": {
+    "en": "A rule naming them",
+    "fr": "Une règle qui nomme cette personne"
+  },
+  "domain.numberAccessRuleForYourRole": {
+    "en": "A rule for your role",
+    "fr": "Une règle pour votre rôle"
+  },
+  "domain.numberAccessRuleForTheirRole": {
+    "en": "A rule for their role",
+    "fr": "Une règle pour son rôle"
+  },
+  "domain.numberAccessRuleForEveryone": {
+    "en": "A rule for everyone",
+    "fr": "Une règle pour tout le monde"
+  },
+  "domain.numberAccessNoMatchYou": {
+    "en": "This number has rules, and none of them include you",
+    "fr": "Ce numéro a des règles, et aucune ne vous inclut"
+  },
+  "domain.numberAccessNoMatchThem": {
+    "en": "This number has rules, and none of them include them",
+    "fr": "Ce numéro a des règles, et aucune n'inclut cette personne"
+  },
+  "domain.numberAccessUnruled": {
+    "en": "Nobody has restricted this number",
+    "fr": "Personne n'a restreint ce numéro"
+  },
+  "domain.numberAccessOwners": {
+    "en": "Owners reach every number",
+    "fr": "Les propriétaires peuvent utiliser tous les numéros"
+  },
+  "domain.numberAccessAdmins": {
+    "en": "Admins reach every number",
+    "fr": "Les administrateurs peuvent utiliser tous les numéros"
+  },
+  "domain.numberAccessNotMemberYou": {
+    "en": "You are no longer in this workspace",
+    "fr": "Vous ne faites plus partie de cet espace de travail"
+  },
+  "domain.numberAccessNotMemberThem": {
+    "en": "No longer in this workspace",
+    "fr": "Ne fait plus partie de cet espace de travail"
+  }
+}

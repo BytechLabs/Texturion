@@ -20,42 +20,67 @@ import {
   type NumberAccessLevel,
 } from "./number-access-explained";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/*
+ * #228 — the module names keys now, so the assertions resolve them.
+ *
+ * Through the catalogue the access screens read, which is a better test than
+ * the one it replaces: that read the module's own English back to itself, and
+ * this reads what somebody is shown. These clauses are the one place a security
+ * rule is put into words, so "what is shown" is the only question worth asking.
+ */
+function lookUp(table: unknown, key: string, lang: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  return value;
+}
+
+const say = (key: string): string => lookUp(WEB_EN, key, "English");
+const sayFr = (key: string): string => lookUp(WEB_FR, key, "French");
+
+
 describe("what they can do", () => {
   it("says it as a capability, not as a schema value", () => {
-    expect(numberAccessLevelLabel("text")).toBe("Can text");
-    expect(numberAccessLevelLabel("note")).toBe("Read and notes only");
-    expect(numberAccessLevelLabel("none")).toBe("Hidden");
+    expect(numberAccessLevelLabel("text", say)).toBe("Can text");
+    expect(numberAccessLevelLabel("note", say)).toBe("Read and notes only");
+    expect(numberAccessLevelLabel("none", say)).toBe("Hidden");
+    // And all three distinct in French: a catalogue answering one word for
+    // every level would satisfy every other assertion in this file.
+    const levels: NumberAccessLevel[] = ["text", "note", "none"];
+    expect(new Set(levels.map((l) => numberAccessLevelLabel(l, sayFr))).size).toBe(3);
   });
 });
 
 describe("why", () => {
   it("names the rule an owner would go and edit", () => {
-    expect(numberAccessReason("user", null)).toBe("A rule naming them");
-    expect(numberAccessReason("role", "member")).toBe("A rule for members");
-    expect(numberAccessReason("all", null)).toBe("A rule for everyone");
+    expect(numberAccessReason("user", null, say)).toBe("A rule naming them");
+    expect(numberAccessReason("role", "member", say)).toBe("A rule for members");
+    expect(numberAccessReason("all", null, say)).toBe("A rule for everyone");
   });
 
   it("tells the two default-looking cases apart", () => {
     // The whole point. Both leave the person un-named by any rule; only one of
     // them is somebody having been left out.
-    expect(numberAccessReason("unruled", null)).toBe(
+    expect(numberAccessReason("unruled", null, say)).toBe(
       "Nobody has restricted this number",
     );
-    expect(numberAccessReason("no-match", null)).toBe(
+    expect(numberAccessReason("no-match", null, say)).toBe(
       "This number has rules, and none of them include them",
     );
-    expect(numberAccessReason("unruled", null)).not.toBe(
-      numberAccessReason("no-match", null),
+    expect(numberAccessReason("unruled", null, say)).not.toBe(
+      numberAccessReason("no-match", null, say),
     );
   });
 
   it("explains an owner's blanket access rather than leaving it mysterious", () => {
     // An owner seeing "Can text" on every number with no reason would wonder
     // whether the rules work at all.
-    expect(numberAccessReason("role-override", "owner")).toBe(
+    expect(numberAccessReason("role-override", "owner", say)).toBe(
       "Owners reach every number",
     );
-    expect(numberAccessReason("role-override", "admin")).toBe(
+    expect(numberAccessReason("role-override", "admin", say)).toBe(
       "Admins reach every number",
     );
   });
@@ -63,11 +88,11 @@ describe("why", () => {
   it("survives a role rule with no principal", () => {
     // Defensive: the server always sends one, and a missing value must not
     // render "A rule for s".
-    expect(numberAccessReason("role", null)).toBe("A rule for their role");
+    expect(numberAccessReason("role", null, say)).toBe("A rule for their role");
   });
 
   it("says a deactivated member is gone", () => {
-    expect(numberAccessReason("not-a-member", null)).toBe(
+    expect(numberAccessReason("not-a-member", null, say)).toBe(
       "No longer in this workspace",
     );
   });
@@ -144,24 +169,24 @@ describe("#286 reading your own access", () => {
     for (const kind of kinds) {
       // Nothing throws and nothing comes back empty: a missing branch here is
       // a blank line under a number on somebody's screen.
-      expect(numberAccessReason(kind, null, "self").length).toBeGreaterThan(0);
+      expect(numberAccessReason(kind, null, say, "self").length).toBeGreaterThan(0);
       // And the owner-facing wording is byte-identical to before the parameter
       // existed, since that screen shipped in #348 and nobody asked for it to
       // change.
-      expect(numberAccessReason(kind, null)).toBe(
-        numberAccessReason(kind, null, "other"),
+      expect(numberAccessReason(kind, null, say)).toBe(
+        numberAccessReason(kind, null, say, "other"),
       );
     }
-    expect(numberAccessReason("user", null, "self")).toBe("A rule naming you");
-    expect(numberAccessReason("user", null)).toBe("A rule naming them");
-    expect(numberAccessReason("no-match", null, "self")).toMatch(/include you$/);
+    expect(numberAccessReason("user", null, say, "self")).toBe("A rule naming you");
+    expect(numberAccessReason("user", null, say)).toBe("A rule naming them");
+    expect(numberAccessReason("no-match", null, say, "self")).toMatch(/include you$/);
   });
 
   it("SV-2: a role rule reads the same either way, because it names the role", () => {
     // "A rule for members" is already about the rule rather than the person,
     // so rewording it for the self view would make it worse.
-    expect(numberAccessReason("role", "member", "self")).toBe("A rule for members");
-    expect(numberAccessReason("role", "member")).toBe("A rule for members");
+    expect(numberAccessReason("role", "member", say, "self")).toBe("A rule for members");
+    expect(numberAccessReason("role", "member", say)).toBe("A rule for members");
   });
 
   it("SV-3: the note says how much is hidden, and that it is deliberate", () => {
@@ -173,7 +198,7 @@ describe("#286 reading your own access", () => {
       row("none"),
       row("none"),
       row("note"),
-    ]);
+    ], say);
     expect(note).toContain("2 numbers are hidden");
     expect(note).toContain("1 is read-only");
     expect(note).toMatch(/deliberate/i);
@@ -183,12 +208,12 @@ describe("#286 reading your own access", () => {
   it("SV-3b: a member who reaches everything is told nothing", () => {
     // The pair. A paragraph reassuring somebody about a problem they do not
     // have is furniture, and furniture is not read.
-    expect(numberAccessSelfNote([row("text"), row("text")])).toBeNull();
-    expect(numberAccessSelfNote([])).toBeNull();
+    expect(numberAccessSelfNote([row("text"), row("text")], say)).toBeNull();
+    expect(numberAccessSelfNote([], say)).toBeNull();
   });
 
   it("SV-4: one of each reads as singular", () => {
-    const note = numberAccessSelfNote([row("none"), row("note")]);
+    const note = numberAccessSelfNote([row("none"), row("note")], say);
     expect(note).toContain("1 number is hidden");
     expect(note).toContain("1 is read-only");
   });

@@ -10,7 +10,7 @@ import {
 } from "@loonext/shared";
 
 import { SettingsCard } from "@/components/settings/section";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import { apiFetch } from "@/lib/api/client";
 import { useCompanyId } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
@@ -50,6 +50,9 @@ import { formatPhone } from "@/lib/format/phone";
  */
 export function MyAccessCard() {
   const t = useT();
+  // #228: these clauses are the one place a security rule is put into words,
+  // and the shared module names them rather than writing them out.
+  const say = sayWith(t);
   const companyId = useCompanyId();
   const access = useQuery({
     queryKey: ["my-number-access", companyId],
@@ -60,7 +63,7 @@ export function MyAccessCard() {
   });
 
   const rows = access.data?.numbers ?? [];
-  const note = numberAccessSelfNote(rows);
+  const note = numberAccessSelfNote(rows, say);
   // Nothing restricted — the commonest case, and the one that earns silence.
   if (note === null) return null;
 
@@ -89,10 +92,10 @@ export function MyAccessCard() {
                   : t("settings.myAccessUnnamedNumber")}
               </span>
               <span className="text-sm text-muted-foreground">
-                {numberAccessLevelLabel(row.level)}
+                {numberAccessLevelLabel(row.level, say)}
               </span>
               <span className="w-full text-[12px] text-app-muted-2 sm:ml-auto sm:w-auto">
-                {numberAccessReason(row.decided_by, row.principal, "self")}
+                {numberAccessReason(row.decided_by, row.principal, say, "self")}
               </span>
             </li>
           ))}

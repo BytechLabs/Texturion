@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import { useMemberNumberAccess } from "@/lib/api/numbers";
 import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,9 @@ export function MemberAccessDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useT();
+  // #228: these clauses are the one place a security rule is put into words,
+  // and the shared module names them rather than writing them out.
+  const say = sayWith(t);
   const access = useMemberNumberAccess(userId, open);
   const rows = sortNumberAccessExplanations(access.data?.numbers ?? []);
 
@@ -95,7 +98,7 @@ export function MemberAccessDialog({
                   {/* The reason, quiet and directly under the number it
                       explains — a strong relationship gets tight spacing. */}
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {numberAccessReason(row.decided_by, row.principal)}
+                    {numberAccessReason(row.decided_by, row.principal, say)}
                   </p>
                 </div>
                 {/* The level is the answer, so it is the one emphasized thing on
@@ -110,7 +113,7 @@ export function MemberAccessDialog({
                       : "bg-primary/10 text-primary",
                   )}
                 >
-                  {numberAccessLevelLabel(row.level)}
+                  {numberAccessLevelLabel(row.level, say)}
                 </span>
               </li>
             ))}

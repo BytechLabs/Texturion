@@ -27,6 +27,43 @@ import type { Translated } from "../translated";
 export const domainEn = {
 
   /*
+   * #286 — who reaches which number, and why.
+   *
+   * Both phones have said these since #228 reached them. The web imported the
+   * shared module and rendered whatever English came back, on the one screen
+   * whose job is explaining a security rule.
+   *
+   * The self note's singular and plural are SEPARATE keys and so is the joiner.
+   * The shared module used to build that sentence from
+   * `${n} ${n === 1 ? "number is" : "numbers are"}`, which is English grammar
+   * written into a module three clients read.
+   */
+  and: "and",
+  numberAccessAdmins: "Admins reach every number",
+  numberAccessCanText: "Can text",
+  numberAccessHidden: "Hidden",
+  numberAccessNoMatchThem: "This number has rules, and none of them include them",
+  numberAccessNoMatchYou: "This number has rules, and none of them include you",
+  numberAccessNotMemberThem: "No longer in this workspace",
+  numberAccessNotMemberYou: "You are no longer in this workspace",
+  numberAccessNoteOnly: "Read and notes only",
+  numberAccessOwners: "Owners reach every number",
+  numberAccessRuleForEveryone: "A rule for everyone",
+  numberAccessRuleForRole: "A rule for {role}s",
+  numberAccessRuleForTheirRole: "A rule for their role",
+  numberAccessRuleForYourRole: "A rule for your role",
+  numberAccessRuleNamingThem: "A rule naming them",
+  numberAccessRuleNamingYou: "A rule naming you",
+  numberAccessSelfHiddenMany: "{count} numbers are hidden from you",
+  numberAccessSelfHiddenOne: "{count} number is hidden from you",
+  numberAccessSelfNote: "{parts}. That is deliberate — somebody set it up that way, and it is not the app failing. Ask an owner or admin if you need more.",
+  numberAccessSelfReadOnlyMany: "{count} are read-only",
+  numberAccessSelfReadOnlyOne: "{count} is read-only",
+  numberAccessUnruled: "Nobody has restricted this number",
+
+
+
+  /*
    * #233 — scheduled sends, and why each one is sitting there.
    *
    * Both phones have said these since #228 reached them; the web imported the
@@ -140,6 +177,30 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  and: "et",
+  numberAccessAdmins: "Les administrateurs peuvent utiliser tous les numéros",
+  numberAccessCanText: "Peut texter",
+  numberAccessHidden: "Masqué",
+  numberAccessNoMatchThem: "Ce numéro a des règles, et aucune n'inclut cette personne",
+  numberAccessNoMatchYou: "Ce numéro a des règles, et aucune ne vous inclut",
+  numberAccessNotMemberThem: "Ne fait plus partie de cet espace de travail",
+  numberAccessNotMemberYou: "Vous ne faites plus partie de cet espace de travail",
+  numberAccessNoteOnly: "Consultation et notes seulement",
+  numberAccessOwners: "Les propriétaires peuvent utiliser tous les numéros",
+  numberAccessRuleForEveryone: "Une règle pour tout le monde",
+  numberAccessRuleForRole: "Une règle pour le rôle {role}",
+  numberAccessRuleForTheirRole: "Une règle pour son rôle",
+  numberAccessRuleForYourRole: "Une règle pour votre rôle",
+  numberAccessRuleNamingThem: "Une règle qui nomme cette personne",
+  numberAccessRuleNamingYou: "Une règle qui vous nomme",
+  numberAccessSelfHiddenMany: "{count} numéros vous sont masqués",
+  numberAccessSelfHiddenOne: "{count} numéro vous est masqué",
+  numberAccessSelfNote: "{parts}. C'est voulu — quelqu'un l'a configuré ainsi, et ce n'est pas l'application qui fait défaut. Demandez à un propriétaire ou à un administrateur s'il vous en faut davantage.",
+  numberAccessSelfReadOnlyMany: "{count} sont en consultation seulement",
+  numberAccessSelfReadOnlyOne: "{count} est en consultation seulement",
+  numberAccessUnruled: "Personne n'a restreint ce numéro",
+
+
   clockTheirTimeAreaCode: "son heure locale, d'après son indicatif régional",
   clockTheirTimeContact: "son heure locale, définie sur sa fiche",
   clockWorkspaceTime: "l'heure de votre espace de travail — nous ne connaissons pas la sienne",

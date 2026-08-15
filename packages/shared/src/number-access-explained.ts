@@ -20,6 +20,8 @@
  */
 
 /** What the caller may do with the number. Mirrors `NumberAccessLevel`. */
+import type { SayKey } from "./support";
+
 export type NumberAccessLevel = "text" | "note" | "none";
 
 /** Which rule produced that level. Mirrors the SQL `decided_by` vocabulary. */
@@ -47,14 +49,14 @@ export interface NumberAccessExplanation {
  * "Can text" rather than "text" because the level is a capability, and an owner
  * scanning a list is asking a yes/no question about sending.
  */
-export function numberAccessLevelLabel(level: NumberAccessLevel): string {
+export function numberAccessLevelLabel(level: NumberAccessLevel, say: SayKey): string {
   switch (level) {
     case "text":
-      return "Can text";
+      return say("domain.numberAccessCanText");
     case "note":
-      return "Read and notes only";
+      return say("domain.numberAccessNoteOnly");
     case "none":
-      return "Hidden";
+      return say("domain.numberAccessHidden");
   }
 }
 
@@ -71,6 +73,16 @@ export function numberAccessReason(
   decidedBy: NumberAccessDecidedBy,
   principal: string | null,
   /**
+   * #228 — resolves a catalogue key. REQUIRED, and placed before `viewer` so
+   * it can be.
+   *
+   * It was briefly `say: SayKey = (key) => key` at the end of the list, which
+   * compiles and is worth nothing: every existing call site kept type-checking
+   * while now returning `domain.numberAccessRuleNamingYou` to the screen. A
+   * default here silences the single error that makes the conversion safe.
+   */
+  say: SayKey,
+  /**
    * #286: who is reading. An owner inspecting somebody else's access reads
    * "them"; a member asking about their own reads "you".
    *
@@ -84,24 +96,38 @@ export function numberAccessReason(
   const self = viewer === "self";
   switch (decidedBy) {
     case "user":
-      return self ? "A rule naming you" : "A rule naming them";
+      return say(
+        self ? "domain.numberAccessRuleNamingYou" : "domain.numberAccessRuleNamingThem",
+      );
     case "role":
+      /*
+       * The named-role clause keeps its own shape rather than becoming a key
+       * with a {role} hole. `principal` is a wire value — "admin", "member",
+       * "bookkeeper" — and appending an "s" to it is English pluralisation of a
+       * word this module did not write. It is the one clause here that a
+       * translator cannot finish without the role names being translated too,
+       * which is a separate roster and a separate decision.
+       */
       if (principal) return `A rule for ${principal}s`;
-      return self ? "A rule for your role" : "A rule for their role";
+      return say(
+        self ? "domain.numberAccessRuleForYourRole" : "domain.numberAccessRuleForTheirRole",
+      );
     case "all":
-      return "A rule for everyone";
+      return say("domain.numberAccessRuleForEveryone");
     case "no-match":
-      return self
-        ? "This number has rules, and none of them include you"
-        : "This number has rules, and none of them include them";
+      return say(
+        self ? "domain.numberAccessNoMatchYou" : "domain.numberAccessNoMatchThem",
+      );
     case "unruled":
-      return "Nobody has restricted this number";
+      return say("domain.numberAccessUnruled");
     case "role-override":
-      return principal === "owner"
-        ? "Owners reach every number"
-        : "Admins reach every number";
+      return say(
+        principal === "owner" ? "domain.numberAccessOwners" : "domain.numberAccessAdmins",
+      );
     case "not-a-member":
-      return self ? "You are no longer in this workspace" : "No longer in this workspace";
+      return say(
+        self ? "domain.numberAccessNotMemberYou" : "domain.numberAccessNotMemberThem",
+      );
   }
 }
 
@@ -124,26 +150,43 @@ export type NumberAccessViewer = "self" | "other";
  */
 export function numberAccessSelfNote(
   rows: readonly NumberAccessExplanation[],
+  say: SayKey,
 ): string | null {
   const hidden = rows.filter((row) => row.level === "none").length;
   const readOnly = rows.filter((row) => row.level === "note").length;
   if (hidden === 0 && readOnly === 0) return null;
 
+  /*
+   * #228: singular and plural are SEPARATE KEYS, and the joiner is a key too.
+   *
+   * This used to build the sentence out of `${n} ${n === 1 ? "number is" :
+   * "numbers are"}`, which is English grammar hard-coded into a shared module.
+   * French agrees the noun, its article and its verb together, so no amount of
+   * swapping a fragment expresses it — and " and " is not "et" in every
+   * position either. Same shape Android already uses.
+   */
   const parts: string[] = [];
   if (hidden > 0) {
     parts.push(
-      `${hidden} ${hidden === 1 ? "number is" : "numbers are"} hidden from you`,
+      say(
+        hidden === 1
+          ? "domain.numberAccessSelfHiddenOne"
+          : "domain.numberAccessSelfHiddenMany",
+      ).replace("{count}", String(hidden)),
     );
   }
   if (readOnly > 0) {
     parts.push(
-      `${readOnly} ${readOnly === 1 ? "is" : "are"} read-only`,
+      say(
+        readOnly === 1
+          ? "domain.numberAccessSelfReadOnlyOne"
+          : "domain.numberAccessSelfReadOnlyMany",
+      ).replace("{count}", String(readOnly)),
     );
   }
-  return (
-    `${parts.join(" and ")}. That is deliberate — somebody set it up that ` +
-    `way, and it is not the app failing. Ask an owner or admin if you need ` +
-    `more.`
+  return say("domain.numberAccessSelfNote").replace(
+    "{parts}",
+    parts.join(` ${say("domain.and")} `),
   );
 }
 
