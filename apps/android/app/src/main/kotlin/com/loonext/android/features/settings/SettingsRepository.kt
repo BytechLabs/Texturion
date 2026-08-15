@@ -30,6 +30,10 @@ import com.loonext.android.core.model.ReminderRule
 import com.loonext.android.core.model.ReminderRulesBody
 import com.loonext.android.core.model.ReminderRulesResponse
 import com.loonext.android.core.model.ReminderRulesSaved
+import com.loonext.android.core.model.ApiKey
+import com.loonext.android.core.model.ApiKeyList
+import com.loonext.android.core.model.CreateApiKeyBody
+import com.loonext.android.core.model.MintedApiKey
 import com.loonext.android.core.model.CreateWebhookEndpointBody
 import com.loonext.android.core.model.MintedWebhookSecret
 import com.loonext.android.core.model.UpdateWebhookEndpointBody
@@ -126,6 +130,29 @@ class SettingsRepository(
 
     suspend fun endOnCallShift(companyId: String, id: String) {
         api.delete("/v1/on-call/$id", companyId = companyId)
+    }
+
+    // -- #243 API keys -------------------------------------------------------
+
+    /**
+     * Every key this workspace holds, live and switched off, plus the cap.
+     *
+     * Revoked keys are listed too: "what did we turn off, and when" is a
+     * question somebody asks after an incident, and a list that hides them
+     * cannot answer it.
+     */
+    suspend fun apiKeys(companyId: String): ApiKeyList =
+        api.get("/v1/api-keys", companyId = companyId)
+
+    /** Create one. The ONLY response that carries the token. */
+    suspend fun createApiKey(
+        companyId: String,
+        body: CreateApiKeyBody,
+    ): MintedApiKey = api.post("/v1/api-keys", body = body, companyId = companyId)
+
+    /** Revoke. A stamp on the server, not a delete. */
+    suspend fun revokeApiKey(companyId: String, id: String) {
+        api.delete("/v1/api-keys/$id", companyId = companyId)
     }
 
     // -- #243 connections (outbound webhooks) -------------------------------

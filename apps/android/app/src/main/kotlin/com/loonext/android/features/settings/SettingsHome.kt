@@ -45,6 +45,7 @@ import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SupportAgent
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Power
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.Icon
@@ -254,6 +255,17 @@ enum class SettingsSection(
     Webhooks(
         "webhooks.navWebhooks",
         "webhooks.navWebhooksDesc",
+        Capability.SETTINGS_MANAGE,
+    ),
+
+    /**
+     * #243: the other half of the integration story — what may reach IN.
+     * Directly after Connections because the two are one subject seen from
+     * opposite ends, and somebody setting up an integration needs both.
+     */
+    ApiKeys(
+        "apiKeys.navApiKeys",
+        "apiKeys.navApiKeysDesc",
         Capability.SETTINGS_MANAGE,
     ),
     ;
@@ -520,6 +532,9 @@ fun SettingsHome(
 
                             SettingsSection.Webhooks ->
                                 WebhooksSection(settingsScope)
+
+                            SettingsSection.ApiKeys ->
+                                ApiKeysSection(settingsScope)
                         }
                     }
                 }
@@ -1095,6 +1110,7 @@ private fun iconFor(section: SettingsSection): ImageVector = when (section) {
     SettingsSection.Help -> Icons.Outlined.SupportAgent
     SettingsSection.WhatsNew -> Icons.Outlined.AutoAwesome
     SettingsSection.Webhooks -> Icons.Outlined.Power
+    SettingsSection.ApiKeys -> Icons.Outlined.Key
 }
 
 /**

@@ -62,6 +62,7 @@ object AppStrings {
 
     /** Every registered section, for the merge above and for the key test. */
     val SECTIONS: List<Section> = listOf(
+        ApiKeysStrings,
         AuthStrings,
         CommonStrings,
         ContactsTasksStrings,
