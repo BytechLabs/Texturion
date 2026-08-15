@@ -118,6 +118,9 @@ declare
     -- the other way and carries the same content, so it is classified beside it
     -- rather than anywhere gentler.
     'webhook_deliveries', 'webhook_endpoints',
+    -- #243: the credentials themselves. No contact data, and said so in §5
+    -- rather than left implied.
+    'api_keys',
     'data_exports', 'usage_events', 'usage_alerts', 'egress_events',
     'company_ai_usage', 'call_records', 'provider_costs', 'billing_disputes',
     -- §6 no personal data

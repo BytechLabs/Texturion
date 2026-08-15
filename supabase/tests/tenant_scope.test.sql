@@ -65,7 +65,9 @@ declare
     -- #224: text-to-pay.
     'payment_requests', 'stripe_connect_accounts',
     -- #243: where a workspace wants to be told, and every attempt to tell it.
-    'webhook_endpoints', 'webhook_deliveries'
+    'webhook_endpoints', 'webhook_deliveries',
+    -- #243: the workspace's own API credentials.
+    'api_keys'
   ];
   actual text[];
   missing text;

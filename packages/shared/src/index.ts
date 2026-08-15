@@ -449,6 +449,22 @@ export {
 export type { WebhookEventType, WebhookUrlRejection } from "./webhook-events";
 
 export {
+  API_KEY_CAP,
+  API_KEY_DISPLAY_CHARS,
+  API_KEY_PREFIX,
+  API_KEY_REQUESTS_PER_MINUTE,
+  API_KEY_SCOPES,
+  API_KEY_SECRET_BYTES,
+  PUBLIC_API_BASE,
+  PUBLIC_API_VERSION,
+  PUBLIC_API_VERSION_HEADER,
+  apiKeyAllows,
+  apiKeyScopeLabelKey,
+  isApiKeyScope,
+} from "./api-keys";
+export type { ApiKeyScope } from "./api-keys";
+
+export {
   SUPPORT_EMAIL,
   SUPPORT_ERROR_LINES,
   SUPPORT_FIX_PROMISE,
