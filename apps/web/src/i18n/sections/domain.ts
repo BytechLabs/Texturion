@@ -25,6 +25,22 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  /*
+   * #228 — where a US texting registration has got to. Both phones have said these since #228 reached them; the web imported the shared module and rendered whatever English came back, on the screen somebody opens because they are waiting.
+   */
+  regStageApprovedNext: "You can text customers now.",
+  regStageApprovedTitle: "Your texting is live",
+  regStageExpected: "Usually 3–7 business days, sometimes longer",
+  regStageNeedsDetailsNext: "Finish the texting registration form and we'll send it on.",
+  regStageNeedsDetailsTitle: "We need a few business details",
+  regStageRejectedNext: "Check the details on your registration and resubmit.",
+  regStageRejectedTitle: "The carriers need something changed",
+  regStageSubmittingNext: "The carriers review it next. Nothing needed from you.",
+  regStageSubmittingTitle: "Sent to the carriers",
+  regStageUnderReviewNext: "We'll text and email you the moment it clears.",
+  regStageUnderReviewTitle: "Under review by the carriers",
+
+
 
   /*
    * #286 — who reaches which number, and why.
@@ -177,6 +193,19 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  regStageApprovedNext: "Vous pouvez texter vos clients dès maintenant.",
+  regStageApprovedTitle: "Vos textos sont en service",
+  regStageExpected: "Habituellement de 3 à 7 jours ouvrables, parfois plus",
+  regStageNeedsDetailsNext: "Remplissez le formulaire d'inscription aux textos et nous l'enverrons.",
+  regStageNeedsDetailsTitle: "Il nous faut quelques renseignements sur l'entreprise",
+  regStageRejectedNext: "Vérifiez les renseignements de votre inscription et renvoyez-la.",
+  regStageRejectedTitle: "Les fournisseurs demandent une correction",
+  regStageSubmittingNext: "Les fournisseurs l'examinent ensuite. Rien à faire de votre côté.",
+  regStageSubmittingTitle: "Envoyée aux fournisseurs",
+  regStageUnderReviewNext: "Nous vous écrirons par texto et par courriel dès que ce sera approuvé.",
+  regStageUnderReviewTitle: "En cours d'examen par les fournisseurs",
+
+
   and: "et",
   numberAccessAdmins: "Les administrateurs peuvent utiliser tous les numéros",
   numberAccessCanText: "Peut texter",

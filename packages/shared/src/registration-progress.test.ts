@@ -16,6 +16,22 @@ import {
   type RegistrationSnapshot,
 } from "./registration-progress";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/*
+ * #228 — this module names keys, so the assertions resolve them through the
+ * catalogue the card reads.
+ */
+function lookUp(table: unknown, key: string, lang: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  return value;
+}
+
+const say = (key: string): string => lookUp(WEB_EN, key, "English");
+const sayFr = (key: string): string => lookUp(WEB_FR, key, "French");
+
 const snap = (
   brand: string | null,
   campaign: string | null,
@@ -71,12 +87,20 @@ describe("registrationProgress", () => {
   });
 
   it("quotes a range only while there is a wait to describe", () => {
-    expect(registrationProgress(snap("approved", "pending")).expected).toContain("3–7");
+    // #228: `expected` is a catalogue key now, so the range is checked in the
+    // words somebody reads rather than in the module's own English.
+    const waiting = registrationProgress(snap("approved", "pending")).expected;
+    expect(waiting).not.toBeNull();
+    expect(say(waiting!)).toContain("3–7");
     // And says "sometimes longer", because it sometimes is — an estimate that
     // quietly expires is how somebody learns not to believe the next one.
-    expect(registrationProgress(snap("approved", "pending")).expected).toContain(
-      "sometimes longer",
-    );
+    expect(say(waiting!)).toContain("sometimes longer");
+    // The French keeps the hedge. A translation that promised a flat range
+    // would make a firmer commitment in one language than in the other, about
+    // a queue neither of them controls.
+    expect(sayFr(waiting!)).toMatch(/parfois|plus long/i);
+    expect(sayFr(waiting!)).toContain("3");
+
     expect(registrationProgress(snap("approved", "approved")).expected).toBeNull();
     expect(registrationProgress(snap("rejected", null)).expected).toBeNull();
   });
@@ -118,5 +142,50 @@ describe("isWaitingOnRegistration", () => {
 
   it("is false once it is live", () => {
     expect(isWaitingOnRegistration(snap("approved", "approved"))).toBe(false);
+  });
+});
+
+/*
+ * #228 — every key this module can name, resolved.
+ *
+ * Written because a break-test found the gap: pointing an approved-stage title
+ * at a key the catalogue has no answer for changed nothing, since the only
+ * assertions that resolved anything read `expected`. A typo in a title or a
+ * next-step reaches the screen as `domain.regStageApprovedTitle`, on the card
+ * somebody opens precisely because they are anxious about a wait.
+ */
+describe("#228 every stage's words exist in both languages", () => {
+  const SNAPSHOTS: Array<[string, RegistrationSnapshot | null]> = [
+    ["needs_details", null],
+    ["submitting", snap("approved", null)],
+    ["under_review", snap("approved", "pending")],
+    ["approved", snap("approved", "approved")],
+    ["rejected", snap("rejected", null)],
+  ];
+
+  it("resolves title, next and expected for all five", () => {
+    let resolved = 0;
+    for (const [stage, snapshot] of SNAPSHOTS) {
+      const progress = registrationProgress(snapshot);
+      for (const key of [progress.title, progress.next, progress.expected]) {
+        if (key === null) continue;
+        resolved += 1;
+        // Throws rather than returning a fallback, so a missing key fails here
+        // instead of rendering its own name.
+        expect(say(key).length, `${stage} -> ${key}`).toBeGreaterThan(0);
+        expect(sayFr(key).length, `${stage} -> ${key}`).toBeGreaterThan(0);
+        expect(sayFr(key), `${stage} -> ${key} is not translated`).not.toBe(say(key));
+      }
+    }
+    // A loop that resolved nothing would agree with itself.
+    expect(resolved).toBeGreaterThan(10);
+  });
+
+  it("gives every stage its own words", () => {
+    // Five stages saying one sentence would satisfy every assertion above. The
+    // whole point of this card is that the reader can tell which of the five
+    // they are in.
+    const titles = SNAPSHOTS.map(([, snapshot]) => say(registrationProgress(snapshot).title));
+    expect(new Set(titles).size).toBe(SNAPSHOTS.length);
   });
 });

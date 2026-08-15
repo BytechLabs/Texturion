@@ -11,7 +11,7 @@ import { ArrowRight, Check, Phone } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { useT } from "@/i18n/provider";
+import { sayWith, useT } from "@/i18n/provider";
 import { useMeCompany } from "@/lib/api/me-company";
 import { useActiveCompany } from "@/lib/company/provider";
 
@@ -57,6 +57,9 @@ export function WhileYouWait() {
   if (!snapshot || !isWaitingOnRegistration(snapshot)) return null;
 
   const progress = registrationProgress(snapshot);
+  // #228: the shared module names its three lines rather than writing them,
+  // so this card says them in the reader's language.
+  const say = sayWith(t);
 
   return (
     <section
@@ -64,9 +67,9 @@ export function WhileYouWait() {
       aria-labelledby="while-you-wait-heading"
     >
       <h2 id="while-you-wait-heading" className="text-sm font-semibold">
-        {progress.title}
+        {say(progress.title)}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">{progress.next}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{say(progress.next)}</p>
 
       {/* The bar. Its value is "steps behind you", not a fabricated estimate of
           time remaining — a countdown we cannot honour is worse than none. */}
@@ -84,7 +87,7 @@ export function WhileYouWait() {
         />
       </div>
       {progress.expected && (
-        <p className="mt-2 text-xs text-muted-foreground">{progress.expected}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{say(progress.expected)}</p>
       )}
 
       {/* What already works. FIRST, not as a footnote — this is the habit worth

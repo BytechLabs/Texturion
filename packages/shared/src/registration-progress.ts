@@ -58,13 +58,16 @@ export interface RegistrationProgress {
   /** 0-100, for a bar. Never 0 once anything has been submitted — see below. */
   percent: number;
   /** One line: where it is. */
+  /** Catalogue key. #228: this module is read by three clients and owns no words. */
   title: string;
   /** One line: what happens next, or what they must do. */
+  /** Catalogue key. */
   next: string;
   /**
    * How long this usually takes from here, or null when the honest answer is
    * "nothing to wait for".
    */
+  /** Catalogue key, or null where no honest estimate exists. */
   expected: string | null;
   /** Whether anything is required FROM THEM. Everything else is just waiting. */
   actionNeeded: boolean;
@@ -111,8 +114,8 @@ export function registrationProgress(
       return {
         stage,
         percent: 10,
-        title: "We need a few business details",
-        next: "Finish the texting registration form and we'll send it on.",
+        title: "domain.regStageNeedsDetailsTitle",
+        next: "domain.regStageNeedsDetailsNext",
         expected: null,
         actionNeeded: true,
       };
@@ -121,12 +124,12 @@ export function registrationProgress(
       return {
         stage,
         percent: 40,
-        title: "Sent to the carriers",
-        next: "The carriers review it next. Nothing needed from you.",
+        title: "domain.regStageSubmittingTitle",
+        next: "domain.regStageSubmittingNext",
         // The honest range, and it says "sometimes longer" because it
         // sometimes is. An estimate that quietly expires is how a customer
         // learns not to believe the next one.
-        expected: "Usually 3–7 business days, sometimes longer",
+        expected: "domain.regStageExpected",
         actionNeeded: false,
       };
 
@@ -134,9 +137,9 @@ export function registrationProgress(
       return {
         stage,
         percent: 70,
-        title: "Under review by the carriers",
-        next: "We'll text and email you the moment it clears.",
-        expected: "Usually 3–7 business days, sometimes longer",
+        title: "domain.regStageUnderReviewTitle",
+        next: "domain.regStageUnderReviewNext",
+        expected: "domain.regStageExpected",
         actionNeeded: false,
       };
 
@@ -144,8 +147,8 @@ export function registrationProgress(
       return {
         stage,
         percent: 100,
-        title: "Your texting is live",
-        next: "You can text customers now.",
+        title: "domain.regStageApprovedTitle",
+        next: "domain.regStageApprovedNext",
         expected: null,
         actionNeeded: false,
       };
@@ -154,8 +157,8 @@ export function registrationProgress(
       return {
         stage,
         percent: 40,
-        title: "The carriers need something changed",
-        next: "Check the details on your registration and resubmit.",
+        title: "domain.regStageRejectedTitle",
+        next: "domain.regStageRejectedNext",
         expected: null,
         actionNeeded: true,
       };
