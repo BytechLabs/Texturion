@@ -32,6 +32,8 @@ import {
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
+import { EN } from "@/i18n/catalog";
+
 const SOURCES: Record<string, string> = {
   android: join(
     REPO_ROOT,
@@ -62,6 +64,28 @@ const ANDROID_CATALOGUES = [
  * a hold reason nobody declared.
  */
 const ANDROID_KEYS = ["domain.scheduledHold", "domain.scheduled", "domain.sendLater"];
+
+/**
+ * #228 — the shared roster names KEYS for the send-later half now, so this side
+ * resolves them before comparing.
+ *
+ * Both sides have to be sentences. The phones' own keys are already resolved
+ * for them by `copyWithCatalogue`; leaving the shared side as keys would ask
+ * whether `ScheduledSend.kt` contains the string
+ * "domain.scheduledPickerReassurance", which is a different and much weaker
+ * question than whether all three clients say the same sentence.
+ *
+ * `SCHEDULED_HOLD_REASONS` is deliberately NOT resolved: it still holds
+ * English, because the server composes those into a push body and a stored row.
+ */
+const sharedCopy = (key: string): string => {
+  const [section, name] = key.split(".");
+  const value = (EN as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") {
+    throw new Error(`the shared roster names ${key}, which the web catalogue has no answer for`);
+  }
+  return value;
+};
 
 const IOS_CATALOGUES = [
   join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/DomainStrings.swift"),
@@ -106,8 +130,8 @@ describe("#233 every client says the same thing when a text does not go", () => 
       // refusal has quietly turned #225's warning into a block.
       const source = read(path);
       const missing = Object.entries(SCHEDULED_SEND_COPY)
-        .filter(([, sentence]) => !source.includes(sentence))
-        .map(([key]) => key);
+        .filter(([, key]) => !source.includes(sharedCopy(key)))
+        .map(([name]) => name);
 
       expect(
         missing,
@@ -137,10 +161,10 @@ describe("#233 every client says the same thing when a text does not go", () => 
       // second vocabulary.
       const known = new Set<string>([
         ...Object.values(SCHEDULED_HOLD_REASONS),
-        ...Object.values(SCHEDULED_SEND_COPY),
-        ...(["contact", "area_code", "company"] as const).map(
-          scheduledClockProvenance,
-        ),
+        ...Object.values(SCHEDULED_SEND_COPY).map(sharedCopy),
+        ...(["contact", "area_code", "company"] as const)
+          .map(scheduledClockProvenance)
+          .map(sharedCopy),
       ]);
       // Newlines excluded from the class, deliberately. Without that, a match
       // runs from one quote across intervening CODE to a quote lines later,

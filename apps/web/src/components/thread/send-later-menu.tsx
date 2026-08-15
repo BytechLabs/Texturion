@@ -87,7 +87,7 @@ export function SendLaterMenuItems({
       <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
         {clock
           ? t("thread.theirClock", {
-              source: scheduledClockProvenance(clock.source),
+              source: t(scheduledClockProvenance(clock.source)),
             })
           : t("thread.yourWorkspaceTime")}
       </DropdownMenuLabel>

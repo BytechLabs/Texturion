@@ -6,6 +6,8 @@
  * timezone. So the DST cases are pinned with real instants rather than a
  * property nobody can check by reading.
  */
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -134,24 +136,58 @@ describe("#233 what we tell somebody when it did not send", () => {
 });
 
 describe("#233 whose clock it was", () => {
+  /*
+   * #228 — the function names keys now, so these resolve them.
+   *
+   * Through the catalogue the scheduled rows read, which is a better test than
+   * the one it replaces: that read the module's own English back to itself,
+   * and this reads what somebody is actually shown.
+   */
+  const say = (key: string): string => {
+    const [section, name] = key.split(".");
+    const value = (WEB_EN as Record<string, Record<string, string>>)[section]?.[name];
+    if (typeof value !== "string") throw new Error(`no English for ${key}`);
+    return value;
+  };
+  const sayFr = (key: string): string => {
+    const [section, name] = key.split(".");
+    const value = (WEB_FR as Record<string, Record<string, string>>)[section]?.[name];
+    if (typeof value !== "string") throw new Error(`no French for ${key}`);
+    return value;
+  };
+
   it("admits the weakest rung is our own clock", () => {
     // Scheduling "Monday 8am" against a non-geographic number with no contact
     // override is the SHOP's 8am. A UI that hides that implies a precision the
     // product does not have.
-    expect(scheduledClockProvenance("company")).toMatch(/we don't know theirs/);
-    expect(scheduledClockProvenance("contact")).toMatch(/their time/);
-    expect(scheduledClockProvenance("area_code")).toMatch(/area code/);
+    expect(say(scheduledClockProvenance("company"))).toMatch(/we don't know theirs/);
+    expect(say(scheduledClockProvenance("contact"))).toMatch(/their time/);
+    expect(say(scheduledClockProvenance("area_code"))).toMatch(/area code/);
   });
 
   it("uses the same words as the thread's own time line", () => {
     // One vocabulary for one fact. `their-time.tsx` says "from their area code"
     // and "your workspace's timezone — we don't know theirs"; a second phrasing
     // here would be the product describing the same rung two ways.
-    expect(scheduledClockProvenance("area_code")).toContain(
+    expect(say(scheduledClockProvenance("area_code"))).toContain(
       "from their area code",
     );
-    expect(scheduledClockProvenance("company")).toContain(
+    expect(say(scheduledClockProvenance("company"))).toContain(
       "we don't know theirs",
     );
+  });
+
+  it("keeps the weakest rung honest in French too", () => {
+    // The admission is the whole point of this rung, and it is the kind of
+    // clause a translator smooths away. "nous ne connaissons pas" has to
+    // survive, or the French app claims a precision the English one refuses.
+    const three = (["contact", "area_code", "company"] as const).map((source) =>
+      sayFr(scheduledClockProvenance(source)),
+    );
+    for (const line of three) expect(line.length).toBeGreaterThan(8);
+    // All three distinct: a catalogue that answered one sentence for every rung
+    // would pass every assertion above and say nothing.
+    expect(new Set(three).size).toBe(3);
+    expect(three[2]).toMatch(/ne connaissons pas|ne savons pas/i);
   });
 });

@@ -739,6 +739,7 @@ export {
   isScheduledMessageLive,
   schedulePresets,
   scheduledClockProvenance,
+  type ScheduledClockKey,
   scheduledReasonRecovers,
 } from "./scheduled-send";
 export type {

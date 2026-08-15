@@ -4,6 +4,8 @@ import { AlertTriangle, Clock, X } from "lucide-react";
 
 import { scheduledClockProvenance } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
+
 import {
   useCancelScheduledMessage,
   useScheduledMessages,
@@ -72,6 +74,8 @@ function ScheduledRow({
   onCancel: () => void;
   cancelling: boolean;
 }) {
+  // #228: the clock line names a catalogue key now, so this row resolves it.
+  const t = useT();
   const held = row.status === "held";
   return (
     <li
@@ -107,7 +111,7 @@ function ScheduledRow({
         )}
         {!held && (
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {scheduledClockProvenance(row.clock_source)}
+            {t(scheduledClockProvenance(row.clock_source))}
           </p>
         )}
       </div>

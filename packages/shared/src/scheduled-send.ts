@@ -164,6 +164,15 @@ export function scheduledReasonRecovers(reason: ScheduledHoldReason): boolean {
  * "Cancel" would be pretending a Kotlin `TextButton` and a Radix
  * `DialogFooter` are the same control.
  */
+/*
+ * #228 — KEYS, because a client renders these.
+ *
+ * Distinct from [SCHEDULED_HOLD_REASONS] above, which stays English on purpose:
+ * those are composed by the server into a push body and a stored row, so they
+ * are a wire change with an expand-and-contract window rather than a catalogue
+ * edit. These five are read straight off this table by a screen that knows the
+ * reader's language.
+ */
 export const SCHEDULED_SEND_COPY = {
   /**
    * The tail of the picker AND of the confirmation after it is queued. One
@@ -171,31 +180,26 @@ export const SCHEDULED_SEND_COPY = {
    * to stop three clients drifting apart should not itself hold two ways of
    * saying "nothing here is final".
    */
-  picker_reassurance:
-    "You can change or cancel it any time before it goes.",
+  picker_reassurance: "domain.scheduledPickerReassurance",
 
   /**
    * #225 ask 2, in one sentence: warned, never blocked. It offers BOTH doors
    * rather than arguing for one — the tech who just finished the job at 9:40pm
    * may well be right that this customer wants the quote tonight.
    */
-  quiet_hours_choice:
-    "You can send it anyway, or pick a time in their morning.",
+  quiet_hours_choice: "domain.scheduledQuietHoursChoice",
 
   /** When the hour there is unknown — the rung answered, the clock did not. */
-  quiet_hours_unknown:
-    "That time is inside this customer's quiet hours.",
+  quiet_hours_unknown: "domain.scheduledQuietHoursUnknown",
 
   /** After it is called off. Says what will NOT happen, which is the point. */
-  canceled_confirmation:
-    "Cancelled — that text will not go out.",
+  canceled_confirmation: "domain.scheduledCancelled",
 
   /**
    * The empty state of the workspace-level view. #233 asks for it "so nobody is
    * surprised", and the honest empty answer is the reassurance itself.
    */
-  nothing_scheduled:
-    "Nothing is waiting to send. Anything you schedule shows up here.",
+  nothing_scheduled: "domain.scheduledNothingWaiting",
 } as const;
 
 export type ScheduledSendCopyKey = keyof typeof SCHEDULED_SEND_COPY;
@@ -210,16 +214,29 @@ export type ScheduledSendCopyKey = keyof typeof SCHEDULED_SEND_COPY;
  * with no contact override is the SHOP's 8am, and a UI that hides that implies
  * a precision this product does not have.
  */
+/**
+ * Every catalogue key this function can name.
+ *
+ * A union rather than `string`, so a client's own `t()` proves its catalogue
+ * answers all three. A `string` return would need a cast at the call site, and
+ * the cast silences the one error worth having — a key nothing answers renders
+ * as its own name under a scheduled row.
+ */
+export type ScheduledClockKey =
+  | "domain.clockTheirTimeContact"
+  | "domain.clockTheirTimeAreaCode"
+  | "domain.clockWorkspaceTime";
+
 export function scheduledClockProvenance(
   source: "contact" | "area_code" | "company",
-): string {
+): ScheduledClockKey {
   switch (source) {
     case "contact":
-      return "their time, set on their contact";
+      return "domain.clockTheirTimeContact";
     case "area_code":
-      return "their time, from their area code";
+      return "domain.clockTheirTimeAreaCode";
     default:
-      return "your workspace's time — we don't know theirs";
+      return "domain.clockWorkspaceTime";
   }
 }
 

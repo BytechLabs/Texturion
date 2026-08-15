@@ -25,6 +25,36 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+
+  /*
+   * #233 — scheduled sends, and why each one is sitting there.
+   *
+   * Both phones have said these since #228 reached them; the web imported the
+   * shared table and rendered whatever English came back. The keys are the
+   * phones' own, so one wording change lands on three clients.
+   */
+  clockTheirTimeAreaCode: "their time, from their area code",
+  clockTheirTimeContact: "their time, set on their contact",
+  clockWorkspaceTime: "your workspace's time — we don't know theirs",
+  scheduledCancelled: "Cancelled — that text will not go out.",
+  scheduledEmptyTitle: "Nothing is waiting to send.",
+  scheduledHoldCustomerReplied: "They replied after you scheduled this, so we held it rather than talk over them. Send it anyway, or cancel it.",
+  scheduledHoldExpired: "The send window passed before this could go, so it was not sent. A late message is usually worse than none.",
+  scheduledHoldInvalidDestination: "We cannot text this number any more, so this was not sent.",
+  scheduledHoldJobUnscheduled: "That job is no longer booked, so this reminder was not sent.",
+  scheduledHoldOptedOut: "They replied STOP after you scheduled this, so it was not sent. Only they can undo that.",
+  scheduledHoldRegistrationPending: "This is waiting on carrier approval for US texting. It will send once that clears.",
+  scheduledHoldServiceUnavailable: "Texting is paused while we deal with an issue. This is still queued and nothing was lost.",
+  scheduledHoldSubscriptionInactive: "Your subscription has lapsed, so this has not been sent. It will go out when billing is sorted.",
+  scheduledHoldWorkspaceClosed: "The workspace was closed before this was due to send.",
+  scheduledHoldWorkspacePaused: "Your plan is paused, so this has not been sent. It will go out when you resume.",
+  scheduledNothingWaiting: "Nothing is waiting to send. Anything you schedule shows up here.",
+  scheduledPickerReassurance: "You can change or cancel it any time before it goes.",
+  scheduledPresetTomorrow: "Tomorrow, 8:00am",
+  scheduledQuietHoursChoice: "You can send it anyway, or pick a time in their morning.",
+  scheduledQuietHoursUnknown: "That time is inside this customer's quiet hours.",
+
+
   /*
    * Why a text did not arrive, in words the reader can act on.
    *
@@ -110,6 +140,28 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  clockTheirTimeAreaCode: "son heure locale, d'après son indicatif régional",
+  clockTheirTimeContact: "son heure locale, définie sur sa fiche",
+  clockWorkspaceTime: "l'heure de votre espace de travail — nous ne connaissons pas la sienne",
+  scheduledCancelled: "Annulé — ce texto ne partira pas.",
+  scheduledEmptyTitle: "Rien n'attend d'être envoyé.",
+  scheduledHoldCustomerReplied: "Le client a répondu après votre programmation, alors nous avons retenu le message plutôt que de lui couper la parole. Envoyez-le quand même, ou annulez-le.",
+  scheduledHoldExpired: "La fenêtre d'envoi est passée avant que ceci ne parte, alors le message n'a pas été envoyé. Un message en retard vaut habituellement moins que pas de message du tout.",
+  scheduledHoldInvalidDestination: "Nous ne pouvons plus texter ce numéro, alors ceci n'a pas été envoyé.",
+  scheduledHoldJobUnscheduled: "Cette tâche n'est plus prévue, alors ce rappel n'a pas été envoyé.",
+  scheduledHoldOptedOut: "Le client a répondu STOP après votre programmation, alors le message n'a pas été envoyé. Lui seul peut annuler cela.",
+  scheduledHoldRegistrationPending: "Ceci attend l'approbation des fournisseurs pour les textos américains. Le message partira dès que ce sera approuvé.",
+  scheduledHoldServiceUnavailable: "Les textos sont en pause pendant que nous réglons un problème. Ceci est toujours en file et rien n'a été perdu.",
+  scheduledHoldSubscriptionInactive: "Votre abonnement a expiré, alors ceci n'a pas été envoyé. Le message partira une fois la facturation réglée.",
+  scheduledHoldWorkspaceClosed: "L'espace de travail a été fermé avant l'heure d'envoi prévue.",
+  scheduledHoldWorkspacePaused: "Votre forfait est en pause, alors ceci n'a pas été envoyé. Le message partira à votre reprise.",
+  scheduledNothingWaiting: "Rien n'est en attente d'envoi. Tout ce que vous programmez apparaît ici.",
+  scheduledPickerReassurance: "Vous pouvez le modifier ou l'annuler à tout moment avant l'envoi.",
+  scheduledPresetTomorrow: "Demain, 8 h",
+  scheduledQuietHoursChoice: "Vous pouvez l'envoyer quand même, ou choisir une heure le matin chez eux.",
+  scheduledQuietHoursUnknown: "Cette heure tombe dans les heures de silence de ce client.",
+
+
   sendFailureGeneric: "Non livré",
   sendFailureOptedOut: "Ce client s'est désabonné",
   sendFailureUnreachable: "Ce numéro ne peut pas recevoir de textos",

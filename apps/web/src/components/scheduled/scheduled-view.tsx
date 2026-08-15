@@ -89,15 +89,20 @@ export function ScheduledView() {
           description={t("tasks.scheduledLoadFailedHint")}
         />
       ) : rows.length === 0 ? (
-        // The two halves of the shared `nothing_scheduled` sentence, split
-        // across CalmEmptyState's two slots — the same words the phones say in
-        // one line. Reassurance IS the honest empty answer here: the question
-        // this page exists to settle is "is something about to go out that I
-        // don't know about", and "no" is a complete reply.
+        // Reassurance IS the honest empty answer here: the question this page
+        // exists to settle is "is something about to go out that I don't know
+        // about", and "no" is a complete reply.
+        //
+        // #228: the heading used to be made by splitting the shared sentence on
+        // ". " at render time. That works in both languages today and is one
+        // abbreviation away from working in neither, with the second half
+        // coming back undefined. CalmEmptyState wanting two slots is a web
+        // layout fact, so the heading is web copy and the shared sentence the
+        // phones say stays whole underneath it.
         <CalmEmptyState
           icon={<CalendarClock className="size-7" strokeWidth={1.5} />}
-          title={SCHEDULED_SEND_COPY.nothing_scheduled.split(". ")[0] + "."}
-          description={SCHEDULED_SEND_COPY.nothing_scheduled.split(". ")[1]}
+          title={t("domain.scheduledEmptyTitle")}
+          description={t(SCHEDULED_SEND_COPY.nothing_scheduled)}
         />
       ) : (
         <div className="space-y-6">
@@ -209,7 +214,7 @@ function ScheduledListRow({
           <p className="mt-1 text-[12px] text-app-amber">{row.held_reason}</p>
         ) : (
           <p className="mt-1 text-[11px] text-app-muted-2">
-            {scheduledClockProvenance(row.clock_source)}
+            {t(scheduledClockProvenance(row.clock_source))}
           </p>
         )}
       </div>
