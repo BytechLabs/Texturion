@@ -224,6 +224,26 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.aNumber" to "A number",
 
         // -- Who owns the workspace ------------------------------------------
+        /*
+         * #228 — a handover in flight, which is the one place in Settings
+         * where a person has a DEADLINE and a veto. Read in the wrong
+         * language it reads as something that has already happened.
+         */
+        "settingsMore.ownershipOffered" to "Ownership has been offered to {name}.",
+        "settingsMore.ownershipAskedToTakeOver" to
+            "{name} has asked to take over this workspace.",
+        "settingsMore.ownershipOfferExpires" to
+            "Nothing changes until they accept. The offer expires {when}.",
+        "settingsMore.ownershipWaitOver" to
+            "The waiting period is over. They can complete this at any time.",
+        "settingsMore.ownershipCompletesAt" to
+            "This completes {when} unless the owner stops it. Stopping it " +
+            "takes effect immediately.",
+        /*
+         * Same call, same outcome, two readers: an owner is vetoing something
+         * aimed at them, and a recipient is turning something down.
+         */
+        "settingsMore.ownershipStopThis" to "Stop this",
         "settingsMore.ownershipTitle" to "Ownership",
         "settingsMore.ownershipCaption" to "OWNERSHIP",
         "settingsMore.ownershipDesc" to
@@ -1477,6 +1497,19 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.aNumber" to "Un numéro",
 
         // -- Who owns the workspace ------------------------------------------
+        "settingsMore.ownershipOffered" to "La propriété a été offerte à {name}.",
+        "settingsMore.ownershipAskedToTakeOver" to
+            "{name} a demandé à reprendre cet espace de travail.",
+        "settingsMore.ownershipOfferExpires" to
+            "Rien ne change tant que la personne n'a pas accepté. L'offre " +
+            "expire le {when}.",
+        "settingsMore.ownershipWaitOver" to
+            "La période d'attente est terminée. La personne peut compléter la " +
+            "reprise à tout moment.",
+        "settingsMore.ownershipCompletesAt" to
+            "Cela se conclut le {when} à moins que le propriétaire l'arrête. " +
+            "L'arrêter prend effet immédiatement.",
+        "settingsMore.ownershipStopThis" to "Arrêter",
         "settingsMore.ownershipTitle" to "Propriété",
         "settingsMore.ownershipCaption" to "PROPRIÉTÉ",
         "settingsMore.ownershipDesc" to

@@ -391,6 +391,7 @@ private fun PendingHandoverNotice(
     onAccept: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    val locale = LocalAppLocale.current
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(14.dp),
@@ -406,13 +407,17 @@ private fun PendingHandoverNotice(
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    handoverHeadline(pending.kind, who),
+                    handoverHeadline(pending.kind, who, locale),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     handoverDetail(
-                        pending.kind, pending.ready, pending.ripens_at, pending.expires_at,
+                        pending.kind,
+                        pending.ready,
+                        pending.ripens_at,
+                        pending.expires_at,
+                        locale,
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -436,7 +441,7 @@ private fun PendingHandoverNotice(
                             LinkButton(onClick = onCancel, enabled = !busy) {
                                 // The owner's veto and the recipient's decline
                                 // are the same button: this is not going ahead.
-                                Text(handoverCancelLabel(isOwner, pending.mine))
+                                Text(handoverCancelLabel(isOwner, pending.mine, locale))
                             }
                         }
                     }

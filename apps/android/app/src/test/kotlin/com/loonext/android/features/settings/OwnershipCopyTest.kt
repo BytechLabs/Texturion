@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.core.model.MessageLocale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -62,6 +63,43 @@ class OwnershipCopyTest {
         // An owner turning down an offer aimed at THEM is declining, not
         // vetoing — they are the recipient in that case.
         assertEquals("Decline", handoverCancelLabel(isOwner = true, isMine = true))
+    }
+
+    /*
+     * #228 — the same handover, read in French.
+     *
+     * The English cases above are the RULE: which sentence each state gets,
+     * and that a claim in its window says both halves of the safety property.
+     * This one asks whether the catalogue answers at all — the resolver falls
+     * back to the key it was given, so an unported key renders as
+     * `settingsMore.ownershipOffered` on somebody's screen rather than
+     * failing anywhere a test would see.
+     */
+    @Test
+    fun `a French reader is told the same thing about a handover`() {
+        val headline =
+            handoverHeadline(HandoverKind.OFFER, "Riley Partner", MessageLocale.FR_CA)
+        assertTrue(headline, headline.contains("Riley Partner"))
+        assertTrue(headline, !headline.contains("settingsMore."))
+        assertTrue(headline, !headline.contains("{name}"))
+
+        val waiting =
+            handoverDetail(HandoverKind.CLAIM, ready = false, ripens, expires, MessageLocale.FR_CA)
+        // Both halves of the safety property have to survive the translation:
+        // the owner has a veto, and using it takes effect at once. A French
+        // sentence that kept only the deadline would read as a notice.
+        assertTrue(waiting, waiting.contains("propriétaire"))
+        assertTrue(waiting, waiting.contains("immédiatement"))
+        assertTrue(waiting, !waiting.contains("{when}"))
+
+        assertEquals(
+            "Arrêter",
+            handoverCancelLabel(isOwner = true, isMine = false, locale = MessageLocale.FR_CA),
+        )
+        assertEquals(
+            "Refuser",
+            handoverCancelLabel(isOwner = false, isMine = true, locale = MessageLocale.FR_CA),
+        )
     }
 
     // -----------------------------------------------------------------------

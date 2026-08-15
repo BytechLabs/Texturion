@@ -2114,12 +2114,16 @@ fun orderMyDevices(sessions: List<DeviceSession>): List<DeviceSession> =
  * inline in a composable — the failure mode is one client telling a workspace
  * something subtly different about who is taking it over.
  */
-fun handoverHeadline(kind: String, who: String): String =
-    if (kind == HandoverKind.OFFER) {
-        "Ownership has been offered to $who."
-    } else {
-        "$who has asked to take over this workspace."
-    }
+fun handoverHeadline(kind: String, who: String, locale: String? = null): String =
+    AppStrings.translate(
+        locale,
+        if (kind == HandoverKind.OFFER) {
+            "settingsMore.ownershipOffered"
+        } else {
+            "settingsMore.ownershipAskedToTakeOver"
+        },
+        mapOf("name" to who),
+    )
 
 /**
  * The line underneath it: what happens next, and by when.
@@ -2133,15 +2137,23 @@ fun handoverDetail(
     ready: Boolean,
     ripensAt: String,
     expiresAt: String,
+    locale: String? = null,
 ): String = when {
     kind == HandoverKind.OFFER ->
-        "Nothing changes until they accept. The offer expires ${absoluteTime(expiresAt)}."
+        AppStrings.translate(
+            locale,
+            "settingsMore.ownershipOfferExpires",
+            mapOf("when" to absoluteTime(expiresAt)),
+        )
 
-    ready -> "The waiting period is over. They can complete this at any time."
+    ready -> AppStrings.translate(locale, "settingsMore.ownershipWaitOver")
 
     else ->
-        "This completes ${absoluteTime(ripensAt)} unless the owner stops it. " +
-            "Stopping it takes effect immediately."
+        AppStrings.translate(
+            locale,
+            "settingsMore.ownershipCompletesAt",
+            mapOf("when" to absoluteTime(ripensAt)),
+        )
 }
 
 /**
@@ -2151,8 +2163,11 @@ fun handoverDetail(
  * person reading them is doing two different things: an owner is vetoing
  * something aimed at them, and a recipient is turning something down.
  */
-fun handoverCancelLabel(isOwner: Boolean, isMine: Boolean): String =
-    if (isOwner && !isMine) "Stop this" else "Decline"
+fun handoverCancelLabel(isOwner: Boolean, isMine: Boolean, locale: String? = null): String =
+    AppStrings.translate(
+        locale,
+        if (isOwner && !isMine) "settingsMore.ownershipStopThis" else "settingsMore.ownershipDecline",
+    )
 
 // ---------------------------------------------------------------------------
 // The handover, read by the person it is happening TO (#515)
