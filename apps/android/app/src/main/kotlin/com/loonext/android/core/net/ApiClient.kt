@@ -200,6 +200,7 @@ class ApiClient(
             ApiErrorCode.UNAUTHORIZED,
             "You're signed out.",
             401,
+            messageKey = "common.errSignedOut",
         )
         val first =
             execute(method, path, query, body, session.accessToken, companyId, idempotencyKey)
@@ -210,7 +211,12 @@ class ApiClient(
         val refreshed = refreshNow(staleToken = session.accessToken)
         if (refreshed == null) {
             _signedOut.tryEmit(Unit)
-            throw ApiException(ApiErrorCode.UNAUTHORIZED, "Session expired.", 401)
+            throw ApiException(
+                ApiErrorCode.UNAUTHORIZED,
+                "Session expired.",
+                401,
+                messageKey = "common.errSessionExpired",
+            )
         }
         val second =
             execute(method, path, query, body, refreshed.accessToken, companyId, idempotencyKey)
@@ -294,11 +300,18 @@ class ApiClient(
             RecentErrors.record(
                 listOfNotNull(label, "$status", code, requestId).joinToString(" ").trim(),
             )
+            // #228: the one place both cases meet. When the envelope carried a
+            // sentence it is the SERVER's, worded and translated there, and a
+            // client-side copy of it would go stale the moment the API rewords
+            // one. The fallback is ours, so it gets a key.
+            val serverMessage = parsed?.error?.message
             throw ApiException(
                 code = code,
-                message = parsed?.error?.message ?: "Something went wrong ($status).",
+                message = serverMessage ?: "Something went wrong ($status).",
                 httpStatus = status,
                 requestId = requestId,
+                messageKey = if (serverMessage == null) "common.errServer" else null,
+                messageVars = mapOf("status" to status.toString()),
             )
         }
     }
@@ -347,6 +360,7 @@ class ApiClient(
                 ApiErrorCode.NETWORK,
                 "Can't reach Loonext. Check your connection.",
                 0,
+                messageKey = "common.errNetwork",
             )
         }
         return response.use {

@@ -43,6 +43,29 @@ object CommonStrings : AppStrings.Section {
         "common.unknownError" to "Something went wrong.",
 
         /*
+         * #228 — the sentences THIS APP writes when a request fails.
+         *
+         * Every one was English on a French phone until now, and they are the
+         * most-seen copy in the product: a lost connection shows one of these
+         * on every screen at once. The server's own refusals are NOT here —
+         * those arrive worded and translated by the API, and a second copy of
+         * them would go stale the moment it rewords one.
+         */
+        "common.errNetwork" to "Can't reach Loonext. Check your connection.",
+        "common.errSignInNetwork" to
+            "Can't reach the sign-in service. Check your connection.",
+        "common.errSignedOut" to "You're signed out.",
+        "common.errSessionExpired" to "Session expired.",
+        "common.errServer" to "Something went wrong ({status}).",
+        "common.errGoogleUnavailable" to
+            "Google sign-in isn't set up for this app yet.",
+        "common.errPhoneConnect" to
+            "Couldn't connect your phone. Check your connection and try again.",
+        "common.errCallingNotReady" to
+            "Calling isn't ready yet. Try again in a moment.",
+        "common.errTwoCalls" to "You're already on two calls.",
+
+        /*
          * ── What "selected" says in a bulk bar ────────────────────────────────
          *
          * Common rather than inbox: the conversation list and the task list both
@@ -77,6 +100,21 @@ object CommonStrings : AppStrings.Section {
             "quelque chose que vous avez fait. S'il y a une mise à jour de " +
             "l'application, elle corrige habituellement ce genre de chose.",
         "common.unknownError" to "Une erreur s'est produite.",
+
+        "common.errNetwork" to
+            "Impossible de joindre Loonext. Vérifiez votre connexion.",
+        "common.errSignInNetwork" to
+            "Impossible de joindre le service de connexion. Vérifiez votre connexion.",
+        "common.errSignedOut" to "Vous êtes déconnecté.",
+        "common.errSessionExpired" to "Session expirée.",
+        "common.errServer" to "Une erreur s'est produite ({status}).",
+        "common.errGoogleUnavailable" to
+            "La connexion Google n'est pas encore configurée pour cette application.",
+        "common.errPhoneConnect" to
+            "Impossible de connecter votre téléphone. Vérifiez votre connexion et réessayez.",
+        "common.errCallingNotReady" to
+            "Les appels ne sont pas encore prêts. Réessayez dans un moment.",
+        "common.errTwoCalls" to "Vous êtes déjà sur deux appels.",
 
         "common.bulkSelectedCount" to "{count} sélectionnées",
         "common.bulkSelectedAllMatching" to

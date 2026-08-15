@@ -135,6 +135,7 @@ class SupabaseAuth(
                 ApiErrorCode.NETWORK,
                 "Can't reach the sign-in service. Check your connection.",
                 0,
+                messageKey = "common.errSignInNetwork",
             )
         }
         response.use {
@@ -143,6 +144,7 @@ class SupabaseAuth(
                     "oauth_provider_unavailable",
                     "Google sign-in isn't set up for this app yet.",
                     it.code,
+                    messageKey = "common.errGoogleUnavailable",
                 )
             }
         }

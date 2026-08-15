@@ -86,6 +86,9 @@ fun Throwable.userMessage(locale: String = MessageLocale.EN): String = when {
     // that is already doing its job.
     this is ApiException && requestId != null && httpStatus >= 500 ->
         "$message Reference $requestId."
+    // #228: ours gets translated, the server's is rendered as it arrived.
+    this is ApiException && messageKey != null ->
+        AppStrings.translate(locale, messageKey, messageVars)
     this is ApiException -> message
     this is ApiDecodeException -> AppStrings.translate(locale, "common.decodeFailed")
     else -> AppStrings.translate(locale, "common.unknownError")

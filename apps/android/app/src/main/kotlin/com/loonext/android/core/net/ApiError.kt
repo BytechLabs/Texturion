@@ -74,6 +74,26 @@ class ApiException(
     val httpStatus: Int,
     /** #555: the server's own reference for this failure, when it sent one. */
     val requestId: String? = null,
+    /**
+     * #228 — WHOSE SENTENCE THIS IS.
+     *
+     * Null means the SERVER wrote it: the message came off the `{ error: {
+     * code, message } }` envelope, and it is the API's to word and to
+     * translate. Rendering it verbatim is correct, and a client-side
+     * translation of it would be a second copy that goes stale the moment the
+     * server rewords its own.
+     *
+     * Non-null means WE wrote it — a transport failure, an expired session, a
+     * refusal this app decided on its own. Those are ours to translate, and
+     * before this they were rendered to a French reader in English on every
+     * failed request, which is the most-seen copy in the app.
+     *
+     * The English `message` stays either way. It is what a crash log and a
+     * diagnostics ring show, where a catalogue key would say nothing.
+     */
+    val messageKey: String? = null,
+    /** Values for a `{name}` inside [messageKey]'s sentence. */
+    val messageVars: Map<String, String> = emptyMap(),
 ) : Exception(message)
 
 /**
