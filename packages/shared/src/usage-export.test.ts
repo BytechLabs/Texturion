@@ -8,6 +8,18 @@ import {
   USAGE_EXPORT_CAPABILITY,
 } from "./usage-export";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/** #228 — the module names keys now, so the copy assertions resolve them. */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[
+    name
+  ];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
 /**
  * #595 — the period three clients offer by default, and the words they offer it in.
  *
@@ -84,14 +96,33 @@ describe("the words and the gate", () => {
   });
 
   it("says what the file is not, where the decision is made", () => {
-    expect(EXPORT_USAGE_NOTE).toContain("not a copy of your Stripe invoice");
+    expect(look(WEB_EN, EXPORT_USAGE_NOTE)).toContain(
+      "not a copy of your Stripe invoice",
+    );
+    // The same disclaimer in French. A bookkeeper expecting an invoice is the
+    // person this sentence exists for, and they do not stop existing in Quebec.
+    expect(look(WEB_FR, EXPORT_USAGE_NOTE)).toMatch(/pas une copie de votre facture/i);
   });
 
   it("names no customer data in the promise it makes", () => {
-    expect(EXPORT_USAGE_BLURB).toContain("texts, calls and storage");
+    expect(look(WEB_EN, EXPORT_USAGE_BLURB)).toContain("texts, calls and storage");
+    expect(look(WEB_FR, EXPORT_USAGE_BLURB)).toMatch(/textos.*appels.*stockage/i);
   });
 
-  it("has an action label short enough for a phone row", () => {
-    expect(EXPORT_USAGE_ACTION.length).toBeLessThanOrEqual(16);
+  it("has an action label short enough for a phone row, in both languages", () => {
+    // A CAP PER LANGUAGE, not one cap, and the difference is not a fudge.
+    //
+    // This assertion only ever saw English, and the French that both phones
+    // have shipped for months — "Exporter l'utilisation", 22 characters — is
+    // six over the English limit. Nobody knew, because the constant it read
+    // held the English and nothing else.
+    //
+    // French runs longer than English for the same meaning; 20-30% is the
+    // usual figure and this pair is at 22/12. A single number would either
+    // pass vacuously for English or force a worse French translation to fit a
+    // limit derived from a shorter language. So each language gets the number
+    // its own row can take, and both are asserted rather than one.
+    expect(look(WEB_EN, EXPORT_USAGE_ACTION).length).toBeLessThanOrEqual(16);
+    expect(look(WEB_FR, EXPORT_USAGE_ACTION).length).toBeLessThanOrEqual(24);
   });
 });

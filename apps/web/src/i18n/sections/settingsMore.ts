@@ -13,6 +13,11 @@
 import type { Translated } from "../translated";
 
 export const settingsMoreEn = {
+  /* #228 — the usage export. Both phones have had these three; the web
+     read the English off packages/shared. */
+  exportUsageAction: "Export usage",
+  exportUsageBlurb: "Your texts, calls and storage for a period, as a file for whoever does your books.",
+  exportUsageNote: "It counts what we measured — it is not a copy of your Stripe invoice, and nothing on it is priced. It is put together in the background and appears under Data export.",
   /*
    * #244 — the on-call card's heading. Both phones read it from settingsMore.onCallTitle; the shared module held the English.
    */
@@ -1200,6 +1205,9 @@ export const settingsMoreEn = {
 } as const;
 
 export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
+  exportUsageAction: "Exporter l'utilisation",
+  exportUsageBlurb: "Vos textos, vos appels et votre stockage pour une période, sous forme de fichier pour la personne qui tient vos livres.",
+  exportUsageNote: "Le fichier compte ce que nous avons mesuré — ce n'est pas une copie de votre facture Stripe, et rien n'y est chiffré en dollars. Il est assemblé en arrière-plan et apparaît sous Exportation de données.",
   onCallTitle: "De garde",
 
 

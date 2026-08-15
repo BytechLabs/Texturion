@@ -286,21 +286,38 @@ final class UsageExportCardTests: XCTestCase {
     func testTheWordsAreTheOnesTheSharedModuleWrote() throws {
         // Two of the four clients import `usage-export.ts`; this one cannot, so
         // the sentences are retyped here — and a retyped sentence drifts. The
-        // TypeScript is read and compared rather than trusted.
-        let module = try repoFile("packages/shared/src/usage-export.ts")
+        // source is read and compared rather than trusted.
+        //
+        // #228: that source is the web catalogue now. The shared module names
+        // keys, and `UsageExport.action` resolves one — so comparing the two
+        // would compare a sentence to a key. The English half is sliced out
+        // because the French holds the same keys.
+        let raw = try repoFile("apps/web/src/i18n/sections/settingsMore.ts")
+        guard let start = raw.range(of: "export const settingsMoreEn"),
+              let end = raw.range(of: "export const settingsMoreFr")
+        else {
+            return XCTFail("settingsMore.ts no longer has both language blocks")
+        }
+        let catalogue = String(raw[start.upperBound ..< end.lowerBound])
 
-        XCTAssertEqual(
-            sharedConstant("EXPORT_USAGE_ACTION", in: module), UsageExport.action
-        )
-        XCTAssertEqual(
-            sharedConstant("EXPORT_USAGE_BLURB", in: module), UsageExport.blurb
-        )
-        // The caveat, which is the one a customer is entitled to read the same
-        // way on every client: it counts what we measured, and it is not the
-        // invoice.
-        XCTAssertEqual(
-            sharedConstant("EXPORT_USAGE_NOTE", in: module), UsageExport.note
-        )
+        for (name, text) in [
+            ("action", UsageExport.action),
+            ("blurb", UsageExport.blurb),
+            // The caveat, which is the one a customer is entitled to read the
+            // same way on every client: it counts what we measured, and it is
+            // not the invoice.
+            ("note", UsageExport.note),
+        ] {
+            XCTAssertTrue(
+                catalogue.contains("\"\(text)\""),
+                "the \(name) has drifted from the catalogue: \(text)"
+            )
+        }
+
+        // The CAPABILITY did not move and is still read from the module. It is
+        // a permission string rather than copy, and pointing it at a catalogue
+        // would have it search a file that has never held one.
+        let module = try repoFile("packages/shared/src/usage-export.ts")
         XCTAssertEqual(
             sharedConstant("USAGE_EXPORT_CAPABILITY", in: module), UsageExport.capability
         )

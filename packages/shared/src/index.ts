@@ -1044,6 +1044,7 @@ export {
   EXPORT_USAGE_NOTE,
   lastCompleteMonth,
   USAGE_EXPORT_CAPABILITY,
+  type UsageExportKey,
 } from "./usage-export";
 
 // #330 — handing the truck phone to whoever is covering the evening. A full, clean

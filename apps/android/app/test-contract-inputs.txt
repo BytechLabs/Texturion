@@ -50,6 +50,7 @@ apps/web/src/components/thread
 # rather than the sections directory: an edit to any of these re-runs the whole
 # Android suite, and the other sections are nothing a Kotlin test reads.
 apps/web/src/i18n/sections/settings.ts
+apps/web/src/i18n/sections/settingsMore.ts
 
 # #228: the copy packages/shared names for every client. ReferralShareTest's
 # cross-language pin reads it for the same reason CancellationOfferTest reads

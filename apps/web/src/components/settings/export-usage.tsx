@@ -95,10 +95,10 @@ export function ExportUsage() {
   if (!open) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{EXPORT_USAGE_BLURB}</p>
+        <p className="text-sm text-muted-foreground">{t(EXPORT_USAGE_BLURB)}</p>
         <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
           <FileSpreadsheet className="size-3.5" strokeWidth={1.75} aria-hidden />
-          {EXPORT_USAGE_ACTION}
+          {t(EXPORT_USAGE_ACTION)}
         </Button>
       </div>
     );
@@ -106,7 +106,7 @@ export function ExportUsage() {
 
   return (
     <div className="space-y-3 rounded-app-input border border-app-line bg-app-paper p-3">
-      <p className="text-sm text-muted-foreground">{EXPORT_USAGE_BLURB}</p>
+      <p className="text-sm text-muted-foreground">{t(EXPORT_USAGE_BLURB)}</p>
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label htmlFor="usage-export-from" className="text-[12px]">
@@ -132,7 +132,7 @@ export function ExportUsage() {
         </div>
       </div>
       {/* The caveat where the decision is made, not where the file lands. */}
-      <p className="text-[12px] text-app-muted-2">{EXPORT_USAGE_NOTE}</p>
+      <p className="text-[12px] text-app-muted-2">{t(EXPORT_USAGE_NOTE)}</p>
       <div className="flex items-center gap-2">
         <Button
           size="sm"

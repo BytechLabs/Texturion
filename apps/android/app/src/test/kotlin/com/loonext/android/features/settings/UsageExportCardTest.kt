@@ -429,14 +429,21 @@ class UsageExportCardTest {
         // stops a bookkeeper expecting an invoice. Three clients say it, and a
         // hand-port is a retype — so this reads the ONE source and requires the
         // Kotlin constants to appear in it verbatim.
-        val source = sharedSource()
+        // #228: the WORDS live in the web catalogue now. `sharedSource()`
+        // stays — the capability assertion below still reads the module, which
+        // is where a capability belongs.
+        //
+        // Sliced to the English half: the French holds the same keys, and a
+        // `contains` over the whole file would ask whether a sentence appears
+        // in EITHER language.
+        val source = catalogueEnglish()
         for ((name, text) in listOf(
             "EXPORT_USAGE_ACTION" to EXPORT_USAGE_ACTION,
             "EXPORT_USAGE_BLURB" to EXPORT_USAGE_BLURB,
             "EXPORT_USAGE_NOTE" to EXPORT_USAGE_NOTE,
         )) {
             assertTrue(
-                "$name has drifted from packages/shared/src/usage-export.ts. " +
+                "$name has drifted from the catalogue. " +
                     "This app says:\n  $text",
                 source.contains("\"$text\""),
             )
@@ -465,6 +472,24 @@ class UsageExportCardTest {
      * `../`: Gradle runs unit tests from `apps/android/app`, but that is a
      * detail of the runner rather than a promise.
      */
+    /** The web catalogue's English half, where these three sentences went. */
+    private fun catalogueEnglish(): String {
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, "apps/web/src/i18n/sections/settingsMore.ts")
+            if (candidate.exists()) {
+                return candidate.readText()
+                    .substringAfter("export const settingsMoreEn")
+                    .substringBefore("export const settingsMoreFr")
+            }
+            dir = dir.parentFile
+        }
+        throw AssertionError(
+            "apps/web/src/i18n/sections/settingsMore.ts not found walking up from " +
+                File("").absolutePath,
+        )
+    }
+
     private fun sharedSource(): String {
         var dir: File? = File("").absoluteFile
         while (dir != null) {

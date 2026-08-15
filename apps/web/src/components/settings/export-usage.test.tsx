@@ -36,6 +36,14 @@ import {
   lastCompleteMonth,
 } from "@loonext/shared";
 
+import { sayEnglish } from "@/i18n/provider";
+
+/**
+ * #228 — the shared module names catalogue KEYS now, so a test looking for the
+ * words on the screen resolves them the way the card does.
+ */
+const say = sayEnglish;
+
 import { ExportUsage } from "./export-usage";
 import { ApiError } from "@/lib/api/error";
 
@@ -67,14 +75,14 @@ describe("#304 exporting a period's usage", () => {
     // they do not hold — would hide it from them.
     role.current = "bookkeeper";
     render(<ExportUsage />);
-    expect(screen.getByText(EXPORT_USAGE_ACTION)).toBeTruthy();
+    expect(screen.getByText(say(EXPORT_USAGE_ACTION))).toBeTruthy();
   });
 
   it("EU-3: opens with last month filled in, not empty", () => {
     // The API requires a start. An empty pair would be a form that cannot be
     // submitted until somebody works out what to type.
     render(<ExportUsage />);
-    fireEvent.click(screen.getByText(EXPORT_USAGE_ACTION));
+    fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
 
     const from = screen.getByLabelText("From") as HTMLInputElement;
     const to = screen.getByLabelText("To") as HTMLInputElement;
@@ -110,8 +118,8 @@ describe("#304 exporting a period's usage", () => {
     // The caveat belongs where the decision is made. Discovering it inside the
     // file, after waiting for an email, is where disappointment lives.
     render(<ExportUsage />);
-    fireEvent.click(screen.getByText(EXPORT_USAGE_ACTION));
-    const note = screen.getByText(EXPORT_USAGE_NOTE);
+    fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
+    const note = screen.getByText(say(EXPORT_USAGE_NOTE));
     expect(note.textContent).toMatch(/not a copy of your Stripe invoice/);
     expect(note.textContent).toMatch(/nothing on it is priced/);
   });
@@ -121,7 +129,7 @@ describe("#304 exporting a period's usage", () => {
     // that day drops it, and the file comes back a day short with nothing to
     // say it had.
     render(<ExportUsage />);
-    fireEvent.click(screen.getByText(EXPORT_USAGE_ACTION));
+    fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
     fireEvent.change(screen.getByLabelText("To"), {
       target: { value: "2026-06-30" },
     });
@@ -137,7 +145,7 @@ describe("#304 exporting a period's usage", () => {
     // It is asynchronous. "Done" with no destination is somebody refreshing a
     // page the file will never appear on.
     render(<ExportUsage />);
-    fireEvent.click(screen.getByText(EXPORT_USAGE_ACTION));
+    fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
     fireEvent.click(screen.getByText("Start it"));
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
@@ -149,7 +157,7 @@ describe("#304 exporting a period's usage", () => {
       new ApiError("validation_failed", "The end of the period is before its start.", 422),
     );
     render(<ExportUsage />);
-    fireEvent.click(screen.getByText(EXPORT_USAGE_ACTION));
+    fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
     fireEvent.click(screen.getByText("Start it"));
 
     await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));

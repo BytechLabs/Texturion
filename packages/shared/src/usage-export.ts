@@ -83,12 +83,17 @@ const pad4 = (value: number): string => `${value}`.padStart(4, "0");
  */
 export const USAGE_EXPORT_CAPABILITY = "billing.manage" as const;
 
-/** The words this surface owns, so the three clients cannot drift apart. */
-export const EXPORT_USAGE_ACTION = "Export usage";
-export const EXPORT_USAGE_BLURB =
-  "Your texts, calls and storage for a period, as a file for whoever does " +
-  "your books.";
-export const EXPORT_USAGE_NOTE =
-  "It counts what we measured — it is not a copy of your Stripe invoice, and " +
-  "nothing on it is priced. It is put together in the background and appears " +
-  "under Data export.";
+/** Every catalogue key this module names. */
+export type UsageExportKey =
+  | "settingsMore.exportUsageAction"
+  | "settingsMore.exportUsageBlurb"
+  | "settingsMore.exportUsageNote";
+
+/**
+ * The words this surface owns, so the three clients cannot drift apart —
+ * catalogue KEYS since #228, and both phones have said them in French for
+ * months.
+ */
+export const EXPORT_USAGE_ACTION: UsageExportKey = "settingsMore.exportUsageAction";
+export const EXPORT_USAGE_BLURB: UsageExportKey = "settingsMore.exportUsageBlurb";
+export const EXPORT_USAGE_NOTE: UsageExportKey = "settingsMore.exportUsageNote";
