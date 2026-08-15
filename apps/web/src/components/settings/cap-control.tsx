@@ -69,7 +69,7 @@ export function CapControl({
     );
   }
 
-  const change = describeCapChange(currentValue, proposed, includedSegments);
+  const change = describeCapChange(currentValue, proposed, includedSegments, t);
   const pauseAt = capSegments(includedSegments, proposed);
   const dirty = proposed !== currentValue;
 

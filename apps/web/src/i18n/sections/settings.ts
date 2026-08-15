@@ -13,6 +13,13 @@
 import type { Translated } from "../translated";
 
 export const settingsEn = {
+  /* #228 — the spending cap's confirm dialog. Three keys rather than
+     one with clauses: a raise, a raise to the ceiling and a lowering
+     say different things about money, and only the ceiling one names
+     the overage rate. */
+  capRaised: "Sending pauses at {next} messages this period instead of {current}.",
+  capRaisedToCeiling: "Sending pauses at {next} messages this period instead of {current}. That's the highest the cap goes. Every message over your {included} included is billed at the overage rate until sending pauses.",
+  capLowered: "Sending pauses at {next} messages this period. If you're already past that, sends pause right away.",
   /* #228 — ending a prepaid year. {plan} is "Pro" or "Starter", which
      are product names and are not translated. */
   prepaidHeading: "You have a prepaid {plan} year running.",
@@ -807,6 +814,9 @@ export const settingsEn = {
  * translated — a machine matches on those.
  */
 export const settingsFr: Translated<typeof settingsEn> = {
+  capRaised: "Les envois s'arrêtent à {next} textos pour cette période au lieu de {current}.",
+  capRaisedToCeiling: "Les envois s'arrêtent à {next} textos pour cette période au lieu de {current}. C'est le plafond le plus élevé possible. Chaque texto au-delà des {included} compris est facturé au tarif de dépassement jusqu'à l'arrêt des envois.",
+  capLowered: "Les envois s'arrêtent à {next} textos pour cette période. Si vous avez déjà dépassé ce nombre, les envois s'arrêtent tout de suite.",
   prepaidHeading: "Vous avez une année prépayée {plan} en cours.",
   prepaidEndsPlain: "Changer met fin à l'année prépayée. Vous payez ensuite le prix mensuel normal du forfait {plan}.",
   prepaidEndsCredited: "Changer met fin à l'année prépayée et remet {credit} en crédit sur votre compte, qui sera déduit de vos prochaines factures. Vous payez ensuite le prix mensuel normal du forfait {plan}.",

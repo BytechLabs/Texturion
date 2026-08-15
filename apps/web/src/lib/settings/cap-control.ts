@@ -73,10 +73,23 @@ export interface CapChange {
  * `null` on either side resolves to the 10× ceiling (see normalizeMultiplier),
  * so a legacy "no cap" value and the Maximum preset compare as the same thing.
  */
+/** Every catalogue key this module names. */
+export type CapChangeKey =
+  | "settings.capRaised"
+  | "settings.capRaisedToCeiling"
+  | "settings.capLowered";
+
+/** The reader's resolver. */
+export type SayCapChange = (
+  key: CapChangeKey,
+  vars: Record<string, string>,
+) => string;
+
 export function describeCapChange(
   current: number | null,
   next: number | null,
   includedSegments: number,
+  say: SayCapChange,
 ): CapChange {
   const currentValue = current ?? MAX_CAP_MULTIPLIER;
   const nextValue = next ?? MAX_CAP_MULTIPLIER;
@@ -93,15 +106,20 @@ export function describeCapChange(
     return {
       kind: "raise",
       requiresConfirmation: true,
-      summary: atCeiling
-        ? `Sending pauses at ${nextTotal.toLocaleString()} messages this period instead of ${currentTotal.toLocaleString()}. That's the highest the cap goes. Every message over your ${includedSegments.toLocaleString()} included is billed at the overage rate until sending pauses.`
-        : `Sending pauses at ${nextTotal.toLocaleString()} messages this period instead of ${currentTotal.toLocaleString()}.`,
+      summary: say(
+        atCeiling ? "settings.capRaisedToCeiling" : "settings.capRaised",
+        {
+          next: nextTotal.toLocaleString(),
+          current: currentTotal.toLocaleString(),
+          included: includedSegments.toLocaleString(),
+        },
+      ),
     };
   }
 
   return {
     kind: "lower",
     requiresConfirmation: true,
-    summary: `Sending pauses at ${nextTotal.toLocaleString()} messages this period. If you're already past that, sends pause right away.`,
+    summary: say("settings.capLowered", { next: nextTotal.toLocaleString() }),
   };
 }
