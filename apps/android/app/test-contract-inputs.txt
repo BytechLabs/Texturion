@@ -56,6 +56,10 @@ apps/web/src/i18n/sections/settings.ts
 # the settings section — the shared module moved from holding sentences to
 # naming keys, and the guard followed the words.
 apps/web/src/i18n/sections/domain.ts
+
+# #228: the app shell's own words, read by HandOverPhoneTest for the same
+# reason — that module names keys now and the sentences live here.
+apps/web/src/i18n/sections/shell.ts
 # DeepLinkTest lists these directories to prove every settings slug it maps has
 # a route on the server's side of the link.
 apps/web/src/app/(app)/settings

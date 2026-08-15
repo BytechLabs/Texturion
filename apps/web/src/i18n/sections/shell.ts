@@ -13,6 +13,18 @@
 import type { Translated } from "../translated";
 
 export const shellEn = {
+  /*
+   * #265 — handing the phone to somebody else. Both phones have said these since #228 reached them; the web imported the shared constants and rendered whatever English came back. The unsent-message warning's singular and plural are separate keys: French agrees the noun and its verb with the count.
+   */
+  handOverAction: "Hand this phone to someone else",
+  handOverBody: "You'll be signed out and everything from this workspace comes off this phone: the conversations, your customers' details, and the unread counts. The next person signs in as themselves.",
+  handOverCancel: "Stay signed in",
+  handOverConfirm: "Sign out and clear",
+  handOverTitle: "Hand this phone over?",
+  handOverUnsentMany: "{count} messages haven't sent yet and will be discarded. If they matter, stay signed in until you have signal.",
+  handOverUnsentOne: "One message hasn't sent yet and will be discarded. If it matters, stay signed in until you have signal.",
+
+
   // ── The frame ────────────────────────────────────────────────────────────
   skipToContent: "Skip to content",
   offline:
@@ -369,6 +381,15 @@ export const shellEn = {
  * translating a label the browser will not use.
  */
 export const shellFr: Translated<typeof shellEn> = {
+  handOverAction: "Confier ce téléphone à quelqu'un d'autre",
+  handOverBody: "Vous serez déconnecté et tout ce qui vient de cet espace de travail quittera ce téléphone : les conversations, les coordonnées de vos clients et les compteurs de messages non lus. La prochaine personne se connectera en son propre nom.",
+  handOverCancel: "Rester connecté",
+  handOverConfirm: "Se déconnecter et tout effacer",
+  handOverTitle: "Confier ce téléphone ?",
+  handOverUnsentMany: "{count} messages ne sont pas encore envoyés et seront supprimés. Si c'est important, restez connecté jusqu'à ce que vous ayez du signal.",
+  handOverUnsentOne: "Un message n'est pas encore envoyé et sera supprimé. Si c'est important, restez connecté jusqu'à ce que vous ayez du signal.",
+
+
   skipToContent: "Aller au contenu",
   offline:
     "Vous êtes hors ligne. Ce qui est déjà ouvert reste lisible, et Loonext " +

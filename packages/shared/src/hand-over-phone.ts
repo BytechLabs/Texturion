@@ -25,16 +25,18 @@
  */
 
 /** The action, named for what somebody is actually doing. */
-export const HAND_OVER_PHONE_ACTION = "Hand this phone to someone else";
+import type { SayKey } from "./support";
+
+export const HAND_OVER_PHONE_ACTION = "shell.handOverAction";
 
 /** The confirmation's heading. */
-export const HAND_OVER_PHONE_TITLE = "Hand this phone over?";
+export const HAND_OVER_PHONE_TITLE = "shell.handOverTitle";
 
 /** Goes through with it. */
-export const HAND_OVER_PHONE_CONFIRM = "Sign out and clear";
+export const HAND_OVER_PHONE_CONFIRM = "shell.handOverConfirm";
 
 /** Backs out. */
-export const HAND_OVER_PHONE_CANCEL = "Stay signed in";
+export const HAND_OVER_PHONE_CANCEL = "shell.handOverCancel";
 
 /**
  * What happens, in the order it matters to the person holding the phone.
@@ -44,19 +46,19 @@ export const HAND_OVER_PHONE_CANCEL = "Stay signed in";
  * somebody reads past and one they act on — and if it is wrong in the safe
  * direction, they go and find signal first.
  */
-export function handOverPhoneBody(unsent: number): string {
-  const lines = [
-    "You'll be signed out and everything from this workspace comes off this " +
-      "phone: the conversations, your customers' details, and the unread counts. " +
-      "The next person signs in as themselves.",
-  ];
+export function handOverPhoneBody(unsent: number, say: SayKey): string {
+  const lines = [say("shell.handOverBody")];
   if (unsent > 0) {
+    /*
+     * #228: singular and plural are SEPARATE KEYS. French agrees "message" and
+     * its verb with the count, and the one-message case carries no numeral at
+     * all in either language — "1 message" would read as a form field on the
+     * screen where somebody is deciding whether to lose it.
+     */
     lines.push(
       unsent === 1
-        ? "One message hasn't sent yet and will be discarded. If it matters, " +
-          "stay signed in until you have signal."
-        : `${unsent} messages haven't sent yet and will be discarded. If they ` +
-          "matter, stay signed in until you have signal.",
+        ? say("shell.handOverUnsentOne")
+        : say("shell.handOverUnsentMany").replace("{count}", String(unsent)),
     );
   }
   return lines.join("\n\n");

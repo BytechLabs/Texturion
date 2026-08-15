@@ -68,11 +68,28 @@ final class HandOverPhoneTests: XCTestCase {
         throw CocoaError(.fileNoSuchFile)
     }
 
+    /// The web catalogue's ENGLISH half, which is where the sentences went.
+    ///
+    /// #228 moved `hand-over-phone.ts` from holding these sentences to naming
+    /// keys, so a `contains` against that file asks whether it holds a
+    /// paragraph it no longer holds. The guard's job is unchanged — this client
+    /// must not drift from the shared vocabulary — so it follows the words.
+    ///
+    /// Sliced to the English half: the French holds the same keys, and a
+    /// `contains` over the whole file would ask whether a sentence appears in
+    /// EITHER language.
     private func sharedSource() throws -> String {
-        try String(
-            contentsOf: try repoPath("packages/shared/src/hand-over-phone.ts"),
+        let raw = try String(
+            contentsOf: try repoPath("apps/web/src/i18n/sections/shell.ts"),
             encoding: .utf8
         )
+        guard let start = raw.range(of: "export const shellEn"),
+              let end = raw.range(of: "export const shellFr")
+        else {
+            XCTFail("shell.ts no longer has both language blocks")
+            return ""
+        }
+        return String(raw[start.upperBound ..< end.lowerBound])
     }
 
     /// Concatenation syntax and line wrapping removed, so what is left is the words.

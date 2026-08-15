@@ -85,9 +85,26 @@ class HandOverPhoneTest {
         .replace(Regex("\\s+"), " ")
         .trim()
 
+    /**
+     * The web catalogue's ENGLISH half, which is where the sentences went.
+     *
+     * #228 moved `hand-over-phone.ts` from holding these sentences to naming
+     * keys, so a `contains` against that file asks whether it holds a
+     * paragraph it no longer holds. The guard's job is unchanged — this client
+     * must not drift from the shared vocabulary — so it follows the words.
+     *
+     * Sliced to the English half: the French holds the same keys, and a
+     * `contains` over the whole file would ask whether a sentence appears in
+     * EITHER language.
+     */
+    private fun catalogue(): String =
+        repoFile("apps/web/src/i18n/sections/shell.ts")
+            .substringAfter("export const shellEn")
+            .substringBefore("export const shellFr")
+
     @Test
     fun `the sentence a clean handover shows matches the shared module, whole`() {
-        val shared = bare(repoFile("packages/shared/src/hand-over-phone.ts"))
+        val shared = bare(catalogue())
         assertTrue(
             "the handover copy has drifted from the shared module",
             shared.contains(bare(HandOverPhone.body(0))),
@@ -96,7 +113,7 @@ class HandOverPhoneTest {
 
     @Test
     fun `the labels match the shared module`() {
-        val shared = repoFile("packages/shared/src/hand-over-phone.ts")
+        val shared = catalogue()
         for (label in listOf(
             HandOverPhone.ACTION,
             HandOverPhone.TITLE,
