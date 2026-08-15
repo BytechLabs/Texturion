@@ -101,6 +101,11 @@ const TENANT_TABLES = new Set([
   // the schema — one is what a business charges its customers, the other names
   // the account that receives it.
   "payment_requests", "stripe_connect_accounts",
+  // #243: the outbound integration surface. `webhook_endpoints` holds the
+  // signing secret another workspace could forge our signature with, and
+  // `webhook_deliveries` holds the payloads themselves — which are the
+  // workspace's own messages, calls and contacts, copied.
+  "webhook_endpoints", "webhook_deliveries",
 ]);
 
 /**

@@ -135,6 +135,8 @@ gets overlooked.
 | `public_links` | token **hash** only, never the token | Life of the linked object |
 | `webhook_events` | provider payloads, which **contain message bodies and numbers** | Pruned daily |
 | `webhook_rejections` | signature failures | Rolling |
+| `webhook_deliveries` | the payloads we send OUT, which **contain message bodies, numbers and contact names** — the same class as `webhook_events`, copied into a second table (#243) | **30 days**, `api_prune_webhook_deliveries`, swept daily. The payload is kept rather than rebuilt so a redelivery re-sends the event as it was; that is a real requirement and it is also why this row needed a retention answer rather than inheriting one. Goes with the workspace in the teardown |
+| `webhook_endpoints` | a **URL** the business chose, its **signing secret**, and the **user id** who added it. No contact data | Life of the endpoint; deleted with the workspace. The secret is readable by `service_role` alone — no policy and no grant reaches it from a client key, because anything that can read it can forge our signature |
 | `inbound_canary_runs` | our own numbers only | Rolling |
 | `data_exports` | a notify-email id, and the export objects **contain everything above** | Expired exports deleted at 7 days (#378) |
 | `usage_events`, `usage_alerts`, `egress_events`, `company_ai_usage`, `call_records`, `provider_costs`, `billing_disputes`, `prepayments`, `referrals` | volumes and Stripe ids; no names or bodies | Billing record |

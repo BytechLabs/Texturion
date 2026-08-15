@@ -114,6 +114,10 @@ declare
     'prepayments', 'referrals',
     'email_events', 'email_suppressions', 'email_ledger', 'public_link_access',
     'public_links', 'webhook_events', 'webhook_rejections', 'inbound_canary_runs',
+    -- #243: the outbound half. `webhook_deliveries` is `webhook_events` facing
+    -- the other way and carries the same content, so it is classified beside it
+    -- rather than anywhere gentler.
+    'webhook_deliveries', 'webhook_endpoints',
     'data_exports', 'usage_events', 'usage_alerts', 'egress_events',
     'company_ai_usage', 'call_records', 'provider_costs', 'billing_disputes',
     -- §6 no personal data
