@@ -1070,6 +1070,7 @@ export {
   type JobPhotoGroup,
   type JobPhotoLike,
   type WorkPhase,
+  type WorkPhaseKey,
 } from "./work-phase";
 
 // #294 — an arrow and a circle, burned into the photo on the client so what reaches

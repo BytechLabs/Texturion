@@ -52,7 +52,7 @@ export function PhotoGroupHeader({
     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
       {phase !== null && (
         <span className="rounded-full bg-app-hover px-2 py-0.5 text-[11.5px] font-medium text-app-ink">
-          {WORK_PHASE_LABELS[phase]}
+          {t(WORK_PHASE_LABELS[phase])}
         </span>
       )}
       <span className="text-[12.5px] text-app-ink">{who}</span>

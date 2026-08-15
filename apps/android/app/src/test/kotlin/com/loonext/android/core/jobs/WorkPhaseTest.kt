@@ -153,7 +153,16 @@ class WorkPhaseTest {
 
     @Test
     fun `the labels match the shared module`() {
-        val shared = repoFile("packages/shared/src/work-phase.ts")
+        // #228: the WORDS live in the web catalogue now. The shared module
+        // names keys, and the phase ids ("before"/"after") — which are wire
+        // values a photo carries — are still asserted against it below.
+        //
+        // Sliced to the English half: the French holds the same keys, and a
+        // `contains` over the whole file would ask whether a label appears in
+        // EITHER language.
+        val shared = repoFile("apps/web/src/i18n/sections/domain.ts")
+            .substringAfter("export const domainEn")
+            .substringBefore("export const domainFr")
         for (label in listOf(
             WorkPhase.label("before"),
             WorkPhase.label("after"),

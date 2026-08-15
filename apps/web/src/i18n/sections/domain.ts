@@ -25,6 +25,11 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  /* #228 — before/after on a job's photos. Both phones have had these. */
+  workPhaseBefore: "Before",
+  workPhaseAfter: "After",
+  workPhaseUnset: "Not a before or after",
+  workPhaseHint: "Marks these photos as how it looked when you arrived, or how you left it.",
   /* #228 — the catch-up's three sections and the line that says whose
      reading it is. Both phones have had these; the web read the English
      off the shared module. */
@@ -332,6 +337,10 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  workPhaseBefore: "Avant",
+  workPhaseAfter: "Après",
+  workPhaseUnset: "Ni un avant ni un après",
+  workPhaseHint: "Marque ces photos comme l'état à votre arrivée, ou l'état dans lequel vous avez laissé les lieux.",
   catchUpSectionAsked: "Ce que le client a demandé",
   catchUpSectionWeSaid: "Ce que votre équipe a répondu",
   catchUpSectionOpen: "Ce qui reste en suspens",

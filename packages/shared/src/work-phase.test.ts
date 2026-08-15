@@ -3,11 +3,24 @@ import { describe, expect, it } from "vitest";
 import {
   WORK_PHASES,
   WORK_PHASE_LABELS,
+  WORK_PHASE_UNSET_LABEL,
   groupJobPhotos,
   isWorkPhase,
   jobPhaseSummary,
   type JobPhotoLike,
 } from "./work-phase";
+
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/** #228 — the module names keys now, so the copy assertions resolve them. */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[
+    name
+  ];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
 
 function photo(over: Partial<JobPhotoLike> & { id: string }): JobPhotoLike {
   return { created_at: "2026-08-08T10:00:00Z", ...over };
@@ -18,9 +31,27 @@ describe("the two labels (#294)", () => {
     // The one classification the trade uses. "During" is a category somebody
     // invented in a meeting; a tech takes a handful when they arrive and a handful
     // when they finish.
+    // The ids, which are wire values a photo carries and did not move.
     expect([...WORK_PHASES]).toEqual(["before", "after"]);
-    expect(WORK_PHASE_LABELS.before).toBe("Before");
-    expect(WORK_PHASE_LABELS.after).toBe("After");
+    // The words, where the words live since #228.
+    expect(look(WEB_EN, WORK_PHASE_LABELS.before)).toBe("Before");
+    expect(look(WEB_EN, WORK_PHASE_LABELS.after)).toBe("After");
+    expect(look(WEB_FR, WORK_PHASE_LABELS.before)).toBe("Avant");
+    expect(look(WEB_FR, WORK_PHASE_LABELS.after)).toBe("Après");
+  });
+
+  it("#228: does not offer 'None' for the third choice, in either language", () => {
+    // The unset label is named rather than "None" on purpose: most notes are
+    // neither a before nor an after, and "None" invites a tech to think they
+    // have failed to fill something in. "Aucun" is the French version of that
+    // same mistake.
+    expect(look(WEB_EN, WORK_PHASE_UNSET_LABEL).toLowerCase()).not.toBe("none");
+    const fr = look(WEB_FR, WORK_PHASE_UNSET_LABEL).toLowerCase();
+    expect(fr).not.toBe("aucun");
+    expect(fr).not.toBe("aucune");
+    // It says what it IS instead — neither one nor the other.
+    expect(fr).toContain("avant");
+    expect(fr).toContain("après");
   });
 
   it("refuses anything that is not one of them", () => {

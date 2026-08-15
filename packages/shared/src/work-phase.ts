@@ -35,11 +35,18 @@ export const WORK_PHASES = ["before", "after"] as const;
 
 export type WorkPhase = (typeof WORK_PHASES)[number];
 
-/** What each is called on screen. */
-export const WORK_PHASE_LABELS: Record<WorkPhase, string> = {
-  before: "Before",
-  after: "After",
+/** What each is called on screen — a catalogue KEY since #228. */
+export const WORK_PHASE_LABELS: Record<WorkPhase, WorkPhaseKey> = {
+  before: "domain.workPhaseBefore",
+  after: "domain.workPhaseAfter",
 };
+
+/** Every catalogue key this module names. */
+export type WorkPhaseKey =
+  | "domain.workPhaseBefore"
+  | "domain.workPhaseAfter"
+  | "domain.workPhaseUnset"
+  | "domain.workPhaseHint";
 
 /**
  * The choice offered when there is no label yet.
@@ -48,11 +55,10 @@ export const WORK_PHASE_LABELS: Record<WorkPhase, string> = {
  * is on order is not an unlabelled before. Offering "None" invites a tech to think
  * they have failed to fill something in.
  */
-export const WORK_PHASE_UNSET_LABEL = "Not a before or after";
+export const WORK_PHASE_UNSET_LABEL: WorkPhaseKey = "domain.workPhaseUnset";
 
 /** One line under the control, for somebody who has never seen it. */
-export const WORK_PHASE_HINT =
-  "Marks these photos as how it looked when you arrived, or how you left it.";
+export const WORK_PHASE_HINT: WorkPhaseKey = "domain.workPhaseHint";
 
 export function isWorkPhase(value: unknown): value is WorkPhase {
   return typeof value === "string" && (WORK_PHASES as readonly string[]).includes(value);

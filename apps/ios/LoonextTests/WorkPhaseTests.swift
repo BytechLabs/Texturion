@@ -128,6 +128,30 @@ final class WorkPhaseTests: XCTestCase {
         throw CocoaError(.fileNoSuchFile)
     }
 
+    /// Where the phase WORDS live since #228: the web catalogue.
+    ///
+    /// `sharedSource()` still backs the test below it, which reads WORK_PHASES
+    /// — the phase ids a photo carries as data. Those did not move, and
+    /// pointing that one here would have it search a copy file for ids it has
+    /// never held.
+    ///
+    /// Sliced to the English half: the French holds the same keys, and a
+    /// `contains` over the whole file would ask whether a label appears in
+    /// EITHER language.
+    private func catalogueEnglish() throws -> String {
+        let raw = try String(
+            contentsOf: try repoPath("apps/web/src/i18n/sections/domain.ts"),
+            encoding: .utf8
+        )
+        guard let start = raw.range(of: "export const domainEn"),
+              let end = raw.range(of: "export const domainFr")
+        else {
+            XCTFail("domain.ts no longer has both language blocks")
+            return ""
+        }
+        return String(raw[start.upperBound ..< end.lowerBound])
+    }
+
     private func sharedSource() throws -> String {
         try String(
             contentsOf: try repoPath("packages/shared/src/work-phase.ts"),
@@ -136,7 +160,7 @@ final class WorkPhaseTests: XCTestCase {
     }
 
     func testTheLabelsMatchTheSharedModule() throws {
-        let shared = try sharedSource()
+        let shared = try catalogueEnglish()
         for label in [
             WorkPhase.label("before"),
             WorkPhase.label("after"),

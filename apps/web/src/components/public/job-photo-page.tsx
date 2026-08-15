@@ -112,8 +112,8 @@ export function JobPhotoPage({
 
       {/* Before and after are what somebody opened this to compare, so they are
           the only headings. A section renders nothing when it is empty. */}
-      <PhotoSection title={WORK_PHASE_LABELS.before} photos={before} />
-      <PhotoSection title={WORK_PHASE_LABELS.after} photos={after} />
+      <PhotoSection title={t(WORK_PHASE_LABELS.before)} photos={before} />
+      <PhotoSection title={t(WORK_PHASE_LABELS.after)} photos={after} />
       <PhotoSection title={null} photos={rest} />
     </main>
   );
