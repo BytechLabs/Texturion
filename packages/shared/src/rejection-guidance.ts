@@ -59,12 +59,20 @@
  * and Swift, where `\b` is a backspace escape rather than a boundary.
  */
 
-/** What the customer is told, and where to send them. */
+/**
+ * What the customer is told, and where to send them.
+ *
+ * #228: KEYS, not sentences. This catalogue is a module-level constant built
+ * before any reader exists, so a sentence written here could only ever be
+ * written in one language — and the reader of this particular screen has just
+ * been refused by a carrier and is deciding whether to bother trying again.
+ * Whichever client renders it is the one that knows their language.
+ */
 export interface RejectionGuidance {
-  /** What the carrier objected to. One sentence, G10. */
-  what: string;
-  /** The one thing to change. One sentence, G10. */
-  fix: string;
+  /** Catalogue key for what the carrier objected to. One sentence, G10. */
+  whatKey: RejectionMessageKey;
+  /** Catalogue key for the one thing to change. One sentence, G10. */
+  fixKey: RejectionMessageKey;
   /**
    * The form field to take them to, or null when the fix is not a single
    * field (a duplicate brand, a number that is not portable). Null is a real
@@ -73,10 +81,46 @@ export interface RejectionGuidance {
   field: string | null;
 }
 
-interface CatalogueEntry extends RejectionGuidance {
-  /** Distinctive phrases; any one appearing in the normalised reason wins. */
-  match: string[];
+interface CatalogueEntry {
+  /** Catalogue key for what the carrier objected to. */
+  whatKey: string;
+  /** Catalogue key for the one thing to change. */
+  fixKey: string;
+  /**
+   * The form field to take them to, or null when the fix is not a single
+   * field (a duplicate brand, a number that is not portable). Null is a real
+   * answer: pointing at a field that cannot fix it is worse than not pointing.
+   */
+  field: string | null;
+  /**
+   * Distinctive phrases; any one appearing in the normalised reason wins.
+   *
+   * These stay English and are NOT catalogue keys. They match text a carrier
+   * wrote, and a carrier writes `BRAND_LEGAL_NAME_MISMATCH` in English to
+   * everybody. Translating them would break the matching in exactly the
+   * language it was meant to serve.
+   */
+  match: readonly string[];
 }
+
+/**
+ * Every key these catalogues can name, derived from the catalogues themselves.
+ *
+ * The web's `t()` takes a key drawn from its own catalogue, so this union is
+ * what makes `tsc` prove the two agree. A `string` here would compile and
+ * then show `domain.rejectRegEinWhat` to somebody who has just been refused
+ * by a carrier — the one screen where a broken string is least recoverable,
+ * because the reader is already deciding whether to give up.
+ *
+ * Derived rather than written out, so adding an entry cannot forget to widen
+ * it.
+ */
+export type RejectionMessageKey =
+  | (typeof REGISTRATION)[number]["whatKey"]
+  | (typeof REGISTRATION)[number]["fixKey"]
+  | (typeof PORT)[number]["whatKey"]
+  | (typeof PORT)[number]["fixKey"]
+  | (typeof RESUBMISSION_WAIT_KEY)[keyof typeof RESUBMISSION_WAIT_KEY];
 
 /**
  * Lower-case, collapse every run of non-alphanumerics to a single space, and
@@ -95,11 +139,11 @@ function normalise(reason: string): string {
  * Field keys are the `name` attributes on the registration fix form, so a
  * client can focus the input without a second mapping table in between.
  */
-const REGISTRATION: CatalogueEntry[] = [
+const REGISTRATION = [
   {
     match: ["ein", "tax id", "taxid", "federal tax"],
-    what: "The tax ID you gave does not match what the government registry holds for your business.",
-    fix: "Check the EIN or business number on a tax document and enter it exactly, digits only.",
+    whatKey: "domain.rejectRegEinWhat",
+    fixKey: "domain.rejectRegEinFix",
     field: "ein",
   },
   {
@@ -107,62 +151,62 @@ const REGISTRATION: CatalogueEntry[] = [
     // disagreeing with a registry, which is the single most common rejection
     // for a sole trader and the one whose fix is least obvious.
     match: ["legal name", "business name", "brand name", "company name", "name mismatch"],
-    what: "The business name you gave does not match the one on your government registration.",
-    fix: "Use the exact legal name from your registration paperwork, including any Ltd, Inc or LLC — the name customers see is set separately.",
+    whatKey: "domain.rejectRegNameWhat",
+    fixKey: "domain.rejectRegNameFix",
     field: "companyName",
   },
   {
     match: ["address", "street", "postal", "zip", "city", "state", "province"],
-    what: "The business address does not match the one on your government registration.",
-    fix: "Enter the registered business address rather than a mailing or job-site address.",
+    whatKey: "domain.rejectRegAddressWhat",
+    fixKey: "domain.rejectRegAddressFix",
     field: "street",
   },
   {
     match: ["website", "web site", "url", "domain", "landing page"],
-    what: "The carrier could not confirm your business from the website you gave.",
-    fix: "Give a website that names your business and describes what you do, and make sure it loads publicly.",
+    whatKey: "domain.rejectRegWebsiteWhat",
+    fixKey: "domain.rejectRegWebsiteFix",
     field: "website",
   },
   {
     match: ["opt in", "optin", "consent", "cta", "call to action", "disclosure", "message flow"],
-    what: "The carrier was not satisfied that customers agree to be texted before you text them.",
-    fix: "Describe exactly where a customer gives you their number and what they are told at that moment.",
+    whatKey: "domain.rejectRegConsentWhat",
+    fixKey: "domain.rejectRegConsentFix",
     field: "messageFlow",
   },
   {
     match: ["sample", "example message", "content"],
-    what: "The sample texts did not show the carrier what you actually send.",
-    fix: "Use real messages you would send a customer, and include your business name in each one.",
+    whatKey: "domain.rejectRegSampleWhat",
+    fixKey: "domain.rejectRegSampleFix",
     field: "sample1",
   },
   {
     match: ["use case", "usecase", "vertical", "campaign type", "industry"],
-    what: "The use case you picked does not match what your samples and website describe.",
-    fix: "Pick the category that matches the texts you actually send to customers.",
+    whatKey: "domain.rejectRegUseCaseWhat",
+    fixKey: "domain.rejectRegUseCaseFix",
     field: "vertical",
   },
   {
     match: ["duplicate", "already registered", "already exists"],
-    what: "This business is already registered with the carriers, most likely by a provider you used before.",
+    whatKey: "domain.rejectRegDuplicateWhat",
     // Deliberately no field: no amount of editing this form fixes a brand
     // registered elsewhere. Sending them round the form again would waste
     // another wait.
-    fix: "Reply to us and we will get the existing registration released or transferred — this is not something the form can fix.",
+    fixKey: "domain.rejectRegDuplicateFix",
     field: null,
   },
   {
     match: ["entity type", "sole prop", "sole proprietor", "organization type", "non profit", "nonprofit"],
-    what: "The business type you chose does not match how your business is registered.",
-    fix: "Choose the type that matches your paperwork — a sole trader and a limited company are registered differently.",
+    whatKey: "domain.rejectRegEntityWhat",
+    fixKey: "domain.rejectRegEntityFix",
     field: "companyName",
   },
   {
     match: ["contact", "email", "phone number", "unreachable"],
-    what: "The carrier could not reach the contact details on the registration.",
-    fix: "Give a business email and phone number that reach a person and are not auto-replied.",
+    whatKey: "domain.rejectRegContactWhat",
+    fixKey: "domain.rejectRegContactFix",
     field: "email",
   },
-];
+] as const satisfies readonly CatalogueEntry[];
 
 /**
  * Port-in rejections, from the losing carrier.
@@ -171,50 +215,50 @@ const REGISTRATION: CatalogueEntry[] = [
  * which is why they are so worth translating: `ACCOUNT_NUMBER_MISMATCH` sounds
  * fatal and is a ten-minute correction from last month's bill.
  */
-const PORT: CatalogueEntry[] = [
+const PORT = [
   {
     match: ["account number", "acct no", "acct num"],
-    what: "The account number does not match the one your current provider has on file.",
-    fix: "Copy it from a recent bill from that provider — it is usually not the phone number itself.",
+    whatKey: "domain.rejectPortAccountWhat",
+    fixKey: "domain.rejectPortAccountFix",
     field: "account_number",
   },
   {
     match: ["pin", "passcode", "password", "security code"],
-    what: "The transfer PIN was missing or wrong.",
-    fix: "Ask your current provider for a port-out PIN — most will only give it to the account holder, and it often expires within a few days.",
+    whatKey: "domain.rejectPortPinWhat",
+    fixKey: "domain.rejectPortPinFix",
     field: "account_number",
   },
   {
     match: ["authorized person", "auth person", "signature", "loa", "letter of auth"],
-    what: "The person named on the request is not authorised on the account.",
-    fix: "Use the name of the person your current provider has as the account holder, spelled the same way.",
+    whatKey: "domain.rejectPortAuthWhat",
+    fixKey: "domain.rejectPortAuthFix",
     field: "auth_person_name",
   },
   {
     match: ["entity name", "account holder", "name mismatch", "customer name"],
-    what: "The account holder name does not match your current provider's records.",
-    fix: "Use the name exactly as it appears on the bill, including any Ltd, Inc or LLC.",
+    whatKey: "domain.rejectPortEntityWhat",
+    fixKey: "domain.rejectPortEntityFix",
     field: "entity_name",
   },
   {
     match: ["address", "service address", "street", "zip", "postal", "locality"],
-    what: "The service address does not match the one your current provider has on file.",
-    fix: "Use the address on the bill for this line, even if the business has since moved.",
+    whatKey: "domain.rejectPortAddressWhat",
+    fixKey: "domain.rejectPortAddressFix",
     field: "service_street",
   },
   {
     match: ["pending order", "in progress", "another port"],
-    what: "Your current provider has another change in progress on this line.",
-    fix: "Ask them to cancel or finish it, then tell us and we will resubmit.",
+    whatKey: "domain.rejectPortPendingWhat",
+    fixKey: "domain.rejectPortPendingFix",
     field: null,
   },
   {
     match: ["not found", "invalid number", "not active", "disconnected", "unportable", "not portable"],
-    what: "Your current provider says this number is not active on the account we asked about.",
-    fix: "Check the number is still in service and on the account you gave us — a number already cancelled cannot be moved.",
+    whatKey: "domain.rejectPortInactiveWhat",
+    fixKey: "domain.rejectPortInactiveFix",
     field: null,
   },
-];
+] as const satisfies readonly CatalogueEntry[];
 
 const CATALOGUES = { registration: REGISTRATION, port: PORT } as const;
 
@@ -238,7 +282,7 @@ export function explainRejection(
   const normalised = normalise(text);
   for (const entry of CATALOGUES[domain]) {
     if (entry.match.some((phrase) => normalised.includes(` ${phrase} `))) {
-      return { what: entry.what, fix: entry.fix, field: entry.field };
+      return { whatKey: entry.whatKey, fixKey: entry.fixKey, field: entry.field };
     }
   }
   return null;
@@ -253,9 +297,9 @@ export function explainRejection(
  * not commit to a time, and inventing a precise one we cannot hold would be a
  * worse promise than an honest range.
  */
-export const RESUBMISSION_WAIT = {
-  registration: "Most resubmissions are decided within a business day or two.",
-  port: "Most resubmitted transfers are accepted within a few business days.",
+export const RESUBMISSION_WAIT_KEY = {
+  registration: "domain.resubmitWaitRegistration",
+  port: "domain.resubmitWaitPort",
 } as const;
 
 /**

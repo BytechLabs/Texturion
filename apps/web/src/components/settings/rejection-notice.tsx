@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import {
   explainRejection,
   needsHumanHelp,
-  RESUBMISSION_WAIT,
+  RESUBMISSION_WAIT_KEY,
   supportMailto,
   type RejectionDomain,
 } from "@loonext/shared";
@@ -85,7 +85,7 @@ export function RejectionNotice({
     <div className="space-y-2 rounded-md bg-warning/10 px-3 py-2">
       <p className="text-sm font-medium">
         {guidance
-          ? guidance.what
+          ? t(guidance.whatKey)
           : /* Said whichever way round, because the same component serves both
                and "registration" on a port rejection would read as the wrong
                thing failing. Two keys rather than a noun dropped into one
@@ -95,7 +95,7 @@ export function RejectionNotice({
             : t("settingsMore.rejectionUnknownRegistration")}
       </p>
       <p className="text-sm">
-        {guidance ? guidance.fix : t("settingsMore.rejectionUnknownFix")}
+        {guidance ? t(guidance.fixKey) : t("settingsMore.rejectionUnknownFix")}
       </p>
 
       {/* Carrier-authored: unbounded, and frequently one long token. */}
@@ -106,7 +106,7 @@ export function RejectionNotice({
       ) : null}
 
       <p className="text-xs text-muted-foreground">
-        {RESUBMISSION_WAIT[domain]}
+        {t(RESUBMISSION_WAIT_KEY[domain])}
       </p>
 
       {(guidance?.field || stuck) && (

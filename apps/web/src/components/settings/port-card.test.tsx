@@ -21,12 +21,13 @@
  */
 import {
   explainRejection,
-  RESUBMISSION_WAIT,
+  RESUBMISSION_WAIT_KEY,
   roleHasCapability,
 } from "@loonext/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { EN } from "@/i18n/catalog";
 import { PORT_STATE_COPY } from "@/components/porting/copy";
 import { formatPhone } from "@/lib/format/phone";
 import type {
@@ -76,6 +77,18 @@ vi.mock("@/lib/api/numbers", () => ({
 }));
 
 import { PortCard } from "./port-card";
+
+/**
+ * #228 — the shared catalogue names a key, so the assertions resolve it.
+ *
+ * Resolved through the same table the component reads, which is the point: an
+ * assertion holding its own copy of the sentence would keep passing after the
+ * catalogue changed underneath it, and the screen would be the only place the
+ * two disagreed.
+ */
+const say = (key: `domain.${string}`): string =>
+  EN.domain[key.slice("domain.".length) as keyof typeof EN.domain];
+
 
 /** A transfer the carrier refused, with the reason it gave. */
 function rejected(reason: string | null, submissionCount = 1): PortRequest {
@@ -179,8 +192,8 @@ describe("PortCard rejection guidance — #319", () => {
     const guidance = guidanceFor(reason);
     const html = render(rejected(reason));
 
-    expect(html).toContain(esc(guidance.what));
-    expect(html).toContain(esc(guidance.fix));
+    expect(html).toContain(esc(say(guidance.whatKey)));
+    expect(html).toContain(esc(say(guidance.fixKey)));
     // The untranslated banner is what #319 is replacing; both at once would be
     // the same rejection explained twice, in two voices.
     expect(html).not.toContain("Your carrier flagged something on the transfer");
@@ -197,7 +210,7 @@ describe("PortCard rejection guidance — #319", () => {
   it("states how long a resubmission takes", () => {
     // An unbounded second wait after a rejection is where people give up.
     expect(render(rejected("ACCOUNT_NUMBER_MISMATCH"))).toContain(
-      esc(RESUBMISSION_WAIT.port),
+      esc(say(RESUBMISSION_WAIT_KEY.port)),
     );
   });
 
@@ -249,7 +262,7 @@ describe("PortCard rejection guidance — #319", () => {
     const html = render(rejected("ACCOUNT_NUMBER_MISMATCH"));
     const guidance = guidanceFor("ACCOUNT_NUMBER_MISMATCH");
     expect(html).toContain("Fix and resubmit");
-    expect(html.indexOf(esc(guidance.what))).toBeLessThan(
+    expect(html.indexOf(esc(say(guidance.whatKey)))).toBeLessThan(
       html.indexOf("Fix and resubmit"),
     );
   });
@@ -258,7 +271,7 @@ describe("PortCard rejection guidance — #319", () => {
     const inFlight = { ...rejected(null), status: "in-process" } as PortRequest;
     const html = render(inFlight);
     expect(html).toContain(esc(PORT_STATE_COPY.submitted));
-    expect(html).not.toContain(esc(RESUBMISSION_WAIT.port));
+    expect(html).not.toContain(esc(say(RESUBMISSION_WAIT_KEY.port)));
   });
 });
 

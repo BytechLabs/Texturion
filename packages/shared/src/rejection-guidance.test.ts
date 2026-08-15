@@ -1,11 +1,35 @@
 import { describe, expect, it } from "vitest";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
 import {
   explainRejection,
   needsHumanHelp,
   REJECTIONS_BEFORE_HELP,
-  RESUBMISSION_WAIT,
+  RESUBMISSION_WAIT_KEY,
 } from "./rejection-guidance";
+
+/**
+ * #228 — the catalogue holds keys now, so the assertions resolve them.
+ *
+ * That is a better test than the one it replaces, not merely a translated one:
+ * it used to read the module's own English back to itself, and now it reads
+ * what a person is actually shown. A key with no entry behind it fails here
+ * rather than reaching somebody as `domain.rejectRegEinWhat`.
+ */
+const say = (key: string): string => {
+  const name = key.slice("domain.".length) as keyof typeof WEB_EN.domain;
+  const value = WEB_EN.domain[name];
+  if (typeof value !== "string") throw new Error(`no English for ${key}`);
+  return value;
+};
+
+const sayFr = (key: string): string => {
+  const name = key.slice("domain.".length) as keyof typeof WEB_FR.domain;
+  const value = WEB_FR.domain[name];
+  if (typeof value !== "string") throw new Error(`no French for ${key}`);
+  return value;
+};
 
 /**
  * #352. The value of this module is entirely in whether it recognises the
@@ -19,8 +43,8 @@ describe("explainRejection — registration", () => {
     // holds "D. Chen Holdings Ltd". The raw string names neither the mismatch
     // nor the fix.
     const guidance = explainRejection("registration", "BRAND_LEGAL_NAME_MISMATCH");
-    expect(guidance?.what).toContain("does not match");
-    expect(guidance?.fix).toContain("legal name");
+    expect(say(guidance!.whatKey)).toContain("does not match");
+    expect(say(guidance!.fixKey)).toContain("legal name");
     expect(guidance?.field).toBe("companyName");
   });
 
@@ -57,7 +81,7 @@ describe("explainRejection — registration", () => {
     const guidance = explainRejection("registration", "DUPLICATE_BRAND");
     expect(guidance).not.toBeNull();
     expect(guidance?.field).toBeNull();
-    expect(guidance?.fix).toContain("Reply to us");
+    expect(say(guidance!.fixKey)).toContain("Reply to us");
   });
 });
 
@@ -66,13 +90,13 @@ describe("explainRejection — port", () => {
     // `ACCOUNT_NUMBER_MISMATCH` is the literal string the Telnyx porting suite
     // asserts on, so this is a reason we know reaches customers.
     const guidance = explainRejection("port", "ACCOUNT_NUMBER_MISMATCH");
-    expect(guidance?.fix).toContain("bill");
+    expect(say(guidance!.fixKey)).toContain("bill");
     expect(guidance?.field).toBe("account_number");
   });
 
   it("explains a PIN, including that it expires", () => {
     const guidance = explainRejection("port", "Invalid port-out PIN supplied");
-    expect(guidance?.fix).toContain("expires");
+    expect(say(guidance!.fixKey)).toContain("expires");
   });
 
   it("does not claim a field for a number that is not portable", () => {
@@ -108,8 +132,11 @@ describe("the honest fall-through", () => {
 
 describe("what happens next", () => {
   it("states a wait for both domains, because silence is where people give up", () => {
-    expect(RESUBMISSION_WAIT.registration).toMatch(/business day/);
-    expect(RESUBMISSION_WAIT.port).toMatch(/business day/);
+    expect(say(RESUBMISSION_WAIT_KEY.registration)).toMatch(/business day/);
+    expect(say(RESUBMISSION_WAIT_KEY.port)).toMatch(/business day/);
+    // And in French, where "jour ouvrable" is the same promise.
+    expect(sayFr(RESUBMISSION_WAIT_KEY.registration)).toMatch(/jours? ouvrables?/);
+    expect(sayFr(RESUBMISSION_WAIT_KEY.port)).toMatch(/jours? ouvrables?/);
   });
 
   it("asks for a person on the second rejection, not the third", () => {
@@ -155,10 +182,15 @@ describe("every entry obeys G10", () => {
       for (const reason of reasons) {
         const guidance = explainRejection(domain, reason);
         if (!guidance) continue;
-        reached[domain].add(guidance.what);
+        reached[domain].add(guidance.whatKey);
         for (const [label, sentence] of [
-          ["what", guidance.what],
-          ["fix", guidance.fix],
+          ["what", say(guidance.whatKey)],
+          ["fix", say(guidance.fixKey)],
+          // French is held to the same shape. A translation that runs to a
+          // paragraph fails G10 just as an English one would, and this is the
+          // half nobody re-reads after it lands.
+          ["what-fr", sayFr(guidance.whatKey)],
+          ["fix-fr", sayFr(guidance.fixKey)],
         ] as const) {
           const where = `${domain}/${reason}/${label}`;
           expect(sentence.trim(), where).toMatch(/[.!?]$/);

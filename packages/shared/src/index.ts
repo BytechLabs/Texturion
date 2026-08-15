@@ -496,9 +496,13 @@ export {
   explainRejection,
   needsHumanHelp,
   REJECTIONS_BEFORE_HELP,
-  RESUBMISSION_WAIT,
+  RESUBMISSION_WAIT_KEY,
 } from "./rejection-guidance";
-export type { RejectionDomain, RejectionGuidance } from "./rejection-guidance";
+export type {
+  RejectionDomain,
+  RejectionGuidance,
+  RejectionMessageKey,
+} from "./rejection-guidance";
 
 // #293 — when "later" is. One ladder of presets, resolved in the device's own
 // clock (#292), so a snooze set on a phone means the same instant as the same
