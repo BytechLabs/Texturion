@@ -19,7 +19,7 @@
   "payments.ts": 11,
   "prepaid-conversion-copy.ts": 1,
   "scheduled-send.ts": 10,
-  "self-downgrade.ts": 2,
+  "self-downgrade.ts": 1,
   "two-clocks.ts": 1,
   "voicemail-intake.ts": 1
 }

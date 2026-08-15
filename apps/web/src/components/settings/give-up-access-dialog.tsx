@@ -55,7 +55,7 @@ export function GiveUpAccessDialog({
   const t = useT();
   // The warning comes from the shared rule, so the three clients and the server
   // agree about what a role costs — see packages/shared/src/self-downgrade.ts.
-  const warning = to ? selfDowngradeWarning(from, to) : null;
+  const warning = to ? selfDowngradeWarning(from, to, t) : null;
 
   return (
     <Dialog open={to !== null} onOpenChange={(open) => !open && onCancel()}>

@@ -25,6 +25,20 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  /* #228 — taking powers off yourself (#538). Written as things they DO:
+     "team.manage" tells a developer what is revoked and an owner nothing.
+     Android has had all of these since #538. */
+  capBilling: "the plan and billing",
+  capSettings: "workspace settings",
+  capTeam: "who is on the team and what they can do",
+  capNumbers: "phone numbers",
+  capHistory: "the history log",
+  capContactsBulk: "importing and exporting customers",
+  selfDowngradeSomeOfWhat: "some of what you can do now",
+  selfDowngradeListPair: "{first} and {last}",
+  selfDowngradeMore: "{list}, and {count} more",
+  selfDowngradeUndo: " You won't be able to change it back yourself — only an owner can.",
+  selfDowngradeWarning: "You'll lose access to {scope}.{undo}",
   /* #228 — pointing at something in a photo. Both phones have had all six. */
   markupArrow: "Arrow",
   markupCircle: "Circle",
@@ -350,6 +364,17 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  capBilling: "le forfait et la facturation",
+  capSettings: "les paramètres de l'espace de travail",
+  capTeam: "qui fait partie de l'équipe et ce que ces personnes peuvent faire",
+  capNumbers: "les numéros de téléphone",
+  capHistory: "le journal d'historique",
+  capContactsBulk: "l'importation et l'exportation des clients",
+  selfDowngradeSomeOfWhat: "une partie de ce que vous pouvez faire actuellement",
+  selfDowngradeListPair: "{first} et {last}",
+  selfDowngradeMore: "{list}, et {count} de plus",
+  selfDowngradeUndo: " Vous ne pourrez pas revenir en arrière vous-même — seul un propriétaire le peut.",
+  selfDowngradeWarning: "Vous perdrez l'accès à {scope}.{undo}",
   markupArrow: "Flèche",
   markupCircle: "Cercle",
   markupHint: "Glissez sur la photo, ou touchez deux fois, pour pointer quelque chose.",

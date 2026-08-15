@@ -70,14 +70,31 @@ export function losesRoleControl(from: MemberRole, to: MemberRole): boolean {
  * Written as things they DO, not as permission names. "team.manage" tells a
  * developer what is being revoked and tells an owner nothing.
  */
-export const CAPABILITY_PLAIN_NAMES: Partial<Record<Capability, string>> = {
-  "billing.manage": "the plan and billing",
-  "settings.manage": "workspace settings",
-  "team.manage": "who is on the team and what they can do",
-  "numbers.manage": "phone numbers",
-  "history.read": "the history log",
-  "contacts.bulk": "importing and exporting customers",
+export const CAPABILITY_PLAIN_NAMES: Partial<Record<Capability, SelfDowngradeKey>> = {
+  "billing.manage": "domain.capBilling",
+  "settings.manage": "domain.capSettings",
+  "team.manage": "domain.capTeam",
+  "numbers.manage": "domain.capNumbers",
+  "history.read": "domain.capHistory",
+  "contacts.bulk": "domain.capContactsBulk",
 };
+
+/** Every catalogue key this module names. */
+export type SelfDowngradeKey =
+  | "domain.capBilling"
+  | "domain.capSettings"
+  | "domain.capTeam"
+  | "domain.capNumbers"
+  | "domain.capHistory"
+  | "domain.capContactsBulk"
+  | "domain.selfDowngradeSomeOfWhat"
+  | "domain.selfDowngradeListPair"
+  | "domain.selfDowngradeMore"
+  | "domain.selfDowngradeUndo"
+  | "domain.selfDowngradeWarning";
+
+/** The reader's resolver. */
+export type SaySelfDowngrade = (key: SelfDowngradeKey) => string;
 
 /**
  * The sentence to show before somebody takes powers off themselves.
@@ -92,27 +109,48 @@ export const CAPABILITY_PLAIN_NAMES: Partial<Record<Capability, string>> = {
 export function selfDowngradeWarning(
   from: MemberRole,
   to: MemberRole,
+  say: SaySelfDowngrade,
 ): string | null {
   const lost = capabilitiesLost(from, to);
   if (lost.length === 0) return null;
 
   const named = lost
     .map((cap) => CAPABILITY_PLAIN_NAMES[cap])
-    .filter((name): name is string => Boolean(name));
+    .filter((key): key is SelfDowngradeKey => Boolean(key))
+    .map((key) => say(key));
   const head = named.slice(0, 3);
   const rest = named.length - head.length;
+  /*
+   * #228 — the JOINER is a key, and it has to be.
+   *
+   * "a, b and c" is "a, b et c": the comma-separated part is the same in both
+   * and only the last conjunction changes. Interpolating a translated " and "
+   * into a hardcoded join would have put the English word between the first
+   * two items and the French one between the last two.
+   *
+   * All three clients build this the same way, and Android has had these keys
+   * since #538 — this module is the one that was still writing the sentence
+   * in English.
+   */
   const list =
     head.length === 0
-      ? "some of what you can do now"
+      ? say("domain.selfDowngradeSomeOfWhat")
       : head.length === 1
-        ? head[0]
-        : `${head.slice(0, -1).join(", ")} and ${head[head.length - 1]}`;
+        ? head[0]!
+        : say("domain.selfDowngradeListPair")
+            .replace("{first}", head.slice(0, -1).join(", "))
+            .replace("{last}", head[head.length - 1]!);
 
-  const scope = rest > 0 ? `${list}, and ${rest} more` : list;
-  const undo = losesRoleControl(from, to)
-    ? " You won't be able to change it back yourself — only an owner can."
-    : "";
-  return `You'll lose access to ${scope}.${undo}`;
+  const scope =
+    rest > 0
+      ? say("domain.selfDowngradeMore")
+          .replace("{list}", list)
+          .replace("{count}", String(rest))
+      : list;
+  const undo = losesRoleControl(from, to) ? say("domain.selfDowngradeUndo") : "";
+  return say("domain.selfDowngradeWarning")
+    .replace("{scope}", scope)
+    .replace("{undo}", undo);
 }
 
 /**

@@ -990,6 +990,8 @@ export {
   SELF_DOWNGRADE_ACK,
   SELF_DOWNGRADE_REQUIRED_MESSAGE,
   selfDowngradeWarning,
+  type SaySelfDowngrade,
+  type SelfDowngradeKey,
 } from "./self-downgrade";
 
 // #538 (audit): going quiet while you are the one on call. The pages still fire
