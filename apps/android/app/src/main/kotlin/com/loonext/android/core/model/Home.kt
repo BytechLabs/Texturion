@@ -427,8 +427,23 @@ data class PipelineReportResponse(
     val previous: PipelineReport = PipelineReport(),
     val win_rate: Int? = null,
     val previous_win_rate: Int? = null,
-    /** Null when there is not enough decided work to say anything honest. */
+    /**
+     * Null when there is not enough decided work to say anything honest.
+     *
+     * #228: ENGLISH, composed by the server, and still on the wire for builds
+     * that predate [insight_key]. This client prefers the key.
+     */
     val insight: String? = null,
+    /**
+     * The same insight as a catalogue key, so the reader's own language
+     * answers.
+     *
+     * The server cannot resolve the language itself — `profiles.locale`'s null
+     * means "ask the device", which only this side knows.
+     */
+    val insight_key: String? = null,
+    /** What to substitute into it. Null exactly when [insight_key] is. */
+    val insight_vars: Map<String, String>? = null,
     val stages: List<PipelineStageTag> = emptyList(),
 )
 

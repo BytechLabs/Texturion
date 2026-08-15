@@ -76,8 +76,12 @@ fun PipelineCard(report: PipelineReportResponse?) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        report.insight
-                            ?: tooEarly(report.current.quoted, LocalAppLocale.current),
+                        // #228: the KEY first, the sentence second. `insight`
+                        // is English the server composed and is still sent for
+                        // builds that cannot translate; this one can, so it
+                        // falls back to the sentence only against an older
+                        // server.
+                        pipelineHeadline(report, LocalAppLocale.current),
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
@@ -90,7 +94,7 @@ fun PipelineCard(report: PipelineReportResponse?) {
                 // win rate". The panel contradicted itself, on all three
                 // clients. `insight` is the server's own answer to whether the
                 // number is callable, so reading it needs no second rule.
-                if (rate != null && report.insight != null) {
+                if (rate != null && (report.insight != null || report.insight_key != null)) {
                     Spacer(Modifier.width(12.dp))
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
@@ -172,6 +176,32 @@ internal fun tooEarly(quoted: Int, locale: String): String = AppStrings.translat
     if (quoted == 1) "inbox.pipelineTooEarlyOne" else "inbox.pipelineTooEarlyMany",
     mapOf("count" to quoted.toString()),
 )
+
+/**
+ * The sentence this card leads with, in the reader's language when it can be.
+ *
+ * #228: three answers in priority order, and the order is the whole point.
+ *
+ *  1. `insight_key` — the server named the sentence and this client's own
+ *     catalogue says it. The only branch that produces French.
+ *  2. `insight` — the ENGLISH the server composed. Still on the wire because
+ *     app builds that only understand a sentence live on real phones for
+ *     months; reading it keeps this card correct against an older server
+ *     rather than blank.
+ *  3. Neither — not enough decided work to say anything honest, so the card
+ *     says how many quotes have gone out instead.
+ *
+ * The locale is a PARAMETER for the same reason it is on [tooEarly] above: a
+ * default turns "nobody passed it" into an English sentence on a French phone
+ * rather than into a compile error.
+ */
+internal fun pipelineHeadline(report: PipelineReportResponse, locale: String): String {
+    val key = report.insight_key
+    if (key != null) {
+        return AppStrings.translate(locale, key, report.insight_vars ?: emptyMap())
+    }
+    return report.insight ?: tooEarly(report.current.quoted, locale)
+}
 
 @Composable
 private fun PipelineFigure(label: String, value: Int, modifier: Modifier = Modifier) {

@@ -37,7 +37,17 @@ struct PipelineReportResponse: Codable, Sendable {
     var win_rate: Int?
     var previous_win_rate: Int?
     /// Nil when there is not enough decided work to say anything honest.
+    ///
+    /// #228: ENGLISH, composed by the server, and still on the wire for builds
+    /// that predate `insight_key`. This client prefers the key.
     var insight: String?
+    /// The same insight as a catalogue key, so the reader's own language
+    /// answers. The server cannot resolve the language itself —
+    /// `profiles.locale`'s null means "ask the device", which only this side
+    /// knows.
+    var insight_key: String?
+    /// What to substitute into it. Nil exactly when `insight_key` is.
+    var insight_vars: [String: String]?
     @Default<DefaultEmptyList<PipelineStageTag>> var stages: [PipelineStageTag] = []
 }
 
@@ -77,6 +87,13 @@ struct PipelineCard: View {
 
     private var headline: String {
         guard let report else { return "" }
+        // #228: the KEY first, the sentence second. `insight` is English the
+        // server composed and is still sent for builds that cannot translate;
+        // this one can, so it falls back to the sentence only against an older
+        // server.
+        if let namedKey = report.insight_key {
+            return AppStrings.translate(appLocale, namedKey, report.insight_vars ?? [:])
+        }
         if let insight = report.insight { return insight }
         let quoted: Int = report.current.quoted
         // One sentence per number, not a noun spliced into a shared frame: a
@@ -135,7 +152,8 @@ struct PipelineCard: View {
                         // jobs because a rate off two quotes is noise presented
                         // as an achievement — and this card printed that rate at
                         // 24pt beside the words saying it was too early to call.
-                        if let rate = report.win_rate, report.insight != nil {
+                        if let rate = report.win_rate,
+                           report.insight != nil || report.insight_key != nil {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text("\(rate)%")
                                     .font(.golos(24, weight: .semibold))
