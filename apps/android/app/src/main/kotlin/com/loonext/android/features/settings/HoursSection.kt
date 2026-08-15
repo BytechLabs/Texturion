@@ -245,6 +245,7 @@ private fun AwayReplyCard(
     val emergencyNotice = awayEmergencyNotice(
         emergencyEnabled = emergency,
         awayMessage = effectiveMessage,
+        locale = locale,
         // #460: THIS workspace's words, resolved by the server. Warning against
         // the product list when the owner watches for their own would be the
         // product arguing with a setting it offers.
@@ -306,7 +307,7 @@ private fun AwayReplyCard(
             // defect in a different place.
             supporting = t(
                 "settings.awayEmergencySwitchHelp",
-                "words" to emergencyWordList(company.effectiveEmergencyWords),
+                "words" to emergencyWordList(company.effectiveEmergencyWords, locale),
             ),
             checked = emergency,
             onCheckedChange = { emergency = it },

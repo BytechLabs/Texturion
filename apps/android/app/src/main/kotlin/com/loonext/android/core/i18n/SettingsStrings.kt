@@ -1401,6 +1401,30 @@ private val BILLING_EN = mapOf(
     "settings.cancelNotInPortal" to
         "The payment portal above is for cards and invoices and has no cancellation " +
         "on it, so this is not something to go looking for there.",
+    // #228 — the emergency-word screen. Named by
+    // packages/shared/src/emergency.ts and spelled the way iOS already spells
+    // it, so all three clients say one warning.
+    "settings.keywordEmpty" to "Type a word first.",
+    "settings.keywordOneWord" to
+        "One word only — customers text a single word, so a phrase would never match.",
+    "settings.keywordAlphanumeric" to
+        "Letters and numbers only. Punctuation is stripped from what customers send.",
+    "settings.keywordTooShort" to "Too short — use at least 2 characters.",
+    "settings.keywordTooLong" to "Too long — 15 characters at most.",
+    "settings.keywordCarrierOwned" to
+        "{word} is answered by the phone carrier before it reaches us, so it can't be an emergency word.",
+    "settings.awayEmergencyOff" to
+        "Your away message tells customers to reply for an emergency, but nothing will treat that reply as one. Turn this back on, or take the offer out of the message.",
+    // {word} TWICE. Kotlin's String.replace and the translate() below both
+    // replace every occurrence; JavaScript's does not, which is why shared
+    // fills its templates through a helper rather than with .replace().
+    "settings.awayEmergencyUnknownWord" to
+        "Your away message tells customers to reply {word}, which nothing watches for. Use {words} instead, add {word} to your emergency words, or take the offer out of the message.",
+    "settings.awayEmergencyNotMentioned" to
+        "Nobody has been told they can. Mention it in your away message if you want customers to know.",
+    "settings.wordListNothing" to "nothing",
+    // The spaces belong to the word: French joins the last pair with "ou".
+    "settings.wordListOr" to " or ",
     "settings.cancelConsequence" to
         "Cancel anytime. Your plan runs to the end of your billing period, and you " +
         "can't send once it ends. Your number is held for {days} days from the day " +
@@ -1680,6 +1704,23 @@ private val BILLING_FR = mapOf(
     "settings.cancelNotInPortal" to
         "Le portail de paiement ci-dessus sert aux cartes et aux factures et ne " +
         "contient aucune annulation : ce n'est donc pas là qu'il faut la chercher.",
+    "settings.keywordEmpty" to "Tapez d'abord un mot.",
+    "settings.keywordOneWord" to
+        "Un seul mot — les clients envoient un mot unique, alors une expression ne correspondrait jamais.",
+    "settings.keywordAlphanumeric" to
+        "Lettres et chiffres seulement. La ponctuation est retirée de ce que les clients envoient.",
+    "settings.keywordTooShort" to "Trop court — utilisez au moins 2 caractères.",
+    "settings.keywordTooLong" to "Trop long — 15 caractères au maximum.",
+    "settings.keywordCarrierOwned" to
+        "{word} reçoit une réponse du fournisseur avant de nous parvenir : ce mot ne peut donc pas servir d'urgence.",
+    "settings.awayEmergencyOff" to
+        "Votre message d'absence dit aux clients de répondre en cas d'urgence, mais rien ne traitera cette réponse comme telle. Réactivez ce réglage, ou retirez cette offre du message.",
+    "settings.awayEmergencyUnknownWord" to
+        "Votre message d'absence dit aux clients de répondre {word}, un mot que rien ne surveille. Utilisez plutôt {words}, ajoutez {word} à vos mots d'urgence, ou retirez cette offre du message.",
+    "settings.awayEmergencyNotMentioned" to
+        "Personne n'a été informé qu'il le pouvait. Mentionnez-le dans votre message d'absence si vous voulez que les clients le sachent.",
+    "settings.wordListNothing" to "rien",
+    "settings.wordListOr" to " ou ",
     "settings.cancelConsequence" to
         "Annulez quand vous voulez. Votre forfait se poursuit jusqu'à la fin de votre " +
         "période de facturation, et vous ne pouvez plus envoyer une fois qu'elle est " +

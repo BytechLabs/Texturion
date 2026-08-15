@@ -1923,8 +1923,18 @@ fun mentionsEmergencyKeyword(
  * it is the only thing telling a keyword instruction apart from a sentence
  * that merely contains "reply".
  */
+/*
+ * #228 — the verbs, in both languages. Mirror of REPLY_INSTRUCTION in shared;
+ * see that file for why the left guard is not \b.
+ *
+ * (?u) is NOT decoration. Kotlin's RegexOption.IGNORE_CASE is Java's
+ * CASE_INSENSITIVE, which folds ASCII only — so "RÉPONDEZ URGENT", written by
+ * an owner who types the whole message in capitals, would not match the
+ * lowercase "répondez" in this list. UNICODE_CASE has no RegexOption, so it is
+ * set inline. The other two clients are Unicode-aware here already.
+ */
 private val REPLY_INSTRUCTION = Regex(
-    """\b(?:reply|replying|text|respond|send)\s+(?:back\s+)?(?:with\s+)?["'“‘]?([A-Za-z0-9]{2,15})\b""",
+    """(?u)(?:^|[^A-Za-zÀ-ÖØ-öø-ÿ])(?:reply|replying|text|respond|send|répondez|repondez|répondre|repondre|répondez-nous|envoyez|envoyer|textez|écrivez|ecrivez|écrire|ecrire)\s+(?:back\s+)?(?:with\s+|avec\s+)?["'“‘]?([A-Za-z0-9]{2,15})\b""",
     RegexOption.IGNORE_CASE,
 )
 
@@ -1965,6 +1975,7 @@ fun awayEmergencyNotice(
     emergencyEnabled: Boolean,
     awayMessage: String,
     keywords: List<String> = EMERGENCY_KEYWORDS,
+    locale: String? = null,
 ): AwayEmergencyNotice? {
     val invites = mentionsEmergencyKeyword(awayMessage, keywords)
     val unknown = unrecognizedReplyKeyword(awayMessage, keywords)
@@ -1973,26 +1984,28 @@ fun awayEmergencyNotice(
         if (!invites && unknown == null) return null
         return AwayEmergencyNotice(
             AwayNoticeTone.Warn,
-            "Your away message tells customers to reply for an emergency, but nothing " +
-                "will treat that reply as one. Turn this back on, or take the offer out of " +
-                "the message.",
+            AppStrings.translate(locale, "settings.awayEmergencyOff"),
         )
     }
 
     if (unknown != null) {
         return AwayEmergencyNotice(
             AwayNoticeTone.Warn,
-            "Your away message tells customers to reply $unknown, which nothing " +
-                "watches for. Use ${emergencyWordList(keywords)} instead, add $unknown to " +
-                "your emergency words, or take the offer out of the message.",
+            AppStrings.translate(
+                locale,
+                "settings.awayEmergencyUnknownWord",
+                mapOf(
+                    "word" to unknown,
+                    "words" to emergencyWordList(keywords, locale),
+                ),
+            ),
         )
     }
 
     if (!invites) {
         return AwayEmergencyNotice(
             AwayNoticeTone.Hint,
-            "Nobody has been told they can. Mention it in your away message if you " +
-                "want customers to know.",
+            AppStrings.translate(locale, "settings.awayEmergencyNotMentioned"),
         )
     }
 
@@ -2016,10 +2029,14 @@ val CompanyView.effectiveEmergencyWords: List<String>
  * Mirror of `emergencyWordList` in shared; keep the joining identical or the
  * same switch reads differently on three phones.
  */
-fun emergencyWordList(words: List<String>): String = when {
-    words.isEmpty() -> "nothing"
+fun emergencyWordList(words: List<String>, locale: String? = null): String = when {
+    words.isEmpty() -> AppStrings.translate(locale, "settings.wordListNothing")
     words.size == 1 -> words[0]
-    else -> words.dropLast(1).joinToString(", ") + " or " + words.last()
+    // The conjunction is a key rather than " or ": French joins the last pair
+    // with "ou", and the spaces around it belong to the word.
+    else -> words.dropLast(1).joinToString(", ") +
+        AppStrings.translate(locale, "settings.wordListOr") +
+        words.last()
 }
 
 /**
@@ -2030,21 +2047,24 @@ fun emergencyWordList(words: List<String>): String = when {
  * round trip, but the server and the CHECK constraint remain the authority —
  * this is a courtesy, not the gate.
  */
-fun emergencyKeywordError(rawInput: String): String? {
+fun emergencyKeywordError(rawInput: String, locale: String? = null): String? {
     val trimmed = rawInput.trim()
     val word = trimmed.uppercase()
-    if (word.isEmpty()) return "Type a word first."
+    if (word.isEmpty()) return AppStrings.translate(locale, "settings.keywordEmpty")
     if (trimmed.any { it.isWhitespace() }) {
-        return "One word only — customers text a single word, so a phrase would never match."
+        return AppStrings.translate(locale, "settings.keywordOneWord")
     }
     if (!Regex("^[A-Z0-9]+$").matches(word)) {
-        return "Letters and numbers only. Punctuation is stripped from what customers send."
+        return AppStrings.translate(locale, "settings.keywordAlphanumeric")
     }
-    if (word.length < 2) return "Too short — use at least 2 characters."
-    if (word.length > 15) return "Too long — 15 characters at most."
+    if (word.length < 2) return AppStrings.translate(locale, "settings.keywordTooShort")
+    if (word.length > 15) return AppStrings.translate(locale, "settings.keywordTooLong")
     if (word in CARRIER_REPLY_KEYWORDS) {
-        return "$word is answered by the phone carrier before it reaches us, " +
-            "so it can't be an emergency word."
+        return AppStrings.translate(
+            locale,
+            "settings.keywordCarrierOwned",
+            mapOf("word" to word),
+        )
     }
     return null
 }

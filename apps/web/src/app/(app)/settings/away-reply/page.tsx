@@ -178,6 +178,7 @@ function AwayMessageCard({
     message.trim().length > 0 ? message : company.away_effective_message;
   const preview = previewAwayMessage(effectiveMessage, company.name);
   const notice = awayEmergencyNotice({
+    say: t,
     emergencyEnabled: emergency,
     awayMessage: effectiveMessage,
     // #460: THIS workspace's words. Warning against the product list when the
@@ -312,6 +313,7 @@ function AwayMessageCard({
                     effectiveEmergencyKeywords(
                       company.emergency_effective_keywords,
                     ),
+                    t,
                   ),
                 })}
               </p>

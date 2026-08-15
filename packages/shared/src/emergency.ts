@@ -58,25 +58,67 @@ export function isValidEmergencyKeyword(word: string): boolean {
 }
 
 /**
+ * Every catalogue key this module names.
+ *
+ * #228. The prefix is `settings` and the spellings are iOS's, because iOS
+ * converted this screen first and has months of French behind these exact
+ * keys. A second set under another prefix would be the same eleven sentences
+ * in two places — which is what this module exists to prevent.
+ */
+export type EmergencyCopyKey =
+  | "settings.keywordEmpty"
+  | "settings.keywordOneWord"
+  | "settings.keywordAlphanumeric"
+  | "settings.keywordTooShort"
+  | "settings.keywordTooLong"
+  | "settings.keywordCarrierOwned"
+  | "settings.awayEmergencyOff"
+  | "settings.awayEmergencyUnknownWord"
+  | "settings.awayEmergencyNotMentioned"
+  | "settings.wordListNothing"
+  | "settings.wordListOr";
+
+/** The reader's resolver. */
+export type SayEmergency = (key: EmergencyCopyKey) => string;
+
+/**
+ * Fill a template's variables — ALL of them, every occurrence.
+ *
+ * `String.replace` with a string needle replaces the FIRST match only, and
+ * `settings.awayEmergencyUnknownWord` names {word} twice ("reply ASAP, which
+ * nothing watches for… add ASAP to your emergency words"). Kotlin's
+ * `String.replace` and Swift's `replacingOccurrences` both replace every
+ * occurrence, so the port that drifts here would be this one — silently, in
+ * the second half of one sentence.
+ */
+function fill(template: string, vars: Record<string, string>): string {
+  let out = template;
+  for (const [name, value] of Object.entries(vars)) {
+    out = out.replaceAll(`{${name}}`, value);
+  }
+  return out;
+}
+
+/**
  * Why a keyword was refused, in the owner's terms, or null when it is fine.
  *
  * Returned as copy rather than a code because all three clients must say the
  * same thing, and "invalid keyword" tells somebody nothing about what to type
- * instead.
+ * instead. #228: said through the reader's resolver, so "the same thing" now
+ * means the same thing in their language.
  */
-export function emergencyKeywordError(raw: string): string | null {
+export function emergencyKeywordError(
+  raw: string,
+  say: SayEmergency,
+): string | null {
   const word = raw.trim().toUpperCase();
-  if (word.length === 0) return "Type a word first.";
-  if (/\s/.test(raw.trim())) {
-    return "One word only — customers text a single word, so a phrase would never match.";
-  }
-  if (!/^[A-Z0-9]+$/.test(word)) {
-    return "Letters and numbers only. Punctuation is stripped from what customers send.";
-  }
-  if (word.length < 2) return "Too short — use at least 2 characters.";
-  if (word.length > 15) return "Too long — 15 characters at most.";
+  if (word.length === 0) return say("settings.keywordEmpty");
+  if (/\s/.test(raw.trim())) return say("settings.keywordOneWord");
+  if (!/^[A-Z0-9]+$/.test(word)) return say("settings.keywordAlphanumeric");
+  if (word.length < 2) return say("settings.keywordTooShort");
+  if (word.length > 15) return say("settings.keywordTooLong");
   if (CARRIER_SET.has(word)) {
-    return `${word} is answered by the phone carrier before it reaches us, so it can't be an emergency word.`;
+    return fill(say("settings.keywordCarrierOwned"), { word });
   }
   return null;
 }
@@ -186,8 +228,27 @@ const CARRIER_SET: ReadonlySet<string> = new Set(CARRIER_REPLY_KEYWORDS);
  * is the only thing distinguishing a keyword instruction from a sentence that
  * merely contains the word "reply".
  */
+/*
+ * #228 — the verbs, in both languages we sell in.
+ *
+ * Found by this module's own French test: an owner who writes "répondez URGENT
+ * et nous vous appellerons" tripped nothing, so the away-reply screen told
+ * them their message was fine while their customers had been told to send a
+ * word into the void. That is #453's defect exactly, surviving in the language
+ * Bill 96 is about.
+ *
+ * The left guard is `(?:^|[^A-Za-z...])` rather than `\b`, and that is the
+ * reason it is not the obvious spelling: `\b` is ASCII-only in JavaScript even
+ * under /u, so `\brépondez` asks for a word character BEFORE the é — the
+ * opposite of a boundary. It would have matched only mid-word, which is to say
+ * never, and the French half would have shipped looking correct.
+ *
+ * Unaccented spellings are listed too. Owners type "repondez" on a keyboard
+ * that fights them, and a warning that depends on an accent is a warning that
+ * misses the person most likely to need it.
+ */
 const REPLY_INSTRUCTION =
-  /\b(?:reply|replying|text|respond|send)\s+(?:back\s+)?(?:with\s+)?["'“‘]?([A-Za-z0-9]{2,15})\b/gi;
+  /(?:^|[^A-Za-zÀ-ÖØ-öø-ÿ])(?:reply|replying|text|respond|send|répondez|repondez|répondre|repondre|répondez-nous|envoyez|envoyer|textez|écrivez|ecrivez|écrire|ecrire)\s+(?:back\s+)?(?:with\s+|avec\s+)?["'“‘]?([A-Za-z0-9]{2,15})\b/gi;
 
 /**
  * #453 — the word an owner told customers to send that nothing is listening for.
@@ -264,20 +325,17 @@ export function awayEmergencyNotice(args: {
    * answer rather than a wrong one.
    */
   keywords?: readonly string[];
+  /** #228 — the reader's resolver. Required: see the note on [emergencyWordList]. */
+  say: SayEmergency;
 }): AwayEmergencyNotice | null {
   const keywords = args.keywords ?? EMERGENCY_KEYWORDS;
+  const say = args.say;
   const invites = mentionsEmergencyKeyword(args.awayMessage, keywords);
   const unknown = unrecognizedReplyKeyword(args.awayMessage, keywords);
 
   if (!args.emergencyEnabled) {
     if (!invites && unknown === null) return null;
-    return {
-      tone: "warn",
-      text:
-        "Your away message tells customers to reply for an emergency, but nothing " +
-        "will treat that reply as one. Turn this back on, or take the offer out of " +
-        "the message.",
-    };
+    return { tone: "warn", text: say("settings.awayEmergencyOff") };
   }
 
   if (unknown !== null) {
@@ -287,20 +345,15 @@ export function awayEmergencyNotice(args: {
       // Telling an owner who added ASAP to "use URGENT instead" would be the
       // product arguing with a setting it offers, and the fix is now theirs to
       // make in either direction — reword the message, or add the word.
-      text:
-        `Your away message tells customers to reply ${unknown}, which nothing ` +
-        `watches for. Use ${listWords(keywords)} instead, add ${unknown} to your ` +
-        "emergency words, or take the offer out of the message.",
+      text: fill(say("settings.awayEmergencyUnknownWord"), {
+        word: unknown,
+        words: listWords(keywords, say),
+      }),
     };
   }
 
   if (!invites) {
-    return {
-      tone: "hint",
-      text:
-        "Nobody has been told they can. Mention it in your away message if you " +
-        "want customers to know.",
-    };
+    return { tone: "hint", text: say("settings.awayEmergencyNotMentioned") };
   }
 
   return null;
@@ -314,14 +367,23 @@ export function awayEmergencyNotice(args: {
  * #460 let a workspace choose its own, and a switch whose label names words
  * nothing watches for is the #414 defect wearing a different hat.
  */
-export function emergencyWordList(words: readonly string[]): string {
-  return listWords(words);
+export function emergencyWordList(
+  words: readonly string[],
+  say: SayEmergency,
+): string {
+  return listWords(words, say);
 }
 
-function listWords(words: readonly string[]): string {
-  if (words.length === 0) return "nothing";
+function listWords(words: readonly string[], say: SayEmergency): string {
+  if (words.length === 0) return say("settings.wordListNothing");
   if (words.length === 1) return words[0]!;
-  return `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]!}`;
+  // The conjunction is a key rather than " or ": French joins the last pair
+  // with "ou", and the spaces around it belong to the word.
+  return (
+    words.slice(0, -1).join(", ") +
+    say("settings.wordListOr") +
+    words[words.length - 1]!
+  );
 }
 
 /**

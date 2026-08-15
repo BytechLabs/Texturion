@@ -127,7 +127,7 @@ fun EmergencyCard(
 
     fun addWord() {
         val raw = draft.trim()
-        val problem = emergencyKeywordError(raw)
+        val problem = emergencyKeywordError(raw, locale)
         if (problem != null) {
             error = problem
             return

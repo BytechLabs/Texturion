@@ -1002,8 +1002,11 @@ func mentionsEmergencyKeyword(
 /// case-insensitively; the WORD's capitalisation is checked separately, since
 /// it is the only thing telling a keyword instruction apart from a sentence
 /// that merely contains "reply".
+/// #228 — the verbs, in both languages. Mirror of `REPLY_INSTRUCTION` in
+/// shared; see that file for why the left guard is not \b. ICU folds case for
+/// accented letters already, so this needs no equivalent of Kotlin's (?u).
 private let replyInstructionPattern =
-    "\\b(?:reply|replying|text|respond|send)\\s+(?:back\\s+)?(?:with\\s+)?[\"'“‘]?([A-Za-z0-9]{2,15})\\b"
+    "(?:^|[^A-Za-zÀ-ÖØ-öø-ÿ])(?:reply|replying|text|respond|send|répondez|repondez|répondre|repondre|répondez-nous|envoyez|envoyer|textez|écrivez|ecrivez|écrire|ecrire)\\s+(?:back\\s+)?(?:with\\s+|avec\\s+)?[\"'“‘]?([A-Za-z0-9]{2,15})\\b"
 
 /// #453 — the word an owner told customers to send that nothing listens for.
 /// Returns it so the screen can quote it back; an owner cannot fix what we

@@ -13,6 +13,28 @@
 import type { Translated } from "../translated";
 
 export const settingsEn = {
+  /* #228 — the emergency-word screen, named by packages/shared/src/emergency.ts
+     and spelled the way iOS already spells it. */
+  keywordEmpty: "Type a word first.",
+  keywordOneWord:
+    "One word only — customers text a single word, so a phrase would never match.",
+  keywordAlphanumeric:
+    "Letters and numbers only. Punctuation is stripped from what customers send.",
+  keywordTooShort: "Too short — use at least 2 characters.",
+  keywordTooLong: "Too long — 15 characters at most.",
+  /* Names {word} TWICE on purpose in the away notice below; here once. */
+  keywordCarrierOwned:
+    "{word} is answered by the phone carrier before it reaches us, so it can't be an emergency word.",
+  awayEmergencyOff:
+    "Your away message tells customers to reply for an emergency, but nothing will treat that reply as one. Turn this back on, or take the offer out of the message.",
+  awayEmergencyUnknownWord:
+    "Your away message tells customers to reply {word}, which nothing watches for. Use {words} instead, add {word} to your emergency words, or take the offer out of the message.",
+  awayEmergencyNotMentioned:
+    "Nobody has been told they can. Mention it in your away message if you want customers to know.",
+  wordListNothing: "nothing",
+  /* The spaces belong to the word: French joins the last pair with "ou". */
+  wordListOr: " or ",
+
   /*
    * #228 — the cancel card's answers, which packages/shared names.
    *
@@ -760,6 +782,24 @@ export const settingsEn = {
  * translated — a machine matches on those.
  */
 export const settingsFr: Translated<typeof settingsEn> = {
+  keywordEmpty: "Tapez d'abord un mot.",
+  keywordOneWord:
+    "Un seul mot — les clients envoient un mot unique, alors une expression ne correspondrait jamais.",
+  keywordAlphanumeric:
+    "Lettres et chiffres seulement. La ponctuation est retirée de ce que les clients envoient.",
+  keywordTooShort: "Trop court — utilisez au moins 2 caractères.",
+  keywordTooLong: "Trop long — 15 caractères au maximum.",
+  keywordCarrierOwned:
+    "{word} reçoit une réponse du fournisseur avant de nous parvenir : ce mot ne peut donc pas servir d'urgence.",
+  awayEmergencyOff:
+    "Votre message d'absence dit aux clients de répondre en cas d'urgence, mais rien ne traitera cette réponse comme telle. Réactivez ce réglage, ou retirez cette offre du message.",
+  awayEmergencyUnknownWord:
+    "Votre message d'absence dit aux clients de répondre {word}, un mot que rien ne surveille. Utilisez plutôt {words}, ajoutez {word} à vos mots d'urgence, ou retirez cette offre du message.",
+  awayEmergencyNotMentioned:
+    "Personne n'a été informé qu'il le pouvait. Mentionnez-le dans votre message d'absence si vous voulez que les clients le sachent.",
+  wordListNothing: "rien",
+  wordListOr: " ou ",
+
   offerComeBackOnStarter: "Revenir sur Starter",
   offerGetHelp: "Obtenir de l'aide",
   offerMissingBody: "Si ce dont vous aviez besoin n'est pas là, le plus rapide pour que cela change est de nous dire ce que c'était. Nous répondons {when}. {promise}",

@@ -419,6 +419,8 @@ export {
 export type {
   AwayEmergencyNotice,
   EffectiveEmergencyMessage,
+  EmergencyCopyKey,
+  SayEmergency,
 } from "./emergency";
 
 export {

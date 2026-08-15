@@ -17,11 +17,31 @@ import {
   effectiveEmergencyKeywords,
   effectiveEmergencyMessage,
   emergencyKeywordError,
+  emergencyWordList,
   emergencyReplyBody,
   isEmergencyKeyword,
   mentionsEmergencyKeyword,
   unrecognizedReplyKeyword,
 } from "./emergency";
+
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/*
+ * #228 — this module says its copy through the reader's resolver now, so the
+ * tests supply one. English by default: these cases are about WHICH sentence
+ * is chosen, and a French assertion would be testing the translation rather
+ * than the rule. The French is asserted in its own case at the bottom.
+ */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[name];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
+const sayEn = (key: string): string => look(WEB_EN, key);
+const sayFr = (key: string): string => look(WEB_FR, key);
+
 
 describe("what a frightened person actually types", () => {
   it.each([
@@ -158,6 +178,7 @@ describe("#453 — what the away-reply screen says, identically on all clients",
     // ignore the one warning that matters.
     expect(
       awayEmergencyNotice({
+      say: sayEn,
         emergencyEnabled: true,
         awayMessage: SHIPPED_DEFAULT,
       }),
@@ -166,6 +187,7 @@ describe("#453 — what the away-reply screen says, identically on all clients",
 
   it("warns when the switch is off but the copy still promises", () => {
     const notice = awayEmergencyNotice({
+      say: sayEn,
       emergencyEnabled: false,
       awayMessage: SHIPPED_DEFAULT,
     });
@@ -174,6 +196,7 @@ describe("#453 — what the away-reply screen says, identically on all clients",
 
   it("names the unrecognised word — the #453 case", () => {
     const notice = awayEmergencyNotice({
+      say: sayEn,
       emergencyEnabled: true,
       awayMessage: "For a burst pipe, reply ASAP and we'll ring you back.",
     });
@@ -184,6 +207,7 @@ describe("#453 — what the away-reply screen says, identically on all clients",
   it("warns about the switch FIRST when both are wrong", () => {
     // No rewording fixes an off switch, so that is what to say.
     const notice = awayEmergencyNotice({
+      say: sayEn,
       emergencyEnabled: false,
       awayMessage: "For a burst pipe, reply ASAP and we'll ring you back.",
     });
@@ -195,6 +219,7 @@ describe("#453 — what the away-reply screen says, identically on all clients",
     // An owner may simply not offer emergency service. That is what the
     // switch is for, and it is not an error.
     const notice = awayEmergencyNotice({
+      say: sayEn,
       emergencyEnabled: true,
       awayMessage: "Thanks for texting. We're closed and will reply Monday.",
     });
@@ -204,6 +229,7 @@ describe("#453 — what the away-reply screen says, identically on all clients",
   it("stays silent when the switch is off and nothing was promised", () => {
     expect(
       awayEmergencyNotice({
+      say: sayEn,
         emergencyEnabled: false,
         awayMessage: "Thanks for texting. We're closed and will reply Monday.",
       }),
@@ -213,6 +239,7 @@ describe("#453 — what the away-reply screen says, identically on all clients",
   it("does not warn about required STOP copy", () => {
     expect(
       awayEmergencyNotice({
+      say: sayEn,
         emergencyEnabled: true,
         awayMessage: `${SHIPPED_DEFAULT} Reply STOP to unsubscribe.`,
       }),
@@ -256,7 +283,11 @@ describe("#460 — the workspace's own words", () => {
     // Before they add it: named, so they can act on it.
     expect(unrecognizedReplyKeyword(copy)).toBe("ASAP");
     expect(
-      awayEmergencyNotice({ emergencyEnabled: true, awayMessage: copy }),
+      awayEmergencyNotice({
+        say: sayEn,
+        emergencyEnabled: true,
+        awayMessage: copy,
+      }),
     ).toMatchObject({ tone: "warn" });
     // After: silence. A warning that survives the fix teaches owners to ignore
     // warnings, which is worse than never having shown one.
@@ -264,6 +295,7 @@ describe("#460 — the workspace's own words", () => {
     expect(unrecognizedReplyKeyword(copy, own)).toBeNull();
     expect(
       awayEmergencyNotice({
+      say: sayEn,
         emergencyEnabled: true,
         awayMessage: copy,
         keywords: own,
@@ -274,16 +306,17 @@ describe("#460 — the workspace's own words", () => {
   it("refuses a keyword the carrier answers, and says why", () => {
     // STOP reaches Telnyx before it reaches us, so storing it would be storing
     // a setting that provably cannot fire.
-    expect(emergencyKeywordError("STOP")).toMatch(/carrier/i);
-    expect(emergencyKeywordError("no heat")).toMatch(/one word/i);
-    expect(emergencyKeywordError("SOS!")).toMatch(/letters and numbers/i);
-    expect(emergencyKeywordError("X")).toMatch(/too short/i);
-    expect(emergencyKeywordError("")).toMatch(/type a word/i);
-    expect(emergencyKeywordError("lockedout")).toBeNull();
+    expect(emergencyKeywordError("STOP", sayEn)).toMatch(/carrier/i);
+    expect(emergencyKeywordError("no heat", sayEn)).toMatch(/one word/i);
+    expect(emergencyKeywordError("SOS!", sayEn)).toMatch(/letters and numbers/i);
+    expect(emergencyKeywordError("X", sayEn)).toMatch(/too short/i);
+    expect(emergencyKeywordError("", sayEn)).toMatch(/type a word/i);
+    expect(emergencyKeywordError("lockedout", sayEn)).toBeNull();
   });
 
   it("names the workspace's own words when it warns", () => {
     const notice = awayEmergencyNotice({
+      say: sayEn,
       emergencyEnabled: true,
       awayMessage: "Reply NOW if it's an emergency.",
       keywords: effectiveEmergencyKeywords(["LOCKEDOUT"]),
@@ -325,5 +358,47 @@ describe("#460 — the reply body, and the sentence that is not the owner's", ()
       message: DEFAULT_EMERGENCY_MESSAGE,
       custom: false,
     });
+  });
+});
+
+describe("#228 the emergency screen in French", () => {
+  it("refuses a keyword in the reader's language", () => {
+    // The carrier sentence is the one worth pinning: it is the only refusal
+    // that names the word back, and it names it TWICE in English. A port that
+    // replaced the first occurrence only would read "STOP is answered by the
+    // phone carrier … so {word} can't be an emergency word" — still a
+    // sentence, still shipped, and wrong in the half nobody reads twice.
+    for (const say of [sayEn, sayFr]) {
+      const carrier = emergencyKeywordError("STOP", say);
+      expect(carrier).toBeTruthy();
+      expect(carrier).toContain("STOP");
+      expect(carrier, "a variable survived the fill").not.toMatch(/\{word\}/);
+    }
+    expect(emergencyKeywordError("STOP", sayFr)).not.toBe(
+      emergencyKeywordError("STOP", sayEn),
+    );
+  });
+
+  it("names the unrecognised word and the list, in French, with no leftovers", () => {
+    const notice = awayEmergencyNotice({
+      say: sayFr,
+      emergencyEnabled: true,
+      awayMessage: "Pour une urgence, répondez ASAP et nous vous appellerons.",
+      keywords: ["URGENT", "SOS"],
+    });
+    expect(notice?.tone).toBe("warn");
+    expect(notice?.text).toContain("ASAP");
+    // Both occurrences of {word}, and the {words} list with a French "ou".
+    expect(notice?.text, "a variable survived the fill").not.toMatch(/\{word/);
+    expect(notice?.text).toContain("URGENT");
+    expect(notice?.text).toContain("SOS");
+  });
+
+  it("joins the word list with the reader's conjunction", () => {
+    expect(emergencyWordList(["URGENT", "SOS"], sayEn)).toBe("URGENT or SOS");
+    expect(emergencyWordList(["URGENT", "SOS"], sayFr)).toBe("URGENT ou SOS");
+    // One word is one word in both languages — no conjunction to get wrong.
+    expect(emergencyWordList(["URGENT"], sayFr)).toBe("URGENT");
+    expect(emergencyWordList([], sayFr)).not.toBe(emergencyWordList([], sayEn));
   });
 });
