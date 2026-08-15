@@ -15,7 +15,7 @@
   "Core/SupabaseAuth.swift": 1,
   "Features/Attachments/MeteredMedia.swift": 3,
   "Features/Compose/NoteUpload.swift": 1,
-  "Features/Contacts/ContactColumns.swift": 11,
+  "Features/Contacts/ContactColumns.swift": 8,
   "Features/Contacts/ContactDetailView.swift": 4,
   "Features/Contacts/ContactImport.swift": 3,
   "Features/Contacts/ContactRelationship.swift": 1,

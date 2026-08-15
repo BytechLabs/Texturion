@@ -340,6 +340,13 @@ enum ContactsTasksStrings {
                 + "can text somebody without adding them first. They stay on your phone.",
             "contactsTasks.showMyPhoneContacts": "Show my phone contacts",
             "contactsTasks.showAllFromPhone": "Show all from this phone",
+            // #228 — the four value-list controls on the import mapping screen.
+            // Named by packages/shared/src/contact-import.ts and by Android from the
+            // same keys; iOS was the one client still holding them as literals.
+            "contactsTasks.importHiddenValues": "and {count} more",
+            "contactsTasks.importShowAllValues": "Show all {count} values",
+            "contactsTasks.importShowFewerValues": "Show fewer values",
+            "contactsTasks.importValueCeiling": "Showing {shown} of the {total} different answers in this column.",
             "contactsTasks.contactsNeedSettings":
                 "Turn Contacts on for Loonext in Settings.",
             "contactsTasks.addToContacts": "Add {name} to contacts",
@@ -798,6 +805,10 @@ enum ContactsTasksStrings {
             "contactsTasks.showMyPhoneContacts":
                 "Afficher les contacts de mon téléphone",
             "contactsTasks.showAllFromPhone": "Tout afficher depuis ce téléphone",
+            "contactsTasks.importHiddenValues": "et {count} de plus",
+            "contactsTasks.importShowAllValues": "Afficher les {count} valeurs",
+            "contactsTasks.importShowFewerValues": "Afficher moins de valeurs",
+            "contactsTasks.importValueCeiling": "Affichage de {shown} des {total} réponses différentes de cette colonne.",
             "contactsTasks.contactsNeedSettings":
                 "Activez les contacts pour Loonext dans les Réglages.",
             "contactsTasks.addToContacts": "Ajouter {name} aux clients",

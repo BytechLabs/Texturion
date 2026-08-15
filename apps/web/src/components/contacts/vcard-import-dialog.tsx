@@ -26,7 +26,7 @@ import {
 } from "@/lib/contacts/vcard-properties";
 import {
   CONTACT_IMPORT_IGNORE,
-  CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL,
+  CONTACT_IMPORT_SHOW_FEWER_VALUES_KEY,
   contactImportHiddenValuesLabel,
   contactImportShowAllValuesLabel,
   contactImportValueCeilingNote,
@@ -250,6 +250,7 @@ export function VCardImportDialog({
                                       aria-expanded={false}
                                       aria-label={contactImportShowAllValuesLabel(
                                         row.total,
+                                        t,
                                       )}
                                       onClick={() =>
                                         setShowAll(
@@ -261,6 +262,7 @@ export function VCardImportDialog({
                                     >
                                       {contactImportHiddenValuesLabel(
                                         row.total - row.samples.length,
+                                        t,
                                       )}
                                     </button>
                                   </>
@@ -276,6 +278,7 @@ export function VCardImportDialog({
                                 {contactImportValueCeilingNote(
                                   row.values.length,
                                   row.total,
+                                  t,
                                 )}
                               </p>
                             )}
@@ -291,7 +294,7 @@ export function VCardImportDialog({
                               }
                               className="rounded text-xs underline underline-offset-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                             >
-                              {CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL}
+                              {t(CONTACT_IMPORT_SHOW_FEWER_VALUES_KEY)}
                             </button>
                           </>
                         )}

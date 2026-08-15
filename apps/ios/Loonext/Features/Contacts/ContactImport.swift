@@ -821,7 +821,8 @@ struct ContactImportConsentSheet: View {
                         Text(
                             ContactColumns.valueCeilingNote(
                                 shown: column.values.count,
-                                total: column.total
+                                total: column.total,
+                                locale: appLocale
                             )
                         )
                         .font(.golos(11))
@@ -862,8 +863,8 @@ struct ContactImportConsentSheet: View {
         Button(action: toggle) {
             Text(
                 showingAll
-                    ? ContactColumns.showFewerValuesLabel
-                    : ContactColumns.showAllValuesLabel(total: total)
+                    ? ContactColumns.showFewerValuesLabel(locale: appLocale)
+                    : ContactColumns.showAllValuesLabel(total: total, locale: appLocale)
             )
             .font(.golos(11, weight: .semibold))
             .foregroundStyle(BrandColor.ink)
@@ -997,7 +998,8 @@ struct ContactImportConsentSheet: View {
                         Text(
                             ContactColumns.valueCeilingNote(
                                 shown: property.values.count,
-                                total: property.total
+                                total: property.total,
+                                locale: appLocale
                             )
                         )
                         .font(.golos(11))

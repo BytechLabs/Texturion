@@ -47,7 +47,7 @@ import {
   CONTACT_IMPORT_IGNORE,
   CONTACT_IMPORT_MAX_BYTES,
   CONTACT_IMPORT_MAX_ROWS,
-  CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL,
+  CONTACT_IMPORT_SHOW_FEWER_VALUES_KEY,
   contactImportHiddenValuesLabel,
   contactImportShowAllValuesLabel,
   contactImportValueCeilingNote,
@@ -198,11 +198,11 @@ function ColumnRow({
                     <button
                       type="button"
                       aria-expanded={false}
-                      aria-label={contactImportShowAllValuesLabel(column.total)}
+                      aria-label={contactImportShowAllValuesLabel(column.total, t)}
                       onClick={() => setShowAll(true)}
                       className="rounded underline underline-offset-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     >
-                      {contactImportHiddenValuesLabel(hidden)}
+                      {contactImportHiddenValuesLabel(hidden, t)}
                     </button>
                   </>
                 )}
@@ -215,6 +215,7 @@ function ColumnRow({
               {contactImportValueCeilingNote(
                 column.values.length,
                 column.total,
+                t,
               )}
             </p>
           )}
@@ -225,7 +226,7 @@ function ColumnRow({
               onClick={() => setShowAll(false)}
               className="rounded text-xs underline underline-offset-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
-              {CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL}
+              {t(CONTACT_IMPORT_SHOW_FEWER_VALUES_KEY)}
             </button>
           )}
         </div>

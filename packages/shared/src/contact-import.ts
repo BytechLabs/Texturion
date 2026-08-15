@@ -538,6 +538,24 @@ export function contactImportUnreadableFlagMessage(
 }
 
 /**
+ * Every catalogue key the value-list controls name.
+ *
+ * #228. The prefix is `contactsTasks` rather than `domain` because Android has
+ * already said these four for months from exactly these keys — the phones keep
+ * contacts and tasks in one section. Naming a second key for the same sentence
+ * so the shared module could use its usual prefix would put the words in two
+ * places, which is the drift this module was written to prevent.
+ */
+export type ContactImportValuesKey =
+  | "contactsTasks.importHiddenValues"
+  | "contactsTasks.importShowAllValues"
+  | "contactsTasks.importShowFewerValues"
+  | "contactsTasks.importValueCeiling";
+
+/** The reader's resolver, taking one of the four keys above. */
+export type SayValuesKey = (key: ContactImportValuesKey) => string;
+
+/**
  * How the mapping screen names the values it has NOT printed.
  *
  * `", and more"` was what all three clients said, and it is the one phrase this
@@ -549,8 +567,14 @@ export function contactImportUnreadableFlagMessage(
  * Paired with {@link contactImportShowAllValuesLabel} — a count with no way to
  * act on it is a better-worded dead end, not a fix.
  */
-export function contactImportHiddenValuesLabel(hidden: number): string {
-  return `and ${hidden} more`;
+export function contactImportHiddenValuesLabel(
+  hidden: number,
+  say: SayValuesKey,
+): string {
+  return say("contactsTasks.importHiddenValues").replace(
+    "{count}",
+    String(hidden),
+  );
 }
 
 /**
@@ -560,12 +584,19 @@ export function contactImportHiddenValuesLabel(hidden: number): string {
  * and until this existed the answer to "what else is in there?" was to go and
  * open the file in another program. That is not an answer during an import.
  */
-export function contactImportShowAllValuesLabel(total: number): string {
-  return `Show all ${total} values`;
+export function contactImportShowAllValuesLabel(
+  total: number,
+  say: SayValuesKey,
+): string {
+  return say("contactsTasks.importShowAllValues").replace(
+    "{count}",
+    String(total),
+  );
 }
 
 /** The control that puts an expanded column back to its first few values. */
-export const CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL = "Show fewer values";
+export const CONTACT_IMPORT_SHOW_FEWER_VALUES_KEY =
+  "contactsTasks.importShowFewerValues";
 
 /**
  * What an expanded column says when even the full list is cut.
@@ -579,8 +610,11 @@ export const CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL = "Show fewer values";
 export function contactImportValueCeilingNote(
   shown: number,
   total: number,
+  say: SayValuesKey,
 ): string {
-  return `Showing ${shown} of the ${total} different answers in this column.`;
+  return say("contactsTasks.importValueCeiling")
+    .replace("{shown}", String(shown))
+    .replace("{total}", String(total));
 }
 
 /**

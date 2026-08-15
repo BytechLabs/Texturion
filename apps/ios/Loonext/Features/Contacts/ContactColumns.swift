@@ -565,10 +565,24 @@ enum ContactColumns {
     }
 
     /// The control that puts every value a column holds on the screen.
-    static func showAllValuesLabel(total: Int) -> String { "Show all \(total) values" }
+    ///
+    /// #228: the locale is optional and nil-defaulted, which is this app's
+    /// established shape for a said string (see `AppStrings.translate`) — nil
+    /// means the device's own resolution rather than a silent English, so a
+    /// caller that forgets it still reads correctly for most people. The
+    /// forwarding guard is what makes sure the views pass theirs.
+    static func showAllValuesLabel(total: Int, locale: String? = nil) -> String {
+        AppStrings.translate(
+            locale,
+            "contactsTasks.importShowAllValues",
+            ["count": String(total)]
+        )
+    }
 
     /// The control that puts an expanded column back to its first few values.
-    static let showFewerValuesLabel = "Show fewer values"
+    static func showFewerValuesLabel(locale: String? = nil) -> String {
+        AppStrings.translate(locale, "contactsTasks.importShowFewerValues")
+    }
 
     /// What an expanded column says when even the full list is cut.
     ///
@@ -576,8 +590,12 @@ enum ContactColumns {
     /// complete when it is not is the same defect as ", and more" wearing a longer
     /// list. It states the two numbers and stops: how many answers a column has is
     /// NOT a rule about what the column means.
-    static func valueCeilingNote(shown: Int, total: Int) -> String {
-        "Showing \(shown) of the \(total) different answers in this column."
+    static func valueCeilingNote(shown: Int, total: Int, locale: String? = nil) -> String {
+        AppStrings.translate(
+            locale,
+            "contactsTasks.importValueCeiling",
+            ["shown": String(shown), "total": String(total)]
+        )
     }
 
     /// The distinct values one column carries, for showing a person what they

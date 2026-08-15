@@ -309,6 +309,36 @@ const paymentsFr: Translated<typeof paymentsEn> = {
   askForANewOne: "Demandez à l'entreprise de vous en envoyer un nouveau.",
 };
 
+
+/*
+ * #228 — the four value-list controls on the import mapping screen.
+ *
+ * A section of its own, spelled the way both phones spell it, because
+ * `packages/shared/src/contact-import.ts` names these keys and all three
+ * clients resolve the same string. The web splits contacts from tasks and the
+ * phones do not; the shared module cannot hold two prefixes for one sentence,
+ * so the prefix that already had months of French behind it won.
+ */
+const contactsTasksEn = {
+  // No leading comma: the list's punctuation is markup on the web, because the
+  // count is a BUTTON and a link label that opens with a comma reads as one to
+  // a screen reader. Android composes the whole line as one string and carries
+  // its own separator in `importValuesAndMore`.
+  importHiddenValues: "and {count} more",
+  importShowAllValues: "Show all {count} values",
+  importShowFewerValues: "Show fewer values",
+  importValueCeiling:
+    "Showing {shown} of the {total} different answers in this column.",
+};
+
+const contactsTasksFr: Translated<typeof contactsTasksEn> = {
+  importHiddenValues: "et {count} de plus",
+  importShowAllValues: "Afficher les {count} valeurs",
+  importShowFewerValues: "Afficher moins de valeurs",
+  importValueCeiling:
+    "Affichage de {shown} des {total} réponses différentes de cette colonne.",
+};
+
 export const EN = {
   common: commonEn,
   payments: paymentsEn,
@@ -321,6 +351,7 @@ export const EN = {
   thread: threadEn,
   onboarding: onboardingEn,
   contacts: contactsEn,
+  contactsTasks: contactsTasksEn,
   inbox: inboxEn,
   tasks: tasksEn,
   shell: shellEn,
@@ -344,6 +375,7 @@ export const FR_CA: Catalog = {
   thread: threadFr,
   onboarding: onboardingFr,
   contacts: contactsFr,
+  contactsTasks: contactsTasksFr,
   inbox: inboxFr,
   tasks: tasksFr,
   shell: shellFr,
