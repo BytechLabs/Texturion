@@ -34,16 +34,36 @@ extension Error {
     ///
     /// Word for word the same as the Android twin in `ui/common/Ui.kt`.
     ///
-    /// #228: STILL ENGLISH, and it is the largest thing this extraction left
-    /// behind. A computed property on `Error` takes no arguments, so there is
-    /// nowhere for a locale to enter; turning it into a function would rewrite
-    /// roughly fifty call sites across every feature in the app, most of them
-    /// owned by somebody else. Its two sentences belong in the catalogue and the
-    /// change belongs in one commit that can move all of those call sites
-    /// together. (The first branch is already fine in any language: it renders
-    /// the SERVER's own sentence, which is the API's to word and to translate.)
-    var userMessage: String {
+    /// #228: both sentences are in the catalogue now, and the locale enters
+    /// through a FUNCTION beside the property rather than by rewriting the 231
+    /// call sites that read it. The property keeps its exact old behaviour, so
+    /// nothing had to move; a screen that knows its reader opts in by calling
+    /// `userMessage(locale)`.
+    ///
+    /// (The server-sentence branch was always fine in any language: it renders
+    /// what the API wrote, which is the API's to word and to translate.)
+
+    /// English, for a caller with no reader to ask.
+    ///
+    /// Unchanged behaviour for every existing call site — 231 of them across 69
+    /// files — which is the point. A screen that KNOWS its reader calls
+    /// `userMessage(locale)` below and gets French; one that does not keeps
+    /// exactly what it had. Converting all of them in one commit is the mass
+    /// rewrite this file's own header warns about.
+    var userMessage: String { userMessage(MessageLocale.en) }
+
+    /// The same sentence, in the reader's language where it is ours to give.
+    func userMessage(_ locale: String) -> String {
         if let api = self as? ApiError {
+            // #228: ours gets translated; the server's is rendered as it
+            // arrived, because the API resolved the reader's locale already.
+            if let key = api.messageKey {
+                let translated = AppStrings.translate(locale, key, api.messageVars)
+                if let reference = api.requestId, api.httpStatus >= 500 {
+                    return "\(translated) Reference \(reference)."
+                }
+                return translated
+            }
             // #555: a 500 carries the server's own reference, and saying it is what
             // makes "something went wrong" a report somebody can act on rather than
             // a shrug. Only on an internal error: a 422 explaining which field is
@@ -55,10 +75,9 @@ extension Error {
             return api.message
         }
         if self is ApiDecodeError {
-            return "This didn't load. It's a problem on our side, not something "
-                + "you did. If there's an app update, that usually fixes it."
+            return AppStrings.translate(locale, "common.decodeFailed")
         }
-        return "Something went wrong."
+        return AppStrings.translate(locale, "common.unknownError")
     }
 }
 

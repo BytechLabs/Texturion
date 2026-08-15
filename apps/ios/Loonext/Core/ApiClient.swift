@@ -124,7 +124,12 @@ actor ApiClient {
         idempotencyKey: String? = nil
     ) async throws -> Data {
         guard let session = try await freshSession() else {
-            throw ApiError(code: ApiErrorCode.unauthorized, message: "You're signed out.", httpStatus: 401)
+            throw ApiError(
+                code: ApiErrorCode.unauthorized,
+                message: "You're signed out.",
+                httpStatus: 401,
+                messageKey: "common.errSignedOut"
+            )
         }
         let first = try await execute(
             method, path,
@@ -138,7 +143,12 @@ actor ApiClient {
         // Force past the expiry check: the server just told us it's dead.
         guard let refreshed = try await refreshNow(staleToken: session.accessToken) else {
             onSignedOut?()
-            throw ApiError(code: ApiErrorCode.unauthorized, message: "Session expired.", httpStatus: 401)
+            throw ApiError(
+                code: ApiErrorCode.unauthorized,
+                message: "Session expired.",
+                httpStatus: 401,
+                messageKey: "common.errSessionExpired"
+            )
         }
         let second = try await execute(
             method, path,
@@ -230,11 +240,17 @@ actor ApiClient {
                     .compactMap { $0 }
                     .joined(separator: " ")
             )
+            // #228: the one place both cases meet. When the envelope carried a
+            // sentence it is the SERVER's, worded and translated there; the
+            // fallback is ours, so only that one gets a key.
+            let serverMessage = parsed?.error.message
             throw ApiError(
                 code: code,
-                message: parsed?.error.message ?? "Something went wrong (\(status)).",
+                message: serverMessage ?? "Something went wrong (\(status)).",
                 httpStatus: status,
-                requestId: requestId
+                requestId: requestId,
+                messageKey: serverMessage == nil ? "common.errServer" : nil,
+                messageVars: ["status": String(status)]
             )
         }
     }
@@ -308,7 +324,8 @@ actor ApiClient {
             throw ApiError(
                 code: ApiErrorCode.network,
                 message: "Can't reach Loonext. Check your connection.",
-                httpStatus: 0
+                httpStatus: 0,
+                messageKey: "common.errNetwork"
             )
         }
     }

@@ -10,6 +10,30 @@ enum CommonStrings {
     static let section = AppStrings.Section(
         name: "CommonStrings",
         en: [
+            /*
+             * #228 — the two sentences `Error.userMessage` falls back to.
+             *
+             * They were inline in `Support/Ui.swift` until the locale could
+             * reach it. Word for word the Android twin's, because a crew that
+             * switches devices should not meet a different product.
+             */
+            "common.decodeFailed":
+                "This didn't load. It's a problem on our side, not something you did. "
+                + "If there's an app update, that usually fixes it.",
+            "common.unknownError": "Something went wrong.",
+
+            /*
+             * #228 — the sentences THIS APP writes when a request fails.
+             *
+             * Every one was English on a French phone: a lost connection puts
+             * one of these on every screen at once. The server's own refusals
+             * are NOT here — those arrive worded and translated by the API, and
+             * a second copy would go stale the moment it rewords one.
+             */
+            "common.errNetwork": "Can't reach Loonext. Check your connection.",
+            "common.errSignedOut": "You're signed out.",
+            "common.errSessionExpired": "Session expired.",
+            "common.errServer": "Something went wrong ({status}).",
             "common.cancel": "Cancel",
             "common.save": "Save",
             "common.saving": "Saving…",
@@ -39,6 +63,16 @@ enum CommonStrings {
             "common.bulkSelectedAllMatching": "All matching this filter",
         ],
         frCA: [
+            "common.decodeFailed":
+                "Le chargement a échoué. C'est un problème de notre côté, pas "
+                + "quelque chose que vous avez fait. S'il y a une mise à jour de "
+                + "l'application, elle corrige habituellement ce genre de chose.",
+            "common.unknownError": "Une erreur s'est produite.",
+            "common.errNetwork":
+                "Impossible de joindre Loonext. Vérifiez votre connexion.",
+            "common.errSignedOut": "Vous êtes déconnecté.",
+            "common.errSessionExpired": "Session expirée.",
+            "common.errServer": "Une erreur s'est produite ({status}).",
             "common.cancel": "Annuler",
             "common.save": "Enregistrer",
             "common.saving": "Enregistrement…",

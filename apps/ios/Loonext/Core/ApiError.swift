@@ -57,6 +57,23 @@ struct ApiError: Error, LocalizedError {
     let httpStatus: Int
     /// #555: the server's own reference for this failure, when it sent one.
     var requestId: String? = nil
+    /// #228 — WHOSE SENTENCE THIS IS.
+    ///
+    /// Nil means the SERVER wrote it: the message came off the
+    /// `{ error: { code, message } }` envelope, worded and translated there.
+    /// Rendering it verbatim is correct, and a client-side translation would be
+    /// a second copy that goes stale the moment the API rewords its own.
+    ///
+    /// Non-null means WE wrote it — a transport failure, an expired session, a
+    /// refusal this app decided alone. Those are ours to translate, and every
+    /// one of them reached a French reader in English.
+    ///
+    /// The English `message` stays either way: it is what a crash log shows,
+    /// where a catalogue key would say nothing. Twin of Android's
+    /// `ApiException.messageKey`.
+    var messageKey: String? = nil
+    /// Values for a `{name}` inside [messageKey]'s sentence.
+    var messageVars: [String: String] = [:]
 
     var errorDescription: String? { message }
 }

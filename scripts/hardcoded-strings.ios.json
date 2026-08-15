@@ -30,6 +30,5 @@
   "Features/Settings/SettingsRepository.swift": 1,
   "Features/Shell/InboundToastHost.swift": 2,
   "Features/Tasks/TaskDetailView.swift": 4,
-  "Features/Tasks/TasksTab.swift": 1,
-  "Support/Ui.swift": 2
+  "Features/Tasks/TasksTab.swift": 1
 }

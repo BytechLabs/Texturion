@@ -73,6 +73,21 @@ const CATALOGUE = join(IOS, "Core/I18n");
  */
 const CALL = /(?:\bt|translate)\(\s*(?:[^,()]+,\s*)?"([a-zA-Z]\w*\.\w+)"/gs;
 
+/**
+ * `messageKey: "common.errNetwork"` — a key that travels as DATA.
+ *
+ * #228: `ApiError` carries the key of the sentence it wants rather than the
+ * sentence, so the renderer can translate it. That reaches the catalogue just
+ * as surely as `t(…)` does, and this guard was blind to it — four keys were
+ * named at throw sites and defined nowhere, which `translate` answers by
+ * returning the key itself. A customer would have read `common.errNetwork`.
+ *
+ * The same shape the Android twin's `ApiExceptionLocaleTest` walks for. Kept
+ * here rather than only in a Swift test because iOS compiles only in CI, and a
+ * missing key should fail in a second on a laptop.
+ */
+const KEY_AS_DATA = /messageKey:\s*"([a-zA-Z]\w*\.\w+)"/g;
+
 /** `"section.key": "value"` — how a Swift catalogue section stores one. */
 const DEFINITION = /"([a-zA-Z]\w*\.\w+)"\s*:/g;
 
@@ -102,9 +117,14 @@ const used = new Map();
 for (const file of swiftFiles(IOS)) {
   if (file.replaceAll("\\", "/").includes("/Core/I18n/")) continue;
   const relative = file.slice(IOS.length + 1).replaceAll("\\", "/");
-  for (const [, key] of readFileSync(file, "utf8").matchAll(CALL)) {
-    if (!used.has(key)) used.set(key, new Set());
-    used.get(key).add(relative);
+  const source = readFileSync(file, "utf8");
+  // Both ways a key reaches the catalogue: named at a call, or carried as data
+  // on an error that is rendered later.
+  for (const pattern of [CALL, KEY_AS_DATA]) {
+    for (const [, key] of source.matchAll(pattern)) {
+      if (!used.has(key)) used.set(key, new Set());
+      used.get(key).add(relative);
+    }
   }
 }
 
