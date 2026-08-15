@@ -445,9 +445,9 @@ function looksLikeProse(value) {
  * in the same move.
  *
  * Derived from `locale.ts`'s own import list rather than a hand-kept roster, so
- * a seventh message added there is covered the day it is added. Only plain
- * string constants: `DEFAULT_REMINDER_RULES` is an array and has no single
- * sentence to exclude.
+ * a seventh message added there is covered the day it is added. Both plain
+ * string constants and the `body` fields of a rule array, because the reminder
+ * ladder is paired sentence-for-sentence like the rest of them.
  */
 function bilingualPairEnglish() {
   /*
@@ -484,8 +484,45 @@ function bilingualPairEnglish() {
         "m",
       );
       const hit = declaration.exec(owner);
-      if (!hit) continue;
-      values.add([...hit[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]).join(""));
+      if (hit) {
+        const pieces = [...hit[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+        /*
+         * Both the JOIN and each PIECE.
+         *
+         * The join alone was the bug. A body long enough to need translating
+         * is long enough to be written as a `+` chain across several lines,
+         * and the scan asks about one quoted run at a time — so the set held
+         * "Sorry we missed your call! This is {business_name}. Reply here
+         * with your number..." while the scan asked about the first line of
+         * it, missed, and filed a finished French pair as outstanding work.
+         * Six bodies across four modules were counted that way.
+         */
+        values.add(pieces.join(""));
+        for (const piece of pieces) if (piece.length > 8) values.add(piece);
+        continue;
+      }
+      /*
+       * And the LADDER, which is an array rather than a sentence.
+       *
+       * `DEFAULT_REMINDER_RULES` is a list of {offset_minutes, body} — the
+       * offsets are the language-independent half and the bodies are paired
+       * in `FR_CA_COPY.appointmentReminders` like every other automated
+       * message. This function's own note used to say an array "has no
+       * single sentence to exclude", which was true of the array and not of
+       * the bodies inside it.
+       */
+      const array = new RegExp(
+        `export const ${name}(?::[\\s\\S]*?)?=\\s*\\[([\\s\\S]*?)\\n\\];`,
+        "m",
+      ).exec(owner);
+      if (!array) continue;
+      for (const body of array[1].matchAll(
+        /\bbody:\s*((?:"(?:[^"\\]|\\.)*"(?:\s*\+\s*\n?\s*)?)+)/g,
+      )) {
+        const pieces = [...body[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+        values.add(pieces.join(""));
+        for (const piece of pieces) if (piece.length > 8) values.add(piece);
+      }
     }
   }
 

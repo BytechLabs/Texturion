@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,6 +27,7 @@ import { describe, expect, it } from "vitest";
  * and the nearest real sentence it must NOT.
  */
 
+import { DEFAULT_REMINDER_RULES } from "./appointment-reminders";
 import { DEFAULT_MCTB_MESSAGE } from "./mctb";
 import { EMERGENCY_SAFETY_LINE } from "./emergency";
 
@@ -529,5 +531,62 @@ describe("the ledger does not count a finished bilingual pair", () => {
     expect(
       findWebLiterals('const x = "Type a word first, then we can check it.";'),
     ).toEqual(["Type a word first, then we can check it."]);
+  });
+
+  /*
+   * The join was not enough, which is how six finished bodies sat in the
+   * ledger.
+   *
+   * A message long enough to need translating is long enough to be written as
+   * a `+` chain across several lines, and the scan asks about ONE quoted run
+   * at a time. The exclusion held the whole sentence and the scan asked about
+   * its first line, so it missed every multi-line body: four modules, six
+   * bodies, all of them already paired in `FR_CA_COPY`.
+   *
+   * Read out of the source rather than quoted here. What this pins is that
+   * each RUN is excluded, and a test that named the runs would have to be
+   * edited every time somebody rewords a default — which is how a pin turns
+   * into a ceiling.
+   */
+  it("skips every line of a body written as a + chain", () => {
+    const source = readFileSync(join(REPO, "packages", "shared", "src", "mctb.ts"), "utf8");
+    const declaration = /export const DEFAULT_MCTB_MESSAGE\s*=\s*([\s\S]*?);/.exec(source);
+    const runs = [...(declaration?.[1] ?? "").matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+
+    // Coverage before verdict: on a one-run constant every assertion below
+    // passes without exercising the rule at all.
+    expect(runs.length, "DEFAULT_MCTB_MESSAGE is no longer a multi-run body").toBeGreaterThan(1);
+    for (const run of runs) {
+      expect(findWebLiterals(`const x = ${JSON.stringify(run)};`), run).toEqual([]);
+    }
+  });
+
+  it("skips the reminder bodies, which live inside an array", () => {
+    // `DEFAULT_REMINDER_RULES` is a list of {offset_minutes, body}. The offsets
+    // are the language-independent half and the bodies are paired in
+    // `FR_CA_COPY.appointmentReminders` like every other automated message —
+    // but this function's own note used to say an array had "no single
+    // sentence to exclude", which was true of the array and not of what is in
+    // it.
+    expect(DEFAULT_REMINDER_RULES.length, "the ladder is empty").toBeGreaterThan(0);
+    for (const rule of DEFAULT_REMINDER_RULES) {
+      expect(findWebLiterals(`const x = ${JSON.stringify(rule.body)};`), rule.body).toEqual([]);
+    }
+  });
+
+  it("does not excuse a + chain nobody paired", () => {
+    // The negative half, and the one that matters: the rule is keyed on
+    // locale.ts importing the constant, NOT on the sentence arriving in
+    // pieces. Without this, "excluded because it was concatenated" would look
+    // exactly like "excluded because it was translated".
+    expect(
+      findWebLiterals(
+        'const x = "Nobody translated this sentence into French. " +\n' +
+          '  "Nobody translated this one either, so both are still owed.";',
+      ),
+    ).toEqual([
+      "Nobody translated this sentence into French. ",
+      "Nobody translated this one either, so both are still owed.",
+    ]);
   });
 });

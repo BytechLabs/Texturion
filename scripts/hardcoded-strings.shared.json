@@ -1,13 +1,9 @@
 {
   "ai-disclosure.ts": 1,
-  "appointment-reminders.ts": 2,
-  "away.ts": 1,
   "carrier-throughput.ts": 4,
   "contact-import.ts": 6,
   "contact-relationship.ts": 5,
   "deletion-promises.ts": 1,
-  "job-ratings.ts": 2,
-  "mctb.ts": 1,
   "notification-delivery.ts": 2,
   "payments.ts": 11,
   "scheduled-send.ts": 10,
