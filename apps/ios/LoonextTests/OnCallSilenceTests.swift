@@ -130,41 +130,44 @@ final class OnCallSilenceTests: XCTestCase {
 
     // ------------------------------------------------ against the original
 
-    /// The shared source, with carriage returns stripped — this tree is CRLF.
-    private func sharedSource() throws -> String {
+    /// The web catalogue's English half, where these sentences went (#228).
+    private func catalogueEnglish() throws -> String {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        var found: URL?
         while true {
             let candidate = dir.appendingPathComponent(
-                "packages/shared/src/on-call-notifications.ts"
+                "apps/web/src/i18n/sections/domain.ts"
             )
             if FileManager.default.fileExists(atPath: candidate.path) {
-                found = candidate
-                break
+                let raw = try String(contentsOf: candidate, encoding: .utf8)
+                guard let start = raw.range(of: "export const domainEn"),
+                      let end = raw.range(of: "export const domainFr")
+                else {
+                    XCTFail("domain.ts no longer has both language blocks")
+                    return ""
+                }
+                return String(raw[start.upperBound ..< end.lowerBound])
             }
             let parent = dir.deletingLastPathComponent()
             if parent.path == dir.path { break }
             dir = parent
         }
-        let text = try String(contentsOf: try XCTUnwrap(found), encoding: .utf8)
-        return text.replacingOccurrences(of: "\r", with: "")
+        XCTFail("domain.ts is not reachable from \(#filePath)")
+        return ""
     }
 
-    /// The whole sentence matches the shared module, reconstructed.
+    /// The whole sentence matches the CATALOGUE, where it lives since #228.
     ///
-    /// Both sides are reduced to their letters — concatenation syntax stripped, the
-    /// channel name blanked, whitespace collapsed — and compared whole. A reworded
-    /// warning on any client fails; a rewrapped one does not. The Kotlin twin's first
-    /// version compared source fragments and failed on a line break.
-    func testTheWarningMatchesTheSharedModule() throws {
-        let shared = try sharedSource()
-        let start = try XCTUnwrap(shared.range(of: "`You're on call right now."))
-        let end = try XCTUnwrap(
-            shared.range(of: "`\n  );", range: start.upperBound..<shared.endIndex)
-        )
+    /// The shared module wrote it as a line-broken template literal, so this
+    /// used to strip backticks, plus signs and the interpolation to reach the
+    /// words. A catalogue entry is one JSON string: only the {what} slot has
+    /// to be blanked on both sides now.
+    ///
+    /// Sliced to the English half — the French holds the same key.
+    func testTheWarningMatchesTheCatalogue() throws {
+        let catalogue = try catalogueEnglish()
         func bare(_ text: String) -> String {
             var out = text
-            for token in ["`", "+", "${what}", "Push alerts", "Emails"] {
+            for token in ["{what}", "Push alerts", "Emails"] {
                 out = out.replacingOccurrences(of: token, with: "")
             }
             return out
@@ -175,16 +178,19 @@ final class OnCallSilenceTests: XCTestCase {
                 )
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        XCTAssertEqual(
-            bare(String(shared[start.lowerBound..<end.lowerBound])),
-            bare(OnCallSilence.warning(onCall: true, turningOff: true, channel: "push")!),
-            "the warning has drifted from the shared module"
+        let rendered = bare(
+            OnCallSilence.warning(onCall: true, turningOff: true, channel: "push")!
+        )
+        XCTAssertTrue(
+            catalogue.split(separator: "\n").contains { bare(String($0)).contains(rendered) },
+            "the warning has drifted from the catalogue: \(rendered)"
         )
     }
 
     /// And the two button labels, which are the decision a thumb reads.
     func testTheButtonLabelsMatchTheSharedModule() throws {
-        let shared = try sharedSource()
+        // #228: the labels moved to the catalogue with the warning above.
+        let shared = try catalogueEnglish()
         XCTAssertTrue(
             shared.contains("\"\(OnCallSilence.confirm)\""),
             "the confirm label has drifted: \(OnCallSilence.confirm)"
