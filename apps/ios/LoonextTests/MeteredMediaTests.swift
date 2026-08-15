@@ -93,7 +93,35 @@ final class MeteredMediaTests: XCTestCase {
     func testTheHintNamesTheConditionAndTheRemedy() {
         // The alternative — a spinner that never resolves, or a generic
         // "couldn't load" — is how a deliberate setting gets reported as a bug.
-        XCTAssertTrue(MeteredMedia.meteredHint.contains("mobile data"))
-        XCTAssertTrue(MeteredMedia.meteredHint.lowercased().contains("tap"))
+        //
+        // #228: `meteredHint` is a catalogue KEY now, so this resolves it. The
+        // shared module's twin of this assertion was repointed in the same
+        // commit and this one was not — which is why it is worth saying that
+        // both halves have to be checked in BOTH languages: a translation that
+        // kept only the condition leaves a reader with a photo that never
+        // arrives and nothing to do about it.
+        let en = AppStrings.translate("en", MeteredMedia.meteredHint)
+        XCTAssertTrue(en.contains("mobile data"), en)
+        XCTAssertTrue(en.lowercased().contains("tap"), en)
+
+        let fr = AppStrings.translate("fr-CA", MeteredMedia.meteredHint)
+        XCTAssertTrue(fr.lowercased().contains("données mobiles"), fr)
+        XCTAssertTrue(fr.lowercased().contains("touchez"), fr)
+    }
+
+    func testTheSettingRowSaysWhatStillLoads() {
+        // The description exists to stop the label reading as "photos are
+        // off". Threads and galleries always load; only the full-size fetch
+        // waits for Wi-Fi.
+        for locale in ["en", "fr-CA"] {
+            let label = AppStrings.translate(locale, MeteredMedia.settingLabel)
+            let description = AppStrings.translate(
+                locale,
+                MeteredMedia.settingDescription
+            )
+            XCTAssertFalse(label.isEmpty, locale)
+            XCTAssertNotEqual(label, description, locale)
+            XCTAssertGreaterThan(description.count, 40, locale)
+        }
     }
 }

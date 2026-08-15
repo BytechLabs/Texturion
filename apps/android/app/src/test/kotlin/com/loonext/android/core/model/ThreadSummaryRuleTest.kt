@@ -29,6 +29,33 @@ class ThreadSummaryRuleTest {
      * directory: Gradle runs unit tests from `apps/android/app`, but that is a
      * detail of the runner rather than a promise.
      */
+    /**
+     * Where the catch-up's WORDS live since #228: the web catalogue.
+     *
+     * The shared module names keys now, so `sharedSource` no longer contains
+     * any of these sentences. The ID and ORDER assertions below still read it,
+     * because those are wire values a line carries in its `section` field and
+     * they did not move — pointing them here would have them search a copy
+     * file for ids it has never held and pass on an empty comparison.
+     *
+     * Sliced to the English half: the French holds the same keys, and a
+     * `contains` over the whole file would ask whether a heading appears in
+     * EITHER language.
+     */
+    private val catalogueEnglish: String by lazy {
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, "apps/web/src/i18n/sections/domain.ts")
+            if (candidate.exists()) {
+                return@lazy candidate.readText()
+                    .substringAfter("export const domainEn")
+                    .substringBefore("export const domainFr")
+            }
+            dir = dir.parentFile
+        }
+        throw AssertionError("apps/web/src/i18n/sections/domain.ts is not reachable")
+    }
+
     private val sharedSource: String by lazy {
         var dir: File? = File("").absoluteFile
         while (dir != null) {
@@ -86,9 +113,15 @@ class ThreadSummaryRuleTest {
         // Ids reach the server as data (a line's `section`), so a typo here
         // renders a section that never matches and silently shows nothing.
         THREAD_SUMMARY_SECTIONS.forEach { (id, label) ->
+            // The id, where ids live.
             assertTrue(
                 "section id '$id' is not in the shared file",
-                sharedSource.contains("{ id: \"$id\", label: \"$label\" }"),
+                sharedSource.contains("id: \"$id\""),
+            )
+            // The heading, where headings live since #228.
+            assertTrue(
+                "the heading for '$id' has drifted from the catalogue: $label",
+                catalogueEnglish.contains("\"$label\""),
             )
         }
         assertEquals("a section was added or dropped", 3, THREAD_SUMMARY_SECTIONS.size)
@@ -104,7 +137,7 @@ class ThreadSummaryRuleTest {
         assertTrue(
             "the attribution drifted from packages/shared — three clients now " +
                 "make three different promises about what a catch-up is",
-            sharedSource.contains("\"$THREAD_SUMMARY_ATTRIBUTION\""),
+            catalogueEnglish.contains("\"$THREAD_SUMMARY_ATTRIBUTION\""),
         )
         // The promise the card has to keep. If the words stop saying a line
         // taps through to its message, the tap targets are undocumented and
