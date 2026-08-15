@@ -74,6 +74,30 @@ struct SettingsRepository: Sendable {
         try await api.delete("/v1/on-call/\(id)", companyId: companyId)
     }
 
+    // MARK: - #243 API keys
+
+    /// Every key this workspace holds, live and switched off, plus the cap.
+    ///
+    /// Revoked keys are listed too: "what did we turn off, and when" is a
+    /// question somebody asks after an incident, and a list that hides them
+    /// cannot answer it.
+    func apiKeys(_ companyId: String) async throws -> ApiKeyList {
+        try await api.get("/v1/api-keys", companyId: companyId)
+    }
+
+    /// Create one. The ONLY response that carries the token.
+    func createApiKey(
+        _ companyId: String,
+        body: CreateApiKeyBody
+    ) async throws -> MintedApiKey {
+        try await api.post("/v1/api-keys", body: body, companyId: companyId)
+    }
+
+    /// Revoke. A stamp on the server, not a delete.
+    func revokeApiKey(_ companyId: String, id: String) async throws {
+        try await api.delete("/v1/api-keys/\(id)", companyId: companyId)
+    }
+
     // MARK: - #243 connections (outbound webhooks)
 
     /// Every endpoint this workspace points at, and the cap.

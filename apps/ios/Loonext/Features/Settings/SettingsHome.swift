@@ -39,6 +39,10 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     /// because a row that sends customer messages to a third party should not
     /// sit in the middle of the list somebody scans while changing their hours.
     case webhooks
+    /// #243: the other half of the integration story — what may reach IN.
+    /// Directly after Connections because the two are one subject seen from
+    /// opposite ends, and somebody setting up an integration needs both.
+    case apiKeys
     /// #337: hidden until seven taps on the version footer unlock it, the same
     /// gesture and the same copy as Android's. Below Help because that is the
     /// order of escalation: try the humans first.
@@ -75,6 +79,10 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         // in the path — so the READ is gated exactly as the writes are, which
         // is what the API does too.
         case .webhooks: Capability.settingsManage
+        // #243: a key list names what can reach this workspace's data, and
+        // creating one mints a credential — so the READ is gated exactly as
+        // the writes are, matching the API.
+        case .apiKeys: Capability.settingsManage
         case .numbers: Capability.numbersManage
         // #224: `billing.manage` for payments, and NOT `workspace.own` — even
         // though CONNECTING the account is owner-only on the server. The two
@@ -110,6 +118,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .help: "settingsMore.sectionHelp"
         case .whatsNew: "settingsMore.sectionWhatsNew"
         case .webhooks: "webhooks.navWebhooks"
+        case .apiKeys: "apiKeys.navApiKeys"
         case .diagnostics: "settingsMore.diagnostics"
         }
     }
@@ -132,6 +141,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .help: "settingsMore.sectionHelpBlurb"
         case .whatsNew: "settingsMore.sectionWhatsNewBlurb"
         case .webhooks: "webhooks.navWebhooksDesc"
+        case .apiKeys: "apiKeys.navApiKeysDesc"
         case .diagnostics: "settingsMore.sectionDiagnosticsBlurb"
         }
     }
@@ -166,6 +176,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .help: "lifepreserver"
         case .whatsNew: "sparkles"
         case .webhooks: "powerplug"
+        case .apiKeys: "key"
         case .diagnostics: "stethoscope"
         }
     }
@@ -564,6 +575,8 @@ struct SettingsHome: View {
                     WhatsNewSectionView(joinedAt: company.created_at)
                 case .webhooks:
                     WebhooksSectionView(scope: scope)
+                case .apiKeys:
+                    ApiKeysSectionView(scope: scope)
                 case .diagnostics:
                     DiagnosticsSectionView(graph: graph, companyId: companyId)
                 }
