@@ -36,7 +36,12 @@
  * with the same scopes reaches less than an owner's would. That is the
  * intended behaviour and it falls out of acting AS the creator.
  */
-import { PUBLIC_API_BASE } from "@loonext/shared";
+import {
+  PUBLIC_API_BASE,
+  WEBHOOK_ENDPOINT_CAP,
+  WEBHOOK_EVENT_TYPES,
+  webhookUrlRejection,
+} from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -91,6 +96,12 @@ const sendMessageSchema = z.object({
   // and every one of those is a shape we would be promising forever — the
   // honest way to add it is to add it, once somebody has asked.
   body: z.string().trim().min(1).max(1600),
+});
+
+const subscribeSchema = z.object({
+  url: z.string().trim().min(1).max(2000),
+  events: z.array(z.enum(WEBHOOK_EVENT_TYPES)).min(1).transform((e) => [...new Set(e)]),
+  description: z.string().trim().max(200).optional(),
 });
 
 const createTaskSchema = z.object({
@@ -393,5 +404,110 @@ publicApiRoutes.post(
     }
     if (!result?.task) throw new Error("create_task returned no row");
     return c.json(result.task, 201);
+  },
+);
+
+/**
+ * #243 — REST hooks, which is how Zapier and Make actually work.
+ *
+ * A connector creates a subscription when somebody turns a Zap on, and removes
+ * it when they turn it off, using the credential the customer pasted in.
+ * Without these two routes every such integration either could not be built or
+ * required handing over a login.
+ *
+ * Bounded twice, and both bounds matter:
+ *
+ * - The address goes through `webhookUrlRejection`, the same SSRF gate the
+ *   settings screen uses. A connector is not more trusted than a person.
+ * - The endpoint records WHICH KEY made it, and a key may only remove its own.
+ *   Scoping to the key's creator instead would let a Zap tear down a webhook
+ *   the same person set up by hand in Settings, or one belonging to a
+ *   different Zap — invisible until the messages stop arriving.
+ */
+publicApiRoutes.post(
+  `${PUBLIC_API_BASE}/webhooks`,
+  requireScope("webhooks:manage"),
+  requireCapability("settings.manage"),
+  async (c) => {
+    const body = await parseJsonBody(c, subscribeSchema);
+
+    const rejection = webhookUrlRejection(body.url);
+    if (rejection) {
+      // The catalogue key would be noise to a machine, so the public surface
+      // says the rule in words. The clients get the key; a connector gets a
+      // sentence its logs can carry.
+      return errorResponse(
+        c,
+        "validation_failed",
+        `That address cannot receive deliveries (${rejection}).`,
+      );
+    }
+
+    const db = getDb(getEnv(c.env));
+    const secret = `whsec_${[...crypto.getRandomValues(new Uint8Array(32))]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("")}`;
+
+    const { data, error } = await db
+      .from("webhook_endpoints")
+      .insert({
+        company_id: c.get("companyId"),
+        url: body.url,
+        description: body.description ?? null,
+        events: body.events,
+        secret,
+        created_by: c.get("userId"),
+        created_by_api_key_id: c.get("apiKeyId") ?? null,
+      })
+      .select("id,url,events,active,created_at")
+      .limit(1);
+
+    if (error) {
+      if (error.message.includes("webhook endpoint cap reached")) {
+        return errorResponse(
+          c,
+          "conflict",
+          `A workspace may have at most ${WEBHOOK_ENDPOINT_CAP} webhook endpoints.`,
+        );
+      }
+      throw new Error(`public webhook subscribe failed: ${error.message}`);
+    }
+
+    const row = (data as unknown as Record<string, unknown>[])[0];
+    return c.json({ ...row, secret_once: secret }, 201);
+  },
+);
+
+publicApiRoutes.delete(
+  `${PUBLIC_API_BASE}/webhooks/:id`,
+  requireScope("webhooks:manage"),
+  requireCapability("settings.manage"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const db = getDb(getEnv(c.env));
+
+    const removed = unwrap<{ id: string }[]>(
+      await db
+        .from("webhook_endpoints")
+        .delete()
+        .eq("company_id", c.get("companyId"))
+        .eq("id", id)
+        // The bound that makes this safe. An endpoint a person created in
+        // Settings has a NULL here and can never match, so it is unreachable
+        // from the public API by construction rather than by a check somebody
+        // could forget.
+        .eq("created_by_api_key_id", c.get("apiKeyId") ?? "")
+        .select("id"),
+      "public webhook unsubscribe",
+    );
+
+    if (!removed[0]) {
+      return errorResponse(
+        c,
+        "not_found",
+        "No such webhook, or it was not created by this key.",
+      );
+    }
+    return c.body(null, 204);
   },
 );

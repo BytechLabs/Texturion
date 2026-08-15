@@ -496,3 +496,98 @@ describe("writes", () => {
     expect((await res.json()) as { limit: number }).toMatchObject({ limit: 100 });
   });
 });
+
+describe("REST hooks — how Zapier and Make actually work", () => {
+  it("subscribes, records the key that did it, and shows the secret once", async () => {
+    const sb = stubWithKey(["webhooks:manage"]);
+    sb.on("POST", "/rest/v1/webhook_endpoints", () => [
+      { id: "wh-1", url: "https://hooks.zapier.com/x", events: ["task.created"] },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/webhooks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://hooks.zapier.com/x",
+        events: ["task.created"],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { secret_once: string };
+    expect(body.secret_once.startsWith("whsec_")).toBe(true);
+
+    const insert = sb.find("POST", "/rest/v1/webhook_endpoints")[0].body as {
+      created_by_api_key_id: string;
+      secret: string;
+    };
+    // The bound that makes unsubscribe safe: the endpoint remembers which key
+    // made it.
+    expect(insert.created_by_api_key_id).toBe(KEY_ID);
+    expect(insert.secret).toBe(body.secret_once);
+  });
+
+  it("refuses an address the settings screen would refuse", async () => {
+    // A connector is not more trusted than a person. Same SSRF gate.
+    const sb = stubWithKey(["webhooks:manage"]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/webhooks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://169.254.169.254/latest/meta-data/",
+        events: ["task.created"],
+      }),
+    });
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/webhook_endpoints")).toHaveLength(0);
+  });
+
+  it("unsubscribes only what THIS key created", async () => {
+    const sb = stubWithKey(["webhooks:manage"]);
+    sb.on("DELETE", "/rest/v1/webhook_endpoints", () => [{ id: "wh-1" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest(
+      "/public/v1/webhooks/dddddddd-1111-4222-8333-444444444444",
+      { method: "DELETE" },
+    );
+    expect(res.status).toBe(204);
+
+    // THE ONE THAT MATTERS. Without this filter a Zap could tear down a
+    // webhook the same person set up by hand in Settings, or one belonging to
+    // a different Zap — invisible until the messages stopped arriving.
+    const call = sb.find("DELETE", "/rest/v1/webhook_endpoints")[0];
+    expect(call.url.searchParams.get("created_by_api_key_id")).toBe(`eq.${KEY_ID}`);
+    expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+  });
+
+  it("404s a webhook this key did not create", async () => {
+    const sb = stubWithKey(["webhooks:manage"]);
+    // The filtered delete matches nothing — somebody else's endpoint.
+    sb.on("DELETE", "/rest/v1/webhook_endpoints", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest(
+      "/public/v1/webhooks/dddddddd-1111-4222-8333-444444444444",
+      { method: "DELETE" },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("refuses both routes to a key without the scope", async () => {
+    const sb = stubWithKey(["tasks:read", "contacts:read"]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const created = await publicRequest("/public/v1/webhooks", {
+      method: "POST",
+      body: JSON.stringify({ url: "https://hooks.example.com/x", events: ["task.created"] }),
+    });
+    expect(created.status).toBe(403);
+
+    const removed = await publicRequest(
+      "/public/v1/webhooks/dddddddd-1111-4222-8333-444444444444",
+      { method: "DELETE" },
+    );
+    expect(removed.status).toBe(403);
+  });
+});

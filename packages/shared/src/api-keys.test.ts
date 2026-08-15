@@ -15,7 +15,7 @@ import {
 } from "./api-keys";
 
 describe("the scope vocabulary", () => {
-  it("names exactly the seven scopes, and no bearer of full account power", () => {
+  it("names exactly the eight scopes, and no bearer of full account power", () => {
     // Set equality in both directions. The assertion that matters is the
     // ABSENCE: #243's constraint is that a key is never a bearer of full
     // account power, and the way that stops being true is somebody adding an
@@ -29,6 +29,10 @@ describe("the scope vocabulary", () => {
         "messages:send",
         "tasks:read",
         "tasks:write",
+        // #243: what Zapier and Make need. Still not account power — it reaches
+        // only endpoints THIS key created, and the address goes through the
+        // same SSRF gate the settings screen uses.
+        "webhooks:manage",
       ].sort(),
     );
   });

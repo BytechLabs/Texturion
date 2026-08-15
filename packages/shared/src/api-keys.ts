@@ -34,6 +34,21 @@ export const API_KEY_SCOPES = [
   "contacts:write",
   "tasks:read",
   "tasks:write",
+  /**
+   * #243: create and remove THIS key own webhook subscriptions.
+   *
+   * The scope Zapier and Make need, and the reason they can exist at all: a
+   * REST-hook platform creates a subscription when somebody turns a Zap on and
+   * removes it when they turn it off, using the credential they pasted in.
+   * Without this, every such integration either could not be built or required
+   * the customer to hand over their login.
+   *
+   * Bounded twice. A key may only touch endpoints IT created — never one a
+   * person set up in Settings, and never another key own — and the address is
+   * still refused by the same SSRF gate the screen uses. It is off by default
+   * for the same reason every write scope is.
+   */
+  "webhooks:manage",
 ] as const;
 
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
