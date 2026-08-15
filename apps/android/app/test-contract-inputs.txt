@@ -50,6 +50,12 @@ apps/web/src/components/thread
 # rather than the sections directory: an edit to any of these re-runs the whole
 # Android suite, and the other sections are nothing a Kotlin test reads.
 apps/web/src/i18n/sections/settings.ts
+
+# #228: the copy packages/shared names for every client. ReferralShareTest's
+# cross-language pin reads it for the same reason CancellationOfferTest reads
+# the settings section — the shared module moved from holding sentences to
+# naming keys, and the guard followed the words.
+apps/web/src/i18n/sections/domain.ts
 # DeepLinkTest lists these directories to prove every settings slug it maps has
 # a route on the server's side of the link.
 apps/web/src/app/(app)/settings

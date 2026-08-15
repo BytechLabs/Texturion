@@ -102,8 +102,37 @@ final class ReferralShareTests: XCTestCase {
         )
     }
 
+    /// The web catalogue's ENGLISH half, which is where the sentences went.
+    ///
+    /// #228 moved `referral-share.ts` from holding sentences to naming keys,
+    /// so a `contains` against that file asks whether it holds a paragraph it
+    /// no longer holds. The guard's job is unchanged — this client must not
+    /// drift from the shared vocabulary — so it follows the words.
+    ///
+    /// Sliced to the English half: the French holds the same keys, and a
+    /// `contains` over the whole file would ask whether a sentence appears in
+    /// EITHER language.
+    private func catalogueSource() throws -> String {
+        let raw = try String(
+            contentsOf: try repoPath("apps/web/src/i18n/sections/domain.ts"),
+            encoding: .utf8
+        )
+        guard let start = raw.range(of: "export const domainEn"),
+              let end = raw.range(of: "export const domainFr")
+        else {
+            XCTFail("domain.ts no longer has both language blocks")
+            return ""
+        }
+        let english = String(raw[start.upperBound ..< end.lowerBound])
+        return english.replacingOccurrences(
+            of: "\"\\s*\\+\\s*\\n\\s*\"",
+            with: "",
+            options: .regularExpression
+        )
+    }
+
     func testEverySentenceACrewMightSendMatchesTheSharedModule() throws {
-        let shared = try sharedSource()
+        let shared = try catalogueSource()
         for copy in [
             ReferralShare.note,
             ReferralShare.title,
@@ -126,6 +155,7 @@ final class ReferralShareTests: XCTestCase {
 
     func testTheStageLabelsMatchTheSharedModule() throws {
         let shared = try sharedSource()
+        let words = try catalogueSource()
         guard let start = shared.range(of: "REFERRAL_STAGE_LABELS"),
               let open = shared[start.upperBound...].firstIndex(of: "{"),
               let close = shared[open...].firstIndex(of: "}")
@@ -143,10 +173,18 @@ final class ReferralShareTests: XCTestCase {
                 .trimmingCharacters(in: CharacterSet(charactersIn: " ,\"\r\t"))
             guard !label.isEmpty else { continue }
             found += 1
-            XCTAssertEqual(
-                ReferralShare.stageLabel(stage),
-                label,
-                "the label for '\(stage)' has drifted"
+            // #228: the shared module maps each stage to a KEY and the
+            // catalogue says what it means, so both halves of the chain are
+            // pinned — a stage pointed at the wrong key and a key with the
+            // wrong words are different bugs.
+            XCTAssertTrue(
+                label.hasPrefix("domain."),
+                "'\(stage)' should name a catalogue key, found '\(label)'"
+            )
+            XCTAssertTrue(
+                words.contains(ReferralShare.stageLabel(stage)),
+                "the label for '\(stage)' has drifted from the catalogue: "
+                    + ReferralShare.stageLabel(stage)
             )
         }
         XCTAssertEqual(found, 5, "expected five stages in the shared module")

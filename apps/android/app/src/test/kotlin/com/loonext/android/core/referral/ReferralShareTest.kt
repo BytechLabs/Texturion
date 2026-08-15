@@ -90,9 +90,28 @@ class ReferralShareTest {
 
     private fun shared(): String = repoFile("packages/shared/src/referral-share.ts")
 
+    /**
+     * The web catalogue's ENGLISH half, which is where the shared module's
+     * sentences went.
+     *
+     * #228 moved `referral-share.ts` from holding sentences to naming keys, so
+     * a `contains` against that file asks whether it holds a paragraph it no
+     * longer holds. The guard's job is unchanged — this client must not drift
+     * from the shared vocabulary — so it follows the words rather than being
+     * deleted.
+     *
+     * Sliced to the English half: the French holds the same keys, and a
+     * `contains` over the whole file would be asking whether a sentence
+     * appears in EITHER language.
+     */
+    private fun catalogue(): String =
+        repoFile("apps/web/src/i18n/sections/domain.ts")
+            .substringAfter("export const domainEn")
+            .substringBefore("export const domainFr")
+
     @Test
     fun `every sentence a crew might send matches the shared module`() {
-        val source = shared()
+        val source = catalogue()
         for (copy in listOf(
             ReferralShare.NOTE,
             ReferralShare.TITLE,
@@ -106,9 +125,9 @@ class ReferralShareTest {
             ReferralShare.ASK_ACTION,
             ReferralShare.ASK_DISMISS,
         )) {
-            // The TS wraps long strings across lines with `+`, so the comparison
-            // is against the source with those joins collapsed rather than
-            // against the raw file.
+            // Long strings wrap across lines with `+` in both files, so the
+            // comparison is against the source with those joins collapsed
+            // rather than against the raw text.
             assertTrue(
                 "this copy has drifted from the shared module: $copy",
                 joined(source).contains(copy),
@@ -118,20 +137,31 @@ class ReferralShareTest {
 
     @Test
     fun `the stage labels match the shared module, all five`() {
-        val source = joined(shared())
+        /*
+         * #228: the shared module maps each stage to a KEY, and the catalogue
+         * says what the key means. Pinning the whole chain rather than half of
+         * it — a stage pointed at the wrong key and a key with the wrong words
+         * are different bugs and this catches both.
+         */
         val declared = Regex("""REFERRAL_STAGE_LABELS[^=]*= \{([^}]+)\}""")
-            .find(source)
+            .find(joined(shared()))
             ?.groupValues
             ?.get(1)
             ?: throw AssertionError("REFERRAL_STAGE_LABELS is no longer an object literal")
-        val pairs = Regex("""(\w+): "([^"]+)"""").findAll(declared)
+        val pairs = Regex("""(\w+): "(domain\.\w+)"""").findAll(declared)
             .associate { it.groupValues[1] to it.groupValues[2] }
         assertEquals(5, pairs.size)
-        for ((stage, label) in pairs) {
-            assertEquals(
-                "the label for '$stage' has drifted",
-                label,
-                ReferralShare.stageLabel(stage),
+
+        val words = catalogue()
+        for ((stage, key) in pairs) {
+            val label = ReferralShare.stageLabel(stage)
+            assertTrue(
+                "the label for '$stage' has drifted from the catalogue: `$label`",
+                joined(words).contains(label),
+            )
+            assertTrue(
+                "'$stage' names $key, which the catalogue does not answer",
+                words.contains(key.removePrefix("domain.") + ":"),
             )
         }
     }
