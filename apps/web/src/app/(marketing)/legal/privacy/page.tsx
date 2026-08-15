@@ -250,6 +250,21 @@ export default function PrivacyPage() {
           . We may disclose data if the law requires it. We do not sell personal
           information.
         </p>
+        {/* #243: connections and API keys are outbound paths a workspace opens
+            itself, and the sentence above — "only with the sub-processors" —
+            stopped being the whole answer the day they shipped. Same shape as
+            the push disclosure below: a route by which content leaves, named
+            rather than left to be inferred. Said as what it is, so nobody reads
+            it as us having added a processor. */}
+        <p>
+          Your workspace can also send its own data somewhere. If an owner or
+          admin sets up a connection, we post what happens here, including
+          message text and a contact&rsquo;s name and number, to the web address
+          they enter, until they delete it. If they create an API key, whoever
+          holds that key can read whatever its permissions allow. In both cases
+          the recipient is chosen by your business rather than by us, and it is
+          not covered by our agreements with the services above.
+        </p>
         {/* #430: push services were not named here at all, and they receive
             message content by design — the notification payload IS the
             content. Naming them is the disclosure; the workspace switch is

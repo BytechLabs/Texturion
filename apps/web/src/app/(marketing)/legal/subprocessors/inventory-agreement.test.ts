@@ -68,7 +68,20 @@ const VENDORS: { token: string; why: string }[] = [
 
 /** Rows in the inventory's third-party table, counted from its `| **Name**` shape. */
 function inventoryVendorCount(): number {
-  return (INVENTORY.match(/^\| \*\*[^*]+\*\*/gm) ?? []).length;
+  /*
+   * SCOPED TO THE SUB-PROCESSOR SECTION, not the whole file.
+   *
+   * This counted every bolded table row in DATA-INVENTORY.md, which was exact
+   * while that table was the only one. #243 added a second — the paths a
+   * WORKSPACE opens, which are deliberately not sub-processors and must not be
+   * on the roster — and two rows in it read as two unknown vendors.
+   *
+   * The proxy was the bug: "a bold row anywhere" was never what this guard
+   * meant. It means the rows under the heading that introduces the vendors.
+   */
+  const section = INVENTORY.split("## Who else sees it")[1] ?? "";
+  const table = section.split(/^## /m)[0] ?? "";
+  return (table.match(/^\| \*\*[^*]+\*\*/gm) ?? []).length;
 }
 
 /** Entries in the subprocessors page's array, counted from its `name:` keys. */

@@ -209,6 +209,37 @@ feature cannot ship undisclosed.
 
 ---
 
+## Where the workspace itself sends data (#243)
+
+Everything above is a party **we** chose. These are paths a workspace opens
+deliberately, and they are listed separately because the distinction is the
+whole point: we are not adding a sub-processor, the customer is pointing their
+own data somewhere.
+
+| Path | What leaves | Who decides |
+|---|---|---|
+| **Connections (outbound webhooks)** | The event and its payload — a message body, a contact's name and number, a task's details — POSTed to a URL the workspace enters | An owner or admin, per endpoint, and they can delete it |
+| **API keys** | Whatever the key's scopes allow: messages, contacts, tasks, numbers | Whoever holds the key. Scopes are chosen at creation and the key can be revoked |
+
+Files: `apps/api/src/webhooks/outbound.ts`, `apps/api/src/auth/api-key.ts`,
+`apps/api/src/routes/public-api.ts`.
+
+**Not a Play "shared" row and not an Apple sharing disclosure**, and the reason
+is stated here rather than assumed. Both platforms carve out a transfer the user
+initiates and is told about: Play's Data safety guidance excludes data
+transferred "based on a specific user-initiated action" where the transfer is
+disclosed, and this is a URL an admin types into a form headed with what will be
+sent. Filing it as sharing would say we picked the recipient, which is the one
+thing that is not true.
+
+**It does belong in the privacy policy**, because the sentence that used to say
+we share only with sub-processors was no longer the whole answer once this
+shipped — the same failure #430 found for push services, which received message
+content by design and were named nowhere. `store-declarations.test.ts` now
+fails if either file exists and the policy does not name it.
+
+---
+
 ## AI, which is a data-sharing disclosure on both forms
 
 Customer message content and voicemail audio are sent to **Cloudflare Workers

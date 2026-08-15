@@ -57,6 +57,33 @@ const ANDROID_DECLARATION = read("apps", "android", "store", "data-safety.md");
 const INVENTORY = read("docs", "DATA-INVENTORY.md");
 
 /**
+ * #243 — the customer-facing half of the same statement.
+ *
+ * The declarations and the inventory are internal documents; this is the one a
+ * customer reads, and the three are one statement made three times. A path that
+ * appears in two of them and not the third is the finding.
+ */
+const PRIVACY_POLICY = read(
+  "apps",
+  "web",
+  "src",
+  "app",
+  "(marketing)",
+  "legal",
+  "privacy",
+  "page.tsx",
+)
+  /*
+   * COMMENTS STRIPPED, and this is not tidiness. The comments in that file
+   * explain the disclosures by quoting them — "#243: connections and API keys
+   * are outbound paths a workspace opens" sits directly above the paragraph
+   * that says so. Matching raw source, deleting the whole customer-facing
+   * paragraph left this test passing on the comment that survived it.
+   */
+  .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+  .replace(/\/\*[\s\S]*?\*\//g, "");
+
+/**
  * Permissions that are plumbing rather than a declaration: they gate no personal
  * data, and neither store asks about them. Everything else must be named.
  */
@@ -290,5 +317,76 @@ describe("#502 the inventory does not deny what the code does", () => {
           `a reviewer knows whether to trust the file.`,
       ).toMatch(/Last reconciled with the code:\*{0,2}\s*\d{4}-\d{2}-\d{2}/);
     }
+  });
+});
+
+/*
+ * #243 — the paths a WORKSPACE opens, which nothing was watching.
+ *
+ * The AI features have a guard already: the disclosure is generated from the
+ * cost registry, so a new model cannot ship undisclosed. Outbound connections
+ * and API keys had no equivalent, and both shipped with the inventory and the
+ * privacy policy still saying data goes only to our sub-processors.
+ *
+ * This is the same failure #430 found for push services — a route by which
+ * message content leaves, named nowhere — so it is guarded the same way: if the
+ * code exists, the words must exist.
+ *
+ * Keyed on the FILE rather than on a feature flag, because the file is what
+ * makes the path real. A flag that is off still ships the capability, and the
+ * declaration is about what the app can do.
+ */
+describe("#243 an outbound path the workspace opens is disclosed", () => {
+  const PATHS = [
+    {
+      what: "outbound webhooks",
+      file: ["apps", "api", "src", "webhooks", "outbound.ts"],
+      // What the policy has to actually SAY, not merely mention. "connection"
+      // is the word the product uses for these on every screen.
+      policy: /connection/i,
+      inventory: /outbound webhooks/i,
+    },
+    {
+      what: "API keys",
+      file: ["apps", "api", "src", "auth", "api-key.ts"],
+      policy: /API key/i,
+      inventory: /API keys/i,
+    },
+  ];
+
+  it("names each one in the privacy policy and the inventory", () => {
+    let checked = 0;
+    for (const path of PATHS) {
+      let exists = true;
+      try {
+        read(...path.file);
+      } catch {
+        exists = false;
+      }
+      // Not skipped silently: a path that has been REMOVED should make somebody
+      // delete the disclosure deliberately, so the absence is reported.
+      expect(
+        exists,
+        `${path.file.join("/")} is gone. If ${path.what} was removed, remove its ` +
+          `disclosure from the privacy policy and the inventory in the same change.`,
+      ).toBe(true);
+      if (!exists) continue;
+      checked += 1;
+
+      expect(
+        PRIVACY_POLICY,
+        `${path.what} send customer data somewhere we did not choose, and the ` +
+          `privacy policy does not say so. The sentence about sub-processors is ` +
+          `not the whole answer once this exists.`,
+      ).toMatch(path.policy);
+
+      expect(
+        INVENTORY,
+        `${path.what} are missing from docs/DATA-INVENTORY.md, which is the ` +
+          `document both store declarations are written from.`,
+      ).toMatch(path.inventory);
+    }
+    // A loop over an empty list would agree with itself.
+    expect(checked).toBe(PATHS.length);
   });
 });
