@@ -924,6 +924,38 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 44_640,
     graceMinutes: 2880,
   },
+  "job:prune-webhook-deliveries": {
+    what:
+      "The OUTBOUND webhook log is no longer pruned, so we are holding " +
+      "copies of customers' message content past the 30 days we publish.",
+    doThis:
+      "Workers Logs, search `cron job job:prune-webhook-deliveries failed` " +
+      "for the stack. This is not an outage — every integration keeps " +
+      "working. What breaks is a promise: `docs/PERSONAL-DATA-INVENTORY.md` " +
+      "§5 says these payloads are deleted at 30 days, and each payload is a " +
+      "copy of a real message body or contact name. A published window " +
+      "nothing enforces is a claim, so treat this as a this-week problem " +
+      "rather than a background one. Fully self-draining — one good run " +
+      "clears the whole accumulation. If several other `job:prune-*` keys " +
+      "are in this email, look at the shared 15:30 UTC trigger instead.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
+  "job:deliver-outbound-webhooks": {
+    what: "Outbound webhooks have stopped going out to customers' own systems.",
+    doThis:
+      "Workers Logs, search `cron job job:deliver-outbound-webhooks failed` " +
+      "for the stack. Nothing is LOST — a delivery that was claimed and not " +
+      "finished stays past-due and the next tick re-claims it, so the queue " +
+      "drains itself once the job runs again. What a customer sees " +
+      "meanwhile is their scheduling tool or CRM silently falling behind, " +
+      "which they will notice as our bug rather than a stalled cron. If the " +
+      "stack points at `fetch`, look at ONE endpoint before suspecting the " +
+      "job: a single slow receiver can eat the tick, and the per-endpoint " +
+      "auto-disable is what is supposed to stop that.",
+    everyMinutes: 5,
+    graceMinutes: 30,
+  },
   "job:prune-webhook-events": {
     what: "The webhook ledger is no longer pruned and grows without bound.",
     doThis:

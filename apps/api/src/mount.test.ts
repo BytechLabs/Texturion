@@ -63,6 +63,10 @@ import {
   sweepStaleCalls,
   sweepWebhookEvents,
 } from "./messaging/crons";
+import {
+  deliverOutboundWebhooks,
+  pruneWebhookDeliveries,
+} from "./webhooks/outbound-deliver";
 import { composeRoutes } from "./routes/compose";
 import { conversationsRoutes } from "./routes/conversations";
 import { pollPortRequests } from "./telnyx/porting";
@@ -504,11 +508,15 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     // #411: the auto-retry runs BEFORE the fail-out, and the order is the
     // assertion — a row this declines must be failed out in the SAME tick
     // rather than waiting five minutes for the next one.
+    // #243 rides the same trigger and goes LAST, which is also an assertion:
+    // every job above it moves a customer's message or unsticks one, and this
+    // is the only one whose latency belongs to an address a customer chose.
     expect(runs("*/5 * * * *")).toEqual([
       sweepWebhookEvents,
       retryInterruptedSends,
       failStuckOutboundSends,
       sweepStuckProvisioning,
+      deliverOutboundWebhooks,
     ]);
     expect(runs("*/15 * * * *")).toEqual([
       runDailySummary,
@@ -567,6 +575,10 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     // Both ledger retentions ride the same daily slot (#231).
     expect(runs("30 15 * * *")).toEqual([
       pruneWebhookEvents,
+      // #243: the outbound ledger, beside the inbound one for the same reason
+      // #581 gave — the window is published, so a registered caller is what
+      // makes it true rather than a claim.
+      pruneWebhookDeliveries,
       pruneAuditLog,
       pruneUserSessions, // #236: dead and revoked device rows past 90 days
       // #581: both of these existed, were granted and were documented — and

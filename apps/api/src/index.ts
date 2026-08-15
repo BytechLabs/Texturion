@@ -66,6 +66,10 @@ import {
   sweepStaleCalls,
   sweepWebhookEvents,
 } from "./messaging/crons";
+import {
+  deliverOutboundWebhooks,
+  pruneWebhookDeliveries,
+} from "./webhooks/outbound-deliver";
 import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
 import { sentryOptions } from "./observability/sentry";
 import { attachmentsRoutes } from "./routes/attachments";
@@ -446,6 +450,12 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     job("job:retry-interrupted-sends", retryInterruptedSends),
     job("job:fail-stuck-sends", failStuckOutboundSends),
     job("job:sweep-stuck-provisioning", sweepStuckProvisioning),
+    // #243: the outbound half. Last in the tick deliberately — every job above
+    // it either moves a customer's message or unsticks one, and a slow
+    // integration endpoint must never be what delays them. This one talks to
+    // an address a customer chose, so it is the only job here whose latency is
+    // outside our control.
+    job("job:deliver-outbound-webhooks", deliverOutboundWebhooks),
   ],
   // Provisioning retry & reconcile: resume provisioning/provision_failed
   // numbers, adopt crash-after-buy orphans, re-run failed §4.4 R3 campaign
@@ -601,6 +611,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   "15 */6 * * *": [job("job:do-sentry-canary", runDoSentryCanaryJob)],
   "30 15 * * *": [
     job("job:prune-webhook-events", pruneWebhookEvents),
+    // #243: the outbound ledger, whose payloads are copies of the workspace's
+    // own message and contact content. Beside the inbound one because it is
+    // the same table facing the other way and carries the same data.
+    job("job:prune-webhook-deliveries", pruneWebhookDeliveries),
     job("job:prune-audit-log", pruneAuditLog),
     // #236: dead and revoked device rows past the 90-day window. Live
     // sessions are never touched, at any age.
