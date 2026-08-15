@@ -113,6 +113,7 @@ import {
   MMS_ACCEPT,
   MMS_MAX_MEDIA_ITEMS,
   partitionMmsFiles,
+  type SayMmsRejection,
 } from "@/lib/attachments/mms";
 import {
   ATTACHMENT_ACCEPT,
@@ -258,10 +259,12 @@ export interface AdmitFilesResult {
 export function admitFiles(
   current: DraftAttachment[],
   incoming: FileList | File[],
+  say: SayMmsRejection,
 ): AdmitFilesResult {
   const { accepted, rejected } = partitionMmsFiles(
     Array.from(incoming),
     current.length,
+    say,
   );
   const next = [...current];
   for (const { file, contentType } of accepted) {
@@ -1152,7 +1155,7 @@ export function Composer({
   // #189 text-mode intake: run the shared MMS matrix locally and surface the
   // rejections INLINE (never a round-trip for a pick this gate can decide).
   const admitDraftFiles = (files: FileList | File[]) => {
-    const { attachments: next, errors } = admitFiles(attachments, files);
+    const { attachments: next, errors } = admitFiles(attachments, files, t);
     setAttachments(next);
     setMediaErrors(errors);
   };

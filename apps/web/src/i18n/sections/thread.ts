@@ -18,6 +18,15 @@
 import type { Translated } from "../translated";
 
 export const threadEn = {
+  /* #228 — why a file was refused. The name is INTERPOLATED rather than
+     glued to the front: the subject is not where every language starts
+     its sentence, and both phone catalogues carry the same note against
+     the same keys. */
+  thatFile: "That file",
+  attachLimitText: "You can attach up to {max} files per text.",
+  mmsUnsupportedFile: "{name} isn't something a text can carry. Try a photo, video, audio clip, contact card, or PDF.",
+  mmsFileEmpty: "{name} is empty.",
+  mmsFileTooBig: "{name} is over 1 MB, the most a text can carry.",
   /* #228 — somebody already answered (#408). Both phones have had these
      eight; the web read the sentence off packages/shared in English. */
   duplicateReplyNamed: "{name} replied {ago}.",
@@ -735,6 +744,11 @@ export const threadEn = {
  * and a translated keyword is a keyword that does nothing.
  */
 export const threadFr: Translated<typeof threadEn> = {
+  thatFile: "Ce fichier",
+  attachLimitText: "Vous pouvez joindre jusqu'à {max} fichiers par texto.",
+  mmsUnsupportedFile: "{name} n'est pas quelque chose qu'un texto peut transporter. Essayez une photo, une vidéo, un clip audio, une fiche de contact ou un PDF.",
+  mmsFileEmpty: "{name} est vide.",
+  mmsFileTooBig: "{name} dépasse 1 Mo, le maximum qu'un texto peut transporter.",
   duplicateReplyNamed: "{name} a répondu {ago}.",
   duplicateReplyAuto: "Une réponse automatique est partie {ago}.",
   agoJustNow: "à l'instant",

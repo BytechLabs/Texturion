@@ -65,9 +65,29 @@ interface FileLike {
   size: number;
 }
 
-function displayName(file: FileLike): string {
+/** Every catalogue key this module names. */
+export type MmsRejectionKey =
+  | "thread.thatFile"
+  | "thread.attachLimitText"
+  | "thread.mmsUnsupportedFile"
+  | "thread.mmsFileEmpty"
+  | "thread.mmsFileTooBig";
+
+/** The reader's resolver. */
+export type SayMmsRejection = (
+  key: MmsRejectionKey,
+  vars?: Record<string, string>,
+) => string;
+
+/*
+ * The name is INTERPOLATED rather than glued to the front of the sentence.
+ * Both phone catalogues carry that note against the same keys: the subject is
+ * not where every language starts, and a French sentence built by
+ * concatenation puts it in the wrong place.
+ */
+function displayName(file: FileLike, say: SayMmsRejection): string {
   const name = file.name?.trim();
-  return name ? `"${name}"` : "That file";
+  return name ? `"${name}"` : say("thread.thatFile");
 }
 
 /**
@@ -76,14 +96,17 @@ function displayName(file: FileLike): string {
  */
 export function validateMmsFile<T extends FileLike>(
   file: T,
-  currentCount = 0,
+  currentCount: number,
+  say: SayMmsRejection,
 ):
   | { ok: true; contentType: MmsMediaType }
   | { ok: false; reason: string } {
   if (currentCount >= MMS_MAX_MEDIA_ITEMS) {
     return {
       ok: false,
-      reason: `You can attach up to ${MMS_MAX_MEDIA_ITEMS} files per text.`,
+      reason: say("thread.attachLimitText", {
+        max: String(MMS_MAX_MEDIA_ITEMS),
+      }),
     };
   }
   const contentType = mmsMediaTypeForFile({
@@ -93,16 +116,21 @@ export function validateMmsFile<T extends FileLike>(
   if (contentType === null) {
     return {
       ok: false,
-      reason: `${displayName(file)} isn't something a text can carry. Try a photo, video, audio clip, contact card, or PDF.`,
+      reason: say("thread.mmsUnsupportedFile", {
+        name: displayName(file, say),
+      }),
     };
   }
   if (file.size === 0) {
-    return { ok: false, reason: `${displayName(file)} is empty.` };
+    return {
+      ok: false,
+      reason: say("thread.mmsFileEmpty", { name: displayName(file, say) }),
+    };
   }
   if (file.size > MMS_MAX_MEDIA_BYTES) {
     return {
       ok: false,
-      reason: `${displayName(file)} is over 1 MB, the most a text can carry.`,
+      reason: say("thread.mmsFileTooBig", { name: displayName(file, say) }),
     };
   }
   return { ok: true, contentType };
@@ -117,12 +145,13 @@ export function validateMmsFile<T extends FileLike>(
  */
 export function partitionMmsFiles<T extends FileLike>(
   incoming: readonly T[],
-  currentCount = 0,
+  currentCount: number,
+  say: SayMmsRejection,
 ): { accepted: AdmittedMmsFile<T>[]; rejected: RejectedMmsFile<T>[] } {
   const accepted: AdmittedMmsFile<T>[] = [];
   const rejected: RejectedMmsFile<T>[] = [];
   for (const file of incoming) {
-    const check = validateMmsFile(file, currentCount + accepted.length);
+    const check = validateMmsFile(file, currentCount + accepted.length, say);
     if (check.ok) accepted.push({ file, contentType: check.contentType });
     else rejected.push({ file, reason: check.reason });
   }

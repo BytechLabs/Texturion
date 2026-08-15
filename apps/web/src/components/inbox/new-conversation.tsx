@@ -216,6 +216,7 @@ export function NewConversation() {
     const { attachments: next, errors } = admitFiles(
       attachmentsRef.current,
       files,
+      t,
     );
     setAttachments(next);
     setMediaErrors(errors);
