@@ -19,9 +19,23 @@
  * The member cannot change this and should not be sent looking for a setting.
  * The one useful action is asking the person who set it.
  */
-export function hiddenNumbersNotice(hiddenCount: number): string | null {
+/** Every catalogue key this module names. */
+export type HiddenNumbersKey =
+  | "domain.hiddenNumbersOne"
+  | "domain.hiddenNumbersMany";
+
+/** The reader's resolver. */
+export type SayHiddenNumbers = (key: HiddenNumbersKey) => string;
+
+export function hiddenNumbersNotice(
+  hiddenCount: number,
+  say: SayHiddenNumbers,
+): string | null {
   if (hiddenCount <= 0) return null;
+  // One and many are separate keys. French agrees the verb and the article
+  // with the count — "Un autre numéro se trouve" against "{count} autres
+  // numéros se trouvent" — so a single template could not carry both.
   return hiddenCount === 1
-    ? "One more number is on this account that is not shared with you. Ask an owner if you need it."
-    : `${hiddenCount} more numbers are on this account that are not shared with you. Ask an owner if you need them.`;
+    ? say("domain.hiddenNumbersOne")
+    : say("domain.hiddenNumbersMany").replace("{count}", String(hiddenCount));
 }

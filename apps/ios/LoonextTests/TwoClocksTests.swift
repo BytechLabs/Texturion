@@ -106,6 +106,25 @@ final class TwoClocksTests: XCTestCase {
 
     // ------------------------------------------------ against the original
 
+    /// Any repo file, walked up to from this test's own location.
+    ///
+    /// `sharedSource()` below hardcodes one path; #228 needs a second, so the
+    /// walk is factored out rather than copied.
+    private func repoFile(_ relative: String) throws -> String {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while true {
+            let candidate = dir.appendingPathComponent(relative)
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return try String(contentsOf: candidate, encoding: .utf8)
+            }
+            let parent = dir.deletingLastPathComponent()
+            if parent.path == dir.path { break }
+            dir = parent
+        }
+        XCTFail("\(relative) is not reachable from \(#filePath)")
+        return ""
+    }
+
     private func sharedSource() throws -> String {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         var found: URL?
@@ -156,7 +175,16 @@ final class TwoClocksTests: XCTestCase {
     /// against the shared text rather than against another copy of itself — that is
     /// the mistake that let two Customise labels drift on #540.
     func testTheAreaCodeExplanationMatchesTheSharedModule() throws {
-        let shared = try sharedSource()
+        // #228: the SENTENCE lives in the web catalogue now; the shared
+        // module names a key. `sharedSource()` stays for the tests around
+        // this one, which read rules rather than copy.
+        let raw = try repoFile("apps/web/src/i18n/sections/domain.ts")
+        guard let start = raw.range(of: "export const domainEn"),
+              let end = raw.range(of: "export const domainFr")
+        else {
+            return XCTFail("domain.ts no longer has both language blocks")
+        }
+        let shared = String(raw[start.upperBound ..< end.lowerBound])
         XCTAssertTrue(
             shared.contains(TwoClocks.areaCodeNote),
             "areaCodeNote has drifted: \(TwoClocks.areaCodeNote)"

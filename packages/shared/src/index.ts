@@ -855,7 +855,11 @@ export {
  * #286 — the sentence a member sees where a number they cannot access would
  * have been. One place, so all three clients say the same thing.
  */
-export { hiddenNumbersNotice } from "./hidden-numbers-notice";
+export {
+  hiddenNumbersNotice,
+  type HiddenNumbersKey,
+  type SayHiddenNumbers,
+} from "./hidden-numbers-notice";
 
 /**
  * #224 / D133 — text-to-pay. The six-state answer the thread shows, the amount
@@ -984,6 +988,7 @@ export {
   sameClock,
   type WallClock,
   wallClockInZone,
+  type TwoClocksKey,
 } from "./two-clocks";
 
 // #538: taking powers away from yourself, said out loud first. An admin who

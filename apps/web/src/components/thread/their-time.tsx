@@ -4,6 +4,7 @@ import { Moon } from "lucide-react";
 
 import { CLOCK_AREA_CODE_NOTE } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
 import type { DestinationClock } from "@/lib/api/types";
 
 /**
@@ -26,6 +27,7 @@ import type { DestinationClock } from "@/lib/api/types";
  * fact, and the contact screen is where somebody corrects it.
  */
 export function TheirTime({ clock }: { clock: DestinationClock | null }) {
+  const t = useT();
   if (!clock || !clock.quiet) return null;
 
   const hour = clock.local_hour;
@@ -63,7 +65,7 @@ export function TheirTime({ clock }: { clock: DestinationClock | null }) {
             contact does not need telling they can, and offering to correct a
             non-geographic number would be offering to fix an inference we never
             made. */}
-        {clock.source === "area_code" && <span>{CLOCK_AREA_CODE_NOTE}</span>}
+        {clock.source === "area_code" && <span>{t(CLOCK_AREA_CODE_NOTE)}</span>}
       </span>
     </p>
   );

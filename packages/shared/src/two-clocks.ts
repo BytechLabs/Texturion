@@ -254,8 +254,10 @@ export function wallClockInZone(
  * saying it on a non-geographic number where we admit we are showing the shop's own
  * clock would be offering to correct something we never inferred.
  */
-export const CLOCK_AREA_CODE_NOTE =
-  "The rules about when you may text go by their clock, not yours. If this number moved, set their timezone on the contact.";
+export const CLOCK_AREA_CODE_NOTE: TwoClocksKey = "domain.twoClocksAreaCodeNote";
+
+/** Every catalogue key this module names. */
+export type TwoClocksKey = "domain.twoClocksAreaCodeNote";
 
 /** Where a member goes to correct it, so three clients name the same screen. */
 export const CLOCK_AREA_CODE_FIX = "set their timezone on the contact";

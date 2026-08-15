@@ -170,7 +170,16 @@ class TwoClocksTest {
      */
     @Test
     fun `the area-code explanation matches the shared module`() {
-        val shared = repoFile("packages/shared/src/two-clocks.ts")
+        // #228: the SENTENCE lives in the web catalogue now; the shared module
+        // names a key. The separator test below still reads the module, which
+        // is where a punctuation rule belongs.
+        //
+        // Sliced to the English half: the French holds the same key, and a
+        // `contains` over the whole file would ask whether the sentence
+        // appears in EITHER language.
+        val shared = repoFile("apps/web/src/i18n/sections/domain.ts")
+            .substringAfter("export const domainEn")
+            .substringBefore("export const domainFr")
         assertTrue(
             "AREA_CODE_NOTE has drifted: ${TwoClocks.AREA_CODE_NOTE}",
             shared.contains(TwoClocks.AREA_CODE_NOTE),

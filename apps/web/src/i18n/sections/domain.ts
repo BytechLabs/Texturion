@@ -25,6 +25,11 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  /* #228 — whose clock the rules follow (#225), and the numbers a member
+     cannot see (#286). Both phones have had all three. */
+  twoClocksAreaCodeNote: "The rules about when you may text go by their clock, not yours. If this number moved, set their timezone on the contact.",
+  hiddenNumbersOne: "One more number is on this account that is not shared with you. Ask an owner if you need it.",
+  hiddenNumbersMany: "{count} more numbers are on this account that are not shared with you. Ask an owner if you need them.",
   /* #228 — taking powers off yourself (#538). Written as things they DO:
      "team.manage" tells a developer what is revoked and an owner nothing.
      Android has had all of these since #538. */
@@ -364,6 +369,9 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  twoClocksAreaCodeNote: "Les règles sur les heures où vous pouvez texter suivent leur horloge, pas la vôtre. Si ce numéro a déménagé, réglez son fuseau horaire sur la fiche du client.",
+  hiddenNumbersOne: "Un autre numéro se trouve sur ce compte sans être partagé avec vous. Demandez-le à un propriétaire si vous en avez besoin.",
+  hiddenNumbersMany: "{count} autres numéros se trouvent sur ce compte sans être partagés avec vous. Demandez-les à un propriétaire si vous en avez besoin.",
   capBilling: "le forfait et la facturation",
   capSettings: "les paramètres de l'espace de travail",
   capTeam: "qui fait partie de l'équipe et ce que ces personnes peuvent faire",
