@@ -1316,6 +1316,52 @@ private val BILLING_EN = mapOf(
      * is the product's own term and reads as "usage raisonnable" throughout,
      * which is the wording SettingsMoreStrings already uses.
      */
+    /*
+     * #277 — the pause, offered and then lived in.
+     *
+     * The named-plan and unnamed forms are SEPARATE KEYS rather than one
+     * sentence with an optional insert: a plan name is a noun that has to sit
+     * in a grammatical slot, and French does not put it where English does.
+     */
+    "settings.pauseStops" to
+        "You can't send texts or take calls while you're paused, and anyone who " +
+        "rings hears that the line isn't taking calls.",
+    "settings.pauseKeeps" to
+        "Every text a customer sends still arrives, anything you've scheduled is " +
+        "held rather than dropped and goes out when you're back, and your number " +
+        "and your whole message history stay exactly as they are.",
+
+    "settings.pausedHeading" to "Paused",
+    "settings.pausedHeadingPrice" to "Paused — {price} a month instead of the plan price",
+    "settings.pauseResumeNamed" to
+        "Resuming puts you straight back on {plan}, with the rest of this billing " +
+        "period charged at the {plan} price.",
+    "settings.pauseResumeAny" to
+        "Resuming puts you straight back on your plan, with the rest of this " +
+        "billing period charged at the plan price.",
+    "settings.pauseResumeLabelNamed" to "Resume {plan}",
+    "settings.pauseResumeLabelAny" to "Resume my plan",
+    "settings.pauseConfirmTitleNamed" to "Resume {plan}?",
+    "settings.pauseConfirmTitleAny" to "Resume your plan?",
+    "settings.pauseConfirmTail" to
+        "Texting and calls work again as soon as it lands, and anything that was " +
+        "held goes out.",
+    "settings.pauseResumeNow" to "Resume now",
+
+    "settings.pauseOfferHeading" to "Pause instead of cancelling — {price} a month",
+    "settings.pauseOfferBody" to
+        "{price} a month instead of your plan, for as long as the quiet season lasts.",
+    "settings.pauseOfferNoClock" to
+        "Cancelling starts a {days}-day clock on your number from the day you " +
+        "cancel; pausing starts no clock at all — come back in spring and pick up " +
+        "where you left off.",
+    "settings.pauseOfferAction" to "Pause my plan — {price}/mo",
+    "settings.pauseOfferConfirmTitle" to "Pause your plan?",
+    "settings.pauseOfferConfirmBody" to
+        "{price} a month from today, instead of your plan price, and every month " +
+        "after that until you resume. You can resume whenever you want.",
+    "settings.pauseOfferConfirmLabel" to "Pause for {price}/mo",
+
     "settings.planLineTexting" to "Texting for your crew, bound by fair use",
     "settings.planLineCalling" to "Calling included on every plan, never an add-on",
     "settings.planLineExtraTexts" to
@@ -1504,6 +1550,48 @@ private val BILLING_FR = mapOf(
     "settings.billingPortalAction" to "Gérer le paiement et les factures",
 
     "settings.cancelTitle" to "Annuler",
+
+    "settings.pauseStops" to
+        "Vous ne pouvez ni envoyer de textos ni prendre d'appels pendant la pause, " +
+        "et les gens qui appellent entendent que la ligne ne prend pas les appels.",
+    "settings.pauseKeeps" to
+        "Chaque texto qu'un client envoie arrive quand même, tout ce que vous avez " +
+        "planifié est retenu plutôt qu'abandonné et part à votre retour, et votre " +
+        "numéro et tout votre historique de messages restent exactement tels quels.",
+
+    "settings.pausedHeading" to "En pause",
+    "settings.pausedHeadingPrice" to
+        "En pause — {price} par mois au lieu du prix du forfait",
+    "settings.pauseResumeNamed" to
+        "Reprendre vous ramène directement au forfait {plan}, et le reste de cette " +
+        "période de facturation est facturé au prix {plan}.",
+    "settings.pauseResumeAny" to
+        "Reprendre vous ramène directement à votre forfait, et le reste de cette " +
+        "période de facturation est facturé au prix du forfait.",
+    "settings.pauseResumeLabelNamed" to "Reprendre le forfait {plan}",
+    "settings.pauseResumeLabelAny" to "Reprendre mon forfait",
+    "settings.pauseConfirmTitleNamed" to "Reprendre le forfait {plan} ?",
+    "settings.pauseConfirmTitleAny" to "Reprendre votre forfait ?",
+    "settings.pauseConfirmTail" to
+        "Les textos et les appels refonctionnent dès que c'est fait, et tout ce qui " +
+        "était retenu part.",
+    "settings.pauseResumeNow" to "Reprendre maintenant",
+
+    "settings.pauseOfferHeading" to "Mettre en pause au lieu d'annuler — {price} par mois",
+    "settings.pauseOfferBody" to
+        "{price} par mois au lieu de votre forfait, aussi longtemps que dure la " +
+        "saison tranquille.",
+    "settings.pauseOfferNoClock" to
+        "Annuler déclenche un compte à rebours de {days} jours sur votre numéro à " +
+        "partir du jour de l'annulation ; la pause ne déclenche aucun compte à " +
+        "rebours — revenez au printemps et reprenez où vous en étiez.",
+    "settings.pauseOfferAction" to "Mettre mon forfait en pause — {price}/mois",
+    "settings.pauseOfferConfirmTitle" to "Mettre votre forfait en pause ?",
+    "settings.pauseOfferConfirmBody" to
+        "{price} par mois à partir d'aujourd'hui, au lieu du prix de votre forfait, " +
+        "et chaque mois par la suite jusqu'à ce que vous repreniez. Vous pouvez " +
+        "reprendre quand vous voulez.",
+    "settings.pauseOfferConfirmLabel" to "Mettre en pause pour {price}/mois",
 
     "settings.planLineTexting" to
         "Messagerie pour votre équipe, encadrée par l'usage raisonnable",

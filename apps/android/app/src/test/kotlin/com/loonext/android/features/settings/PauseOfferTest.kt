@@ -589,14 +589,20 @@ class PauseOfferTest {
     fun `the screen never mints eligibility or a price of its own`() {
         val src = withoutComments(readMainSource(billingSection))
 
+        val offerCalls = Regex("pauseOfferCopy\\(([^)]*)\\)").findAll(src)
+            .map { it.groupValues[1].trim() }
+            .toList()
         assertEquals(
-            "the offer is decided once, from the read's own answer. A second call " +
-                "site is where a fallback goes, and a fallback here is a recurring " +
-                "charge quoted to somebody the API would refuse",
-            listOf("pause.answer"),
-            Regex("pauseOfferCopy\\(([^)]*)\\)").findAll(src)
-                .map { it.groupValues[1].trim() }
-                .toList(),
+            "the offer is decided ONCE. A second call site is where a fallback " +
+                "goes, and a fallback here is a recurring charge quoted to somebody " +
+                "the API would refuse",
+            1,
+            offerCalls.size,
+        )
+        assertTrue(
+            "the offer must be decided from the read's own answer, not from a " +
+                "state the screen built: \"${offerCalls.first()}\"",
+            offerCalls.first().startsWith("pause.answer"),
         )
         assertEquals(
             "the paused state is decided once, from the read's own answer",
@@ -1096,7 +1102,7 @@ class PauseOfferTest {
                 "[PauseRead.answer] is null for a read that has not landed and for " +
                 "one that failed, which is the whole point of asking it for the " +
                 "answer rather than for the state",
-            body.contains("pauseOfferCopy(pause.answer)"),
+            body.contains("pauseOfferCopy(pause.answer"),
         )
         assertFalse(
             "eligibility must never be READ here, let alone re-derived: the route " +

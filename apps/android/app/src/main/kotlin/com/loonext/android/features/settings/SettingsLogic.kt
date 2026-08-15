@@ -1484,8 +1484,8 @@ const val PAUSE_ANSWERS_REASON = "seasonal"
  * worth saying out loud: an owner imagining their phone ringing unanswered all
  * winter is imagining something that does not happen.
  */
-private const val PAUSE_STOPS = "You can't send texts or take calls while you're " +
-    "paused, and anyone who rings hears that the line isn't taking calls."
+private fun pauseStops(locale: String?) =
+    AppStrings.translate(locale, "settings.pauseStops")
 
 /**
  * WHAT DOES NOT. Every clause is enforced somewhere: inbound messages are never
@@ -1493,9 +1493,8 @@ private const val PAUSE_STOPS = "You can't send texts or take calls while you're
  * than failed (and that reason is marked recoverable, so it goes out on the way
  * back), and the number and history are simply never touched.
  */
-private const val PAUSE_KEEPS = "Every text a customer sends still arrives, anything " +
-    "you've scheduled is held rather than dropped and goes out when you're back, " +
-    "and your number and your whole message history stay exactly as they are."
+private fun pauseKeeps(locale: String?) =
+    AppStrings.translate(locale, "settings.pauseKeeps")
 
 /**
  * The pause, offered — heading, body, and the words on every control.
@@ -1529,30 +1528,34 @@ data class PauseOfferCopy(
  * reader was never shown. The seasonal answer that was already there is a whole
  * answer on its own, and it is what renders instead.
  */
-fun pauseOfferCopy(pause: PauseState?): PauseOfferCopy? {
+fun pauseOfferCopy(pause: PauseState?, locale: String? = null): PauseOfferCopy? {
     if (pause == null || !pause.eligible) return null
     val cents = pause.monthly_cents ?: return null
     val price = formatMonthlyCents(cents)
+    val money = mapOf("price" to price)
 
     return PauseOfferCopy(
-        heading = "Pause instead of cancelling — $price a month",
+        heading = AppStrings.translate(locale, "settings.pauseOfferHeading", money),
         // The contrast with the sentence at the top of this card is the whole
         // argument, so it is made explicitly: cancelling starts a clock that a
         // trades quiet season outruns, and pausing starts no clock at all.
-        body = "$price a month instead of your plan, for as long as the quiet season " +
-            "lasts. $PAUSE_STOPS $PAUSE_KEEPS Cancelling starts a " +
-            "$CANCELLATION_GRACE_DAYS-day clock on your number from the day you " +
-            "cancel; pausing starts no clock at all — come back in spring and pick " +
-            "up where you left off.",
-        actionLabel = "Pause my plan — $price/mo",
-        confirmTitle = "Pause your plan?",
+        body = AppStrings.translate(
+            locale,
+            "settings.pauseOfferBody",
+            mapOf("price" to price, "days" to CANCELLATION_GRACE_DAYS.toString()),
+        ) + " ${pauseStops(locale)} ${pauseKeeps(locale)} " + AppStrings.translate(
+            locale,
+            "settings.pauseOfferNoClock",
+            mapOf("days" to CANCELLATION_GRACE_DAYS.toString()),
+        ),
+        actionLabel = AppStrings.translate(locale, "settings.pauseOfferAction", money),
+        confirmTitle = AppStrings.translate(locale, "settings.pauseOfferConfirmTitle"),
         // Says "every month until you resume" rather than naming a term,
         // because there is no term: the swap holds until somebody presses
         // Resume. A recurring charge has to be described as recurring.
-        confirmBody = "$price a month from today, instead of your plan price, and " +
-            "every month after that until you resume. You can resume whenever you " +
-            "want. $PAUSE_STOPS $PAUSE_KEEPS",
-        confirmLabel = "Pause for $price/mo",
+        confirmBody = AppStrings.translate(locale, "settings.pauseOfferConfirmBody", money) +
+            " ${pauseStops(locale)} ${pauseKeeps(locale)}",
+        confirmLabel = AppStrings.translate(locale, "settings.pauseOfferConfirmLabel", money),
     )
 }
 
@@ -1583,30 +1586,43 @@ data class PausedStateCopy(
  *   uses ([planFacts]). Null when it is a plan this build does not know, in
  *   which case the way back is named without it rather than guessed at.
  */
-fun pausedStateCopy(pause: PauseState?, resumePlanName: String?): PausedStateCopy? {
+fun pausedStateCopy(
+    pause: PauseState?,
+    resumePlanName: String?,
+    locale: String? = null,
+): PausedStateCopy? {
     if (pause?.paused_at == null) return null
     val price = pause.monthly_cents?.let { formatMonthlyCents(it) }
 
+    // #228: the named-plan and unnamed forms are SEPARATE KEYS rather than one
+    // sentence with an optional insert. A plan name is a noun that has to sit in
+    // a grammatical slot, and French does not put it where English does — a
+    // single template with a hole would translate one of the two badly.
     val back = if (resumePlanName != null) {
-        "Resuming puts you straight back on $resumePlanName, with the rest of this " +
-            "billing period charged at the $resumePlanName price."
+        AppStrings.translate(locale, "settings.pauseResumeNamed", mapOf("plan" to resumePlanName))
     } else {
-        "Resuming puts you straight back on your plan, with the rest of this " +
-            "billing period charged at the plan price."
+        AppStrings.translate(locale, "settings.pauseResumeAny")
     }
 
     return PausedStateCopy(
         heading = if (price != null) {
-            "Paused — $price a month instead of the plan price"
+            AppStrings.translate(locale, "settings.pausedHeadingPrice", mapOf("price" to price))
         } else {
-            "Paused"
+            AppStrings.translate(locale, "settings.pausedHeading")
         },
-        body = "$PAUSE_STOPS $PAUSE_KEEPS $back",
-        resumeLabel = if (resumePlanName != null) "Resume $resumePlanName" else "Resume my plan",
-        confirmTitle = if (resumePlanName != null) "Resume $resumePlanName?" else "Resume your plan?",
-        confirmBody = "$back Texting and calls work again as soon as it lands, and " +
-            "anything that was held goes out.",
-        confirmLabel = "Resume now",
+        body = "${pauseStops(locale)} ${pauseKeeps(locale)} $back",
+        resumeLabel = if (resumePlanName != null) {
+            AppStrings.translate(locale, "settings.pauseResumeLabelNamed", mapOf("plan" to resumePlanName))
+        } else {
+            AppStrings.translate(locale, "settings.pauseResumeLabelAny")
+        },
+        confirmTitle = if (resumePlanName != null) {
+            AppStrings.translate(locale, "settings.pauseConfirmTitleNamed", mapOf("plan" to resumePlanName))
+        } else {
+            AppStrings.translate(locale, "settings.pauseConfirmTitleAny")
+        },
+        confirmBody = "$back ${AppStrings.translate(locale, "settings.pauseConfirmTail")}",
+        confirmLabel = AppStrings.translate(locale, "settings.pauseResumeNow"),
     )
 }
 

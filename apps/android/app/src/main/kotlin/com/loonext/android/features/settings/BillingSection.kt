@@ -683,7 +683,7 @@ private fun CancellationOfferNote(
     // [PauseRead.answer] is null for a read that has not landed or has failed,
     // and that is exactly right here: an unanswered read is not an offer, so
     // the seasonal words render instead — which is a whole answer on its own.
-    val pauseAnswer = if (reason == PAUSE_ANSWERS_REASON) pauseOfferCopy(pause.answer) else null
+    val pauseAnswer = if (reason == PAUSE_ANSWERS_REASON) pauseOfferCopy(pause.answer, locale) else null
     val offer = if (pauseAnswer == null) {
         cancellationOffer(
             reason = reason,
