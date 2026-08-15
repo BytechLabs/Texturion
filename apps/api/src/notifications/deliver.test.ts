@@ -3,7 +3,7 @@
  * it through their pipelines; this pins the mechanics that must hold for every
  * caller, including ones that do not exist yet.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
@@ -322,6 +322,34 @@ describe("#244 member quiet hours", () => {
   const COMPANY = "c0000000-0000-4000-8000-00000000000c";
   const SLEEPING = "u-sleeping";
   const AWAKE = "u-awake";
+
+  /**
+   * The clock is FROZEN for this block, and it has to be.
+   *
+   * These fixtures use a 00:00–23:59 window to mean "quiet all day", and
+   * `isMemberQuietNow` is half-open — `now >= from && now < to` — which is the
+   * correct reading of a window and leaves 23:59 itself outside it. So the
+   * fixture was quiet for 1,439 minutes of every day and not quiet for one,
+   * and on 2026-08-15 CI ran inside that minute: 03:59:06Z is 23:59:06 in
+   * America/Toronto, and main went red on a test nobody had touched.
+   *
+   * Widening the window would only move the hole. What was actually wrong is
+   * that a test about a rule was reading the wall clock at all — so it reads a
+   * fixed instant instead, comfortably inside the window and unrelated to when
+   * anybody runs it.
+   *
+   * Only `Date` is faked. Faking timers wholesale would stall the real
+   * awaits in `deliverPush`.
+   */
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 14:00 in America/Toronto — mid-afternoon, mid-window, no boundary near.
+    vi.setSystemTime(new Date("2026-08-14T18:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   function quietWorld() {
     const sb = supabaseStub(env);
