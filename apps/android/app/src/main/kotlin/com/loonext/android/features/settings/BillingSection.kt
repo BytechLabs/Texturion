@@ -700,6 +700,7 @@ private fun CancellationOfferNote(
             // at all. `isPaused` is true only on an ANSWERED read, so this says
             // "paused" only when we were told so.
             paused = pause.isPaused,
+            locale = locale,
         )
     } else {
         null
@@ -1167,6 +1168,7 @@ private fun CanceledSubscriptionCard(
             billingCurrency = company.billing_currency,
             country = company.country,
             registrationFeePaidAt = company.registration_fee_paid_at,
+            locale = locale,
         )
     } else {
         null

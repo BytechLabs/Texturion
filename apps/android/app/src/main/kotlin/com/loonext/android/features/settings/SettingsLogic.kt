@@ -1193,6 +1193,7 @@ private fun tooExpensiveOffer(
     billingCurrency: String?,
     country: String?,
     paused: Boolean,
+    locale: String? = null,
 ): CancellationOffer? {
     if (resolveOfferPlan(plan) != "pro") return null
 
@@ -1205,12 +1206,25 @@ private fun tooExpensiveOffer(
     // True on both routes back, because both end at a Starter subscription
     // built from the Starter prices — the schedule phase a downgrade writes,
     // and the session a resubscribe checks out through.
-    val price = "Starter is $starter a month instead of $pro, with smaller texting " +
-        "and calling allowances under the same fair-use policy."
+    val price = AppStrings.translate(
+        locale,
+        "settings.offerStarterPrice",
+        mapOf("starter" to starter, "pro" to pro),
+    )
 
-    /** Seats and numbers, and so only for the phase whose route refuses them. */
-    val limits = "It covers $STARTER_SEATS people and $numbers business " +
-        "number${if (numbers == 1) "" else "s"}."
+    /**
+     * Seats and numbers, and so only for the phase whose route refuses them.
+     *
+     * #228: the singular is ITS OWN KEY rather than an appended "s". French
+     * pluralises the noun and its article together, so a suffix cannot express
+     * it — this is the kind of sentence that reads fine in English right up
+     * until somebody translates it.
+     */
+    val limits = AppStrings.translate(
+        locale,
+        if (numbers == 1) "settings.offerStarterCoversOne" else "settings.offerStarterCovers",
+        mapOf("seats" to STARTER_SEATS.toString(), "numbers" to numbers.toString()),
+    )
 
     // Same heading as the unpaused answer, on purpose. It is a fact about the
     // two plans and the pause does not touch it; a second heading would be a
@@ -1218,13 +1232,12 @@ private fun tooExpensiveOffer(
     if (paused) {
         return CancellationOffer(
             reason = "too_expensive",
-            heading = "Starter is the same product, priced for a smaller crew",
-            body = "$price $limits Your plan is paused, so this takes two steps in " +
-                "this order: resume first, then switch plans. The switch takes effect " +
-                "at the end of your current billing period. Your message history " +
-                "comes with you, and so does the number you text from — a second " +
-                "number does not: the downgrade is refused until you release it, and " +
-                "until the crew is back inside $STARTER_SEATS seats.",
+            heading = AppStrings.translate(locale, "settings.offerStarterHeading"),
+            body = "$price $limits " + AppStrings.translate(
+                locale,
+                "settings.offerStarterTailPaused",
+                mapOf("seats" to STARTER_SEATS.toString()),
+            ),
             action = null,
             actionLabel = null,
         )
@@ -1233,23 +1246,22 @@ private fun tooExpensiveOffer(
     return if (phase == CancellationOfferPhase.Grace) {
         CancellationOffer(
             reason = "too_expensive",
-            heading = "There is a smaller plan to come back on",
-            body = "$price Come back on Starter and your number and your whole " +
-                "message history come with you.",
+            heading = AppStrings.translate(locale, "settings.offerStarterHeadingGrace"),
+            body = "$price " + AppStrings.translate(locale, "settings.offerStarterTailGrace"),
             action = CancellationOfferAction.ResubscribeStarter,
-            actionLabel = "Come back on Starter",
+            actionLabel = AppStrings.translate(locale, "settings.offerComeBackOnStarter"),
         )
     } else {
         CancellationOffer(
             reason = "too_expensive",
             heading = "Starter is the same product, priced for a smaller crew",
-            body = "$price $limits The switch takes effect at the end of your " +
-                "current billing period. Your message history comes with you, and " +
-                "so does the number you text from — a second number does not: the " +
-                "downgrade is refused until you release it, and until the crew is " +
-                "back inside $STARTER_SEATS seats.",
+            body = "$price $limits " + AppStrings.translate(
+                locale,
+                "settings.offerStarterTail",
+                mapOf("seats" to STARTER_SEATS.toString()),
+            ),
             action = CancellationOfferAction.ChangePlan,
-            actionLabel = "Switch to Starter",
+            actionLabel = AppStrings.translate(locale, "settings.planSwitchToStarter"),
         )
     }
 }
@@ -1269,11 +1281,12 @@ private fun tooExpensiveOffer(
  * it again. Lifted out of [seasonalOffer] when the paused answer needed the same
  * sentence — one copy, because two would be one promise about money typed twice.
  */
-private fun registrationFeeSentence(registrationFeePaidAt: String?): String =
+private fun registrationFeeSentence(
+    registrationFeePaidAt: String?,
+    locale: String? = null,
+): String =
     if (!registrationFeePaidAt.isNullOrBlank()) {
-        " You have already paid the one-time registration fee, and it is " +
-            "charged at most once per workspace, ever — coming back does not " +
-            "charge it again."
+        AppStrings.translate(locale, "settings.offerRegistrationFeePaid")
     } else {
         ""
     }
@@ -1309,17 +1322,18 @@ private fun registrationFeeSentence(registrationFeePaidAt: String?): String =
  * Safe here and only here: they are in a pause, so it is a description of their
  * account rather than an offer whose eligibility this function cannot see.
  */
-private fun pausedSeasonalOffer(registrationFeePaidAt: String?): CancellationOffer =
+private fun pausedSeasonalOffer(
+    registrationFeePaidAt: String?,
+    locale: String? = null,
+): CancellationOffer =
     CancellationOffer(
         reason = "seasonal",
-        heading = "Your plan is already paused, and that hold has no deadline",
-        body = "Your number and your whole message history are held for as long as you " +
-            "stay paused — nothing expires while your plan is paused, and there is " +
-            "no date you have to be back by. Cancelling instead ends the pause and " +
-            "starts a clock: $CANCELLATION_GRACE_DAYS days from the day you " +
-            "cancel, not from the end of your billing period, and at the end of it " +
-            "the number goes back to the phone company." +
-            registrationFeeSentence(registrationFeePaidAt),
+        heading = AppStrings.translate(locale, "settings.offerPausedSeasonalHeading"),
+        body = AppStrings.translate(
+            locale,
+            "settings.offerPausedSeasonalBody",
+            mapOf("days" to CANCELLATION_GRACE_DAYS.toString()),
+        ) + registrationFeeSentence(registrationFeePaidAt, locale),
         action = null,
         actionLabel = null,
     )
@@ -1354,30 +1368,22 @@ private fun pausedSeasonalOffer(registrationFeePaidAt: String?): CancellationOff
 private fun seasonalOffer(
     phase: CancellationOfferPhase,
     registrationFeePaidAt: String?,
+    locale: String? = null,
 ): CancellationOffer {
-    val fee = registrationFeeSentence(registrationFeePaidAt)
+    val fee = registrationFeeSentence(registrationFeePaidAt, locale)
+    val days = mapOf("days" to CANCELLATION_GRACE_DAYS.toString())
 
     return if (phase == CancellationOfferPhase.Grace) {
         CancellationOffer(
             reason = "seasonal",
-            heading = "Your number is still yours until the date below",
-            body = "It is still receiving texts, so nothing a customer sends is lost, " +
-                "though you cannot reply until you are back. That date is " +
-                "$CANCELLATION_GRACE_DAYS days from the day you cancelled, not from " +
-                "the end of your last billing period. Resubscribe before then and " +
-                "the number and your whole message history come back with you.$fee",
+            heading = AppStrings.translate(locale, "settings.offerSeasonalGraceHeading"),
+            body = AppStrings.translate(locale, "settings.offerSeasonalGraceBody", days) + fee,
         )
     } else {
         CancellationOffer(
             reason = "seasonal",
-            heading = "Your number is held for $CANCELLATION_GRACE_DAYS days from " +
-                "the day you cancel",
-            body = "It keeps receiving texts the whole time, so nothing a customer " +
-                "sends is lost — you cannot reply until you are back, and your " +
-                "message history stays put. The $CANCELLATION_GRACE_DAYS days run " +
-                "from the day you cancel, not from the end of your billing period, " +
-                "so a quiet season longer than that outruns the hold and the number " +
-                "goes back to the phone company.$fee",
+            heading = AppStrings.translate(locale, "settings.offerSeasonalHeading", days),
+            body = AppStrings.translate(locale, "settings.offerSeasonalBody", days) + fee,
         )
     }
 }
@@ -1390,14 +1396,21 @@ private fun seasonalOffer(
  * promise somebody made without knowing they were making it. Same words the
  * help screen shows, so the offer cannot promise what the help screen does not.
  */
-private fun missingFeatureOffer(): CancellationOffer = CancellationOffer(
+private fun missingFeatureOffer(locale: String? = null): CancellationOffer = CancellationOffer(
     reason = "missing_feature",
-    heading = "Tell us what was missing",
-    body = "If the thing you needed is not here, the fastest way to change that is " +
-        "to tell us what it was. We answer $SUPPORT_RESPONSE_TIME. " +
-        SUPPORT_FIX_PROMISE,
+    heading = AppStrings.translate(locale, "settings.offerMissingHeading"),
+    // The two promises come from the keys the help screen reads, so the offer
+    // cannot promise something that screen does not — in either language.
+    body = AppStrings.translate(
+        locale,
+        "settings.offerMissingBody",
+        mapOf(
+            "when" to AppStrings.translate(locale, "settings.helpResponseTime"),
+            "promise" to AppStrings.translate(locale, "settings.helpFixPromise"),
+        ),
+    ),
     action = CancellationOfferAction.OpenHelp,
-    actionLabel = "Get help",
+    actionLabel = AppStrings.translate(locale, "settings.offerGetHelp"),
 )
 
 /**
@@ -1434,6 +1447,14 @@ fun cancellationOffer(
     country: String? = null,
     registrationFeePaidAt: String? = null,
     paused: Boolean = false,
+    /**
+     * #228 — the language the reader is in.
+     *
+     * LAST AND DEFAULTED, like every other locale added to this file: a caller
+     * that does not pass it reads exactly what it read before, word for word,
+     * which is what keeps the cross-language pins comparing English to English.
+     */
+    locale: String? = null,
 ): CancellationOffer? {
     // The pause fact, narrowed to the phase it can be true in.
     //
@@ -1448,16 +1469,17 @@ fun cancellationOffer(
     val inPause = paused && phase == CancellationOfferPhase.Before
 
     return when (reason) {
-        "too_expensive" -> tooExpensiveOffer(plan, phase, billingCurrency, country, inPause)
+        "too_expensive" ->
+            tooExpensiveOffer(plan, phase, billingCurrency, country, inPause, locale)
         "seasonal" -> if (inPause) {
-            pausedSeasonalOffer(registrationFeePaidAt)
+            pausedSeasonalOffer(registrationFeePaidAt, locale)
         } else {
-            seasonalOffer(phase, registrationFeePaidAt)
+            seasonalOffer(phase, registrationFeePaidAt, locale)
         }
         // The support promise does not change because the plan is paused, for
         // the same reason it does not change between the two phases: it is a
         // promise about us, not about their subscription.
-        "missing_feature" -> missingFeatureOffer()
+        "missing_feature" -> missingFeatureOffer(locale)
         // switched / not_using / other, and anything unrecognised: nothing
         // honest to add, paused or not — a pause does not tell us what somebody
         // switched to. See the header.

@@ -1504,6 +1504,38 @@ private val BILLING_EN = mapOf(
     "settings.planOpenNumbers" to "Open your numbers",
     "settings.planPeriodEnds" to "Current period ends {date}.",
     "settings.pausedSince" to "Paused since {date}.",
+    /*
+     * #228 — the cancel card's answers.
+     *
+     * iOS converted these first and its key names are the ones all three
+     * clients use, so one wording change lands everywhere at once. This client
+     * typed the paragraphs out until now, which is what
+     * CancellationOfferTest's cross-language pin was watching.
+     *
+     * The singular "business number" is its OWN key rather than the plural
+     * with an appended "s": French pluralises the noun and its article
+     * together, and a suffix cannot express that.
+     */
+    "settings.offerComeBackOnStarter" to "Come back on Starter",
+    "settings.offerGetHelp" to "Get help",
+    "settings.offerMissingBody" to "If the thing you needed is not here, the fastest way to change that is to tell us what it was. We answer {when}. {promise}",
+    "settings.offerMissingHeading" to "Tell us what was missing",
+    "settings.offerPausedSeasonalBody" to "Your number and your whole message history are held for as long as you stay paused — nothing expires while your plan is paused, and there is no date you have to be back by. Cancelling instead ends the pause and starts a clock: {days} days from the day you cancel, not from the end of your billing period, and at the end of it the number goes back to the phone company.",
+    "settings.offerPausedSeasonalHeading" to "Your plan is already paused, and that hold has no deadline",
+    "settings.offerRegistrationFeePaid" to " You have already paid the one-time registration fee, and it is charged at most once per workspace, ever — coming back does not charge it again.",
+    "settings.offerSeasonalBody" to "It keeps receiving texts the whole time, so nothing a customer sends is lost — you cannot reply until you are back, and your message history stays put. The {days} days run from the day you cancel, not from the end of your billing period, so a quiet season longer than that outruns the hold and the number goes back to the phone company.",
+    "settings.offerSeasonalGraceBody" to "It is still receiving texts, so nothing a customer sends is lost, though you cannot reply until you are back. That date is {days} days from the day you cancelled, not from the end of your last billing period. Resubscribe before then and the number and your whole message history come back with you.",
+    "settings.offerSeasonalGraceHeading" to "Your number is still yours until the date below",
+    "settings.offerSeasonalHeading" to "Your number is held for {days} days from the day you cancel",
+    "settings.offerStarterCovers" to "It covers {seats} people and {numbers} business numbers.",
+    "settings.offerStarterCoversOne" to "It covers {seats} people and {numbers} business number.",
+    "settings.offerStarterHeading" to "Starter is the same product, priced for a smaller crew",
+    "settings.offerStarterHeadingGrace" to "There is a smaller plan to come back on",
+    "settings.offerStarterPrice" to "Starter is {starter} a month instead of {pro}, with smaller texting and calling allowances under the same fair-use policy.",
+    "settings.offerStarterTail" to "The switch takes effect at the end of your current billing period. Your message history comes with you, and so does the number you text from — a second number does not: the downgrade is refused until you release it, and until the crew is back inside {seats} seats.",
+    "settings.offerStarterTailGrace" to "Come back on Starter and your number and your whole message history come with you.",
+    "settings.offerStarterTailPaused" to "Your plan is paused, so this takes two steps in this order: resume first, then switch plans. The switch takes effect at the end of your current billing period. Your message history comes with you, and so does the number you text from — a second number does not: the downgrade is refused until you release it, and until the crew is back inside {seats} seats.",
+
     "settings.planSwitchToStarter" to "Switch to Starter",
     "settings.planUpgradeToPro" to "Upgrade to Pro",
 
@@ -1769,6 +1801,26 @@ private val BILLING_FR = mapOf(
     "settings.planOpenNumbers" to "Ouvrir vos numéros",
     "settings.planPeriodEnds" to "La période en cours se termine le {date}.",
     "settings.pausedSince" to "En pause depuis le {date}.",
+    "settings.offerComeBackOnStarter" to "Revenir sur Starter",
+    "settings.offerGetHelp" to "Obtenir de l'aide",
+    "settings.offerMissingBody" to "Si ce dont vous aviez besoin n'est pas là, le plus rapide pour que cela change est de nous dire ce que c'était. Nous répondons {when}. {promise}",
+    "settings.offerMissingHeading" to "Dites-nous ce qui manquait",
+    "settings.offerPausedSeasonalBody" to "Votre numéro et tout votre historique de messages sont conservés aussi longtemps que vous restez en pause — rien n'expire pendant la pause, et il n'y a aucune date de retour à respecter. Annuler plutôt met fin à la pause et démarre un compte à rebours : {days} jours à compter du jour de l'annulation, et non de la fin de votre période de facturation, au terme duquel le numéro retourne à la compagnie de téléphone.",
+    "settings.offerPausedSeasonalHeading" to "Votre forfait est déjà en pause, et cette conservation n'a aucune échéance",
+    "settings.offerRegistrationFeePaid" to " Vous avez déjà payé les frais d'inscription uniques, et ils sont facturés au plus une fois par espace de travail, à jamais — revenir ne les facture pas de nouveau.",
+    "settings.offerSeasonalBody" to "Il continue de recevoir les textos tout du long, alors rien de ce qu'un client envoie n'est perdu — vous ne pouvez pas répondre avant votre retour, et votre historique de messages reste en place. Les {days} jours courent à compter du jour de l'annulation, et non de la fin de votre période de facturation : une saison tranquille plus longue dépasse donc la conservation, et le numéro retourne à la compagnie de téléphone.",
+    "settings.offerSeasonalGraceBody" to "Il reçoit encore les textos, alors rien de ce qu'un client envoie n'est perdu, même si vous ne pouvez pas répondre avant votre retour. Cette date est à {days} jours du jour de l'annulation, et non de la fin de votre dernière période de facturation. Réabonnez-vous avant, et le numéro ainsi que tout votre historique de messages reviennent avec vous.",
+    "settings.offerSeasonalGraceHeading" to "Votre numéro vous appartient encore jusqu'à la date ci-dessous",
+    "settings.offerSeasonalHeading" to "Votre numéro est conservé {days} jours à compter du jour de l'annulation",
+    "settings.offerStarterCovers" to "Il couvre {seats} personnes et {numbers} numéros d'entreprise.",
+    "settings.offerStarterCoversOne" to "Il couvre {seats} personnes et {numbers} numéro d'entreprise.",
+    "settings.offerStarterHeading" to "Starter est le même produit, au prix d'une plus petite équipe",
+    "settings.offerStarterHeadingGrace" to "Il existe un forfait plus petit pour revenir",
+    "settings.offerStarterPrice" to "Starter coûte {starter} par mois au lieu de {pro}, avec des quantités de textos et d'appels plus petites, sous la même politique d'usage raisonnable.",
+    "settings.offerStarterTail" to "Le changement prend effet à la fin de votre période de facturation en cours. Votre historique de messages vous suit, et le numéro d'où vous textez aussi — un deuxième numéro, non : le passage au forfait inférieur est refusé tant que vous ne l'avez pas libéré, et tant que l'équipe n'est pas revenue sous les {seats} places.",
+    "settings.offerStarterTailGrace" to "Revenez sur Starter et votre numéro ainsi que tout votre historique de messages vous suivent.",
+    "settings.offerStarterTailPaused" to "Votre forfait est en pause : cela se fait donc en deux étapes, dans cet ordre — reprenez d'abord, puis changez de forfait. Le changement prend effet à la fin de votre période de facturation en cours. Votre historique de messages vous suit, et le numéro d'où vous textez aussi — un deuxième numéro, non : le passage au forfait inférieur est refusé tant que vous ne l'avez pas libéré, et tant que l'équipe n'est pas revenue sous les {seats} places.",
+
     "settings.planSwitchToStarter" to "Passer à Starter",
     "settings.planUpgradeToPro" to "Passer à Pro",
 

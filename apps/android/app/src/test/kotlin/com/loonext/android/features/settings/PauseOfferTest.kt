@@ -48,12 +48,49 @@ class PauseOfferTest {
     private val settingsLogic = "features/settings/SettingsLogic.kt"
 
     /**
-     * BOTH FILES, always. A guard aimed at one of them proves nothing about the
-     * pause: the screen is in `BillingSection.kt` and every sentence it renders
-     * is in `SettingsLogic.kt`, so a copy scan pointed at the first is pointed
-     * at the file where the words are NOT.
+     * #228 — where the sentences went.
+     *
+     * `SettingsLogic.kt` composed these paragraphs until the cancel copy moved
+     * to catalogue keys. It still decides WHICH sentence is true; the words are
+     * here. The rule below is the same rule this file has always applied — a
+     * copy scan must be pointed at the file where the words are — and following
+     * them is the fix rather than dropping the scan.
      */
-    private val pauseCopyFiles = listOf(billingSection, settingsLogic)
+    private val settingsStrings = "core/i18n/SettingsStrings.kt"
+
+    /**
+     * ALL THREE, always. A guard aimed at one of them proves nothing about the
+     * pause: the screen is in `BillingSection.kt`, the decision is in
+     * `SettingsLogic.kt`, and the words are in `SettingsStrings.kt` — so a
+     * copy scan pointed at any one is pointed at two files where the words are
+     * NOT.
+     */
+    private val pauseCopyFiles = listOf(billingSection, settingsLogic, settingsStrings)
+
+    /**
+     * A catalogue file cut to its English half; anything else unchanged.
+     *
+     * The two languages hold the same keys, so counting an English phrase over
+     * a whole catalogue would be asking whether it appears in EITHER — and the
+     * French sentence for the same idea is a legitimate second occurrence that
+     * must not read as the phrase being pasted somewhere new.
+     */
+    private fun englishHalf(source: String): String {
+        if (!source.contains("_FR = mapOf(")) return source
+        val out = StringBuilder()
+        var keeping = false
+        source.lineSequence().forEach { line ->
+            val declaration = Regex("^private val (\\w+) = mapOf\\(").find(line)
+            if (declaration != null) {
+                keeping = declaration.groupValues[1].endsWith("_EN")
+            } else if (line == ")") {
+                keeping = false
+            } else if (keeping) {
+                out.append(line).append('\n')
+            }
+        }
+        return out.toString()
+    }
 
     // -- what may put a pause control on screen -------------------------------
 
@@ -172,7 +209,7 @@ class PauseOfferTest {
     @Test
     fun `only the paused reader's own answer says already paused`() {
         val spoken = pauseCopyFiles.joinToString(" ") {
-            spokenCopy(readMainSource(it))
+            spokenCopy(englishHalf(readMainSource(it)))
         }.lowercase()
         assertEquals(
             "`already paused` is written in more than one place. It is allowed in " +
