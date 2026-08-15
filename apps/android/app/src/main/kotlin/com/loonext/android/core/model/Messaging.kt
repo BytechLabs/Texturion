@@ -239,6 +239,13 @@ data class ConversationDetailContact(
     val consent_source: String? = null,
     val consent_at: String? = null,
     val deleted_at: String? = null,
+    /**
+     * #228 — the language THIS customer's automated texts go out in.
+     *
+     * Null means "whatever the business works in", never English. Read through
+     * [MessageLocale.resolve], never directly.
+     */
+    val locale: String? = null,
 )
 
 /**

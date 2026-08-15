@@ -34,8 +34,37 @@ enum OnMyWay {
     /// "About" is doing real work: a tech who says 20 and arrives at 28 has not
     /// broken a promise. An exact arrival time is a claim about traffic nobody
     /// can make from a van.
-    static func text(_ minutes: Int) -> String {
-        "On my way - about \(minutes) minutes."
+    /// The body, per language — a hand-port of the `onMyWay` field in
+    /// `packages/shared/src/locale.ts`.
+    ///
+    /// Here rather than in the string catalogue, and that distinction is the
+    /// whole point: every other string on this screen is read by the CREW and
+    /// resolves against the app locale. This one is read by the CUSTOMER and
+    /// resolves against theirs.
+    ///
+    /// Fully ASCII, so the GSM-7 constraint the shared file documents is not
+    /// even in question for this one.
+    private static let bodies = [
+        MessageLocale.en: "On my way - about {minutes} minutes.",
+        MessageLocale.frCA: "En route - environ {minutes} minutes.",
+    ]
+
+    /// The body for a customer, given the two locales that decide it.
+    static func bodyFor(contact: String?, company: String?) -> String {
+        bodies[MessageLocale.resolve(contact: contact, company: company)]
+            ?? bodies[MessageLocale.en]!
+    }
+
+    /// #228 — the template is a parameter, defaulted to the English.
+    ///
+    /// The default is right here and nowhere else in this conversion: a caller
+    /// that has not been taught about the contact's language sends what it
+    /// always sent, rather than failing. This is the control somebody taps
+    /// one-handed walking to a van; a translation gap must not become an
+    /// outage on it.
+    static func text(_ minutes: Int, template: String? = nil) -> String {
+        (template ?? bodies[MessageLocale.en]!)
+            .replacingOccurrences(of: "{minutes}", with: String(minutes))
     }
 
     /// The label on the choice, which is shorter than the sentence it sends.

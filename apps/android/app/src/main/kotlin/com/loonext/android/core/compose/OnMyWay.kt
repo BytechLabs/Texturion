@@ -1,5 +1,7 @@
 package com.loonext.android.core.compose
 
+import com.loonext.android.core.model.MessageLocale
+
 /**
  * #520 — "on my way, about 20 minutes", sent while walking to the van.
  *
@@ -40,7 +42,40 @@ object OnMyWay {
      * broken a promise. An exact arrival time is a claim about traffic nobody
      * can make from a van.
      */
-    fun text(minutes: Int): String = "On my way - about $minutes minutes."
+    /**
+     * The body, per language — a hand-port of the `onMyWay` field in
+     * `packages/shared/src/locale.ts`.
+     *
+     * Here rather than in the string catalogue, and that distinction is the
+     * whole point: every other string on this screen is read by the CREW and
+     * resolves against the app locale. This one is read by the CUSTOMER and
+     * resolves against theirs. Putting it in DomainStrings would have it
+     * follow the wrong person's language setting.
+     *
+     * Fully ASCII, so the GSM-7 constraint the shared file documents is not
+     * even in question for this one.
+     */
+    private val BODIES = mapOf(
+        MessageLocale.EN to "On my way - about {minutes} minutes.",
+        MessageLocale.FR_CA to "En route - environ {minutes} minutes.",
+    )
+
+    /** The body for a customer, given the two locales that decide it. */
+    fun bodyFor(contactLocale: String?, companyLocale: String?): String =
+        BODIES[MessageLocale.resolve(contactLocale, companyLocale)]
+            ?: BODIES.getValue(MessageLocale.EN)
+
+    /**
+     * #228 — the template is a parameter, defaulted to the English.
+     *
+     * The default is right here and nowhere else in this conversion: a caller
+     * that has not been taught about the contact's language sends what it
+     * always sent, rather than failing. This is the control somebody taps
+     * one-handed walking to a van; a translation gap must not become an
+     * outage on it.
+     */
+    fun text(minutes: Int, template: String = BODIES.getValue(MessageLocale.EN)): String =
+        template.replace("{minutes}", minutes.toString())
 
     /** The label on the choice, which is shorter than the sentence it sends. */
     fun presetLabel(minutes: Int): String = "$minutes min"

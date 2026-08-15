@@ -1127,7 +1127,13 @@ private fun ThreadLoaded(
                 // number access all apply. Being fast is not a reason for an
                 // exemption, and the server's refusal is what gets shown.
                 controller.sendText(
-                    OnMyWay.text(minutes),
+                    OnMyWay.text(
+                        minutes,
+                        // The CUSTOMER's language, not the crew's: this is the
+                        // one body composed on the client rather than by the
+                        // server, so the resolution happens here.
+                        OnMyWay.bodyFor(detail.contact.locale, controller.company?.locale),
+                    ),
                     emptyList(),
                     null,
                     false,

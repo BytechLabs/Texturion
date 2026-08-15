@@ -1210,7 +1210,16 @@ private struct ThreadBody: View {
                 // number access all apply. Being fast is not a reason for an
                 // exemption, and the server's refusal is what gets shown.
                 controller.sendText(
-                    body: OnMyWay.text(minutes),
+                    body: OnMyWay.text(
+                        minutes,
+                        // The CUSTOMER's language, not the crew's: this is the
+                        // one body composed on the client rather than by the
+                        // server, so the resolution happens here.
+                        template: OnMyWay.bodyFor(
+                            contact: detail.contact.locale,
+                            company: controller.company?.locale
+                        )
+                    ),
                     photos: [],
                     templateId: nil,
                     templateEdited: false

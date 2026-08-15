@@ -227,6 +227,11 @@ struct ConversationDetailContact: Codable, Sendable {
     let consent_source: String?
     let consent_at: String?
     let deleted_at: String?
+    /// #228 — the language THIS customer's automated texts go out in.
+    ///
+    /// Nil means "whatever the business works in", never English. Read through
+    /// `MessageLocale.resolve`, never directly.
+    let locale: String?
 }
 
 enum DefaultViewerText: DefaultCodableProvider {

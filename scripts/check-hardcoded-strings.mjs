@@ -488,9 +488,48 @@ function bilingualPairEnglish() {
       values.add([...hit[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]).join(""));
     }
   }
+
+  /*
+   * And the bodies locale.ts writes out DIRECTLY, in either language.
+   *
+   * The loop above only reaches strings locale.ts imports from a sibling — it
+   * was written when every English default lived in the module that owned the
+   * feature. `onMyWay` is the first body defined in locale.ts itself, in both
+   * languages, and it is hand-ported to Kotlin and Swift the way every other
+   * body's PAIRING is not: the phones compose this one themselves.
+   *
+   * So the two ports carry both languages side by side, and the scanner read
+   * them as two untranslated literals — reporting a finished translation as
+   * outstanding work, which is the exact failure the locale.ts skip records in
+   * its own comment.
+   *
+   * Narrow on purpose: a string is excluded only if locale.ts states it as a
+   * value. That file is the one place automated bodies are defined, and
+   * anything in it has both languages by construction — `AutomatedCopy` is a
+   * typed record and TypeScript will not let a locale omit a field.
+   */
+  for (const table of ["EN_COPY", "FR_CA_COPY"]) {
+    const block = new RegExp(`export const ${table}[^=]*=\\s*\\{([\\s\\S]*?)\\n\\};`, "m").exec(
+      locale,
+    );
+    if (!block) continue;
+    for (const literal of block[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)) {
+      if (literal[1].length > 8) values.add(literal[1]);
+    }
+  }
+
   return values;
 }
 
+/**
+ * A body that locale.ts states in BOTH languages is a finished translation, not
+ * an untranslated literal — wherever it appears.
+ *
+ * The phones hand-port `onMyWay` because they compose that one themselves, so
+ * each carries the English and the French side by side. Without this the
+ * scanner counted a completed pair as two units of outstanding work, which is
+ * the failure the locale.ts skip already records one level up.
+ */
 /** Computed once: it reads seven files and the scan asks per literal. */
 const BILINGUAL_PAIR_ENGLISH = bilingualPairEnglish();
 
@@ -574,6 +613,7 @@ export function findWebLiterals(source, path = "") {
   for (const match of code.matchAll(
     /\b(aria-label|placeholder|title|alt|aria-description)=\{?"([^"]+)"/g,
   )) {
+    if (BILINGUAL_PAIR_ENGLISH.has(match[2])) continue;
     if (looksLikeProse(match[2])) found.push(match[2]);
   }
 
@@ -581,6 +621,7 @@ export function findWebLiterals(source, path = "") {
   for (const match of code.matchAll(
     /\btoast\.(?:success|error|info|warning|message)\(\s*"([^"]+)"/g,
   )) {
+    if (BILINGUAL_PAIR_ENGLISH.has(match[1])) continue;
     if (looksLikeProse(match[1])) found.push(match[1]);
   }
 
@@ -773,12 +814,14 @@ export function findKotlinLiterals(source) {
   for (const match of code.matchAll(
     /\b(?:Text|OutlinedButton|TextButton|Button)\s*\(\s*"([^"]{4,})"/g,
   )) {
+    if (BILINGUAL_PAIR_ENGLISH.has(match[1])) continue;
     if (looksLikeProse(match[1])) found.push(match[1]);
   }
   for (const match of code.matchAll(
     /\b(contentDescription|placeholder|label|title|supportingText)\s*=\s*"([^"]{4,})"/g,
   )) {
     if (match[1] === "label" && isAnimationLabel(code, match.index)) continue;
+    if (BILINGUAL_PAIR_ENGLISH.has(match[2])) continue;
     if (looksLikeProse(match[2])) found.push(match[2]);
   }
   /*
@@ -801,6 +844,7 @@ export function findKotlinLiterals(source) {
   for (const match of code.matchAll(/"([^"\n]{12,})"/g)) {
     if (isKotlinPrecondition(code, match.index)) continue;
     if (isDiagnosticLog(code, match.index)) continue;
+    if (BILINGUAL_PAIR_ENGLISH.has(match[1])) continue;
     if (isSentenceLiteral(match[1])) found.push(match[1]);
   }
   return dedupe(found);
@@ -878,11 +922,13 @@ export function findSwiftLiterals(source) {
   for (const match of code.matchAll(
     /\b(?:Text|Button|Label|TextField|SecureField|Toggle|Section)\s*\(\s*"([^"]{4,})"/g,
   )) {
+    if (BILINGUAL_PAIR_ENGLISH.has(match[1])) continue;
     if (looksLikeProse(match[1])) found.push(match[1]);
   }
   for (const match of code.matchAll(
     /\.(?:accessibilityLabel|accessibilityHint|navigationTitle|help)\(\s*"([^"]{4,})"\)/g,
   )) {
+    if (BILINGUAL_PAIR_ENGLISH.has(match[1])) continue;
     if (looksLikeProse(match[1])) found.push(match[1]);
   }
   // Rule 4, for the same reason it exists on web and now on Compose: the copy
@@ -890,6 +936,7 @@ export function findSwiftLiterals(source) {
   const loggers = swiftLoggerNames(code);
   for (const match of code.matchAll(/"([^"\n]{12,})"/g)) {
     if (isSwiftDiagnosticLog(code, match.index, loggers)) continue;
+    if (BILINGUAL_PAIR_ENGLISH.has(match[1])) continue;
     if (isSentenceLiteral(match[1])) found.push(match[1]);
   }
   return dedupe(found);

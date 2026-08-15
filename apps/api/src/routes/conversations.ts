@@ -599,7 +599,13 @@ conversationsRoutes.get(
             // #225: `timezone` rides along so the clock below resolves without
             // a second query — the contact override is the top rung of the
             // D49 ladder and we are already reading this row.
-            "contacts(id,name,phone_e164,address,notes,consent_source,consent_at,deleted_at,timezone)," +
+            //
+            // #228: and `locale` for the same reason. The on-my-way text is
+            // composed by the CLIENT and sent as an ordinary message, so the
+            // client is what has to know which language the customer reads —
+            // every other automated body is picked server-side. Same row, no
+            // second query.
+            "contacts(id,name,phone_e164,address,notes,consent_source,consent_at,deleted_at,timezone,locale)," +
             "conversation_tags(tags(id,name,color))",
         )
         .eq("company_id", companyId)
