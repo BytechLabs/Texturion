@@ -98,14 +98,14 @@ export function OnMyWay({ conversationId }: { conversationId: string }) {
         className="gap-1.5"
       >
         <Truck className="size-3.5" strokeWidth={1.75} aria-hidden />
-        {ON_MY_WAY_COPY.action}
+        {t(ON_MY_WAY_COPY.action)}
       </Button>
     );
   }
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[13px] text-app-muted">{ON_MY_WAY_COPY.prompt}</span>
+      <span className="text-[13px] text-app-muted">{t(ON_MY_WAY_COPY.prompt)}</span>
       {ON_MY_WAY_PRESETS.map((minutes) => (
         <Button
           key={minutes}
@@ -127,7 +127,7 @@ export function OnMyWay({ conversationId }: { conversationId: string }) {
         {t("common.cancel")}
       </Button>
       <p className="w-full text-[12px] text-app-muted-2">
-        {ON_MY_WAY_COPY.gated_note}
+        {t(ON_MY_WAY_COPY.gated_note)}
       </p>
     </div>
   );

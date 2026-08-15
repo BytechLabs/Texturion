@@ -25,6 +25,12 @@
 import type { Translated } from "../translated";
 
 export const domainEn = {
+  /* #228 — the on-my-way control. "En route", not "Sur mon chemin":
+     the first is what a Quebec tech says, the second is a translation of
+     the English idiom. */
+  onMyWayAction: "On my way",
+  onMyWayPrompt: "How long?",
+  onMyWayGatedNote: "Sends straight away, and follows the same rules as any text.",
   /* #228 — before/after on a job's photos. Both phones have had these. */
   workPhaseBefore: "Before",
   workPhaseAfter: "After",
@@ -337,6 +343,9 @@ export const domainEn = {
 } as const;
 
 export const domainFr: Translated<typeof domainEn> = {
+  onMyWayAction: "En route",
+  onMyWayPrompt: "Dans combien de temps ?",
+  onMyWayGatedNote: "S'envoie immédiatement, et suit les mêmes règles que n'importe quel texto.",
   workPhaseBefore: "Avant",
   workPhaseAfter: "Après",
   workPhaseUnset: "Ni un avant ni un après",

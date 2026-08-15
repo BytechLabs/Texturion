@@ -9,7 +9,7 @@
   "Core/JSONValue.swift": 1,
   "Core/Model/ContactTimeline.swift": 2,
   "Core/Model/Countries.swift": 9,
-  "Core/OnMyWay.swift": 2,
+  "Core/OnMyWay.swift": 1,
   "Core/RealtimeClient.swift": 2,
   "Core/SupabaseAuth.swift": 1,
   "Features/Compose/NoteUpload.swift": 1,

@@ -44,17 +44,16 @@ enum OnMyWay {
     /// What the clients call it, in one place.
     enum Copy {
         /// Not "ETA" — that is a word for dispatchers, not for a crew.
-        static let action = "On my way"
+        static let action = "domain.onMyWayAction"
 
         /// Shown while choosing, so the tap that sends is not a surprise.
         /// Somebody expecting a picker and getting a sent message has texted a
         /// customer by accident.
-        static let prompt = "How long?"
+        static let prompt = "domain.onMyWayPrompt"
 
         /// Said once, where the choice is made. The gates can still refuse this
         /// — an opt-out is binding however fast the send is meant to be — and a
         /// refusal with no warning reads as the button being broken.
-        static let gatedNote =
-            "Sends straight away, and follows the same rules as any text."
+        static let gatedNote = "domain.onMyWayGatedNote"
     }
 }

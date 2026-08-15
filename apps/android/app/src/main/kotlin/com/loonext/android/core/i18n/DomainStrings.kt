@@ -541,6 +541,10 @@ object DomainStrings : AppStrings.Section {
         "domain.markupUndo" to "Undo",
 
         // ── Before and after (#294) ──────────────────────────────────────────
+        // #228 — the on-my-way control.
+        "domain.onMyWayAction" to "On my way",
+        "domain.onMyWayPrompt" to "How long?",
+        "domain.onMyWayGatedNote" to "Sends straight away, and follows the same rules as any text.",
         "domain.workPhaseBefore" to "Before",
         "domain.workPhaseAfter" to "After",
         // Named rather than "None": most notes are neither, and "None" invites a
@@ -1103,6 +1107,9 @@ object DomainStrings : AppStrings.Section {
         "domain.markupUndo" to "Annuler",
 
         // ── Before and after (#294) ──────────────────────────────────────────
+        "domain.onMyWayAction" to "En route",
+        "domain.onMyWayPrompt" to "Dans combien de temps ?",
+        "domain.onMyWayGatedNote" to "S'envoie immédiatement, et suit les mêmes règles que n'importe quel texto.",
         "domain.workPhaseBefore" to "Avant",
         "domain.workPhaseAfter" to "Après",
         "domain.workPhaseUnset" to "Ni un avant ni un après",

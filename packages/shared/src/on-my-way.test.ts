@@ -7,6 +7,18 @@ import {
   onMyWayText,
 } from "./on-my-way";
 
+import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
+
+/** #228 — the module names keys now, so the copy assertions resolve them. */
+function look(table: unknown, key: string): string {
+  const [section, name] = key.split(".");
+  const value = (table as Record<string, Record<string, string>>)[section]?.[
+    name
+  ];
+  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  return value;
+}
+
 describe("#520 the on-my-way text", () => {
   it("OMW-1: hedges the arrival, because a van cannot promise a minute", () => {
     // A tech who says 20 and arrives at 28 has not broken a promise. An exact
@@ -50,21 +62,35 @@ describe("#520 the on-my-way text", () => {
     // Somebody expecting a picker and getting a sent message has texted a
     // customer by accident. The prompt is a question, so the next tap reads as
     // answering it — and the note says what answering does.
-    expect(ON_MY_WAY_COPY.prompt).toContain("?");
-    expect(ON_MY_WAY_COPY.gated_note).toContain("Sends straight away");
+    // Both languages: French puts a space before the question mark, so this
+    // asks whether the mark is THERE rather than what precedes it.
+    for (const table of [WEB_EN, WEB_FR]) {
+      expect(look(table, ON_MY_WAY_COPY.prompt)).toContain("?");
+    }
+    expect(look(WEB_EN, ON_MY_WAY_COPY.gated_note)).toContain("Sends straight away");
+    expect(look(WEB_FR, ON_MY_WAY_COPY.gated_note)).toMatch(/imm[ée]diatement/i);
   });
 
   it("OMW-6: says the gates still apply, so a refusal is not a broken button", () => {
     // An opt-out is binding however fast the send is meant to be (BINDING:
     // opt-out is carrier truth). A refusal arriving with no warning reads as
     // the feature being broken rather than as the rule working.
-    expect(ON_MY_WAY_COPY.gated_note).toMatch(/same rules|any text/i);
+    expect(look(WEB_EN, ON_MY_WAY_COPY.gated_note)).toMatch(/same rules|any text/i);
+    // The French has to carry the same promise, because the promise is what
+    // stops a refusal reading as a broken button.
+    expect(look(WEB_FR, ON_MY_WAY_COPY.gated_note)).toMatch(/m[êe]mes r[èe]gles/i);
   });
 
   it("OMW-7: is called what a crew calls it", () => {
     // Not "ETA" — that is a word for dispatchers. The whole affordance exists
     // for the person walking to the van.
-    expect(ON_MY_WAY_COPY.action).toBe("On my way");
-    expect(ON_MY_WAY_COPY.action.toLowerCase()).not.toContain("eta");
+    expect(look(WEB_EN, ON_MY_WAY_COPY.action)).toBe("On my way");
+    // "En route", which is what a Quebec tech says. Not "Sur mon chemin",
+    // which is the English idiom translated word for word, and not "ETA" —
+    // that is a dispatcher's word in either language.
+    expect(look(WEB_FR, ON_MY_WAY_COPY.action)).toBe("En route");
+    for (const table of [WEB_EN, WEB_FR]) {
+      expect(look(table, ON_MY_WAY_COPY.action).toLowerCase()).not.toContain("eta");
+    }
   });
 });

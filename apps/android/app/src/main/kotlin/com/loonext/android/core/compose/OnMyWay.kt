@@ -48,20 +48,20 @@ object OnMyWay {
     /** What the clients call it, in one place. */
     object Copy {
         /** Not "ETA" — that is a word for dispatchers, not for a crew. */
-        const val ACTION = "On my way"
+        const val ACTION = "domain.onMyWayAction"
 
         /**
          * Shown while choosing, so the tap that sends is not a surprise.
          * Somebody expecting a picker and getting a sent message has texted a
          * customer by accident.
          */
-        const val PROMPT = "How long?"
+        const val PROMPT = "domain.onMyWayPrompt"
 
         /**
          * Said once, where the choice is made. The gates can still refuse this
          * — an opt-out is binding however fast the send is meant to be — and a
          * refusal with no warning reads as the button being broken.
          */
-        const val GATED_NOTE = "Sends straight away, and follows the same rules as any text."
+        const val GATED_NOTE = "domain.onMyWayGatedNote"
     }
 }

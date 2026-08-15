@@ -686,6 +686,7 @@ export {
   ON_MY_WAY_PRESETS,
   onMyWayPresetLabel,
   onMyWayText,
+  type OnMyWayKey,
 } from "./on-my-way";
 export type { OnMyWayPreset } from "./on-my-way";
 export {

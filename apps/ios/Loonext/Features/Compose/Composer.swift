@@ -345,7 +345,7 @@ struct ThreadComposerView: View {
                 if choosingEta {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
-                            Text(OnMyWay.Copy.prompt)
+                            Text(t(OnMyWay.Copy.prompt))
                                 .font(.golos(13))
                                 .foregroundStyle(BrandColor.muted600)
                             ForEach(OnMyWay.presets, id: \.self) { minutes in
@@ -361,7 +361,7 @@ struct ThreadComposerView: View {
                                 .foregroundStyle(BrandColor.muted600)
                         }
                         // What the next tap does, said before it is tapped.
-                        Text(OnMyWay.Copy.gatedNote)
+                        Text(t(OnMyWay.Copy.gatedNote))
                             .font(.golos(11))
                             .foregroundStyle(BrandColor.muted600)
                     }
@@ -369,7 +369,7 @@ struct ThreadComposerView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 6)
                 } else {
-                    Button(OnMyWay.Copy.action) { choosingEta = true }
+                    Button(t(OnMyWay.Copy.action)) { choosingEta = true }
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted600)
                         .frame(maxWidth: .infinity, alignment: .leading)

@@ -57,7 +57,15 @@ export function onMyWayText(minutes: number): string {
   return `On my way - about ${minutes} minutes.`;
 }
 
-/** The label on the choice itself, which is shorter than the sentence. */
+/**
+ * The label on the choice itself, which is shorter than the sentence.
+ *
+ * #228: NOT a catalogue key, and that is a decision rather than an omission.
+ * "20 min" is the abbreviation in both languages we sell in — French uses
+ * "min" for minutes too — so a key here would be a translation entry whose
+ * two halves are identical, which is a thing to keep in step for no reader's
+ * benefit. If a language arrives where it differs, this is where it changes.
+ */
 export function onMyWayPresetLabel(minutes: number): string {
   return `${minutes} min`;
 }
@@ -65,17 +73,23 @@ export function onMyWayPresetLabel(minutes: number): string {
 /** What the clients call it, in one place. */
 export const ON_MY_WAY_COPY = {
   /** The control. Not "ETA" — a word for dispatchers, not for a crew. */
-  action: "On my way",
+  action: "domain.onMyWayAction",
   /**
    * Shown while choosing, so the tap that sends is not a surprise. Somebody
    * expecting a picker and getting a sent message would have texted a customer
    * by accident.
    */
-  prompt: "How long?",
+  prompt: "domain.onMyWayPrompt",
   /**
    * Said once, where the choice is made. The gates can still refuse this — an
    * opt-out is binding no matter how fast the send is meant to be — and a
    * refusal arriving with no explanation reads as the button being broken.
    */
-  gated_note: "Sends straight away, and follows the same rules as any text.",
+  gated_note: "domain.onMyWayGatedNote",
 } as const;
+
+/** Every catalogue key this module names. */
+export type OnMyWayKey =
+  | "domain.onMyWayAction"
+  | "domain.onMyWayPrompt"
+  | "domain.onMyWayGatedNote";

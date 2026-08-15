@@ -452,6 +452,10 @@ enum DomainStrings {
             "domain.markupSave": "Done",
             "domain.markupUndo": "Undo",
             // ── Before and after, on a job's photos — WorkPhase.swift ───────────────
+            // #228 — the on-my-way control.
+            "domain.onMyWayAction": "On my way",
+            "domain.onMyWayPrompt": "How long?",
+            "domain.onMyWayGatedNote": "Sends straight away, and follows the same rules as any text.",
             "domain.workPhaseBefore": "Before",
             "domain.workPhaseAfter": "After",
             "domain.workPhaseUnset": "Not a before or after",
@@ -931,6 +935,9 @@ enum DomainStrings {
             "domain.markupSave": "Terminé",
             "domain.markupUndo": "Annuler",
             // ── Before and after, on a job's photos — WorkPhase.swift ───────────────
+            "domain.onMyWayAction": "En route",
+            "domain.onMyWayPrompt": "Dans combien de temps ?",
+            "domain.onMyWayGatedNote": "S'envoie immédiatement, et suit les mêmes règles que n'importe quel texto.",
             "domain.workPhaseBefore": "Avant",
             "domain.workPhaseAfter": "Après",
             "domain.workPhaseUnset": "Ni un avant ni un après",

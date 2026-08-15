@@ -909,7 +909,7 @@ fun ThreadComposer(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Text(
-                            OnMyWay.Copy.PROMPT,
+                            t(OnMyWay.Copy.PROMPT),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -923,7 +923,7 @@ fun ThreadComposer(
                     }
                     // What the next tap does, said before it is tapped.
                     Text(
-                        OnMyWay.Copy.GATED_NOTE,
+                        t(OnMyWay.Copy.GATED_NOTE),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -932,7 +932,7 @@ fun ThreadComposer(
                 TextButton(
                     onClick = { choosing = true },
                     modifier = Modifier.padding(start = 8.dp, top = 2.dp),
-                ) { Text(OnMyWay.Copy.ACTION) }
+                ) { Text(t(OnMyWay.Copy.ACTION)) }
             }
         }
 
