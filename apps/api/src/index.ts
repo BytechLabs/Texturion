@@ -122,6 +122,7 @@ import { appReleaseRoutes } from "./routes/app-release";
 import { exportsRoutes } from "./routes/exports";
 import { auditLogRoutes } from "./routes/audit-log";
 import { workspaceClosureRoutes } from "./routes/workspace-closure";
+import { quotesRoutes } from "./routes/quotes";
 import { tagsRoutes } from "./routes/tags";
 import { tasksRoutes } from "./routes/tasks";
 import {
@@ -292,6 +293,7 @@ app.route("/v1", exportsRoutes);
 app.route("/v1", auditLogRoutes);
 app.route("/v1", workspaceClosureRoutes);
 app.route("/v1", tagsRoutes);
+app.route("/v1", quotesRoutes);
 app.route("/v1", templatesRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", teamRoutes);
