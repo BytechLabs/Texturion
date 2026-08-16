@@ -39,7 +39,9 @@ const APP_VERSION: string = (
 // #224: `pay` joins them, and it is the one where an hour of stale edge TTL
 // would be worst — the page has to stop opening the MOMENT the bill is paid,
 // or a homeowner meets a card form for money they already sent.
-const UNCACHEABLE_TOKEN_PREFIXES = ["photos", "invite", "pay"] as const;
+// #287 adds "q": a quote link opens a page with a price on it, and a shared
+// machine must not keep it after the link stops opening.
+const UNCACHEABLE_TOKEN_PREFIXES = ["photos", "invite", "pay", "q"] as const;
 /**
  * The alternation is wrapped, and that is load-bearing: `(?!photos|invite/)`
  * binds the slash to the LAST alternative only, so it would exclude every path

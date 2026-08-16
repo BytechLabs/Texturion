@@ -106,6 +106,10 @@ const DECLARED_TOP_LEVEL_ROUTES = [
   // the same TOKEN_PATH_PREFIXES rule — the token in this one opens a page with
   // an amount on it.
   "pay",
+  // #287: the quote a customer opens and accepts. Same shape again, and the
+  // token in this one can commit somebody to a price - so it needs the
+  // TOKEN_PATH_PREFIXES rule at least as much as the others.
+  "q",
   // Invite acceptance and onboarding: pre-workspace, so outside (app).
   "join",
   "onboarding",

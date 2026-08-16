@@ -140,7 +140,7 @@ export function stripQueryAndHash(url: string): string {
  * Duplicated in the Worker's twin (apps/api/src/observability/sentry.ts) for the
  * same reason ATTRIBUTION_PARAMS is, and asserted identical by the same test.
  */
-export const TOKEN_PATH_PREFIXES = ["photos", "invite", "pay"] as const;
+export const TOKEN_PATH_PREFIXES = ["photos", "invite", "pay", "q"] as const;
 export const TOKEN_REDACTED = "[token]";
 
 const TOKEN_SEGMENT_PATTERN = new RegExp(

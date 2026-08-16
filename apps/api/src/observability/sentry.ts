@@ -52,7 +52,7 @@ export function redactPhones(text: string): string {
  * Enumerated, not sniffed: a heuristic that misjudged a token would send it in
  * full, which is the wrong direction to be wrong in.
  */
-export const TOKEN_PATH_PREFIXES = ["photos", "invite", "pay"] as const;
+export const TOKEN_PATH_PREFIXES = ["photos", "invite", "pay", "q"] as const;
 const TOKEN_REDACTED = "[token]";
 const TOKEN_SEGMENT_PATTERN = new RegExp(
   `/(${TOKEN_PATH_PREFIXES.join("|")})/[^/?#]+`,
