@@ -58,7 +58,7 @@ trigger listed there.
 
 | Question | Answer | Source |
 |---|---|---|
-| How is one customer's data separated from another's? | Every query is scoped to one business by id, and Postgres row-level security is enabled deny-by-default on every table as a second line. Realtime channels are gated the same way. | `/security` |
+| How is one customer's data separated from another's? | Every query is scoped to one business by id, and the API authorizes every request itself — that is where the isolation lives. Row-level security is deny-by-default underneath it, which stops anything reaching the database outside the API but does not second-guess the API's own queries. Realtime channels are gated the same way. | `/security`, SPEC §10 |
 | How are inbound integrations authenticated? | Cryptographically, per event: Ed25519 signatures on carrier webhooks, HMAC on payment webhooks. Anything failing verification is rejected. | `/security` |
 | How are credentials managed? | Encrypted secrets, never in the repository. The payment key is restricted to billing scope; the database key is independently revocable. The browser receives only public configuration. | `/security` |
 | Is access within a customer's own workspace controlled? | Yes, by capability rather than by rank, including per-number access control. | `docs/DECISIONS.md` (capability roles), `apps/api/src/routes/*` |

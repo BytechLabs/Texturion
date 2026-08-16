@@ -135,7 +135,16 @@ const CLAIMS: { title: string; body: React.ReactNode }[] = [
 const MECHANICS: { title: string; body: string }[] = [
   {
     title: "Every business is an isolated tenant",
-    body: "Each database query is scoped to one business by its ID, and Postgres row-level security is enabled deny-by-default on every table as a second line of defense, so one business can never see another's conversations, contacts, or numbers. Realtime updates are gated the same way: you only join your own company's channel.",
+    // #285: this used to call row-level security "a second line of defense",
+    // which SPEC §10 says outright overstates it — the API's database key
+    // bypasses RLS, so an unscoped query in our own code runs as written.
+    // Deny-by-default is genuinely strong against a leaked public key or a
+    // stray direct call, and worth nothing against a bug in our handler. A
+    // buyer reading "second line" would conclude the checking is doubled;
+    // saying where the isolation actually lives is both truer and, per §10,
+    // the wording that stops a future reader skipping a check because
+    // something else would supposedly catch it.
+    body: "Each database query is scoped to one business by its ID, and that scoping is where the isolation lives: the API authorizes every request itself. Postgres row-level security is enabled deny-by-default on every table underneath it, which stops anything reaching the database outside the API, though it does not second-guess the API's own queries. One business never sees another's conversations, contacts, or numbers. Realtime updates are gated the same way: you only join your own company's channel.",
   },
   {
     title: "Signed webhooks, verified on arrival",
