@@ -119,6 +119,27 @@ describe("GET /v1/quotes", () => {
     expect(body.data[0].id).not.toBe(QUOTE_ID);
   });
 
+  it("scopes to one conversation when asked", async () => {
+    // The thread strip needs this thread's quotes. Filtering client-side
+    // would break against the 500-row cap the moment a busy workspace has
+    // more quotes than one thread's worth.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/quotes", () => [row()]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/quotes?conversation_id=${CONVERSATION_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    const call = sb.find("GET", "/rest/v1/quotes")[0];
+    expect(call.url.searchParams.get("conversation_id")).toBe(`eq.${CONVERSATION_ID}`);
+    // Still scoped to the workspace: a conversation id is not authorisation.
+    expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+  });
+
   it("refuses a status filter it does not know", async () => {
     const sb = stubWithRole("member");
     stubFetch(jwksRoute(auth), sb.route);

@@ -93,11 +93,22 @@ quotesRoutes.get("/quotes", requireCapability("conversations.read"), async (c) =
     return errorResponse(c, "validation_failed", `unknown status filter: ${status}`);
   }
 
+  /*
+   * Scoped to one thread when asked. Found while building the composer
+   * strip: without this the client would fetch the workspace's quotes and
+   * filter locally, which breaks against the 500-row cap the moment a busy
+   * workspace has more quotes than one thread's worth.
+   */
+  const conversationId = c.req.query("conversation_id");
+
+  let query = db
+    .from("quotes")
+    .select(QUOTE_COLUMNS)
+    .eq("company_id", c.get("companyId"));
+  if (conversationId) query = query.eq("conversation_id", conversationId);
+
   const rows = unwrap<QuoteRow[]>(
-    await db
-      .from("quotes")
-      .select(QUOTE_COLUMNS)
-      .eq("company_id", c.get("companyId"))
+    await query
       .order("created_at", { ascending: false })
       // Defensive bound, same reasoning as the tag list: unpaginated, so cap
       // it well above any real workspace rather than return the whole table.
