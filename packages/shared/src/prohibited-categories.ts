@@ -121,7 +121,16 @@ export function screenBusinessName(name: string): CategoryMatch[] {
   return matches;
 }
 
-/** The line an ops alert leads with. Plain, and never a verdict. */
+/**
+ * The line an ops alert leads with. Plain, and never a verdict.
+ *
+ * #228 — ENGLISH on purpose, and not a gap. This never reaches a customer:
+ * `alertProhibitedCategory` puts it in an email to `OPS_ALERT_EMAIL`, read by
+ * whoever is deciding whether to look at a new workspace before it sends. It
+ * is an internal sentence in the same sense a log line is, and translating it
+ * would put the reader's own language between them and a judgement call about
+ * somebody else's business.
+ */
 export function screeningSummary(name: string, matches: CategoryMatch[]): string {
   if (matches.length === 0) return `“${name}” matched nothing.`;
   const parts = matches.map((m) => `${m.category.replace(/_/g, " ")} (“${m.term}”)`);
