@@ -776,6 +776,20 @@ export type {
   SchedulePreset,
 } from "./scheduled-send";
 export {
+  QUOTE_STATUSES,
+  QUOTE_STATUS_KEYS,
+  canTransitionQuote,
+  effectiveQuoteStatus,
+  isQuoteDecided,
+  isQuoteDecidedForWinRate,
+  isQuoteOutstanding,
+  isQuoteStatus,
+  type QuoteState,
+  type QuoteStatus,
+  type QuoteStatusKey,
+} from "./quotes";
+
+export {
   PIPELINE_SEED_NAMES,
   PIPELINE_STAGES,
   isPipelineStage,

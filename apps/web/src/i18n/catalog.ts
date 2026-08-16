@@ -58,6 +58,7 @@ import { settingsEn, settingsFr } from "./sections/settings";
 import { settingsMoreEn, settingsMoreFr } from "./sections/settingsMore";
 import { apiKeysEn, apiKeysFr } from "./sections/apiKeys";
 import { domainEn, domainFr } from "./sections/domain";
+import { quotesEn, quotesFr } from "./sections/quotes";
 import { webhooksEn, webhooksFr } from "./sections/webhooks";
 import { shellEn, shellFr } from "./sections/shell";
 import { tasksEn, tasksFr } from "./sections/tasks";
@@ -354,6 +355,7 @@ export const EN = {
   settings: settingsEn,
   settingsMore: settingsMoreEn,
   domain: domainEn,
+  quotes: quotesEn,
   webhooks: webhooksEn,
   apiKeys: apiKeysEn,
   appShell: appShellEn,
@@ -378,6 +380,7 @@ export const FR_CA: Catalog = {
   settings: settingsFr,
   settingsMore: settingsMoreFr,
   domain: domainFr,
+  quotes: quotesFr,
   webhooks: webhooksFr,
   apiKeys: apiKeysFr,
   appShell: appShellFr,
