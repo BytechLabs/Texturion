@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   QUOTE_STATUSES,
+  canTransitionQuote,
   effectiveQuoteStatus,
   isQuoteOutstanding,
   type QuoteState,
@@ -13,6 +14,7 @@ import { getEnv } from "../env";
 import type { AppEnv } from "../context";
 import { requireCapability } from "../auth/company";
 import { errorResponse } from "../http/errors";
+import { mintPublicLink } from "../public-links/tokens";
 import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
 /**
@@ -207,3 +209,89 @@ quotesRoutes.post("/quotes", requireCapability("conversations.send"), async (c) 
 
   return c.json(withEffectiveStatus(rows[0] as QuoteRow, new Date()), 201);
 });
+
+/**
+ * Send it: the moment a draft becomes an offer.
+ *
+ * TWO TOKENS, not one. `public_links` stores purpose rather than inferring it
+ * precisely so this is possible — the URL the customer opens can VIEW the
+ * quote and cannot accept it, and the accept token is separate. A link
+ * forwarded to a neighbour, or scraped out of an SMS log, therefore cannot
+ * commit somebody to a price.
+ *
+ * Both expire WITH the quote. A link that outlived its offer would be an
+ * accept route standing open on a price the business had already withdrawn,
+ * which is the whole reason the expiry column is NOT NULL.
+ */
+quotesRoutes.post(
+  "/quotes/:id/send",
+  requireCapability("conversations.send"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const row = unwrap<QuoteRow[]>(
+      await db
+        .from("quotes")
+        .select(QUOTE_COLUMNS)
+        .eq("company_id", companyId)
+        .eq("id", id)
+        .limit(1),
+      "quote send lookup",
+    )[0];
+    if (!row) return errorResponse(c, "not_found", "no such quote");
+
+    // The transition is ASKED, not assumed. Sending an accepted quote would
+    // reopen a settled price; sending an expired one would offer a price the
+    // business has already withdrawn. Checked against the EFFECTIVE status,
+    // because nothing writes the expired one.
+    const current = effectiveQuoteStatus(row, new Date());
+    if (!canTransitionQuote(current, "sent")) {
+      return errorResponse(c, "conflict", `a quote that is ${current} cannot be sent`);
+    }
+
+    const expiresAt = new Date(row.expires_at);
+    const view = await mintPublicLink(db, {
+      companyId,
+      purpose: "quote_view",
+      subjectType: "quote",
+      subjectId: id,
+      expiresAt,
+      actorUserId: c.get("userId"),
+    });
+    const accept = await mintPublicLink(db, {
+      companyId,
+      purpose: "quote_accept",
+      subjectType: "quote",
+      subjectId: id,
+      expiresAt,
+      actorUserId: c.get("userId"),
+    });
+
+    // Guarded on `status = draft` in the WHERE clause rather than trusting the
+    // read above: two people pressing send is two requests, and the second
+    // must not restamp `sent_at` over the first.
+    const sent = unwrap<QuoteRow[]>(
+      await db
+        .from("quotes")
+        .update({ status: "sent", sent_at: new Date().toISOString() })
+        .eq("company_id", companyId)
+        .eq("id", id)
+        .eq("status", "draft")
+        .select(QUOTE_COLUMNS),
+      "quote send",
+    );
+    if (sent.length === 0) {
+      return errorResponse(c, "conflict", "quote is no longer a draft");
+    }
+
+    // The plaintext tokens are returned ONCE. Whoever composes the text puts
+    // them in the URL; nothing here can produce them again.
+    return c.json({
+      ...withEffectiveStatus(sent[0] as QuoteRow, new Date()),
+      view_token: view.token,
+      accept_token: accept.token,
+    });
+  },
+);

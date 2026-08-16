@@ -122,6 +122,7 @@ import { appReleaseRoutes } from "./routes/app-release";
 import { exportsRoutes } from "./routes/exports";
 import { auditLogRoutes } from "./routes/audit-log";
 import { workspaceClosureRoutes } from "./routes/workspace-closure";
+import { publicQuoteRoutes } from "./routes/quotes-public";
 import { quotesRoutes } from "./routes/quotes";
 import { tagsRoutes } from "./routes/tags";
 import { tasksRoutes } from "./routes/tasks";
@@ -294,6 +295,8 @@ app.route("/v1", auditLogRoutes);
 app.route("/v1", workspaceClosureRoutes);
 app.route("/v1", tagsRoutes);
 app.route("/v1", quotesRoutes);
+// Outside /v1: the customer has no account and no token of ours.
+app.route("/", publicQuoteRoutes);
 app.route("/v1", templatesRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", teamRoutes);
