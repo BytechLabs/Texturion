@@ -41,6 +41,8 @@ const PRODUCT: FooterLinkItem[] = [
   { label: "Templates and tags", href: LIVE_ROUTES.featuresTemplatesAndTags },
   { label: "Pricing", href: LIVE_ROUTES.pricing },
   { label: "Security", href: LIVE_ROUTES.security },
+  // #238/#285: a buyer asking "is it accessible" should not have to ask us.
+  { label: "Accessibility", href: LIVE_ROUTES.accessibility },
   { label: "Loonext in Canada", href: LIVE_ROUTES.canada },
 ];
 

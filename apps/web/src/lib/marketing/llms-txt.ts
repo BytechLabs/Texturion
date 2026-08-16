@@ -79,6 +79,11 @@ const PAGE_NOTES: Record<keyof typeof LIVE_ROUTES, string | null> = {
   featuresTemplatesAndTags: "saved replies and tags that match how you sell",
   canada: "Canadian businesses text Canadian customers the same day they sign up",
   security: "tenant isolation, encryption, and what stays out of logs",
+  // #238/#285: listed rather than grouped with the legal line. "Is it
+  // accessible" is a question a buyer asks outright, and the answer names the
+  // test behind every claim — which is the part worth pointing a machine at.
+  accessibility:
+    "what we verify about accessibility and what we do not: WCAG 2.2 AA criteria enforced by named tests, the gaps stated plainly, and no third-party audit claimed",
   status: "live service status",
   contact: "reach support",
   blog: null, // has its own heading below, with every post
