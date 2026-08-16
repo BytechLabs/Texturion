@@ -102,6 +102,8 @@ declare
     -- free text a crew member typed — and neither holds a card or a bank
     -- number, which Stripe keeps.
     'payment_requests', 'stripe_connect_accounts',
+    -- #287: the amount and what it is for, in the crew's own words.
+    'quotes',
     -- §4 prospect data
     'contact_messages', 'marketing_contacts',
     -- #232/D124: a website visitor's mobile number and IP, plus a code HASH,
