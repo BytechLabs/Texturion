@@ -30,6 +30,19 @@ export const quotesEn = {
   statusAccepted: "Accepted",
   statusDeclined: "Declined",
   statusExpired: "Expired",
+  /* #287 — the page a homeowner opens. The WORKSPACE's language, because
+     there is no session here and nothing knows who is holding the phone;
+     the business wrote the quote, so the business's language is the honest
+     default. */
+  unavailableTitle: "This quote isn't available",
+  unavailableDetail: "The link may have expired, or the business may have withdrawn it. Text them back and they can send a new one.",
+  acceptedTitle: "Accepted. {business} has been told.",
+  acceptedDetail: "You accepted {amount} for {description}",
+  acceptAction: "Accept this quote",
+  accepting: "Accepting…",
+  priceHolds: "This price holds until {date}.",
+  acceptFailed: "That didn't go through. The quote may have just expired or been withdrawn. Text {business} and they can sort it.",
+  noLongerOpen: "This quote is no longer open. Text {business} if you would still like the work done.",
 } as const;
 
 export const quotesFr: Translated<typeof quotesEn> = {
@@ -39,4 +52,13 @@ export const quotesFr: Translated<typeof quotesEn> = {
   statusAccepted: "Accepté",
   statusDeclined: "Refusé",
   statusExpired: "Expiré",
+  unavailableTitle: "Ce devis n'est pas disponible",
+  unavailableDetail: "Le lien a peut-être expiré, ou l'entreprise l'a retiré. Répondez-leur par texto et ils pourront en envoyer un nouveau.",
+  acceptedTitle: "Accepté. {business} en a été informé.",
+  acceptedDetail: "Vous avez accepté {amount} pour {description}",
+  acceptAction: "Accepter ce devis",
+  accepting: "Acceptation…",
+  priceHolds: "Ce prix tient jusqu'au {date}.",
+  acceptFailed: "Cela n'a pas fonctionné. Le devis vient peut-être d'expirer ou d'être retiré. Écrivez à {business} et ils pourront arranger cela.",
+  noLongerOpen: "Ce devis n'est plus ouvert. Écrivez à {business} si vous souhaitez toujours faire réaliser les travaux.",
 };

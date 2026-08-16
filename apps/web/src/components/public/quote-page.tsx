@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 
+import { DEFAULT_LOCALE, isLocale } from "@loonext/shared";
+
 import { publicEnv } from "@/env";
+import { makeTranslate } from "@/i18n/provider";
 
 /**
  * #287 — the page a homeowner opens to read a quote and accept it.
@@ -42,6 +45,8 @@ import { publicEnv } from "@/env";
  */
 
 interface QuoteView {
+  /** The workspace's language. See the note at the API route. */
+  locale?: string;
   business_name: string;
   amount_cents: number;
   currency: string;
@@ -81,6 +86,9 @@ export function QuotePage({
   const [state, setState] = useState<"idle" | "sending" | "accepted" | "failed">(
     "idle",
   );
+  const t = makeTranslate(
+    isLocale(quote?.locale) ? quote.locale : DEFAULT_LOCALE,
+  );
 
   /*
    * ONE page for every failure, matching what the API does. Expired, revoked,
@@ -91,11 +99,10 @@ export function QuotePage({
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <h1 className="text-xl font-semibold tracking-tight">
-          This quote isn&rsquo;t available
+          {t("quotes.unavailableTitle")}
         </h1>
         <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
-          The link may have expired, or the business may have withdrawn it. Text
-          them back and they can send a new one.
+          {t("quotes.unavailableDetail")}
         </p>
       </main>
     );
@@ -107,7 +114,7 @@ export function QuotePage({
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <h1 className="text-xl font-semibold tracking-tight">
-          Accepted. {quote.business_name} has been told.
+          {t("quotes.acceptedTitle", { business: quote.business_name })}
         </h1>
         {/*
           The receipt half of the record. A person who accepts a price and sees
@@ -115,8 +122,10 @@ export function QuotePage({
           feature exists because "what did we quote?" was unanswerable.
         */}
         <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-          You accepted {formatAmount(quote.amount_cents, quote.currency)} for{" "}
-          {quote.description}
+          {t("quotes.acceptedDetail", {
+            amount: formatAmount(quote.amount_cents, quote.currency),
+            description: quote.description,
+          })}
         </p>
       </main>
     );
@@ -168,25 +177,23 @@ export function QuotePage({
                whole job is one tap on a phone held one-handed. */
             className="mt-8 inline-flex min-h-[52px] items-center justify-center gap-1 rounded-app-ctrl bg-primary px-6 text-[16px] font-medium text-primary-foreground transition-colors duration-150 ease-out hover:opacity-90 disabled:opacity-60"
           >
-            {state === "sending" ? "Accepting…" : "Accept this quote"}
+            {state === "sending" ? t("quotes.accepting") : t("quotes.acceptAction")}
           </button>
 
           {/* A fact, once, quietly. Not a countdown — see the header. */}
           <p className="mt-4 text-[13px] text-muted-foreground">
-            This price holds until {formatExpiry(quote.expires_at)}.
+            {t("quotes.priceHolds", { date: formatExpiry(quote.expires_at) })}
           </p>
 
           {state === "failed" && (
             <p role="alert" className="mt-4 text-[15px] text-destructive">
-              That didn&rsquo;t go through. The quote may have just expired or
-              been withdrawn — text {quote.business_name} and they can sort it.
+              {t("quotes.acceptFailed", { business: quote.business_name })}
             </p>
           )}
         </>
       ) : (
         <p className="mt-8 text-[15px] leading-relaxed text-muted-foreground">
-          This quote is no longer open. Text {quote.business_name} if you would
-          still like the work done.
+          {t("quotes.noLongerOpen", { business: quote.business_name })}
         </p>
       )}
     </main>

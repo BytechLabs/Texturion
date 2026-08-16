@@ -86,10 +86,10 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
   // that never existed. Saying otherwise confirms the id was once real.
   if (!row) return publicLinkNotAvailable(c);
 
-  const company = unwrap<{ name: string }[]>(
+  const company = unwrap<{ name: string; locale: string | null }[]>(
     await db
       .from("companies")
-      .select("name")
+      .select("name,locale")
       .eq("id", resolved.company_id)
       .limit(1),
     "public quote company",
@@ -120,6 +120,13 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
   }
 
   return c.json({
+    /*
+     * The WORKSPACE's language, not the reader's device. Nothing here knows
+     * who is holding the phone — there is no session and no profile — so the
+     * honest default is the language the business writes in, which is the
+     * language they wrote this quote in.
+     */
+    locale: company.locale ?? "en",
     business_name: company.name,
     amount_cents: row.amount_cents,
     currency: row.currency,

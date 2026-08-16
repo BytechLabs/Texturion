@@ -43,6 +43,7 @@ export default async function Page({
   if (!response.ok) return <QuotePage notAvailable />;
 
   const quote = (await response.json()) as {
+    locale?: string;
     business_name: string;
     amount_cents: number;
     currency: string;
