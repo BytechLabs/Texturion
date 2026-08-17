@@ -21,6 +21,41 @@ pnpm --filter @loonext/api test:load
 
 ---
 
+## 0. The headline
+
+#251's deliverable is "a number the CEO needs before selling to a 50-tech
+operation, and the CTO needs before the first one signs". Here it is, in the
+order those two would ask.
+
+**On data volume: no ceiling found up to 50,000 conversations and 200,000
+messages per workspace.** Every hot list surface answers in under 200 ms at that
+size (section 1, after the #535 fixes). A conversation is one
+contact-relationship, so that is a business with tens of thousands of distinct
+customers. **No current customer is anywhere near it**, and a 50-tech operation
+is not near it either — crew size does not drive that number, customer count
+does.
+
+**On burst: the inbound path absorbs a carrier retry storm without duplicating
+or dropping** (section 1b), and the guarantee is a database constraint rather
+than application logic, which is the strongest place for it.
+
+**What breaks first is therefore still unknown, and there are exactly two
+candidates left.** Both are concurrency properties of the deployed system:
+Durable Object saturation on the call path, and Realtime fan-out. Neither can be
+measured on a laptop, and section 2 says what each would take.
+
+**So the honest sentence for a prospect** is: *the parts we have measured are
+comfortable well beyond your size, and the parts we have not measured are the
+live-call and live-update paths under many simultaneous users. We can tell you
+exactly what we have tested and what we have not.* That is a better answer than
+a confident number, and it is the only one currently true.
+
+**What would change this.** A staging environment (`docs/ENVIRONMENTS.md`
+records what that costs and why it does not exist yet). Until then the two open
+rows stay open, and nobody should fill them in from reasoning.
+
+---
+
 ## 1. The hot list queries — MEASURED
 
 The one axis #251 says unit tests cannot reach: *"their behaviour on a
