@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.15.0](https://github.com/BytechLabs/Texturion/compare/android-v0.14.0...android-v0.15.0) (2026-08-17)
+
+
+### Features
+
+* **android:** the notification channels say what they are in French too ([6123b3b](https://github.com/BytechLabs/Texturion/commit/6123b3b687974c33c93ce3aa7aefbadc1793963f))
+* **api:** a push notification can be composed in the reader's language ([4e4f58f](https://github.com/BytechLabs/Texturion/commit/4e4f58fa34668177c1845e812a5d055c1aa0c7f6))
+* **clients:** a held message says why in the reader's language ([2d811ba](https://github.com/BytechLabs/Texturion/commit/2d811baca33fe7c8a5b566c285904543b6ed2c53))
+* **clients:** universal links open the app, for the paths the app can render ([1450aa3](https://github.com/BytechLabs/Texturion/commit/1450aa3c033c40e79a313d3c4b57227cc9cc20f2))
+* **contacts:** the address list speaks French on Android too ([d6b5e19](https://github.com/BytechLabs/Texturion/commit/d6b5e19b9e776d09eec8c243a697359350046292))
+* **contacts:** the phone list speaks French on Android too ([2a175bb](https://github.com/BytechLabs/Texturion/commit/2a175bbe705f12851d0cc828a4136af527e2c8b5))
+* **mobile:** set up your calendar from the app, not just the browser ([f044c3e](https://github.com/BytechLabs/Texturion/commit/f044c3e3a26c4ba467fd613e90bb04cb44d653c1))
+* **mobile:** the phones show which quotes are still unanswered ([9d547cd](https://github.com/BytechLabs/Texturion/commit/9d547cd46995ed2c05e0655b0cbd4b30e202199d))
+* **quotes:** a crew can quote a job from an Android phone, not just a laptop ([c26e61b](https://github.com/BytechLabs/Texturion/commit/c26e61b8771d2a3618541264b7fd3f13c73956d6))
+* **quotes:** the outstanding queue can chase, on all three clients ([db49b7f](https://github.com/BytechLabs/Texturion/commit/db49b7fefaf47dd763e78a1beca9ffe62754a6b9))
+
+
+### Bug Fixes
+
+* **contacts:** one control, one name for the workspace language option ([3372236](https://github.com/BytechLabs/Texturion/commit/3372236ffcbbd939b08aca6fec633bb75f759127))
+* **dashboard:** the four measures share one heading on both phones ([f22f493](https://github.com/BytechLabs/Texturion/commit/f22f4939af11fe22f3a469427e32cd78bd179880))
+* **quotes:** sending a quote now actually sends it ([966f8a2](https://github.com/BytechLabs/Texturion/commit/966f8a24be1e24511da550f2dc1830ebbdbee795))
+
 ## [0.14.0](https://github.com/BytechLabs/Texturion/compare/android-v0.13.2...android-v0.14.0) (2026-08-17)
 
 
