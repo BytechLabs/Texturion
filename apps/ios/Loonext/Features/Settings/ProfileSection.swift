@@ -13,6 +13,12 @@ struct ProfileSectionView: View {
 
     var body: some View {
         DisplayNameCard(scope: scope)
+        // #245: a PERSONAL subscription — your scheduled work, in your own
+        // calendar app — so it sits with the other things that belong to the
+        // person rather than to the workspace. Directly under your name, which
+        // is where web put it too. It renders nothing for a role without
+        // `conversations.read`; see the card.
+        CalendarFeedCard(scope: scope)
         ThemeCard(prefs: scope.graph.prefs)
         AccountCard(scope: scope)
         // #314: directly under the password, because it is the same question —

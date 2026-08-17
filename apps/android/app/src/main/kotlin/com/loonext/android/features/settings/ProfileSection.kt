@@ -67,6 +67,17 @@ fun ProfileSection(scope: SettingsScope, onSignOut: () -> Unit) {
     // because it is the one somebody can be locked out by.
     LanguageCard(scope)
     ThemeCard(scope)
+    // #245: a subscription that belongs to the PERSON, not to the workspace —
+    // their scheduled work, in the calendar they already keep — so it lands on
+    // the same screen web put it on, for the same reason.
+    //
+    // After the three cards above rather than between them: those are one
+    // thought said three ways ("how this app presents you"), and the comment on
+    // LanguageCard says so. Before the account block below, because that block
+    // is a second thought — how somebody proves they are who they say — and a
+    // calendar link is neither. It is the everyday thing you come here to set up
+    // once.
+    CalendarFeedCard(scope)
     AccountCard(scope, authClient)
     // #314: directly under the password, because it is the same question —
     // how somebody proves they are you.

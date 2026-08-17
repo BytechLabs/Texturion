@@ -52,6 +52,11 @@ apps/web/src/components/thread
 apps/web/src/i18n/sections/settings.ts
 apps/web/src/i18n/sections/settingsMore.ts
 
+# #245: the schedule-feed card's sentences. This client's catalogue section is a
+# verbatim copy of that file in BOTH languages, and CalendarFeedCardTest reads it
+# to prove neither half has drifted — so an edit there has to re-run this suite.
+apps/web/src/i18n/sections/calendarFeed.ts
+
 # #228: the copy packages/shared names for every client. ReferralShareTest's
 # cross-language pin reads it for the same reason CancellationOfferTest reads
 # the settings section — the shared module moved from holding sentences to

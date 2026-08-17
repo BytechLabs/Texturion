@@ -64,6 +64,7 @@ object AppStrings {
     val SECTIONS: List<Section> = listOf(
         ApiKeysStrings,
         AuthStrings,
+        CalendarFeedStrings,
         CommonStrings,
         ContactsTasksStrings,
         DomainStrings,

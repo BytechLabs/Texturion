@@ -390,6 +390,42 @@ class SettingsRepository(
             companyId = companyId,
         )
 
+    // -- calendar feed (#245) -----------------------------------------------
+    //
+    // Every call here acts on the CALLER's own feed, which is why none of them
+    // takes an id: the server has no route that reaches somebody else's, and
+    // that absence is deliberate (routes/calendar.ts). A URL that reads one
+    // person's schedule is a bearer token they will paste into a third-party
+    // app; handing one member another member's is a different feature with a
+    // different consent question.
+
+    /** Live or not, and when a calendar app last polled it. Never the URL. */
+    suspend fun calendarFeed(companyId: String): CalendarFeedStatus =
+        api.get("/v1/calendar/feed", companyId = companyId)
+
+    /**
+     * Mint, REPLACING whatever was there. The only response that carries the URL.
+     *
+     * POST rather than GET, and rotating rather than returning the existing one,
+     * because the plaintext is never stored — so "show me my link again" is not
+     * a question this can answer, and the card has to say so before somebody
+     * dismisses the panel expecting to find it later.
+     */
+    suspend fun createCalendarFeed(companyId: String): MintedCalendarFeed =
+        api.post("/v1/calendar/feed", companyId = companyId)
+
+    /**
+     * Stop the current URL working, without issuing another.
+     *
+     * The 200 carries `{ revoked: boolean }` and this drops it, deliberately:
+     * revoking a feed that was already revoked is the same outcome the caller
+     * wanted, and the screen re-reads the status either way rather than
+     * narrating which of the two happened.
+     */
+    suspend fun revokeCalendarFeed(companyId: String) {
+        api.delete("/v1/calendar/feed", companyId = companyId)
+    }
+
     // -- ownership (#332) ---------------------------------------------------
     //
     // Five writes, one read, and the read is the only thing that decides what

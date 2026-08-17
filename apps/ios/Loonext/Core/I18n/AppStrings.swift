@@ -54,6 +54,7 @@ enum AppStrings {
     /// unreachable, which the tests check.
     static let sections: [Section] = [
         ApiKeysStrings.section,
+        CalendarFeedStrings.section,
         CommonStrings.section,
         ContactsTasksStrings.section,
         DomainStrings.section,

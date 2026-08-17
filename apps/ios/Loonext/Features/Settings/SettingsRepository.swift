@@ -74,6 +74,35 @@ struct SettingsRepository: Sendable {
         try await api.delete("/v1/on-call/\(id)", companyId: companyId)
     }
 
+    // MARK: - #245 your schedule in your calendar
+
+    /// Whether a feed is live, and when a calendar app last polled it.
+    ///
+    /// Never the URL. The server keeps only a hash, so there is no call here
+    /// that could return it and no state on the client that holds it past the
+    /// moment it is minted.
+    func calendarFeed(_ companyId: String) async throws -> CalendarFeedStatus {
+        try await api.get("/v1/calendar/feed", companyId: companyId)
+    }
+
+    /// Mint, REPLACING whatever was there. The only response carrying the URL.
+    ///
+    /// POST rather than GET because it rotates: "show me my URL again" is not a
+    /// question the server can answer, and a verb that implied otherwise would
+    /// be the start of storing the plaintext.
+    func createCalendarFeed(_ companyId: String) async throws -> MintedCalendarFeed {
+        try await api.post("/v1/calendar/feed", companyId: companyId)
+    }
+
+    /// Stop the current URL working, without issuing another.
+    ///
+    /// `deleteReturning` rather than `delete`: the route reports whether there
+    /// was anything live to switch off, and a screen that says "done" without
+    /// reading that is guessing.
+    func revokeCalendarFeed(_ companyId: String) async throws -> CalendarFeedRevoked {
+        try await api.deleteReturning("/v1/calendar/feed", companyId: companyId)
+    }
+
     // MARK: - #243 API keys
 
     /// Every key this workspace holds, live and switched off, plus the cap.

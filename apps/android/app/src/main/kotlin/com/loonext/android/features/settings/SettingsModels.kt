@@ -596,3 +596,40 @@ data class UsageExportStarted(
     val export_id: String,
     val already_building: Boolean = false,
 )
+
+// ---------------------------------------------------------------------------
+// Calendar feed (routes/calendar.ts) — #245
+// ---------------------------------------------------------------------------
+
+/**
+ * `GET /v1/calendar/feed` — whether this person's schedule feed is live, and
+ * when a calendar app last polled it. NEVER the URL: the server keeps only a
+ * hash, so there is no response anywhere that could carry it.
+ *
+ * [last_read_at] is the field the card exists to show. A feed nothing has ever
+ * polled looks exactly like a working one from here, and the commonest way this
+ * fails is somebody copying the link and never finishing in their calendar app —
+ * so "has anything read it, and when" is the only fact that answers the question
+ * they actually have.
+ *
+ * Every field but [active] is absent on a workspace with no feed, hence the
+ * defaults: the inactive response is `{"active": false}` and nothing else.
+ */
+@Serializable
+data class CalendarFeedStatus(
+    val active: Boolean = false,
+    val created_at: String? = null,
+    val last_read_at: String? = null,
+)
+
+/**
+ * The 201 from `POST /v1/calendar/feed`, and the only place the URL exists
+ * outside the person's own calendar app.
+ *
+ * Not a property of [CalendarFeedStatus] for the reason `MintedApiKey` is a
+ * separate type from `ApiKey`: it is not a field of the thing, it is a field of
+ * the one response that mints it. Modelling it as nullable on the status would
+ * invite a screen to go looking for it on a read that can never carry it.
+ */
+@Serializable
+data class MintedCalendarFeed(val url: String)
