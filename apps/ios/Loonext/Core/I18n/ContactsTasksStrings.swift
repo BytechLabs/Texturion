@@ -311,7 +311,11 @@ enum ContactsTasksStrings {
             "contactsTasks.keepContact": "Keep contact",
             "contactsTasks.theirTime": "Their time",
             "contactsTasks.theirLanguage": "Their language",
-            "contactsTasks.sameAsWorkspace": "Same as your workspace",
+            // #228: "Same as workspace", not "your" — this entry existed and
+            // was bypassed by a hardcoded literal in ContactDetailView, which
+            // is why the two disagreed without anything noticing.
+            "contactsTasks.sameAsWorkspace": "Same as workspace",
+            "contactsTasks.sameAsWorkspaceNamed": "Same as workspace ({language})",
             "contactsTasks.setOnThisContact": "Set on this contact",
             "contactsTasks.useAreaCode": "Use their area code",
 
@@ -774,7 +778,9 @@ enum ContactsTasksStrings {
             "contactsTasks.keepContact": "Conserver le client",
             "contactsTasks.theirTime": "Son heure",
             "contactsTasks.theirLanguage": "Sa langue",
-            "contactsTasks.sameAsWorkspace": "Comme votre espace de travail",
+            "contactsTasks.sameAsWorkspace": "Comme l'espace de travail",
+            "contactsTasks.sameAsWorkspaceNamed":
+                "Comme l'espace de travail ({language})",
             "contactsTasks.setOnThisContact": "Défini sur cette fiche",
             "contactsTasks.useAreaCode": "Utiliser son indicatif régional",
 

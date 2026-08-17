@@ -838,7 +838,11 @@ struct ContactDetailView: View {
                 Menu {
                     // Inherit first: it is the default every contact starts
                     // on, and the one an override needs a way back to.
-                    Button(inheritedLocaleLabel(companyLocale: companyLocale)) {
+                    Button(
+                        inheritedLocaleLabel(
+                            companyLocale: companyLocale, locale: appLocale
+                        )
+                    ) {
                         saveLocale(nil)
                     }
                     ForEach(MessageLocale.all, id: \.self) { candidate in
@@ -847,7 +851,9 @@ struct ContactDetailView: View {
                 } label: {
                     Text(
                         contact.locale == nil
-                            ? inheritedLocaleLabel(companyLocale: companyLocale)
+                            ? inheritedLocaleLabel(
+                                companyLocale: companyLocale, locale: appLocale
+                            )
                             : MessageLocale.label(resolved)
                     )
                     .font(.golos(12.5))
@@ -1129,16 +1135,20 @@ private struct AutosaveField: View {
 /// works in, or "same as workspace" is a setting somebody must leave the screen
 /// to understand. An unknown or missing workspace language resolves to English
 /// the same way the send path does, so the label can never come out empty.
-func inheritedLocaleLabel(companyLocale: String?) -> String {
+func inheritedLocaleLabel(companyLocale: String?, locale: String? = nil) -> String {
     // #228: name the language only when it is actually known. Naming English
     // while the workspace read is in flight, or after it failed, would state a
     // fact we do not have - and a French workspace being told its default is
     // English is the exact confusion this control exists to remove. An unnamed
     // option is vaguer; a wrongly named one is misleading.
     guard let companyLocale, MessageLocale.all.contains(companyLocale) else {
-        return "Same as workspace"
+        return AppStrings.translate(locale, "contactsTasks.sameAsWorkspace")
     }
-    return "Same as workspace (\(MessageLocale.label(companyLocale)))"
+    return AppStrings.translate(
+        locale,
+        "contactsTasks.sameAsWorkspaceNamed",
+        ["language": MessageLocale.label(companyLocale)]
+    )
 }
 
 /// What this override does, and the two things it does not do, said where the

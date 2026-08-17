@@ -13,7 +13,7 @@
   "Core/SupabaseAuth.swift": 1,
   "Features/Compose/NoteUpload.swift": 1,
   "Features/Contacts/ContactColumns.swift": 8,
-  "Features/Contacts/ContactDetailView.swift": 4,
+  "Features/Contacts/ContactDetailView.swift": 2,
   "Features/Contacts/ContactImport.swift": 3,
   "Features/Contacts/Multipart.swift": 4,
   "Features/Contacts/VCardProperties.swift": 5,

@@ -98,6 +98,28 @@ final class LocaleCopyTests: XCTestCase {
         XCTAssertFalse(inheritedLocaleLabel(companyLocale: nil).isEmpty)
     }
 
+    /// #228 — and it says all of that in French.
+    ///
+    /// This label was a hardcoded English literal until 2026-08-17, sitting
+    /// beside a catalogue entry that said something slightly different and was
+    /// never read. Both the plain and the named form are asserted: the named
+    /// one carries a slot, and a translation that dropped the slot would render
+    /// "Comme l'espace de travail ({language})" at somebody, which reads as a
+    /// bug rather than as a setting.
+    func testTheInheritOptionReadsInFrenchToo() {
+        let named = inheritedLocaleLabel(
+            companyLocale: MessageLocale.en, locale: MessageLocale.frCA
+        )
+        XCTAssertTrue(named.hasPrefix("Comme l'espace de travail"), named)
+        XCTAssertTrue(named.contains("English"), named)
+        XCTAssertFalse(named.contains("{language}"), named)
+
+        XCTAssertEqual(
+            inheritedLocaleLabel(companyLocale: nil, locale: MessageLocale.frCA),
+            "Comme l'espace de travail"
+        )
+    }
+
     func testTheInheritOptionIsDistinguishableFromThePlainLanguageBesideIt() {
         // Both send different instructions for an English workspace: one keeps
         // following it, the other pins this customer. Identical labels would
