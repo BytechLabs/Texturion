@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.17.0](https://github.com/BytechLabs/Texturion/compare/web-v0.16.0...web-v0.17.0) (2026-08-17)
+
+
+### Features
+
+* **api:** a push notification can be composed in the reader's language ([4e4f58f](https://github.com/BytechLabs/Texturion/commit/4e4f58fa34668177c1845e812a5d055c1aa0c7f6))
+* **clients:** a held message says why in the reader's language ([2d811ba](https://github.com/BytechLabs/Texturion/commit/2d811baca33fe7c8a5b566c285904543b6ed2c53))
+* **clients:** universal links open the app, for the paths the app can render ([1450aa3](https://github.com/BytechLabs/Texturion/commit/1450aa3c033c40e79a313d3c4b57227cc9cc20f2))
+* **contacts:** the address list speaks French on Android too ([d6b5e19](https://github.com/BytechLabs/Texturion/commit/d6b5e19b9e776d09eec8c243a697359350046292))
+* **contacts:** the phone list speaks French on Android too ([2a175bb](https://github.com/BytechLabs/Texturion/commit/2a175bbe705f12851d0cc828a4136af527e2c8b5))
+* **quotes:** a crew can quote a job from an Android phone, not just a laptop ([c26e61b](https://github.com/BytechLabs/Texturion/commit/c26e61b8771d2a3618541264b7fd3f13c73956d6))
+* **quotes:** a crew can quote a job from an iPhone too ([b2eda61](https://github.com/BytechLabs/Texturion/commit/b2eda615dacf163060769083da9ec811fca88dd3))
+* **quotes:** take payment on an accepted quote without retyping the figure ([c4eaaf2](https://github.com/BytechLabs/Texturion/commit/c4eaaf253866f3599bb50bb8cf757b4b99760478))
+* **quotes:** the money nobody has answered is a queue, not a number ([00087a5](https://github.com/BytechLabs/Texturion/commit/00087a5a41a31560c2725199a179c714362e3a94))
+* **quotes:** the outstanding queue can chase, on all three clients ([db49b7f](https://github.com/BytechLabs/Texturion/commit/db49b7fefaf47dd763e78a1beca9ffe62754a6b9))
+* **web:** a researcher can read what happens after they report a bug ([6a2028a](https://github.com/BytechLabs/Texturion/commit/6a2028ac835f142f201a358c12ee1bd4589a481b))
+* **web:** set up your calendar from your profile settings ([7a57ef6](https://github.com/BytechLabs/Texturion/commit/7a57ef6d12cbcddedec52c0bc6b9e68fd1280f1d))
+
+
+### Bug Fixes
+
+* **api:** the two texts we send a customer about money speak their language ([7866bfe](https://github.com/BytechLabs/Texturion/commit/7866bfe36d638579b289841a4eae9cc8e31171ee))
+* **contacts:** one control, one name for the workspace language option ([3372236](https://github.com/BytechLabs/Texturion/commit/3372236ffcbbd939b08aca6fec633bb75f759127))
+* **dashboard:** the four measures share one heading on both phones ([f22f493](https://github.com/BytechLabs/Texturion/commit/f22f4939af11fe22f3a469427e32cd78bd179880))
+* **quotes:** only the customer who opens the link can accept it ([305c445](https://github.com/BytechLabs/Texturion/commit/305c44590af4424bc22a4c6217ec6bd9028d1621))
+* **quotes:** sending a quote now actually sends it ([966f8a2](https://github.com/BytechLabs/Texturion/commit/966f8a24be1e24511da550f2dc1830ebbdbee795))
+
 ## [0.16.0](https://github.com/BytechLabs/Texturion/compare/web-v0.15.2...web-v0.16.0) (2026-08-17)
 
 

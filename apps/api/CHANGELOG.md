@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.17.0](https://github.com/BytechLabs/Texturion/compare/api-v0.16.0...api-v0.17.0) (2026-08-17)
+
+
+### Features
+
+* **api:** a member can subscribe to their own schedule from any calendar ([eb3568f](https://github.com/BytechLabs/Texturion/commit/eb3568f0c1647ce67ca2d8ab6f1090167f6454ce))
+* **api:** a push notification can be composed in the reader's language ([4e4f58f](https://github.com/BytechLabs/Texturion/commit/4e4f58fa34668177c1845e812a5d055c1aa0c7f6))
+* **api:** push notifications arrive in the reader's own language ([09b4f1d](https://github.com/BytechLabs/Texturion/commit/09b4f1dcdef9160e8e8ec299f8778df4115f896f))
+* **api:** the crew is told when a customer accepts a quote ([c640c9a](https://github.com/BytechLabs/Texturion/commit/c640c9a648eaa238dfab7eb5bd5ba1290374e23a))
+* **clients:** a held message says why in the reader's language ([2d811ba](https://github.com/BytechLabs/Texturion/commit/2d811baca33fe7c8a5b566c285904543b6ed2c53))
+
+
+### Bug Fixes
+
+* **api:** a connector replaying its queue no longer rewrites who added a customer ([869b601](https://github.com/BytechLabs/Texturion/commit/869b601e9ba517b2145142d515cf852a2e584566))
+* **api:** a website visitor's number is deleted at 30 days, as promised ([00a687a](https://github.com/BytechLabs/Texturion/commit/00a687a56fe023e2e5e50e868f301adcf73d3bee))
+* **api:** an API key cannot subscribe to data it is not allowed to read ([d2d081b](https://github.com/BytechLabs/Texturion/commit/d2d081be2f6db35d51c6d146456c1796a7e54ab5))
+* **api:** pausing a connected app stops it receiving anything more ([dd68106](https://github.com/BytechLabs/Texturion/commit/dd681068e027bd28c922f6a685690eadb0f9e5aa))
+* **api:** the two texts we send a customer about money speak their language ([7866bfe](https://github.com/BytechLabs/Texturion/commit/7866bfe36d638579b289841a4eae9cc8e31171ee))
+* **calls:** a Telnyx rate limit stops meaning "that phone is dead" ([412738f](https://github.com/BytechLabs/Texturion/commit/412738f507557d68a97555678fb8729dc1288d0f))
+* **calls:** the ring fan-out dials in bounded batches, as the spec has always said ([a076728](https://github.com/BytechLabs/Texturion/commit/a07672819d1ce2ce5986b19e1477033fc0a0f8ac))
+* **quotes:** a customer can actually accept, and acceptance starts the job ([91e4434](https://github.com/BytechLabs/Texturion/commit/91e44340b4abe72d4e8427e99f99d1ddd21506f4))
+* **quotes:** a member denied a phone line cannot read or send quotes on it ([7c53d92](https://github.com/BytechLabs/Texturion/commit/7c53d92dca0098c0c6bfc8bd959c7ed620979e25))
+* **quotes:** only the customer who opens the link can accept it ([305c445](https://github.com/BytechLabs/Texturion/commit/305c44590af4424bc22a4c6217ec6bd9028d1621))
+* **quotes:** sending a quote now actually sends it ([966f8a2](https://github.com/BytechLabs/Texturion/commit/966f8a24be1e24511da550f2dc1830ebbdbee795))
+
+
+### Performance
+
+* **calls:** a call answers Telnyx as soon as the event is safely ours ([d43c358](https://github.com/BytechLabs/Texturion/commit/d43c35826d44ab1e64f7488f66acef3b0ad365eb))
+
 ## [0.16.0](https://github.com/BytechLabs/Texturion/compare/api-v0.15.3...api-v0.16.0) (2026-08-17)
 
 

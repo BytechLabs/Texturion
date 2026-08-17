@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.15.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.14.0...ios-v0.15.0) (2026-08-17)
+
+
+### Features
+
+* **api:** a push notification can be composed in the reader's language ([4e4f58f](https://github.com/BytechLabs/Texturion/commit/4e4f58fa34668177c1845e812a5d055c1aa0c7f6))
+* **clients:** a held message says why in the reader's language ([2d811ba](https://github.com/BytechLabs/Texturion/commit/2d811baca33fe7c8a5b566c285904543b6ed2c53))
+* **clients:** universal links open the app, for the paths the app can render ([1450aa3](https://github.com/BytechLabs/Texturion/commit/1450aa3c033c40e79a313d3c4b57227cc9cc20f2))
+* **mobile:** set up your calendar from the app, not just the browser ([f044c3e](https://github.com/BytechLabs/Texturion/commit/f044c3e3a26c4ba467fd613e90bb04cb44d653c1))
+* **mobile:** the phones show which quotes are still unanswered ([9d547cd](https://github.com/BytechLabs/Texturion/commit/9d547cd46995ed2c05e0655b0cbd4b30e202199d))
+* **quotes:** a crew can quote a job from an iPhone too ([b2eda61](https://github.com/BytechLabs/Texturion/commit/b2eda615dacf163060769083da9ec811fca88dd3))
+* **quotes:** the outstanding queue can chase, on all three clients ([db49b7f](https://github.com/BytechLabs/Texturion/commit/db49b7fefaf47dd763e78a1beca9ffe62754a6b9))
+
+
+### Bug Fixes
+
+* **contacts:** one control, one name for the workspace language option ([3372236](https://github.com/BytechLabs/Texturion/commit/3372236ffcbbd939b08aca6fec633bb75f759127))
+* **dashboard:** the four measures share one heading on both phones ([f22f493](https://github.com/BytechLabs/Texturion/commit/f22f4939af11fe22f3a469427e32cd78bd179880))
+* **quotes:** sending a quote now actually sends it ([966f8a2](https://github.com/BytechLabs/Texturion/commit/966f8a24be1e24511da550f2dc1830ebbdbee795))
+
 ## [0.14.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.13.2...ios-v0.14.0) (2026-08-17)
 
 

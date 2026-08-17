@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.13.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.12.0...shared-v0.13.0) (2026-08-17)
+
+
+### Features
+
+* **api:** a member can subscribe to their own schedule from any calendar ([eb3568f](https://github.com/BytechLabs/Texturion/commit/eb3568f0c1647ce67ca2d8ab6f1090167f6454ce))
+* **api:** push notifications arrive in the reader's own language ([09b4f1d](https://github.com/BytechLabs/Texturion/commit/09b4f1dcdef9160e8e8ec299f8778df4115f896f))
+* **clients:** a held message says why in the reader's language ([2d811ba](https://github.com/BytechLabs/Texturion/commit/2d811baca33fe7c8a5b566c285904543b6ed2c53))
+* **clients:** universal links open the app, for the paths the app can render ([1450aa3](https://github.com/BytechLabs/Texturion/commit/1450aa3c033c40e79a313d3c4b57227cc9cc20f2))
+
+
+### Bug Fixes
+
+* **api:** an API key cannot subscribe to data it is not allowed to read ([d2d081b](https://github.com/BytechLabs/Texturion/commit/d2d081be2f6db35d51c6d146456c1796a7e54ab5))
+* **api:** the two texts we send a customer about money speak their language ([7866bfe](https://github.com/BytechLabs/Texturion/commit/7866bfe36d638579b289841a4eae9cc8e31171ee))
+* **quotes:** sending a quote now actually sends it ([966f8a2](https://github.com/BytechLabs/Texturion/commit/966f8a24be1e24511da550f2dc1830ebbdbee795))
+
 ## [0.12.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.11.3...shared-v0.12.0) (2026-08-17)
 
 
