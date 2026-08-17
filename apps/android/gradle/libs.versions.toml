@@ -15,6 +15,12 @@ coreSplashscreen = "1.2.0"
 # rule as coreTelecom applies — never ship an alpha on a path whose failure
 # means either a customer's inbox is exposed or the owner cannot get into it.
 biometric = "1.1.0"
+# #473 passkeys. Credential Manager runs the platform's own passkey sheet, so
+# the fingerprint/face prompt is the OS's rather than ours. 1.6.0 is the latest
+# STABLE (1.7.0 is alpha-only) — same rule as biometric and coreTelecom, and it
+# binds hardest here: this is the path that decides whether somebody can get
+# into their own account.
+credentials = "1.6.0"
 # Jetpack Telecom (#171): the OS owns the ringing session, audio mode, mic FGS,
 # and route. 1.0.1 is the latest STABLE (1.1.0 is alpha-only — never ship an
 # alpha on the ring path). Backports to minSdk 26; the project is minSdk 28.
@@ -38,6 +44,11 @@ robolectric = "4.16.1"
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
+# The Play Services provider. Without it Credential Manager has no backend on
+# the versions of Android most of this audience runs, and every ceremony fails
+# with "no create options available" rather than showing a sheet.
+androidx-credentials-play-services = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 androidx-core-telecom = { group = "androidx.core", name = "core-telecom", version.ref = "coreTelecom" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }

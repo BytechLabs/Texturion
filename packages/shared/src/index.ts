@@ -1142,3 +1142,17 @@ export {
   type MarkupTool,
   type MarkupKey,
 } from "./photo-markup";
+
+// #473 — which second factors somebody holds, and what to call them. One rule,
+// three clients: web renders it, and Android and iOS hold hand-ports guarded
+// against this list.
+export {
+  MFA_SUMMARY_KEYS,
+  NAMED_MFA_FACTOR_TYPES,
+  hasAuthenticatorFactor,
+  hasPasskeyFactor,
+  mfaSummaryKey,
+  missingMfaFactorTypes,
+  type MfaSummaryKey,
+  type NamedMfaFactorType,
+} from "./mfa-factors";

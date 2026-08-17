@@ -11,7 +11,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.Call
 import okhttp3.Callback
@@ -26,6 +28,19 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+
+/**
+ * #473 — a WebAuthn creation ceremony, waiting for an authenticator.
+ *
+ * [creationOptionsJson] is the server's PublicKeyCredentialCreationOptionsJSON
+ * verbatim. It is a String rather than a parsed object on purpose: this app is
+ * a courier between GoTrue and Credential Manager, and every field it re-encodes
+ * is a field it can corrupt.
+ */
+data class WebauthnChallenge(
+    val challengeId: String,
+    val creationOptionsJson: String,
+)
 
 @Serializable
 data class AuthUser(val id: String, val email: String? = null)
@@ -245,6 +260,112 @@ class SupabaseAuth(
                 buildJsonObject {
                     put("challenge_id", challengeId)
                     put("code", code)
+                },
+                bearer = accessToken,
+            ),
+        )
+
+    // -- Passkeys (#473) ----------------------------------------------------
+    //
+    // The same three GoTrue endpoints as TOTP, with a different factor type and
+    // a WebAuthn ceremony in the middle instead of six typed digits. Nothing
+    // here touches a key: the challenge options go to Credential Manager
+    // verbatim and its answer comes back verbatim, both in the standard
+    // WebAuthn JSON shapes the spec defines. See PasskeyEnrolment.kt.
+    //
+    // A SECOND FACTOR, NEVER THE PASSWORD (D125). The credential lives on this
+    // handset, so a phone in a skip would otherwise be an account reachable
+    // only through the recovery codes — which turns the last resort into the
+    // primary key.
+
+    /** Start enrolling a passkey. Returns the factor, whose `id` drives the rest. */
+    suspend fun enrollWebauthn(accessToken: String, friendlyName: String): JsonObject =
+        json.parseToJsonElement(
+            request(
+                "factors",
+                buildJsonObject {
+                    put("factor_type", "webauthn")
+                    put("friendly_name", friendlyName)
+                },
+                bearer = accessToken,
+            ),
+        ).jsonObject
+
+    /**
+     * Ask for a creation ceremony.
+     *
+     * `rpOrigins` carries the https origin rather than an `android:apk-key-hash`
+     * entry: Credential Manager builds the origin itself from the calling
+     * package once Digital Asset Links has associated it with [rpId], and a
+     * hand-written origin here would be a claim we cannot verify.
+     */
+    suspend fun challengeWebauthn(
+        accessToken: String,
+        factorId: String,
+        rpId: String,
+    ): WebauthnChallenge {
+        val body = json.parseToJsonElement(
+            request(
+                "factors/$factorId/challenge",
+                buildJsonObject {
+                    putJsonObject("webauthn") {
+                        put("rpId", rpId)
+                        putJsonArray("rpOrigins") { add("https://$rpId") }
+                    }
+                },
+                bearer = accessToken,
+            ),
+        ).jsonObject
+
+        val webauthn = body["webauthn"]?.jsonObject
+            ?: throw IllegalStateException("challenge carried no webauthn options")
+        // Enrolling a fresh factor can only be a creation ceremony. If the
+        // server asks for an assertion instead, something is being replayed —
+        // stop rather than sign whatever was sent.
+        val type = webauthn["type"]?.jsonPrimitive?.content
+        if (type != "create") throw IllegalStateException("unexpected ceremony: $type")
+
+        return WebauthnChallenge(
+            challengeId = body["id"]!!.jsonPrimitive.content,
+            // PublicKeyCredentialCreationOptionsJSON, exactly as Credential
+            // Manager's `requestJson` wants it. Passed through untouched: every
+            // base64url field in here is the server's to define.
+            creationOptionsJson = webauthn["credential_options"]
+                ?.jsonObject
+                ?.get("publicKey")
+                ?.toString()
+                ?: throw IllegalStateException("challenge carried no publicKey"),
+        )
+    }
+
+    /**
+     * Hand the authenticator's answer back. On success GoTrue returns a FRESH
+     * SESSION at aal2, exactly as the TOTP path does — the caller must store it.
+     */
+    suspend fun verifyWebauthn(
+        accessToken: String,
+        factorId: String,
+        challengeId: String,
+        rpId: String,
+        registrationResponseJson: String,
+    ): AuthSession =
+        json.decodeFromString<AuthSession>(
+            request(
+                "factors/$factorId/verify",
+                buildJsonObject {
+                    put("challenge_id", challengeId)
+                    putJsonObject("webauthn") {
+                        put("rpId", rpId)
+                        putJsonArray("rpOrigins") { add("https://$rpId") }
+                        put("type", "create")
+                        // RegistrationResponseJSON from Credential Manager,
+                        // re-parsed rather than re-built: re-encoding it by hand
+                        // is how a clientDataJSON stops matching its signature.
+                        put(
+                            "credential_response",
+                            json.parseToJsonElement(registrationResponseJson),
+                        )
+                    }
                 },
                 bearer = accessToken,
             ),

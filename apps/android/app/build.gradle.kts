@@ -115,6 +115,10 @@ dependencies {
     // the weekend. BiometricPrompt also offers the device credential, so a
     // phone with a PIN and no fingerprint is still protectable.
     implementation(libs.androidx.biometric)
+    // #473: passkeys as a second factor. Credential Manager owns the sheet, so
+    // the ceremony is the platform's and this app never touches a private key.
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
     // Jetpack Telecom (#171): CallsManager.addCall + CallControlScope — the OS
     // owns presentation + audio for every registered call.
     implementation(libs.androidx.core.telecom)

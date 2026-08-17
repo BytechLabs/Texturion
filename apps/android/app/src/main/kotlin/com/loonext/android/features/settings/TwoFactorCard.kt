@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,6 +55,37 @@ import kotlinx.coroutines.launch
  * away the spare key, and this product's lock is their business phone line.
  */
 
+/**
+ * #473 — the two kinds of second factor, and the rule for naming them.
+ *
+ * Hand-ported from packages/shared/src/mfa-factors.ts, which web renders
+ * directly. The fallback branch is the one a hand-copy drops and the one that
+ * matters most: an unnamed factor type must read as "two-factor is on", never
+ * as nothing, because telling somebody who IS protected that they are not
+ * invites them to enrol a second time or to believe the account is open.
+ */
+internal const val FACTOR_PASSKEY = "webauthn"
+internal const val FACTOR_AUTHENTICATOR = "totp"
+
+internal fun mfaSummaryKey(factorTypes: List<String>): String {
+    val passkey = factorTypes.contains(FACTOR_PASSKEY)
+    val authenticator = factorTypes.contains(FACTOR_AUTHENTICATOR)
+    return when {
+        passkey && authenticator -> "settingsMore.tfaBothOn"
+        passkey -> "settingsMore.tfaPasskeyOn"
+        authenticator -> "settingsMore.tfaAuthenticatorOn"
+        else -> "settingsMore.tfaOn"
+    }
+}
+
+/** Which kinds are still missing, so the card offers exactly those. */
+internal fun missingFactorTypes(factorTypes: List<String>): List<String> =
+    if (factorTypes.isEmpty()) {
+        emptyList()
+    } else {
+        listOf(FACTOR_PASSKEY, FACTOR_AUTHENTICATOR).filterNot(factorTypes::contains)
+    }
+
 private sealed interface EnrolStep {
     data object Idle : EnrolStep
     data class Verify(val factorId: String, val secret: String, val uri: String) : EnrolStep
@@ -89,16 +121,126 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
     var actionError by remember { mutableStateOf<String?>(null) }
     var savedCodes by remember { mutableStateOf(false) }
     var confirmingOff by remember { mutableStateOf(false) }
+    // #473: null until the probe answers. Passkeys are offered only once this
+    // domain has actually authorised this app — see PasskeyEnrolment.kt for why
+    // the switch is read from the web app rather than from a build flag.
+    var passkeysAvailable by remember { mutableStateOf(false) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
     val context = LocalContext.current
     val locale = LocalAppLocale.current
     val setupKeyLabel = t("settingsMore.setupKeyClipLabel")
     val recoveryCodesLabel = t("settingsMore.recoveryCodesClipLabel")
+    val factorTypes = mfa.factors.map { it.type }
+    val missing = missingFactorTypes(factorTypes)
+
+    LaunchedEffect(Unit) {
+        passkeysAvailable = isPasskeyDomainAssociated(scope.graph.api.http)
+    }
 
     fun fail(cause: Exception) {
         actionError = cause.userMessage(locale)
         busy = false
+    }
+
+    /**
+     * Start enrolling an authenticator app.
+     *
+     * Lifted out of the button it used to live inside, because #473 gave it a
+     * SECOND call site: somebody who holds a passkey and wants the app too.
+     */
+    fun beginAuthenticator() {
+        busy = true
+        actionError = null
+        coroutines.launch {
+            try {
+                val token = scope.graph.api.freshSession()?.accessToken
+                    ?: error(AppStrings.translate(locale, "settingsMore.signedOut"))
+                // The name this factor carries inside the reader's authenticator
+                // app, which is the one place it is ever read. Web translates its
+                // own, so this does too; Loonext and Android are a product and a
+                // platform and stay as they are in both.
+                val enrolled = scope.graph.supabaseAuth.enrollTotp(
+                    token,
+                    AppStrings.translate(locale, "settingsMore.tfaFactorName"),
+                )
+                val totp = enrolled["totp"]?.let {
+                    it as? kotlinx.serialization.json.JsonObject
+                }
+                step = EnrolStep.Verify(
+                    factorId = enrolled["id"]!!.toString().trim('"'),
+                    secret = totp?.get("secret")?.toString()?.trim('"').orEmpty(),
+                    uri = totp?.get("uri")?.toString()?.trim('"').orEmpty(),
+                )
+            } catch (cause: Exception) {
+                fail(cause)
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    /**
+     * Enrol a passkey: create the factor, run the platform's sheet, hand the
+     * answer back, then issue recovery codes.
+     *
+     * The codes come LAST and only on success, exactly as the authenticator
+     * path does. A passkey armed with no spare key is a lock on a business
+     * phone line whose only key is inside a phone.
+     */
+    fun beginPasskey() {
+        busy = true
+        actionError = null
+        coroutines.launch {
+            try {
+                val token = scope.graph.api.freshSession()?.accessToken
+                    ?: error(AppStrings.translate(locale, "settingsMore.signedOut"))
+                val factor = scope.graph.supabaseAuth.enrollWebauthn(
+                    token,
+                    AppStrings.translate(locale, "settingsMore.tfaPasskeyFactorName"),
+                )
+                val factorId = factor["id"]!!.toString().trim('"')
+                val challenge = scope.graph.supabaseAuth.challengeWebauthn(
+                    token, factorId, WEBAUTHN_RP_ID,
+                )
+                when (val created = createPasskey(context, challenge.creationOptionsJson)) {
+                    is PasskeyResult.Dismissed -> {
+                        // Somebody changed their mind. Not an error to shout about.
+                        scope.graph.supabaseAuth.unenrollFactor(token, factorId)
+                    }
+
+                    is PasskeyResult.Failed -> {
+                        // The platform's own words beat ours: "the operation
+                        // either timed out or was not allowed" is what somebody
+                        // needs to read when their fingerprint was not accepted.
+                        actionError = created.message
+                            ?: AppStrings.translate(locale, "settingsMore.tfaPasskeyFailed")
+                        scope.graph.supabaseAuth.unenrollFactor(token, factorId)
+                        // A domain that refuses us cannot be retried into working.
+                        if (created.domainNotAssociated) passkeysAvailable = false
+                    }
+
+                    is PasskeyResult.Created -> {
+                        val next = scope.graph.supabaseAuth.verifyWebauthn(
+                            token,
+                            factorId,
+                            challenge.challengeId,
+                            WEBAUTHN_RP_ID,
+                            created.registrationResponseJson,
+                        )
+                        scope.graph.sessionStore.save(next.toSession())
+                        val issued = scope.repo.issueRecoveryCodes()
+                        savedCodes = false
+                        step = EnrolStep.Codes(issued.codes)
+                        haptics.confirm()
+                    }
+                }
+            } catch (cause: Exception) {
+                fail(cause)
+            } finally {
+                busy = false
+            }
+        }
     }
 
     SettingsCard(
@@ -106,8 +248,12 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
         description = t("settingsMore.twoFactorDesc"),
     ) {
         if (mfa.enrolled) {
+            // #473: NAMES WHAT IS ON, because two kinds can be. "Two-factor is
+            // on" would leave somebody who added a passkey unable to tell whether
+            // last year's authenticator app is still there — and that answer
+            // decides what happens when they lose one of the two.
             Text(
-                t("settingsMore.authenticatorOn"),
+                t(mfaSummaryKey(factorTypes)),
                 style = MaterialTheme.typography.bodyMedium,
             )
             Spacer(Modifier.height(4.dp))
@@ -160,45 +306,68 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                     )
                 }
             }
+            /*
+             * #473 — THE SECOND FACTOR, which had no way in.
+             *
+             * The enrolment controls live in the other branch of this
+             * `if (mfa.enrolled)`, so the first factor hid the way to the
+             * second: somebody with an authenticator app could never add a
+             * passkey. Only the MISSING kind is offered, as one quiet action
+             * beside the other management controls rather than a second pitch
+             * competing with them.
+             *
+             * Applying: Chunking, and Zen of Clarity — the option that does not
+             * apply is absent rather than disabled.
+             */
+            if (missing.contains(FACTOR_PASSKEY) && passkeysAvailable) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = ::beginPasskey, enabled = !busy) {
+                    Text(t("settingsMore.tfaAddPasskey"))
+                }
+            }
+            if (missing.contains(FACTOR_AUTHENTICATOR)) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = ::beginAuthenticator, enabled = !busy) {
+                    Text(t("settingsMore.tfaAddAuthenticator"))
+                }
+            }
+        } else if (passkeysAvailable) {
+            /*
+             * #473 — the passkey leads where this domain allows it.
+             *
+             * #314 shipped codes from an authenticator app and said in its own
+             * words that passkeys suit these users better. It is right: a
+             * tradesperson holds ONE phone, and the authenticator sits on the
+             * same screen as the app asking for the six digits. A passkey is a
+             * fingerprint instead.
+             *
+             * The app is still offered underneath, in full, because a passkey
+             * lives on THIS handset and somebody who works from two should be
+             * able to choose. Applying: Outcomes Over Features — the pitch is
+             * what it is like to use, not what it is called.
+             */
+            ReadOnlyLine(t("settingsMore.tfaPasskeyPitch"))
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = ::beginPasskey,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(t("settingsMore.tfaUsePasskey"))
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = ::beginAuthenticator,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(t("settingsMore.tfaAddAuthenticator"))
+            }
         } else {
             ReadOnlyLine(t("settingsMore.twoFactorHow"))
             Spacer(Modifier.height(10.dp))
             Button(
-                onClick = {
-                    busy = true
-                    actionError = null
-                    coroutines.launch {
-                        try {
-                            val token = scope.graph.api.freshSession()?.accessToken
-                                ?: error(
-                                    AppStrings.translate(
-                                        locale,
-                                        "settingsMore.signedOut",
-                                    ),
-                                )
-                            // The name this factor carries inside the reader's
-                            // authenticator app, which is the one place it is
-                            // ever read. Web translates its own (`Application
-                            // d'authentification · {date}`), so this does too;
-                            // Loonext and Android are a product and a platform
-                            // and stay as they are in both.
-                            val enrolled = scope.graph.supabaseAuth.enrollTotp(
-                                token,
-                                AppStrings.translate(locale, "settingsMore.tfaFactorName"),
-                            )
-                            val totp = enrolled["totp"]?.let { it as? kotlinx.serialization.json.JsonObject }
-                            step = EnrolStep.Verify(
-                                factorId = enrolled["id"]!!.toString().trim('"'),
-                                secret = totp?.get("secret")?.toString()?.trim('"').orEmpty(),
-                                uri = totp?.get("uri")?.toString()?.trim('"').orEmpty(),
-                            )
-                        } catch (cause: Exception) {
-                            fail(cause)
-                        } finally {
-                            busy = false
-                        }
-                    }
-                },
+                onClick = ::beginAuthenticator,
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {

@@ -4,6 +4,8 @@ import { Check, Copy, Download, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { mfaSummaryKey, missingMfaFactorTypes } from "@loonext/shared";
+
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import {
@@ -283,19 +285,15 @@ export function TwoFactorCard() {
 
   // #473: what is actually enrolled, in the reader's words. `GET /v1/mfa` has
   // always carried the type; nothing showed it while there was only one kind.
-  const factors = mfa.data?.factors ?? [];
-  const hasPasskey = factors.some((factor) => factor.type === "webauthn");
-  const hasAuthenticator = factors.some((factor) => factor.type === "totp");
-  const enrolledLabel =
-    hasPasskey && hasAuthenticator
-      ? t("settingsMore.tfaBothOn")
-      : hasPasskey
-        ? t("settingsMore.tfaPasskeyOn")
-        : hasAuthenticator
-          ? t("settingsMore.tfaAuthenticatorOn")
-          : // A verified factor of a type this card does not name yet. Say the
-            // true thing rather than guessing which one it is.
-            t("settingsMore.tfaOn");
+  //
+  // The BRANCHING lives in `@loonext/shared` and the WORDS live here. Android
+  // and iOS render the same sentence from the same payload, and a predicate
+  // written once per client is a predicate that drifts — the fallback for an
+  // unnamed factor type is exactly the branch a hand-copy drops, and dropping
+  // it tells somebody who IS protected that they are not.
+  const factorTypes = (mfa.data?.factors ?? []).map((factor) => factor.type);
+  const missing = missingMfaFactorTypes(factorTypes);
+  const enrolledLabel = t(mfaSummaryKey(factorTypes));
 
   // Only offered where the browser can actually do it. A button that opens
   // nothing is worse than an absent one, and Safari on an old iPad is a real
@@ -363,7 +361,7 @@ export function TwoFactorCard() {
                 card to do. *Applying: Chunking, and Zen of Clarity — the
                 option that does not apply is absent rather than disabled.*
               */}
-              {!hasPasskey && passkeysAvailable && (
+              {missing.includes("webauthn") && passkeysAvailable && (
                 <Button
                   type="button"
                   variant="outline"
@@ -374,7 +372,7 @@ export function TwoFactorCard() {
                   {t("settingsMore.tfaAddPasskey")}
                 </Button>
               )}
-              {!hasAuthenticator && (
+              {missing.includes("totp") && (
                 <Button
                   type="button"
                   variant="outline"

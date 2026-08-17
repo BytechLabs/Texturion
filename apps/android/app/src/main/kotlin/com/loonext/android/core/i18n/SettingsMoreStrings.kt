@@ -849,7 +849,25 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.twoFactorDesc" to
             "A code from an app, on top of your password. It is what stops a " +
             "stolen password becoming somebody texting your customers as you.",
-        "settingsMore.authenticatorOn" to "Authenticator app is on",
+        // #473 — the summary names WHICH kinds are on, because two can be.
+        // These four are the shared rule's return values (mfa-factors.ts); a
+        // catalogue whose names differ from those renders the key itself.
+        "settingsMore.tfaAuthenticatorOn" to "Authenticator app is on",
+        "settingsMore.tfaPasskeyOn" to "Passkey is on",
+        "settingsMore.tfaBothOn" to "Passkey and authenticator app are on",
+        "settingsMore.tfaOn" to "Two-factor authentication is on",
+        // Offered from inside the already-on state, and only for the kind that
+        // is missing: an option that does not apply is absent, not greyed out.
+        "settingsMore.tfaAddPasskey" to "Add a passkey",
+        "settingsMore.tfaAddAuthenticator" to "Add an authenticator app",
+        "settingsMore.tfaUsePasskey" to "Use a passkey",
+        "settingsMore.tfaPasskeyPitch" to
+            "Use your fingerprint, face or screen lock as the second step. " +
+            "Nothing to type and nothing to lose — it stays on this phone. We " +
+            "will give you backup codes for the day the phone doesn't.",
+        "settingsMore.tfaPasskeyFactorName" to "Passkey on Android",
+        "settingsMore.tfaPasskeyFailed" to
+            "Couldn't add a passkey. Try again, or use an authenticator app.",
         "settingsMore.oneRecoveryCodeLeft" to "1 recovery code left.",
         "settingsMore.recoveryCodesLeft" to "{count} recovery codes left.",
         "settingsMore.noRecoveryCodesLeft" to "No recovery codes left",
@@ -2148,7 +2166,25 @@ object SettingsMoreStrings : AppStrings.Section {
             "Un code venant d'une application, en plus de votre mot de passe. " +
             "C'est ce qui empêche un mot de passe volé de devenir quelqu'un qui " +
             "texte vos clients en votre nom.",
-        "settingsMore.authenticatorOn" to "L'application d'authentification est active",
+        "settingsMore.tfaAuthenticatorOn" to
+            "L'application d'authentification est active",
+        "settingsMore.tfaPasskeyOn" to "La clé d'accès est activée",
+        "settingsMore.tfaBothOn" to
+            "La clé d'accès et l'application d'authentification sont activées",
+        "settingsMore.tfaOn" to "La double authentification est activée",
+        "settingsMore.tfaAddPasskey" to "Ajouter une clé d'accès",
+        "settingsMore.tfaAddAuthenticator" to
+            "Ajouter une application d'authentification",
+        "settingsMore.tfaUsePasskey" to "Utiliser une clé d'accès",
+        "settingsMore.tfaPasskeyPitch" to
+            "Utilisez votre empreinte, votre visage ou le verrouillage de votre " +
+            "écran comme deuxième étape. Rien à taper et rien à perdre — cela " +
+            "reste sur ce téléphone. Nous vous donnerons des codes de secours " +
+            "pour le jour où le téléphone vous fera défaut.",
+        "settingsMore.tfaPasskeyFactorName" to "Clé d'accès sur Android",
+        "settingsMore.tfaPasskeyFailed" to
+            "Impossible d'ajouter une clé d'accès. Réessayez, ou utilisez une " +
+            "application d'authentification.",
         "settingsMore.oneRecoveryCodeLeft" to "1 code de récupération restant.",
         "settingsMore.recoveryCodesLeft" to "{count} codes de récupération restants.",
         "settingsMore.noRecoveryCodesLeft" to "Aucun code de récupération restant",
