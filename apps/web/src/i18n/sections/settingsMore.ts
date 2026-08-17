@@ -1122,6 +1122,11 @@ export const settingsMoreEn = {
   tfaCodesLeftOne: "{count} recovery code left.",
   tfaCodesLeftMany: "{count} recovery codes left.",
   tfaNoCodesLeft: "No recovery codes left — issue a new set now.",
+  /* #473 — offered only when the OTHER kind is missing, from inside the
+     already-on branch. Both were unreachable before: enrolling one factor
+     hid the enrolment block entirely. */
+  tfaAddPasskey: "Add a passkey",
+  tfaAddAuthenticator: "Add an authenticator app",
   tfaNewCodes: "New recovery codes",
   tfaPasskeyPitch:
     "Use your face, fingerprint or screen lock as the second step. Nothing to " +
@@ -2394,6 +2399,8 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
   tfaNoCodesLeft:
     "Aucun code de récupération restant — émettez-en un nouveau lot " +
     "maintenant.",
+  tfaAddPasskey: "Ajouter une clé d'accès",
+  tfaAddAuthenticator: "Ajouter une application d'authentification",
   tfaNewCodes: "Nouveaux codes de récupération",
   tfaPasskeyPitch:
     "Utilisez votre visage, votre empreinte ou le verrouillage de votre écran " +

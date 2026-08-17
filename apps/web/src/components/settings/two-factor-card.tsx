@@ -347,6 +347,44 @@ export function TwoFactorCard() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              {/*
+                #473: THE SECOND FACTOR, which had no way in.
+                `enrolled` is `factors.length > 0`, and the whole enrolment
+                block sits in this ternary's other branch — so somebody who set
+                up an authenticator app could never add a passkey, and somebody
+                with a passkey could never add the app. The issue's second
+                acceptance criterion asks for exactly that pairing, and
+                `tfaBothOn` above was copy for a state the product could not
+                reach: a label with a passing test and no route to it.
+
+                Only the MISSING kind is offered, and only as one quiet action
+                beside the other management controls. A second full pitch here
+                would compete with the two things somebody actually opens this
+                card to do. *Applying: Chunking, and Zen of Clarity — the
+                option that does not apply is absent rather than disabled.*
+              */}
+              {!hasPasskey && passkeysAvailable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={beginPasskey}
+                >
+                  {t("settingsMore.tfaAddPasskey")}
+                </Button>
+              )}
+              {!hasAuthenticator && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={beginEnrolment}
+                >
+                  {t("settingsMore.tfaAddAuthenticator")}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"

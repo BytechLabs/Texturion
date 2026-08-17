@@ -162,6 +162,63 @@ describe("TwoFactorCard — passkeys (#473)", () => {
     expect(render()).toContain("Passkey and authenticator app are on");
   });
 
+  /*
+   * #473 — the state above had NO ROUTE TO IT until 2026-08-16, and the test
+   * that asserted its copy passed the whole time.
+   *
+   * `enrolled` is `factors.length > 0`, and the enrolment controls lived in
+   * the other branch of that ternary. So one factor hid the way to the second:
+   * a member with an authenticator app could never add a passkey, and a member
+   * with a passkey could never add the app. The issue's second acceptance
+   * criterion asks for exactly that pairing.
+   *
+   * A label test could not catch it, because the label was fine — it was the
+   * PATH that was missing. These assert the path.
+   */
+  it("offers the passkey to somebody who only has an authenticator app", () => {
+    state = {
+      factors: [{ id: "f1", type: "totp", name: null, created_at: null }],
+      enrolled: true,
+      recovery_codes_remaining: 8,
+      aal: "aal2",
+    };
+    // Through the WebAuthn stub: the passkey option is feature-gated on the
+    // browser being able to do it, so without this the card is right to hide
+    // it and the test would be asserting the wrong absence.
+    const html = withWebAuthn(() => render());
+    expect(html).toContain("Add a passkey");
+    // And not the one they already hold — an option that does not apply is
+    // absent rather than disabled.
+    expect(html).not.toContain("Add an authenticator app");
+  });
+
+  it("offers the authenticator app to somebody who only has a passkey", () => {
+    state = {
+      factors: [{ id: "f1", type: "webauthn", name: "Passkey", created_at: null }],
+      enrolled: true,
+      recovery_codes_remaining: 8,
+      aal: "aal2",
+    };
+    const html = withWebAuthn(() => render());
+    expect(html).toContain("Add an authenticator app");
+    expect(html).not.toContain("Add a passkey");
+  });
+
+  it("offers neither once both are held", () => {
+    state = {
+      factors: [
+        { id: "f1", type: "webauthn", name: "Passkey", created_at: null },
+        { id: "f2", type: "totp", name: null, created_at: null },
+      ],
+      enrolled: true,
+      recovery_codes_remaining: 8,
+      aal: "aal2",
+    };
+    const html = withWebAuthn(() => render());
+    expect(html).not.toContain("Add a passkey");
+    expect(html).not.toContain("Add an authenticator app");
+  });
+
   it("falls back to a true sentence for a factor type it does not name", () => {
     // `phone` is a factor type the platform supports and this card has no copy
     // for. Better to say the true general thing than to guess wrong about which
