@@ -9,6 +9,7 @@ import {
   estimateSegments,
   isQuoteOutstanding,
   quoteSms,
+  resolveLocale,
   type QuoteState,
 } from "@loonext/shared";
 
@@ -74,8 +75,10 @@ interface QuoteRow extends QuoteState {
 interface SendView {
   id: string;
   contact_phone_e164: string;
+  /** #228: the customer's own language, when they have one. */
+  contacts: { locale: string | null } | null;
   phone_numbers: { number_e164: string | null; status: string };
-  companies: { name: string };
+  companies: { name: string; locale: string | null };
 }
 
 /**
@@ -410,7 +413,11 @@ quotesRoutes.post(
       await db
         .from("conversations")
         .select(
-          "id,contact_phone_e164,phone_numbers(number_e164,status),companies(name)",
+          "id,contact_phone_e164,phone_numbers(number_e164,status)," +
+            // #228: the two rungs of the customer's language — their own
+            // setting, then the workspace's. Read here rather than derived
+            // later, because the text is composed from this one row.
+            "companies(name,locale),contacts(locale)",
         )
         .eq("company_id", companyId)
         .eq("id", row.conversation_id)
@@ -499,6 +506,14 @@ quotesRoutes.post(
      */
     const url = `${env.APP_ORIGIN.replace(/\/$/, "")}/q/${viewLink.token}`;
     const text = quoteSms({
+      // #228: what the CUSTOMER reads, not what the crew does. A quote is the
+      // first thing many of these people ever receive from the business, and
+      // an English sentence around a French workspace's price is the version
+      // of this feature that gets forwarded to a competitor.
+      locale: resolveLocale(
+        view.contacts?.locale ?? null,
+        view.companies.locale ?? null,
+      ),
       businessName: view.companies.name,
       amountCents: row.amount_cents,
       currency: billingCurrencyOf(row.currency),

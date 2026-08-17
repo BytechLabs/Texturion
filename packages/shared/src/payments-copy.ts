@@ -16,6 +16,7 @@
  */
 
 import { formatMoney, type BillingCurrency } from "./billing-currency";
+import type { Locale } from "./locale";
 import {
   PAYMENT_MAX_CENTS,
   PAYMENT_MIN_CENTS,
@@ -86,17 +87,48 @@ export function paymentAmountProblemCopy(
  * No "click here", no urgency, no shortened domain: all three are what a
  * carrier's spam filter and a homeowner's instinct are both looking for.
  */
+/**
+ * #228 — the sentence around the money, in the customer's language.
+ *
+ * A TABLE rather than a template with a locale branch, for the same reason
+ * every other two-language table here is one: `Record<Locale, …>` means a new
+ * language cannot be added without answering for this string.
+ *
+ * The FIGURE is not translated. `formatMoney` already decides how an amount is
+ * written, and a customer who is quoted $450 must read $450 whatever language
+ * the sentence around it is in — a price that changed shape between two texts
+ * is a price somebody disputes.
+ */
+const PAYMENT_SMS: Record<Locale, (business: string, amount: string, description: string, url: string) => string> = {
+  en: (business, amount, description, url) =>
+    `${business}: ${amount} for ${description}.\n` +
+    `Pay securely here:\n${url}`,
+  "fr-CA": (business, amount, description, url) =>
+    `${business} : ${amount} pour ${description}.\n` +
+    `Payez en toute sécurité ici :\n${url}`,
+};
+
 export function paymentRequestSms(args: {
   businessName: string;
   amountCents: number;
   currency: BillingCurrency;
   description: string;
   url: string;
+  /**
+   * The CUSTOMER's language, resolved from their own field then the
+   * workspace's — `resolveLocale`, the same ladder every other automated text
+   * uses. Required rather than defaulted: a send site that has not thought
+   * about which language it is texting in is the defect this parameter exists
+   * to make impossible.
+   */
+  locale: Locale;
 }): string {
   const amount = formatMoney(args.amountCents, args.currency);
   const description = args.description.trim();
-  return (
-    `${args.businessName.trim()}: ${amount} for ${description}.\n` +
-    `Pay securely here:\n${args.url}`
+  return PAYMENT_SMS[args.locale](
+    args.businessName.trim(),
+    amount,
+    description,
+    args.url,
   );
 }

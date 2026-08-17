@@ -34,6 +34,7 @@
  */
 
 import { formatMoney, type BillingCurrency } from "./billing-currency";
+import type { Locale } from "./locale";
 
 
 /**
@@ -197,17 +198,38 @@ export function isQuoteDecidedForWinRate(
  * is room to say it plainly; an expiry in an SMS reads as pressure, and this
  * product does not push a customer toward a decision they have not made.
  */
+/**
+ * #228 — the sentence around the price, in the customer's language.
+ *
+ * Same shape and same reasoning as the payment ask next door: a table rather
+ * than a branch, and the FIGURE is left alone. A quote is the document a
+ * dispute is argued from, so the number a customer reads here has to be the
+ * number they read on the page they accept.
+ */
+const QUOTE_SMS: Record<Locale, (business: string, amount: string, description: string, url: string) => string> = {
+  en: (business, amount, description, url) =>
+    `${business}: ${amount} for ${description}.\n` +
+    `See the quote and accept it here:\n${url}`,
+  "fr-CA": (business, amount, description, url) =>
+    `${business} : ${amount} pour ${description}.\n` +
+    `Consultez le devis et acceptez-le ici :\n${url}`,
+};
+
 export function quoteSms(args: {
   businessName: string;
   amountCents: number;
   currency: BillingCurrency;
   description: string;
   url: string;
+  /** The CUSTOMER's language. See paymentRequestSms — required, not defaulted. */
+  locale: Locale;
 }): string {
   const amount = formatMoney(args.amountCents, args.currency);
   const description = args.description.trim();
-  return (
-    `${args.businessName.trim()}: ${amount} for ${description}.\n` +
-    `See the quote and accept it here:\n${args.url}`
+  return QUOTE_SMS[args.locale](
+    args.businessName.trim(),
+    amount,
+    description,
+    args.url,
   );
 }

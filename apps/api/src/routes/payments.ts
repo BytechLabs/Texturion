@@ -35,6 +35,7 @@ import {
   paymentAmountProblem,
   paymentAmountProblemCopy,
   paymentRequestSms,
+  resolveLocale,
   paymentRequestState,
   payoutReadinessCopy,
   payoutReadinessKeys,
@@ -468,6 +469,12 @@ paymentRequestRoutes.post(
 
     const url = `${env.APP_ORIGIN.replace(/\/$/, "")}/pay/${link.token}`;
     const text = paymentRequestSms({
+      // #228: the customer's language, same ladder as every other automated
+      // text — their own setting first, the workspace's behind it.
+      locale: resolveLocale(
+        view.contacts?.locale ?? null,
+        view.companies.locale ?? null,
+      ),
       businessName: view.companies.name,
       amountCents: body.amount_cents,
       currency,
@@ -773,7 +780,9 @@ interface PaymentSendView {
   phone_number_id: string;
   contact_phone_e164: string;
   phone_numbers: { number_e164: string | null; status: string };
-  companies: { name: string };
+  companies: { name: string; locale: string | null };
+  /** #228: the customer own language, when they have one. */
+  contacts: { locale: string | null } | null;
 }
 
 async function loadPaymentView(
@@ -786,7 +795,9 @@ async function loadPaymentView(
       .from("conversations")
       .select(
         "id,contact_id,phone_number_id,contact_phone_e164," +
-          "phone_numbers(number_e164,status),companies(name)",
+          // #228: both rungs of the customer language ladder.
+          "phone_numbers(number_e164,status),companies(name,locale)," +
+          "contacts(locale)",
       )
       .eq("company_id", companyId)
       .eq("id", conversationId)

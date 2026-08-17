@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
+import { formatMoney } from "./billing-currency";
+import { quoteSms } from "./quotes";
+
 import {
   QUOTE_STATUSES,
   QUOTE_STATUS_KEYS,
@@ -202,5 +205,54 @@ describe("#287 what a win rate is allowed to count", () => {
   it("agrees with isQuoteDecided about the stored half", () => {
     expect(isQuoteDecided("accepted")).toBe(true);
     expect(isQuoteDecided("sent")).toBe(false);
+  });
+});
+
+/**
+ * #228 — the text a customer gets about a price is in their language.
+ *
+ * Both of the money texts this product sends — the quote and the payment ask —
+ * were composed in English regardless of who was reading them, which is the
+ * exact gap #228 names: "a French-speaking customer receiving an English STOP
+ * footer is a poor experience and arguably a defective disclosure". A quote is
+ * worse than a footer, because it is often the FIRST thing a customer ever
+ * receives from the business.
+ */
+describe("#228 the quote text speaks the customer's language", () => {
+  const args = {
+    businessName: "Plomberie Apex",
+    amountCents: 45_000,
+    currency: "cad" as const,
+    description: "Remplacer le chauffe-eau",
+    url: "https://app.loonext.com/q/tok",
+  };
+
+  it("writes the sentence in French for a French customer", () => {
+    const text = quoteSms({ ...args, locale: "fr-CA" });
+    expect(text).toContain("Consultez le devis");
+    expect(text).not.toContain("See the quote");
+  });
+
+  it("still writes English for everybody else", () => {
+    const text = quoteSms({ ...args, locale: "en" });
+    expect(text).toContain("See the quote and accept it here");
+  });
+
+  it("leaves the FIGURE alone in both", () => {
+    // The number is not copy. A customer quoted $450 must read $450 in the text
+    // and on the page they accept — a price that changes shape between two
+    // screens is a price somebody disputes, and this feature exists to prevent
+    // exactly that argument.
+    const fr = quoteSms({ ...args, locale: "fr-CA" });
+    const en = quoteSms({ ...args, locale: "en" });
+    const amount = formatMoney(45_000, "cad");
+    expect(fr).toContain(amount);
+    expect(en).toContain(amount);
+  });
+
+  it("carries the link unchanged, because a URL is not a sentence", () => {
+    for (const locale of ["en", "fr-CA"] as const) {
+      expect(quoteSms({ ...args, locale })).toContain(args.url);
+    }
   });
 });

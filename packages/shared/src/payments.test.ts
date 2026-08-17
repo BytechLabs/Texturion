@@ -1,3 +1,4 @@
+import { formatMoney } from "./billing-currency";
 import { describe, expect, it } from "vitest";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
@@ -178,6 +179,10 @@ describe("paymentRequestSms", () => {
     currency: "usd",
     description: "Deposit for Tuesday",
     url: "https://app.loonext.com/pay/abc",
+    // #228: this block asserts the SHAPE of the text, so it names the
+    // language explicitly rather than relying on a default that no longer
+    // exists. The French rendering is asserted below.
+    locale: "en",
   });
 
   it("leads with the business, then the amount", () => {
@@ -338,6 +343,44 @@ describe("payoutRequirementCopy", () => {
     for (const requirement of ["external_account", "company.owners_provided"]) {
       const copy = payoutRequirementCopy(requirement);
       expect((copy.key === null) !== (copy.literal === null), requirement).toBe(true);
+    }
+  });
+});
+
+/**
+ * #228 — the payment ask speaks the customer's language.
+ *
+ * The sibling of the quote text, and the same gap: composed in English for
+ * everybody, including the workspaces we sell to in Quebec on purpose.
+ */
+describe("#228 the payment ask speaks the customer's language", () => {
+  const args = {
+    businessName: "Plomberie Apex",
+    amountCents: 25_000,
+    currency: "cad" as const,
+    description: "Dépôt pour mardi",
+    url: "https://app.loonext.com/pay/abc",
+  };
+
+  it("writes the sentence in French for a French customer", () => {
+    const text = paymentRequestSms({ ...args, locale: "fr-CA" });
+    expect(text).toContain("Payez en toute sécurité");
+    expect(text).not.toContain("Pay securely here");
+  });
+
+  it("still writes English for everybody else", () => {
+    expect(paymentRequestSms({ ...args, locale: "en" })).toContain(
+      "Pay securely here",
+    );
+  });
+
+  it("leaves the figure and the link alone in both", () => {
+    // Neither is copy. A customer asked for $250 must read $250 whichever
+    // sentence surrounds it, and a translated URL is a broken one.
+    for (const locale of ["en", "fr-CA"] as const) {
+      const text = paymentRequestSms({ ...args, locale });
+      expect(text).toContain(formatMoney(25_000, "cad"));
+      expect(text).toContain(args.url);
     }
   });
 });

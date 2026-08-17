@@ -10,6 +10,7 @@ import {
   paymentAmountProblem,
   paymentAmountProblemCopy,
   paymentRequestSms,
+  resolveLocale,
   roleHasCapability,
   type BillingCurrency,
 } from "@loonext/shared";
@@ -118,6 +119,23 @@ export function AskForPayment({
           amountCents: cents,
           currency,
           description,
+          /*
+           * #228 — the WORKSPACE language, which is the preview being as
+           * honest as it can be rather than as honest as we would like.
+           *
+           * The send resolves the customer own setting first (routes/
+           * payments.ts reads contacts(locale)), and this cannot: the
+           * conversation-detail projection does not carry it, and widening
+           * that wire for a preview would mean an RPC migration and three
+           * client types for a string nobody but the sender reads.
+           *
+           * So the preview matches the send for every customer who follows
+           * the workspace, which is nearly all of them, and can differ for
+           * one who has been given their own language. It is the same
+           * approximation the placeholder URL on the next line already makes
+           * — close enough to be useful, and named rather than hidden.
+           */
+          locale: resolveLocale(null, company.data?.locale ?? null),
           // The real URL is minted by the server; this stands in for it at the
           // same length so the preview does not lie about how long the text is.
           url: "https://app.loonext.com/pay/…",
