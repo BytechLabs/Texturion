@@ -17,6 +17,19 @@ package com.loonext.android.core.i18n
  */
 object ContactsTasksStrings : AppStrings.Section {
     override val en = mapOf(
+        // #228/#291 — the address list. Named the same as iOS so the two
+        // phones spell one thing once; the sentences are pinned across all
+        // three clients by address-parity.test.ts.
+        "contactsTasks.addressPrimary" to
+            "Where the van goes",
+        "contactsTasks.addressMakePrimary" to
+            "Make it the main one",
+        "contactsTasks.addressLabelPlaceholder" to
+            "Unit 4, Billing, the rooftop…",
+        "contactsTasks.addressPlaceholder" to
+            "Where the job is",
+        "contactsTasks.addressAddAnother" to
+            "Add another address",
         // ── Notifications ────────────────────────────────────────────────
         "contactsTasks.notificationsHeading" to "Notifications",
         "contactsTasks.notifEmailTitle" to "Email",
@@ -636,6 +649,19 @@ object ContactsTasksStrings : AppStrings.Section {
     )
 
     override val frCA = mapOf(
+        // #228/#291 — the address list. Named the same as iOS so the two
+        // phones spell one thing once; the sentences are pinned across all
+        // three clients by address-parity.test.ts.
+        "contactsTasks.addressPrimary" to
+            "Où le camion se rend",
+        "contactsTasks.addressMakePrimary" to
+            "En faire l'adresse principale",
+        "contactsTasks.addressLabelPlaceholder" to
+            "Unité 4, Facturation, le toit…",
+        "contactsTasks.addressPlaceholder" to
+            "Où se fait la tâche",
+        "contactsTasks.addressAddAnother" to
+            "Ajouter une autre adresse",
         // ── Notifications ────────────────────────────────────────────────
         "contactsTasks.notificationsHeading" to "Notifications",
         "contactsTasks.notifEmailTitle" to "Courriel",

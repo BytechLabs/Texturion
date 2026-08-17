@@ -50,16 +50,22 @@ const SOURCES: Record<string, string> = {
  * #228: where a client's WORDS live, when they left the screen.
  *
  * Web's moved first, which is why `WEB_WORDS` above is built from the catalogue
- * import rather than read off disk. iOS followed, and split — some labels went
- * to the catalogue and some literals stayed in the view, so its words are the
- * two files together. Android still holds its own.
+ * import rather than read off disk. iOS followed, and now Android has too — so
+ * every client names these five sentences by key and holds the words in a
+ * catalogue, in both languages.
  *
  * Read alongside the screen rather than instead of it: reading only the
  * catalogue would stop noticing if the view quietly rendered something else,
- * which is the question this guard is actually asking.
+ * which is the question this guard is actually asking. That pairing is why the
+ * English still has to appear — it is the ENGLISH copy that is pinned here, and
+ * a client whose catalogue reworded it fails whatever its French says.
  */
 const CATALOGUES: Partial<Record<keyof typeof SOURCES, string>> = {
   ios: join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/ContactsTasksStrings.swift"),
+  android: join(
+    REPO_ROOT,
+    "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/ContactsTasksStrings.kt",
+  ),
 };
 
 /** The screen, plus the catalogue it now reaches for its labels. */

@@ -94,7 +94,7 @@ fun AddressList(
                 )
                 if (entry.is_primary) {
                     Text(
-                        ADDRESS_PRIMARY_LABEL,
+                        t("contactsTasks.addressPrimary"),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.SemiBold,
                         ),
@@ -103,7 +103,7 @@ fun AddressList(
                 } else {
                     TextButton(onClick = { onMakePrimary(entry.id) }) {
                         Text(
-                            ADDRESS_PROMOTE_LABEL,
+                            t("contactsTasks.addressMakePrimary"),
                             style = MaterialTheme.typography.labelSmall,
                         )
                     }
@@ -132,7 +132,7 @@ fun AddressList(
                 // apps/web/src/components/contacts/address-parity.test.ts, which
                 // reads this file's bytes. Extracting it fails that test from
                 // the web tree, so it moves when all three clients move.
-                placeholder = { Text("Unit 4, Billing, the rooftop…") },
+                placeholder = { Text(t("contactsTasks.addressLabelPlaceholder")) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
             )
@@ -141,7 +141,7 @@ fun AddressList(
                 onValueChange = { draftAddress = it.take(CONTACT_ADDRESS_MAX) },
                 label = { Text(t("contactsTasks.address")) },
                 // Pinned verbatim by address-parity.test.ts — see above.
-                placeholder = { Text("Where the job is") },
+                placeholder = { Text(t("contactsTasks.addressPlaceholder")) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
             )
@@ -180,7 +180,7 @@ fun AddressList(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    ADDRESS_ADD_LABEL,
+                    t("contactsTasks.addressAddAnother"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp),
@@ -190,9 +190,12 @@ fun AddressList(
     }
 }
 
-/** #291: the primary one is named, not merely first. */
-const val ADDRESS_PRIMARY_LABEL = "Where the van goes"
-
-const val ADDRESS_PROMOTE_LABEL = "Make it the main one"
-
-const val ADDRESS_ADD_LABEL = "Add another address"
+/*
+ * #228: the three labels that used to live here as `const val`s now live in
+ * the catalogue, in both languages, under the same keys iOS uses.
+ *
+ * They were constants so the screen and its tests could name one string. That
+ * is still true — the name is now the KEY, which is the thing the parity guard
+ * and both phones agree on, rather than an English sentence one client happened
+ * to hold.
+ */
