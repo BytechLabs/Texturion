@@ -196,22 +196,32 @@ describe("the switch is named after the card it controls (#540)", () => {
    * through a switch labelled after a symbol nobody can see on the screen. Only
    * the text inside the card's heading element counts.
    */
+  /**
+   * The four measures share `MeasureCard` now, so the `<h2>` this used to read
+   * lives in the shell and the card declares its heading as the `title` prop.
+   * Anchoring on that prop keeps the property this guard has always been about
+   * — the words come from the CARD's own source, not from a second copy of the
+   * label maintained beside it — and is if anything tighter than matching an
+   * element: `title=` is the thing that becomes the heading, whereas an `<h2>`
+   * merely usually was.
+   */
+  const TITLE_PROP = /<MeasureCard[\s\S]*?title=\{t\("inbox\.[A-Za-z]+"\)\}/;
   const CARDS: Record<string, { file: string; heading: RegExp }> = {
     response_time: {
       file: "src/components/for-you/response-time-card.tsx",
-      heading: /<h2[\s\S]*?<\/h2>/,
+      heading: TITLE_PROP,
     },
     pipeline: {
       file: "src/components/for-you/pipeline-card.tsx",
-      heading: /<h2[\s\S]*?<\/h2>/,
+      heading: TITLE_PROP,
     },
     satisfaction: {
       file: "src/components/for-you/satisfaction-card.tsx",
-      heading: /<h2[\s\S]*?<\/h2>/,
+      heading: TITLE_PROP,
     },
     lead_sources: {
       file: "src/components/for-you/lead-sources-card.tsx",
-      heading: /<h2[\s\S]*?<\/h2>/,
+      heading: TITLE_PROP,
     },
     // Recent calls is a `Section`, whose heading comes from its label prop.
     // Anchored to the section's own component rather than to "the first

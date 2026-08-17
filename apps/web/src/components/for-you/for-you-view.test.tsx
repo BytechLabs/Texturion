@@ -724,33 +724,98 @@ describe("#540 the strip and the sections agree, and both lead with urgency", ()
 describe("#540 the bento gives the widest slot to the queue that needs it", () => {
   const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
 
+  const overdueTask = {
+    task_id: "t1",
+    title: "Send the quote",
+    conversation_id: "c1",
+    message_id: "m1",
+    assigned_user_id: "u1",
+    due_at: hoursAgo(30),
+    overdue: true,
+  };
+
+  const unreadItem = {
+    conversation_id: "c-u",
+    status: "open",
+    contact: { id: "p-u", name: "Uma Unread", phone_e164: "+16135550107" },
+    assigned_user_id: "u1",
+    last_message_at: hoursAgo(0.2),
+  } as ForYou["unread"][number];
+
+  /**
+   * The queue sections are anchored by their CONTENT, never by their heading.
+   *
+   * The summary tile strip renders every queue's NAME above the sections, so
+   * `indexOf("My tasks")` lands on the tile — which made the original version
+   * of the first test below slice an empty range and assert nothing at all. A
+   * contact name and a task title appear only where the queue itself is drawn.
+   */
+  const TASK_ROW = "Send the quote";
+  const WAITING_ROW = "Wendy Lead";
+  const UNREAD_ROW = "Uma Unread";
+
   it("spans the first queue WITH WORK, not the first declared one", () => {
-    // Unassigned is declared first. Here it is empty and My tasks is overdue, so
-    // the double-width slot must go to My tasks.
+    // Unassigned is declared first. Here it is empty, My tasks is overdue and
+    // Waiting on you also has work — so the double-width slot must go to My
+    // tasks, with the other queue falling in beside it.
     state.forYou = {
-      waiting_on_you: [],
-      my_tasks: [
-        {
-          task_id: "t1",
-          title: "Send the quote",
-          conversation_id: "c1",
-          message_id: "m1",
-          assigned_user_id: "u1",
-          due_at: hoursAgo(30),
-          overdue: true,
-        },
-      ],
+      waiting_on_you: [waitingItem],
+      my_tasks: [overdueTask],
       unread: [],
       triage: null,
     };
     const html = render();
     const spanAt = html.indexOf("xl:col-span-2");
     expect(spanAt).toBeGreaterThan(-1);
-    // The wide wrapper opens immediately before the My tasks heading, and there is
-    // no other queue heading between them.
-    const between = html.slice(spanAt, html.indexOf("My tasks"));
-    expect(between).not.toContain("Unread");
-    expect(between).not.toContain("Waiting on you");
+    // The wide wrapper opens before the My tasks ROWS, with no other queue's
+    // rows in between.
+    const between = html.slice(spanAt, html.indexOf(TASK_ROW));
+    expect(between.length).toBeGreaterThan(0);
+    expect(between).not.toContain(WAITING_ROW);
+  });
+
+  it("gives a LONE queue the whole row instead of leaving a column empty", () => {
+    // The void this issue was reopened about, in its purest form. A single live
+    // queue taking two of three columns leaves the third holding nothing — the
+    // same dead space as a short panel beside a tall one, arrived at from the
+    // other direction. It must take the full row instead.
+    state.forYou = {
+      waiting_on_you: [],
+      my_tasks: [overdueTask],
+      unread: [],
+      triage: null,
+    };
+    const html = render();
+    expect(html).toContain(TASK_ROW);
+    // `xl:col-span-2` is the two-of-three slot and nothing else on this screen
+    // uses it, so its ABSENCE is exactly the property: with nothing to put
+    // beside the queue, no element claims two columns of three.
+    expect(html).not.toContain("xl:col-span-2");
+  });
+
+  it("stacks the queues after the first rather than giving each a grid cell", () => {
+    // WHY THIS IS THE FIX. A CSS grid quantises into rows: with three live
+    // queues the primary spanned two columns, the second took the third, and
+    // the third dropped to a new row leaving TWO empty tracks beside it. The
+    // ones after the first share a single stacked column, so the space beside
+    // the primary holds the next thing to do rather than air.
+    state.forYou = {
+      waiting_on_you: [waitingItem],
+      my_tasks: [overdueTask],
+      unread: [unreadItem],
+      triage: null,
+    };
+    const html = render();
+    const spanAt = html.indexOf("xl:col-span-2");
+    expect(spanAt).toBeGreaterThan(-1);
+    const stackAt = html.indexOf("space-y-7 lg:space-y-6", spanAt);
+    expect(stackAt).toBeGreaterThan(spanAt);
+    // The primary's rows come before the stack opens; both remaining queues'
+    // rows come after it. So neither of them is a grid cell of its own, which
+    // is what left the empty tracks.
+    expect(html.indexOf(TASK_ROW)).toBeLessThan(stackAt);
+    expect(html.indexOf(WAITING_ROW)).toBeGreaterThan(stackAt);
+    expect(html.indexOf(UNREAD_ROW)).toBeGreaterThan(stackAt);
   });
 
   it("gives the measures their own row rather than four full-width bands", () => {

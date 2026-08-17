@@ -1073,6 +1073,13 @@ function ForYouSections({
     unread: unread.length > 0,
   };
 
+  // #540: the queues that will actually be laid out, in the shared order. Split
+  // here rather than inside the JSX because the FIRST one decides the shape of
+  // the whole grid — it takes the wide slot, and whether there is anything to
+  // put beside it decides whether that slot is two columns or all three.
+  const liveQueues = order.filter((id) => queueHasContent[id]);
+  const [primaryQueue, ...secondaryQueues] = liveQueues;
+
   // #540: built once, rendered in the order the shared rule gives.
   const queueSections: Record<DashboardTileId, React.ReactNode> = {
     unassigned: (
@@ -1257,14 +1264,40 @@ function ForYouSections({
           xl. That is the bento's whole point — the thing to do first is bigger,
           rather than every panel being the same size and the eye having to read
           all of them to find out which matters. Only sections with content are
-          laid out, so an empty queue never holds a grid cell open. */}
-      {order
-        .filter((id) => queueHasContent[id])
-        .map((id, index) => (
-          <div key={id} className={index === 0 ? "xl:col-span-2" : undefined}>
-            {queueSections[id]}
-          </div>
-        ))}
+          laid out, so an empty queue never holds a grid cell open.
+
+          The rest STACK in the remaining column rather than each taking a grid
+          cell of their own. That is the fix for the largest piece of dead space
+          on this screen: a CSS grid quantises into rows, so a two-row-tall
+          primary queue beside a one-row panel left roughly 300px of empty
+          column, and three live queues left two empty tracks on the second row.
+          Stacking fills the column with the next thing to do instead of air —
+          and it is what makes the bento a bento rather than a grid with one big
+          tile in it.
+          *Applying: Prioritize Intent — the layout is built around the work,
+          and Zen of Clarity — no space that reads as a panel failing to load.* */}
+      {primaryQueue && (
+        <div
+          className={
+            // Alone, it takes the whole row: spanning two of three columns with
+            // nothing to put in the third is the same void by another route.
+            secondaryQueues.length > 0
+              ? "xl:col-span-2"
+              : "lg:col-span-2 xl:col-span-3"
+          }
+        >
+          {queueSections[primaryQueue]}
+        </div>
+      )}
+      {secondaryQueues.length > 0 && (
+        // Same rhythm as the outer stack, so a queue does not change spacing
+        // by virtue of being second.
+        <div className="space-y-7 lg:space-y-6">
+          {secondaryQueues.map((id) => (
+            <div key={id}>{queueSections[id]}</div>
+          ))}
+        </div>
+      )}
       {/* #287: above the call history, because money a customer was asked for
           and has not answered outranks a list of calls that already happened. */}
       <div className="lg:col-span-2 xl:col-span-3">

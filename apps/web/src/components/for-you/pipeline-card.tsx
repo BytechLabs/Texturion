@@ -34,6 +34,7 @@
 import { ArrowRight, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
+import { MeasureCard } from "@/components/for-you/measure-card";
 import { ShareBar } from "@/components/ui/share-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
@@ -109,16 +110,15 @@ export function PipelineCard() {
     // inside the cards fixes a row that does not line up.
     // *Applying: the Safety Principle, and Relationship Strength — one group of
     // four, presented as one.*
-    <section>
-      <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-        <span className="flex items-baseline gap-2">
-          {t("inbox.pipelineTitle")}
-        </span>
+    <MeasureCard
+      title={t("inbox.pipelineTitle")}
+      action={
         <span className="text-[11px] font-normal normal-case tracking-normal">
           {t("inbox.pipelineWindow")}
         </span>
-      </h2>
-      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper p-4">
+      }
+      padded
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {/* The sentence leads, not the figure. It is the part somebody
@@ -234,7 +234,6 @@ export function PipelineCard() {
           <ArrowRight className="size-3.5" strokeWidth={1.75} aria-hidden />
         </Link>
       )}
-      </div>
-    </section>
+    </MeasureCard>
   );
 }

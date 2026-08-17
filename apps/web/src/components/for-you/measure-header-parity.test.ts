@@ -28,8 +28,23 @@ const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 const ANDROID = "apps/android/app/src/main/kotlin/com/loonext/android/features/foryou";
 const IOS = "apps/ios/Loonext/Features/ForYou";
 
-/** Every measure card, on both phones. Web's heading is one CSS class. */
+const WEB = "apps/web/src/components/for-you";
+
+/**
+ * Every measure card, on all three clients.
+ *
+ * This roster said "on both phones" and excluded web, on the grounds that web's
+ * heading was "one CSS class" — which was true and was the problem. Web had
+ * four hand-copied copies of the same twelve-class `<h2>` and the same bordered
+ * frame, so the drift the phones are guarded against was simply unguarded on
+ * the client the founder actually looks at. Web now has `MeasureCard`, the same
+ * consolidation `MeasureHeader` is on the phones, and it is checked here.
+ */
 const CARDS: Record<string, string> = {
+  "web/ResponseTimeCard": `${WEB}/response-time-card.tsx`,
+  "web/SatisfactionCard": `${WEB}/satisfaction-card.tsx`,
+  "web/LeadSourcesCard": `${WEB}/lead-sources-card.tsx`,
+  "web/PipelineCard": `${WEB}/pipeline-card.tsx`,
   "android/ResponseTimeCard": `${ANDROID}/ResponseTimeCard.kt`,
   "android/SatisfactionCard": `${ANDROID}/SatisfactionCard.kt`,
   "android/LeadSourcesCard": `${ANDROID}/LeadSourcesCard.kt`,
@@ -45,18 +60,26 @@ function source(path: string): string {
 }
 
 describe("#540 every measure card uses the shared heading", () => {
-  it("reads all eight cards, so a passing run means something", () => {
+  it("reads all twelve cards, so a passing run means something", () => {
     // A roster guard that quietly stopped finding its files would pass
     // forever. This repo has shipped one of those.
     for (const [name, path] of Object.entries(CARDS)) {
       expect(source(path).length, name).toBeGreaterThan(500);
     }
-    expect(Object.keys(CARDS)).toHaveLength(8);
+    expect(Object.keys(CARDS)).toHaveLength(12);
   });
 
-  it("reaches for MeasureHeader rather than restating its styling", () => {
+  it("reaches for the shared shell rather than restating its styling", () => {
+    // `MeasureHeader` on the phones, `MeasureCard` on web — the same decision
+    // in each platform's idiom. Web's shell owns the frame as well as the
+    // heading, because the frame is where its own drift showed up: the card
+    // body was height-auto inside a stretched grid item, so two cards in one
+    // row ended at different heights.
     const missing = Object.entries(CARDS)
-      .filter(([, path]) => !source(path).includes("MeasureHeader"))
+      .filter(([name, path]) => {
+        const shell = name.startsWith("web/") ? "MeasureCard" : "MeasureHeader";
+        return !source(path).includes(shell);
+      })
       .map(([name]) => name);
     expect(
       missing,
@@ -67,10 +90,19 @@ describe("#540 every measure card uses the shared heading", () => {
   });
 
   it("does not restate the heading's type ramp anywhere else", () => {
-    // The specific numbers MeasureHeader owns. A card repeating them is a
+    // The specific numbers the shared shell owns. A card repeating them is a
     // second definition even if it also happens to call the component.
+    //
+    // Web's are the heading's tracking and the frame's border/paper pair. The
+    // frame is included deliberately: a card that calls `MeasureCard` and then
+    // draws its own bordered box inside it is back to a height-auto frame in a
+    // stretched cell, which is the exact defect the shell exists to remove.
     const restated = Object.entries(CARDS)
-      .filter(([, path]) => /kerning\(1\.2\)|letterSpacing = 0\.12\.em/.test(source(path)))
+      .filter(([, path]) =>
+        /kerning\(1\.2\)|letterSpacing = 0\.12\.em|tracking-\[0\.06em\]|rounded-app-card border border-app-line/.test(
+          source(path),
+        ),
+      )
       .map(([name]) => name);
     expect(
       restated,

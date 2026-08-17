@@ -41,6 +41,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+import { MeasureCard } from "@/components/for-you/measure-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type Translate } from "@/i18n/provider";
 import { useLeadSourceReport, type LeadSourceReport } from "@/lib/api/reports";
@@ -164,13 +165,7 @@ export function LeadSourcesCard() {
       // three measures. BOTH branches need it — patching only the one with data
       // is how a row lines up in a screenshot taken on a busy workspace and
       // stays ragged on the empty one every new crew actually sees first.
-      <section>
-        <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-          <span className="flex items-baseline gap-2">
-            {t("inbox.leadSourcesTitle")}
-          </span>
-        </h2>
-        <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper p-4">
+      <MeasureCard title={t("inbox.leadSourcesTitle")} padded>
         <p className="text-sm text-muted-foreground">
           {t("inbox.leadSourcesNoneSetUp")}
         </p>
@@ -181,8 +176,7 @@ export function LeadSourcesCard() {
           {t("inbox.leadSourcesSetOneUp")}
           <ArrowRight className="size-3.5" />
         </Link>
-        </div>
-      </section>
+      </MeasureCard>
     );
   }
 
@@ -194,13 +188,7 @@ export function LeadSourcesCard() {
     // #540: the same micro-header as the other three measures, so the four card
     // tops line up. See pipeline-card.tsx for why the row's alignment is the
     // point rather than a detail.
-    <section>
-      <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-        <span className="flex items-baseline gap-2">
-          {t("inbox.leadSourcesTitle")}
-        </span>
-      </h2>
-      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper p-4">
+    <MeasureCard title={t("inbox.leadSourcesTitle")} padded>
       {headline && <p className="text-sm">{headline}</p>}
       {data.note && (
         <p
@@ -236,8 +224,7 @@ export function LeadSourcesCard() {
           { count: data.total },
         )}
       </p>
-      </div>
-    </section>
+    </MeasureCard>
   );
 }
 
