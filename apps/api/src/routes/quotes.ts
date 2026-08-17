@@ -6,7 +6,9 @@ import {
   billingCurrencyOf,
   canTransitionQuote,
   effectiveQuoteStatus,
+  estimateSegments,
   isQuoteOutstanding,
+  quoteSms,
   type QuoteState,
 } from "@loonext/shared";
 
@@ -16,6 +18,8 @@ import type { AppEnv } from "../context";
 import { requireCapability } from "../auth/company";
 import { errorResponse } from "../http/errors";
 import { mintPublicLink } from "../public-links/tokens";
+import { dispatchOutbound, gateOutboundSend, runPreSendGates } from "../messaging/send";
+import { insertConversationEvents } from "./core/events";
 import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
 /**
@@ -49,7 +53,25 @@ const QUOTE_COLUMNS =
 /** A quote row as the wire carries it, plus the status a reader should see. */
 interface QuoteRow extends QuoteState {
   id: string;
+  /*
+   * #287: the four the SEND actually reads, named rather than left to the index
+   * signature below. They were `unknown` while nothing composed a text; the
+   * moment something did, an index signature is how a money amount reaches a
+   * customer's SMS as `[object Object]`.
+   */
+  conversation_id: string;
+  amount_cents: number;
+  currency: string;
+  description: string;
   [key: string]: unknown;
+}
+
+/** What the send needs about the thread: who it goes to, and from where. */
+interface SendView {
+  id: string;
+  contact_phone_e164: string;
+  phone_numbers: { number_e164: string | null; status: string };
+  companies: { name: string };
 }
 
 /**
@@ -264,7 +286,8 @@ quotesRoutes.post(
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
-    const db = getDb(getEnv(c.env));
+    const env = getEnv(c.env);
+    const db = getDb(env);
 
     const row = unwrap<QuoteRow[]>(
       await db
@@ -286,8 +309,47 @@ quotesRoutes.post(
       return errorResponse(c, "conflict", `a quote that is ${current} cannot be sent`);
     }
 
+    /*
+     * The thread this is going into, and the number it goes out from. Read
+     * BEFORE anything is minted: a quote that cannot be sent must not leave a
+     * live accept link behind, and the cheapest refusals come first.
+     */
+    const view = unwrap<SendView[]>(
+      await db
+        .from("conversations")
+        .select(
+          "id,contact_phone_e164,phone_numbers(number_e164,status),companies(name)",
+        )
+        .eq("company_id", companyId)
+        .eq("id", row.conversation_id)
+        .limit(1),
+      "quote send conversation",
+    )[0];
+    if (!view) return errorResponse(c, "not_found", "no such conversation");
+
+    const fromNumber = view.phone_numbers.number_e164;
+    if (!fromNumber || view.phone_numbers.status !== "active") {
+      return errorResponse(
+        c,
+        "conflict",
+        "this conversation's number can't send texts right now",
+      );
+    }
+
+    /*
+     * EVERY OUTBOUND GATE, and this is the line that matters most in the whole
+     * handler. `runPreSendGates` is where the opt-out check lives, and an
+     * opt-out can only be lifted by the customer — a quote is a text to a
+     * customer like any other, and a feature that sends around that rule is the
+     * one that gets the number blocked.
+     *
+     * Before minting, for the reason the payment ask states: an opted-out
+     * contact or a suspended workspace must never leave a live link behind.
+     */
+    const clearance = await runPreSendGates(env, companyId, view.contact_phone_e164);
+
     const expiresAt = new Date(row.expires_at);
-    const view = await mintPublicLink(db, {
+    const viewLink = await mintPublicLink(db, {
       companyId,
       purpose: "quote_view",
       subjectType: "quote",
@@ -295,7 +357,7 @@ quotesRoutes.post(
       expiresAt,
       actorUserId: c.get("userId"),
     });
-    const accept = await mintPublicLink(db, {
+    const acceptLink = await mintPublicLink(db, {
       companyId,
       purpose: "quote_accept",
       subjectType: "quote",
@@ -321,12 +383,82 @@ quotesRoutes.post(
       return errorResponse(c, "conflict", "quote is no longer a draft");
     }
 
-    // The plaintext tokens are returned ONCE. Whoever composes the text puts
-    // them in the URL; nothing here can produce them again.
+    /*
+     * The text, composed HERE rather than on three clients. The tokens never
+     * leave this Worker: returning them was what made the old shape look
+     * finished while nothing was ever delivered.
+     *
+     * The VIEW link is what the customer opens. Accepting carries its own
+     * token, which the page fetches — a forwarded link, or one scraped from an
+     * SMS log, cannot commit anybody to a price.
+     */
+    const url = `${env.APP_ORIGIN.replace(/\/$/, "")}/q/${viewLink.token}`;
+    const text = quoteSms({
+      businessName: view.companies.name,
+      amountCents: row.amount_cents,
+      currency: billingCurrencyOf(row.currency),
+      description: row.description,
+      url,
+    });
+
+    const gated = await gateOutboundSend(db, {
+      companyId,
+      conversationId: row.conversation_id,
+      senderUserId: c.get("userId"),
+      body: text,
+      /*
+       * THE QUOTE ID IS THE KEY, and it is exactly right rather than
+       * convenient: one quote sends one text, ever. The `status = draft` guard
+       * in the update above already refuses a second send, so a retry that
+       * reaches here is the same intent — and a fresh key on a retry would text
+       * the customer the same price twice.
+       */
+      idempotencyKey: id,
+      // The same estimator every other send bills against — a URL makes this
+      // reliably multi-segment and it is metered as what it is.
+      segmentsEstimate: estimateSegments(text).segments,
+    });
+    const message = gated.message;
+
+    // The receipt: WHICH text carried this quote. #287 opens with "nobody can
+    // answer what did we quote", and the answer is the message, not the row.
+    await db
+      .from("quotes")
+      .update({ message_id: message.id, updated_at: new Date().toISOString() })
+      .eq("company_id", companyId)
+      .eq("id", id);
+
+    await dispatchOutbound(env, db, message, {
+      from: fromNumber,
+      to: view.contact_phone_e164,
+      text,
+      mediaUrls: [],
+      clearance,
+    });
+
+    await insertConversationEvents(db, [
+      {
+        company_id: companyId,
+        conversation_id: row.conversation_id,
+        actor_user_id: c.get("userId") ?? null,
+        type: "quote_sent",
+        payload: {
+          quote_id: id,
+          amount_cents: row.amount_cents,
+          currency: row.currency,
+          description: row.description,
+        },
+      },
+    ]).catch((cause: unknown) => {
+      console.error(`quote sent event failed: ${String(cause)}`);
+    });
+
+    // No tokens. The accept token is the customer's to receive, once, in a text
+    // they already have — handing it back to the sender is a second copy of a
+    // credential with nothing to do.
     return c.json({
       ...withEffectiveStatus(sent[0] as QuoteRow, new Date()),
-      view_token: view.token,
-      accept_token: accept.token,
+      message_id: message.id,
     });
   },
 );

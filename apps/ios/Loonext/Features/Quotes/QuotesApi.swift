@@ -140,14 +140,16 @@ struct QuotePage: Codable, Sendable {
     @Default<DefaultEmptyList<Quote>> var data: [Quote]
 }
 
-/// What `POST /v1/quotes/{id}/send` returns: the quote, plus two plaintext
-/// tokens returned ONCE. Nothing can produce them again — only their SHA-256 is
-/// stored — and they are separate on purpose: the link a customer opens to READ
-/// a quote cannot accept it.
+/// What `POST /v1/quotes/{id}/send` returns.
+///
+/// NO TOKENS. The server composes the text and dispatches it, so the accept
+/// token is the customer's to receive once in a text they already have. It used
+/// to return them for whoever composed the message, and no client ever did — the
+/// quote read "Waiting" and the customer received nothing.
 struct SentQuote: Codable, Sendable {
     let id: String
-    @Default<DefaultEmptyString> var view_token: String
-    @Default<DefaultEmptyString> var accept_token: String
+    /// The outbound message that carried it.
+    var message_id: String?
 }
 
 struct QuotesApi: Sendable {

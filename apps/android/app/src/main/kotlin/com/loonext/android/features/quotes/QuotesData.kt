@@ -142,11 +142,19 @@ private data class CreateQuoteBody(
     val expires_at: String,
 )
 
+/**
+ * What `POST /v1/quotes/{id}/send` returns.
+ *
+ * NO TOKENS. The server composes the text and dispatches it, so the accept
+ * token is the customer's to receive once in a text they already have. It used
+ * to return them for whoever composed the message, and no client ever did — the
+ * quote read "Waiting" and the customer received nothing.
+ */
 @Serializable
 data class SentQuote(
     val id: String,
-    val view_token: String = "",
-    val accept_token: String = "",
+    /** The outbound message that carried it. */
+    val message_id: String? = null,
 )
 
 class QuotesRepository(private val api: ApiClient) {

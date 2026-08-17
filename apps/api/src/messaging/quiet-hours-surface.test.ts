@@ -101,6 +101,22 @@ const SEND_SITES: Record<string, { shape: string; why: string }> = {
       "hole in it: a tech blocked at 9:40pm schedules for 8am and meets no " +
       "gate at all, because 8am is not a quiet hour",
   },
+  "routes/quotes.ts": {
+    shape: "reply-exempt",
+    why:
+      "#287 the quote send. It INHERITS routes/payments.ts's classification " +
+      "rather than arguing a new one, because it is the same shape in every " +
+      "respect that matters: the route cannot start a conversation (a quote " +
+      "is created from a thread and carries its conversation_id), a person " +
+      "taps a button to send it, and the work it prices is the work under " +
+      "discussion in that thread. " +
+      "Said out loud because a price is not a reply either: what makes the " +
+      "exemption defensible is the same concession #225 makes about a trade " +
+      "owner texting their own customer back at 9:15pm. A crew member who " +
+      "wants it to land in the morning has send-later, which is the escape " +
+      "hatch rather than a hole. If quotes ever gain a way to originate a " +
+      "thread, that path is human-initiating and needs compose.ts's 409",
+  },
   "routes/payments.ts": {
     shape: "reply-exempt",
     why:

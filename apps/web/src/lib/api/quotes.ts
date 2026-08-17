@@ -35,16 +35,18 @@ export interface Quote {
   created_at: string;
 }
 
-/** What `POST /quotes/:id/send` returns: the quote, plus two one-time tokens. */
+/**
+ * What `POST /quotes/:id/send` returns.
+ *
+ * NO TOKENS. The server composes the text and dispatches it now, so the accept
+ * token is the customer's to receive once, in a text they already have —
+ * handing a copy back to the sender is a credential with nothing to do. It used
+ * to return them for "whoever composes the text", and nobody did: the quote
+ * read "Waiting" and the customer got nothing.
+ */
 export interface SentQuote extends Quote {
-  /**
-   * The plaintext tokens, returned ONCE. Whoever composes the text puts them
-   * in the URL; nothing can produce them again, because only their SHA-256 is
-   * stored. Two of them, and separate on purpose — the link a customer opens
-   * views the quote and cannot accept it.
-   */
-  view_token: string;
-  accept_token: string;
+  /** The outbound message that carried it. The receipt, and the thread's copy. */
+  message_id: string;
 }
 
 export function useQuotes(conversationId: string, enabled = true) {

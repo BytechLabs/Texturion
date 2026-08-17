@@ -132,6 +132,10 @@ describe("the outbound gate cannot be bypassed (#331)", () => {
       // sent STOP is refused by the same gate as every other send rather than
       // by a rule this feature wrote for itself.
       "routes/payments.ts",
+      // #287: the quote send composes the text and dispatches it here, through
+      // the same gates. Before this the route minted link tokens and sent
+      // nothing, so it reached no carrier and appeared on no list.
+      "routes/quotes.ts",
     ]);
   });
 });

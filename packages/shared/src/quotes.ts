@@ -33,6 +33,9 @@
  * below is what lets `tsc` prove the web catalogue answers every one.
  */
 
+import { formatMoney, type BillingCurrency } from "./billing-currency";
+
+
 /**
  * Every status a quote row may hold.
  *
@@ -170,4 +173,41 @@ export function isQuoteDecidedForWinRate(
   now: Date = new Date(),
 ): boolean {
   return isQuoteDecided(effectiveQuoteStatus(quote, now));
+}
+
+/**
+ * The text the customer receives when a quote is sent.
+ *
+ * Composed HERE and used by the API, for the same reason `paymentRequestSms`
+ * is: three clients composing this sentence is three chances to word it
+ * differently, and the one that words it badly is the one asking somebody for
+ * money. The shape follows that message's, because it is the same kind of
+ * message read in the same place — a lock screen:
+ *
+ *   THE BUSINESS NAME IS FIRST. A link to a price from an unnamed sender is a
+ *   phishing text, and the customer is right to think so.
+ *   THE AMOUNT IS SECOND. Nobody should have to open a link to find out what
+ *   they are being quoted.
+ *   THE LINK IS LAST, on its own line, so every phone linkifies the whole of it.
+ *
+ * No "click here", no urgency, no shortened domain: all three are what a
+ * carrier's spam filter and a homeowner's instinct are both looking for.
+ *
+ * The DEADLINE is deliberately not in the text. It is on the page, where there
+ * is room to say it plainly; an expiry in an SMS reads as pressure, and this
+ * product does not push a customer toward a decision they have not made.
+ */
+export function quoteSms(args: {
+  businessName: string;
+  amountCents: number;
+  currency: BillingCurrency;
+  description: string;
+  url: string;
+}): string {
+  const amount = formatMoney(args.amountCents, args.currency);
+  const description = args.description.trim();
+  return (
+    `${args.businessName.trim()}: ${amount} for ${description}.\n` +
+    `See the quote and accept it here:\n${args.url}`
+  );
 }

@@ -780,6 +780,7 @@ export type {
 } from "./scheduled-send";
 export {
   QUOTE_STATUSES,
+  quoteSms,
   QUOTE_STATUS_KEYS,
   canTransitionQuote,
   effectiveQuoteStatus,
