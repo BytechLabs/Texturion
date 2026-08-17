@@ -57,6 +57,7 @@ import { onboardingEn, onboardingFr } from "./sections/onboarding";
 import { settingsEn, settingsFr } from "./sections/settings";
 import { settingsMoreEn, settingsMoreFr } from "./sections/settingsMore";
 import { apiKeysEn, apiKeysFr } from "./sections/apiKeys";
+import { calendarFeedEn, calendarFeedFr } from "./sections/calendarFeed";
 import { domainEn, domainFr } from "./sections/domain";
 import { quotesEn, quotesFr } from "./sections/quotes";
 import { webhooksEn, webhooksFr } from "./sections/webhooks";
@@ -358,6 +359,7 @@ export const EN = {
   quotes: quotesEn,
   webhooks: webhooksEn,
   apiKeys: apiKeysEn,
+  calendarFeed: calendarFeedEn,
   appShell: appShellEn,
   thread: threadEn,
   onboarding: onboardingEn,
@@ -383,6 +385,7 @@ export const FR_CA: Catalog = {
   quotes: quotesFr,
   webhooks: webhooksFr,
   apiKeys: apiKeysFr,
+  calendarFeed: calendarFeedFr,
   appShell: appShellFr,
   thread: threadFr,
   onboarding: onboardingFr,

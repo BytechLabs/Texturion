@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { CalendarFeedCard } from "@/components/settings/calendar-feed-card";
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import {
@@ -171,6 +172,10 @@ export default function ProfileSettingsPage() {
             </p>
           )}
         </SettingsCard>
+
+        {/* #245: a personal subscription, so it sits with the other things
+            that belong to the person rather than the workspace. */}
+        <CalendarFeedCard />
 
         <SettingsCard title={t("appShell.profileTheme")}>
           {mounted ? (
