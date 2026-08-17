@@ -322,6 +322,21 @@ class MainActivity : FragmentActivity() {
             val workspaceLocale by graph.prefs.workspaceLocale
                 .collectAsStateWithLifecycle(initialValue = null)
             val appLocale = UiLocale.resolve(userLocale, deviceTag, workspaceLocale)
+            /*
+             * #228 — the notification channels, in the language actually chosen.
+             *
+             * `LoonextApp` registers them at process start, before DataStore has
+             * been read, so the only language available there is the device's.
+             * Once the member's own preference resolves, re-registering updates
+             * each channel's name and description in place — Android keys on the
+             * id, and an importance the member has since changed stays theirs.
+             *
+             * Keyed on the locale so this is one call per language change rather
+             * than one per recomposition.
+             */
+            LaunchedEffect(appLocale) {
+                com.loonext.android.push.ensureChannels(this@MainActivity, appLocale)
+            }
             LoonextTheme(darkTheme = darkTheme) {
                 CompositionLocalProvider(
                     LocalWindowSizeClass provides windowSizeClass,

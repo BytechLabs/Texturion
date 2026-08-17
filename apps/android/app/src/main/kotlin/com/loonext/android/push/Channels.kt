@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.UiLocale
 
 /**
  * Notification channel ids. Kept in their own pure object so payload parsing
@@ -69,47 +71,66 @@ object ChannelIds {
  * with a vibration; incoming calls are high-importance with the device ringtone
  * and a vibration pattern (the 30s push-to-wake ring, #135).
  */
-fun ensureChannels(context: Context) {
+fun ensureChannels(context: Context, locale: String? = null) {
     val manager = context.getSystemService(NotificationManager::class.java) ?: return
+
+    /*
+     * #228 — the reader's language, with a default that is right rather than
+     * merely convenient.
+     *
+     * These strings are rendered by SYSTEM SETTINGS, not by us, so the honest
+     * fallback when nobody has told us the app's language is the DEVICE's.
+     * A caller that knows better — the Activity, which has resolved the app
+     * locale from the member's own setting — passes it and wins.
+     *
+     * Android updates a channel's name and description in place when the same
+     * id is registered again, so switching language and re-running this is
+     * enough; the importance a member has since changed is theirs and is not
+     * touched. That is why [MainActivity] calls this again once the locale
+     * resolves rather than only at process start, where the preference has not
+     * been read yet.
+     */
+    val reader = locale ?: UiLocale.normalizeDevice(UiLocale.deviceTag())
+    fun say(key: String): String = AppStrings.translate(reader, key)
 
     val messages = NotificationChannel(
         ChannelIds.MESSAGES,
-        "Messages",
+        say("push.channelMessagesName"),
         NotificationManager.IMPORTANCE_DEFAULT,
     ).apply {
-        description = "New texts from customers."
+        description = say("push.channelMessagesDesc")
     }
 
     val missedCalls = NotificationChannel(
         ChannelIds.MISSED_CALLS,
-        "Missed calls",
+        say("push.channelMissedCallsName"),
         NotificationManager.IMPORTANCE_DEFAULT,
     ).apply {
-        description = "Calls to your business number that nobody picked up."
+        description = say("push.channelMissedCallsDesc")
     }
 
     val taskReminders = NotificationChannel(
         ChannelIds.TASK_REMINDERS,
-        "Task reminders",
+        say("push.channelTaskRemindersName"),
         NotificationManager.IMPORTANCE_DEFAULT,
     ).apply {
-        description = "Jobs you are assigned, shortly before they are due."
+        description = say("push.channelTaskRemindersDesc")
     }
 
     val assignments = NotificationChannel(
         ChannelIds.ASSIGNMENTS,
-        "Assigned to you",
+        say("push.channelAssignmentsName"),
         NotificationManager.IMPORTANCE_DEFAULT,
     ).apply {
-        description = "Conversations and jobs a teammate puts on your name."
+        description = say("push.channelAssignmentsDesc")
     }
 
     val emergency = NotificationChannel(
         ChannelIds.EMERGENCY,
-        "Urgent texts",
+        say("push.channelUrgentName"),
         NotificationManager.IMPORTANCE_HIGH,
     ).apply {
-        description = "A customer said their job is urgent."
+        description = say("push.channelUrgentDesc")
         // HIGH alone heads-up and sounds; the vibration is what reaches a phone
         // in a pocket on a job site. Shorter and plainer than the ring pattern —
         // this is an alert to read, not a call to answer.
@@ -119,18 +140,18 @@ fun ensureChannels(context: Context) {
 
     val payments = NotificationChannel(
         ChannelIds.PAYMENTS,
-        "Payments",
+        say("push.channelPaymentsName"),
         NotificationManager.IMPORTANCE_DEFAULT,
     ).apply {
-        description = "Money paid, refunded, or pulled back on a job."
+        description = say("push.channelPaymentsDesc")
     }
 
     val incomingCalls = NotificationChannel(
         ChannelIds.INCOMING_CALLS,
-        "Incoming calls",
+        say("push.channelIncomingCallsName"),
         NotificationManager.IMPORTANCE_HIGH,
     ).apply {
-        description = "Ringing calls to your business number."
+        description = say("push.channelIncomingCallsDesc")
         setSound(
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
             AudioAttributes.Builder()

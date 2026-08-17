@@ -30,6 +30,37 @@ package com.loonext.android.core.i18n
  */
 object ShellStrings : AppStrings.Section {
     override val en = mapOf(
+        // #228 — the notification channels. These are the app's only copy
+        // that another app renders: Android shows them in system Settings →
+        // Notifications, which is where somebody goes to turn one off.
+        "push.channelMessagesName" to
+            "Messages",
+        "push.channelMessagesDesc" to
+            "New texts from customers.",
+        "push.channelMissedCallsName" to
+            "Missed calls",
+        "push.channelMissedCallsDesc" to
+            "Calls to your business number that nobody picked up.",
+        "push.channelTaskRemindersName" to
+            "Task reminders",
+        "push.channelTaskRemindersDesc" to
+            "Jobs you are assigned, shortly before they are due.",
+        "push.channelAssignmentsName" to
+            "Assigned to you",
+        "push.channelAssignmentsDesc" to
+            "Conversations and jobs a teammate puts on your name.",
+        "push.channelUrgentName" to
+            "Urgent texts",
+        "push.channelUrgentDesc" to
+            "A customer said their job is urgent.",
+        "push.channelPaymentsName" to
+            "Payments",
+        "push.channelPaymentsDesc" to
+            "Money paid, refunded, or pulled back on a job.",
+        "push.channelIncomingCallsName" to
+            "Incoming calls",
+        "push.channelIncomingCallsDesc" to
+            "Ringing calls to your business number.",
         // ── The nav pill, and what a screen reader calls it ───────────────────
         "shell.navForYou" to "For you",
         "shell.navInbox" to "Inbox",
@@ -285,6 +316,37 @@ object ShellStrings : AppStrings.Section {
     )
 
     override val frCA = mapOf(
+        // #228 — the notification channels. These are the app's only copy
+        // that another app renders: Android shows them in system Settings →
+        // Notifications, which is where somebody goes to turn one off.
+        "push.channelMessagesName" to
+            "Messages",
+        "push.channelMessagesDesc" to
+            "Nouveaux textos de vos clients.",
+        "push.channelMissedCallsName" to
+            "Appels manqués",
+        "push.channelMissedCallsDesc" to
+            "Appels à votre numéro d'affaires que personne n'a pris.",
+        "push.channelTaskRemindersName" to
+            "Rappels de tâches",
+        "push.channelTaskRemindersDesc" to
+            "Les travaux qui vous sont assignés, peu avant l'heure prévue.",
+        "push.channelAssignmentsName" to
+            "Assigné à vous",
+        "push.channelAssignmentsDesc" to
+            "Les conversations et les travaux qu'un collègue met à votre nom.",
+        "push.channelUrgentName" to
+            "Textos urgents",
+        "push.channelUrgentDesc" to
+            "Un client a indiqué que son travail est urgent.",
+        "push.channelPaymentsName" to
+            "Paiements",
+        "push.channelPaymentsDesc" to
+            "Argent payé, remboursé ou repris sur un travail.",
+        "push.channelIncomingCallsName" to
+            "Appels entrants",
+        "push.channelIncomingCallsDesc" to
+            "Appels en sonnerie vers votre numéro d'affaires.",
         "shell.navForYou" to "Pour vous",
         "shell.navInbox" to "Boîte de réception",
         "shell.navCalls" to "Appels",
