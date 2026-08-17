@@ -270,4 +270,158 @@ begin
   end if;
 end $$;
 
+-- ===========================================================================
+-- PS-8. #287 — a SENT quote counts as quoted, and an accepted one as won,
+-- with no pipeline tag anywhere near it.
+--
+-- The report was built on tags alone. The product now has a real quote object,
+-- so a crew that sends prices through the product and never touches a tag was
+-- invisible to the only business metric this product shows an owner.
+-- ===========================================================================
+do $$
+declare
+  v_company uuid := (select company_id from pipeline_fixture);
+  v_contact uuid;
+  v_conv    uuid;
+  v_report  jsonb;
+begin
+  insert into public.contacts (company_id, phone_e164)
+  values (v_company, '+14155550301')
+  returning id into v_contact;
+
+  insert into public.conversations
+    (company_id, contact_id, phone_number_id, status)
+  values (v_company, v_contact,
+          '51000000-0000-4000-8000-0000000000f1'::uuid, 'open')
+  returning id into v_conv;
+
+  insert into public.quotes
+    (company_id, conversation_id, contact_id, amount_cents, currency,
+     description, status, expires_at, sent_at, decided_at)
+  values (v_company, v_conv, v_contact, 45000, 'usd', 'New heater',
+          'accepted', now() + interval '7 days',
+          now() - interval '5 days', now() - interval '1 day');
+
+  v_report := public.api_pipeline_report(
+    v_company, now() - interval '30 days', now());
+
+  if (v_report->>'quoted')::int < 1 then
+    raise exception 'PS-8: a sent quote did not count as quoted (%)',
+      v_report->>'quoted';
+  end if;
+  if (v_report->>'won')::int < 1 then
+    raise exception 'PS-8: an accepted quote did not count as won (%)',
+      v_report->>'won';
+  end if;
+
+  raise notice 'PS-8 PASSED: a quote counts without a tag';
+end $$;
+
+-- ===========================================================================
+-- PS-9. #287 — a job that was BOTH tagged and formally quoted is ONE job.
+--
+-- The whole risk of adding a second signal: double counting turns a 50% win
+-- rate into a 50% win rate over twice the jobs, which reads as a busier
+-- business than exists and is the kind of number an owner repeats to somebody.
+-- ===========================================================================
+do $$
+declare
+  v_company uuid := (select company_id from pipeline_fixture);
+  v_contact uuid;
+  v_conv    uuid;
+  v_qtag    uuid;
+  v_won     uuid;
+  v_before  int;
+  v_after   int;
+  v_report  jsonb;
+begin
+  select id into v_qtag from public.tags
+   where company_id = v_company and pipeline_stage = 'quote_sent' limit 1;
+  select id into v_won from public.tags
+   where company_id = v_company and pipeline_stage = 'won' limit 1;
+
+  v_report := public.api_pipeline_report(
+    v_company, now() - interval '30 days', now());
+  v_before := (v_report->>'quoted')::int;
+
+  insert into public.contacts (company_id, phone_e164)
+  values (v_company, '+14155550302')
+  returning id into v_contact;
+
+  insert into public.conversations
+    (company_id, contact_id, phone_number_id, status)
+  values (v_company, v_contact,
+          '51000000-0000-4000-8000-0000000000f1'::uuid, 'open')
+  returning id into v_conv;
+
+  -- Tagged on Monday, formally quoted on Thursday. Both signals, one job.
+  insert into public.conversation_tags (conversation_id, tag_id, created_at)
+  values (v_conv, v_qtag, now() - interval '8 days'),
+         (v_conv, v_won,  now() - interval '2 days');
+
+  insert into public.quotes
+    (company_id, conversation_id, contact_id, amount_cents, currency,
+     description, status, expires_at, sent_at, decided_at)
+  values (v_company, v_conv, v_contact, 22000, 'usd', 'Same job',
+          'accepted', now() + interval '7 days',
+          now() - interval '5 days', now() - interval '2 days');
+
+  v_report := public.api_pipeline_report(
+    v_company, now() - interval '30 days', now());
+  v_after := (v_report->>'quoted')::int;
+
+  if v_after is distinct from v_before + 1 then
+    raise exception
+      'PS-9: one job counted % times (% -> %)', v_after - v_before,
+      v_before, v_after;
+  end if;
+
+  raise notice 'PS-9 PASSED: tagged and quoted is one job, not two';
+end $$;
+
+-- ===========================================================================
+-- PS-10. #287 — a DRAFT quote is not a quote anybody was asked to answer.
+--
+-- Counting it would put unsent prices in the denominator of a win rate, which
+-- makes a crew that drafts carefully look worse than one that does not.
+-- ===========================================================================
+do $$
+declare
+  v_company uuid := (select company_id from pipeline_fixture);
+  v_contact uuid;
+  v_conv    uuid;
+  v_before  int;
+  v_report  jsonb;
+begin
+  v_report := public.api_pipeline_report(
+    v_company, now() - interval '30 days', now());
+  v_before := (v_report->>'quoted')::int;
+
+  insert into public.contacts (company_id, phone_e164)
+  values (v_company, '+14155550303')
+  returning id into v_contact;
+
+  insert into public.conversations
+    (company_id, contact_id, phone_number_id, status)
+  values (v_company, v_contact,
+          '51000000-0000-4000-8000-0000000000f1'::uuid, 'open')
+  returning id into v_conv;
+
+  insert into public.quotes
+    (company_id, conversation_id, contact_id, amount_cents, currency,
+     description, status, expires_at)
+  values (v_company, v_conv, v_contact, 99000, 'usd', 'Never sent',
+          'draft', now() + interval '7 days');
+
+  v_report := public.api_pipeline_report(
+    v_company, now() - interval '30 days', now());
+
+  if (v_report->>'quoted')::int is distinct from v_before then
+    raise exception 'PS-10: a draft was counted as quoted (% -> %)',
+      v_before, v_report->>'quoted';
+  end if;
+
+  raise notice 'PS-10 PASSED: a draft is not an offer';
+end $$;
+
 rollback;
