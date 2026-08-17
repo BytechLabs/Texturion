@@ -352,3 +352,69 @@ describe("deliverWebhookBatch", () => {
     });
   });
 });
+
+/**
+ * #581 — pausing an endpoint stops deliveries that are already queued.
+ *
+ * Enqueue has always filtered on `active`, so nothing NEW queues after the
+ * switch. What kept flowing was everything already in flight: the retry ladder
+ * runs 30s, 2m, 10m, 1h, 6h, so up to about seven hours of a workspace's events
+ * stayed deliverable to an endpoint its owner had just turned off — and were
+ * delivered in full the moment that endpoint answered 2xx.
+ *
+ * What makes it a defect rather than a nicety is that the product says
+ * otherwise. The settings screen tells the customer, after the platform's own
+ * auto-disable fires, "we stopped sending to it. Everything since then has been
+ * missed." That was false: the events were not missed, they were pending.
+ *
+ * The near-miss in this file is worth naming. There was already a case for an
+ * endpoint DELETED between enqueue and dispatch — so endpoint state at dispatch
+ * time had been considered, and only one of the two states was covered.
+ */
+describe("#581 a paused endpoint receives nothing further", () => {
+  it("fails a queued delivery whose endpoint was paused after it was enqueued", async () => {
+    const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [claimed()]);
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
+      endpointRow({ active: false }),
+    ]);
+    const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
+    let posted = 0;
+    const receiver = stubRoute((url) => {
+      if (url.origin === "https://hooks.example.com") posted += 1;
+      return url.origin === "https://hooks.example.com";
+    }, () => new Response("", { status: 200 }));
+    stubFetch(claim.route, endpoints.route, update.route, receiver.route);
+
+    const result = await deliverWebhookBatch(getDb(env));
+
+    // THE ASSERTION. Nothing reached the endpoint the owner turned off.
+    expect(posted).toBe(0);
+    expect(result).toMatchObject({ delivered: 0, failed: 1 });
+    // Terminal, not deferred: a paused endpoint has no scheduled return, so
+    // holding the row would mean holding a workspace's events indefinitely.
+    expect(update.calls[0]?.body).toMatchObject({
+      status: "failed",
+      last_error: "endpoint paused",
+    });
+  });
+
+  it("still delivers to an endpoint that is active", async () => {
+    // The other half — a check that stops everything is an outage.
+    const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [claimed()]);
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
+      endpointRow({ active: true }),
+    ]);
+    const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
+    let posted = 0;
+    const receiver = stubRoute((url) => {
+      if (url.origin === "https://hooks.example.com") posted += 1;
+      return url.origin === "https://hooks.example.com";
+    }, () => new Response("", { status: 200 }));
+    stubFetch(claim.route, endpoints.route, update.route, receiver.route);
+
+    const result = await deliverWebhookBatch(getDb(env));
+
+    expect(posted).toBe(1);
+    expect(result).toMatchObject({ delivered: 1 });
+  });
+});

@@ -16,6 +16,7 @@ import {
   normaliseVisitorNumber,
   WIDGET_CODES_PER_NUMBER_PER_DAY,
   WIDGET_CODE_TTL_SECONDS,
+  widgetMayDiscloseGateError,
 } from "./widget";
 
 vi.mock("@sentry/cloudflare", () => ({
@@ -184,5 +185,48 @@ describe("what the two endpoints refuse to tell a caller", () => {
     expect(calls).toHaveLength(2);
     // And neither half went back to querying numbers for itself.
     expect(source).not.toContain('.from("phone_numbers")');
+  });
+});
+
+/**
+ * #581 — what a stranger is allowed to learn about the business.
+ *
+ * The widget is reachable by anyone who can read an embed key out of a public
+ * web page, and its send gates throw ApiErrors that the global error handler
+ * renders verbatim. So every gate refusal was a machine-readable answer to a
+ * question nobody should be able to ask a plumber's own website: are you
+ * suspended for abuse, are you behind on your bill, are you still waiting on
+ * carrier approval.
+ *
+ * Free and invisible, too — the gates run BEFORE the budget claim, so probing
+ * cost nothing and left no row to notice it by.
+ */
+describe("#581 which refusals a stranger may be told", () => {
+  it("tells somebody who opted out, because only they can undo it", () => {
+    // The one the carrier rules require, and the reason this route did not
+    // flatten its errors in the first place. That argument was right about
+    // this code and got applied to every other one by accident.
+    expect(widgetMayDiscloseGateError("recipient_opted_out")).toBe(true);
+  });
+
+  it("tells a stranger nothing about the workspace's own standing", () => {
+    // Each of these is a fact about the BUSINESS, not about the visitor.
+    for (const code of [
+      "sending_suspended",
+      "workspace_paused",
+      "registration_pending",
+      "rate_limited",
+      "service_unavailable",
+      "validation_failed",
+    ]) {
+      expect(widgetMayDiscloseGateError(code)).toBe(false);
+    }
+  });
+
+  it("refuses a code it has never heard of", () => {
+    // The default matters more than the list. A gate added later must be
+    // silent until somebody decides otherwise — the failure this whole finding
+    // came from was a new code inheriting an old decision.
+    expect(widgetMayDiscloseGateError("some_gate_added_next_year")).toBe(false);
   });
 });

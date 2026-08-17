@@ -34,6 +34,8 @@ type ClaimedDelivery = {
 };
 
 type EndpointRow = {
+  /** #581: false = paused by the owner, or auto-disabled after repeated failures. */
+  active?: boolean;
   id: string;
   url: string;
   secret: string;
@@ -143,7 +145,11 @@ export async function deliverWebhookBatch(
   const endpointIds = [...new Set(deliveries.map((d) => d.endpoint_id))];
   const { data: endpointRows } = await db
     .from("webhook_endpoints")
-    .select("id, url, secret, consecutive_failures")
+    // #581: `active` is selected because pausing has to stop deliveries that
+    // are ALREADY queued, not just new ones. Enqueue filters on it
+    // (outbound.ts) and dispatch did not, so the switch only ever closed one
+    // of the two doors.
+    .select("id, url, secret, consecutive_failures, active")
     .in("id", endpointIds);
   const endpoints = new Map<string, EndpointRow>(
     ((endpointRows ?? []) as EndpointRow[]).map((row) => [row.id, row]),
@@ -163,6 +169,38 @@ export async function deliverWebhookBatch(
       await db
         .from("webhook_deliveries")
         .update({ status: "failed", last_error: "endpoint removed" })
+        .eq("id", delivery.id);
+      failed += 1;
+      continue;
+    }
+
+    /*
+     * #581 — PAUSED counts the same as deleted, from here on.
+     *
+     * Enqueue has always filtered on `active`, so nothing NEW queues after the
+     * switch. What kept flowing was everything already in flight: the retry
+     * ladder runs 30s, 2m, 10m, 1h, 6h, so up to about seven hours of a
+     * workspace's events stayed deliverable to an endpoint its owner had just
+     * turned off — and were delivered in full the moment that endpoint
+     * answered 2xx.
+     *
+     * The reason this is a defect rather than a nicety is that we TELL the
+     * customer otherwise. The settings screen says, after the platform's own
+     * auto-disable fires, "we stopped sending to it. Everything since then has
+     * been missed." That sentence was false: the events were not missed, they
+     * were pending. And the auto-disable is the containment control for an
+     * endpoint that has already misbehaved, so leaving its queue live made the
+     * guard decorative against the one endpoint it exists to contain.
+     *
+     * Terminal rather than deferred. A paused endpoint has no scheduled return
+     * — only a person can re-enable it — so holding the row would mean holding
+     * a workspace's events indefinitely, which is the opposite of what the
+     * pause was for.
+     */
+    if (endpoint.active === false) {
+      await db
+        .from("webhook_deliveries")
+        .update({ status: "failed", last_error: "endpoint paused" })
         .eq("id", delivery.id);
       failed += 1;
       continue;

@@ -43,7 +43,7 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
-import { errorResponse } from "../http/errors";
+import { ApiError, errorResponse } from "../http/errors";
 import { verifyTurnstile } from "../http/turnstile";
 import { maybeSendAwayReply } from "../messaging/away-reply";
 import { runPreSendGates, sendSystemText } from "../messaging/send";
@@ -151,6 +151,26 @@ export async function hashWidgetCode(id: string, code: string): Promise<string> 
 }
 
 /** What the visitor is told, whatever went wrong. */
+/**
+ * #581 — which send-gate refusals a STRANGER may be told.
+ *
+ * Exactly one. `recipient_opted_out` is the honest answer and the one the
+ * carrier rules require: somebody who sent STOP and later types their number
+ * into a form is owed the reason, and only they can lift it.
+ *
+ * Everything else is a fact about the BUSINESS — suspended for abuse, behind
+ * on the bill, still waiting on carrier approval, rate limited. This endpoint
+ * is reachable by anyone who can read an embed key out of a public web page,
+ * so passing those through let a stranger ask a plumber's own website whether
+ * that plumber is in trouble, and get a machine-readable answer for free.
+ *
+ * A NAMED PREDICATE rather than an inline condition, because it is a security
+ * policy: it belongs somewhere a test can point at it, and somewhere the next
+ * person adding a gate has to decide about.
+ */
+export function widgetMayDiscloseGateError(code: string): boolean {
+  return code === "recipient_opted_out";
+}
 function widgetUnavailable(c: Context<AppEnv>) {
   return errorResponse(
     c,
@@ -248,11 +268,45 @@ widgetRoutes.post("/widget/start", async (c) => {
   if (line === null) return widgetUnavailable(c);
   const from = line.number_e164;
 
-  // 4. THE SEND GATES, including opt-out. Throws an ApiError the error
-  // middleware renders; a refusal here is deliberately NOT flattened into the
-  // generic answer, because an opted-out number being told "we cannot text you"
-  // is the honest outcome and the one the carrier rules require.
-  const clearance = await runPreSendGates(env, companyId, phone);
+  let clearance: Awaited<ReturnType<typeof runPreSendGates>>;
+  /*
+   * 4. THE SEND GATES, including opt-out.
+   *
+   * ONE refusal is passed through and the rest are flattened, and the split
+   * is the whole point.
+   *
+   * `recipient_opted_out` is told plainly, because that is the honest answer
+   * and the one the carrier rules require: a person who sent STOP and then
+   * types their number into a form is owed the reason we will not text them,
+   * and only they can lift it. That was always the argument for not
+   * flattening here.
+   *
+   * #581: it was the argument for ONE code, and every other one rode along.
+   * `sending_suspended`, `workspace_paused`, `registration_pending`,
+   * `rate_limited` and `service_unavailable` are all facts about the
+   * BUSINESS, and this endpoint is reachable by anyone who can read an embed
+   * key out of a public web page. That let a stranger — a competitor, or
+   * anyone at all — ask a plumber's own website whether that plumber is
+   * suspended for abuse, behind on their bill, or still waiting on carrier
+   * approval, and get a machine-readable answer.
+   *
+   * Free, and invisible: the throw happens before the budget claim below, so
+   * probing costs nothing and leaves no row.
+   */
+  try {
+    clearance = await runPreSendGates(env, companyId, phone);
+  } catch (cause) {
+    if (cause instanceof ApiError && widgetMayDiscloseGateError(cause.code)) {
+      throw cause;
+    }
+    /*
+     * Everything else becomes the same sentence a resolver failure gives, so
+     * a stranger cannot tell a suspended workspace from a paused one from a
+     * workspace that simply has no active number. The owner still learns the
+     * real reason — from their own screens, where they are authenticated.
+     */
+    return widgetUnavailable(c);
+  }
 
   // 5. THE BUDGETS. Nothing above this line has cost anything.
   const id = crypto.randomUUID();
