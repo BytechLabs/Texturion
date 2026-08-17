@@ -292,3 +292,127 @@ describe("POST /v1/quotes", () => {
     expect(sb.find("POST", "/rest/v1/quotes")).toHaveLength(0);
   });
 });
+
+/**
+ * #581 finding 2 / #106 — a member denied a phone line cannot read or send
+ * quotes on it.
+ *
+ * ## What was missing
+ *
+ * All four quote routes had zero number-access enforcement. A member with a
+ * rule at level `none` on a line could:
+ *
+ *   1. `GET /v1/quotes` and receive up to 500 rows for the WHOLE workspace —
+ *      the amounts, the free-text scope, and the conversation ids for threads
+ *      their own inbox refuses to show them;
+ *   2. use a conversation id from step 1 to draft a quote on that thread;
+ *   3. `POST /v1/quotes/:id/send` and put an SMS on the carrier FROM the line
+ *      they are denied.
+ *
+ * `POST /v1/messages` on the same thread answers 404, because `send-text.ts`
+ * calls `assertNumberLevel(need: "text")`. The quote send entered one rung
+ * lower, at `gateOutboundSend`, so that check was simply not on the path.
+ * `payments.ts:363` asks for it on the identical act.
+ *
+ * ## Why the existing suite could not catch it
+ *
+ * Every case above runs as `owner`, and owners short-circuit access resolution
+ * before any rule is read. A feature can therefore have no enforcement at all
+ * and a full green suite, which is what happened here.
+ */
+describe("#106 quotes respect the caller's number access", () => {
+  const DENIED_NUMBER = "99999999-8888-4777-8666-555555555555";
+
+  /** A member with a rule denying them one line. */
+  function restricted(): SupabaseStub {
+    const sb = stubWithRole("member");
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: DENIED_NUMBER, level: "none" },
+    ]);
+    return sb;
+  }
+
+  it("filters the list through the caller's deny list", async () => {
+    const sb = restricted();
+    sb.on("GET", "/rest/v1/quotes", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/quotes", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+
+    // The filter is asserted on the QUERY, because a stub can only return what
+    // it is asked for — checking the response would prove the stub, not the
+    // route.
+    const call = sb.find("GET", "/rest/v1/quotes")[0];
+    const query = call.url.searchParams.toString();
+    expect(query).toContain("conversations");
+    expect(query).toContain(DENIED_NUMBER);
+  });
+
+  it("refuses to read a quote on a line the member is denied", async () => {
+    const sb = restricted();
+    sb.on("GET", "/rest/v1/quotes", () => [row()]);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { id: CONVERSATION_ID, phone_number_id: DENIED_NUMBER },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/quotes/${QUOTE_ID}`,
+      { companyId: COMPANY_ID },
+    );
+
+    // "No such conversation", not "forbidden": a denied member must not learn
+    // that the quote exists.
+    expect(res.status).toBe(404);
+  });
+
+  it("refuses to send a quote from a line the member is denied", async () => {
+    // THE ONE THAT REACHES A CUSTOMER. Everything above is disclosure; this
+    // puts a text on the carrier from a number the member holds no right to.
+    const sb = restricted();
+    sb.on("GET", "/rest/v1/quotes", () => [row({ status: "draft" })]);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { id: CONVERSATION_ID, phone_number_id: DENIED_NUMBER },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/quotes/${QUOTE_ID}/send`,
+      { companyId: COMPANY_ID, method: "POST" },
+    );
+
+    expect(res.status).toBe(404);
+    // And nothing was written on the way to refusing.
+    expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
+  });
+
+  it("still lets an unrestricted member through", async () => {
+    // The other half: a check that refuses everybody is not a check, it is an
+    // outage.
+    const sb = stubWithRole("member");
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
+    sb.on("GET", "/rest/v1/quotes", () => [row()]);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { id: CONVERSATION_ID, phone_number_id: DENIED_NUMBER },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/quotes/${QUOTE_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+  });
+});

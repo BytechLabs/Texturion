@@ -16,6 +16,10 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import type { AppEnv } from "../context";
 import { requireCapability } from "../auth/company";
+import {
+  requireConversationAccess,
+  resolveNumberAccess,
+} from "../auth/number-access";
 import { errorResponse } from "../http/errors";
 import { mintPublicLink } from "../public-links/tokens";
 import { dispatchOutbound, gateOutboundSend, runPreSendGates } from "../messaging/send";
@@ -158,11 +162,38 @@ quotesRoutes.get("/quotes", requireCapability("conversations.read"), async (c) =
    */
   const conversationId = c.req.query("conversation_id");
 
+  /*
+   * #106 — a member denied a phone line must not read the quotes on it.
+   *
+   * A quote carries the amount, the free-text scope and the conversation id of
+   * work on a line this member's inbox already refuses to show them. Without
+   * this the list handed over the whole workspace's prices, and — worse — the
+   * conversation ids needed to then send a quote FROM the denied line.
+   *
+   * Filtered through `conversations`, because a quote has no phone_number_id
+   * of its own; the thread it belongs to has one. The #368 roster only knows
+   * about RPCs taking `p_hidden_number_ids`, which is why a plain `.from()`
+   * read like this one was invisible to it.
+   */
+  const access = await resolveNumberAccess(db, {
+    companyId: c.get("companyId"),
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
+
   let query = db
     .from("quotes")
-    .select(QUOTE_COLUMNS)
+    .select(`${QUOTE_COLUMNS},conversations!inner(phone_number_id)`)
     .eq("company_id", c.get("companyId"));
   if (conversationId) query = query.eq("conversation_id", conversationId);
+  if (access.hiddenNumberIds !== null && access.hiddenNumberIds.length > 0) {
+    // A thread with no number is not on a denied one, so it stays visible —
+    // the same rule `levelFor` applies, kept in step by construction.
+    query = query.or(
+      `phone_number_id.is.null,phone_number_id.not.in.(${access.hiddenNumberIds.join(",")})`,
+      { referencedTable: "conversations" },
+    );
+  }
 
   const rows = unwrap<QuoteRow[]>(
     await query
@@ -198,6 +229,21 @@ quotesRoutes.get("/quotes/:id", requireCapability("conversations.read"), async (
       .limit(1),
     "quote read",
   );
+  /*
+   * #106 — checked AFTER the row is found, because the check needs the
+   * conversation the quote hangs off. Both failures answer "No such
+   * conversation", so a denied member cannot tell a quote they may not see
+   * from one that does not exist.
+   */
+  if (rows[0]) {
+    await requireConversationAccess(db, {
+      companyId: c.get("companyId"),
+      userId: c.get("userId"),
+      role: c.get("role"),
+      conversationId: String(rows[0].conversation_id),
+      need: "read",
+    });
+  }
   const row = rows[0];
   if (!row) return errorResponse(c, "not_found", "no such quote");
   return c.json(withEffectiveStatus(row, new Date()));
@@ -244,6 +290,19 @@ quotesRoutes.post("/quotes", requireCapability("conversations.send"), async (c) 
   if (!conversation) {
     return errorResponse(c, "not_found", "no such conversation");
   }
+  /*
+   * #106 — a quote is a draft of a text, so drafting one on a thread this
+   * member cannot see is the first half of sending from a line they are
+   * denied. 'read' rather than 'text': the draft itself reaches nobody, and
+   * the send below asks for the level that does.
+   */
+  await requireConversationAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+    conversationId: conversation.id,
+    need: "read",
+  });
   if (!conversation.contact_id) {
     // A thread with no contact has nobody to quote. Rare, and refused here
     // rather than written as a row with a dangling reference.
@@ -317,6 +376,21 @@ quotesRoutes.post(
       "quote send lookup",
     )[0];
     if (!row) return errorResponse(c, "not_found", "no such quote");
+    /*
+     * #106 — this puts a text on the carrier from the conversation's number,
+     * so it needs the same 'text' level any other send does. payments.ts:363
+     * has asked for it on the identical act since it shipped; entering one rung
+     * lower at gateOutboundSend meant this path skipped it entirely, and a
+     * note-only member — the preset documented as 'no outbound texts' — could
+     * send from a line they hold no text right on.
+     */
+    await requireConversationAccess(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      conversationId: String(row.conversation_id),
+      need: "text",
+    });
 
     // The transition is ASKED, not assumed. Sending an accepted quote would
     // reopen a settled price; sending an expired one would offer a price the
