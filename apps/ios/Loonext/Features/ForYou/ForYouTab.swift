@@ -964,7 +964,7 @@ private struct ForYouList: View {
                                                 "amount": quote.amountLabel,
                                                 "description": quote.description,
                                             ]
-                                        ).prefix(chaseNoteMax)
+                                        ).prefix(SnoozeTiming.noteMax)
                                     )
                                 )
                             },
@@ -1047,11 +1047,6 @@ private struct ForYouList: View {
 /// One recent call: direction/outcome glyph, contact-or-number, relative
 /// time. Amber only for the actionable inbound miss (calm system); tappable
 /// into the conversation only when one exists.
-/// The API caps a deferral note at 120 characters. Every client truncates to
-/// the same figure — a note built from a long description would otherwise 422
-/// on whichever client forgot, which reads to the crew as "chasing is broken".
-private let chaseNoteMax = 120
-
 /// One unanswered quote: what it is worth, what it is for, and how long it has
 /// been waiting.
 ///

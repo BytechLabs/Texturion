@@ -26,19 +26,34 @@
  * that always fails.
  */
 
+import {
+  ANDROID_APP_LINK_PATHS,
+  APPLE_APP_LINK_COMPONENTS,
+} from "@loonext/shared";
+
 /** The package the Android statements are about. Matches `applicationId`. */
 export const ANDROID_PACKAGE = "com.loonext.android";
 
 /**
  * WebAuthn's relation. A passkey created by the app works on this site and vice
  * versa, which is the whole point: one second factor, not one per client.
- *
- * This relation ONLY. `common.handle_all_urls` would be a claim that the app
- * handles links for this domain — a different feature that does not exist. Asset
- * links are read by more than one subsystem and each relation grants something
- * real.
  */
 export const LOGIN_CREDS_RELATION = "delegate_permission/common.get_login_creds";
+
+/**
+ * #613 — Android App Links. What lets Play services verify that this domain
+ * agrees the app may handle its https links.
+ *
+ * A SECOND relation on the same statement rather than a second statement, which
+ * is how Google's own tooling reads it: one target, every relation it is
+ * trusted for.
+ *
+ * This authorises the app to be a VERIFIED handler; it does not decide WHICH
+ * paths it handles. That scoping lives in the manifest's intent filter, from the
+ * same shared list Apple's components are built from — see
+ * packages/shared/src/app-links.ts for why the list is narrow.
+ */
+export const HANDLE_URLS_RELATION = "delegate_permission/common.handle_all_urls";
 
 export interface AssetLinkStatement {
   relation: string[];
@@ -86,7 +101,7 @@ export function assetLinks(
   if (fingerprints.length === 0) return [];
   return [
     {
-      relation: [LOGIN_CREDS_RELATION],
+      relation: [LOGIN_CREDS_RELATION, HANDLE_URLS_RELATION],
       target: {
         namespace: "android_app",
         package_name: ANDROID_PACKAGE,
@@ -114,14 +129,59 @@ export function appleAppIds(env: Record<string, string | undefined>): string[] {
     .filter(isAppleAppId);
 }
 
+export interface AppleAppSiteAssociation {
+  applinks: {
+    details: { appIDs: string[]; components: { "/": string }[] }[];
+  };
+  webcredentials: { apps: string[] };
+}
+
 /**
  * The apple-app-site-association document.
  *
- * `webcredentials` only. `applinks` and `appclips` are separate features with
- * separate consequences, and this domain claims neither.
+ * TWO features from one file, and Apple fetches it once for both.
+ *
+ * `webcredentials` (#473) is what lets a passkey enrolled in the app be the
+ * same credential the web app sees. `applinks` (#613) is what makes a tap on
+ * an https link open the app — declared in the entitlement since the app was
+ * built, routed by `parsePushRoute` since then, and never once working, because
+ * nothing served this file at all. An unassociated domain is indistinguishable
+ * from an ordinary web link: no error, no warning, every tap quietly landing in
+ * Safari.
+ *
+ * `appclips` is a third feature this domain does not claim.
+ *
+ * ## Both halves stay inert without an app id
+ *
+ * `details` is omitted entirely rather than listed with an empty `appIDs`,
+ * because those are different claims: an empty details list says "no app handles
+ * these paths", and a detail naming no app is a malformed one Apple may or may
+ * not ignore. The narrow reading is the safe one.
  */
 export function appleAppSiteAssociation(
   env: Record<string, string | undefined>,
-): { webcredentials: { apps: string[] } } {
-  return { webcredentials: { apps: appleAppIds(env) } };
+): AppleAppSiteAssociation {
+  const apps = appleAppIds(env);
+  return {
+    applinks: {
+      details:
+        apps.length === 0
+          ? []
+          : [
+              {
+                appIDs: apps,
+                components: APPLE_APP_LINK_COMPONENTS.map((path) => ({
+                  "/": path,
+                })),
+              },
+            ],
+    },
+    webcredentials: { apps },
+  };
 }
+
+/**
+ * The manifest's intent-filter paths, re-exported so the Android guard and the
+ * Apple document are visibly reading one list.
+ */
+export { ANDROID_APP_LINK_PATHS };

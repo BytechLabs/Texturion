@@ -8,6 +8,7 @@ import {
   followUpPresets,
   formatMoney,
   roleHasCapability,
+  SNOOZE_NOTE_MAX,
 } from "@loonext/shared";
 
 import { useT } from "@/i18n/provider";
@@ -19,13 +20,6 @@ import { Section } from "@/components/for-you/section";
 
 /** #287: a morning's worth. The rest is the thread list's job. */
 const OUTSTANDING_QUOTES_LIMIT = 6;
-
-/**
- * The API caps a deferral note at 120 characters. Every client truncates to the
- * same figure — a note built from a long description would otherwise 422 on
- * whichever client forgot, which reads to the crew as "chasing is broken".
- */
-const NOTE_MAX = 120;
 
 /**
  * #287 — the quotes nobody has answered yet.
@@ -142,7 +136,7 @@ export function OutstandingQuotesSection() {
                       note: t("quotes.chaseNote", {
                         amount,
                         description: quote.description,
-                      }).slice(0, NOTE_MAX),
+                      }).slice(0, SNOOZE_NOTE_MAX),
                     },
                     {
                       // Put the button back on failure. A row that says

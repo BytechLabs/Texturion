@@ -74,6 +74,37 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="com.loonext.android" android:host="auth-callback" />
             </intent-filter>
+            <!-- #613: App Links. The app has had a deep-link router since it was
+                 built (deepLinkFor in MainActivity) and no https filter, so every
+                 tap on an app.loonext.com link opened Chrome — the feature was
+                 present, routed, and never switched on.
+
+                 autoVerify sends Play services to /.well-known/assetlinks.json,
+                 which must carry delegate_permission/common.handle_all_urls for
+                 this package or verification fails and the app becomes one more
+                 chooser entry instead of the handler.
+
+                 THE PATHS ARE NARROW ON PURPOSE. A claim is total: a path listed
+                 here never reaches the browser again on a device with this app
+                 installed. /q/<token> is the reason it matters — a customer's
+                 quote page, opened from a text, on a phone that may well have the
+                 crew app on it. This list is packages/shared/src/app-links.ts,
+                 which app-links.test.ts checks this file against.
+
+                 /calls is an exact path AND a prefix: pathPrefix="/calls" would
+                 also swallow /callsomething, and the bare form is a real
+                 destination (the ring-wake link carries ?call=). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="app.loonext.com" />
+                <data android:pathPrefix="/inbox/" />
+                <data android:pathPrefix="/conversations/" />
+                <data android:pathPrefix="/tasks/" />
+                <data android:path="/calls" />
+                <data android:pathPrefix="/calls/" />
+            </intent-filter>
             <!-- #183 part 3 (Connected Apps): tapping "Call with Loonext" /
                  "Text with Loonext" on a contact in the system Contacts app
                  fires a VIEW intent on the tapped data row (our custom MIME

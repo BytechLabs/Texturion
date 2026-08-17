@@ -8179,3 +8179,60 @@ consequences. See #613, which is that feature and its own decision.
 **Consistency:** D125 (a passkey is a second factor, never the password), #473,
 and the web card's existing `typeof window.PublicKeyCredential === "function"`
 gate, which this is the phone-shaped version of.
+
+## D136 — both apps claim the same four surfaces, and everything else stays with the browser (#613, 2026-08-17)
+
+**Decision.** The native apps handle `https://app.loonext.com` links for
+`/inbox/*`, `/conversations/*`, `/tasks/*` and `/calls` (bare and with a session
+id). Nothing else. Android matches iOS rather than staying absent: it gets an
+`autoVerify` intent filter and `delegate_permission/common.handle_all_urls`
+alongside the passkey relation. The list lives once, in
+`packages/shared/src/app-links.ts`, and is served in Apple's grammar and
+Android's from that one place.
+
+**What this fixes.** iOS declared `applinks:app.loonext.com` in its entitlement
+the day the app was built, and wrote a router for exactly those paths. Nothing
+ever served an apple-app-site-association file, so Apple never associated the
+domain and every tap opened Safari — for the whole life of the feature, with no
+error anywhere. An unassociated domain is indistinguishable from an ordinary web
+link. It was built, wired, and never switched on, and nothing would have said so.
+
+**Why the list is narrow.** A universal link is a total claim: a path listed
+here never reaches the browser again on a device with the app installed. The
+case that decides it is `/q/<token>` — a customer's quote page, opened from a
+text, on a phone that may well have the crew app on it because the homeowner's
+partner runs a trades business. Claiming `*` would hand that page to an app the
+customer cannot log into, with no error and no way back. So the rule is not "the
+app has a screen roughly about this": the router turns the URL into a specific
+object, or the path stays with the browser.
+
+**Why Android matches rather than staying absent.** Android was consistent
+before this — no filter, no claim, no broken behaviour — and consistency was the
+argument for leaving it. It does not survive the crew: two people on one job,
+one on an iPhone and one on a Pixel, tapping the same link out of the same
+thread and getting two different products. Android's router is strictly the more
+capable of the two, so the gap was never capability. It was that nobody had
+written the manifest.
+
+**Why `/settings/*` is excluded even though Android routes it.** Android
+resolves an unrecognised settings section to the hub rather than to nothing,
+which is right for a push we send ourselves and wrong for a link somebody
+followed: the web has settings pages the app has no screen for, and claiming the
+prefix answers a specific request with a general screen. iOS does not route
+settings at all, so claiming it would also split the two apps on the same link.
+
+**Why the paths are checked against the routers.** Three copies of one rule —
+the served document, `parsePushRoute` in Swift, `deepLinkFor` in Kotlin — and
+drift is silent both ways. Claimed-but-unrouted is worse than the original bug:
+the tap leaves the browser, enters the app, resolves to nothing, and strands the
+reader. Routed-but-unclaimed is the original bug. `app-links.test.ts` reads all
+three real files and asserts set equality in both directions.
+
+**Still inert until the stores issue identifiers.** Unchanged from D135, and it
+now gates two features rather than one: with no app id the `details` list is
+empty, which says "no app handles these paths" — as opposed to a detail naming
+no app, which is malformed and which Apple's fetcher would not report either.
+
+**Consistency:** D135 (the association files are configuration), #473, and
+`normalizeDeepLink`/`parsePushRoute`, which have understood these four surfaces
+since push notifications shipped.

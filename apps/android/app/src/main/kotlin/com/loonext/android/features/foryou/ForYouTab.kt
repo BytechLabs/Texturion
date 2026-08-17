@@ -48,6 +48,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.snooze.DeferralKind
+import com.loonext.android.core.snooze.SnoozeTiming
 import com.loonext.android.core.snooze.followUpPresets
 import com.loonext.android.features.settings.formatMoney
 import com.loonext.android.features.thread.MessagingRepository
@@ -941,7 +942,7 @@ private fun ForYouList(
                             "quotes.chaseNote",
                             "amount" to formatMoney(quote.amount_cents, quote.money),
                             "description" to quote.description,
-                        ).take(CHASE_NOTE_MAX)
+                        ).take(SnoozeTiming.NOTE_MAX)
                         OutstandingQuoteRow(
                             quote = quote,
                             onOpen = { onOpenConversation(quote.conversation_id) },
@@ -1013,13 +1014,6 @@ private fun QueueSection(
 
 /** #287: a morning's worth. The rest is the thread list's job. */
 private const val OUTSTANDING_QUOTES_LIMIT = 6
-
-/**
- * The API caps a deferral note at 120 characters. Every client truncates to the
- * same figure — a note built from a long description would otherwise 422 on
- * whichever client forgot, which reads to the crew as "chasing is broken".
- */
-private const val CHASE_NOTE_MAX = 120
 
 /**
  * One unanswered quote: what it is worth, what it is for, and how long it has

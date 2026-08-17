@@ -520,6 +520,17 @@ export type {
   RejectionMessageKey,
 } from "./rejection-guidance";
 
+// #613 — which https paths the native apps may take from the browser. Served
+// in two grammars and checked against both routers, because the claim is total:
+// a path an app cannot render is a tap with no error and no way back.
+export {
+  ANDROID_APP_LINK_PATHS,
+  APP_LINK_HOST,
+  APP_LINK_SEGMENTS,
+  APPLE_APP_LINK_COMPONENTS,
+} from "./app-links";
+export type { AppLinkSegment } from "./app-links";
+
 // #293 — when "later" is. One ladder of presets, resolved in the device's own
 // clock (#292), so a snooze set on a phone means the same instant as the same
 // tap on a laptop.
