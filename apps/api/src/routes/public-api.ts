@@ -164,28 +164,68 @@ publicApiRoutes.post(
     const db = getDb(getEnv(c.env));
     const companyId = c.get("companyId");
 
-    // Upsert on the same conflict target the first-party route uses, so an
-    // integration re-sending a customer it already sent does not create a
-    // second record. A connector replaying its own queue is the normal case,
-    // not the exception.
-    const rows = unwrap<Record<string, unknown>[]>(
+    const fields = {
+      ...(body.name !== undefined ? { name: body.name } : {}),
+      ...(body.email !== undefined ? { email: body.email } : {}),
+      ...(body.notes !== undefined ? { notes: body.notes } : {}),
+    };
+
+    /*
+     * #581 — re-sending an EXISTING contact is an update, not a create.
+     *
+     * This route reused the raw upsert shape without the branch its
+     * first-party twin carries (routes/contacts.ts), and a bare upsert here
+     * is `ON CONFLICT DO UPDATE` over every column in the payload — including
+     * `created_by_user_id`. So a connector replaying its own queue, which is
+     * the NORMAL case rather than the exception, silently rewrote "who first
+     * added this customer" to the key's creator on every pass, and never
+     * stamped `updated_by_user_id` at all.
+     *
+     * That is not cosmetic: contacts.ts projects `created_by_name` and
+     * `updated_by_name` from those columns, so the screen a person reads to
+     * answer "who brought this customer in" was being overwritten by a
+     * machine — and the answer it then gave was wrong in the direction that
+     * erases somebody's work.
+     *
+     * A soft-deleted or brand-new number still takes the upsert, with a fresh
+     * `created_by`: resurrecting a deleted contact IS a new addition.
+     */
+    const existing = unwrap<{ id: string; deleted_at: string | null }[]>(
       await db
         .from("contacts")
-        .upsert(
-          {
-            company_id: companyId,
-            phone_e164: body.phone_e164,
-            deleted_at: null,
-            created_by_user_id: c.get("userId"),
-            ...(body.name !== undefined ? { name: body.name } : {}),
-            ...(body.email !== undefined ? { email: body.email } : {}),
-            ...(body.notes !== undefined ? { notes: body.notes } : {}),
-          },
-          { onConflict: "company_id,phone_e164" },
-        )
-        .select(PUBLIC_CONTACT_COLUMNS),
-      "public contact upsert",
+        .select("id,deleted_at")
+        .eq("company_id", companyId)
+        .eq("phone_e164", body.phone_e164)
+        .limit(1),
+      "public contact lookup",
     );
+    const live = existing[0]?.deleted_at === null ? existing[0] : null;
+
+    const rows = live
+      ? unwrap<Record<string, unknown>[]>(
+          await db
+            .from("contacts")
+            .update({ ...fields, updated_by_user_id: c.get("userId") })
+            .eq("id", live.id)
+            .select(PUBLIC_CONTACT_COLUMNS),
+          "public contact update",
+        )
+      : unwrap<Record<string, unknown>[]>(
+          await db
+            .from("contacts")
+            .upsert(
+              {
+                company_id: companyId,
+                phone_e164: body.phone_e164,
+                deleted_at: null,
+                created_by_user_id: c.get("userId"),
+                ...fields,
+              },
+              { onConflict: "company_id,phone_e164" },
+            )
+            .select(PUBLIC_CONTACT_COLUMNS),
+          "public contact upsert",
+        );
     return c.json(rows[0], 201);
   },
 );

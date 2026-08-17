@@ -423,6 +423,8 @@ describe("sending", () => {
 describe("writes", () => {
   it("upserts a contact so a connector replaying its queue does not duplicate", async () => {
     const sb = stubWithKey(["contacts:write"]);
+    // #581: a brand-new number takes the insert arm, so the lookup answers empty.
+    sb.on("GET", "/rest/v1/contacts", () => []);
     sb.on("POST", "/rest/v1/contacts", () => [
       { id: "ct-1", phone_e164: "+14165550100" },
     ]);
@@ -845,5 +847,76 @@ describe("#581 a key cannot promote a message on a denied line", () => {
     });
 
     expect(res.status).not.toBe(404);
+  });
+});
+
+/**
+ * #581 — a connector replaying its queue does not rewrite who added a customer.
+ *
+ * The public route reused the raw upsert shape without the branch its
+ * first-party twin carries. A bare `.upsert()` is `ON CONFLICT DO UPDATE` over
+ * every column in the payload, `created_by_user_id` included — so every replay
+ * silently restamped "who first added this customer" as the key's creator, and
+ * never stamped `updated_by_user_id` at all.
+ *
+ * Not cosmetic: `contacts.ts` projects `created_by_name` and `updated_by_name`
+ * from those columns, so the screen a person reads to answer "who brought this
+ * customer in" was being overwritten by a machine — wrong in the direction that
+ * erases somebody's work.
+ */
+describe("#581 replaying a contact preserves its attribution", () => {
+  it("updates an existing live contact instead of upserting over it", async () => {
+    const sb = stubWithKey(["contacts:write"]);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      { id: "ct-existing", deleted_at: null },
+    ]);
+    sb.on("PATCH", "/rest/v1/contacts", () => [
+      { id: "ct-existing", phone_e164: "+14165550100" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/contacts", {
+      method: "POST",
+      body: JSON.stringify({ phone_e164: "+14165550100", name: "Maria Alvarez" }),
+    });
+    expect(res.status).toBe(201);
+
+    // THE ASSERTION: no INSERT at all, so there is nothing to overwrite with.
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+    const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
+    expect(patch.body).toMatchObject({
+      name: "Maria Alvarez",
+      updated_by_user_id: CREATOR,
+    });
+    // And the column that says who FIRST added them is not in the payload, so
+    // it cannot be rewritten by a replay.
+    expect(Object.keys(patch.body as object)).not.toContain(
+      "created_by_user_id",
+    );
+  });
+
+  it("still stamps a fresh creator when resurrecting a deleted contact", async () => {
+    // Bringing back somebody who was removed IS a new addition, so the upsert
+    // arm — and a fresh created_by — is the right answer there.
+    const sb = stubWithKey(["contacts:write"]);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      { id: "ct-gone", deleted_at: "2026-01-01T00:00:00Z" },
+    ]);
+    sb.on("POST", "/rest/v1/contacts", () => [
+      { id: "ct-gone", phone_e164: "+14165550100" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/contacts", {
+      method: "POST",
+      body: JSON.stringify({ phone_e164: "+14165550100", name: "Maria Alvarez" }),
+    });
+    expect(res.status).toBe(201);
+
+    const insert = sb.find("POST", "/rest/v1/contacts")[0];
+    expect(insert.body).toMatchObject({
+      created_by_user_id: CREATOR,
+      deleted_at: null,
+    });
   });
 });
