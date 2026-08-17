@@ -1,5 +1,73 @@
 # Changelog
 
+## [0.12.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.11.3...shared-v0.12.0) (2026-08-17)
+
+
+### Features
+
+* **android:** two-factor, the captcha and Google sign-in speak French ([557b29d](https://github.com/BytechLabs/Texturion/commit/557b29dd1e3e24f92e670a700f7340d86451d23d))
+* **api:** a connector can subscribe itself, and only unsubscribe its own ([bf77734](https://github.com/BytechLabs/Texturion/commit/bf77734a99bc906d47000297bc323780c25cb664))
+* **api:** a key that can do less than the person who made it ([e083c2a](https://github.com/BytechLabs/Texturion/commit/e083c2a27ab75bed49d2f6d23929f2ca12adc865))
+* **api:** a workspace can say where it wants to be told ([f550dde](https://github.com/BytechLabs/Texturion/commit/f550dde4ca6767434b0952ec614ade679be828de))
+* **api:** manage where a workspace is told, and prove it works ([2e89b8c](https://github.com/BytechLabs/Texturion/commit/2e89b8cd0bb64110242ab75b86235311fc9001d0))
+* **clients:** a passkey works as a second factor on Android ([c3cbe2e](https://github.com/BytechLabs/Texturion/commit/c3cbe2eff44473f1f710308f1a0d579d3c6443bf))
+* **clients:** let whoever does the books pull a period's usage from a phone ([#605](https://github.com/BytechLabs/Texturion/issues/605)) ([0d72460](https://github.com/BytechLabs/Texturion/commit/0d7246063f10be604783d29bef4eda50453e4bd4)), closes [#595](https://github.com/BytechLabs/Texturion/issues/595)
+* **clients:** the Android app reads from a catalogue, and web finishes its own ([60e4289](https://github.com/BytechLabs/Texturion/commit/60e4289712cc2f4bcf1883e20f0295e08bd58ab6))
+* **i18n:** a carrier rejection explains itself in French on the web too ([4428eaa](https://github.com/BytechLabs/Texturion/commit/4428eaa291fcc30efe828600202a4377765f80ee))
+* **i18n:** a failed text explains itself in French on the web too ([2d1f4a6](https://github.com/BytechLabs/Texturion/commit/2d1f4a64fd10300418636de7f17c7e8911e7b28f))
+* **i18n:** the app's own words get a catalogue, and a ledger that only shrinks ([5cd6fe1](https://github.com/BytechLabs/Texturion/commit/5cd6fe123c72f731b71c09bcb8490a8cc337afaf))
+* **i18n:** the cancel card argues in the reader's language on the web ([170451b](https://github.com/BytechLabs/Texturion/commit/170451b39b906bcc8551c87af3823aad6c5d7263))
+* **i18n:** the changelog reads in French on the web ([418a4a3](https://github.com/BytechLabs/Texturion/commit/418a4a343b4827c037985a3eb13dffe711adfc36))
+* **i18n:** the hand-over-phone dialog reads in French ([a9d194d](https://github.com/BytechLabs/Texturion/commit/a9d194d18ed01637c402f0fc14f14f57f7c81675))
+* **i18n:** the handover challenge reads in French ([a96ee66](https://github.com/BytechLabs/Texturion/commit/a96ee664a5a206b05a3448b15aba15cf926b85e4))
+* **i18n:** the help screen and every support email read in French on the web ([e00410b](https://github.com/BytechLabs/Texturion/commit/e00410bd6f73f71a5eda55209e43ab797cd518f0))
+* **i18n:** the list of what Stripe still wants reads in French on the web ([5818664](https://github.com/BytechLabs/Texturion/commit/5818664b76b8bbcf50cc8c164bc9dc07ff32ca58))
+* **i18n:** the merge-field hints read in French on the web ([047da64](https://github.com/BytechLabs/Texturion/commit/047da64eee88a0d1f2e279f6a4f53bb6692d043c))
+* **i18n:** the notification-delivery settings read in French on the web ([c2f9209](https://github.com/BytechLabs/Texturion/commit/c2f9209bd1df3e9b342369477f0518f0d9f8ffd8))
+* **i18n:** the number-access rules explain themselves in French on the web ([d06a203](https://github.com/BytechLabs/Texturion/commit/d06a2038b638a9267c974bf8314eaa9709baf661))
+* **i18n:** the on-call card and alert banner read in French ([1e9c5fd](https://github.com/BytechLabs/Texturion/commit/1e9c5fd88462eb2409262c836176e0649403a97f))
+* **i18n:** the on-my-way text reaches a French customer in French (web) ([09ea509](https://github.com/BytechLabs/Texturion/commit/09ea509630f333aefa63037d4447ba2edcae788f))
+* **i18n:** the pre-cutover checklist reads in French on the web ([8feeef6](https://github.com/BytechLabs/Texturion/commit/8feeef65db84034194c088f08947da31284ae3a3))
+* **i18n:** the referral share sheet reads in French on the web ([f79e2dd](https://github.com/BytechLabs/Texturion/commit/f79e2ddb36fe7f602e6846651c557c61168da498))
+* **i18n:** the registration progress card reads in French on the web ([10b3915](https://github.com/BytechLabs/Texturion/commit/10b3915f93fe72cf2ec7d8d0b6f2359c903c41b5))
+* **i18n:** the send-later copy reads in French on the web ([503ddb3](https://github.com/BytechLabs/Texturion/commit/503ddb3ef6681327dd07fe3457dcdb67db931eb5))
+* **i18n:** the Stripe account states say themselves in the reader's language ([fa25608](https://github.com/BytechLabs/Texturion/commit/fa256085cba99684beda61f15e5bf0a5bcbd503c))
+* **i18n:** the web app reads from a catalogue, in two languages ([e214f6b](https://github.com/BytechLabs/Texturion/commit/e214f6beca4f8151cc7aff09ea540381403a0a56))
+* **ios:** read every settings screen from the catalogue ([#609](https://github.com/BytechLabs/Texturion/issues/609)) ([163f210](https://github.com/BytechLabs/Texturion/commit/163f21078ee809f30da8a074e956d8f5eea52db3))
+* **ios:** the app speaks French ([fd5f096](https://github.com/BytechLabs/Texturion/commit/fd5f09607f7c0fc899fbeaa2df259925f9e24c3a))
+* **payments:** let a business collect from its customer over the thread ([b0df3aa](https://github.com/BytechLabs/Texturion/commit/b0df3aaf4c63504633485b1204190a3a5885df0e))
+* **shared:** what a quote's status means, decided once for three clients ([960d16d](https://github.com/BytechLabs/Texturion/commit/960d16d7a5f6bc0c306017345f0b63f7ee5a1a56))
+* **web:** connect the workspace to its other apps ([71fb50a](https://github.com/BytechLabs/Texturion/commit/71fb50aa8bf00d4931de9d2115da4caf8768677e))
+* **web:** create and switch off API keys ([9fce70d](https://github.com/BytechLabs/Texturion/commit/9fce70d6e7a1093316d29aa25a30f1081dbb38a0))
+
+
+### Bug Fixes
+
+* **api:** a prepaid year that ends early now pays the rest back ([cf221a0](https://github.com/BytechLabs/Texturion/commit/cf221a0d4355a654ac677eee1e8701824cb10aeb))
+* **clients:** the quotes panel stops printing a rate it just called uncallable ([f9fd2e5](https://github.com/BytechLabs/Texturion/commit/f9fd2e54484f7a3b02e9f41e26c898b5ae65a8c7))
+* **i18n:** a French reader ends a prepaid year in French ([db8e41a](https://github.com/BytechLabs/Texturion/commit/db8e41ab61e3d04dd91cc09727ce7b2240299166))
+* **i18n:** point the cross-client guards at the catalogue for iOS too ([15cb584](https://github.com/BytechLabs/Texturion/commit/15cb5848a7246b842485ab685c76d1826f0f9a59))
+* **i18n:** the emergency-word screen warns in French, and now hears French ([f410dc4](https://github.com/BytechLabs/Texturion/commit/f410dc4cc79a22d1f985c08729f5a2b8a36f185a))
+* **legal:** say that a workspace can send its own data somewhere ([a69f514](https://github.com/BytechLabs/Texturion/commit/a69f514a243ba17ddc21fc2893386c22a28ca7f1))
+* **scripts:** a statement is not a sentence, so the ledger stops counting keywords ([fae1084](https://github.com/BytechLabs/Texturion/commit/fae1084ab0ce57876c69ecaccc8d58735c8e5ee7))
+* **scripts:** the iOS ledger stops counting the Console as copy ([9f8657c](https://github.com/BytechLabs/Texturion/commit/9f8657c179108003f79dc7b4e294bdcbed4b9b77))
+* **scripts:** the ledger stops counting finished translations as pending ([42b3c17](https://github.com/BytechLabs/Texturion/commit/42b3c1721d687e409749a16db43af5ea9811bbfd))
+* **scripts:** the ledger stops reading TypeScript generics as JSX text ([51b7bbd](https://github.com/BytechLabs/Texturion/commit/51b7bbd61d511a7e7f2ecd74befa5852161e529b))
+* **scripts:** the string ledger can finally see the copy all three apps share ([b54ed3b](https://github.com/BytechLabs/Texturion/commit/b54ed3b8be80d7e033a9c4a5fcf9c956393ff5b9))
+* **scripts:** the string ledger reads sentences on the phones, not just inside Text() ([fe589ae](https://github.com/BytechLabs/Texturion/commit/fe589ae0d6de5e53dfa78e4c5afa49cbe9894e6c))
+* **scripts:** the string ledger stops counting animation labels and preview fixtures ([4152f25](https://github.com/BytechLabs/Texturion/commit/4152f25f45a3e162370f6f6499f21840d15570a0))
+* **scripts:** the string ledger stops counting logcat as copy ([eefea49](https://github.com/BytechLabs/Texturion/commit/eefea496cf9d55f5625d898e3acbee34db992707))
+* **shared:** a French owner's referral message ends in French ([fcf037c](https://github.com/BytechLabs/Texturion/commit/fcf037c5e0ce86436406329ba869a86a969f2877))
+* **shared:** remove two orphan string expressions the AI conversion left behind ([19a8619](https://github.com/BytechLabs/Texturion/commit/19a8619f93d6f7c8a33deba982976433c4a5df45))
+* **shared:** the quotes card reads its own sentence in French on the web ([980b336](https://github.com/BytechLabs/Texturion/commit/980b33691a02139f22096c2224b2fe20bec64d3b))
+* **shared:** the string ledger can finally see a sentence in backticks ([205ecdb](https://github.com/BytechLabs/Texturion/commit/205ecdb13c521a915bfe99e59e0a3b0074bfa375))
+* **shared:** the string ledger stops counting six finished translations ([f96556c](https://github.com/BytechLabs/Texturion/commit/f96556ce8fabbbb16091b1aa6e6711ac7ea5f09a))
+
+
+### Reverts
+
+* **ios:** take back the catalogue port until its section exists ([c1fa4ec](https://github.com/BytechLabs/Texturion/commit/c1fa4eced38b0c78287864e7983b7a8d419289f4))
+
 ## [0.11.3](https://github.com/BytechLabs/Texturion/compare/shared-v0.11.2...shared-v0.11.3) (2026-08-09)
 
 

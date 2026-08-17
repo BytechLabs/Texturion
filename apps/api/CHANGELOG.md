@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.16.0](https://github.com/BytechLabs/Texturion/compare/api-v0.15.3...api-v0.16.0) (2026-08-17)
+
+
+### Features
+
+* **api:** a connector can subscribe itself, and only unsubscribe its own ([bf77734](https://github.com/BytechLabs/Texturion/commit/bf77734a99bc906d47000297bc323780c25cb664))
+* **api:** a customer can open a quote and accept it without an account ([b7af832](https://github.com/BytechLabs/Texturion/commit/b7af832d2e84a93f494eb2571fd26c36a9799861))
+* **api:** a key that can do less than the person who made it ([e083c2a](https://github.com/BytechLabs/Texturion/commit/e083c2a27ab75bed49d2f6d23929f2ca12adc865))
+* **api:** a verified visitor's message lands in the inbox like any other text ([2f5d63f](https://github.com/BytechLabs/Texturion/commit/2f5d63f2c79201053264f21f76e774e81626f735))
+* **api:** a website visitor can ask a business to text them back ([ac7f7bd](https://github.com/BytechLabs/Texturion/commit/ac7f7bdfe142d9b9b7668822ec69eb9e755a6131))
+* **api:** a workspace can say where it wants to be told ([f550dde](https://github.com/BytechLabs/Texturion/commit/f550dde4ca6767434b0952ec614ade679be828de))
+* **api:** an owner can read the widget's key, and replace it when it is abused ([b9e73d7](https://github.com/BytechLabs/Texturion/commit/b9e73d70d222fa0cf39bc821afb2760f58c825a0))
+* **api:** calls and voicemails leave the building too ([0335eb7](https://github.com/BytechLabs/Texturion/commit/0335eb7621ecd5de3424570a41b06cefdef34e4c))
+* **api:** manage where a workspace is told, and prove it works ([2e89b8c](https://github.com/BytechLabs/Texturion/commit/2e89b8cd0bb64110242ab75b86235311fc9001d0))
+* **api:** quotes can be written down and asked for ([e463daa](https://github.com/BytechLabs/Texturion/commit/e463daa523775c74b4a6d975f8b6f29ad532cf96))
+* **api:** six events now leave the building ([4ff78bc](https://github.com/BytechLabs/Texturion/commit/4ff78bc03101b35a2db5f3f1e4718cea21e24255))
+* **api:** the public API can read threads, under the same access rules ([bc90b05](https://github.com/BytechLabs/Texturion/commit/bc90b050b1874f152794fb17071042669c74fade))
+* **api:** the public API can send, through the one send order ([cd40930](https://github.com/BytechLabs/Texturion/commit/cd40930fa0be0d8c45293906e4cd45414efd3ad2))
+* **api:** the public surface opens, behind two gates ([7fa2178](https://github.com/BytechLabs/Texturion/commit/7fa217863741e407414b0cfe2cc3eb74ee1c275d))
+* **api:** the signed POST that leaves the building ([e6a4f09](https://github.com/BytechLabs/Texturion/commit/e6a4f0943a7e9db80e127b3f1225d5c0e4abd250))
+* **clients:** the phone in a pocket hears the deposit land ([0989a5b](https://github.com/BytechLabs/Texturion/commit/0989a5bffff0ba664ac19528afe736ac25601817))
+* **db:** a quote is a thing rather than a paragraph in a text ([126eab6](https://github.com/BytechLabs/Texturion/commit/126eab61623be7e8be9d777ef6d14eaf226aeabe))
+* **db:** a stranger proves the number before we text it ([633d760](https://github.com/BytechLabs/Texturion/commit/633d7608cb5398c738b9b4e081a15db3a230eddd))
+* **i18n:** both phones send the on-my-way text in the customer's language ([e6b3fc4](https://github.com/BytechLabs/Texturion/commit/e6b3fc4a514608588c749eb20823e264f5278b1e))
+* **i18n:** the app's own words get a catalogue, and a ledger that only shrinks ([5cd6fe1](https://github.com/BytechLabs/Texturion/commit/5cd6fe123c72f731b71c09bcb8490a8cc337afaf))
+* **i18n:** the Stripe account states say themselves in the reader's language ([fa25608](https://github.com/BytechLabs/Texturion/commit/fa256085cba99684beda61f15e5bf0a5bcbd503c))
+* **i18n:** the web app reads from a catalogue, in two languages ([e214f6b](https://github.com/BytechLabs/Texturion/commit/e214f6beca4f8151cc7aff09ea540381403a0a56))
+* **ios:** the app speaks French ([fd5f096](https://github.com/BytechLabs/Texturion/commit/fd5f09607f7c0fc899fbeaa2df259925f9e24c3a))
+* **payments:** let a business collect from its customer over the thread ([b0df3aa](https://github.com/BytechLabs/Texturion/commit/b0df3aaf4c63504633485b1204190a3a5885df0e))
+* **reports:** the website earns its own row, not the unknown pile ([14896cd](https://github.com/BytechLabs/Texturion/commit/14896cdda1cb07bed7ab88c5616b438924025f35))
+* **web:** a crew can quote a job from the thread it was asked in ([94d04fb](https://github.com/BytechLabs/Texturion/commit/94d04fb34aecc9c4645712437e38477d9acd6c23))
+* **web:** a homeowner can read a quote and accept it from a text ([3a24dc1](https://github.com/BytechLabs/Texturion/commit/3a24dc111cc3143e06a8496f34c971c63a7e7667))
+* **web:** create and switch off API keys ([9fce70d](https://github.com/BytechLabs/Texturion/commit/9fce70d6e7a1093316d29aa25a30f1081dbb38a0))
+* **web:** publish the API reference, and pin the access rule on every route ([877e1c4](https://github.com/BytechLabs/Texturion/commit/877e1c436f72eec5e7a65095376d924cf0e6fd2b))
+* **widget:** an 11pm visitor gets answered, and the owner picks the line ([5ed016e](https://github.com/BytechLabs/Texturion/commit/5ed016e12a2180f0303b56e56f0c97e7e6cffb19))
+
+
+### Bug Fixes
+
+* **api:** a prepaid year that ends early now pays the rest back ([cf221a0](https://github.com/BytechLabs/Texturion/commit/cf221a0d4355a654ac677eee1e8701824cb10aeb))
+* **api:** a prepaid year that loses its discount now puts itself back ([d39e461](https://github.com/BytechLabs/Texturion/commit/d39e461e8d57e4429644a46e240d84cb3fb45a21)), closes [#584](https://github.com/BytechLabs/Texturion/issues/584)
+* **api:** a stalled database call gives up instead of hanging ([2c5af66](https://github.com/BytechLabs/Texturion/commit/2c5af6629d44f096a50413546eb97fdddfc46765))
+* **api:** console output no longer gets copied to our error tracker ([9739c94](https://github.com/BytechLabs/Texturion/commit/9739c944e447cd8deff1480c208ff1f95bc7262f))
+* **api:** money we owe a customer back is now something that finishes itself ([ebfe9b6](https://github.com/BytechLabs/Texturion/commit/ebfe9b6276890b07ccef40f34f662f5aac4f6913)), closes [#583](https://github.com/BytechLabs/Texturion/issues/583)
+* **api:** quotes can be asked for one thread at a time ([2a40d21](https://github.com/BytechLabs/Texturion/commit/2a40d21d01c064ce65e62f206081c9172e278f64))
+* **api:** the quiet-hours tests stop reading the wall clock ([ebd6d09](https://github.com/BytechLabs/Texturion/commit/ebd6d09cd7e53c259e3da7497ce50c034eed4618))
+* **clients:** an exported name with an accent in it no longer arrives mangled ([dfefcfe](https://github.com/BytechLabs/Texturion/commit/dfefcfe9e3bb16f63b19fc9ee6331c0a970de94a)), closes [#587](https://github.com/BytechLabs/Texturion/issues/587)
+* **db:** a second foreign key silenced every embed between two tables ([07beedf](https://github.com/BytechLabs/Texturion/commit/07beedf73e005a9ea94ed806110715df493b085a))
+* **deploy:** shut the second front door, in the repo rather than the dashboard ([f76a14b](https://github.com/BytechLabs/Texturion/commit/f76a14bcb3066d1a0e0990e0e5951a3e9f860309)), closes [#578](https://github.com/BytechLabs/Texturion/issues/578)
+* **retention:** the sweep destroys the photos before a delete that fails ([6d83fb2](https://github.com/BytechLabs/Texturion/commit/6d83fb2c5719bf8207c667fcaba069068696446d))
+* **shared:** the quotes card reads its own sentence in French on the web ([980b336](https://github.com/BytechLabs/Texturion/commit/980b33691a02139f22096c2224b2fe20bec64d3b))
+* **web:** a URL cannot reach Sentry through a console breadcrumb ([30c7740](https://github.com/BytechLabs/Texturion/commit/30c7740aaff68a4c7f005ea76eb2d478381ae949))
+* **web:** the quote page speaks the workspace's language ([f4312ca](https://github.com/BytechLabs/Texturion/commit/f4312caaf26a8d54537370ebca1114b82e523150))
+
 ## [0.15.3](https://github.com/BytechLabs/Texturion/compare/api-v0.15.2...api-v0.15.3) (2026-08-09)
 
 
