@@ -52,6 +52,8 @@ enum ThreadStrings {
                 "Declined",
             "quotes.statusExpired":
                 "Expired",
+            "quotes.outstandingTitle":
+                "Waiting on an answer",
             "quotes.newQuote":
                 "Quote this job",
             "quotes.sendFor":
@@ -706,6 +708,8 @@ enum ThreadStrings {
                 "Refusé",
             "quotes.statusExpired":
                 "Expiré",
+            "quotes.outstandingTitle":
+                "En attente d'une réponse",
             "quotes.newQuote":
                 "Faire un devis",
             "quotes.sendFor":

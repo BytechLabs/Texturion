@@ -46,6 +46,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
+import com.loonext.android.features.settings.formatMoney
+import com.loonext.android.features.quotes.Quote
+import com.loonext.android.features.quotes.QuotesRepository
 import com.loonext.android.ui.common.rememberCacheFirst
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -189,6 +192,20 @@ fun ForYouTab(
         key = CacheKeys.satisfaction(companyId, responseDays),
         refreshKey = refreshKey,
     ) { graph.forYouRepo.satisfaction(companyId, responseDays) }
+
+    /*
+     * #287 — money asked for and not yet answered.
+     *
+     * Filtered SERVER-side: "outstanding" folds in an expiry derived on read,
+     * so a client filtering the full list would re-implement that rule — and
+     * the list is capped, so it would start silently dropping quotes on a busy
+     * workspace.
+     */
+    val outstandingQuotes = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.outstandingQuotes(companyId),
+        refreshKey = refreshKey,
+    ) { QuotesRepository(graph.api).outstanding(companyId).data }
 
     // #354: quoted, won, still out. Its own cache-first read for the same
     // reason as the response time above, and fixed at 30 days — the pipeline
@@ -379,6 +396,9 @@ fun ForYouTab(
                     }
                 },
                 recentCalls = recentCalls,
+                // #287: money asked for and not yet answered.
+                outstandingQuotes =
+                    (outstandingQuotes as? LoadState.Ready)?.value.orEmpty(),
                 // #239: the response-time report and its window.
                 responseTime = (responseTime as? LoadState.Ready)?.value,
                 responseDays = responseDays,
@@ -430,6 +450,8 @@ private fun ForYouList(
     spamReview: List<SpamReviewItem>,
     onAnswerSpamReview: (conversationId: String, notSpam: Boolean) -> Unit,
     recentCalls: LoadState<List<Call>>,
+    /** #287: already server-filtered to unanswered — see QuotesRepository. */
+    outstandingQuotes: List<Quote>,
     /** #239: null while it loads — the card says so rather than showing a zero. */
     responseTime: ResponseTimeReport?,
     responseDays: Int,
@@ -827,6 +849,39 @@ private fun ForYouList(
             }
         }
 
+        /*
+         * #287 — the quotes nobody has answered yet, above the call history.
+         *
+         * Money a customer was asked for and has not answered outranks a list
+         * of calls that already happened. OLDEST FIRST, the opposite of every
+         * other list here and deliberately: a quote sent this morning needs
+         * nothing, and one sent nine days ago is the one going cold.
+         *
+         * Not hideable, which follows the line DashboardPanels already draws:
+         * the measures come off, the queues do not, because hiding a queue is a
+         * way to stop seeing work.
+         */
+        val waitingQuotes = outstandingQuotes
+            .sortedBy { it.sent_at ?: "" }
+            .take(OUTSTANDING_QUOTES_LIMIT)
+        if (waitingQuotes.isNotEmpty()) {
+            item(key = "outstanding-quotes") {
+                QueueSection(
+                    t("quotes.outstandingTitle"),
+                    count = waitingQuotes.size,
+                    modifier = Modifier.animateItem(),
+                ) {
+                    waitingQuotes.forEachIndexed { index, quote ->
+                        if (index > 0) RowDivider()
+                        OutstandingQuoteRow(
+                            quote = quote,
+                            onOpen = { onOpenConversation(quote.conversation_id) },
+                        )
+                    }
+                }
+            }
+        }
+
         // Recent calls (#165/D43) — the mobile doorway into the Calls
         // surface. Hidden entirely while there are no calls; an honest error
         // line when the log couldn't load.
@@ -882,6 +937,50 @@ private fun QueueSection(
     Column(modifier.padding(top = 14.dp)) {
         SectionHeader(label, count = count)
         PaperCard(Modifier.fillMaxWidth()) { content() }
+    }
+}
+
+/** #287: a morning's worth. The rest is the thread list's job. */
+private const val OUTSTANDING_QUOTES_LIMIT = 6
+
+/**
+ * One unanswered quote: what it is worth, what it is for, and how long it has
+ * been waiting.
+ *
+ * The AGE, not the deadline. "Sent 9 days ago" is the fact that decides whether
+ * to chase; the deadline is only the reason the row will vanish on its own.
+ */
+@Composable
+private fun OutstandingQuoteRow(quote: Quote, onOpen: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            formatMoney(quote.amount_cents, quote.money),
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            quote.description,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        quote.sent_at?.let { sent ->
+            Text(
+                relativeTime(sent),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        RowArrow()
     }
 }
 

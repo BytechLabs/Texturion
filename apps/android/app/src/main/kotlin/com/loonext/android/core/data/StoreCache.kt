@@ -115,6 +115,9 @@ object CacheKeys {
     fun paymentRequests(companyId: String, conversationId: String) =
         "paymentRequests/$companyId/$conversationId"
 
+    /** #287 — money asked for and not yet answered, across the workspace. */
+    fun outstandingQuotes(companyId: String) = "quotes/outstanding/$companyId"
+
     /** #287 — the quotes on one thread. */
     fun quotes(companyId: String, conversationId: String) =
         "quotes/$companyId/$conversationId"

@@ -31,6 +31,11 @@ struct ForYouTab: View {
 
     @State private var state: LoadState<ForYou> = .loading
     @State private var recentCalls: LoadState<[Call]> = .loading
+    /// #287: money asked for and not yet answered. Empty rather than a
+    /// LoadState — the section is absent until it has rows either way, so a
+    /// failure and an answered-everything workspace look the same, which is the
+    /// right answer for a queue that is normally empty.
+    @State private var outstandingQuotes: [Quote] = []
     /// #342: spam marks that do not look like spam. Empty on nearly every day,
     /// and deliberately NOT a badge or a push — a signal you find, not one
     /// that finds you.
@@ -135,6 +140,8 @@ struct ForYouTab: View {
                         }
                     },
                     recentCalls: recentCalls,
+                    // #287: already server-filtered to unanswered.
+                    outstandingQuotes: outstandingQuotes,
                     // #239: nil while it loads — the card says so rather than
                     // showing a zero.
                     responseTime: responseTime,
@@ -157,6 +164,7 @@ struct ForYouTab: View {
                         await reload()
                         await reloadRecentCalls()
                         await reloadPipeline()
+                        await reloadOutstandingQuotes()
                     },
                     company: me.company,
                     onOpenContacts: { AppRouter.shared.openContacts = true },
@@ -190,6 +198,7 @@ struct ForYouTab: View {
         .task(id: "\(companyId)#\(refreshKey)") { await reloadSpamReview() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadRecentCalls() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadPipeline() }
+        .task(id: "\(companyId)#\(refreshKey)") { await reloadOutstandingQuotes() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadReferralMoment() }
         .task(id: "\(companyId)#\(refreshKey)#\(responseDays)") {
             await reloadResponseTime()
@@ -328,6 +337,16 @@ struct ForYouTab: View {
         }
     }
 
+    /// Quiet on failure, and that is the choice this queue wants: it is empty
+    /// on most days, so an error row would be indistinguishable from the normal
+    /// state to everybody except the person who has quotes out.
+    private func reloadOutstandingQuotes() async {
+        if let page = try? await QuotesApi(api: graph.api)
+            .outstanding(companyId: companyId) {
+            outstandingQuotes = page.data
+        }
+    }
+
     private func reloadRecentCalls() async {
         do {
             recentCalls = .ready(
@@ -349,6 +368,8 @@ private struct ForYouList: View {
     let spamReview: [SpamReviewItem]
     let onAnswerSpamReview: @MainActor (String, Bool) -> Void
     let recentCalls: LoadState<[Call]>
+    /// #287: already server-filtered to unanswered — see QuotesApi.outstanding.
+    let outstandingQuotes: [Quote]
     /// #239: nil while it loads — the card says so rather than showing a zero.
     let responseTime: ResponseTimeReport?
     let responseDays: Int
@@ -518,6 +539,7 @@ private struct ForYouList: View {
                     case .unread: unreadSection
                     }
                 }
+                outstandingQuotesSection
                 recentCallsSection
             }
             .padding(.horizontal, 18)
@@ -851,6 +873,47 @@ private struct ForYouList: View {
     // happened — this is history a member reads, not work they owe anybody, so it
     // is the one section here that can come off.
     @ViewBuilder
+    /// #287: a morning's worth. The rest is the thread list's job.
+    private var waitingQuotes: [Quote] {
+        Array(
+            outstandingQuotes
+                .sorted { ($0.sent_at ?? "") < ($1.sent_at ?? "") }
+                .prefix(6)
+        )
+    }
+
+    /// #287 — the quotes nobody has answered yet, above the call history.
+    ///
+    /// Money a customer was asked for and has not answered outranks a list of
+    /// calls that already happened. OLDEST FIRST, the opposite of every other
+    /// list on this screen and deliberately: a quote sent this morning needs
+    /// nothing, and one sent nine days ago is the one going cold.
+    ///
+    /// Not hideable, which follows the line DashboardPanels already draws — the
+    /// measures come off, the queues do not, because hiding a queue is a way to
+    /// stop seeing work.
+    @ViewBuilder
+    private var outstandingQuotesSection: some View {
+        if !waitingQuotes.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(
+                    label: AppStrings.translate(appLocale, "quotes.outstandingTitle"),
+                    count: waitingQuotes.count
+                )
+                PaperCard {
+                    ForEach(Array(waitingQuotes.enumerated()), id: \.element.id) {
+                        index, quote in
+                        if index > 0 { RowDivider() }
+                        OutstandingQuoteRow(
+                            quote: quote,
+                            onTap: { onOpenConversation(quote.conversation_id) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private var recentCallsSection: some View {
         if !DashboardPanels.isVisible(hidden, .recentCalls) {
             EmptyView()
@@ -914,6 +977,45 @@ private struct ForYouList: View {
 /// One recent call: direction/outcome glyph, contact-or-number, relative
 /// time. Amber only for the actionable inbound miss (calm system); tappable
 /// into the conversation only when one exists.
+/// One unanswered quote: what it is worth, what it is for, and how long it has
+/// been waiting.
+///
+/// The AGE, not the deadline. "Sent 9 days ago" is the fact that decides whether
+/// to chase; the deadline is only the reason the row will vanish on its own.
+private struct OutstandingQuoteRow: View {
+    let quote: Quote
+    let onTap: @MainActor () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(quote.amountLabel)
+                .font(.golos(13, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(BrandColor.ink)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+            Text(quote.description)
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted500)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 4)
+            if let sent = quote.sent_at {
+                Text(relativeTime(sent))
+                    .font(.golos(11))
+                    .monospacedDigit()
+                    .foregroundStyle(BrandColor.muted300)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+    }
+}
+
 private struct RecentCallRow: View {
     let call: Call
     let onTap: (@MainActor () -> Void)?
@@ -1135,6 +1237,7 @@ private func previewCall(
                 forwardSeconds: 58
             ),
         ]),
+        outstandingQuotes: [],
         // #239: nil report — the preview shows the "working it out" state.
         responseTime: nil,
         responseDays: 30,
@@ -1171,6 +1274,7 @@ private func previewCall(
         spamReview: [],
         onAnswerSpamReview: { _, _ in },
         recentCalls: .failed("Something went wrong."),
+        outstandingQuotes: [],
         // #239: nil report — the preview shows the "working it out" state.
         responseTime: nil,
         responseDays: 30,
@@ -1226,6 +1330,7 @@ private func previewCall(
         ],
         onAnswerSpamReview: { _, _ in },
         recentCalls: .ready([]),
+        outstandingQuotes: [],
         // #239: nil report — the preview shows the "working it out" state.
         responseTime: nil,
         responseDays: 30,

@@ -35,6 +35,8 @@ object ThreadStrings : AppStrings.Section {
             "Declined",
         "quotes.statusExpired" to
             "Expired",
+        "quotes.outstandingTitle" to
+            "Waiting on an answer",
         "quotes.newQuote" to
             "Quote this job",
         "quotes.sendFor" to
@@ -701,6 +703,8 @@ object ThreadStrings : AppStrings.Section {
             "Refusé",
         "quotes.statusExpired" to
             "Expiré",
+        "quotes.outstandingTitle" to
+            "En attente d'une réponse",
         "quotes.newQuote" to
             "Faire un devis",
         "quotes.sendFor" to
