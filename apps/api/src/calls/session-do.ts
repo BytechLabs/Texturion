@@ -164,6 +164,26 @@ export class CallSessionDO extends DurableObject<Env> {
     return result;
   }
 
+  /**
+   * Resolves when the FIFO has nothing left to do.
+   *
+   * #617 made the webhook ACK and the effect cascade two different promises,
+   * so "the event was accepted" and "the work it caused has finished" stopped
+   * being the same moment. This names the second one.
+   *
+   * It exists because that distinction is now observable and therefore has to
+   * be expressible — a caller (or a test) that genuinely needs the cascade
+   * should say so, rather than relying on the ACK having happened to wait for
+   * it. Reading the queue tail is the honest way to ask: the FIFO is the thing
+   * that serializes this call, so its tail IS "everything admitted so far has
+   * run".
+   */
+  async whenIdle(): Promise<void> {
+    // Two ticks of the tail: a task that enqueues more work while draining
+    // moves the tail, and one await would settle against the old one.
+    await this.queue;
+    await this.queue;
+  }
   // ---- RPC surface (§7.1) -------------------------------------------------
 
   /**
@@ -171,14 +191,43 @@ export class CallSessionDO extends DurableObject<Env> {
    * processed_at and ACKs. Returns whether processed_at should be stamped —
    * false ONLY for a no-row inbound call.hangup (§7.5.1), so the sweeper can
    * replay it against a machine a delayed call.initiated retry mints later.
+   *
+   * #617: this resolves at the §4.1 step-1 persist, NOT at the end of the
+   * effect cascade. The cascade keeps the FIFO slot behind it.
    */
   async onTelnyxEvent(event: TelnyxEvent): Promise<boolean> {
     const enqueuedAt = Date.now();
-    return this.enqueue(async () => {
+
+    /*
+     * #617 — the ACK resolves at the atomic persist; the cascade keeps the FIFO
+     * slot after it.
+     *
+     * TWO PROMISES, deliberately, because they answer to different parties.
+     * Telnyx is owed "we have this durably" as soon as it is true, and it
+     * decides on its own schedule what to do when we are slow. The FIFO is owed
+     * strict serialization of this call's events — so the enqueued task must
+     * still run to completion before the next event begins, or two cascades for
+     * one call could interleave and the single-threading this whole design
+     * rests on would be gone.
+     *
+     * Awaiting the cascade satisfied the second by paying for it with the
+     * first, and the price scaled with the workspace: our ACK latency became a
+     * function of how many technicians a crew has and how fast the vendor is
+     * answering us.
+     */
+    let settleAck!: (stamp: boolean) => void;
+    let failAck!: (cause: unknown) => void;
+    const ack = new Promise<boolean>((resolve, reject) => {
+      settleAck = resolve;
+      failAck = reject;
+    });
+
+    const slot = this.enqueue(async () => {
       const waited = Date.now() - enqueuedAt;
       if (waited > QUEUE_LATENCY_WARN_MS) {
         // §17.5 LOAD-BEARING telemetry: the drift alarm for the webhook-ack
-        // budget (worst-case ~3-4s behind a 24-target dial).
+        // budget. It measures ADMISSION wait, which is the thing #617 shortens
+        // — the queue ahead of this event is no longer holding vendor calls.
         this.rt.sentryWarn(
           `calls-v3 FIFO admission wait ${waited}ms exceeds ${QUEUE_LATENCY_WARN_MS}ms ` +
             `for ${event.data?.event_type} — webhook-ack budget drift`,
@@ -186,11 +235,37 @@ export class CallSessionDO extends DurableObject<Env> {
       }
       await this.resumeJournalIfAny();
       const parsed = await this.parseTelnyxEvent(event);
-      if (parsed === "drop-no-stamp") return false;
-      if (parsed === "dedup" || parsed === null) return true;
-      await this.admitAndDrain(parsed.event, event.data?.id ?? null);
-      return true;
+      if (parsed === "drop-no-stamp") {
+        settleAck(false);
+        return;
+      }
+      if (parsed === "dedup" || parsed === null) {
+        settleAck(true);
+        return;
+      }
+      const drain = await this.admit(parsed.event, event.data?.id ?? null);
+      // Durable, and the resume alarm is armed. Everything after this point is
+      // recoverable from the journal without Telnyx sending it again.
+      settleAck(true);
+      await drain();
     });
+
+    /*
+     * A failure BEFORE the persist is still the caller's to hear: no journal
+     * exists, so nothing will resume it, and the webhook retry is the only
+     * recovery left. `settleAck` has already fired by the time the cascade
+     * runs, so a later rejection lands here instead — where it is reported
+     * rather than thrown at an edge that has long since replied.
+     */
+    slot.catch((cause: unknown) => {
+      failAck(cause);
+      this.rt.sentryWarn(
+        `calls-v3 post-ack cascade failed for ${event.data?.event_type} — ` +
+          `journal-resume will retry: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    });
+
+    return ack;
   }
 
   async ringMe(input: {
@@ -452,15 +527,53 @@ export class CallSessionDO extends DurableObject<Env> {
 
   // ---- §4.1 admission + drain ---------------------------------------------
 
-  /** Admit an event under the FIFO (dedup, atomic persist), then drain the
-   *  whole internal-event cascade. Returns the reducer's reply for the head. */
+  /**
+   * Admit an event under the FIFO (dedup, atomic persist), then drain the whole
+   * internal-event cascade. Returns the reducer's reply for the head.
+   *
+   * Ten of this method's eleven callers want exactly this: an alarm handler
+   * should finish its work, and an RPC caller wants the reply. The eleventh is
+   * the webhook path, which owes its ACK earlier — see [admit].
+   */
   private async admitAndDrain(
     event: SessionEvent,
     eventId: string | null,
   ): Promise<RingMeReply | DeclineReply | { state: CallState } | undefined> {
+    const drain = await this.admit(event, eventId);
+    return drain();
+  }
+
+  /**
+   * §4.1 step 1 alone: dedup, the atomic persist, and the resume alarm. Returns
+   * the cascade as a CONTINUATION rather than running it.
+   *
+   * ## Why this seam exists (#617)
+   *
+   * The webhook ACK used to wait for everything: dials to a vendor, a push
+   * fan-out, a mirror write. §17 has always said otherwise, this file's own
+   * header said otherwise, and the code did it anyway.
+   *
+   * Splitting it is safe for a reason that is already built. The durability
+   * mechanism here is the JOURNAL, not the webhook retry: step 1 commits `seen`
+   * and `journal` in one transaction and arms `journal-resume` before any
+   * effect runs, so an unfinished cascade is resumed by the alarm whether it
+   * was interrupted by an eviction, a crash, or simply by us not waiting. That
+   * is why the ACK was never the thing holding this together, and why waiting
+   * for the cascade bought nothing but latency.
+   *
+   * The ALARM IS ARMED BEFORE THIS RETURNS. That ordering is the whole safety
+   * argument, and it is why the continuation is returned from inside rather
+   * than composed by the caller.
+   */
+  private async admit(
+    event: SessionEvent,
+    eventId: string | null,
+  ): Promise<
+    () => Promise<RingMeReply | DeclineReply | { state: CallState } | undefined>
+  > {
     if (eventId && (await this.isSeen(eventId))) {
       // Seen-marked with no unfinished journal → true duplicate no-op.
-      return undefined;
+      return async () => undefined;
     }
     const journal: Journal = {
       eventId,
@@ -483,7 +596,7 @@ export class CallSessionDO extends DurableObject<Env> {
     const seen = eventId ? await this.nextSeen(eventId) : null;
     await this.ctx.storage.put(seen ? { seen, journal } : { journal });
     await this.setAlarmSlot("journal-resume", Date.now() + JOURNAL_RESUME_MS);
-    return this.drain(journal);
+    return () => this.drain(journal);
   }
 
   /** Resume an unfinished journal left by a crash/eviction (§4.1 step 2). */

@@ -456,6 +456,7 @@ describe("CallSessionDO — admission + serialization (§4.1)", () => {
   it("T1d RING-START dials, pushes, mirrors ringing, arms the ring alarm", async () => {
     const { instance, calls, store } = makeDO({ initiated: ctx() });
     const stamp = await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     expect(stamp).toBe(true);
     expect(calls.dials).toHaveLength(1);
     // CALLS-CLIENT-V2 §3.2: the DO (T1d/T4) dial receives the call_session_id so
@@ -478,9 +479,12 @@ describe("CallSessionDO — admission + serialization (§4.1)", () => {
   it("duplicate event id is a dedup no-op (idempotent)", async () => {
     const { instance, calls } = makeDO({ initiated: ctx() });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
+    await instance.whenIdle();
     const dialsBefore = calls.dials.length;
-    await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0")); // replay
+    await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
+    await instance.whenIdle(); // replay
     expect(calls.dials.length).toBe(dialsBefore);
   });
 });
@@ -510,6 +514,7 @@ describe("CallSessionDO — §4.1 step-1 admission is ONE durable commit", () =>
     };
 
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
 
     // The admission write carries BOTH keys together; no put ever writes
     // `seen` on its own (that is precisely the swallowing window).
@@ -520,7 +525,9 @@ describe("CallSessionDO — §4.1 step-1 admission is ONE durable commit", () =>
   it("the dedup mark survives an eviction, so a provider retry stays a no-op", async () => {
     const { instance, store } = makeDO({ initiated: ctx() });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
+    await instance.whenIdle();
 
     // `seen` is durable, not just in-memory: a fresh isolate on the same
     // storage must still recognise the replay.
@@ -551,6 +558,7 @@ describe("CallSessionDO — §4.1 step-1 admission is ONE durable commit", () =>
     };
 
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
 
     // The FIRST write that carries the machine is the combined one: the reduce
     // step never persists the mutated machine ahead of the journal that records
@@ -564,11 +572,27 @@ describe("CallSessionDO — §4.1 step-1 admission is ONE durable commit", () =>
 
 describe("CallSessionDO — journal resume after eviction (§4.1)", () => {
   it("a crash mid-effects resumes on the next admission and completes", async () => {
-    // pushFanout throws → the T1 transition rejects mid-effects, leaving an
+    // pushFanout throws → the T1 transition fails mid-effects, leaving an
     // unfinished journal.
     let boom = true;
     const { instance, store } = makeDO({ initiated: ctx(), pushFanoutThrows: () => boom });
-    await expect(instance.onTelnyxEvent(initiatedEvent("e1"))).rejects.toThrow();
+
+    /*
+     * #617: the ACK SUCCEEDS, and that is the point rather than a concession.
+     *
+     * This used to assert a rejection, on the reasoning that a failed cascade
+     * should deny the edge its `processed_at` stamp so the webhook retry brings
+     * the event back. But the event is not lost — it was committed to the
+     * journal before a single effect ran, and the resume alarm was armed in the
+     * same breath. Telnyx has nothing to give us that we do not already hold.
+     *
+     * Rejecting also had a cost the old contract hid: it asked the carrier to
+     * re-deliver an event we had durably accepted, and a re-delivery races the
+     * resume. One recovery mechanism is better than two, and the journal is the
+     * one that works when the failure is an eviction rather than an exception.
+     */
+    await expect(instance.onTelnyxEvent(initiatedEvent("e1"))).resolves.toBe(true);
+    await instance.whenIdle();
     expect(store.map.has("journal")).toBe(true);
 
     // Revive on the same storage with a healthy runtime; any admission resumes.
@@ -604,6 +628,7 @@ describe("CallSessionDO — adoption (§7.5)", () => {
     expect(snap).toBeNull(); // no machine yet (snapshot doesn't adopt)
     // An inbound hangup adopts (row exists) then terminates.
     const stamp = await instance.onTelnyxEvent(inboundHangupEvent("h1", "untagged"));
+    await instance.whenIdle();
     expect(stamp).toBe(true);
     const after = await instance.snapshot(SESSION);
     expect(after?.state).toBe("ended_missed");
@@ -612,6 +637,7 @@ describe("CallSessionDO — adoption (§7.5)", () => {
   it("no row → a no-row inbound hangup returns stamp=false (§7.5.1, sweeper replay)", async () => {
     const { instance } = makeDO({ adoptionRow: null });
     const stamp = await instance.onTelnyxEvent(inboundHangupEvent("h1", "untagged"));
+    await instance.whenIdle();
     expect(stamp).toBe(false);
   });
 });
@@ -620,6 +646,7 @@ describe("CallSessionDO — forgery gate (§7.7, review R2-B3)", () => {
   it("a forged brm answer with no pending record → defensive hangup + Sentry, NO answer", async () => {
     const { instance, calls } = makeDO({ initiated: ctx() });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     // Forged: an unknown ccid for a different user with no pending/ambiguous record.
     const forged: TelnyxEvent = {
       data: {
@@ -633,6 +660,7 @@ describe("CallSessionDO — forgery gate (§7.7, review R2-B3)", () => {
       },
     };
     await instance.onTelnyxEvent(forged);
+    await instance.whenIdle();
     expect(calls.answersInbound).toHaveLength(0); // NEVER answered into a forged leg
     expect(calls.hangups).toContain("forged-ccid"); // defensively hung up
     expect(calls.sentryWarns.some((m) => m.includes("orphan brm"))).toBe(true);
@@ -642,7 +670,8 @@ describe("CallSessionDO — forgery gate (§7.7, review R2-B3)", () => {
 describe("CallSessionDO — decline (#171)", () => {
   it("solo decline → cancels the leg, drops the avenue, answers voicemail; always-200 declined:true", async () => {
     const { instance, calls } = makeDO({ initiated: ctx() });
-    await instance.onTelnyxEvent(initiatedEvent("e1")); // dials cc0 for u1
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle(); // dials cc0 for u1
     const reply = await instance.decline({ sessionId: SESSION, userId: "u1" });
     expect(reply).toEqual({ declined: true, state: "voicemail_greeting" });
     expect(calls.hangups).toContain("cc0"); // decliner's ring leg hung up
@@ -661,7 +690,8 @@ describe("CallSessionDO — decline (#171)", () => {
         pushAudience: ["u1", "u2"],
       }),
     });
-    await instance.onTelnyxEvent(initiatedEvent("e1")); // cc0=u1, cc1=u2
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle(); // cc0=u1, cc1=u2
     const reply = await instance.decline({ sessionId: SESSION, userId: "u1" });
     expect(reply).toEqual({ declined: true, state: "ringing" });
     expect(calls.hangups).toContain("cc0"); // u1's leg canceled
@@ -673,7 +703,9 @@ describe("CallSessionDO — decline (#171)", () => {
   it("decline of an already-answered session → idempotent 200 {declined:false}", async () => {
     const { instance } = makeDO({ initiated: ctx() });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
-    await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0")); // → answered
+    await instance.whenIdle();
+    await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
+    await instance.whenIdle(); // → answered
     const reply = await instance.decline({ sessionId: SESSION, userId: "u1" });
     expect(reply).toEqual({ declined: false, state: "answered", reason: "not_ringing" });
   });
@@ -695,6 +727,7 @@ describe("CallSessionDO — decline (#171)", () => {
       }),
     });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     await instance.decline({ sessionId: SESSION, userId: "u1" });
     const dialsBefore = calls.dials.length;
     const rm = await instance.ringMe({ sessionId: SESSION, userId: "u1", sipUsername: "s1", noLocalLeg: true });
@@ -712,9 +745,12 @@ describe("CallSessionDO (#208 F4): dead-customer-leg teardown", () => {
       hangupResult: (ccid) => (ccid === "cust-ccid" ? "dead" : "ok"),
     });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
-    await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0")); // → answered
+    await instance.whenIdle();
+    await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
+    await instance.whenIdle(); // → answered
     // The owner's leg dies with NO intent live → T7 hangs up the customer leg.
     await instance.onTelnyxEvent(memberHangupEvent("e3", "cc0"));
+    await instance.whenIdle();
     expect(calls.hangups).toContain("cust-ccid"); // the teardown DID try
     const snap = await snapshot(instance);
     expect(snap?.state).toBe("ended_answered"); // synthesized, not stranded
@@ -725,8 +761,11 @@ describe("CallSessionDO (#208 F4): dead-customer-leg teardown", () => {
   it("counterfactual: a LIVE customer leg is not synthesized (its own bri hangup runs T8)", async () => {
     const { instance, calls } = makeDO({ initiated: ctx() }); // hangup → "ok"
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
+    await instance.whenIdle();
     await instance.onTelnyxEvent(memberHangupEvent("e3", "cc0"));
+    await instance.whenIdle();
     const snap = await snapshot(instance);
     expect(snap?.state).toBe("answered"); // the bri hangup will run T8
     expect(calls.terminalMerges).toHaveLength(0);
@@ -739,8 +778,10 @@ describe("Founder sequence 1 — FOREGROUND (banner never vanishes → answer)",
   it("initiated → member answers → answered; NO voicemail ever fires", async () => {
     const { instance, calls } = makeDO({ initiated: ctx() });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     // The engine leg was dialed (ccid cc0). The member answers it.
     await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
+    await instance.whenIdle();
     const snap = await snapshot(instance);
     expect(snap?.state).toBe("answered");
     expect(snap?.answered_by_user_id).toBe("u1");
@@ -758,6 +799,7 @@ describe("Founder sequence 1 — FOREGROUND (banner never vanishes → answer)",
   it("counterfactual: nobody answers → the t+45 ALARM (and only the alarm) starts voicemail", async () => {
     const { instance, calls, store } = makeDO({ initiated: ctx() });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     // No leg death, no answer. Advance past the ring window and fire the alarm.
     vi.setSystemTime(new Date(Date.now() + 46_000));
     await instance.alarm();
@@ -773,6 +815,9 @@ describe("#309 a greeting in the owner's own voice", () => {
   async function toVoicemail(config: Parameters<typeof makeDO>[0]) {
     const made = makeDO(config);
     await made.instance.onTelnyxEvent(initiatedEvent("e1"));
+    // #617: the ACK returns at the persist now, so the ring cascade this test
+    // depends on has to be awaited explicitly before the clock is moved.
+    await made.instance.whenIdle();
     vi.setSystemTime(new Date(Date.now() + 46_000));
     await made.instance.alarm();
     return made;
@@ -823,6 +868,7 @@ describe("#309 a greeting in the owner's own voice", () => {
     expect((await snapshot(instance))?.state).toBe("voicemail_greeting");
 
     await instance.onTelnyxEvent(vmiEvent("call.playback.ended"));
+    await instance.whenIdle();
     expect((await snapshot(instance))?.state).toBe("voicemail_recording");
   });
 });
@@ -843,6 +889,7 @@ describe("Founder sequence 2 — KILLED APP (ringback held → push wake → rin
       pushAudience: ["u1"],
     });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     // The engine leg died on dial → T3 ladder holds ringback (push avenue u1).
     let snap = await snapshot(instance);
     expect(snap?.state).toBe("ringing");
@@ -854,6 +901,7 @@ describe("Founder sequence 2 — KILLED APP (ringback held → push wake → rin
 
     // The fresh leg (ringme-cc) answers.
     await instance.onTelnyxEvent(memberAnsweredEvent("e3", "ringme-cc"));
+    await instance.whenIdle();
     snap = await snapshot(instance);
     expect(snap?.state).toBe("answered");
   });
@@ -863,6 +911,7 @@ describe("Founder sequence 3 — BACKGROUND (ring-me coexists with a live engine
   it("ring-me while the engine leg is LIVE dials a second leg and cancels NOTHING", async () => {
     const { instance, calls } = makeDO({ initiated: ctx() });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     const dialsAfterStart = calls.dials.length;
     const hangupsAfterStart = calls.hangups.length;
 
@@ -881,6 +930,7 @@ describe("Founder sequence 3 — BACKGROUND (ring-me coexists with a live engine
   it("an UNASSERTED ring-me (pre-v3) with a live leg is a NO-OP (kills the push-chase)", async () => {
     const { instance, calls } = makeDO({ initiated: ctx() });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     const dialsBefore = calls.dials.length;
     const reply = await instance.ringMe({ sessionId: SESSION, userId: "u1", sipUsername: "s1", noLocalLeg: false });
     expect(reply).toMatchObject({ rang: false, reason: "live_leg" });
@@ -895,6 +945,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
   it("T-O1: a 4-part oc call.initiated mints a 'dialing' outbound machine, owner from mint", async () => {
     const { instance, calls, store } = makeDO({ outboundInitiated: ocCtx() });
     const stamp = await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.whenIdle();
     expect(stamp).toBe(true);
     // Owner is mirrored from mint; state 'dialing'.
     const snap = await instance.snapshot(OUTBOUND_S);
@@ -916,6 +967,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
   it("T-O1 reject: a rejected context hangs up the leg and mints NOTHING", async () => {
     const { instance, calls } = makeDO({ outboundInitiated: "reject" });
     const stamp = await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.whenIdle();
     expect(stamp).toBe(true);
     // The unauthorized leg is hung up; no machine minted.
     expect(calls.hangups).toContain("oc-ccid");
@@ -926,7 +978,9 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
   it("T-O2: oc call.answered moves 'dialing' → 'answered' and mirrors answered_at", async () => {
     const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
     await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.whenIdle();
     await instance.onTelnyxEvent(ocEvent("e2", "call.answered"));
+    await instance.whenIdle();
     const snap = await instance.snapshot(OUTBOUND_S);
     expect(snap?.state).toBe("answered");
     expect(snap?.answered_at).not.toBeNull();
@@ -936,7 +990,9 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
   it("T-O3 answered: hangup → ended_answered; terminal-merge carries S + the answered-at anchor (M1)", async () => {
     const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
     await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.whenIdle();
     await instance.onTelnyxEvent(ocEvent("e2", "call.answered"));
+    await instance.whenIdle();
     const answeredSnap = await instance.snapshot(OUTBOUND_S);
     const answeredAt = answeredSnap?.answered_at;
     await instance.onTelnyxEvent(
@@ -946,6 +1002,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
         end_time: "2026-07-17T12:05:00.000Z",
       }),
     );
+    await instance.whenIdle();
     const snap = await instance.snapshot(OUTBOUND_S);
     expect(snap?.state).toBe("ended_answered");
     // The EVENT-mode merge ran (meters Stripe), keyed on S with the answered-at
@@ -959,9 +1016,11 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
   it("T-O3 from dialing (never answered) → ended_missed, no answered-at anchor", async () => {
     const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
     await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.whenIdle();
     await instance.onTelnyxEvent(
       ocEvent("e2", "call.hangup", { hangup_cause: "originator_cancel" }),
     );
+    await instance.whenIdle();
     const snap = await instance.snapshot(OUTBOUND_S);
     expect(snap?.state).toBe("ended_missed");
     const opts = calls.terminalMergeEventOpts.at(-1);
@@ -982,6 +1041,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
         end_time: "2026-07-17T12:03:00.000Z",
       }),
     );
+    await instance.whenIdle();
     expect(stamp).toBe(true);
     const snap = await instance.snapshot(OUTBOUND_S);
     // Adopted as 'answered' (answered_at present) then hung up → ended_answered.
@@ -993,6 +1053,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
     // did not equal the nonce-bound S. The shell hangs up and never mints.
     const { instance, calls } = makeDO({ outboundInitiated: "reject" });
     await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.whenIdle();
     expect(await instance.snapshot(OUTBOUND_S)).toBeNull();
     expect(calls.mirrors).toHaveLength(0); // no state ever mirrored
     expect(calls.hangups).toContain("oc-ccid");
@@ -1002,12 +1063,15 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
 
   it("T-O4: the placer answering EARLY-bridges op↔oc (ringback), still 'dialing' until the customer answers", async () => {
     const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
-    await instance.onTelnyxEvent(ocEvent("e1", "call.initiated")); // mint + dial op (cc0)
-    await instance.onTelnyxEvent(opEvent("e2", "call.answered")); // placer answers first
+    await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.whenIdle(); // mint + dial op (cc0)
+    await instance.onTelnyxEvent(opEvent("e2", "call.answered"));
+    await instance.whenIdle(); // placer answers first
     // Early bridge fired (so Telnyx relays ringback and will tear op on oc death).
     expect(calls.bridges).toContainEqual({ member: "cc0", inbound: "oc-ccid" });
     expect((await instance.snapshot(OUTBOUND_S))?.state).toBe("dialing");
-    await instance.onTelnyxEvent(ocEvent("e3", "call.answered")); // customer answers
+    await instance.onTelnyxEvent(ocEvent("e3", "call.answered"));
+    await instance.whenIdle(); // customer answers
     expect((await instance.snapshot(OUTBOUND_S))?.state).toBe("answered");
     // The guaranteed fallback bridge also fired (harmless re-bridge of the pair).
     expect(calls.bridges.filter((b) => b.member === "cc0" && b.inbound === "oc-ccid")).toHaveLength(2);
@@ -1016,8 +1080,10 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
   it("op call.initiated is a no-op — never misrouted to the inbound loadInitiatedContext", async () => {
     const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
     await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.whenIdle();
     const dialsBefore = calls.dials.length;
     const stamp = await instance.onTelnyxEvent(opEvent("e2", "call.initiated"));
+    await instance.whenIdle();
     expect(stamp).toBe(true);
     // No inbound mint, no extra dial — the DO already dialed the op leg.
     expect(calls.dials.length).toBe(dialsBefore);
@@ -1052,6 +1118,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
         } as never,
       },
     });
+    await instance.whenIdle();
     expect(calls.hangups).toContain("attacker-ccid");
   });
 
@@ -1079,6 +1146,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
         } as never,
       },
     });
+    await instance.whenIdle();
     expect(calls.hangups).toContain("bri-ccid");
     expect(calls.dials).toHaveLength(0);
     expect(await snapshot(instance)).toBeNull();
@@ -1091,6 +1159,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
     // its `to` is a credential URI, so the gate does not see it either.)
     const { instance, calls } = makeDO({ initiated: ctx() });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
     expect(calls.hangups).not.toContain("cust-ccid");
     expect((await snapshot(instance))?.state).toBe("ringing");
   });
@@ -1098,10 +1167,14 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
   it("T-O5: the placer hanging up after answer tears the call down (customer hung up)", async () => {
     const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
     await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.whenIdle();
     await instance.onTelnyxEvent(opEvent("e2", "call.answered"));
-    await instance.onTelnyxEvent(ocEvent("e3", "call.answered")); // customer picks up → answered
+    await instance.whenIdle();
+    await instance.onTelnyxEvent(ocEvent("e3", "call.answered"));
+    await instance.whenIdle(); // customer picks up → answered
     expect((await instance.snapshot(OUTBOUND_S))?.state).toBe("answered");
-    await instance.onTelnyxEvent(opEvent("e4", "call.hangup")); // placer ends the call
+    await instance.onTelnyxEvent(opEvent("e4", "call.hangup"));
+    await instance.whenIdle(); // placer ends the call
     // Owner (the placer) dropped with no intent → teardown hangs up the customer.
     expect(calls.hangups).toContain("oc-ccid");
   });
@@ -1179,6 +1252,7 @@ describe("#251 the ring fan-out is bounded-parallel (§4 T1d)", () => {
     });
 
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
 
     expect(calls.dials).toHaveLength(12);
     // Serial is 1. Anything above it is overlap.
@@ -1198,6 +1272,7 @@ describe("#251 the ring fan-out is bounded-parallel (§4 T1d)", () => {
     });
 
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
 
     expect(calls.dials).toHaveLength(24);
     expect(track.peak).toBeLessThanOrEqual(DIAL_BATCH_SIZE);
@@ -1209,6 +1284,7 @@ describe("#251 the ring fan-out is bounded-parallel (§4 T1d)", () => {
     // input order; a race-to-finish rewrite would not.
     const { instance, calls } = makeDO({ initiated: ctx({ dialTargets: crew(9) }) });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
 
     // Asserted as an ORDER over whatever the runtime builds, not as a literal
     // SIP format this test does not own — the point is that leg 0 is recorded
@@ -1236,8 +1312,114 @@ describe("#251 the ring fan-out is bounded-parallel (§4 T1d)", () => {
     );
 
     await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.whenIdle();
 
     // Five reached the vendor and were recorded; the sixth is the thrower.
     expect(calls.dials).toHaveLength(5);
+  });
+});
+
+/**
+ * #617 — the webhook ACK is owed at the atomic persist, not at the end of the
+ * effect cascade.
+ *
+ * §17 has required this since it was written, and this file's own header said
+ * the promise resolved "at the step-1 atomic persist". It did not: it awaited
+ * `drain`, which is dials to a vendor, a push fan-out and a mirror write.
+ *
+ * The guard that was supposed to pin it (§17.3, "snapshot rides the FIFO")
+ * asserted that a concurrently-admitted snapshot observes the COMPLETED
+ * transition — which the wrong behaviour also satisfies, because waiting for
+ * everything is a superset of waiting for the persist. A test that passes under
+ * both readings is worse than no test: it is counted as coverage.
+ *
+ * These fail if the cascade is re-awaited.
+ */
+describe("#617 the ACK does not wait for the cascade", () => {
+  it("resolves before the effects have run", async () => {
+    // A dial that never settles stands in for the real cost: a vendor
+    // round-trip per ring target, on the thread that also has to serve this
+    // call's next event.
+    let released!: () => void;
+    const hung = new Promise<void>((resolve) => {
+      released = resolve;
+    });
+    const { instance, calls } = makeDO({
+      initiated: ctx(),
+      dialResult: async () => {
+        await hung;
+        return { ccid: "cc-late" };
+      },
+    });
+
+    // THE ASSERTION. This await would never return under the old behaviour —
+    // the dial is still open — so the test would time out rather than fail,
+    // which is its own kind of proof.
+    await expect(instance.onTelnyxEvent(initiatedEvent("e1"))).resolves.toBe(true);
+    expect(calls.mirrors).toHaveLength(0);
+
+    released();
+    await instance.whenIdle();
+    // And the cascade still completes, on the FIFO slot it kept.
+    expect(calls.mirrors.length).toBeGreaterThan(0);
+  });
+
+  it("commits the journal before it acks, so nothing acked is lost", async () => {
+    // The safety argument in one line. The ACK is only honest because the event
+    // is already durable and the resume alarm is already armed when it fires —
+    // the order matters more than the speed.
+    let released!: () => void;
+    const hung = new Promise<void>((resolve) => {
+      released = resolve;
+    });
+    const { instance, store } = makeDO({
+      initiated: ctx(),
+      dialResult: async () => {
+        await hung;
+        return { ccid: "cc-late" };
+      },
+    });
+
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+    expect(store.map.has("journal")).toBe(true);
+    expect(store.getAlarmAt()).not.toBeNull();
+
+    released();
+    await instance.whenIdle();
+  });
+
+  it("still serializes: the next event waits for the last cascade", async () => {
+    // The half that must NOT change. Two cascades for one call interleaving
+    // would end the single-threading the whole design rests on — the ACK was
+    // never what provided that, the FIFO was, and the FIFO still does.
+    const order: string[] = [];
+    let released!: () => void;
+    const hung = new Promise<void>((resolve) => {
+      released = resolve;
+    });
+    const { instance } = makeDO({
+      initiated: ctx(),
+      dialResult: async () => {
+        order.push("dial-start");
+        await hung;
+        order.push("dial-end");
+        return { ccid: "cc-late" };
+      },
+    });
+
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+    // Queued while the first cascade is still open.
+    const second = instance.onTelnyxEvent(initiatedEvent("e2")).then(() => {
+      order.push("second-admitted");
+    });
+
+    released();
+    await second;
+    await instance.whenIdle();
+
+    // The second event was not admitted until the first cascade finished.
+    expect(order.indexOf("second-admitted")).toBeGreaterThan(
+      order.indexOf("dial-end"),
+    );
   });
 });
