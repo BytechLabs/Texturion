@@ -8130,3 +8130,52 @@ business, so a width question renders the shell.
 
 A tablet or foldable posture with actual usage behind it, or an iPad target. Both
 are a decision to reopen with evidence, not a detail to adjust.
+
+## D135 — the association files are configuration, and the phones read them back as a capability gate (#473, 2026-08-17)
+
+**Decision.** `/.well-known/assetlinks.json` and
+`/.well-known/apple-app-site-association` are served by the web app from
+environment configuration, not from checked-in constants. With nothing
+configured they authorise nobody. Both phone apps FETCH their own file before
+offering a passkey at all, and show only the authenticator-app path when it
+names no app.
+
+**Why the values are not in the repository.** They do not exist yet and must not
+be invented. Nothing has been uploaded to either store, and with Play App
+Signing the Android fingerprint that finally matters is created by Google at
+first upload. Anything written down today would be a published security claim —
+"this app may act for this domain" — that happens to be false. An empty
+statement list is a valid document meaning exactly what is true.
+
+**Why the app asks rather than carrying a flag.** A build flag needs a store
+release to flip, and a store release takes weeks to reach a handset. The
+association file is served by the web app, which deploys in minutes. Reading the
+switch from the side that can move means passkeys appear on phones installed
+months earlier, the day the file is configured, with no app update at all. That
+asymmetry is the whole reason for the design, and it matters most here because
+the person who would flip the flag cannot ship an app on demand.
+
+**Why not just let the ceremony fail.** Because it fails identically to a bug,
+and the failure lands on somebody standing in a driveway. Credential Manager and
+`ASAuthorizationPlatformPublicKeyCredentialProvider` both refuse an
+unassociated domain with a generic error; "try again" is advice that cannot
+work. A button that opens nothing is worse than an absent button — the same rule
+that already keeps the passkey option off browsers without `PublicKeyCredential`.
+
+**What the probe does NOT check.** Whether this build's signing certificate is
+among those listed. That would mean hashing our own signature on Android and
+reading the provisioning profile on iOS, and it would buy nothing: the platform
+re-checks the entire association and refuses on any mismatch. The probe answers
+the weaker sufficient question — has anybody configured this domain for this
+platform — whose honest answer today is no. It is a UI gate, not a security one.
+
+**Relations are claimed one at a time.** `assetlinks.json` carries
+`delegate_permission/common.get_login_creds` only, and the Apple file carries
+`webcredentials` only. Both documents are read by more than one subsystem, and
+each relation grants something real: `handle_all_urls` and `applinks` would hand
+this domain's links to the apps, which is a different feature with different
+consequences. See #613, which is that feature and its own decision.
+
+**Consistency:** D125 (a passkey is a second factor, never the password), #473,
+and the web card's existing `typeof window.PublicKeyCredential === "function"`
+gate, which this is the phone-shaped version of.
