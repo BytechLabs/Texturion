@@ -134,6 +134,121 @@ struct SettingsAuthClient: Sendable {
         return try JSONDecoder().decode(AuthSession.self, from: data)
     }
 
+    // MARK: - Passkeys (#473)
+
+    /// A WebAuthn creation ceremony, waiting for an authenticator.
+    struct WebauthnChallenge: Sendable {
+        let challengeId: String
+        /// The server's `PublicKeyCredentialCreationOptionsJSON`, verbatim.
+        let creationOptionsJson: String
+    }
+
+    /// Start enrolling a passkey. Same endpoint as TOTP, different factor type.
+    func enrollWebauthn(
+        accessToken: String,
+        friendlyName: String,
+        locale: String? = nil
+    ) async throws -> String {
+        let data = try await request(
+            method: "POST",
+            path: "factors",
+            body: [
+                "factor_type": .string("webauthn"),
+                "friendly_name": .string(friendlyName),
+            ],
+            bearer: accessToken
+        )
+        let object = (try? JSONDecoder().decode(JSONValue.self, from: data))?.objectValue
+        guard let id = object?["id"]?.stringValue else {
+            throw ApiError(
+                code: ApiErrorCode.network,
+                message: AppStrings.translate(locale, "settingsMore.tfaSetupDidNotStart"),
+                httpStatus: 0
+            )
+        }
+        return id
+    }
+
+    /// Ask for a creation ceremony.
+    ///
+    /// `rpOrigins` carries the https origin rather than a hand-written app
+    /// origin: the platform derives the caller's origin itself once the domain
+    /// has associated the bundle, and anything written here would be a claim we
+    /// cannot verify.
+    func challengeWebauthn(
+        accessToken: String,
+        factorId: String,
+        rpId: String,
+        locale: String? = nil
+    ) async throws -> WebauthnChallenge {
+        let data = try await request(
+            method: "POST",
+            path: "factors/\(factorId)/challenge",
+            body: [
+                "webauthn": .object([
+                    "rpId": .string(rpId),
+                    "rpOrigins": .array([.string("https://\(rpId)")]),
+                ])
+            ],
+            bearer: accessToken
+        )
+        let object = (try? JSONDecoder().decode(JSONValue.self, from: data))?.objectValue
+        let webauthn = object?["webauthn"]?.objectValue
+        // Enrolling a fresh factor can only be a creation ceremony. If the server
+        // asks for an assertion instead, something is being replayed — stop
+        // rather than sign whatever was sent.
+        guard let id = object?["id"]?.stringValue,
+              webauthn?["type"]?.stringValue == "create",
+              let publicKey = webauthn?["credential_options"]?.objectValue?["publicKey"],
+              let optionsData = try? JSONEncoder().encode(publicKey),
+              let optionsJson = String(data: optionsData, encoding: .utf8)
+        else {
+            throw ApiError(
+                code: ApiErrorCode.network,
+                message: AppStrings.translate(locale, "settingsMore.tfaSetupDidNotStart"),
+                httpStatus: 0
+            )
+        }
+        return WebauthnChallenge(challengeId: id, creationOptionsJson: optionsJson)
+    }
+
+    /// Hand the authenticator's answer back. On success GoTrue returns a FRESH
+    /// SESSION at aal2, exactly as the TOTP path does — the caller must store it.
+    func verifyWebauthn(
+        accessToken: String,
+        factorId: String,
+        challengeId: String,
+        rpId: String,
+        registrationResponseJson: String
+    ) async throws -> AuthSession {
+        // Re-parsed rather than re-built: re-encoding the platform's answer by
+        // hand is how a clientDataJSON stops matching its own signature.
+        guard let responseData = registrationResponseJson.data(using: .utf8),
+              let credential = try? JSONDecoder().decode(JSONValue.self, from: responseData)
+        else {
+            throw ApiError(
+                code: ApiErrorCode.network,
+                message: AppStrings.translate(nil, "settingsMore.tfaCodeCheckFailed"),
+                httpStatus: 0
+            )
+        }
+        let data = try await request(
+            method: "POST",
+            path: "factors/\(factorId)/verify",
+            body: [
+                "challenge_id": .string(challengeId),
+                "webauthn": .object([
+                    "rpId": .string(rpId),
+                    "rpOrigins": .array([.string("https://\(rpId)")]),
+                    "type": .string("create"),
+                    "credential_response": credential,
+                ]),
+            ],
+            bearer: accessToken
+        )
+        return try JSONDecoder().decode(AuthSession.self, from: data)
+    }
+
     /// Remove a factor. The account falls back to a password alone.
     func unenrollFactor(accessToken: String, factorId: String) async throws {
         _ = try await request(

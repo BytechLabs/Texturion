@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 /// Two-factor authentication (#314) — the iOS half of the web's card, on
@@ -13,6 +14,41 @@ import SwiftUI
 /// recovery-codes sheet cannot be dismissed until the codes have been copied.
 /// Somebody who enrols and swipes that sheet away has armed a lock and thrown
 /// away the spare key, and this product's lock is their business phone line.
+
+/// #473 — the two kinds of second factor, and the rule for naming them.
+///
+/// Hand-ported from `packages/shared/src/mfa-factors.ts`, which web renders
+/// directly. `internal` rather than `private` so `LoonextTests` can hold the
+/// port to its original — a hand-port with nothing checking it is a copy that
+/// drifts, and this one's fallback branch is both the easiest to drop and the
+/// most dangerous to lose.
+let factorPasskey = "webauthn"
+let factorAuthenticator = "totp"
+
+/// The sentence for somebody who already holds at least one factor.
+///
+/// The `else` is load-bearing. An unnamed factor type must read as "two-factor
+/// is on", never as nothing: telling somebody who IS protected that they are not
+/// invites them to enrol a second time, or to believe the account is open.
+func mfaSummaryKey(_ factorTypes: [String?]) -> String {
+    let passkey = factorTypes.contains(factorPasskey)
+    let authenticator = factorTypes.contains(factorAuthenticator)
+    switch (passkey, authenticator) {
+    case (true, true): return "settingsMore.tfaBothOn"
+    case (true, false): return "settingsMore.tfaPasskeyOn"
+    case (false, true): return "settingsMore.tfaAuthenticatorOn"
+    case (false, false): return "settingsMore.tfaOn"
+    }
+}
+
+/// Which kinds are still missing, so the card offers exactly those.
+///
+/// Empty for somebody holding both, and empty for somebody with none — who gets
+/// the first-time pitch rather than an "add another" affordance.
+func missingFactorTypes(_ factorTypes: [String?]) -> [String] {
+    guard !factorTypes.isEmpty else { return [] }
+    return [factorPasskey, factorAuthenticator].filter { !factorTypes.contains($0) }
+}
 
 private enum EnrolStep: Identifiable {
     case verify(factorId: String, secret: String, uri: String)
@@ -38,6 +74,10 @@ struct TwoFactorCard: View {
     @State private var actionError: String?
     @State private var savedCodes = false
     @State private var confirmingOff = false
+    /// #473: false until the probe answers. Passkeys are offered only once this
+    /// domain has actually associated this bundle — see PasskeyEnrolment.swift
+    /// for why the switch is read from the web app rather than a build flag.
+    @State private var passkeysAvailable = false
 
     private let authClient = SettingsAuthClient()
 
@@ -71,6 +111,13 @@ struct TwoFactorCard: View {
                 }
             }
         }
+        .task {
+            // #473: ask the domain whether it has associated this bundle before
+            // offering a passkey. Runs once per appearance and needs no refresh
+            // key — the answer changes when the web app deploys, not when this
+            // card reloads.
+            passkeysAvailable = await Passkeys.isDomainAssociated()
+        }
         .sheet(item: $step) { current in
             switch current {
             case .verify(let factorId, let secret, let uri):
@@ -103,7 +150,12 @@ struct TwoFactorCard: View {
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 if mfa.isEnrolled {
-                    Text(t("settingsMore.authenticatorOn"))
+                    // #473: NAMES WHAT IS ON, because two kinds can be.
+                    // "Two-factor is on" would leave somebody who added a
+                    // passkey unable to tell whether last year's authenticator
+                    // app is still there — and that answer decides what happens
+                    // when they lose one of the two.
+                    Text(t(mfaSummaryKey(mfa.allFactors.map(\.type))))
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.ink)
                     if mfa.codesRemaining > 0 {
@@ -133,6 +185,49 @@ struct TwoFactorCard: View {
                             .foregroundStyle(BrandColor.muted600)
                             .disabled(busy)
                     }
+                    // #473 — THE SECOND FACTOR, which had no way in.
+                    //
+                    // The enrolment control lives in the other branch of this
+                    // `if`, so the first factor hid the way to the second:
+                    // somebody with an authenticator app could never add a
+                    // passkey. Only the MISSING kind is offered, as one quiet
+                    // action beside the other management controls rather than a
+                    // second pitch competing with them.
+                    //
+                    // Applying: Chunking, and Zen of Clarity — the option that
+                    // does not apply is absent rather than disabled.
+                    let missing = missingFactorTypes(mfa.allFactors.map(\.type))
+                    if missing.contains(factorPasskey), passkeysAvailable {
+                        Button(t("settingsMore.tfaAddPasskey")) { beginPasskey() }
+                            .buttonStyle(.bordered)
+                            .disabled(busy)
+                    }
+                    if missing.contains(factorAuthenticator) {
+                        Button(t("settingsMore.tfaAddAuthenticator")) { beginEnrolment() }
+                            .buttonStyle(.bordered)
+                            .disabled(busy)
+                    }
+                } else if passkeysAvailable {
+                    // #473 — the passkey leads where this domain allows it.
+                    //
+                    // #314 shipped codes from an authenticator app and said in
+                    // its own words that passkeys suit these users better. It is
+                    // right, and most right here: one phone, with the
+                    // authenticator on the same screen as the app asking for the
+                    // six digits it shows. The app is still offered underneath,
+                    // in full, because a passkey lives on THIS handset and
+                    // somebody who works from two should be able to choose.
+                    //
+                    // Applying: Outcomes Over Features — the pitch is what it is
+                    // like to use, not what it is called.
+                    ReadOnlyLine(t("settingsMore.tfaPasskeyPitch"))
+                    Button(t("settingsMore.tfaUsePasskey")) { beginPasskey() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(BrandColor.olive)
+                        .disabled(busy)
+                    Button(t("settingsMore.tfaAddAuthenticator")) { beginEnrolment() }
+                        .buttonStyle(.bordered)
+                        .disabled(busy)
                 } else {
                     ReadOnlyLine(t("settingsMore.twoFactorHow"))
                     Button(t("settingsMore.setUpTwoFactor")) { beginEnrolment() }
@@ -255,6 +350,101 @@ struct TwoFactorCard: View {
                 )
             } catch {
                 actionError = error.userMessage
+            }
+            busy = false
+        }
+    }
+
+    /// #473 — enrol a passkey: create the factor, run the platform's sheet,
+    /// hand the answer back, then issue recovery codes.
+    ///
+    /// The codes come LAST and only on success, exactly as the authenticator
+    /// path does. A passkey armed with no spare key is a lock on a business
+    /// phone line whose only key is inside a phone.
+    private func beginPasskey() {
+        busy = true
+        actionError = nil
+        let factorName = t("settingsMore.tfaPasskeyFactorName")
+        let failedMessage = t("settingsMore.tfaPasskeyFailed")
+        let reader = appLocale
+        Task {
+            var enrolledFactorId: String?
+            do {
+                let token = try await scope.repo.freshAccessToken()
+                let factorId = try await authClient.enrollWebauthn(
+                    accessToken: token,
+                    friendlyName: factorName,
+                    locale: reader
+                )
+                enrolledFactorId = factorId
+                let challenge = try await authClient.challengeWebauthn(
+                    accessToken: token,
+                    factorId: factorId,
+                    rpId: Passkeys.relyingPartyId,
+                    locale: reader
+                )
+                guard let options = Passkeys.creationOptions(
+                    fromJson: challenge.creationOptionsJson
+                ) else {
+                    throw ApiError(
+                        code: ApiErrorCode.network,
+                        message: failedMessage,
+                        httpStatus: 0
+                    )
+                }
+
+                let authorization = try await PasskeyEnrolment().createCredential(
+                    rpId: Passkeys.relyingPartyId,
+                    options: options
+                )
+                guard let authorization else {
+                    // Dismissed. Not an error — leave the card as it was, and
+                    // take the half-made factor back out so it cannot sit
+                    // unverified against the account forever.
+                    try? await authClient.unenrollFactor(
+                        accessToken: token, factorId: factorId
+                    )
+                    busy = false
+                    return
+                }
+                guard
+                    let registration = authorization.credential
+                        as? ASAuthorizationPlatformPublicKeyCredentialRegistration,
+                    let attestation = registration.rawAttestationObject,
+                    let responseJson = Passkeys.registrationResponseJson(
+                        credentialId: registration.credentialID,
+                        clientDataJson: registration.rawClientDataJSON,
+                        attestationObject: attestation
+                    )
+                else {
+                    throw ApiError(
+                        code: ApiErrorCode.network,
+                        message: failedMessage,
+                        httpStatus: 0
+                    )
+                }
+
+                let session = try await authClient.verifyWebauthn(
+                    accessToken: token,
+                    factorId: factorId,
+                    challengeId: challenge.challengeId,
+                    rpId: Passkeys.relyingPartyId,
+                    registrationResponseJson: responseJson
+                )
+                // The verify response is a FRESH session at aal2 — storing it is
+                // what makes the workspace gate stop refusing this device.
+                scope.graph.sessionStore.save(session.session)
+                let issued = try await scope.repo.issueRecoveryCodes()
+                savedCodes = false
+                step = .codes(issued.all)
+            } catch {
+                actionError = error.userMessage
+                if let enrolledFactorId,
+                   let token = try? await scope.repo.freshAccessToken() {
+                    try? await authClient.unenrollFactor(
+                        accessToken: token, factorId: enrolledFactorId
+                    )
+                }
             }
             busy = false
         }

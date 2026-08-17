@@ -40,6 +40,11 @@ targets:
         # apple-app-site-association file served by the web app.
         com.apple.developer.associated-domains:
           - applinks:app.loonext.com
+          # #473: what lets a passkey enrolled here be the SAME credential the
+          # web app sees. Without it ASAuthorizationPlatformPublicKeyCredentialProvider
+          # refuses every ceremony, and the app.loonext.com apple-app-site-association
+          # file has to name this bundle back — see the web route that serves it.
+          - webcredentials:app.loonext.com
         # APNs delivery for the #151 alert pushes (push stays a guarded no-op
         # without GoogleService-Info.plist); archive export rewrites this to
         # production.

@@ -1384,7 +1384,25 @@ private let settingsMoreIosTwoFactorEn: [String: String] = [
     "settingsMore.addToAuthenticatorBody":
         "Tap below to hand it to your authenticator app, or copy the key in "
         + "by hand. Then enter the six-digit code it shows.",
-    "settingsMore.authenticatorOn": "Authenticator app is on",
+    // #473 — the summary names WHICH kinds are on, because two can be.
+    // These four are the shared rule's return values (mfa-factors.ts); a
+    // catalogue whose names differ from those renders the key itself.
+    "settingsMore.tfaAuthenticatorOn": "Authenticator app is on",
+    "settingsMore.tfaPasskeyOn": "Passkey is on",
+    "settingsMore.tfaBothOn": "Passkey and authenticator app are on",
+    "settingsMore.tfaOn": "Two-factor authentication is on",
+    // Offered from inside the already-on state, and only for the kind that is
+    // missing: an option that does not apply is absent, not greyed out.
+    "settingsMore.tfaAddPasskey": "Add a passkey",
+    "settingsMore.tfaAddAuthenticator": "Add an authenticator app",
+    "settingsMore.tfaUsePasskey": "Use a passkey",
+    "settingsMore.tfaPasskeyPitch":
+        "Use Face ID, Touch ID or your passcode as the second step. Nothing " +
+        "to type and nothing to lose - it stays on this iPhone. We will give " +
+        "you backup codes for the day the iPhone doesn't.",
+    "settingsMore.tfaPasskeyFactorName": "Passkey on iPhone",
+    "settingsMore.tfaPasskeyFailed":
+        "Couldn't add a passkey. Try again, or use an authenticator app.",
     "settingsMore.cantReachSignIn": "Can't reach the sign-in service. Check your connection.",
     "settingsMore.codeDidNotMatch":
         "That code didn't match. Check your app and try the next one.",
@@ -1436,7 +1454,23 @@ private let settingsMoreIosTwoFactorFr: [String: String] = [
         "Touchez ci-dessous pour la transmettre à votre application "
         + "d'authentification, ou copiez la clé à la main. Entrez ensuite le "
         + "code à six chiffres qu'elle affiche.",
-    "settingsMore.authenticatorOn": "L'application d'authentification est active",
+    "settingsMore.tfaAuthenticatorOn": "L'application d'authentification est active",
+    "settingsMore.tfaPasskeyOn": "La clé d'accès est activée",
+    "settingsMore.tfaBothOn":
+        "La clé d'accès et l'application d'authentification sont activées",
+    "settingsMore.tfaOn": "La double authentification est activée",
+    "settingsMore.tfaAddPasskey": "Ajouter une clé d'accès",
+    "settingsMore.tfaAddAuthenticator": "Ajouter une application d'authentification",
+    "settingsMore.tfaUsePasskey": "Utiliser une clé d'accès",
+    "settingsMore.tfaPasskeyPitch":
+        "Utilisez Face ID, Touch ID ou votre code comme deuxième étape. Rien " +
+        "à taper et rien à perdre - cela reste sur cet iPhone. Nous vous " +
+        "donnerons des codes de secours pour le jour où l'iPhone vous fera " +
+        "défaut.",
+    "settingsMore.tfaPasskeyFactorName": "Clé d'accès sur iPhone",
+    "settingsMore.tfaPasskeyFailed":
+        "Impossible d'ajouter une clé d'accès. Réessayez, ou utilisez une " +
+        "application d'authentification.",
     "settingsMore.cantReachSignIn":
         "Impossible de joindre le service de connexion. Vérifiez votre "
         + "connexion.",
