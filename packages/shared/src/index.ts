@@ -525,6 +525,13 @@ export type {
 // #613 — which https paths the native apps may take from the browser. Served
 // in two grammars and checked against both routers, because the claim is total:
 // a path an app cannot render is a tap with no error and no way back.
+// #245 — RFC 5545 serialisation for the per-member schedule feed. The three
+// rules that actually break a subscription (escaping, octet folding, CRLF) live
+// here with tests, because the failure mode is silence in software we do not
+// control.
+export { buildIcs, icsDate, icsEscape, icsFold } from "./ics";
+export type { IcsCalendar, IcsEvent } from "./ics";
+
 export {
   ANDROID_APP_LINK_PATHS,
   APP_LINK_HOST,

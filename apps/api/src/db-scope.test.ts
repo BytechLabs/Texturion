@@ -95,6 +95,8 @@ const TENANT_TABLES = new Set([
   // carrying a phone number and an IP, so a query against it without a company
   // filter is the same defect as anywhere else.
   "widget_verifications",
+  // #245: per-member schedule feed credentials.
+  "calendar_feed_tokens",
   "lead_sources",
   // #224: the ask for money, and the mirror of the Stripe account it is paid
   // into. An unscoped read of either is the most valuable cross-tenant leak in

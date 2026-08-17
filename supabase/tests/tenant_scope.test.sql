@@ -61,6 +61,7 @@ declare
     'voicemail_greetings',
     -- #232: the website widget's verification codes.
     'widget_verifications',
+    'calendar_feed_tokens',
     'lead_sources',
     -- #224: text-to-pay.
     'payment_requests', 'stripe_connect_accounts',

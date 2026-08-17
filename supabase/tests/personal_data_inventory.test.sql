@@ -112,6 +112,7 @@ declare
     -- somebody else's website, and they only become a contact once the code
     -- is answered.
     'widget_verifications',
+    'calendar_feed_tokens',
     -- §5 operational data with an identifier attached
     'prepayments', 'referrals',
     'email_events', 'email_suppressions', 'email_ledger', 'public_link_access',

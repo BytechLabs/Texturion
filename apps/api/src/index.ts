@@ -123,6 +123,8 @@ import { appReleaseRoutes } from "./routes/app-release";
 import { exportsRoutes } from "./routes/exports";
 import { auditLogRoutes } from "./routes/audit-log";
 import { workspaceClosureRoutes } from "./routes/workspace-closure";
+import { calendarFeedRoutes } from "./routes/calendar-feed";
+import { calendarRoutes } from "./routes/calendar";
 import { publicQuoteRoutes } from "./routes/quotes-public";
 import { quotesRoutes } from "./routes/quotes";
 import { tagsRoutes } from "./routes/tags";
@@ -255,6 +257,9 @@ app.route("/v1", meRoutes);
 app.route("/v1", companiesRoutes);
 app.route("/v1/billing", billingRoutes);
 app.route("/v1", usageRoutes);
+// #245: a member manages their OWN schedule feed. The feed itself is public
+// and mounted below — these are the session-bound half.
+app.route("/v1", calendarRoutes);
 app.route("/v1", reportsRoutes); // #239 GET /v1/reports/response-time
 app.route("/v1/referrals", referralRoutes);
 app.route("/v1/numbers", numbersRoutes);
@@ -298,6 +303,9 @@ app.route("/v1", tagsRoutes);
 app.route("/v1", quotesRoutes);
 // Outside /v1: the customer has no account and no token of ours.
 app.route("/", publicQuoteRoutes);
+// #245: the per-member schedule feed. Public by construction — a calendar
+// client has no session and the token IS the credential.
+app.route("/", calendarFeedRoutes);
 app.route("/v1", templatesRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", teamRoutes);

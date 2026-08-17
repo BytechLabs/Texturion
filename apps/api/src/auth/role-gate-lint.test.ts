@@ -82,6 +82,18 @@ const SELF_SCOPED_WRITES = new Set([
   "DELETE /saved-views/:id",
   "POST /saved-views/reorder",
   "PUT /saved-views/default",
+  // #245: your own calendar subscription. The closest precedent above is
+  // POST /push-subscriptions — a personal delivery credential rather than
+  // workspace data.
+  //
+  // What makes it self-scoped is structural rather than a promise: both
+  // handlers pass c.get("userId") to the RPC and there is no route here that
+  // names another member, so a caller can only ever mint or revoke their own.
+  // And the feed it unlocks grants no read the member does not already have —
+  // it filters to tasks assigned to them and applies #106 number access on
+  // every poll, resolved fresh rather than frozen into the token.
+  "POST /calendar/feed",
+  "DELETE /calendar/feed",
   // #406: leaving is always yours to do.
   "DELETE /members/me",
   // #286: "I have been through the joining orientation" is a statement about
