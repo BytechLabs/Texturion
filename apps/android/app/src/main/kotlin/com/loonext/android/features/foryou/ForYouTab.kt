@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -46,7 +47,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
+import com.loonext.android.core.snooze.DeferralKind
+import com.loonext.android.core.snooze.followUpPresets
 import com.loonext.android.features.settings.formatMoney
+import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.features.quotes.Quote
 import com.loonext.android.features.quotes.QuotesRepository
 import com.loonext.android.ui.common.rememberCacheFirst
@@ -108,6 +112,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import kotlinx.coroutines.delay
+import java.time.Instant
 
 /**
  * /for-you — the default landing: Unassigned (every member since #416),
@@ -206,6 +211,23 @@ fun ForYouTab(
         key = CacheKeys.outstandingQuotes(companyId),
         refreshKey = refreshKey,
     ) { QuotesRepository(graph.api).outstanding(companyId).data }
+
+    /*
+     * #287 — which rows have been chased in this session.
+     *
+     * The queue returns QUOTES and a deferral lives on the CONVERSATION, so
+     * there is no field on a quote to read this back from. A second fetch per
+     * row to answer a question that only matters for the seconds after a tap
+     * would be a worse trade than forgetting it on the next cold start.
+     */
+    var chasedQuotes by remember(companyId) { mutableStateOf(emptySet<String>()) }
+    // Chasing writes a note on a thread, which read_only cannot do. The queue
+    // itself stays — the list is the report, and an observer who can see every
+    // thread should be able to see the money in them.
+    val canChase = MemberRole.has(
+        me.memberships.firstOrNull { it.company_id == companyId }?.role,
+        Capability.CONVERSATIONS_NOTE,
+    )
 
     // #354: quoted, won, still out. Its own cache-first read for the same
     // reason as the response time above, and fixed at 30 days — the pipeline
@@ -399,6 +421,38 @@ fun ForYouTab(
                 // #287: money asked for and not yet answered.
                 outstandingQuotes =
                     (outstandingQuotes as? LoadState.Ready)?.value.orEmpty(),
+                chasedQuotes = if (canChase) chasedQuotes else null,
+                onChaseQuote = { quote, note ->
+                    /*
+                     * #293's ladder, not a fourth clock. Its own comment says
+                     * "this afternoon" is a meaningless time to chase a quote,
+                     * which is why that ladder exists — and the soonest rung on
+                     * it is three days out.
+                     *
+                     * ONE TAP, no picker. The thread's own menu re-times it for
+                     * the member who wants Friday.
+                     */
+                    val soonest = followUpPresets().firstOrNull()
+                    if (soonest != null) {
+                        chasedQuotes = chasedQuotes + quote.id
+                        coroutines.launch {
+                            val ok = runCatching {
+                                MessagingRepository(graph.api).snooze(
+                                    companyId = companyId,
+                                    conversationId = quote.conversation_id,
+                                    untilIso = Instant.ofEpochMilli(soonest.at)
+                                        .toString(),
+                                    note = note,
+                                    kind = DeferralKind.FOLLOW_UP,
+                                )
+                            }.isSuccess
+                            // Put the button back on failure. A row saying
+                            // "Chasing" with nothing scheduled is worse than one
+                            // that never claimed to.
+                            if (!ok) chasedQuotes = chasedQuotes - quote.id
+                        }
+                    }
+                },
                 // #239: the response-time report and its window.
                 responseTime = (responseTime as? LoadState.Ready)?.value,
                 responseDays = responseDays,
@@ -452,6 +506,10 @@ private fun ForYouList(
     recentCalls: LoadState<List<Call>>,
     /** #287: already server-filtered to unanswered — see QuotesRepository. */
     outstandingQuotes: List<Quote>,
+    /** #287: chased this session. NULL when this member cannot write a note. */
+    chasedQuotes: Set<String>?,
+    /** #287: the quote, and the note to file against its thread. */
+    onChaseQuote: (Quote, String) -> Unit,
     /** #239: null while it loads — the card says so rather than showing a zero. */
     responseTime: ResponseTimeReport?,
     responseDays: Int,
@@ -873,9 +931,22 @@ private fun ForYouList(
                 ) {
                     waitingQuotes.forEachIndexed { index, quote ->
                         if (index > 0) RowDivider()
+                        // Built HERE rather than in the click lambda, because
+                        // `t` is @Composable and a lambda is not.
+                        //
+                        // The note is what makes the reminder actionable three
+                        // days later: "Chase this" is a chore, and "Chase the
+                        // $450 quote — replace the water heater" is a job.
+                        val chaseNote = t(
+                            "quotes.chaseNote",
+                            "amount" to formatMoney(quote.amount_cents, quote.money),
+                            "description" to quote.description,
+                        ).take(CHASE_NOTE_MAX)
                         OutstandingQuoteRow(
                             quote = quote,
                             onOpen = { onOpenConversation(quote.conversation_id) },
+                            chased = chasedQuotes?.contains(quote.id),
+                            onChase = { onChaseQuote(quote, chaseNote) },
                         )
                     }
                 }
@@ -944,6 +1015,13 @@ private fun QueueSection(
 private const val OUTSTANDING_QUOTES_LIMIT = 6
 
 /**
+ * The API caps a deferral note at 120 characters. Every client truncates to the
+ * same figure — a note built from a long description would otherwise 422 on
+ * whichever client forgot, which reads to the crew as "chasing is broken".
+ */
+private const val CHASE_NOTE_MAX = 120
+
+/**
  * One unanswered quote: what it is worth, what it is for, and how long it has
  * been waiting.
  *
@@ -951,7 +1029,13 @@ private const val OUTSTANDING_QUOTES_LIMIT = 6
  * to chase; the deadline is only the reason the row will vanish on its own.
  */
 @Composable
-private fun OutstandingQuoteRow(quote: Quote, onOpen: () -> Unit) {
+private fun OutstandingQuoteRow(
+    quote: Quote,
+    onOpen: () -> Unit,
+    /** True once chased; NULL when this member cannot chase at all. */
+    chased: Boolean?,
+    onChase: () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -980,7 +1064,26 @@ private fun OutstandingQuoteRow(quote: Quote, onOpen: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        RowArrow()
+        when (chased) {
+            null -> RowArrow()
+            true -> Text(
+                t("quotes.chasing"),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            false -> TextButton(
+                onClick = onChase,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier.heightIn(min = 32.dp),
+            ) {
+                Text(
+                    t("quotes.chase"),
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
     }
 }
 

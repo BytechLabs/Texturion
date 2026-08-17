@@ -50,6 +50,14 @@ export const quotesEn = {
      not "outstanding": the second is an accountant's word for the same thing
      and says nothing about what to do next. */
   outstandingTitle: "Waiting on an answer",
+  /* #287 — the follow-up half of "a queue with follow-up". A VERB, because
+     every other word in the row is a fact and this is the only thing on it
+     anybody can do. */
+  chase: "Chase",
+  chasing: "Chasing",
+  /* The note the reminder carries. It names the figure and the work because
+     "Chase this" three days later is a chore and this is a job. */
+  chaseNote: "Chase the {amount} quote — {description}",
   /* #287 — accepted, then paid, without retyping the figure. */
   askForPayment: "Ask for payment",
   newQuote: "Quote this job",
@@ -85,6 +93,9 @@ export const quotesFr: Translated<typeof quotesEn> = {
   acceptFailed: "Cela n'a pas fonctionné. Le devis vient peut-être d'expirer ou d'être retiré. Écrivez à {business} et ils pourront arranger cela.",
   noLongerOpen: "Ce devis n'est plus ouvert. Écrivez à {business} si vous souhaitez toujours faire réaliser les travaux.",
   outstandingTitle: "En attente d'une réponse",
+  chase: "Relancer",
+  chasing: "Relance prévue",
+  chaseNote: "Relancer le devis de {amount} — {description}",
   askForPayment: "Demander le paiement",
   newQuote: "Faire un devis",
   sendFor: "Envoyer pour {amount}",

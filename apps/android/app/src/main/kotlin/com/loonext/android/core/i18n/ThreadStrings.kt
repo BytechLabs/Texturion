@@ -37,6 +37,12 @@ object ThreadStrings : AppStrings.Section {
             "Expired",
         "quotes.outstandingTitle" to
             "Waiting on an answer",
+        "quotes.chase" to
+            "Chase",
+        "quotes.chasing" to
+            "Chasing",
+        "quotes.chaseNote" to
+            "Chase the {amount} quote — {description}",
         "quotes.newQuote" to
             "Quote this job",
         "quotes.sendFor" to
@@ -705,6 +711,12 @@ object ThreadStrings : AppStrings.Section {
             "Expiré",
         "quotes.outstandingTitle" to
             "En attente d'une réponse",
+        "quotes.chase" to
+            "Relancer",
+        "quotes.chasing" to
+            "Relance prévue",
+        "quotes.chaseNote" to
+            "Relancer le devis de {amount} — {description}",
         "quotes.newQuote" to
             "Faire un devis",
         "quotes.sendFor" to

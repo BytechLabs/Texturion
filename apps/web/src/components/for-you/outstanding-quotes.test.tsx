@@ -24,6 +24,21 @@ vi.mock("@/lib/api/quotes", () => ({
 
 vi.mock("@/lib/api/calls", () => ({ useCalls: () => ({ data: undefined }) }));
 
+// The chase button's two dependencies. What it DOES is pinned next door, in
+// outstanding-quotes-chase.test.tsx — these keep the render honest.
+vi.mock("@/lib/api/conversations", () => ({
+  useSnoozeConversation: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    variables: undefined,
+  }),
+}));
+
+vi.mock("@/lib/company/provider", () => ({
+  useActiveCompany: () => ({ role: "owner" }),
+  useCompanyId: () => "company-1",
+}));
+
 import { OutstandingQuotesSection } from "./outstanding-quotes-section";
 
 const quote = (over: Partial<Quote>): Quote =>

@@ -86,6 +86,14 @@ vi.mock("@/lib/api/me-company", () => ({
 
 vi.mock("@/lib/api/conversations", () => ({
   useUpdateConversation: () => ({ isPending: false, mutate: vi.fn() }),
+  // #287: the outstanding queue's Chase button schedules a follow-up. What it
+  // sends is pinned in outstanding-quotes-chase.test.tsx; here it only has to
+  // exist, because the section renders on this screen.
+  useSnoozeConversation: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    variables: undefined,
+  }),
 }));
 // #287: the landing screen now carries the outstanding-quotes queue, which
 // reads through react-query like every other list here. Empty for this suite —

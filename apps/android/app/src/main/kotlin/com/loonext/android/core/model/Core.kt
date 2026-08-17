@@ -70,11 +70,13 @@ object MemberRole {
             Capability.WORKSPACE_ACCESS,
             Capability.CONVERSATIONS_READ,
             Capability.CONVERSATIONS_SEND,
+            Capability.CONVERSATIONS_NOTE,
         ),
         ADMIN to setOf(
             Capability.WORKSPACE_ACCESS,
             Capability.CONVERSATIONS_READ,
             Capability.CONVERSATIONS_SEND,
+            Capability.CONVERSATIONS_NOTE,
             Capability.BILLING_MANAGE,
             Capability.SETTINGS_MANAGE,
             Capability.TEAM_MANAGE,
@@ -117,6 +119,13 @@ object Capability {
     const val WORKSPACE_ACCESS = "workspace.access"
     const val CONVERSATIONS_READ = "conversations.read"
     const val CONVERSATIONS_SEND = "conversations.send"
+
+    /**
+     * Post internal notes. Separate from [CONVERSATIONS_SEND] because a note
+     * reaches nobody outside the crew — which is what makes note-only access
+     * useful, and why a read-only member does not hold it.
+     */
+    const val CONVERSATIONS_NOTE = "conversations.note"
     const val BILLING_MANAGE = "billing.manage"
     const val SETTINGS_MANAGE = "settings.manage"
     const val TEAM_MANAGE = "team.manage"
@@ -128,6 +137,7 @@ object Capability {
         WORKSPACE_ACCESS,
         CONVERSATIONS_READ,
         CONVERSATIONS_SEND,
+        CONVERSATIONS_NOTE,
         BILLING_MANAGE,
         SETTINGS_MANAGE,
         TEAM_MANAGE,

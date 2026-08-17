@@ -54,6 +54,12 @@ enum ThreadStrings {
                 "Expired",
             "quotes.outstandingTitle":
                 "Waiting on an answer",
+            "quotes.chase":
+                "Chase",
+            "quotes.chasing":
+                "Chasing",
+            "quotes.chaseNote":
+                "Chase the {amount} quote — {description}",
             "quotes.newQuote":
                 "Quote this job",
             "quotes.sendFor":
@@ -710,6 +716,12 @@ enum ThreadStrings {
                 "Expiré",
             "quotes.outstandingTitle":
                 "En attente d'une réponse",
+            "quotes.chase":
+                "Relancer",
+            "quotes.chasing":
+                "Relance prévue",
+            "quotes.chaseNote":
+                "Relancer le devis de {amount} — {description}",
             "quotes.newQuote":
                 "Faire un devis",
             "quotes.sendFor":

@@ -36,6 +36,13 @@ struct ForYouTab: View {
     /// failure and an answered-everything workspace look the same, which is the
     /// right answer for a queue that is normally empty.
     @State private var outstandingQuotes: [Quote] = []
+    /// #287: which rows have been chased in this session.
+    ///
+    /// The queue returns QUOTES and a deferral lives on the CONVERSATION, so
+    /// there is no field on a quote to read this back from. A second fetch per
+    /// row to answer a question that only matters for the seconds after a tap
+    /// would be a worse trade than forgetting it on the next cold start.
+    @State private var chasedQuotes: Set<String> = []
     /// #342: spam marks that do not look like spam. Empty on nearly every day,
     /// and deliberately NOT a badge or a push — a signal you find, not one
     /// that finds you.
@@ -142,6 +149,15 @@ struct ForYouTab: View {
                     recentCalls: recentCalls,
                     // #287: already server-filtered to unanswered.
                     outstandingQuotes: outstandingQuotes,
+                    // Chasing writes a note on a thread, which read_only cannot
+                    // do. The queue itself stays — the list is the report, and
+                    // an observer who can see every thread should be able to
+                    // see the money in them.
+                    chasedQuotes: MemberRole.has(
+                        me.memberships.first { $0.company_id == companyId }?.role,
+                        Capability.conversationsNote
+                    ) ? chasedQuotes : nil,
+                    onChaseQuote: { quote, note in chase(quote, note: note) },
                     // #239: nil while it loads — the card says so rather than
                     // showing a zero.
                     responseTime: responseTime,
@@ -340,6 +356,34 @@ struct ForYouTab: View {
     /// Quiet on failure, and that is the choice this queue wants: it is empty
     /// on most days, so an error row would be indistinguishable from the normal
     /// state to everybody except the person who has quotes out.
+    /// #287 — chase an unanswered quote.
+    ///
+    /// #293's ladder, not a fourth clock: its own comment says "this afternoon"
+    /// is a meaningless time to chase a quote, which is why that ladder exists
+    /// — and the soonest rung on it is three days out.
+    ///
+    /// ONE TAP, no picker. The thread's own menu re-times it for the member who
+    /// wants Friday.
+    private func chase(_ quote: Quote, note: String) {
+        guard let soonest = followUpPresets().first else { return }
+        chasedQuotes.insert(quote.id)
+        Task {
+            do {
+                try await MessagingRepository(api: graph.api).snooze(
+                    companyId: companyId,
+                    conversationId: quote.conversation_id,
+                    untilISO: snoozeInstantISO(soonest.at),
+                    note: note,
+                    kind: DeferralKind.followUp
+                )
+            } catch {
+                // Put the button back. A row saying "Chasing" with nothing
+                // scheduled is worse than one that never claimed to.
+                chasedQuotes.remove(quote.id)
+            }
+        }
+    }
+
     private func reloadOutstandingQuotes() async {
         if let page = try? await QuotesApi(api: graph.api)
             .outstanding(companyId: companyId) {
@@ -370,6 +414,10 @@ private struct ForYouList: View {
     let recentCalls: LoadState<[Call]>
     /// #287: already server-filtered to unanswered — see QuotesApi.outstanding.
     let outstandingQuotes: [Quote]
+    /// #287: chased this session. NIL when this member cannot write a note.
+    let chasedQuotes: Set<String>?
+    /// #287: the quote, and the note to file against its thread.
+    let onChaseQuote: @MainActor (Quote, String) -> Void
     /// #239: nil while it loads — the card says so rather than showing a zero.
     let responseTime: ResponseTimeReport?
     let responseDays: Int
@@ -866,13 +914,6 @@ private struct ForYouList: View {
         }
     }
 
-    // Recent calls (#161/D43) — the mobile doorway into the Calls surface.
-    // Hidden entirely while loading or empty; an honest error line when the
-    // log couldn't load (Android twin parity).
-    // #540: and hideable, unlike everything above it in the queue. Calls already
-    // happened — this is history a member reads, not work they owe anybody, so it
-    // is the one section here that can come off.
-    @ViewBuilder
     /// #287: a morning's worth. The rest is the thread list's job.
     private var waitingQuotes: [Quote] {
         Array(
@@ -906,7 +947,29 @@ private struct ForYouList: View {
                         if index > 0 { RowDivider() }
                         OutstandingQuoteRow(
                             quote: quote,
-                            onTap: { onOpenConversation(quote.conversation_id) }
+                            onTap: { onOpenConversation(quote.conversation_id) },
+                            chased: chasedQuotes?.contains(quote.id),
+                            onChase: {
+                                // The note is what makes the reminder actionable
+                                // three days later: "Chase this" is a chore, and
+                                // "Chase the $450 quote — replace the water
+                                // heater" is a job.
+                                onChaseQuote(
+                                    quote,
+                                    String(
+                                        AppStrings.translate(
+                                            appLocale,
+                                            "quotes.chaseNote",
+                                            [
+                                                "amount": quote.amountLabel,
+                                                "description": quote.description,
+                                            ]
+                                        ).prefix(chaseNoteMax)
+                                    )
+                                )
+                            },
+                            chaseLabel: AppStrings.translate(appLocale, "quotes.chase"),
+                            chasingLabel: AppStrings.translate(appLocale, "quotes.chasing")
                         )
                     }
                 }
@@ -914,6 +977,13 @@ private struct ForYouList: View {
         }
     }
 
+    // Recent calls (#161/D43) — the mobile doorway into the Calls surface.
+    // Hidden entirely while loading or empty; an honest error line when the
+    // log couldn't load (Android twin parity).
+    // #540: and hideable, unlike everything above it in the queue. Calls already
+    // happened — this is history a member reads, not work they owe anybody, so it
+    // is the one section here that can come off.
+    @ViewBuilder
     private var recentCallsSection: some View {
         if !DashboardPanels.isVisible(hidden, .recentCalls) {
             EmptyView()
@@ -977,6 +1047,11 @@ private struct ForYouList: View {
 /// One recent call: direction/outcome glyph, contact-or-number, relative
 /// time. Amber only for the actionable inbound miss (calm system); tappable
 /// into the conversation only when one exists.
+/// The API caps a deferral note at 120 characters. Every client truncates to
+/// the same figure — a note built from a long description would otherwise 422
+/// on whichever client forgot, which reads to the crew as "chasing is broken".
+private let chaseNoteMax = 120
+
 /// One unanswered quote: what it is worth, what it is for, and how long it has
 /// been waiting.
 ///
@@ -985,6 +1060,11 @@ private struct ForYouList: View {
 private struct OutstandingQuoteRow: View {
     let quote: Quote
     let onTap: @MainActor () -> Void
+    /// True once chased; NIL when this member cannot chase at all.
+    let chased: Bool?
+    let onChase: @MainActor () -> Void
+    let chaseLabel: String
+    let chasingLabel: String
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1007,6 +1087,20 @@ private struct OutstandingQuoteRow: View {
                     .foregroundStyle(BrandColor.muted300)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
+            }
+            if let chased {
+                if chased {
+                    Text(chasingLabel)
+                        .font(.golos(11.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted400)
+                        .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    Button(chaseLabel, action: onChase)
+                        .font(.golos(11.5, weight: .bold))
+                        .foregroundStyle(BrandColor.olive)
+                        .buttonStyle(.plain)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -1238,6 +1332,8 @@ private func previewCall(
             ),
         ]),
         outstandingQuotes: [],
+        chasedQuotes: [],
+        onChaseQuote: { _, _ in },
         // #239: nil report — the preview shows the "working it out" state.
         responseTime: nil,
         responseDays: 30,
@@ -1275,6 +1371,8 @@ private func previewCall(
         onAnswerSpamReview: { _, _ in },
         recentCalls: .failed("Something went wrong."),
         outstandingQuotes: [],
+        chasedQuotes: [],
+        onChaseQuote: { _, _ in },
         // #239: nil report — the preview shows the "working it out" state.
         responseTime: nil,
         responseDays: 30,
@@ -1331,6 +1429,8 @@ private func previewCall(
         onAnswerSpamReview: { _, _ in },
         recentCalls: .ready([]),
         outstandingQuotes: [],
+        chasedQuotes: [],
+        onChaseQuote: { _, _ in },
         // #239: nil report — the preview shows the "working it out" state.
         responseTime: nil,
         responseDays: 30,

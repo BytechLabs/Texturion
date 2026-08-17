@@ -63,11 +63,13 @@ enum MemberRole {
             Capability.workspaceAccess,
             Capability.conversationsRead,
             Capability.conversationsSend,
+            Capability.conversationsNote,
         ],
         admin: [
             Capability.workspaceAccess,
             Capability.conversationsRead,
             Capability.conversationsSend,
+            Capability.conversationsNote,
             Capability.billingManage,
             Capability.settingsManage,
             Capability.teamManage,
@@ -109,6 +111,10 @@ enum Capability {
     static let workspaceAccess = "workspace.access"
     static let conversationsRead = "conversations.read"
     static let conversationsSend = "conversations.send"
+    /// Post internal notes. Separate from `conversationsSend` because a note
+    /// reaches nobody outside the crew — which is what makes note-only access
+    /// useful, and why a read-only member does not hold it.
+    static let conversationsNote = "conversations.note"
     static let billingManage = "billing.manage"
     static let settingsManage = "settings.manage"
     static let teamManage = "team.manage"
@@ -120,6 +126,7 @@ enum Capability {
         workspaceAccess,
         conversationsRead,
         conversationsSend,
+        conversationsNote,
         billingManage,
         settingsManage,
         teamManage,
