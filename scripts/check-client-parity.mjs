@@ -202,6 +202,37 @@ const SURFACES = [
     ios: "Payments",
   },
   {
+    key: "quotes",
+    // #287 — a quote is a thing rather than a paragraph typed into a text: an
+    // amount, what the work is, a deadline, and a status that changes without
+    // anybody in the workspace doing anything.
+    //
+    // THIS ENTRY RECORDS A REAL GAP, not a layout difference. Web and Android
+    // can quote a job; iOS cannot yet. Web shipped first and the phones had
+    // nothing at all, which was the wrong way round for this product — a crew
+    // member quotes from the van, not from a laptop — so Android followed.
+    // iOS is the remaining half of #287 and this line is what stops that being
+    // forgotten.
+    //
+    // Where it lives differs the same way payments does, and for the same
+    // reasons. Android keeps the wire shapes and the ported status rule in
+    // features/quotes and puts the strip beside its siblings in
+    // thread/ThreadQuotes.kt, because it is not a full screen. Web has no
+    // package: thread/quote-strip.tsx sits inside the surface that owns its
+    // context.
+    //
+    // The CUSTOMER's quote page is deliberately not here. It belongs to
+    // `public` above, for the reason recorded there: a homeowner who tapped a
+    // link in a text installs nothing.
+    web: null,
+    webReason:
+      "the crew half is thread/quote-strip.tsx; the customer's page is under `public`",
+    android: "quotes",
+    ios: null,
+    iosReason:
+      "NOT BUILT YET (#287). The remaining half: iOS cannot quote a job, so a crew that works from iPhones has the feature only on the web app",
+  },
+  {
     key: "compose",
     // The mobile clients give the message composer its own feature package
     // because it is a full screen there. On web it is a component inside the

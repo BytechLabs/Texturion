@@ -1115,6 +1115,17 @@ private fun ThreadLoaded(
                 onSent = { controller.refreshAfterReconnect() },
                 modifier = Modifier.padding(bottom = 4.dp),
             )
+            // #287: beside the payment strip because they are the same kind of
+            // thing — state that changes without anybody here doing anything.
+            ThreadQuotes(
+                graph = graph,
+                companyId = companyId,
+                conversationId = controller.conversationId,
+                canAct = !viewerReadOnly,
+                onNotice = onNotice,
+                onSent = { controller.refreshAfterReconnect() },
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
         }
 
         ThreadComposer(

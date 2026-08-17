@@ -21,6 +21,40 @@ package com.loonext.android.core.i18n
  */
 object ThreadStrings : AppStrings.Section {
     override val en = mapOf(
+        // #287 — the quote strip. Lifted verbatim from web's catalogue so
+        // the clients say one thing; pinned by QuoteCopyParityTest.
+        "quotes.statusDraft" to
+            "Draft",
+        "quotes.statusSent" to
+            "Waiting",
+        "quotes.statusViewed" to
+            "Opened, no answer",
+        "quotes.statusAccepted" to
+            "Accepted",
+        "quotes.statusDeclined" to
+            "Declined",
+        "quotes.statusExpired" to
+            "Expired",
+        "quotes.newQuote" to
+            "Quote this job",
+        "quotes.sendFor" to
+            "Send for {amount}",
+        "quotes.sending" to
+            "Sending…",
+        "quotes.saveDraft" to
+            "Save draft",
+        "quotes.saving" to
+            "Saving…",
+        "quotes.amountLabel" to
+            "Amount",
+        "quotes.descriptionLabel" to
+            "What the work is",
+        "quotes.expiresInDays" to
+            "The price holds for {days} days. You can send it as soon as it is saved.",
+        "quotes.needAmount" to
+            "Put a number in, and make it more than zero.",
+        "quotes.needDescription" to
+            "Say what the work is. The customer sees this line.",
         // --- The thread itself -------------------------------------------
         "thread.notFound" to "This conversation doesn't exist or was removed.",
         "thread.backToInbox" to "Back to inbox",
@@ -653,6 +687,40 @@ object ThreadStrings : AppStrings.Section {
     )
 
     override val frCA = mapOf(
+        // #287 — the quote strip. Lifted verbatim from web's catalogue so
+        // the clients say one thing; pinned by QuoteCopyParityTest.
+        "quotes.statusDraft" to
+            "Brouillon",
+        "quotes.statusSent" to
+            "En attente",
+        "quotes.statusViewed" to
+            "Ouvert, sans réponse",
+        "quotes.statusAccepted" to
+            "Accepté",
+        "quotes.statusDeclined" to
+            "Refusé",
+        "quotes.statusExpired" to
+            "Expiré",
+        "quotes.newQuote" to
+            "Faire un devis",
+        "quotes.sendFor" to
+            "Envoyer pour {amount}",
+        "quotes.sending" to
+            "Envoi…",
+        "quotes.saveDraft" to
+            "Enregistrer le brouillon",
+        "quotes.saving" to
+            "Enregistrement…",
+        "quotes.amountLabel" to
+            "Montant",
+        "quotes.descriptionLabel" to
+            "En quoi consistent les travaux",
+        "quotes.expiresInDays" to
+            "Le prix tient pendant {days} jours. Vous pouvez l'envoyer dès qu'il est enregistré.",
+        "quotes.needAmount" to
+            "Inscrivez un montant supérieur à zéro.",
+        "quotes.needDescription" to
+            "Précisez les travaux. Le client voit cette ligne.",
         // --- The thread itself -------------------------------------------
         "thread.notFound" to "Cette conversation n'existe pas ou a été supprimée.",
         "thread.backToInbox" to "Retour à la boîte de réception",
