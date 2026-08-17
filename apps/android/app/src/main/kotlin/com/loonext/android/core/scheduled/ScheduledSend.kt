@@ -157,6 +157,31 @@ object ScheduledSend {
             },
         )
 
+    /**
+     * #228 — why a held message did not go, in the reader's language.
+     *
+     * Hand-port of `scheduledHoldText` in packages/shared. The API writes BOTH
+     * a catalogue key and the English sentence it has always written, so:
+     * translate the key where we have words for it, and otherwise render the
+     * stored sentence — which is what a row written before the key existed has.
+     *
+     * A key with no words resolves to ITSELF (the catalogue fails open), so a
+     * self-resolving key counts as absent. Without that check a French reader
+     * would see `domain.scheduledHoldExpired` instead of an English sentence,
+     * which is the worse of the two.
+     */
+    fun holdText(
+        reasonKey: String?,
+        storedEnglish: String?,
+        locale: String? = null,
+    ): String? {
+        if (!reasonKey.isNullOrBlank()) {
+            val words = AppStrings.translate(locale, reasonKey)
+            if (words.isNotBlank() && words != reasonKey) return words
+        }
+        return storedEnglish
+    }
+
     /** One offer in the send-later menu. `at` is null for the picker. */
     data class Preset(val id: String, val label: String, val at: Instant?)
 

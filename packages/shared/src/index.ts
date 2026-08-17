@@ -756,6 +756,8 @@ export {
 export {
   SCHEDULED_BODY_MAX,
   SCHEDULED_HOLD_REASONS,
+  SCHEDULED_HOLD_REASON_KEYS,
+  scheduledHoldText,
   SCHEDULED_HORIZON_DAYS,
   SCHEDULED_MESSAGE_STATUSES,
   SCHEDULED_PER_COMPANY_CAP,
@@ -771,6 +773,7 @@ export {
 } from "./scheduled-send";
 export type {
   ScheduledHoldReason,
+  ScheduledHoldReasonKey,
   ScheduledMessageStatus,
   ScheduledSendCopyKey,
   SchedulePreset,

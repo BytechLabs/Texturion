@@ -32,7 +32,11 @@
 import { AlertTriangle, CalendarClock, Clock } from "lucide-react";
 import Link from "next/link";
 
-import { SCHEDULED_SEND_COPY, scheduledClockProvenance } from "@loonext/shared";
+import {
+  SCHEDULED_SEND_COPY,
+  scheduledClockProvenance,
+  scheduledHoldText,
+} from "@loonext/shared";
 
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -172,6 +176,9 @@ function ScheduledListRow({
 }) {
   const t = useT();
   const held = row.status === "held";
+  // #228: the key where this client has words for it, the stored English
+  // otherwise.
+  const holdText = scheduledHoldText(row.held_reason_key, row.held_reason, t);
   return (
     <li className="flex items-start gap-[11px] border-b border-app-line-soft p-[11px] last:border-b-0">
       {held ? (
@@ -207,11 +214,14 @@ function ScheduledListRow({
           </span>
         </div>
         <p className="mt-0.5 truncate text-[12.5px] text-app-muted">{row.body}</p>
-        {/* The reason, in the API's own words. Not paraphrased per surface:
-            two surfaces paraphrasing one sentence is how they end up
-            disagreeing about why a text did not go. */}
-        {held && row.held_reason ? (
-          <p className="mt-1 text-[12px] text-app-amber">{row.held_reason}</p>
+{/* The reason, in ONE sentence chosen by the shared module. Not
+            paraphrased per surface: two surfaces paraphrasing one sentence is
+            how they end up disagreeing about why a text did not go.
+
+            #228: the key where we have words for it, the stored English
+            otherwise — a row written before the key existed still says why. */}
+        {held && holdText ? (
+          <p className="mt-1 text-[12px] text-app-amber">{holdText}</p>
         ) : (
           <p className="mt-1 text-[11px] text-app-muted-2">
             {t(scheduledClockProvenance(row.clock_source))}

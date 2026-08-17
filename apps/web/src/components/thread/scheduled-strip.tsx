@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Clock, X } from "lucide-react";
 
-import { scheduledClockProvenance } from "@loonext/shared";
+import { scheduledClockProvenance, scheduledHoldText } from "@loonext/shared";
 
 import { useT } from "@/i18n/provider";
 
@@ -77,6 +77,10 @@ function ScheduledRow({
   // #228: the clock line names a catalogue key now, so this row resolves it.
   const t = useT();
   const held = row.status === "held";
+  // #228: the key where this client has words for it, the stored English
+  // otherwise — see `scheduledHoldText` for why a self-resolving key counts
+  // as absent.
+  const holdText = scheduledHoldText(row.held_reason_key, row.held_reason, t);
   return (
     <li
       className={cn(
@@ -103,11 +107,14 @@ function ScheduledRow({
           {" — "}
           {row.body}
         </p>
-        {/* The reason, in the API's own words. Not paraphrased here: three
-            clients paraphrasing one sentence is how one of them ends up saying
-            nothing at all. */}
-        {held && row.held_reason && (
-          <p className="mt-0.5 text-app-amber">{row.held_reason}</p>
+{/* The reason, in ONE sentence chosen by the shared module. Not
+            paraphrased here: three clients paraphrasing one sentence is how one
+            of them ends up saying nothing at all.
+
+            #228: the key where we have words for it, the stored English
+            otherwise. */}
+        {held && holdText && (
+          <p className="mt-0.5 text-app-amber">{holdText}</p>
         )}
         {!held && (
           <p className="mt-0.5 text-[11px] text-muted-foreground">

@@ -401,6 +401,12 @@ data class ScheduledMessage(
     val status: String,
     /** Why it is not going, in the API's own words. Null while simply waiting. */
     val held_reason: String? = null,
+    /**
+     * #228 — the same reason as a catalogue key, so it reads in the member's
+     * language. Null on rows written before 2026-08-17; render both through
+     * [com.loonext.android.core.model.scheduledHoldText].
+     */
+    val held_reason_key: String? = null,
     val held_at: String? = null,
     val expires_at: String? = null,
     val sent_message_id: String? = null,

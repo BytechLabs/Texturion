@@ -393,6 +393,10 @@ struct ScheduledMessage: Codable, Sendable, Identifiable {
     let status: String
     /// Why it is not going, in the API's own words. Nil while simply waiting.
     var held_reason: String? = nil
+    /// #228 — the same reason as a catalogue key, so it reads in the member's
+    /// language. Null on rows written before 2026-08-17; render both through
+    /// `scheduledHoldText`.
+    var held_reason_key: String? = nil
     var held_at: String? = nil
     var expires_at: String? = nil
     var sent_message_id: String? = nil

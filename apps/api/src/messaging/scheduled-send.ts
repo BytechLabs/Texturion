@@ -50,6 +50,7 @@
  */
 import {
   SCHEDULED_HOLD_REASONS,
+  SCHEDULED_HOLD_REASON_KEYS,
   type ScheduledHoldReason,
   estimateSegments,
   scheduledReasonRecovers,
@@ -342,7 +343,10 @@ async function hold(
   unwrap(
     await db.rpc("api_hold_scheduled_message", {
       p_id: row.id,
+      // #228: BOTH. The sentence is what a build that predates the key still
+      // renders; the key is what a client translates. See the shared module.
       p_reason: SCHEDULED_HOLD_REASONS[reason],
+      p_reason_key: SCHEDULED_HOLD_REASON_KEYS[reason],
     }),
     "hold scheduled message",
   );
@@ -360,6 +364,7 @@ async function fail(
     await db.rpc("api_fail_scheduled_message", {
       p_id: row.id,
       p_reason: SCHEDULED_HOLD_REASONS[reason],
+      p_reason_key: SCHEDULED_HOLD_REASON_KEYS[reason],
     }),
     "fail scheduled message",
   );

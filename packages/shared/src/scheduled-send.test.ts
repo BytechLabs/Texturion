@@ -17,6 +17,8 @@ import {
   schedulePresets,
   scheduledClockProvenance,
   scheduledReasonRecovers,
+  SCHEDULED_HOLD_REASON_KEYS,
+  scheduledHoldText,
 } from "./scheduled-send";
 
 /**
@@ -228,5 +230,63 @@ describe("#233 whose clock it was", () => {
     // would pass every assertion above and say nothing.
     expect(new Set(three).size).toBe(3);
     expect(three[2]).toMatch(/ne connaissons pas|ne savons pas/i);
+  });
+});
+
+/**
+ * #228 — the hold reason, as a key.
+ *
+ * The failure these exist to stop is a reason gaining a sentence and no key (a
+ * French reader gets English) or a key and no sentence (a build that predates
+ * the key gets nothing at all). Both are silent, and both land on the one
+ * screen where the product is delivering bad news.
+ */
+describe("SCHEDULED_HOLD_REASON_KEYS", () => {
+  it("covers exactly the reasons that have sentences, both directions", () => {
+    // Set equality. A reason added to one map and not the other is the whole
+    // failure mode, and `satisfies` only catches the missing-key half.
+    expect(Object.keys(SCHEDULED_HOLD_REASON_KEYS).sort()).toEqual(
+      Object.keys(SCHEDULED_HOLD_REASONS).sort(),
+    );
+  });
+
+  it("names a distinct key per reason", () => {
+    // Two reasons sharing a key is two different situations telling somebody
+    // the same thing, which is the confusion the reason roster exists to stop.
+    const keys = Object.values(SCHEDULED_HOLD_REASON_KEYS);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("scheduledHoldText", () => {
+  const words = (key: string) =>
+    key === "domain.scheduledHoldExpired" ? "La fenêtre est passée." : key;
+
+  it("prefers the reader's language over the stored English", () => {
+    expect(
+      scheduledHoldText("domain.scheduledHoldExpired", "The send window passed.", words),
+    ).toBe("La fenêtre est passée.");
+  });
+
+  it("falls back to the stored English for a key it has no words for", () => {
+    // The catalogue fails OPEN: a missing key resolves to itself. Rendering
+    // `scheduled.holdWorkspacePaused` at somebody is worse than English.
+    expect(
+      scheduledHoldText(
+        "domain.scheduledHoldWorkspacePaused",
+        "Your plan is paused.",
+        words,
+      ),
+    ).toBe("Your plan is paused.");
+  });
+
+  it("still says something for a row written before keys existed", () => {
+    expect(scheduledHoldText(null, "Your plan is paused.", words)).toBe(
+      "Your plan is paused.",
+    );
+  });
+
+  it("says nothing when there is nothing to say", () => {
+    expect(scheduledHoldText(null, null, words)).toBeNull();
   });
 });

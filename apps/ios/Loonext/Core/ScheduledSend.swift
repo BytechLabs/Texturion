@@ -149,6 +149,29 @@ enum ScheduledSend {
     /// line (`clockProvenance` in MessagingRepository.swift) — a product that
     /// says "from their area code" in one place and something else in another
     /// has two vocabularies for one fact.
+    /// #228 — why a held message did not go, in the reader's language.
+    ///
+    /// Hand-port of `scheduledHoldText` in packages/shared. The API writes BOTH
+    /// a catalogue key and the English sentence it has always written, so:
+    /// translate the key where we have words for it, and otherwise render the
+    /// stored sentence — which is what a row written before the key existed has.
+    ///
+    /// A key with no words resolves to ITSELF (the catalogue fails open), so a
+    /// self-resolving key counts as absent. Without that check a French reader
+    /// would see `domain.scheduledHoldExpired` rather than an English sentence,
+    /// which is the worse of the two.
+    static func holdText(
+        reasonKey: String?,
+        storedEnglish: String?,
+        locale: String? = nil
+    ) -> String? {
+        if let reasonKey, !reasonKey.isEmpty {
+            let words = AppStrings.translate(locale, reasonKey)
+            if !words.isEmpty, words != reasonKey { return words }
+        }
+        return storedEnglish
+    }
+
     static func clockProvenance(_ source: String, locale: String? = nil) -> String {
         switch source {
         case "contact": return AppStrings.translate(locale, "domain.clockTheirTimeContact")

@@ -128,6 +128,72 @@ export const SCHEDULED_HOLD_REASONS = {
 export type ScheduledHoldReason = keyof typeof SCHEDULED_HOLD_REASONS;
 
 /**
+ * #228 — the same ten reasons, as catalogue keys.
+ *
+ * ## Why both this and the English above
+ *
+ * Expand and contract, the shape #339 used for payout readiness. The API writes
+ * BOTH: `held_reason` keeps the English sentence and `held_reason_key` carries
+ * the key. A client that knows the key translates it; one that does not renders
+ * the sentence exactly as it always has; and rows written before this existed
+ * still say something rather than nothing.
+ *
+ * The English comes off the wire in a separate change, once no installed build
+ * reads it. Deleting it now would blank the reason on every row already in the
+ * database, which is the one outcome worse than showing it in English.
+ *
+ * ## Why this matters more than most untranslated copy
+ *
+ * This is one of the few places the product volunteers bad news — *your message
+ * did not go, and here is what to do about it*. A workspace working in French
+ * being told that in English is the wrong sentence to leave for last.
+ *
+ * The keys are asserted against {@link SCHEDULED_HOLD_REASONS} in both
+ * directions by the tests, so a reason cannot gain a sentence without a key or
+ * a key without a sentence.
+ */
+export const SCHEDULED_HOLD_REASON_KEYS = {
+  subscription_inactive: "domain.scheduledHoldSubscriptionInactive",
+  workspace_paused: "domain.scheduledHoldWorkspacePaused",
+  registration_pending: "domain.scheduledHoldRegistrationPending",
+  service_unavailable: "domain.scheduledHoldServiceUnavailable",
+  customer_replied: "domain.scheduledHoldCustomerReplied",
+  recipient_opted_out: "domain.scheduledHoldOptedOut",
+  invalid_destination: "domain.scheduledHoldInvalidDestination",
+  expired: "domain.scheduledHoldExpired",
+  workspace_closed: "domain.scheduledHoldWorkspaceClosed",
+  job_no_longer_scheduled: "domain.scheduledHoldJobUnscheduled",
+} as const satisfies Record<ScheduledHoldReason, string>;
+
+export type ScheduledHoldReasonKey =
+  (typeof SCHEDULED_HOLD_REASON_KEYS)[ScheduledHoldReason];
+
+/**
+ * What to render for a held row: the key's words where the client has them,
+ * and the stored English otherwise.
+ *
+ * `translate` returning its own input is how every catalogue in this repo fails
+ * — a missing key renders as the key — so a key that resolves to itself counts
+ * as absent and falls back. That is the difference between a French reader
+ * seeing an English sentence and seeing `scheduled.holdExpired`.
+ */
+export function scheduledHoldText(
+  reasonKey: string | null | undefined,
+  storedEnglish: string | null | undefined,
+  translate: (key: ScheduledHoldReasonKey) => string,
+): string | null {
+  if (reasonKey) {
+    // THE ONE CAST, and it is where the knowledge is: this value came off the
+    // wire, so nothing has proved it is a key we know. The self-resolving check
+    // on the next line is what makes the cast safe — an unknown key resolves to
+    // itself and falls through to the stored English.
+    const words = translate(reasonKey as ScheduledHoldReasonKey);
+    if (words && words !== reasonKey) return words;
+  }
+  return storedEnglish ?? null;
+}
+
+/**
  * Does this reason clear on its own?
  *
  * Drives whether the UI offers "we will keep trying" or asks for a decision,

@@ -135,7 +135,15 @@ private struct ScheduledSheetRow: View {
                     // The reason, in the API's own words. Not paraphrased per
                     // surface: two surfaces paraphrasing one sentence is how
                     // they end up disagreeing about why a text did not go.
-                    if row.isHeld, let reason = row.held_reason, !reason.isEmpty {
+                    // #228: the key where this build has words for it, the
+                    // stored English otherwise.
+                    if row.isHeld,
+                       let reason = ScheduledSend.holdText(
+                           reasonKey: row.held_reason_key,
+                           storedEnglish: row.held_reason,
+                           locale: appLocale
+                       ),
+                       !reason.isEmpty {
                         Text(reason)
                             .font(.caption2)
                             .foregroundStyle(NoteAmber.ink)

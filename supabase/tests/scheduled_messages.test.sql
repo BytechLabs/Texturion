@@ -361,7 +361,8 @@ begin
   )->'scheduled_message'->>'id')::uuid;
 
   v_held := public.api_hold_scheduled_message(
-    v_id, 'your subscription is paused, so we did not send this yet');
+    v_id, 'your subscription is paused, so we did not send this yet',
+    'domain.scheduledHoldSubscriptionInactive');
   if v_held->>'outcome' is distinct from 'held' then
     raise exception 'SM-7 FAILED: hold did not take';
   end if;
@@ -370,6 +371,15 @@ begin
   if v_row.held_reason is null or v_row.held_at is null then
     raise exception 'SM-7 FAILED: a hold with no stated reason is the silent '
       'disappearance docs/DECISIONS.md rules out';
+  end if;
+  -- #228: the reason has to survive in a form a French reader can read. The
+  -- English sentence beside it is the fallback for builds that predate the key,
+  -- so BOTH are asserted — dropping either one silently un-translates or blanks
+  -- the one screen where the product volunteers bad news.
+  if v_row.held_reason_key is distinct from
+     'domain.scheduledHoldSubscriptionInactive' then
+    raise exception 'SM-7 FAILED: the hold reason was stored without its '
+      'catalogue key, so it can only ever be read in English';
   end if;
   if v_row.claimed_at is not null then
     raise exception 'SM-7 FAILED: the lease was not released, so the held row '

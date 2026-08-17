@@ -28,6 +28,12 @@ export interface ScheduledMessage {
   status: ScheduledMessageStatus;
   /** Why it is not going, in words. Null while it is simply waiting. */
   held_reason: string | null;
+  /**
+   * #228: the same reason as a catalogue key, so it can be read in the
+   * reader's language. Null on rows written before 2026-08-17 — render it
+   * through `scheduledHoldText`, which falls back to `held_reason`.
+   */
+  held_reason_key: string | null;
   held_at: string | null;
   expires_at: string;
   sent_message_id: string | null;

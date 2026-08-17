@@ -127,7 +127,11 @@ private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
             // The reason, in the API's own words. Not paraphrased here: three
             // clients paraphrasing one sentence is how one of them ends up
             // saying nothing at all.
-            val reason = row.held_reason
+            // #228: the key where this build has words for it, the stored
+            // English otherwise.
+            val reason = ScheduledSend.holdText(
+                row.held_reason_key, row.held_reason, LocalAppLocale.current,
+            )
             if (held && !reason.isNullOrBlank()) {
                 Text(
                     reason,
