@@ -82,6 +82,11 @@ const PAGE_NOTES: Record<keyof typeof LIVE_ROUTES, string | null> = {
   // #238/#285: listed rather than grouped with the legal line. "Is it
   // accessible" is a question a buyer asks outright, and the answer names the
   // test behind every claim — which is the part worth pointing a machine at.
+  // #285: the DPA a compliance function asks for by name. Listed rather than
+  // grouped: its absence is what stalls a deal, so its presence should be
+  // findable without asking us.
+  dpa:
+    "the data processing agreement: roles, sub-processors, 72-hour breach notification, deletion, and the three things we do not promise because the product cannot deliver them",
   accessibility:
     "what we verify about accessibility and what we do not: WCAG 2.2 AA criteria enforced by named tests, the gaps stated plainly, and no third-party audit claimed",
   status: "live service status",

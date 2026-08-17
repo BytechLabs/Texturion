@@ -43,6 +43,8 @@ const PRODUCT: FooterLinkItem[] = [
   { label: "Security", href: LIVE_ROUTES.security },
   // #238/#285: a buyer asking "is it accessible" should not have to ask us.
   { label: "Accessibility", href: LIVE_ROUTES.accessibility },
+  // #285: a buyer with a compliance function asks for this by name.
+  { label: "Data processing agreement", href: LIVE_ROUTES.dpa },
   { label: "Loonext in Canada", href: LIVE_ROUTES.canada },
 ];
 

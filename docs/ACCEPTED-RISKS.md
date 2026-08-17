@@ -147,6 +147,18 @@ trigger on purpose, so neither can be revisited without the other.
 
 ## R10 — customer data reached Sentry between 2026-07-01 and 2026-08-09, and ages out rather than being purged (#585)
 
+> **ANSWERED 2026-08-16, and the entry stands as written.** The trigger below
+> asked one question: whether anybody besides the founder can read the Sentry
+> organisation. The founder's answer is that it is fine, and that the product
+> is **not yet published to the general public** — so the window in question
+> contains the founder's own test traffic and that of a handful of workspaces
+> they control, not a population of customers who never agreed to anything.
+>
+> That is the premise the "why accepted" row rests on, now confirmed rather
+> than assumed, which is what it asked for. No purge. The entry keeps its own
+> instruction: **delete it once the window has aged out on 2026-11-07** — a
+> resolved risk is pruned, not archived.
+
 | | |
 |---|---|
 | **Exposure** | `fetchIntegration` breadcrumbs have carried the FULL outbound URL — query string included — since the Worker's Sentry setup landed (`1fd5179d`, 2026-07-01). Those URLs embed typed search terms, street addresses passed to geocoding, email addresses and Telnyx presigned recording links. `5c80385b` (2026-08-09) cuts every URL at the `?`, and #585 also drops console breadcrumbs entirely, so nothing is being added. **Neither fix removes a byte that has already been sent.** For that ~39-day window, SPEC §10's sentence — "message bodies, names, addresses, and phone numbers never reach Sentry or PostHog" — was false about our own logs. |

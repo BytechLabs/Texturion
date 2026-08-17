@@ -196,9 +196,40 @@ if (accepted > 0) {
 if (untestable > 0) {
   console.log(
     `\n${untestable} probe(s) could not run — this client cannot offer those versions, ` +
-      "which is not the same as the server refusing them. The floor is UNVERIFIED.",
+      "which is not the same as the server refusing them.",
   );
-  process.exit(assertMode ? 1 : 0);
+  /*
+   * THE ZONE SETTING IS THE ASSERTION when the wire cannot be asked.
+   *
+   * Every modern OpenSSL refuses to OFFER 1.0/1.1, so on a CI runner — and on
+   * the machine this was written on — all four probes come back untestable. An
+   * `--assert` that failed on that would be a guard nobody could ever run,
+   * which is the same as having no guard: it would go red on a healthy zone
+   * and get switched off within a week.
+   *
+   * So the fallback is the configured floor, read from the Cloudflare API. It
+   * is weaker evidence than a refused handshake, and it is not nothing — it
+   * fails the moment somebody drops the zone back below the floor, which is
+   * exactly the regression this exists to catch. The dashboard toggle that
+   * survives one deploy is the whole reason #578 was written the same way.
+   *
+   * A run that can neither reach the API nor offer a legacy protocol has
+   * verified nothing, and says so rather than passing quietly.
+   */
+  if (!config.known) {
+    console.log(
+      "and the zone setting could not be read either, so NOTHING was verified.",
+    );
+    process.exit(assertMode ? 1 : 0);
+  }
+  const floorOk =
+    Number.parseFloat(config.value) >= Number.parseFloat(REQUIRED);
+  console.log(
+    floorOk
+      ? `The zone is configured at ${config.value}, which is what this asserts on.`
+      : `The zone is configured at ${config.value}, BELOW the required ${REQUIRED}.`,
+  );
+  process.exit(assertMode && !floorOk ? 1 : 0);
 }
 
 console.log(`\nOK: no host completed a handshake below TLS ${REQUIRED}.`);

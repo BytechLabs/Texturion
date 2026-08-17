@@ -134,6 +134,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: LIVE_ROUTES.cookies, priority: 0.3, changeFrequency: "yearly" },
     // #238/#285: a buyer looking for a conformance statement should find it
     // by searching rather than by asking us for it.
+    { path: LIVE_ROUTES.dpa, priority: 0.4, changeFrequency: "yearly" },
     {
       path: LIVE_ROUTES.accessibility,
       priority: 0.4,

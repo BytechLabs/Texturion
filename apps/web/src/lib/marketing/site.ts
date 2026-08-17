@@ -46,6 +46,7 @@ export const LIVE_ROUTES = {
   deleteMyData: "/legal/delete-my-data",
   refunds: "/legal/refunds",
   accessibility: "/legal/accessibility",
+  dpa: "/legal/dpa",
   fairUse: "/legal/fair-use",
   cookies: "/legal/cookies",
 

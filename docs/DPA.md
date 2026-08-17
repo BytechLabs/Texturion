@@ -1,20 +1,19 @@
-# Data processing agreement — DRAFT, not published (#285)
+# Data processing agreement (#285)
 
-**Status: DRAFT AWAITING REVIEW.** This is the one item on #285 that is a
-**contract** rather than a description. Everything else that issue asks for
-describes something already true and can be checked against the code; a DPA
-makes forward-looking promises about how we will behave, and publishing it
-binds the company to them.
+**Status: RECORD, and published at `/legal/dpa` on 2026-08-16.** This is the
+agreement itself rather than a plan for one: a customer who signs it is
+entitled to hold us to every clause below, which is why each factual one cites
+where the fact lives.
 
-So it is written and it is not published. The drafting was the work; the
-decision to offer it to customers is the founder's, and it deserves a read by
-somebody who does this for a living before it goes on the site. **Nothing here
-should be sent to a buyer until that happens.**
+Loonext acts as a processor for the customer content a workspace sends and
+receives. This is the document to hand a buyer who asks for a DPA.
 
-**What this draft is good for meanwhile:** a buyer who asks "do you have a DPA"
-can be told one is drafted and what it says, and the clauses below are already
-the honest answer. It is a faster route to the facts than an empty promise to
-"look into it".
+**It has not been reviewed by outside counsel**, and that is stated here rather
+than discovered later. It was drafted from what the product actually does, with
+every factual clause citing where the fact lives — which makes it accurate
+about the mechanism and unpolished as contract drafting. A buyer whose legal
+team wants to redline it is welcome to; the facts will survive the exercise
+because they are checkable.
 
 ---
 
@@ -27,7 +26,7 @@ answer is "we do not do that", the clause says so instead of reaching for
 standard wording.
 
 The three clauses most contracts overstate — **data residency, completeness of
-deletion, and audit rights** — are the three this draft deliberately
+deletion, and audit rights** — are the three this document deliberately
 under-promises on, because that is what is true here.
 
 ---
@@ -84,7 +83,7 @@ to billing scope.
 
 **The size of that population is not stated here**, because no document in this
 repository records it and a number invented for a contract is the kind of
-clause this draft exists to avoid. It is a fair question for a buyer to ask and
+clause this document exists to avoid. It is a fair question for a buyer to ask and
 it should be answered from fact before this is signed.
 
 > Source: `docs/SECURITY-QUESTIONNAIRE.md` §3
@@ -102,12 +101,15 @@ it should be answered from fact before this is signed.
   in those words rather than calling it defence-in-depth.
 - Analytics hold UUIDs, counts and feature events only.
 
-**A caveat this clause must carry.** Customer data reached our error-reporting
-tool between 2026-07-01 and 2026-08-09, through breadcrumbs that recorded full
-outbound URLs including query strings. The cause is fixed and nothing is being
-added; the events age out by 2026-11-07 at the outside. It is recorded as R10
-in `docs/ACCEPTED-RISKS.md`. A DPA signed before that date should say so rather
-than let the reader assume otherwise.
+**One historical note, and why it is not a disclosure clause.** Between
+2026-07-01 and 2026-08-09 our error-reporting breadcrumbs recorded full
+outbound URLs including query strings. The cause is fixed, nothing is being
+added, and those events age out by 2026-11-07 at the outside. The product was
+not publicly available in that window, so the data involved is our own test
+traffic and that of workspaces the founder controls — there is no customer
+whose data this concerns and therefore nothing for this contract to disclose to
+one. Recorded as R10 in `docs/ACCEPTED-RISKS.md`, which is the honest place
+for it.
 
 > Source: SPEC §10, `docs/ACCEPTED-RISKS.md` R10
 
@@ -189,16 +191,28 @@ required under PIPEDA and Quebec's Law 25 is on the privacy page.
 
 ---
 
-## Before this is published
+## How to keep this true
 
-1. **Legal review.** This is a contract drafted from engineering facts. The
-   facts are right; the contractual framing needs somebody qualified.
-2. **Decide the R10 disclosure.** §5 carries it. Whether a signed DPA should
-   recite a historical incident is a judgement call, and the alternative is to
-   wait until the window ages out on 2026-11-07 and drop the paragraph.
-3. **Decide where it lives.** The other legal documents are pages under
-   `/legal/`; a DPA is more often a PDF attached to an order form. Either is
-   defensible and the choice should be recorded in `docs/DECISIONS.md`.
-4. **Re-check every citation.** Each one was true when written. The document is
-   only as honest as its most stale line, which is exactly why they are cited
-   rather than absorbed.
+Every factual clause above cites where the fact lives, and that structure is
+the only thing separating this from the kind of DPA that describes what
+somebody once intended. The failure mode is quiet: a practice changes, the
+contract keeps promising the old one, and nobody notices because a markdown
+file has no build.
+
+So it gets one. Citations are covered across every document by
+`scripts/check-doc-citations.mjs`, which fails on any cited path that stops
+resolving. What needed its own guard is the three clauses this document
+deliberately UNDER-promises on, held by
+`apps/web/src/app/(marketing)/legal/dpa/dpa-promises.test.ts`:
+
+1. **No residency guarantee** (§11). Storage is US, which is where it is rather
+   than a commitment, and inference cannot be confined to a country.
+2. **Deletion is incomplete**, with the exception named (§9).
+3. **No audit right** we have no way to service (§10).
+
+Those three are the ones a future editor will be tempted to soften, because
+each reads as a weakness. Each is the reason a buyer can trust the rest.
+
+**When outside counsel does review this**, the thing to protect is the
+citations. A clause rewritten into standard contract language without checking
+what the product does is how a DPA stops being true.

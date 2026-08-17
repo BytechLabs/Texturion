@@ -191,6 +191,21 @@ jobs:
       - name: Verify the Workers stopped answering on workers.dev
         run: node scripts/ops/verify-workers-dev-off.mjs
 
+      # #581: the zone's TLS floor, asserted rather than remembered.
+      #
+      # Raised from 1.0 to 1.2 on 2026-08-16 with the operator's go-ahead. That
+      # was a dashboard-shaped change — one API call, no diff, nothing in the
+      # repository that would notice it being undone — which is precisely the
+      # shape #578 already cost us once. So it gets the same treatment: a check
+      # that runs on every release and fails out loud.
+      #
+      # It asserts the ZONE SETTING rather than a refused handshake, and the
+      # script explains why at the branch: every modern OpenSSL declines to
+      # OFFER 1.0, so a runner cannot knock on that door at all. Weaker
+      # evidence, and it still catches the regression this is here for.
+      - name: Verify the TLS floor has not been lowered
+        run: node scripts/ops/verify-tls-floor.mjs --assert
+
   # ---------------------------------------------------------------------------
   # The phone apps. Runs alongside the backend rather than after it — a store
   # review takes days, so there is nothing to sequence.
