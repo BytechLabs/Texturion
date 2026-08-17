@@ -1,7 +1,7 @@
 "use client";
 
 import { HandCoins } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -57,12 +57,40 @@ import {
  *   actually receive rather than a bare dollar sign. *Applying: the money-literal
  *   rule — a price with no currency is a price in a currency nobody chose.*
  */
-export function AskForPayment({ conversationId }: { conversationId: string }) {
+export function AskForPayment({
+  conversationId,
+  prefill,
+  onPrefillUsed,
+}: {
+  conversationId: string;
+  /**
+   * #287 — an accepted quote, opening this form with its own numbers in it.
+   *
+   * The agreed price and the agreed work, so the crew does not retype a figure
+   * the customer has already said yes to. Retyping is not merely friction here:
+   * a deposit that does not match the accepted quote is the dispute this whole
+   * feature exists to prevent, typed by hand.
+   *
+   * EDITABLE, not locked. A deposit is often a part of the quote rather than
+   * all of it, and the crew decides which.
+   */
+  prefill?: { amountCents: number; description: string } | null;
+  /** Cleared once consumed, so reopening the form does not re-seed it. */
+  onPrefillUsed?: () => void;
+}) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   // Smart Defaults: the ask this feature was built for, editable in one tap.
   const [description, setDescription] = useState("Deposit");
+
+  useEffect(() => {
+    if (!prefill) return;
+    setAmount(String(prefill.amountCents / 100));
+    setDescription(prefill.description);
+    setOpen(true);
+    onPrefillUsed?.();
+  }, [prefill, onPrefillUsed]);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
 
   const { role } = useActiveCompany();

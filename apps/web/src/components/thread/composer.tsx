@@ -582,6 +582,18 @@ export function Composer({
   // always kept a per-conversation draft; on web a half-typed reply died the
   // moment you opened another thread to check something.
   const [text, setText] = useState(() => loadDraft(conversationId));
+  /*
+   * #287 — the one thing the quote strip and the payment ask have to agree on.
+   *
+   * Held HERE, by the component that renders both, rather than passed sideways
+   * between siblings: an accepted quote hands its agreed figure up, and the
+   * payment form opens with it already in. Cleared the moment it is consumed,
+   * so reopening the form later does not re-seed a price from a quote the crew
+   * has moved on from.
+   */
+  const [paymentPrefill, setPaymentPrefill] = useState<
+    { amountCents: number; description: string } | null
+  >(null);
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   // #189 inline rejection copy from the LAST admission attempt (type/size/
   // count) — rendered above the pill, replaced or cleared on the next intake.
@@ -1296,10 +1308,21 @@ export function Composer({
           Beside the payment strip because they are the same kind of thing —
           state that changes without anybody here doing anything. Never on a
           note: a note goes to the crew, and a quote goes to the customer. */}
-      {!noteOnly && <QuoteStrip conversationId={conversationId} />}
+      {!noteOnly && (
+        <QuoteStrip
+          conversationId={conversationId}
+          onAskForPayment={setPaymentPrefill}
+        />
+      )}
       {/* #224: absent entirely unless the workspace can actually take a card,
           so a crew never meets a control they cannot action. */}
-      {!noteOnly && <AskForPayment conversationId={conversationId} />}
+      {!noteOnly && (
+        <AskForPayment
+          conversationId={conversationId}
+          prefill={paymentPrefill}
+          onPrefillUsed={() => setPaymentPrefill(null)}
+        />
+      )}
       {!noteOnly && (
         <div
           className="mx-auto mb-2 flex max-w-[42rem] gap-1"

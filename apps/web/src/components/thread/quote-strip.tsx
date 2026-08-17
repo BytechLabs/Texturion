@@ -67,12 +67,15 @@ function isWorthShowing(quote: Quote, now: number): boolean {
 function QuoteRow({
   quote,
   onSend,
+  onAskForPayment,
   sending,
   canSend,
   t,
 }: {
   quote: Quote;
   onSend: () => void;
+  /** #287: accepted → pay now, carrying the agreed figure. */
+  onAskForPayment: () => void;
   sending: boolean;
   canSend: boolean;
   t: Translate;
@@ -106,6 +109,20 @@ function QuoteRow({
       >
         {t(QUOTE_STATUS_KEYS[quote.effective_status])}
       </span>
+      {/* #287 — the loop the issue says makes both features worth more than
+          either alone: a price the customer has already agreed to, taken
+          without anybody retyping it. Only on an ACCEPTED quote, because
+          asking for money against one nobody answered is the ask this product
+          does not make. */}
+      {quote.effective_status === "accepted" && canSend && (
+        <button
+          type="button"
+          onClick={onAskForPayment}
+          className="tap-target inline-flex shrink-0 items-center gap-1 rounded-app-ctrl px-2 text-[13px] font-medium text-primary hover:underline"
+        >
+          {t("quotes.askForPayment")}
+        </button>
+      )}
       {isDraft && canSend && (
         <button
           type="button"
@@ -123,7 +140,14 @@ function QuoteRow({
   );
 }
 
-export function QuoteStrip({ conversationId }: { conversationId: string }) {
+export function QuoteStrip({
+  conversationId,
+  onAskForPayment,
+}: {
+  conversationId: string;
+  /** Handed up to the composer, which owns the payment form beside this. */
+  onAskForPayment?: (prefill: { amountCents: number; description: string }) => void;
+}) {
   const t = useT();
   const { role } = useActiveCompany();
   const canSend = roleHasCapability(role, "conversations.send");
@@ -191,6 +215,12 @@ export function QuoteStrip({ conversationId }: { conversationId: string }) {
           canSend={canSend}
           sending={send.isPending && send.variables === quote.id}
           onSend={() => send.mutate(quote.id)}
+          onAskForPayment={() =>
+            onAskForPayment?.({
+              amountCents: quote.amount_cents,
+              description: quote.description,
+            })
+          }
         />
       ))}
 

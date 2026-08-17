@@ -50,6 +50,8 @@ export const quotesEn = {
      not "outstanding": the second is an accountant's word for the same thing
      and says nothing about what to do next. */
   outstandingTitle: "Waiting on an answer",
+  /* #287 — accepted, then paid, without retyping the figure. */
+  askForPayment: "Ask for payment",
   newQuote: "Quote this job",
   sendFor: "Send for {amount}",
   sending: "Sending…",
@@ -83,6 +85,7 @@ export const quotesFr: Translated<typeof quotesEn> = {
   acceptFailed: "Cela n'a pas fonctionné. Le devis vient peut-être d'expirer ou d'être retiré. Écrivez à {business} et ils pourront arranger cela.",
   noLongerOpen: "Ce devis n'est plus ouvert. Écrivez à {business} si vous souhaitez toujours faire réaliser les travaux.",
   outstandingTitle: "En attente d'une réponse",
+  askForPayment: "Demander le paiement",
   newQuote: "Faire un devis",
   sendFor: "Envoyer pour {amount}",
   sending: "Envoi…",
