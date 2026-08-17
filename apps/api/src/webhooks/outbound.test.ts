@@ -418,3 +418,75 @@ describe("#581 a paused endpoint receives nothing further", () => {
     expect(result).toMatchObject({ delivered: 1 });
   });
 });
+
+/**
+ * #581 — a receiver cannot bounce our signed payload somewhere we never checked.
+ *
+ * The SSRF gate validates the URL a workspace REGISTERS. It cannot validate
+ * wherever a 302 points, so following redirects would hand an attacker the
+ * whole class back: register `https://evil.example.com` (which passes every
+ * check — https, public host, no credentials), then answer the delivery with a
+ * redirect to `http://169.254.169.254/` and read the metadata service from
+ * inside our Worker, with our signature attached.
+ *
+ * `postOnce` passes `redirect: "manual"` for exactly this reason and says so in
+ * a comment. This is the guard for it: the property was load-bearing and held
+ * by prose alone, which is how a refactor drops it.
+ *
+ * ASSERTED ON THE REQUEST, not on where the traffic went. The first version of
+ * this test served a 302 and checked that nothing reached the target — and it
+ * passed with `redirect: "follow"` as well, because a stubbed fetch does not
+ * follow anything either way. A test that cannot tell the two apart is not a
+ * guard, however much it looks like one.
+ */
+describe("#581 a delivery is never redirected", () => {
+  it("asks fetch not to follow redirects", async () => {
+    const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [claimed()]);
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
+      endpointRow({ active: true }),
+    ]);
+    const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
+
+    const modes: string[] = [];
+    const receiver = stubRoute(
+      (url, request) => {
+        if (url.origin === "https://hooks.example.com") {
+          modes.push(request.redirect);
+          return true;
+        }
+        return false;
+      },
+      () => new Response("", { status: 200 }),
+    );
+    stubFetch(claim.route, endpoints.route, update.route, receiver.route);
+
+    await deliverWebhookBatch(getDb(env));
+
+    // THE ASSERTION, on the request the dispatcher actually built.
+    expect(modes).toEqual(["manual"]);
+  });
+
+  it("does not count a 3xx as delivered", async () => {
+    // The other half of the same property: with redirects unfollowed, a
+    // receiver answering 302 has not received anything, and must not be
+    // recorded as though it had.
+    const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [claimed()]);
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
+      endpointRow({ active: true }),
+    ]);
+    const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
+    const receiver = stubRoute(
+      (url) => url.origin === "https://hooks.example.com",
+      () =>
+        new Response("", {
+          status: 302,
+          headers: { location: "http://169.254.169.254/latest/meta-data/" },
+        }),
+    );
+    stubFetch(claim.route, endpoints.route, update.route, receiver.route);
+
+    const result = await deliverWebhookBatch(getDb(env));
+
+    expect(result.delivered).toBe(0);
+  });
+});
