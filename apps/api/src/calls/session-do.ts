@@ -50,6 +50,7 @@ import {
   JOURNAL_RESUME_MS,
   MAX_TELNYX_COMMANDS_PER_SESSION,
   PURGE_DELAY_MS,
+  DIAL_BATCH_SIZE,
   QUEUE_LATENCY_WARN_MS,
   RING_WINDOW_SECS,
   reduce,
@@ -556,46 +557,101 @@ export class CallSessionDO extends DurableObject<Env> {
       }
       case "telnyx-dial": {
         if (!machine) return [];
-        // Each leg dials with per-target try/catch and re-enters as a
-        // dial-outcome. A leg record already exists (persisted before this).
+        /*
+         * §4 T1d — BOUNDED PARALLELISM, in batches of [DIAL_BATCH_SIZE].
+         *
+         * This loop used to dial every target one at a time, awaiting a Telnyx
+         * POST each, and the spec had already named that as the thing not to
+         * do: "NOT batch-serial: a 24-target serial loop at ~300-800ms/POST
+         * holds the single FIFO 10-20s, starving the §7.2 admission budget and
+         * queueing an early answerer behind the remaining dials".
+         *
+         * The arithmetic is why it matters, and it lands on the biggest crews
+         * first. A Durable Object is single-threaded, so nothing else about
+         * THIS call is served while the loop runs — including the hangup of a
+         * customer who gave up, and including the answer of the tech who picked
+         * up on the second ring. `ring_strategy` defaults to "all" and
+         * [MAX_LEGS_PER_SESSION] is 24, so a two-dozen-tech shop reached that
+         * worst case on every inbound call without changing a setting.
+         *
+         * BATCHES RATHER THAN ALL-AT-ONCE because the target is not the
+         * fastest possible fan-out: it is a fan-out that cannot itself become
+         * the incident. Twenty-four simultaneous POSTs to one vendor is how a
+         * rate limit gets hit, and this subsystem reads a 4xx as "that phone is
+         * dead" — so an unbounded burst would convert our own impatience into
+         * technicians being marked unreachable.
+         *
+         * WHAT IS DELIBERATELY UNCHANGED: the budget is spent synchronously,
+         * in leg order, before anything is awaited. [spendCommand] mutates a
+         * counter, so spending it inside the concurrent tasks would make WHICH
+         * legs get dropped at the cap depend on which POST returned first.
+         * Same legs dropped, same order, as when this was serial.
+         */
         const followUps: SessionEvent[] = [];
-        for (const leg of effect.legs) {
-          if (!this.spendCommand(machine, false)) {
-            followUps.push({ type: "dial-outcome", pendingKey: leg.pendingKey, ccid: null, failure: "known-dead" });
-            continue;
-          }
-          const clientState = this.rt.buildClientStates.memberRing({
-            sessionId: machine.callSessionId,
-            userId: leg.userId,
-            caller: machine.callerE164,
-            inboundCcid: machine.customerCcid ?? "",
-          });
-          const result = await this.rt.telnyx.dial({
-            sipTarget: leg.sipTarget,
-            fromE164: machine.businessNumberE164 ?? "",
-            clientState,
-            // CALLS-CLIENT-V2 §3.2: the same S built into clientState above,
-            // stamped as the X-Loonext-Session custom SIP header on the dial.
-            sessionId: machine.callSessionId,
-            // #212: the real caller rides X-Loonext-Caller so the member's
-            // ring shows who is calling, not our own business number (from).
-            caller: machine.callerE164,
-            // The pendingKey is minted once and frozen in the journal, so a
-            // replayed dial reuses it and Telnyx returns the original leg
-            // instead of ringing (and billing) a second one.
-            commandId: leg.pendingKey,
-          });
-          if ("ccid" in result) {
-            await this.rt.ledgerInsert({
-              sessionId: machine.callSessionId,
-              ccid: result.ccid,
-              companyId: machine.companyId,
-              userId: leg.userId,
-            });
-            followUps.push({ type: "dial-outcome", pendingKey: leg.pendingKey, ccid: result.ccid, failure: null });
-          } else {
-            followUps.push({ type: "dial-outcome", pendingKey: leg.pendingKey, ccid: null, failure: result.failure });
-          }
+        const session = machine;
+        for (let start = 0; start < effect.legs.length; start += DIAL_BATCH_SIZE) {
+          const batch = effect.legs
+            .slice(start, start + DIAL_BATCH_SIZE)
+            .map((leg) => ({ leg, admitted: this.spendCommand(session, false) }));
+
+          // Promise.all preserves input order, so followUps stay in leg order
+          // exactly as the serial loop left them — the dial-outcome events are
+          // replayed from the journal and their order is part of that record.
+          const outcomes = await Promise.all(
+            batch.map(async ({ leg, admitted }): Promise<SessionEvent> => {
+              if (!admitted) {
+                return { type: "dial-outcome", pendingKey: leg.pendingKey, ccid: null, failure: "known-dead" };
+              }
+              const clientState = this.rt.buildClientStates.memberRing({
+                sessionId: session.callSessionId,
+                userId: leg.userId,
+                caller: session.callerE164,
+                inboundCcid: session.customerCcid ?? "",
+              });
+              try {
+                const result = await this.rt.telnyx.dial({
+                  sipTarget: leg.sipTarget,
+                  fromE164: session.businessNumberE164 ?? "",
+                  clientState,
+                  // CALLS-CLIENT-V2 §3.2: the same S built into clientState above,
+                  // stamped as the X-Loonext-Session custom SIP header on the dial.
+                  sessionId: session.callSessionId,
+                  // #212: the real caller rides X-Loonext-Caller so the member's
+                  // ring shows who is calling, not our own business number (from).
+                  caller: session.callerE164,
+                  // The pendingKey is minted once and frozen in the journal, so a
+                  // replayed dial reuses it and Telnyx returns the original leg
+                  // instead of ringing (and billing) a second one.
+                  commandId: leg.pendingKey,
+                });
+                if (!("ccid" in result)) {
+                  return { type: "dial-outcome", pendingKey: leg.pendingKey, ccid: null, failure: result.failure };
+                }
+                await this.rt.ledgerInsert({
+                  sessionId: session.callSessionId,
+                  ccid: result.ccid,
+                  companyId: session.companyId,
+                  userId: leg.userId,
+                });
+                return { type: "dial-outcome", pendingKey: leg.pendingKey, ccid: result.ccid, failure: null };
+              } catch {
+                /*
+                 * §4 T1d's "per-target try/catch", and it is load-bearing now
+                 * rather than belt-and-braces. When these ran one at a time a
+                 * throw ended one leg; inside a Promise.all it would reject the
+                 * whole batch and lose the outcomes of legs that dialled fine —
+                 * five technicians whose phones rang, with no record that they
+                 * did, and a machine that never learns their legs exist.
+                 *
+                 * "ambiguous" rather than "known-dead": a throw here is our own
+                 * failure to complete the call, and the leg may well be ringing.
+                 * Declaring it dead would hang up on a phone that is alive.
+                 */
+                return { type: "dial-outcome", pendingKey: leg.pendingKey, ccid: null, failure: "ambiguous" };
+              }
+            }),
+          );
+          followUps.push(...outcomes);
         }
         await this.save(machine);
         return followUps;

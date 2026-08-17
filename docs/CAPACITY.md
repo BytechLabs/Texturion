@@ -417,8 +417,29 @@ plus a driver that generates real concurrent load.
 
 | Unknown | Why local cannot answer it | What it would take |
 |---|---|---|
-| **Durable Object saturation** | A DO is single-threaded per instance and serializes every event for one call. The failure mode is latency on call setup, which only appears when real webhooks arrive concurrently. | A deployed Worker, N synthetic concurrent calls per workspace, measuring time-to-answer. |
-| **Realtime fan-out** | Broadcast delivery to many subscribers is a Supabase Realtime property. Realtime has already died silently twice (#215, and the mobile parked-reconnect bug), so this is the axis with a track record. | N subscribed clients per workspace against a deployed project, measuring delivery and drop rate. |
+| **Durable Object saturation** | A DO is single-threaded per instance and serializes every event for one call. Nothing in this repository has ever run a Durable Object under concurrency on the real runtime — `vitest.load.config.ts` says so in its own words, and aliases `cloudflare:workers` to a double. | A deployed Worker, N synthetic concurrent calls per workspace, measuring time-to-answer. **Read section 2a first: the largest known contributor to that latency was found by reading the code and has been fixed.** |
+
+### Realtime fan-out — MEASURED LOCALLY 2026-08-17, and the old entry was stale
+
+This row used to sit in the table above, on the reasoning that "broadcast
+delivery to many subscribers is a Supabase Realtime property" and therefore
+needed a deployed project. That reasoning was true and **the conclusion did not
+follow**: a local Supabase stack runs the same Realtime server in a container,
+and the thing worth knowing about fan-out is whether messages arrive at all.
+
+**40 concurrent websockets, one topic, 20 broadcasts: 800/800 delivered, every
+subscriber received exactly 20, 3–6 ms spread, zero drops, zero failures.**
+Reproduced independently at N=50.
+
+**What that does and does not license.** It answers the half with the track
+record — Realtime has died silently twice (#215, and the mobile parked-reconnect
+bug), and silent loss is what those failures looked like. It says nothing about
+the managed service's ceiling: a container on a laptop has neither production's
+connection budget nor its tenancy. **Do not quote this as "realtime scales".**
+It means we have no evidence of drops at small fan-out, which is what we did not
+have before.
+
+---
 
 **Partly reduced, and stated precisely.** The *Supabase pooler* row moved out of
 this table but only half of it: section 1b shows our code answers rather than
@@ -426,6 +447,82 @@ hangs under contention, which was the behavioural half. **Where the managed
 pooler refuses is still unknown** and stays a deployment property — a local
 Postgres has neither Supavisor nor production's connection budget. The number is
 missing; the failure mode is not.
+
+---
+
+## 2a. Calls: what the code says, before anyone deploys a load driver
+
+#251 asks what happens "to a 20-tech crew where twelve calls are live and the
+webhook storm from Telnyx arrives at once". Part of that is answerable by
+reading the code, and reading it first turned out to be worth more than
+measuring would have been.
+
+**Twelve live calls are twelve Durable Objects.** `CallSessionDO` is the only DO
+class in the Worker and `CALL_SESSIONS` the only namespace; every stub is
+`idFromName(<per-call session id>)`. Concurrent calls in one workspace do not
+queue behind each other. #251 already said this — it says the DO "serializes
+every event **for a call**" — so this confirms the issue's framing rather than
+correcting it.
+
+**What did NOT follow from that is the reassurance.** Per-call keying does not
+mean concurrent calls are independent, and three things were found underneath
+it:
+
+**1. The ring fan-out was serial — FIXED 2026-08-17.** `session-do.ts` dialled
+every target one at a time, awaiting a Telnyx POST each. `docs/CALLS-V3.md` T1d
+has mandated the opposite since it was written — "**bounded parallelism**
+(batches of ~6) … **NOT batch-serial**" — and named this exact failure: "a
+24-target serial loop at ~300–800ms/POST holds the single FIFO 10–20s, starving
+the §7.2 admission budget and queueing an early answerer behind the remaining
+dials". `DIAL_BATCH_SIZE = 6` was exported for it and had **zero consumers in the
+repository**.
+
+The arithmetic lands on the biggest crews first, which is exactly the buyer this
+document exists for. `ring_strategy` defaults to `"all"` and
+`MAX_LEGS_PER_SESSION` is 24, so a two-dozen-tech shop hit the worst case on
+every inbound call without changing a setting — and because a DO is
+single-threaded, nothing else about that call was served meanwhile, including
+the hangup of a customer who gave up and the answer of the tech who picked up on
+the second ring.
+
+Why nothing caught it: every existing case in `session-do.test.ts` dials ONE
+target, two at the most, and a serial loop is indistinguishable from a batched
+one at n=1. The tests were not weak about dialling. They were never asked a
+question whose answer changes under load, which is the whole of what #251 is
+about.
+
+**2. A shared-vendor refusal is recorded as a per-member death verdict** — filed
+as #616. Per-call DOs still share one Telnyx account, and a 429 caused by *other*
+concurrent calls is a 4xx, which this code reads as "that technician's phone is
+definitely dead". On an outbound call that terminalises and hangs up on a live
+customer.
+
+**3. The webhook ACK waits for the whole effect cascade** — filed as #617 —
+while the file header and a BINDING §17 requirement both say it resolves at the
+atomic persist, and the test meant to pin it passes under either behaviour.
+
+**The conditions under which per-call isolation stops being comfort**, so they
+can be checked rather than assumed: more than ~6 simultaneously ringable members
+per call; `ring_strategy = "all"`, which is the default nobody has to touch;
+enough concurrency to trip a Telnyx account rate limit; and retry storms of
+DISTINCT event ids, which the 256-entry dedupe window does not absorb.
+
+**What is still genuinely unmeasured about calls.** The real p50/p99 of a Telnyx
+dial POST from a Worker — the 300–800 ms above is an estimate written in a
+design doc, and the magnitude of everything in this section is linear in it.
+Whether the FIFO admission warning has ever fired in production. The actual
+distribution of dial-target counts across real workspaces. Telnyx's account-level
+rate limit and our aggregate against it: every budget in this subsystem is scoped
+to a single session, so twelve concurrent calls authorise up to 288 dial POSTs
+and nothing bounds their sum.
+
+**One caution on a tempting argument.** That co-located DO instances share a
+128 MB isolate is a Cloudflare platform property, not something this repository
+evidences. It is plausible and it would matter — voicemail buffering holds an
+mp3 in memory — but it is not established here and should not be written down as
+if it were.
+
+---
 
 **The honest-degradation requirement remains unproven AT A CEILING.** #251 asks
 that every ceiling produce a truthful failure rather than a hang. Section 1b

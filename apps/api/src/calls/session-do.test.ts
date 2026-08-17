@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildMemberRingState, buildVoicemailState } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
 
+import { DIAL_BATCH_SIZE } from "./transitions";
 import { CallSessionDO } from "./session-do";
 import type { AdoptionRow, SessionRuntime } from "./runtime";
 import type { InitiatedContext, OutboundInitiatedContext } from "./transitions";
@@ -80,7 +81,15 @@ interface FakeConfig {
   /** #211: what loadOutboundInitiatedContext returns for a 4-part oc initiated. */
   outboundInitiated?: OutboundInitiatedContext | "reject" | "drop";
   adoptionRow?: AdoptionRow | null;
-  dialResult?: () => { ccid: string } | { failure: "known-dead" | "ambiguous" };
+  /**
+   * #251: may return a PROMISE, so a test can hold a dial open and observe how
+   * many are in flight at once. That is the only way to tell a serial fan-out
+   * from a batched one — at one dial target they are identical.
+   */
+  dialResult?: () =>
+    | { ccid: string }
+    | { failure: "known-dead" | "ambiguous" }
+    | Promise<{ ccid: string } | { failure: "known-dead" | "ambiguous" }>;
   answerInbound?: () => "ok" | "dead";
   answerVm?: () => "ok" | "dead";
   /** #208 F4: per-ccid hangup discrimination ("dead" = leg already gone). */
@@ -121,7 +130,9 @@ function makeRuntime(config: FakeConfig = {}) {
     uuid: () => `uuid-${dialN++}`,
     telnyx: {
       async dial(input) {
-        const result = config.dialResult ? config.dialResult() : { ccid: `cc${calls.dials.length}` };
+        const result = config.dialResult
+          ? await config.dialResult()
+          : { ccid: `cc${calls.dials.length}` };
         calls.dials.push({ sipTarget: input.sipTarget, sessionId: input.sessionId, ccid: "ccid" in result ? result.ccid : null });
         return result;
       },
@@ -1093,5 +1104,140 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
     await instance.onTelnyxEvent(opEvent("e4", "call.hangup")); // placer ends the call
     // Owner (the placer) dropped with no intent → teardown hangs up the customer.
     expect(calls.hangups).toContain("oc-ccid");
+  });
+});
+
+/**
+ * #251 / CALLS-V3 §4 T1d — the ring fan-out is bounded-parallel, not serial.
+ *
+ * ## Why this block exists
+ *
+ * The spec has mandated batches of ~6 since it was written, named the failure
+ * of not doing it ("a 24-target serial loop at ~300-800ms/POST holds the single
+ * FIFO 10-20s"), and exported DIAL_BATCH_SIZE for it. The implementation dialled
+ * one target at a time anyway, and `DIAL_BATCH_SIZE` had zero consumers in the
+ * whole repository.
+ *
+ * Nothing caught it for the same reason it is worth writing these down: every
+ * existing case in this file dials ONE target, and two at the most. A serial
+ * loop and a batched one are identical at n=1. The defect was invisible not
+ * because the tests were weak about dialling, but because they were never asked
+ * a question that has a different answer under load — which is the whole of
+ * what #251 is about.
+ */
+describe("#251 the ring fan-out is bounded-parallel (§4 T1d)", () => {
+  /** A crew of `n`, which is what a growing shop actually looks like. */
+  function crew(n: number) {
+    return Array.from({ length: n }, (_, i) => ({
+      userId: `u${i}`,
+      sipUsername: `s${i}`,
+    }));
+  }
+
+  /**
+   * A dial that takes real time and records how many were open at once.
+   *
+   * The peak is the whole measurement: a serial loop can only ever reach 1,
+   * however large the crew, and the mandate is a peak bounded by the batch
+   * size. Each dial resolves itself on a timer rather than waiting to be
+   * released by the test — a fan-out the test has to hand-feed is a fan-out
+   * whose scheduling the test has quietly taken over.
+   */
+  function tracker() {
+    let inFlight = 0;
+    let peak = 0;
+    return {
+      get peak() {
+        return peak;
+      },
+      dialResult: () => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        // MICROTASKS, not a timer: this suite runs on fake timers, so a
+        // setTimeout inside a dial would never fire and the fan-out would
+        // simply hang. Yielding the microtask queue is enough — every dial in
+        // a batch is started before any of them resumes, which is exactly the
+        // overlap being measured.
+        return (async () => {
+          for (let tick = 0; tick < 5; tick += 1) await Promise.resolve();
+          inFlight -= 1;
+          return { ccid: `cc${peak}-${inFlight}` };
+        })();
+      },
+    };
+  }
+
+  it("dials a crew of twelve in overlapping batches, not one at a time", async () => {
+    // THE REGRESSION THIS BLOCK WAS WRITTEN FOR. A 50-tech shop on the default
+    // ring_strategy "all" reached the worst case of this on every inbound call:
+    // twenty-four dials, one at a time, on the single thread that also has to
+    // serve the answer of whoever picks up.
+    const track = tracker();
+    const { instance, calls } = makeDO({
+      initiated: ctx({ dialTargets: crew(12) }),
+      dialResult: track.dialResult,
+    });
+
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+
+    expect(calls.dials).toHaveLength(12);
+    // Serial is 1. Anything above it is overlap.
+    expect(track.peak).toBeGreaterThan(1);
+    expect(track.peak).toBeLessThanOrEqual(DIAL_BATCH_SIZE);
+  });
+
+  it("never opens more than the batch size at once", async () => {
+    // The other half of "bounded". Twenty-four simultaneous POSTs to one vendor
+    // is how an account rate limit gets hit — and this subsystem reads a 4xx as
+    // "that phone is dead", so an unbounded burst would convert our own
+    // impatience into technicians marked unreachable.
+    const track = tracker();
+    const { instance, calls } = makeDO({
+      initiated: ctx({ dialTargets: crew(24) }),
+      dialResult: track.dialResult,
+    });
+
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+
+    expect(calls.dials).toHaveLength(24);
+    expect(track.peak).toBeLessThanOrEqual(DIAL_BATCH_SIZE);
+  });
+
+  it("keeps the outcomes in leg order", async () => {
+    // The dial-outcome events are replayed from the journal, so their order is
+    // part of a durable record rather than a detail. Promise.all preserves
+    // input order; a race-to-finish rewrite would not.
+    const { instance, calls } = makeDO({ initiated: ctx({ dialTargets: crew(9) }) });
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+
+    // Asserted as an ORDER over whatever the runtime builds, not as a literal
+    // SIP format this test does not own — the point is that leg 0 is recorded
+    // before leg 8, which a race-to-finish rewrite would break.
+    expect(calls.dials).toHaveLength(9);
+    for (const [index, dial] of calls.dials.entries()) {
+      expect(dial.sipTarget).toContain(`s${index}`);
+    }
+  });
+
+  it("does not lose a whole batch when one leg throws", async () => {
+    // Serial, a throw ended one leg. Inside a Promise.all it would reject the
+    // batch and lose the outcomes of legs that dialled fine — technicians whose
+    // phones rang with no record that they did.
+    let n = 0;
+    const { instance, calls } = makeDO(
+      {
+        initiated: ctx({ dialTargets: crew(6) }),
+        dialResult: () => {
+          n += 1;
+          if (n === 3) throw new Error("vendor blew up mid-batch");
+          return { ccid: `cc${n}` };
+        },
+      },
+    );
+
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+
+    // Five reached the vendor and were recorded; the sixth is the thrower.
+    expect(calls.dials).toHaveLength(5);
   });
 });
