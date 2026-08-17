@@ -114,6 +114,24 @@ const createSchema = z.object({
   expires_at: z.iso.datetime(),
 });
 
+/**
+ * Put a quote back to draft after a send that did not happen.
+ *
+ * Best-effort and deliberately quiet: the caller is already throwing the real
+ * reason, and a failure to tidy up must not replace it with a worse message.
+ * The cost of losing this is a quote that claims to have been sent — which is
+ * exactly the defect this send path was rewritten to remove, so it is worth the
+ * extra round trip.
+ */
+async function unsend(db: ReturnType<typeof getDb>, companyId: string, id: string) {
+  const { error } = await db
+    .from("quotes")
+    .update({ status: "draft", sent_at: null })
+    .eq("company_id", companyId)
+    .eq("id", id);
+  if (error) console.error(`quote unsend failed: ${error.message}`);
+}
+
 export const quotesRoutes = new Hono<AppEnv>();
 
 /**
@@ -401,7 +419,19 @@ quotesRoutes.post(
       url,
     });
 
-    const gated = await gateOutboundSend(db, {
+    /*
+     * FROM HERE THE ROW ALREADY SAYS `sent`, so every failure below has to put
+     * it back. Found by the test above: an opted-out contact left a quote
+     * claiming it had been sent, with no text anywhere — the same lie this
+     * whole change exists to remove, reached by a different road.
+     *
+     * The row is claimed FIRST on purpose: the draft guard in that update is
+     * what makes two taps send one text, and checking it after the send would
+     * be a check-then-act with a carrier call inside the race.
+     */
+    let gated;
+    try {
+      gated = await gateOutboundSend(db, {
       companyId,
       conversationId: row.conversation_id,
       senderUserId: c.get("userId"),
@@ -416,8 +446,12 @@ quotesRoutes.post(
       idempotencyKey: id,
       // The same estimator every other send bills against — a URL makes this
       // reliably multi-segment and it is metered as what it is.
-      segmentsEstimate: estimateSegments(text).segments,
-    });
+        segmentsEstimate: estimateSegments(text).segments,
+      });
+    } catch (cause) {
+      await unsend(db, companyId, id);
+      throw cause;
+    }
     const message = gated.message;
 
     // The receipt: WHICH text carried this quote. #287 opens with "nobody can
@@ -428,13 +462,22 @@ quotesRoutes.post(
       .eq("company_id", companyId)
       .eq("id", id);
 
-    await dispatchOutbound(env, db, message, {
-      from: fromNumber,
-      to: view.contact_phone_e164,
-      text,
-      mediaUrls: [],
-      clearance,
-    });
+    try {
+      await dispatchOutbound(env, db, message, {
+        from: fromNumber,
+        to: view.contact_phone_e164,
+        text,
+        mediaUrls: [],
+        clearance,
+      });
+    } catch (cause) {
+      // The message row survives — the outbox owns retrying a carrier that was
+      // briefly unreachable, and deleting it would lose the text. What must not
+      // survive is a QUOTE that says it went out when the carrier refused it
+      // outright.
+      await unsend(db, companyId, id);
+      throw cause;
+    }
 
     await insertConversationEvents(db, [
       {
