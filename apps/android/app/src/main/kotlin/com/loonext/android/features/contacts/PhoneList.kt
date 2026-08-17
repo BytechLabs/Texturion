@@ -98,7 +98,10 @@ fun PhoneList(
                 )
                 Icon(
                     Icons.Outlined.Close,
-                    contentDescription = "Remove ${entry.phone_e164}",
+                    contentDescription = t(
+                        "contactsTasks.phoneRemove",
+                        "number" to entry.phone_e164,
+                    ),
                     modifier = Modifier
                         .size(15.dp)
                         .minimumInteractiveComponentSize()
@@ -113,7 +116,7 @@ fun PhoneList(
                 value = draftLabel,
                 onValueChange = { draftLabel = it.take(80) },
                 label = { Text(t("contactsTasks.labelField")) },
-                placeholder = { Text(PHONE_LABEL_PLACEHOLDER) },
+                placeholder = { Text(t("contactsTasks.phoneLabelPlaceholder")) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
             )
@@ -121,14 +124,14 @@ fun PhoneList(
                 value = draftPhone,
                 onValueChange = { draftPhone = it.take(32) },
                 label = { Text(t("contactsTasks.numberField")) },
-                placeholder = { Text(PHONE_NUMBER_PLACEHOLDER) },
+                placeholder = { Text(t("contactsTasks.phonePlaceholder")) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
             )
             // What this actually does, said before it is done.
             Text(
-                PHONE_MATCH_NOTE,
+                t("contactsTasks.phoneMatchNote"),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -168,7 +171,7 @@ fun PhoneList(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    PHONE_ADD_LABEL,
+                    t("contactsTasks.phoneAddAnother"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Normal,
@@ -182,16 +185,12 @@ fun PhoneList(
 /**
  * The sentences this surface owns, kept where the parity test can read them.
  *
- * #228: these four are NOT in the catalogue, and that is deliberate rather than
- * missed. `apps/web/src/components/contacts/phone-parity.test.ts` reads THIS
- * FILE'S BYTES and asserts both the `const val PHONE_MATCH_NOTE` declaration
- * and its use inside the adding branch, plus the `Remove ${entry.phone_e164}`
- * label above. Moving them into `ContactsTasksStrings` fails a test that lives
- * in a tree this change may not touch, so they move when all three clients do.
+ * #228: these four sentences have MOVED to `ContactsTasksStrings`, under the
+ * same keys iOS uses, in both languages.
+ *
+ * The note that used to sit here said they were deliberately held back because
+ * `apps/web/src/components/contacts/phone-parity.test.ts` reads this file's
+ * bytes, and that "they move when all three clients do". All three do now, and
+ * that guard moved with them in the same commit: it reads Android's catalogue
+ * alongside this screen, the way it already read iOS's.
  */
-const val PHONE_ADD_LABEL = "Add another number"
-const val PHONE_LABEL_PLACEHOLDER = "Landline, the wife, the shop…"
-const val PHONE_NUMBER_PLACEHOLDER = "Another number they answer"
-const val PHONE_MATCH_NOTE =
-    "Texts and calls from this number will show up under this customer, in " +
-        "their own thread."

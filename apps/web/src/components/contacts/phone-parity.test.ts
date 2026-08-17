@@ -55,9 +55,9 @@ const SOURCES: Record<string, string> = {
 const code = parityCode;
 
 /**
- * #228: iOS reads its labels from the catalogue now, so the screen alone no
- * longer contains the sentences this guard pins. Web moved first (that is what
- * `WEB_WORDS` is), Android has not.
+ * #228: every client reads these labels from a catalogue now. Web moved first
+ * (that is what `WEB_WORDS` is), then iOS, and Android last — so no screen
+ * alone contains the sentences this guard pins.
  *
  * Screen AND catalogue rather than catalogue alone: what is being asked is
  * whether a person reads the same words on three clients, and dropping the
@@ -68,9 +68,16 @@ const IOS_CATALOGUE = join(
   "apps/ios/Loonext/Core/I18n/ContactsTasksStrings.swift",
 );
 
+const ANDROID_CATALOGUE = join(
+  REPO_ROOT,
+  "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/ContactsTasksStrings.kt",
+);
+
 /** A client's words: its screen, plus the catalogue it reaches into. */
 function words(platform: string, path: string): string {
-  return platform === "ios" ? code(path) + " " + code(IOS_CATALOGUE) : code(path);
+  if (platform === "ios") return code(path) + " " + code(IOS_CATALOGUE);
+  if (platform === "android") return code(path) + " " + code(ANDROID_CATALOGUE);
+  return code(path);
 }
 
 /** Said on every client, verbatim. */
@@ -134,11 +141,18 @@ describe("#291 the other-numbers list reads the same everywhere", () => {
       "ios: remove names the number",
     ).toMatch(/contactsTasks\.phoneRemove"[\s,\][]*\["number":\s*entry\.phone_e164/);
 
-    // Android still spells it inline.
+    // #228: and Android, last of the three, for the same two reasons — the
+    // catalogue sentence carries the slot, and the row fills it with its own
+    // number. Concatenating instead would put the number outside the
+    // translated sentence, where a language that orders the words differently
+    // cannot reach it.
+    expect(code(ANDROID_CATALOGUE), "android: the label has a slot").toContain(
+      "Remove {number}",
+    );
     expect(
-      words("android", SOURCES.android),
+      code(SOURCES.android),
       "android: remove names the number",
-    ).toMatch(/Remove \$?\{?entry\.phone_e164\}?/);
+    ).toMatch(/contactsTasks\.phoneRemove",\s*"number" to entry\.phone_e164/);
   });
 
   /**
@@ -159,8 +173,13 @@ describe("#291 the other-numbers list reads the same everywhere", () => {
       branch: "{adding ? (",
       declaration: "export const PHONE_MATCH_NOTE",
     },
+    // #228: Android reaches the note through its catalogue key, so the key IS
+    // the identifier — the same move web made. There is no declaration in the
+    // file any more, which `body()` already handles: a needle it cannot find
+    // leaves the whole source in play, and the key appears exactly once,
+    // inside the adding branch, so both assertions still bite.
     android: {
-      identifier: "PHONE_MATCH_NOTE",
+      identifier: "contactsTasks\\.phoneMatchNote",
       branch: "if (adding) {",
       declaration: "const val PHONE_MATCH_NOTE",
     },

@@ -17,6 +17,19 @@ package com.loonext.android.core.i18n
  */
 object ContactsTasksStrings : AppStrings.Section {
     override val en = mapOf(
+        // #228/#291 — the phone list. Named the same as iOS so the two
+        // phones spell one thing once; pinned across all three clients by
+        // phone-parity.test.ts.
+        "contactsTasks.phoneAddAnother" to
+            "Add another number",
+        "contactsTasks.phoneLabelPlaceholder" to
+            "Landline, the wife, the shop…",
+        "contactsTasks.phonePlaceholder" to
+            "Another number they answer",
+        "contactsTasks.phoneMatchNote" to
+            "Texts and calls from this number will show up under this customer, in their own thread.",
+        "contactsTasks.phoneRemove" to
+            "Remove {number}",
         // #228/#291 — the address list. Named the same as iOS so the two
         // phones spell one thing once; the sentences are pinned across all
         // three clients by address-parity.test.ts.
@@ -649,6 +662,19 @@ object ContactsTasksStrings : AppStrings.Section {
     )
 
     override val frCA = mapOf(
+        // #228/#291 — the phone list. Named the same as iOS so the two
+        // phones spell one thing once; pinned across all three clients by
+        // phone-parity.test.ts.
+        "contactsTasks.phoneAddAnother" to
+            "Ajouter un autre numéro",
+        "contactsTasks.phoneLabelPlaceholder" to
+            "Fixe, la conjointe, l'atelier…",
+        "contactsTasks.phonePlaceholder" to
+            "Un autre numéro auquel il répond",
+        "contactsTasks.phoneMatchNote" to
+            "Les textos et les appels provenant de ce numéro apparaîtront sous ce client, dans sa propre conversation.",
+        "contactsTasks.phoneRemove" to
+            "Retirer {number}",
         // #228/#291 — the address list. Named the same as iOS so the two
         // phones spell one thing once; the sentences are pinned across all
         // three clients by address-parity.test.ts.
