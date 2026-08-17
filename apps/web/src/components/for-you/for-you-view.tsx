@@ -37,6 +37,8 @@ import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
 import { CustomiseDashboard } from "@/components/for-you/customise-dashboard";
+import { OutstandingQuotesSection } from "@/components/for-you/outstanding-quotes-section";
+import { Section } from "@/components/for-you/section";
 import { LeadSourcesCard } from "@/components/for-you/lead-sources-card";
 import { PipelineCard } from "@/components/for-you/pipeline-card";
 import { ReferralAsk } from "@/components/for-you/referral-ask";
@@ -85,36 +87,6 @@ function Avatar({ name }: { name: string }) {
     >
       {avatarInitials(name)}
     </span>
-  );
-}
-
-/** A labeled section: small uppercase label + count, then the calm card list.
- *  `count` is omitted for ambient sections (Recent calls) — a history count
- *  is not a workload number. */
-function Section({
-  label,
-  count,
-  children,
-  id,
-}: {
-  label: string;
-  count?: number;
-  children: React.ReactNode;
-  /** #540: what the summary strip's tile links to. */
-  id?: string;
-}) {
-  return (
-    <section id={id} className="scroll-mt-4">
-      <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-        {label}
-        {count !== undefined && count > 0 && (
-          <span className="tabular-nums">{count}</span>
-        )}
-      </h2>
-      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
-        {children}
-      </div>
-    </section>
   );
 }
 
@@ -471,6 +443,7 @@ function RecentCallsSection() {
     </Section>
   );
 }
+
 
 /** A gentle 3-line skeleton for one section while the queue first loads. */
 function SectionSkeleton() {
@@ -1292,6 +1265,12 @@ function ForYouSections({
             {queueSections[id]}
           </div>
         ))}
+      {/* #287: above the call history, because money a customer was asked for
+          and has not answered outranks a list of calls that already happened. */}
+      <div className="lg:col-span-2 xl:col-span-3">
+        <OutstandingQuotesSection />
+      </div>
+
       {/* #540: hideable, unlike everything above it in the queue. Calls already
           happened — this is history a member reads, not work they owe anybody,
           so it is the one section on this screen that can come off. */}

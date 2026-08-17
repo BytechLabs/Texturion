@@ -87,6 +87,14 @@ vi.mock("@/lib/api/me-company", () => ({
 vi.mock("@/lib/api/conversations", () => ({
   useUpdateConversation: () => ({ isPending: false, mutate: vi.fn() }),
 }));
+// #287: the landing screen now carries the outstanding-quotes queue, which
+// reads through react-query like every other list here. Empty for this suite —
+// what it asserts is the follow-up section, and a second live query would only
+// add a QueryClient this file has never needed.
+vi.mock("@/lib/api/quotes", () => ({
+  useOutstandingQuotes: () => ({ data: { data: [] } }),
+}));
+
 vi.mock("@/lib/api/calls", () => ({
   useCalls: () => ({
     data: { pages: [{ data: state.calls, next_cursor: null }] },

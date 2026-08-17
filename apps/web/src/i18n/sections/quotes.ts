@@ -46,6 +46,10 @@ export const quotesEn = {
   /* #287 — the crew-facing strip. `sendFor` carries the amount because SEND
      is the customer-visible act that binds a price; a button reading only
      "Send" can be pressed without the figure in your eye. */
+  /* #287 — the queue an owner opens every morning. "Waiting on an answer",
+     not "outstanding": the second is an accountant's word for the same thing
+     and says nothing about what to do next. */
+  outstandingTitle: "Waiting on an answer",
   newQuote: "Quote this job",
   sendFor: "Send for {amount}",
   sending: "Sending…",
@@ -78,6 +82,7 @@ export const quotesFr: Translated<typeof quotesEn> = {
   priceHolds: "Ce prix tient jusqu'au {date}.",
   acceptFailed: "Cela n'a pas fonctionné. Le devis vient peut-être d'expirer ou d'être retiré. Écrivez à {business} et ils pourront arranger cela.",
   noLongerOpen: "Ce devis n'est plus ouvert. Écrivez à {business} si vous souhaitez toujours faire réaliser les travaux.",
+  outstandingTitle: "En attente d'une réponse",
   newQuote: "Faire un devis",
   sendFor: "Envoyer pour {amount}",
   sending: "Envoi…",
