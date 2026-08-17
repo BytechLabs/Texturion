@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.14.0](https://github.com/BytechLabs/Texturion/compare/android-v0.13.2...android-v0.14.0) (2026-08-17)
+
+
+### Features
+
+* **android:** 445 more sentences move into the catalogue, en + fr-CA ([ee90796](https://github.com/BytechLabs/Texturion/commit/ee90796e8c50d66d74dc94142cc205de7e16154b))
+* **android:** connect the workspace to its other apps ([a9aee52](https://github.com/BytechLabs/Texturion/commit/a9aee527909bbf923c1d007dbee653658b82d94a))
+* **android:** create and switch off API keys ([8eb2a2a](https://github.com/BytechLabs/Texturion/commit/8eb2a2a06927addfc32919974733c06e7336c84b))
+* **android:** the cancel card argues in the reader's language here too ([cdbec3d](https://github.com/BytechLabs/Texturion/commit/cdbec3d1a1dd451acf2ae94e680c3c5658efd801))
+* **android:** the front door speaks French ([93dd44b](https://github.com/BytechLabs/Texturion/commit/93dd44b474f7202c5a2887c9667238ebcc5e96bf))
+* **android:** the prepaid-year switch speaks French ([6c34e54](https://github.com/BytechLabs/Texturion/commit/6c34e5476188784d2d495032f63d983e802e13cf))
+* **android:** the six reasons for leaving, in the reader's language ([881cb1e](https://github.com/BytechLabs/Texturion/commit/881cb1e14a86ed33a5065519468a33f94e013f3e))
+* **android:** two-factor, the captcha and Google sign-in speak French ([557b29d](https://github.com/BytechLabs/Texturion/commit/557b29dd1e3e24f92e670a700f7340d86451d23d))
+* **clients:** a passkey works as a second factor on Android ([c3cbe2e](https://github.com/BytechLabs/Texturion/commit/c3cbe2eff44473f1f710308f1a0d579d3c6443bf))
+* **clients:** let whoever does the books pull a period's usage from a phone ([#605](https://github.com/BytechLabs/Texturion/issues/605)) ([0d72460](https://github.com/BytechLabs/Texturion/commit/0d7246063f10be604783d29bef4eda50453e4bd4)), closes [#595](https://github.com/BytechLabs/Texturion/issues/595)
+* **clients:** the Android app reads from a catalogue, and web finishes its own ([60e4289](https://github.com/BytechLabs/Texturion/commit/60e4289712cc2f4bcf1883e20f0295e08bd58ab6))
+* **clients:** the deposit lands before anyone refreshes ([10aa248](https://github.com/BytechLabs/Texturion/commit/10aa248bab4fbcf06a850658a54498725989c6ee))
+* **clients:** the phone in a pocket hears the deposit land ([0989a5b](https://github.com/BytechLabs/Texturion/commit/0989a5bffff0ba664ac19528afe736ac25601817))
+* **clients:** the website widget reaches the phones ([34d86ec](https://github.com/BytechLabs/Texturion/commit/34d86ec384c75eb4731f8241564ef2c47dd66248))
+* **i18n:** both phones send the on-my-way text in the customer's language ([e6b3fc4](https://github.com/BytechLabs/Texturion/commit/e6b3fc4a514608588c749eb20823e264f5278b1e))
+* **i18n:** the hand-over-phone dialog reads in French ([a9d194d](https://github.com/BytechLabs/Texturion/commit/a9d194d18ed01637c402f0fc14f14f57f7c81675))
+* **i18n:** the handover challenge reads in French ([a96ee66](https://github.com/BytechLabs/Texturion/commit/a96ee664a5a206b05a3448b15aba15cf926b85e4))
+* **i18n:** the pre-cutover checklist reads in French on the web ([8feeef6](https://github.com/BytechLabs/Texturion/commit/8feeef65db84034194c088f08947da31284ae3a3))
+* **i18n:** the Stripe account states say themselves in the reader's language ([fa25608](https://github.com/BytechLabs/Texturion/commit/fa256085cba99684beda61f15e5bf0a5bcbd503c))
+* **ios:** the app speaks French ([fd5f096](https://github.com/BytechLabs/Texturion/commit/fd5f09607f7c0fc899fbeaa2df259925f9e24c3a))
+* **mobile:** a new crew can act on the empty dashboard panel, not just read it ([68343cd](https://github.com/BytechLabs/Texturion/commit/68343cd471a5d074966343d275dcbb8afc16a239))
+* **mobile:** the translated screens actually render in French ([78e308e](https://github.com/BytechLabs/Texturion/commit/78e308e5217ed6fe0cc1db0c168d1e6fecf2a054))
+* **payments:** let a business collect from its customer over the thread ([b0df3aa](https://github.com/BytechLabs/Texturion/commit/b0df3aaf4c63504633485b1204190a3a5885df0e))
+* **reports:** the website earns its own row, not the unknown pile ([14896cd](https://github.com/BytechLabs/Texturion/commit/14896cdda1cb07bed7ab88c5616b438924025f35))
+
+
+### Bug Fixes
+
+* **android:** a failed text says why in the reader's own language ([8df87ca](https://github.com/BytechLabs/Texturion/commit/8df87ca2a3aabb81157efd038398dcc8d51d3188))
+* **android:** a handover in flight reads in French ([44c5172](https://github.com/BytechLabs/Texturion/commit/44c5172a0a79dc6408a77e3a786975db6815d0d6))
+* **android:** number setup speaks French while it is still working ([9c8f5a6](https://github.com/BytechLabs/Texturion/commit/9c8f5a60149f1e00e0f291d59e89df2be404c647))
+* **android:** take back a cap the shell was already applying ([2d22223](https://github.com/BytechLabs/Texturion/commit/2d22223a5c45cae427e3a351819ce1186b26d352))
+* **android:** the app's own failure sentences reach a French phone in French ([01dbdd0](https://github.com/BytechLabs/Texturion/commit/01dbdd0ad88751b2c8b215dc34d1815d4129f673))
+* **android:** the cancel-copy pin follows the sentences it was watching ([3ba11cc](https://github.com/BytechLabs/Texturion/commit/3ba11cc6c8f6a97c5a1793eaf5e5e09d28fc1c6b))
+* **android:** the Details control looks and announces like a control ([d0b7233](https://github.com/BytechLabs/Texturion/commit/d0b723334b419b0295d6378219665767409a7dee))
+* **android:** the nav pill caps at the width its own slots need ([1cff315](https://github.com/BytechLabs/Texturion/commit/1cff315a65bcdf09d0aa27587b5d8c99d7723cff))
+* **android:** the plan comparison card reads in French ([dbabf8c](https://github.com/BytechLabs/Texturion/commit/dbabf8c75d1de94306c4bd763e8f2c1ee6a939fe))
+* **android:** the seasonal pause reads in French, offered and lived in ([dd3435e](https://github.com/BytechLabs/Texturion/commit/dd3435e7240184c864beb2c5e1b001dcb38f1dc5))
+* **android:** the spending-cap dialog asks in French ([8f6cd99](https://github.com/BytechLabs/Texturion/commit/8f6cd995a2a81f88188a94af38fbc464b7272a4e))
+* **android:** the tab bar lines up with the content it navigates ([d107540](https://github.com/BytechLabs/Texturion/commit/d107540b611057dfb61bec78e464c43cbe22e1d1))
+* **api:** a prepaid year that ends early now pays the rest back ([cf221a0](https://github.com/BytechLabs/Texturion/commit/cf221a0d4355a654ac677eee1e8701824cb10aeb))
+* **clients:** an exported name with an accent in it no longer arrives mangled ([dfefcfe](https://github.com/BytechLabs/Texturion/commit/dfefcfe9e3bb16f63b19fc9ee6331c0a970de94a)), closes [#587](https://github.com/BytechLabs/Texturion/issues/587)
+* **clients:** both phones promised an add-on credit that never arrives ([b8ee805](https://github.com/BytechLabs/Texturion/commit/b8ee805a198e0bc922606d2558735b28e2b042be))
+* **clients:** the quotes panel stops printing a rate it just called uncallable ([f9fd2e5](https://github.com/BytechLabs/Texturion/commit/f9fd2e54484f7a3b02e9f41e26c898b5ae65a8c7))
+* **clients:** the referral pins follow the sentences they were watching ([7b0f453](https://github.com/BytechLabs/Texturion/commit/7b0f4535d7962b925247a53be8fd867c116fb94b))
+* **clients:** the sources card stays readable at 200% text ([ec84c89](https://github.com/BytechLabs/Texturion/commit/ec84c89944c5d4b49ec8a3a099635d43f1b5be4f))
+* **i18n:** repoint the phone pins the catch-up and metered conversions broke ([47bb57c](https://github.com/BytechLabs/Texturion/commit/47bb57c685d7aed997228847a2398ebb3829c5f3))
+* **i18n:** the emergency-word screen warns in French, and now hears French ([f410dc4](https://github.com/BytechLabs/Texturion/commit/f410dc4cc79a22d1f985c08729f5a2b8a36f185a))
+* **mobile:** both phones read the quotes insight in their own language ([c4686d7](https://github.com/BytechLabs/Texturion/commit/c4686d7722dcf570f7c38c6057a08ebdff474945))
+* **mobile:** the dashboard marks are measures again, and the clock is a clock ([6859bad](https://github.com/BytechLabs/Texturion/commit/6859badf6e2c221ba6e0e602c148da7986ca8ad5))
+* **mobile:** the dashboard stops stretching on a tablet ([4965f69](https://github.com/BytechLabs/Texturion/commit/4965f69c8a4079ac0efef5f8da5bc18fb52bc11a))
+* **mobile:** the nav capsule keeps its edge in dark ([d85ed95](https://github.com/BytechLabs/Texturion/commit/d85ed95ca73f0d4ec7fd610a37cfdc56b1729231))
+* **shared:** a French owner's referral message ends in French ([fcf037c](https://github.com/BytechLabs/Texturion/commit/fcf037c5e0ce86436406329ba869a86a969f2877))
+* **shared:** the quotes card reads its own sentence in French on the web ([980b336](https://github.com/BytechLabs/Texturion/commit/980b33691a02139f22096c2224b2fe20bec64d3b))
+
 ## [0.13.2](https://github.com/BytechLabs/Texturion/compare/android-v0.13.1...android-v0.13.2) (2026-08-09)
 
 

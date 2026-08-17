@@ -1,5 +1,72 @@
 # Changelog
 
+## [0.14.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.13.2...ios-v0.14.0) (2026-08-17)
+
+
+### Features
+
+* **clients:** let whoever does the books pull a period's usage from a phone ([#605](https://github.com/BytechLabs/Texturion/issues/605)) ([0d72460](https://github.com/BytechLabs/Texturion/commit/0d7246063f10be604783d29bef4eda50453e4bd4)), closes [#595](https://github.com/BytechLabs/Texturion/issues/595)
+* **clients:** the deposit lands before anyone refreshes ([10aa248](https://github.com/BytechLabs/Texturion/commit/10aa248bab4fbcf06a850658a54498725989c6ee))
+* **clients:** the phone in a pocket hears the deposit land ([0989a5b](https://github.com/BytechLabs/Texturion/commit/0989a5bffff0ba664ac19528afe736ac25601817))
+* **clients:** the website widget reaches the phones ([34d86ec](https://github.com/BytechLabs/Texturion/commit/34d86ec384c75eb4731f8241564ef2c47dd66248))
+* **i18n:** both phones send the on-my-way text in the customer's language ([e6b3fc4](https://github.com/BytechLabs/Texturion/commit/e6b3fc4a514608588c749eb20823e264f5278b1e))
+* **i18n:** the hand-over-phone dialog reads in French ([a9d194d](https://github.com/BytechLabs/Texturion/commit/a9d194d18ed01637c402f0fc14f14f57f7c81675))
+* **i18n:** the handover challenge reads in French ([a96ee66](https://github.com/BytechLabs/Texturion/commit/a96ee664a5a206b05a3448b15aba15cf926b85e4))
+* **i18n:** the Stripe account states say themselves in the reader's language ([fa25608](https://github.com/BytechLabs/Texturion/commit/fa256085cba99684beda61f15e5bf0a5bcbd503c))
+* **ios:** a passkey works as a second factor on iPhone ([a1cafef](https://github.com/BytechLabs/Texturion/commit/a1cafef675f8d6715c7fdb40999f46abdab7a00c))
+* **ios:** connect the workspace to its other apps ([d7ed756](https://github.com/BytechLabs/Texturion/commit/d7ed75611b364ef3d436451709cb89b7562fd765))
+* **ios:** create and switch off API keys ([faaf095](https://github.com/BytechLabs/Texturion/commit/faaf0953ae190843e087168ac13c87520624854c))
+* **ios:** notifications are one tap from For You, as on Android ([cf98e3f](https://github.com/BytechLabs/Texturion/commit/cf98e3f182068f7b7cb0a231003d4087808a8bfb))
+* **ios:** read every settings screen from the catalogue ([#609](https://github.com/BytechLabs/Texturion/issues/609)) ([163f210](https://github.com/BytechLabs/Texturion/commit/163f21078ee809f30da8a074e956d8f5eea52db3))
+* **ios:** the app speaks French ([fd5f096](https://github.com/BytechLabs/Texturion/commit/fd5f09607f7c0fc899fbeaa2df259925f9e24c3a))
+* **ios:** the iOS app reads from the catalogue too ([f73da16](https://github.com/BytechLabs/Texturion/commit/f73da16fc6727711935eeeb398dcea910e51bf4d))
+* **ios:** the iPhone can be felt, not just seen ([f6867d0](https://github.com/BytechLabs/Texturion/commit/f6867d05667f52a3d6a48d12ab1fed073e612225))
+* **ios:** the last three silent areas now answer in the hand ([6a3e4cd](https://github.com/BytechLabs/Texturion/commit/6a3e4cd982d366d7044a170b71e07248ffc05e41))
+* **ios:** the thread, the inbox and the shell answer back ([ffbec52](https://github.com/BytechLabs/Texturion/commit/ffbec521cac664afb212cff79c59193feb52bb8b))
+* **mobile:** a new crew can act on the empty dashboard panel, not just read it ([68343cd](https://github.com/BytechLabs/Texturion/commit/68343cd471a5d074966343d275dcbb8afc16a239))
+* **mobile:** the translated screens actually render in French ([78e308e](https://github.com/BytechLabs/Texturion/commit/78e308e5217ed6fe0cc1db0c168d1e6fecf2a054))
+* **payments:** let a business collect from its customer over the thread ([b0df3aa](https://github.com/BytechLabs/Texturion/commit/b0df3aaf4c63504633485b1204190a3a5885df0e))
+* **reports:** the website earns its own row, not the unknown pile ([14896cd](https://github.com/BytechLabs/Texturion/commit/14896cdda1cb07bed7ab88c5616b438924025f35))
+
+
+### Bug Fixes
+
+* **api:** a prepaid year that ends early now pays the rest back ([cf221a0](https://github.com/BytechLabs/Texturion/commit/cf221a0d4355a654ac677eee1e8701824cb10aeb))
+* **clients:** an exported name with an accent in it no longer arrives mangled ([dfefcfe](https://github.com/BytechLabs/Texturion/commit/dfefcfe9e3bb16f63b19fc9ee6331c0a970de94a)), closes [#587](https://github.com/BytechLabs/Texturion/issues/587)
+* **clients:** both phones promised an add-on credit that never arrives ([b8ee805](https://github.com/BytechLabs/Texturion/commit/b8ee805a198e0bc922606d2558735b28e2b042be))
+* **clients:** the quotes panel stops printing a rate it just called uncallable ([f9fd2e5](https://github.com/BytechLabs/Texturion/commit/f9fd2e54484f7a3b02e9f41e26c898b5ae65a8c7))
+* **clients:** the referral pins follow the sentences they were watching ([7b0f453](https://github.com/BytechLabs/Texturion/commit/7b0f4535d7962b925247a53be8fd867c116fb94b))
+* **clients:** the sources card stays readable at 200% text ([ec84c89](https://github.com/BytechLabs/Texturion/commit/ec84c89944c5d4b49ec8a3a099635d43f1b5be4f))
+* **i18n:** point the cross-client guards at the catalogue for iOS too ([15cb584](https://github.com/BytechLabs/Texturion/commit/15cb5848a7246b842485ab685c76d1826f0f9a59))
+* **i18n:** repoint the phone pins the catch-up and metered conversions broke ([47bb57c](https://github.com/BytechLabs/Texturion/commit/47bb57c685d7aed997228847a2398ebb3829c5f3))
+* **i18n:** the catch-up pin my sweep missed, and why the scanner exists ([0a644d4](https://github.com/BytechLabs/Texturion/commit/0a644d4309222ddd18546eb41d7b9bbd9ee791e8))
+* **i18n:** the emergency-word screen warns in French, and now hears French ([f410dc4](https://github.com/BytechLabs/Texturion/commit/f410dc4cc79a22d1f985c08729f5a2b8a36f185a))
+* **i18n:** the on-call pin on iOS, missed because I truncated my own scanner ([3d66590](https://github.com/BytechLabs/Texturion/commit/3d665909fa92045cda891909e5a7ac8c3dd95567))
+* **ios:** drop a catalogue lookup from a test that cannot import the app ([b46f22f](https://github.com/BytechLabs/Texturion/commit/b46f22fac83718f5f95215262ba5a409432edd66))
+* **ios:** pass the locale with its label so the timeline compiles ([287a8e2](https://github.com/BytechLabs/Texturion/commit/287a8e242be88a6ac703b19a40742ad102ae9b2f))
+* **ios:** put the new For You arguments in declaration order ([e2ecfce](https://github.com/BytechLabs/Texturion/commit/e2ecfceff3f4fd59a98ff302149fbb4ef4f1ad06))
+* **ios:** take the lock in the one form an async function is allowed to ([7276256](https://github.com/BytechLabs/Texturion/commit/72762565532f327b5fdd582e6a0eecc0fa82fd96))
+* **ios:** the app's own failure sentences reach a French phone in French ([82c1a17](https://github.com/BytechLabs/Texturion/commit/82c1a17abb2682b0069a0756bfa1494eada1022e))
+* **ios:** the cancel screen speaks French ([aedae92](https://github.com/BytechLabs/Texturion/commit/aedae92ef57a978b553fd965126003d74701ddd6))
+* **ios:** the Details control gets a chevron, and says Détails in French ([848435e](https://github.com/BytechLabs/Texturion/commit/848435ea29e4b4d37c7e82d901a112d09730f77b))
+* **ios:** the handover label pin follows the copy, like its Kotlin twin ([0e34c62](https://github.com/BytechLabs/Texturion/commit/0e34c627da18dcad735dd5ffb05d63a6cff75da2))
+* **ios:** the last four settings guards read keys instead of English ([33e8532](https://github.com/BytechLabs/Texturion/commit/33e85329b88623bc281f6593481bce290f00b327))
+* **ios:** the unread dot's ring follows the capsule it sits in ([dbd185f](https://github.com/BytechLabs/Texturion/commit/dbd185f4536ae51c6d865fa1e3f0fc5533dcdab2))
+* **ios:** two catch-up guards read the call, not its argument list ([f01a8c9](https://github.com/BytechLabs/Texturion/commit/f01a8c948ee3bdcfecd8ec55fd6fe40c8dd2d98a))
+* **mobile:** a failed text says why in the reader's own language on both phones ([0c76539](https://github.com/BytechLabs/Texturion/commit/0c7653917783f3b271e74f5bf79d9fef00b51d49))
+* **mobile:** both phones read the quotes insight in their own language ([c4686d7](https://github.com/BytechLabs/Texturion/commit/c4686d7722dcf570f7c38c6057a08ebdff474945))
+* **mobile:** the dashboard marks are measures again, and the clock is a clock ([6859bad](https://github.com/BytechLabs/Texturion/commit/6859badf6e2c221ba6e0e602c148da7986ca8ad5))
+* **mobile:** the dashboard stops stretching on a tablet ([4965f69](https://github.com/BytechLabs/Texturion/commit/4965f69c8a4079ac0efef5f8da5bc18fb52bc11a))
+* **mobile:** the nav capsule keeps its edge in dark ([d85ed95](https://github.com/BytechLabs/Texturion/commit/d85ed95ca73f0d4ec7fd610a37cfdc56b1729231))
+* **shared:** a French owner's referral message ends in French ([fcf037c](https://github.com/BytechLabs/Texturion/commit/fcf037c5e0ce86436406329ba869a86a969f2877))
+* **shared:** the quotes card reads its own sentence in French on the web ([980b336](https://github.com/BytechLabs/Texturion/commit/980b33691a02139f22096c2224b2fe20bec64d3b))
+
+
+### Reverts
+
+* **ios:** take back the catalogue port until its section exists ([c1fa4ec](https://github.com/BytechLabs/Texturion/commit/c1fa4eced38b0c78287864e7983b7a8d419289f4))
+* **ios:** take the new funnel test back off the trunk while its fixture is wrong ([6fae92a](https://github.com/BytechLabs/Texturion/commit/6fae92a1c24afb41997f515ca48458e44e866070))
+
 ## [0.13.2](https://github.com/BytechLabs/Texturion/compare/ios-v0.13.1...ios-v0.13.2) (2026-08-09)
 
 
