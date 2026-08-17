@@ -193,8 +193,8 @@ export async function runDailySummary(
         // says how much without saying what.
         content: { written: "us" },
         collapseKey: `summary:${row.user_id}`,
-        web: { title: SUMMARY_TITLE, body, url },
-        native: { kind: "summary", title: SUMMARY_TITLE, body, url },
+        web: () => ({ title: SUMMARY_TITLE, body, url }),
+        native: () => ({ kind: "summary", title: SUMMARY_TITLE, body, url }),
       });
       if (failures.length > 0) {
         console.error(

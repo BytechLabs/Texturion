@@ -75,11 +75,11 @@ export async function pushConsequentialNotice(
       companyId: args.companyId,
       userIds,
       content: { written: "us" },
-      web: {
+      web: () => ({
         title: args.title,
         body: args.body,
         url: `${env.APP_ORIGIN}${args.path}`,
-      },
+      }),
       collapseKey: args.collapseKey,
       failures,
     });

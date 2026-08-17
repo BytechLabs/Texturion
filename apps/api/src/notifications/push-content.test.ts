@@ -30,7 +30,13 @@ vi.mock("./fcm", () => ({
   sendFcm: vi.fn(async () => ({ gone: false })),
 }));
 
-const ALERT = { title: "Maria Alvarez", body: "basement flooding, 42 Elm", url: "/inbox/1" };
+// #228: a payload is now composed from the reader's language. This suite is
+// about WITHHOLDING rather than copy, so it ignores the argument.
+const ALERT = () => ({
+  title: "Maria Alvarez",
+  body: "basement flooding, 42 Elm",
+  url: "/inbox/1",
+});
 
 /** A db double: one web subscription, no native tokens, one company row. */
 function fakeDb(includeContent: boolean | "error") {

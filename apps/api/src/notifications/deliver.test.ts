@@ -17,7 +17,19 @@ const USER = "10000000-aaaa-4000-8000-000000000001";
 const SUB_ID = "50000000-0000-4000-8000-000000000001";
 const PUSH_ENDPOINT = "https://fcm.googleapis.com/fcm/send/";
 /** Minimum viable notification content for the mechanics under test. */
-const ALERT = { title: "Sam", body: "On my way", url: "https://app.test/inbox/t1" };
+const ALERT_TEXT = {
+  title: "Sam",
+  body: "On my way",
+  url: "https://app.test/inbox/t1",
+};
+
+/**
+ * #228: a payload is now a function of the reader's language. This one ignores
+ * it — most of this file is about fan-out, pruning and metering rather than
+ * copy, and a fixture that varied by language would make those assertions read
+ * as if they cared.
+ */
+const ALERT = () => ALERT_TEXT;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -63,12 +75,22 @@ function world(
   options: {
     subscriptions?: Record<string, unknown>[];
     pushStatus?: number;
+    /** #228: what each member chose. Rows of { user_id, locale }. */
+    profiles?: Record<string, unknown>[];
+    /** #228: the workspace's language, the rung below the device's. */
+    companyLocale?: string | null;
   } = {},
 ): { sb: SupabaseStub; routes: FetchRoute[]; sends: PushSend[] } {
   const sb = supabaseStub(env);
   sb.on("GET", "/rest/v1/push_subscriptions", () => options.subscriptions ?? []);
   sb.on("DELETE", "/rest/v1/push_subscriptions", () => []);
   sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+  // #228: the workspace's language and the #430 content setting, one read.
+  sb.on("GET", "/rest/v1/companies", () => [
+    { push_include_content: true, locale: options.companyLocale ?? "en" },
+  ]);
+  // #228: what each member chose for themselves. Empty = nobody chose.
+  sb.on("GET", "/rest/v1/profiles", () => options.profiles ?? []);
   const sends: PushSend[] = [];
   const pushRoute: FetchRoute = (url, request) => {
     if (!url.href.startsWith(PUSH_ENDPOINT)) return undefined;
@@ -155,6 +177,12 @@ describe("deliverPush", () => {
     const fcm = fcmEnv(account);
     const service = fcmService();
     const sb = supabaseStub(fcm);
+    // #228: the workspace language + the #430 content setting, one read.
+    sb.on("GET", "/rest/v1/companies", () => [
+      { push_include_content: true, locale: "en" },
+    ]);
+    // #228: nobody in these fixtures chose a language of their own.
+    sb.on("GET", "/rest/v1/profiles", () => []);
     sb.on("GET", "/rest/v1/push_subscriptions", () => []);
     sb.on("GET", "/rest/v1/device_push_tokens", () => [DEVICE]);
     stubFetch(sb.route, ...service.routes);
@@ -164,7 +192,7 @@ describe("deliverPush", () => {
       companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
-      web: { ...ALERT, title: "Web" },
+      web: () => ({ ...ALERT_TEXT, title: "Web" }),
       collapseKey: "conversation:x",
       failures: [],
     });
@@ -173,9 +201,9 @@ describe("deliverPush", () => {
       companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
-      web: { ...ALERT, title: "Web" },
+      web: () => ({ ...ALERT_TEXT, title: "Web" }),
       // Only the native clients see the discriminator that picks a channel.
-      native: { ...ALERT, title: "Web", kind: "missed_call" },
+      native: () => ({ ...ALERT_TEXT, title: "Web", kind: "missed_call" }),
       collapseKey: "conversation:x",
       failures: [],
     });
@@ -198,6 +226,12 @@ describe("deliverPush", () => {
     const fcm = fcmEnv(account);
     const service = fcmService();
     const sb = supabaseStub(fcm);
+    // #228: the workspace language + the #430 content setting, one read.
+    sb.on("GET", "/rest/v1/companies", () => [
+      { push_include_content: true, locale: "en" },
+    ]);
+    // #228: nobody in these fixtures chose a language of their own.
+    sb.on("GET", "/rest/v1/profiles", () => []);
     sb.on("GET", "/rest/v1/push_subscriptions", () => []);
     sb.on("GET", "/rest/v1/device_push_tokens", () => [DEVICE]);
     stubFetch(sb.route, ...service.routes);
@@ -292,6 +326,168 @@ describe("deliverPush", () => {
   });
 });
 
+/**
+ * #228 — a push arrives in the language its reader chose.
+ *
+ * These use the FCM path deliberately: a Web Push body is encrypted, and the
+ * native payload is the one a test can read back and prove the composition on.
+ *
+ * The composer here returns the locale itself as the body. That is not a
+ * shortcut — it is the only way to assert WHICH language each device was
+ * composed for, rather than that two payloads differed.
+ */
+describe("#228 a push speaks the reader's language", () => {
+  const OTHER_USER = "20000000-0000-4000-8000-000000000002";
+
+  /** Reports the locale it was handed, so each send names its own language. */
+  const SAYS_LOCALE = (locale: string) => ({
+    title: "T",
+    body: locale,
+    url: "https://app.test/inbox/t1",
+  });
+
+  function phone(id: string, userId: string, locale: string | null) {
+    return {
+      id,
+      user_id: userId,
+      platform: "android" as const,
+      token: `token-${id}`,
+      locale,
+    };
+  }
+
+  async function deliverTo(
+    devices: Record<string, unknown>[],
+    options: {
+      profiles?: Record<string, unknown>[];
+      companyLocale?: string | null;
+    } = {},
+  ) {
+    const account = await makeServiceAccount();
+    const fcm = fcmEnv(account);
+    const service = fcmService();
+    const sb = supabaseStub(fcm);
+    sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+    sb.on("GET", "/rest/v1/device_push_tokens", () => devices);
+    sb.on("GET", "/rest/v1/companies", () => [
+      {
+        push_include_content: true,
+        locale: options.companyLocale === undefined ? "en" : options.companyLocale,
+      },
+    ]);
+    sb.on("GET", "/rest/v1/profiles", () => options.profiles ?? []);
+    stubFetch(sb.route, ...service.routes);
+
+    await deliverPush(fcm, getDb(fcm), {
+      category: "messages_all",
+      companyId: "c0000000-0000-4000-8000-00000000000c",
+      content: { written: "us" },
+      userIds: [USER, OTHER_USER],
+      web: (locale) => SAYS_LOCALE(locale),
+      collapseKey: "conversation:x",
+      failures: [],
+    });
+
+    return {
+      sb,
+      bodies: service.sends.map(
+        (send) => (send.message.data as Record<string, string>).body,
+      ),
+    };
+  }
+
+  it("composes each device in the language that device reads", async () => {
+    // The DEVICE rung, which has never had a value on the server before. One
+    // person, two phones, two languages — which is not a hypothetical: it is
+    // the shape of every "my work phone is in English" arrangement.
+    const { bodies } = await deliverTo([
+      phone("60000000-0000-4000-8000-000000000001", USER, "fr-CA"),
+      phone("60000000-0000-4000-8000-000000000002", OTHER_USER, "en"),
+    ]);
+    expect(bodies.sort()).toEqual(["en", "fr-CA"]);
+  });
+
+  it("lets what a member CHOSE beat what their handset reports", async () => {
+    // resolveUiLocale's order, end to end: a French-speaking member who picked
+    // the language in the app still reads French on an English handset.
+    const { bodies } = await deliverTo(
+      [phone("60000000-0000-4000-8000-000000000001", USER, "en")],
+      { profiles: [{ user_id: USER, locale: "fr-CA" }] },
+    );
+    expect(bodies).toEqual(["fr-CA"]);
+  });
+
+  it("falls through a silent device to the workspace's language", async () => {
+    // Null is "this device never said", NOT English — every row written before
+    // the column existed is silent, and they must not all assert English.
+    const { bodies } = await deliverTo(
+      [phone("60000000-0000-4000-8000-000000000001", USER, null)],
+      { companyLocale: "fr-CA" },
+    );
+    expect(bodies).toEqual(["fr-CA"]);
+  });
+
+  it("ends at English when nothing anywhere says otherwise", async () => {
+    const { bodies } = await deliverTo(
+      [phone("60000000-0000-4000-8000-000000000001", USER, null)],
+      { companyLocale: null },
+    );
+    expect(bodies).toEqual(["en"]);
+  });
+
+  it("composes once per language, not once per device", async () => {
+    // The cost control. A crew of five on one language must not run the
+    // composer five times, and the collapse tag must stay identical across
+    // translations or two renderings of one alert would stack.
+    let composed = 0;
+    const account = await makeServiceAccount();
+    const fcm = fcmEnv(account);
+    const service = fcmService();
+    const sb = supabaseStub(fcm);
+    sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+    sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      phone("60000000-0000-4000-8000-000000000001", USER, "en"),
+      phone("60000000-0000-4000-8000-000000000002", OTHER_USER, "en"),
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => [
+      { push_include_content: true, locale: "en" },
+    ]);
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    stubFetch(sb.route, ...service.routes);
+
+    await deliverPush(fcm, getDb(fcm), {
+      category: "messages_all",
+      companyId: "c0000000-0000-4000-8000-00000000000c",
+      content: { written: "us" },
+      userIds: [USER, OTHER_USER],
+      web: (locale) => {
+        composed += 1;
+        return SAYS_LOCALE(locale);
+      },
+      collapseKey: "conversation:x",
+      failures: [],
+    });
+
+    expect(service.sends).toHaveLength(2);
+    expect(composed).toBe(1);
+    const tags = service.sends.map(
+      (send) => (send.message.data as Record<string, string>).tag,
+    );
+    expect(tags).toEqual(["conversation:x", "conversation:x"]);
+  });
+
+  it("reads the workspace and the members once each, however many devices", async () => {
+    // Two new queries per delivery is the price of this feature. Two PER
+    // DEVICE would not be.
+    const { sb } = await deliverTo([
+      phone("60000000-0000-4000-8000-000000000001", USER, "en"),
+      phone("60000000-0000-4000-8000-000000000002", OTHER_USER, "fr-CA"),
+    ]);
+    expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(1);
+    expect(sb.find("GET", "/rest/v1/profiles")).toHaveLength(1);
+  });
+});
+
 describe("newestPerUser", () => {
   it("gives every recipient their own quota", () => {
     const rows = [
@@ -353,6 +549,12 @@ describe("#244 member quiet hours", () => {
 
   function quietWorld() {
     const sb = supabaseStub(env);
+    // #228: the workspace language + the #430 content setting, one read.
+    sb.on("GET", "/rest/v1/companies", () => [
+      { push_include_content: true, locale: "en" },
+    ]);
+    // #228: nobody in these fixtures chose a language of their own.
+    sb.on("GET", "/rest/v1/profiles", () => []);
     sb.on("GET", "/rest/v1/notification_prefs", () => [
       {
         user_id: SLEEPING,
@@ -381,7 +583,7 @@ describe("#244 member quiet hours", () => {
       category: "messages_all" as const,
       userIds: [SLEEPING, AWAKE],
       content: { written: "us" as const },
-      web: { title: "t", body: "b", url: "https://app/x" },
+      web: () => ({ title: "t", body: "b", url: "https://app/x" }),
       collapseKey: "conversation:x",
       failures: [] as unknown[],
       ...overrides,
@@ -440,6 +642,12 @@ describe("#244 member quiet hours", () => {
     // The uncertain direction is to NOTIFY. Silently withholding a message
     // somebody was waiting for is invisible to them; an unwanted buzz is not.
     const sb = supabaseStub(env);
+    // #228: the workspace language + the #430 content setting, one read.
+    sb.on("GET", "/rest/v1/companies", () => [
+      { push_include_content: true, locale: "en" },
+    ]);
+    // #228: nobody in these fixtures chose a language of their own.
+    sb.on("GET", "/rest/v1/profiles", () => []);
     sb.on(
       "GET",
       "/rest/v1/notification_prefs",
@@ -461,6 +669,12 @@ describe("#244 member quiet hours", () => {
 
   it("QH-5: everybody quiet means no push at all, not a push to nobody", async () => {
     const sb = supabaseStub(env);
+    // #228: the workspace language + the #430 content setting, one read.
+    sb.on("GET", "/rest/v1/companies", () => [
+      { push_include_content: true, locale: "en" },
+    ]);
+    // #228: nobody in these fixtures chose a language of their own.
+    sb.on("GET", "/rest/v1/profiles", () => []);
     sb.on("GET", "/rest/v1/notification_prefs", () => [
       {
         user_id: SLEEPING,

@@ -142,6 +142,27 @@ export function supabaseStub(env: Env): SupabaseStub {
     },
     { method: "GET", matcher: "/rest/v1/email_suppressions", respond: () => [] },
     {
+      // #228: every push fan-out now asks what language its readers are in.
+      // The ambient default is "nobody has chosen one", which is the state
+      // every test written before #228 was against — resolveUiLocale then
+      // falls through to the workspace and finally to English, exactly the
+      // copy those suites already assert. A suite about languages registers
+      // this path itself and wins.
+      method: "GET",
+      matcher: "/rest/v1/profiles",
+      respond: () => [],
+    },
+    {
+      // #228 + #430: the workspace half of the same question, read together.
+      //  is the no-withholding default every
+      // pre-#430 test was written against, and a null locale is a workspace
+      // that never chose. push-content.test.ts registers this path itself to
+      // assert the withholding, and wins.
+      method: "GET",
+      matcher: "/rest/v1/companies",
+      respond: () => [{ push_include_content: true, locale: null }],
+    },
+    {
       // #243: outbound webhooks hang off the send, inbound, task and contact
       // paths. The ambient answer is "this workspace has no endpoints", which
       // is the state every test written before them was asserting against —

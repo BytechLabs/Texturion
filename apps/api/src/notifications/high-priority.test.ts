@@ -37,11 +37,13 @@ const COMPANY = "cccccccc-0000-4000-8000-00000000000c";
 const USER = "aaaaaaaa-0000-4000-8000-00000000000a";
 const PUSH_ENDPOINT = "https://fcm.googleapis.com/fcm/send/";
 
-const ALERT = {
+// #228: a payload is now composed from the reader's language. This suite is
+// about the high-priority BUDGET rather than copy, so it ignores the argument.
+const ALERT = () => ({
   title: "Dana Smith",
   body: "Do you do gutters?",
   url: "https://app.example/inbox/1",
-};
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();

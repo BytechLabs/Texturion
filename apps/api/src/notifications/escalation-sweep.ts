@@ -137,18 +137,18 @@ export async function runEscalationSweep(
         // unanswered for the grace period is exactly the case a member's quiet
         // hours must not swallow — it is the reason the window is safe to set.
         overridesQuietHours: { reason: "escalation" },
-        web: {
+        web: () => ({
           title: copy.title,
           body: copy.body,
           url: `${env.APP_ORIGIN}/inbox/${alert.conversation_id}`,
-        },
-        native: {
+        }),
+        native: () => ({
           kind: "escalation",
           title: copy.title,
           body: copy.body,
           url: `${env.APP_ORIGIN}/inbox/${alert.conversation_id}`,
           alert_id: alert.id,
-        },
+        }),
       });
       if (failures.length > 0) {
         console.error(

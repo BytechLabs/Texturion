@@ -207,15 +207,15 @@ export async function notifyAssigned(
       companyId: input.companyId,
       withheld: alert.withheld,
     },
-    web: { title: alert.title, body: alert.body, url: alert.url },
+    web: () => ({ title: alert.title, body: alert.body, url: alert.url }),
     // Web Push stays kind-less (the service worker renders unmarked pushes as
     // ordinary notices); the native clients route on `kind`.
-    native: {
+    native: () => ({
       kind: alert.nativeKind,
       title: alert.title,
       body: alert.body,
       url: alert.url,
-    },
+    }),
     collapseKey: alert.collapseKey,
     failures,
   });

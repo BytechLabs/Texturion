@@ -319,11 +319,11 @@ async function disclose(
     // message replaces the first rather than stacking. A held message is
     // retried every minute, and without this that is a notification a minute.
     collapseKey: `scheduled:${row.id}`,
-    web: {
+    web: () => ({
       title,
       body: SCHEDULED_HOLD_REASONS[reason],
       url: `${env.APP_ORIGIN}/inbox/${row.conversation_id}`,
-    },
+    }),
   });
 
   if (failures.length > 0) {

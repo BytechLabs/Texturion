@@ -79,7 +79,7 @@ The most sensitive category, because the person never chose us.
 | `company_members` | membership, role | Same |
 | `invites` | **email** of somebody not yet a user | Life of the workspace |
 | `user_sessions` | **IP-derived city/region/country**, user agent, app version | Pruned 90 days after the session ends (#236) |
-| `push_subscriptions`, `device_push_tokens` | endpoint, **user agent**, token | Removed with the session; dead rows pruned on send |
+| `push_subscriptions`, `device_push_tokens` | endpoint, **user agent**, token, **device language** (#228) | Removed with the session; dead rows pruned on send |
 | `member_telephony_credentials` | SIP username | Life of the membership |
 | `notification_prefs`, `notification_reads`, `notification_read_items` | per-user settings and read state | Life of the membership |
 | `mfa_recovery_codes` | hashed codes only | Life of the account |

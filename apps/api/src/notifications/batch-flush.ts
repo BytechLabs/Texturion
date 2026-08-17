@@ -101,8 +101,13 @@ export async function runBatchFlush(
         // than stacking. Somebody who was away for an hour should find one
         // notification, not twelve.
         collapseKey: `digest:${first.user_id}`,
-        web: { title: "While you were away", body, url },
-        native: { kind: "digest", title: "While you were away", body, url },
+        web: () => ({ title: "While you were away", body, url }),
+        native: () => ({
+          kind: "digest",
+          title: "While you were away",
+          body,
+          url,
+        }),
       });
       if (failures.length > 0) {
         console.error(

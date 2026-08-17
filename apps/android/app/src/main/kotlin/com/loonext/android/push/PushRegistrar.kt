@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
+import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
@@ -30,6 +31,22 @@ data class DeviceTokenBody(
      * the caps column simply ignores the field (unknown keys are stripped).
      */
     val caps: List<String> = listOf(PushKind.CALL_END),
+    /**
+     * What language this PHONE is in, so a push aimed at it can be COMPOSED in
+     * that language (#228). The server resolves a reader's language as their
+     * own setting, then the device's, then the workspace's — and until this
+     * field existed the middle rung was always empty, so a tech whose phone is
+     * in French read their employer's language in the tray.
+     *
+     * Sent exactly as the platform reports it (`fr-CA`, `fr_CA`, `en-US`) and
+     * deliberately NOT normalised here: the server owns that rule so the three
+     * clients reporting a tag cannot drift apart about what one means.
+     *
+     * Null is "this build didn't report one" — `explicitNulls = false` drops
+     * the key rather than sending a null, and an omitted locale leaves whatever
+     * an earlier registration reported alone.
+     */
+    val locale: String? = null,
 )
 
 /**
@@ -157,7 +174,15 @@ class PushRegistrar(context: Context, private val api: ApiClient) {
     private suspend fun postToken(companyId: String, token: String): String? {
         val response: JsonObject = api.post(
             "/v1/device-push-tokens",
-            DeviceTokenBody(platform = "android", token = token),
+            DeviceTokenBody(
+                platform = "android",
+                token = token,
+                // Re-read on every upsert (app start, token refresh) rather
+                // than cached anywhere, so somebody who switches their phone to
+                // French starts getting French pushes from the next start —
+                // this is the same read the app draws itself from (UiLocale).
+                locale = UiLocale.deviceTag(),
+            ),
             companyId = companyId,
         )
         return (response["id"] as? JsonPrimitive)?.contentOrNull

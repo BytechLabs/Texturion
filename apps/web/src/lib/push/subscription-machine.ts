@@ -9,10 +9,12 @@
  *
  * Server contract (read from apps/api/src/routes/notifications.ts):
  *   GET    /v1/notification-prefs        → { …, vapid_public_key }
- *   POST   /v1/push-subscriptions        { endpoint, keys, caps } → { id, … }
+ *   POST   /v1/push-subscriptions        { endpoint, keys, caps, locale? }
+ *                                       → { id, … }
  *          (upsert on (user_id, endpoint) — re-posting is how we learn the
  *          row id at unsubscribe time without any client-side persistence;
- *          `caps` is the #170 CALLS-V3 §9.2 capability declaration)
+ *          `caps` is the #170 CALLS-V3 §9.2 capability declaration, `locale`
+ *          the #228 device language)
  *   DELETE /v1/push-subscriptions/:id
  */
 import { DEFAULT_LOCALE } from "@loonext/shared";
@@ -77,6 +79,15 @@ export interface SubscriptionKeys {
   keys: { p256dh: string; auth: string };
   /** Capability declaration — see {@link PUSH_SUBSCRIPTION_CAPS}. */
   caps: string[];
+  /**
+   * #228 — the language THIS browser reads, so a push can be composed in it.
+   *
+   * A notification is written on the server, hours after anyone was looking at
+   * the app, so the reader's language has to be a fact the row already carries.
+   * `resolveUiLocale` reads it as the DEVICE rung, below the member's own
+   * setting and above the workspace's. Optional: see {@link deviceLocaleTag}.
+   */
+  locale?: string;
 }
 
 export interface PushEnvironment {
@@ -115,12 +126,38 @@ export function vapidKeyToApplicationServerKey(
   return bytes;
 }
 
+/**
+ * What language this browser says it is in ("fr-CA", "en-US"), or null where
+ * there is nothing to ask — a server render, or a browser that reports "".
+ *
+ * Reported RAW, on purpose. Which tags count as French, and which are stored
+ * as silence, is the server's decision (#228) — kept in one place so this
+ * client and the two phones cannot quietly disagree about it. Normalising here
+ * would give three hand-ported answers to one question.
+ *
+ * The same read the app's own language resolution makes in
+ * lib/company/provider.tsx; the browser is the whole helper, there is nothing
+ * shared to import.
+ */
+export function deviceLocaleTag(): string | null {
+  if (typeof navigator === "undefined") return null;
+  return navigator.language || null;
+}
+
 /** Extract the API body from a browser subscription; throws when malformed.
  *  Always carries the caps declaration — every save path (subscribe, the
- *  on-load reconcile, the unsubscribe row-id upsert) goes through here, which
- *  is exactly how existing rows learn 'call_end' after this deploy. */
+ *  on-load reconcile, the unsubscribe row-id upsert, the sign-out release)
+ *  goes through here, which is exactly how existing rows learn 'call_end'
+ *  after this deploy. The device language rides along the same way, and for
+ *  the same reason: whichever save happens first is what teaches an existing
+ *  row which language to write in. */
 export function subscriptionToKeys(
   subscription: BrowserPushSubscription,
+  /**
+   * Defaulted rather than read inline so this stays a pure shaper under test —
+   * the browser is the only caller that ever passes nothing.
+   */
+  locale: string | null = deviceLocaleTag(),
 ): SubscriptionKeys {
   const json = subscription.toJSON();
   const endpoint = json.endpoint;
@@ -133,6 +170,10 @@ export function subscriptionToKeys(
     endpoint,
     keys: { p256dh, auth },
     caps: [...PUSH_SUBSCRIPTION_CAPS],
+    // Omitted, never sent empty, when the browser will not say: the server
+    // spreads this field, so an absent one leaves whatever an earlier
+    // registration reported alone rather than blanking it. Same as caps.
+    ...(locale ? { locale } : {}),
   };
 }
 

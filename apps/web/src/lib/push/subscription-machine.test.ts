@@ -3,12 +3,13 @@
  * PushManager + API — only the browser/network edge is faked, the machine
  * under test is the exact code the hook binds to React.
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/error";
 
 import {
   createPushMachine,
+  deviceLocaleTag,
   subscriptionToKeys,
   vapidKeyToApplicationServerKey,
   type BrowserPushSubscription,
@@ -17,6 +18,17 @@ import {
   type PushPermission,
   type PushSnapshot,
 } from "./subscription-machine";
+
+/**
+ * The device language every save body below carries (#228). Stubbed rather
+ * than inherited from whatever machine runs the suite, so these assertions read
+ * the same on a French laptop as in CI. `unstubGlobals` restores it per test.
+ */
+const DEVICE_LANGUAGE = "fr-CA";
+
+beforeEach(() => {
+  vi.stubGlobal("navigator", { language: DEVICE_LANGUAGE });
+});
 
 const b64u = (bytes: Uint8Array) =>
   Buffer.from(bytes).toString("base64url");
@@ -124,13 +136,39 @@ describe("vapidKeyToApplicationServerKey", () => {
 describe("subscriptionToKeys", () => {
   it("shapes PushSubscription.toJSON() into the POST body with the caps declaration", () => {
     const { subscription } = fakeSubscription("https://push.example.net/x");
-    expect(subscriptionToKeys(subscription)).toEqual({
+    expect(subscriptionToKeys(subscription, "fr-CA")).toEqual({
       endpoint: "https://push.example.net/x",
       keys: { p256dh: "P256DH", auth: "AUTH" },
       // #170 CALLS-V3 §9.2: every save declares this client understands the
       // kind:'call_end' revocation push — the server's delivery gate.
       caps: ["call_end"],
+      // #228: and which language to compose that push in.
+      locale: "fr-CA",
     });
+  });
+
+  it("reports the browser's language tag verbatim — normalising is the server's job (#228)", () => {
+    const { subscription } = fakeSubscription();
+    // Underscored, regional, and a language we do not translate into: all three
+    // go out exactly as the browser said them. The server folds fr* to fr-CA
+    // and stores the rest as silence, in ONE place, so this client and the two
+    // phones cannot drift apart on which readers count as French.
+    for (const tag of ["fr_CA", "en-GB", "de-DE"]) {
+      expect(subscriptionToKeys(subscription, tag).locale).toBe(tag);
+    }
+  });
+
+  it("omits locale entirely when the browser will not say", () => {
+    const { subscription } = fakeSubscription();
+    const body = subscriptionToKeys(subscription, null);
+    // Absent, not null: the server spreads the field, so an omitted one leaves
+    // what an earlier registration reported in place instead of blanking it.
+    expect(body).not.toHaveProperty("locale");
+  });
+
+  it("defaults to the language this browser reports", () => {
+    const { subscription } = fakeSubscription();
+    expect(subscriptionToKeys(subscription).locale).toBe(DEVICE_LANGUAGE);
   });
 
   it("throws on incomplete browser subscriptions", () => {
@@ -140,6 +178,22 @@ describe("subscriptionToKeys", () => {
         unsubscribe: async () => true,
       }),
     ).toThrow(/incomplete/);
+  });
+});
+
+describe("deviceLocaleTag", () => {
+  it("reads the browser's language", () => {
+    expect(deviceLocaleTag()).toBe(DEVICE_LANGUAGE);
+  });
+
+  it("is null where there is no navigator to ask (server render)", () => {
+    vi.stubGlobal("navigator", undefined);
+    expect(deviceLocaleTag()).toBeNull();
+  });
+
+  it("is null, not empty, when the browser reports nothing", () => {
+    vi.stubGlobal("navigator", { language: "" });
+    expect(deviceLocaleTag()).toBeNull();
   });
 });
 
@@ -179,6 +233,9 @@ describe("init", () => {
       endpoint: "https://push.example.net/rotated",
       keys: { p256dh: "P256DH", auth: "AUTH" },
       caps: ["call_end"],
+      // #228: the reconcile is also how a row that predates this deploy learns
+      // the device's language — the same upsert that repairs the endpoint.
+      locale: DEVICE_LANGUAGE,
     });
   });
 
@@ -243,8 +300,24 @@ describe("subscribe", () => {
       endpoint: "https://push.example.net/send/dev-1",
       keys: { p256dh: "P256DH", auth: "AUTH" },
       caps: ["call_end"],
+      // #228: what language to write this device's notifications in.
+      locale: DEVICE_LANGUAGE,
     });
     expect(phases).toContain("subscribing");
+  });
+
+  it("registers without a locale when the browser will not say (#228)", async () => {
+    // A browser with no readable language must still be able to subscribe:
+    // the field is optional on the wire, and an absent one never clobbers what
+    // an earlier registration on this endpoint already reported.
+    vi.stubGlobal("navigator", { language: "" });
+    const { machine, env } = harness({ permission: "granted" });
+    await machine.init();
+    await machine.subscribe();
+    expect(machine.snapshot().phase).toBe("subscribed");
+    expect(env.saveSubscription).toHaveBeenCalledWith(
+      expect.not.objectContaining({ locale: expect.anything() }),
+    );
   });
 
   it("lands on denied when the prompt is refused — and never subscribes", async () => {

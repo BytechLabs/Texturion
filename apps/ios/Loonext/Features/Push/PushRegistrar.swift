@@ -77,9 +77,27 @@ actor PushRegistrar {
         static let token = "push_device_token"
     }
 
-    private struct RegisterBody: Encodable, Sendable {
+    /// Not private: the omit-vs-null decision on `locale` is only provable
+    /// against the encoded bytes, and `PushRegistrationBodyTests` needs the
+    /// type to produce them.
+    struct RegisterBody: Encodable, Sendable {
         let platform: String
         let token: String
+        /// #228 — the language THIS PHONE is set to, reported so a push can be
+        /// written in it. A notification is composed on the server, hours after
+        /// anyone opened the app, and the registration row is the only place
+        /// the device's own language can be read from at that point; without it
+        /// a French reader whose workspace runs in English is buzzed in English.
+        ///
+        /// Sent exactly as iOS reports it (`fr-CA`, `en-US`) and NOT normalised
+        /// here — the server owns that rule so three hand-ports cannot come to
+        /// three answers about what `fr` means.
+        ///
+        /// Optional, so Swift's synthesised encoding omits it rather than
+        /// sending null: an absent field leaves whatever an earlier
+        /// registration reported alone, which is what a phone that has no
+        /// preferred language should do.
+        let locale: String?
     }
 
     private struct RemoveBody: Encodable, Sendable {
@@ -148,9 +166,13 @@ actor PushRegistrar {
 
     private func upload(_ token: String) async {
         do {
+            // Read fresh on every upsert rather than captured once: iOS
+            // restarts the app when the phone's language changes, so this is
+            // always the current answer, and re-registering is how a phone that
+            // switched to French tells the server so.
             let _: JSONValue = try await api.post(
                 "/v1/device-push-tokens",
-                body: RegisterBody(platform: "ios", token: token)
+                body: RegisterBody(platform: "ios", token: token, locale: UiLocale.deviceTag())
             )
             UserDefaults.standard.set(token, forKey: Keys.token)
             pushLog.info("Device push token registered.")

@@ -58,15 +58,21 @@ describe("#319 port completion push", () => {
     expect(deliverPush).toHaveBeenCalledTimes(1);
     const payload = deliverPush.mock.calls[0][2] as {
       userIds: string[];
-      web: { title: string; body: string; url: string };
+      // #228: composed per reader, so a copy assertion names its language.
+      web: (locale: "en" | "fr-CA") => {
+        title: string;
+        body: string;
+        url: string;
+      };
       collapseKey: string;
     };
     expect(payload.userIds.sort()).toEqual([OWNER, CREW].sort());
+    const web = payload.web("en");
     // The number is in the body on purpose: a crew mid-port may be moving more
     // than one line, and "your number" would not say which.
-    expect(payload.web.body).toContain(NUMBER);
-    expect(payload.web.title).toBe("Your number is live");
-    expect(payload.web.url).toBe(`${env.APP_ORIGIN}/inbox`);
+    expect(web.body).toContain(NUMBER);
+    expect(web.title).toBe("Your number is live");
+    expect(web.url).toBe(`${env.APP_ORIGIN}/inbox`);
   });
 
   it("defaults a member who never opened settings to yes", async () => {
@@ -138,9 +144,10 @@ describe("#319 port completion push", () => {
     stub([{ user_id: OWNER }], []);
     await pushPortCompleted(env, getDb(env), COMPANY_ID, NUMBER);
     const payload = deliverPush.mock.calls[0][2] as {
-      web: { title: string; body: string };
+      web: (locale: "en" | "fr-CA") => { title: string; body: string };
     };
-    for (const line of [payload.web.title, payload.web.body]) {
+    const web = payload.web("en");
+    for (const line of [web.title, web.body]) {
       expect(line).not.toContain("—");
       expect(line).not.toContain("–");
     }

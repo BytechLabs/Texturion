@@ -122,7 +122,7 @@ export async function pushRegistrationApproved(
       // would protect nobody and cost the owner the one alert they have been
       // waiting days for.
       content: { written: "us" },
-      web: {
+      web: () => ({
         title: notice.title,
         body: notice.body,
         // #525: the tap lands where the next action is. An inbox they cannot
@@ -131,7 +131,7 @@ export async function pushRegistrationApproved(
         url: paused
           ? `${env.APP_ORIGIN}/settings/billing`
           : `${env.APP_ORIGIN}/inbox`,
-      },
+      }),
       // Once per workspace, ever. A collapse key scoped to the company means a
       // redelivered webhook replaces rather than repeats.
       collapseKey: `registration-approved:${companyId}`,

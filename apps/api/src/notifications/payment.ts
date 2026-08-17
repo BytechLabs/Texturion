@@ -266,16 +266,16 @@ export async function notifyPayment(
       companyId: input.companyId,
       withheld: { body: alert.withheldBody },
     },
-    web: { title: alert.title, body: alert.body, url: alert.url },
+    web: () => ({ title: alert.title, body: alert.body, url: alert.url }),
     // NATIVE only, like every other discriminator: the service worker has no
     // channels to pick from, so `kind` on the web payload would be a field
     // nothing reads.
-    native: {
+    native: () => ({
       kind: PAYMENT_PUSH_KIND,
       title: alert.title,
       body: alert.body,
       url: alert.url,
-    },
+    }),
     collapseKey: alert.collapseKey,
     failures,
   });

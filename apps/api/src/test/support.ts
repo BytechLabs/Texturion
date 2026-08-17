@@ -219,15 +219,36 @@ const ambientEmailRoutes: FetchRoute[] = [
     url.pathname === "/rest/v1/rpc/api_evaluate_flags"
       ? Response.json({})
       : undefined,
-  // #430: every push carrying a person's words reads the workspace's answer
-  // first, so it hangs off the notification paths the way the flags do. The
-  // ambient answer is the default — content INCLUDED — which is the state
-  // every test written before #430 was asserting against. A suite that wants
-  // it off stubs this path itself and shadows this.
-  (url) =>
+  // #430 + #228: every push reads two things about the workspace — whether a
+  // person's words may leave, and what language the fallback is in — and reads
+  // them together. It hangs off the notification paths the way the flags do.
+  // The ambient answer is the default on both: content INCLUDED, and a
+  // workspace that never chose a language, which is the state every test
+  // written before either issue was asserting against. A suite that wants
+  // content off, or a French workspace, stubs this path itself and shadows
+  // this.
+  //
+  // MATCHED ON THE PATH, not on the exact select string. It used to compare
+  // `select === "push_include_content"`, and #228 widening that select to
+  // "push_include_content,locale" silently un-matched it — which is how one
+  // extra column hung fifteen suites that had nothing to do with either
+  // feature. A stub keyed on the precise columns a caller happens to ask for
+  // is a stub that breaks on every future column.
+  (url, request) =>
     url.pathname === "/rest/v1/companies"
-    && url.searchParams.get("select") === "push_include_content"
-      ? Response.json([{ push_include_content: true }])
+    && request.method === "GET"
+    && (url.searchParams.get("select") ?? "").startsWith("push_include_content")
+      ? Response.json([{ push_include_content: true, locale: null }])
+      : undefined,
+  // #228: what language each member reads. Ambient for the same reason: every
+  // push fan-out asks, and the honest default is "nobody has chosen", which
+  // resolves through the device and the workspace to English — exactly the copy
+  // every suite written before #228 asserts.
+  (url, request) =>
+    url.pathname === "/rest/v1/profiles"
+    && request.method === "GET"
+    && (url.searchParams.get("select") ?? "").includes("locale")
+      ? Response.json([])
       : undefined,
   // #243: a workspace with no outbound webhook endpoints, which is what every
   // suite that is not about webhooks means.

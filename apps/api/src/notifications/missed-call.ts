@@ -172,8 +172,8 @@ export async function notifyMissedCall(
     // phone shows for any caller, and it is what the setting deliberately
     // preserves. There is no message content in a missed call to withhold.
     content: { written: "us" },
-    web: alert,
-    native: { kind: "missed_call", ...alert, ...acknowledgeable },
+    web: () => alert,
+    native: () => ({ kind: "missed_call", ...alert, ...acknowledgeable }),
     collapseKey: `conversation:${input.conversationId}`,
     // #244: only when this was NARROWED to the on-call member. They agreed to
     // hold the phone tonight, so their own quiet hours do not apply to the one

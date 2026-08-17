@@ -2,7 +2,9 @@ import {
   DEFAULT_BATCH_WINDOW,
   decideDelivery,
   isMemberQuietNow,
+  type Locale,
   type NotificationCategory,
+  resolveUiLocale,
 } from "@loonext/shared";
 /**
  * The push fan-out shared by the notification pipelines that treat a delivery
@@ -48,6 +50,8 @@ interface SubscriptionRow {
   endpoint: string;
   p256dh: string;
   auth: string;
+  /** #228: what THIS browser reads. Null on a row written before it was asked. */
+  locale: string | null;
 }
 
 interface DeviceTokenRow {
@@ -55,6 +59,8 @@ interface DeviceTokenRow {
   user_id: string;
   platform: "android" | "ios";
   token: string;
+  /** #228: what THIS phone reads. Null on a row written before it was asked. */
+  locale: string | null;
 }
 
 /**
@@ -152,14 +158,30 @@ export interface PushDelivery {
    */
   conversationId?: string;
   content: PushContent;
-  /** Notification content, as the apps/web service worker expects it. */
-  web: PushPayload;
+  /**
+   * Notification content, as the apps/web service worker expects it.
+   *
+   * #228: a FUNCTION of the reader's language rather than a finished object,
+   * and that is the whole design — the same reasoning as `content` and
+   * `category` above. Every screen in all three apps is translated and every
+   * push was composed in English, which is the half a member reads first, on a
+   * lock screen, before they have opened anything. Taking a locale here means a
+   * new push site cannot be added in one language by accident: there is nowhere
+   * to put an English literal that does not visibly ignore its own argument.
+   *
+   * It cannot be a key the client resolves. iOS is sent a real
+   * `notification: { title, body }` block that the system draws, there is no
+   * notification service extension in apps/ios to rewrite it, and apps/web's
+   * sw.js is served raw from public/ with no imports — so a key on the wire
+   * would reach a lock screen as its own name on two clients out of three.
+   */
+  web: (locale: Locale) => PushPayload;
   /**
    * Native content. Defaults to the web one; set it only where the native
    * clients need something the service worker must not see, such as the
    * structural `kind` discriminator that picks an Android channel.
    */
-  native?: PushPayload;
+  native?: (locale: Locale) => PushPayload;
   /**
    * The one coalescing identity for this alert: repeats about the same subject
    * REPLACE the pending notification instead of stacking, and two DIFFERENT
@@ -259,24 +281,96 @@ function warnIfTruncated(table: string, rowCount: number, ceiling: number): void
  * degraded notification. Sending it against the workspace's instruction is the
  * thing this feature exists to prevent.
  */
-async function withheldFields(
-  db: SupabaseClient,
-  content: PushContent,
-): Promise<Partial<PushPayload>> {
-  if (content.written === "us") return {};
+interface CompanyPushSettings {
+  /** #430: false means this workspace has asked us to keep words off screens. */
+  includeContent: boolean;
+  /** #228: the workspace's language — the last rung before English. */
+  locale: string | null;
+  /** True when the read itself failed, which withholds. See below. */
+  unknown: boolean;
+}
 
+/**
+ * The two things about a workspace that shape every push it sends: whether a
+ * person's words may leave, and what language the fallback is in.
+ *
+ * ONE read for both. #228 needed the company's locale on the same path #430
+ * already queried this table on, and a second round trip per notification to
+ * fetch one adjacent column would be a cost with no argument behind it.
+ *
+ * It is now called on EVERY delivery rather than only the ones carrying
+ * somebody's words. That is a real change: `written: "us"` sites used to skip
+ * the query entirely. They cannot any more, because the language of a sentence
+ * we wrote ourselves is exactly the thing this issue is about.
+ */
+async function companyPushSettings(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<CompanyPushSettings> {
   const { data, error } = await db
     .from("companies")
-    .select("push_include_content")
-    .eq("id", content.companyId)
+    .select("push_include_content,locale")
+    .eq("id", companyId)
     .maybeSingle();
   if (error) {
-    console.error(`push content setting lookup failed: ${error.message}`);
-    return content.withheld;
+    console.error(`push company settings lookup failed: ${error.message}`);
+    return { includeContent: false, locale: null, unknown: true };
   }
-  const include = (data as { push_include_content?: boolean } | null)
-    ?.push_include_content;
-  return include === false ? content.withheld : {};
+  const row = data as {
+    push_include_content?: boolean;
+    locale?: string | null;
+  } | null;
+  return {
+    includeContent: row?.push_include_content !== false,
+    locale: row?.locale ?? null,
+    unknown: false,
+  };
+}
+
+/**
+ * What must come OUT of this payload before it is serialized.
+ *
+ * A lookup FAILURE withholds. Every other fallback in this codebase fails to
+ * the permissive default because the alternative is a dead product; here the
+ * permissive default publishes a third party's words to a lock screen, and the
+ * alert still arrives carrying the contact's name. Losing the snippet is a
+ * degraded notification. Sending it against the workspace's instruction is the
+ * thing this feature exists to prevent.
+ */
+function withheldFields(
+  content: PushContent,
+  company: CompanyPushSettings,
+): Partial<PushPayload> {
+  if (content.written === "us") return {};
+  if (company.unknown) return content.withheld;
+  return company.includeContent ? {} : content.withheld;
+}
+
+/**
+ * #228 — what language each member in this audience reads.
+ *
+ * Fails to an empty map rather than to English: an unanswerable read leaves
+ * every reader on the device-then-company rungs below, which is strictly better
+ * than asserting a language nobody chose.
+ */
+async function readerLocales(
+  db: SupabaseClient,
+  userIds: string[],
+): Promise<Map<string, string | null>> {
+  const { data, error } = await db
+    .from("profiles")
+    .select("user_id,locale")
+    .in("user_id", userIds);
+  if (error) {
+    console.error(`push reader locale lookup failed: ${error.message}`);
+    return new Map();
+  }
+  return new Map(
+    ((data ?? []) as { user_id: string; locale: string | null }[]).map((row) => [
+      row.user_id,
+      row.locale,
+    ]),
+  );
 }
 
 /**
@@ -445,24 +539,72 @@ export async function deliverPush(
   const audience = resolved.send;
   if (audience.length === 0) return;
 
+  /*
+   * #228 — everything needed to answer "what language is this reader in".
+   *
+   * Both reads happen here, above the send loops, so the emergency path that
+   * skips resolveAudience still gets them: an override means quiet hours do not
+   * apply, not that the alert should arrive in the wrong language.
+   */
+  const [company, profileLocales] = await Promise.all([
+    companyPushSettings(db, delivery.companyId),
+    readerLocales(db, audience),
+  ]);
+
   // #430: withhold BEFORE serializing, so the content never exists in a
   // payload at all rather than being hidden by a client that might not.
-  const withheld = await withheldFields(db, delivery.content);
-  const web = { ...delivery.web, ...withheld };
-  const native = { ...(delivery.native ?? delivery.web), ...withheld };
+  const withheld = withheldFields(delivery.content, company);
 
-  // The collapse key IS the tag: one identity, serialized once, so no client
-  // has to invent its own (#266).
-  const webPayload = JSON.stringify({ ...web, tag: delivery.collapseKey });
-  const nativePayload = JSON.stringify({
-    ...native,
-    tag: delivery.collapseKey,
-  });
+  /*
+   * One serialized payload per DISTINCT LANGUAGE present in this audience, not
+   * per recipient. A crew that all reads the same language — which is nearly
+   * every crew — serializes exactly once, as before.
+   *
+   * The cache is keyed on the resolved locale rather than the row, so the
+   * composition function runs at most twice however many devices there are.
+   */
+  const webPayloads = new Map<Locale, string>();
+  const nativePayloads = new Map<Locale, string>();
+
+  const payloadFor = (
+    cache: Map<Locale, string>,
+    compose: (locale: Locale) => PushPayload,
+    locale: Locale,
+  ): string => {
+    const cached = cache.get(locale);
+    if (cached !== undefined) return cached;
+    // The collapse key IS the tag: one identity, so no client has to invent
+    // its own (#266). It is not language-dependent — two translations of one
+    // alert must still replace each other rather than stack.
+    const serialized = JSON.stringify({
+      ...compose(locale),
+      ...withheld,
+      tag: delivery.collapseKey,
+    });
+    cache.set(locale, serialized);
+    return serialized;
+  };
+
+  /**
+   * The full ladder, per device: what the person chose, then what the device
+   * reports, then the workspace's, then English.
+   *
+   * The device rung is the one that has never had a value on the server before
+   * — see the migration. It is read off the row we are about to send TO, which
+   * is why push is the one channel where it is a fact rather than a guess.
+   */
+  const localeFor = (row: { user_id: string; locale: string | null }): Locale =>
+    resolveUiLocale(
+      profileLocales.get(row.user_id) ?? null,
+      row.locale,
+      company.locale,
+    );
+
   const ceiling = audience.length * MAX_TARGETS_PER_USER;
 
   const { data: subData, error: subError } = await db
     .from("push_subscriptions")
-    .select("id,user_id,endpoint,p256dh,auth")
+    .select("id,user_id,endpoint,p256dh,auth,locale")
     .in("user_id", audience)
     .order("created_at", { ascending: false })
     .limit(ceiling);
@@ -483,7 +625,7 @@ export async function deliverPush(
       const result = await sendWebPush(
         env,
         subscription,
-        webPayload,
+        payloadFor(webPayloads, delivery.web, localeFor(subscription)),
         undefined,
         delivery.highPriority ? "high" : "normal",
         delivery.collapseKey,
@@ -521,7 +663,7 @@ export async function deliverPush(
 
   const { data: tokenData, error: tokenError } = await db
     .from("device_push_tokens")
-    .select("id,user_id,platform,token")
+    .select("id,user_id,platform,token,locale")
     .in("user_id", audience)
     .order("created_at", { ascending: false })
     .limit(ceiling);
@@ -550,7 +692,11 @@ export async function deliverPush(
       const result = await sendFcm(
         env,
         device,
-        nativePayload,
+        payloadFor(
+          nativePayloads,
+          delivery.native ?? delivery.web,
+          localeFor(device),
+        ),
         undefined,
         urgency,
         delivery.collapseKey,

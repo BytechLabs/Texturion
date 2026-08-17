@@ -52,10 +52,20 @@ function stub(
   stubFetch(sb.route);
 }
 
+/**
+ * #228: the payload is a function of the reader's language now. This returns
+ * the ENGLISH rendering, which is what every assertion below is about — the
+ * French one is asserted where the copy itself is.
+ */
 function sent(): { web: { title: string; body: string; url: string } } {
-  return deliverPush.mock.calls[0][2] as {
-    web: { title: string; body: string; url: string };
+  const delivery = deliverPush.mock.calls[0][2] as {
+    web: (locale: "en" | "fr-CA") => {
+      title: string;
+      body: string;
+      url: string;
+    };
   };
+  return { web: delivery.web("en") };
 }
 
 describe("#310 the approval push", () => {

@@ -284,7 +284,7 @@ export async function notifyInboundMessage(
       companyId: input.companyId,
       withheld: { body: "Sent you a message" },
     },
-    web: { title: pushTitle, body: snippet, url: link },
+    web: () => ({ title: pushTitle, body: snippet, url: link }),
     // #564: the phones had nothing to route on, so an URGENT text posted to the
     // ordinary Messages channel at ordinary importance — silenced by the same
     // switch as "on my way?" — while the reply we send that customer says the
@@ -296,7 +296,12 @@ export async function notifyInboundMessage(
     // way and has no channels to pick from, so a `kind` there would be a field
     // nothing reads — and `web` is the payload a browser can inspect.
     native: input.emergency
-      ? { title: pushTitle, body: snippet, url: link, kind: "emergency" }
+      ? () => ({
+          title: pushTitle,
+          body: snippet,
+          url: link,
+          kind: "emergency",
+        })
       : undefined,
     collapseKey: input.emergency
       ? // #414: an emergency must NOT be coalesced away by the ordinary texts

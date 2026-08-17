@@ -60,6 +60,7 @@ import { z } from "zod";
 import {
   DELIVERY_MODES,
   NOTIFICATION_CATEGORIES,
+  normalizeDeviceLocale,
 } from "@loonext/shared";
 
 import { requireCapability } from "../auth/company";
@@ -203,6 +204,28 @@ const subscriptionSchema = z.object({
    * pre-update service worker ever renders a stray notification (§8.5.4).
    */
   caps: z.array(z.string().max(64)).max(16).optional(),
+  /**
+   * #228: the language THIS device reads, so a push can be composed in it.
+   *
+   * The DEVICE rung of resolveUiLocale, which has never had a value on the
+   * server before — see the migration for why push is the one channel where
+   * the device is a row rather than a guess.
+   *
+   * Free-form on the wire and normalised on the way in, NOT an enum: the
+   * phone is reporting a fact about itself rather than making a request that
+   * can fail, and an unsupported language should be stored as silence.
+   *
+   * `.catch` IS THE LOAD-BEARING PART, not the bound. A schema miss here
+   * would be a 422 on the WHOLE body, and both registrars treat that as a
+   * failed registration — so one unexpected tag would cost that device every
+   * push it was ever going to get, not merely its language. Android 14's
+   * regional preferences alone can push a language tag past any bound worth
+   * setting (`fr-CA-u-fw-mon-hc-h12-mu-fahrenhe-nu-latn`), and the client
+   * cannot clamp it without becoming the normaliser this field exists to keep
+   * on the server. So the server degrades instead: an unusable value reads as
+   * silence, and the registration it rode in on still succeeds.
+   */
+  locale: z.string().max(100).optional().catch(undefined),
 });
 
 interface PrefsRow {
@@ -347,6 +370,11 @@ notificationsRoutes.post(
             // showing customer message text in a notification.
             session_id: c.get("sessionId") ?? null,
             ...(body.caps ? { caps: body.caps } : {}),
+            // Spread, not a plain assign: an absent field must not clobber
+            // what an earlier subscribe already told us. Same as caps.
+            ...(normalizeDeviceLocale(body.locale)
+              ? { locale: normalizeDeviceLocale(body.locale) }
+              : {}),
           },
           { onConflict: "user_id,endpoint" },
         )

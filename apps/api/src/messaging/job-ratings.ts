@@ -302,13 +302,13 @@ export async function escalatePoorRating(
     // One alert per rating. A rating cannot change — the RPC refuses a second
     // answer — so this is belt and braces on the claim above.
     collapseKey: `rating:${input.taskId}`,
-    web: {
+    web: () => ({
       title: "A customer was not happy",
       body:
         `They rated a finished job ${input.score} out of 5. ` +
         "Today is when that is still fixable.",
       url: `${env.APP_ORIGIN}/inbox/${input.conversationId}`,
-    },
+    }),
   });
 
   if (failures.length > 0) {

@@ -86,7 +86,7 @@ export async function pushPortCompleted(
       // #430: this is about the workspace's own number, not about any
       // customer, so there is nothing to withhold.
       content: { written: "us" },
-      web: {
+      web: () => ({
         title: "Your number is live",
         // The customer's vocabulary, and the same news the email carries, so
         // somebody who gets both does not wonder whether they are two events.
@@ -94,7 +94,7 @@ export async function pushPortCompleted(
         // than one line and "your number" would not say which.
         body: `${numberE164} is on Loonext now. Text your customers from your inbox.`,
         url: `${env.APP_ORIGIN}/inbox`,
-      },
+      }),
       // Once per number, ever. Scoping the collapse key to the number rather
       // than the company means a workspace porting two lines gets told about
       // both, while a redelivered webhook replaces rather than repeats.
