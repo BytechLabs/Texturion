@@ -84,8 +84,11 @@ is the overclaim most likely to be checked.
 
 | Question | Answer | Source |
 |---|---|---|
-| Will you notify us of a breach, and when? | Yes, with the timeline stated publicly, along with what we do not hold. | `/security` (added for #285) |
-| Is there a route to report a vulnerability? | `security@loonext.com`, routed per the deploy documentation. | `docs/deploy/10-email-inbox.md` |
+| Will you notify us of a breach, and when? | Yes, within **72 hours of confirming** one, with what we know and what we are doing. | `/security`, and clause 8 of `/legal/dpa` where it is contractual |
+| Is there a route to report a vulnerability? | Yes, and it is published rather than described: `security@loonext.com`, with a written policy at `/legal/vulnerability-disclosure`. `security.txt`'s `Policy` field points at it. | `SECURITY.md`, served at `/legal/vulnerability-disclosure` |
+| What is your SLA for triaging a reported vulnerability? | Acknowledged within **3 business days**, an assessment within **10 business days**, an update every 10 business days while it is open, and word when the fix ships. Deliberately modest numbers: one person operates this, and a policy that is wrong about its own timings is worse than one that admits to being slow. | `SECURITY.md` §"What we will do, and by when" |
+| Do you offer safe harbour to security researchers? | Yes, for good-faith research within scope, with stated conditions and a 90-day disclosure window. It does not speak for our sub-processors. | `SECURITY.md` §"Safe harbour" |
+| Do you run a bug bounty? | No. Said up front rather than discovered after the work. | `SECURITY.md` |
 
 ## 6. Deletion, export and portability
 
