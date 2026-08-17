@@ -37,6 +37,41 @@ enum ThreadStrings {
     static let section = AppStrings.Section(
         name: "ThreadStrings",
         en: [
+            // #287 — the quote strip. Lifted verbatim from web's catalogue
+            // so the three clients say one thing; pinned by
+            // quote-copy-parity.test.ts.
+            "quotes.statusDraft":
+                "Draft",
+            "quotes.statusSent":
+                "Waiting",
+            "quotes.statusViewed":
+                "Opened, no answer",
+            "quotes.statusAccepted":
+                "Accepted",
+            "quotes.statusDeclined":
+                "Declined",
+            "quotes.statusExpired":
+                "Expired",
+            "quotes.newQuote":
+                "Quote this job",
+            "quotes.sendFor":
+                "Send for {amount}",
+            "quotes.sending":
+                "Sending…",
+            "quotes.saveDraft":
+                "Save draft",
+            "quotes.saving":
+                "Saving…",
+            "quotes.amountLabel":
+                "Amount",
+            "quotes.descriptionLabel":
+                "What the work is",
+            "quotes.expiresInDays":
+                "The price holds for {days} days. You can send it as soon as it is saved.",
+            "quotes.needAmount":
+                "Put a number in, and make it more than zero.",
+            "quotes.needDescription":
+                "Say what the work is. The customer sees this line.",
             // --- The thread itself ---------------------------------------
             "thread.notFound": "This conversation doesn't exist or was removed.",
             "thread.backToInbox": "Back to inbox",
@@ -656,6 +691,41 @@ enum ThreadStrings {
                 "Couldn't start recording. Type the note instead.",
         ],
         frCA: [
+            // #287 — the quote strip. Lifted verbatim from web's catalogue
+            // so the three clients say one thing; pinned by
+            // quote-copy-parity.test.ts.
+            "quotes.statusDraft":
+                "Brouillon",
+            "quotes.statusSent":
+                "En attente",
+            "quotes.statusViewed":
+                "Ouvert, sans réponse",
+            "quotes.statusAccepted":
+                "Accepté",
+            "quotes.statusDeclined":
+                "Refusé",
+            "quotes.statusExpired":
+                "Expiré",
+            "quotes.newQuote":
+                "Faire un devis",
+            "quotes.sendFor":
+                "Envoyer pour {amount}",
+            "quotes.sending":
+                "Envoi…",
+            "quotes.saveDraft":
+                "Enregistrer le brouillon",
+            "quotes.saving":
+                "Enregistrement…",
+            "quotes.amountLabel":
+                "Montant",
+            "quotes.descriptionLabel":
+                "En quoi consistent les travaux",
+            "quotes.expiresInDays":
+                "Le prix tient pendant {days} jours. Vous pouvez l'envoyer dès qu'il est enregistré.",
+            "quotes.needAmount":
+                "Inscrivez un montant supérieur à zéro.",
+            "quotes.needDescription":
+                "Précisez les travaux. Le client voit cette ligne.",
             // --- The thread itself ---------------------------------------
             "thread.notFound": "Cette conversation n'existe pas ou a été supprimée.",
             "thread.backToInbox": "Retour à la boîte de réception",

@@ -6,12 +6,12 @@ import { describe, expect, it } from "vitest";
 import { quotesEn, quotesFr } from "@/i18n/sections/quotes";
 
 /**
- * #287 — the quote strip says the same thing on web and Android.
+ * #287 — the quote strip says the same thing on all three clients.
  *
  * Web shipped first and the phones had nothing at all: a crew member could
  * quote a job from a laptop and not from the van, which is the wrong way round
- * for this product. Android has the strip now, and this is what stops the two
- * from drifting while iOS is still to come.
+ * for this product. All three carry the strip now, and this is what stops them
+ * drifting apart.
  *
  * ## Why the STATUS words are pinned hardest
  *
@@ -24,15 +24,20 @@ import { quotesEn, quotesFr } from "@/i18n/sections/quotes";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
-const ANDROID = readFileSync(
-  join(
-    REPO_ROOT,
+const CATALOGUES: Record<string, string> = {
+  android:
     "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/ThreadStrings.kt",
-  ),
-  "utf8",
+  ios: "apps/ios/Loonext/Core/I18n/ThreadStrings.swift",
+};
+
+const SOURCES: Record<string, string> = Object.fromEntries(
+  Object.entries(CATALOGUES).map(([platform, path]) => [
+    platform,
+    readFileSync(join(REPO_ROOT, path), "utf8"),
+  ]),
 );
 
-/** Every key the Android strip renders. iOS joins this list when it lands. */
+/** Every key the phone strips render. */
 const SHARED_KEYS = [
   "statusDraft",
   "statusSent",
@@ -52,31 +57,42 @@ const SHARED_KEYS = [
   "needDescription",
 ] as const;
 
-describe("#287 the quote strip reads the same on web and Android", () => {
-  it("reads the Android catalogue, so a passing run means something", () => {
-    expect(ANDROID.length).toBeGreaterThan(1000);
+/** Which sentences a platform is missing, named so a failure is actionable. */
+function missingFrom(words: Record<string, string>): string[] {
+  const missing: string[] = [];
+  for (const [platform, source] of Object.entries(SOURCES)) {
+    for (const key of SHARED_KEYS) {
+      if (!source.includes(words[key])) {
+        missing.push(`${platform} ${key}: ${words[key]}`);
+      }
+    }
+  }
+  return missing;
+}
+
+describe("#287 the quote strip reads the same on all three clients", () => {
+  it("reads both phone catalogues, so a passing run means something", () => {
+    // A guard that quietly stopped finding its subjects would pass forever.
+    for (const [platform, source] of Object.entries(SOURCES)) {
+      expect(source.length, platform).toBeGreaterThan(1000);
+    }
+    expect(Object.keys(SOURCES)).toHaveLength(2);
     expect(SHARED_KEYS).toHaveLength(16);
   });
 
-  it("carries every sentence in English", () => {
-    const missing = SHARED_KEYS.filter(
-      (key) => !ANDROID.includes(quotesEn[key]),
-    );
+  it("carries every sentence in English, on both phones", () => {
+    const missing = missingFrom(quotesEn);
     expect(
       missing,
-      "Android is missing or has reworded these #287 sentences:\n  " +
-        missing.map((key) => `${key}: ${quotesEn[key]}`).join("\n  "),
+      "Missing or reworded #287 sentences:\n  " + missing.join("\n  "),
     ).toEqual([]);
   });
 
-  it("carries every sentence in French", () => {
-    const missing = SHARED_KEYS.filter(
-      (key) => !ANDROID.includes(quotesFr[key]),
-    );
+  it("carries every sentence in French, on both phones", () => {
+    const missing = missingFrom(quotesFr);
     expect(
       missing,
-      "Android is missing or has reworded these #287 French sentences:\n  " +
-        missing.map((key) => `${key}: ${quotesFr[key]}`).join("\n  "),
+      "Missing or reworded #287 French sentences:\n  " + missing.join("\n  "),
     ).toEqual([]);
   });
 

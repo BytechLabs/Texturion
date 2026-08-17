@@ -355,6 +355,18 @@ private struct ThreadBody: View {
                     // disagree with it.
                     onSent: { controller.refreshAfterReconnect() }
                 )
+                // #287: beside the payment strip because they are the same kind
+                // of thing — state that changes without anybody here doing
+                // anything. Never on a note: a note goes to the crew, a quote
+                // goes to the customer.
+                ThreadQuotesPane(
+                    api: graph.api,
+                    companyId: detail.company_id,
+                    conversationId: detail.id,
+                    role: viewerRole,
+                    viewerLevel: detail.viewer_level,
+                    onSent: { controller.refreshAfterReconnect() }
+                )
                 composerPane(detail: detail)
             }
         // #302: presence for as long as this thread is on screen.
