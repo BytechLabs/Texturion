@@ -1,16 +1,22 @@
 # Capacity: what breaks first, and at what volume
 
-> **Status: partial, and the partiality is the point.** Updated 2026-08-04 with the `EXPLAIN` pass. #251 asks for "a
-> documented capacity plan naming the first thing that breaks and at what
-> volume." One of its five unknowns is now measured. The other four are not,
-> and this document says so rather than estimating them, because a capacity
-> number that reads as measured and was guessed is worse than an admitted gap —
-> it is the number somebody quotes to a 50-tech prospect.
+> **Status: partial, and the partiality is the point.** Updated 2026-08-17
+> with the concurrency pass. #251 asks for "a documented capacity plan naming
+> the first thing that breaks and at what volume." **Three of its five unknowns
+> are now measured** — the hot list queries at volume, the webhook burst, and
+> concurrent reads. The remaining two need a deployed environment and this
+> document says so rather than estimating them, because a capacity number that
+> reads as measured and was guessed is worse than an admitted gap: it is the
+> number somebody quotes to a 50-tech prospect.
 
-Re-run the measured half with:
+Re-run the measured halves with:
 
 ```bash
 node scripts/ops/query-load.mjs
+```
+
+```bash
+pnpm --filter @loonext/api test:load
 ```
 
 ---
@@ -305,22 +311,92 @@ writes real traffic makes. It has not been measured against a realistic write mi
 
 ---
 
+## 1b. The webhook burst and concurrent reads — MEASURED 2026-08-17
+
+`pnpm --filter @loonext/api test:load` drives the **real Worker handlers**
+against **real local Postgres**, with only the vendor HTTP boundary faked — the
+same hermetic stack the launch-pass E2E uses, run concurrently instead of
+sequentially.
+
+**Read the counts, not the milliseconds.** This is node on a laptop: no workerd,
+no isolate limit, no CPU-time limit, no network. The timings below are a
+property of this machine and transfer to nothing. Duplicates, drops and hangs
+are properties of our own code and transfer completely, and they are what #251's
+acceptance criteria are actually about.
+
+| Scenario | Result |
+|---|---|
+| Carrier retry storm: **25 concurrent copies of ONE event** | 200×25, **exactly 1 message row**, 0 hangs |
+| Burst of **40 distinct inbound messages at once** | 200×40, **all 40 landed**, 0 dropped, 0 hangs |
+| **40 concurrent conversation reads** | 200×40, 0 hangs |
+
+### The retry storm is safe, and NOT for the reason the code reads like
+
+This is the finding worth carrying, because it changes where the risk is.
+
+The handler's first line of defence is the `webhook_events` ledger: a
+`(provider, event_id)` primary key upserted with `ignoreDuplicates: true`, so a
+duplicate POST is recognised and stops. Read sequentially that looks like the
+guarantee. **Under a real storm it is not** — every copy races the same check
+with nothing committed ahead of it, which is exactly the condition a carrier
+retry storm creates and a sequential test never does.
+
+What actually holds the line is a database constraint:
+`messages_telnyx_id_uq`, a partial unique index on
+`messages.telnyx_message_id`. Proved by breaking it: with the ledger's duplicate
+signal removed so that every copy believed it was fresh, **25 concurrent copies
+still produced 1 row.** The ledger is an optimisation; the index is the
+guarantee, and it is in the strongest available place.
+
+### Removing that index does not duplicate — it DROPS
+
+Worth knowing before anybody tidies it. With both the ledger signal and
+`messages_telnyx_id_uq` removed, the storm produced **zero** message rows, not
+twenty-five: `thread_inbound_message` needs that index for its `ON CONFLICT`
+target, so without it the RPC fails and the inbound message is not written at
+all.
+
+The webhook still ACKs 200, because ingestion runs in `waitUntil` after the ack —
+which is correct for a carrier, and means a failure there cannot be reported in
+the response. It is not a silent drop in production: the `webhook_events` row
+keeps `processed_at` NULL and the §11 sweeper re-drives it. But it does mean
+**that index is load-bearing for ingestion correctness, not merely for
+de-duplication**, and a migration that drops or renames it takes inbound
+messaging down in a way no HTTP status reports.
+
+### Honest degradation, so far
+
+#251's third criterion is that a ceiling produces a truthful failure rather than
+a hang. Across all three scenarios every request returned an HTTP status inside
+its deadline; nothing hung and nothing threw. No ceiling was reached at these
+volumes, so this is evidence that the paths are well-behaved under contention,
+not proof about behaviour at a ceiling — which by definition needs a ceiling.
+
+---
+
 ## 2. What is NOT measured, and why not
 
-These four are properties of a **deployed system under concurrency**. Nothing
+These two are properties of a **deployed system under concurrency**. Nothing
 local can speak to them honestly, and each needs a non-production environment
 plus a driver that generates real concurrent load.
 
 | Unknown | Why local cannot answer it | What it would take |
 |---|---|---|
 | **Durable Object saturation** | A DO is single-threaded per instance and serializes every event for one call. The failure mode is latency on call setup, which only appears when real webhooks arrive concurrently. | A deployed Worker, N synthetic concurrent calls per workspace, measuring time-to-answer. |
-| **Supabase pooler ceiling** | Workers scale to arbitrary concurrency; Postgres does not. The question is where the pooler refuses and whether the API errors honestly or hangs — a property of the managed pooler, not of a local Postgres. | Load against a non-prod Supabase project with the same pooler configuration. |
 | **Realtime fan-out** | Broadcast delivery to many subscribers is a Supabase Realtime property. Realtime has already died silently twice (#215, and the mobile parked-reconnect bug), so this is the axis with a track record. | N subscribed clients per workspace against a deployed project, measuring delivery and drop rate. |
-| **Webhook burst** | Telnyx delivers on its schedule; a carrier retry storm after a partial outage is the spike, and it arrives exactly when we are least able to absorb it. | Replay a captured burst against a deployed Worker at real concurrency. |
 
-**The honest-degradation requirement is also unverified.** #251 asks that every
-ceiling produce a truthful failure rather than a hang. That cannot be claimed
-for a ceiling nobody has reached.
+**Partly reduced, and stated precisely.** The *Supabase pooler* row moved out of
+this table but only half of it: section 1b shows our code answers rather than
+hangs under contention, which was the behavioural half. **Where the managed
+pooler refuses is still unknown** and stays a deployment property — a local
+Postgres has neither Supavisor nor production's connection budget. The number is
+missing; the failure mode is not.
+
+**The honest-degradation requirement remains unproven AT A CEILING.** #251 asks
+that every ceiling produce a truthful failure rather than a hang. Section 1b
+reached no ceiling, so what it shows is good behaviour under contention. That is
+evidence, not proof, and the difference matters: nobody should quote it as "we
+degrade gracefully under overload".
 
 ---
 

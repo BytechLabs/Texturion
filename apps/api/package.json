@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:load": "vitest run --config vitest.load.config.ts",
     "stripe:setup": "node --experimental-strip-types scripts/stripe-setup.ts"
   },
   "dependencies": {
