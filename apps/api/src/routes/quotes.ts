@@ -367,18 +367,26 @@ quotesRoutes.post(
     const clearance = await runPreSendGates(env, companyId, view.contact_phone_e164);
 
     /*
-     * ONE TOKEN, and the second one is gone rather than unused.
+     * A VIEW token, and only a view token, because this one is written down
+     * forever.
      *
-     * The original design minted a separate `quote_accept` token so that "the
-     * link a customer opens views the quote and cannot accept it". That
-     * separation protected nothing, and could not: the ONLY channel we have to
-     * the customer is the text, so the accept token would have to travel in the
-     * same link as the view token — at which point whoever holds one holds
-     * both. What it did instead was make accepting IMPOSSIBLE, because the page
-     * had only the view token and the accept route refused it.
+     * The link below goes into the SMS body, and `messages.body` is read by
+     * every member with `conversations.read` (including `read_only`), by any
+     * API key with `messages:read`, and by any customer-supplied webhook
+     * endpoint subscribed to `message.sent`. Whatever authority this token
+     * carries is therefore held by all of them, permanently.
      *
-     * A double accept is guarded where it is actually guardable: the WHERE
-     * clause on the update, which two taps on a slow connection cannot beat.
+     * So it carries the authority to READ. The authority to ACCEPT — to bind
+     * this business to a price in the customer's name — is minted when the
+     * customer actually opens the page and returned only in that response.
+     * See `GET /q/:token` in quotes-public.ts.
+     *
+     * An earlier revision of this comment argued the separation "protected
+     * nothing, and could not, because the only channel to the customer is the
+     * text". That was wrong in a way worth recording: the accept token never
+     * had to travel in the text. It travels in the reply to the person who
+     * opened the link, which is the one channel that reaches the customer and
+     * nobody else.
      */
     const expiresAt = new Date(row.expires_at);
     const viewLink = await mintPublicLink(db, {

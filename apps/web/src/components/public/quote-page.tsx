@@ -54,6 +54,17 @@ interface QuoteView {
   status: string;
   expires_at: string;
   can_accept: boolean;
+  /**
+   * #581: the authority to accept, minted when this page was fetched and
+   * returned only here. NOT the token in the address bar — that one is written
+   * into the customer's text message, and `messages.body` is readable by every
+   * member with `conversations.read`, by any `messages:read` API key, and by any
+   * webhook endpoint the workspace has registered.
+   *
+   * Null when the quote cannot be accepted, so there is no credential to press
+   * a button with.
+   */
+  accept_token: string | null;
 }
 
 /** "$450.00" — the amount as a person reads it, in the quote's own currency. */
@@ -74,13 +85,13 @@ function formatExpiry(iso: string): string {
   }).format(at);
 }
 
+// #581: no `token` prop any more. It existed only to build the accept URL from
+// the address bar, and that is precisely the credential this page must not use.
 export function QuotePage({
   quote,
-  token,
   notAvailable = false,
 }: {
   quote?: QuoteView;
-  token?: string;
   notAvailable?: boolean;
 }) {
   const [state, setState] = useState<"idle" | "sending" | "accepted" | "failed">(
@@ -132,12 +143,14 @@ export function QuotePage({
   }
 
   async function accept() {
-    if (!token) return;
+    // #581: the ACCEPT credential, not the one from the URL.
+    const credential = quote?.accept_token;
+    if (!credential) return;
     setState("sending");
     const base = publicEnv.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
     try {
       const response = await fetch(
-        `${base}/q/${encodeURIComponent(token)}/accept`,
+        `${base}/q/${encodeURIComponent(credential)}/accept`,
         { method: "POST" },
       );
       // A 409 means it lapsed or was answered while this page was open, which

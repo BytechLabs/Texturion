@@ -78,6 +78,8 @@ function stubResolving(purpose: string, over: Record<string, unknown> = {}): Sup
     };
   });
   sb.on("GET", "/rest/v1/companies", () => [{ name: "Apex Plumbing" }]);
+  // #581: viewing an acceptable quote now mints the accept credential.
+  sb.on("POST", "/rest/v1/rpc/api_mint_public_link", () => "minted-accept-token");
   return sb;
 }
 
@@ -186,7 +188,7 @@ describe("POST /q/:token/accept", () => {
   });
 
   it("accepts a live quote and kills both links", async () => {
-    const sb = stubResolving("quote_view");
+    const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
@@ -209,7 +211,7 @@ describe("POST /q/:token/accept", () => {
      * without this event the only trace is a status on a row — and the crew
      * finds out by noticing rather than by being told.
      */
-    const sb = stubResolving("quote_view");
+    const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
@@ -241,7 +243,7 @@ describe("POST /q/:token/accept", () => {
      * re-type into the task list, which is where it gets forgotten between the
      * yes and the van.
      */
-    const sb = stubResolving("quote_view");
+    const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
@@ -267,7 +269,7 @@ describe("POST /q/:token/accept", () => {
   it("makes no job for a quote that predates the message link", async () => {
     // Rows sent before #287's send fix have no message to promote, and tasks
     // require one. Skipped quietly rather than failing the customer's accept.
-    const sb = stubResolving("quote_view");
+    const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote({ message_id: null })]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
@@ -282,7 +284,7 @@ describe("POST /q/:token/accept", () => {
     // The acceptance is the CUSTOMER'S and is already committed. Failing their
     // request because our own bookkeeping failed would tell them the price was
     // not accepted when it was.
-    const sb = stubResolving("quote_view");
+    const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
@@ -299,7 +301,7 @@ describe("POST /q/:token/accept", () => {
   it("refuses to bind anybody to a price that has lapsed", async () => {
     // The row still says `sent`. Checking the stored column here would accept
     // an offer the business withdrew.
-    const sb = stubResolving("quote_view");
+    const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote({ expires_at: inDays(-1) })]);
     stubFetch(sb.route);
 
@@ -315,7 +317,7 @@ describe("POST /q/:token/accept", () => {
      * customer's side the quote IS accepted, so telling them it failed would
      * be both wrong and alarming.
      */
-    const sb = stubResolving("quote_view");
+    const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => []);
     stubFetch(sb.route);
@@ -326,7 +328,7 @@ describe("POST /q/:token/accept", () => {
   });
 
   it("guards the write on the answerable statuses", async () => {
-    const sb = stubResolving("quote_view");
+    const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
@@ -336,5 +338,110 @@ describe("POST /q/:token/accept", () => {
     const write = sb.find("PATCH", "/rest/v1/quotes")[0];
     expect(write.url.searchParams.get("status")).toBe("in.(sent,viewed)");
     expect(write.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+  });
+});
+
+/**
+ * #581 finding 1 — the token in the customer's text message cannot accept.
+ *
+ * ## The defect these were written for
+ *
+ * `POST /q/:token/accept` resolved `quote_view`: the same token that
+ * `POST /v1/quotes/:id/send` writes into the SMS body. That body is stored as
+ * `messages.body` forever, and it is read by every member holding
+ * `conversations.read` — which includes `read_only`, the role the capability
+ * table gives no write anywhere — by any API key with `messages:read`, and by
+ * any customer-supplied webhook endpoint subscribed to `message.sent`.
+ *
+ * So the ability to bind the business to a price, record it as the CUSTOMER's
+ * own decision, create a job from it, and revoke the real customer's link in
+ * the process, was held by all of them. There is no authenticated route in the
+ * product that does that, and nothing that undoes it.
+ *
+ * The credential is now minted when the customer OPENS the page and returned
+ * only in that response — the one channel that reaches them and nobody else.
+ *
+ * ## Why nothing caught it
+ *
+ * `role-gate-lint.test.ts` justified the ungated write with "it is a SEPARATE
+ * public_links purpose … so the URL in the customer's SMS cannot commit them to
+ * a price". That justification stopped being true and the guard could not tell,
+ * because it matches route strings rather than reading which purpose the route
+ * resolves. A guard that cannot see the property it certifies is a comment.
+ */
+describe("#581 the view token is not the accept token", () => {
+  it("refuses the token from the text message", async () => {
+    // THE ATTACK, in one request: read `messages.body`, POST the URL in it.
+    // The stub resolves ONLY the view purpose — exactly what a token lifted
+    // from a text message is — so the accept route asking for `quote_accept`
+    // must come away with nothing.
+    const sb = stubResolving("quote_view");
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+
+    // The same answer every failed public link gives. A distinct one would
+    // tell the holder their token is real but wrong-purposed.
+    expect(response.status).toBe(404);
+
+    // And asserted at the source rather than only through the status, so this
+    // fails CLEANLY if the route ever asks for the view purpose again — a 404
+    // can be reached several ways, and only one of them is this one.
+    const resolve = sb.find("POST", "/rest/v1/rpc/api_resolve_public_link")[0];
+    expect((resolve?.body as { p_purpose: string }).p_purpose).toBe("quote_accept");
+  });
+
+  it("hands the accept credential to whoever opened the page", async () => {
+    const sb = stubResolving("quote_view");
+    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}`);
+    const body = (await response.json()) as {
+      can_accept: boolean;
+      accept_token: string | null;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.can_accept).toBe(true);
+    // The token is generated in the Worker and only its HASH is sent to the
+    // database, so this asserts the property rather than a fixture string: a
+    // real credential came back, and it is NOT the one in the URL.
+    expect(typeof body.accept_token).toBe("string");
+    expect(body.accept_token!.length).toBeGreaterThan(20);
+    expect(body.accept_token).not.toBe(TOKEN);
+  });
+
+  it("mints it single-use, so it cannot be replayed", async () => {
+    const sb = stubResolving("quote_view");
+    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
+    stubFetch(sb.route);
+
+    await call(`/q/${TOKEN}`);
+
+    const mint = sb.find("POST", "/rest/v1/rpc/api_mint_public_link")[0];
+    const body = mint?.body as { p_purpose: string; p_max_uses: number | null };
+    expect(body.p_purpose).toBe("quote_accept");
+    expect(body.p_max_uses).toBe(1);
+  });
+
+  it("mints nothing for a quote nobody can accept", async () => {
+    // No credential to press a button with, rather than a credential that
+    // fails on use — the second leaks that the quote exists and was answered.
+    const sb = stubResolving("quote_view");
+    sb.on("GET", "/rest/v1/quotes", () => [
+      quote({ status: "accepted", decided_at: "2026-08-01T00:00:00Z" }),
+    ]);
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}`);
+    const body = (await response.json()) as {
+      can_accept: boolean;
+      accept_token: string | null;
+    };
+
+    expect(body.can_accept).toBe(false);
+    expect(body.accept_token).toBeNull();
+    expect(sb.find("POST", "/rest/v1/rpc/api_mint_public_link")).toHaveLength(0);
   });
 });

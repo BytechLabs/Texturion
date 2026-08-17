@@ -10,7 +10,11 @@ import {
   publicLinkGuard,
   publicLinkNotAvailable,
 } from "../public-links/guard";
-import { resolvePublicLink, revokeLinksForSubject } from "../public-links/tokens";
+import {
+  mintPublicLink,
+  resolvePublicLink,
+  revokeLinksForSubject,
+} from "../public-links/tokens";
 import { insertConversationEvents } from "./core/events";
 import { unwrap } from "./core/http";
 
@@ -115,6 +119,31 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
 
   const now = new Date();
   const status = effectiveQuoteStatus(row, now);
+  const canAccept = status === "sent" || status === "viewed";
+
+  /*
+   * Minted BEFORE the view stamp below, which moves `sent` to `viewed` —
+   * both are acceptable states, so the order does not change the answer, but
+   * reading the status once and using it twice is what keeps that true.
+   *
+   * Expiry rides the quote's own deadline: this credential must not outlive
+   * the offer it accepts. `maxUses: 1` because accepting twice is not a thing
+   * a customer does, and a credential that survives its use is one that can be
+   * replayed out of a browser history or a shared screenshot.
+   */
+  const acceptToken = canAccept
+    ? (
+        await mintPublicLink(db, {
+          companyId: resolved.company_id,
+          purpose: "quote_accept",
+          subjectType: "quote",
+          subjectId: row.id,
+          expiresAt: new Date(row.expires_at),
+          maxUses: 1,
+          actorUserId: null,
+        })
+      ).token
+    : null;
 
   /*
    * First view is stamped, best-effort. Deliberately NOT awaited into the
@@ -151,30 +180,54 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
     status,
     expires_at: row.expires_at,
     /** Whether pressing accept would do anything, decided here not on a client. */
-    can_accept: status === "sent" || status === "viewed",
+    can_accept: canAccept,
+    /*
+     * The authority to accept, minted for THIS view and returned to nobody
+     * else.
+     *
+     * The token in the URL cannot be this credential: it is written into the
+     * SMS body and `messages.body` is readable by every member holding
+     * `conversations.read` — including `read_only`, whom the capability table
+     * gives no write anywhere — by any `messages:read` API key, and by any
+     * customer-supplied webhook subscribed to `message.sent`. When the accept
+     * route resolved the view purpose, all of those parties could bind the
+     * business to a price, record it as the CUSTOMER's decision, create a job
+     * from it, and revoke the real customer's link in the process.
+     *
+     * SINGLE USE, and only minted when accepting is actually possible. A quote
+     * already answered or lapsed hands back nothing, so a client cannot press a
+     * button whose credential does not exist.
+     */
+    accept_token: acceptToken,
   });
 });
 
 /**
  * Accepting, which is the whole point of the feature.
  *
- * THE SAME TOKEN AS VIEWING, and that is a correction rather than a shortcut.
- * This route used to demand a separate `quote_accept` purpose so that "the link
- * a customer opens cannot accept it" — but the only channel to the customer is
- * the text, so the accept token could only ever travel in the same link. The
- * separation protected nothing, and what it actually did was make accepting
- * impossible: the page holds the view token, and this route refused it.
+ * NOT THE TOKEN FROM THE TEXT MESSAGE. This resolves `quote_accept`, which is
+ * minted when the customer opens the page and returned only in that response —
+ * see `GET /q/:token`.
  *
- * What a forwarded link CAN do is bounded elsewhere and better: the quote
- * expires, both links die the moment it is answered, and the double-accept
- * guard is a WHERE clause rather than a check.
+ * The distinction is the whole security of this route. The view token is
+ * written into `messages.body`, where it is readable by every member with
+ * `conversations.read` (`read_only` included), by any `messages:read` API key,
+ * and by any workspace-supplied webhook endpoint subscribed to `message.sent`.
+ * While this route accepted that token, all of them could commit the business
+ * to a price, have it recorded as the customer's own decision, and lock the
+ * customer out of their link — with no authenticated route in the product that
+ * does the same thing, and no way to undo it.
+ *
+ * Double accept is still guarded by the WHERE clause on the update, which two
+ * taps on a slow connection cannot beat; `maxUses: 1` on the credential makes
+ * the second tap fail earlier and more honestly.
  */
 publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
   const db = getDb(getEnv(c.env));
   const resolved = await resolvePublicLink(
     db,
     c.req.param("token"),
-    "quote_view",
+    "quote_accept",
     callerCountry(c),
   );
   if (!resolved.ok || !resolved.subject_id || !resolved.company_id) {

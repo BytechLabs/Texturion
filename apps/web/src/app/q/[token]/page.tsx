@@ -51,7 +51,9 @@ export default async function Page({
     status: string;
     expires_at: string;
     can_accept: boolean;
+    /** #581: minted for this view, returned only here. See QuotePage. */
+    accept_token: string | null;
   };
 
-  return <QuotePage quote={quote} token={token} />;
+  return <QuotePage quote={quote} />;
 }
