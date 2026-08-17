@@ -157,19 +157,17 @@ describe("GET /v1/quotes", () => {
 describe("POST /v1/quotes", () => {
   function stubCreate(sb: SupabaseStub, opts: { conversation?: boolean; contact?: boolean } = {}) {
     sb.on("GET", "/rest/v1/conversations", () =>
-      opts.conversation === false ? [] : [{ id: CONVERSATION_ID }],
+      opts.conversation === false
+        ? []
+        : [{ id: CONVERSATION_ID, contact_id: opts.contact === false ? null : CONTACT_ID }],
     );
-    sb.on("GET", "/rest/v1/contacts", () =>
-      opts.contact === false ? [] : [{ id: CONTACT_ID }],
-    );
+    sb.on("GET", "/rest/v1/companies", () => [{ billing_currency: "cad" }]);
     sb.on("POST", "/rest/v1/quotes", () => [row({ status: "draft" })]);
   }
 
   const body = () => ({
     conversation_id: CONVERSATION_ID,
-    contact_id: CONTACT_ID,
     amount_cents: 45_000,
-    currency: "cad",
     description: "Replace the water heater",
     expires_at: inDays(7),
   });
@@ -212,7 +210,11 @@ describe("POST /v1/quotes", () => {
     expect(sb.find("POST", "/rest/v1/quotes")).toHaveLength(0);
   });
 
-  it("refuses a contact belonging to another workspace", async () => {
+  it("refuses a thread that has no contact to quote", async () => {
+    // Rare, and refused rather than written as a row with a dangling
+    // reference. The contact is READ from the conversation now, so this is
+    // the case that replaces "a contact from another workspace" - a client
+    // can no longer name one at all.
     const sb = stubWithRole("member");
     stubCreate(sb, { contact: false });
     stubFetch(jwksRoute(auth), sb.route);
@@ -222,8 +224,25 @@ describe("POST /v1/quotes", () => {
       method: "POST",
       body: body(),
     });
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(409);
     expect(sb.find("POST", "/rest/v1/quotes")).toHaveLength(0);
+  });
+
+  it("takes the contact and the currency from the workspace, not the caller", async () => {
+    // Neither is a decision a crew member naming a price should make, and
+    // both are things the server already knows.
+    const sb = stubWithRole("member");
+    stubCreate(sb);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), "/v1/quotes", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: body(),
+    });
+    const written = sb.find("POST", "/rest/v1/quotes")[0].body as Record<string, unknown>;
+    expect(written.contact_id).toBe(CONTACT_ID);
+    expect(written.currency).toBe("cad");
   });
 
   it("refuses an expiry already in the past", async () => {

@@ -227,6 +227,15 @@ export const keys = {
    * away-tab resync would spend a Stripe API call per member to re-read a
    * workspace setting that only moves when an owner finishes onboarding.
    */
+  // #287: quotes are per-thread on the composer strip and workspace-wide in
+  // the outstanding queue, so the two lists are keyed separately - sending a
+  // draft has to invalidate both.
+  quotes: {
+    forConversation: (companyId: string, conversationId: string) =>
+      [companyId, "quotes", "conversation", conversationId] as const,
+    outstanding: (companyId: string) => [companyId, "quotes", "outstanding"] as const,
+  },
+
   payments: {
     requests: (companyId: string, conversationId: string) =>
       [companyId, "payments", "requests", conversationId] as const,

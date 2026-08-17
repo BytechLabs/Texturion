@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   QUOTE_STATUSES,
+  billingCurrencyOf,
   canTransitionQuote,
   effectiveQuoteStatus,
   isQuoteOutstanding,
@@ -65,11 +66,27 @@ function withEffectiveStatus(row: QuoteRow, now: Date): Record<string, unknown> 
 
 const createSchema = z.object({
   conversation_id: z.uuid(),
-  contact_id: z.uuid(),
+  /*
+   * NOT ACCEPTED from the client. A conversation threads by
+   * contact-relationship (D7), so it already knows whose number this is —
+   * reading it here is one less thing a caller can get wrong, and one less
+   * prop to thread through a composer to satisfy a field the server can see.
+   *
+   * It is still stored on the quote rather than joined at read time: the row
+   * records who the number belonged to WHEN THE MONEY WAS NAMED, and a
+   * conversation can outlive a contact edit.
+   */
   // Cents, and positive. A zero quote is not a quote and a negative one is a
   // refund, which is not this feature.
   amount_cents: z.number().int().positive().max(100_000_000),
-  currency: z.enum(["usd", "cad"]),
+  /*
+   * OPTIONAL, and resolved from the workspace when absent. A crew member
+   * naming a price should not be asked which currency they bill in — they bill
+   * in one, it is on their invoices, and offering the choice invites a quote
+   * denominated in a currency the business cannot take payment in. The
+   * payment-request route already works this way.
+   */
+  currency: z.enum(["usd", "cad"]).optional(),
   description: z.string().trim().min(1).max(2_000),
   /** ISO 8601. Required: a quote with no expiry binds the business forever. */
   expires_at: z.iso.datetime(),
@@ -174,31 +191,38 @@ quotesRoutes.post("/quotes", requireCapability("conversations.send"), async (c) 
    * because the constraint knows nothing about tenancy. That is the #347 rule:
    * the API scopes every query, and the database is not a second opinion.
    */
-  const conversations = unwrap<{ id: string }[]>(
+  const conversations = unwrap<{ id: string; contact_id: string | null }[]>(
     await db
       .from("conversations")
-      .select("id")
+      .select("id,contact_id")
       .eq("company_id", companyId)
       .eq("id", body.conversation_id)
       .limit(1),
     "quote conversation check",
   );
-  if (conversations.length === 0) {
+  const conversation = conversations[0];
+  if (!conversation) {
     return errorResponse(c, "not_found", "no such conversation");
   }
-
-  const contacts = unwrap<{ id: string }[]>(
-    await db
-      .from("contacts")
-      .select("id")
-      .eq("company_id", companyId)
-      .eq("id", body.contact_id)
-      .limit(1),
-    "quote contact check",
-  );
-  if (contacts.length === 0) {
-    return errorResponse(c, "not_found", "no such contact");
+  if (!conversation.contact_id) {
+    // A thread with no contact has nobody to quote. Rare, and refused here
+    // rather than written as a row with a dangling reference.
+    return errorResponse(
+      c,
+      "conflict",
+      "this conversation has no contact to quote",
+    );
   }
+
+  // The workspace's own billing currency, read once and used below.
+  const company = unwrap<{ billing_currency: string | null }[]>(
+    await db
+      .from("companies")
+      .select("billing_currency")
+      .eq("id", companyId)
+      .limit(1),
+    "quote currency lookup",
+  )[0];
 
   const rows = unwrap<QuoteRow[]>(
     await db
@@ -206,9 +230,9 @@ quotesRoutes.post("/quotes", requireCapability("conversations.send"), async (c) 
       .insert({
         company_id: companyId,
         conversation_id: body.conversation_id,
-        contact_id: body.contact_id,
+        contact_id: conversation.contact_id,
         amount_cents: body.amount_cents,
-        currency: body.currency,
+        currency: body.currency ?? billingCurrencyOf(company?.billing_currency),
         description: body.description,
         status: "draft",
         expires_at: body.expires_at,

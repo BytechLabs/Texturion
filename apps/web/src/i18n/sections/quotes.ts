@@ -43,6 +43,23 @@ export const quotesEn = {
   priceHolds: "This price holds until {date}.",
   acceptFailed: "That didn't go through. The quote may have just expired or been withdrawn. Text {business} and they can sort it.",
   noLongerOpen: "This quote is no longer open. Text {business} if you would still like the work done.",
+  /* #287 — the crew-facing strip. `sendFor` carries the amount because SEND
+     is the customer-visible act that binds a price; a button reading only
+     "Send" can be pressed without the figure in your eye. */
+  newQuote: "Quote this job",
+  sendFor: "Send for {amount}",
+  sending: "Sending…",
+  saveDraft: "Save draft",
+  saving: "Saving…",
+  amountLabel: "Amount",
+  amountPlaceholder: "450",
+  descriptionLabel: "What the work is",
+  descriptionPlaceholder: "Replace the water heater",
+  expiresInDays: "The price holds for {days} days. You can send it as soon as it is saved.",
+  needAmount: "Put a number in, and make it more than zero.",
+  needDescription: "Say what the work is. The customer sees this line.",
+  needContact: "This thread has no contact yet, so there is nobody to quote.",
+  createFailed: "That did not save. Try again.",
 } as const;
 
 export const quotesFr: Translated<typeof quotesEn> = {
@@ -61,4 +78,18 @@ export const quotesFr: Translated<typeof quotesEn> = {
   priceHolds: "Ce prix tient jusqu'au {date}.",
   acceptFailed: "Cela n'a pas fonctionné. Le devis vient peut-être d'expirer ou d'être retiré. Écrivez à {business} et ils pourront arranger cela.",
   noLongerOpen: "Ce devis n'est plus ouvert. Écrivez à {business} si vous souhaitez toujours faire réaliser les travaux.",
+  newQuote: "Faire un devis",
+  sendFor: "Envoyer pour {amount}",
+  sending: "Envoi…",
+  saveDraft: "Enregistrer le brouillon",
+  saving: "Enregistrement…",
+  amountLabel: "Montant",
+  amountPlaceholder: "450",
+  descriptionLabel: "En quoi consistent les travaux",
+  descriptionPlaceholder: "Remplacer le chauffe-eau",
+  expiresInDays: "Le prix tient pendant {days} jours. Vous pouvez l'envoyer dès qu'il est enregistré.",
+  needAmount: "Inscrivez un montant supérieur à zéro.",
+  needDescription: "Précisez les travaux. Le client voit cette ligne.",
+  needContact: "Cette conversation n'a pas encore de contact, il n'y a donc personne à qui envoyer un devis.",
+  createFailed: "L'enregistrement a échoué. Réessayez.",
 };

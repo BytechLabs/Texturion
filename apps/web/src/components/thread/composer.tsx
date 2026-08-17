@@ -28,6 +28,7 @@ import {
 import { AskForPayment } from "@/components/thread/ask-for-payment";
 import { OnMyWay } from "@/components/thread/on-my-way";
 import { PaymentStrip } from "@/components/thread/payment-strip";
+import { QuoteStrip } from "@/components/thread/quote-strip";
 import { useScheduleMessage } from "@/lib/api/scheduled-messages";
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
@@ -1291,6 +1292,11 @@ export function Composer({
           for the same reason the scheduled strip is — it is state, not history,
           and it changes without anybody here doing anything. Never on a note. */}
       {!noteOnly && <PaymentStrip conversationId={conversationId} />}
+      {/* #287: what this thread has been quoted, and the way to quote it.
+          Beside the payment strip because they are the same kind of thing —
+          state that changes without anybody here doing anything. Never on a
+          note: a note goes to the crew, and a quote goes to the customer. */}
+      {!noteOnly && <QuoteStrip conversationId={conversationId} />}
       {/* #224: absent entirely unless the workspace can actually take a card,
           so a crew never meets a control they cannot action. */}
       {!noteOnly && <AskForPayment conversationId={conversationId} />}
