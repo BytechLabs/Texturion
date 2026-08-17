@@ -1,0 +1,37 @@
+-- #287 — the two timeline types a quote writes.
+--
+-- IN THEIR OWN MIGRATION, following 20260813040000 and for the same reason: a
+-- new enum value cannot be USED in the transaction that adds it, and each
+-- migration file runs in one transaction. The values are first used by
+-- application code, never inside a migration.
+--
+-- #554 is why this file exists at all rather than being an afterthought beside
+-- the quotes table. A type the code writes and the enum does not have raises
+-- `invalid input value for enum` inside a handler that catches and logs — so
+-- the quote is accepted, the customer believes they have said yes, and the
+-- thread never mentions it. `scripts/check-conversation-events.mjs` fails the
+-- build if these two and `ConversationEventType` ever disagree, in either
+-- direction.
+--
+--   'quote_sent'      the crew sent a price, and what it was
+--   'quote_accepted'  the customer said yes, and when
+--
+-- ACCEPTANCE IS THE ONE THAT MATTERS. #287's own words: "Acceptance is verbal.
+-- 'Yeah go ahead' in a text thread is what we have instead of a record, which
+-- is fine until it isn't." The customer accepts on a page the crew never sees,
+-- so without this the only trace is a status on a row nobody is looking at —
+-- and the crew learns their quote was accepted by noticing, rather than by
+-- being told.
+--
+-- 'quote_declined' is deliberately NOT here. There is no decline path: the
+-- public page offers accept and nothing else, so a declined type would be a
+-- value nothing can write. An enum value with no writer is a promise the
+-- product does not keep, and the guard would be satisfied by it either way.
+--
+-- The `conversation_events_conv_required` CHECK (20260701000200_tables.sql) is
+-- NOT altered: a quote belongs to the thread it was sent into, so both of these
+-- always carry a non-null conversation_id and the shipped constraint is
+-- satisfied as-is. Editing a shipped constraint is forbidden (D7/D14).
+
+alter type public.conversation_event_type add value if not exists 'quote_sent';
+alter type public.conversation_event_type add value if not exists 'quote_accepted';

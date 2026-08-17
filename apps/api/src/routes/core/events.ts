@@ -82,7 +82,18 @@ export type ConversationEventType =
   | "payment_paid"
   | "payment_cancelled"
   | "payment_refunded"
-  | "payment_disputed";
+  | "payment_disputed"
+  // #287 — the quote. `quote_sent` is the crew's act; `quote_accepted` is the
+  // customer's, and it is the one that matters. The customer accepts on a page
+  // the crew never sees, so without the event the only trace is a status on a
+  // row nobody is looking at — and the crew learns their quote was accepted by
+  // noticing rather than by being told. #287: "Acceptance is verbal ... which
+  // is fine until it isn't."
+  //
+  // No `quote_declined`: the public page offers accept and nothing else, so a
+  // declined type would be a value nothing can write.
+  | "quote_sent"
+  | "quote_accepted";
 
 export interface ConversationEventRow {
   company_id: string;

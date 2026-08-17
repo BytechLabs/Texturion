@@ -11,6 +11,7 @@ import {
   publicLinkNotAvailable,
 } from "../public-links/guard";
 import { resolvePublicLink, revokeLinksForSubject } from "../public-links/tokens";
+import { insertConversationEvents } from "./core/events";
 import { unwrap } from "./core/http";
 
 /**
@@ -43,7 +44,19 @@ import { unwrap } from "./core/http";
 const PUBLIC_COLUMNS =
   "id,amount_cents,currency,description,status,expires_at,viewed_at,decided_at";
 
+/*
+ * The accept path reads one more column than the customer is ever shown:
+ * `conversation_id`, to tell the crew's thread that their quote was accepted.
+ *
+ * A separate constant rather than widening PUBLIC_COLUMNS, because that list
+ * means "safe to put in front of a homeowner" and this id is not part of that
+ * promise — it is ours, used on our side, and never in the response.
+ */
+const ACCEPT_COLUMNS = `${PUBLIC_COLUMNS},conversation_id`;
+
 interface PublicQuoteRow extends QuoteState {
+  /** Only populated on the accept path; see ACCEPT_COLUMNS. */
+  conversation_id?: string;
   id: string;
   amount_cents: number;
   currency: string;
@@ -162,7 +175,7 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
   const row = unwrap<PublicQuoteRow[]>(
     await db
       .from("quotes")
-      .select(PUBLIC_COLUMNS)
+      .select(ACCEPT_COLUMNS)
       .eq("company_id", resolved.company_id)
       .eq("id", resolved.subject_id)
       .limit(1),
@@ -227,6 +240,42 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
     "quote accepted",
   ).catch((cause: unknown) => {
     console.error(`quote link revoke failed: ${String(cause)}`);
+  });
+
+  /*
+   * #287 — AND THE CREW IS TOLD.
+   *
+   * The customer accepts on a page nobody in the workspace is looking at, so
+   * without this the only trace is a status on a row. The issue's own words:
+   * "Acceptance is verbal. 'Yeah go ahead' in a text thread is what we have
+   * instead of a record, which is fine until it isn't." This is the record, and
+   * it lands in the one place both sides already look.
+   *
+   * NO actor_user_id. The customer is not a member, and attributing their
+   * decision to whichever crew member happened to send the quote would be a
+   * false record of who said yes — on exactly the artefact that exists to
+   * settle that question later.
+   *
+   * Best-effort, and deliberately AFTER the accept has committed. The
+   * acceptance is the customer's and is already durable; failing their request
+   * because our own timeline write failed would tell them the price was not
+   * accepted when it was.
+   */
+  await insertConversationEvents(db, [
+    {
+      company_id: resolved.company_id,
+      conversation_id: row.conversation_id ?? null,
+      actor_user_id: null,
+      type: "quote_accepted",
+      payload: {
+        quote_id: row.id,
+        amount_cents: row.amount_cents,
+        currency: row.currency,
+        description: row.description,
+      },
+    },
+  ]).catch((cause: unknown) => {
+    console.error(`quote accepted event failed: ${String(cause)}`);
   });
 
   return c.json({ accepted: true, status: "accepted" });

@@ -20,6 +20,8 @@ import { publicQuoteRoutes } from "./quotes-public";
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const QUOTE_ID = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff";
+/** #287: read on the accept path only, and never in the customer's response. */
+const CONVERSATION_ID = "cccccccc-dddd-4eee-8fff-000000000000";
 /** 43 characters of the token alphabet — the shape `resolvePublicLink` demands. */
 const TOKEN = "a".repeat(43);
 
@@ -43,6 +45,7 @@ afterEach(() => {
 
 const quote = (over: Record<string, unknown> = {}) => ({
   id: QUOTE_ID,
+  conversation_id: CONVERSATION_ID,
   amount_cents: 45_000,
   currency: "cad",
   description: "Replace the water heater",
@@ -185,6 +188,56 @@ describe("POST /q/:token/accept", () => {
     // #571: the company id is required and first. Without it this revoked any
     // workspace's live link from a subject uuid alone.
     expect((revoke.body as { p_company_id: string }).p_company_id).toBe(COMPANY_ID);
+  });
+
+  it("tells the crew's thread that their quote was accepted", async () => {
+    /*
+     * #287: "Acceptance is verbal ... which is fine until it isn't." The
+     * customer accepts on a page nobody in the workspace is looking at, so
+     * without this event the only trace is a status on a row — and the crew
+     * finds out by noticing rather than by being told.
+     */
+    const sb = stubResolving("quote_accept");
+    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
+    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(sb.route);
+
+    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    expect(res.status).toBe(200);
+
+    const events = sb.find("POST", "/rest/v1/conversation_events");
+    expect(events, "no timeline event was written").toHaveLength(1);
+    const rows = events[0].body as {
+      type: string;
+      actor_user_id: string | null;
+      conversation_id: string;
+    }[];
+    expect(rows[0].type).toBe("quote_accepted");
+    // NO ACTOR. The customer is not a member, and attributing their decision to
+    // whichever crew member sent the quote would be a false record of who said
+    // yes — on the exact artefact that exists to settle that later.
+    expect(rows[0].actor_user_id).toBeNull();
+    expect(rows[0].conversation_id).toBe(CONVERSATION_ID);
+  });
+
+  it("still accepts when the timeline write fails", async () => {
+    // The acceptance is the CUSTOMER'S and is already committed. Failing their
+    // request because our own bookkeeping failed would tell them the price was
+    // not accepted when it was.
+    const sb = stubResolving("quote_accept");
+    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
+    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("POST", "/rest/v1/conversation_events", () => {
+      throw new Error("timeline down");
+    });
+    stubFetch(sb.route);
+
+    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ accepted: true, status: "accepted" });
   });
 
   it("refuses to bind anybody to a price that has lapsed", async () => {
