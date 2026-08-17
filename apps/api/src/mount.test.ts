@@ -58,6 +58,7 @@ import { app, CRON_JOBS } from "./index";
 import {
   failStuckOutboundSends,
   pruneWebhookEvents,
+  pruneWidgetVerifications,
   reportUnreportedUsage,
   reportUnreportedVoiceUsage,
   sweepStaleCalls,
@@ -575,6 +576,11 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     // Both ledger retentions ride the same daily slot (#231).
     expect(runs("30 15 * * *")).toEqual([
       pruneWebhookEvents,
+      // #581: strangers' numbers and IPs from the website widget. Its prune
+      // function shipped with the table, granted to service_role, and had no
+      // caller anywhere — which is why this roster is asserted by identity
+      // rather than by count.
+      pruneWidgetVerifications,
       // #243: the outbound ledger, beside the inbound one for the same reason
       // #581 gave — the window is published, so a registered caller is what
       // makes it true rather than a claim.

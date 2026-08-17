@@ -55,6 +55,15 @@ const SWEEP_BATCH = 100;
  * 30 days keeps the dedupe window strictly wider than both.
  */
 const WEBHOOK_RETENTION_DAYS = 30;
+
+/**
+ * #581: the widget proof-of-number window, matching the SQL default.
+ *
+ * Stated here as well as there because the caller decides the policy and the
+ * function only enforces whatever it is handed — a default in SQL that nobody
+ * passes is a number with no owner.
+ */
+const WIDGET_VERIFICATION_RETENTION_DAYS = 30;
 /**
  * Per-run ceiling. Comfortably above the ingest rate at any plausible volume,
  * so a backlog drains over consecutive days instead of one cron run holding a
@@ -188,6 +197,44 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
  * replay, and one that exhausted its attempts is the forensic record behind a
  * §11 Sentry alert.
  */
+
+/**
+ * #581 — the widget's proof-of-number records, past their window.
+ *
+ * ## Why this exists now and not when the table did
+ *
+ * `api_prune_widget_verifications` was written with the table, granted to
+ * service_role, and documented as "so a cron can report what it did rather
+ * than claim it ran". No cron ever called it. A function nobody invokes is
+ * indistinguishable from one that was never written, except that it reads as
+ * a control when somebody audits the schema.
+ *
+ * ## Why it matters more than an ordinary retention job
+ *
+ * Every other prune here trims OUR customers' data. This one holds rows about
+ * STRANGERS — a phone number and an IP belonging to somebody who typed into a
+ * form on a plumber's website and never became a contact, never consented to
+ * anything, and has no account through which to ask us to forget them.
+ * Keeping that indefinitely is the kind of thing a data-protection
+ * questionnaire asks about by name.
+ *
+ * The window is the function's own default: 30 days, long enough for the
+ * abuse forensics the table exists for.
+ */
+export async function pruneWidgetVerifications(env: Env): Promise<void> {
+  const db = getDb(env);
+  const { data, error } = await db.rpc("api_prune_widget_verifications", {
+    p_days: WIDGET_VERIFICATION_RETENTION_DAYS,
+  });
+  if (error) {
+    throw new Error(`widget_verifications prune failed: ${error.message}`);
+  }
+  const removed = typeof data === "number" ? data : 0;
+  if (removed > 0) {
+    console.log(`widget_verifications prune removed ${removed} row(s)`);
+  }
+}
+
 export async function pruneWebhookEvents(
   env: Env,
   now: Date = new Date(),

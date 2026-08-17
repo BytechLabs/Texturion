@@ -970,6 +970,24 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:prune-widget-verifications": {
+    what:
+      "Strangers' phone numbers and IPs from the website widget are kept " +
+      "past their 30-day window.",
+    doThis:
+      "Workers Logs, search `cron job job:prune-widget-verifications " +
+      "failed` for the stack. Nothing customer-facing breaks — the widget " +
+      "keeps working and no workspace notices. What accumulates is personal " +
+      "data about people who are not our customers: somebody typed a number " +
+      "into a form on a plumber's website, never became a contact, and has " +
+      "no account through which to ask us to forget them. That makes this a " +
+      "data-protection obligation rather than a storage one, and it is the " +
+      "reason the row is on the personal-data inventory. One good run clears " +
+      "the whole backlog. If several other `job:prune-*` keys are in this " +
+      "email, look at the shared 15:30 UTC trigger instead of at any one job.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:prune-audit-log": {
     what: "The audit log is no longer pruned past its 12-month window.",
     doThis:

@@ -787,3 +787,63 @@ describe("#581 a key cannot subscribe past its own scopes", () => {
     expect(res.status).toBe(201);
   });
 });
+
+/**
+ * #581 — the public task route respects #106, like its first-party twin.
+ *
+ * `POST /public/v1/tasks` promotes a MESSAGE. Creating a task on a message the
+ * key's creator cannot see is two things at once: work appearing on a thread
+ * they are denied, and — because the task title defaults to the message body —
+ * a way to read that body straight back out of the task list.
+ *
+ * `routes/tasks.ts` has made this check on the identical act since it shipped.
+ * The public twin did not, which is the same shape of gap the quotes feature
+ * had: a second route onto one capability, written without the check the first
+ * one carries.
+ */
+describe("#581 a key cannot promote a message on a denied line", () => {
+  const DENIED_NUMBER = "99999999-8888-4777-8666-555555555555";
+  const MESSAGE_ID = "77777777-6666-4555-8444-333333333333";
+
+  it("refuses when the key's creator cannot see the message's thread", async () => {
+    const sb = stubWithKey(["tasks:write"], "member");
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: DENIED_NUMBER, level: "none" },
+    ]);
+    sb.on("GET", "/rest/v1/messages", () => [
+      { conversation_id: CONVERSATION_ID },
+    ]);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { id: CONVERSATION_ID, phone_number_id: DENIED_NUMBER },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      body: JSON.stringify({ message_id: MESSAGE_ID, title: "Fix the sink" }),
+    });
+
+    // 404, not 403: a thread on a number the creator cannot see must be
+    // indistinguishable from one that does not exist.
+    expect(res.status).toBe(404);
+    // And nothing was written on the way to refusing.
+    expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(0);
+  });
+
+  it("lets an unrestricted key through", async () => {
+    // A check that refuses everybody is an outage, not a check.
+    const sb = stubWithKey(["tasks:write"], "member");
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
+    sb.on("POST", "/rest/v1/rpc/create_task", () => ({
+      task: { id: "task-1", title: "Fix the sink" },
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      body: JSON.stringify({ message_id: MESSAGE_ID, title: "Fix the sink" }),
+    });
+
+    expect(res.status).not.toBe(404);
+  });
+});

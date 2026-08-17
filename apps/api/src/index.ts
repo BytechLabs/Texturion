@@ -61,6 +61,7 @@ import {
 import {
   failStuckOutboundSends,
   pruneWebhookEvents,
+  pruneWidgetVerifications,
   reportUnreportedUsage,
   reportUnreportedVoiceUsage,
   sweepStaleCalls,
@@ -625,6 +626,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   "15 */6 * * *": [job("job:do-sentry-canary", runDoSentryCanaryJob)],
   "30 15 * * *": [
     job("job:prune-webhook-events", pruneWebhookEvents),
+    // #581: the widget's proof-of-number rows. Beside the others because it is
+    // the same kind of obligation — except these are strangers' numbers and
+    // IPs rather than a customer's, which is the half nobody had a caller for.
+    job("job:prune-widget-verifications", pruneWidgetVerifications),
     // #243: the outbound ledger, whose payloads are copies of the workspace's
     // own message and contact content. Beside the inbound one because it is
     // the same table facing the other way and carries the same data.

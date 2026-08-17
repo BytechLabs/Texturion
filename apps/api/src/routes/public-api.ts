@@ -365,6 +365,49 @@ publicApiRoutes.post(
     const body = await parseJsonBody(c, createTaskSchema);
     const db = getDb(getEnv(c.env));
 
+    /*
+     * #106 — the same check routes/tasks.ts makes on the identical act, and
+     * it was missing here.
+     *
+     * A task PROMOTES a message, so creating one on a message the key's
+     * creator cannot see is two things at once: work appearing on a thread
+     * they are denied, and — because the task title defaults to the message
+     * body — a way to read that body straight back out of the task list.
+     *
+     * Owners, admins and workspaces with no rules short-circuit without
+     * touching messages, exactly as the first-party route does. An unknown
+     * message falls through to the RPC's own 422 rather than being reported
+     * here, so a key cannot use this to probe which message ids exist.
+     */
+    const role = c.get("role");
+    if (role !== "owner" && role !== "admin") {
+      const access = await resolveNumberAccess(db, {
+        companyId: c.get("companyId"),
+        userId: c.get("userId"),
+        role,
+      });
+      if (access.hiddenNumberIds !== null) {
+        const sourceRows = unwrap<{ conversation_id: string }[]>(
+          await db
+            .from("messages")
+            .select("conversation_id")
+            .eq("company_id", c.get("companyId"))
+            .eq("id", body.message_id)
+            .limit(1),
+          "public task source lookup",
+        );
+        if (sourceRows[0]) {
+          await requireConversationAccess(db, {
+            companyId: c.get("companyId"),
+            userId: c.get("userId"),
+            role,
+            conversationId: sourceRows[0].conversation_id,
+            need: "note",
+          });
+        }
+      }
+    }
+
     // The same security-definer RPC the first-party route uses, so the
     // partial-unique conflict arbiter, the audit row and the broadcast trigger
     // all behave identically. A public path that wrote the table directly
