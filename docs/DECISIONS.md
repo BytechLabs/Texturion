@@ -8236,3 +8236,384 @@ no app, which is malformed and which Apple's fetcher would not report either.
 **Consistency:** D135 (the association files are configuration), #473, and
 `normalizeDeepLink`/`parsePushRoute`, which have understood these four surfaces
 since push notifications shipped.
+
+## D137 — the sync resolves on what changed, not on whose clock is later; and a deletion is a question, not an instruction (#245, 2026-08-17)
+
+**Decision.** Two-way calendar sync resolves conflicts by comparing the
+**scheduling fields** of both copies against the **last agreed snapshot** we
+recorded for that (task, calendar) pair. Timestamps decide nothing. When only
+one side moved the job, that side wins and is applied silently. When both moved
+it, neither is applied and the job is raised for a human. Every push carries a
+version precondition and is serialised per event; what we record is the field
+values we sent, not only the version we got back. A deletion on either side is
+never executed as a deletion of the other object: it becomes a stated reason,
+asked once, in one tap. And a calendar we have not verified recently makes its
+tasks ineligible for customer reminders, because #237's bar is that a wrong
+automated message is worse than none.
+
+The proposed policy's rules 1, 2 and 3 are **withdrawn as written**. Rule 4 is
+kept and enlarged. Rule 5 is kept and re-triggered. Three rules are added: a
+conversion contract (rule 0), a liveness rule (rule 6), and a repair rule
+(rule 7).
+
+---
+
+**Rule 0 — a job is an instant, and a calendar does not always hand us one.**
+This is new, it is first, and it is the only finding that broke the product
+without any conflict occurring at all. `tasks.due_at` is a `timestamptz` — an
+instant. Microsoft Graph returns `{dateTime: "2026-11-01T09:00:00", timeZone:
+"Eastern Standard Time"}`: a wall clock and a Windows zone id, no offset.
+Google returns an offset that is only correct for the event's own date. Dana
+books Mrs Boryczka's furnace tune-up on October 12 for Sunday November 1 at
+9:00 AM; resolve the offset at sync time (October, EDT, −04:00) instead of at
+the event's date (November 1, EST, −05:00) and `due_at` lands an hour early.
+Nothing conflicts. Nothing flags. Google's UI says 9:00, our task says 8:00,
+both are internally consistent, and the only screen the error ever reaches is
+the customer's phone, on the busiest Sunday of a heating crew's year. So:
+offsets are resolved **at the event's start date in the event's IANA zone**;
+Windows zone ids are mapped to IANA at the boundary and an unmappable id is a
+refusal, not a fallback to UTC; and an **all-day event is not scheduling data**
+— Google gives `start.date` with no time, there is no honest hour to put in
+`due_at`, so converting a timed job to all-day clears our mirror and raises the
+job rather than inventing 09:00. `appointment-reminders.ts` will render
+whatever instant we give it with total confidence; that confidence is the
+reason this rule outranks the other eight.
+
+**Why "last human edit wins" is withdrawn.** It lost three separate attacks,
+and it lost them on its premise rather than its intent. Neither side of this
+sync can tell us when a human edited anything.
+
+Our side cannot. `tasks.updated_at` is a `moddatetime` trigger
+(`20260702060000`, lines 64–66) fired by any write, and machines write that row
+constantly. The worst of them is the due-notice cron, because of *when* it
+runs: it only ever stamps a task inside `TASK_DUE_LEAD_MINUTES = 30` of its due
+time, which is exactly the window in which "we're running late, push it"
+happens. At 10:31:08 Dana drags Priya Raman's water heater from 11:00 to 14:00
+in Google; at 10:33:02 the cron claims the task and re-stamps the row; at 10:34
+we compare 10:33:02 against 10:31:08, declare ourselves the last human edit,
+and push 11:00 back over her. Marco knocks at 11:00 on an empty house and Priya
+waits until 2. The same trigger fires for the geocode cron, for `api_confirm_
+task` (so the *customer* texting "C" hands our stale row a fresh timestamp),
+for AI enrichment, for offboarding, and for bulk reassign — Dana moving
+fourteen Monday jobs from Marco to Tino at 06:40 re-stamps all fourteen and
+beats anything the calendar said before 06:40.
+
+Their side cannot either. Google's `updated` and Graph's `lastModifiedDateTime`
+are stamped when the provider *accepts* the write, not when the person made the
+decision. Marco drags his boiler recommission from 08:00 to 14:00 at 07:12 in a
+concrete parking garage; the edit sits queued on his phone. At 09:05 Dana, who
+has spoken to the site super about the crane, moves the same job to 10:00 and
+tells him 10:00. At 11:48 Marco's phone surfaces and Google stamps his
+two-hours-stale decision as the newest edit in the system. It wins by 2h43m,
+rule 5 never fires because the timestamps are maximally unambiguous, and
+Wednesday afternoon we text the super a confident "tomorrow at 2:00 PM" for a
+crane booked at 10:00. The gap between authorship and receipt is unbounded, and
+it always runs in the direction that makes the *less informed* decision look
+newer.
+
+And a record-level clock cannot answer a per-field question. At 06:58:04 Dana
+moves the Wexler panel upgrade to 13:00 because the ESA inspector cannot come
+before one; at 06:59:40 Ray fixes a typo in the title and adds "gate code 4417,
+dog is friendly" to the notes, touching nothing about the time. Both edits are
+human, both timestamps are truthful, ours is 96 seconds older, and the calendar
+wins — reverting a move Ray had no opinion about. Google's `updated` also moves
+for an RSVP: Marco tapping "Yes" in bed at 06:50:02 is, from the sync's
+vantage, indistinguishable from a drag.
+
+**What replaces it: a three-way diff against the last agreed snapshot.** For
+every (task, calendar) pair we store the scheduling fields as they stood when
+both sides last agreed: start instant, end instant, IANA zone, title, and a
+hash of the description. Call it the base. Resolution is then:
+
+- **theirs == base** → nobody changed the schedule over there, whatever
+  `updated` says. Ours is applied. This is the title typo, the RSVP, the colour
+  change, and the reminder-override — all correctly ignored, without anyone
+  having to enumerate which provider mutations bump a version.
+- **ours == base** → nobody changed the schedule over here. Theirs is applied.
+  This is the cron stamp, the geocode run, the customer's "C", and the bulk
+  reassign — all correctly ignored, because none of them touched `due_at`.
+- **both differ from base and from each other** → a real conflict. Nothing is
+  applied. Rule 5.
+
+Timestamps are used for **display only**: the conflict card says who changed
+what and when, and the number it shows comes from `tasks.schedule_changed_at` /
+`schedule_changed_by`, a pair of columns written *only* by a human `due_at`
+write and never by the sync path. They inform the reader. They never decide.
+
+**Rule 5 is kept, and re-hung.** Its verdict was always right — when we cannot
+tell, touch nothing and ask. Its trigger was wrong. As proposed it fired on
+sub-second clock skew between two NTP-disciplined server fleets, which is
+precisely the region where nothing goes wrong, while the hours-wide errors
+above produced timestamps far apart and confidently wrong and sailed straight
+past it. A net that catches the ambiguous cases is not the same as a net that
+catches the wrong ones. The new trigger is "both sides moved the schedule since
+the last agreed snapshot", which is the condition that actually means *we
+cannot know*.
+
+**Why a calendar deletion becomes a question rather than a cleared date.** The
+proposed rule 2 was right that a task must survive — it carries the address,
+the photos, the thread, and the note back-links that `20260726000000` releases
+irreversibly — and wrong about what it leaves behind. There is nowhere in the
+schema to record *why* a task is undated: D92 settled that there is no
+`task_status` column and job state lives as a tag on the conversation. So rule
+2's output is `due_at = NULL`, which is byte-identical to a job nobody has
+booked yet. Mrs Doyle rings to cancel Thursday, Maria deletes the event —
+because in the app where she keeps the schedule, that deletion *is* the
+cancellation — and three weeks later Danny works the unscheduled tail, books
+41 Ashgrove for Tuesday 08:00, and we text a woman who cancelled: "we'll be
+there tomorrow at 8am. Reply C to confirm." Clearing `due_at` simultaneously
+removes the job from every surface that would have made someone look at it
+first: the ICS feed filters `due_at is not null`, For You's overdue strip
+requires it, the due-notice cron requires it, and the task list sorts nulls
+last. The only trace is a `conversation_events` row on a thread nobody opens.
+
+So: the link row — not the task — carries the state. `task_calendar_links` gets
+`link_state = 'event_removed'`, which is sync state, not job state, and
+therefore does not reopen D92. The task's date is cleared, the task becomes
+**ineligible for reminders and for the unscheduled queue** until answered, and
+the person who deleted the event is asked the only question that matters, in
+their inbox, that day: *was this cancelled, or moved?* Three answers, one tap —
+**Cancelled** (closes the job), **Moved** (opens the date picker), **Not sure**
+(leaves it flagged). That single question also fixes the case rule 2 made
+structurally impossible: Maria promoted two messages from one thread, has two
+identical jobs stacked on Thursday, deletes one — and under the old rule the
+duplicate can never be removed from the one place she found it, comes back ten
+days later when someone re-dates the twin, and sends the customer two identical
+reminders at the same instant, since `scheduled_messages_task_offset_uq` is
+unique per *task*. With a reason, "Cancelled" means cancelled and a tidy is
+possible.
+
+**Why deleting a task no longer deletes an event that has people on it.** The
+proposed rule 3 assumed removing a task is deliberate. In a van, on a phone, at
+07:20, outside a house with the wrong boiler model in it, Delete means "this
+one's dead, I'll write a new one" — the same casual tidy rule 2 correctly
+assumes of the calendar. And the blast radius is not symmetric. Maria invited
+the Sandersons to the event and typed the gate code, the dog and the crawlspace
+into the description; deleting it emails a cancellation to the customer **from
+Maria's mailbox**, having run none of our pre-send gates — no opt-out check, no
+quiet hours, no line in the thread, no attribution to us — and destroys the
+only copy of the access notes. Our delete is soft (`deleted_at`); theirs is
+not, and a Graph event restored from Deleted Items comes back with a new id, so
+the mapping is gone for good.
+
+Therefore: **we never add attendees to an event we create** — crew visibility
+comes from calendar sharing, not from invitations — and **we never delete an
+event that has attendees, or whose organiser is not our connected account.** We
+unlink it and append a line to its description saying the job was removed in
+Loonext. Our own attendee-free event, created by us, is deleted. Cancelling in
+place instead of deleting was considered and rejected: neither provider has a
+non-notifying tombstone, so a cancelled event with attendees emails them
+anyway — the same harm with more steps.
+
+**The reason is asked, not inferred from the direction.** This is the single
+finding that unifies the delete half. The proposed asymmetry works perfectly
+whenever intent can be read off the direction of the deletion, and every
+scenario that broke it is one where direction and intent come apart: a
+cancellation entered in the calendar, a "this one's dead" entered on a phone, a
+tidy, a skipped occurrence, a reassignment. So deleting a task asks for a
+reason once — **Cancelled / Done / Duplicate / Wrong job** — and the reason,
+not the app it was typed into, chooses what happens to the event and what
+#237 is allowed to say afterwards.
+
+**We never write a recurring event, and we never delete a series.** Meadowbrook
+Strata's quarterly boiler service is one recurring event in Maria's calendar
+booked to 2028, because that is how every office manager schedules maintenance.
+`tasks` has no recurrence column, so inbound expansion produces one task per
+occurrence, and the id we store must be the **instance** id — never
+`recurringEventId`, never `seriesMasterId`. Rob, three weeks in, deletes the
+April 14th task because that visit already happened; against a series id that
+one tap erases a contracted schedule for a year and nobody finds out for a
+quarter. If we cannot resolve an instance id, we do not delete at all — we
+flag. In the other direction, Maria skipping one occupancy because Danny is on
+holiday is the most ordinary calendar action there is, and it produces exactly
+one rule-2 question rather than a permanent undated orphan.
+
+**Rule 4 is kept and enlarged into four things.** It was the strongest rule in
+the proposal and it survived every clock attack — an etag does not age, so
+queueing our write, hitting a 429 and landing minutes later is still caught.
+But as written it is a version comparison doing four jobs, and it fails three
+of them.
+
+1. **A precondition, not just a record.** Every push goes out with
+   `If-Match: <stored etag>` / `changeKey`, and a 412/409 means *re-read and
+   re-decide under the diff* — never re-push. Without this, at 08:01:58 Dave
+   sets the unit to "Apt 3B", our worker builds the body from the row as it
+   stood (start Thu 14:00), Maria drags the job to 16:00 at 08:02:00.0, our
+   push lands at 08:02:00.9 and snaps it back — and rule 4 then classifies the
+   resulting notification as our own echo and hides the clobber. The policy was
+   holding the exact value that prevents this and using it only for the lesser
+   job. "Last human edit wins" was silently "last machine write wins".
+2. **The snapshot is field values, not only a version.** An etag versions the
+   *resource*, not our write. At 08:00:00.6 Dave adds "bring the 40-gal" while
+   Maria's 08:00:00.0 move to Friday is landing; Google coalesces both into one
+   version, hands our PATCH etag E7 back, and E7 describes an event containing
+   *her* change. We record E7, discard the notification as our echo, destroy
+   her move, text Rita "Thursday at 2:00pm", and Rita replies "C" —
+   manufacturing false evidence that she agreed to a time nobody offered her.
+   So the echo test is: **the inbound scheduling fields are identical to the
+   fields we sent.** A version match alone is not sufficient; a version
+   mismatch alone is not a conflict.
+3. **A lease and a rebuild, not a replay.** Pushes are serialised per event
+   under a claim, the way the scheduled-send worker already claims rows, and
+   the body is built from the current row *at push time* as a PATCH of the
+   changed fields. Push #1 taking a 503 at 11:20:04 and retrying at 11:20:09
+   with a body assembled before push #2 leaves the calendar on Thursday and the
+   product on Friday, with every version identifier in agreement and no rule
+   able to see it — a stable, permanent, silent divergence.
+4. **An outbox, not a `waitUntil`.** The snapshot is written in the same
+   transaction as the push intent, like `webhook_deliveries` and its sweeper —
+   not in a fire-and-forget continuation of the kind `syncRemindersAfterWrite`
+   already is. "We wrote and forgot which version" must not be a reachable
+   state: each occurrence produces a spurious rule-5 flag on a job only we
+   touched, and eleven of those in a fortnight teaches Maria to clear the
+   banner without reading it — including the one in scenario (2) above that
+   matters.
+
+Two consequences of the same machinery. The snapshot is keyed **per (task,
+calendar)**, because a task assigned to Dave and visible to Maria is two
+provider events with two versions, and one column per task means one echo
+overwrites the other. And **our own deletions are recorded as intents before
+they are issued**: Google and Graph both return 204 with no version, and
+Graph's delta reports a removal as `{id, "@removed"}` and nothing else, so
+version comparison provably cannot cover deletes. We issue deletes routinely
+for live, correctly-dated jobs — reassignment, offboarding, and #106 access
+loss, which `calendar-feed.ts` re-resolves on every poll. Dana reassigning
+Danny's six flu-day jobs at 06:40 must not produce six "this moved somewhere
+else too" flags on the morning she is a person down, and must certainly not
+clear six live due dates.
+
+**Rule 6 — silence is a state, and an unverified calendar holds its reminders.**
+Every rule in the proposal is triggered by an inbound event, so the one failure
+mode where we genuinely know nothing raises nothing. Graph caps calendar
+subscriptions at 4230 minutes; the 03:10 renewal takes a 429, the loop
+continues, the cron heartbeat records a successful run, and on Saturday the
+notifications simply stop — no 401, no error, nothing. Maria reschedules nine
+jobs that week; nine reminders go out at the old times, three customers reply
+"C", two crews drive to the wrong day. The same silence is produced by an
+expired subscription, a failed renewal, a revoked refresh token (she changed
+her Microsoft password) and an admin removing the app. So a connection carries
+`last_verified_at` **proved by a round trip**, never by a heartbeat proving the
+cron ran; health is a conjunction — nothing outstanding *or* something got
+through — the way `recordReporterProgress` already does it for billing. Past
+the renewal window, tasks mirrored to that calendar are unverified, their
+customer reminders **hold** and the owner is told the calendar is disconnected.
+Holding is recoverable; a confident wrong time is not.
+
+**Rule 7 — a reschedule un-confirms, and a wrong text that already sent is
+corrected.** Learning the truth late is not the same as being right. Reminders
+are rendered ahead of time with a literal day and hour, and
+`api_sync_task_reminders` can only delete rows still `pending` — a sent text is
+unrecallable. Worse, nothing clears `confirmed_at`/`confirmed_by` when `due_at`
+changes, so Thursday's board shows Rita's job green, *confirmed by the
+customer*, at a time she was never offered. Two rules, both in the policy
+rather than in an implementation ticket: **a `due_at` change clears the
+confirmation**, because a confirmation is a promise about a specific time and
+the time changed; and **when a job whose reminder has already sent moves, the
+customer is owed a correction**, queued as a normal scheduled send through the
+opt-out and quiet-hours gates. That is the only thing that turns a wrong
+automated message into a merely late one.
+
+**Rule 8 — connecting two-way revokes your ICS feed.** The read-only feed
+already ships and Maria subscribed hers in July. From the morning the workspace
+connects Google, every job assigned to her is in her calendar twice: once as a
+subscribed read-only copy, once as a connector-owned event, visually identical
+apart from the block length. She drags the subscribed one, and sixty seconds
+later the feed re-polls (`max-age=60`) and it snaps back — no etag, no
+notification, no conflict, no trace, and she has already told Rita that Friday
+is booked. Two-way ships into a product that put these events in these people's
+calendars one-way first, so connecting revokes that member's feed token, and
+the connect screen says so.
+
+**What held, and what was tried against it.** Device clock drift was hunted and
+is not there: Google's `updated`, Graph's `lastModifiedDateTime` and our
+`updated_at` are all stamped server-side, so no tech's fast phone enters any
+comparison. Cross-timezone reminders were attacked and `destination-clock.ts`
+already resolves the customer's clock from an absolute instant, so a Vancouver
+dispatcher booking a Calgary job is fine *provided rule 0 holds*. Rule 4's echo
+suppression was attacked with time — queue, throttle, back off, land late — and
+held, because neither an etag nor a value snapshot ages. Rule 2's refusal to
+delete was attacked directly and won its central case: Danny long-pressing a
+finished job off his phone's calendar at 16:50 must not soft-delete the task,
+its attachments and its note back-links, and one wrong due date is the right
+price. Rule 3's core case also stands: a task promoted from the wrong message
+and deleted a minute later should take its event with it, and a "we never
+delete outbound" policy would litter the calendar with ghosts that — under rule
+2 — nobody could remove from their own side either. Every rewrite above keeps
+those four results.
+
+**What this gives up, stated plainly.**
+
+- **Automatic resolution when both sides moved the job.** Nobody wins; a human
+  looks. We buy the guarantee that no scheduling decision by a real person is
+  ever silently destroyed, and we pay for it in flags.
+- **The promise "the last person to touch it wins."** We cannot tell who was
+  last, so we stop saying it. The copy says what is true: *this moved in two
+  places, here is each, pick one.*
+- **All-day events as jobs**, and any event whose zone we cannot map.
+- **Attendees on our events**, which means customers do not get calendar
+  invitations from the sync, only from Maria doing it by hand on an event we
+  will then refuse to delete.
+- **The ICS feed for anyone who connects two-way.**
+- **Sub-second propagation.** A precondition plus a per-event lease means a
+  push can be delayed by a re-read. Seconds, not milliseconds.
+- **Deletions propagating at all, in phase one** (below). Until phase two, a
+  crew removing a job removes it in both places, and is told so.
+
+**The smallest safe first implementation.** Phase one is two-way sync for the
+unambiguous half, and nothing may be dropped from it:
+
+Rule 0 (instants, zone mapping, all-day refusal); the three-way diff with the
+per-(task, calendar) snapshot; rule 4 entire — precondition, value snapshot,
+lease, outbox — including delete intents for our reassignment/offboarding/
+access-loss deletes; rule 5 on the new trigger; rule 6 (liveness, and reminders
+hold on an unverified calendar); rule 7's clearing of `confirmed_at`; and rule
+8. Inbound recurring events expand to instance-scoped tasks and are never
+deleted. **Neither side's deletions propagate**: a calendar deletion becomes
+the rule-2 question, and a task deletion leaves the event with a note. This is
+shippable, and its worst failure is a question nobody answers.
+
+Phase two: task deletion deletes our attendee-free event; the delete-reason
+picker; the one-tap Cancelled / Moved / Not sure answer replacing the passive
+question; correction texts for reminders that already sent; per-occurrence
+writes for recurring work.
+
+Not planned: creating recurring events from our side, and any resolution rule
+that reintroduces a timestamp comparison.
+
+**Unresolved, and named rather than smoothed over.**
+
+1. **The two attackers disagree about how often rule 5 will fire** — one holds
+   that its window is too narrow to catch anything real, the other that it will
+   fire constantly on our own dropped bookkeeping and be trained away. Moving
+   the trigger to the diff and the snapshot to the outbox is intended to
+   satisfy both, but the real rate is unknown and it decides whether the flag
+   can be trusted. Ship a counter, and treat **more than one flag per crew per
+   week** as a bug in us rather than a conflict in them.
+2. **Where the human-edit timestamp comes from.** One attacker proposed reusing
+   the existing `task_due_set` conversation event's `created_at`; the other, a
+   dedicated column the sync never touches. We took the column, for display
+   only, and left the event as the audit trail — which sidesteps the question,
+   because the claim that *every* writer of `due_at` emits that event is
+   unverified and `20260723010000` carries its own copy of the mutation
+   function. Nobody may make either one load-bearing until that is checked.
+3. **Which provider mutations bump `updated` / `lastModifiedDateTime`** is not
+   documented as an enumerated list by either vendor and differs between them.
+   Our design deliberately does not depend on the answer. If anyone
+   reintroduces a version or timestamp comparison, the list must be produced
+   from both live APIs first.
+4. **Whether Graph's delta can distinguish a genuine deletion** from an event
+   moved out of the queried window or to another calendar. Our delete-intent
+   tombstone attributes *our* removals; an inbound `@removed` we did not
+   initiate is attributable only by absence. This must be tested against a live
+   tenant before phase two lets any deletion propagate.
+
+**Consistency:** D92 (job state is a tag on the conversation — which is why the
+"event removed" state lives on the link row and no `task_status` column
+appears), D17 and D64 (a task promotes a source; completion stays derived), D3
+and D4 (opt-out and quiet hours, which every correction text goes through), the
+appointment-reminder machinery in `20260803100000` and
+`apps/api/src/messaging/appointment-reminders.ts`, `apps/api/src/routes/
+calendar-feed.ts` and `calendar.ts` (the one-way feed this supersedes for
+connected members), and #237, whose standard — an automated message that is
+wrong is worse than no automated message — is the rule every clause above is
+serving.
