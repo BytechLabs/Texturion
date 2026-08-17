@@ -366,6 +366,20 @@ quotesRoutes.post(
      */
     const clearance = await runPreSendGates(env, companyId, view.contact_phone_e164);
 
+    /*
+     * ONE TOKEN, and the second one is gone rather than unused.
+     *
+     * The original design minted a separate `quote_accept` token so that "the
+     * link a customer opens views the quote and cannot accept it". That
+     * separation protected nothing, and could not: the ONLY channel we have to
+     * the customer is the text, so the accept token would have to travel in the
+     * same link as the view token — at which point whoever holds one holds
+     * both. What it did instead was make accepting IMPOSSIBLE, because the page
+     * had only the view token and the accept route refused it.
+     *
+     * A double accept is guarded where it is actually guardable: the WHERE
+     * clause on the update, which two taps on a slow connection cannot beat.
+     */
     const expiresAt = new Date(row.expires_at);
     const viewLink = await mintPublicLink(db, {
       companyId,
@@ -375,15 +389,6 @@ quotesRoutes.post(
       expiresAt,
       actorUserId: c.get("userId"),
     });
-    const acceptLink = await mintPublicLink(db, {
-      companyId,
-      purpose: "quote_accept",
-      subjectType: "quote",
-      subjectId: id,
-      expiresAt,
-      actorUserId: c.get("userId"),
-    });
-
     // Guarded on `status = draft` in the WHERE clause rather than trusting the
     // read above: two people pressing send is two requests, and the second
     // must not restamp `sent_at` over the first.

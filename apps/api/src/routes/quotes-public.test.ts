@@ -22,6 +22,9 @@ const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const QUOTE_ID = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff";
 /** #287: read on the accept path only, and never in the customer's response. */
 const CONVERSATION_ID = "cccccccc-dddd-4eee-8fff-000000000000";
+/** #287: the text that carried the quote, and the crew member who wrote it. */
+const MESSAGE_ID = "dddddddd-eeee-4fff-8000-111111111111";
+const AUTHOR_ID = "eeeeeeee-ffff-4000-8111-222222222222";
 /** 43 characters of the token alphabet — the shape `resolvePublicLink` demands. */
 const TOKEN = "a".repeat(43);
 
@@ -46,6 +49,8 @@ afterEach(() => {
 const quote = (over: Record<string, unknown> = {}) => ({
   id: QUOTE_ID,
   conversation_id: CONVERSATION_ID,
+  message_id: MESSAGE_ID,
+  created_by: AUTHOR_ID,
   amount_cents: 45_000,
   currency: "cad",
   description: "Replace the water heater",
@@ -158,13 +163,20 @@ describe("GET /q/:token", () => {
 });
 
 describe("POST /q/:token/accept", () => {
-  it("refuses a VIEW token, which is the whole reason purpose is stored", async () => {
+  it("refuses a token minted for something that is not a quote", async () => {
     /*
-     * The property that makes a link safe to text: the URL the customer opens
-     * cannot commit them. A forwarded link, or one scraped from an SMS log,
-     * views and nothing more.
+     * PURPOSE STILL MATTERS, just not the way this test used to claim.
+     *
+     * It asserted that a VIEW token could not accept — a separation that
+     * protected nothing (the only channel to the customer is the text, so both
+     * tokens travel in one link) and made accepting impossible, because the
+     * page holds the view token and this route refused it.
+     *
+     * What purpose actually buys is this: a link minted for a PAYMENT, or a
+     * photo, cannot be replayed against a quote. That is the property worth
+     * keeping, and it is the one asserted here.
      */
-    const sb = stubResolving("quote_view"); // accept is NOT this purpose
+    const sb = stubResolving("payment"); // not a quote link at all
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     stubFetch(sb.route);
 
@@ -174,7 +186,7 @@ describe("POST /q/:token/accept", () => {
   });
 
   it("accepts a live quote and kills both links", async () => {
-    const sb = stubResolving("quote_accept");
+    const sb = stubResolving("quote_view");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
@@ -197,7 +209,7 @@ describe("POST /q/:token/accept", () => {
      * without this event the only trace is a status on a row — and the crew
      * finds out by noticing rather than by being told.
      */
-    const sb = stubResolving("quote_accept");
+    const sb = stubResolving("quote_view");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
@@ -222,11 +234,55 @@ describe("POST /q/:token/accept", () => {
     expect(rows[0].conversation_id).toBe(CONVERSATION_ID);
   });
 
+  it("turns the accepted quote into a job", async () => {
+    /*
+     * #287: "acceptance flows into the work rather than stopping at a status".
+     * A won job that exists only as a status is one somebody has to notice and
+     * re-type into the task list, which is where it gets forgotten between the
+     * yes and the van.
+     */
+    const sb = stubResolving("quote_view");
+    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
+    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    sb.on("POST", "/rest/v1/rpc/create_task", () => ({ outcome: "created" }));
+    stubFetch(sb.route);
+
+    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
+
+    const created = sb.find("POST", "/rest/v1/rpc/create_task");
+    expect(created, "an accepted quote produced no job").toHaveLength(1);
+    const args = created[0].body as Record<string, unknown>;
+    // Hung off the TEXT that carried the quote: tasks promote a real message,
+    // and that message is the artefact the job was agreed from.
+    expect(args.p_message_id).toBe(MESSAGE_ID);
+    // The scope, in the words the customer agreed to.
+    expect(args.p_title).toBe("Replace the water heater");
+    // The ACTOR is the quote's author. A customer is not a member and cannot
+    // own a task; the person who wrote the price owns the work it became.
+    expect(args.p_actor_user_id).toBe(AUTHOR_ID);
+  });
+
+  it("makes no job for a quote that predates the message link", async () => {
+    // Rows sent before #287's send fix have no message to promote, and tasks
+    // require one. Skipped quietly rather than failing the customer's accept.
+    const sb = stubResolving("quote_view");
+    sb.on("GET", "/rest/v1/quotes", () => [quote({ message_id: null })]);
+    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(sb.route);
+
+    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(0);
+  });
+
   it("still accepts when the timeline write fails", async () => {
     // The acceptance is the CUSTOMER'S and is already committed. Failing their
     // request because our own bookkeeping failed would tell them the price was
     // not accepted when it was.
-    const sb = stubResolving("quote_accept");
+    const sb = stubResolving("quote_view");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
@@ -243,7 +299,7 @@ describe("POST /q/:token/accept", () => {
   it("refuses to bind anybody to a price that has lapsed", async () => {
     // The row still says `sent`. Checking the stored column here would accept
     // an offer the business withdrew.
-    const sb = stubResolving("quote_accept");
+    const sb = stubResolving("quote_view");
     sb.on("GET", "/rest/v1/quotes", () => [quote({ expires_at: inDays(-1) })]);
     stubFetch(sb.route);
 
@@ -259,7 +315,7 @@ describe("POST /q/:token/accept", () => {
      * customer's side the quote IS accepted, so telling them it failed would
      * be both wrong and alarming.
      */
-    const sb = stubResolving("quote_accept");
+    const sb = stubResolving("quote_view");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => []);
     stubFetch(sb.route);
@@ -270,7 +326,7 @@ describe("POST /q/:token/accept", () => {
   });
 
   it("guards the write on the answerable statuses", async () => {
-    const sb = stubResolving("quote_accept");
+    const sb = stubResolving("quote_view");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);

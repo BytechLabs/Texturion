@@ -52,11 +52,15 @@ const PUBLIC_COLUMNS =
  * means "safe to put in front of a homeowner" and this id is not part of that
  * promise — it is ours, used on our side, and never in the response.
  */
-const ACCEPT_COLUMNS = `${PUBLIC_COLUMNS},conversation_id`;
+const ACCEPT_COLUMNS = `${PUBLIC_COLUMNS},conversation_id,message_id,created_by`;
 
 interface PublicQuoteRow extends QuoteState {
   /** Only populated on the accept path; see ACCEPT_COLUMNS. */
   conversation_id?: string;
+  /** The text that carried this quote. Null for rows sent before #287's fix. */
+  message_id?: string | null;
+  /** The crew member who wrote it, and the actor a resulting job belongs to. */
+  created_by?: string | null;
   id: string;
   amount_cents: number;
   currency: string;
@@ -154,18 +158,23 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
 /**
  * Accepting, which is the whole point of the feature.
  *
- * A SEPARATE PURPOSE from viewing, and that is the reason `public_links`
- * stores purpose rather than inferring it: the token in the customer's URL
- * views the quote and cannot accept it. Accepting carries its own token, so a
- * link forwarded to somebody else, or scraped from an SMS log, cannot commit
- * the customer to a price.
+ * THE SAME TOKEN AS VIEWING, and that is a correction rather than a shortcut.
+ * This route used to demand a separate `quote_accept` purpose so that "the link
+ * a customer opens cannot accept it" — but the only channel to the customer is
+ * the text, so the accept token could only ever travel in the same link. The
+ * separation protected nothing, and what it actually did was make accepting
+ * impossible: the page holds the view token, and this route refused it.
+ *
+ * What a forwarded link CAN do is bounded elsewhere and better: the quote
+ * expires, both links die the moment it is answered, and the double-accept
+ * guard is a WHERE clause rather than a check.
  */
 publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
   const db = getDb(getEnv(c.env));
   const resolved = await resolvePublicLink(
     db,
     c.req.param("token"),
-    "quote_accept",
+    "quote_view",
     callerCountry(c),
   );
   if (!resolved.ok || !resolved.subject_id || !resolved.company_id) {
@@ -277,6 +286,55 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
   ]).catch((cause: unknown) => {
     console.error(`quote accepted event failed: ${String(cause)}`);
   });
+
+  /*
+   * #287 — AND THE WORK STARTS.
+   *
+   * "Accepted quote becomes a job, so acceptance flows into the work rather
+   * than stopping at a status." A won job that exists only as a status is one
+   * somebody has to notice and re-type into the task list, which is where it
+   * gets forgotten between the yes and the van.
+   *
+   * THE TASK HANGS OFF THE TEXT THAT CARRIED THE QUOTE. Tasks promote a real
+   * message by design (T0.1 cut standalone ones, because completion derives
+   * from `messages.done_at`), and the message the customer received is the
+   * right one: it is the artefact the job was agreed from.
+   *
+   * THE ACTOR IS THE QUOTE'S AUTHOR, not the customer. A customer is not a
+   * member and cannot own a task; the person who wrote the price is the person
+   * whose work this became.
+   *
+   * NO ADDRESS, deliberately. #287 asks for "a task with the address and the
+   * agreed scope" and the scope transfers cleanly — it is the description the
+   * customer agreed to. The address does not: a contact's is freeform text and
+   * a task's is structured fields, and #214's enrichment is the thing that
+   * turns one into the other under review. Guessing the mapping here would put
+   * an unreviewed address on a job somebody drives to.
+   *
+   * Best-effort and last. The acceptance is the customer's and is already
+   * durable; failing their request because our own bookkeeping failed would
+   * tell them the price was not accepted when it was.
+   */
+  if (row.message_id && row.created_by) {
+    const { error } = await db.rpc("create_task", {
+      p_company_id: resolved.company_id,
+      p_message_id: row.message_id,
+      // The scope, in the customer's own agreed words.
+      p_title: row.description.slice(0, 200),
+      p_description: null,
+      p_assigned_user_id: null,
+      p_due_at: null,
+      p_actor_user_id: row.created_by,
+      p_addr_street: null,
+      p_addr_unit: null,
+      p_addr_city: null,
+      p_addr_state: null,
+      p_addr_postal_code: null,
+      p_addr_country: null,
+      p_addr_provenance: null,
+    });
+    if (error) console.error(`quote accepted job failed: ${error.message}`);
+  }
 
   return c.json({ accepted: true, status: "accepted" });
 });
