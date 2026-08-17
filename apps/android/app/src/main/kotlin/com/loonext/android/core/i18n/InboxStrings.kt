@@ -301,7 +301,7 @@ object InboxStrings : AppStrings.Section {
 
         // --- Response time (#239) ------------------------------------------------------------
         // Read verbatim by components/for-you/response-time-parity.test.ts.
-        "inbox.responseTimeTitle" to "RESPONSE TIME",
+        "inbox.responseTimeTitle" to "Response time",
         "inbox.responseLoading" to "Working out your response time…",
         "inbox.responseNoLeads" to
             "No new customers texted you in the last {days} days, so " +
@@ -330,7 +330,7 @@ object InboxStrings : AppStrings.Section {
 
         // --- Satisfaction (#313) --------------------------------------------------------------
         // Read verbatim by components/for-you/satisfaction-parity.test.ts.
-        "inbox.satisfactionTitle" to "SATISFACTION",
+        "inbox.satisfactionTitle" to "Satisfaction",
         "inbox.satisfactionLoading" to "Reading your ratings…",
         "inbox.satisfactionGapNoneAsked" to
             "No finished jobs have been asked about in this window. The question " +
@@ -630,7 +630,7 @@ object InboxStrings : AppStrings.Section {
         "inbox.referralGettingLink" to "Récupération de votre lien…",
 
         // --- Response time -------------------------------------------------------------------------------
-        "inbox.responseTimeTitle" to "TEMPS DE RÉPONSE",
+        "inbox.responseTimeTitle" to "Temps de réponse",
         "inbox.responseLoading" to "Calcul de votre temps de réponse…",
         "inbox.responseNoLeads" to
             "Aucun nouveau client ne vous a texté dans les {days} derniers jours, " +
@@ -660,7 +660,7 @@ object InboxStrings : AppStrings.Section {
             "plus récents ; les chiffres au-dessus couvrent l'ensemble des {total}.",
 
         // --- Satisfaction ------------------------------------------------------------------------------------
-        "inbox.satisfactionTitle" to "SATISFACTION",
+        "inbox.satisfactionTitle" to "Satisfaction",
         "inbox.satisfactionLoading" to "Lecture de vos évaluations…",
         "inbox.satisfactionGapNoneAsked" to
             "Aucun travail terminé n'a fait l'objet d'une question durant cette " +

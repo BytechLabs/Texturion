@@ -37,6 +37,7 @@ import com.loonext.android.core.format.ResponseTimeFormat
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
+import com.loonext.android.ui.common.MeasureHeader
 import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ProportionRing
@@ -117,20 +118,11 @@ fun ResponseTimeCard(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.padding(top = 14.dp)) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, bottom = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                t("inbox.responseTimeTitle"),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.12.em,
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                modifier = Modifier.weight(1f),
-            )
+        // #540: the SHARED heading, not a second copy of it. This card and
+        // Satisfaction each carried their own Row+Text saying the same thing as
+        // MeasureHeader, which is how four cards on one screen end up two
+        // pixels apart in a list nobody can put a finger on.
+        MeasureHeader(t("inbox.responseTimeTitle")) {
             // Segmented, not a menu: three choices are faster to hit, and the
             // current window stays readable at a glance.
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {

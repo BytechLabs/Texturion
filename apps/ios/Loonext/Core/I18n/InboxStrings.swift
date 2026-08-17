@@ -338,7 +338,7 @@ enum InboxStrings {
             // sentence that lands here is still held word for word against web
             // and Android. Key names and French are Android's
             // `core/i18n/InboxStrings.kt` verbatim.
-            "inbox.responseTimeTitle": "RESPONSE TIME",
+            "inbox.responseTimeTitle": "Response time",
             "inbox.responseLoading": "Working out your response time…",
             "inbox.responseNoLeads":
                 "No new customers texted you in the last {days} days, so there "
@@ -372,7 +372,7 @@ enum InboxStrings {
             // for iOS, so the gap sentences, the arc phrases and "Asked" are
             // still compared word for word with web and Android. Keys and
             // French are Android's verbatim.
-            "inbox.satisfactionTitle": "SATISFACTION",
+            "inbox.satisfactionTitle": "Satisfaction",
             "inbox.satisfactionLoading": "Reading your ratings…",
             "inbox.satisfactionGapNoneAsked":
                 "No finished jobs have been asked about in this window. The question "
@@ -737,7 +737,7 @@ enum InboxStrings {
             "inbox.referralGettingLink": "Récupération de votre lien…",
 
             // --- Response time (#239 ResponseTimeCard.swift) --------------------------------------
-            "inbox.responseTimeTitle": "TEMPS DE RÉPONSE",
+            "inbox.responseTimeTitle": "Temps de réponse",
             "inbox.responseLoading": "Calcul de votre temps de réponse…",
             "inbox.responseNoLeads":
                 "Aucun nouveau client ne vous a texté dans les {days} derniers "
@@ -769,7 +769,7 @@ enum InboxStrings {
                 + "des {total}.",
 
             // --- Satisfaction (#313 SatisfactionCard.swift) ------------------------------------------
-            "inbox.satisfactionTitle": "SATISFACTION",
+            "inbox.satisfactionTitle": "Satisfaction",
             "inbox.satisfactionLoading": "Lecture de vos évaluations…",
             "inbox.satisfactionGapNoneAsked":
                 "Aucun travail terminé n'a fait l'objet d'une question durant cette "

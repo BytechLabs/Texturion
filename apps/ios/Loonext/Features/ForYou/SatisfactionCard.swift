@@ -76,13 +76,10 @@ struct SatisfactionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(AppStrings.translate(appLocale, "inbox.satisfactionTitle"))
-                    .font(.golos(10.5, weight: .bold))
-                    .kerning(1.2)
-                    .foregroundStyle(BrandColor.muted500)
-                Spacer(minLength: 8)
-                // The same control in the same place as the card above it.
+            // #540: the SHARED heading. "The same control in the same place as
+            // the card above it" was the comment below, and the way to guarantee
+            // that is to use the same component rather than copy its styling.
+            MeasureHeader(AppStrings.translate(appLocale, "inbox.satisfactionTitle")) {
                 HStack(spacing: 2) {
                     ForEach([7, 30, 90], id: \.self) { option in
                         Button {
@@ -100,8 +97,6 @@ struct SatisfactionCard: View {
                     }
                 }
             }
-            .padding(.horizontal, 6)
-            .padding(.bottom, 7)
 
             PaperCard {
                 if let report {

@@ -81,12 +81,10 @@ struct ResponseTimeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(AppStrings.translate(appLocale, "inbox.responseTimeTitle"))
-                    .font(.golos(10.5, weight: .bold))
-                    .kerning(1.2)
-                    .foregroundStyle(BrandColor.muted500)
-                Spacer(minLength: 8)
+            // #540: the SHARED heading, not a second copy of it. Two of the
+            // four measures inlined their own, which is how one screen ends up
+            // with two species of panel and a list nobody can put a finger on.
+            MeasureHeader(AppStrings.translate(appLocale, "inbox.responseTimeTitle")) {
                 // Segmented, not a menu: three choices are faster to hit, and the
                 // current window stays readable at a glance.
                 HStack(spacing: 2) {
@@ -106,8 +104,6 @@ struct ResponseTimeCard: View {
                     }
                 }
             }
-            .padding(.horizontal, 6)
-            .padding(.bottom, 7)
 
             PaperCard {
                 if let report {

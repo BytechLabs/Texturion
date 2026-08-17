@@ -36,6 +36,7 @@ import com.loonext.android.core.format.SatisfactionFormat
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
+import com.loonext.android.ui.common.MeasureHeader
 import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ProportionRing
@@ -112,21 +113,10 @@ fun SatisfactionCard(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.padding(top = 14.dp)) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, bottom = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                t("inbox.satisfactionTitle"),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.12.em,
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                modifier = Modifier.weight(1f),
-            )
-            // The same control in the same place as the card above it.
+        // #540: the SHARED heading. "The same control in the same place as the
+        // card above it" was the comment below, and the way to guarantee that
+        // is to use the same component rather than to copy its styling.
+        MeasureHeader(t("inbox.satisfactionTitle")) {
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 for (option in listOf(7, 30, 90)) {
                     val selected = option == days
