@@ -499,7 +499,7 @@ describe("writes", () => {
 
 describe("REST hooks — how Zapier and Make actually work", () => {
   it("subscribes, records the key that did it, and shows the secret once", async () => {
-    const sb = stubWithKey(["webhooks:manage"]);
+    const sb = stubWithKey(["webhooks:manage", "tasks:read"]);
     sb.on("POST", "/rest/v1/webhook_endpoints", () => [
       { id: "wh-1", url: "https://hooks.zapier.com/x", events: ["task.created"] },
     ]);
@@ -528,7 +528,7 @@ describe("REST hooks — how Zapier and Make actually work", () => {
 
   it("refuses an address the settings screen would refuse", async () => {
     // A connector is not more trusted than a person. Same SSRF gate.
-    const sb = stubWithKey(["webhooks:manage"]);
+    const sb = stubWithKey(["webhooks:manage", "tasks:read"]);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await publicRequest("/public/v1/webhooks", {
@@ -543,7 +543,7 @@ describe("REST hooks — how Zapier and Make actually work", () => {
   });
 
   it("unsubscribes only what THIS key created", async () => {
-    const sb = stubWithKey(["webhooks:manage"]);
+    const sb = stubWithKey(["webhooks:manage", "tasks:read"]);
     sb.on("DELETE", "/rest/v1/webhook_endpoints", () => [{ id: "wh-1" }]);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -562,7 +562,7 @@ describe("REST hooks — how Zapier and Make actually work", () => {
   });
 
   it("404s a webhook this key did not create", async () => {
-    const sb = stubWithKey(["webhooks:manage"]);
+    const sb = stubWithKey(["webhooks:manage", "tasks:read"]);
     // The filtered delete matches nothing — somebody else's endpoint.
     sb.on("DELETE", "/rest/v1/webhook_endpoints", () => []);
     stubFetch(jwksRoute(auth), sb.route);
@@ -675,5 +675,115 @@ describe("#243 acceptance: a key cannot reach a number its owner cannot", () => 
     expect(res.status).toBeGreaterThanOrEqual(400);
     // Nothing was queued and nothing reached Telnyx.
     expect(sb.find("POST", "/rest/v1/rpc/gate_outbound_send")).toHaveLength(0);
+  });
+});
+
+/**
+ * #581 finding 3 — `webhooks:manage` is not a read-everything scope.
+ *
+ * ## What it was
+ *
+ * A key granted ONLY `webhooks:manage` — the scope a customer grants a Zapier
+ * or Make connector believing it can do nothing but manage its own
+ * subscription — was refused by `GET /public/v1/messages`, `/conversations`
+ * and `/contacts`. It then subscribed to `message.received` and received, from
+ * the next inbound text onward, every message body with both E.164 numbers,
+ * every Whisper voicemail transcript, and every new contact — pushed to a URL
+ * of its own choosing.
+ *
+ * ## Why two gates did not stop it
+ *
+ * `requireScope("webhooks:manage")` asked for the wrong thing, and
+ * `requireCapability("settings.manage")` asks about the ROLE OF THE PERSON WHO
+ * MINTED THE KEY rather than about the key's own delegation — so a key narrowed
+ * to nothing still passed it. That is the exact failure the two-gate design was
+ * written to prevent, and it defeated the invariant the feature's own migration
+ * is named for: `a_key_can_do_less_than_the_person_who_made_it`.
+ *
+ * The three existing subscribe tests all used `task.created`, so none of them
+ * ever asked a key to reach data it could not already read.
+ */
+describe("#581 a key cannot subscribe past its own scopes", () => {
+  it("refuses message events to a key that cannot read messages", async () => {
+    // THE ATTACK: the scope a connector is given, pointed at everything.
+    const sb = stubWithKey(["webhooks:manage"]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/webhooks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://hooks.zapier.com/x",
+        events: ["message.received"],
+      }),
+    });
+
+    expect(res.status).toBe(403);
+    // The refusal NAMES the scope. A connector author reading "forbidden"
+    // learns nothing, and the next thing they try is a broader key.
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("messages:read");
+    // And nothing was created on the way to refusing.
+    expect(sb.find("POST", "/rest/v1/webhook_endpoints")).toHaveLength(0);
+  });
+
+  it("refuses voicemail transcripts to a key that cannot read conversations", async () => {
+    // The one whose payload is least obvious from its name: a voicemail event
+    // carries a transcript of what the customer said.
+    const sb = stubWithKey(["webhooks:manage"]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/webhooks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://hooks.zapier.com/x",
+        events: ["voicemail.received"],
+      }),
+    });
+
+    expect(res.status).toBe(403);
+    expect(
+      ((await res.json()) as { error: { message: string } }).error.message,
+    ).toContain("conversations:read");
+  });
+
+  it("refuses the whole subscription when one event of several is out of scope", async () => {
+    // A mixed list must not be granted in part. Subscribing is one act, and a
+    // partial grant would be a subscription the caller did not ask for.
+    const sb = stubWithKey(["webhooks:manage", "tasks:read"]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/webhooks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://hooks.zapier.com/x",
+        events: ["task.created", "message.received"],
+      }),
+    });
+
+    expect(res.status).toBe(403);
+    expect(sb.find("POST", "/rest/v1/webhook_endpoints")).toHaveLength(0);
+  });
+
+  it("allows a key that genuinely holds the read scope", async () => {
+    // The other half: a gate that refuses everybody is an outage, not a gate.
+    const sb = stubWithKey(["webhooks:manage", "messages:read"]);
+    sb.on("POST", "/rest/v1/webhook_endpoints", () => [
+      {
+        id: "wh-1",
+        url: "https://hooks.zapier.com/x",
+        events: ["message.received"],
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/webhooks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://hooks.zapier.com/x",
+        events: ["message.received"],
+      }),
+    });
+
+    expect(res.status).toBe(201);
   });
 });

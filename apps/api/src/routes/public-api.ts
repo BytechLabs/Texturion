@@ -38,6 +38,7 @@
  */
 import {
   PUBLIC_API_BASE,
+  missingWebhookScopes,
   WEBHOOK_ENDPOINT_CAP,
   WEBHOOK_EVENT_TYPES,
   webhookUrlRejection,
@@ -430,6 +431,37 @@ publicApiRoutes.post(
   requireCapability("settings.manage"),
   async (c) => {
     const body = await parseJsonBody(c, subscribeSchema);
+
+    /*
+     * #581 — the key must be able to READ what it is asking to be sent.
+     *
+     * `webhooks:manage` alone was a read-everything scope: refused by
+     * GET /public/v1/messages, and then handed every message body, both
+     * phone numbers and every voicemail transcript by subscribing to them
+     * instead.
+     *
+     * The two gates above do not close this and cannot. `requireCapability`
+     * asks about the ROLE OF THE PERSON WHO MINTED THE KEY, so a key
+     * narrowed to nothing still passes it — which is the exact failure the
+     * two-gate design exists to prevent, and it defeats the invariant this
+     * feature's own migration is named for.
+     *
+     * The refusal NAMES the missing scope. "Forbidden" teaches a connector
+     * author nothing, and the next thing they try is a broader key.
+     */
+    const missing = missingWebhookScopes(
+      body.events,
+      c.get("apiKeyScopes") ?? [],
+    );
+    if (missing.length > 0) {
+      return errorResponse(
+        c,
+        "forbidden",
+        "This API key cannot subscribe to those events without the " +
+          missing.join(", ") +
+          (missing.length > 1 ? " scopes." : " scope."),
+      );
+    }
 
     const rejection = webhookUrlRejection(body.url);
     if (rejection) {

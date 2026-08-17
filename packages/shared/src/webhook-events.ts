@@ -1,3 +1,5 @@
+import type { ApiKeyScope } from "./api-keys";
+
 /**
  * #243 — the outbound webhook contract, in one place.
  *
@@ -300,4 +302,66 @@ export function isDeliverableWebhookUrl(raw: string): boolean {
 export function webhookUrlRejectionKey(reason: WebhookUrlRejection): string {
   const camel = reason.replace(/-(\w)/g, (_, c: string) => c.toUpperCase());
   return `webhooks.urlError.${camel}`;
+}
+
+/**
+ * #581 — the read scope each event's payload is governed by.
+ *
+ * ## Why this exists
+ *
+ * `webhooks:manage` is the scope a workspace grants a connector believing it
+ * can do nothing but manage its own subscription. It was, in effect, a
+ * read-everything scope: a key holding ONLY that was refused by
+ * `GET /public/v1/messages`, then subscribed to `message.received` and received
+ * every message body with both E.164 numbers, every Whisper voicemail
+ * transcript, and every new contact — pushed to a URL of its choosing.
+ *
+ * The subscribe route had two gates and neither closed this. `requireScope`
+ * asked only for `webhooks:manage`, and `requireCapability("settings.manage")`
+ * asks about the ROLE OF THE PERSON WHO MINTED THE KEY, not about the key's own
+ * delegation — so a key narrowed to nothing still passed it. That is precisely
+ * the failure the two-gate design was written to prevent, and it defeated the
+ * invariant its own migration is named for:
+ * `a_key_can_do_less_than_the_person_who_made_it`.
+ *
+ * ## Why it is a total map rather than a lookup with a default
+ *
+ * `Record<WebhookEventType, ApiKeyScope>` means adding an event without
+ * deciding which scope governs its data does not compile. A default — "unknown
+ * events need messages:read" — would have let the next event through under
+ * whatever the default happened to be, which is the same shape of accident as
+ * the one this fixes.
+ *
+ * The pairing is by the DATA IN THE PAYLOAD, not by the feature the name
+ * suggests. `voicemail.received` carries a transcript of a conversation, so it
+ * answers to `conversations:read` rather than to anything voicemail-specific.
+ */
+export const WEBHOOK_EVENT_SCOPE: Record<WebhookEventType, ApiKeyScope> = {
+  // The body of somebody's text, and both phone numbers.
+  "message.received": "messages:read",
+  "message.sent": "messages:read",
+  // The failure carries the message it was trying to send.
+  "message.failed": "messages:read",
+  // Who called, for how long, and on which line.
+  "call.completed": "conversations:read",
+  // A transcript of what the customer said.
+  "voicemail.received": "conversations:read",
+  "task.created": "tasks:read",
+  "task.completed": "tasks:read",
+  "contact.created": "contacts:read",
+};
+
+/**
+ * The scopes a key must hold to subscribe to `events`, deduplicated.
+ *
+ * Returns what is MISSING rather than a yes/no, so the refusal can name the
+ * scope to add — a connector author reading "forbidden" learns nothing, and
+ * the next thing they try is a broader key.
+ */
+export function missingWebhookScopes(
+  events: readonly WebhookEventType[],
+  granted: readonly string[],
+): ApiKeyScope[] {
+  const need = new Set(events.map((event) => WEBHOOK_EVENT_SCOPE[event]));
+  return [...need].filter((scope) => !granted.includes(scope));
 }
