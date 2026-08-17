@@ -45,6 +45,14 @@ const PRODUCT: FooterLinkItem[] = [
   { label: "Accessibility", href: LIVE_ROUTES.accessibility },
   // #285: a buyer with a compliance function asks for this by name.
   { label: "Data processing agreement", href: LIVE_ROUTES.dpa },
+  // #285: the repository is public, so researchers read this code whether or
+  // not we invite them. The difference between a coordinated report and a
+  // public disclosure is often just having an obvious place to send it, and a
+  // link nobody can find is the same as no link.
+  {
+    label: "Report a vulnerability",
+    href: LIVE_ROUTES.vulnerabilityDisclosure,
+  },
   { label: "Loonext in Canada", href: LIVE_ROUTES.canada },
 ];
 

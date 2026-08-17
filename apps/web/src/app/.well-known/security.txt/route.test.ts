@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { dynamic, GET } from "./route";
+import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
  * RFC 9116 guards for /.well-known/security.txt: the two REQUIRED fields
@@ -38,7 +39,19 @@ describe("GET /.well-known/security.txt", () => {
   it("carries the required and chosen RFC 9116 fields", async () => {
     const { body } = await fetchSecurityTxt();
     expect(body).toContain("Contact: mailto:security@loonext.com");
-    expect(body).toContain("Policy: https://loonext.com/security");
+    // Not a literal. This line said `/security` until #285 moved it to the
+    // actual disclosure policy, and the literal was the only thing that had to
+    // change in two places — a test pinning a URL becomes a ceiling under the
+    // fix rather than a guard over it. What matters is that Policy names a
+    // route this site serves, which is checkable without naming which one.
+    const policy = body
+      .split("\n")
+      .find((line) => line.startsWith("Policy: "))
+      ?.slice("Policy: ".length);
+    expect(policy, "security.txt lost its Policy field").toBeTruthy();
+    expect(
+      Object.values(LIVE_ROUTES).map((path) => `https://loonext.com${path}`),
+    ).toContain(policy);
     expect(body).toContain(
       "Canonical: https://loonext.com/.well-known/security.txt",
     );

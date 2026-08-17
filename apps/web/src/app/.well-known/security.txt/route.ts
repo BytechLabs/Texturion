@@ -28,7 +28,11 @@ export function GET(): Response {
     `Expires: ${expires}`,
     "Preferred-Languages: en",
     "Canonical: https://loonext.com/.well-known/security.txt",
-    "Policy: https://loonext.com/security",
+    // RFC 9116: Policy is "where the vulnerability disclosure policy is
+    // located", which is a narrower thing than a trust page. It pointed at
+    // /security until #285 — accurate about how the product handles customer
+    // data, and silent on how to report a bug or what happens next.
+    "Policy: https://loonext.com/legal/vulnerability-disclosure",
     "",
   ].join("\n");
 

@@ -87,6 +87,10 @@ const PAGE_NOTES: Record<keyof typeof LIVE_ROUTES, string | null> = {
   // findable without asking us.
   dpa:
     "the data processing agreement: roles, sub-processors, 72-hour breach notification, deletion, and the three things we do not promise because the product cannot deliver them",
+  // #285: the URL security.txt's Policy field points at. A researcher's tooling
+  // finds it there; this is for everything else that reads a site by machine.
+  vulnerabilityDisclosure:
+    "how to report a security issue, what we commit to doing about it and by when, and the safe harbour covering good-faith research; no paid bounty",
   accessibility:
     "what we verify about accessibility and what we do not: WCAG 2.2 AA criteria enforced by named tests, the gaps stated plainly, and no third-party audit claimed",
   status: "live service status",

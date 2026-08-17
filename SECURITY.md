@@ -9,13 +9,52 @@ tracker — which publishes the report to everyone, including whoever would use 
 before anybody here has read it. That is the one outcome worth spending a file to
 avoid.
 
-## What we will do
+## What we will do, and by when
 
-We will acknowledge your report and tell you what we found. If it is a real
-issue we will fix it and say when it shipped, and we are glad to credit you by
-whatever name you prefer.
+These are commitments, and they are deliberately unimpressive numbers. Loonext is
+run by one person. A policy promising a four-hour acknowledgement would read
+better and would be broken the first time a report arrived on a Saturday, and a
+disclosure policy that is wrong about its own timings is worse than one that
+admits to being slow.
 
-We do not run a paid bounty.
+- **Within 3 business days:** we acknowledge your report and tell you we are
+  looking at it. A human, not an autoresponder.
+- **Within 10 business days:** we tell you what we found. That is an assessment,
+  not necessarily a fix, and it includes saying "this is not a vulnerability"
+  with our reasoning if that is the answer.
+- **Every 10 business days after that,** while it is open, we tell you where it
+  stands without being asked.
+- **When it ships,** we tell you it shipped and on what date.
+
+Critical issues jump the queue. Everything above is a ceiling, not a target.
+
+We are glad to credit you by whatever name you prefer, and equally glad not to.
+**We do not run a paid bounty** — there is no money in this, and saying so up
+front is fairer than letting you find out after the work.
+
+## Safe harbour
+
+If you follow this policy, we will treat your research as authorised. We will
+not pursue legal action against you, we will not ask a hosting provider or a
+platform to act against you, and if somebody else raises the matter we will say
+that your work was authorised.
+
+That holds as long as you:
+
+- test only against a workspace you control,
+- stop at the point you have proved the issue, rather than going further to see
+  how much you could reach,
+- do not degrade the service for anybody else, and do not run automated load
+  against it,
+- do not access, copy, or keep another business's data — and tell us at once if
+  you encounter it by accident, so we can handle it as a breach,
+- give us **90 days** from your report before publishing, or less if we agree,
+  or more if we ask and you agree.
+
+This is authorisation from us, for our own systems. It cannot and does not speak
+for our sub-processors, who are listed at
+[`/legal/subprocessors`](https://loonext.com/legal/subprocessors) and each have
+their own policy.
 
 ## What is in scope
 
@@ -34,8 +73,12 @@ person's unlocked phone.
 ## Where the machine-readable version lives
 
 `https://loonext.com/.well-known/security.txt` (RFC 9116) carries the same
-contact address, and `https://loonext.com/security` describes how the product
-handles customer data. **`security.txt` is the authoritative copy** — a test
+contact address, and its `Policy` field points at
+[`/legal/vulnerability-disclosure`](https://loonext.com/legal/vulnerability-disclosure),
+which is this document published as a page — one source, two places a researcher
+might arrive.
+
+**`security.txt` is the authoritative copy of the contact address** — a test
 fails if this file drifts from it, because two contact addresses is worse than
 one, and the wrong half is the one a researcher reads.
 

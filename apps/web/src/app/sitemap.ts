@@ -136,6 +136,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // by searching rather than by asking us for it.
     { path: LIVE_ROUTES.dpa, priority: 0.4, changeFrequency: "yearly" },
     {
+      path: LIVE_ROUTES.vulnerabilityDisclosure,
+      priority: 0.4,
+      changeFrequency: "yearly",
+    },
+    {
       path: LIVE_ROUTES.accessibility,
       priority: 0.4,
       changeFrequency: "yearly",

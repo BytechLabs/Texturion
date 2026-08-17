@@ -47,6 +47,12 @@ export const LIVE_ROUTES = {
   refunds: "/legal/refunds",
   accessibility: "/legal/accessibility",
   dpa: "/legal/dpa",
+  /*
+   * #285 — where security.txt's Policy field points. A researcher arrives here
+   * from a machine-readable file, and a buyer's compliance function asks for a
+   * URL it can paste into a questionnaire; both want a stable path.
+   */
+  vulnerabilityDisclosure: "/legal/vulnerability-disclosure",
   fairUse: "/legal/fair-use",
   cookies: "/legal/cookies",
 
