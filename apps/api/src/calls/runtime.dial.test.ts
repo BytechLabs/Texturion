@@ -163,3 +163,74 @@ describe("createSessionRuntime.telnyx.dial — X-Loonext-Session header (§3.2)"
     ]);
   });
 });
+
+/**
+ * #616 — a rate limit is not a verdict on somebody's phone.
+ *
+ * Five places in the call path read "status < 500" as a DEFINITE refusal: this
+ * leg is gone, stop trying. For most 4xx that is right — a 404 on a call
+ * control id means the leg really has ended.
+ *
+ * A 429 is not one of them. It is produced by our AGGREGATE load against one
+ * shared Telnyx account, so it is caused by OTHER calls and says nothing about
+ * the leg in the request. Read as a refusal, it inverted the meaning: a
+ * technician's phone marked dead because the workspace next door was busy, and
+ * on an outbound call that terminalises and hangs up on a live customer.
+ *
+ * The nastiest part is WHEN it fires. A rate limit arrives when the account is
+ * busiest, which is when a dropped call costs the most and when the largest
+ * workspace is the one experiencing it. Every load-related failure in this
+ * subsystem is like that, which is why #251's investigation found it.
+ */
+describe("#616 a 429 is not a definite refusal", () => {
+  function refusing(status: number): FetchRoute {
+    return async (url, request) => {
+      if (url.pathname !== "/v2/calls" || request.method !== "POST") {
+        return undefined;
+      }
+      return Response.json(
+        { errors: [{ code: "10007", title: "rate limited" }] },
+        { status },
+      );
+    };
+  }
+
+  async function dialAgainst(status: number) {
+    stubFetch(refusing(status));
+    const rt = createSessionRuntime(env);
+    return rt.telnyx.dial({
+      sipTarget: "sip:gencred_a@sip.telnyx.com",
+      fromE164: "+16135550100",
+      clientState: "brm-state",
+      sessionId: "sess-616",
+      caller: "+16135550199",
+      commandId: "pending-616",
+    });
+  }
+
+  it("does not declare the leg dead when Telnyx rate-limits us", async () => {
+    // THE DEFECT. `known-dead` prunes the pending leg immediately: premature
+    // voicemail on an inbound call, and a hung-up customer on an outbound one.
+    expect(await dialAgainst(429)).toEqual({ failure: "ambiguous" });
+  });
+
+  it("does not declare it dead on a timeout either", async () => {
+    // A 408 is an unanswered question, not an answer.
+    expect(await dialAgainst(408)).toEqual({ failure: "ambiguous" });
+  });
+
+  it("still declares it dead when Telnyx genuinely refuses", async () => {
+    // The other half, and the one that makes this a distinction rather than a
+    // blanket softening. A 404 or a 422 IS a statement about this leg, and
+    // treating those as ambiguous would leave dead legs ringing out the full
+    // window before the machine gave up on them.
+    expect(await dialAgainst(404)).toEqual({ failure: "known-dead" });
+    expect(await dialAgainst(422)).toEqual({ failure: "known-dead" });
+  });
+
+  it("keeps a server error ambiguous, which is what 429 now joins", async () => {
+    // The fix adds no new branch: "not now" takes the path "we could not find
+    // out" already had. A 429 and a 503 mean the same thing to a caller.
+    expect(await dialAgainst(503)).toEqual({ failure: "ambiguous" });
+  });
+});

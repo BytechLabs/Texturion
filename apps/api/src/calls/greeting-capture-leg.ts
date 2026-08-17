@@ -27,7 +27,7 @@ import * as Sentry from "@sentry/cloudflare";
 
 import type { Env } from "../env";
 import { deleteTelnyxRecording } from "../messaging/inbound-ring";
-import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
+import { telnyxRequest, isDefiniteRefusal } from "../telnyx/client";
 
 import {
   GREETING_CAPTURE_MAX_SECONDS,
@@ -71,7 +71,9 @@ async function onLiveLeg(
   try {
     await telnyxRequest(env, { method: "POST", path, body });
   } catch (cause) {
-    if (cause instanceof TelnyxApiError && cause.status < 500) return;
+    // #616: see isDefiniteRefusal — a 429 is about our request rate, so it
+    // takes the same path as a 503 rather than being swallowed as "done".
+    if (isDefiniteRefusal(cause)) return;
     throw cause;
   }
 }

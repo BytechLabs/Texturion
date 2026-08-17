@@ -57,7 +57,7 @@ import {
   type IncomingCallPushReport,
 } from "../notifications/incoming-call";
 import { notifyCallEnd } from "../notifications/call-end";
-import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
+import { telnyxRequest, TelnyxApiError, isDefiniteRefusal } from "../telnyx/client";
 
 import type {
   AnswerIntent,
@@ -317,7 +317,10 @@ async function legAlive(env: Env, ccid: string): Promise<boolean> {
     })) as { data?: { is_alive?: boolean } };
     return response.data?.is_alive === true;
   } catch (cause) {
-    if (cause instanceof TelnyxApiError && cause.status < 500) return false;
+    // #616: a 429 must not answer "not alive" — it is about our own request
+    // rate, not about this leg, and a false "dead" here propagates into
+    // commandWithDiscrimination as a verdict on somebody's phone.
+    if (isDefiniteRefusal(cause)) return false;
     throw cause;
   }
 }
@@ -339,7 +342,7 @@ async function commandWithDiscrimination(
     });
     return "ok";
   } catch (cause) {
-    if (cause instanceof TelnyxApiError && cause.status < 500) {
+    if (isDefiniteRefusal(cause)) {
       return (await legAlive(env, ccid)) ? "ok" : "dead";
     }
     throw cause;
@@ -358,7 +361,10 @@ async function swallow4xx(
   try {
     await telnyxRequest(env, { method: "POST", path, body });
   } catch (cause) {
-    if (cause instanceof TelnyxApiError && cause.status < 500) return;
+    // #616: swallowing a 429 would record a hangup that never happened —
+    // the call stays up, billing continues, and the customer is connected to
+    // nothing. Rethrown onto the same path a 503 already takes.
+    if (isDefiniteRefusal(cause)) return;
     throw cause;
   }
 }
@@ -434,10 +440,15 @@ export function createSessionRuntime(env: Env): SessionRuntime {
           if (!ccid) return { failure: "ambiguous" };
           return { ccid };
         } catch (cause) {
-          if (cause instanceof TelnyxApiError && cause.status < 500) {
+          if (isDefiniteRefusal(cause)) {
             return { failure: "known-dead" }; // definite Telnyx refusal
           }
-          return { failure: "ambiguous" }; // network timeout / 5xx-after-create
+          // #616: a 429 lands HERE now rather than above. "ambiguous" is the
+          // conservative answer and the right one — the machine keeps the
+          // pending leg and lets the ring window resolve it, where
+          // "known-dead" pruned it immediately: premature voicemail inbound,
+          // and a hung-up customer outbound.
+          return { failure: "ambiguous" }; // rate limit / timeout / 5xx-after-create
         }
       },
       answerInbound: (ccid, clientState) =>

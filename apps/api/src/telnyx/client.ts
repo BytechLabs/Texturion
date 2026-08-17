@@ -30,6 +30,35 @@ export interface TelnyxErrorItem {
   detail?: string;
 }
 
+/**
+ * #616 — is this failure a statement about the REQUEST, or about US?
+ *
+ * Five places in the call path treated "status < 500" as a definite refusal:
+ * this leg is gone, this command will never work, stop trying. For most 4xx
+ * that is right — a 404 on a call control id means the leg really has ended.
+ *
+ * A 429 is not one of them. It is caused by our AGGREGATE load against one
+ * shared Telnyx account, which means it is caused by OTHER calls, and it says
+ * nothing whatever about the leg in the request. Reading it as a refusal
+ * inverted the meaning at every site: a technician's phone was marked dead
+ * because the workspace next door was busy, and on an outbound call that hung
+ * up on a live customer.
+ *
+ * A 408 joins it for the same reason — a timeout is an unanswered question, not
+ * an answer.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT DO is invent a new branch. Every one of those
+ * five sites already has a correct path for "we could not find out" — it is the
+ * one they take on a 5xx — and "not now" belongs on it. A 429 and a 503 mean the
+ * same thing to a caller: ask again, do not conclude.
+ */
+export function isDefiniteRefusal(cause: unknown): cause is TelnyxApiError {
+  if (!(cause instanceof TelnyxApiError)) return false;
+  if (cause.status >= 500) return false;
+  // Rate limited, or timed out. Both are about the attempt, not the subject.
+  return cause.status !== 429 && cause.status !== 408;
+}
+
 export class TelnyxApiError extends Error {
   /** HTTP status Telnyx returned. */
   readonly status: number;
