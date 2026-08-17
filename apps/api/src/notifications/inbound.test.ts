@@ -148,16 +148,29 @@ const INPUT = {
 describe("notificationSnippet", () => {
   it("clips to 80 chars with an ellipsis and collapses whitespace", () => {
     const long = `${"a".repeat(60)} \n\t ${"b".repeat(60)}`;
-    const snippet = notificationSnippet(long, 0);
+    const snippet = notificationSnippet(long, 0, "en");
     expect(snippet).toHaveLength(80);
     expect(snippet.endsWith("…")).toBe(true);
     expect(snippet).toContain(`${"a".repeat(60)} b`); // newline run collapsed
-    expect(notificationSnippet("short", 0)).toBe("short");
+    expect(notificationSnippet("short", 0, "en")).toBe("short");
   });
 
   it("falls back for empty bodies (media vs plain)", () => {
-    expect(notificationSnippet("  ", 2)).toBe("Sent an attachment");
-    expect(notificationSnippet("", 0)).toBe("Sent a message");
+    expect(notificationSnippet("  ", 2, "en")).toBe("Sent an attachment");
+    expect(notificationSnippet("", 0, "en")).toBe("Sent a message");
+  });
+
+  it("#228: says the same two things to a reader in French", () => {
+    // Only the fallbacks are ours. A customer's own words are not copy and
+    // must come back byte-identical whatever language the reader is in —
+    // translating an inbound text would be inventing one.
+    expect(notificationSnippet("  ", 2, "fr-CA")).toBe(
+      "A envoyé une pièce jointe",
+    );
+    expect(notificationSnippet("", 0, "fr-CA")).toBe("A envoyé un message");
+    expect(notificationSnippet("Hi, do you do gutters?", 0, "fr-CA")).toBe(
+      "Hi, do you do gutters?",
+    );
   });
 });
 

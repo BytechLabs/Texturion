@@ -1,3 +1,4 @@
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
@@ -42,6 +43,7 @@ import {
   type HeldNumber,
 } from "../billing/number-allowance";
 import { pushConsequentialNotice } from "../billing/consequential-push";
+import { SUBSCRIPTION_NOTICE_COPY } from "../billing/subscription-notice-copy";
 import {
   ensurePrepaidDiscount,
   grantPrepaidYear,
@@ -611,10 +613,16 @@ async function noticeHeldNumbers(
       });
     }
 
+    // #228: the push is composed per reader; the email above is not, because an
+    // address is not a person whose language we have resolved. So the two
+    // channels stop sharing one string — the title below says word for word
+    // what `subject` says in English, and `subscription-notice-copy.test.ts`
+    // is the check that keeps it that way now they are written twice.
     await pushConsequentialNotice(env, db, {
       companyId: args.companyId,
-      title: subject,
-      body: "Open Loonext to see which number, and how to bring it back.",
+      title: (locale: Locale) =>
+        SUBSCRIPTION_NOTICE_COPY[locale].numbersHeldTitle(args.held.length),
+      body: (locale: Locale) => SUBSCRIPTION_NOTICE_COPY[locale].numbersHeldBody,
       path: "/settings/billing",
       collapseKey: `numbers_held:${args.companyId}`,
     });

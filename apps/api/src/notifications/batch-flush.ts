@@ -14,11 +14,12 @@
  * queue is consulted, so nothing in here can be an emergency waiting on a
  * window — which is the property that makes the whole feature safe to offer.
  */
-import { digestLine } from "@loonext/shared";
+import { digestLine, type Locale } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
+import { DIGEST_PUSH_COPY } from "./digest-copy";
 
 /** How many members' batches one tick will flush. */
 const MAX_MEMBERS_PER_TICK = 20;
@@ -76,13 +77,20 @@ export async function runBatchFlush(
           .map((row) => row.conversation_id)
           .filter((id): id is string => id !== null),
       );
-      const body = digestLine(batch.length, conversations.size);
-
       // Into the inbox rather than a thread, EVEN when the digest covers one
       // conversation. A digest is a summary of a period, and landing somebody
       // in a single thread would answer a question they did not ask while
       // hiding the other three.
       const url = `${env.APP_ORIGIN}/inbox`;
+      // #228: composed PER READER, not once for the batch. The counts are the
+      // same number in either language; the sentence around them is not, and
+      // both halves are ours to translate — the title from the table beside
+      // this file, the body from the shared counting rule.
+      const digest = (locale: Locale) => ({
+        title: DIGEST_PUSH_COPY[locale].title,
+        body: digestLine(batch.length, conversations.size, locale),
+        url,
+      });
       const failures: unknown[] = [];
       await deliverPush(env, db, {
         companyId: first.company_id,
@@ -101,13 +109,8 @@ export async function runBatchFlush(
         // than stacking. Somebody who was away for an hour should find one
         // notification, not twelve.
         collapseKey: `digest:${first.user_id}`,
-        web: () => ({ title: "While you were away", body, url }),
-        native: () => ({
-          kind: "digest",
-          title: "While you were away",
-          body,
-          url,
-        }),
+        web: digest,
+        native: (locale) => ({ kind: "digest", ...digest(locale) }),
       });
       if (failures.length > 0) {
         console.error(

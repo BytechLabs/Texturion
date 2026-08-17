@@ -5,6 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
 import {
@@ -15,6 +16,7 @@ import {
   TASK_DUE_LEAD_MINUTES,
   TASK_DUE_MAX_LATE_MINUTES,
 } from "./due-notice";
+import { TASK_DUE_COPY } from "./due-notice-copy";
 
 const env = completeEnv();
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
@@ -49,6 +51,13 @@ function world(
     /** Another run claimed the task first. */
     claimLost?: boolean;
     stampFails?: boolean;
+    /**
+     * Registered HERE rather than by a later `sb.on`. The harness is
+     * first-match-wins, so re-registering a path this helper already claimed is
+     * a stub that silently never runs — and a push suite whose device list is
+     * always empty passes while asserting nothing.
+     */
+    devices?: Record<string, unknown>[];
   } = {},
 ): SupabaseStub {
   const sb = supabaseStub(env);
@@ -67,7 +76,7 @@ function world(
   );
   sb.on("GET", "/rest/v1/notification_prefs", () => options.prefs ?? []);
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
-  sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+  sb.on("GET", "/rest/v1/device_push_tokens", () => options.devices ?? []);
   return sb;
 }
 
@@ -76,21 +85,35 @@ describe("dueNoticeBody", () => {
     new Date(NOW.getTime() + minutesFromNow * 60_000);
 
   it("counts down to a deadline that has not passed", () => {
-    expect(dueNoticeBody(at(25), NOW)).toBe("Due in 25 min");
-    expect(dueNoticeBody(at(1), NOW)).toBe("Due in 1 min");
+    expect(dueNoticeBody(at(25), NOW, "en")).toBe("Due in 25 min");
+    expect(dueNoticeBody(at(1), NOW, "en")).toBe("Due in 1 min");
   });
 
   it("says so plainly at the deadline", () => {
-    expect(dueNoticeBody(at(0), NOW)).toBe("Due now");
+    expect(dueNoticeBody(at(0), NOW, "en")).toBe("Due now");
   });
 
   it("never tells someone that overdue work is still ahead of them", () => {
     // The first run after an outage, or a bulk import of past-due work, is
     // where this matters: "due in 30 min" for last Tuesday's job is a lie.
-    expect(dueNoticeBody(at(-20), NOW)).toBe("20 min overdue");
-    expect(dueNoticeBody(at(-90), NOW)).toBe("2 hours overdue");
-    expect(dueNoticeBody(at(-60), NOW)).toBe("1 hour overdue");
-    expect(dueNoticeBody(at(-60 * 24 * 3), NOW)).toBe("3 days overdue");
+    expect(dueNoticeBody(at(-20), NOW, "en")).toBe("20 min overdue");
+    expect(dueNoticeBody(at(-90), NOW, "en")).toBe("2 hours overdue");
+    expect(dueNoticeBody(at(-60), NOW, "en")).toBe("1 hour overdue");
+    expect(dueNoticeBody(at(-60 * 24 * 3), NOW, "en")).toBe("3 days overdue");
+  });
+
+  it("#228: reads the reader's language, and agrees with itself in both", () => {
+    // The branch arithmetic is what this function owns; the sentences belong to
+    // the copy table. So what is worth pinning is that EVERY branch is
+    // translated — an untranslated one would be a single English line inside an
+    // otherwise French notification, which is the failure #228 exists to stop.
+    expect(dueNoticeBody(at(25), NOW, "fr-CA")).toBe("Échéance dans 25 min");
+    expect(dueNoticeBody(at(0), NOW, "fr-CA")).toBe("Échéance maintenant");
+    expect(dueNoticeBody(at(-20), NOW, "fr-CA")).toBe("20 min de retard");
+    // The plural noun is picked inline in both languages, so both need proving.
+    expect(dueNoticeBody(at(-60), NOW, "fr-CA")).toBe("1 heure de retard");
+    expect(dueNoticeBody(at(-90), NOW, "fr-CA")).toBe("2 heures de retard");
+    expect(dueNoticeBody(at(-60 * 24 * 3), NOW, "fr-CA")).toBe("3 jours de retard");
   });
 });
 
@@ -284,5 +307,85 @@ describe("notifyDueTasksJob", () => {
     await expect(notifyDueTasksJob(env, NOW)).rejects.toThrow(
       /task due reminders/,
     );
+  });
+
+  it("#228: a member's own title rides through, and OUR fallback is translated", async () => {
+    // The two halves of this reminder have different owners. "Replace the
+    // outdoor tap at 5 King St" is a member's words and must arrive exactly as
+    // typed on a French phone as on an English one; the body underneath it is
+    // ours and must not. One crew, two phones, so the difference is visible in
+    // a single fan-out rather than inferred across two tests. (The untitled
+    // task, where the title is ours too, is the test below.)
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const sb = world({
+      tasks: [dueTask({ due_at: NOW.toISOString() })],
+      devices: [
+        {
+          id: "50000000-aaaa-4000-8000-000000000001",
+          user_id: ASSIGNEE,
+          platform: "android",
+          token: "tok-fr",
+          locale: "fr-CA",
+        },
+        {
+          id: "50000000-aaaa-4000-8000-000000000002",
+          user_id: ASSIGNEE,
+          platform: "android",
+          token: "tok-en",
+          locale: null,
+        },
+      ],
+    });
+    stubFetch(sb.route, ...service.routes);
+
+    await notifyDueTasksJob(fcmEnv(account), NOW);
+
+    const dataFor = (token: string) =>
+      service.sends.find((send) => (send.message as { token: string }).token === token)
+        ?.message.data as Record<string, string>;
+
+    // Theirs, untouched, in both.
+    expect(dataFor("tok-fr").title).toBe("Replace the outdoor tap at 5 King St");
+    expect(dataFor("tok-en").title).toBe("Replace the outdoor tap at 5 King St");
+    // Ours, and only ours, changes language.
+    expect(dataFor("tok-fr").body).toBe("Échéance maintenant");
+    expect(dataFor("tok-en").body).toBe("Due now");
+  });
+
+  it("#228: an untitled task is titled by us, so that title has a language", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const sb = world({
+      tasks: [dueTask({ title: null })],
+      devices: [
+        {
+          id: "50000000-aaaa-4000-8000-000000000003",
+          user_id: ASSIGNEE,
+          platform: "android",
+          token: "tok-fr",
+          locale: "fr-CA",
+        },
+      ],
+    });
+    stubFetch(sb.route, ...service.routes);
+
+    await notifyDueTasksJob(fcmEnv(account), NOW);
+
+    const data = service.sends[0].message.data as Record<string, string>;
+    expect(data.title).toBe("Une tâche");
+  });
+});
+
+describe("TASK_DUE_COPY", () => {
+  it("#228/#430: pins the withheld title, which has no test at the wire", () => {
+    // The #430 stand-in is chosen inside deliver.ts's withholding path, whose
+    // own suite is the only place this English was ever asserted. Pin it here
+    // too: the sentence belongs to this feature, and losing the assertion with
+    // a refactor of somebody else's file is how an English lock screen comes
+    // back on a French phone.
+    expect(TASK_DUE_COPY.en.withheldTitle).toBe("A task is due");
+    expect(TASK_DUE_COPY["fr-CA"].withheldTitle).toBe("Une tâche arrive à échéance");
+    expect(TASK_DUE_COPY.en.fallbackTitle).toBe("A task");
   });
 });

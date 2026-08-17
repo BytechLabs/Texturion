@@ -207,12 +207,43 @@ const SKIP_DIRS = new Set([
  */
 const SKIP_FILES = ["packages/shared/src/locale.ts"];
 
+/**
+ * #228 — a file that holds a `Record<Locale, …>` copy table is a DESTINATION,
+ * not a backlog.
+ *
+ * The same mistake this file has already recorded twice, in a third shape. The
+ * `locale.ts` skip above exists because scanning it "counted fifteen FINISHED
+ * French translations as French translations outstanding"; the case-insensitive
+ * directory skip below exists because 1,476 finished translations were being
+ * reported as translation work. This is that again: when a push notification's
+ * copy was moved into a two-language table, the scanner counted the French
+ * renderings as new hardcoded English, and the ledger GREW by doing exactly the
+ * work the ledger exists to encourage. A guard that fails when you fix the
+ * thing it is guarding is a guard that teaches people to stop fixing it.
+ *
+ * Matched on the SHAPE rather than a path list, which is the part that keeps
+ * this from rotting: the next copy table is covered the day it is written, and
+ * nobody has to remember to add it here. The shape is load-bearing rather than
+ * incidental — `Record<Locale, X>` means both languages are present or the file
+ * does not compile, which is a stronger guarantee than this scanner can offer.
+ *
+ * WHAT THIS GIVES UP: a file can hold a copy table AND an unrelated stray
+ * literal, and the stray one stops being counted. That is the same trade the
+ * `locale.ts` skip already makes — it is not a catalogue file either, it just
+ * contains one — and the alternative is deciding which side of a table each
+ * literal falls on, which is a parser rather than a scanner.
+ */
+function isCopyTable(source) {
+  return /Record<\s*Locale\s*,/.test(source);
+}
+
 /** A file whose strings are not read by a person. */
-export function isScannable(path, exts) {
+export function isScannable(path, exts, source) {
   if (!exts.some((ext) => path.endsWith(ext))) return false;
   if (/\.test\.|\.stories\.|Test\.kt$|Tests\.swift$/.test(path)) return false;
   const unix = path.split("\\").join("/");
   if (SKIP_FILES.some((skip) => unix.endsWith(skip))) return false;
+  if (source !== undefined && isCopyTable(source)) return false;
   /*
    * Case-INSENSITIVE, because the three clients disagree about capitals and the
    * Set does not. Android keeps its catalogue in `core/i18n`, iOS in
@@ -1108,7 +1139,11 @@ function scan(client) {
   const all = walk(client.root);
   for (const file of all) {
     if (!isScannable(file, client.exts)) continue;
-    const literals = client.find(readFileSync(file, "utf8"), file);
+    const source = readFileSync(file, "utf8");
+    // Read once and handed to both: the copy-table test needs the source, and
+    // re-reading the tree a second time to answer it would double the walk.
+    if (!isScannable(file, client.exts, source)) continue;
+    const literals = client.find(source, file);
     if (literals.length > 0) {
       literalsByFile[relative(client.root, file).replaceAll("\\", "/")] =
         literals;

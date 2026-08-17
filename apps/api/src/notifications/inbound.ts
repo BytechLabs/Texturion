@@ -22,6 +22,7 @@
  * webhook ledger records last_error, and the sweeper's replay is safe — the
  * debounce stamp is already committed, so a replay re-sends nothing.
  */
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
@@ -32,6 +33,7 @@ import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { contactDisplayName } from "./contact-name";
 import { deliverPush } from "./deliver";
+import { THREAD_PUSH_COPY } from "./thread-copy";
 
 const SNIPPET_LENGTH = 80;
 
@@ -95,12 +97,27 @@ function unwrapRows<T>(
   return (result.data ?? []) as T[];
 }
 
-/** §8 snippet: first 80 chars of the text, or a media/message fallback. */
-export function notificationSnippet(body: string, mediaCount: number): string {
+/**
+ * §8 snippet: first 80 chars of the text, or a media/message fallback.
+ *
+ * #228: the locale is REQUIRED rather than defaulted, because the two callers
+ * want different answers — the push composes one per reader, and the email
+ * below has no reader language to compose in and asks for English by name.
+ * A default would have made the email's English look like an oversight and
+ * let a future caller inherit it by accident.
+ *
+ * The customer's own words are never touched; only the two fallbacks are ours.
+ */
+export function notificationSnippet(
+  body: string,
+  mediaCount: number,
+  locale: Locale,
+): string {
   const text = body.trim().replace(/\s+/g, " ");
   if (text.length === 0) {
     // #189: MMS is not photos-only (audio, video, contact cards, PDFs…).
-    return mediaCount > 0 ? "Sent an attachment" : "Sent a message";
+    const copy = THREAD_PUSH_COPY[locale];
+    return mediaCount > 0 ? copy.snippetAttachment : copy.snippetMessage;
   }
   return text.length <= SNIPPET_LENGTH
     ? text
@@ -190,15 +207,21 @@ export async function notifyInboundMessage(
   // because the fallback to the bare number is what keeps a brand-new lead's
   // alert usable and a private copy of it is a copy that can lose it.
   const contactName = contactDisplayName(conversation.contacts);
-  const snippet = notificationSnippet(input.body, input.mediaCount);
+  // #228: the email is composed once, in English, because this channel has no
+  // reader language to compose in — an address in auth.users is not a person
+  // whose `profiles.locale` we have resolved, and #228 types only the push
+  // payload as a function of Locale. Asking for "en" by name keeps that a
+  // stated decision rather than a default nobody chose.
+  const emailSnippet = notificationSnippet(input.body, input.mediaCount, "en");
   // #414: the first line has to say WHAT this is before it says who it is
   // from — a phone on a bedside table shows one line. The push title and the
   // email subject were never the same string and must not become the same
   // string: the push has always led with the contact name, and only the
   // emergency prefix is new.
-  const pushTitle = input.emergency
-    ? `EMERGENCY — ${contactName}`
-    : contactName;
+  const pushTitle = (locale: Locale): string =>
+    input.emergency
+      ? THREAD_PUSH_COPY[locale].emergencyTitle(contactName)
+      : contactName;
   const emailSubject = input.emergency
     ? `EMERGENCY — ${contactName}`
     : `New text from ${contactName}`;
@@ -245,7 +268,7 @@ export async function notifyInboundMessage(
         const settingsUrl = `${env.APP_ORIGIN}/settings/notifications`;
         const text =
           `${contactName} sent a new text:\n\n` +
-          `"${snippet}"\n\n` +
+          `"${emailSnippet}"\n\n` +
           `Reply in Loonext: ${link}\n\n` +
           `Turn these alerts off: ${settingsUrl}\n`;
         await sendEmail(env, {
@@ -254,7 +277,7 @@ export async function notifyInboundMessage(
           text,
           html: emailLayout(
             `<p><strong>${escapeHtml(contactName)}</strong> sent a new text:</p>` +
-              `<blockquote style="margin:0 0 16px;padding:8px 16px;border-left:3px solid #E8E8E0;color:#4A4D3C;">${escapeHtml(snippet)}</blockquote>` +
+              `<blockquote style="margin:0 0 16px;padding:8px 16px;border-left:3px solid #E8E8E0;color:#4A4D3C;">${escapeHtml(emailSnippet)}</blockquote>` +
               `<p><a href="${link}" style="color:#66801F;text-decoration:underline;">Reply in Loonext</a></p>` +
               `<p style="font-size:14px;color:#6E7163;"><a href="${settingsUrl}" style="color:#6E7163;">Turn these alerts off</a></p>`,
           ),
@@ -282,9 +305,15 @@ export async function notifyInboundMessage(
     content: {
       written: "people",
       companyId: input.companyId,
-      withheld: { body: "Sent you a message" },
+      withheld: (locale) => ({
+        body: THREAD_PUSH_COPY[locale].inboundWithheldBody,
+      }),
     },
-    web: () => ({ title: pushTitle, body: snippet, url: link }),
+    web: (locale) => ({
+      title: pushTitle(locale),
+      body: notificationSnippet(input.body, input.mediaCount, locale),
+      url: link,
+    }),
     // #564: the phones had nothing to route on, so an URGENT text posted to the
     // ordinary Messages channel at ordinary importance — silenced by the same
     // switch as "on my way?" — while the reply we send that customer says the
@@ -296,9 +325,9 @@ export async function notifyInboundMessage(
     // way and has no channels to pick from, so a `kind` there would be a field
     // nothing reads — and `web` is the payload a browser can inspect.
     native: input.emergency
-      ? () => ({
-          title: pushTitle,
-          body: snippet,
+      ? (locale) => ({
+          title: pushTitle(locale),
+          body: notificationSnippet(input.body, input.mediaCount, locale),
           url: link,
           kind: "emergency",
         })

@@ -58,6 +58,15 @@ function stub(
  * French one is asserted where the copy itself is.
  */
 function sent(): { web: { title: string; body: string; url: string } } {
+  return { web: composed()("en") };
+}
+
+/** The payload composer itself, for the assertions that compare languages. */
+function composed(): (locale: "en" | "fr-CA") => {
+  title: string;
+  body: string;
+  url: string;
+} {
   const delivery = deliverPush.mock.calls[0][2] as {
     web: (locale: "en" | "fr-CA") => {
       title: string;
@@ -65,7 +74,7 @@ function sent(): { web: { title: string; body: string; url: string } } {
       url: string;
     };
   };
-  return { web: delivery.web("en") };
+  return delivery.web;
 }
 
 describe("#310 the approval push", () => {
@@ -125,6 +134,26 @@ describe("#525 the same approval, to a paused workspace", () => {
     stub([{ user_id: OWNER }]);
     await pushRegistrationApproved(env, getDb(env), COMPANY_ID, false);
     expect(sent().web.body).toBe(REGISTRATION_APPROVED_PUSH.body);
+  });
+
+  it("#228: BOTH arms keep their own words in French", async () => {
+    // The branch is a fact about the workspace, so it has to survive the
+    // translation: a French reader on a paused workspace must not be told they
+    // can text now, and the two French bodies must not have collapsed into one.
+    stub([{ user_id: OWNER }]);
+    await pushRegistrationApproved(env, getDb(env), COMPANY_ID, false);
+    const live = composed()("fr-CA");
+    expect(live.title).toBe("Vos textos sont en service");
+    expect(live.title).not.toBe(REGISTRATION_APPROVED_PUSH.title);
+
+    deliverPush.mockReset();
+    stub([{ user_id: OWNER }]);
+    await pushRegistrationApproved(env, getDb(env), COMPANY_ID, true);
+    const paused = composed()("fr-CA");
+    expect(paused.title).toBe("Inscription américaine approuvée");
+    expect(paused.body).not.toBe(live.body);
+    // And the destination is still chosen by the pause, not by the language.
+    expect(paused.url).toBe(`${env.APP_ORIGIN}/settings/billing`);
   });
 
   it("still swallows a delivery failure — a push cannot unwind an approval", async () => {

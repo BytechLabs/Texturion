@@ -33,6 +33,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
+import { NUMBER_NOTICE_COPY } from "./number-copy";
 
 /**
  * Tell the crew their number has moved.
@@ -86,15 +87,19 @@ export async function pushPortCompleted(
       // #430: this is about the workspace's own number, not about any
       // customer, so there is nothing to withhold.
       content: { written: "us" },
-      web: () => ({
-        title: "Your number is live",
-        // The customer's vocabulary, and the same news the email carries, so
-        // somebody who gets both does not wonder whether they are two events.
-        // The number is in the body because a crew mid-port may be moving more
-        // than one line and "your number" would not say which.
-        body: `${numberE164} is on Loonext now. Text your customers from your inbox.`,
-        url: `${env.APP_ORIGIN}/inbox`,
-      }),
+      // #228: the customer's vocabulary, in the customer's language. Same news
+      // the email carries, so somebody who gets both does not wonder whether
+      // they are two events. The number is in the body because a crew mid-port
+      // may be moving more than one line and "your number" would not say which
+      // — and it rides through the copy untranslated, being their own line.
+      web: (locale) => {
+        const copy = NUMBER_NOTICE_COPY[locale];
+        return {
+          title: copy.portCompletedTitle,
+          body: copy.portCompletedBody(numberE164),
+          url: `${env.APP_ORIGIN}/inbox`,
+        };
+      },
       // Once per number, ever. Scoping the collapse key to the number rather
       // than the company means a workspace porting two lines gets told about
       // both, while a redelivered webhook replaces rather than repeats.

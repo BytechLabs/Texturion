@@ -7,6 +7,7 @@
  * waits five is worse than no settings screen. #392 is open about exactly this
  * failure — a product constant written out four times, already changed twice.
  */
+import type { Locale } from "./locale";
 
 /**
  * How long an unanswered lead waits before the SAME audience is nudged again.
@@ -47,6 +48,38 @@ export const LEAD_CHASE_RUNGS = [
 export type LeadChaseRung = (typeof LEAD_CHASE_RUNGS)[number];
 
 /**
+ * #228 — the rung's two lines, in each language.
+ *
+ * `contactName` passes straight through both renderings: it is the customer's
+ * own name, or their raw phone number when we have no name for them, and
+ * nothing about it is ours to translate. The sentence around it is.
+ *
+ * The minutes are a parameter rather than a read of the constant above, so a
+ * clause here never depends on anything but its own arguments.
+ */
+interface LeadChaseCopy {
+  title(minutes: number): string;
+  body(contactName: string): string;
+}
+
+const EN: LeadChaseCopy = {
+  title: (minutes) => `${minutes} min, still no reply`,
+  body: (contactName) => `${contactName} hasn't heard back. Anyone can take this one.`,
+};
+
+const FR_CA: LeadChaseCopy = {
+  // "min" is the abbreviation in both languages, so the French title costs
+  // nothing extra against the ~40-character title budget on a lock screen.
+  title: (minutes) => `${minutes} min, toujours sans réponse`,
+  // Plain working register for the instruction, not corporate French: the
+  // thread has widened and any of them may pick it up.
+  body: (contactName) =>
+    `${contactName} n'a pas eu de réponse. N'importe qui peut s'en occuper.`,
+};
+
+const LEAD_CHASE_COPY: Record<Locale, LeadChaseCopy> = { en: EN, "fr-CA": FR_CA };
+
+/**
  * The push copy for a rung.
  *
  * Both lines lead with the elapsed time rather than the contact name, which is
@@ -54,14 +87,23 @@ export type LeadChaseRung = (typeof LEAD_CHASE_RUNGS)[number];
  * has already seen a notification naming this contact, and the ONLY new fact
  * is that it has gone unanswered. A second identical-looking alert reads as a
  * duplicate and gets swiped away.
+ *
+ * #228: `locale` DEFAULTS, which is the one place in this sweep where a caller
+ * can still drop the reader's language without the compiler noticing. It is a
+ * bridge, not a preference — `apps/api/src/notifications/lead-chase.ts` calls
+ * this once, above its `web:` closure, where there is no locale in scope yet.
+ * Moving that call inside the closure and passing the argument is what finishes
+ * this, and the default should go with it.
  */
 export function leadChaseNotification(
   rung: 2,
   contactName: string,
+  locale: Locale = "en",
 ): { title: string; body: string } {
   void rung;
+  const copy = LEAD_CHASE_COPY[locale];
   return {
-    title: `${LEAD_CHASE_WIDEN_MINUTES} min, still no reply`,
-    body: `${contactName} hasn't heard back. Anyone can take this one.`,
+    title: copy.title(LEAD_CHASE_WIDEN_MINUTES),
+    body: copy.body(contactName),
   };
 }

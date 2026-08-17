@@ -15,7 +15,7 @@
  * midnight falls differently from the server's, which is most of the customer
  * base.
  */
-import { SUMMARY_TITLE, summaryLine } from "@loonext/shared";
+import { SUMMARY_TITLE, type Locale, summaryLine } from "@loonext/shared";
 
 import { resolveNumberAccess } from "../auth/number-access";
 import type { MemberRole } from "@loonext/shared";
@@ -174,11 +174,20 @@ export async function runDailySummary(
 
       const totals = (forYou as { totals?: Record<string, number> } | null)
         ?.totals;
-      const body = summaryLine({
+      const counts = {
         waiting: totals?.waiting_on_you ?? 0,
         tasks: totals?.my_tasks ?? 0,
-      });
+      };
       const url = `${env.APP_ORIGIN}/for-you`;
+      // #228: composed PER READER. The counts come off one RPC and mean the
+      // same thing in either language; the sentence that reports them does
+      // not, and this is the notification most likely to be the only one
+      // somebody reads all day.
+      const summaryPush = (locale: Locale) => ({
+        title: SUMMARY_TITLE[locale],
+        body: summaryLine(counts, locale),
+        url,
+      });
 
       const failures: unknown[] = [];
       await deliverPush(env, db, {
@@ -193,8 +202,8 @@ export async function runDailySummary(
         // says how much without saying what.
         content: { written: "us" },
         collapseKey: `summary:${row.user_id}`,
-        web: () => ({ title: SUMMARY_TITLE, body, url }),
-        native: () => ({ kind: "summary", title: SUMMARY_TITLE, body, url }),
+        web: summaryPush,
+        native: (locale) => ({ kind: "summary", ...summaryPush(locale) }),
       });
       if (failures.length > 0) {
         console.error(

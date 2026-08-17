@@ -24,28 +24,20 @@
  * in the customer's lifecycle. Being dropped because the inbox was busy that
  * day would be the worst possible trade.
  */
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
+import { NUMBER_NOTICE_COPY } from "./number-copy";
 
 /**
  * What the lock screen says, in each of the two situations approval can land in.
  *
- * NAMED CONSTANTS RATHER THAN LITERALS AT THE CALL SITE so a guard can assert
- * against the shipped words instead of a phrase somebody retyped in a test — a
- * test that quotes a string nobody renders cannot fail.
- */
-export const REGISTRATION_APPROVED_PUSH = {
-  title: "Your texting is live",
-  // Names the thing they signed up to do, not the process that finished.
-  // "Campaign approved" is our vocabulary; "you can text customers" is theirs,
-  // and this is the notification that has to land.
-  body: "Carrier approval came through. You can text customers now.",
-} as const;
-
-/**
- * #525 — approval landing on a PAUSED workspace.
+ * ONE BRANCH, not two — the paused/live choice is made here and nowhere else, so
+ * a translation cannot arrive for one arm and be forgotten on the other.
+ *
+ * #525 — WHY THE PAUSED ARM EXISTS.
  *
  * Registering during a pause is allowed on purpose (the carrier wait is free in
  * a quiet winter, and the $29 is charged once per workspace ever), so approval
@@ -53,15 +45,45 @@ export const REGISTRATION_APPROVED_PUSH = {
  * can text customers now would send them into the app to be turned away by
  * `runPreSendGates`, holding a notification that contradicts it.
  *
- * Still opens with the approval, because it is genuinely good news and the whole
- * argument for registering early: the wait is behind them rather than ahead of
- * them in spring. What changes is the second sentence — what to do next is
- * resume, not text.
+ * Both arms open with the approval, because it is genuinely good news and the
+ * whole argument for registering early: the wait is behind them rather than
+ * ahead of them in spring. What changes is the second sentence — what to do next
+ * is resume, not text.
  */
-export const REGISTRATION_APPROVED_PAUSED_PUSH = {
-  title: "Your US registration is approved",
-  body: "Carrier approval came through. Texts send once you resume your plan.",
-} as const;
+export function registrationApprovedNotice(
+  locale: Locale,
+  paused: boolean,
+): { title: string; body: string } {
+  const copy = NUMBER_NOTICE_COPY[locale];
+  return paused
+    ? {
+        title: copy.registrationApprovedPausedTitle,
+        body: copy.registrationApprovedPausedBody,
+      }
+    : {
+        // Names the thing they signed up to do, not the process that finished.
+        // "Campaign approved" is our vocabulary; "you can text customers" is
+        // theirs, and this is the notification that has to land.
+        title: copy.registrationApprovedTitle,
+        body: copy.registrationApprovedBody,
+      };
+}
+
+/**
+ * The ENGLISH rendering of each arm, named so a guard can assert against the
+ * shipped words instead of a phrase somebody retyped in a test — a test that
+ * quotes a string nobody renders cannot fail.
+ *
+ * #228: the words moved to `number-copy.ts`, where both languages are declared
+ * against one interface. These stay as the English half because that is the half
+ * every existing assertion is about; the French half is asserted through
+ * {@link registrationApprovedNotice} with the other locale.
+ */
+export const REGISTRATION_APPROVED_PUSH = registrationApprovedNotice("en", false);
+export const REGISTRATION_APPROVED_PAUSED_PUSH = registrationApprovedNotice(
+  "en",
+  true,
+);
 
 /**
  * Tell the crew their US texting just went live.
@@ -110,9 +132,6 @@ export async function pushRegistrationApproved(
     const recipients = audience.filter((userId) => prefs.get(userId) ?? true);
     if (recipients.length === 0) return;
 
-    const notice = paused
-      ? REGISTRATION_APPROVED_PAUSED_PUSH
-      : REGISTRATION_APPROVED_PUSH;
     const failures: unknown[] = [];
     await deliverPush(env, db, {
       category: "operational",
@@ -122,9 +141,11 @@ export async function pushRegistrationApproved(
       // would protect nobody and cost the owner the one alert they have been
       // waiting days for.
       content: { written: "us" },
-      web: () => ({
-        title: notice.title,
-        body: notice.body,
+      // #228: the one alert this customer has been waiting days for, composed
+      // in the language they read. The paused/live branch is the same one in
+      // both languages — it is a fact about the workspace, not about the words.
+      web: (locale) => ({
+        ...registrationApprovedNotice(locale, paused),
         // #525: the tap lands where the next action is. An inbox they cannot
         // send from is the wrong destination for a notification whose whole
         // message is "resume first".

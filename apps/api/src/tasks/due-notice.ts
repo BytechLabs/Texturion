@@ -39,11 +39,13 @@
  * quarter hour, because by then the reminder is stale and the task is visible
  * everywhere else.
  */
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "../notifications/deliver";
+import { TASK_DUE_COPY } from "./due-notice-copy";
 
 /**
  * Tasks reminded per run. At one run every 15 minutes this is far above any
@@ -82,18 +84,24 @@ export const TASK_DUE_MAX_LATE_MINUTES = 24 * 60;
  * past-due work, reminds about tasks that are long overdue. Telling someone a
  * job from last Tuesday is "due in 30 minutes" would be a lie, so how late it
  * already is gets said plainly.
+ *
+ * #228: `locale` is REQUIRED rather than defaulted to "en". A default here
+ * would let the next call site ship English without anyone noticing, which is
+ * the exact failure this issue is about — the arithmetic below is the only
+ * thing this function owns, and the sentences belong to the copy table.
  */
-export function dueNoticeBody(dueAt: Date, now: Date): string {
+export function dueNoticeBody(dueAt: Date, now: Date, locale: Locale): string {
+  const copy = TASK_DUE_COPY[locale];
   const minutes = Math.round((dueAt.getTime() - now.getTime()) / 60_000);
-  if (minutes >= 1) return `Due in ${minutes} min`;
-  if (minutes > -1) return "Due now";
+  if (minutes >= 1) return copy.dueInMinutes(minutes);
+  if (minutes > -1) return copy.dueNow;
 
   const late = -minutes;
-  if (late < 60) return `${late} min overdue`;
+  if (late < 60) return copy.minutesOverdue(late);
   const hours = Math.round(late / 60);
-  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} overdue`;
+  if (hours < 24) return copy.hoursOverdue(hours);
   const days = Math.round(hours / 24);
-  return `${days} ${days === 1 ? "day" : "days"} overdue`;
+  return copy.daysOverdue(days);
 }
 
 interface DueTaskRow {
@@ -222,13 +230,15 @@ export async function notifyDueTasksJob(
     const lateMinutes = (now.getTime() - new Date(task.due_at).getTime()) / 60_000;
     if (lateMinutes > TASK_DUE_MAX_LATE_MINUTES) continue;
 
-    const title = (task.title ?? "").trim().slice(0, TITLE_LENGTH) || "A task";
+    // A MEMBER wrote this, so it goes out as they typed it. Only the stand-in
+    // for a task with no title at all has a language (#228).
+    const authored = (task.title ?? "").trim().slice(0, TITLE_LENGTH);
     const link = dueNoticeLink(env.APP_ORIGIN, task);
-    const alert = {
-      title,
-      body: dueNoticeBody(new Date(task.due_at), now),
+    const alert = (locale: Locale) => ({
+      title: authored || TASK_DUE_COPY[locale].fallbackTitle,
+      body: dueNoticeBody(new Date(task.due_at), now, locale),
       url: link,
-    };
+    });
 
     await deliverPush(env, db, {
       category: "assignments",
@@ -244,15 +254,15 @@ export async function notifyDueTasksJob(
       content: {
         written: "people",
         companyId: task.company_id,
-        withheld: { title: "A task is due" },
+        withheld: (locale) => ({ title: TASK_DUE_COPY[locale].withheldTitle }),
       },
-      web: () => alert,
+      web: alert,
       // Structural discriminator for the native clients. No client routes on
       // it yet, so it renders on the default channel; it is sent ahead of that
       // so a dedicated channel needs no server change (the same order
       // missed_call went in). Web Push stays kind-less: the service worker
       // renders unmarked pushes as ordinary notices and must not change shape.
-      native: () => ({ kind: "task_due", ...alert }),
+      native: (locale) => ({ kind: "task_due", ...alert(locale) }),
       // One task, one alert: a reminder never stacks with itself.
       collapseKey: `task:${task.id}`,
       failures,

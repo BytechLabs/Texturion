@@ -78,11 +78,21 @@ describe("digestLine", () => {
   it("ND-8: says both numbers, because they answer different questions", () => {
     // Four messages from one customer is a conversation. Four across four is a
     // morning. A digest that reported only the total would flatten them.
-    expect(digestLine(4, 3)).toBe("4 new messages across 3 conversations");
+    expect(digestLine(4, 3, "en")).toBe("4 new messages across 3 conversations");
   });
 
   it("ND-9: drops the second clause when it would say nothing", () => {
-    expect(digestLine(4, 1)).toBe("4 new messages");
-    expect(digestLine(1, 1)).toBe("1 new message");
+    expect(digestLine(4, 1, "en")).toBe("4 new messages");
+    expect(digestLine(1, 1, "en")).toBe("1 new message");
+  });
+
+  it("ND-10: answers in the reader's language, both branches", () => {
+    // #228: this reaches a lock screen, where it is the whole notification.
+    // Asserting only the English half would leave the fr-CA rows of the copy
+    // table unexecuted — present, plausible, and never proved.
+    expect(digestLine(4, 3, "fr-CA")).toBe(
+      "4 nouveaux messages dans 3 conversations",
+    );
+    expect(digestLine(1, 1, "fr-CA")).toBe("1 nouveau message");
   });
 });

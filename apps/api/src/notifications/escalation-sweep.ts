@@ -15,10 +15,13 @@
  * sends things twice. "Nobody has picked this up" is a different sentence about
  * a different fact, and it is the one that gets somebody out of bed.
  */
+import type { Locale } from "@loonext/shared";
+
 import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
+import { ESCALATION_COPY } from "./escalation-copy";
 
 /** How many alerts one tick will widen. */
 const MAX_PER_TICK = 50;
@@ -43,18 +46,24 @@ interface AlertRow {
  * "a call came in" — they were told that, or the on-call member was — it is
  * "ten minutes later nobody has touched it", which is the thing that needs a
  * different person to act.
+ *
+ * #228: the kind picks a WHOLE title from the copy table rather than a noun to
+ * be pasted in front of a shared tail. See `escalation-copy.ts` — English can
+ * build the sentence from a fragment and French cannot be relied on to keep
+ * that property.
  */
-export function escalationCopy(kind: string): { title: string; body: string } {
-  const what =
+export function escalationCopy(
+  kind: string,
+  locale: Locale,
+): { title: string; body: string } {
+  const copy = ESCALATION_COPY[locale];
+  const title =
     kind === "missed_call"
-      ? "A missed call"
+      ? copy.missedCallTitle
       : kind === "emergency"
-        ? "An emergency"
-        : "An alert";
-  return {
-    title: `${what} is still waiting`,
-    body: "Nobody has picked this up. It is open to the whole crew now.",
-  };
+        ? copy.emergencyTitle
+        : copy.genericTitle;
+  return { title, body: copy.body };
 }
 
 /**
@@ -118,7 +127,9 @@ export async function runEscalationSweep(
         .filter((userId) => userId !== alert.on_call_user_id);
       if (widenTo.length === 0) continue;
 
-      const copy = escalationCopy(alert.kind);
+      // #228: the sentence is composed per reader, so only the link — the same
+      // for everyone — can be settled up here.
+      const url = `${env.APP_ORIGIN}/inbox/${alert.conversation_id}`;
       const failures: unknown[] = [];
       await deliverPush(env, db, {
         category: "missed_calls",
@@ -137,16 +148,11 @@ export async function runEscalationSweep(
         // unanswered for the grace period is exactly the case a member's quiet
         // hours must not swallow — it is the reason the window is safe to set.
         overridesQuietHours: { reason: "escalation" },
-        web: () => ({
-          title: copy.title,
-          body: copy.body,
-          url: `${env.APP_ORIGIN}/inbox/${alert.conversation_id}`,
-        }),
-        native: () => ({
+        web: (locale) => ({ ...escalationCopy(alert.kind, locale), url }),
+        native: (locale) => ({
           kind: "escalation",
-          title: copy.title,
-          body: copy.body,
-          url: `${env.APP_ORIGIN}/inbox/${alert.conversation_id}`,
+          ...escalationCopy(alert.kind, locale),
+          url,
           alert_id: alert.id,
         }),
       });

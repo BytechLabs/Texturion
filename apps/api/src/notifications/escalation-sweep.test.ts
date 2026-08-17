@@ -87,11 +87,35 @@ describe("runEscalationSweep", () => {
     // A duplicate "Missed call from Dana" ten minutes later teaches the crew
     // that this product sends things twice. "Nobody has picked this up" is a
     // different fact, and it is the one that gets somebody out of bed.
-    const copy = escalationCopy("missed_call");
+    const copy = escalationCopy("missed_call", "en");
 
     expect(copy.title).toBe("A missed call is still waiting");
     expect(copy.body).toContain("Nobody has picked this up");
     expect(copy.title).not.toContain("from");
+  });
+
+  it("ES-2b: #228 — says it in the reader's language, whole sentence per kind", async () => {
+    // The three titles are built from three different subjects, so translating
+    // a shared fragment is how the gendered ones would break later. Pinning all
+    // three proves the kind switch reaches the table rather than one branch of
+    // it, and that an unknown kind still escalates with a sentence.
+    expect(escalationCopy("missed_call", "fr-CA").title).toBe(
+      "Un appel manqué attend toujours",
+    );
+    expect(escalationCopy("emergency", "fr-CA").title).toBe(
+      "Une urgence attend toujours",
+    );
+    expect(escalationCopy("poor_rating", "fr-CA").title).toBe(
+      "Une alerte attend toujours",
+    );
+    expect(escalationCopy("missed_call", "fr-CA").body).toBe(
+      "Personne ne s'en est occupé. C'est maintenant ouvert à toute l'équipe.",
+    );
+
+    // The English catch-all is unchanged and still the one a new kind gets.
+    expect(escalationCopy("poor_rating", "en").title).toBe(
+      "An alert is still waiting",
+    );
   });
 
   it("ES-3: the escalation does not replace the original on a phone that has it", async () => {

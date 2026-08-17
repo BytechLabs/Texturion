@@ -75,6 +75,22 @@ describe("#319 port completion push", () => {
     expect(web.url).toBe(`${env.APP_ORIGIN}/inbox`);
   });
 
+  it("#228: composes the same news in French, still naming the line", async () => {
+    // The site takes a locale and used to ignore it. Asserting only the English
+    // rendering would stay green if it went back to ignoring it, so the two
+    // languages are compared here rather than assumed from the copy table.
+    stub([{ user_id: OWNER }], []);
+    await pushPortCompleted(env, getDb(env), COMPANY_ID, NUMBER);
+    const payload = deliverPush.mock.calls[0][2] as {
+      web: (locale: "en" | "fr-CA") => { title: string; body: string };
+    };
+    const fr = payload.web("fr-CA");
+    expect(fr.title).toBe("Votre numéro est en service");
+    expect(fr.title).not.toBe(payload.web("en").title);
+    // The number is data, not copy: it survives the translation untouched.
+    expect(fr.body).toContain(NUMBER);
+  });
+
   it("defaults a member who never opened settings to yes", async () => {
     // Never having visited the notifications screen is not an opt-out.
     stub([{ user_id: OWNER }], []);

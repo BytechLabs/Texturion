@@ -20,12 +20,14 @@
  * never re-alerts. Failures are collected and thrown; both callers catch and
  * log — best-effort alerts are never retried.
  */
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
+import { MISSED_CALL_COPY } from "./missed-call-copy";
 import { routeAfterHoursAlert } from "./on-call";
 
 export interface MissedCallNotificationInput {
@@ -150,13 +152,21 @@ export async function notifyMissedCall(
   // kind-less, since the service worker renders unmarked pushes as ordinary
   // notices and must not change shape. #162 iOS coalescing keys on the
   // conversation, like the inbound-message alert.
-  const body =
+  //
+  // #228: composed per reader rather than built once. Which of the three
+  // bodies this miss gets is decided HERE, where the status is; the copy table
+  // owns what each one says in each language.
+  const bodyKey =
     input.textStatus === "sent"
-      ? "We texted them so they can book by reply."
+      ? "bodyTexted"
       : input.textStatus === "failed"
-        ? "Their text-back failed. Call them back."
-        : "No text-back went out. Call them back.";
-  const alert = { title: `Missed call from ${contactName}`, body, url: link };
+        ? "bodyTextFailed"
+        : "bodyNoText";
+  const alert = (locale: Locale) => {
+    const copy = MISSED_CALL_COPY[locale];
+    // The contact's name is theirs and rides through untranslated.
+    return { title: copy.title(contactName), body: copy[bodyKey], url: link };
+  };
   // The alert id rides on the NATIVE payload only: it is what turns the
   // notification into something answerable, and the Web Push service worker
   // renders unmarked pushes as ordinary notices and must not change shape.
@@ -172,8 +182,12 @@ export async function notifyMissedCall(
     // phone shows for any caller, and it is what the setting deliberately
     // preserves. There is no message content in a missed call to withhold.
     content: { written: "us" },
-    web: () => alert,
-    native: () => ({ kind: "missed_call", ...alert, ...acknowledgeable }),
+    web: alert,
+    native: (locale) => ({
+      kind: "missed_call",
+      ...alert(locale),
+      ...acknowledgeable,
+    }),
     collapseKey: `conversation:${input.conversationId}`,
     // #244: only when this was NARROWED to the on-call member. They agreed to
     // hold the phone tonight, so their own quiet hours do not apply to the one

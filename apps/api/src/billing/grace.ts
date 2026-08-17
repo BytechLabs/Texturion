@@ -1,6 +1,7 @@
-import { CANCELLATION_GRACE_DAYS } from "@loonext/shared";
+import { CANCELLATION_GRACE_DAYS, type Locale } from "@loonext/shared";
 
 import { billingRecipients } from "./recipients";
+import { NUMBER_NOTICE_COPY } from "../notifications/number-copy";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
@@ -50,18 +51,48 @@ interface CanceledCompany {
   canceled_at: string;
 }
 
+/** How much of the window is left at a rung. The one place that subtracts. */
+function graceDaysLeft(day: GraceThresholdDay): number {
+  return GRACE_PERIOD_DAYS - day;
+}
+
+/**
+ * #228 — the warning ladder's headline for one rung, in one language.
+ *
+ * The email subject and the push title are the SAME entry rather than the same
+ * variable: `pushGraceWarning` used to be handed the subject string, which made
+ * "both channels say the same thing" true only for as long as nobody passed a
+ * different one. Now both read this.
+ */
+function graceTitle(
+  locale: Locale,
+  day: GraceThresholdDay,
+  daysLeft: number,
+): string {
+  const copy = NUMBER_NOTICE_COPY[locale];
+  // A Record over the rungs rather than a chain of ternaries, so a fourth
+  // threshold day is a type error here instead of silently inheriting the last
+  // arm's sentence — which is what the shape this replaced would have done.
+  const rungs: Record<GraceThresholdDay, (daysLeft: number) => string> = {
+    1: copy.graceDay1Title,
+    15: copy.graceDay15Title,
+    27: copy.graceDay27Title,
+  };
+  return rungs[day](daysLeft);
+}
+
 function warningCopy(
   company: CanceledCompany,
   day: GraceThresholdDay,
   env: Env,
 ): { subject: string; text: string } {
   const resubscribeUrl = `${env.APP_ORIGIN}/settings/billing`;
-  const daysLeft = GRACE_PERIOD_DAYS - day;
-  const subjects: Record<GraceThresholdDay, string> = {
-    1: `Your Loonext subscription was canceled. Your number is safe for ${daysLeft} more days`,
-    15: `${daysLeft} days left before your Loonext business number is released`,
-    27: `Final notice: your Loonext business number is released in ${daysLeft} days`,
-  };
+  const daysLeft = graceDaysLeft(day);
+  // ENGLISH, PINNED. `billingRecipients` returns addresses, not readers, and the
+  // body below is English prose with no translation — a French subject on an
+  // English letter would be worse than an English one. The reader's language
+  // only enters on the push, which knows who it is waking.
+  const subject = graceTitle("en", day, daysLeft);
   const opening =
     `Hi,\n\nThe Loonext subscription for ${company.name} is canceled. ` +
     `Your business phone number is suspended but reserved for ${GRACE_PERIOD_DAYS} days ` +
@@ -116,7 +147,7 @@ function warningCopy(
         ? opening + reassignment
         : opening + reassignment + wayOut;
 
-  return { subject: subjects[day], text: `${body}Resubscribe: ${resubscribeUrl}\n\nLoonext` };
+  return { subject, text: `${body}Resubscribe: ${resubscribeUrl}\n\nLoonext` };
 }
 
 /**
@@ -143,7 +174,8 @@ function releasedCopy(company: CanceledCompany): {
   text: string;
 } {
   return {
-    subject: "Your Loonext business number has been released",
+    // English, pinned, for the same reason as the warnings' subject above.
+    subject: NUMBER_NOTICE_COPY.en.numberReleasedTitle,
     text:
       `Hi,\n\nThe ${GRACE_PERIOD_DAYS}-day grace period for ${company.name} has ended, ` +
       `and your business phone number has been released. Your conversation history ` +
@@ -219,7 +251,7 @@ export async function recordAndSendGraceNotice(
     html: renderEmailHtml(text),
     critical: true,
   });
-  await pushGraceWarning(env, db, company, thresholdDay, subject);
+  await pushGraceWarning(env, db, company, thresholdDay);
   return true;
 }
 
@@ -247,12 +279,17 @@ async function pushGraceWarning(
   db: SupabaseClient,
   company: CanceledCompany,
   thresholdDay: GraceThresholdDay,
-  subject: string,
 ): Promise<void> {
+  const daysLeft = graceDaysLeft(thresholdDay);
+  // #228: composed per reader, unlike the email that has just gone — a push is
+  // delivered to a person whose language `deliverPush` has resolved, an email
+  // to an address that is nobody in particular. So the two channels stop
+  // sharing one STRING while still sharing one ENTRY: `graceTitle` is what the
+  // subject was built from a moment ago, asked again in the reader's language.
   await pushConsequentialNotice(env, db, {
     companyId: company.id,
-    title: subject,
-    body: "Open Loonext to keep your number.",
+    title: (locale: Locale) => graceTitle(locale, thresholdDay, daysLeft),
+    body: (locale: Locale) => NUMBER_NOTICE_COPY[locale].graceBody,
     path: "/settings/billing",
     collapseKey: `grace:${company.id}:${thresholdDay}`,
   });
@@ -408,8 +445,10 @@ async function releaseExpiredCompany(
   // whose deliverability this issue exists because we could not vouch for.
   await pushConsequentialNotice(env, db, {
     companyId: company.id,
-    title: subject,
-    body: "Open Loonext to see what this means and what you can still do.",
+    // #228: per reader, like the warnings above, and off the same entry the
+    // English subject was just built from.
+    title: (locale: Locale) => NUMBER_NOTICE_COPY[locale].numberReleasedTitle,
+    body: (locale: Locale) => NUMBER_NOTICE_COPY[locale].numberReleasedBody,
     path: "/settings/billing",
     collapseKey: `grace:${company.id}:released`,
   });

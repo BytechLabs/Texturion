@@ -126,10 +126,45 @@ describe("what the alert actually says", () => {
       "Dana Reyes",
     );
 
-    expect(alert?.title).toBe("Sam Ortiz assigned you a conversation");
-    expect(alert?.body).toBe("Dana Reyes");
+    expect(alert?.title("en")).toBe("Sam Ortiz assigned you a conversation");
+    expect(alert?.body("en")).toBe("Dana Reyes");
     expect(alert?.url).toBe(`${ORIGIN}/inbox/${CONVERSATION_ID}`);
     expect(alert?.nativeKind).toBe("conversation_assigned");
+  });
+
+  it("#228: says the same thing to a reader in French", () => {
+    // The two lines are composed per reader; the deep link, the collapse key
+    // and the native discriminator are the same fact in every language, and a
+    // per-language collapse key would let two translations of one alert stop
+    // replacing each other on the lock screen.
+    const alert = assignmentAlert(
+      ORIGIN,
+      { kind: "conversation", conversationId: CONVERSATION_ID, ...BASE },
+      "Sam Ortiz",
+      "Dana Reyes",
+    );
+
+    expect(alert?.title("fr-CA")).toBe(
+      "Sam Ortiz vous a assigné une conversation",
+    );
+    // The contact's name is theirs, not copy: it rides through untranslated.
+    expect(alert?.body("fr-CA")).toBe("Dana Reyes");
+    expect(alert?.url).toBe(`${ORIGIN}/inbox/${CONVERSATION_ID}`);
+    expect(alert?.collapseKey).toBe(`assigned:conversation:${CONVERSATION_ID}`);
+  });
+
+  it("#228: names a vanished assigner in the reader's language", () => {
+    // A missing profile is the one place the actor's slot holds OUR words
+    // rather than somebody's name, so it is the one place it has to translate.
+    const alert = assignmentAlert(
+      ORIGIN,
+      { kind: "task", taskId: TASK_ID, title: "Re-pipe", conversationId: null, ...BASE },
+      null,
+      null,
+    );
+
+    expect(alert?.title("en")).toBe("A teammate assigned you a task");
+    expect(alert?.title("fr-CA")).toBe("Un coéquipier vous a assigné une tâche");
   });
 
   it("withholds the person's words, never the instruction (#430)", () => {
@@ -150,9 +185,15 @@ describe("what the alert actually says", () => {
     );
 
     expect(conversation?.written).toBe("people");
-    expect(conversation?.withheld).not.toHaveProperty("title");
+    expect(conversation?.withheld("en")).not.toHaveProperty("title");
     expect(task?.written).toBe("people");
-    expect(task?.withheld).toEqual({ body: "Open the app to see it" });
+    expect(task?.withheld("en")).toEqual({ body: "Open the app to see it" });
+    // #228: the one line a reader with content switched off ever sees, so
+    // leaving it English would make the privacy setting the thing that turns
+    // the app back into English.
+    expect(task?.withheld("fr-CA")).toEqual({
+      body: "Ouvrez l'application pour la voir",
+    });
   });
 
   it("opens a task over its own thread, and its own page when it has none", () => {
@@ -187,8 +228,13 @@ describe("what the alert actually says", () => {
       null,
     );
 
-    expect(many?.title).toBe("Sam Ortiz assigned you 14 conversations");
-    expect(one?.title).toBe("Sam Ortiz assigned you 1 conversation");
+    expect(many?.title("en")).toBe("Sam Ortiz assigned you 14 conversations");
+    expect(one?.title("en")).toBe("Sam Ortiz assigned you 1 conversation");
+    // #228: the plural branch belongs to the language, not to the call site.
+    // French breaks where English breaks, which is precisely the coincidence a
+    // noun passed in from the site would have hidden.
+    expect(many?.title("fr-CA")).toBe("Sam Ortiz vous a assigné 14 conversations");
+    expect(one?.title("fr-CA")).toBe("Sam Ortiz vous a assigné 1 conversation");
     // Nothing a customer wrote is in here, so #430 has nothing to withhold.
     expect(many?.written).toBe("us");
     expect(many?.url).toBe(`${ORIGIN}/inbox`);
@@ -231,7 +277,7 @@ describe("what the alert actually says", () => {
       "+15550100",
     );
 
-    expect(alert?.body).toBe("+15550100");
+    expect(alert?.body("en")).toBe("+15550100");
   });
 
   it("falls back to a plain noun when a task has no title", () => {
@@ -242,7 +288,8 @@ describe("what the alert actually says", () => {
       null,
     );
 
-    expect(alert?.body).toBe("A task");
+    expect(alert?.body("en")).toBe("A task");
+    expect(alert?.body("fr-CA")).toBe("Une tâche");
   });
 });
 

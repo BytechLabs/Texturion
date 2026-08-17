@@ -12,6 +12,7 @@
  * everybody needs; it is one person's decision to make and unmake, and paging
  * a crew about their employer's billing would be a different mistake.
  */
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 
@@ -19,6 +20,7 @@ import { recordAudit } from "../audit/log";
 import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
 import { pushConsequentialNotice } from "./consequential-push";
+import { SUBSCRIPTION_NOTICE_COPY } from "./subscription-notice-copy";
 import type { Env } from "../env";
 
 interface CancellingCompany {
@@ -150,10 +152,16 @@ export async function noticeCancellation(
     // Deliberately not collapsed with the day-1/15/27 rungs: this is a
     // different deadline from every one of them, and a shared key would let a
     // later warning erase the notice that still had time to act on.
+    //
+    // #228: composed per reader, unlike the email above — a push is delivered
+    // to a person whose language we have resolved, an email to an address that
+    // is nobody in particular. The two channels no longer say the same string,
+    // and the sentences live in `subscription-notice-copy.ts`.
     await pushConsequentialNotice(env, db, {
       companyId: company.id,
-      title: "Your subscription was cancelled — your number goes in 30 days",
-      body: "You can undo this yourself. Open Loonext to keep your number.",
+      title: (locale: Locale) =>
+        SUBSCRIPTION_NOTICE_COPY[locale].cancellationTitle,
+      body: (locale: Locale) => SUBSCRIPTION_NOTICE_COPY[locale].cancellationBody,
       path: "/settings/billing",
       collapseKey: `cancellation:${company.id}`,
     });

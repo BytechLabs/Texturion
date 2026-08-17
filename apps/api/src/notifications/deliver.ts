@@ -119,7 +119,15 @@ export type PushContent =
        * survives — knowing WHO is most of the triage value and carries far
        * less of the exposure than knowing what they said.
        */
-      withheld: Partial<Pick<PushPayload, "title" | "body">>;
+      /**
+       * #228: a function of the reader's language, like `web` and `native`.
+       *
+       * The replacement is OUR sentence — "Sent you a message" — standing in
+       * for somebody else's words. It is the one line a reader with content
+       * switched off ever sees, so leaving it English would have made the
+       * privacy setting the thing that turned the app back into English.
+       */
+      withheld: (locale: Locale) => Partial<Pick<PushPayload, "title" | "body">>;
     };
 
 export interface PushDelivery {
@@ -340,10 +348,11 @@ async function companyPushSettings(
 function withheldFields(
   content: PushContent,
   company: CompanyPushSettings,
+  locale: Locale,
 ): Partial<PushPayload> {
   if (content.written === "us") return {};
-  if (company.unknown) return content.withheld;
-  return company.includeContent ? {} : content.withheld;
+  if (company.unknown) return content.withheld(locale);
+  return company.includeContent ? {} : content.withheld(locale);
 }
 
 /**
@@ -551,10 +560,6 @@ export async function deliverPush(
     readerLocales(db, audience),
   ]);
 
-  // #430: withhold BEFORE serializing, so the content never exists in a
-  // payload at all rather than being hidden by a client that might not.
-  const withheld = withheldFields(delivery.content, company);
-
   /*
    * One serialized payload per DISTINCT LANGUAGE present in this audience, not
    * per recipient. A crew that all reads the same language — which is nearly
@@ -576,9 +581,13 @@ export async function deliverPush(
     // The collapse key IS the tag: one identity, so no client has to invent
     // its own (#266). It is not language-dependent — two translations of one
     // alert must still replace each other rather than stack.
+    // #430: withhold BEFORE serializing, so the content never exists in a
+    // payload at all rather than being hidden by a client that might not.
+    // Inside the per-locale composition since #228, because the sentence that
+    // replaces somebody's words is our copy and has a translation.
     const serialized = JSON.stringify({
       ...compose(locale),
-      ...withheld,
+      ...withheldFields(delivery.content, company, locale),
       tag: delivery.collapseKey,
     });
     cache.set(locale, serialized);

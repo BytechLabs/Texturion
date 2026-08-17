@@ -4,8 +4,6 @@
   "contact-import.ts": 8,
   "contact-relationship.ts": 5,
   "deletion-promises.ts": 1,
-  "lead-chase.ts": 1,
-  "notification-delivery.ts": 2,
   "payments.ts": 11,
   "pipeline.ts": 3,
   "prohibited-categories.ts": 1,

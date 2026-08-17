@@ -33,6 +33,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { Locale } from "@loonext/shared";
+
 import type { Env } from "../env";
 import { deliverPush } from "../notifications/deliver";
 
@@ -41,9 +43,21 @@ export async function pushConsequentialNotice(
   db: SupabaseClient,
   args: {
     companyId: string;
-    /** The email's subject, so both channels say the same thing. */
-    title: string;
-    body: string;
+    /**
+     * The email's subject, so both channels say the same thing.
+     *
+     * #228: a function of the reader's language, matching `PushDelivery.web`.
+     * Passing a finished string here would have been the quiet failure — this
+     * helper composes the payload itself, so a caller with translations had
+     * nowhere to put them and the locale would have stopped at this boundary.
+     *
+     * It must be INVOKED before it reaches the payload. A function left in
+     * `title` is not a type error at runtime, it is a field `JSON.stringify`
+     * silently drops — a notice with no title and no body, which is worse than
+     * one in the wrong language.
+     */
+    title: (locale: Locale) => string;
+    body: (locale: Locale) => string;
     /** Where acting on it starts. */
     path: string;
     /**
@@ -75,9 +89,9 @@ export async function pushConsequentialNotice(
       companyId: args.companyId,
       userIds,
       content: { written: "us" },
-      web: () => ({
-        title: args.title,
-        body: args.body,
+      web: (locale) => ({
+        title: args.title(locale),
+        body: args.body(locale),
         url: `${env.APP_ORIGIN}${args.path}`,
       }),
       collapseKey: args.collapseKey,

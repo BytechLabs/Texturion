@@ -112,7 +112,10 @@ async function push(content: PushContent, include: boolean | "error") {
 const PEOPLE: PushContent = {
   written: "people",
   companyId: "c1",
-  withheld: { body: "Sent you a message" },
+  // #228: the stand-in sentence is OUR copy, so it is composed per reader
+  // like the payload itself. This suite is about WHICH field is replaced
+  // rather than what language it is in, so it answers in English.
+  withheld: () => ({ body: "Sent you a message" }),
 };
 
 describe("push content setting (#430)", () => {
@@ -160,7 +163,11 @@ describe("push content setting (#430)", () => {
     // "Due in 2 hours": the reminder still says WHEN without telling the room
     // WHERE.
     const payload = await push(
-      { written: "people", companyId: "c1", withheld: { title: "A task is due" } },
+      {
+        written: "people",
+        companyId: "c1",
+        withheld: () => ({ title: "A task is due" }),
+      },
       false,
     );
     expect(payload.title).toBe("A task is due");

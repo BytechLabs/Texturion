@@ -103,6 +103,8 @@ async function world(
     conversation?: Record<string, unknown>[];
     contact?: Record<string, unknown>[];
     pushIncludeContent?: boolean;
+    /** #228: the workspace rung of resolveUiLocale. Null means nobody chose. */
+    companyLocale?: string | null;
     devices?: Record<string, unknown>[];
   } = {},
 ) {
@@ -132,6 +134,7 @@ async function world(
   sb.on("GET", "/rest/v1/notification_prefs", () => overrides.prefs ?? []);
   sb.on("GET", "/rest/v1/companies", () => ({
     push_include_content: overrides.pushIncludeContent ?? true,
+    locale: overrides.companyLocale ?? null,
   }));
   // Honours the `user_id=in.(…)` filter, which is the whole subject of half
   // these tests: a stub that returned everybody would send two pushes however
@@ -169,10 +172,49 @@ describe("what the alert says", () => {
       "Maria Alvarez",
     );
 
-    expect(paid.title).toBe("Maria Alvarez paid $250");
-    expect(refunded.title).toBe("$250 went back to Maria Alvarez");
-    expect(disputed.title).toBe("Maria Alvarez's bank pulled back $250");
+    expect(paid.title("en")).toBe("Maria Alvarez paid $250");
+    expect(refunded.title("en")).toBe("$250 went back to Maria Alvarez");
+    expect(disputed.title("en")).toBe("Maria Alvarez's bank pulled back $250");
     expect(paid.url).toBe(`${ORIGIN}/inbox/${CONVERSATION_ID}`);
+  });
+
+  it("#228 says the same three things in the reader's French", () => {
+    // The same argument, one language over: these are the timeline's French
+    // verbs (thread.sysPaymentPaid and its neighbours), so a French crew reads
+    // one glossary too. The customer's name and the formatted figure are data
+    // and cross untranslated.
+    const paid = paymentAlert(ORIGIN, PAID, "Maria Alvarez");
+    const refunded = paymentAlert(
+      ORIGIN,
+      { ...PAID, outcome: "refunded" },
+      "Maria Alvarez",
+    );
+    const disputed = paymentAlert(
+      ORIGIN,
+      { ...PAID, outcome: "disputed", description: null },
+      "Maria Alvarez",
+    );
+
+    // The figure arrives from `formatMoney` and is not this table's to
+    // reformat: it is the same string the French billing screens already show.
+    expect(paid.title("fr-CA")).toBe("Maria Alvarez a payé $250");
+    expect(refunded.title("fr-CA")).toBe("$250 a été remboursé à Maria Alvarez");
+    expect(disputed.title("fr-CA")).toBe(
+      "La banque de Maria Alvarez a repris $250",
+    );
+    // And our own line, which is what a dispute with no description says.
+    expect(disputed.body("fr-CA")).toBe(
+      "Les détails sont dans votre tableau de bord Stripe.",
+    );
+  });
+
+  it("#228 passes the member's own words through in whatever they typed", () => {
+    // The description is somebody else's sentence. Translating it is not on
+    // offer, and only the fallback beneath it is ours.
+    const alert = paymentAlert(ORIGIN, PAID, "Maria Alvarez");
+
+    expect(alert.body("fr-CA")).toBe("Deposit — 42 Elm, gate code 4417");
+    expect(alert.withheldBody("fr-CA")).toBe("Le paiement est passé.");
   });
 
   it("still reads correctly when the event carried no figure", () => {
@@ -181,22 +223,28 @@ describe("what the alert says", () => {
     const noAmount = { ...PAID, amountCents: null };
     const unknownCurrency = { ...PAID, currency: "gbp" };
 
-    expect(paymentAlert(ORIGIN, noAmount, "Maria Alvarez").title).toBe(
+    expect(paymentAlert(ORIGIN, noAmount, "Maria Alvarez").title("en")).toBe(
       "Maria Alvarez paid",
     );
     // A currency we do not bill in would format as a "$" that lies about which
     // dollars they are. The generic sentence is the honest answer.
-    expect(paymentAlert(ORIGIN, unknownCurrency, "Maria Alvarez").title).toBe(
-      "Maria Alvarez paid",
-    );
+    expect(
+      paymentAlert(ORIGIN, unknownCurrency, "Maria Alvarez").title("en"),
+    ).toBe("Maria Alvarez paid");
     expect(
       paymentAlert(ORIGIN, { ...noAmount, outcome: "refunded" }, "Maria Alvarez")
-        .title,
+        .title("en"),
     ).toBe("The money went back to Maria Alvarez");
     expect(
       paymentAlert(ORIGIN, { ...noAmount, outcome: "disputed" }, "Maria Alvarez")
-        .title,
+        .title("en"),
     ).toBe("Maria Alvarez's bank pulled this payment back");
+    // #228: the figureless arm is a whole sentence in each language rather than
+    // a substitution, so French has its own — « L'argent », not « Le montant ».
+    expect(
+      paymentAlert(ORIGIN, { ...noAmount, outcome: "refunded" }, "Maria Alvarez")
+        .title("fr-CA"),
+    ).toBe("L'argent a été remboursé à Maria Alvarez");
   });
 
   it("withholds what the money was for, never who it was from (#430)", () => {
@@ -205,9 +253,9 @@ describe("what the alert says", () => {
     // triage value and stays.
     const alert = paymentAlert(ORIGIN, PAID, "Maria Alvarez");
 
-    expect(alert.body).toBe("Deposit — 42 Elm, gate code 4417");
-    expect(alert.withheldBody).toBe("The payment cleared.");
-    expect(alert.title).toContain("Maria Alvarez");
+    expect(alert.body("en")).toBe("Deposit — 42 Elm, gate code 4417");
+    expect(alert.withheldBody("en")).toBe("The payment cleared.");
+    expect(alert.title("en")).toContain("Maria Alvarez");
   });
 
   it("says something of its own when the ask had no description", () => {
@@ -218,9 +266,9 @@ describe("what the alert says", () => {
       "Maria",
     );
 
-    expect(paid.body).toBe("The payment cleared.");
+    expect(paid.body("en")).toBe("The payment cleared.");
     // A dispute has a next step, and it is not in this app.
-    expect(disputed.body).toBe("Your Stripe dashboard has the details.");
+    expect(disputed.body("en")).toBe("Your Stripe dashboard has the details.");
   });
 
   it("keys the collapse per outcome, so a refund cannot erase the payment", () => {
@@ -316,6 +364,33 @@ describe("what reaches the phones", () => {
     expect(data.kind).toBe("payment");
     expect(data.tag).toBe(`payment:paid:${REQUEST_ID}`);
     expect(data.title).toBe("Maria Alvarez paid $250");
+  });
+
+  it("#228 reaches a French workspace's phone in French", async () => {
+    // End to end rather than at `paymentAlert`: what this pins is that the
+    // locale deliverPush resolves is the one the payload is composed with. A
+    // site that took the argument and returned English would pass every
+    // assertion above and still put an English lock screen in front of a
+    // French crew, which is the whole defect #228 exists to close.
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const w = await world({
+      members: [{ user_id: OWNER, role: "owner" }],
+      companyLocale: "fr-CA",
+      devices: [
+        { id: "dev-1", user_id: OWNER, platform: "android", token: "tok-a" },
+      ],
+    });
+    stubFetch(...w.routes, ...service.routes);
+
+    await notifyPayment(fcmEnv(account), PAID, getDb(env));
+
+    const data = service.sends[0].message.data as Record<string, string>;
+    expect(data.title).toBe("Maria Alvarez a payé $250");
+    // The routing discriminator and the collapse tag are not language: two
+    // translations of one alert must still replace each other on a phone.
+    expect(data.kind).toBe(PAYMENT_PUSH_KIND);
+    expect(data.tag).toBe(`payment:paid:${REQUEST_ID}`);
   });
 
   it("holds back the description when the workspace has content off", async () => {

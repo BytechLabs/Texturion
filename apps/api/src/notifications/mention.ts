@@ -24,6 +24,7 @@ import type { Env } from "../env";
 
 import { deliverPush } from "./deliver";
 import { notificationSnippet } from "./inbound";
+import { THREAD_PUSH_COPY } from "./thread-copy";
 
 export interface NoteMentionNotificationInput {
   companyId: string;
@@ -110,7 +111,9 @@ export async function notifyNoteMention(
       .limit(1),
     "note author lookup",
   );
-  const authorName = authors[0]?.display_name?.trim() || "A teammate";
+  // Null rather than a stand-in: the profile is gone, and what we say instead
+  // is copy, so it is chosen per reader below rather than fixed here.
+  const authorName = authors[0]?.display_name?.trim() || null;
 
   const failures: unknown[] = [];
   await deliverPush(env, db, {
@@ -124,13 +127,20 @@ export async function notifyNoteMention(
     content: {
       written: "people",
       companyId: input.companyId,
-      withheld: { body: "Mentioned you in a note" },
+      withheld: (locale) => ({
+        body: THREAD_PUSH_COPY[locale].mentionWithheldBody,
+      }),
     },
-    web: () => ({
-      title: `${authorName} mentioned you`,
-      body: notificationSnippet(input.body, 0),
-      url: `${env.APP_ORIGIN}/inbox/${input.conversationId}`,
-    }),
+    web: (locale) => {
+      const copy = THREAD_PUSH_COPY[locale];
+      return {
+        // The author's display name is theirs and rides untranslated; only the
+        // stand-in for a missing one is ours to say.
+        title: copy.mentionTitle(authorName ?? copy.teammateFallback),
+        body: notificationSnippet(input.body, 0, locale),
+        url: `${env.APP_ORIGIN}/inbox/${input.conversationId}`,
+      };
+    },
     // Per NOTE, not per conversation: two mentions in one thread are two
     // separate asks and must not replace each other.
     collapseKey: `mention:${input.messageId}`,

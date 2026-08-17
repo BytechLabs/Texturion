@@ -300,6 +300,71 @@ describe("notifyMissedCall — native device push (#151)", () => {
     expect(headers["apns-collapse-id"]).toBe(`conversation:${CONVERSATION_ID}`);
   });
 
+  it("#228: composes the alert in each device's own language", async () => {
+    // The English assertions above are the default rung and prove nothing about
+    // the wiring — a site that ignored its `locale` argument would still pass
+    // them. This is the positive case: one crew, two phones, and the copy has
+    // to differ on the wire. The contact's NAME must not: it is theirs, and it
+    // rides through both payloads untranslated.
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld();
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      {
+        id: "40000000-aaaa-4000-8000-000000000003",
+        user_id: OWNER,
+        platform: "android",
+        token: "tok-fr",
+        locale: "fr-CA",
+      },
+      {
+        id: "40000000-aaaa-4000-8000-000000000004",
+        user_id: OWNER,
+        platform: "android",
+        token: "tok-en",
+        locale: null,
+      },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyMissedCall(fcmEnv(account), INPUT);
+
+    const dataFor = (token: string) =>
+      service.sends.find((send) => (send.message as { token: string }).token === token)
+        ?.message.data as Record<string, string>;
+
+    expect(dataFor("tok-fr").title).toBe("Appel manqué de Dana Smith");
+    expect(dataFor("tok-fr").body).toBe(
+      "Nous leur avons envoyé un texto pour qu'ils puissent réserver en répondant.",
+    );
+    expect(dataFor("tok-en").title).toBe("Missed call from Dana Smith");
+    expect(dataFor("tok-en").body).toBe("We texted them so they can book by reply.");
+  });
+
+  it("#228: a text-back that failed says so in French too", async () => {
+    // The three bodies are picked by `textStatus` at the site and the sentence
+    // comes from the table, so the branch and the language have to meet. This
+    // is the one a crew acts on — it is the body that tells them to phone back.
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld();
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      {
+        id: "40000000-aaaa-4000-8000-000000000005",
+        user_id: OWNER,
+        platform: "android",
+        token: "tok-fr",
+        locale: "fr-CA",
+      },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyMissedCall(fcmEnv(account), { ...INPUT, textStatus: "failed" });
+
+    const data = service.sends[0].message.data as Record<string, string>;
+    expect(data.body).toBe("Le texto de rappel a échoué. Rappelez-les.");
+  });
+
   it("keeps the Web Push payload kind-less (#165: discriminator is native-only)", async () => {
     // The Web Push body is aes128gcm-encrypted on the wire, so assert at the
     // seam both senders share: the FCM message is the web payload + kind and

@@ -62,6 +62,7 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
 import { deliverPush } from "../notifications/deliver";
+import { SCHEDULED_DISCLOSURE_COPY } from "./scheduled-send-copy";
 import { dispatchOutbound, runPreSendGates } from "./send";
 import type { MessageRow } from "./types";
 
@@ -296,9 +297,10 @@ async function disclose(
   });
   if (viewers.length === 0) return;
 
-  const title = scheduledReasonRecovers(reason)
-    ? "A scheduled text is waiting"
-    : "A scheduled text was not sent";
+  // Held or dead, decided once. The language is decided per reader below; this
+  // is not a question about the reader, and asking it inside the composition
+  // would be asking it again for every language in the audience.
+  const recovers = scheduledReasonRecovers(reason);
 
   // Push failures are logged, not thrown. The state change has already
   // happened and the thread and the scheduled list both show the row with its
@@ -313,17 +315,24 @@ async function disclose(
     failures,
     userIds: viewers.map((viewer) => viewer.user_id),
     // #430: every word of this is ours — the reason copy is written in
-    // @loonext/shared and carries nothing the customer said.
+    // `scheduled-send-copy.ts` over the shared roster, and carries nothing the
+    // customer said.
     content: { written: "us" },
     // One identity per scheduled message: a second disclosure about the SAME
     // message replaces the first rather than stacking. A held message is
     // retried every minute, and without this that is a notification a minute.
     collapseKey: `scheduled:${row.id}`,
-    web: () => ({
-      title,
-      body: SCHEDULED_HOLD_REASONS[reason],
-      url: `${env.APP_ORIGIN}/inbox/${row.conversation_id}`,
-    }),
+    // #228: composed per reader. This is the one sentence about a held message
+    // that arrives before anybody opens anything, so it is the last place that
+    // should still be English inside an otherwise translated app.
+    web: (locale) => {
+      const copy = SCHEDULED_DISCLOSURE_COPY[locale];
+      return {
+        title: recovers ? copy.waitingTitle : copy.notSentTitle,
+        body: copy.reason[reason],
+        url: `${env.APP_ORIGIN}/inbox/${row.conversation_id}`,
+      };
+    },
   });
 
   if (failures.length > 0) {

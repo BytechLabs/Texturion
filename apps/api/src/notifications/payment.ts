@@ -43,7 +43,7 @@
  * reasons (#452), and the case for spending it here is weak: the person waiting
  * on a deposit is holding their phone, and a phone in use is not in Doze.
  */
-import { formatMoney, isBillingCurrency } from "@loonext/shared";
+import { formatMoney, isBillingCurrency, type Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
@@ -52,6 +52,7 @@ import type { Env } from "../env";
 
 import { conversationContactName } from "./contact-name";
 import { deliverPush } from "./deliver";
+import { PAYMENT_PUSH_COPY } from "./payment-copy";
 
 /**
  * The three things that happen to money after an ask is sent.
@@ -81,17 +82,24 @@ export interface PaymentNotification {
   description: string | null;
 }
 
-/** The alert, as the clients will see it. Pure, so the wording is assertable. */
+/**
+ * The alert, as the clients will see it. Pure, so the wording is assertable.
+ *
+ * #228: the three sentences are FUNCTIONS of the reader's language and the two
+ * addresses are not. A url and a collapse key mean the same thing in every
+ * language — and the key especially must, or two translations of one alert would
+ * stack on a phone instead of replacing each other.
+ */
 export interface PaymentAlert {
-  title: string;
-  body: string;
+  title(locale: Locale): string;
+  body(locale: Locale): string;
   url: string;
   /**
    * What the body degrades to when the workspace has content off (#430). The
    * description is a member's own words and per the personal-data inventory
    * routinely carries an address ("Deposit — 42 Elm, gate code 4417").
    */
-  withheldBody: string;
+  withheldBody(locale: Locale): string;
   /**
    * Per request AND per outcome. Keying on the request alone would let a refund
    * erase the "paid" alert it followed, and those are two different facts a
@@ -120,16 +128,19 @@ interface PrefsRow {
 /**
  * The alert's two lines.
  *
- * ONE VOCABULARY WITH THE TIMELINE. Every verb here is the one the thread
- * already uses for the same event (`thread.sysPaymentPaid` and its neighbours):
- * "paid", "went back to", "pulled back". A crew reading "Refunded" on the lock
- * screen and "went back to them" in the thread would be reading two glossaries
- * for one payment, which is the #273 failure this feature is otherwise careful
- * about.
+ * ONE VOCABULARY WITH THE TIMELINE, and since #228 in both languages. Every
+ * verb is the one the thread already uses for the same event
+ * (`thread.sysPaymentPaid` and its neighbours): "paid", "went back to", "pulled
+ * back", and their French. A crew reading "Refunded" on the lock screen and
+ * "went back to them" in the thread would be reading two glossaries for one
+ * payment, which is the #273 failure this feature is otherwise careful about —
+ * see `payment-copy.ts`, which owns the sentences for both languages so they
+ * cannot be translated by two different hands.
  *
  * The contact's NAME rides in the title and survives a content withhold, the
  * same posture as the inbound alert: knowing WHO the money is about is most of
- * the triage value and carries far less exposure than what anybody said.
+ * the triage value and carries far less exposure than what anybody said. It is
+ * their name, so it crosses into either language untouched.
  */
 export function paymentAlert(
   origin: string,
@@ -143,48 +154,21 @@ export function paymentAlert(
       ? formatMoney(input.amountCents, input.currency)
       : null;
 
-  const title = paymentTitle(input.outcome, contactName, amount);
-  // Our own sentence per outcome, which is both the fallback when the ask had
-  // no description and the replacement when content must not leave. One string
-  // for both, because they are answering the same question: what can this
-  // notification say when it cannot say what the money was for.
-  const ourLine = OUR_LINE[input.outcome];
+  // Which of the three outcomes' sentences to read, in whichever language is
+  // asked for. The figure is already formatted by the time it gets here, and
+  // the copy takes it as a plain string.
+  const copy = (locale: Locale) => PAYMENT_PUSH_COPY[locale][input.outcome];
   const description = input.description?.trim() ?? "";
   return {
-    title,
-    body: description === "" ? ourLine : description,
+    title: (locale) => copy(locale).title(contactName, amount),
+    // A member's own words when they typed any — somebody else's sentence,
+    // which passes through in whatever language they wrote it. Only the
+    // fallback is ours to translate.
+    body: (locale) => (description === "" ? copy(locale).line : description),
     url: `${origin}/inbox/${input.conversationId}`,
-    withheldBody: ourLine,
+    withheldBody: (locale) => copy(locale).line,
     collapseKey: `payment:${input.outcome}:${input.paymentRequestId}`,
   };
-}
-
-const OUR_LINE: Record<PaymentOutcome, string> = {
-  paid: "The payment cleared.",
-  refunded: "The refund has settled.",
-  // Says where the next step is rather than what happened, because with a
-  // dispute there IS a next step and it is not in this app — evidence goes to
-  // Stripe, against a deadline Stripe sets.
-  disputed: "Your Stripe dashboard has the details.",
-};
-
-function paymentTitle(
-  outcome: PaymentOutcome,
-  contact: string,
-  amount: string | null,
-): string {
-  switch (outcome) {
-    case "paid":
-      return amount ? `${contact} paid ${amount}` : `${contact} paid`;
-    case "refunded":
-      return amount
-        ? `${amount} went back to ${contact}`
-        : `The money went back to ${contact}`;
-    case "disputed":
-      return amount
-        ? `${contact}'s bank pulled back ${amount}`
-        : `${contact}'s bank pulled this payment back`;
-  }
 }
 
 function unwrapRows<T>(
@@ -264,16 +248,20 @@ export async function notifyPayment(
     content: {
       written: "people",
       companyId: input.companyId,
-      withheld: { body: alert.withheldBody },
+      withheld: (locale) => ({ body: alert.withheldBody(locale) }),
     },
-    web: () => ({ title: alert.title, body: alert.body, url: alert.url }),
+    web: (locale) => ({
+      title: alert.title(locale),
+      body: alert.body(locale),
+      url: alert.url,
+    }),
     // NATIVE only, like every other discriminator: the service worker has no
     // channels to pick from, so `kind` on the web payload would be a field
     // nothing reads.
-    native: () => ({
+    native: (locale) => ({
       kind: PAYMENT_PUSH_KIND,
-      title: alert.title,
-      body: alert.body,
+      title: alert.title(locale),
+      body: alert.body(locale),
       url: alert.url,
     }),
     collapseKey: alert.collapseKey,

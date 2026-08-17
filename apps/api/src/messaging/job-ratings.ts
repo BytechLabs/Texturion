@@ -32,6 +32,7 @@ import {
   nextSendableInstant,
   resolveDestinationClock,
 } from "./destination-clock";
+import { POOR_RATING_PUSH_COPY } from "./job-ratings-copy";
 import { applySendMergeFields, resolveSendMergeFields } from "./merge";
 
 /**
@@ -302,13 +303,19 @@ export async function escalatePoorRating(
     // One alert per rating. A rating cannot change — the RPC refuses a second
     // answer — so this is belt and braces on the claim above.
     collapseKey: `rating:${input.taskId}`,
-    web: () => ({
-      title: "A customer was not happy",
-      body:
-        `They rated a finished job ${input.score} out of 5. ` +
-        "Today is when that is still fixable.",
-      url: `${env.APP_ORIGIN}/inbox/${input.conversationId}`,
-    }),
+    // #228: composed per reader. The audience here is a whole crew rather than
+    // one person, so this is the site where two members of the same workspace
+    // can legitimately need two different languages for one rating.
+    web: (locale) => {
+      const copy = POOR_RATING_PUSH_COPY[locale];
+      return {
+        title: copy.title,
+        // The score is a digit, not copy: it crosses into the sentence
+        // unchanged in either language.
+        body: copy.body(input.score),
+        url: `${env.APP_ORIGIN}/inbox/${input.conversationId}`,
+      };
+    },
   });
 
   if (failures.length > 0) {

@@ -20,6 +20,7 @@
  * `decideDelivery` returns "send" for an urgent event before it has looked at
  * anything else, and that ordering is the feature.
  */
+import type { Locale } from "./locale";
 
 /**
  * The categories, in the words a member would use.
@@ -113,6 +114,67 @@ export function decideDelivery(input: {
 }
 
 /**
+ * #228 — the vocabulary both digests are assembled from, in each language.
+ *
+ * ONE table for the batch digest and the daily summary, because they are the
+ * same kind of sentence: a count of what piled up, composed by the server into
+ * a push body. The assembly stays in the functions below — a table that
+ * returned finished sentences would have to know about the " · " join and the
+ * zero branches, which are structure rather than copy.
+ *
+ * Every clause takes PLAIN NUMBERS rather than the caller's input object, so
+ * nothing in here has to know that `summaryLine` reads its counts off a field
+ * called `waiting`.
+ */
+interface DigestCopy {
+  oneMessage: string;
+  manyMessages(messages: number): string;
+  /** `m` is the message clause above, already built. */
+  acrossConversations(m: string, conversations: number): string;
+  onePersonWaiting: string;
+  manyPeopleWaiting(waiting: number): string;
+  oneTaskDue: string;
+  manyTasksDue(tasks: number): string;
+  nothingWaiting: string;
+}
+
+const EN: DigestCopy = {
+  oneMessage: "1 new message",
+  manyMessages: (messages) => `${messages} new messages`,
+  acrossConversations: (m, conversations) =>
+    `${m} across ${conversations} conversations`,
+  onePersonWaiting: "1 person is waiting on you",
+  manyPeopleWaiting: (waiting) => `${waiting} people are waiting on you`,
+  oneTaskDue: "1 task is due",
+  manyTasksDue: (tasks) => `${tasks} tasks are due`,
+  nothingWaiting: "Nothing is waiting. Nice day.",
+};
+
+const FR_CA: DigestCopy = {
+  oneMessage: "1 nouveau message",
+  // Plural agreement rides the adjective, so one form covers every count >= 2.
+  // Neither language has a zero branch: a digest never fires empty.
+  manyMessages: (messages) => `${messages} nouveaux messages`,
+  // "dans" rather than "réparties sur": shorter on a lock screen, and
+  // "conversation" is already the house term the inbox uses.
+  acrossConversations: (m, conversations) =>
+    `${m} dans ${conversations} conversations`,
+  onePersonWaiting: "1 personne attend après vous",
+  manyPeopleWaiting: (waiting) => `${waiting} personnes attendent après vous`,
+  // "Échéance" is the settled house term for a due date (tasks, For You, the
+  // contact timeline), which is why this is not "1 tâche est due" — an
+  // anglicism — and why it reads as a noun phrase: it sits after a " · ".
+  oneTaskDue: "1 tâche arrive à échéance",
+  // "à échéance" is invariable, so the same form covers every count >= 2.
+  manyTasksDue: (tasks) => `${tasks} tâches arrivent à échéance`,
+  // Warm rather than a "0 waiting, 0 due" readout, in both languages. This is
+  // the one branch that carries its own periods — see `summaryLine`.
+  nothingWaiting: "Rien n'attend après vous. Bonne journée.",
+};
+
+const DIGEST_COPY: Record<Locale, DigestCopy> = { en: EN, "fr-CA": FR_CA };
+
+/**
  * The digest line, for a batch that has come due.
  *
  * "4 new messages across 3 conversations" is one useful notification instead of
@@ -120,20 +182,26 @@ export function decideDelivery(input: {
  * questions. Four messages from one customer is a conversation; four across
  * four is a morning.
  */
-export function digestLine(messages: number, conversations: number): string {
-  const m = messages === 1 ? "1 new message" : `${messages} new messages`;
+export function digestLine(
+  messages: number,
+  conversations: number,
+  locale: Locale,
+): string {
+  const copy = DIGEST_COPY[locale];
+  const m = messages === 1 ? copy.oneMessage : copy.manyMessages(messages);
   if (conversations <= 1) return m;
-  return `${m} across ${conversations} conversations`;
+  return copy.acrossConversations(m, conversations);
 }
 
 /**
  * What the settings screen says, in one place.
  *
- * #228: KEYS from here down. Everything ABOVE stays English on purpose —
- * `digestLine`, `summaryLine` and `SUMMARY_TITLE` are composed by the server
- * into a push notification body, so a key there would reach a lock screen as
- * its own name. Those need the wire change the payout states got, not a
- * catalogue edit.
+ * #228: KEYS here, and SENTENCES above. `digestLine`, `summaryLine` and
+ * `SUMMARY_TITLE` are composed by the server into a push notification body, so
+ * a key there would reach a lock screen as its own name — they take the
+ * reader's language instead and answer in it, which is the wire change rather
+ * than the catalogue one. These two are read by a screen that has `t()` in
+ * scope, so a key is the right shape for them.
  */
 export const DELIVERY_COPY = {
   heading: "domain.deliveryHeading",
@@ -166,27 +234,42 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
  * second is the one worth opening the app for. A summary that led with volume
  * would be a report about a busy day rather than a prompt to finish it.
  */
-export function summaryLine(input: {
-  waiting: number;
-  tasks: number;
-}): string {
+export function summaryLine(
+  input: {
+    waiting: number;
+    tasks: number;
+  },
+  locale: Locale,
+): string {
+  const copy = DIGEST_COPY[locale];
   const parts: string[] = [];
   if (input.waiting > 0) {
     parts.push(
       input.waiting === 1
-        ? "1 person is waiting on you"
-        : `${input.waiting} people are waiting on you`,
+        ? copy.onePersonWaiting
+        : copy.manyPeopleWaiting(input.waiting),
     );
   }
   if (input.tasks > 0) {
-    parts.push(input.tasks === 1 ? "1 task is due" : `${input.tasks} tasks are due`);
+    parts.push(input.tasks === 1 ? copy.oneTaskDue : copy.manyTasksDue(input.tasks));
   }
   // The quiet day is a real answer and it is the nicest one this product can
   // give. Saying nothing at all would read as a broken summary; saying "0
   // waiting, 0 due" reads like a spreadsheet.
-  if (parts.length === 0) return "Nothing is waiting. Nice day.";
+  if (parts.length === 0) return copy.nothingWaiting;
+  // The separator and the closing period are STRUCTURE, which is why neither
+  // language's clauses carry terminal punctuation of their own.
   return `${parts.join(" · ")}.`;
 }
 
-/** The title, which never changes, so the notification is recognisable. */
-export const SUMMARY_TITLE = "Where things stand";
+/**
+ * The title, which never changes within a language, so the notification is
+ * recognisable.
+ *
+ * The French runs to 21 characters, well inside the ~40 an OS shows before it
+ * truncates a title on a lock screen.
+ */
+export const SUMMARY_TITLE: Record<Locale, string> = {
+  en: "Where things stand",
+  "fr-CA": "Où en sont les choses",
+};

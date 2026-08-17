@@ -23,6 +23,7 @@
  * the write and this running, and the alert carries a contact's name or a task
  * title. A member who lost access in that window is simply not told.
  */
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
@@ -31,6 +32,7 @@ import type { Env } from "../env";
 
 import { conversationContactName } from "./contact-name";
 import { deliverPush } from "./deliver";
+import { THREAD_PUSH_COPY } from "./thread-copy";
 
 /**
  * A conversation handed to somebody, or a task handed to somebody.
@@ -95,8 +97,15 @@ function unwrapRows<T>(
  * conversation" is a complete instruction even with the name removed.
  */
 interface Alert {
-  title: string;
-  body: string;
+  /**
+   * #228: the two lines are FUNCTIONS of the reader's language, while
+   * everything below them is not. The split is the useful part — a deep link,
+   * a collapse key and a native discriminator are the same fact in every
+   * language, so composing them per reader would invite two translations of
+   * one alert to stop replacing each other on the lock screen.
+   */
+  title: (locale: Locale) => string;
+  body: (locale: Locale) => string;
   url: string;
   /** Structural discriminator for the native clients. */
   nativeKind: "conversation_assigned" | "task_assigned";
@@ -107,7 +116,7 @@ interface Alert {
    */
   written: "people" | "us";
   /** What the alert degrades to when content must not leave (#430). */
-  withheld: { title: string } | { body: string };
+  withheld: (locale: Locale) => { title: string } | { body: string };
   /** One per assigned THING: a re-assignment replaces its own earlier alert. */
   collapseKey: string;
 }
@@ -207,13 +216,17 @@ export async function notifyAssigned(
       companyId: input.companyId,
       withheld: alert.withheld,
     },
-    web: () => ({ title: alert.title, body: alert.body, url: alert.url }),
+    web: (locale) => ({
+      title: alert.title(locale),
+      body: alert.body(locale),
+      url: alert.url,
+    }),
     // Web Push stays kind-less (the service worker renders unmarked pushes as
     // ordinary notices); the native clients route on `kind`.
-    native: () => ({
+    native: (locale) => ({
       kind: alert.nativeKind,
-      title: alert.title,
-      body: alert.body,
+      title: alert.title(locale),
+      body: alert.body(locale),
       url: alert.url,
     }),
     collapseKey: alert.collapseKey,
@@ -228,11 +241,17 @@ export async function notifyAssigned(
   }
 }
 
-/** The name on the alert, or an honest stand-in when the profile is gone. */
+/**
+ * The name on the alert, or null when the profile is gone.
+ *
+ * #228: null rather than a stand-in. The name is the assigner's own and rides
+ * untranslated; the sentence we substitute when there isn't one is OUR copy,
+ * so it is chosen per reader in `assignmentAlert` rather than fixed here.
+ */
 async function assignerName(
   db: SupabaseClient,
   actorUserId: string,
-): Promise<string> {
+): Promise<string | null> {
   const rows = unwrapRows<{ display_name: string | null }>(
     await db
       .from("profiles")
@@ -241,7 +260,7 @@ async function assignerName(
       .limit(1),
     "assigner lookup",
   );
-  return rows[0]?.display_name?.trim() || "A teammate";
+  return rows[0]?.display_name?.trim() || null;
 }
 
 /** How long a task title may run before the lock screen truncates it for us. */
@@ -258,25 +277,30 @@ const TITLE_LENGTH = 80;
 export function assignmentAlert(
   origin: string,
   input: AssignmentNotification,
-  actorName: string,
+  /** The assigner's own name, or null when their profile is gone. */
+  actorName: string | null,
   /** Who the thread is with. Required by the single-conversation arm only. */
   contactName: string | null,
 ): Alert | null {
   const env = { APP_ORIGIN: origin };
+  /** The assigner as this reader sees them: their name, else our stand-in. */
+  const actor = (locale: Locale): string =>
+    actorName ?? THREAD_PUSH_COPY[locale].teammateFallback;
+
   if (input.kind === "conversation_bulk") {
     if (input.count <= 0) return null;
-    const noun = input.count === 1 ? "conversation" : "conversations";
     return {
-      title: `${actorName} assigned you ${input.count} ${noun}`,
+      title: (locale) =>
+        THREAD_PUSH_COPY[locale].assignBulkTitle(actor(locale), input.count),
       // No contact names, deliberately: the point of one alert for a selection
       // is that it does not enumerate the selection. "Open your inbox" is the
       // only next step there is, and the link already performs it.
-      body: "Open your inbox to see them",
+      body: (locale) => THREAD_PUSH_COPY[locale].assignBulkBody,
       url: `${env.APP_ORIGIN}/inbox`,
       nativeKind: "conversation_assigned",
       // Our own sentence and a count — no customer content to withhold.
       written: "us",
-      withheld: { body: "Open your inbox to see them" },
+      withheld: (locale) => ({ body: THREAD_PUSH_COPY[locale].assignBulkBody }),
       // Per PERSON, not per conversation: a second bulk assign replaces the
       // first rather than stacking, because the newer count supersedes it.
       collapseKey: `assigned:bulk:${input.assigneeUserId}`,
@@ -284,33 +308,40 @@ export function assignmentAlert(
   }
 
   if (input.kind === "task") {
-    const title = (input.title ?? "").trim().slice(0, TITLE_LENGTH) || "A task";
+    // The member-typed title is somebody else's words: truncated, never
+    // translated. Only the stand-in for an empty one is ours.
+    const title = (input.title ?? "").trim().slice(0, TITLE_LENGTH);
     return {
       // #414's ordering: the first line says WHAT this is before it says who
       // it is about, because a phone on a bedside table shows one line and
       // "you have been given a job" is the part that decides whether it is
       // picked up now.
-      title: `${actorName} assigned you a task`,
-      body: title,
+      title: (locale) => THREAD_PUSH_COPY[locale].assignTaskTitle(actor(locale)),
+      body: (locale) => title || THREAD_PUSH_COPY[locale].taskTitleFallback,
       url: input.conversationId
         ? `${env.APP_ORIGIN}/inbox/${input.conversationId}?task=${input.taskId}`
         : `${env.APP_ORIGIN}/tasks/${input.taskId}`,
       nativeKind: "task_assigned",
       written: "people",
       // The member-typed title goes; our own sentence stays.
-      withheld: { body: "Open the app to see it" },
+      withheld: (locale) => ({
+        body: THREAD_PUSH_COPY[locale].assignWithheldBody,
+      }),
       collapseKey: `assigned:task:${input.taskId}`,
     };
   }
 
   if (contactName === null) return null;
   return {
-    title: `${actorName} assigned you a conversation`,
-    body: contactName,
+    title: (locale) =>
+      THREAD_PUSH_COPY[locale].assignConversationTitle(actor(locale)),
+    body: () => contactName,
     url: `${env.APP_ORIGIN}/inbox/${input.conversationId}`,
     nativeKind: "conversation_assigned",
     written: "people",
-    withheld: { body: "Open the app to see it" },
+    withheld: (locale) => ({
+      body: THREAD_PUSH_COPY[locale].assignWithheldBody,
+    }),
     collapseKey: `assigned:conversation:${input.conversationId}`,
   };
 }
