@@ -80,6 +80,18 @@ const SURFACES = {
       "The iOS twin: `DragGesture(minimumDistance: 0)` treats a press that did " +
       "not move as a tap, and two taps anchor and finish the mark.",
   },
+  "apps/ios/Loonext/Features/Tasks/TaskBoard.swift": {
+    alternative: ".accessibilityLabel(moveLabel)",
+    why:
+      "D25's kanban board: a card is `.draggable(task.id)` and dropping it on " +
+      "the other column runs the same PATCH as the arrow button in its " +
+      "corner. The arrow is the single-pointer path, and it is the ONLY path " +
+      "for VoiceOver, which cannot perform a drag at all. The card's own file " +
+      "already said so in a comment — a sentence, which is not a control. " +
+      "Pinned on the accessibility label rather than on `onMove`, because a " +
+      "button that moves the task while announcing nothing is the failure " +
+      "this clause is actually about.",
+  },
 };
 
 const problems = [];
@@ -117,7 +129,18 @@ const STARTS_A_DRAG = [
   { pattern: /detectDragGestures|detectHorizontalDragGestures|detectVerticalDragGestures/, ext: ".kt" },
   // iOS: SwiftUI's own drag. `.swipeActions` is excluded on purpose — see the
   // header: VoiceOver publishes those buttons itself.
+  //
+  // THREE patterns, not one. `DragGesture(` was the only one here, and it is
+  // the API this codebase happens to have used FIRST — not the only way
+  // SwiftUI starts a drag. `.draggable(_:)` (Transferable) and the older
+  // `.onDrag {}` both begin a drag the platform will not narrate, and neither
+  // contains the string "DragGesture". The task board has used `.draggable`
+  // since it shipped, so the single most-cited example in #238 — D25's kanban
+  // drag-to-change-state — was invisible to the sweep that reports "no
+  // unrostered drag", on every run, while reading as covered.
   { pattern: /DragGesture\s*\(/, ext: ".swift" },
+  { pattern: /\.draggable\s*\(/, ext: ".swift" },
+  { pattern: /\.onDrag\s*[({]/, ext: ".swift" },
 ];
 
 import { readdirSync, statSync } from "node:fs";

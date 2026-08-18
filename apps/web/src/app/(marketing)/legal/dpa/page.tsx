@@ -1,6 +1,4 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
+import statement from "@root/docs/DPA.md";
 import type { Metadata } from "next";
 
 import {
@@ -71,10 +69,7 @@ function plain(text: string): string {
  * with no terms in it, which is a worse failure than a build error.
  */
 function clauses(): Clause[] {
-  const source = readFileSync(
-    join(process.cwd(), "..", "..", "docs", "DPA.md"),
-    "utf8",
-  );
+  const source = statement;
   const found: Clause[] = [];
   let current: Clause | null = null;
 

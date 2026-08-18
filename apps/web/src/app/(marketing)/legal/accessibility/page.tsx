@@ -1,6 +1,4 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
+import statement from "@root/docs/ACCESSIBILITY.md";
 import type { Metadata } from "next";
 
 import {
@@ -75,10 +73,7 @@ interface VerifiedRow {
  * verify nothing" as confidently as the real thing.
  */
 function verifiedRows(): VerifiedRow[] {
-  const source = readFileSync(
-    join(process.cwd(), "..", "..", "docs", "ACCESSIBILITY.md"),
-    "utf8",
-  );
+  const source = statement;
   const start = source.indexOf("## Verified mechanically");
   if (start === -1) {
     throw new Error(

@@ -75,6 +75,25 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  /**
+   * Repo markdown imports as a STRING, resolved at build time.
+   *
+   * The three legal pages generated from `docs/*.md` and `SECURITY.md` used to
+   * `readFileSync` those documents while rendering. That is fine in `next build`
+   * and fatal in the deployed Worker, which has no repo on disk and a
+   * `process.cwd()` of `/` — every one of them answered 500 in production from
+   * the day it shipped, because a page that renders on the server renders on the
+   * SERVER, and this server is not a filesystem.
+   *
+   * `asset/source` hands the module its raw text, so the document is bundled
+   * with the page and the request path never touches `fs`. Only `.md` — the
+   * blog's `.mdx` still goes through the MDX loader below, which claims that
+   * extension and not this one.
+   */
+  webpack(config) {
+    config.module.rules.push({ test: /\.md$/, type: "asset/source" });
+    return config;
+  },
   // Hide the `next dev` indicator (the floating "N" badge). It's dev-only, but
   // the marketing screenshots are captured against the running dev server
   // (apps/web/scripts/capture-shots.mjs), so leaving it on baked the badge into

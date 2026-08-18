@@ -3,11 +3,39 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  plugins: [
+    {
+      /**
+       * `.md` imports resolve to their text, the same as in `next build`.
+       *
+       * The three legal pages generated from repo markdown import the document
+       * rather than reading it from disk — see `src/markdown.d.ts` for the
+       * production 500 that forced it. Webpack does that with an `asset/source`
+       * rule; vitest has no idea, so without this the pages' own tests fail to
+       * load the module at all.
+       *
+       * Mirroring the loader here rather than mocking the import is the point:
+       * a test that stubs the document proves the page renders SOMETHING, and
+       * these pages exist to publish a specific legal text.
+       */
+      name: "loonext:md-as-source",
+      transform(code, id) {
+        if (!id.endsWith(".md")) return null;
+        return {
+          code: `export default ${JSON.stringify(code)};`,
+          map: null,
+        };
+      },
+    },
+  ],
   resolve: {
     alias: {
       // Mirror the tsconfig "@/*" path so tests import product code the same
       // way the app does.
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // And the tsconfig "@root/*" path — repo-root documents (docs/*.md,
+      // SECURITY.md) that pages import as text.
+      "@root": fileURLToPath(new URL("../..", import.meta.url)),
     },
   },
   // tsconfig has Next's `"jsx": "preserve"`; tests that import .tsx components
