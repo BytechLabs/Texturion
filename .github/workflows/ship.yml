@@ -191,6 +191,31 @@ jobs:
       - name: Verify the Workers stopped answering on workers.dev
         run: node scripts/ops/verify-workers-dev-off.mjs
 
+      # Every public page answers, asked of the origin we just deployed to.
+      #
+      # On 2026-08-17 three legal pages — including the published accessibility
+      # conformance statement, which exists to be handed to a buyer — were
+      # HTTP 500 in production, and had been since the commit that published
+      # each of them. A page reading repo markdown while rendering is correct in
+      # `next dev`, correct in `next build`, and fatal in a Worker whose
+      # process.cwd() is "/". Every gate in this repo is a build or a Node test,
+      # and `fs` works in both, so all of them stayed green for months.
+      #
+      # The specific bug has its own guard now. This is for the SHAPE: a page
+      # can pass everything we run and still be a 500 on the wire, and the only
+      # thing that finds it is asking. Same reasoning as the workers.dev check
+      # directly above — after the purge, so it reads the new deploy rather than
+      # a cached copy of the old one.
+      #
+      # Credential-free (unauthenticated GETs of pages any visitor can open) and
+      # it knocks on a wall first: a path that certainly does not exist must
+      # 404, so a base URL answering 200 to everything cannot read as a pass.
+      #
+      # Deliberately NOT continue-on-error. A public page nobody can open is a
+      # defect the release should say out loud.
+      - name: Verify every public page answers
+        run: node scripts/ops/verify-public-routes.mjs
+
       # #581: the zone's TLS floor, asserted rather than remembered.
       #
       # Raised from 1.0 to 1.2 on 2026-08-16 with the operator's go-ahead. That
