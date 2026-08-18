@@ -39,20 +39,34 @@ does.
 or dropping** (section 1b), and the guarantee is a database constraint rather
 than application logic, which is the strongest place for it.
 
-**What breaks first is therefore still unknown, and there are exactly two
-candidates left.** Both are concurrency properties of the deployed system:
-Durable Object saturation on the call path, and Realtime fan-out. Neither can be
-measured on a laptop, and section 2 says what each would take.
+**What breaks first is therefore still unknown, and there is exactly ONE
+candidate left:** Durable Object saturation on the call path. It is a
+concurrency property of the deployed runtime, and section 2 says what measuring
+it would take.
+
+This paragraph used to name two, and to say neither could be measured on a
+laptop. Section 2 disproved half of that on 2026-08-17 — a local Supabase stack
+runs the same Realtime server, 800 of 800 broadcasts arrived with no drops, and
+the row moved out of the table. The headline was not updated with it, so for a
+day the summary a reader takes away contradicted the body it summarises. Said
+out loud because the failure is structural rather than careless: **a document's
+summary goes stale exactly when its body is being improved**, and this one is
+read by people who will never reach section 2.
 
 **So the honest sentence for a prospect** is: *the parts we have measured are
-comfortable well beyond your size, and the parts we have not measured are the
-live-call and live-update paths under many simultaneous users. We can tell you
-exactly what we have tested and what we have not.* That is a better answer than
-a confident number, and it is the only one currently true.
+comfortable well beyond your size. The one part we have not measured is call
+setup when many calls are live at once. We can tell you exactly what we have
+tested and what we have not.* That is a better answer than a confident number,
+and it is the only one currently true.
+
+Note what that sentence no longer claims to be unsure about. Live updates are
+measured (section 2), so "the live-update paths" came out of it.
 
 **What would change this.** A staging environment (`docs/ENVIRONMENTS.md`
-records what that costs and why it does not exist yet). Until then the two open
-rows stay open, and nobody should fill them in from reasoning.
+records what that costs and why it does not exist yet), or a test harness that
+runs our own Durable Object inside workerd rather than against a double.
+Until then the one open row stays open, and nobody should fill it in from
+reasoning.
 
 ---
 
