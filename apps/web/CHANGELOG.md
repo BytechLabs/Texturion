@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/BytechLabs/Texturion/compare/web-v0.17.0...web-v0.17.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **web:** three legal pages answered 500 to everyone who opened them ([ccf69f2](https://github.com/BytechLabs/Texturion/commit/ccf69f24141e33f1418a80342fddb9b815c27ba4))
+
 ## [0.17.0](https://github.com/BytechLabs/Texturion/compare/web-v0.16.0...web-v0.17.0) (2026-08-17)
 
 
