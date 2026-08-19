@@ -30,21 +30,10 @@
  * hardcode image URLs here.
  */
 
+import { HomePageBody } from "@/components/marketing/home-page";
 import { formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
 import type { Metadata } from "next";
 
-import { HomeJsonLd } from "@/components/marketing/home-json-ld";
-import { Hero } from "@/components/marketing/hero/hero";
-import { Bento } from "@/components/marketing/home/bento";
-import { DoTheMath } from "@/components/marketing/home/do-the-math";
-import { Faq } from "@/components/marketing/home/faq";
-import { FinalCta } from "@/components/marketing/home/final-cta";
-import { FixShown } from "@/components/marketing/home/fix-shown";
-import { Pattern } from "@/components/marketing/home/pattern";
-import { RulesCanada } from "@/components/marketing/home/rules-canada";
-import { TheDeal } from "@/components/marketing/home/the-deal";
-import { ThreeSteps } from "@/components/marketing/home/three-steps";
-import { TruthBar } from "@/components/marketing/home/truth-bar";
 import { buildMetadata } from "@/lib/marketing/seo";
 import { absoluteUrl } from "@/lib/marketing/site";
 
@@ -107,20 +96,5 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return (
-    <>
-      <HomeJsonLd />
-      <Hero />
-      <TruthBar />
-      <Pattern />
-      <FixShown />
-      <ThreeSteps />
-      <Bento />
-      <DoTheMath />
-      <TheDeal />
-      <RulesCanada />
-      <Faq />
-      <FinalCta />
-    </>
-  );
+  return <HomePageBody locale="en" />;
 }

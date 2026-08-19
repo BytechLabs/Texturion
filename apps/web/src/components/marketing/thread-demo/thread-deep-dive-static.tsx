@@ -13,6 +13,8 @@
  * approach and reduced-motion keeps this frame (skipWhenReducedMotion).
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { threadDemoCopy } from "@/i18n/marketing/thread-demo";
 import Link from "next/link";
 
 import { Eyebrow, PanelFrame } from "@/components/marketing/fr";
@@ -37,28 +39,36 @@ export const DEEP_DIVE_BODY_CLASSES = "flex flex-col gap-3 px-3.5 py-4";
  * missed call, the voicemail and the automatic text-back all ship, and none
  * of them were on the page.
  */
-export const DEEP_DIVE_CAPTIONS = [
-  "A call you can't take texts them back on its own, and the voicemail lands in the thread, written out.",
-  "Their text joins the same conversation. One customer, one thread, calls and texts together.",
-  "Leave a note for the team. Customers never see notes.",
-  "Assign it to whoever's closest. One owner, no double replies.",
-  "Reply from any phone. Delivery is confirmed, in writing.",
-  "Tag it the way you sell: quote sent, scheduled, won.",
-] as const;
+export const deepDiveCaptions = (locale: MarketingLocale = "en") => {
+  const copy = threadDemoCopy(locale);
+  return [
+    copy.stepVoicemail,
+    copy.stepText,
+    copy.stepNote,
+    copy.stepAssign,
+    copy.stepReply,
+    copy.stepTag,
+  ] as const;
+};
+
+/** The English captions, for tests and any English-only surface. */
+export const DEEP_DIVE_CAPTIONS = deepDiveCaptions("en");
 
 /** The §S4 header block (eyebrow, H2, lead), shared by both frames. */
-export function DeepDiveHeader() {
+export function DeepDiveHeader({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = threadDemoCopy(locale);
   return (
     <>
-      <Eyebrow>See it work</Eyebrow>
+      <Eyebrow>{copy.frameSeeItWork}</Eyebrow>
       <h2 className="fr-h2 mt-4 text-[color:var(--fr-ink)]">
-        What actually happens when a customer reaches you.
+        {copy.frameTitle}
       </h2>
       <p className="fr-body mt-4 max-w-md text-[color:var(--fr-ink-70)]">
-        Here&apos;s one conversation, slowed down. A customer calls your
-        business number and then texts it, and step by step, this is what your
-        crew sees and does: read the voicemail, note it, assign it, reply,
-        confirm, tag.
+        {copy.frameLead}
       </p>
     </>
   );
@@ -118,14 +128,21 @@ export function DeepDiveInlineCta() {
   );
 }
 
-export function ThreadDeepDiveStatic({ script }: { script: ThreadScript }) {
+export function ThreadDeepDiveStatic({
+  script,
+  locale = "en",
+}: {
+  script: ThreadScript;
+  locale?: MarketingLocale;
+}) {
+  const captions = deepDiveCaptions(locale);
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:gap-12">
       {/* Left: captions (all shown, at rest). */}
       <div className="lg:sticky lg:top-28">
-        <DeepDiveHeader />
+        <DeepDiveHeader locale={locale} />
         <ol className="mt-8 space-y-1">
-          {DEEP_DIVE_CAPTIONS.map((caption, i) => (
+          {captions.map((caption, i) => (
             <DeepDiveCaption key={caption} step={i + 1} caption={caption} />
           ))}
         </ol>
@@ -135,9 +152,10 @@ export function ThreadDeepDiveStatic({ script }: { script: ThreadScript }) {
           (owner amendment 2026-07-08). */}
       <div>
         <PanelFrame
-          ariaLabel="A Reyes Plumbing conversation in the Loonext inbox"
+          ariaLabel={threadDemoCopy(locale).frameAria}
         >
           <StaticThread
+            locale={locale}
             script={script}
             framing="desktop"
             bodyClassName={DEEP_DIVE_BODY_CLASSES}

@@ -1,4 +1,4 @@
-import { fill, homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import { fill, homeCopy, homeEn, type HomeCopy } from "@/i18n/marketing/home";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check } from "lucide-react";
 import Link from "next/link";
@@ -94,34 +94,36 @@ export function planItemText(item: PlanItem): string {
 }
 
 /** COPY-DECK v2 §S9, verbatim: the words. The price is not one of them. */
-export const HOME_PLANS: readonly HomePlan[] = [
+export const homePlans = (copy: HomeCopy): readonly HomePlan[] => [
   {
     id: "starter",
+    // Starter and Pro are the plan names the billing screen shows, so they
+    // stay as they are in both languages.
     name: "Starter",
-    audience: "For crews of one to three.",
+    audience: copy.planStarterAudience,
     items: [
-      [{ m: "3" }, " teammates included"],
-      [{ m: "1" }, " local business number"],
-      ["Send and receive texts and pictures*"],
+      [{ m: "3" }, copy.planTeammates],
+      [{ m: "1" }, copy.planOneNumber],
+      [copy.planTexts],
     ],
-    cta: "Start with Starter",
+    cta: copy.planStarterCta,
   },
   {
     id: "pro",
     name: "Pro",
-    badge: "For bigger crews",
-    audience: "For crews up to fifteen, and a second number.",
+    badge: copy.planProBadge,
+    audience: copy.planProAudience,
     items: [
-      [{ m: "15" }, " teammates included"],
-      [
-        { m: "2" },
-        " local business numbers (two locations, or office and field)",
-      ],
-      ["Send and receive texts and pictures*"],
+      [{ m: "15" }, copy.planTeammates],
+      [{ m: "2" }, copy.planTwoNumbers],
+      [copy.planTexts],
     ],
-    cta: "Start with Pro",
+    cta: copy.planProCta,
   },
 ];
+
+/** The English plans, for the tests and any English-only surface. */
+export const HOME_PLANS: readonly HomePlan[] = homePlans(homeEn);
 
 /** The deck's §Global guarantee microcopy, under the pricing CTAs. US default
  *  (mentions the registration fee); the Canada variant drops it (there is none
@@ -245,7 +247,7 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
       </div>
 
       <div className="mx-auto mt-12 grid max-w-4xl items-stretch gap-6 md:grid-cols-2">
-        {HOME_PLANS.map((plan) => (
+        {homePlans(copy).map((plan) => (
           <PlanCard key={plan.name} plan={plan} />
         ))}
       </div>
@@ -317,12 +319,18 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
           <div className="mt-5">
             <CountryOnly country="us">
               <LazyCrewSizeSlider
-                fallback={<CrewSizeSliderStatic audience="usd" />}
+                locale={locale}
+                fallback={
+                  <CrewSizeSliderStatic audience="usd" locale={locale} />
+                }
               />
             </CountryOnly>
             <CountryOnly country="ca">
               <LazyCrewSizeSlider
-                fallback={<CrewSizeSliderStatic audience="cad" />}
+                locale={locale}
+                fallback={
+                  <CrewSizeSliderStatic audience="cad" locale={locale} />
+                }
               />
             </CountryOnly>
           </div>
@@ -337,7 +345,7 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
             ariaLabel={copy.dealMeterAria}
           >
             <AppSurface>
-              <UsageMeterEmbed />
+              <UsageMeterEmbed locale={locale} />
             </AppSurface>
           </PanelFrame>
         </div>

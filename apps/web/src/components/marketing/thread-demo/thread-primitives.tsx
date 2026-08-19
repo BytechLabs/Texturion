@@ -1,3 +1,9 @@
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import {
+  threadDemoCopy,
+  threadDemoEn,
+  type ThreadDemoCopy,
+} from "@/i18n/marketing/thread-demo";
 import { avatarInitials } from "@loonext/shared";
 
 /**
@@ -67,20 +73,24 @@ const PILL_STYLES = {
   closed: "bg-secondary text-stone-600 dark:text-muted-foreground",
 } as const;
 
-const PILL_LABELS = {
-  new: "New",
-  open: "Open",
-  waiting: "Waiting",
-  closed: "Closed",
-} as const;
+const pillLabels = (copy: ThreadDemoCopy) =>
+  ({
+    new: copy.statusNew,
+    open: copy.statusOpen,
+    waiting: copy.statusWaiting,
+    closed: copy.statusClosed,
+  }) as const;
 
 export function DemoStatusPill({
   status,
   className,
+  locale = "en",
 }: {
   status: keyof typeof PILL_STYLES;
   className?: string;
+  locale?: MarketingLocale;
 }) {
+  const labels = pillLabels(threadDemoCopy(locale));
   return (
     <span
       className={cn(
@@ -89,7 +99,7 @@ export function DemoStatusPill({
         className,
       )}
     >
-      {PILL_LABELS[status]}
+      {labels[status]}
     </span>
   );
 }
@@ -212,28 +222,30 @@ export function EventLine({ beat }: { beat: EventBeat }) {
  * cannot drift into wording the product would never print, which is the exact
  * failure #491 was filed for in the other direction.
  */
-export function callSentence(beat: CallBeat): string {
+export function callSentence(
+  beat: CallBeat,
+  copy: ThreadDemoCopy = threadDemoEn,
+): string {
   if (beat.direction === "outbound") {
-    if (beat.outcome === "missed") return "Called, no answer";
+    if (beat.outcome === "missed") return copy.callNoAnswer;
     return beat.seconds
-      ? `You called · ${formatCallDuration(beat.seconds)}`
-      : "You called";
+      ? `${copy.callYouCalled} · ${formatCallDuration(beat.seconds)}`
+      : copy.callYouCalled;
   }
   if (beat.voicemail) {
     return beat.voicemail.seconds
-      ? `Left a voicemail · ${formatCallDuration(beat.voicemail.seconds)}`
-      : "Left a voicemail";
+      ? `${copy.callLeftVoicemail} · ${formatCallDuration(beat.voicemail.seconds)}`
+      : copy.callLeftVoicemail;
   }
-  if (beat.outcome === "voicemail") return "Call went to voicemail";
-  if (beat.outcome === "missed") return "Missed call";
+  if (beat.outcome === "voicemail") return copy.callWentToVoicemail;
+  if (beat.outcome === "missed") return copy.callMissed;
   return beat.seconds
-    ? `Call answered · ${formatCallDuration(beat.seconds)}`
-    : "Call answered";
+    ? `${copy.callAnswered} · ${formatCallDuration(beat.seconds)}`
+    : copy.callAnswered;
 }
 
 /** The missed-call text-back line, verbatim from the app's `missed_call` arm. */
-export const MISSED_CALL_TEXT_BACK_LINE =
-  "This customer called and no one picked up, so we texted them back";
+export const MISSED_CALL_TEXT_BACK_LINE = threadDemoEn.missedCallTextBack;
 
 /**
  * The voicemail player AT REST, depicted. The app's real <VoicemailPlayer> is
@@ -256,8 +268,15 @@ function VoicemailPill({ seconds }: { seconds: number }) {
  * automatic text-back line when it fired. Structure and tokens match
  * SystemLine's voicemail branch exactly.
  */
-export function CallLine({ beat }: { beat: CallBeat }) {
-  const sentence = callSentence(beat);
+export function CallLine({
+  beat,
+  locale = "en",
+}: {
+  beat: CallBeat;
+  locale?: MarketingLocale;
+}) {
+  const copy = threadDemoCopy(locale);
+  const sentence = callSentence(beat, copy);
 
   if (!beat.voicemail) {
     return (
@@ -265,7 +284,7 @@ export function CallLine({ beat }: { beat: CallBeat }) {
         <p className="text-xs text-muted-foreground">{sentence}</p>
         {beat.textBack && (
           <p className="text-xs text-muted-foreground">
-            {MISSED_CALL_TEXT_BACK_LINE}
+            {copy.missedCallTextBack}
           </p>
         )}
       </div>
@@ -286,7 +305,7 @@ export function CallLine({ beat }: { beat: CallBeat }) {
       </p>
       {beat.textBack && (
         <p className="text-xs text-muted-foreground">
-          {MISSED_CALL_TEXT_BACK_LINE}
+          {copy.missedCallTextBack}
         </p>
       )}
     </div>

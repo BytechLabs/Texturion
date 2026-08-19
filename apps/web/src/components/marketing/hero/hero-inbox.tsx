@@ -25,7 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 import {
-  ARRIVAL_SCRIPT,
+  arrivalScript,
   HERO_ARRIVAL_EVENT,
   INBOX_ROW_CAP,
 } from "./arrival-script";
@@ -42,12 +42,19 @@ interface RowState {
 }
 
 /** The finished state SSR ships: the first four scripted rows, read. */
-const INITIAL_ROWS: RowState[] = ARRIVAL_SCRIPT.slice(0, INBOX_ROW_CAP).map(
-  (_, idx) => ({ idx, unread: false, key: idx, arrived: false }),
-);
+const INITIAL_ROWS: RowState[] = arrivalScript("en")
+  .slice(0, INBOX_ROW_CAP)
+  .map((_, idx) => ({ idx, unread: false, key: idx, arrived: false }));
 
-function InboxRow({ row }: { row: RowState }) {
-  const item = ARRIVAL_SCRIPT[row.idx];
+function InboxRow({
+  row,
+  locale = "en",
+}: {
+  row: RowState;
+  locale?: MarketingLocale;
+}) {
+  const copy = homeCopy(locale);
+  const item = arrivalScript(locale)[row.idx];
   return (
     <div
       className={cn(
@@ -114,7 +121,7 @@ export function HeroInbox({
     const onArrival = (event: Event) => {
       const detail = (event as CustomEvent<{ scriptIndex?: number }>).detail;
       const idx = detail?.scriptIndex;
-      if (typeof idx !== "number" || !ARRIVAL_SCRIPT[idx]) return;
+      if (typeof idx !== "number" || !arrivalScript(locale)[idx]) return;
       const key = keyRef.current++;
       // The animation REPLAYS the finished state (P5-SPEC): when a scripted
       // text re-arrives, its previous row leaves before the new one lands, so
@@ -157,7 +164,7 @@ export function HeroInbox({
       </div>
       <div>
         {rows.map((row) => (
-          <InboxRow key={row.key} row={row} />
+          <InboxRow key={row.key} row={row} locale={locale} />
         ))}
       </div>
     </div>

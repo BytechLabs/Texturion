@@ -7,6 +7,7 @@
  * pricing preview and the /pricing page.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import type { ReactNode } from "react";
 
 import { LazyIsland } from "@/components/marketing/ui/lazy-island";
@@ -15,8 +16,10 @@ export function LazyCrewSizeSlider({
   fallback,
   perUserMonthly,
   minimumSeats,
+  locale = "en",
 }: {
   fallback: ReactNode;
+  locale?: MarketingLocale;
   /** #370: the rival rate for THIS page, not a shared default. */
   perUserMonthly?: number;
   minimumSeats?: number;
@@ -24,7 +27,7 @@ export function LazyCrewSizeSlider({
   return (
     <LazyIsland
       fallback={fallback}
-      componentProps={{ perUserMonthly, minimumSeats }}
+      componentProps={{ perUserMonthly, minimumSeats, locale }}
       load={() =>
         import("@/components/marketing/interactive/crew-size-slider").then(
           (m) => ({ default: m.CrewSizeSlider }),

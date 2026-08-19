@@ -51,7 +51,10 @@ export function DoTheMath({
           </div>
         </div>
 
-        <LazyMissedTextCalculator fallback={<MissedTextCalculatorStatic />} />
+        <LazyMissedTextCalculator
+          locale={locale}
+          fallback={<MissedTextCalculatorStatic locale={locale} />}
+        />
       </div>
     </FrSection>
   );

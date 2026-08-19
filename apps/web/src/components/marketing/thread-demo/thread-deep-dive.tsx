@@ -16,6 +16,8 @@
  * amendment 2026-07-08); it is a self-evident product demonstration.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { threadDemoCopy } from "@/i18n/marketing/thread-demo";
 import { ChevronRight, Play, RotateCcw } from "lucide-react";
 import { useState } from "react";
 
@@ -26,7 +28,7 @@ import type { ThreadBeat, ThreadScript } from "./script";
 import { ThreadFrame } from "./thread-frame";
 import {
   DEEP_DIVE_BODY_CLASSES,
-  DEEP_DIVE_CAPTIONS,
+  deepDiveCaptions,
   DeepDiveCaption,
   DeepDiveHeader,
   DeepDiveInlineCta,
@@ -40,7 +42,15 @@ import {
 } from "./thread-primitives";
 import { useReducedMotion } from "./use-reduced-motion";
 
-function Beat({ beat, animate }: { beat: ThreadBeat; animate: boolean }) {
+function Beat({
+  beat,
+  animate,
+  locale = "en",
+}: {
+  beat: ThreadBeat;
+  animate: boolean;
+  locale?: MarketingLocale;
+}) {
   return (
     <div
       className={cn(
@@ -54,7 +64,7 @@ function Beat({ beat, animate }: { beat: ThreadBeat; animate: boolean }) {
       )}
       {beat.kind === "note" && <NoteBubble beat={beat} />}
       {beat.kind === "event" && <EventLine beat={beat} />}
-      {beat.kind === "call" && <CallLine beat={beat} />}
+      {beat.kind === "call" && <CallLine beat={beat} locale={locale} />}
     </div>
   );
 }
@@ -62,7 +72,15 @@ function Beat({ beat, animate }: { beat: ThreadBeat; animate: boolean }) {
 const STEP_BUTTON =
   "font-body-mkt inline-flex shrink-0 items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-sm font-semibold transition-colors duration-200 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]";
 
-export function ThreadDeepDive({ script }: { script: ThreadScript }) {
+export function ThreadDeepDive({
+  script,
+  locale = "en",
+}: {
+  script: ThreadScript;
+  locale?: MarketingLocale;
+}) {
+  const copy = threadDemoCopy(locale);
+  const captions = deepDiveCaptions(locale);
   const reduced = useReducedMotion();
   const total = script.beats.length;
   // Mount complete (identical to the static frame); stepping is opt-in.
@@ -99,9 +117,9 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:gap-12">
       {/* Left: sticky captions, sync-highlighted while stepping. */}
       <div className="lg:sticky lg:top-28">
-        <DeepDiveHeader />
+        <DeepDiveHeader locale={locale} />
         <ol className="mt-8 space-y-1">
-          {DEEP_DIVE_CAPTIONS.map((caption, i) => {
+          {captions.map((caption, i) => {
             const step = i + 1;
             const state = !engaged
               ? "rest"
@@ -125,7 +143,7 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
       {/* Right: the annotated, steppable thread inside the product frame. */}
       <div>
         <PanelFrame
-          ariaLabel="A Reyes Plumbing conversation in the Loonext inbox"
+          ariaLabel={copy.frameAria}
         >
           <ThreadFrame
             framing="desktop"
@@ -137,6 +155,7 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
               {visible.map((beat, i) => (
                 <Beat
                   key={beat.id}
+                  locale={locale}
                   beat={beat}
                   animate={!reduced && engaged && i === revealed - 1}
                 />
@@ -168,12 +187,12 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                       strokeWidth={1.75}
                       aria-hidden
                     />
-                    Play it again
+                    {copy.framePlayAgain}
                   </>
                 ) : (
                   <>
                     <Play className="size-3.5" strokeWidth={1.75} aria-hidden />
-                    Step through it
+                    {copy.frameStepThrough}
                   </>
                 )}
               </button>
@@ -186,7 +205,7 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                   "bg-[color:var(--fr-olive)] text-[color:var(--fr-on-olive)] hover:bg-[color:var(--fr-olive-deep)]",
                 )}
               >
-                Next
+                {copy.frameNext}
                 <ChevronRight
                   className="size-3.5"
                   strokeWidth={1.75}

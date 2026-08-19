@@ -15,6 +15,8 @@
  * Keyboard-accessible controlled inputs, tabular numerals, aria-live output.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { homeCopy } from "@/i18n/marketing/home";
 import { useId, useState } from "react";
 
 import { formatMoney, type BillingCurrency } from "@loonext/shared";
@@ -104,7 +106,12 @@ function Field({
   );
 }
 
-export function MissedTextCalculator() {
+export function MissedTextCalculator({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
   const [missed, setMissed] = useState(5);
   const [ratePct, setRatePct] = useState(25);
   const [value, setValue] = useState(250);
@@ -118,7 +125,7 @@ export function MissedTextCalculator() {
     <div className="fr-card p-6">
       <div className="grid gap-5">
         <Field
-          label="Calls or texts you miss in a week"
+          label={copy.mathMissed}
           value={missed}
           min={0}
           max={50}
@@ -126,7 +133,7 @@ export function MissedTextCalculator() {
           onChange={setMissed}
         />
         <Field
-          label="How many of those would've booked"
+          label={copy.mathBooked}
           value={ratePct}
           min={0}
           max={100}
@@ -135,7 +142,7 @@ export function MissedTextCalculator() {
           onChange={setRatePct}
         />
         <Field
-          label="Average job value"
+          label={copy.mathJobValue}
           value={value}
           min={0}
           max={5000}
@@ -148,17 +155,17 @@ export function MissedTextCalculator() {
       <div className="mt-6 rounded-[10px] bg-[color:var(--fr-frost)] p-5">
         <p aria-live="polite">
           <span className="block text-[0.9375rem] text-[color:var(--fr-ink)]">
-            That&apos;s about
+            {copy.mathThatsAbout}
           </span>
           {/* The one Flare display element (§3.4.3): 48px+, bold, mono. */}
           <MonoFigure
             value={money(monthly, currency)}
-            suffix="a month"
+            suffix={copy.mathPerMonth}
             tone="flare"
             className="mt-1"
           />
           <span className="mt-1 block text-[0.9375rem] text-[color:var(--fr-ink)]">
-            in work that went somewhere else.
+            {copy.mathLost}
           </span>
         </p>
         {/* The formula, always visible: we show our work (§S8). */}

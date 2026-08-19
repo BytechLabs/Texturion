@@ -11,6 +11,8 @@
  * §3.4.3), so the swap is seamless.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { homeCopy } from "@/i18n/marketing/home";
 import { MonoFigure } from "@/components/marketing/fr";
 import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 
@@ -57,37 +59,42 @@ function StaticField({ label, display }: { label: string; display: string }) {
   );
 }
 
-export function MissedTextCalculatorStatic() {
+export function MissedTextCalculatorStatic({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
   return (
     <div className="fr-card p-6">
       <div className="grid gap-5">
         {/* Derived from the constants above, so the resting frame cannot drift
             from the formula printed under it. */}
         <StaticField
-          label="Calls or texts you miss in a week"
+          label={copy.mathMissed}
           display={String(MISSED)}
         />
         <StaticField
-          label="How many of those would've booked"
+          label={copy.mathBooked}
           display={`${RATE_PCT}%`}
         />
-        <StaticField label="Average job value" display={money(JOB_VALUE)} />
+        <StaticField label={copy.mathJobValue} display={money(JOB_VALUE)} />
       </div>
 
       <div className="mt-6 rounded-[10px] bg-[color:var(--fr-frost)] p-5">
         <p>
           <span className="block text-[0.9375rem] text-[color:var(--fr-ink)]">
-            That&apos;s about
+            {copy.mathThatsAbout}
           </span>
           {/* The one Flare display element (§3.4.3): 48px+, bold, mono. */}
           <MonoFigure
             value={money(MONTHLY)}
-            suffix="a month"
+            suffix={copy.mathPerMonth}
             tone="flare"
             className="mt-1"
           />
           <span className="mt-1 block text-[0.9375rem] text-[color:var(--fr-ink)]">
-            in work that went somewhere else.
+            {copy.mathLost}
           </span>
         </p>
         <p className="fr-mono-data mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">

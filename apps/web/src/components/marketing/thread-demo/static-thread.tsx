@@ -14,6 +14,7 @@
  * The animated island only ever *replays* this same finished state.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { ThreadFrame } from "./thread-frame";
 import {
   CallLine,
@@ -43,12 +44,14 @@ export function StaticThread({
   className,
   bodyClassName,
   footer,
-}: StaticThreadProps) {
+  locale = "en",
+}: StaticThreadProps & { locale?: MarketingLocale }) {
   return (
     <ThreadFrame
       framing={framing}
       contact={script.contact}
       status={script.finalStatus}
+      locale={locale}
       assignee={script.assignee}
       pushBanner={pushBanner}
       className={className}
@@ -67,7 +70,7 @@ export function StaticThread({
             case "event":
               return <EventLine key={beat.id} beat={beat} />;
             case "call":
-              return <CallLine key={beat.id} beat={beat} />;
+              return <CallLine key={beat.id} beat={beat} locale={locale} />;
             default:
               return null;
           }

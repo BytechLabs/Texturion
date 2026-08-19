@@ -20,6 +20,8 @@
  * Keyboard-accessible (native range input), tabular numerals, aria-live.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { homeCopy } from "@/i18n/marketing/home";
 import { useMarketingCurrency } from "@/components/marketing/pricing/plan-price";
 import { formatMoney, type BillingCurrency } from "@loonext/shared";
 import { useId, useState } from "react";
@@ -98,7 +100,9 @@ export interface RivalSeatPricing {
 export function CrewSizeSlider({
   perUserMonthly = DEFAULT_PER_USER_MONTHLY,
   minimumSeats = DEFAULT_MINIMUM_SEATS,
-}: RivalSeatPricing = {}) {
+  locale = "en",
+}: RivalSeatPricing & { locale?: MarketingLocale } = {}) {
+  const copy = homeCopy(locale);
   // #328: the reader's own currency, so the USD figures below can be marked as
   // foreign when they are. Client component, so this reads the country
   // directly — the static twin takes it as a prop because it cannot.
@@ -121,7 +125,7 @@ export function CrewSizeSlider({
         htmlFor={sliderId}
         className="flex items-baseline justify-between text-[0.875rem] font-semibold text-[color:var(--fr-ink)]"
       >
-        <span>People on your crew</span>
+        <span>{copy.sliderCrew}</span>
         <span className="fr-mono-data text-2xl text-[color:var(--fr-ink)]">
           {seats}
         </span>
@@ -153,7 +157,7 @@ export function CrewSizeSlider({
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
                 {usd(loonext.price, audience)}/mo
               </span>
-              <span className="text-[color:var(--fr-ink-55)]">, flat</span>
+              <span className="text-[color:var(--fr-ink-55)]">{copy.sliderFlat}</span>
             </span>
           </div>
           <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-[color:var(--fr-frost)]">
@@ -168,14 +172,15 @@ export function CrewSizeSlider({
         <div>
           <div className="flex items-baseline justify-between gap-3 text-[0.875rem]">
             <span className="font-medium text-[color:var(--fr-ink)]">
-              Typical per-user tool at {usd(perUserMonthly, audience)}/user/mo
+              {copy.sliderRivalBefore} {usd(perUserMonthly, audience)}
+              {copy.sliderRivalAfter}
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
                 {usd(perUser, audience)}/mo
               </span>
               <span className="text-[color:var(--fr-ink-55)]">
-                {seats > 1 ? ", and climbing" : ""}
+                {seats > 1 ? copy.sliderClimbing : ""}
               </span>
             </span>
           </div>
@@ -190,12 +195,12 @@ export function CrewSizeSlider({
 
       {savings > 0 && (
         <p className="mt-5 text-[0.9375rem] text-[color:var(--fr-ink)]">
-          At {seats} people, that&apos;s{" "}
+          {copy.sliderAtBefore} {seats} {copy.sliderAtMiddle}{" "}
           <span className="fr-mono-data text-[color:var(--fr-ink)]">
-            {usd(savings, audience)} less a month
+            {usd(savings, audience)} {copy.sliderLessAMonth}
           </span>{" "}
-          with Loonext, {usd(loonext.price, audience)} flat instead of {seats} ×{" "}
-          {usd(perUserMonthly, audience)}.
+          {copy.sliderWithLoonext} {usd(loonext.price, audience)}{" "}
+          {copy.sliderFlatInsteadOf} {seats} × {usd(perUserMonthly, audience)}.
         </p>
       )}
 

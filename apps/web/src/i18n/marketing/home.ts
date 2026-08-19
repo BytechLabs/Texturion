@@ -36,6 +36,10 @@ export const homeEn = {
   metaDescription:
     "One business number for texts and calls, in an inbox the whole crew works from any phone. Reply, answer, assign, turn it into a job, close it.",
 
+  ogTitle: "Somebody texted your business at 9:04 last night.",
+  ogDescription:
+    "Loonext gives your business a local number and one shared inbox for the texts and calls that reach it, answered by whoever on the crew is free.",
+  metaPrice: "a month flat for the team, not per user.",
   heroDateline: "9:04 PM · TUESDAY",
   heroH1: "Somebody texted your business at 9:04 last night. Did anybody see it?",
   heroSub:
@@ -48,6 +52,12 @@ export const homeEn = {
   heroInboxAria: "Customer conversations waiting in the Loonext inbox",
   heroInboxHeading: "Inbox",
   heroInboxYou: "You: ",
+  arrivalWaterHeater: "Water heater leaking, error E110",
+  arrivalNoHeat: "No heat this morning, thermostat blank",
+  arrivalBackBeds: "Can you add the back beds this week?",
+  arrivalTextBack:
+    "Sorry we missed your call. Text us right here and someone will get back to you.",
+  arrivalComingToday: "Is he coming today?",
 
   truthChipTexts: "Send and receive texts and pictures",
   truthChipMonthly: "Month to month, cancel anytime",
@@ -170,6 +180,21 @@ export const homeEn = {
     "A missed call and an unanswered text cost the same job. Loonext rings your whole crew when somebody calls, writes down the voicemail when nobody can pick up, and puts every text where whoever's free answers it, not whoever's phone it is. That's",
   mathCloseAfter: "a month against the number above.",
 
+  planStarterAudience: "For crews of one to three.",
+  planProAudience: "For crews up to fifteen, and a second number.",
+  planProBadge: "For bigger crews",
+  planTeammates: " teammates included",
+  planOneNumber: " local business number",
+  planTwoNumbers: " local business numbers (two locations, or office and field)",
+  planTexts: "Send and receive texts and pictures*",
+  planStarterCta: "Start with Starter",
+  planProCta: "Start with Pro",
+  mathMissed: "Calls or texts you miss in a week",
+  mathBooked: "How many of those would've booked",
+  mathJobValue: "Average job value",
+  mathThatsAbout: "That's about",
+  mathPerMonth: "a month",
+  mathLost: "in work that went somewhere else.",
   dealTitle: "One flat price for the whole crew.",
   dealSub:
     "No per-user fees. No quote calls. No annual contracts. This is the whole price list.",
@@ -189,6 +214,22 @@ export const homeEn = {
     "Prices in Canadian dollars, plus tax where it applies. That's the whole list.",
   dealFairUse: "The concrete numbers live in our fair use policy.",
   dealEnterprise: "Talk to us about Enterprise",
+  sliderCrew: "People on your crew",
+  sliderLoonext: "Loonext Pro",
+  sliderFlat: ", flat",
+  sliderRivalBefore: "Typical per-user tool at",
+  sliderRivalAfter: "/user/mo",
+  sliderClimbing: ", and climbing",
+  sliderAtBefore: "At",
+  sliderAtMiddle: "people, that's",
+  sliderLessAMonth: "less a month",
+  sliderWithLoonext: "with Loonext,",
+  sliderFlatInsteadOf: "flat instead of",
+  meterHeadline: "Well within fair use this month.",
+  meterBody:
+    "That's the whole screen for almost every crew. We reach out early if usage ever paces past what your plan covers, so you can just text.",
+  meterCapLabel: "Spending cap",
+  meterCapValue: "you set it",
   dealSliderCaption:
     "Slide from 1 to 10 people and watch a typical per-user tool climb past Loonext's flat line.",
   dealMeterCaption:
@@ -296,6 +337,10 @@ export const homeFr: Translated<typeof homeEn> = {
   metaDescription:
     "Un seul numéro d'entreprise pour les textos et les appels, dans une boîte que toute l'équipe utilise depuis n'importe quel téléphone. Répondez, prenez l'appel, assignez, transformez en job, fermez.",
 
+  ogTitle: "Quelqu'un a écrit à votre entreprise à 21 h 04 hier soir.",
+  ogDescription:
+    "Loonext donne à votre entreprise un numéro local et une seule boîte partagée pour les textos et les appels qui y arrivent, pris par qui est libre dans l'équipe.",
+  metaPrice: "par mois, prix fixe pour l'équipe, pas par personne.",
   heroDateline: "21 H 04 · MARDI",
   heroH1:
     "Quelqu'un a écrit à votre entreprise à 21 h 04 hier soir. Est-ce que quelqu'un l'a vu ?",
@@ -309,6 +354,13 @@ export const homeFr: Translated<typeof homeEn> = {
   heroInboxAria: "Des conversations clients en attente dans la boîte Loonext",
   heroInboxHeading: "Boîte de réception",
   heroInboxYou: "Vous : ",
+  arrivalWaterHeater: "Chauffe-eau qui coule, erreur E110",
+  arrivalNoHeat: "Pas de chauffage ce matin, thermostat éteint",
+  arrivalBackBeds:
+    "Pouvez-vous ajouter les plates-bandes en arrière cette semaine ?",
+  arrivalTextBack:
+    "Désolés d'avoir manqué votre appel. Écrivez-nous ici même et quelqu'un vous reviendra.",
+  arrivalComingToday: "Est-ce qu'il vient aujourd'hui ?",
 
   truthChipTexts: "Envoyez et recevez textos et photos",
   truthChipMonthly: "Au mois, annulez quand vous voulez",
@@ -435,6 +487,23 @@ export const homeFr: Translated<typeof homeEn> = {
     "Un appel manqué et un texto sans réponse coûtent la même job. Loonext fait sonner toute votre équipe quand quelqu'un appelle, met le message vocal par écrit quand personne ne peut répondre, et place chaque texto là où celui qui est libre y répond, pas celui à qui appartient le téléphone. Ça fait",
   mathCloseAfter: "par mois contre le chiffre ci-dessus.",
 
+  planStarterAudience: "Pour les équipes de une à trois personnes.",
+  planProAudience:
+    "Pour les équipes jusqu'à quinze personnes, et un deuxième numéro.",
+  planProBadge: "Pour les plus grandes équipes",
+  planTeammates: " coéquipiers inclus",
+  planOneNumber: " numéro d'entreprise local",
+  planTwoNumbers:
+    " numéros d'entreprise locaux (deux emplacements, ou bureau et terrain)",
+  planTexts: "Envoyez et recevez textos et photos*",
+  planStarterCta: "Commencer avec Starter",
+  planProCta: "Commencer avec Pro",
+  mathMissed: "Appels ou textos que vous manquez en une semaine",
+  mathBooked: "Combien de ceux-là auraient donné un contrat",
+  mathJobValue: "Valeur moyenne d'une job",
+  mathThatsAbout: "Ça fait environ",
+  mathPerMonth: "par mois",
+  mathLost: "en travail qui est allé ailleurs.",
   dealTitle: "Un seul prix fixe pour toute l'équipe.",
   dealSub:
     "Aucuns frais par personne. Aucun appel pour une soumission. Aucun contrat annuel. Voici la liste de prix au complet.",
@@ -457,6 +526,22 @@ export const homeFr: Translated<typeof homeEn> = {
   dealFairUse:
     "Les chiffres concrets vivent dans notre politique d'utilisation équitable.",
   dealEnterprise: "Parlez-nous d'Enterprise",
+  sliderCrew: "Personnes dans votre équipe",
+  sliderLoonext: "Loonext Pro",
+  sliderFlat: ", prix fixe",
+  sliderRivalBefore: "Outil typique facturé par personne à",
+  sliderRivalAfter: "/personne/mois",
+  sliderClimbing: ", et ça grimpe",
+  sliderAtBefore: "À",
+  sliderAtMiddle: "personnes, ça fait",
+  sliderLessAMonth: "de moins par mois",
+  sliderWithLoonext: "avec Loonext,",
+  sliderFlatInsteadOf: "prix fixe au lieu de",
+  meterHeadline: "Bien à l'intérieur de l'utilisation équitable ce mois-ci.",
+  meterBody:
+    "C'est tout l'écran pour presque toutes les équipes. On vous contacte d'avance si l'utilisation dépasse ce que votre forfait couvre, pour que vous puissiez simplement écrire.",
+  meterCapLabel: "Plafond de dépenses",
+  meterCapValue: "vous le fixez",
   dealSliderCaption:
     "Glissez de 1 à 10 personnes et regardez un outil typique facturé par personne grimper au-dessus de la ligne fixe de Loonext.",
   dealMeterCaption:

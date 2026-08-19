@@ -12,6 +12,8 @@
  *   decorative), so it loads for everyone on viewport approach.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { threadDemoCopy } from "@/i18n/marketing/thread-demo";
 import type { ReactNode } from "react";
 
 import type { ThreadScript } from "@/components/marketing/thread-demo/script";
@@ -20,9 +22,11 @@ import { LazyIsland } from "@/components/marketing/ui/lazy-island";
 export function LazyThreadDeepDive({
   script,
   fallback,
+  locale = "en",
 }: {
   script: ThreadScript;
   fallback: ReactNode;
+  locale?: MarketingLocale;
 }) {
   return (
     <LazyIsland
@@ -32,13 +36,19 @@ export function LazyThreadDeepDive({
           (m) => ({ default: m.ThreadDeepDive }),
         )
       }
-      componentProps={{ script }}
+      componentProps={{ script, locale }}
       skipWhenReducedMotion
     />
   );
 }
 
-export function LazyMissedTextCalculator({ fallback }: { fallback: ReactNode }) {
+export function LazyMissedTextCalculator({
+  fallback,
+  locale = "en",
+}: {
+  fallback: ReactNode;
+  locale?: MarketingLocale;
+}) {
   return (
     <LazyIsland
       fallback={fallback}
@@ -47,6 +57,7 @@ export function LazyMissedTextCalculator({ fallback }: { fallback: ReactNode }) 
           "@/components/marketing/interactive/missed-text-calculator"
         ).then((m) => ({ default: m.MissedTextCalculator }))
       }
+      componentProps={{ locale }}
     />
   );
 }

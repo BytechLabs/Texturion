@@ -23,6 +23,7 @@
  * a page shipped without telling anybody it existed.
  */
 export const TRANSLATED_PAGES: readonly { readonly en: string; readonly fr: string }[] = [
+  { en: "/", fr: "/fr" },
   { en: "/contact", fr: "/fr/contact" },
   { en: "/canada", fr: "/fr/canada" },
   { en: "/features/tasks", fr: "/fr/taches" },

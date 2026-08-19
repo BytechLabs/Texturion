@@ -8,6 +8,9 @@
  * content: no invented product stats, no names implying real customers.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { homeCopy } from "@/i18n/marketing/home";
+
 export interface ArrivalScriptItem {
   /** Contact display name on the inbox row (fictional). */
   name: string;
@@ -30,35 +33,42 @@ export interface ArrivalScriptItem {
 }
 
 /** P5-SPEC order: 9:04 PM, 6:48 AM, 12:15 PM, 5:31 PM, 8:47 AM. */
-export const ARRIVAL_SCRIPT: readonly ArrivalScriptItem[] = [
+export const arrivalScript = (
+  locale: MarketingLocale = "en",
+): readonly ArrivalScriptItem[] => {
+  const copy = homeCopy(locale);
+  return [
   {
     name: "Karen M",
-    snippet: "Water heater leaking, error E110",
+    snippet: copy.arrivalWaterHeater,
     time: "9:04 PM",
   },
   {
     name: "Dan R",
-    snippet: "No heat this morning, thermostat blank",
+    snippet: copy.arrivalNoHeat,
     time: "6:48 AM",
   },
   {
     name: "Alicia G",
-    snippet: "Can you add the back beds this week?",
+    snippet: copy.arrivalBackBeds,
     time: "12:15 PM",
   },
   {
     name: "Morgan W",
-    snippet:
-      "Sorry we missed your call. Text us right here and someone will get back to you.",
+    snippet: copy.arrivalTextBack,
     time: "5:31 PM",
     direction: "outbound",
   },
   {
     name: "Theo B",
-    snippet: "Is he coming today?",
+    snippet: copy.arrivalComingToday,
     time: "8:47 AM",
   },
-] as const;
+  ] as const;
+};
+
+/** The English rows, for tests and any English-only surface. */
+export const ARRIVAL_SCRIPT: readonly ArrivalScriptItem[] = arrivalScript("en");
 
 /**
  * The dock event (P5-SPEC §"Coupling to the real DOM"): the sketch dispatches

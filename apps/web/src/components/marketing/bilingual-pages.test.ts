@@ -184,7 +184,15 @@ function bilingualBodies(): string[] {
     .filter((name) => name.endsWith(".tsx") && !name.endsWith(".test.tsx"))
     .map((name) => join(heroDir, name))
     .filter((file) => readFileSync(file, "utf8").includes("MarketingLocale"));
-  return [...pages, ...visuals, ...sections, ...hero];
+  // The demo threads and their chrome. A conversation is the most
+  // copy-dense thing on the site and it renders inside the home page, the
+  // bento grid and several feature embeds, so it belongs here too.
+  const demoDir = join(BODIES, "thread-demo");
+  const demo = readdirSync(demoDir)
+    .filter((name) => name.endsWith(".tsx") && !name.endsWith(".test.tsx"))
+    .map((name) => join(demoDir, name))
+    .filter((file) => readFileSync(file, "utf8").includes("MarketingLocale"));
+  return [...pages, ...visuals, ...sections, ...hero, ...demo];
 }
 
 describe("#228/D138 the bilingual page bodies carry no words of their own", () => {

@@ -19,6 +19,8 @@
  * interactive twin reads too, so the swap stays seamless in both countries.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { homeCopy } from "@/i18n/marketing/home";
 import { formatMoney, type BillingCurrency } from "@loonext/shared";
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
@@ -76,11 +78,14 @@ export function CrewSizeSliderStatic({
   // The currency the READER thinks in, so a US figure can be marked as foreign
   // when it is. Defaults to usd, which is a no-op for a US visitor.
   audience = "usd",
+  locale = "en",
 }: {
   perUserMonthly?: number;
   minimumSeats?: number;
   audience?: BillingCurrency;
+  locale?: MarketingLocale;
 } = {}) {
+  const copy = homeCopy(locale);
   // Derived per render rather than at module scope: the rate is now a prop, and
   // a module constant would silently keep the default on every page that passes
   // a different one — which is exactly the bug this is fixing.
@@ -93,7 +98,7 @@ export function CrewSizeSliderStatic({
   return (
     <div className="fr-card p-6">
       <div className="flex items-baseline justify-between text-[0.875rem] font-semibold text-[color:var(--fr-ink)]">
-        <span>People on your crew</span>
+        <span>{copy.sliderCrew}</span>
         <span className="fr-mono-data text-2xl text-[color:var(--fr-ink)]">
           {SEATS}
         </span>
@@ -113,13 +118,13 @@ export function CrewSizeSliderStatic({
         <div>
           <div className="flex items-baseline justify-between gap-3 text-[0.875rem]">
             <span className="font-medium text-[color:var(--fr-ink)]">
-              Loonext Pro
+              {copy.sliderLoonext}
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
                 {usd(LOONEXT_PRICE, audience)}/mo
               </span>
-              <span className="text-[color:var(--fr-ink-55)]">, flat</span>
+              <span className="text-[color:var(--fr-ink-55)]">{copy.sliderFlat}</span>
             </span>
           </div>
           <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-[color:var(--fr-frost)]">
@@ -134,14 +139,15 @@ export function CrewSizeSliderStatic({
         <div>
           <div className="flex items-baseline justify-between gap-3 text-[0.875rem]">
             <span className="font-medium text-[color:var(--fr-ink)]">
-              Typical per-user tool at {usd(perUserMonthly, audience)}/user/mo
+              {copy.sliderRivalBefore} {usd(perUserMonthly, audience)}
+              {copy.sliderRivalAfter}
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
                 {usd(PER_USER, audience)}/mo
               </span>
               <span className="text-[color:var(--fr-ink-55)]">
-                , and climbing
+                {copy.sliderClimbing}
               </span>
             </span>
           </div>
@@ -155,12 +161,12 @@ export function CrewSizeSliderStatic({
       </div>
 
       <p className="mt-5 text-[0.9375rem] text-[color:var(--fr-ink)]">
-        At {SEATS} people, that&apos;s{" "}
+        {copy.sliderAtBefore} {SEATS} {copy.sliderAtMiddle}{" "}
         <span className="fr-mono-data text-[color:var(--fr-ink)]">
-          {usd(SAVINGS, audience)} less a month
+          {usd(SAVINGS, audience)} {copy.sliderLessAMonth}
         </span>{" "}
-        with Loonext, {usd(LOONEXT_PRICE, audience)} flat instead of {SEATS} ×{" "}
-        {usd(perUserMonthly, audience)}.
+        {copy.sliderWithLoonext} {usd(LOONEXT_PRICE, audience)}{" "}
+        {copy.sliderFlatInsteadOf} {SEATS} × {usd(perUserMonthly, audience)}.
       </p>
 
       <a

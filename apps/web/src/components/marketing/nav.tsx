@@ -45,6 +45,9 @@ import { NavCss } from "./nav/nav-css";
  */
 export function Nav({ locale = "en" }: { locale?: NavCopyLocale } = {}) {
   const copy = navCopy(locale);
+  // A French reader clicking the wordmark was landing on the English home,
+  // because this href predates there being anywhere else to send them.
+  const home = locale === "fr-CA" ? "/fr" : "/";
   const menus = navMenusFor(copy);
   const pricingLink = pricingLinkFor(copy);
   const [condensed, setCondensed] = useState(false);
@@ -76,7 +79,7 @@ export function Nav({ locale = "en" }: { locale?: NavCopyLocale } = {}) {
           )}
         >
           {/* The wordmark rule (#206): the SECOND o carries the accent. */}
-          <Link href="/" aria-label="Loonext home" className="frn-wordmark frn-focus rounded-[6px] text-xl leading-none">
+          <Link href={home} aria-label={copy.homeAria} className="frn-wordmark frn-focus rounded-[6px] text-xl leading-none">
             Lo<span className="frn-o">o</span>next
           </Link>
 
@@ -133,8 +136,8 @@ export function Nav({ locale = "en" }: { locale?: NavCopyLocale } = {}) {
                 >
                   <SheetTitle className="px-4 pt-4">
                     <Link
-                      href="/"
-                      aria-label="Loonext home"
+                      href={home}
+                      aria-label={copy.homeAria}
                       className="frn-wordmark frn-focus rounded-[6px] text-xl leading-none"
                       onClick={() => setMobileOpen(false)}
                     >

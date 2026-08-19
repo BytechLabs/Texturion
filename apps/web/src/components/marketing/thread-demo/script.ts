@@ -1,3 +1,7 @@
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { fill } from "@/i18n/marketing/home";
+import { DEMO_CAST, threadDemoCopy } from "@/i18n/marketing/thread-demo";
+
 /**
  * Thread-demo script model.
  *
@@ -135,10 +139,14 @@ export interface ThreadScript {
  * That is the single most load-bearing thing this page can show, because a
  * demo made of texts is what made the whole product read as a texting tool.
  */
-export const WATER_HEATER_SCRIPT: ThreadScript = {
-  contact: { name: "Karen M", number: "(416) 555-0187" },
+export const waterHeaterScript = (
+  locale: MarketingLocale = "en",
+): ThreadScript => {
+  const copy = threadDemoCopy(locale);
+  return {
+  contact: { name: DEMO_CAST.karen, number: "(416) 555-0187" },
   finalStatus: "waiting",
-  assignee: "Dale",
+  assignee: DEMO_CAST.dale,
   beats: [
     {
       id: "call-1",
@@ -147,8 +155,7 @@ export const WATER_HEATER_SCRIPT: ThreadScript = {
       outcome: "voicemail",
       voicemail: {
         seconds: 34,
-        transcript:
-          "Hi, this is Karen on Delaware Ave. I'm trying to reach someone about our water heater, there's water on the floor underneath it. I'll send you a picture. Thanks.",
+        transcript: copy.waterVoicemail,
       },
       textBack: true,
       step: 1,
@@ -156,44 +163,43 @@ export const WATER_HEATER_SCRIPT: ThreadScript = {
     {
       id: "out-0",
       kind: "outbound",
-      by: "Reyes Plumbing",
-      body:
-        "Sorry we missed your call, this is Reyes Plumbing. Text us right here and someone will get back to you.",
+      by: DEMO_CAST.business,
+      body: copy.waterTextBack,
       time: "2:39 PM",
       delivered: "delivered",
     },
     {
       id: "in-1",
       kind: "inbound",
-      from: "Karen M",
-      body:
-        "Hi, do you service tankless water heaters? Ours is showing error E110 and there's water pooling underneath",
-      photo: { label: "Leaking tankless heater" },
+      from: DEMO_CAST.karen,
+      body: copy.waterInbound,
+      photo: { label: copy.waterPhotoLabel },
       time: "2:41 PM",
       step: 2,
     },
     {
       id: "note-1",
       kind: "note",
-      by: "Priya",
-      body:
-        "Sounds like the Navien on Delaware Ave. Dale, you're two streets over this afternoon",
+      by: DEMO_CAST.priya,
+      body: copy.waterNote,
       time: "2:43 PM",
       step: 3,
     },
     {
       id: "event-1",
       kind: "event",
-      text: "Priya assigned this conversation to Dale",
+      text: fill(copy.waterAssigned, {
+        by: DEMO_CAST.priya,
+        to: DEMO_CAST.dale,
+      }),
       revealsAssignee: true,
       step: 4,
     },
     {
       id: "out-1",
       kind: "outbound",
-      by: "Dale",
-      body:
-        "Hi Karen, it's Dale from Reyes Plumbing. E110 with pooling water usually means a heat exchanger leak, so please don't run hot water for now. I can come by tomorrow between 9 and 11. Does that work?",
+      by: DEMO_CAST.dale,
+      body: copy.waterReply,
       time: "2:52 PM",
       delivered: "delivered",
       step: 5,
@@ -201,18 +207,25 @@ export const WATER_HEATER_SCRIPT: ThreadScript = {
     {
       id: "in-2",
       kind: "inbound",
-      from: "Karen M",
-      body: "Tomorrow between 9 and 11 works. Thank you so much",
+      from: DEMO_CAST.karen,
+      body: copy.waterConfirm,
       time: "2:58 PM",
     },
     {
       id: "event-2",
       kind: "event",
-      text: "Dale added the tag Scheduled",
+      text: fill(copy.waterTagged, {
+        by: DEMO_CAST.dale,
+        tag: copy.tagScheduled,
+      }),
       step: 6,
     },
   ],
+  };
 };
+
+/** The English thread, for the tests and any English-only surface. */
+export const WATER_HEATER_SCRIPT: ThreadScript = waterHeaterScript("en");
 
 /**
  * §S6 cell 9 phone thread ("Built for the truck, not the desk"): a short
@@ -224,23 +237,27 @@ export const WATER_HEATER_SCRIPT: ThreadScript = {
  * cell's claim is that the whole product fits in a pocket, and the softphone
  * (D36 to D43) is the half of it that was never depicted.
  */
-export const DARK_BAND_SCRIPT: ThreadScript = {
-  contact: { name: "Marcus T", number: "(647) 555-0121" },
+export const darkBandScript = (
+  locale: MarketingLocale = "en",
+): ThreadScript => {
+  const copy = threadDemoCopy(locale);
+  return {
+  contact: { name: DEMO_CAST.marcus, number: "(647) 555-0121" },
   finalStatus: "open",
-  assignee: "Dale",
+  assignee: DEMO_CAST.dale,
   beats: [
     {
       id: "d-in-1",
       kind: "inbound",
-      from: "Marcus T",
-      body: "No hot water since this morning, any chance someone could come by today?",
+      from: DEMO_CAST.marcus,
+      body: copy.darkInbound,
       time: "6:12 AM",
     },
     {
       id: "d-out-1",
       kind: "outbound",
-      by: "Dale",
-      body: "On my way, should be with you in about 20 minutes.",
+      by: DEMO_CAST.dale,
+      body: copy.darkReply,
       time: "6:14 AM",
       delivered: "delivered",
     },
@@ -254,10 +271,14 @@ export const DARK_BAND_SCRIPT: ThreadScript = {
     {
       id: "d-in-2",
       kind: "inbound",
-      from: "Marcus T",
-      body: "You're a lifesaver, thank you",
+      from: DEMO_CAST.marcus,
+      body: copy.darkThanks,
       time: "6:15 AM",
     },
   ],
+  };
 };
+
+/** The English thread, for the tests and any English-only surface. */
+export const DARK_BAND_SCRIPT: ThreadScript = darkBandScript("en");
 

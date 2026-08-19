@@ -14,23 +14,30 @@
  * /pricing embeds — home/usage-meter.tsx re-exports this (no duplication).
  */
 
-export function UsageMeterEmbed() {
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { homeCopy } from "@/i18n/marketing/home";
+
+export function UsageMeterEmbed({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
   return (
     <div className="bg-background p-5 text-foreground">
       <p className="text-sm font-medium text-foreground">
-        Well within fair use this month.
+        {copy.meterHeadline}
       </p>
 
       <p className="mt-3 text-sm text-muted-foreground">
-        That&apos;s the whole screen for almost every crew. We reach out early
-        if usage ever paces past what your plan covers, so you can just text.
+        {copy.meterBody}
       </p>
 
       {/* The owner-set spending cap stays reachable, always (SPEC §2). */}
       <div className="mt-4 flex items-center justify-between rounded-lg bg-secondary px-3 py-2 text-[13px]">
-        <span className="text-muted-foreground">Spending cap</span>
+        <span className="text-muted-foreground">{copy.meterCapLabel}</span>
         <span className="font-medium tabular-nums text-foreground">
-          you set it
+          {copy.meterCapValue}
         </span>
       </div>
     </div>

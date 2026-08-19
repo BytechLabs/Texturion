@@ -3,7 +3,7 @@ import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { FrCard, FrSection, PanelFrame } from "@/components/marketing/fr";
 import { cn } from "@/lib/utils";
 import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
-import { DARK_BAND_SCRIPT } from "@/components/marketing/thread-demo/script";
+import { darkBandScript } from "@/components/marketing/thread-demo/script";
 import { StaticThread } from "@/components/marketing/thread-demo/static-thread";
 
 import {
@@ -107,7 +107,8 @@ export function Bento({ locale = "en" }: { locale?: MarketingLocale } = {}) {
           >
             <AppSurface>
               <StaticThread
-                script={DARK_BAND_SCRIPT}
+                script={darkBandScript(locale)}
+                locale={locale}
                 framing="phone"
                 pushBanner={{
                   title: copy.bentoPushTitle,

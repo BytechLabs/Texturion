@@ -21,6 +21,7 @@
  * own face (Golos), not the marketing trio.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { ChevronLeft, Info } from "lucide-react";
 
 import { BrandTile } from "@/components/brand/brand-mark";
@@ -36,12 +37,14 @@ function ThreadHeader({
   status,
   assignee,
   showBack,
+  locale = "en",
 }: {
   name: string;
   number: string;
   status: "new" | "open" | "waiting" | "closed";
   assignee?: string;
   showBack?: boolean;
+  locale?: MarketingLocale;
 }) {
   return (
     <div className="flex items-center gap-2 border-b border-app-line px-3.5 py-2.5">
@@ -60,7 +63,7 @@ function ThreadHeader({
           {number}
         </p>
       </div>
-      <DemoStatusPill status={status} />
+      <DemoStatusPill status={status} locale={locale} />
       {assignee && <DemoAvatar name={assignee} className="size-6 text-[10px]" />}
       {!assignee && (
         <Info
@@ -92,7 +95,8 @@ export function ThreadFrame({
   pushBanner,
   children,
   className,
-}: ThreadFrameProps) {
+  locale = "en",
+}: ThreadFrameProps & { locale?: MarketingLocale }) {
   return (
     <AppSurface className={cn("relative", className)}>
       {framing === "phone" && pushBanner && (
@@ -113,6 +117,7 @@ export function ThreadFrame({
         </div>
       )}
       <ThreadHeader
+        locale={locale}
         name={contact.name}
         number={contact.number}
         status={status}

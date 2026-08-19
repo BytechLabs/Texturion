@@ -151,6 +151,7 @@ function ColumnHeading({ children }: { children: React.ReactNode }) {
 
 export function Footer({ locale = "en" }: { locale?: MarketingLocale } = {}) {
   const copy = footerCopy(locale);
+  const home = locale === "fr-CA" ? "/fr" : "/";
   const year = new Date().getFullYear();
   const hasIdentity = LEGAL_ENTITY_NAME !== null && MAILING_ADDRESS !== null;
 
@@ -165,7 +166,7 @@ export function Footer({ locale = "en" }: { locale?: MarketingLocale } = {}) {
               brand line. */}
           <div className="lg:col-span-3">
             <Link
-              href="/"
+              href={home}
               aria-label={copy.homeAria}
               className="frf-mark text-2xl font-semibold tracking-tight text-[color:var(--fr-on-inverse)] [font-family:var(--font-golos),system-ui,sans-serif]"
             >
