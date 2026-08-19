@@ -144,6 +144,9 @@ export const businessNumberEn = {
   visualFieldLine: "Field line",
   visualHeading: "Your business numbers",
   visualActive: "Active",
+  ctaSubBefore:
+    "Pick your local area code or bring the number you have, keep your personal cell private, and give the whole crew a business number they share.",
+  ctaSubAfter: ".",
 } as const;
 
 export const businessNumberFr: Translated<typeof businessNumberEn> = {
@@ -269,6 +272,9 @@ export const businessNumberFr: Translated<typeof businessNumberEn> = {
   visualFieldLine: "Ligne de terrain",
   visualHeading: "Vos numéros d'entreprise",
   visualActive: "Actif",
+  ctaSubBefore:
+    "Choisissez votre indicatif régional ou amenez le numéro que vous avez, gardez votre cellulaire personnel privé, et donnez à toute l'équipe un numéro d'entreprise qu'elle partage.",
+  ctaSubAfter: ".",
 };
 
 const BUSINESS_NUMBER_COPY = {

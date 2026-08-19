@@ -117,6 +117,9 @@ export const contactsEn = {
   timelineOctItem: "Furnace service, done by Dale",
   timelineAug: "Aug 2024",
   timelineAugItem: "Photo of the old unit",
+  ctaSubBefore:
+    "One history per customer, assembled from every text and call,",
+  ctaSubAfter: ". See the price.",
 } as const;
 
 export const contactsFr: Translated<typeof contactsEn> = {
@@ -217,6 +220,9 @@ export const contactsFr: Translated<typeof contactsEn> = {
   timelineOctItem: "Entretien de la fournaise, fait par Dale",
   timelineAug: "août 2024",
   timelineAugItem: "Photo de l'ancien appareil",
+  ctaSubBefore:
+    "Un seul historique par client, assemblé à partir de chaque texto et de chaque appel,",
+  ctaSubAfter: ". Voyez le prix.",
 };
 
 const CONTACTS_COPY = {

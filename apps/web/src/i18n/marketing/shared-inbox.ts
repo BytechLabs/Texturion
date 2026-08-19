@@ -131,6 +131,9 @@ export const sharedInboxEn = {
   listFilterOpen: "Open",
   listFilterMine: "Mine",
   listFilterClosed: "Closed",
+  ctaSubBefore:
+    "A local business number and a shared text inbox the whole team can see,",
+  ctaSubAfter: ". See the price.",
 } as const;
 
 export const sharedInboxFr: Translated<typeof sharedInboxEn> = {
@@ -240,6 +243,9 @@ export const sharedInboxFr: Translated<typeof sharedInboxEn> = {
   listFilterOpen: "Ouvert",
   listFilterMine: "À moi",
   listFilterClosed: "Fermé",
+  ctaSubBefore:
+    "Un numéro d'entreprise local et une boîte de textos partagée que toute l'équipe voit,",
+  ctaSubAfter: ". Voyez le prix.",
 };
 
 const SHARED_INBOX_COPY = {

@@ -41,7 +41,7 @@ import {
   UseCaseSteps,
 } from "@/components/marketing/features/feature-page";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
-import { ACTIVATION_CLAIM } from "@/lib/marketing/activation";
+import { activationClaim } from "@/lib/marketing/activation";
 
 const PATH = "/features/calls";
 
@@ -223,7 +223,7 @@ export function CallsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
 
       <FeatureCta
         heading={copy.ctaTitle}
-        sub={`Calls and texts on one business number, answered by whoever is free, ${ACTIVATION_CLAIM}. See the price.`}
+        sub={`${copy.ctaSubBefore} ${activationClaim(locale)}${copy.ctaSubAfter}`}
       />
     </>
   );

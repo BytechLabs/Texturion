@@ -39,7 +39,7 @@ import {
   UseCaseSteps,
 } from "@/components/marketing/features/feature-page";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
-import { ACTIVATION_CLAIM } from "@/lib/marketing/activation";
+import { activationClaim } from "@/lib/marketing/activation";
 
 const PATH = "/features/assistant";
 
@@ -207,7 +207,7 @@ export function AssistantPageBody({ locale = "en" }: { locale?: MarketingLocale 
 
       <FeatureCta
         heading={copy.ctaTitle}
-        sub={`${copy.ctaSubBefore} ${ACTIVATION_CLAIM}${copy.ctaSubAfter}`}
+        sub={`${copy.ctaSubBefore} ${activationClaim(locale)}${copy.ctaSubAfter}`}
       />
     </>
   );

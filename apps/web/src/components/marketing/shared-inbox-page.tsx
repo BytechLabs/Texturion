@@ -37,7 +37,7 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
-import { ACTIVATION_CLAIM } from "@/lib/marketing/activation";
+import { activationClaim } from "@/lib/marketing/activation";
 
 const PATH = "/features/shared-inbox";
 
@@ -226,7 +226,7 @@ export function SharedInboxPageBody({
 
       <FeatureCta
         heading={copy.ctaTitle}
-        sub={`A local business number and a shared text inbox the whole team can see, ${ACTIVATION_CLAIM}. See the price.`}
+        sub={`${copy.ctaSubBefore} ${activationClaim(locale)}${copy.ctaSubAfter}`}
       />
     </>
   );

@@ -43,6 +43,8 @@
  * `blog-pages.test.ts` enforces it.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+
 /**
  * The full claim. Use wherever there is room for a sentence — CTA subheads, body
  * copy, anywhere the old "live in minutes" ran.
@@ -83,3 +85,56 @@ export const ACTIVATION_CHIP = "Set up today";
  * seventeenth.
  */
 export const RETIRED_ACTIVATION_CLAIM = "live in minutes";
+
+/**
+ * D138 — the same claim in French.
+ *
+ * ## Why this lives here and not in eight catalogues
+ *
+ * The whole argument of this file is that a claim which is wrong somewhere,
+ * plus an override wherever somebody noticed, is how a number drifts. Putting
+ * the French in each page's catalogue would recreate exactly that: eight
+ * copies of a sentence about carrier approval, drifting apart the first time
+ * the timeline changes.
+ *
+ * So the shape stays "one phrase, no per-page overrides" and gains a second
+ * language. One place to edit when the 3-to-7-day reality moves.
+ *
+ * ## How it was found
+ *
+ * Not by reading the pages. Six French pages closed on an English sentence
+ * because the bilingual guard read `prop="literal"` and this arrives as
+ * ``prop={`text ${CONSTANT}.`}`` — a template literal in braces, which the
+ * regex could not see. The guard now reads those too, and the six failures it
+ * produced on its first run are the reason this exists.
+ */
+export const ACTIVATION_CLAIM_FR =
+  "configuré aujourd'hui. La réception des textos fonctionne tout de suite, " +
+  "et l'envoi aux clients américains s'active dès que les opérateurs vous " +
+  "approuvent, environ une semaine";
+
+/** The short claim, for `metadata.description` and other tight budgets. */
+export const ACTIVATION_CLAIM_SHORT_FR =
+  "configuré aujourd'hui, l'envoi aux États-Unis s'activant dès l'approbation des opérateurs";
+
+/** The chip-length claim, for trust bars with no room for a clause. */
+export const ACTIVATION_CHIP_FR = "Configuré aujourd'hui";
+
+/**
+ * The claim for a page that renders in both languages.
+ *
+ * English-only pages keep importing the constant directly: they cannot vary,
+ * so a function there would be ceremony. These three exist for the bilingual
+ * bodies, which are the only files that have a locale to pass.
+ */
+export function activationClaim(locale: MarketingLocale = "en"): string {
+  return locale === "fr-CA" ? ACTIVATION_CLAIM_FR : ACTIVATION_CLAIM;
+}
+
+export function activationClaimShort(locale: MarketingLocale = "en"): string {
+  return locale === "fr-CA" ? ACTIVATION_CLAIM_SHORT_FR : ACTIVATION_CLAIM_SHORT;
+}
+
+export function activationChip(locale: MarketingLocale = "en"): string {
+  return locale === "fr-CA" ? ACTIVATION_CHIP_FR : ACTIVATION_CHIP;
+}

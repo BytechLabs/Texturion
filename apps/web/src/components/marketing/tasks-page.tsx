@@ -37,7 +37,7 @@ import {
   UseCaseSteps,
 } from "@/components/marketing/features/feature-page";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
-import { ACTIVATION_CLAIM } from "@/lib/marketing/activation";
+import { activationClaim } from "@/lib/marketing/activation";
 
 const PATH = "/features/tasks";
 
@@ -198,7 +198,7 @@ export function TasksPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
 
       <FeatureCta
         heading={copy.ctaTitle}
-        sub={`Texts and calls that turn into jobs with owners and dates, ${ACTIVATION_CLAIM}. See the price.`}
+        sub={`${copy.ctaSubBefore} ${activationClaim(locale)}${copy.ctaSubAfter}`}
       />
     </>
   );

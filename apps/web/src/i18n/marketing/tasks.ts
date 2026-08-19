@@ -123,6 +123,9 @@ export const tasksEn = {
   boardCardHeater: "Water heater swap, Bishop St",
   boardCardQuote: "Quote the Hendersons",
   boardCardDrain: "Drain clear, Marcus T",
+  ctaSubBefore:
+    "Texts and calls that turn into jobs with owners and dates,",
+  ctaSubAfter: ". See the price.",
 } as const;
 
 export const tasksFr: Translated<typeof tasksEn> = {
@@ -227,6 +230,9 @@ export const tasksFr: Translated<typeof tasksEn> = {
   boardCardHeater: "Remplacement de chauffe-eau, rue Bishop",
   boardCardQuote: "Faire la soumission des Henderson",
   boardCardDrain: "Débouchage de drain, Marcus T",
+  ctaSubBefore:
+    "Des textos et des appels qui deviennent des jobs avec un responsable et une date,",
+  ctaSubAfter: ". Voyez le prix.",
 };
 
 const TASKS_COPY = {

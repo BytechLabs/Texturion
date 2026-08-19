@@ -38,6 +38,36 @@ const COPY_PROPS =
   /\b(?:alt|aria-label|ariaLabel|title|label|caption|eyebrow|heading|description|placeholder|sub)="([^"]{4,})"/g;
 
 /**
+ * The same props, taking a TEMPLATE LITERAL instead of a quoted string.
+ *
+ * This is the hole the first version of this file had, and it was not
+ * theoretical: SIX French pages closed on an English sentence because their
+ * CTA read
+ *
+ *   sub={`Calls and texts on one business number, answered by whoever is
+ *         free, ${ACTIVATION_CLAIM}. See the price.`}
+ *
+ * and `COPY_PROPS` reads `prop="..."`. Backtick, not quote; braces, not
+ * equals-string. Every one of those pages passed all three checks with a
+ * paragraph of English in it.
+ *
+ * The interpolations are stripped before the prose test, because `${copy.x}`
+ * is a variable and only what surrounds it is written here. A template holding
+ * nothing but expressions and punctuation is therefore fine, which is exactly
+ * what a correctly wired one looks like.
+ */
+const TEMPLATE_PROP =
+  /\b(?:alt|aria-label|ariaLabel|title|label|caption|eyebrow|heading|description|placeholder|sub)=\{`([^`]*)`\}/g;
+
+/** Two or more words left over once the `${...}` holes are removed. */
+function proseOutsideInterpolations(template: string): string | null {
+  const literal = template.replace(/\$\{[^}]*\}/g, " ").trim();
+  return /[A-Za-z][A-Za-z'’-]*\s+[A-Za-z][A-Za-z'’-]*/.test(literal)
+    ? literal
+    : null;
+}
+
+/**
  * A JSX text node with words in it.
  *
  * `{copy.x}` and `{" "}` are expressions, not text, so they never match. What
@@ -131,6 +161,22 @@ describe("#228/D138 the bilingual page bodies carry no words of their own", () =
       expect(
         found,
         `${name} passes a literal to a prop a reader or a screen reader sees`,
+      ).toEqual([]);
+    });
+
+    it(`${name} builds no sentence inside a template literal`, () => {
+      // The check that found six shipped pages closing in English. A prop
+      // taking a backtick string is the one shape a quote-anchored scan
+      // cannot see, and it is the shape a CTA reaches for the moment it needs
+      // to interpolate a constant.
+      const found = [...source.matchAll(TEMPLATE_PROP)]
+        .map((m) => proseOutsideInterpolations(m[1]))
+        .filter((prose): prose is string => prose !== null);
+      expect(
+        found,
+        `${name} writes prose inside a template literal passed to a prop. ` +
+          `The interpolated part comes from the catalogue; the words around ` +
+          `it have to as well.`,
       ).toEqual([]);
     });
 

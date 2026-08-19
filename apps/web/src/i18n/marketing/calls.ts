@@ -132,6 +132,9 @@ export const callsEn = {
   visualVoicemailFrom: "Voicemail from Ray Delgado",
   visualVoicemailNote:
     "Written down automatically · texted back: “Sorry we missed you, we’ll call first thing.”",
+  ctaSubBefore:
+    "Calls and texts on one business number, answered by whoever is free,",
+  ctaSubAfter: ". See the price.",
 } as const;
 
 export const callsFr: Translated<typeof callsEn> = {
@@ -247,6 +250,9 @@ export const callsFr: Translated<typeof callsEn> = {
   visualVoicemailFrom: "Message vocal de Ray Delgado",
   visualVoicemailNote:
     "Écrit automatiquement · texto de retour : « Désolé de vous avoir manqué, on vous rappelle à la première heure. »",
+  ctaSubBefore:
+    "Les appels et les textos sur un seul numéro d'entreprise, pris par qui est libre,",
+  ctaSubAfter: ". Voyez le prix.",
 };
 
 const CALLS_COPY = {

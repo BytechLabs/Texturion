@@ -44,7 +44,7 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
-import { ACTIVATION_CLAIM } from "@/lib/marketing/activation";
+import { activationClaim } from "@/lib/marketing/activation";
 
 const PATH = "/features/business-number";
 
@@ -287,7 +287,7 @@ export function BusinessNumberPageBody({
 
       <FeatureCta
         heading={copy.ctaTitle}
-        sub={`Pick your local area code or bring the number you have, keep your personal cell private, and give the whole crew a business number they share. ${ACTIVATION_CLAIM}.`}
+        sub={`${copy.ctaSubBefore} ${activationClaim(locale)}${copy.ctaSubAfter}`}
       />
     </>
   );
