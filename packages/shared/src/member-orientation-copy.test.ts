@@ -219,14 +219,41 @@ describe("#286 the joining orientation reads the same on every client", () => {
   }
 
   it("ends on the notification ask, on every client", () => {
-    // The order matters more than any single screen: "requested with context,
-    // not cold" is three screens of reason followed by one ask, and a client
-    // that put the ask first would still pass every line check above.
-    for (const [client, text] of Object.entries(sources)) {
+    /*
+     * THE SCREEN FILE'S KEY ORDER, not the catalogue's byte order.
+     *
+     * This compared `indexOf("You choose when we buzz you")` against
+     * `indexOf("One inbox, the whole crew")` inside `sources`, which is the
+     * screen concatenated with its catalogue. Since #228 neither sentence
+     * appears in any screen — all three hold keys — so both indexes landed in
+     * the catalogue half, and the assertion measured where two entries sit in a
+     * shell catalogue holding hundreds of unrelated strings.
+     *
+     * That is not the order anybody is shown. Reordering Android's SCREENS list
+     * to put the ask first — the exact cold-ask regression the comment names —
+     * passed on all three clients. And it would have FAILED for somebody merely
+     * re-sorting two catalogue lines, which changes nothing a person sees:
+     * wrong in both directions at once.
+     *
+     * Every client lists its screens as keys, in order, in the screen file. So
+     * that is what is read — `screens`, not `sources`.
+     */
+    for (const [client, path] of Object.entries(CLIENTS)) {
+      const screen = read(path);
+      const inbox = screen.indexOf("orientationInboxTitle");
+      const ask = screen.indexOf("orientationNotificationsTitle");
+
+      // Neither key found means the screen was renamed and this stopped
+      // checking anything — the failure mode of every indexOf assertion.
+      expect(inbox, `${client} no longer names orientationInboxTitle`).toBeGreaterThan(-1);
+      expect(ask, `${client} no longer names orientationNotificationsTitle`).toBeGreaterThan(-1);
+
       expect(
-        text.indexOf("You choose when we buzz you"),
-        `${client} orders the screens`,
-      ).toBeGreaterThan(text.indexOf("One inbox, the whole crew"));
+        ask,
+        `${client} asks for notifications before it has given a reason. ` +
+          `"Requested with context, not cold" is three screens of reason and ` +
+          `then one ask; this client puts the ask first.`,
+      ).toBeGreaterThan(inbox);
     }
   });
 });
