@@ -10,6 +10,7 @@
  * sees inline feedback before a round trip. It is a PUBLIC endpoint, so the
  * submit uses a plain fetch (never apiFetch, which attaches auth headers).
  */
+import { contactEn, type ContactCopy } from "@/i18n/marketing/contact";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 
 /** Minimum message length the server enforces (contactBodySchema, min(10)). */
@@ -41,25 +42,40 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-/** Client pre-check mirroring the server's required fields. */
+/**
+ * Client pre-check mirroring the server's required fields.
+ *
+ * D138 — the sentences come in rather than living here. These are the copy a
+ * half-done translation leaves in English, because nobody sees them while
+ * checking that a page looks right: they appear only when somebody gets
+ * something wrong, which on a French page is the worst moment to be addressed
+ * in English.
+ *
+ * `copy` defaults to English so every existing caller and every existing test
+ * keeps asserting the product's wording rather than a locale's.
+ */
 export function validateContactForm(
   values: ContactFormValues,
+  copy: ContactCopy = contactEn,
 ): ContactFieldErrors {
   const errors: ContactFieldErrors = {};
 
   if (values.name.trim().length === 0) {
-    errors.name = "Please enter your name.";
+    errors.name = copy.nameRequired;
   }
 
   const email = values.email.trim();
   if (email.length === 0) {
-    errors.email = "Please enter your email address.";
+    errors.email = copy.emailRequired;
   } else if (!isValidEmail(email)) {
-    errors.email = "Please enter a valid email address.";
+    errors.email = copy.emailInvalid;
   }
 
   if (values.message.trim().length < CONTACT_MIN_MESSAGE) {
-    errors.message = `Please write at least ${CONTACT_MIN_MESSAGE} characters so we can help.`;
+    errors.message = copy.messageTooShort.replace(
+      "{count}",
+      String(CONTACT_MIN_MESSAGE),
+    );
   }
 
   return errors;
@@ -111,8 +127,12 @@ export function contactEndpoint(apiBaseUrl: string): string {
 }
 
 /** Copy shown when the request never reached the server. */
-export const CONTACT_NETWORK_ERROR =
-  "Your message did not send. Please check your connection and try again.";
+export const CONTACT_NETWORK_ERROR = contactEn.networkError;
+
+/** The same sentence, for a reader who is not reading English. */
+export function contactNetworkError(copy: ContactCopy = contactEn): string {
+  return copy.networkError;
+}
 
 /**
  * Map the endpoint's error envelope to a sentence a human can act on. Keyed on
@@ -122,17 +142,20 @@ export const CONTACT_NETWORK_ERROR =
 export function messageForErrorCode(
   code: string | undefined,
   status?: number,
+  copy: ContactCopy = contactEn,
 ): string {
   if (code === "rate_limited" || status === 429) {
-    return "We have received a lot of messages recently. Please try again in a little while.";
+    return copy.rateLimited;
   }
   if (code === "validation_failed" || status === 422 || status === 400) {
-    return "Some of the details need another look. Please check the fields and try again.";
+    return copy.validationFailed;
   }
-  return `Something went wrong on our end and your message did not send. Please try again, or email us at ${SUPPORT_EMAIL}.`;
+  return copy.serverError.replace("{email}", SUPPORT_EMAIL);
 }
 
 export interface ContactSubmitConfig {
+  /** D138 — the words for whichever language the page is being read in. */
+  copy?: ContactCopy;
   /** Base API origin, e.g. publicEnv.NEXT_PUBLIC_API_URL. */
   apiBaseUrl: string;
   /** Injectable fetch for tests; defaults to the global. */
@@ -164,7 +187,7 @@ export async function submitContact(
       signal: config.signal,
     });
   } catch {
-    return { ok: false, message: CONTACT_NETWORK_ERROR };
+    return { ok: false, message: contactNetworkError(config.copy) };
   }
 
   // 201 { ok: true } on success (any 2xx is treated as success).
@@ -181,7 +204,10 @@ export async function submitContact(
   } catch {
     code = undefined;
   }
-  return { ok: false, message: messageForErrorCode(code, response.status) };
+  return {
+    ok: false,
+    message: messageForErrorCode(code, response.status, config.copy),
+  };
 }
 
 /**

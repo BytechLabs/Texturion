@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { contactCopy } from "@/i18n/marketing/contact";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { publicEnv } from "@/env";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { trackContactSubmitted } from "@/lib/analytics/events";
@@ -36,7 +38,8 @@ const EMPTY: ContactFormValues = {
 
 type Status = "idle" | "submitting" | "success";
 
-export function ContactForm() {
+export function ContactForm({ locale = "en" }: { locale?: MarketingLocale } = {}) {
+  const copy = contactCopy(locale);
   const [values, setValues] = useState<ContactFormValues>(EMPTY);
   const [fieldErrors, setFieldErrors] = useState<ContactFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -71,7 +74,7 @@ export function ContactForm() {
     e.preventDefault();
     if (status === "submitting") return; // prevent double submit
 
-    const errors = validateContactForm(values);
+    const errors = validateContactForm(values, copy);
     setFieldErrors(errors);
     setFormError(null);
     if (hasFieldErrors(errors)) {
@@ -82,6 +85,7 @@ export function ContactForm() {
     setStatus("submitting");
     const result = await submitContact(values, {
       apiBaseUrl: publicEnv.NEXT_PUBLIC_API_URL,
+      copy,
     });
     if (result.ok) {
       // #312: the hand-raise, counted. Fire-and-forget and PII-free — see the
@@ -112,12 +116,9 @@ export function ContactForm() {
         role="status"
         className="rounded-xl bg-[color:var(--fr-frost)] p-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] sm:p-8"
       >
-        <h2 className="fr-h3 text-[color:var(--fr-ink)]">
-          Thanks, your message was sent.
-        </h2>
+        <h2 className="fr-h3 text-[color:var(--fr-ink)]">{copy.sentHeading}</h2>
         <p className="mt-2 text-[0.9375rem] leading-relaxed text-[color:var(--fr-ink-70)]">
-          We read every message and reply within one business day. If it is
-          urgent, you can also email us at{" "}
+          {copy.sentBody}{" "}
           <a
             href={`mailto:${SUPPORT_EMAIL}`}
             className="font-medium text-[color:var(--fr-olive)] underline decoration-[color:var(--fr-olive)]/35 underline-offset-4 hover:decoration-[color:var(--fr-olive)]"
@@ -142,7 +143,7 @@ export function ContactForm() {
           className="rounded-[10px] bg-[color:var(--fr-frost)] px-4 py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
           <p className={errorTextClass}>
-            {formError ?? "Please fix the highlighted fields and try again."}
+            {formError ?? copy.formError}
           </p>
           {hasFieldErrors(fieldErrors) && (
             <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm text-[color:var(--fr-ink-70)]">
@@ -157,7 +158,7 @@ export function ContactForm() {
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-1.5">
           <label htmlFor="contact-name" className={labelClass}>
-            Your name
+            {copy.nameLabel}
           </label>
           <input
             id="contact-name"
@@ -177,7 +178,7 @@ export function ContactForm() {
         </div>
         <div className="space-y-1.5">
           <label htmlFor="contact-email" className={labelClass}>
-            Your email
+            {copy.emailLabel}
           </label>
           <input
             id="contact-email"
@@ -202,9 +203,9 @@ export function ContactForm() {
 
       <div className="space-y-1.5">
         <label htmlFor="contact-business" className={labelClass}>
-          Your business{" "}
+          {copy.businessLabel}{" "}
           <span className="font-normal text-[color:var(--fr-ink-55)]">
-            (optional)
+            {copy.optional}
           </span>
         </label>
         <input
@@ -213,14 +214,14 @@ export function ContactForm() {
           value={values.company}
           onChange={(e) => update("company", e.target.value)}
           autoComplete="organization"
-          placeholder="Reyes Plumbing"
+          placeholder={copy.businessPlaceholder}
           disabled={submitting}
         />
       </div>
 
       <div className="space-y-1.5">
         <label htmlFor="contact-message" className={labelClass}>
-          How can we help?
+          {copy.messageLabel}
         </label>
         <textarea
           id="contact-message"
@@ -254,7 +255,7 @@ export function ContactForm() {
           overflow: "hidden",
         }}
       >
-        <label htmlFor="contact-website">Website</label>
+        <label htmlFor="contact-website">{copy.websiteLabel}</label>
         <input
           id="contact-website"
           name="website"
@@ -271,18 +272,18 @@ export function ContactForm() {
         disabled={submitting}
         className="inline-flex w-full items-center justify-center rounded-full bg-[color:var(--fr-olive)] px-7 py-3.5 text-[0.9375rem] font-semibold whitespace-nowrap text-[color:var(--fr-on-olive)] transition-colors duration-200 ease-out hover:bg-[color:var(--fr-olive-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
       >
-        {submitting ? "Sending..." : "Send message"}
+        {submitting ? copy.submitting : copy.submit}
       </button>
 
       <p className="text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
-        Prefer your own email app?{" "}
+        {copy.mailtoBefore}{" "}
         <a
           href={buildMailto(values.name, values.company, values.message)}
           className="font-medium text-[color:var(--fr-olive)] underline decoration-[color:var(--fr-olive)]/35 underline-offset-4 hover:decoration-[color:var(--fr-olive)]"
         >
-          Write to {SUPPORT_EMAIL}
+          {copy.mailtoLink.replace("{email}", SUPPORT_EMAIL)}
         </a>{" "}
-        instead.
+        {copy.mailtoAfter}
       </p>
     </form>
   );
