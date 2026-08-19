@@ -82,7 +82,21 @@ const failures = [];
 // only its `relativeTo:` overload does, so the bare form is the offence and the
 // three-argument form is the fix.
 const IOS_RAW_SYSTEM = /\.system\(size:/;
-const IOS_CUSTOM = /\.custom\([^)]*\bsize:/;
+/*
+ * THREE APIs take a raw point size on iOS, not two: `.system(size:)`,
+ * `Font.custom(_:size:)` and `Font.custom(_:fixedSize:)`.
+ *
+ * This matched only the lowercase token `size:`, and `fixedSize:` capitalises
+ * the S — so every `Font.custom(_:fixedSize:)` in the tree read as scaling
+ * text. The hole was visible in this file's own code: the exemption below for
+ * `fixedSize: points` could never be reached, because the guard returned above
+ * it for want of a match. An exemption for a case the detector cannot detect
+ * is the shape of a rule nobody can fail.
+ *
+ * `DesignSystem.swift` names `Font.custom(_:fixedSize:)` as non-scaling in its
+ * own docblock, so the codebase knew and the detector did not.
+ */
+const IOS_CUSTOM = /\.custom\([^)]*\b(?:size|fixedSize):/;
 
 // The scaling factories have to construct a non-scaling font — that is what they are
 // for — so the file that holds them is skipped below. That skip used to be
@@ -124,7 +138,7 @@ for (const file of sourceFiles(IOS_ROOT, ".swift")) {
       }
       if (IOS_CUSTOM.test(line) && !line.includes("relativeTo:")) {
         failures.push(
-          `${where}  .custom(_:size:) without relativeTo: does not scale - use Font.golos/.display`,
+          `${where}  ${line.includes("fixedSize:") ? ".custom(_:fixedSize:)" : ".custom(_:size:)"} does not scale - use Font.golos/.display`,
         );
       }
     });

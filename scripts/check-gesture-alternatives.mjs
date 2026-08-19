@@ -127,6 +127,21 @@ for (const [file, rule] of Object.entries(SURFACES)) {
 const STARTS_A_DRAG = [
   // Android: a raw pointer stream with a drag detector on it.
   { pattern: /detectDragGestures|detectHorizontalDragGestures|detectVerticalDragGestures/, ext: ".kt" },
+  /*
+   * And the Modifier family, for exactly the reason the iOS arm below
+   * already records: `detectDragGestures` is the API this codebase happened
+   * to reach for FIRST, not the only way Compose starts a drag.
+   * `Modifier.draggable`, `anchoredDraggable` and the deprecated
+   * `swipeable` all begin a drag TalkBack cannot perform, and none of them
+   * contains that substring.
+   *
+   * Nothing in the tree uses them today, which is the point of adding them
+   * now: the iOS half of this sweep shipped blind to `.draggable` while the
+   * task board had used it since it shipped, and the guard printed a
+   * coverage count the whole time. The Android twin of that board has not
+   * been built yet.
+   */
+  { pattern: /Modifier.draggable|anchoredDraggable|swipeable[(]|rememberDraggableState/, ext: ".kt" },
   // iOS: SwiftUI's own drag. `.swipeActions` is excluded on purpose — see the
   // header: VoiceOver publishes those buttons itself.
   //
