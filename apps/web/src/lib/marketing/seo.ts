@@ -1,3 +1,4 @@
+import { languagesFor } from "./translated-pages";
 import { BILLING_CURRENCIES, PLAN_PRICE_CENTS } from "@loonext/shared";
 import type { Metadata } from "next";
 
@@ -64,7 +65,9 @@ export function buildMetadata({
   return {
     title: absoluteTitle ? { absolute: title } : title,
     description,
-    alternates: { canonical },
+    // D138 Rule 5: the hreflang pair, derived from the one registry so the
+    // English page and the French one cannot disagree about each other.
+    alternates: { canonical, languages: languagesFor(path) },
     openGraph: {
       siteName: "Loonext",
       title,

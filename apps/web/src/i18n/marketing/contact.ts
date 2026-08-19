@@ -29,6 +29,8 @@ import type { MarketingLocale } from "./footer";
  * inventing a different company.
  */
 export const contactEn = {
+  breadcrumbHome: "Home",
+  breadcrumbSelf: "Contact",
   dateline: "GET IN TOUCH",
   title: "Email us. We answer.",
   intro:
@@ -79,6 +81,8 @@ export const contactEn = {
 } as const;
 
 export const contactFr: Translated<typeof contactEn> = {
+  breadcrumbHome: "Accueil",
+  breadcrumbSelf: "Nous joindre",
   dateline: "ÉCRIVEZ-NOUS",
   title: "Écrivez-nous. Nous répondons.",
   intro:
