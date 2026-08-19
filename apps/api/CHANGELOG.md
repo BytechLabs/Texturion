@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.2](https://github.com/BytechLabs/Texturion/compare/api-v0.17.1...api-v0.17.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **api:** a caller to a French business hears French from us ([8b4e052](https://github.com/BytechLabs/Texturion/commit/8b4e052ab22598e787449deeccbfedfc63c45363))
+
 ## [0.17.1](https://github.com/BytechLabs/Texturion/compare/api-v0.17.0...api-v0.17.1) (2026-08-19)
 
 
