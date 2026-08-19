@@ -352,6 +352,8 @@ export {
   contactImportColumnCount,
   contactImportColumnSamples,
   detectContactColumns,
+  FLAG_FALSE_SPELLINGS,
+  FLAG_TRUE_SPELLINGS,
   joinContactName,
   normalizeContactHeader,
   readContactFlag,

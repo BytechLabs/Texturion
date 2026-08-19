@@ -52,6 +52,8 @@ import {
   contactImportShowAllValuesLabel,
   contactImportValueCeilingNote,
   readContactFlag,
+  FLAG_TRUE_SPELLINGS,
+  FLAG_FALSE_SPELLINGS,
   unreadableFlagValues,
 } from "@loonext/shared";
 
@@ -105,12 +107,15 @@ const MAX_SIZE_LABEL = `${CONTACT_IMPORT_MAX_BYTES / (1024 * 1024)} MB`;
  * Filtering through the reader means the two cannot say different things: a
  * spelling it stops accepting stops being printed, in the same commit.
  */
-const FLAG_TRUE_SPELLINGS = ["true", "yes", "y", "1", "x"].filter(
-  (spelling) => readContactFlag(spelling) === true,
-);
-const FLAG_FALSE_SPELLINGS = ["false", "no", "n", "0"].filter(
-  (spelling) => readContactFlag(spelling) === false,
-);
+/*
+ * FILTERING THE LIST WAS NOT ENOUGH, and the comment above says why without
+ * noticing: a filter can only narrow the list it is handed. It cannot add a
+ * spelling the reader learned, which is the direction that had already gone
+ * wrong twice — `t` and `f` are accepted by `readContactFlag` and were named
+ * nowhere on this screen.
+ *
+ * So the reader now hands over its own spellings rather than vetting ours.
+ */
 
 /**
  * How a column is named back to the person. A header the file left blank has no

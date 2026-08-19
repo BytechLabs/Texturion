@@ -640,12 +640,58 @@ describe("#248: the do-not-text column's own values have to be readable", () => 
     // different things about who gets blocked.
     await openWith(MARKETING_STATUS);
     const note = screen.getByText(/About "Do not text"/).textContent ?? "";
-    const promised = note.slice(0, note.indexOf("blocked"));
 
-    expect(promised).toContain("x");
-    for (const spelling of ["true", "yes", "y", "1", "x"]) {
-      expect(readContactFlag(spelling)).toBe(true);
-      expect(promised).toContain(spelling);
+    /*
+     * THE PRINTED TOKENS, not a substring of the sentence around them.
+     *
+     * This read `promised.toContain("x")` against the note's own prefix — which
+     * opens `About "Do not text": rows marked …`. The `x` in **text** satisfied
+     * it, and the `y` in **yes** satisfied the other single character, so
+     * neither of the two spellings most likely to be dropped could ever fail.
+     *
+     * Splitting the list gives exact tokens: "x" no longer matches "text".
+     */
+    const listed = note
+      .slice(note.indexOf("marked ") + "marked ".length, note.indexOf(" in that"))
+      .split(/,\s*|\s+or\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean);
+    expect(listed.length, `no spellings parsed out of: ${note}`).toBeGreaterThan(2);
+
+    /*
+     * PROBED, not read off a list.
+     *
+     * The roster here was `["true","yes","y","1","x"]` — the same literal the
+     * wizard held. Both were missing `t`, which `readContactFlag` has accepted
+     * all along, so the under-promise this test exists for was live in the tree
+     * while the test was green.
+     *
+     * Iterating the exported `FLAG_TRUE_SPELLINGS` does not fix that: the
+     * screen prints that same list, so the test would agree with it by
+     * construction and a spelling dropped from BOTH would go unnoticed. I tried
+     * exactly that first, removed `x` from the export, and watched 26 tests
+     * pass over a screen that no longer named it.
+     *
+     * So the reader is asked directly, over every single character it could
+     * plausibly be handed plus the words. Nothing here is derived from the
+     * thing under test.
+     */
+    const alphabet = [
+      ..."abcdefghijklmnopqrstuvwxyz0123456789".split(""),
+      "true",
+      "false",
+      "yes",
+      "no",
+    ];
+    const accepted = alphabet.filter((token) => readContactFlag(token) === true);
+    expect(accepted.length, "the probe found no truthy spelling at all").toBeGreaterThan(3);
+
+    for (const spelling of accepted) {
+      expect(
+        listed,
+        `readContactFlag accepts "${spelling}" and the screen does not name ` +
+          `it — somebody with that column edits a file that already worked`,
+      ).toContain(spelling);
     }
   });
 });

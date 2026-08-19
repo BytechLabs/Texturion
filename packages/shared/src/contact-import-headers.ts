@@ -176,6 +176,26 @@ const FLAG_TRUE = new Set(["true", "t", "yes", "y", "1", "x"]);
 const FLAG_FALSE = new Set(["false", "f", "no", "n", "0"]);
 
 /**
+ * The spellings, for a screen that has to NAME them.
+ *
+ * The import wizard filtered a hand-typed candidate list through
+ * `readContactFlag`, with a docblock promising "a spelling it stops accepting
+ * stops being printed, in the same commit". A filter can only narrow the list
+ * it is given — it cannot add one — so the opposite drift was unguarded, and
+ * had already happened twice: `t` and `f` are read here and were named nowhere
+ * on the screen.
+ *
+ * That is the under-promise the wizard's own comment was written about, one
+ * spelling later. Somebody with a `t`/`f` column reads a note that does not
+ * mention their file and edits a column that already worked.
+ *
+ * Exported as the SOURCE now, so the screen cannot list fewer than the reader
+ * takes. Insertion order is reading order.
+ */
+export const FLAG_TRUE_SPELLINGS: readonly string[] = [...FLAG_TRUE];
+export const FLAG_FALSE_SPELLINGS: readonly string[] = [...FLAG_FALSE];
+
+/**
  * Read one flag cell: true, false, or NULL for "I do not know what this says".
  *
  * The third answer is the point. Anything-that-is-not-true-is-false is how a
