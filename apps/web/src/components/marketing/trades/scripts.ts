@@ -23,6 +23,7 @@
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/home";
+import { cleanersCopy } from "@/i18n/marketing/for-cleaners";
 import { plumbersCopy } from "@/i18n/marketing/for-plumbers";
 
 export type TradeScriptStatus = "new" | "open" | "waiting" | "closed";
@@ -302,7 +303,11 @@ export const LANDSCAPERS_SCRIPT: TradeScript = {
 /* Friday-to-Monday reschedule (v2 script).                                    */
 /* -------------------------------------------------------------------------- */
 
-export const CLEANERS_SCRIPT: TradeScript = {
+export const cleanersScript = (
+  locale: MarketingLocale = "en",
+): TradeScript => {
+  const copy = cleanersCopy(locale);
+  return {
   contact: { name: "Nadia K", number: "(437) 555-0178" },
   status: "waiting",
   assignee: "Rosa",
@@ -317,43 +322,44 @@ export const CLEANERS_SCRIPT: TradeScript = {
     {
       id: "cl-in-1",
       kind: "inbound",
-      body:
-        "Thanks for taking my call. Putting it in writing like you asked: we're away Friday, so the key will be under the mat, the door code stopped working. And could we move Friday's clean to Monday instead?",
+      body: copy.scriptInbound,
       time: "5:56 PM",
     },
     {
       id: "cl-note-1",
       kind: "note",
       by: "Elena",
-      body:
-        "Saving the key note to her contact. Rosa, your Friday just opened up. Can you and Ana take her Monday between 10 and noon?",
+      body: copy.scriptNote,
       time: "6:03 PM",
     },
     {
       id: "cl-event-1",
       kind: "event",
-      text: "Elena assigned this conversation to Rosa",
+      text: fill(copy.scriptAssigned, { by: "Elena", to: "Rosa" }),
     },
     {
       id: "cl-out-1",
       kind: "outbound",
-      body:
-        "Hi Nadia, Monday's no problem. Ana and I will be there between 10 and noon, key under the mat, and we'll lock up and text you when we're done. Anything you want us to focus on this visit?",
+      body: copy.scriptReply,
       time: "6:10 PM",
     },
     {
       id: "cl-in-2",
       kind: "inbound",
-      body: "Perfect. Just the oven if you have time. Thank you!",
+      body: copy.scriptConfirm,
       time: "6:14 PM",
     },
     {
       id: "cl-event-2",
       kind: "event",
-      text: "Rosa added the tag Scheduled",
+      text: fill(copy.scriptTagged, { by: "Rosa", tag: copy.scriptTagScheduled }),
     },
   ],
+  };
 };
+
+/** The English thread, for tests and any English-only surface. */
+export const CLEANERS_SCRIPT: TradeScript = cleanersScript("en");
 
 /* -------------------------------------------------------------------------- */
 /* Salons: 11:20 AM, the running-late text, rescued between stylists           */
