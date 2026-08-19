@@ -24,6 +24,7 @@
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/home";
 import { cleanersCopy } from "@/i18n/marketing/for-cleaners";
+import { contractorsCopy } from "@/i18n/marketing/for-contractors";
 import { hvacCopy } from "@/i18n/marketing/for-hvac";
 import { landscapersCopy } from "@/i18n/marketing/for-landscapers";
 import { plumbersCopy } from "@/i18n/marketing/for-plumbers";
@@ -435,7 +436,11 @@ export const SALONS_SCRIPT: TradeScript = {
 /* request carries the app's D14 done state once it's been written up.        */
 /* -------------------------------------------------------------------------- */
 
-export const CONTRACTORS_SCRIPT: TradeScript = {
+export const contractorsScript = (
+  locale: MarketingLocale = "en",
+): TradeScript => {
+  const copy = contractorsCopy(locale);
+  return {
   contact: { name: "Karen H", number: "(289) 555-0137" },
   status: "open",
   assignee: "Omar",
@@ -445,59 +450,55 @@ export const CONTRACTORS_SCRIPT: TradeScript = {
       kind: "call",
       direction: "inbound",
       outcome: "voicemail",
-      voicemail: {
-        seconds: 41,
-        transcript:
-          "Morning, it's Karen at the Fairview house. We've changed our minds about the island counter and I wanted to catch you before anything gets ordered. Call me back when you get a chance.",
-      },
+      voicemail: { seconds: 41, transcript: copy.scriptVoicemail },
       textBack: true,
     },
     {
       id: "co-out-0",
       kind: "outbound",
-      body:
-        "Sorry we missed your call, the crew is on site until 8. Text us right here and we'll pick it up from the office.",
+      body: copy.scriptTextBack,
       time: "7:59 AM",
     },
     {
       id: "co-in-1",
       kind: "inbound",
-      body:
-        "Morning! We slept on it and we'd like the island in the walnut butcher block after all, not the laminate. Is it too late to change?",
+      body: copy.scriptInbound,
       time: "8:02 AM",
     },
     {
       id: "co-note-1",
       kind: "note",
       by: "Luis",
-      body:
-        "That's the Fairview kitchen. Filing this against the job before it gets buried. Counters don't template until Thursday, so we're inside the window",
+      body: copy.scriptNote,
       time: "8:06 AM",
     },
     {
       id: "co-event-1",
       kind: "event",
-      text: "Luis assigned this conversation to Omar",
+      text: fill(copy.scriptAssigned, { by: "Luis", to: "Omar" }),
     },
     {
       id: "co-out-1",
       kind: "outbound",
-      body:
-        "Hi Karen, not too late. Walnut butcher block for the island adds $840 and two days to the counter schedule. Reply approved and I'll write it up as a change order so it's on the record before Thursday's template.",
+      body: copy.scriptReply,
       time: "8:11 AM",
     },
     {
       id: "co-in-2",
       kind: "inbound",
-      body: "Approved! Thank you for making that painless",
+      body: copy.scriptApproved,
       time: "8:15 AM",
     },
     {
       id: "co-event-2",
       kind: "event",
-      text: "Omar added the tag Won",
+      text: fill(copy.scriptTagged, { by: "Omar", tag: copy.scriptTagWon }),
     },
   ],
   doneIds: ["co-in-1"],
-  doneLabels: { "co-in-1": "Done · Omar · 8:16 AM" },
+  doneLabels: { "co-in-1": copy.scriptDoneLabel },
+  };
 };
+
+/** The English thread, for tests and any English-only surface. */
+export const CONTRACTORS_SCRIPT: TradeScript = contractorsScript("en");
