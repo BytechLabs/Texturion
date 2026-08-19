@@ -1134,22 +1134,87 @@ function isSwiftDiagnosticLog(code, matchIndex, loggers) {
  * work it already did, and with #228's backlog in the hundreds that is the
  * difference between a tractable chore and one nobody starts.
  */
-function scan(client) {
+/**
+ * #228 — the strings that are user-facing AND must stay one language.
+ *
+ * `scripts/hardcoded-strings.exempt.json` carries them with a reason each. The
+ * ledger's target is zero, and that target is unreachable while it also counts
+ * strings translating would BREAK — a country name written into a freeform
+ * address column is the stored VALUE, so translating it makes the same address
+ * store differently depending on who typed it.
+ *
+ * Read once, at module load, so `--show` and the gate agree.
+ */
+const EXEMPT = JSON.parse(
+  readFileSync(new URL("./hardcoded-strings.exempt.json", import.meta.url), "utf8"),
+);
+
+/**
+ * Which exemptions actually matched something, filled in by {@link scan}.
+ *
+ * The anti-rot half, and the reason this is not just a list of file names: an
+ * exemption that matches nothing has outlived the code it excuses, and a list
+ * nobody prunes is how a temporary allowance becomes permanent. Keyed
+ * `client\u0000file\u0000literal`.
+ */
+const exemptionsUsed = new Set();
+
+function scan(client, clientName) {
   const literalsByFile = {};
   const all = walk(client.root);
+  const exemptForClient = EXEMPT[clientName] ?? {};
   for (const file of all) {
     if (!isScannable(file, client.exts)) continue;
     const source = readFileSync(file, "utf8");
     // Read once and handed to both: the copy-table test needs the source, and
     // re-reading the tree a second time to answer it would double the walk.
     if (!isScannable(file, client.exts, source)) continue;
-    const literals = client.find(source, file);
+    const rel = relative(client.root, file).replaceAll("\\", "/");
+    const excused = new Set(exemptForClient[rel]?.literals ?? []);
+    const literals = client.find(source, file).filter((text) => {
+      if (!excused.has(text)) return true;
+      exemptionsUsed.add(`${clientName}\u0000${rel}\u0000${text}`);
+      return false;
+    });
     if (literals.length > 0) {
-      literalsByFile[relative(client.root, file).replaceAll("\\", "/")] =
-        literals;
+      literalsByFile[rel] = literals;
     }
   }
   return literalsByFile;
+}
+
+/**
+ * Every exemption has to earn its place: a `why` somebody can disagree with,
+ * and a literal the scanner still finds.
+ *
+ * Returns the complaints rather than printing, so the caller decides the exit
+ * code — and so `--show`, which is a question rather than a verdict, can ask
+ * without failing.
+ */
+function auditExemptions() {
+  const problems = [];
+  for (const [clientName, files] of Object.entries(EXEMPT)) {
+    if (clientName === "_") continue;
+    for (const [file, entry] of Object.entries(files)) {
+      if (!entry.why || entry.why.length < 40) {
+        problems.push(
+          `  ${clientName} · ${file}: an exemption with no reason worth reading. ` +
+            "Say what translating it would BREAK — 'hard' and 'nobody reads it' " +
+            "are not reasons.",
+        );
+      }
+      for (const text of entry.literals ?? []) {
+        if (!exemptionsUsed.has(`${clientName}\u0000${file}\u0000${text}`)) {
+          problems.push(
+            `  ${clientName} · ${file}: exempts ${JSON.stringify(text)}, which is ` +
+              "no longer there. Delete the line — an exemption that matches " +
+              "nothing is an excuse for code that no longer exists.",
+          );
+        }
+      }
+    }
+  }
+  return problems;
 }
 
 /** The offending strings, quoted, so the fix is a copy-paste rather than a hunt. */
@@ -1205,7 +1270,7 @@ const summary = [];
 
 for (const [name, client] of Object.entries(CLIENTS)) {
   if (only && only !== name) continue;
-  const literalsByFile = scan(client);
+  const literalsByFile = scan(client, name);
   const counts = Object.fromEntries(
     Object.entries(literalsByFile).map(([file, list]) => [file, list.length]),
   );
@@ -1285,6 +1350,13 @@ for (const [name, client] of Object.entries(CLIENTS)) {
       ? `${name}: none — every user-facing string is in the catalogue`
       : `${name}: ${total} left in ${Object.keys(counts).length} file(s)`,
   );
+}
+
+const staleExemptions = show || baseline ? [] : auditExemptions();
+if (staleExemptions.length > 0) {
+  failed += 1;
+  console.error("\nexemptions (scripts/hardcoded-strings.exempt.json)\n");
+  console.error(staleExemptions.join("\n"));
 }
 
 // `--show` is a question, not a verdict: it prints the backlog and exits clean

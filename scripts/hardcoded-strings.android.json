@@ -1,6 +1,5 @@
 {
   "com/loonext/android/core/auth/SupabaseAuth.kt": 2,
-  "com/loonext/android/core/model/Countries.kt": 9,
   "com/loonext/android/core/net/ApiClient.kt": 3,
   "com/loonext/android/core/net/ApiError.kt": 1,
   "com/loonext/android/features/contacts/device/ContentResolverDeviceContacts.kt": 1,

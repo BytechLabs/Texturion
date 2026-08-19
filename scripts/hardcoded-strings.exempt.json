@@ -1,0 +1,51 @@
+{
+  "_": [
+    "#228 — strings that are user-facing AND must stay one language.",
+    "",
+    "The ledger beside this file counts what is left to translate, and its",
+    "target is zero. That target is unreachable while it also counts strings",
+    "translating would BREAK, so those are recorded here with the reason, once,",
+    "instead of being rediscovered by whoever works the backlog next. An audit",
+    "pass already spent two of its findings answering 'leave it'.",
+    "",
+    "An entry is not a way to make a warning go away. Every literal listed here",
+    "must still be found in that file by the scanner: an exemption matching",
+    "nothing FAILS, so this list cannot outlive the code it excuses. And every",
+    "entry needs a `why` somebody can disagree with.",
+    "",
+    "The bar is 'translating this changes behaviour', not 'translating this is",
+    "hard' and not 'nobody reads it'."
+  ],
+  "android": {
+    "com/loonext/android/core/model/Countries.kt": {
+      "why": "The country list writes into a freeform address column — the string IS the stored value, not a label over it. Translated, the same workspace stores 'United Arab Emirates' for a member reading English and 'Émirats arabes unis' for one reading French, so two contacts at the same address stop matching and any grouping by country splits in half. The list is one language for the same reason a phone number is one format. Only the multi-word names appear here; the scanner reads them as sentences.",
+      "literals": [
+        "Antigua and Barbuda",
+        "Bosnia and Herzegovina",
+        "Central African Republic",
+        "Papua New Guinea",
+        "Saint Kitts and Nevis",
+        "Saint Vincent and the Grenadines",
+        "Sao Tome and Principe",
+        "Trinidad and Tobago",
+        "United Arab Emirates"
+      ]
+    }
+  },
+  "ios": {
+    "Core/Model/Countries.swift": {
+      "why": "Twin of the Android list, and exempt for the same reason: the string is the stored value of a freeform address column rather than a label over it, so translating it makes the same address store differently depending on who typed it.",
+      "literals": [
+        "Antigua and Barbuda",
+        "Bosnia and Herzegovina",
+        "Central African Republic",
+        "Papua New Guinea",
+        "Saint Kitts and Nevis",
+        "Saint Vincent and the Grenadines",
+        "Sao Tome and Principe",
+        "Trinidad and Tobago",
+        "United Arab Emirates"
+      ]
+    }
+  }
+}
