@@ -86,6 +86,21 @@ paths = [
   # Lockfiles are full of high-entropy integrity hashes.
   '''pnpm-lock\.yaml$''',
   '''gradle/wrapper/gradle-wrapper\.properties$''',
+  # The fingerprint file, which is a list of FILE PATHS by construction —
+  # `commit:path:rule:line`. So any path-shaped rule matches it eventually, and
+  # one did: pinning a finding whose file was named
+  # `…_erasu` + `re_` + `…` made the ignore line itself trip `resend-api-key`,
+  # so suppressing a false positive created an identical one a line lower.
+  #
+  # Class-level rather than another fingerprint, per this file's own split at
+  # the top: a fingerprint would need pinning again on every future entry whose
+  # path happens to look like a credential, which is a loop with no end.
+  #
+  # Safe because the file holds nothing else. A fingerprint is a commit hash, a
+  # path, a rule id and a line number; there is no room in that grammar for a
+  # credential, and a secret pasted into its comments would still be found in
+  # whatever file it actually came from.
+  '''^\.gitleaksignore$''',
 ]
 
 regexes = [
