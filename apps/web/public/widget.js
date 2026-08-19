@@ -47,9 +47,67 @@
     return;
   }
 
+  /*
+   * #228 — the words this widget says, in the language the business sells in.
+   *
+   * Shipped English-only onto the BUSINESS's own site, in front of THEIR
+   * customers: a Quebec plumber's French page carried our English. The settings
+   * preview proved it, localising its own chrome and then loading this script.
+   *
+   * A table here rather than the shared catalogue, and the cost is real: this
+   * file is served raw to third-party sites with no bundler and no imports, so
+   * it cannot reach `packages/shared`. `widget-copy.test.ts` checks the two
+   * languages against each other, which is the only thing that can drift
+   * silently. Prose is kept short on purpose — this file has a 15KB budget and
+   * ships uncompiled, so every comment is bytes on a stranger's homepage.
+   *
+   * Anything but a known locale falls back to English: a visitor cannot fix a
+   * bad attribute.
+   */
+  var COPY = {
+    en: {
+      launch: "Text us",
+      close: "Close",
+      name: "Your name",
+      phone: "Mobile number",
+      message: "How can we help?",
+      honeypot: "Leave this empty",
+      code: "The 6-digit code we just texted you",
+      codeTitle: "Check your phone",
+      codeSub: "Enter the code we texted so we know it is you.",
+      startSub: "Send a text and we will reply here.",
+      sendCode: "Text me a code",
+      sendMessage: "Send my message",
+      sentCode: "We texted you a code.",
+      sentMessage: "Sent. They will text you back on that number.",
+      failed: "That did not work. Try again in a moment.",
+      poweredBy: "Powered by Loonext"
+    },
+    "fr-CA": {
+      launch: "Écrivez-nous",
+      close: "Fermer",
+      name: "Votre nom",
+      phone: "Numéro de mobile",
+      message: "Comment pouvons-nous vous aider ?",
+      honeypot: "Laissez ce champ vide",
+      code: "Le code à 6 chiffres que nous venons de vous envoyer",
+      codeTitle: "Vérifiez votre téléphone",
+      codeSub: "Entrez le code que nous vous avons envoyé, pour confirmer que c'est bien vous.",
+      startSub: "Envoyez un message et nous vous répondrons ici.",
+      sendCode: "Envoyez-moi un code",
+      sendMessage: "Envoyer mon message",
+      sentCode: "Nous vous avons envoyé un code.",
+      sentMessage: "Envoyé. On vous répondra par texto à ce numéro.",
+      failed: "Ça n'a pas fonctionné. Réessayez dans un moment.",
+      poweredBy: "Propulsé par Loonext"
+    }
+  };
+  var lang = script.getAttribute("data-lang");
+  var t = COPY[lang] || COPY.en;
+
   var origin = new URL(script.src, location.href).origin;
   var accent = script.getAttribute("data-accent") || "#1f2421";
-  var label = script.getAttribute("data-label") || "Text us";
+  var label = script.getAttribute("data-label") || t.launch;
   var side = script.getAttribute("data-side") === "left" ? "left" : "right";
 
   var host = document.createElement("div");
@@ -115,21 +173,21 @@
     // markup lands inside a shadow root on somebody else's page.
     '<div class="panelwrap"><div class="panel" role="dialog" aria-modal="true" ' +
     'aria-labelledby="lx-title" hidden>' +
-    '<button class="close" type="button" aria-label="Close">&times;</button>' +
+    '<button class="close" type="button" aria-label="' + t.close + '">&times;</button>' +
     "<h2 id=\"lx-title\"></h2><p class=\"sub\"></p>" +
     '<form novalidate>' +
     '<div class="step-one">' +
-    '<label for="lx-name">Your name</label>' +
+    '<label for="lx-name">' + t.name + '</label>' +
     '<input id="lx-name" name="name" autocomplete="name" required>' +
-    '<label for="lx-phone">Mobile number</label>' +
+    '<label for="lx-phone">' + t.phone + '</label>' +
     '<input id="lx-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required>' +
-    '<label for="lx-msg">How can we help?</label>' +
+    '<label for="lx-msg">' + t.message + '</label>' +
     '<textarea id="lx-msg" name="message" required></textarea>' +
-    '<div class="hp"><label for="lx-web">Leave this empty</label>' +
+    '<div class="hp"><label for="lx-web">' + t.honeypot + '</label>' +
     '<input id="lx-web" name="website" tabindex="-1" autocomplete="off"></div>' +
     "</div>" +
     '<div class="step-two" hidden>' +
-    '<label for="lx-code">The 6-digit code we just texted you</label>' +
+    '<label for="lx-code">' + t.code + '</label>' +
     '<input id="lx-code" name="code" inputmode="numeric" autocomplete="one-time-code" ' +
     'maxlength="6" pattern="\\d{6}">' +
     "</div>" +
@@ -152,7 +210,7 @@
     // `rel="noopener"` because it opens in a new tab, and `noreferrer` would
     // throw away the one thing we want to know.
     '<p class="by"><a href="https://loonext.com/?ref=widget" target="_blank" ' +
-    'rel="noopener">Powered by Loonext</a></p>' +
+    'rel="noopener">' + t.poweredBy + '</a></p>' +
     "</div></div>";
   root.appendChild(wrap);
 
@@ -174,11 +232,9 @@
     var coding = verificationId !== null;
     stepOne.hidden = coding;
     stepTwo.hidden = !coding;
-    title.textContent = coding ? "Check your phone" : label;
-    sub.textContent = coding
-      ? "Enter the code we texted so we know it is you."
-      : "Send a text and we will reply here.";
-    send.textContent = coding ? "Send my message" : "Text me a code";
+    title.textContent = coding ? t.codeTitle : label;
+    sub.textContent = coding ? t.codeSub : t.startSub;
+    send.textContent = coding ? t.sendMessage : t.sendCode;
   }
 
   function open() {
@@ -273,24 +329,23 @@
         send.disabled = false;
         if (!result.ok) {
           err.textContent =
-            (result.payload && result.payload.message) ||
-            "That did not work. Try again in a moment.";
+            (result.payload && result.payload.message) || t.failed;
           return;
         }
         if (verificationId === null) {
           verificationId = result.payload.verificationId;
           paint();
-          note.textContent = "We texted you a code.";
+          note.textContent = t.sentCode;
           var code = root.querySelector("#lx-code");
           if (code) code.focus();
           return;
         }
         form.hidden = true;
-        note.textContent = "Sent. They will text you back on that number.";
+        note.textContent = t.sentMessage;
       })
       .catch(function () {
         send.disabled = false;
-        err.textContent = "That did not work. Try again in a moment.";
+        err.textContent = t.failed;
       });
   });
 

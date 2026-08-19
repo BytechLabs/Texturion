@@ -87,7 +87,7 @@ const documentFor = (locale: Locale) => {
 </head>
 <body>
 <p class="hint">${t("widgetPreviewHint")}</p>
-<script src="/widget.js" data-key="preview" defer></script>
+<script src="/widget.js" data-key="preview" data-lang="${locale}" defer></script>
 </body>
 </html>`;
 };

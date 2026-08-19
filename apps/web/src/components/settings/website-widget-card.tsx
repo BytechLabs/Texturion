@@ -90,7 +90,7 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
   const chosen = company.data?.widget_number_id ?? DEFAULT_LINE;
 
   const snippet =
-    key.data === undefined ? "" : widgetSnippet(appOrigin, key.data.widget_key);
+    key.data === undefined ? "" : widgetSnippet(appOrigin, key.data.widget_key, company.data?.locale ?? undefined);
 
   async function copy() {
     try {

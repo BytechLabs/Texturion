@@ -41,3 +41,24 @@ describe("the embed snippet", () => {
     expect(widgetSnippet("https://app.loonext.com", "k")).not.toContain("\n");
   });
 });
+
+describe("#228 the snippet carries the workspace's language", () => {
+  it("names a non-default locale, so the paste matches the preview", () => {
+    // widget.js is served raw to somebody else's site with no way to ask us
+    // anything before it paints, so the language has to arrive as an attribute.
+    const snippet = widgetSnippet("https://app.loonext.com", "k", "fr-CA");
+    expect(snippet).toContain('data-lang="fr-CA"');
+  });
+
+  it("stays one plain line for an English workspace", () => {
+    // The overwhelming majority of snippets. An attribute that always appears
+    // would put a language on every paste, including the ones that never
+    // needed one.
+    expect(widgetSnippet("https://app.loonext.com", "k", "en")).not.toContain(
+      "data-lang",
+    );
+    expect(widgetSnippet("https://app.loonext.com", "k")).not.toContain(
+      "data-lang",
+    );
+  });
+});

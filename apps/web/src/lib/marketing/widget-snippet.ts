@@ -21,7 +21,25 @@
  * the word "catch" as user-facing copy. The guard was right to be suspicious of
  * markup in a component; the answer is for the markup not to live in one.
  */
-export function widgetSnippet(origin: string, key: string): string {
+/**
+ * #228: the LOCALE rides in the snippet.
+ *
+ * `widget.js` is served raw to somebody else's website with no bundler and no
+ * way to ask us anything before it paints, so the language has to arrive as an
+ * attribute the way `data-label` already does. Emitted only for a non-default
+ * locale: an English workspace's snippet stays the one line it was.
+ *
+ * The workspace's locale, not the reader's. This is the language the business
+ * SELLS in — what its own customers read on its own website — and an owner who
+ * runs the app in English while serving a French town must not hand their
+ * visitors English.
+ */
+export function widgetSnippet(
+  origin: string,
+  key: string,
+  locale?: string,
+): string {
   const tag = "script";
-  return `<${tag} src="${origin}/widget.js" data-key="${key}" defer></${tag}>`;
+  const lang = locale && locale !== "en" ? ` data-lang="${locale}"` : "";
+  return `<${tag} src="${origin}/widget.js" data-key="${key}"${lang} defer></${tag}>`;
 }
