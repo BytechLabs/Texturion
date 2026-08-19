@@ -19,6 +19,7 @@ import {
   Wrench,
 } from "lucide-react";
 
+import { navCopy, type NavCopy } from "@/i18n/marketing/nav";
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
@@ -67,150 +68,169 @@ export interface NavMenu {
 /** Product ▾ — the feature pages (coverage map). #491 added Calls: it had
  * shipped on every plan since D36-D43 with no way to reach it from the nav,
  * which is most of why the site read as a texting tool. */
-export const productMenu: NavMenu = {
-  label: "Product",
+export const productMenuFor = (copy: NavCopy): NavMenu => ({
+  label: copy.menuProduct,
   // Two columns since #491 took this past four items: three rows a column
   // reads as a group, six in one column reads as a list to work through.
   columns: 2,
   items: [
     {
-      label: "Shared inbox",
+      label: copy.sharedInbox,
       href: LIVE_ROUTES.featuresSharedInbox,
-      description: "Every text in one inbox the whole crew can see.",
+      description: copy.sharedInboxDesc,
       icon: Inbox,
     },
     {
-      label: "Calls and voicemail",
+      label: copy.calls,
       href: LIVE_ROUTES.featuresCalls,
-      description: "Calls ring the whole crew. Missed ones get written down.",
+      description: copy.callsDesc,
       icon: PhoneCall,
     },
     {
-      label: "Your business number",
+      label: copy.businessNumber,
       href: LIVE_ROUTES.featuresBusinessNumber,
-      description: "A local number that belongs to the business, not a phone.",
+      description: copy.businessNumberDesc,
       icon: Hash,
     },
     {
-      label: "Lou, your assistant",
+      label: copy.assistant,
       href: LIVE_ROUTES.featuresAssistant,
-      description: "Drafts replies and writes voicemails down. Never sends.",
+      description: copy.assistantDesc,
       icon: Sparkle,
     },
     {
-      label: "Tasks",
+      label: copy.tasks,
       href: LIVE_ROUTES.featuresTasks,
-      description: "A text or a call becomes a job with an owner and a date.",
+      description: copy.tasksDesc,
       icon: SquareCheckBig,
     },
     {
-      label: "Contacts",
+      label: copy.contacts,
       href: LIVE_ROUTES.featuresContacts,
-      description: "Every text, call and job for one customer, on one timeline.",
+      description: copy.contactsDesc,
       icon: UsersRound,
     },
     {
-      label: "Compliance built in",
+      label: copy.compliance,
       href: LIVE_ROUTES.featuresCompliance,
-      description: "Registration, opt-outs, and consent, handled for you.",
+      description: copy.complianceDesc,
       icon: ShieldCheck,
     },
     {
-      label: "Templates and tags",
+      label: copy.templatesAndTags,
       href: LIVE_ROUTES.featuresTemplatesAndTags,
-      description: "Saved replies and tags that match how you sell.",
+      description: copy.templatesAndTagsDesc,
       icon: Tags,
     },
   ],
-};
+});
 
 /** Who it's for ▾ — the six trades (coverage map), two columns. */
-export const tradesMenu: NavMenu = {
-  label: "Who it's for",
+export const tradesMenuFor = (copy: NavCopy): NavMenu => ({
+  label: copy.menuTrades,
   columns: 2,
   items: [
     {
-      label: "Plumbers",
+      label: copy.plumbers,
       href: LIVE_ROUTES.forPlumbers,
-      description: "Photo triage and on-my-way texts, off your personal cell.",
+      description: copy.plumbersDesc,
       icon: Wrench,
     },
     {
-      label: "HVAC",
+      label: copy.hvac,
       href: LIVE_ROUTES.forHvac,
-      description: "Triage the no-heat rush without missing a booking.",
+      description: copy.hvacDesc,
       icon: Fan,
     },
     {
-      label: "Landscapers",
+      label: copy.landscapers,
       href: LIVE_ROUTES.forLandscapers,
-      description: "Gate codes, reschedules, and add-on asks in one thread.",
+      description: copy.landscapersDesc,
       icon: Leaf,
     },
     {
-      label: "Cleaners",
+      label: copy.cleaners,
       href: LIVE_ROUTES.forCleaners,
-      description: "Access notes, confirmations, and reschedules.",
+      description: copy.cleanersDesc,
       icon: Sparkles,
     },
     {
-      label: "Salons",
+      label: copy.salons,
       href: LIVE_ROUTES.forSalons,
-      description: "Confirmations, waitlist fills, and fewer no-shows.",
+      description: copy.salonsDesc,
       icon: Scissors,
     },
     {
-      label: "Contractors",
+      label: copy.contractors,
       href: LIVE_ROUTES.forContractors,
-      description: "Change orders and decisions, in writing, on the record.",
+      description: copy.contractorsDesc,
       icon: HardHat,
     },
   ],
-};
+});
 
 /** Compare ▾ — the two rivals (coverage map). */
-export const compareMenu: NavMenu = {
-  label: "Compare",
+export const compareMenuFor = (copy: NavCopy): NavMenu => ({
+  label: copy.menuCompare,
   columns: 1,
   items: [
     {
-      label: "Loonext vs Heymarket",
+      label: copy.compareHeymarket,
       href: LIVE_ROUTES.compareHeymarket,
-      description: "One flat price for the crew vs $49 a person.",
+      description: copy.compareHeymarketDesc,
       icon: Scale,
     },
     {
-      label: "Loonext vs Quo",
+      label: copy.compareQuo,
       href: LIVE_ROUTES.compareQuo,
-      description: "Flat beats per-user, with texts included.",
+      description: copy.compareQuoDesc,
       icon: Scale,
     },
   ],
-};
+});
+
+/**
+ * The English chrome, built from the catalogue rather than typed beside it.
+ *
+ * Every existing consumer — the pricing page, `chrome.test.tsx`'s
+ * href-coverage assertions — keeps importing exactly what it imported before.
+ * What changed is where the sentence comes from, so there is one definition of
+ * each and the coverage test keeps testing routes rather than wording.
+ */
+export const productMenu: NavMenu = productMenuFor(navCopy("en"));
+export const tradesMenu: NavMenu = tradesMenuFor(navCopy("en"));
+export const compareMenu: NavMenu = compareMenuFor(navCopy("en"));
 
 export const NAV_MENUS: NavMenu[] = [productMenu, tradesMenu, compareMenu];
+
+/** The three menus for one locale, in the order the nav renders them. */
+export const navMenusFor = (copy: NavCopy): NavMenu[] => [
+  productMenuFor(copy),
+  tradesMenuFor(copy),
+  compareMenuFor(copy),
+];
 
 /** The flat top-level Pricing link (a real standalone page). The desktop bar
  * renders only the label; the mobile sheet gives it the full grouped-row
  * anatomy (icon chip + one factual line) so it reads like a button among the
  * other rows instead of a bare text line (#117). */
-export const PRICING_LINK: NavItem = {
-  label: "Pricing",
+export const pricingLinkFor = (copy: NavCopy): NavItem => ({
+  label: copy.pricing,
   href: LIVE_ROUTES.pricing,
-  description: "One flat price a month for the whole crew.",
+  description: copy.pricingDesc,
   icon: BadgeDollarSign,
-};
+});
 
 /** #126: Contact reachable from the mobile nav sheet, not footer-only. The
  * desktop bar stays deliberately lean (Contact lives in the footer + in-body
  * "Talk to us" CTAs there); on a phone, footer-only meant scrolling the whole
  * page, so the sheet carries it as a grouped row. */
-export const CONTACT_LINK: NavItem = {
-  label: "Contact",
+export const contactLinkFor = (copy: NavCopy): NavItem => ({
+  label: copy.contact,
   href: LIVE_ROUTES.contact,
-  description: "Questions before you start? Email us, no sales team.",
+  description: copy.contactDesc,
   icon: Mail,
-};
+});
 
 export const LOGIN_HREF = APP_LINKS.login;
 export const SIGNUP_HREF = APP_LINKS.signup;
@@ -219,5 +239,10 @@ export const SIGNUP_HREF = APP_LINKS.signup;
  * The site-wide primary CTA (COPY-DECK v2 §Global, binding): the cobalt pill
  * everywhere reads exactly this. Secondary is SECONDARY_CTA_LABEL.
  */
-export const PRIMARY_CTA_LABEL = "Get your number";
-export const SECONDARY_CTA_LABEL = "See pricing";
+export const PRIMARY_CTA_LABEL = navCopy("en").ctaPrimary;
+export const SECONDARY_CTA_LABEL = navCopy("en").ctaSecondary;
+
+/** The English flat links, declared after their builders. */
+export const PRICING_LINK: NavItem = pricingLinkFor(navCopy("en"));
+
+export const CONTACT_LINK: NavItem = contactLinkFor(navCopy("en"));
