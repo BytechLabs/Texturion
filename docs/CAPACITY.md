@@ -431,7 +431,48 @@ plus a driver that generates real concurrent load.
 
 | Unknown | Why local cannot answer it | What it would take |
 |---|---|---|
-| **Durable Object saturation** | A DO is single-threaded per instance and serializes every event for one call. Nothing in this repository has ever run a Durable Object under concurrency on the real runtime — `vitest.load.config.ts` says so in its own words, and aliases `cloudflare:workers` to a double. | A deployed Worker, N synthetic concurrent calls per workspace, measuring time-to-answer. **Read section 2a first: the largest known contributor to that latency was found by reading the code and has been fixed.** |
+| **Durable Object saturation — the LATENCY half only** | Structure is now measured on the real runtime (see below). What remains is milliseconds, and workerd cannot give them: a Worker's clock only advances on I/O, so `Date.now()` deltas inside an isolate measure when I/O happened rather than how long work took. | A deployed Worker, N synthetic concurrent calls per workspace, measuring time-to-answer against a real Telnyx round trip. |
+
+### The Durable Object — MEASURED ON workerd 2026-08-19
+
+The row above used to say that "nothing in this repository has ever run a
+Durable Object under concurrency on the real runtime". Something does now:
+`pnpm --filter @loonext/api test:workerd` runs `CallSessionDO` — the real
+class, the same runtime fake the behavioural suite uses — inside workerd, with
+real Durable Object SQLite storage and real I/O gates.
+
+**At a full 24-technician crew: 24 targets dialled, peak 6 dials in flight.**
+That is `DIAL_BATCH_SIZE`, honoured by the runtime rather than by a node
+approximation of it. CALLS-V3 T1d's bounded-parallelism requirement is now
+checked where it has to hold; proven by making the fan-out unbounded, where the
+assertion reports 24 against a ceiling of 6.
+
+**An answer arriving mid-fan-out was admitted only after all 24 dials had
+opened.** The FIFO serializes on the real runtime, which is the property #251
+names — and it is also the cost: a technician who picks up early waits behind
+the remaining dials.
+
+**Three things this cost, worth recording so the next attempt does not.**
+
+1. **Wall-clock latency is not obtainable locally, at any effort.** A Worker's
+   clock only advances on I/O — a timing-attack mitigation. The first version of
+   this harness reported 24 sixty-millisecond sleeps finishing in "65ms" and
+   would have published it. Counts and orderings are immune; milliseconds are
+   fiction. This is why the row above still says "the latency half only".
+2. **The ACK is not the cascade.** `onTelnyxEvent` resolves at the atomic
+   persist (#617, deliberate). A harness that awaits it measures how fast we say
+   "got it". `whenIdle()` is the FIFO tail and is what "the fan-out finished"
+   means.
+3. **I/O cannot cross Durable Object contexts.** Holding a dial open from the
+   test and releasing it — the obvious way to observe concurrency — is refused
+   by the platform: *"I/O objects created in the context of one Durable Object
+   cannot be accessed from a different Durable Object in the same isolate."* The
+   dials release themselves from a timer created inside the object instead.
+
+**What this does NOT license.** It is one object on one laptop. It says nothing
+about co-tenancy, isolate memory pressure, or what Cloudflare does when many
+objects are hot at once — and nothing about the millisecond cost of anything.
+Do not quote it as "the call path scales".
 
 ### Realtime fan-out — MEASURED LOCALLY 2026-08-17, and the old entry was stale
 
