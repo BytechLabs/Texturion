@@ -5,7 +5,7 @@ import { NavigationMenu } from "radix-ui";
 
 import { cn } from "@/lib/utils";
 
-import { NAV_MENUS, PRICING_LINK } from "../nav-links";
+import type { NavItem, NavMenu } from "../nav-links";
 import { MegaMenu } from "./mega-menu";
 
 /**
@@ -25,22 +25,28 @@ const BAR_LINK =
  * v4 skin: the Viewport is a white card with 12px radius and the ONE card
  * shadow, no border (Law 10).
  */
-export function DesktopNav() {
+export function DesktopNav({
+  menus,
+  pricingLink,
+}: {
+  menus: NavMenu[];
+  pricingLink: NavItem;
+}) {
   return (
     <NavigationMenu.Root className="relative hidden lg:flex" delayDuration={80}>
       <NavigationMenu.List className="flex items-center gap-0.5">
-        <MegaMenu menu={NAV_MENUS[0]} />
+        <MegaMenu menu={menus[0]} />
 
         <NavigationMenu.Item>
           <NavigationMenu.Link asChild>
-            <Link href={PRICING_LINK.href} className={BAR_LINK}>
-              {PRICING_LINK.label}
+            <Link href={pricingLink.href} className={BAR_LINK}>
+              {pricingLink.label}
             </Link>
           </NavigationMenu.Link>
         </NavigationMenu.Item>
 
-        <MegaMenu menu={NAV_MENUS[1]} />
-        <MegaMenu menu={NAV_MENUS[2]} />
+        <MegaMenu menu={menus[1]} />
+        <MegaMenu menu={menus[2]} />
       </NavigationMenu.List>
 
       {/* One shared, animated panel surface for every menu: white card, 12px

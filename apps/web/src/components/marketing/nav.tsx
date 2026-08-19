@@ -17,7 +17,15 @@ import { cn } from "@/lib/utils";
 
 import { CountrySelector } from "@/components/marketing/country";
 
-import { LOGIN_HREF, PRIMARY_CTA_LABEL, SIGNUP_HREF } from "./nav-links";
+import { navCopy, type NavCopyLocale } from "@/i18n/marketing/nav";
+
+import {
+  contactLinkFor,
+  LOGIN_HREF,
+  navMenusFor,
+  pricingLinkFor,
+  SIGNUP_HREF,
+} from "./nav-links";
 import { DesktopNav } from "./nav/desktop-nav";
 import { MobileNav } from "./nav/mobile-nav";
 import { NavCss } from "./nav/nav-css";
@@ -35,7 +43,10 @@ import { NavCss } from "./nav/nav-css";
  * [Get your number]. Every link resolves (nav-links.ts). Mobile: hamburger →
  * white sheet with the same groups and the pinned cobalt CTA.
  */
-export function Nav() {
+export function Nav({ locale = "en" }: { locale?: NavCopyLocale } = {}) {
+  const copy = navCopy(locale);
+  const menus = navMenusFor(copy);
+  const pricingLink = pricingLinkFor(copy);
   const [condensed, setCondensed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -54,11 +65,11 @@ export function Nav() {
       <NavCss />
       {/* Skip link; target: the layout's <main id="content">. */}
       <a href="#content" className="frn-skip">
-        Skip to content
+        {copy.skipToContent}
       </a>
       <div className="mx-auto flex h-16 w-full max-w-[72rem] items-center px-3 md:px-5">
         <nav
-          aria-label="Primary"
+          aria-label={copy.ariaPrimary}
           className={cn(
             "flex h-16 w-full items-center gap-6 rounded-full px-3 transition-[height,background-color,box-shadow] duration-200 ease-out md:px-4",
             condensed && "frn-pill h-12",
@@ -70,7 +81,7 @@ export function Nav() {
           </Link>
 
           {/* Desktop mega-menu nav, deck order. */}
-          <DesktopNav />
+          <DesktopNav menus={menus} pricingLink={pricingLink} />
 
           {/* Right cluster: the country selector, quiet Log in, the one cobalt
               pill (§4). The selector sets the single site-wide country; on the
@@ -81,13 +92,13 @@ export function Nav() {
               href={LOGIN_HREF}
               className="frn-focus font-body-mkt hidden h-9 items-center rounded-full px-2.5 text-sm font-medium text-[color:var(--fr-ink-70)] transition-colors duration-200 ease-out hover:text-[color:var(--fr-ink)] sm:inline-flex"
             >
-              Log in
+              {copy.logIn}
             </Link>
             <Link
               href={SIGNUP_HREF}
               className="frn-cta frn-focus hidden sm:inline-flex"
             >
-              {PRIMARY_CTA_LABEL}
+              {copy.ctaPrimary}
             </Link>
 
             {/* Mobile hamburger → full white sheet. Plain button (not the
@@ -97,7 +108,7 @@ export function Nav() {
                 <SheetTrigger asChild>
                   <button
                     type="button"
-                    aria-label="Open menu"
+                    aria-label={copy.openMenu}
                     className="tap-target frn-focus inline-flex size-10 items-center justify-center rounded-full text-[color:var(--fr-ink-70)] transition-colors duration-200 ease-out hover:bg-[color:var(--fr-frost)] hover:text-[color:var(--fr-ink)]"
                   >
                     <Menu className="size-5" aria-hidden />
@@ -134,7 +145,14 @@ export function Nav() {
                     Loonext navigation: product, pricing, who it&apos;s for,
                     and comparisons.
                   </SheetDescription>
-                  <MobileNav onNavigate={() => setMobileOpen(false)} />
+                  <MobileNav
+                    onNavigate={() => setMobileOpen(false)}
+                    menus={menus}
+                    pricingLink={pricingLink}
+                    contactLink={contactLinkFor(copy)}
+                    ctaLabel={copy.ctaPrimary}
+                    logInLabel={copy.logIn}
+                  />
                 </SheetContent>
               </Sheet>
             </div>

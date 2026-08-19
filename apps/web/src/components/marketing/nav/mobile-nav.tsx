@@ -8,13 +8,10 @@ import { SheetClose } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 import {
-  CONTACT_LINK,
   LOGIN_HREF,
-  NAV_MENUS,
-  PRICING_LINK,
-  PRIMARY_CTA_LABEL,
   SIGNUP_HREF,
   type NavItem,
+  type NavMenu,
 } from "../nav-links";
 import { MenuIconChip } from "./menu-icon";
 
@@ -28,11 +25,25 @@ import { MenuIconChip } from "./menu-icon";
  * reachable. Every row is at least 44px. Selecting any link closes the
  * sheet.
  */
-export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
+export function MobileNav({
+  onNavigate,
+  menus,
+  pricingLink,
+  contactLink,
+  ctaLabel,
+  logInLabel,
+}: {
+  onNavigate: () => void;
+  menus: NavMenu[];
+  pricingLink: NavItem;
+  contactLink: NavItem;
+  ctaLabel: string;
+  logInLabel: string;
+}) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 pt-2 pb-6">
-        {NAV_MENUS.map((menu, i) => (
+        {menus.map((menu, i) => (
           <section key={menu.label} className={i === 0 ? "mt-2" : "mt-6"}>
             <h3 className="fr-eyebrow px-1 pb-2 text-[color:var(--fr-ink-55)]">
               {menu.label}
@@ -52,7 +63,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
             {i === 0 ? (
               <div className="mt-6">
                 <MobileRow
-                  item={PRICING_LINK}
+                  item={pricingLink}
                   onNavigate={onNavigate}
                   emphasized
                 />
@@ -66,7 +77,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
             scroll the whole page. Desktop keeps its lean bar (Contact stays in
             the footer there). */}
         <div className="mt-6">
-          <MobileRow item={CONTACT_LINK} onNavigate={onNavigate} />
+          <MobileRow item={contactLink} onNavigate={onNavigate} />
         </div>
 
         {/* The country selector: sets the single site-wide country from the
@@ -91,7 +102,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
             onClick={onNavigate}
             className="frn-cta frn-cta-lg frn-focus w-full"
           >
-            {PRIMARY_CTA_LABEL}
+            {ctaLabel}
           </Link>
         </SheetClose>
         <SheetClose asChild>
@@ -100,7 +111,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
             onClick={onNavigate}
             className="frn-focus font-body-mkt flex min-h-12 w-full items-center justify-center rounded-full border border-black/10 bg-[color:var(--fr-card)] text-[15px] font-semibold text-[color:var(--fr-ink)] transition-colors duration-200 ease-out hover:bg-black/[0.03]"
           >
-            Log in
+            {logInLabel}
           </Link>
         </SheetClose>
       </div>

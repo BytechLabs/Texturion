@@ -169,3 +169,21 @@ describe("the two nav catalogues", () => {
     expect(tradesMenuFor(navCopy("fr-CA")).items.length).toBe(6);
   });
 });
+
+describe("the nav's own furniture", () => {
+  it('translates the strings that are not links', () => {
+    // Three of these are aria labels. A screen reader reads them aloud, so an
+    // English one on a French page is the same defect as a visible English
+    // label — only harder to notice, which is why they are asserted by name.
+    expect(navFr.skipToContent).toBe('Passer au contenu');
+    expect(navFr.ariaPrimary).toBe('Principale');
+    expect(navFr.homeAria).toBe('Accueil Loonext');
+    expect(navFr.openMenu).toBe('Ouvrir le menu');
+    expect(navFr.logIn).toBe('Se connecter');
+  });
+
+  it('keeps the English ones exactly as the bar reads today', () => {
+    expect(navEn.skipToContent).toBe('Skip to content');
+    expect(navEn.logIn).toBe('Log in');
+  });
+});

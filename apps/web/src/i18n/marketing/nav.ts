@@ -71,6 +71,15 @@ export const navEn = {
 
   ctaPrimary: "Get your number",
   ctaSecondary: "See pricing",
+
+  // The nav's own furniture. The three aria labels are copy: a screen reader
+  // reads them aloud, and an English one on a French page is the same defect
+  // as a visible English label, only harder to notice.
+  skipToContent: "Skip to content",
+  ariaPrimary: "Primary",
+  homeAria: "Loonext home",
+  openMenu: "Open menu",
+  logIn: "Log in",
 } as const;
 
 export const navFr: Translated<typeof navEn> = {
@@ -120,6 +129,12 @@ export const navFr: Translated<typeof navEn> = {
 
   ctaPrimary: "Obtenez votre numéro",
   ctaSecondary: "Voir les tarifs",
+
+  skipToContent: "Passer au contenu",
+  ariaPrimary: "Principale",
+  homeAria: "Accueil Loonext",
+  openMenu: "Ouvrir le menu",
+  logIn: "Se connecter",
 };
 
 const NAV_COPY = {
