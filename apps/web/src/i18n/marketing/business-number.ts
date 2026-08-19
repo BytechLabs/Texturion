@@ -140,6 +140,8 @@ export const businessNumberEn = {
 
   ctaTitle: "Get a number your customers can text.",
 
+  visualOfficeHint: "(416) · Toronto",
+  visualFieldHint: "(647) · Toronto",
   visualOfficeLine: "Office line",
   visualFieldLine: "Field line",
   visualHeading: "Your business numbers",
@@ -268,6 +270,8 @@ export const businessNumberFr: Translated<typeof businessNumberEn> = {
 
   ctaTitle: "Obtenez un numéro auquel vos clients peuvent écrire.",
 
+  visualOfficeHint: "(416) · Toronto",
+  visualFieldHint: "(647) · Toronto",
   visualOfficeLine: "Ligne de bureau",
   visualFieldLine: "Ligne de terrain",
   visualHeading: "Vos numéros d'entreprise",

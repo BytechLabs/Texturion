@@ -79,6 +79,12 @@ const TEXT_NODE = />\s*([A-Za-z][A-Za-z0-9'’,.:!?()-]*(?:\s+[A-Za-z0-9'’,.:!
 /**
  * Copy sitting in a data array rather than in markup.
  *
+ * `q` and `a` were missing until the home page's FAQ came through here, and
+ * their absence would have passed that whole section as clean: seven questions
+ * and seven answers, every one a `q:`/`a:` pair, none of them matched by a list
+ * that stopped at `body`. Short field names are the ones a scanner's author
+ * skips, and they are exactly what a FAQ uses.
+ *
  * `name` is deliberately NOT in this list. In these visuals it holds a person —
  * Karen M, the Nguyen family, Marcus T — and a person is not a word to
  * translate. Every other field here holds something somebody wrote.
@@ -89,7 +95,7 @@ const TEXT_NODE = />\s*([A-Za-z][A-Za-z0-9'’,.:!?()-]*(?:\s+[A-Za-z0-9'’,.:!
  * capital, because one of the strings that got through began with a digit.
  */
 const DATA_COPY =
-  /\b(?:body|snippet|title|label|text|caption|source|tag|when|due)\s*:\s*"([^"]{4,})"/g;
+  /\b(?:body|snippet|title|label|text|caption|source|tag|when|due|q|a|detail|term|hint|intro|lead|heading|eyebrow|sub)\s*:\s*"([^"]{4,})"/g;
 
 /**
  * Every file that renders for both languages.

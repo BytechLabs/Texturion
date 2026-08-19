@@ -1,3 +1,5 @@
+import { fill, homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check } from "lucide-react";
 import Link from "next/link";
 
@@ -134,35 +136,31 @@ export const GUARANTEE_MICROCOPY_CA =
  *  the flat monthly price, same-day story. Never both together (owner ruling
  *  v1). Each set is built with the currency its country is billed in, so the
  *  closing currency line is no longer the same sentence in both. */
-export const DEAL_TRUTH_LINES_US = [
-  {
-    text: `US shops: ${price("starter", "usd")} a month plus a one-time ${registrationFee("usd")} to register with the phone companies. That's ${firstMonth("starter", "usd")} your first month, then ${price("starter", "usd")} every month after. The registration fee is charged once, ever.`,
-  },
-  {
-    text: "Day one you're not idle: receiving texts works right away. Texting US customers turns on in about a week, 3 to 7 business days, once the phone companies approve you.",
-    tick: true,
-  },
-  {
-    text: "Prices in USD, plus sales tax where it applies. That's the whole list.",
-  },
-] as const;
+export const dealTruthLinesUs = (copy: HomeCopy) =>
+  [
+    {
+      text: fill(copy.dealTruthUsPrice, {
+        starter: price("starter", "usd"),
+        registration: registrationFee("usd"),
+        firstMonth: firstMonth("starter", "usd"),
+      }),
+    },
+    { text: copy.dealActivationUs, tick: true },
+    { text: copy.dealTaxUs },
+  ] as const;
 
-export const DEAL_TRUTH_LINES_CA = [
-  {
-    text: `Canadian shops: ${price("starter", "cad")} a month, flat. No registration, no setup fee, no first-month bump; ${price("starter", "cad")} is ${price("starter", "cad")} from month one.`,
-  },
-  {
-    text: "Day one you're texting: your number is active and you can text Canadian customers the same day, usually a minute or two after signup. No waiting.",
-    tick: true,
-  },
-  {
+export const dealTruthLinesCa = (copy: HomeCopy) =>
+  [
+    {
+      text: fill(copy.dealTruthCaPrice, { starter: price("starter", "cad") }),
+    },
+    { text: copy.dealActivationCa, tick: true },
     // #328 rewrote this line rather than reprinting it. A strip that quoted a
     // Canadian price and then said "prices in USD" would be the same four
     // inches of the page contradicting itself, and the USD sentence is the half
     // that stopped being true when CAD billing shipped.
-    text: "Prices in Canadian dollars, plus tax where it applies. That's the whole list.",
-  },
-] as const;
+    { text: copy.dealTaxCa },
+  ] as const;
 
 function PlanCard({ plan }: { plan: HomePlan }) {
   return (
@@ -235,14 +233,14 @@ function PlanCard({ plan }: { plan: HomePlan }) {
   );
 }
 
-export function TheDeal() {
+export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
+  const copy = homeCopy(locale);
   return (
     <FrSection ground="frost" id="deal">
       <div className="max-w-2xl">
-        <h2 className="fr-h2">One flat price for the whole crew.</h2>
+        <h2 className="fr-h2">{copy.dealTitle}</h2>
         <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
-          No per-user fees. No quote calls. No annual contracts. This is the
-          whole price list.
+          {copy.dealSub}
         </p>
       </div>
 
@@ -274,7 +272,7 @@ export function TheDeal() {
           href={LIVE_ROUTES.fairUse}
           className="font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
-          The concrete numbers live in our fair use policy.
+          {copy.dealFairUse}
         </Link>
       </p>
 
@@ -286,7 +284,7 @@ export function TheDeal() {
           href={LIVE_ROUTES.contact}
           className="font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
-          Talk to us about Enterprise
+          {copy.dealEnterprise}
         </Link>
         , unlimited seats at the same flat, no-per-user price.
       </p>
@@ -294,13 +292,13 @@ export function TheDeal() {
       <CountryOnly country="us">
         <TruthStrip
           className="mx-auto mt-10 max-w-4xl"
-          lines={DEAL_TRUTH_LINES_US}
+          lines={dealTruthLinesUs(copy)}
         />
       </CountryOnly>
       <CountryOnly country="ca">
         <TruthStrip
           className="mx-auto mt-10 max-w-4xl"
-          lines={DEAL_TRUTH_LINES_CA}
+          lines={dealTruthLinesCa(copy)}
         />
       </CountryOnly>
 
@@ -339,7 +337,7 @@ export function TheDeal() {
           </p>
           <PanelFrame
             className="mt-5"
-            ariaLabel="The Loonext usage screen resting well within fair use"
+            ariaLabel={copy.dealMeterAria}
           >
             <AppSurface>
               <UsageMeterEmbed />
@@ -353,7 +351,7 @@ export function TheDeal() {
           href={LIVE_ROUTES.pricing}
           className="font-body-mkt text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
-          See full pricing. Every cost is on that page.
+          {copy.dealSeePricing}
         </Link>
       </p>
     </FrSection>

@@ -31,13 +31,13 @@ const cards = (copy: BusinessNumberCopy): NumberCard[] => [
   {
     label: copy.visualOfficeLine,
     number: "(416) 555-0119",
-    hint: "(416) · Toronto",
+    hint: copy.visualOfficeHint,
     unread: 3,
   },
   {
     label: copy.visualFieldLine,
     number: "(647) 555-0188",
-    hint: "(647) · Toronto",
+    hint: copy.visualFieldHint,
     unread: 1,
   },
 ];

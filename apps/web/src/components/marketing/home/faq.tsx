@@ -1,3 +1,5 @@
+import { fill, homeCopy, homeEn, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import {
   currencyForCountry,
   formatMoney,
@@ -58,13 +60,14 @@ interface HomeFaq {
  * decade has seen); without it, the sentence was our argument plus an
  * accidental exchange rate, which is the exact defect #328 is about.
  */
-const crewElsewhere = (currency: BillingCurrency) =>
-  currency === "cad"
-    ? "A 6-person crew on a typical per-user tool runs US$90 to US$114 a month"
-    : "A 6-person crew on a typical per-user tool runs $90 to $114 a month";
+const crewElsewhere = (currency: BillingCurrency, copy: HomeCopy) =>
+  currency === "cad" ? copy.faqCrewElsewhereCad : copy.faqCrewElsewhereUsd;
 
 /** The question list for one currency; `faqsForCountry` picks which. */
-function homeFaqs(currency: BillingCurrency): readonly HomeFaq[] {
+function homeFaqs(
+  currency: BillingCurrency,
+  copy: HomeCopy,
+): readonly HomeFaq[] {
   const starter = formatMoney(PLAN_PRICE_CENTS[currency].starter, currency);
   const pro = formatMoney(PLAN_PRICE_CENTS[currency].pro, currency);
   const registration = formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
@@ -76,60 +79,70 @@ function homeFaqs(currency: BillingCurrency): readonly HomeFaq[] {
   );
   return [
     {
-      q: "What's my number, and can I keep the one that's on my trucks and my Google listing?",
-      a: 'Either. Pick a new local number in the area code you choose, usually live in a minute or two, or bring the number your customers already know. Porting is free and self-serve: choose "Bring my number" at signup or start it later from settings, answer a few questions, and we handle the carrier paperwork and show you where the transfer is the whole way. Your number keeps working on your old carrier while it moves, usually a few days to two weeks, then switches to Loonext on a scheduled date. Nothing on your trucks or your listing has to change.',
-      aCa: 'Either. Pick a new local Canadian number in the area code you choose, usually live in a minute or two, or bring the number your customers already know. Porting is free and self-serve: choose "Bring my number" at signup or start it later from settings, answer a few questions, and we handle the carrier paperwork and show you where the transfer is the whole way. Your number keeps working on your old carrier while it moves, often just a few days for a Canadian number, then switches to Loonext on a scheduled date. Nothing on your trucks or your listing has to change.',
+      q: copy.faqNumberQ,
+      a: copy.faqNumberAUs,
+      aCa: copy.faqNumberACa,
     },
     {
-      q: "Do we need to download an app?",
-      a: "No. Loonext runs in the browser on any phone or computer. Add it to your home screen and it works like an app, push notifications included. Your crew is set up in the time it takes to open a link.",
+      q: copy.faqAppQ,
+      a: copy.faqAppA,
     },
     {
-      q: "Does it do phone calls too, or only texts?",
-      a: "Both, on the same number, included on every plan with nothing to switch on. A customer calls and every teammate's Loonext rings at once, so whoever is free answers. Nobody free? They leave a voicemail we write down so you can read it between jobs, and they get an automatic text back in your own words. You call customers back from the app and they see your business number, never anyone's cell. What it is not is a call center: no phone menus, no queues, no desk phones.",
+      q: copy.faqCallsQ,
+      a: copy.faqCallsA,
     },
     {
-      q: `Is it really ${starter} for the whole team?`,
-      a: `Yes. ${starter} a month for up to 3 people on Starter, ${pro} for up to 15 on Pro. We don't charge per user. One thing to know up front: there's also a one-time ${registration} fee to register with the phone companies, so your first month is ${firstMonth} and every month after is ${starter}. ${crewElsewhere(currency)}; on Loonext it's ${pro}, flat.`,
-      aCa: `Yes. ${starter} a month for up to 3 people on Starter, ${pro} for up to 15 on Pro. We don't charge per user, and texting Canadian customers has no registration fee and no setup cost, so ${starter} is ${starter} from your first month on. ${crewElsewhere(currency)}; on Loonext it's ${pro}, flat.`,
+      q: fill(copy.faqPriceQ, { starter }),
+      a: fill(copy.faqPriceAUs, {
+        starter,
+        pro,
+        registration,
+        firstMonth,
+        crew: crewElsewhere(currency, copy),
+      }),
+      aCa: fill(copy.faqPriceACa, {
+        starter,
+        pro,
+        crew: crewElsewhere(currency, copy),
+      }),
     },
     {
-      q: "What counts as a text I send?",
-      a: "Each text you send counts. A plain text up to 160 characters is one; longer texts, or texts with emoji, count as more than one, and the composer shows you the count before you send, so there's no mystery. Receiving texts is always free and unlimited. Receiving photos is free too, and they're saved for you; storage is free, with no caps. Texting is included under our automated fair-use policy, and almost every crew stays well inside it without thinking about it.",
+      q: copy.faqCountQ,
+      a: copy.faqCountA,
     },
     {
-      q: "Why does texting US customers take about a week?",
-      a: "The phone companies require every business that texts to register first. It's an industry rule, not a Loonext rule, and every provider has to do it. Approval usually lands in 3 to 7 business days, about a week. We file yours the minute you pay and email you the moment it's approved. The whole time, receiving texts already works.",
+      q: copy.faqWaitQ,
+      a: copy.faqWaitA,
       only: "us",
     },
     {
-      q: "When can I start texting customers?",
-      a: "Right away. Your Loonext number is active usually a minute or two after you sign up, and you can text Canadian customers the same day. No registration, no fee, no waiting. Receiving texts works immediately too.",
+      q: copy.faqStartQ,
+      a: copy.faqStartA,
       only: "ca",
     },
     {
-      q: "Can we also text US customers?",
+      q: copy.faqUsQ,
       // The fee lands on a CANADIAN invoice here, which is why it is read with
       // this list's currency and not fixed to USD: a Canadian workspace that
       // turns on US texting is charged US_REGISTRATION_FEE_CENTS.cad.
-      a: `Yes, when you're ready. You can turn on US texting anytime from settings. That's the point where the one-time ${registration} US registration and the roughly one-week carrier approval apply, because US phone companies require every business to register. Until you turn it on, texting Canadian customers stays free of both.`,
+      a: fill(copy.faqUsA, { registration }),
       only: "ca",
     },
     {
-      q: "Can customers text us photos?",
-      a: "Yes, both directions, on every plan, nothing to turn on. Photos customers send come through in the conversation, full size, and receiving them is free. Sending photos back is included too, under the same fair-use policy as your texts, and every photo is stored free with no caps.",
+      q: copy.faqPhotosQ,
+      a: copy.faqPhotosA,
     },
     {
-      q: "What happens if we go over our included texting?",
-      a: "Nothing surprising. We email you at 80% and again at 100% of your included texting, and past it extra texts bill at a small per-text rate, up to a spending cap you control that stops things before they run away. The exact rates live in our fair use policy.",
+      q: copy.faqOverageQ,
+      a: copy.faqOverageA,
     },
     {
-      q: "What happens if I cancel?",
-      a: "Your subscription is month to month. Cancel anytime from your billing settings, no phone call required. We hold your number for 30 days after cancellation, so if you come back within a month, you keep it.",
+      q: copy.faqCancelQ,
+      a: copy.faqCancelA,
     },
     {
-      q: `What's the one-time ${registration} fee?`,
-      a: "It covers registering your business with the phone companies so you're allowed to text customers. They charge a real fee to review and approve every business, and we pay it on your behalf, including a resubmission if the first try bounces. You pay it once, ever: cancel and come back later and you won't pay it again.",
+      q: fill(copy.faqFeeQ, { registration }),
+      a: copy.faqFeeA,
       only: "us",
     },
   ];
@@ -143,13 +156,16 @@ function homeFaqs(currency: BillingCurrency): readonly HomeFaq[] {
  * renders it — `faqsForCountry` rebuilds the list in the reader's own currency
  * — and it is exported for the tests that read the country-neutral answers.
  */
-export const HOME_FAQS: readonly HomeFaq[] = homeFaqs("usd");
+export const HOME_FAQS: readonly HomeFaq[] = homeFaqs("usd", homeEn);
 
 /** The visible question/answer list for one country: build it in the currency
  *  that country is billed in, filter the single-country entries out of the
  *  other country, then apply any Canada wording override. */
-export function faqsForCountry(country: Country): { q: string; a: string }[] {
-  return homeFaqs(currencyForCountry(country))
+export function faqsForCountry(
+  country: Country,
+  locale: MarketingLocale = "en",
+): { q: string; a: string }[] {
+  return homeFaqs(currencyForCountry(country), homeCopy(locale))
     .filter((f) => !f.only || f.only === country)
     .map((f) => ({
       q: country === "ca" && f.qCa ? f.qCa : f.q,
@@ -229,20 +245,21 @@ function FaqList({ items }: { items: { q: string; a: string }[] }) {
   );
 }
 
-export function Faq() {
+export function Faq({ locale = "en" }: { locale?: MarketingLocale } = {}) {
+  const copy = homeCopy(locale);
   return (
     <FrSection ground="frost" id="faq">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <h2 className="fr-h2 max-w-2xl">Fair questions, straight answers.</h2>
+      <h2 className="fr-h2 max-w-2xl">{copy.faqTitle}</h2>
 
       {/* The two lists never coexist: SSR renders the US set (the default), and
           a returning Canadian swaps to the Canada set after hydration. */}
       <div className="mx-auto mt-12 max-w-3xl space-y-3">
         <CountryOnly country="us">
-          <FaqList items={faqsForCountry("us")} />
+          <FaqList items={faqsForCountry("us", locale)} />
         </CountryOnly>
         <CountryOnly country="ca">
-          <FaqList items={faqsForCountry("ca")} />
+          <FaqList items={faqsForCountry("ca", locale)} />
         </CountryOnly>
       </div>
     </FrSection>

@@ -180,6 +180,10 @@ export const homeEn = {
     "Day one you're not idle: receiving texts works right away. Texting US customers turns on in about a week, 3 to 7 business days, once the phone companies approve you.",
   dealActivationCa:
     "Day one you're texting: your number is active and you can text Canadian customers the same day, usually a minute or two after signup. No waiting.",
+  dealTruthUsPrice:
+    "US shops: {starter} a month plus a one-time {registration} to register with the phone companies. That's {firstMonth} your first month, then {starter} every month after. The registration fee is charged once, ever.",
+  dealTruthCaPrice:
+    "Canadian shops: {starter} a month, flat. No registration, no setup fee, no first-month bump; {starter} is {starter} from month one.",
   dealTaxUs: "Prices in USD, plus sales tax where it applies. That's the whole list.",
   dealTaxCa:
     "Prices in Canadian dollars, plus tax where it applies. That's the whole list.",
@@ -250,6 +254,29 @@ export const homeEn = {
   faqStartA:
     "Right away. Your Loonext number is active usually a minute or two after you sign up, and you can text Canadian customers the same day. No registration, no fee, no waiting. Receiving texts works immediately too.",
   faqUsQ: "Can we also text US customers?",
+  faqCrewElsewhereUsd:
+    "A 6-person crew on a typical per-user tool runs $90 to $114 a month",
+  faqCrewElsewhereCad:
+    "A 6-person crew on a typical per-user tool runs US$90 to US$114 a month",
+  faqPriceQ: "Is it really {starter} for the whole team?",
+  faqPriceAUs:
+    "Yes. {starter} a month for up to 3 people on Starter, {pro} for up to 15 on Pro. We don't charge per user. One thing to know up front: there's also a one-time {registration} fee to register with the phone companies, so your first month is {firstMonth} and every month after is {starter}. {crew}; on Loonext it's {pro}, flat.",
+  faqPriceACa:
+    "Yes. {starter} a month for up to 3 people on Starter, {pro} for up to 15 on Pro. We don't charge per user, and texting Canadian customers has no registration fee and no setup cost, so {starter} is {starter} from your first month on. {crew}; on Loonext it's {pro}, flat.",
+  faqUsA:
+    "Yes, when you're ready. You can turn on US texting anytime from settings. That's the point where the one-time {registration} US registration and the roughly one-week carrier approval apply, because US phone companies require every business to register. Until you turn it on, texting Canadian customers stays free of both.",
+  faqPhotosQ: "Can customers text us photos?",
+  faqPhotosA:
+    "Yes, both directions, on every plan, nothing to turn on. Photos customers send come through in the conversation, full size, and receiving them is free. Sending photos back is included too, under the same fair-use policy as your texts, and every photo is stored free with no caps.",
+  faqOverageQ: "What happens if we go over our included texting?",
+  faqOverageA:
+    "Nothing surprising. We email you at 80% and again at 100% of your included texting, and past it extra texts bill at a small per-text rate, up to a spending cap you control that stops things before they run away. The exact rates live in our fair use policy.",
+  faqCancelQ: "What happens if I cancel?",
+  faqCancelA:
+    "Your subscription is month to month. Cancel anytime from your billing settings, no phone call required. We hold your number for 30 days after cancellation, so if you come back within a month, you keep it.",
+  faqFeeQ: "What's the one-time {registration} fee?",
+  faqFeeA:
+    "It covers registering your business with the phone companies so you're allowed to text customers. They charge a real fee to review and approve every business, and we pay it on your behalf, including a resubmission if the first try bounces. You pay it once, ever: cancel and come back later and you won't pay it again.",
 
   ctaTitle: "One inbox for the whole crew. No strings attached.",
   ctaSub:
@@ -419,6 +446,10 @@ export const homeFr: Translated<typeof homeEn> = {
     "Dès le premier jour vous n'êtes pas inactif : la réception des textos fonctionne tout de suite. L'envoi aux clients américains s'active en environ une semaine, de 3 à 7 jours ouvrables, une fois que les compagnies de téléphone vous approuvent.",
   dealActivationCa:
     "Dès le premier jour vous écrivez : votre numéro est actif et vous pouvez écrire à des clients canadiens le jour même, habituellement une minute ou deux après l'inscription. Aucune attente.",
+  dealTruthUsPrice:
+    "Commerces américains : {starter} par mois plus des frais uniques de {registration} pour s'enregistrer auprès des compagnies de téléphone. Ça fait {firstMonth} votre premier mois, puis {starter} chaque mois ensuite. Les frais d'enregistrement sont facturés une seule fois, à vie.",
+  dealTruthCaPrice:
+    "Commerces canadiens : {starter} par mois, prix fixe. Aucun enregistrement, aucuns frais d'installation, aucune hausse le premier mois ; {starter} reste {starter} dès le premier mois.",
   dealTaxUs:
     "Prix en dollars américains, plus les taxes de vente là où elles s'appliquent. C'est toute la liste.",
   dealTaxCa:
@@ -493,6 +524,29 @@ export const homeFr: Translated<typeof homeEn> = {
   faqStartA:
     "Tout de suite. Votre numéro Loonext est actif habituellement une minute ou deux après votre inscription, et vous pouvez écrire à des clients canadiens le jour même. Aucun enregistrement, aucuns frais, aucune attente. La réception des textos fonctionne immédiatement aussi.",
   faqUsQ: "Pouvons-nous aussi écrire à des clients américains ?",
+  faqCrewElsewhereUsd:
+    "Une équipe de 6 personnes sur un outil typique facturé par personne coûte de 90 $ à 114 $ par mois",
+  faqCrewElsewhereCad:
+    "Une équipe de 6 personnes sur un outil typique facturé par personne coûte de 90 $US à 114 $US par mois",
+  faqPriceQ: "C'est vraiment {starter} pour toute l'équipe ?",
+  faqPriceAUs:
+    "Oui. {starter} par mois pour un maximum de 3 personnes sur Starter, {pro} pour un maximum de 15 sur Pro. On ne facture pas par personne. Une chose à savoir d'avance : il y a aussi des frais uniques de {registration} pour s'enregistrer auprès des compagnies de téléphone, alors votre premier mois est de {firstMonth} et chaque mois ensuite est de {starter}. {crew} ; sur Loonext c'est {pro}, prix fixe.",
+  faqPriceACa:
+    "Oui. {starter} par mois pour un maximum de 3 personnes sur Starter, {pro} pour un maximum de 15 sur Pro. On ne facture pas par personne, et écrire à des clients canadiens n'a aucuns frais d'enregistrement ni aucun coût d'installation, alors {starter} reste {starter} dès votre premier mois. {crew} ; sur Loonext c'est {pro}, prix fixe.",
+  faqUsA:
+    "Oui, quand vous serez prêt. Vous pouvez activer l'envoi vers les États-Unis n'importe quand depuis les réglages. C'est à ce moment-là que les frais uniques de {registration} pour l'enregistrement américain et l'approbation d'environ une semaine par les opérateurs s'appliquent, parce que les compagnies de téléphone américaines exigent que chaque entreprise s'enregistre. Tant que vous ne l'activez pas, écrire à des clients canadiens reste libre des deux.",
+  faqPhotosQ: "Les clients peuvent-ils nous envoyer des photos ?",
+  faqPhotosA:
+    "Oui, dans les deux sens, sur tous les forfaits, rien à activer. Les photos que les clients envoient arrivent dans la conversation, en pleine taille, et les recevoir est gratuit. Renvoyer des photos est inclus aussi, sous la même politique d'utilisation équitable que vos textos, et chaque photo est stockée gratuitement, sans plafond.",
+  faqOverageQ: "Que se passe-t-il si on dépasse les textos inclus ?",
+  faqOverageA:
+    "Rien de surprenant. On vous écrit à 80 % puis à 100 % de vos textos inclus, et au-delà les textos supplémentaires sont facturés à un petit tarif à l'unité, jusqu'à un plafond de dépenses que vous contrôlez et qui arrête les choses avant qu'elles s'emballent. Les tarifs exacts vivent dans notre politique d'utilisation équitable.",
+  faqCancelQ: "Que se passe-t-il si j'annule ?",
+  faqCancelA:
+    "Votre abonnement est au mois. Annulez quand vous voulez depuis vos réglages de facturation, sans appel téléphonique. On garde votre numéro 30 jours après l'annulation, alors si vous revenez dans le mois, vous le gardez.",
+  faqFeeQ: "C'est quoi les frais uniques de {registration} ?",
+  faqFeeA:
+    "Ils couvrent l'enregistrement de votre entreprise auprès des compagnies de téléphone pour que vous ayez le droit d'écrire à vos clients. Elles facturent de vrais frais pour réviser et approuver chaque entreprise, et nous les payons en votre nom, y compris une nouvelle soumission si la première est refusée. Vous les payez une seule fois, à vie : annulez et revenez plus tard, vous ne les paierez pas de nouveau.",
 
   ctaTitle: "Une seule boîte pour toute l'équipe. Sans conditions.",
   ctaSub:
@@ -506,6 +560,20 @@ export const homeFr: Translated<typeof homeEn> = {
     "Vos données sont chiffrées en transit et au repos, nous gardons le contenu des messages hors de nos analyses et de nos journaux d'erreurs, et il est stocké aux États-Unis. Les détails sont sur notre",
   ctaSecurity: "page sécurité",
 };
+
+/**
+ * Fill `{named}` holes in a catalogue string.
+ *
+ * The price answers carry up to five figures inside one sentence, and the
+ * figures are computed (the first month is a SUM). Fragments would have fixed
+ * them in English word order, which is exactly the thing a translation has to
+ * be free to change.
+ */
+export function fill(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, key) =>
+    key in values ? values[key] : whole,
+  );
+}
 
 const HOME_COPY = {
   en: homeEn,
