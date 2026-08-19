@@ -16,12 +16,14 @@
  * the 555-01XX safe fictional range.
  */
 
+import { assistantCopy, type AssistantCopy } from "@/i18n/marketing/assistant";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Send, Sparkle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 /** The customer text Lou is answering, so the draft has something to be about. */
-function IncomingBubble() {
+function IncomingBubble({ copy }: { copy: AssistantCopy }) {
   return (
     <div className="flex justify-start">
       {/* A border as well as the fill: inside the dark PanelFrame `app-ground`
@@ -29,18 +31,24 @@ function IncomingBubble() {
           message at all on the first render check. */}
       <div className="max-w-[80%] rounded-2xl rounded-bl-md border border-app-line bg-app-ground px-3 py-2">
         <p className="text-[13px] leading-[1.5] text-app-ink">
-          Hi, my water heater is leaking all over the basement floor. Can
-          somebody come out today? I&rsquo;m at 114 Bishop St.
+          {copy.visualIncoming}
         </p>
       </div>
     </div>
   );
 }
 
-export function AssistantVisual({ className }: { className?: string }) {
+export function AssistantVisual({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = assistantCopy(locale);
   return (
     <div className={cn("space-y-3 p-3 sm:p-4", className)}>
-      <IncomingBubble />
+      <IncomingBubble copy={copy} />
 
       {/* The composer, with Lou's draft in it and nothing sent. */}
       <div className="rounded-app-card border border-app-line bg-app-paper p-[11px]">
@@ -52,44 +60,42 @@ export function AssistantVisual({ className }: { className?: string }) {
             <Sparkle className="size-2.5" strokeWidth={2.5} />
           </span>
           <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-app-muted-2">
-            Lou drafted this
+            {copy.visualDraftedBy}
           </span>
           <span className="ml-auto text-[11px] text-app-muted-2">
-            Edit before you send
+            {copy.visualEditFirst}
           </span>
         </div>
 
         <p className="mt-2 text-[13px] leading-[1.55] text-app-ink">
-          Sorry to hear that. Shut the water off at the valve on top of the tank
-          if you can reach it. We can have someone at 114 Bishop St this
-          afternoon between 2 and 4. Does that work?
+          {copy.visualDraft}
         </p>
 
         <div className="mt-2.5 flex items-center gap-2">
           <span className="flex-1 text-[11.5px] text-app-muted-2">
-            Nothing is sent until you press it.
+            {copy.visualNotSent}
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-app-ctrl bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground">
             <Send className="size-3" strokeWidth={2.25} aria-hidden />
-            Send
+            {copy.visualSend}
           </span>
         </div>
       </div>
 
-      {/* The second output, so the page is not read as "AI writes texts". */}
+      {/* The second output, so the page is not read as copy.visualBadge. */}
       <div className="rounded-app-card border border-app-line p-[11px]">
         <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-app-muted-2">
-          New task, filled in from that message
+          {copy.visualTaskLabel}
         </p>
         <p className="mt-1.5 text-[13px] font-medium text-app-ink">
-          Water heater leak, Bishop St
+          {copy.visualTaskTitle}
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-[5px]">
           <span className="inline-flex items-center rounded-full border border-app-tint-line bg-app-tint px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-olive-deep">
             114 Bishop St
           </span>
           <span className="inline-flex items-center rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted">
-            Due today
+            {copy.visualTaskDue}
           </span>
         </div>
       </div>
