@@ -13,6 +13,21 @@
 import type { Translated } from "../translated";
 
 export const settingsEn = {
+  /**
+   * #228 — the voicemail a caller hears when the workspace never recorded one.
+   *
+   * NOT the reader's language: the caller's. Every other string on that screen
+   * follows the member reading it, and this one follows the WORKSPACE, because
+   * it is a preview of a sentence `inbound-ring.ts` will speak to somebody
+   * else entirely. A French workspace whose owner reads English still greets
+   * its callers in French, and the preview has to say so.
+   *
+   * Byte-for-byte the server's `defaultGreeting`, held there by
+   * `voicemail-greeting-parity.test.ts` — a preview that has drifted from what
+   * is spoken is worse than no preview, because it is believed.
+   */
+  defaultVoicemailGreeting:
+    "You've reached {name}. We can't take your call right now. Please leave a message after the beep, or hang up and text us at this number.",
   /* #228 — the spending cap's confirm dialog. Three keys rather than
      one with clauses: a raise, a raise to the ceiling and a lowering
      say different things about money, and only the ceiling one names
@@ -814,6 +829,8 @@ export const settingsEn = {
  * translated — a machine matches on those.
  */
 export const settingsFr: Translated<typeof settingsEn> = {
+  defaultVoicemailGreeting:
+    "Vous avez joint {name}. Nous ne pouvons pas répondre pour le moment. Laissez un message après le signal, ou raccrochez et écrivez-nous à ce numéro.",
   capRaised: "Les envois s'arrêtent à {next} textos pour cette période au lieu de {current}.",
   capRaisedToCeiling: "Les envois s'arrêtent à {next} textos pour cette période au lieu de {current}. C'est le plafond le plus élevé possible. Chaque texto au-delà des {included} compris est facturé au tarif de dépassement jusqu'à l'arrêt des envois.",
   capLowered: "Les envois s'arrêtent à {next} textos pour cette période. Si vous avez déjà dépassé ce nombre, les envois s'arrêtent tout de suite.",

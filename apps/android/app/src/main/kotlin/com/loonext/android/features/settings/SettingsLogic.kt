@@ -430,12 +430,22 @@ fun applyMergeFields(text: String, contactName: String?, businessName: String?):
  * says so in its own header and names this file; now this one says it back,
  * because a reader working down the ledger finds this side first.
  *
- * Worth extracting on the day `inbound-ring.ts` learns the workspace's
- * language, and misleading before then.
+ * THAT DAY CAME. `inbound-ring.ts` learned the workspace's language in
+ * `8b4e052a`, and this mirror did not — so a French workspace was shown an
+ * English preview of a French greeting, which is a screen quietly lying about
+ * what the product does. The note here predicted exactly this, and the commit
+ * that made it true did not follow the pointer.
+ *
+ * [locale] is the WORKSPACE's, not the reader's: this previews a sentence
+ * spoken to somebody who is not looking at the screen. Defaulted so the parity
+ * tests that assert the PRODUCT's wording keep resolving English.
  */
-fun defaultVoicemailGreeting(companyName: String): String =
-    "You've reached $companyName. We can't take your call right now. " +
-        "Please leave a message after the beep, or hang up and text us at this number."
+fun defaultVoicemailGreeting(companyName: String, locale: String? = null): String =
+    AppStrings.translate(
+        locale,
+        "settings.defaultVoicemailGreeting",
+        mapOf("name" to companyName),
+    )
 
 // ---------------------------------------------------------------------------
 // Number status honesty — mirror of web components/settings/number-card.tsx

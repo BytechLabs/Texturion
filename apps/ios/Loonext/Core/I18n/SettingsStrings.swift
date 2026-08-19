@@ -58,11 +58,6 @@ import Foundation
 ///
 /// ## What is still deliberately NOT here
 ///
-///   `defaultVoicemailGreeting`      `inbound-ring.ts` SPEAKS this to a caller
-///                                   and takes no locale, so a French preview
-///                                   would show words no caller ever hears.
-///                                   Extract it the day the server learns the
-///                                   language.
 ///   `holdSentence`                  the three hold sentences on the billing
 ///   (BillingSection.swift)          screen, and the "Continue to cancel" label
 ///   the cancel exit label           beside them. Both are ANCHORS for guards
@@ -976,6 +971,15 @@ private let settingsHoursFr: [String: String] = [
 // ---------------------------------------------------------------------------
 
 private let settingsCallingEn: [String: String] = [
+    // #228 — the voicemail a caller hears when the workspace never recorded
+    // one. NOT the reader's language: the CALLER's. Every other string on that
+    // screen follows the member reading it; this one follows the WORKSPACE,
+    // because it previews a sentence `inbound-ring.ts` speaks to somebody else
+    // entirely. Byte-for-byte the server's default, held there by
+    // `voicemail-greeting-parity.test.ts`.
+    "settings.defaultVoicemailGreeting":
+        "You've reached {name}. We can't take your call right now. "
+        + "Please leave a message after the beep, or hang up and text us at this number.",
     "settings.callingHostedOnly":
         "In-app calling needs a number whose calls come through Loonext. Calls to "
         + "your text-enabled landline stay with your existing carrier, so these "
@@ -1103,6 +1107,9 @@ private let settingsCallingEn: [String: String] = [
 ]
 
 private let settingsCallingFr: [String: String] = [
+    "settings.defaultVoicemailGreeting":
+        "Vous avez joint {name}. Nous ne pouvons pas répondre pour le moment. "
+        + "Laissez un message après le signal, ou raccrochez et écrivez-nous à ce numéro.",
     "settings.callingHostedOnly":
         "Les appels dans l'application exigent un numéro dont les appels passent par "
         + "Loonext. Les appels vers votre ligne fixe compatible texto restent chez "

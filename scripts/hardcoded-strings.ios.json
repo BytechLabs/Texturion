@@ -20,7 +20,6 @@
   "Features/Payments/PaymentsLogic.swift": 1,
   "Features/Settings/BillingSection.swift": 4,
   "Features/Settings/SettingsHome.swift": 1,
-  "Features/Settings/SettingsLogic.swift": 2,
   "Features/Settings/SettingsRepository.swift": 1,
   "Features/Shell/InboundToastHost.swift": 2,
   "Features/Tasks/TaskDetailView.swift": 4,

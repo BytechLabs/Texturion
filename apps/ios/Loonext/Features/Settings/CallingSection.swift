@@ -275,18 +275,18 @@ private struct VoicemailCard: View {
         trimmed != (company.voicemail_greeting ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// The spoken default, DELIBERATELY still in English (#228).
+    /// The spoken default, in the WORKSPACE's language (#228).
     ///
     /// `apps/api/src/messaging/inbound-ring.ts` speaks `defaultGreeting()` to
-    /// the caller and takes no locale, so this is the sentence a caller
-    /// actually hears whatever anybody's app is set to. Translating the preview
-    /// would show a French owner words their callers never hear — the same
-    /// argument the missed-call default's docblock makes, pointing the other
-    /// way. It is worth extracting on the day the SERVER learns the language,
-    /// and misleading before then. Android leaves it English for the same
-    /// reason.
+    /// the caller, and since `8b4e052a` it picks the words from
+    /// `companies.locale`. So the preview follows the workspace rather than the
+    /// member reading it: an English-reading owner of a French workspace is
+    /// shown the French their callers actually hear.
+    ///
+    /// This docblock previously argued the opposite, correctly, for as long as
+    /// the server took no locale.
     private var spokenDefault: String {
-        defaultVoicemailGreeting(companyName: company.name)
+        defaultVoicemailGreeting(companyName: company.name, locale: company.locale)
     }
 
     var body: some View {

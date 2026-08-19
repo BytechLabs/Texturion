@@ -1,6 +1,5 @@
 {
   "app/(app)/error.tsx": 1,
-  "app/(app)/settings/missed-calls/page.tsx": 2,
   "app/api/status/subscribe/route.ts": 4,
   "app/error.tsx": 2,
   "app/global-error.tsx": 1,

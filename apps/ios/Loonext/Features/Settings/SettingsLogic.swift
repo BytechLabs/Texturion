@@ -331,20 +331,18 @@ func applyMergeFields(_ text: String, contactName: String?, businessName: String
 
 /// The greeting spoken when the owner has not written one.
 ///
-/// #228 — DELIBERATELY STILL ENGLISH, and it is the honest answer rather than a
-/// gap. `defaultGreeting` in `apps/api/src/messaging/inbound-ring.ts` is what
-/// Telnyx actually speaks to a caller, and it takes no locale: this sentence
-/// reaches a caller in English whatever anybody's app is set to. Translating the
-/// PREVIEW would show a French owner words their callers never hear, which is
-/// the same argument `mctbDefaultKey` makes in the other direction — that one is
-/// translated because the SERVER sends it per locale. Android leaves this
-/// English for the same reason.
+/// #228 — THE DAY CAME. This was deliberately English while
+/// `defaultGreeting` in `apps/api/src/messaging/inbound-ring.ts` took no
+/// locale, and the note here said to extract it when the server learned the
+/// workspace's language. The server learned it in `8b4e052a` and this mirror
+/// did not, so a French workspace was shown an English preview of a French
+/// greeting — a screen quietly lying about what the product does.
 ///
-/// Worth extracting on the day `inbound-ring.ts` learns the workspace's
-/// language, and misleading before then.
-func defaultVoicemailGreeting(companyName: String) -> String {
-    "You've reached \(companyName). We can't take your call right now. "
-        + "Please leave a message after the beep, or hang up and text us at this number."
+/// `locale` is the WORKSPACE's, not the reader's: this previews a sentence
+/// spoken to somebody who is not looking at the screen. Defaulted so the parity
+/// tests that assert the PRODUCT's wording keep resolving English.
+func defaultVoicemailGreeting(companyName: String, locale: String? = nil) -> String {
+    AppStrings.translate(locale, "settings.defaultVoicemailGreeting", ["name": companyName])
 }
 
 // MARK: - Number status honesty — mirror of web components/settings/number-card.tsx

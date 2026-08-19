@@ -262,7 +262,7 @@ private fun VoicemailCard(
 
     val trimmed = greeting.trim()
     val dirty = trimmed != company.voicemail_greeting.orEmpty().trim()
-    val spoken = trimmed.ifEmpty { defaultVoicemailGreeting(company.name) }
+    val spoken = trimmed.ifEmpty { defaultVoicemailGreeting(company.name, company.locale) }
 
     val greetingSaved = t("settings.voicemailSaved")
 
@@ -277,7 +277,9 @@ private fun VoicemailCard(
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
                 enabled = !saving,
-                placeholder = { Text(defaultVoicemailGreeting(company.name)) },
+                placeholder = {
+                    Text(defaultVoicemailGreeting(company.name, company.locale))
+                },
                 supportingText = {
                     Text(t("settings.voicemailCount", "count" to greeting.length.toString()))
                 },

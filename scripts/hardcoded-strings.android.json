@@ -11,7 +11,7 @@
   "com/loonext/android/features/inbox/InboundToastLogic.kt": 1,
   "com/loonext/android/features/inbox/InboxTab.kt": 1,
   "com/loonext/android/features/payments/Payments.kt": 1,
-  "com/loonext/android/features/settings/SettingsLogic.kt": 5,
+  "com/loonext/android/features/settings/SettingsLogic.kt": 3,
   "com/loonext/android/features/tasks/TasksTab.kt": 1,
   "com/loonext/android/MainActivity.kt": 2,
   "com/loonext/android/push/PushPayload.kt": 2,

@@ -8,7 +8,7 @@
  * screening, and caller ID (CNAM both directions). Cell forwarding is GONE
  * (D43 deleted it), so there is no cell to configure anywhere.
  */
-import { DEFAULT_MCTB_MESSAGE } from "@loonext/shared";
+import { DEFAULT_MCTB_MESSAGE, resolveLocale } from "@loonext/shared";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -32,7 +32,7 @@ import {
   usTextingOff,
 } from "@/components/thread/composer-banner";
 import { Textarea } from "@/components/ui/textarea";
-import { useT, type Translate } from "@/i18n/provider";
+import { makeTranslate, useT, type Translate } from "@/i18n/provider";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useUsage } from "@/lib/api/usage";
@@ -41,12 +41,19 @@ import { previewMissedCallText } from "@/lib/settings/away-preview";
 import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
-/** Mirrors the server's spoken default (inbound-ring.ts defaultGreeting). */
-function defaultGreeting(businessName: string): string {
-  return (
-    `You've reached ${businessName}. We can't take your call right now. ` +
-    `Please leave a message after the beep, or hang up and text us at this number.`
-  );
+/**
+ * Mirrors the server's spoken default (inbound-ring.ts `defaultGreeting`).
+ *
+ * In the WORKSPACE's language, not the reader's. This is the one sentence on
+ * this screen aimed at somebody who is not looking at it — the caller — and the
+ * server picks their words from `companies.locale`. A French workspace whose
+ * owner reads English used to be shown an English preview of a French greeting,
+ * which is a screen quietly lying about what the product does.
+ */
+function defaultGreeting(businessName: string, locale: string | null | undefined): string {
+  return makeTranslate(resolveLocale(null, locale))("settings.defaultVoicemailGreeting", {
+    name: businessName,
+  });
 }
 
 /** The carrier CNAM alphabet: 1–15 letters, digits, or spaces. */
@@ -297,7 +304,9 @@ function VoicemailCard({
 
   const dirty = greeting.trim() !== (company.voicemail_greeting ?? "").trim();
   const spoken =
-    greeting.trim().length > 0 ? greeting.trim() : defaultGreeting(company.name);
+    greeting.trim().length > 0
+      ? greeting.trim()
+      : defaultGreeting(company.name, company.locale);
 
   function save() {
     setError(null);
@@ -343,7 +352,7 @@ function VoicemailCard({
             disabled={!canEdit || update.isPending}
             maxLength={500}
             rows={3}
-            placeholder={defaultGreeting(company.name)}
+            placeholder={defaultGreeting(company.name, company.locale)}
             onChange={(e) => setGreeting(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
