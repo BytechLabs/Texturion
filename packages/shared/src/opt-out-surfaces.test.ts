@@ -247,9 +247,6 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
     if (catalogue === null) return source;
     let resolved = source;
     for (const use of source.matchAll(/"[\w]+\.(\w+)"/g)) {
-      // A fixed window rather than a lazy match to the next comma: a catalogue
-      // value is often concatenated across lines, and the first comma-newline
-      // inside one would cut the sentence in half.
       /*
        * Two catalogue shapes, because the two clients store a key differently:
        * TypeScript writes `someKey: "…"`, Kotlin writes `"section.someKey" to
@@ -260,9 +257,55 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
         catalogue.indexOf(`.${use[1]}"`),
         catalogue.indexOf(`${use[1]}:`),
       ].find((index) => index !== -1);
-      if (at !== undefined) resolved += ` ${catalogue.slice(at, at + 400)}`;
+      if (at !== undefined) resolved += ` ${valueAt(catalogue, at, use[1])}`;
     }
     return resolved;
+  }
+
+  /**
+   * ONE KEY'S OWN VALUE, which a fixed window is not.
+   *
+   * This took `catalogue.slice(at, at + 400)`, with a comment explaining that a
+   * fixed window beat a lazy match because "a catalogue value is often
+   * concatenated across lines". The reasoning was right and the window
+   * overshot: 400 characters runs past the key's value into its neighbours.
+   *
+   * Instrumented on the real catalogues, each surface opened 51-73 windows and
+   * accumulated 49k-102k characters. For the web contact panel, SIX unrelated
+   * keys each pulled a window that happened to contain the neighbouring
+   * `carrierOptOutNote` sentence — so the assertion below was satisfied by a
+   * key the surface does not render. Replacing that surface's route-back with a
+   * dead end still passed on four of the five surfaces; only iOS failed, and
+   * only because its catalogue happens to be laid out differently.
+   *
+   * So the value is read to its own end, following `+` concatenation across
+   * lines — which is the case the fixed window existed for, handled directly.
+   */
+  function valueAt(catalogue: string, at: number, key: string): string {
+    // Past the key token and its separator: `.key"` (quoted) or `key:` (bare).
+    let i = at + key.length + (catalogue[at] === "." ? 2 : 1);
+    let out = "";
+    for (let segment = 0; segment < 20; segment += 1) {
+      const open = catalogue.indexOf('"', i);
+      if (open === -1) break;
+      // Anything but whitespace, a separator or a concatenation between here
+      // and the quote means the value has ended and this is the NEXT entry.
+      if (/[^\s:+to]/.test(catalogue.slice(i, open).replace(/\bto\b/g, ""))) break;
+      let end = open + 1;
+      while (end < catalogue.length && catalogue[end] !== '"') {
+        if (catalogue[end] === "\\") end += 1;
+        end += 1;
+      }
+      out += catalogue.slice(open + 1, end);
+      i = end + 1;
+      // Continue only across an explicit concatenation. The lookahead has to
+      // clear the indentation: Swift wraps a long value as `"…"\n<16 spaces>+
+      // "…"`, and an 8-character window never reached the plus — which cut
+      // every Swift value at its first segment and lost the half of the
+      // sentence that names START.
+      if (!/^\s*\+/.test(catalogue.slice(i, i + 64))) break;
+    }
+    return out;
   }
 
   it("names START as the customer's route back wherever it refuses", () => {
