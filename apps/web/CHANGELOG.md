@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.3](https://github.com/BytechLabs/Texturion/compare/web-v0.17.2...web-v0.17.3) (2026-08-19)
+
+
+### Bug Fixes
+
+* **web:** the "Text us" widget speaks the language the business sells in ([39b209f](https://github.com/BytechLabs/Texturion/commit/39b209f28fbf53015c231ab0a41963b93259ab49))
+
 ## [0.17.2](https://github.com/BytechLabs/Texturion/compare/web-v0.17.1...web-v0.17.2) (2026-08-19)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.2](https://github.com/BytechLabs/Texturion/compare/shared-v0.13.1...shared-v0.13.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **mobile:** the widget snippet carries the workspace's language ([957ff61](https://github.com/BytechLabs/Texturion/commit/957ff61025866457a7f468d2ab7a0436cf16ceb8))
+
 ## [0.13.1](https://github.com/BytechLabs/Texturion/compare/shared-v0.13.0...shared-v0.13.1) (2026-08-19)
 
 

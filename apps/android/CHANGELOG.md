@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/BytechLabs/Texturion/compare/android-v0.15.0...android-v0.15.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **mobile:** the widget snippet carries the workspace's language ([957ff61](https://github.com/BytechLabs/Texturion/commit/957ff61025866457a7f468d2ab7a0436cf16ceb8))
+
 ## [0.15.0](https://github.com/BytechLabs/Texturion/compare/android-v0.14.0...android-v0.15.0) (2026-08-17)
 
 
