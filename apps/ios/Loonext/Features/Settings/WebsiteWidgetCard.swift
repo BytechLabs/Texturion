@@ -73,7 +73,7 @@ struct WebsiteWidgetCard: View {
                 }
                 .buttonStyle(.bordered)
             } else if let snippet = key {
-                loaded(widgetSnippet(key: snippet))
+                loaded(widgetSnippet(key: snippet, locale: company.locale))
             } else {
                 Text(loadFailed ? t("settings.widgetLoadFailed") : t("settings.widgetLoading"))
                     .font(.footnote)
@@ -237,7 +237,15 @@ struct WebsiteWidgetCard: View {
 ///
 /// The origin is the constant the push deep links already use: whatever host
 /// this build talks to is the host serving widget.js.
-func widgetSnippet(key: String) -> String {
+func widgetSnippet(key: String, locale: String? = nil) -> String {
     let tag = "script"
-    return "<\(tag) src=\"\(PushLink.appOrigin)/widget.js\" data-key=\"\(key)\" defer></\(tag)>"
+    // #228: the WORKSPACE's language, so a visitor reading the business's own
+    // site gets the business's own language. widget.js is served raw to a
+    // third-party page with no way to ask us anything before it paints, so this
+    // has to arrive as an attribute. Emitted only for a non-default locale — an
+    // English workspace's snippet stays the one line it always was.
+    let lang = (locale != nil && locale != MessageLocale.en)
+        ? " data-lang=\"\(locale!)\""
+        : ""
+    return "<\(tag) src=\"\(PushLink.appOrigin)/widget.js\" data-key=\"\(key)\"\(lang) defer></\(tag)>"
 }

@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.push.APP_ORIGIN
 import com.loonext.android.ui.common.formatPhone
@@ -151,7 +152,7 @@ fun WebsiteWidgetCard(
         // Selectable is not the point here — a phone's answer to "I could not
         // copy it" is to try Copy again, not to transcribe a script tag by hand.
         Text(
-            widgetSnippet(snippet),
+            widgetSnippet(snippet, company.locale),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -160,7 +161,7 @@ fun WebsiteWidgetCard(
         Row(Modifier.fillMaxWidth()) {
             Button(onClick = {
                 haptics.tap()
-                clipboard.setText(AnnotatedString(widgetSnippet(snippet)))
+                clipboard.setText(AnnotatedString(widgetSnippet(snippet, company.locale)))
                 scope.showMessage(copiedMessage)
             }) {
                 Text(t("settings.widgetCopy"))
@@ -341,7 +342,13 @@ private fun saveLine(
  * The origin is the constant the push deep links already use: whatever host
  * this build talks to is the host serving widget.js.
  */
-internal fun widgetSnippet(key: String): String {
+internal fun widgetSnippet(key: String, locale: String? = null): String {
     val tag = "script"
-    return "<$tag src=\"$APP_ORIGIN/widget.js\" data-key=\"$key\" defer></$tag>"
+    // #228: the WORKSPACE's language, so the visitor reading the business's own
+    // site gets the business's own language. widget.js is served raw to a
+    // third-party page with no way to ask us anything before it paints, so this
+    // has to arrive as an attribute. Emitted only for a non-default locale — an
+    // English workspace's snippet stays the one line it always was.
+    val lang = if (locale != null && locale != MessageLocale.EN) " data-lang=\"$locale\"" else ""
+    return "<$tag src=\"$APP_ORIGIN/widget.js\" data-key=\"$key\"$lang defer></$tag>"
 }
