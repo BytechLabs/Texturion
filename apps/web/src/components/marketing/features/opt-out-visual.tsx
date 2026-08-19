@@ -13,15 +13,33 @@
  * Server component, static DOM, 555-01XX safe fictional number.
  */
 
+import {
+  complianceCopy,
+  type ComplianceCopy,
+} from "@/i18n/marketing/compliance";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Ban } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-export function OptOutVisual({ className }: { className?: string }) {
+/**
+ * The customer is a person, not a word to translate — the same rule the
+ * bilingual guard states when it leaves `name` out of its data-copy list.
+ */
+const CUSTOMER = "Jordan P";
+
+export function OptOutVisual({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = complianceCopy(locale);
   return (
     <div className={cn("p-4 sm:p-5", className)}>
       <p className="text-[13px] font-medium text-app-muted">
-        Jordan P · <span className="tabular-nums">(416) 555-0173</span>
+        {CUSTOMER} · <span className="tabular-nums">(416) 555-0173</span>
       </p>
 
       {/* The customer's STOP: the real inbound bubble anatomy. */}
@@ -31,7 +49,7 @@ export function OptOutVisual({ className }: { className?: string }) {
         </div>
         {/* The centered system event line the thread draws. */}
         <p className="mt-1 text-center text-[12px] text-app-muted-2">
-          Jordan P opted out · today, 4:12 PM
+          {CUSTOMER} {copy.optOutStamp}
         </p>
       </div>
 
@@ -45,10 +63,9 @@ export function OptOutVisual({ className }: { className?: string }) {
           <Ban className="size-3.5" strokeWidth={2} />
         </span>
         <p className="text-[13px] leading-snug text-app-ink">
-          This customer opted out of texting. Sends are blocked.
+          {copy.optOutBlocked}
           <span className="mt-0.5 block text-[12px] text-app-muted">
-            Rejected in the app before it reaches the carrier. No accidental
-            texts.
+            {copy.optOutNote}
           </span>
         </p>
       </div>

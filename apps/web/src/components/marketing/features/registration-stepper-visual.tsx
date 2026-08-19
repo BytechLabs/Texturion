@@ -12,6 +12,11 @@
  * Server component, pure DOM. Wording per Law 6: "3 to 7 business days".
  */
 
+import {
+  complianceCopy,
+  type ComplianceCopy,
+} from "@/i18n/marketing/compliance";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check, Clock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -24,20 +29,20 @@ interface Step {
   state: StepState;
 }
 
-const STEPS: Step[] = [
+const steps = (copy: ComplianceCopy): Step[] => [
   {
-    title: "Business registered with the phone companies",
-    detail: "Legal name, address, and EIN submitted the minute you paid.",
+    title: copy.stepperFiledTitle,
+    detail: copy.stepperFiledBody,
     state: "done",
   },
   {
-    title: "Carrier review, in progress",
-    detail: "Typically 3 to 7 business days. Nothing for you to do.",
+    title: copy.stepperReviewTitle,
+    detail: copy.stepperReviewBody,
     state: "active",
   },
   {
-    title: "US texting turns on",
-    detail: "We email you the moment it's approved.",
+    title: copy.stepperLiveTitle,
+    detail: copy.stepperLiveBody,
     state: "upcoming",
   },
 ];
@@ -75,19 +80,23 @@ function StepDot({ state }: { state: StepState }) {
 
 export function RegistrationStepperVisual({
   className,
+  locale = "en",
 }: {
   className?: string;
+  locale?: MarketingLocale;
 }) {
+  const copy = complianceCopy(locale);
+  const STEPS = steps(copy);
   return (
     <div className={cn("p-4 sm:p-5", className)}>
       <div className="rounded-app-card border border-app-line bg-app-paper p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-[14px] font-semibold text-app-ink">
-            US texting registration
+            {copy.stepperHeading}
           </p>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-app-amber-line bg-app-amber-bg px-2.5 py-1 text-[12px] font-medium text-app-amber-ink">
             <Clock className="size-3.5" strokeWidth={1.75} aria-hidden />
-            In review
+            {copy.stepperStatus}
           </span>
         </div>
 
@@ -126,8 +135,7 @@ export function RegistrationStepperVisual({
         </ol>
 
         <p className="mt-2 rounded-app-ctrl bg-app-inset px-3 py-2 text-[13px] leading-relaxed text-app-muted">
-          Receiving texts already works while you wait. Approval gates only
-          your outbound texting.
+          {copy.stepperNote}
         </p>
       </div>
     </div>

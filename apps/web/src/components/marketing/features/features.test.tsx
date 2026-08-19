@@ -14,6 +14,9 @@
  *    survive the redesign, worded per COPY-DECK v2.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -138,6 +141,35 @@ const EMBEDS: Record<string, string> = {
   tagsDone: renderToStaticMarkup(<TagsDoneVisual />),
 };
 
+/**
+ * The opt-out words the product actually honours, read from the one file that
+ * decides them rather than restated here.
+ *
+ * A literal used to sit in the compliance assertion below:
+ * /UNSUBSCRIBE, CANCEL, END, and QUIT/. It passed for months and became a
+ * ceiling the day ARRET was added to the product for French-speaking
+ * customers: the page went on naming five words while the API honoured seven,
+ * and this assertion was the thing holding it there. Reading the list means
+ * the next keyword added to the product fails this test until the page says
+ * so, which is the direction the check was always meant to point.
+ */
+function honouredStopKeywords(): string[] {
+  const source = readFileSync(
+    join(process.cwd(), "..", "api", "src", "messaging", "keywords.ts"),
+    "utf8",
+  );
+  const block = source.match(
+    /export const STOP_KEYWORDS = new Set\(\[([\s\S]*?)\]\)/,
+  );
+  if (!block) throw new Error("STOP_KEYWORDS is no longer a literal Set");
+  return [...block[1].matchAll(/"([A-ZÀ-ſ]+)"/g)].map((m) => m[1]);
+}
+
+/** Accent-blind, because the page writes ARRET and the product also takes ARRÊT. */
+function plain(text: string): string {
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+}
+
 describe("laws that hold across every features/canada page (Laws 1, 6)", () => {
   for (const [name, html] of Object.entries(PAGES)) {
     it(`${name}: no em-dashes, no artifact talk, no font/framework credits`, () => {
@@ -243,7 +275,14 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     const html = PAGES.compliance;
     expect(html).toMatch(/3 to 7 business days/);
     expect(html).toMatch(/opted out on the spot|opted out instantly/i);
-    expect(html).toMatch(/UNSUBSCRIBE, CANCEL, END, and QUIT/);
+    const keywords = honouredStopKeywords();
+    expect(keywords.length, "no keywords parsed, so this asserts nothing").toBeGreaterThan(4);
+    for (const word of keywords) {
+      expect(
+        plain(html),
+        `the page does not name ${word}, which the product honours`,
+      ).toContain(plain(word));
+    }
     expect(html).toMatch(/your name and the date/);
     expect(html).toMatch(/helps you follow/i);
     expect(html).toMatch(/It(&#x27;|')s 9:14/);

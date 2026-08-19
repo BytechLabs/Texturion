@@ -32,6 +32,7 @@ export const TRANSLATED_PAGES: readonly { readonly en: string; readonly fr: stri
   { en: "/features/calls", fr: "/fr/appels" },
   { en: "/features/business-number", fr: "/fr/numero-entreprise" },
   { en: "/features/templates-and-tags", fr: "/fr/modeles-etiquettes" },
+  { en: "/features/compliance", fr: "/fr/conformite" },
 ];
 
 /** The `alternates.languages` pair for a path, in either language, or nothing. */
