@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/BytechLabs/Texturion/compare/shared-v0.13.0...shared-v0.13.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **web:** name every do-not-text spelling the importer actually accepts ([58d154e](https://github.com/BytechLabs/Texturion/commit/58d154e88bdfabcc63032f9c6ed9883817fc7442))
+
 ## [0.13.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.12.0...shared-v0.13.0) (2026-08-17)
 
 

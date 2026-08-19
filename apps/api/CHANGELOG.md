@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.17.1](https://github.com/BytechLabs/Texturion/compare/api-v0.17.0...api-v0.17.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **api:** a busy phone network no longer reads as our software breaking ([ccb7fe9](https://github.com/BytechLabs/Texturion/commit/ccb7fe9ffc8f6b4d3e27937acb4e3a60c48917bf))
+* **api:** number search sheds load before the carrier refuses us ([c268f76](https://github.com/BytechLabs/Texturion/commit/c268f76528a01d355434e94df38ef7d97c2f8723))
+* **db:** list every table in the personal-data inventory ([ea32380](https://github.com/BytechLabs/Texturion/commit/ea3238069bb007a16eb14cbe900ccf261dd1e370))
+
 ## [0.17.0](https://github.com/BytechLabs/Texturion/compare/api-v0.16.0...api-v0.17.0) (2026-08-17)
 
 

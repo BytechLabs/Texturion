@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.2](https://github.com/BytechLabs/Texturion/compare/web-v0.17.1...web-v0.17.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **web:** name every do-not-text spelling the importer actually accepts ([58d154e](https://github.com/BytechLabs/Texturion/commit/58d154e88bdfabcc63032f9c6ed9883817fc7442))
+
 ## [0.17.1](https://github.com/BytechLabs/Texturion/compare/web-v0.17.0...web-v0.17.1) (2026-08-18)
 
 
