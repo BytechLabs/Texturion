@@ -11,6 +11,11 @@
  * Server component, static DOM, 555-01XX safe fictional numbers.
  */
 
+import {
+  businessNumberCopy,
+  type BusinessNumberCopy,
+} from "@/i18n/marketing/business-number";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { CheckCircle2, Phone } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -22,29 +27,36 @@ interface NumberCard {
   unread: number;
 }
 
-const CARDS: NumberCard[] = [
+const cards = (copy: BusinessNumberCopy): NumberCard[] => [
   {
-    label: "Office line",
+    label: copy.visualOfficeLine,
     number: "(416) 555-0119",
     hint: "(416) · Toronto",
     unread: 3,
   },
   {
-    label: "Field line",
+    label: copy.visualFieldLine,
     number: "(647) 555-0188",
     hint: "(647) · Toronto",
     unread: 1,
   },
 ];
 
-export function NumberCardsVisual({ className }: { className?: string }) {
+export function NumberCardsVisual({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = businessNumberCopy(locale);
   return (
     <div className={cn("p-4 sm:p-5", className)}>
       <p className="text-[13px] font-medium text-app-muted">
-        Your business numbers
+        {copy.visualHeading}
       </p>
       <div className="mt-3 space-y-2.5">
-        {CARDS.map((card) => (
+        {cards(copy).map((card) => (
           <div
             key={card.number}
             className="flex items-center gap-3 rounded-app-card border border-app-line bg-app-paper p-3.5"
@@ -63,7 +75,7 @@ export function NumberCardsVisual({ className }: { className?: string }) {
             <div className="flex shrink-0 flex-col items-end gap-1">
               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-app-olive-deep">
                 <CheckCircle2 className="size-3.5" strokeWidth={2} aria-hidden />
-                Active
+                {copy.visualActive}
               </span>
               <span className="rounded-full border border-app-tint-line bg-app-tint px-2 py-[2.5px] text-[11px] font-semibold leading-none tabular-nums text-app-olive-deep">
                 {card.unread} new
