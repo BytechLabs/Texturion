@@ -47,5 +47,33 @@
         "United Arab Emirates"
       ]
     }
+  },
+  "shared": {
+    "payments.ts": {
+      "why": "The legacy half of #339's expand-and-contract, and the file says so: this is what the API puts on the wire for clients that predate payoutReadinessKeys, and an old build renders it VERBATIM. Translating it would send French to a build that cannot read a key, and changing a word would change what those builds display. It is deleted, not translated, when those builds are gone — and this exemption fails the moment the function goes, which is the reminder.",
+      "literals": [
+        "Not set up yet",
+        "Connect a Stripe account and you can ask a customer for a deposit ",
+        "Set up payments",
+        "Stripe still needs a few details about your business before it can ",
+        "Finish setting up",
+        "Stripe is checking your details",
+        "You have given Stripe everything it asked for. Verification is ",
+        "Payments are paused",
+        "Stripe has paused payments on your account and needs something from ",
+        "Ready to take payments",
+        "Ask for a deposit or a final payment from any thread. It arrives as "
+      ]
+    },
+    "contact-relationship.ts": {
+      "why": "Not copy — the EXPECTED-OUTPUT column of CONTACT_RELATIONSHIP_CASES, the vectors that hold web, Android and iOS to the same sentence. The module itself is already key-based; these strings are the assertions about it. Translating them would leave three clients agreeing with a French fixture and nothing checking the English they actually render.",
+      "literals": [
+        "Customer since March 2026 · 1 conversation",
+        "Customer since March 2026 · 7 conversations",
+        "Customer since November 2023 · 23 conversations",
+        "Customer since January 2026 · 2 conversations",
+        "Customer since December 2026 · 2 conversations"
+      ]
+    }
   }
 }
