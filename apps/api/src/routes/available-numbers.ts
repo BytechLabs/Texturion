@@ -95,6 +95,37 @@ availableNumbersRoutes.get("/", async (c) => {
     }
   }
 
+  /*
+   * #251: and the FLEET, which the limiter above cannot see.
+   *
+   * That one bounds a caller. Telnyx's number-management bucket is 5 requests
+   * per second for the whole account (measured 2026-08-19, re-readable with
+   * scripts/ops/telnyx-rate-limits.mjs) and is the tightest bucket we touch
+   * anywhere — five people shopping at once is a plausible Tuesday, and none of
+   * them is being unreasonable.
+   *
+   * Shedding HERE rather than letting Telnyx refuse us matters for two reasons.
+   * The same bucket carries number ordering, so an unbounded search flood can
+   * block somebody mid-purchase — the one request in this subsystem that must
+   * not fail. And a 429 from the vendor arrives as a generic failure the caller
+   * cannot act on, whereas this is a sentence that tells them to try again.
+   *
+   * Same message either way. Whether we shed the request or Telnyx does, what
+   * happened is that the phone network was busy, and a customer should not have
+   * to tell the difference.
+   */
+  const fleet = env.NUMBER_SEARCH_FLEET_LIMITER;
+  if (fleet) {
+    const { success } = await fleet.limit({ key: "available-numbers" });
+    if (!success) {
+      return errorResponse(
+        c,
+        "service_unavailable",
+        "The phone network is busy right now. Try that again in a moment.",
+      );
+    }
+  }
+
   const result = await searchInventory(env, {
     country,
     areaCode: area_code,

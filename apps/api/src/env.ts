@@ -352,6 +352,18 @@ const envSchema = z.object({
    */
   NUMBER_SEARCH_RATE_LIMITER: rateLimiterSchema.optional(),
   /**
+   * #251: the same searches, bounded across the whole ACCOUNT.
+   *
+   * The limiter above bounds one caller and does nothing about the aggregate,
+   * because two customers shopping in the same second are not one caller —
+   * while Telnyx's number-management bucket is shared by all of them. Measured
+   * at 5 requests per second, the tightest bucket we touch anywhere.
+   *
+   * Optional like every other limiter: absent in dev and tests, where there is
+   * no fleet to bound.
+   */
+  NUMBER_SEARCH_FLEET_LIMITER: rateLimiterSchema.optional(),
+  /**
    * OPTIONAL vendor base-URL overrides — production leaves them UNSET so the
    * clients hit the real vendor hosts (Telnyx `api.telnyx.com`, Stripe
    * `api.stripe.com`). The hermetic E2E launch-pass harness (SPEC §12 step 19,

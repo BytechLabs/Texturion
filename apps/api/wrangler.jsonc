@@ -210,6 +210,29 @@
         "simple": { "limit": 30, "period": 60 }
       },
       {
+        // #251: the same searches, bounded ACROSS the whole account.
+        //
+        // The limiter above bounds one caller. It does nothing about the fleet,
+        // because two customers shopping in the same second are not one caller
+        // — and Telnyx's number-management bucket is shared by everybody.
+        //
+        // Measured 2026-08-19 (scripts/ops/telnyx-rate-limits.mjs): 5 requests
+        // per second on /v2/phone_numbers, which is the tightest bucket we
+        // touch anywhere. Five concurrent shoppers is a plausible Tuesday.
+        //
+        // Workers rate limiting only offers periods of 10 or 60 seconds, so
+        // 5/s is expressed as 40 per 10s rather than 50: the same bucket also
+        // carries number ORDERING, and somebody completing a purchase must not
+        // be refused because other people are browsing. The ten we leave on the
+        // table are for them.
+        //
+        // Keyed on a CONSTANT — that is what makes it account-wide.
+        "name": "NUMBER_SEARCH_FLEET_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1013",
+        "simple": { "limit": 40, "period": 10 }
+      },
+      {
         // #248: the contact importers (CSV and vCard), keyed on COMPANY.
         //
         // Import is the one route where a customer hands us unbounded input.
