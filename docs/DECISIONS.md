@@ -8692,6 +8692,31 @@ purchasing decision routes through it.
 
 ---
 
+**Rule 10 — the copy lives in a catalogue, not in a French copy of each page.**
+The obvious cheap route is a French sibling FILE per page with the sentences
+written into it, and it does not work here: the marketing tree is **116
+components**, and the copy is in them rather than in the 53 page files. The home
+page is 126 lines because it composes twelve sections; `/contact` is a form
+component; `/canada` renders a province ledger, a pricing snippet and a consent
+visual, all shared. A French page file would render English components, which
+Rule 3 forbids.
+
+So marketing gets a catalogue shaped like the app's — the same
+`Translated<typeof EN>` completeness type, so a key added to English and
+forgotten in French fails `tsc` in the file that forgot it. Components read the
+translator from a context the ROUTE supplies: `/` supplies English, `/fr`
+supplies French. No component changes signature, and no page passes a locale
+down by hand.
+
+The consequence for sequencing is worth stating plainly, because it looks like
+bad news and is not: **the first page is expensive and every page after it is
+cheaper.** Whichever page goes first also pays for the nav, the footer and the
+CTA band, which every later page then gets for nothing. That is an argument for
+starting with a page whose own copy is small relative to the chrome, not for
+starting with an unimportant one — `/canada` stays first per Rule 9.
+
+---
+
 **What this rejects, and why.** A `[lang]` segment over the whole tree is the
 framework-idiomatic answer and was rejected on rule 2: it needs `/canada` to
 rewrite to `/en/canada`, and that rewrite is the middleware stage this decision
