@@ -12,6 +12,11 @@
  * Server component, static DOM.
  */
 
+import {
+  templatesCopy,
+  type TemplatesCopy,
+} from "@/i18n/marketing/templates";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { CornerDownLeft, Search, Send } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -21,38 +26,41 @@ interface Template {
   body: string;
 }
 
-/** The plumbing pack that pre-seeds a new plumbing workspace. */
-const TEMPLATES: Template[] = [
-  {
-    name: "On my way",
-    body: "Hi {first_name}, it's {business_name}. On my way, should be with you in about 20 minutes.",
-  },
-  {
-    name: "Photo request",
-    body: "Can you text us a photo of the problem, and one of the space around it?",
-  },
-  {
-    name: "Quote follow-up",
-    body: "Hi {first_name}, just checking you received our quote. Any questions, text us here.",
-  },
-  {
-    name: "Job done",
-    body: "All done. We've cleared the line and tested it. Text us if anything comes up.",
-  },
+/**
+ * The plumbing pack that pre-seeds a new plumbing workspace.
+ *
+ * {first_name} and {business_name} are the product's real merge tokens and
+ * stay in English in both languages: they are substituted at send time, so a
+ * translated token would ship to a customer literally — the exact failure the
+ * page's own FAQ promises never happens.
+ */
+const templates = (copy: TemplatesCopy): Template[] => [
+  { name: copy.visualOnMyWay, body: copy.visualOnMyWayBody },
+  { name: copy.visualPhoto, body: copy.visualPhotoBody },
+  { name: copy.visualFollowUp, body: copy.visualFollowUpBody },
+  { name: copy.visualJobDone, body: copy.visualJobDoneBody },
 ];
 
-export function SavedRepliesVisual({ className }: { className?: string }) {
+export function SavedRepliesVisual({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = templatesCopy(locale);
+  const TEMPLATES = templates(copy);
   return (
     <div className={cn("p-4 sm:p-5", className)}>
       {/* Template picker popover, anchored above the composer. */}
       <div className="overflow-hidden rounded-app-card border border-app-line bg-popover shadow-[var(--app-sh-float)]">
         <div className="flex items-center gap-2 border-b border-app-line px-3 py-2.5 text-[13px] text-app-muted">
           <Search className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
-          Search saved replies…
+          {copy.visualSearch}
         </div>
         <div className="p-1">
           <p className="px-2 pb-1 pt-1.5 text-[11px] font-semibold text-app-muted-2">
-            Saved replies
+            {copy.visualHeading}
           </p>
           <ul>
             {TEMPLATES.map((template, i) => (
@@ -81,10 +89,11 @@ export function SavedRepliesVisual({ className }: { className?: string }) {
         {/* The merge-variable preview: the saved body stores the raw {token};
             this line shows what actually ships at send time. */}
         <div className="border-t border-app-line-soft bg-app-ground px-3 py-2">
-          <p className="text-[11px] font-semibold text-app-muted-2">Preview</p>
+          <p className="text-[11px] font-semibold text-app-muted-2">
+            {copy.visualPreview}
+          </p>
           <p className="mt-0.5 text-[12.5px] leading-snug text-app-ink">
-            Hi Karen, it&apos;s Reyes Plumbing. On my way, should be with you
-            in about 20 minutes.
+            {copy.visualPreviewBody}
           </p>
         </div>
       </div>
@@ -102,7 +111,7 @@ export function SavedRepliesVisual({ className }: { className?: string }) {
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-app-ctrl bg-primary px-2.5 py-1.5 text-[12.5px] font-medium text-primary-foreground">
           <Send className="size-3.5" strokeWidth={1.75} aria-hidden />
-          Send
+          {copy.visualSend}
           <CornerDownLeft className="size-3" strokeWidth={2} aria-hidden />
         </span>
       </div>

@@ -13,19 +13,42 @@
  * Server component, static DOM.
  */
 
+import {
+  templatesCopy,
+  type TemplatesCopy,
+} from "@/i18n/marketing/templates";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-const PIPELINE = ["Quote sent", "Scheduled", "Won", "Lost"] as const;
+/**
+ * The tag names the app itself ships. The French has to be the French the
+ * app uses: a page that names a control differently is showing the reader a
+ * button they will not find.
+ */
+const pipeline = (copy: TemplatesCopy): string[] => [
+  copy.tagQuoteSent,
+  copy.tagScheduled,
+  copy.tagWon,
+  copy.tagLost,
+];
 
-export function TagsDoneVisual({ className }: { className?: string }) {
+export function TagsDoneVisual({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = templatesCopy(locale);
+  const PIPELINE = pipeline(copy);
   return (
     <div className={cn("space-y-4 p-4 sm:p-5", className)}>
       {/* Pipeline tag chips, the real TagChip anatomy. */}
       <div className="rounded-app-card border border-app-line bg-app-paper p-4">
         <p className="text-[13px] font-medium text-app-muted">
-          Tags on this conversation
+          {copy.tagsVisualHeading}
         </p>
         <div className="mt-2.5 flex flex-wrap gap-[5px]">
           {PIPELINE.map((tag, i) => (
@@ -43,14 +66,14 @@ export function TagsDoneVisual({ className }: { className?: string }) {
           ))}
         </div>
         <p className="mt-2.5 text-[12px] text-app-muted">
-          Scheduled is applied. Rename any of them to match how you sell.
+          {copy.tagsVisualNote}
         </p>
       </div>
 
       {/* Done-mark on a message: strikethrough + the petrol check badge. */}
       <div className="rounded-app-card border border-app-line bg-app-paper p-4">
         <p className="text-[13px] font-medium text-app-muted">
-          Mark a text done
+          {copy.doneVisualHeading}
         </p>
         <div className="mt-2.5 space-y-1.5">
           <div className="flex items-start gap-2">
@@ -62,17 +85,16 @@ export function TagsDoneVisual({ className }: { className?: string }) {
             </span>
             <div className="max-w-[85%] rounded-app-bub border border-app-line bg-app-paper px-3.5 py-2.5 [border-top-left-radius:5px]">
               <p className="text-[14px] leading-normal text-app-ink line-through opacity-55">
-                Can you send someone to look at the water heater this week?
+                {copy.doneVisualMessage}
               </p>
             </div>
           </div>
           <p className="pl-6 text-[11px] text-app-muted-2">
-            Done · Priya · 2:14 PM
+            {copy.doneVisualStamp}
           </p>
         </div>
         <p className="mt-2.5 text-[12px] text-app-muted">
-          Checked off right in the thread. The whole crew sees it&apos;s
-          handled.
+          {copy.doneVisualNote}
         </p>
       </div>
     </div>
