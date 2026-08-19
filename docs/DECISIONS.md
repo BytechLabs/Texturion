@@ -8692,6 +8692,32 @@ purchasing decision routes through it.
 
 ---
 
+**Rule 11 — the order follows the measured cost, now that there is one.**
+Rule 9 guessed an order from what a buyer reads. Two pages in, the pages have
+been counted, and the numbers change the plan rather than confirming it:
+
+| page | strings | shape |
+|---|---|---|
+| `/contact` | ~35 | done |
+| `/canada` | 78 | done |
+| `/features/tasks` | 58 | one page file plus a 7-string visual |
+| `/features/shared-inbox` | 70 | plus a 19-string visual |
+| `/for/<trade>` | 135 first, ~59 after | 59 page + 12 shared frame + 64 shared example threads |
+| home | **179** | spread across twenty section components |
+| `/pricing` | not counted | plan tables and currency, count before starting |
+
+Two things fall out. **The home page is the most expensive page on the site**,
+not the natural second one — its copy is in twenty components rather than one
+file, and Rule 3 means none of it ships until all of it does. And **the first
+trade page carries the other five**: 64 of its strings are the example message
+threads every trade shares, so `/for/plumbers` costs 135 and
+`/for/landscapers` costs 59.
+
+So the order is: the cheapest complete page that a buyer actually reaches,
+until the expensive ones can be done in one sitting. Nothing here changes Rule
+3 — a page still ships whole or not at all. What changes is which page is next,
+and the reason is a count rather than a preference.
+
 **Rule 10 — the copy lives in a catalogue, not in a French copy of each page.**
 The obvious cheap route is a French sibling FILE per page with the sentences
 written into it, and it does not work here: the marketing tree is **116
