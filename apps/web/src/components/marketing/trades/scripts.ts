@@ -21,6 +21,10 @@
  * Law 6: no em-dashes in any string here; ranges read "between 9 and 11".
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { fill } from "@/i18n/marketing/home";
+import { plumbersCopy } from "@/i18n/marketing/for-plumbers";
+
 export type TradeScriptStatus = "new" | "open" | "waiting" | "closed";
 
 export interface TradeInboundBeat {
@@ -103,7 +107,11 @@ export interface TradeScript {
 /* for 8am. Outbound wording per COPY-DECK v2 §/for/plumbers.                  */
 /* -------------------------------------------------------------------------- */
 
-export const PLUMBERS_SCRIPT: TradeScript = {
+export const plumbersScript = (
+  locale: MarketingLocale = "en",
+): TradeScript => {
+  const copy = plumbersCopy(locale);
+  return {
   contact: { name: "Marcus T", number: "(647) 555-0121" },
   status: "waiting",
   assignee: "Dale",
@@ -113,61 +121,57 @@ export const PLUMBERS_SCRIPT: TradeScript = {
       kind: "call",
       direction: "inbound",
       outcome: "voicemail",
-      voicemail: {
-        seconds: 27,
-        transcript:
-          "Yeah, hi, it's Marcus over on Wrenfield. Our basement drain is backing up every time the washer runs. Call me back tonight if you can.",
-      },
+      voicemail: { seconds: 27, transcript: copy.scriptVoicemail },
       textBack: true,
     },
     {
       id: "pl-out-0",
       kind: "outbound",
-      body:
-        "Sorry we missed your call, this is Reyes Plumbing. Text us right here and someone will get back to you tonight.",
+      body: copy.scriptTextBack,
       time: "9:02 PM",
     },
     {
       id: "pl-in-1",
       kind: "inbound",
-      body:
-        "Hey, our basement floor drain is backing up when the washing machine runs. How soon could someone look at it?",
-      photoLabel: "Backed-up floor drain",
+      body: copy.scriptInbound,
+      photoLabel: copy.scriptPhotoLabel,
       time: "9:04 PM",
     },
     {
       id: "pl-note-1",
       kind: "note",
       by: "Priya",
-      body:
-        "Second backup on that street this month. Dale, bring the auger and the camera",
+      body: copy.scriptNote,
       time: "9:09 PM",
     },
     {
       id: "pl-event-1",
       kind: "event",
-      text: "Priya assigned this conversation to Dale",
+      text: fill(copy.scriptAssigned, { by: "Priya", to: "Dale" }),
     },
     {
       id: "pl-out-1",
       kind: "outbound",
-      body:
-        "Hi Marcus, Dale from Reyes Plumbing. From your photo that looks like a main line clog, we can be there tomorrow at 8am. It's $180 for the auger service, and we'll quote anything bigger before touching it. Want the 8am?",
+      body: copy.scriptQuote,
       time: "9:14 PM",
     },
     {
       id: "pl-in-2",
       kind: "inbound",
-      body: "Booked. See you at 8",
+      body: copy.scriptBooked,
       time: "9:17 PM",
     },
     {
       id: "pl-event-2",
       kind: "event",
-      text: "Dale added the tag Scheduled",
+      text: fill(copy.scriptTagged, { by: "Dale", tag: copy.scriptTagScheduled }),
     },
   ],
+  };
 };
+
+/** The English thread, for tests and any English-only surface. */
+export const PLUMBERS_SCRIPT: TradeScript = plumbersScript("en");
 
 /* -------------------------------------------------------------------------- */
 /* HVAC: the 6:48 AM no-heat text with a thermostat error photo; the office    */
