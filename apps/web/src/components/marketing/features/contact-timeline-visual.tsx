@@ -16,6 +16,8 @@
  * Server component, pure DOM, no interactivity. Reyes Plumbing seed data.
  */
 
+import { contactsCopy, type ContactsCopy } from "@/i18n/marketing/contacts";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { CheckSquare, MessageSquare, Phone, Voicemail } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -28,12 +30,16 @@ interface Entry {
   body: string;
 }
 
-const ENTRIES: Entry[] = [
-  { kind: "text", when: "Mar 2026", body: "New tap for the ensuite, quoted $340" },
-  { kind: "task", when: "Oct 2025", body: "Furnace service, done by Dale" },
-  { kind: "voicemail", when: "Oct 2025", body: "“It is making that noise again”" },
-  { kind: "call", when: "Aug 2024", body: "12 minutes, Priya, booked the install" },
-  { kind: "text", when: "Aug 2024", body: "Photo of the old unit" },
+const entries = (copy: ContactsCopy): Entry[] => [
+  { kind: "text", when: copy.timelineMar, body: copy.timelineMarItem },
+  { kind: "task", when: copy.timelineOct, body: copy.timelineOctItem },
+  {
+    kind: "voicemail",
+    when: copy.timelineVoicemailWhen,
+    body: copy.timelineVoicemailItem,
+  },
+  { kind: "call", when: copy.timelineCallWhen, body: copy.timelineCallItem },
+  { kind: "text", when: copy.timelineAug, body: copy.timelineAugItem },
 ];
 
 const ICONS: Record<Kind, typeof Phone> = {
@@ -43,7 +49,14 @@ const ICONS: Record<Kind, typeof Phone> = {
   task: CheckSquare,
 };
 
-export function ContactTimelineVisual({ className }: { className?: string }) {
+export function ContactTimelineVisual({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = contactsCopy(locale);
   return (
     <div className={cn("p-3 sm:p-4", className)}>
       {/* The identity line: who, where, and the crew-only note. */}
@@ -56,7 +69,7 @@ export function ContactTimelineVisual({ className }: { className?: string }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-semibold text-app-ink">
-            Karen Mullins
+            {copy.timelineName}
           </span>
           <span className="block truncate text-[12px] text-app-muted">
             41 Warbler Lane · dog in the crate, key under the mat
@@ -65,11 +78,11 @@ export function ContactTimelineVisual({ className }: { className?: string }) {
       </div>
 
       <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-app-muted-2">
-        History
+        {copy.timelineHeading}
       </p>
 
       <div className="mt-2 space-y-0">
-        {ENTRIES.map((entry, i) => {
+        {entries(copy).map((entry, i) => {
           const Icon = ICONS[entry.kind];
           return (
             <div key={`${entry.when}-${entry.body}`} className="flex gap-2.5">
@@ -82,7 +95,7 @@ export function ContactTimelineVisual({ className }: { className?: string }) {
                 >
                   <Icon className="size-2.5" strokeWidth={2} />
                 </span>
-                {i < ENTRIES.length - 1 && (
+                {i < entries(copy).length - 1 && (
                   <span
                     aria-hidden
                     className="w-px flex-1 bg-app-line"

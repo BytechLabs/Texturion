@@ -46,20 +46,66 @@ const COPY_PROPS =
  */
 const TEXT_NODE = />\s*([A-Za-z][A-Za-z0-9'’,.:!?()-]*(?:\s+[A-Za-z0-9'’,.:!?()-]+)+)\s*</g;
 
+/**
+ * Copy sitting in a data array rather than in markup.
+ *
+ * `name` is deliberately NOT in this list. In these visuals it holds a person —
+ * Karen M, the Nguyen family, Marcus T — and a person is not a word to
+ * translate. Every other field here holds something somebody wrote.
+ *
+ * `body: "12 minutes, Priya, booked the install"` renders on screen and reads
+ * as configuration. Matched on the FIELD NAMES the visuals use for text, so a
+ * className or an href cannot trip it — and deliberately not on a leading
+ * capital, because one of the strings that got through began with a digit.
+ */
+const DATA_COPY =
+  /\b(?:body|snippet|title|label|text|caption|source|tag|when|due)\s*:\s*"([^"]{4,})"/g;
+
+/**
+ * Every file that renders for both languages.
+ *
+ * The page bodies, AND the feature visuals they embed. The visuals were
+ * outside this check for three pages, and every string that got through was in
+ * one of them: five on the task board, two on the inbox list, four on the
+ * contact timeline — a customer's own words, a quoted price, a month name.
+ *
+ * They hid for the same reason each time. A visual's copy sits in a DATA array
+ * — `{ kind: "call", when: "Aug 2024", body: "12 minutes, Priya, booked the
+ * install" }` — which reads as configuration rather than as prose, and is
+ * missed by an eye looking for sentences and by a scan anchored on a capital
+ * letter after a straight quote. One of them was in curly quotes; one started
+ * with a digit.
+ *
+ * So the rule for them is the same and the reason is stronger: a file rendering
+ * in two languages may hold no user-visible literal at all.
+ */
 function bilingualBodies(): string[] {
-  return readdirSync(BODIES)
+  const pages = readdirSync(BODIES)
     .filter((name) => name.endsWith("-page.tsx"))
     .map((name) => join(BODIES, name));
+  // A visual is checked once it ACCEPTS A LOCALE. That is the moment it
+  // claims to render in both languages, and until then it is only ever on an
+  // English page — so the check turns itself on as each one is converted,
+  // rather than failing for every page nobody has translated yet.
+  const visuals = readdirSync(join(BODIES, "features"))
+    .filter((name) => name.endsWith("-visual.tsx"))
+    .map((name) => join(BODIES, "features", name))
+    .filter((file) => readFileSync(file, "utf8").includes("MarketingLocale"));
+  return [...pages, ...visuals];
 }
 
 describe("#228/D138 the bilingual page bodies carry no words of their own", () => {
   const files = bilingualBodies();
 
-  it("found the page bodies, so a passing run means something", () => {
+  it("found the bodies and the visuals, so a passing run means something", () => {
     // A rename or a move would otherwise leave this file asserting over an
     // empty list — the failure mode that let the five through in the first
     // place, in a different costume.
-    expect(files.length, "no *-page.tsx bodies were found").toBeGreaterThan(1);
+    expect(files.length, "no bilingual files were found").toBeGreaterThan(4);
+    expect(
+      files.some((f) => f.includes("-visual")),
+      "the visuals are not being checked, which is where every miss has been",
+    ).toBe(true);
   });
 
   for (const file of bilingualBodies()) {
@@ -85,6 +131,17 @@ describe("#228/D138 the bilingual page bodies carry no words of their own", () =
       expect(
         found,
         `${name} passes a literal to a prop a reader or a screen reader sees`,
+      ).toEqual([]);
+    });
+
+    it(`${name} has no copy hiding in a data array`, () => {
+      // Where every miss has actually been. A visual's example thread is data
+      // to the code and prose to the reader.
+      const found = [...source.matchAll(DATA_COPY)].map((m) => m[1]);
+      expect(
+        found,
+        `${name} holds text in a data field. It renders on screen, so it has ` +
+          `to come from the catalogue like everything else.`,
       ).toEqual([]);
     });
   }

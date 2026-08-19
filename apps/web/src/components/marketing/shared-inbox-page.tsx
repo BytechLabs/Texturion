@@ -102,7 +102,7 @@ export function SharedInboxPageBody({
           },
           {
             title: copy.useSearchTitle,
-            body: "Every message and contact is searchable. \"What did we quote the Nguyens in March?\" takes five seconds, not a phone poll around the crew. The answer is in the thread, with the matching text highlighted.",
+            body: copy.useSearchBody,
           },
         ]}
       />

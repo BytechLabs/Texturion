@@ -178,12 +178,12 @@ function InboxRow({ row, active }: { row: Row; active?: boolean }) {
  * The mid-task moment: the assign menu open over the new conversation, with
  * Dale about to get it (one owner, no double replies).
  */
-function AssignMenu() {
+function AssignMenu({ copy }: { copy: SharedInboxCopy }) {
   const members = ["Priya R", "Dale K", "Marcus O"];
   return (
     <div className="absolute right-3 top-[4.25rem] z-10 w-44 rounded-app-card border border-app-line bg-popover p-1 shadow-[var(--app-sh-float)]">
       <p className="px-2 pb-1 pt-1.5 text-[11px] font-semibold text-app-muted-2">
-        Assign to
+        {copy.listAssignTo}
       </p>
       {members.map((member) => (
         <span
@@ -216,7 +216,7 @@ export function InboxListVisual({
   return (
     <div className={cn("relative p-3 sm:p-4", className)}>
       <Segments copy={copy} />
-      <AssignMenu />
+      <AssignMenu copy={copy} />
       <div className="mt-2.5 space-y-0.5">
         {rows(copy).map((row, i) => (
           <InboxRow key={row.name} row={row} active={i === 0} />

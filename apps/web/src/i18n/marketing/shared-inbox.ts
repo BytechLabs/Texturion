@@ -61,6 +61,8 @@ export const sharedInboxEn = {
   useOwnerBody:
     "Assign a conversation and it shows on every phone: an owner chip on the row, a line in the thread. One owner means no double replies and no silent gaps, and anyone can still step in when they're needed.",
   useSearchTitle: "Search as memory",
+  useSearchBody:
+    'Every message and contact is searchable. "What did we quote the Nguyens in March?" takes five seconds, not a phone poll around the crew. The answer is in the thread, with the matching text highlighted.',
   useNotesTitle: "Notes stay internal",
   useNotesBody: "Talk about the job without texting the customer.",
   notesBody:
@@ -123,6 +125,7 @@ export const sharedInboxEn = {
   listQuoteSent: "Quote sent",
   listGateSnippet: "Gate code is 4482, dog is friendly",
   listDoneSnippet: "You: All done, you're good to run the washer.",
+  listAssignTo: "Assign to",
   listFilterAll: "All",
   listDueTue: "Tue",
   listFilterOpen: "Open",
@@ -164,6 +167,8 @@ export const sharedInboxFr: Translated<typeof sharedInboxEn> = {
   useOwnerBody:
     "Attribuez une conversation et ça paraît sur tous les téléphones : une pastille de responsable sur la ligne, une mention dans le fil. Un seul responsable, ça veut dire aucune réponse en double et aucun silence, et n'importe qui peut quand même intervenir au besoin.",
   useSearchTitle: "La recherche comme mémoire",
+  useSearchBody:
+    "Chaque message et chaque contact se cherchent. « Combien a-t-on soumissionné aux Nguyen en mars ? » prend cinq secondes, pas un tour de téléphone dans l'équipe. La réponse est dans le fil, avec le texte trouvé surligné.",
   useNotesTitle: "Les notes restent internes",
   useNotesBody: "Parlez du travail sans écrire au client.",
   notesBody:
@@ -229,6 +234,7 @@ export const sharedInboxFr: Translated<typeof sharedInboxEn> = {
   listQuoteSent: "Soumission envoyée",
   listGateSnippet: "Le code de la barrière est 4482, le chien est gentil",
   listDoneSnippet: "Vous : C'est terminé, vous pouvez faire fonctionner la laveuse.",
+  listAssignTo: "Attribuer à",
   listFilterAll: "Tous",
   listDueTue: "mar.",
   listFilterOpen: "Ouvert",
