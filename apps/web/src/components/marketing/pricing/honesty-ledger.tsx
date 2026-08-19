@@ -11,6 +11,16 @@ import { cn } from "@/lib/utils";
  */
 
 export interface LedgerEntry {
+  /**
+   * Which row this is, independent of what it says.
+   *
+   * The Canadian ledger is the US one with two rows swapped, and it used to
+   * find them with `entry.term === "Register with the phone companies"`. That
+   * is English string equality deciding what a Canadian reader sees: once the
+   * term came from a catalogue it silently stopped matching, leaving a US
+   * registration fee on the ledger of a business that never pays one.
+   */
+  id: string;
   /** The cost being named, e.g. "Your plan" or "That's the whole list." */
   term: string;
   /** The pulled-out mono figure, e.g. "$29 or $79/mo". Omit when the row is prose. */
