@@ -1,6 +1,10 @@
 import Link from "next/link";
 
 import { LEGAL_ENTITY_NAME, MAILING_ADDRESS } from "@/lib/marketing/business";
+import {
+  footerCopy,
+  type MarketingLocale,
+} from "@/i18n/marketing/footer";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
@@ -24,70 +28,73 @@ import { LIVE_ROUTES } from "@/lib/marketing/site";
  * (never a placeholder sentence).
  */
 
+/** The footer's words for whichever language the route is serving. */
+type FooterCopy = ReturnType<typeof footerCopy>;
+
 interface FooterLinkItem {
   label: string;
   href: string;
 }
 
 /* Deck §F column inventories, verbatim order. */
-const PRODUCT: FooterLinkItem[] = [
-  { label: "Shared inbox", href: LIVE_ROUTES.featuresSharedInbox },
-  { label: "Calls and voicemail", href: LIVE_ROUTES.featuresCalls },
-  { label: "Tasks", href: LIVE_ROUTES.featuresTasks },
-  { label: "Contacts", href: LIVE_ROUTES.featuresContacts },
-  { label: "Lou, your assistant", href: LIVE_ROUTES.featuresAssistant },
-  { label: "Your business number", href: LIVE_ROUTES.featuresBusinessNumber },
-  { label: "Compliance built in", href: LIVE_ROUTES.featuresCompliance },
-  { label: "Templates and tags", href: LIVE_ROUTES.featuresTemplatesAndTags },
-  { label: "Pricing", href: LIVE_ROUTES.pricing },
-  { label: "Security", href: LIVE_ROUTES.security },
+const PRODUCT = (copy: FooterCopy): FooterLinkItem[] => [
+  { label: copy.sharedInbox, href: LIVE_ROUTES.featuresSharedInbox },
+  { label: copy.calls, href: LIVE_ROUTES.featuresCalls },
+  { label: copy.tasks, href: LIVE_ROUTES.featuresTasks },
+  { label: copy.contacts, href: LIVE_ROUTES.featuresContacts },
+  { label: copy.assistant, href: LIVE_ROUTES.featuresAssistant },
+  { label: copy.businessNumber, href: LIVE_ROUTES.featuresBusinessNumber },
+  { label: copy.compliance, href: LIVE_ROUTES.featuresCompliance },
+  { label: copy.templatesAndTags, href: LIVE_ROUTES.featuresTemplatesAndTags },
+  { label: copy.pricing, href: LIVE_ROUTES.pricing },
+  { label: copy.security, href: LIVE_ROUTES.security },
   // #238/#285: a buyer asking "is it accessible" should not have to ask us.
-  { label: "Accessibility", href: LIVE_ROUTES.accessibility },
+  { label: copy.accessibility, href: LIVE_ROUTES.accessibility },
   // #285: a buyer with a compliance function asks for this by name.
-  { label: "Data processing agreement", href: LIVE_ROUTES.dpa },
+  { label: copy.dpa, href: LIVE_ROUTES.dpa },
   // #285: the repository is public, so researchers read this code whether or
   // not we invite them. The difference between a coordinated report and a
   // public disclosure is often just having an obvious place to send it, and a
   // link nobody can find is the same as no link.
   {
-    label: "Report a vulnerability",
+    label: copy.vulnerability,
     href: LIVE_ROUTES.vulnerabilityDisclosure,
   },
-  { label: "Loonext in Canada", href: LIVE_ROUTES.canada },
+  { label: copy.canada, href: LIVE_ROUTES.canada },
 ];
 
-const WHO_ITS_FOR: FooterLinkItem[] = [
-  { label: "Plumbers", href: LIVE_ROUTES.forPlumbers },
-  { label: "Landscapers", href: LIVE_ROUTES.forLandscapers },
-  { label: "Cleaners", href: LIVE_ROUTES.forCleaners },
-  { label: "HVAC", href: LIVE_ROUTES.forHvac },
-  { label: "Salons", href: LIVE_ROUTES.forSalons },
-  { label: "Contractors", href: LIVE_ROUTES.forContractors },
+const WHO_ITS_FOR = (copy: FooterCopy): FooterLinkItem[] => [
+  { label: copy.plumbers, href: LIVE_ROUTES.forPlumbers },
+  { label: copy.landscapers, href: LIVE_ROUTES.forLandscapers },
+  { label: copy.cleaners, href: LIVE_ROUTES.forCleaners },
+  { label: copy.hvac, href: LIVE_ROUTES.forHvac },
+  { label: copy.salons, href: LIVE_ROUTES.forSalons },
+  { label: copy.contractors, href: LIVE_ROUTES.forContractors },
 ];
 
-const COMPARE: FooterLinkItem[] = [
-  { label: "Loonext vs Heymarket", href: LIVE_ROUTES.compareHeymarket },
-  { label: "Loonext vs Quo", href: LIVE_ROUTES.compareQuo },
+const COMPARE = (copy: FooterCopy): FooterLinkItem[] => [
+  { label: copy.compareHeymarket, href: LIVE_ROUTES.compareHeymarket },
+  { label: copy.compareQuo, href: LIVE_ROUTES.compareQuo },
 ];
 
-const COMPANY_AND_LEGAL: FooterLinkItem[] = [
+const COMPANY_AND_LEGAL = (copy: FooterCopy): FooterLinkItem[] => [
   // #127: the blog joins the company column (the deck §F inventory predates
   // it; the nav bar stays deliberately lean, so the footer carries the link).
-  { label: "Blog", href: LIVE_ROUTES.blog },
-  { label: "Terms of service", href: LIVE_ROUTES.terms },
-  { label: "Privacy policy", href: LIVE_ROUTES.privacy },
-  { label: "Cookies", href: LIVE_ROUTES.cookies },
-  { label: "Acceptable use", href: LIVE_ROUTES.aup },
-  { label: "Fair use", href: LIVE_ROUTES.fairUse },
-  { label: "SMS messaging policy", href: LIVE_ROUTES.messaging },
-  { label: "Sub-processors", href: LIVE_ROUTES.subprocessors },
+  { label: copy.blog, href: LIVE_ROUTES.blog },
+  { label: copy.terms, href: LIVE_ROUTES.terms },
+  { label: copy.privacy, href: LIVE_ROUTES.privacy },
+  { label: copy.cookies, href: LIVE_ROUTES.cookies },
+  { label: copy.aup, href: LIVE_ROUTES.aup },
+  { label: copy.fairUse, href: LIVE_ROUTES.fairUse },
+  { label: copy.messaging, href: LIVE_ROUTES.messaging },
+  { label: copy.subprocessors, href: LIVE_ROUTES.subprocessors },
   // #227: a store reviewer, and anyone who has lost account access, has to be
   // able to find this without signing in.
-  { label: "Delete your data", href: LIVE_ROUTES.deleteMyData },
-  { label: "30-day guarantee", href: LIVE_ROUTES.refunds },
-  { label: "Security", href: LIVE_ROUTES.security },
-  { label: "Status", href: LIVE_ROUTES.status },
-  { label: "Contact us", href: LIVE_ROUTES.contact },
+  { label: copy.deleteData, href: LIVE_ROUTES.deleteMyData },
+  { label: copy.guarantee, href: LIVE_ROUTES.refunds },
+  { label: copy.security, href: LIVE_ROUTES.security },
+  { label: copy.status, href: LIVE_ROUTES.status },
+  { label: copy.contact, href: LIVE_ROUTES.contact },
 ];
 
 /* Footer CSS, prefix "frf-". ONE inert style block, unlayered so the base
@@ -141,7 +148,8 @@ function ColumnHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Footer() {
+export function Footer({ locale = "en" }: { locale?: MarketingLocale } = {}) {
+  const copy = footerCopy(locale);
   const year = new Date().getFullYear();
   const hasIdentity = LEGAL_ENTITY_NAME !== null && MAILING_ADDRESS !== null;
 
@@ -157,34 +165,34 @@ export function Footer() {
           <div className="lg:col-span-3">
             <Link
               href="/"
-              aria-label="Loonext home"
+              aria-label={copy.homeAria}
               className="frf-mark text-2xl font-semibold tracking-tight text-[color:var(--fr-on-inverse)] [font-family:var(--font-golos),system-ui,sans-serif]"
             >
               Lo<span className="text-[#B9CF57]">o</span>next
             </Link>
             <p className="font-body-mkt mt-3 max-w-xs text-sm leading-relaxed text-[color:var(--fr-on-inverse-70)]">
-              The shared line for your crew.
+              {copy.brandLine}
             </p>
           </div>
 
-          <nav aria-label="Product" className="lg:col-span-3">
-            <ColumnHeading>Product</ColumnHeading>
-            <LinkList links={PRODUCT} />
+          <nav aria-label={copy.headingProduct} className="lg:col-span-3">
+            <ColumnHeading>{copy.headingProduct}</ColumnHeading>
+            <LinkList links={PRODUCT(copy)} />
           </nav>
 
-          <nav aria-label="Who it's for" className="lg:col-span-2">
-            <ColumnHeading>Who it&apos;s for</ColumnHeading>
-            <LinkList links={WHO_ITS_FOR} />
+          <nav aria-label={copy.headingWhoItsFor} className="lg:col-span-2">
+            <ColumnHeading>{copy.headingWhoItsFor}</ColumnHeading>
+            <LinkList links={WHO_ITS_FOR(copy)} />
           </nav>
 
-          <nav aria-label="Compare" className="lg:col-span-2">
-            <ColumnHeading>Compare</ColumnHeading>
-            <LinkList links={COMPARE} />
+          <nav aria-label={copy.headingCompare} className="lg:col-span-2">
+            <ColumnHeading>{copy.headingCompare}</ColumnHeading>
+            <LinkList links={COMPARE(copy)} />
           </nav>
 
-          <nav aria-label="Company and legal" className="lg:col-span-2">
-            <ColumnHeading>Company and legal</ColumnHeading>
-            <LinkList links={COMPANY_AND_LEGAL} />
+          <nav aria-label={copy.headingCompanyLegal} className="lg:col-span-2">
+            <ColumnHeading>{copy.headingCompanyLegal}</ColumnHeading>
+            <LinkList links={COMPANY_AND_LEGAL(copy)} />
           </nav>
         </div>
 
@@ -197,10 +205,10 @@ export function Footer() {
             </p>
           ) : null}
           <p className="text-[color:var(--fr-on-inverse-70)]">
-            Month to month. No sales calls, ever.
+            {copy.monthToMonth}
           </p>
           <p className="text-[color:var(--fr-on-inverse-55)]">
-            © {year} Loonext. All rights reserved.
+            {copy.rights.replace("{year}", String(year))}
           </p>
         </div>
       </div>
