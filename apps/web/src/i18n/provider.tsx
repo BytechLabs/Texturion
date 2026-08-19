@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 
 import {
   DEFAULT_LOCALE,
@@ -144,6 +144,28 @@ export function LocaleProvider({
     const locale = resolveUiLocale(userLocale, deviceLocale, companyLocale);
     return { locale, t: makeTranslate(locale) };
   }, [userLocale, deviceLocale, companyLocale]);
+
+  /*
+   * WCAG 2.2 §3.1.1 Language of Page — LEVEL A, and it was failing.
+   *
+   * `app/layout.tsx` hard-codes `<html lang="en">`, which was true of every
+   * page until this provider existed and false of every French one after. The
+   * consequence is not cosmetic: a screen reader picks its pronunciation rules
+   * from this attribute, so VoiceOver and NVDA read French sentences with an
+   * English engine — the words are there and the speech is not French. It also
+   * tells a translation tool and a search engine the page is English.
+   *
+   * Set here rather than in the layout because the layout renders on the
+   * SERVER, where no member's locale exists: the language is a person's
+   * setting, resolved from `/v1/me` after the document has already been sent.
+   *
+   * The value is a BCP-47 tag, which is what `Locale` already is — "en" and
+   * "fr-CA" both being valid tags is the reason the catalogue's keys can be
+   * used here unchanged.
+   */
+  useEffect(() => {
+    document.documentElement.lang = value.locale;
+  }, [value.locale]);
 
   return (
     <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>

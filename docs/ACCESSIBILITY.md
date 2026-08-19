@@ -52,6 +52,7 @@ is nothing verified that is not here.
 | **4.1.2** Name, Role, Value — names | Interactive elements have an accessible name, computed the way an AT computes it | `scripts/theme-audit.mjs` (CI) |
 | **4.1.2** Name, Role, Value — roles | `role="tab"` carries `aria-selected`; `role="tablist"` contains real tabs; `aria-live` states its politeness | `apps/web/src/app/layout-v2-roles.test.ts` |
 | **4.1.3** Status Messages | Incoming messages announce politely; the composer's send state is announced rather than only styled | `apps/web/src/app/layout-v2-roles.test.ts` |
+| **3.1.1** Language of Page | The document's `lang` follows the READER's own setting rather than the build's, so a screen reader speaks French with a French voice instead of an English one | `apps/web/src/i18n/document-language.test.tsx` |
 
 Every one of these guards has been **proven by breaking it** — the rule was
 removed from the product, the test observed to fail, and the removal reverted.
