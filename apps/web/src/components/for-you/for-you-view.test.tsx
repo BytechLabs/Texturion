@@ -254,7 +254,10 @@ describe("ForYouView Recent calls (#133)", () => {
     expect(html).toContain("View all calls");
     expect(html).toContain('href="/calls"');
     // Ambient history sits AFTER the actionable sections.
-    expect(html.indexOf("Waiting on you")).toBeLessThan(
+    // The SECTION, by its anchor id. `indexOf("Waiting on you")` lands on the
+    // summary tile, which sits above everything by construction — so the old
+    // form proved only "Recent calls is below the header strip".
+    expect(html.indexOf('id="for-you-waiting"')).toBeLessThan(
       html.indexOf("Recent calls"),
     );
   });
@@ -643,7 +646,10 @@ describe("#540 the strip and the sections agree, and both lead with urgency", ()
     expect(html).toContain("1 overdue");
 
     // And the sections below follow: My tasks before Unassigned.
-    expect(html.indexOf("My tasks")).toBeLessThan(html.indexOf("Unassigned"));
+    // Anchor ids, not labels: the tile strip carries every queue's NAME above
+    // the sections, so both sides used to resolve inside the strip and this
+    // measured strip order against itself.
+    expect(html.indexOf('id="for-you-tasks"')).toBeLessThan(html.indexOf('id="for-you-unassigned"'));
   });
 
   it("keeps the reading order when nothing is overdue or aged", () => {
@@ -676,7 +682,7 @@ describe("#540 the strip and the sections agree, and both lead with urgency", ()
       },
     };
     const html = render();
-    expect(html.indexOf("Unassigned")).toBeLessThan(html.indexOf("Unread"));
+    expect(html.indexOf('id="for-you-unassigned"')).toBeLessThan(html.indexOf('id="for-you-unread"'));
   });
 
   it("promotes a queue that has gone stale over a busier fresh one", () => {
@@ -707,7 +713,7 @@ describe("#540 the strip and the sections agree, and both lead with urgency", ()
       triage: null,
     };
     const html = render();
-    expect(html.indexOf("Waiting on you")).toBeLessThan(html.indexOf("Unread"));
+    expect(html.indexOf('id="for-you-waiting"')).toBeLessThan(html.indexOf('id="for-you-unread"'));
   });
 });
 
