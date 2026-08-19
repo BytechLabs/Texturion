@@ -146,7 +146,7 @@ gets overlooked.
 
 ## 6. No personal data
 
-`app_release_policy`, `company_modules`, `conversation_reads`,
+`activation_stall_state`, `app_release_policy`, `company_modules`, `conversation_reads`,
 `conversation_tags`, `feature_flags`, `feature_flag_overrides`, `grace_notices`,
 `high_priority_push_budget`, `high_priority_push_days`,
 `inbound_notification_days`, `liveness_heartbeats`, `message_mentions`,

@@ -22,8 +22,18 @@
 do $$
 declare
   -- Every table classified in docs/PERSONAL-DATA-INVENTORY.md, §1 through §6.
-  -- Adding a table here without adding it to the document defeats the point:
-  -- the list and the prose are meant to be edited in the same commit.
+  --
+  -- THIS SCRIPT CANNOT OPEN THAT DOCUMENT, and for a long time nothing did.
+  -- The header above says this is "what stops it quietly becoming untrue",
+  -- and the mechanism was a convention — "edited in the same commit" — which
+  -- is the thing people do not do. `activation_stall_state` sat in this array
+  -- and appeared nowhere in the document while this reported all tables
+  -- classified.
+  --
+  -- The document half is checked by apps/api/src/personal-data-inventory-doc
+  -- .test.ts, which reads both files and fails on a name here that is missing
+  -- there. This array still owns the CATALOG half, which is the part psql can
+  -- actually see.
   classified text[] := array[
     -- §1 contact data (the customer's customer)
     'contacts', 'messages', 'conversations', 'conversation_events',
