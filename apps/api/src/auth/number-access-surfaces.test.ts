@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { productionSources as readProductionSources } from "../test/source-tree";
+import { productionSources as readProductionSources, stripComments } from "../test/source-tree";
 
 const SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 
@@ -74,22 +74,24 @@ const repoPath = (file: string) => relative(SRC, file).replaceAll("\\", "/");
  * footnote. Worse than the false positive is what it teaches: a check that fires on
  * prose gets its roster widened until it guards nothing.
  *
- * Deliberately conservative. Block comments go, and so do lines that are wholly a
- * comment; a trailing slash-slash on a line of code STAYS. Stripping those would
- * mean finding the sequence inside string literals — every URL in the tree — and
- * hiding whatever followed it on that line. Being over-eager in a security guard
- * is the safe direction; being blind is not.
+ * #519 CENTRALISED THIS AND THIS FILE KEPT A PRIVATE COPY under another name,
+ * carrying the exact defect the shared one was written to fix:
+ * `/\/\*[\s\S]*?\*\//` opens a block comment at the FIRST slash-star it meets,
+ * wherever it is — including inside a string literal. Hono wildcard routes are
+ * string literals full of slash-stars.
+ *
+ * On today's tree that deleted routes/widget.ts 199-295 — the whole prologue of
+ * POST /widget/start, including `resolveWidgetNumber`, which is the code that
+ * picks which of the workspace's lines to send from. A #106 precedence read
+ * added there would have been blanked before either assertion below ran, and a
+ * twelfth hand-rolled copy of the rule would have shipped with this reporting a
+ * clean roster.
+ *
+ * The meta-guard that proves the shared stripper hides nothing (SC-5 in
+ * test/strip-comments.test.ts) never covered the private copy — which is the
+ * argument for not having one.
  */
-function codeOf(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("\n")
-    .filter((line) => {
-      const trimmed = line.trim();
-      return !trimmed.startsWith("//") && !trimmed.startsWith("*");
-    })
-    .join("\n");
-}
+const codeOf = stripComments;
 
 /**
  * The `db.rpc("name", { ... })` call, with its argument object, for one RPC.

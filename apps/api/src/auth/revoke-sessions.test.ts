@@ -48,13 +48,30 @@ function sources(dir: string): string[] {
   return out;
 }
 
-/** Comment lines are prose. Without this, explaining the rule would break it. */
-function stripComments(source: string): string {
-  return source
-    .replace(/\r\n/g, "\n")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ \t]*(\/\/|\*).*$/gm, "");
-}
+/*
+ * Comment lines are prose. Without this, explaining the rule would break it.
+ *
+ * #519 CENTRALISED THIS AND THIS FILE KEPT A PRIVATE COPY, which had the exact
+ * defect the shared one was written to fix: `/\/\*[\s\S]*?\*\//` opens a block
+ * comment at the FIRST slash-star it meets, wherever it is — including inside a
+ * string literal. Hono wildcard routes are string literals full of slash-stars.
+ *
+ * Measured on today's tree, the private copy blanked index.ts 195-238 (opened
+ * by `"/v1/*"`), routes/widget.ts 199-295 (`"/widget/*"`) and
+ * routes/marketing.ts 73-87 (`"/marketing/*"`) — roughly 7KB of production
+ * source that the scan below reported "none" over without reading.
+ *
+ * That matters here more than most places. This file exists to catch "a SIXTH
+ * path arriving later and quietly reaching for the wrapper again, which is what
+ * happened three times already" — and index.ts's middleware block is exactly
+ * where a global revocation hook would plausibly land. A session row deleted
+ * without the telephony credential leaves a handset that already registered
+ * still ringing, still able to answer a customer as the business.
+ *
+ * The floor below counts FILES OPENED, not text searched, so it could never
+ * have noticed.
+ */
+import { stripComments } from "../test/source-tree";
 
 describe("every path that ends access goes through the one that finishes the job", () => {
   it("nothing calls the wrapper that throws the credential ids away", () => {
