@@ -213,10 +213,33 @@ begin
   from information_schema.columns c
   where c.table_schema = 'public'
     and c.table_name = 'companies'
-    and c.data_type in ('text', 'character varying')
+    -- ARRAYS AND JSONB TOO, which this could not see.
+    --
+    -- It read `data_type in ('text','character varying')`, and
+    -- information_schema reports `text[]` as ARRAY and jsonb as jsonb. So
+    -- neither was examined — while the very function under test already
+    -- cleared a jsonb column (`business_hours = '{}'::jsonb`), which is the
+    -- proof those types hold data worth clearing.
+    --
+    -- Three columns had survived erasure behind that gap: `emergency_keywords`
+    -- (the words the business chose as triggers, sitting one line below the
+    -- `emergency_message` this function does clear), `business_hours_exceptions`
+    -- (each carries a `note` the business wrote) and `signup_first_touch` (the
+    -- rest of the attribution whose other two columns are cleared here).
+    and (
+      c.data_type in ('text', 'character varying', 'jsonb')
+      or c.udt_name::text in ('_text', '_varchar')
+    )
     -- `<col> =` is how the update assigns it; a column merely MENTIONED in a
     -- comment does not count as cleared.
-    and (select prosrc from fn) not like '%' || c.column_name || ' =%'
+    --
+    -- A WORD MATCH, not a substring. `like '%' || column_name || ' ='` counted a
+    -- column as cleared whenever its name was the tail of an assigned one:
+    -- `display_name` would have matched `cnam_display_name =`, `source` matches
+    -- `signup_source =`, `message` matches `away_message =`. Postgres `\m` and
+    -- `\M` are word boundaries, and `_` is a word character, so
+    -- `\mdisplay_name\M` cannot match inside `cnam_display_name`.
+    and (select prosrc from fn) !~ ('\m' || c.column_name::text || '\M\s*=')
     and c.column_name::text <> all(v_kept);
 
   if array_length(v_undecided, 1) is not null then
