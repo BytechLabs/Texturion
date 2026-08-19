@@ -1,5 +1,6 @@
 import { ConsentBanner } from "@/components/marketing/consent";
 import { CountryProvider } from "@/components/marketing/country";
+import { DocumentLanguage } from "@/components/marketing/document-language";
 import { Footer } from "@/components/marketing/footer";
 import { GoogleTagManager } from "@/components/marketing/google-tag-manager";
 import { Nav } from "@/components/marketing/nav";
@@ -30,11 +31,16 @@ import { organizationJsonLd } from "@/lib/marketing/seo";
  * NVDA speak French on these pages. It is server-rendered, so it is in the HTML
  * a crawler receives rather than applied by a script afterwards.
  *
- * That is a real fix and a partial one: §3.1.1 is about the DOCUMENT's
- * language, and the honest way to finish it is a per-group root layout, which
- * is a restructuring of `app/` rather than a line here. Recorded rather than
- * quietly left, because a `lang` that is right on the div and wrong on the html
- * looks finished.
+ * §3.1.1 is about the DOCUMENT's language, and `<html>` belongs to a layout
+ * that cannot know which group is rendering. `DocumentLanguage` corrects it
+ * once the route is known — the same thing the app does, for the same reason.
+ * So the reader is served by two mechanisms: a server-rendered `lang` covering
+ * the whole subtree, and the document attribute a moment later.
+ *
+ * The remaining honest gap is that the document attribute is not in the HTML as
+ * SERVED. Closing that means a root layout per route group, which is a
+ * restructuring of `app/` with every page in its blast radius — worth doing
+ * once when the French tree justifies it, not between two pages.
  */
 export function MarketingShell({
   locale = "en",
@@ -54,6 +60,9 @@ export function MarketingShell({
       <noscript>
         <style>{`[data-reveal]{opacity:1 !important;transform:none !important;}`}</style>
       </noscript>
+      {/* WCAG 3.1.1 — corrects <html lang> once the route is known; the
+          server-rendered lang on this div covers the subtree either way. */}
+      <DocumentLanguage locale={locale} />
       {/* #124: Google Tag Manager — marketing pages only, gated on
           NEXT_PUBLIC_GTM_ID (off in dev/CI). Never mounted by the app groups.
           The ConsentBanner shares the same gate: it asks (once) whether GTM
