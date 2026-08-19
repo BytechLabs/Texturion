@@ -8617,3 +8617,84 @@ calendar-feed.ts` and `calendar.ts` (the one-way feed this supersedes for
 connected members), and #237, whose standard — an automated message that is
 wrong is worse than no automated message — is the rule every clause above is
 serving.
+
+## D138 — French marketing lives at `/fr`, a page ships whole or not at all, and the middleware is not touched (#228, 2026-08-19)
+
+**Decision.** The marketing site's French is served from **real `/fr/…` routes**
+— ordinary Next route files, no locale segment, no middleware rewrite. Copy
+moves out of the section components into a **marketing catalogue** shaped like
+the app's, and each section reads the locale its route hands it. A page is
+translated **completely or not at all**, and a page with no French twin is
+simply absent from `/fr` rather than present in English. Legal documents that
+state contract terms are translated only with human review; everything else I
+translate. The app's `/legal/*` pages and the marketing pages are the same
+problem and take the same mechanism.
+
+---
+
+**Rule 1 — the URL carries the language, and nothing else does.**
+`/canada` is English, `/fr/canada` is French. No cookie, no `Accept-Language`
+redirect, no negotiation. A marketing URL is pasted into a group chat, a
+supplier's email and a Google result, and it has to open the same page for
+everybody who clicks it. This is the opposite of the rule inside the app, where
+the language is a *person's* setting — and the difference is not an
+inconsistency: the app is read by one signed-in member, and a marketing page is
+read by whoever the link was sent to.
+
+**Rule 2 — no middleware.** The middleware's first gate is already the D27
+marketing/app host split, which redirects across two origins on the path. A
+second router-shaped stage in front of it is how a redirect loop nobody can
+reproduce locally gets shipped, and `catalog.ts` says so in its own words. Real
+route files cost duplicated page shells and buy the whole class of failure
+staying impossible. The shells are thin: the home page is 126 lines because the
+copy is in its sections.
+
+**Rule 3 — a page ships whole.** Twelve sections with one translated is a page
+that reads as broken in a way an all-English page does not, and it is the same
+defect as a settings screen with six French refusals and four English ones. So
+the unit of work is a PAGE, its acceptance is every string on it, and a
+half-finished page is not committed to `/fr` at all.
+
+**Rule 4 — absent, not English.** A `/fr` URL with no translation returns 404
+rather than English content. A French URL serving English tells a Quebec reader
+the French was withdrawn, and tells Google there are two URLs for one page.
+
+**Rule 5 — `hreflang` is reciprocal or it is wrong.** Every translated page
+carries `alternates.languages` naming both variants, and so does its English
+twin. A one-way link is the commonest hreflang error and search engines ignore
+the pair when they disagree. `canonical` stays self-referential on both. A guard
+asserts the reciprocity rather than a reviewer noticing.
+
+**Rule 6 — the switcher only offers what exists.** The language control appears
+on a page that HAS a twin, and links to that exact page — never to `/fr` as a
+homepage bounce. A switcher that drops somebody on the front page has thrown
+away what they were reading, and offering French on a page that has none is a
+promise the next click breaks.
+
+**Rule 7 — `lang` follows the route.** `/fr/*` renders `lang="fr-CA"`. The app
+resolves this per member at runtime (WCAG 3.1.1, fixed 2026-08-19); marketing
+knows it statically from the path, and a screen reader must not be told
+otherwise.
+
+**Rule 8 — contract text waits for a person.** Terms, the DPA, the AUP and the
+privacy policy state obligations that a French version would state differently
+under Quebec law, and Bill 96 restricts the usual "the English governs" clause
+for consumer contracts. Those get a professional translation, and until then
+they stay English rather than shipping a machine translation of a contract.
+Marketing copy, feature pages, the accessibility statement and the trade pages
+carry no such risk and are translated now. **This rule is a scope boundary, not
+a reason to stop**: it names four documents, and everything else proceeds.
+
+**Rule 9 — the order is what a Quebec buyer reads before paying.** `/canada`
+first, then home, pricing, the shared chrome, then the trade pages. The blog is
+last and may stay English: it is editorial, it is 12 long posts, and no
+purchasing decision routes through it.
+
+---
+
+**What this rejects, and why.** A `[lang]` segment over the whole tree is the
+framework-idiomatic answer and was rejected on rule 2: it needs `/canada` to
+rewrite to `/en/canada`, and that rewrite is the middleware stage this decision
+exists to avoid. A catch-all `/fr/[[...slug]]` mapping paths to components was
+rejected because it moves `generateMetadata` into a registry, and per-page
+metadata is most of what a marketing page is for.
