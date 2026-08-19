@@ -111,3 +111,45 @@ describe("the two languages are actually different", () => {
     expect(same).toEqual([]);
   });
 });
+
+describe("the server's own reference for a 5xx", () => {
+  const withId = {
+    error: {
+      code: "internal_error",
+      message: "Something went wrong.",
+      request_id: "8f2a1c9db4e60007",
+    },
+  };
+
+  it("is shown, which web did not do at all before", () => {
+    // Both phones already said this. Web dropped it, so the client a founder
+    // is most likely to be looking at during an incident was the one that
+    // could not quote the line to search for.
+    const error = parseErrorBody(500, withId);
+    expect(error.requestId).toBe("8f2a1c9db4e60007");
+    expect(error.message).toBe("Something went wrong. Reference 8f2a1c9db4e60007.");
+  });
+
+  it("is said in French to a French reader, reference and all", () => {
+    const error = parseErrorBody(500, withId, makeTranslate("fr-CA"));
+    expect(error.message).toBe(
+      `${apiErrorsFr.internal_error} Référence 8f2a1c9db4e60007.`,
+    );
+    expect(error.message).not.toContain("Reference ");
+  });
+
+  it("is left off a refusal that already names what is wrong", () => {
+    // A 422 explaining which field is wrong needs no reference, and appending
+    // one to every refusal would be noise on copy that is doing its job.
+    const error = parseErrorBody(422, body("validation_failed", "country is required."));
+    expect(error.requestId).toBeUndefined();
+    expect(error.message).toBe("country is required.");
+  });
+
+  it("ignores an empty reference rather than printing a bare word", () => {
+    const error = parseErrorBody(500, {
+      error: { code: "internal_error", message: "Something went wrong.", request_id: "" },
+    });
+    expect(error.message).toBe("Something went wrong.");
+  });
+});

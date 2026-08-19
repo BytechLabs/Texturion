@@ -60,9 +60,12 @@ struct ApiError: Error, LocalizedError {
     /// #228 — WHOSE SENTENCE THIS IS.
     ///
     /// Nil means the SERVER wrote it: the message came off the
-    /// `{ error: { code, message } }` envelope, worded and translated there.
-    /// Rendering it verbatim is correct, and a client-side translation would be
-    /// a second copy that goes stale the moment the API rewords its own.
+    /// `{ error: { code, message } }` envelope, composed in English at one of
+    /// 370 call sites. An English reader gets it verbatim and that is right —
+    /// it is specific in a way no per-code sentence can be. A reader in another
+    /// language gets the CODE's sentence from the catalogue instead, because
+    /// the English one carries nothing they can use. `Error.userMessage` holds
+    /// that rule; this field only says whose words they were.
     ///
     /// Non-null means WE wrote it — a transport failure, an expired session, a
     /// refusal this app decided alone. Those are ours to translate, and every

@@ -57,7 +57,16 @@ import type { Translated } from "../translated";
  * this, so `api-error-vocabulary-parity.test.ts` holds them to the same key set
  * in both directions.
  */
-export type ApiErrorVocabulary = Record<ErrorCode | typeof INTERNAL_ERROR_CODE, string>;
+export type ApiErrorVocabulary = Record<ErrorCode | typeof INTERNAL_ERROR_CODE, string> & {
+  /**
+   * A 5xx, with the server's own reference for it (#555).
+   *
+   * A whole template rather than a suffix, because French does not have to put
+   * it where English does. The phones already said this sentence in English;
+   * web did not say it at all, and dropped a reference support asks for.
+   */
+  withReference: string;
+};
 
 /** Every code, so a new one is a type error here rather than a gap in French. */
 export const API_ERROR_VOCABULARY_CODES = [...ERROR_CODES, INTERNAL_ERROR_CODE] as const;
@@ -88,6 +97,7 @@ export const apiErrorsEn: ApiErrorVocabulary = {
   rate_limited: "Too many tries. Wait a minute and try again.",
   service_unavailable: "That's busy right now. Try again in a moment.",
   internal_error: "Something went wrong on our end. Try again in a moment.",
+  withReference: "{message} Reference {id}.",
 };
 
 export const apiErrorsFr: Translated<typeof apiErrorsEn> = {
@@ -114,4 +124,5 @@ export const apiErrorsFr: Translated<typeof apiErrorsEn> = {
   rate_limited: "Trop de tentatives. Attendez une minute et réessayez.",
   service_unavailable: "C'est occupé en ce moment. Réessayez dans un instant.",
   internal_error: "Une erreur s'est produite de notre côté. Réessayez dans un instant.",
+  withReference: "{message} Référence {id}.",
 };

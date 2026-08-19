@@ -53,6 +53,7 @@ enum AppStrings {
     /// screen sees its strings adjacent. A section missing from this list is
     /// unreachable, which the tests check.
     static let sections: [Section] = [
+        ApiErrorStrings.section,
         ApiKeysStrings.section,
         CalendarFeedStrings.section,
         CommonStrings.section,

@@ -64,12 +64,17 @@ sealed interface LoadState<out T> {
  * mentioned: it is hidden until unlocked, so pointing anybody at it would be
  * directions to a door they cannot see.
  *
- * ## #228 — the two sentences that are OURS
+ * ## #228 — whose sentence the reader gets
  *
- * Only the last two branches are ours to translate, and they now come from the
- * catalogue. Everything above them is the API's own wording, rendered verbatim:
- * a client-side French copy of a server refusal is a second copy that drifts,
- * and the server is where that translation belongs.
+ * The API composes its refusals in English, one per call site, 370 of them.
+ * An English reader keeps every one of them exactly as it arrived: "No such API
+ * key" is specific in a way no per-code sentence can be.
+ *
+ * A reader in French does not, and the comparison is not against that sentence
+ * as READ but as MET by somebody who cannot read it — which carries nothing but
+ * the fact that something failed. So the code's own sentence replaces it, and
+ * only ever replaces a sentence the reader could not use. See
+ * `apps/web/src/i18n/sections/apiErrors.ts` for the full argument.
  *
  * [locale] is defaulted to English because this is called from coroutines,
  * ViewModels and `catch` blocks that have no composition to read a reader out
@@ -78,20 +83,49 @@ sealed interface LoadState<out T> {
  * load-failure sentence follows the reader; call sites that still pass nothing
  * are listed on #228 rather than left to be discovered.
  */
-fun Throwable.userMessage(locale: String = MessageLocale.EN): String = when {
-    // #555: a 500 carries the server's own reference, and saying it is what makes
-    // "something went wrong" a report somebody can act on rather than a shrug.
-    // Only on an internal error: a 422 explaining which field is wrong needs no
-    // reference, and appending one to every refusal would be noise on the copy
-    // that is already doing its job.
-    this is ApiException && requestId != null && httpStatus >= 500 ->
-        "$message Reference $requestId."
-    // #228: ours gets translated, the server's is rendered as it arrived.
-    this is ApiException && messageKey != null ->
-        AppStrings.translate(locale, messageKey, messageVars)
-    this is ApiException -> message
-    this is ApiDecodeException -> AppStrings.translate(locale, "common.decodeFailed")
+fun Throwable.userMessage(locale: String = MessageLocale.EN): String = when (this) {
+    is ApiException -> withReference(locale, readerFacing(locale))
+    is ApiDecodeException -> AppStrings.translate(locale, "common.decodeFailed")
     else -> AppStrings.translate(locale, "common.unknownError")
+}
+
+/**
+ * The sentence itself, before any reference is added.
+ *
+ * Order matters: a key WE set names copy we wrote and always wins, in every
+ * language. Only after that does the reader's language decide whether the
+ * server's English can be used as-is.
+ */
+private fun ApiException.readerFacing(locale: String): String {
+    messageKey?.let { return AppStrings.translate(locale, it, messageVars) }
+    if (locale == MessageLocale.EN) return message
+    val key = "apiErrors.$code"
+    val translated = AppStrings.translate(locale, key)
+    /*
+     * `translate` fails OPEN — a missing key resolves to its own name — so an
+     * error code this build has never heard of would put `apiErrors.teapot` on
+     * screen, which is worse than the English it replaced. A self-resolving key
+     * therefore counts as absent, exactly as the held-reason port does.
+     */
+    return if (translated != key) translated
+    else AppStrings.translate(locale, "apiErrors.internal_error")
+}
+
+/**
+ * #555: a 500 carries the server's own reference, and saying it is what makes
+ * "something went wrong" a report somebody can act on rather than a shrug. Only
+ * on an internal error: a 422 explaining which field is wrong needs no
+ * reference, and appending one to every refusal would be noise on the copy that
+ * is already doing its job.
+ */
+private fun ApiException.withReference(locale: String, sentence: String): String {
+    val reference = requestId
+    if (reference == null || httpStatus < 500) return sentence
+    return AppStrings.translate(
+        locale,
+        "apiErrors.withReference",
+        mapOf("message" to sentence, "id" to reference),
+    )
 }
 
 /** Centered expressive loading indicator — first load only, never spinners over data. */

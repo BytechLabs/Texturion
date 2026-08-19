@@ -16,12 +16,21 @@ import { makeTranslate, type Translate } from "@/i18n/provider";
 export class ApiError extends Error {
   readonly code: ApiErrorCode;
   readonly status: number;
+  /**
+   * #555 — the server's own reference for this failure, when it sent one.
+   *
+   * Only 5xx bodies carry it. Both phones already showed it and web did not,
+   * so the one client a founder is most likely to be looking at during an
+   * incident was the one that could not quote the line to search for.
+   */
+  readonly requestId?: string;
 
-  constructor(code: ApiErrorCode, message: string, status: number) {
+  constructor(code: ApiErrorCode, message: string, status: number, requestId?: string) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
+    this.requestId = requestId;
   }
 
   /**
@@ -70,9 +79,18 @@ const KNOWN_CODES = new Set<string>([...ERROR_CODES, INTERNAL_ERROR_CODE]);
  * optional message key beside its text so each site can opt in without
  * flattening. This is the floor under that, not a substitute for it.
  */
-function readerFacing(code: ApiErrorCode, serverMessage: string, t: Translate): string {
-  if (t.locale === DEFAULT_LOCALE) return serverMessage;
-  return t(`apiErrors.${code}`);
+function readerFacing(
+  code: ApiErrorCode,
+  serverMessage: string,
+  t: Translate,
+  requestId?: string,
+): string {
+  const sentence = t.locale === DEFAULT_LOCALE ? serverMessage : t(`apiErrors.${code}`);
+  // Only on a 5xx, which is the only body that carries one. Appending a
+  // reference to a 422 that already names the wrong field would be noise on
+  // copy that is doing its job.
+  if (!requestId) return sentence;
+  return t("apiErrors.withReference", { message: sentence, id: requestId });
 }
 
 export function parseErrorBody(
@@ -92,15 +110,23 @@ export function parseErrorBody(
     ) {
       const code = (inner as { code: string }).code;
       const message = (inner as { message: string }).message;
+      const rawId = (inner as { request_id?: unknown }).request_id;
+      const requestId = typeof rawId === "string" && rawId.length > 0 ? rawId : undefined;
       if (KNOWN_CODES.has(code)) {
         const known = code as ApiErrorCode;
-        return new ApiError(known, readerFacing(known, message, t), status);
+        return new ApiError(
+          known,
+          readerFacing(known, message, t, requestId),
+          status,
+          requestId,
+        );
       }
       // Unknown-but-shaped code: keep the message, flag the code as internal.
       return new ApiError(
         INTERNAL_ERROR_CODE,
-        readerFacing(INTERNAL_ERROR_CODE, message, t),
+        readerFacing(INTERNAL_ERROR_CODE, message, t, requestId),
         status,
+        requestId,
       );
     }
   }

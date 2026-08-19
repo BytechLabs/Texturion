@@ -12,12 +12,11 @@ import java.io.File
 /**
  * #228 — whose sentence is it, and does a French reader get French?
  *
- * `userMessage` used to render `ApiException.message` verbatim, always. That is
- * right for the server's own refusals — they arrive worded and translated by
- * the API, and a client-side copy would go stale the moment the API rewords one
- * — and wrong for the sentences THIS APP writes. Those are the most-seen copy in
- * the product: a lost connection puts one on every screen at once, and every
- * one of them was English on a French phone.
+ * `userMessage` used to render `ApiException.message` verbatim, always. It is
+ * still verbatim for an English reader — the API's refusals are specific in a
+ * way no per-code sentence can be — but the sentences THIS APP writes are
+ * translated, and so now is the API's own text when the reader cannot use it.
+ * See `ui/common/Ui.kt` and `apps/web/src/i18n/sections/apiErrors.ts`.
  */
 class ApiExceptionLocaleTest {
 
@@ -43,14 +42,35 @@ class ApiExceptionLocaleTest {
     }
 
     @Test
-    fun `the server's sentence is rendered as it arrived`() {
-        // THE OTHER HALF, and it matters as much. The API wrote this one, in the
-        // reader's language, having resolved their locale server-side. A client
-        // that translated it again would need its own copy of every refusal the
-        // API can produce.
-        val serverWorded = "Ce numéro s'est désabonné."
-        val cause = ApiException("recipient_opted_out", serverWorded, 403)
-        assertEquals(serverWorded, cause.userMessage(MessageLocale.FR_CA))
+    fun `the server's sentence reaches an English reader as it arrived`() {
+        // THE OTHER HALF, and it matters as much. "No such API key" is specific
+        // in a way no per-code sentence can be, and an English crew keeps it.
+        val serverWorded = "No such API key."
+        val cause = ApiException("not_found", serverWorded, 404)
+        assertEquals(serverWorded, cause.userMessage(MessageLocale.EN))
+    }
+
+    @Test
+    fun `a French reader gets the code's sentence, because the server writes only English`() {
+        /*
+         * THE PREMISE THIS FILE USED TO CARRY WAS NEVER TRUE.
+         *
+         * It asserted the server's text was already "in the reader's language,
+         * having resolved their locale server-side", and its fixture was a
+         * French sentence — `Ce numéro s'est désabonné.` — that the API has
+         * never sent. Every one of its 370 refusal sites composes an English
+         * literal; there is no locale anywhere on that path.
+         *
+         * So the old assertion was a guard standing over a fact that did not
+         * exist, and what it actually protected was a French reader receiving
+         * English. Recorded here rather than quietly deleted, because the same
+         * belief could be re-derived from the same envelope.
+         */
+        val cause = ApiException("recipient_opted_out", "This person asked us to stop.", 403)
+        assertEquals(
+            AppStrings.frCA["apiErrors.recipient_opted_out"],
+            cause.userMessage(MessageLocale.FR_CA),
+        )
     }
 
     @Test

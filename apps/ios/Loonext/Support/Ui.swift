@@ -53,31 +53,62 @@ extension Error {
     var userMessage: String { userMessage(MessageLocale.en) }
 
     /// The same sentence, in the reader's language where it is ours to give.
+    ///
+    /// #228 — the API composes its refusals in English, one per call site, 370
+    /// of them. An English reader keeps every one exactly as it arrived: "No
+    /// such API key" is specific in a way no per-code sentence can be.
+    ///
+    /// A reader in French does not, and the comparison is not against that
+    /// sentence as READ but as MET by somebody who cannot read it — which
+    /// carries nothing but the fact that something failed. So the code's own
+    /// sentence replaces it, and only ever replaces a sentence the reader could
+    /// not use. The full argument is in
+    /// `apps/web/src/i18n/sections/apiErrors.ts`.
     func userMessage(_ locale: String) -> String {
         if let api = self as? ApiError {
-            // #228: ours gets translated; the server's is rendered as it
-            // arrived, because the API resolved the reader's locale already.
-            if let key = api.messageKey {
-                let translated = AppStrings.translate(locale, key, api.messageVars)
-                if let reference = api.requestId, api.httpStatus >= 500 {
-                    return "\(translated) Reference \(reference)."
-                }
-                return translated
-            }
-            // #555: a 500 carries the server's own reference, and saying it is what
-            // makes "something went wrong" a report somebody can act on rather than
-            // a shrug. Only on an internal error: a 422 explaining which field is
-            // wrong needs no reference, and appending one to every refusal would be
-            // noise on the copy that is already doing its job.
-            if let reference = api.requestId, api.httpStatus >= 500 {
-                return "\(api.message) Reference \(reference)."
-            }
-            return api.message
+            return api.withReference(locale, api.readerFacing(locale))
         }
         if self is ApiDecodeError {
             return AppStrings.translate(locale, "common.decodeFailed")
         }
         return AppStrings.translate(locale, "common.unknownError")
+    }
+}
+
+extension ApiError {
+    /// The sentence itself, before any reference is added.
+    ///
+    /// Order matters: a key WE set names copy we wrote and always wins, in
+    /// every language. Only after that does the reader's language decide
+    /// whether the server's English can be used as it arrived.
+    fileprivate func readerFacing(_ locale: String) -> String {
+        if let key = messageKey {
+            return AppStrings.translate(locale, key, messageVars)
+        }
+        if locale == MessageLocale.en { return message }
+        let key = "apiErrors.\(code)"
+        let translated = AppStrings.translate(locale, key)
+        // `translate` fails OPEN — a missing key resolves to its own name — so
+        // an error code this build has never heard of would put
+        // `apiErrors.teapot` on screen, which is worse than the English it
+        // replaced. A self-resolving key therefore counts as absent.
+        return translated == key
+            ? AppStrings.translate(locale, "apiErrors.internal_error")
+            : translated
+    }
+
+    /// #555: a 500 carries the server's own reference, and saying it is what
+    /// makes "something went wrong" a report somebody can act on rather than a
+    /// shrug. Only on an internal error: a 422 explaining which field is wrong
+    /// needs no reference, and appending one to every refusal would be noise on
+    /// the copy that is already doing its job.
+    fileprivate func withReference(_ locale: String, _ sentence: String) -> String {
+        guard let reference = requestId, httpStatus >= 500 else { return sentence }
+        return AppStrings.translate(
+            locale,
+            "apiErrors.withReference",
+            ["message": sentence, "id": reference]
+        )
     }
 }
 
