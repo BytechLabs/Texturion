@@ -521,6 +521,55 @@ per call; `ring_strategy = "all"`, which is the default nobody has to touch;
 enough concurrency to trip a Telnyx account rate limit; and retry storms of
 DISTINCT event ids, which the 256-entry dedupe window does not absorb.
 
+### Telnyx's own rate limits — MEASURED 2026-08-19
+
+The paragraph below used to open its unmeasured list with "Telnyx's
+account-level rate limit and our aggregate against it", as though the number
+were unobtainable. **It is in a response header on every request we already
+make.** Read with `node scripts/ops/telnyx-rate-limits.mjs` (read-only GETs;
+nothing places a call or sends a message):
+
+| Endpoint family | Limit | What we spend it on |
+|---|---|---|
+| `/v2/calls/*` — call control | **2000 / 1s** | every ring leg we fan out |
+| `/v2/messages/*` | **200 / 1s** | every outbound text |
+| `/v2/phone_numbers` — number management | **5 / 1s** | search and ordering |
+| `/v2/call_control_applications` | **5 / 1s** | read at provisioning |
+
+**The dial concern is quantified, and it is not the constraint.** Bounded
+parallelism holds in-flight dials to `DIAL_BATCH_SIZE` = 6 per session, so at
+the design doc's ~500 ms round trip one ringing call sustains ~12 dial POSTs a
+second. Saturating a 2000/s bucket takes **roughly 166 simultaneously ringing
+calls**. The "twelve concurrent calls authorise 288 dial POSTs" worry is real
+arithmetic and lands two orders of magnitude below the ceiling.
+
+That figure is linear in a round trip that is still an ESTIMATE — but it errs
+the safe way: a slower Telnyx moves the ceiling further away, not nearer.
+
+**What IS tight is the one nobody was looking at: 5 requests a second on number
+management** — the search a customer runs while choosing a number to buy. Our
+own `NUMBER_SEARCH_RATE_LIMITER` bounds a single caller and does nothing about
+the account aggregate, because two customers shopping in the same second are
+not one caller. Five concurrent shoppers is a plausible Tuesday; 166 concurrent
+calls is not.
+
+**So the honest-degradation requirement had a hole here, and it is fixed.** A
+`TelnyxApiError` is not an `ApiError`, so a 429 fell through to the generic
+500 and told somebody mid-purchase that something had gone wrong on our end. It
+had not — the phone network declined to answer that fast, and waiting fixes it.
+A vendor 429 or 503 now answers **503 `service_unavailable`, "The phone network
+is busy right now. Try that again in a moment."** 503 rather than 429 because a
+429 tells the caller *they* are going too fast, and they are not: the limit is
+ours, spent on their behalf. Every other vendor status keeps its 500, its
+Sentry event and its log line — this narrows what we call transient rather than
+widening it.
+
+**Still not bounded: the account aggregate itself.** Nothing stops N concurrent
+sessions from spending the same bucket; what has changed is that crossing it now
+produces a truthful sentence instead of a false one. Bounding it would mean
+cross-session coordination, and the measurement above says the dial path does
+not need it yet. The number-management path is the one to watch.
+
 **What is still genuinely unmeasured about calls.** The real p50/p99 of a Telnyx
 dial POST from a Worker — the 300–800 ms above is an estimate written in a
 design doc, and the magnitude of everything in this section is linear in it.

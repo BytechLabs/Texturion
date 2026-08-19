@@ -147,6 +147,7 @@ import { expirePaymentRequests } from "./crons/payment-requests";
 import { pollPortRequests } from "./telnyx/porting";
 import { reconcileNumbers, sweepStuckProvisioning } from "./telnyx/provisioning";
 import { reconcileTextEnablement } from "./telnyx/text-enablement";
+import { TelnyxApiError } from "./telnyx/client";
 import { reconcileVoiceEnablement } from "./telnyx/voice";
 import {
   nudgeSoleProprietorOtp,
@@ -365,6 +366,40 @@ app.onError((error, c) => {
   // defensively: onError must never itself throw.
   if (error instanceof ApiError) {
     return errorResponse(c, error.code, error.message);
+  }
+  /*
+   * #251 — a vendor throttling US must not read as our software breaking.
+   *
+   * Telnyx buckets per endpoint, and the tightest one we touch is 5 requests
+   * per second on number management — the search a customer runs while they
+   * are choosing a number to buy. Our own per-caller limiter bounds abuse; it
+   * does nothing about the ACCOUNT aggregate, because two customers shopping
+   * at the same moment are not one caller.
+   *
+   * A TelnyxApiError is not an ApiError, so before this it fell all the way to
+   * the generic 500 and told somebody mid-purchase that something had gone
+   * wrong on our end. It had not: the phone network declined to answer that
+   * fast, and waiting a moment fixes it. #251's third acceptance criterion is
+   * that a ceiling produces a truthful failure, and "internal error" is the
+   * least truthful thing we could have said.
+   *
+   * 503 rather than 429 deliberately. A 429 tells the caller THEY are going
+   * too fast, and they are not — the limit is ours, spent on their behalf.
+   *
+   * Only 429 and 503. Every other vendor status is a real fault and keeps its
+   * 500, its Sentry event and its log line: this narrows what we call
+   * transient, it does not widen it. The message is OURS, not the vendor's —
+   * a vendor string can carry request context we should not hand back.
+   */
+  if (
+    error instanceof TelnyxApiError &&
+    (error.status === 429 || error.status === 503)
+  ) {
+    return errorResponse(
+      c,
+      "service_unavailable",
+      "The phone network is busy right now. Try that again in a moment.",
+    );
   }
   // A real, unexpected 500. Make it observable three ways without leaking
   // internals to the client (SPEC §10):

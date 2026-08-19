@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { getEnv, type Bindings } from "./env";
 import { app, handler } from "./index";
+import { TelnyxApiError } from "./telnyx/client";
 import { completeEnv as sharedCompleteEnv } from "./test/support";
 
 // Test-only route to drive the onError hook. Registered at module scope
@@ -14,6 +15,22 @@ app.get("/__test__/boom", () => {
 // instances, so this unwinds past it and out of `app.fetch` — the exact shape
 // that becomes a header-less Cloudflare 1101 the browser mislabels as a "CORS
 // error". Drives the outermost fetch guard (handler.fetch).
+/*
+ * #251 — a vendor throttle, and a vendor fault, thrown from a route.
+ *
+ * Registered at module scope for the same reason as the two above: Hono
+ * freezes its matcher on the first request.
+ */
+app.get("/__test__/telnyx-429", () => {
+  throw new TelnyxApiError(429, [{ code: "10005", title: "rate limited" }], "search");
+});
+app.get("/__test__/telnyx-503", () => {
+  throw new TelnyxApiError(503, [], "search");
+});
+app.get("/__test__/telnyx-400", () => {
+  throw new TelnyxApiError(400, [{ code: "10031", title: "no numbers" }], "search");
+});
+
 const nonErrorThrow: unknown = { detail: "not-an-Error-instance" };
 app.get("/__test__/nonerror", () => {
   throw nonErrorThrow;
@@ -75,6 +92,43 @@ describe("error envelope (SPEC §7)", () => {
     expect(await res.json()).toEqual({
       error: { code: "not_found", message: "No such route." },
     });
+  });
+
+  /**
+   * #251 acceptance: a ceiling produces a TRUTHFUL failure.
+   *
+   * Telnyx buckets per endpoint and the tightest one we touch is 5/second on
+   * number management — the search somebody runs while choosing a number to
+   * buy. Our per-caller limiter does not bound the ACCOUNT aggregate, because
+   * two customers shopping at once are not one caller.
+   *
+   * A TelnyxApiError is not an ApiError, so it used to fall to the generic 500
+   * and tell somebody mid-purchase that our software had broken. It had not.
+   */
+  it.each([429, 503])(
+    "says the phone network is busy when Telnyx returns %i, not 'something went wrong'",
+    async (status) => {
+      const res = await app.request(`/__test__/telnyx-${status}`, {}, completeEnv());
+      expect(res.status).toBe(503);
+      expect(await res.json()).toEqual({
+        error: {
+          code: "service_unavailable",
+          message: "The phone network is busy right now. Try that again in a moment.",
+        },
+      });
+    },
+  );
+
+  it("still calls a real vendor fault an internal error", async () => {
+    // The other half, and the reason this narrows rather than widens what we
+    // call transient: a 400 from Telnyx is a bug on our side of the request.
+    // Swallowing it as "busy, try again" would hide it from Sentry and send a
+    // customer round a loop that can never succeed.
+    const res = await app.request("/__test__/telnyx-400", {}, completeEnv());
+    expect(res.status).toBe(500);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe(
+      "internal_error",
+    );
   });
 
   it("keeps the envelope shape for unhandled exceptions (500 internal_error, no internals leaked)", async () => {
