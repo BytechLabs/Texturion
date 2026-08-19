@@ -69,6 +69,24 @@ const CLIENTS = [
   },
 ];
 
+/**
+ * Callees whose `locale` parameter is DATA, not the reader's language.
+ *
+ * The `accepts` set is built from "declares a `locale: String?` parameter",
+ * which is the right rule for a translation helper and the wrong one for a
+ * setter that happens to persist a field called locale. `saveLocale(nil)` on
+ * the contact screen writes `field: "locale"` on the CONTACT — clearing which
+ * language that customer is texted in. Passing the reader's UI language there
+ * would be a bug, not a fix.
+ *
+ * Named rather than inferred, because every structural signal for "this is a
+ * setter" is a guess, and a guard that guesses about a security-shaped rule
+ * gets its roster widened until it guards nothing. Kept honest by the assertion
+ * below: an entry that no longer names a real locale-taking function fails,
+ * so this cannot quietly become an excuse list.
+ */
+const DATA_LOCALE_CALLEES = new Set(["saveLocale"]);
+
 function walk(dir, ext, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
@@ -105,12 +123,86 @@ function readsLocaleFromEnvironment(body) {
     || /@Environment\(\\\.appLocale\)\s+(?:private\s+)?var\s+(\w+)/.test(body);
 }
 
+/**
+ * THE iOS HALF OF THE ABOVE MATCHED NOTHING, AND HAD MATCHED NOTHING ALWAYS.
+ *
+ * `readsLocaleFromEnvironment` is handed a FUNCTION BODY. On Android that is
+ * right — `val locale = LocalAppLocale.current` is a statement inside a
+ * composable. On iOS it cannot be: `@Environment(\.appLocale) private var
+ * appLocale` is a stored property on the View struct, never a statement inside
+ * a `func`. All 284 declarations in the tree sit at struct-member indentation,
+ * and the body scanner stops at that indent rather than reaching them.
+ *
+ * So the iOS arm contributed zero entry points. Only functions that literally
+ * declared `locale: String?` were ever inspected, while every SwiftUI view that
+ * holds the reader's language in the environment — the commonest shape, and the
+ * one this file's own docblock calls "the ENTRY POINT" — was invisible. The
+ * guard reported two clients covered and covered one.
+ *
+ * The scope is the TYPE, so that is what this finds: the brace-matched range of
+ * every `struct`/`class`/`extension` that declares the property. A `func`
+ * starting inside one of those ranges has the locale in hand.
+ *
+ * `static func` is excluded deliberately — it cannot reach an instance
+ * property, so flagging it would be the over-eager direction this file warns
+ * about elsewhere.
+ */
+function swiftLocaleScopes(source) {
+  const scopes = [];
+  const TYPE = /\b(?:struct|class|extension|enum)\s+[A-Za-z_][A-Za-z0-9_]*/g;
+  for (const match of source.matchAll(TYPE)) {
+    const open = source.indexOf("{", match.index);
+    if (open === -1) continue;
+    let depth = 0;
+    let end = open;
+    for (; end < source.length; end += 1) {
+      const ch = source[end];
+      if (ch === "{") depth += 1;
+      else if (ch === "}") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    const block = source.slice(open, end);
+    // Only the type's OWN members, not a nested type's — a nested declaration
+    // would be found by its own iteration of this loop anyway.
+    const held = /@Environment\(\\\.appLocale\)\s+(?:private\s+)?var\s+(\w+)/.exec(
+      block,
+    );
+    // The NAME matters as much as the range. SwiftUI views call it `appLocale`,
+    // and the forwarding check below looks for the token `locale` — which
+    // `appLocale` does not contain under a word boundary. Without carrying the
+    // name through, every correctly-forwarded call in a View reads as a drop:
+    // the first run of this widened guard reported seventeen, and fifteen of
+    // them were passing `appLocale` in plain sight.
+    if (held) scopes.push([open, end, held[1]]);
+  }
+  return scopes;
+}
+
 const findings = [];
 let inspected = 0;
 let acceptCount = 0;
+/** Per client, so one client's coverage cannot stand in for another's. */
+const inspectedPerClient = {};
+/**
+ * Per client, the functions that qualified BY HOLDING THE ENVIRONMENT — not by
+ * declaring a `locale` parameter.
+ *
+ * This is the number that was zero on iOS, and a total could never have shown
+ * it: 171 Swift functions declare the parameter outright, so every plausible
+ * floor on the total was comfortably met while the entry point this file calls
+ * "the commonest one" matched nothing at all. A guard needs a floor on the arm
+ * that can fail independently, not on the sum.
+ */
+const envEntryPerClient = {};
+/** Every locale-taking callee on any client, for the exemption staleness check. */
+const everyAccepts = new Set();
 
 for (const client of CLIENTS) {
   const files = walk(client.root, client.ext);
+  inspectedPerClient[client.name] = 0;
+  envEntryPerClient[client.name] = 0;
   const DECLARES_LOCALE = client.declares;
 
   // Every function on THIS client that accepts a locale. Per client, not
@@ -144,6 +236,7 @@ for (const client of CLIENTS) {
     }
   }
   acceptCount += accepts.size;
+  for (const name of accepts) everyAccepts.add(name);
 
   if (accepts.size < 20) {
     console.error(
@@ -216,6 +309,12 @@ function stripComments(text) {
 
   for (const file of files) {
   const source = readFileSync(file, "utf8");
+  /**
+   * #228: the types in this file that hold the reader's language in the
+   * environment. Empty on Android, where the value is read inside the function
+   * and the body scan already sees it.
+   */
+  const localeScopes = client.name === "ios" ? swiftLocaleScopes(source) : [];
   /** What THIS file declares, and whether each one takes a locale. */
   const localDeclarations = new Map();
   for (const decl of source.matchAll(DECLARES_LOCALE)) {
@@ -226,16 +325,45 @@ function stripComments(text) {
     const lineStart = source.lastIndexOf("\n", match.index) + 1;
     const ownIndent = /^[ \t]*/.exec(source.slice(lineStart, match.index))?.[0].length ?? 0;
     const body = bodyAfter(source, start, ownIndent, DECL_START[client.name]);
-    // A locale in hand, however it got there: declared as a parameter, or read
-    // out of the environment by a composable.
-    if (!takesLocale(match[2]) && !readsLocaleFromEnvironment(body)) continue;
+    // A locale in hand, however it got there: declared as a parameter, read
+    // out of the environment by a composable, or — on iOS — held by the
+    // enclosing View as an @Environment property. A `static func` is excluded
+    // from that last one: it cannot reach an instance property.
+    const isStatic = /\b(?:static|class)\s+func\s*$/.test(
+      source.slice(Math.max(0, match.index - 24), match.index + 5),
+    );
+    const enclosing = isStatic
+      ? undefined
+      : localeScopes.find(
+          ([from, to]) => match.index > from && match.index < to,
+        );
+    const inLocaleScope = enclosing !== undefined;
+    /** What the value is CALLED here — `locale`, or a View's `appLocale`. */
+    const heldName = enclosing?.[2];
+    if (
+      !takesLocale(match[2]) &&
+      !readsLocaleFromEnvironment(body) &&
+      !inLocaleScope
+    ) {
+      continue;
+    }
     inspected += 1;
+    inspectedPerClient[client.name] += 1;
+    // Qualified WITHOUT declaring the parameter: the environment arm.
+    if (!takesLocale(match[2])) envEntryPerClient[client.name] += 1;
 
     for (const call of body.matchAll(/(?<![A-Za-z0-9_.])([A-Za-z][A-Za-z0-9_]*)\(([^()]*)\)/g)) {
       const callee = call[1];
       if (callee === match[1]) continue; // recursion carries it or does not, separately
       if (!accepts.has(callee)) continue;
-      if (/\blocale\b|LocalAppLocale/.test(call[2])) {
+      if (DATA_LOCALE_CALLEES.has(callee)) continue; // its locale is the row's, not the reader's
+      // The value under whichever name it has here. A View holds it as
+      // `appLocale`, which the `locale` token below cannot see.
+      const passed =
+        /\blocale\b|LocalAppLocale/.test(call[2]) ||
+        (heldName !== undefined &&
+          new RegExp("\\b" + heldName + "\\b").test(call[2]));
+      if (passed) {
         /*
          * SWIFT WANTS THE LABEL, and forgetting it is a compile error a
          * Kotlin habit produces easily.
@@ -307,6 +435,39 @@ if (inspected < 20) {
   console.error(
     `Locale forwarding: only ${inspected} function bodies inspected — the ` +
       "boundary pattern is wrong and this guard is checking almost nothing.",
+  );
+  process.exit(1);
+}
+
+/*
+ * PER-CLIENT FLOOR, because a single total hid the whole problem.
+ *
+ * The count above was comfortably over its floor while the iOS arm was
+ * contributing zero entry points from the environment — Android's 138 carried
+ * it. A guard that reports two clients covered has to be able to notice when
+ * one of them stops being.
+ */
+for (const [name, count] of Object.entries(envEntryPerClient)) {
+  if (count >= 25) continue;
+  console.error(
+    `Locale forwarding: only ${count} function(s) on ${name} hold the ` +
+      "reader's language from the ENVIRONMENT rather than from a parameter. " +
+      "That is the entry point this guard calls the commonest one, and its " +
+      "pattern has stopped matching — the total above is carried by the " +
+      "functions that declare the parameter outright.",
+  );
+  process.exit(1);
+}
+
+const staleExemptions = [...DATA_LOCALE_CALLEES].filter(
+  (name) => !everyAccepts.has(name),
+);
+if (staleExemptions.length > 0) {
+  console.error(
+    `Locale forwarding: ${staleExemptions.join(", ")} is exempted as a ` +
+      "data-locale setter and no longer declares a locale parameter anywhere. " +
+      "Either it moved, or the exemption is dead weight that reads as a " +
+      "decision somebody made.",
   );
   process.exit(1);
 }
