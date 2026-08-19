@@ -24,6 +24,7 @@
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/home";
 import { cleanersCopy } from "@/i18n/marketing/for-cleaners";
+import { hvacCopy } from "@/i18n/marketing/for-hvac";
 import { plumbersCopy } from "@/i18n/marketing/for-plumbers";
 
 export type TradeScriptStatus = "new" | "open" | "waiting" | "closed";
@@ -179,7 +180,11 @@ export const PLUMBERS_SCRIPT: TradeScript = plumbersScript("en");
 /* reads the code, the "bring the capacitor" note rides the van (v2 script).   */
 /* -------------------------------------------------------------------------- */
 
-export const HVAC_SCRIPT: TradeScript = {
+export const hvacScript = (
+  locale: MarketingLocale = "en",
+): TradeScript => {
+  const copy = hvacCopy(locale);
+  return {
   contact: { name: "Greg P", number: "(613) 555-0143" },
   status: "waiting",
   assignee: "Tariq",
@@ -194,51 +199,51 @@ export const HVAC_SCRIPT: TradeScript = {
     {
       id: "hv-out-0",
       kind: "outbound",
-      body:
-        "Sorry we missed your call, this is Northline Heating. The shop opens at 7. Text us right here and we'll get straight back to you.",
+      body: copy.scriptTextBack,
       time: "6:46 AM",
     },
     {
       id: "hv-in-1",
       kind: "inbound",
-      body:
-        "Furnace's been off since last night and the thermostat is showing E4. It's 12 degrees in the house. Can someone come today?",
-      photoLabel: "Thermostat error E4",
+      body: copy.scriptInbound,
+      photoLabel: copy.scriptPhotoLabel,
       time: "6:48 AM",
     },
     {
       id: "hv-note-1",
       kind: "note",
       by: "Dana",
-      body:
-        "E4 on that model is almost always the blower capacitor. Tariq, bring the capacitor kit and a filter while you're in there",
+      body: copy.scriptNote,
       time: "6:52 AM",
     },
     {
       id: "hv-event-1",
       kind: "event",
-      text: "Dana assigned this conversation to Tariq",
+      text: fill(copy.scriptAssigned, { by: "Dana", to: "Tariq" }),
     },
     {
       id: "hv-out-1",
       kind: "outbound",
-      body:
-        "Morning Greg, Tariq from Northline Heating. That error usually points to the blower, and I've got the likely part on the van already. I can be there by 9. The diagnostic is $120 and it applies to the repair. In the meantime, leave the system off rather than resetting it. Okay to head over?",
+      body: copy.scriptReply,
       time: "6:57 AM",
     },
     {
       id: "hv-in-2",
       kind: "inbound",
-      body: "Yes please, 9 works. We're bundling up till then",
+      body: copy.scriptConfirm,
       time: "7:01 AM",
     },
     {
       id: "hv-event-2",
       kind: "event",
-      text: "Tariq added the tag Scheduled",
+      text: fill(copy.scriptTagged, { by: "Tariq", tag: copy.scriptTagScheduled }),
     },
   ],
+  };
 };
+
+/** The English thread, for tests and any English-only surface. */
+export const HVAC_SCRIPT: TradeScript = hvacScript("en");
 
 /* -------------------------------------------------------------------------- */
 /* Landscapers: 7:15 AM, the crew is at a locked gate; the code request turns  */

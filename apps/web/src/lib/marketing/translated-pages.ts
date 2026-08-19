@@ -27,6 +27,7 @@ export const TRANSLATED_PAGES: readonly { readonly en: string; readonly fr: stri
   { en: "/pricing", fr: "/fr/tarifs" },
   { en: "/for/plumbers", fr: "/fr/plombiers" },
   { en: "/for/cleaners", fr: "/fr/menage" },
+  { en: "/for/hvac", fr: "/fr/cvca" },
   { en: "/contact", fr: "/fr/contact" },
   { en: "/canada", fr: "/fr/canada" },
   { en: "/features/tasks", fr: "/fr/taches" },
