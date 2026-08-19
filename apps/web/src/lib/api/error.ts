@@ -40,17 +40,41 @@ const KNOWN_CODES = new Set<string>([...ERROR_CODES, INTERNAL_ERROR_CODE]);
  * bodies (proxies, panics): anything unparseable becomes `internal_error`
  * with a calm generic sentence.
  *
- * #228: the SERVER's `message` is passed through untranslated on purpose. SPEC
- * §7 writes a customer-facing sentence per code and all three clients render it
- * verbatim, so translating it belongs there — a catalogue entry for one would
- * be a second copy that drifts. Only the sentence for a body with NO server
- * message in it is ours, and that one is keyed.
+ * #228: the SERVER's `message` reaches an English reader untouched, and only
+ * an English reader. See `readerFacing` below — the server composes in one
+ * language, and a sentence the reader cannot use is not a message.
  *
  * `t` is resolved at CALL time rather than at module load: this file is
  * imported by modules a server component may pull in, and `makeTranslate` is a
  * client reference — calling one while rendering on the server is a build
  * failure, not a fallback.
  */
+/**
+ * The sentence this reader can actually use.
+ *
+ * The API writes one English sentence per call site — 370 of them — and they
+ * are specific in a way no per-code sentence can be: "No such API key", "This
+ * company already has a subscription". An English-reading crew keeps every one
+ * of them, unchanged.
+ *
+ * A member reading in French does not, and the comparison that decides this is
+ * not against that sentence as READ. It is against that sentence as MET by
+ * somebody who does not read English, which carries nothing but the fact that
+ * something failed — in the moment of the product with the least patience for
+ * it, on a workspace we sell to Quebec on purpose. The code's own sentence in
+ * their language is less specific and strictly more informative.
+ *
+ * So this only ever replaces a sentence the reader could not use. It is not the
+ * end state: the codes whose message is an INSTRUCTION rather than a
+ * description — `conflict`, `validation_failed` — want the server to emit an
+ * optional message key beside its text so each site can opt in without
+ * flattening. This is the floor under that, not a substitute for it.
+ */
+function readerFacing(code: ApiErrorCode, serverMessage: string, t: Translate): string {
+  if (t.locale === DEFAULT_LOCALE) return serverMessage;
+  return t(`apiErrors.${code}`);
+}
+
 export function parseErrorBody(
   status: number,
   body: unknown,
@@ -69,10 +93,15 @@ export function parseErrorBody(
       const code = (inner as { code: string }).code;
       const message = (inner as { message: string }).message;
       if (KNOWN_CODES.has(code)) {
-        return new ApiError(code as ApiErrorCode, message, status);
+        const known = code as ApiErrorCode;
+        return new ApiError(known, readerFacing(known, message, t), status);
       }
       // Unknown-but-shaped code: keep the message, flag the code as internal.
-      return new ApiError(INTERNAL_ERROR_CODE, message, status);
+      return new ApiError(
+        INTERNAL_ERROR_CODE,
+        readerFacing(INTERNAL_ERROR_CODE, message, t),
+        status,
+      );
     }
   }
   return new ApiError(INTERNAL_ERROR_CODE, t("misc.apiServerError"), status);

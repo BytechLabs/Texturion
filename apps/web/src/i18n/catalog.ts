@@ -49,6 +49,7 @@
  * `lib/format/time`), and inventing a second numbering system here would be
  * exactly the drift this file exists to prevent.
  */
+import { apiErrorsEn, apiErrorsFr } from "./sections/apiErrors";
 import { appShellEn, appShellFr } from "./sections/appShell";
 import { contactsEn, contactsFr } from "./sections/contacts";
 import { inboxEn, inboxFr } from "./sections/inbox";
@@ -352,6 +353,7 @@ const contactsTasksFr: Translated<typeof contactsTasksEn> = {
 
 export const EN = {
   common: commonEn,
+  apiErrors: apiErrorsEn,
   payments: paymentsEn,
   settings: settingsEn,
   settingsMore: settingsMoreEn,
@@ -378,6 +380,7 @@ export type Catalog = {
 
 export const FR_CA: Catalog = {
   common: commonFr,
+  apiErrors: apiErrorsFr,
   payments: paymentsFr,
   settings: settingsFr,
   settingsMore: settingsMoreFr,

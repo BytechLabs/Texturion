@@ -45,10 +45,19 @@ export type MessageKey = {
   [Section in keyof Catalog]: `${Section & string}.${keyof Catalog[Section] & string}`;
 }[keyof Catalog];
 
-export type Translate = (
+/**
+ * A lookup that knows which language it speaks.
+ *
+ * The `locale` is carried ON the function rather than passed beside it because
+ * the two always travel together and a signature that takes both is a signature
+ * that can be given a mismatched pair. One caller needs it: `parseErrorBody`
+ * decides whether the reader can use the server's English sentence, and it
+ * already receives `t`.
+ */
+export type Translate = ((
   key: MessageKey,
   vars?: Record<string, string | number>,
-) => string;
+) => string) & { readonly locale: Locale };
 
 const LocaleContext = createContext<LocaleValue>({
   locale: DEFAULT_LOCALE,
@@ -64,9 +73,17 @@ const LocaleContext = createContext<LocaleValue>({
  * this whole change is about.
  */
 export function makeTranslate(locale: Locale): Translate {
-  const catalog = CATALOGS[locale] ?? CATALOGS[DEFAULT_LOCALE];
+  /*
+   * The locale this translator actually SPEAKS, which is not always the one it
+   * was asked for: an unrecognised locale reads the English catalogue, and it
+   * has to report English. Reporting the requested one would tell
+   * `parseErrorBody` the reader needs translating and then hand it English
+   * generic copy — strictly worse than the specific English it replaced.
+   */
+  const resolved: Locale = locale in CATALOGS ? locale : DEFAULT_LOCALE;
+  const catalog = CATALOGS[resolved];
   const fallback = CATALOGS[DEFAULT_LOCALE];
-  return (key, vars) => {
+  const translate = (key: MessageKey, vars?: Record<string, string | number>) => {
     const [section, name] = key.split(".") as [keyof Catalog, string];
     const table = catalog[section] as Record<string, string> | undefined;
     /*
@@ -86,6 +103,24 @@ export function makeTranslate(locale: Locale): Translate {
       token in vars ? String(vars[token]) : match,
     );
   };
+  return Object.assign(translate, { locale: resolved });
+}
+
+/**
+ * A translator that always delegates to whichever one is current.
+ *
+ * For the callers holding a ref rather than a value — a long-lived state
+ * machine built once, whose owner re-renders in a new language. The `locale`
+ * is a getter for the same reason the call is a delegation: a copy taken at
+ * construction would report the language the machine was BORN in, which is the
+ * bug this whole shape exists to avoid.
+ */
+export function forwardTranslate(current: () => Translate): Translate {
+  const forward = (key: MessageKey, vars?: Record<string, string | number>) =>
+    current()(key, vars);
+  return Object.defineProperty(forward, "locale", {
+    get: () => current().locale,
+  }) as Translate;
 }
 
 export function LocaleProvider({

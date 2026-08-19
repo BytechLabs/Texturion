@@ -19,7 +19,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useT } from "@/i18n/provider";
+import { forwardTranslate, useT } from "@/i18n/provider";
 import { apiFetch } from "@/lib/api/client";
 import type { NotificationPrefs, PushSubscriptionRow } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
@@ -113,7 +113,7 @@ export function usePushSubscription(): PushSubscriptionState {
           }),
       },
       setSnapshot,
-      (key, vars) => tRef.current(key, vars),
+      forwardTranslate(() => tRef.current),
     );
   }
 
