@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { TRANSLATED_PAGES } from "@/lib/marketing/translated-pages";
 
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
 import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
@@ -146,6 +147,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "yearly",
     },
   ];
+
+  // D138 — the French pages, from the same registry that drives their
+  // hreflang, so a page cannot be announced to a crawler in one place and
+  // missing from the other. Same priority as their English twin would be
+  // over-claiming; these are translations, not separate destinations.
+  for (const page of TRANSLATED_PAGES) {
+    entries.push({ path: page.fr, priority: 0.5, changeFrequency: "monthly" });
+  }
 
   // Static routes carry no lastModified: we don't track per-page edit dates,
   // and an honest omission beats a timestamp that resets on every request.

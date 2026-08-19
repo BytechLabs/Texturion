@@ -1,3 +1,4 @@
+import { LanguageSwitch } from "@/components/marketing/language-switch";
 import Link from "next/link";
 
 import { LEGAL_ENTITY_NAME, MAILING_ADDRESS } from "@/lib/marketing/business";
@@ -207,6 +208,8 @@ export function Footer({ locale = "en" }: { locale?: MarketingLocale } = {}) {
           <p className="text-[color:var(--fr-on-inverse-70)]">
             {copy.monthToMonth}
           </p>
+          {/* D138 Rule 6 — renders nothing on a page with no French twin. */}
+          <LanguageSwitch />
           <p className="text-[color:var(--fr-on-inverse-55)]">
             {copy.rights.replace("{year}", String(year))}
           </p>
