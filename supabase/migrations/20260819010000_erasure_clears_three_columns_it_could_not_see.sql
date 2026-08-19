@@ -1,9 +1,15 @@
 -- Erasure clears three more columns on `companies`, and PC-3 can see them.
 --
--- `20260812160000_erasure_clears_the_words_a_business_wrote.sql` added PC-3 to
--- make this class of miss impossible: "A text column added to `companies` in
--- future fails the build until somebody decides which side it is on — which is
--- the only thing that stops this happening a third time."
+-- The #581 migration of 2026-08-12 added PC-3 to make this class of miss
+-- impossible: "A text column added to `companies` in future fails the build
+-- until somebody decides which side it is on — which is the only thing that
+-- stops this happening a third time."
+--
+-- (That migration is named by date rather than by filename on purpose. Its name
+-- contains the letters `re_` followed by a long lowercase run, which is the
+-- shape of a Resend API key — quoting it in a comment failed the secret scan on
+-- the first push of this file. The older migration never trips it because it
+-- does not write its own name.)
 --
 -- Two filters in PC-3 meant it never could.
 --
