@@ -93,8 +93,25 @@ function flat(source: string): string {
  * So the pattern now matches the KEY as well as the sentence. A surface is
  * identified by the label it renders, however it reaches it.
  */
+/**
+ * #407 — THE MOBILE THREAD SHEETS WERE NEVER FOUND.
+ *
+ * Every alternative here was a web spelling. Both phones spell the control
+ * `revokeOptOut` and label it from the key `thread.removeOptOut`, so neither
+ * matched — while the header of this file names "Android thread sheet, iOS
+ * thread sheet" among the surfaces it covers. Two mobile CONTACT DETAIL
+ * screens were discovered instead, the count assertion below said `>= 5`, and
+ * the "spans all three clients" test was satisfied by those. Both phones read
+ * as protected on the one control that can lift a carrier STOP.
+ *
+ * `removeOptOut` is the LABEL KEY, which is this file's own rule for what makes
+ * something a surface — the thing a person reads. Deliberately not
+ * `revokeOptOut`: that identifier also appears in the data and controller
+ * layers, which put no control in front of anybody and would then be asserted
+ * against a predicate they have no business calling.
+ */
 const OFFERS_REVOKE =
-  /Mark opted in again|Remove opt-out|contactMarkOptedIn|markOptedInAgain|\bmarkOptedIn\b/;
+  /Mark opted in again|Remove opt-out|contactMarkOptedIn|markOptedInAgain|\bmarkOptedIn\b|removeOptOut/;
 
 /**
  * #228: the CATALOGUE is not a surface.
@@ -124,13 +141,44 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
       OFFERS_REVOKE.test(code(readFileSync(file, "utf8"))),
   );
 
-  it("finds the surfaces at all (a passing test that greps nothing is a lie)", () => {
-    // Five today: web contact panel, web contact detail, web thread header,
-    // Android thread sheet, iOS thread sheet — plus the two mobile contact
-    // detail screens. If this drops to zero because a label was reworded, the
-    // test below would pass vacuously, which is the failure mode of every
-    // grep-shaped assertion.
-    expect(offering.length).toBeGreaterThanOrEqual(5);
+  /**
+   * The surfaces that must be found BY NAME, not by count.
+   *
+   * A `>= 5` stood here and it is how the two thread sheets went missing: the
+   * two mobile contact-detail screens took their places, the number was still
+   * satisfied, and the "spans all three clients" test below was satisfied too.
+   * A count cannot tell a surface dropping out from a different one arriving.
+   *
+   * Named by path suffix so a move inside a client is a rename here rather than
+   * a silent loss. Extra discoveries are welcome and are still asserted — the
+   * `it.each` runs over everything found, not over this list.
+   */
+  const MUST_OFFER = [
+    "components/contact-panel/contact-panel.tsx",
+    "components/thread/thread-header.tsx",
+    "features/thread/ThreadScreen.kt",
+    "Features/Thread/ThreadView.swift",
+    "features/contacts/ContactDetailScreen.kt",
+    "Features/Contacts/ContactDetailView.swift",
+  ];
+
+  it.each(MUST_OFFER)("finds %s", (suffix) => {
+    // A passing test that greps nothing is a lie — and so is one that greps
+    // the wrong five things.
+    const found = offering.some((file) =>
+      file.replaceAll("\\", "/").endsWith(suffix),
+    );
+    expect(
+      found,
+      `${suffix} offers a revoke and was not discovered, so nothing below ` +
+        `asserts it asks which kind of opt-out it is. That is how the two ` +
+        `thread sheets — the only control that can lift a carrier STOP — sat ` +
+        `unguarded behind a count that said five.`,
+    ).toBe(true);
+  });
+
+  it("finds at least the named surfaces", () => {
+    expect(offering.length).toBeGreaterThanOrEqual(MUST_OFFER.length);
   });
 
   it("spans all three clients, so no client is silently unprotected", () => {
@@ -143,7 +191,16 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
     "%s asks isCarrierEnforcedOptOut before offering it",
     (relative) => {
       const source = code(readFileSync(join(REPO, relative), "utf8"));
-      expect(source).toContain("isCarrierEnforcedOptOut");
+      // A CALL, not a mention. `toContain` stood here and was satisfied by
+      // `import com.loonext.android.core.model.isCarrierEnforcedOptOut` on line
+      // 125 of the Android thread sheet — so deleting every call site left this
+      // green. Found by trying to prove the fix above and watching nothing
+      // fail, which is the only way this kind of thing ever surfaces.
+      expect(
+        source,
+        `${relative} names isCarrierEnforcedOptOut but never calls it. An ` +
+          `import is not a gate.`,
+      ).toMatch(/isCarrierEnforcedOptOut\s*\(/);
     },
   );
 
