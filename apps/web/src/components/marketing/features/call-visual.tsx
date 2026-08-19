@@ -20,6 +20,8 @@
  * the 555-01XX safe fictional range.
  */
 
+import { callsCopy, type CallsCopy } from "@/i18n/marketing/calls";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Mic, Phone, PhoneOff, Voicemail } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -27,11 +29,11 @@ import { cn } from "@/lib/utils";
 /** The crew, so "everyone's phone is ringing" is shown rather than claimed. */
 const RINGING_WITH = ["PR", "DK", "MO"];
 
-function RingingCard() {
+function RingingCard({ copy }: { copy: CallsCopy }) {
   return (
     <div className="rounded-app-card border border-app-line bg-app-paper p-[13px] shadow-[var(--app-sh-float)]">
       <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-app-muted-2">
-        Incoming call
+        {copy.visualIncoming}
       </p>
 
       <div className="mt-2 flex items-center gap-[11px]">
@@ -43,7 +45,7 @@ function RingingCard() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-semibold text-app-ink">
-            Karen Mullins
+            {copy.visualCallerName}
           </span>
           {/* Caller ID name is a real feature both directions, so the number
               line names WHICH business line it came in on — the detail that
@@ -70,18 +72,18 @@ function RingingCard() {
           ))}
         </span>
         <span className="text-[11.5px] text-app-muted">
-          Ringing all three · whoever answers first takes it
+          {copy.visualRinging}
         </span>
       </div>
 
       <div className="mt-3 flex items-center gap-2">
         <span className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-app-ctrl bg-primary px-3 py-2 text-[13px] font-semibold text-primary-foreground">
           <Phone className="size-3.5" strokeWidth={2.25} aria-hidden />
-          Answer
+          {copy.visualAnswer}
         </span>
         <span className="inline-flex items-center justify-center gap-1.5 rounded-app-ctrl border border-app-line px-3 py-2 text-[13px] font-medium text-app-muted">
           <PhoneOff className="size-3.5" strokeWidth={2} aria-hidden />
-          Decline
+          {copy.visualDecline}
         </span>
       </div>
     </div>
@@ -92,7 +94,7 @@ function RingingCard() {
  * The call nobody could take. The transcript is the load-bearing part: a
  * voicemail you can read is a voicemail that gets handled between jobs.
  */
-function VoicemailCard() {
+function VoicemailCard({ copy }: { copy: CallsCopy }) {
   return (
     <div className="rounded-app-card border border-app-line p-[13px]">
       <div className="flex items-center gap-2">
@@ -102,10 +104,10 @@ function VoicemailCard() {
           aria-hidden
         />
         <span className="text-[12.5px] font-semibold text-app-ink">
-          Voicemail from Ray Delgado
+          {copy.visualVoicemailFrom}
         </span>
         <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-app-muted-2">
-          8:52 pm
+          {copy.visualVoicemailTime}
         </span>
       </div>
 
@@ -121,29 +123,33 @@ function VoicemailCard() {
           <span className="block h-1 w-1/3 rounded-full bg-app-olive-deep" />
         </span>
         <span className="shrink-0 text-[11px] tabular-nums text-app-muted-2">
-          0:31
+          {copy.visualVoicemailLength}
         </span>
       </div>
 
       <p className="mt-2.5 text-[12.5px] leading-[1.5] text-app-muted">
-        &ldquo;Hi, it&rsquo;s Ray over on Bishop Street. My hot water&rsquo;s
-        gone completely and I&rsquo;ve got family in Friday. Any chance
-        somebody could come out Thursday? Same number back, thanks.&rdquo;
+        {copy.visualVoicemailTranscript}
       </p>
 
       <p className="mt-2.5 text-[11.5px] text-app-muted-2">
-        Written down automatically · texted back: &ldquo;Sorry we missed you,
-        we&rsquo;ll call first thing.&rdquo;
+        {copy.visualVoicemailNote}
       </p>
     </div>
   );
 }
 
-export function CallVisual({ className }: { className?: string }) {
+export function CallVisual({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = callsCopy(locale);
   return (
     <div className={cn("space-y-2.5 p-3 sm:p-4", className)}>
-      <RingingCard />
-      <VoicemailCard />
+      <RingingCard copy={copy} />
+      <VoicemailCard copy={copy} />
     </div>
   );
 }

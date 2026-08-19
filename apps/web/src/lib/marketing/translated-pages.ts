@@ -29,6 +29,7 @@ export const TRANSLATED_PAGES: readonly { readonly en: string; readonly fr: stri
   { en: "/features/shared-inbox", fr: "/fr/boite-partagee" },
   { en: "/features/contacts", fr: "/fr/contacts" },
   { en: "/features/assistant", fr: "/fr/lou" },
+  { en: "/features/calls", fr: "/fr/appels" },
 ];
 
 /** The `alternates.languages` pair for a path, in either language, or nothing. */
