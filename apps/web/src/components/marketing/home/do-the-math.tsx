@@ -1,3 +1,5 @@
+import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { CtaButton, Eyebrow, FrSection } from "@/components/marketing/fr";
 import { MissedTextCalculatorStatic } from "@/components/marketing/interactive/missed-text-calculator-static";
 import { PRIMARY_CTA_LABEL, SIGNUP_HREF } from "@/components/marketing/nav-links";
@@ -19,29 +21,30 @@ import { LazyMissedTextCalculator } from "./lazy-islands";
  * the reader would actually be charged. <PlanPrice> reads the site-wide
  * country; this stays a server component and renders it as a child.
  */
-export function DoTheMath() {
+export function DoTheMath({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
   return (
     <FrSection ground="white" id="math">
       <div className="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
         <div>
-          <Eyebrow>Do the math</Eyebrow>
+          <Eyebrow>{copy.mathEyebrow}</Eyebrow>
           <h2 className="fr-h2 mt-4">
-            What&apos;s a missed conversation worth?
+            {copy.mathTitle}
           </h2>
           {/* The deck's §S8 lead ("This is arithmetic on your numbers…")
               renders verbatim inside the calculator card itself, so the
               column carries only the closer; repeating the lead here would
               print the same sentence twice in one viewport. */}
           <p className="fr-body mt-6 max-w-[52ch] text-[color:var(--fr-ink-70)]">
-            A missed call and an unanswered text cost the same job. Loonext
-            rings your whole crew when somebody calls, writes down the
-            voicemail when nobody can pick up, and puts every text where
-            whoever&apos;s free answers it, not whoever&apos;s phone it is.
-            That&apos;s{" "}
+            {copy.mathClose}{" "}
             <span className="fr-mono-data text-[color:var(--fr-ink)]">
               <PlanPrice plan="starter" />
             </span>{" "}
-            a month against the number above.
+            {copy.mathCloseAfter}
           </p>
           <div className="mt-8">
             <CtaButton href={SIGNUP_HREF}>{PRIMARY_CTA_LABEL}</CtaButton>

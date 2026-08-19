@@ -1,3 +1,5 @@
+import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { FrSection } from "@/components/marketing/fr";
 
 import { FirstWeekTimeline } from "./first-week-timeline";
@@ -11,26 +13,23 @@ import { FirstWeekTimeline } from "./first-week-timeline";
  * first-week timeline flagship with its Flare YOU ARE HERE tab.
  */
 
-const STEPS: readonly { title: string; body: string }[] = [
-  {
-    title: "Pick your number.",
-    body: "Type your city or area code and we'll find you a local number. It's usually live in a minute or two, and it belongs to your business, not to anyone's phone.",
-  },
-  {
-    title: "Invite the crew.",
-    body: "Send your team a link. They open it on whatever phone they already have. Nothing to install, nothing to configure. Starter covers 3 people, Pro covers 15.",
-  },
-  {
-    title: "Answer customers.",
-    body: 'Put "call or text" on your trucks, your site, and your invoices. Every text and every call lands in the shared inbox, where anyone can pick it up.',
-  },
+const steps = (copy: HomeCopy): readonly { title: string; body: string }[] => [
+  { title: copy.stepsNumberTitle, body: copy.stepsNumberBody },
+  { title: copy.stepsCrewTitle, body: copy.stepsCrewBody },
+  { title: copy.stepsAnswerTitle, body: copy.stepsAnswerBody },
 ];
 
-export function ThreeSteps() {
+export function ThreeSteps({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
+  const STEPS = steps(copy);
   return (
     <FrSection ground="white" id="steps">
       <h2 className="fr-h2 max-w-2xl">
-        From signup to answering customers, in three steps.
+        {copy.stepsTitle}
       </h2>
 
       <ol className="mt-12 grid gap-8 md:grid-cols-3">
@@ -53,7 +52,7 @@ export function ThreeSteps() {
       </ol>
 
       <div className="mt-14" data-reveal="">
-        <FirstWeekTimeline />
+        <FirstWeekTimeline locale={locale} />
       </div>
     </FrSection>
   );

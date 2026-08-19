@@ -1,3 +1,5 @@
+import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { FrCard, FrSection } from "@/components/marketing/fr";
 
 /**
@@ -14,38 +16,41 @@ import { FrCard, FrSection } from "@/components/marketing/fr";
  * trigger's home anchor (lib/marketing/site.ts HOME_ANCHORS).
  */
 
-const CARDS: readonly {
+const cards = (
+  copy: HomeCopy,
+): readonly {
   artifact: string;
   title: string;
   body: string;
-}[] = [
+}[] => [
   {
-    artifact: "DELIVERED 9:04 PM · NO REPLY",
-    title: "Buried on one phone.",
-    body: 'Quotes, bookings, and "is he coming today?" all land on the owner\'s personal cell, in between the family group chat. Whoever has the phone has the business.',
+    artifact: copy.patternBuriedArtifact,
+    title: copy.patternBuriedTitle,
+    body: copy.patternBuriedBody,
   },
   {
-    artifact: "2 REPLIES · 0 OWNERS",
-    title: "Nobody knows who answered.",
-    body: "Did anyone get back to the Hendersons about Thursday? You can't tell without asking around. Two people reply, or nobody does.",
+    artifact: copy.patternOwnerArtifact,
+    title: copy.patternOwnerTitle,
+    body: copy.patternOwnerBody,
   },
   {
-    artifact: "SIM REMOVED",
-    title: "The number leaves with the phone.",
-    body: "When a tech moves on, their conversations, their contacts, and sometimes their customers go with them. The business should own its own number.",
+    artifact: copy.patternSimArtifact,
+    title: copy.patternSimTitle,
+    body: copy.patternSimBody,
   },
 ];
 
-export function Pattern() {
+export function Pattern({ locale = "en" }: { locale?: MarketingLocale } = {}) {
+  const copy = homeCopy(locale);
+  const CARDS = cards(copy);
   return (
     <FrSection ground="frost" id="after-dark">
       <div className="max-w-2xl">
         <h2 className="fr-h2">
-          Your business runs on a phone number. That number runs on one phone.
+          {copy.patternTitle}
         </h2>
         <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
-          Customers call the number on the truck, or they text it. Either way
-          it reaches one pocket, and that works until it doesn&apos;t.
+          {copy.patternSub}
         </p>
       </div>
 

@@ -1,3 +1,5 @@
+import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check } from "lucide-react";
 
 import { CountryOnly } from "@/components/marketing/country";
@@ -22,30 +24,32 @@ import { FrCard } from "@/components/marketing/fr";
  * Server component, pure DOM; the branch primitives read the shared context.
  */
 
-const US_STAGES: readonly {
+const usStages = (
+  copy: HomeCopy,
+): readonly {
   label: string;
   title: string;
   body: string;
   node: "green" | "track";
   here?: boolean;
-}[] = [
+}[] => [
   {
-    label: "DAY 0",
-    title: "You're live, not waiting.",
-    body: "Your number is up. Receiving texts works right away. You can invite the crew and start today.",
+    label: copy.timelineDay0,
+    title: copy.timelineDay0Title,
+    body: copy.timelineDay0Body,
     node: "green",
     here: true,
   },
   {
-    label: "DAYS 1 TO 7",
-    title: "The phone companies review you.",
-    body: "US carriers require every business that texts to register. We filed yours the minute you paid. Approval typically takes 3 to 7 business days, about a week.",
+    label: copy.timelineReviewLabel,
+    title: copy.timelineReviewTitle,
+    body: copy.timelineReviewBody,
     node: "track",
   },
   {
-    label: "APPROVED",
-    title: "US texting turns on.",
-    body: "We email you the moment it's live. Nothing else for you to do.",
+    label: copy.timelineApprovedLabel,
+    title: copy.timelineApprovedTitle,
+    body: copy.timelineApprovedBody,
     node: "green",
   },
 ];
@@ -74,7 +78,8 @@ function Node({ kind }: { kind: "green" | "track" }) {
   );
 }
 
-function UsTimeline() {
+function UsTimeline({ copy }: { copy: HomeCopy }) {
+  const US_STAGES = usStages(copy);
   return (
     <>
       {/* The drawn track: live (green) -> bounded review (cobalt) -> live
@@ -93,7 +98,7 @@ function UsTimeline() {
               {/* The one Flare tab (§3.4.4): white tag, Flare border, ink text. */}
               {stage.here ? (
                 <span className="fr-eyebrow inline-flex items-center rounded-[6px] border-[1.5px] border-[color:var(--fr-flare)] bg-[color:var(--fr-card)] px-2 py-1 text-[color:var(--fr-ink)]">
-                  You are here
+                  {copy.timelineYouAreHereLabel}
                 </span>
               ) : null}
             </div>
@@ -115,7 +120,7 @@ function UsTimeline() {
   );
 }
 
-function CaTimeline() {
+function CaTimeline({ copy }: { copy: HomeCopy }) {
   return (
     <>
       {/* No waiting segment in Canada: the whole track is a green dock.
@@ -130,18 +135,18 @@ function CaTimeline() {
         <div className="flex flex-col items-center gap-2 md:flex-row md:items-center">
           <Node kind="green" />
           <span className="fr-eyebrow inline-flex items-center rounded-[6px] bg-[color:var(--fr-frost)] px-2 py-1 text-[color:var(--fr-ink)]">
-            Today, no wait
+            {copy.timelineNoWait}
           </span>
         </div>
         <div>
-          <p className="fr-eyebrow text-[color:var(--fr-ink-55)]">DAY ONE</p>
+          <p className="fr-eyebrow text-[color:var(--fr-ink-55)]">
+            {copy.timelineDayOneLabel}
+          </p>
           <h3 className="font-body-mkt mt-2 text-[15px] font-bold leading-snug text-[color:var(--fr-ink)]">
-            You&apos;re live and texting the same day.
+            {copy.timelineDayOneTitle}
           </h3>
           <p className="font-body-mkt mt-1.5 max-w-[52ch] text-[15px] leading-[1.65] text-[color:var(--fr-ink-70)]">
-            Your number is active, usually a minute or two after you sign up,
-            and you can text Canadian customers right away. No registration, no
-            fee, no waiting. Receiving texts works immediately too.
+            {copy.timelineDayOneBody}
           </p>
         </div>
       </div>
@@ -149,14 +154,19 @@ function CaTimeline() {
   );
 }
 
-export function FirstWeekTimeline() {
+export function FirstWeekTimeline({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
   return (
     <FrCard className="p-6 sm:p-10">
       <CountryOnly country="us">
-        <UsTimeline />
+        <UsTimeline copy={copy} />
       </CountryOnly>
       <CountryOnly country="ca">
-        <CaTimeline />
+        <CaTimeline copy={copy} />
       </CountryOnly>
     </FrCard>
   );

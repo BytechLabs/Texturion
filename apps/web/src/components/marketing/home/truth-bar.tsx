@@ -1,3 +1,5 @@
+import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { FrSection } from "@/components/marketing/fr";
 import { HeadlinePriceFigure } from "@/components/marketing/pricing/headline-price-figure";
 
@@ -13,12 +15,16 @@ import { HeadlinePriceFigure } from "@/components/marketing/pricing/headline-pri
  * live only on /legal/fair-use. Server component, zero JS.
  */
 
-const CHIPS: readonly { figure?: string; label: string }[] = [
-  { label: "Send and receive texts and pictures" },
-  { label: "Month to month, cancel anytime" },
+const chips = (
+  copy: HomeCopy,
+): readonly { figure?: string; label: string }[] => [
+  { label: copy.truthChipTexts },
+  { label: copy.truthChipMonthly },
 ];
 
-export function TruthBar() {
+export function TruthBar({ locale = "en" }: { locale?: MarketingLocale } = {}) {
+  const copy = homeCopy(locale);
+  const CHIPS = chips(copy);
   return (
     <FrSection
       ground="white"
