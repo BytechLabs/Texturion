@@ -35,6 +35,13 @@ import type { MarketingLocale } from "./footer";
  * of the places, and Canada Post uses them.
  */
 export const canadaEn = {
+  timelineDayZero: "Day 0",
+  heroPriceAfter: "a month for the whole team, flat.",
+  truthPlansBefore: "The same flat plans as everyone:",
+  truthFeeBefore:
+    "A Canadian business texting Canadian customers pays no registration fee and waits for nothing. The one-time",
+  truthFeeAfter:
+    "fee and the 3 to 7 business day approval only ever apply if you choose to enable US texting later. A Canadian workspace is billed in Canadian dollars, plus sales tax where it applies.",
   metaTitle: "Business texting in Canada: text customers today",
   metaDescription:
     "Canadian crews text customers the day they sign up. No US carrier registration to wait on, local numbers in every province, CASL-aware consent records. Billed in Canadian dollars, one flat price for the crew.",
@@ -153,6 +160,13 @@ export const canadaEn = {
 } as const;
 
 export const canadaFr: Translated<typeof canadaEn> = {
+  timelineDayZero: "Jour 0",
+  heroPriceAfter: "par mois pour toute l'équipe, prix fixe.",
+  truthPlansBefore: "Les mêmes forfaits fixes que tout le monde :",
+  truthFeeBefore:
+    "Une entreprise canadienne qui écrit à des clients canadiens ne paie aucuns frais d'inscription et n'attend rien. Les frais uniques de",
+  truthFeeAfter:
+    "et l'approbation des transporteurs de 3 à 7 jours ouvrables ne s'appliquent que si vous choisissez d'activer la messagerie texte américaine plus tard. Un espace de travail canadien est facturé en dollars canadiens, plus les taxes de vente là où elles s'appliquent.",
   metaTitle: "Textos d'entreprise au Canada : écrivez à vos clients dès aujourd'hui",
   metaDescription:
     "Les équipes canadiennes écrivent à leurs clients le jour de leur inscription. Aucune inscription auprès des transporteurs américains à attendre, des numéros locaux dans chaque province, des consentements notés selon la LCAP. Facturé en dollars canadiens, un seul prix fixe pour toute l'équipe.",
