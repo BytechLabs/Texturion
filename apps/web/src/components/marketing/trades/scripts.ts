@@ -28,6 +28,7 @@ import { contractorsCopy } from "@/i18n/marketing/for-contractors";
 import { hvacCopy } from "@/i18n/marketing/for-hvac";
 import { landscapersCopy } from "@/i18n/marketing/for-landscapers";
 import { plumbersCopy } from "@/i18n/marketing/for-plumbers";
+import { salonsCopy } from "@/i18n/marketing/for-salons";
 
 export type TradeScriptStatus = "new" | "open" | "waiting" | "closed";
 
@@ -377,7 +378,11 @@ export const CLEANERS_SCRIPT: TradeScript = cleanersScript("en");
 /* (v2 script: the reschedule is handled by whoever is free).                  */
 /* -------------------------------------------------------------------------- */
 
-export const SALONS_SCRIPT: TradeScript = {
+export const salonsScript = (
+  locale: MarketingLocale = "en",
+): TradeScript => {
+  const copy = salonsCopy(locale);
+  return {
   contact: { name: "Bri L", number: "(416) 555-0192" },
   status: "open",
   assignee: "Maya",
@@ -385,34 +390,31 @@ export const SALONS_SCRIPT: TradeScript = {
     {
       id: "sa-in-1",
       kind: "inbound",
-      body:
-        "So sorry, I'm stuck at work and running about 30 minutes late for my 11:30 color with Jess. Should I still come in?",
+      body: copy.scriptInbound,
       time: "11:20 AM",
     },
     {
       id: "sa-note-1",
       kind: "note",
       by: "Renee",
-      body:
-        "Jess has a cut at 12:30, she can't absorb 30 minutes. Maya's open from noon and has done Bri's color before",
+      body: copy.scriptNote,
       time: "11:22 AM",
     },
     {
       id: "sa-event-1",
       kind: "event",
-      text: "Renee assigned this conversation to Maya",
+      text: fill(copy.scriptAssigned, { by: "Renee", to: "Maya" }),
     },
     {
       id: "sa-out-1",
       kind: "outbound",
-      body:
-        "Hi Bri, no stress, it's Maya. Jess is booked right after you, so I'll take your color at noon instead. Same service, same price, and I've got the notes from your last visit. See you at 12?",
+      body: copy.scriptReply,
       time: "11:24 AM",
     },
     {
       id: "sa-in-2",
       kind: "inbound",
-      body: "You're a lifesaver. See you at 12!",
+      body: copy.scriptThanks,
       time: "11:26 AM",
     },
     {
@@ -425,10 +427,14 @@ export const SALONS_SCRIPT: TradeScript = {
     {
       id: "sa-event-2",
       kind: "event",
-      text: "Maya added the tag Scheduled",
+      text: fill(copy.scriptTagged, { by: "Maya", tag: copy.scriptTagScheduled }),
     },
   ],
+  };
 };
+
+/** The English thread, for tests and any English-only surface. */
+export const SALONS_SCRIPT: TradeScript = salonsScript("en");
 
 /* -------------------------------------------------------------------------- */
 /* Contractors: 8:02 AM, a homeowner change request filed against the job,     */

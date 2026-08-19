@@ -30,6 +30,7 @@ export const TRANSLATED_PAGES: readonly { readonly en: string; readonly fr: stri
   { en: "/for/hvac", fr: "/fr/cvca" },
   { en: "/for/landscapers", fr: "/fr/paysagistes" },
   { en: "/for/contractors", fr: "/fr/entrepreneurs" },
+  { en: "/for/salons", fr: "/fr/salons" },
   { en: "/contact", fr: "/fr/contact" },
   { en: "/canada", fr: "/fr/canada" },
   { en: "/features/tasks", fr: "/fr/taches" },
