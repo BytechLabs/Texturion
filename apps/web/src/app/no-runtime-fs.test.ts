@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -101,6 +101,97 @@ describe("no page reads the filesystem while rendering", () => {
         readFileSync(path!, "utf8"),
         `${rel} no longer imports ${spec}`,
       ).toContain(spec);
+    }
+  });
+});
+
+/**
+ * The escape route out of `fs` has to exist in BOTH bundlers.
+ *
+ * The guard above bans `fs` under `src/app`, and the alternative it points at —
+ * `import statement from "@root/docs/ACCESSIBILITY.md"` — is not a language
+ * feature. It works because `next.config.ts` teaches the bundler what a `.md`
+ * module is. Take that rule away and the import does not fall back to anything;
+ * the build fails, or worse, a future bundler quietly treats it as unknown.
+ *
+ * Which is exactly what is coming. `next build` uses webpack on the version we
+ * ship and **Turbopack on the next major**, and Turbopack does not read the
+ * `webpack` key at all. Running `next build --turbopack` on today's version
+ * reproduces it precisely:
+ *
+ *     Turbopack build failed with 3 errors:
+ *     ./SECURITY.md            Unknown module type
+ *     ./docs/ACCESSIBILITY.md  Unknown module type
+ *     ./docs/DPA.md            Unknown module type
+ *
+ * Three documents, which is all three legal pages — the same three that
+ * answered 500 in production for their whole life. The upgrade would have put
+ * them straight back.
+ *
+ * So the rule is declared twice, once per bundler, and this is what keeps the
+ * pair together: a repo where one of them is edited and the other forgotten is
+ * a repo one dependency bump away from the original bug.
+ */
+describe("both bundlers know what a .md module is", () => {
+  const config = readFileSync(join(APP, "..", "..", "next.config.ts"), "utf8");
+
+  it("webpack turns .md into its text", () => {
+    expect(
+      config.includes('type: "asset/source"'),
+      "the webpack .md rule is gone; the legal pages' imports have nothing to " +
+        "resolve them and the build that ships today is the one that breaks",
+    ).toBe(true);
+  });
+
+  it("turbopack turns .md into its text", () => {
+    expect(
+      config.includes("turbopack:") && config.includes('"*.md"'),
+      "next.config.ts declares a .md rule for webpack only. That is the state " +
+        "this repo was in before the Turbopack rule was added, and it means " +
+        "the next Next major returns /legal/accessibility, /legal/dpa and " +
+        "/legal/vulnerability-disclosure to the 500s they used to serve.",
+    ).toBe(true);
+  });
+
+  it("every loader those rules name actually resolves", () => {
+    // A rule naming something that is not there is a rule that fails the first
+    // time it runs, on the upgrade, when attention is elsewhere.
+    const pkg = JSON.parse(
+      readFileSync(join(APP, "..", "..", "package.json"), "utf8"),
+    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const declared = { ...pkg.dependencies, ...pkg.devDependencies };
+
+    // Derived from the config rather than listed here, so the check covers
+    // whatever the rules actually name. A hardcoded list would keep passing
+    // after somebody swapped the loader for a different one.
+    const named = new Set<string>();
+    let from = 0;
+    for (;;) {
+      const at = config.indexOf("loaders: [", from);
+      if (at === -1) break;
+      const close = config.indexOf("]", at);
+      for (const piece of config.slice(at + 10, close).split('"').filter((_, i) => i % 2 === 1)) {
+        named.add(piece);
+      }
+      from = close;
+    }
+
+    expect(named.size, "no turbopack loader names were found to check").toBeGreaterThan(0);
+    for (const loader of named) {
+      if (loader.startsWith(".")) {
+        // A path into this repo — the loader is ours, so the check is that the
+        // file is still where the config says. Renaming it is silent until a
+        // Turbopack build runs, and the thing that breaks is the legal pages.
+        expect(
+          existsSync(join(APP, "..", "..", loader)),
+          `next.config.ts points at ${loader} and no such file exists`,
+        ).toBe(true);
+        continue;
+      }
+      expect(
+        Object.hasOwn(declared, loader),
+        `next.config.ts names the ${loader} loader and package.json does not depend on it`,
+      ).toBe(true);
     }
   });
 });

@@ -93,6 +93,26 @@ const nextConfig: NextConfig = {
     config.module.rules.push({ test: /\.md$/, type: "asset/source" });
     return config;
   },
+  /*
+   * THE SAME RULE FOR TURBOPACK, because the webpack one stops running.
+   *
+   * The docblock above says "`next build` is webpack here, no
+   * turbopack". That is true of the version we ship and false of the next
+   * major, which builds with Turbopack by default — and Turbopack does not read
+   * the `webpack` config at all. Confirmed by running
+   * `next build --turbopack` on today's version: all three legal documents
+   * fail with "Unknown module type", which would put /legal/accessibility,
+   * /legal/dpa and /legal/vulnerability-disclosure straight back to the 500s
+   * they served until this morning.
+   *
+   * Declared now rather than during the upgrade so the rule is verifiable
+   * today. Both bundlers read their own entry; neither reads the other's.
+   */
+  turbopack: {
+    rules: {
+      "*.md": { loaders: ["./loaders/markdown-source-loader.cjs"], as: "*.js" },
+    },
+  },
   // Hide the `next dev` indicator (the floating "N" badge). It's dev-only, but
   // the marketing screenshots are captured against the running dev server
   // (apps/web/scripts/capture-shots.mjs), so leaving it on baked the badge into
