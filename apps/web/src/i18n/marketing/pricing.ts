@@ -27,6 +27,84 @@ import type { MarketingLocale } from "./footer";
  * rate. The footnote says which currency the table is in, in both languages.
  */
 export const pricingEn = {
+  metaTitle: "Pricing, {starter}/mo flat for the whole crew",
+  metaDescription:
+    "Build your plan and see the total before you pay: Starter {starter}/mo for up to 3 people, Pro {pro}/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. One-time {fee} US registration fee. No per-user fees, no quote calls.",
+  ogTitle: "Pricing: {starter}/mo flat for the whole crew",
+  ogDescription:
+    "Starter {starter}/mo for up to 3 people, Pro {pro}/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. No per-user fees, no quote calls.",
+
+  breadcrumbHome: "Home",
+  breadcrumbSelf: "Pricing",
+
+  h1: "One price for the whole crew. Nothing hidden.",
+  heroSub:
+    "Two plans, every cost on this page, and a buy button instead of a sales call. If you can't find a price on a texting company's pricing page, that's the price talking.",
+
+  buildTitle: "Build your plan. The total updates as you go.",
+  buildSub:
+    "Pick a plan, switch on only what you need, and see the whole bill before you ever type a card number. What you build here is exactly what checkout starts from.",
+  fairUseLink: "See our fair use policy.",
+
+  enterpriseTitle: "More than 15 on your crew?",
+  enterpriseBody:
+    "Enterprise is unlimited seats with the same flat pricing, no per-user fees, sized to your team. Tell us who you are and we'll sort out the rest.",
+  enterpriseCta: "Talk to us",
+
+  sliderTitle: "Flat beats per-user. Slide to see by how much.",
+
+  ledgerTitle: "Every cost, before you pay.",
+  truthUsWorks:
+    "Receiving texts works the moment your number is ready, usually live in a minute or two.",
+  truthUsWait:
+    "Texting US numbers turns on after the phone companies approve you, typically 3 to 7 business days. We file everything and email you the moment you're approved.",
+  truthCaWorks:
+    "Texting Canadian customers works the same day your number is active, usually live in a minute or two after you subscribe. No registration, no fee, no wait.",
+  truthCaReceiving:
+    "Receiving texts works right away too, the moment your number is ready.",
+  meterCaption:
+    "Well within fair use, and a spending cap you control. We reach out early if a month ever runs hot. No surprise bills.",
+  meterAria:
+    "The app usage screen: well within fair use this month, with the owner-set spending cap",
+
+  elsewhereTitle: "The same crew, priced elsewhere.",
+  elsewhereIntroBefore:
+    "The workload we price: a 3-person crew sending 500 plain texts a month, at published prices {asOf} (every number below cites its source on our",
+  elsewhereIntroLink: "comparison pages",
+  elsewhereIntroAfter: "):",
+  elsewhereTableCaption:
+    "Monthly cost for a 3-person crew sending 500 texts: Loonext next to Heymarket and Quo, at published prices {asOf}.",
+
+  segmentTitle: 'What\'s a "text," exactly?',
+  segmentBody:
+    'A plain text up to 160 characters counts as one text. Longer texts, or texts with emoji, count as more than one, the texting networks split them behind the scenes (the technical word is "segments," but you never have to think about it). The composer always shows the count before you send, so there\'s no mystery on your bill.',
+  segmentAria:
+    "A message to Karen from Reyes Plumbing being counted: one text, 122 characters, plain",
+
+  guaranteeTitle: "Try it for a month, on us if it's not for you.",
+  guaranteeBefore:
+    "If Loonext isn't right for your crew, email us within 30 days of signing up and we'll refund your first invoice in full,",
+  guaranteeUs: "subscription and registration fee included",
+  guaranteeCa: "the whole subscription included",
+  guaranteeAfter:
+    '. No "minus credits used", no forms, no retention call. We\'d rather have your trust than your',
+  refundLink: "Read the whole policy. It's three paragraphs.",
+
+  leaveTitle: "And if you leave later",
+  leaveCancel:
+    "Cancel yourself, from billing settings. No phone call, no retention chat, no email to a support queue.",
+  leaveNoCharge:
+    "Nothing is charged after that. You keep working through the period you already paid for.",
+  leaveNumber:
+    "Your number is held for 30 days in case you come back. After that it goes back to the phone company and can be given to another business, so people who saved it will eventually reach someone else. Port it out first if you want to keep it.",
+  leavePerson:
+    "A real person is reachable from inside the app, including on the way out.",
+  termsLink: "The cancellation terms, in full.",
+
+  faqTitle: "Pricing questions, straight answers.",
+
+  ctaTitle: "You've seen the whole price list. That's the point.",
+  ctaChipAfter: "· Month to month · 30-day money-back guarantee",
   ledgerPlanTerm: "Your plan",
   ledgerPlanDetail:
     "Month to month. Starter covers {starterSeats} people, Pro covers {proSeats}, flat either way.",
@@ -120,6 +198,84 @@ export const pricingEn = {
 } as const;
 
 export const pricingFr: Translated<typeof pricingEn> = {
+  metaTitle: "Tarifs, {starter}/mois prix fixe pour toute l'équipe",
+  metaDescription:
+    "Bâtissez votre forfait et voyez le total avant de payer : Starter {starter}/mois pour un maximum de 3 personnes, Pro {pro}/mois pour un maximum de 15. Textos, photos et appels inclus sous l'utilisation équitable automatisée, stockage gratuit. Frais uniques d'enregistrement américain de {fee}. Aucuns frais par personne, aucun appel pour une soumission.",
+  ogTitle: "Tarifs : {starter}/mois prix fixe pour toute l'équipe",
+  ogDescription:
+    "Starter {starter}/mois pour un maximum de 3 personnes, Pro {pro}/mois pour un maximum de 15. Textos, photos et appels inclus sous l'utilisation équitable automatisée, stockage gratuit. Aucuns frais par personne, aucun appel pour une soumission.",
+
+  breadcrumbHome: "Accueil",
+  breadcrumbSelf: "Tarifs",
+
+  h1: "Un seul prix pour toute l'équipe. Rien de caché.",
+  heroSub:
+    "Deux forfaits, chaque coût sur cette page, et un bouton d'achat au lieu d'un appel de vente. Si vous ne trouvez pas de prix sur la page de prix d'une compagnie de textos, c'est le prix qui parle.",
+
+  buildTitle: "Bâtissez votre forfait. Le total se met à jour au fur et à mesure.",
+  buildSub:
+    "Choisissez un forfait, activez seulement ce dont vous avez besoin, et voyez toute la facture avant même de taper un numéro de carte. Ce que vous bâtissez ici est exactement ce par quoi le paiement commence.",
+  fairUseLink: "Voyez notre politique d'utilisation équitable.",
+
+  enterpriseTitle: "Plus de 15 personnes dans votre équipe ?",
+  enterpriseBody:
+    "Enterprise, c'est un nombre illimité de sièges au même prix fixe, aucuns frais par personne, taillé pour votre équipe. Dites-nous qui vous êtes et on s'occupe du reste.",
+  enterpriseCta: "Parlez-nous",
+
+  sliderTitle: "Le prix fixe bat le prix par personne. Glissez pour voir de combien.",
+
+  ledgerTitle: "Chaque coût, avant de payer.",
+  truthUsWorks:
+    "La réception des textos fonctionne dès que votre numéro est prêt, habituellement en service en une minute ou deux.",
+  truthUsWait:
+    "L'envoi vers des numéros américains s'active après l'approbation des compagnies de téléphone, généralement de 3 à 7 jours ouvrables. On dépose tout et on vous écrit dès que vous êtes approuvé.",
+  truthCaWorks:
+    "Écrire à des clients canadiens fonctionne le jour même où votre numéro est actif, habituellement en service une minute ou deux après votre abonnement. Aucun enregistrement, aucuns frais, aucune attente.",
+  truthCaReceiving:
+    "La réception des textos fonctionne tout de suite aussi, dès que votre numéro est prêt.",
+  meterCaption:
+    "Bien à l'intérieur de l'utilisation équitable, et un plafond de dépenses que vous contrôlez. On vous contacte d'avance si un mois chauffe. Aucune facture surprise.",
+  meterAria:
+    "L'écran d'utilisation de l'application : bien à l'intérieur de l'utilisation équitable ce mois-ci, avec le plafond de dépenses fixé par le propriétaire",
+
+  elsewhereTitle: "La même équipe, tarifée ailleurs.",
+  elsewhereIntroBefore:
+    "La charge de travail qu'on tarife : une équipe de 3 personnes envoyant 500 textos simples par mois, aux prix publiés en {asOf} (chaque chiffre ci-dessous cite sa source sur nos",
+  elsewhereIntroLink: "pages de comparaison",
+  elsewhereIntroAfter: ") :",
+  elsewhereTableCaption:
+    "Coût mensuel pour une équipe de 3 personnes envoyant 500 textos : Loonext à côté de Heymarket et Quo, aux prix publiés en {asOf}.",
+
+  segmentTitle: "C'est quoi un « texto », exactement ?",
+  segmentBody:
+    "Un texto simple jusqu'à 160 caractères compte pour un texto. Les textos plus longs, ou avec des émojis, en comptent plus d'un : les réseaux de textos les découpent en coulisses (le mot technique est « segments », mais vous n'avez jamais à y penser). Le champ de saisie montre toujours le compte avant l'envoi, alors il n'y a aucun mystère sur votre facture.",
+  segmentAria:
+    "Un message à Karen de Reyes Plumbing en train d'être compté : un texto, 122 caractères, simple",
+
+  guaranteeTitle: "Essayez-le un mois, à nos frais si ça ne vous convient pas.",
+  guaranteeBefore:
+    "Si Loonext ne convient pas à votre équipe, écrivez-nous dans les 30 jours suivant votre inscription et on rembourse votre première facture au complet,",
+  guaranteeUs: "abonnement et frais d'enregistrement compris",
+  guaranteeCa: "tout l'abonnement compris",
+  guaranteeAfter:
+    ". Aucun « moins les crédits utilisés », aucun formulaire, aucun appel de rétention. On préfère avoir votre confiance que votre",
+  refundLink: "Lisez toute la politique. Elle fait trois paragraphes.",
+
+  leaveTitle: "Et si vous partez plus tard",
+  leaveCancel:
+    "Annulez vous-même, depuis les réglages de facturation. Aucun appel téléphonique, aucun clavardage de rétention, aucun courriel à une file de soutien.",
+  leaveNoCharge:
+    "Rien n'est facturé après ça. Vous continuez de travailler pendant la période que vous avez déjà payée.",
+  leaveNumber:
+    "Votre numéro est gardé 30 jours au cas où vous reviendriez. Après ça, il retourne à la compagnie de téléphone et peut être donné à une autre entreprise, alors les gens qui l'avaient enregistré finiront par joindre quelqu'un d'autre. Transférez-le d'abord si vous voulez le garder.",
+  leavePerson:
+    "Une vraie personne est joignable depuis l'intérieur de l'application, y compris sur le chemin de la sortie.",
+  termsLink: "Les conditions d'annulation, au complet.",
+
+  faqTitle: "Questions sur les tarifs, réponses directes.",
+
+  ctaTitle: "Vous avez vu toute la liste de prix. C'est bien le but.",
+  ctaChipAfter: "· Au mois · Garantie de remboursement de 30 jours",
   ledgerPlanTerm: "Votre forfait",
   ledgerPlanDetail:
     "Au mois. Starter couvre {starterSeats} personnes, Pro en couvre {proSeats}, prix fixe dans les deux cas.",
