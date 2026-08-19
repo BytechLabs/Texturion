@@ -61,13 +61,41 @@ describe("#577 the tag manager stays on the marketing origin", () => {
     .filter((file) => !file.includes("google-tag-manager"))
     .filter((file) => sourceText(file).includes(IMPORT_PATH));
 
-  it("is imported by exactly one file, and that file is the marketing layout", () => {
+  it("is imported by exactly one file, and that file is the marketing shell", () => {
     // Named exactly rather than "somewhere under (marketing)": the marketing
     // tree contains route groups that the app shell also renders into, and a
     // check that accepted any of them would accept the one that matters.
+    //
+    // D138 added a hop. The frame moved out of the layout and into a shell the
+    // English and French layouts share, so the single importer is the shell —
+    // and the containment now needs the second assertion below, because a file
+    // that mounts GTM is only contained if the things mounting IT are.
     expect(importers.map(relativeToSrc)).toEqual([
-      "app/(marketing)/layout.tsx",
+      "components/marketing/shell.tsx",
     ]);
+  });
+
+  it("and that shell is rendered only by marketing layouts", () => {
+    // The hop is where the containment could quietly leak: importing
+    // MarketingShell into an app layout would put a remote script with full DOM
+    // access onto a page showing a customer's messages, and the assertion above
+    // would still pass because GTM's own importer had not changed.
+    const shellImporters = sourceFiles(join(process.cwd(), "src"), [".tsx", ".ts"])
+      .filter((file) => !file.endsWith(".test.tsx") && !file.endsWith(".test.ts"))
+      .filter((file) => !file.includes("marketing/shell"))
+      .filter((file) => sourceText(file).includes("@/components/marketing/shell"))
+      .map(relativeToSrc);
+
+    expect(shellImporters.length, "nothing renders the marketing shell").toBeGreaterThan(0);
+    for (const file of shellImporters) {
+      expect(
+        file.startsWith("app/(marketing"),
+        `${file} renders the marketing shell, which mounts the tag manager. ` +
+          "That script is accepted on the marketing site and has not been " +
+          "accepted on the signed-in product.",
+      ).toBe(true);
+      expect(file.endsWith("/layout.tsx"), `${file} is not a layout`).toBe(true);
+    }
   });
 
   it("the scan reaches the tree at all", () => {

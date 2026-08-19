@@ -1,25 +1,4 @@
-import { ConsentBanner } from "@/components/marketing/consent";
-import { CountryProvider } from "@/components/marketing/country";
-import { Footer } from "@/components/marketing/footer";
-import { GoogleTagManager } from "@/components/marketing/google-tag-manager";
-import { Nav } from "@/components/marketing/nav";
-import { JsonLd } from "@/components/marketing/ui/json-ld";
-import { RevealActivator } from "@/components/marketing/ui/reveal-activator";
-import { golosText } from "@/lib/app/fonts";
-import { organizationJsonLd } from "@/lib/marketing/seo";
-import { body, display, mono } from "@/lib/marketing/fonts";
-
-/**
- * The MARKETING v4 type trio (DESIGN-DIRECTION §3, "FIRST RESPONSE"):
- * Bricolage Grotesque (display), Hanken Grotesk (body), Spline Sans Mono
- * (data). The self-hosted next/font/local instances are defined once in
- * `@/lib/marketing/fonts`; here we mount their `.variable` classNames on the
- * (marketing) route-group subtree so --font-display / --font-body /
- * --font-mono resolve for the marketing utilities. The APP keeps its own
- * faces (the two-surfaces rule); nothing outside this subtree can resolve
- * the marketing font variables. next/font emits the font preload links
- * itself (no manual preload manifest).
- */
+import { MarketingShell } from "@/components/marketing/shell";
 
 /**
  * The (marketing) route group shell (BLUEPRINT §12, Track A contract): lean,
@@ -31,54 +10,17 @@ import { body, display, mono } from "@/lib/marketing/fonts";
  * and the footer band, plus local `.dark` regions for dark-mode product
  * embeds inside phone frames).
  *
- * Organization JSON-LD is emitted once here so it covers every marketing page
- * (§11.2). WebSite + SoftwareApplication (home/pricing-specific) are provided
- * as helpers in lib/marketing/seo.ts for those pages to render.
- *
  * ROOT / resolves into this group via (marketing)/page.tsx (Track B).
+ *
+ * D138: the frame itself moved to `components/marketing/shell.tsx` so the
+ * French group can render the identical one in the other language. A Next
+ * layout cannot read the pathname, so which language a page is in has to come
+ * from which layout rendered it — and the two layouts share a shell rather
+ * than a copy, because a copy is how the English footer and the French one
+ * come to differ by a `<div>`.
  */
 export default function MarketingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    // Mounts --font-display / --font-body / --font-mono on the (marketing)
-    // subtree only (the two-surfaces rule); the app keeps its own faces.
-    // --font-golos joins them for exactly one thing: the brand wordmark
-    // (#206) in the nav and footer is Golos Text SemiBold by rule.
-    <div
-      className={`mkt-scope ${display.variable} ${body.variable} ${mono.variable} ${golosText.variable} font-body-mkt flex min-h-svh flex-col`}
-    >
-      {/* No-JS fail-safe: reveal every scroll-reveal element when JS is off, so
-          content is never permanently hidden without the RevealActivator. */}
-      <noscript>
-        <style>{`[data-reveal]{opacity:1 !important;transform:none !important;}`}</style>
-      </noscript>
-      {/* #124: Google Tag Manager — marketing pages only, gated on
-          NEXT_PUBLIC_GTM_ID (off in dev/CI). Never mounted by the app groups.
-          The ConsentBanner shares the same gate: it asks (once) whether GTM
-          tags may set cookies, and the loader's Consent Mode v2 default stays
-          denied until the visitor says yes. Overlay, never inserts (CLS 0). */}
-      <GoogleTagManager />
-      <ConsentBanner />
-      <JsonLd data={organizationJsonLd()} />
-      {/* One shared IntersectionObserver drives every [data-reveal] (§4). */}
-      <RevealActivator />
-      {/* One site-wide country (owner ruling v1): the nav CountrySelector, the
-          home HeroCountryChooser, the branch helpers, and the /pricing toggle
-          all read this single provider, so every surface moves the same state.
-          SSR default is "us"; a returning visitor's choice is adopted from
-          localStorage after hydration. */}
-      <CountryProvider>
-        <Nav />
-        {/* id="content" is the nav skip link's target; keep it in sync with
-            nav.tsx's .frn-skip href. tabIndex={-1} makes it a programmatic
-            focus target so activating the skip link actually moves focus (and
-            the AT reading cursor) into the content across browsers. */}
-        <main id="content" tabIndex={-1} className="flex-1 outline-none">
-          {children}
-        </main>
-        <Footer />
-      </CountryProvider>
-    </div>
-  );
+  return <MarketingShell locale="en">{children}</MarketingShell>;
 }
