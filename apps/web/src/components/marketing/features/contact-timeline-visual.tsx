@@ -72,7 +72,7 @@ export function ContactTimelineVisual({
             {copy.timelineName}
           </span>
           <span className="block truncate text-[12px] text-app-muted">
-            41 Warbler Lane · dog in the crate, key under the mat
+            {copy.visualAddressNote}
           </span>
         </span>
       </div>

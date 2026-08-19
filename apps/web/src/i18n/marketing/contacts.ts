@@ -22,6 +22,7 @@ import type { MarketingLocale } from "./footer";
  * something vaguer would be making a promise the product does not keep.
  */
 export const contactsEn = {
+  visualAddressNote: "41 Warbler Lane · dog in the crate, key under the mat",
   metaTitle: "One history for every customer",
   metaDescription:
     "Every text, call, voicemail and photo you have exchanged with a customer, on one timeline, with their address and your private notes. Import your list with a CSV. One flat price for the crew.",
@@ -123,6 +124,8 @@ export const contactsEn = {
 } as const;
 
 export const contactsFr: Translated<typeof contactsEn> = {
+  visualAddressNote:
+    "41, allée Warbler · chien dans la cage, clé sous le paillasson",
   metaTitle: "Un seul historique par client",
   metaDescription:
     "Chaque texto, appel, message vocal et photo échangés avec un client, sur une seule ligne du temps, avec son adresse et vos notes privées. Importez votre liste par CSV. Un seul prix fixe pour toute l'équipe.",

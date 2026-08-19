@@ -143,8 +143,7 @@ export function SavedRepliesEmbed({
               {copy.embedTemplateBooking}
             </span>
             <span className="block truncate text-[11.5px] text-app-muted">
-              You&apos;re booked. We&apos;ll text you when we&apos;re on the
-              way.
+              {copy.embedTemplateBookingBody}
             </span>
           </div>
         </div>

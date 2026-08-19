@@ -1,5 +1,7 @@
 "use client";
 
+import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { avatarInitials } from "@loonext/shared";
 
 /**
@@ -98,7 +100,12 @@ function InboxRow({ row }: { row: RowState }) {
   );
 }
 
-export function HeroInbox() {
+export function HeroInbox({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
   const [rows, setRows] = useState<RowState[]>(INITIAL_ROWS);
   const keyRef = useRef(INBOX_ROW_CAP);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);

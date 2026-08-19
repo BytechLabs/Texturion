@@ -73,8 +73,22 @@ function proseOutsideInterpolations(template: string): string | null {
  * `{copy.x}` and `{" "}` are expressions, not text, so they never match. What
  * matches is a bare sentence — including a short one: `Day 0` is five
  * characters and was one of the five that got through.
+ *
+ * ## Two characters were missing and they were the expensive ones
+ *
+ * The class started as `[A-Za-z0-9'’,.:!?()-]` and had to match the WHOLE span
+ * between the delimiters, so a single character outside it made a sentence
+ * invisible. `&` and `;` were outside it. That is `&apos;` — which is how JSX
+ * carries an apostrophe, which is how English carries a possessive. Every
+ * sentence with one in it passed.
+ *
+ * The hero is where this surfaced: its H1 was caught and the paragraph
+ * directly beneath it was not, and the only difference between them was
+ * `somebody&apos;s`. A leading digit was the other gap — `9:04 PM · TUESDAY`
+ * is a dateline, and the anchor demanded a letter first.
  */
-const TEXT_NODE = />\s*([A-Za-z][A-Za-z0-9'’,.:!?()-]*(?:\s+[A-Za-z0-9'’,.:!?()-]+)+)\s*</g;
+const TEXT_NODE =
+  />\s*([A-Za-z0-9][A-Za-z0-9'’,.:!?()·%$–-]*(?:\s+[A-Za-z0-9'’,.:!?()·%$–-]+)+)\s*</g;
 
 /**
  * Copy sitting in a data array rather than in markup.
@@ -115,6 +129,32 @@ const DATA_COPY =
  * So the rule for them is the same and the reason is stronger: a file rendering
  * in two languages may hold no user-visible literal at all.
  */
+/**
+ * The source with JSX's HTML entities turned back into the characters they
+ * stand for, so a sentence reads as a sentence.
+ *
+ * This replaced a first attempt that stripped every `{...}` block instead. That
+ * looked more principled and was wrong in a way worth recording: the LAST brace
+ * pair in any component is the function body itself, so stripping innermost-out
+ * eventually swallowed the entire component and the guard went green over three
+ * files that still held English. It passed because it could no longer see
+ * anything at all.
+ *
+ * Decoding is narrower and does the actual job. `&apos;` becomes `'`, which the
+ * character class already accepts, so possessives stop hiding while `&&` and
+ * `=>` stay outside the class and code keeps not matching.
+ *
+ * `&amp;` is deliberately NOT decoded: turning it back into a bare `&` would
+ * put the code-fragment false positives right back. A literal ampersand inside
+ * a sentence is therefore still a blind spot, and a small one in this copy.
+ */
+function decodeEntities(source: string): string {
+  return source
+    .replace(/&apos;|&#39;|&rsquo;/g, "'")
+    .replace(/&quot;|&ldquo;|&rdquo;/g, '"')
+    .replace(/&nbsp;/g, " ");
+}
+
 function bilingualBodies(): string[] {
   const pages = readdirSync(BODIES)
     .filter((name) => name.endsWith("-page.tsx"))
@@ -136,7 +176,15 @@ function bilingualBodies(): string[] {
     .filter((name) => name.endsWith(".tsx") && !name.endsWith(".test.tsx"))
     .map((name) => join(homeDir, name))
     .filter((file) => readFileSync(file, "utf8").includes("MarketingLocale"));
-  return [...pages, ...visuals, ...sections];
+  // The hero, which is its own directory because it carries the arrival
+  // canvas. It is the first thing anybody reads, so it would be a strange
+  // thing to leave outside the one check that reads rendered words.
+  const heroDir = join(BODIES, "hero");
+  const hero = readdirSync(heroDir)
+    .filter((name) => name.endsWith(".tsx") && !name.endsWith(".test.tsx"))
+    .map((name) => join(heroDir, name))
+    .filter((file) => readFileSync(file, "utf8").includes("MarketingLocale"));
+  return [...pages, ...visuals, ...sections, ...hero];
 }
 
 describe("#228/D138 the bilingual page bodies carry no words of their own", () => {
@@ -158,7 +206,9 @@ describe("#228/D138 the bilingual page bodies carry no words of their own", () =
     const source = readFileSync(file, "utf8");
 
     it(`${name} has no prose in its markup`, () => {
-      const found = [...source.matchAll(TEXT_NODE)].map((m) => m[1].trim());
+      const found = [...decodeEntities(source).matchAll(TEXT_NODE)].map((m) =>
+        m[1].trim(),
+      );
       expect(
         found,
         `${name} renders in both languages, so a sentence written here shows ` +

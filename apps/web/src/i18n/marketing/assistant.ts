@@ -126,6 +126,7 @@ export const assistantEn = {
   visualNotSent: "Nothing is sent until you press it.",
   visualSend: "Send",
   visualTaskLabel: "New task, filled in from that message",
+  visualAddressChip: "114 Bishop St",
   visualTaskTitle: "Water heater leak, Bishop St",
   visualTaskDue: "Due today",
 } as const;
@@ -233,6 +234,7 @@ export const assistantFr: Translated<typeof assistantEn> = {
   visualNotSent: "Rien n'est envoyé tant que vous n'appuyez pas.",
   visualSend: "Envoyer",
   visualTaskLabel: "Nouvelle tâche, remplie à partir de ce message",
+  visualAddressChip: "114, rue Bishop",
   visualTaskTitle: "Fuite de chauffe-eau, rue Bishop",
   visualTaskDue: "Dû aujourd'hui",
 };

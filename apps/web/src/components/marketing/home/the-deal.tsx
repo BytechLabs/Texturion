@@ -305,8 +305,7 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
       <div className="mx-auto mt-14 grid max-w-5xl gap-10 lg:grid-cols-2 lg:gap-8">
         <div>
           <p className="font-body-mkt max-w-[52ch] text-[15px] leading-[1.65] text-[color:var(--fr-ink-70)]">
-            Slide from 1 to 10 people and watch a typical per-user tool climb
-            past Loonext&apos;s flat line.
+            {copy.dealSliderCaption}
           </p>
           {/* #328: the slider's figures stay USD — the rival's rate is a
               published US price, and converting our half would subtract two
@@ -331,9 +330,7 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
 
         <div>
           <p className="font-body-mkt max-w-[52ch] text-[15px] leading-[1.65] text-[color:var(--fr-ink-70)]">
-            This is the usage screen you&apos;ll see in the app: well within
-            fair use, and a spending cap you control, with a heads-up early if
-            a month ever runs hot. No surprise bills.
+            {copy.dealMeterCaption}
           </p>
           <PanelFrame
             className="mt-5"

@@ -1,3 +1,5 @@
+import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { CountryOnly } from "@/components/marketing/country";
 import { CtaButton, Dateline, PanelFrame } from "@/components/marketing/fr";
 import { TruthStrip } from "@/components/marketing/home/truth-strip";
@@ -44,7 +46,8 @@ import { HeroInbox } from "./hero-inbox";
  * already branches on; this stays a server component and renders it as a
  * child, which is the only way that signal crosses the boundary.
  */
-export function Hero() {
+export function Hero({ locale = "en" }: { locale?: MarketingLocale } = {}) {
+  const copy = homeCopy(locale);
   return (
     <section className="relative isolate overflow-hidden bg-[color:var(--fr-ground)] pb-16 pt-14 text-[color:var(--fr-ink)] sm:pt-20 lg:pb-24">
       {/* THE CENTERPIECE: full-bleed live generative art spanning the hero.
@@ -82,20 +85,15 @@ export function Hero() {
           {/* LEFT (7/12): the pitch. The H1 is the LCP; nothing above it but
               the dateline chip. */}
           <div className="lg:col-span-7">
-            <Dateline>9:04 PM · TUESDAY</Dateline>
+            <Dateline>{copy.heroDateline}</Dateline>
 
             <h1 className="fr-h1 mt-5 max-w-[16ch]">
-              Somebody texted your business at 9:04 last night. Did anybody
-              see it?
+              {copy.heroH1}
             </h1>
 
             <p className="fr-body mt-6 max-w-[56ch] text-[color:var(--fr-ink-70)]">
-              Loonext gives your business a local number and one shared
-              inbox for everything that reaches it. Texts and calls both land
-              where the whole crew can see them, so the next 9 PM message gets
-              answered by whoever is free instead of dying on somebody&apos;s
-              personal cell. <PlanPrice plan="starter" /> a month for the whole
-              team, flat.
+              {copy.heroSub} <PlanPrice plan="starter" />{" "}
+              {copy.heroPriceAfter}
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -114,7 +112,7 @@ export function Hero() {
                 className="mt-8 max-w-[36rem]"
                 lines={[
                   {
-                    text: "Your number is live and receiving texts the day you sign up. Texting US customers turns on in about a week, once the phone companies approve you. We file everything the minute you pay.",
+                    text: copy.heroActivationUs,
                     tick: true,
                   },
                 ]}
@@ -125,7 +123,7 @@ export function Hero() {
                 className="mt-8 max-w-[36rem]"
                 lines={[
                   {
-                    text: "Your number is live the day you sign up, and you can text Canadian customers the same day. No registration, no fee, no waiting. We set you up the minute you pay.",
+                    text: copy.heroActivationCa,
                     tick: true,
                   },
                 ]}
@@ -143,10 +141,10 @@ export function Hero() {
               className="mx-auto w-full max-w-[22.5rem] lg:ml-auto lg:mr-0"
             >
               <PanelFrame
-                ariaLabel="Customer conversations waiting in the Loonext inbox"
+                ariaLabel={copy.heroInboxAria}
               >
                 <AppSurface>
-                  <HeroInbox />
+                  <HeroInbox locale={locale} />
                 </AppSurface>
               </PanelFrame>
             </div>

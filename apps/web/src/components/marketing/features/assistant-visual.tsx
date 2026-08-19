@@ -92,7 +92,7 @@ export function AssistantVisual({
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-[5px]">
           <span className="inline-flex items-center rounded-full border border-app-tint-line bg-app-tint px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-olive-deep">
-            114 Bishop St
+            {copy.visualAddressChip}
           </span>
           <span className="inline-flex items-center rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted">
             {copy.visualTaskDue}
