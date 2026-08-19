@@ -74,3 +74,12 @@ ef37c6d58565582d0015bbf4798a5161bda78efb:apps/api/src/routes/billing.held-number
 # and a share token is the one shape we most need it to catch.
 f53a434a21d7f5128a8b54b8cc099966c39fbfbf:apps/api/src/observability/sentry.test.ts:generic-api-key:216
 f53a434a21d7f5128a8b54b8cc099966c39fbfbf:apps/web/src/lib/observability/scrub.test.ts:generic-api-key:293
+
+# A FILENAME quoted in a migration comment, not a credential. The #581 erasure
+# migration's name contains `erasu` + `re_` + a long lowercase run, which is the
+# shape of a Resend key, so citing it in a header tripped `resend-api-key` at
+# ef5f3909. The comment was reworded to name that migration by date in the very
+# next commit (2aa4d315) — but a full-history scan finds the original forever,
+# which is the scan working. Pinned by fingerprint so the rule stays live: a
+# real Resend key in this same file, on the next line, still fails.
+ef5f390943cf370c643a151a217393fd16a12a3c:supabase/migrations/20260819010000_erasure_clears_three_columns_it_could_not_see.sql:resend-api-key:3
