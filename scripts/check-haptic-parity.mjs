@@ -47,7 +47,23 @@ const IOS_HAPTICS = "apps/ios/Loonext/Core/Haptics.swift";
  * Written out rather than derived by casing, because the two trees do not name
  * everything the same way and a silent mismatch would read as "covered".
  */
+/*
+ * THIS NAMED ELEVEN OF SEVENTEEN, and nothing compared it to the tree.
+ *
+ * `attachments`, `auth`, `onboarding`, `payments`, `quotes` and `security` were
+ * outside the guard's field of view entirely — the loop below iterates this
+ * object, so an area missing from it is not checked, not reported, and not
+ * counted in the "0 iOS area(s) still silent" line the guard prints.
+ *
+ * The three consistency checks that existed all ran in the harmless direction
+ * (a ledger entry must be a known area; an area must not be in two lists), so
+ * none could notice a directory in neither. The assertion below runs the other
+ * way: every directory under the Android features root must be mapped here or
+ * declared Android-only, and every name here must be a real directory.
+ */
 const AREAS = {
+  attachments: "Attachments",
+  auth: "Auth",
   calls: "Calls",
   compose: "Compose",
   contacts: "Contacts",
@@ -55,6 +71,10 @@ const AREAS = {
   foryou: "ForYou",
   inbox: "Inbox",
   notifications: "Notifications",
+  onboarding: "Onboarding",
+  payments: "Payments",
+  quotes: "Quotes",
+  security: "Security",
   settings: "Settings",
   shell: "Shell",
   tasks: "Tasks",
@@ -87,8 +107,19 @@ const SILENT_ON_IOS = {
   // surface was wired, which is the only way it is allowed to change.
 };
 
-/** `apps` has no iOS twin directory — its haptics live in the shell there. */
-const ANDROID_ONLY = new Set(["apps"]);
+/**
+ * Android directories with no iOS twin, and therefore nothing to compare.
+ *
+ * This held `"apps"`, and there is no `features/apps` directory — so the entry,
+ * and the loop that read it, guarded nothing. That is the tell that the roster
+ * had drifted from the tree.
+ *
+ * Empty is the honest state today: every Android feature directory has an iOS
+ * counterpart. The set stays because the NEXT Android-only area needs a place
+ * to be declared rather than silently omitted, and the check below refuses an
+ * entry that names a directory which does not exist.
+ */
+const ANDROID_ONLY = new Set([]);
 
 const problems = [];
 
@@ -197,6 +228,49 @@ for (const android of Object.keys(SILENT_ON_IOS)) {
         `A ledger entry for a directory that does not exist covers nothing.`,
     );
   }
+}
+
+/*
+ * THE ROSTER AGAINST THE TREE, in both directions.
+ *
+ * Every check above this point runs inside the roster: they ask whether a
+ * ledger entry names a mapped area, or whether an area sits in two lists. None
+ * of them can see a directory that is in NEITHER list, which is how six real
+ * feature areas stayed outside this guard while it reported a clean count.
+ *
+ * A guard that walks a tree has to be told when the tree grows. This is that.
+ */
+const onDisk = readdirSync(ANDROID_ROOT, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name);
+
+if (onDisk.length === 0) {
+  problems.push(
+    `no feature directories found under ${ANDROID_ROOT} — this guard has lost ` +
+      "its subject, and every count it prints below is over nothing.",
+  );
+}
+
+const unmapped = onDisk.filter(
+  (dir) => !(dir in AREAS) && !ANDROID_ONLY.has(dir),
+);
+if (unmapped.length > 0) {
+  problems.push(
+    `these Android feature areas are in neither AREAS nor ANDROID_ONLY, so ` +
+      `nothing compares their haptics to iOS: ${unmapped.join(", ")}. Map each ` +
+      `to its iOS directory, or declare it Android-only with a reason.`,
+  );
+}
+
+const phantom = [...Object.keys(AREAS), ...ANDROID_ONLY].filter(
+  (dir) => !onDisk.includes(dir),
+);
+if (phantom.length > 0) {
+  problems.push(
+    `these names are rostered and are not directories: ${phantom.join(", ")}. ` +
+      `An entry for a directory that does not exist reads as coverage and is ` +
+      `none — ANDROID_ONLY held "apps" on exactly those terms.`,
+  );
 }
 
 for (const android of ANDROID_ONLY) {
