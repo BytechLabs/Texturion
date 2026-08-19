@@ -31,6 +31,7 @@ export const TRANSLATED_PAGES: readonly { readonly en: string; readonly fr: stri
   { en: "/for/landscapers", fr: "/fr/paysagistes" },
   { en: "/for/contractors", fr: "/fr/entrepreneurs" },
   { en: "/for/salons", fr: "/fr/salons" },
+  { en: "/legal/refunds", fr: "/fr/remboursements" },
   { en: "/contact", fr: "/fr/contact" },
   { en: "/canada", fr: "/fr/canada" },
   { en: "/features/tasks", fr: "/fr/taches" },
