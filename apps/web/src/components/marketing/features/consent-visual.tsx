@@ -12,37 +12,57 @@
  * Server component, static DOM, 555-01XX safe fictional numbers.
  */
 
+import {
+  consentVisualCopy,
+  type ConsentVisualCopy,
+} from "@/i18n/marketing/consent-visual";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { MessageSquareText, ShieldCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-const RECORDS: {
+type ConsentRecord = {
   name: string;
   phone: string;
   line: string;
   detail: string;
   icon: typeof ShieldCheck;
-}[] = [
+}[];
+
+/**
+ * The records, in whichever language the route is serving.
+ *
+ * The names and numbers are the same in both: they are example people and 555
+ * reservations in real Canadian area codes, and a name is not a word to
+ * translate. Only the two sentences and the two dates move.
+ */
+const records = (copy: ConsentVisualCopy): ConsentRecord => [
   {
     name: "Karen M",
     phone: "(416) 555-0187",
-    line: "Texted you first · Jun 12",
-    detail: "Recorded automatically when her first text arrived.",
+    line: copy.firstRecordLine,
+    detail: copy.firstRecordDetail,
     icon: MessageSquareText,
   },
   {
     name: "Nguyen family",
     phone: "(647) 555-0143",
-    line: "Consent recorded by Priya · Jul 2",
-    detail: "Stamped when Priya started the conversation.",
+    line: copy.secondRecordLine,
+    detail: copy.secondRecordDetail,
     icon: ShieldCheck,
   },
 ];
 
-export function ConsentVisual({ className }: { className?: string }) {
+export function ConsentVisual({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
   return (
     <div className={cn("space-y-3 p-4 sm:p-5", className)}>
-      {RECORDS.map((record) => {
+      {records(consentVisualCopy(locale)).map((record) => {
         const Icon = record.icon;
         return (
           <div
