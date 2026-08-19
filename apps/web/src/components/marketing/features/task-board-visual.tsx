@@ -15,6 +15,8 @@
  * Server component, pure DOM, no interactivity. Reyes Plumbing seed data.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { tasksCopy, type TasksCopy } from "@/i18n/marketing/tasks";
 import { Check, MessageSquare, Phone } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -30,31 +32,31 @@ interface Card {
   done?: boolean;
 }
 
-const TODO: Card[] = [
+const todoCards = (copy: TasksCopy): Card[] => [
   {
-    title: "Water heater swap, Bishop St",
-    source: "leaking all over the basement floor",
+    title: copy.boardCardHeater,
+    source: copy.boardSourceHeater,
     from: "text",
     owner: "DK",
-    due: "Today",
-    address: "114 Bishop St",
+    due: copy.boardToday,
+    address: copy.boardAddressHeater,
   },
   {
-    title: "Quote the Hendersons",
-    source: "can somebody come out Tuesday?",
+    title: copy.boardCardQuote,
+    source: copy.boardSourceQuote,
     from: "call",
     owner: "PR",
-    due: "Tue",
+    due: copy.boardDueTue,
   },
 ];
 
-const DONE: Card[] = [
+const doneCards = (copy: TasksCopy): Card[] => [
   {
-    title: "Drain clear, Marcus T",
-    source: "backing up again",
+    title: copy.boardCardDrain,
+    source: copy.boardSourceDrain,
     from: "text",
     owner: "MO",
-    due: "Yesterday",
+    due: copy.boardYesterday,
     done: true,
   },
 ];
@@ -143,12 +145,21 @@ function Column({
   );
 }
 
-export function TaskBoardVisual({ className }: { className?: string }) {
+export function TaskBoardVisual({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = tasksCopy(locale);
+  const todo = todoCards(copy);
+  const done = doneCards(copy);
   return (
     <div className={cn("p-3 sm:p-4", className)}>
       <div className="flex gap-2.5">
-        <Column label="To do" count={TODO.length} cards={TODO} />
-        <Column label="Done" count={DONE.length} cards={DONE} done />
+        <Column label={copy.boardToDo} count={todo.length} cards={todo} />
+        <Column label={copy.boardDone} count={done.length} cards={done} done />
       </div>
     </div>
   );

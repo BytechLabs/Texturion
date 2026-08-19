@@ -25,6 +25,7 @@
 export const TRANSLATED_PAGES: readonly { readonly en: string; readonly fr: string }[] = [
   { en: "/contact", fr: "/fr/contact" },
   { en: "/canada", fr: "/fr/canada" },
+  { en: "/features/tasks", fr: "/fr/taches" },
 ];
 
 /** The `alternates.languages` pair for a path, in either language, or nothing. */
