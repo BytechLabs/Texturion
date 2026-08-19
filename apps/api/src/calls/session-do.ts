@@ -57,7 +57,7 @@ import {
   type RingMeReply,
   type SessionEvent,
   type SessionMachine,
-  UNAVAILABLE_NOTICE,
+  unavailableNotice,
 } from "./transitions";
 
 /** The freshest machine view the /state route serves (read-your-writes). */
@@ -921,7 +921,7 @@ export class CallSessionDO extends DurableObject<Env> {
         // constant and NOT the company's greeting.
         const text =
           effect.script === "unavailable-notice"
-            ? UNAVAILABLE_NOTICE
+            ? unavailableNotice(machine.locale)
             : this.rt.greetingText(machine);
         await this.rt.telnyx.speak(effect.ccid, text, clientState);
         await this.save(machine);

@@ -205,6 +205,20 @@ export interface SessionMachine {
   companyId: string;
   phoneNumberId: string | null;
   companyName: string;
+  /**
+   * #228 — the language WE speak to the caller in.
+   *
+   * Three things on a call are our words, not the business's: the unavailable
+   * notice, the default greeting a workspace that never wrote one gets, and the
+   * after-hours default. All three were English on every call, so a caller
+   * ringing a French business heard an English sentence from them.
+   *
+   * On the machine because it is persisted with the session: a call that
+   * outlives an isolate must still speak the same language when it resumes.
+   * Optional-with-default rather than required, so a session persisted before
+   * this shipped resumes as English instead of throwing.
+   */
+  locale?: string;
   greeting: string | null;
   callerE164: string | null;
   businessNumberE164: string | null;
@@ -295,6 +309,8 @@ export interface InitiatedContext {
   companyId: string;
   phoneNumberId: string;
   companyName: string;
+  /** #228: see SessionMachine.locale — the language we speak on this call. */
+  locale?: string;
   greeting: string | null;
   callerE164: string | null;
   businessNumberE164: string;
@@ -712,6 +728,23 @@ function vmEntry(machine: SessionMachine, effects: Effect[]): void {
  * trusted to have configured anything, and a greeting that failed to load would
  * leave the caller with the silence this exists to remove.
  */
+/**
+ * #228 — spoken to the CALLER, so it is spoken in the business's language.
+ *
+ * Explicitly not the company's greeting (#490): these are our words on their
+ * line, and they were English on every call. A customer ringing a French
+ * business heard an English refusal from them.
+ *
+ * The old constant is kept as the English text rather than deleted — several
+ * tests assert the exact sentence, and the wording is unchanged for the
+ * workspaces that were already hearing it.
+ */
+export function unavailableNotice(locale?: string): string {
+  return locale === "fr-CA"
+    ? "Désolé, ce numéro ne prend pas d'appels en ce moment. Réessayez plus tard."
+    : UNAVAILABLE_NOTICE;
+}
+
 export const UNAVAILABLE_NOTICE =
   "Sorry, this number isn't taking calls right now. Please try again later.";
 
@@ -1267,6 +1300,7 @@ function reduceInitiated(
     companyId: context.companyId,
     phoneNumberId: context.phoneNumberId,
     companyName: context.companyName,
+    locale: context.locale,
     greeting: context.greeting,
     callerE164: context.callerE164,
     businessNumberE164: context.businessNumberE164,

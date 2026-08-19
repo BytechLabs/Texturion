@@ -206,7 +206,24 @@ async function telnyxOnLiveLeg(
 }
 
 /** The greeting spoken when the owner has not written one. */
-export function defaultGreeting(companyName: string): string {
+/**
+ * #228 — OUR default greeting, in the language the business works in.
+ *
+ * A workspace that never recorded one gets these words, spoken aloud to their
+ * caller. They were English on every call, so a customer ringing a French
+ * business heard an English sentence in that business's voice.
+ *
+ * The company NAME is not translated — a proper noun, and the one part of this
+ * sentence that is theirs.
+ */
+export function defaultGreeting(companyName: string, locale?: string): string {
+  if (locale === "fr-CA") {
+    return (
+      `Vous avez joint ${companyName}. Nous ne pouvons pas répondre pour le ` +
+      `moment. Laissez un message après le signal, ou raccrochez et ` +
+      `écrivez-nous à ce numéro.`
+    );
+  }
   return (
     `You've reached ${companyName}. We can't take your call right now. ` +
     `Please leave a message after the beep, or hang up and text us at this number.`
@@ -232,8 +249,19 @@ export function defaultGreeting(companyName: string): string {
 export function afterHoursDefaultGreeting(
   companyName: string,
   nextOpen: string | null,
+  locale?: string,
 ): string {
   const when = (nextOpen ?? "").trim();
+  // #228: as with defaultGreeting — our words, their language. `nextOpen` is
+  // formatted by the caller, so it is interpolated rather than rebuilt here.
+  if (locale === "fr-CA") {
+    return (
+      `Vous avez joint ${companyName}. Nous sommes fermés en ce moment` +
+      (when ? ` — de retour ${when}` : "") +
+      `. Laissez un message après le signal, ou raccrochez et écrivez-nous à ` +
+      `ce numéro, et nous vous reviendrons.`
+    );
+  }
   return (
     `You've reached ${companyName}. We're closed right now` +
     (when ? ` — we're back ${when}` : "") +
@@ -244,9 +272,16 @@ export function afterHoursDefaultGreeting(
 
 /** TTS input is owner-authored — bound it and strip control characters so a
  *  pathological greeting can never wedge the speak command. */
-export function sanitizeGreeting(raw: string | null, companyName: string): string {
+export function sanitizeGreeting(
+  raw: string | null,
+  companyName: string,
+  locale?: string,
+): string {
   const text = (raw ?? "").replace(/[\p{Cc}\p{Cf}]/gu, " ").trim();
-  return text ? text.slice(0, 500) : defaultGreeting(companyName);
+  // An owner's OWN greeting is returned untouched whatever the locale: they
+  // wrote it, in whichever language they chose, and #518 settled that we do not
+  // edit it. Only OUR fallback has a language to get right.
+  return text ? text.slice(0, 500) : defaultGreeting(companyName, locale);
 }
 
 /** End an ALREADY-answered leg cleanly (transfer-recovery terminus). Hanging

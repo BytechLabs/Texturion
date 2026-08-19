@@ -616,6 +616,10 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         .from("companies")
         .select(
           "id,name,plan,current_period_start,overage_cap_multiplier," +
+            // #228: the language WE speak on this call — the unavailable
+            // notice and our default greetings. Read here because this is the
+            // one company row the inbound path already loads.
+            "locale," +
             "subscription_status,paused_at,call_screening,voicemail_greeting,timezone," +
             "business_hours,business_hours_exceptions,after_hours_calls," +
             "after_hours_greeting_id,ring_strategy,ring_seconds",
@@ -831,6 +835,10 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         // and the name it uses cannot disagree. A line with no overrides
         // resolves to exactly the company values used before this existed.
         companyName: identity.label.value,
+        // #228: NOT part of the per-number identity above. A line's label and
+        // greeting can be overridden per number; the language the business
+        // works in is a fact about the business.
+        locale: (company as { locale?: string | null }).locale ?? undefined,
         greeting: identity.voicemailGreeting.value,
         callerE164,
         businessNumberE164: payload.to,
@@ -1322,9 +1330,15 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       // for. Their honesty about their own hours is theirs to write.
       const own = (machine.greeting ?? "").trim();
       if (own) return sanitizeGreeting(machine.greeting, machine.companyName);
+      // #228: only OUR fallbacks take the locale. An owner's own words above
+      // are returned untouched, in whichever language they wrote them.
       return machine.afterHours
-        ? afterHoursDefaultGreeting(machine.companyName, machine.nextOpenLabel)
-        : sanitizeGreeting(null, machine.companyName);
+        ? afterHoursDefaultGreeting(
+            machine.companyName,
+            machine.nextOpenLabel,
+            machine.locale,
+          )
+        : sanitizeGreeting(null, machine.companyName, machine.locale);
     },
 
     async greetingAudioUrl(machine) {
