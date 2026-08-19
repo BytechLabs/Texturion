@@ -22,6 +22,8 @@
  * Pure depiction: no tab stops, no buttons.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { tradesCopy } from "@/i18n/marketing/trades";
 import { CornerDownLeft, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -36,10 +38,13 @@ export interface SavedReply {
 export function SavedRepliesPicker({
   replies,
   className,
+  locale = "en",
 }: {
   replies: SavedReply[];
+  locale?: MarketingLocale;
   className?: string;
 }) {
+  const copy = tradesCopy(locale);
   return (
     <div className={cn("font-sans bg-background p-4 text-foreground", className)}>
       {/* The picker popover, open above the composer (the app anchors it to
@@ -52,12 +57,12 @@ export function SavedRepliesPicker({
             aria-hidden
           />
           <span className="text-[14px] text-muted-foreground">
-            Search saved replies…
+            {copy.pickerSearch}
           </span>
         </div>
         <div className="p-1.5">
           <p className="px-2 py-1.5 text-[12px] font-medium text-muted-foreground">
-            Saved replies
+            {copy.pickerHeading}
           </p>
           <ul className="flex flex-col gap-0.5">
             {replies.map((reply, i) => (

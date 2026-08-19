@@ -1,3 +1,8 @@
+import {
+  threadDemoCopy,
+  type ThreadDemoCopy,
+} from "@/i18n/marketing/thread-demo";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { avatarInitials } from "@loonext/shared";
 
 /**
@@ -206,26 +211,25 @@ function NoteBeat({
  * `components/thread/system-line.tsx` `eventSentence`, so the six trade pages
  * cannot describe calling in words the product would never print.
  */
-function callSentence(beat: TradeCallBeat): string {
+function callSentence(
+  beat: TradeCallBeat,
+  copy: ThreadDemoCopy,
+): string {
   if (beat.direction === "outbound") {
-    if (beat.outcome === "missed") return "Called, no answer";
+    if (beat.outcome === "missed") return copy.callNoAnswer;
     return beat.seconds
-      ? `You called · ${formatCallDuration(beat.seconds)}`
-      : "You called";
+      ? `${copy.callYouCalled} · ${formatCallDuration(beat.seconds)}`
+      : copy.callYouCalled;
   }
   if (beat.voicemail) {
-    return `Left a voicemail · ${formatCallDuration(beat.voicemail.seconds)}`;
+    return `${copy.callLeftVoicemail} · ${formatCallDuration(beat.voicemail.seconds)}`;
   }
-  if (beat.outcome === "voicemail") return "Call went to voicemail";
-  if (beat.outcome === "missed") return "Missed call";
+  if (beat.outcome === "voicemail") return copy.callWentToVoicemail;
+  if (beat.outcome === "missed") return copy.callMissed;
   return beat.seconds
-    ? `Call answered · ${formatCallDuration(beat.seconds)}`
-    : "Call answered";
+    ? `${copy.callAnswered} · ${formatCallDuration(beat.seconds)}`
+    : copy.callAnswered;
 }
-
-/** The app's `missed_call` line, verbatim. */
-const MISSED_CALL_TEXT_BACK_LINE =
-  "This customer called and no one picked up, so we texted them back";
 
 /**
  * The D43 voicemail player AT REST. The product's real player is a button
@@ -242,10 +246,16 @@ function VoicemailPill({ seconds }: { seconds: number }) {
   );
 }
 
-function CallBeat({ beat }: { beat: TradeCallBeat }) {
+function CallBeat({
+  beat,
+  threadCopy,
+}: {
+  beat: TradeCallBeat;
+  threadCopy: ThreadDemoCopy;
+}) {
   return (
     <div className="space-y-1.5 py-1 text-center">
-      <p className="text-[12px] text-app-muted">{callSentence(beat)}</p>
+      <p className="text-[12px] text-app-muted">{callSentence(beat, threadCopy)}</p>
       {beat.voicemail && (
         <>
           <span className="flex justify-center">
@@ -261,7 +271,7 @@ function CallBeat({ beat }: { beat: TradeCallBeat }) {
       )}
       {beat.textBack && (
         <p className="text-[12px] text-app-muted">
-          {MISSED_CALL_TEXT_BACK_LINE}
+          {threadCopy.missedCallTextBack}
         </p>
       )}
     </div>
@@ -272,9 +282,10 @@ function renderBeat(
   beat: TradeBeat,
   doneSet: ReadonlySet<string>,
   doneLabels: Readonly<Record<string, string>>,
+  threadCopy: ThreadDemoCopy,
 ) {
   if (beat.kind === "call") {
-    return <CallBeat key={beat.id} beat={beat} />;
+    return <CallBeat key={beat.id} beat={beat} threadCopy={threadCopy} />;
   }
   if (beat.kind === "event") {
     return (
@@ -324,7 +335,12 @@ export interface TradeThreadProps {
  * The full static thread: header, beats on the app's paper ground, composer
  * at rest. Put it inside a <PanelFrame …>.
  */
-export function TradeThread({ script, className }: TradeThreadProps) {
+export function TradeThread({
+  script,
+  className,
+  locale = "en",
+}: TradeThreadProps & { locale?: MarketingLocale }) {
+  const threadCopy = threadDemoCopy(locale);
   const doneSet = new Set(script.doneIds ?? []);
   const doneLabels = script.doneLabels ?? {};
 
@@ -332,7 +348,7 @@ export function TradeThread({ script, className }: TradeThreadProps) {
     <div className={cn("font-sans bg-background text-foreground", className)}>
       <Header script={script} />
       <div className="flex flex-col gap-3 px-4 py-4">
-        {script.beats.map((beat) => renderBeat(beat, doneSet, doneLabels))}
+        {script.beats.map((beat) => renderBeat(beat, doneSet, doneLabels, threadCopy))}
       </div>
       <ComposerAtRest />
     </div>

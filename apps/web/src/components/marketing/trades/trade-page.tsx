@@ -25,6 +25,8 @@
  *  - Fully static: zero client islands, zero tab stops added by the demos.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { tradesCopy, tradesEn } from "@/i18n/marketing/trades";
 import { HeadlinePriceFigure } from "@/components/marketing/pricing/headline-price-figure";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -167,7 +169,7 @@ export interface TradeContent {
  * artifact.
  */
 export const THREAD_CAPTION =
-  "Tap any message to mark it done. The whole crew sees what's handled.";
+  tradesEn.doneNote;
 
 const FINAL_MICROCOPY = (
   <>
@@ -202,7 +204,14 @@ function TruthStrip({ line }: { line: TradeTruthLine }) {
 /* The template.                                                               */
 /* -------------------------------------------------------------------------- */
 
-export function TradePage({ content }: { content: TradeContent }) {
+export function TradePage({
+  content,
+  locale = "en",
+}: {
+  content: TradeContent;
+  locale?: MarketingLocale;
+}) {
+  const copy = tradesCopy(locale);
   return (
     <>
       {/* DATELINE HEADER (§5.1): the converged-arrival mark (the subpage's
@@ -264,7 +273,7 @@ export function TradePage({ content }: { content: TradeContent }) {
           ariaLabel={content.threadAriaLabel}
           className="mx-auto mt-12 w-full max-w-[36rem]"
         >
-          <TradeThread script={content.script} />
+          <TradeThread script={content.script} locale={locale} />
         </PanelFrame>
       </FrSection>
 
@@ -305,10 +314,10 @@ export function TradePage({ content }: { content: TradeContent }) {
               {content.savedRepliesIntro}
             </p>
             <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
-              Type <span className="fr-mono-data">/</span> in the composer,
-              tap one, send. Every template is editable before it goes out,
-              and <span className="fr-mono-data">{"{first_name}"}</span> fills
-              in the customer&apos;s name by itself.
+              {copy.pickerBefore} <span className="fr-mono-data">/</span>{" "}
+              {copy.pickerAfter}{" "}
+              <span className="fr-mono-data">{"{first_name}"}</span>{" "}
+              {copy.pickerFillsIn}
             </p>
           </div>
           <PanelFrame
@@ -316,7 +325,7 @@ export function TradePage({ content }: { content: TradeContent }) {
             ariaLabel={content.savedRepliesCaption}
             className="w-full"
           >
-            <SavedRepliesPicker replies={content.savedReplies} />
+            <SavedRepliesPicker replies={content.savedReplies} locale={locale} />
           </PanelFrame>
         </div>
       </FrSection>
@@ -353,7 +362,7 @@ export function TradePage({ content }: { content: TradeContent }) {
           <div className="mt-6 space-y-2.5">
             <TruthStrip
               line={{
-                text: "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved for you; storage is free.",
+                text: copy.truthReceiving,
                 good: true,
               }}
             />
@@ -399,14 +408,12 @@ export function TradePage({ content }: { content: TradeContent }) {
           {/* #121: trade pages carry no allowance or per-text figures; the
               concrete mechanics live in one place, linked here. */}
           <p className="font-body-mkt mt-4 text-[0.875rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-            Texting and pictures are included under an automated fair-use
-            policy, and almost every crew stays well inside it. The concrete
-            numbers live in our{" "}
+            {copy.fairUseBefore}{" "}
             <Link
               href="/legal/fair-use"
               className="font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
             >
-              fair use policy
+              {copy.fairUseLink}
             </Link>
             .
           </p>
@@ -414,7 +421,7 @@ export function TradePage({ content }: { content: TradeContent }) {
             href="/pricing"
             className="font-body-mkt mt-6 inline-block font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
           >
-            See full pricing. Every cost is on that page.
+            {copy.seePricing}
           </Link>
         </FrCard>
       </FrSection>
