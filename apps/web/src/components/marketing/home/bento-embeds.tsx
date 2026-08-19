@@ -14,6 +14,8 @@
  * live (Law 11): these are resting states, not activity.
  */
 
+import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Lock, Slash } from "lucide-react";
 
 import {
@@ -21,29 +23,47 @@ import {
   DemoStatusPill,
 } from "@/components/marketing/thread-demo/thread-primitives";
 
+/**
+ * The demo customers and teammates. Names, not copy: they read the same in
+ * both languages, and translating a person is not a thing. They live in a
+ * constant so no bilingual file holds a bare literal.
+ */
+const PEOPLE = {
+  karen: "Karen M",
+  theo: "Theo B",
+  morgan: "Morgan W",
+  dale: "Dale",
+  priya: "Priya",
+} as const;
+
 /** Cell 1: one owner and one status per conversation, at a glance. */
-export function AssignTrackEmbed() {
+export function AssignTrackEmbed({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center gap-2.5 rounded-app-card bg-app-tint/60 px-3 py-2.5">
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold text-app-ink">
-            Karen M
+            {PEOPLE.karen}
           </span>
           <span className="block truncate text-[12px] text-app-muted">
-            Tomorrow between 9 and 11 works
+            {copy.embedTomorrow}
           </span>
         </span>
         <DemoStatusPill status="waiting" />
-        <DemoAvatar name="Dale" className="size-6 text-[10px]" />
+        <DemoAvatar name={PEOPLE.dale} className="size-6 text-[10px]" />
       </div>
       <div className="flex items-center gap-2.5 rounded-app-card px-3 py-2.5">
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold text-app-ink">
-            Theo B
+            {PEOPLE.theo}
           </span>
           <span className="block truncate text-[12px] text-app-muted">
-            Is he coming today?
+            {copy.embedComingToday}
           </span>
         </span>
         <DemoStatusPill status="new" />
@@ -51,21 +71,26 @@ export function AssignTrackEmbed() {
       <div className="flex items-center gap-2.5 rounded-app-card px-3 py-2.5">
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold text-app-ink">
-            Morgan W
+            {PEOPLE.morgan}
           </span>
           <span className="block truncate text-[12px] text-app-muted">
-            All done, invoice when ready
+            {copy.embedAllDone}
           </span>
         </span>
         <DemoStatusPill status="closed" />
-        <DemoAvatar name="Priya" className="size-6 text-[10px]" />
+        <DemoAvatar name={PEOPLE.priya} className="size-6 text-[10px]" />
       </div>
     </div>
   );
 }
 
 /** Cell 2: the amber locked note, marked and never sent to the customer. */
-export function NotesEmbed() {
+export function NotesEmbed({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
   return (
     <div className="p-3">
       <div className="rounded-app-bub border border-app-amber-line bg-app-amber-bg px-3.5 py-2.5 text-[13px] leading-[1.5] text-app-amber-ink [border-bottom-right-radius:5px]">
@@ -74,43 +99,48 @@ export function NotesEmbed() {
             colour, and it was sitting right there on the parent. */}
         <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber-ink">
           <Lock className="size-3 text-app-amber" strokeWidth={1.75} aria-hidden />
-          Internal note · Priya
+          {copy.embedNoteLabel}
         </span>
-        Sounds like the Navien on Delaware Ave. Dale, you&apos;re two streets
-        over this afternoon
+        {copy.embedNoteBody}
       </div>
       <p className="mt-1.5 text-right text-[11px] text-app-muted-2">
-        Only your team sees this
+        {copy.embedNoteOnlyTeam}
       </p>
     </div>
   );
 }
 
 /** Cell 3: the "/" saved-reply picker resting on the composer. */
-export function SavedRepliesEmbed() {
+export function SavedRepliesEmbed({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
   return (
     <div className="p-3">
       <div className="rounded-app-card border border-app-line bg-app-paper p-1.5">
         <div className="flex flex-col gap-0.5">
           <div className="rounded-app-ctrl bg-app-tint px-2.5 py-1.5">
             <span className="block text-[12.5px] font-semibold text-app-ink">
-              On my way
+              {copy.embedTemplateOnMyWay}
             </span>
             <span className="block truncate text-[11.5px] text-app-muted">
-              On my way. Should be with you in about 20 minutes.
+              {copy.embedTemplateOnMyWayBody}
             </span>
           </div>
           <div className="rounded-app-ctrl px-2.5 py-1.5">
             <span className="block text-[12.5px] font-semibold text-app-ink">
-              Quote follow-up
+              {copy.embedTemplateFollowUp}
             </span>
             <span className="block truncate text-[11.5px] text-app-muted">
-              Hi {"{first_name}"}, checking in on the quote we sent over.
+              {copy.embedTemplateFollowUpBefore} {"{first_name}"}
+              {copy.embedTemplateFollowUpAfter}
             </span>
           </div>
           <div className="rounded-app-ctrl px-2.5 py-1.5">
             <span className="block text-[12.5px] font-semibold text-app-ink">
-              Booking confirmation
+              {copy.embedTemplateBooking}
             </span>
             <span className="block truncate text-[11.5px] text-app-muted">
               You&apos;re booked. We&apos;ll text you when we&apos;re on the

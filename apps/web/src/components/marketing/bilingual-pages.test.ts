@@ -121,7 +121,16 @@ function bilingualBodies(): string[] {
     .filter((name) => name.endsWith("-visual.tsx"))
     .map((name) => join(BODIES, "features", name))
     .filter((file) => readFileSync(file, "utf8").includes("MarketingLocale"));
-  return [...pages, ...visuals];
+  // The home page's eleven sections, on the same rule and for the same
+  // reason. They are not `-page.tsx` files — the route composes them — so
+  // nothing here saw them until this line existed, and the home page is the
+  // single largest body of copy on the site.
+  const homeDir = join(BODIES, "home");
+  const sections = readdirSync(homeDir)
+    .filter((name) => name.endsWith(".tsx") && !name.endsWith(".test.tsx"))
+    .map((name) => join(homeDir, name))
+    .filter((file) => readFileSync(file, "utf8").includes("MarketingLocale"));
+  return [...pages, ...visuals, ...sections];
 }
 
 describe("#228/D138 the bilingual page bodies carry no words of their own", () => {

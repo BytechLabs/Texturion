@@ -1,3 +1,5 @@
+import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { FrCard, FrSection, PanelFrame } from "@/components/marketing/fr";
 import { cn } from "@/lib/utils";
 import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
@@ -27,39 +29,17 @@ import {
  * contacts cell was rewritten from an import feature into what it actually is.
  */
 
-const TYPOGRAPHIC_CELLS: readonly { title: string; body: React.ReactNode }[] = [
-  {
-    title: "Tags that match how you sell.",
-    body: "Quote sent, scheduled, won, lost. Ready out of the box, editable to fit how you actually work.",
-  },
-  {
-    title: "Photos, both ways.",
-    body: "Customers text you a picture of the problem, and receiving photos is always free, on every plan. Texting back a photo of the finished job is included too, on every plan, and every photo is stored free.",
-  },
-  {
-    title: "Search everything.",
-    body: 'Every message and contact, searchable. "What did we quote the Nguyens in March?" takes five seconds, not a phone poll.',
-  },
-  {
-    title: "One history per customer.",
-    body: "Every text, call, voicemail and photo you have ever exchanged with somebody, on one timeline, with their address and your private notes. Bring your list in with a CSV; we show you exactly what will import before anything does.",
-  },
-  {
-    title: "Calls ring the whole crew.",
-    body: "A customer calls your business number and every teammate's app rings at once, so whoever is free answers. Nobody free? They leave a voicemail we write down for you to read, and they get a text back before they try the next business. Included on every plan.",
-  },
-  {
-    title: "Turn it into a job.",
-    body: "A text or a call becomes a task with an owner, an address and a due date, linked back to what the customer actually said. Book the Hendersons for Tuesday stops living in one person's head.",
-  },
-  {
-    title: "Lou drafts, you send.",
-    body: "Our assistant writes a reply for you to edit, puts voicemails in writing, and fills in a job's address and due date from the customer's own words. A person always reads it before it goes. Every part of it can be switched off.",
-  },
-  {
-    title: "Mark it done.",
-    body: "Tap any message to check it off, right in the thread. The whole crew sees what's handled. No separate to-do app.",
-  },
+const typographicCells = (
+  copy: HomeCopy,
+): readonly { title: string; body: React.ReactNode }[] => [
+  { title: copy.bentoTagsTitle, body: copy.bentoTagsBody },
+  { title: copy.bentoPhotosTitle, body: copy.bentoPhotosBody },
+  { title: copy.bentoSearchTitle, body: copy.bentoSearchBody },
+  { title: copy.bentoHistoryTitle, body: copy.bentoHistoryBody },
+  { title: copy.bentoCallsTitle, body: copy.bentoCallsBody },
+  { title: copy.bentoJobTitle, body: copy.bentoJobBody },
+  { title: copy.bentoLouTitle, body: copy.bentoLouBody },
+  { title: copy.bentoDoneTitle, body: copy.bentoDoneBody },
 ];
 
 function CellHeader({
@@ -79,11 +59,13 @@ function CellHeader({
   );
 }
 
-export function Bento() {
+export function Bento({ locale = "en" }: { locale?: MarketingLocale } = {}) {
+  const copy = homeCopy(locale);
+  const TYPOGRAPHIC_CELLS = typographicCells(copy);
   return (
     <FrSection ground="frost" id="day">
       <h2 className="fr-h2 max-w-2xl">
-        Everything a crew needs. Nothing a sales team invented.
+        {copy.bentoTitle}
       </h2>
 
       {/* grid-cols-1 (minmax(0,1fr)) everywhere: the truncated inbox rows in
@@ -93,22 +75,19 @@ export function Bento() {
         <FrCard className="p-6 lg:col-span-2">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
             <div>
-              <CellHeader title="Assign and track.">
-                Every conversation has one owner and one status: new, open,
-                waiting, or closed. At a glance, you know what&apos;s handled
-                and what&apos;s not.
+              <CellHeader title={copy.bentoAssignTitle}>
+                {copy.bentoAssignBody}
               </CellHeader>
               <p className="font-body-mkt mt-4 rounded-[10px] bg-[color:var(--fr-frost)] px-3.5 py-2.5 text-[13px] leading-[1.6] text-[color:var(--fr-ink-70)]">
-                Two locations, or an office line and a field line? Pro gives
-                you two separate numbers, each with its own inbox.
+                {copy.bentoTwoNumbersBody}
               </p>
             </div>
             <PanelFrame
-              ariaLabel="Conversations with one owner and one status each"
+              ariaLabel={copy.bentoAssignAria}
               embedClassName="rounded-2xl"
             >
               <AppSurface>
-                <AssignTrackEmbed />
+                <AssignTrackEmbed locale={locale} />
               </AppSurface>
             </PanelFrame>
           </div>
@@ -117,27 +96,22 @@ export function Bento() {
         {/* 9 · Built for the truck (anchor: the app's own dark mode in a
             phone frame; the tall cell). */}
         <FrCard className="p-6 lg:row-span-2">
-          <CellHeader title="Built for the truck, not the desk.">
-            Works on every phone your crew already carries. No download, no app
-            store, no IT day. Open the link, add it to your home screen, and it
-            behaves like an app: push notifications when a customer texts or
-            calls, one-handed replies from the job site, calls you can take or
-            place straight from the conversation, and a dark mode that
-            doesn&apos;t blind you at 6am.
+          <CellHeader title={copy.bentoTruckTitle}>
+            {copy.bentoPhoneBody}
           </CellHeader>
           <PanelFrame
             phone
             phoneDark
             className="mt-6"
-            ariaLabel="A 6am no-hot-water conversation, answered from a phone"
+            ariaLabel={copy.bentoTruckAria}
           >
             <AppSurface>
               <StaticThread
                 script={DARK_BAND_SCRIPT}
                 framing="phone"
                 pushBanner={{
-                  title: "Loonext",
-                  body: "New text from Marcus T",
+                  title: copy.bentoPushTitle,
+                  body: copy.bentoPushBody,
                 }}
                 bodyClassName="flex flex-col gap-3 px-3 pb-4 pt-14"
               />
@@ -147,35 +121,34 @@ export function Bento() {
 
         {/* 2 · Internal notes (anchor: the amber locked note). */}
         <FrCard className="p-6">
-          <CellHeader title="Internal notes.">
-            Talk about the job inside the conversation. Notes are marked,
-            locked, and never sent to the customer.
+          <CellHeader title={copy.bentoNotesTitle}>
+            {copy.bentoNotesBody}
           </CellHeader>
           <PanelFrame
             className="mt-5"
-            ariaLabel="An internal note the customer never sees"
+            ariaLabel={copy.bentoNotesAria}
             embedClassName="rounded-2xl"
           >
             <AppSurface>
-              <NotesEmbed />
+              <NotesEmbed locale={locale} />
             </AppSurface>
           </PanelFrame>
         </FrCard>
 
         {/* 3 · Saved replies (anchor: the "/" picker). */}
         <FrCard className="p-6">
-          <CellHeader title="Saved replies.">
+          <CellHeader title={copy.bentoTemplatesTitle}>
             Type &quot;/&quot; and send your on-my-way, quote-follow-up, or
             booking text in two taps. Write them once, stop retyping them
             forever.
           </CellHeader>
           <PanelFrame
             className="mt-5"
-            ariaLabel="The saved-reply picker above the composer"
+            ariaLabel={copy.bentoTemplatesAria}
             embedClassName="rounded-2xl"
           >
             <AppSurface>
-              <SavedRepliesEmbed />
+              <SavedRepliesEmbed locale={locale} />
             </AppSurface>
           </PanelFrame>
         </FrCard>

@@ -101,6 +101,14 @@ export const homeEn = {
     "Your number is active, usually a minute or two after you sign up, and you can text Canadian customers right away. No registration, no fee, no waiting. Receiving texts works immediately too.",
 
   bentoTitle: "Everything a crew needs. Nothing a sales team invented.",
+  bentoTruckTitle: "Built for the truck, not the desk.",
+  bentoTruckAria: "A 6am no-hot-water conversation, answered from a phone",
+  bentoNotesTitle: "Internal notes.",
+  bentoNotesAria: "An internal note the customer never sees",
+  bentoTemplatesTitle: "Saved replies.",
+  bentoTemplatesAria: "The saved-reply picker above the composer",
+  bentoPushTitle: "Loonext",
+  bentoPushBody: "New text from Marcus T",
   bentoAssignTitle: "Assign and track.",
   bentoAssignBody:
     "Every conversation has one owner and one status: new, open, waiting, or closed. At a glance, you know what's handled and what's not.",
@@ -149,6 +157,8 @@ export const homeEn = {
   embedTemplateOnMyWayBody:
     "On my way. Should be with you in about 20 minutes.",
   embedTemplateFollowUp: "Quote follow-up",
+  embedTemplateFollowUpBefore: "Hi",
+  embedTemplateFollowUpAfter: ", checking in on the quote we sent over.",
   embedTemplateBooking: "Booking confirmation",
   embedTemplateBookingBody:
     "You're booked. We'll text you when we're on the way.",
@@ -326,6 +336,16 @@ export const homeFr: Translated<typeof homeEn> = {
 
   bentoTitle:
     "Tout ce qu'une équipe a besoin. Rien qu'une équipe de vente a inventé.",
+  bentoTruckTitle: "Bâti pour le camion, pas pour le bureau.",
+  bentoTruckAria:
+    "Une conversation « plus d'eau chaude » à 6 h, répondue depuis un téléphone",
+  bentoNotesTitle: "Notes internes.",
+  bentoNotesAria: "Une note interne que le client ne voit jamais",
+  bentoTemplatesTitle: "Réponses enregistrées.",
+  bentoTemplatesAria:
+    "Le sélecteur de réponses enregistrées au-dessus du champ de saisie",
+  bentoPushTitle: "Loonext",
+  bentoPushBody: "Nouveau texto de Marcus T",
   bentoAssignTitle: "Assignez et suivez.",
   bentoAssignBody:
     "Chaque conversation a un seul responsable et un seul état : nouveau, ouvert, en attente ou fermé. D'un coup d'œil, vous savez ce qui est réglé et ce qui ne l'est pas.",
@@ -374,6 +394,9 @@ export const homeFr: Translated<typeof homeEn> = {
   embedTemplateOnMyWayBody:
     "En route. On devrait être chez vous dans une vingtaine de minutes.",
   embedTemplateFollowUp: "Relance de soumission",
+  embedTemplateFollowUpBefore: "Bonjour",
+  embedTemplateFollowUpAfter:
+    ", je fais un suivi sur la soumission qu'on vous a envoyée.",
   embedTemplateBooking: "Confirmation de rendez-vous",
   embedTemplateBookingBody:
     "C'est réservé. On vous écrit quand on est en route.",

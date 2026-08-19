@@ -1,3 +1,5 @@
+import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check } from "lucide-react";
 import Link from "next/link";
 
@@ -33,42 +35,18 @@ interface ProofPoint {
   body: string;
 }
 
-const US_PROOF_POINTS: readonly ProofPoint[] = [
-  {
-    title: "Registration, filed for you.",
-    body: "We register your business with the US phone companies automatically at signup. You answer a few plain questions; we handle the forms, the follow-ups, and the resubmission if anything bounces.",
-  },
-  {
-    title: "STOP means stop, instantly.",
-    body: "When a customer texts STOP, they're opted out on the spot, and Loonext blocks any future send to that number until they opt back in.",
-  },
-  {
-    title: "Consent, on the record.",
-    body: "Every conversation you start is recorded with who started it and when, so your opt-in trail is real if a carrier ever asks.",
-  },
-  {
-    title: "Opt-outs honored, however they're said.",
-    body: 'The rules count "please stop texting me" the same as STOP, so one click marks a customer opted out and Loonext blocks every send until they ask back in.',
-  },
+const usProofPoints = (copy: HomeCopy): readonly ProofPoint[] => [
+  { title: copy.rulesRegTitle, body: copy.rulesRegBody },
+  { title: copy.rulesStopTitle, body: copy.rulesStopBody },
+  { title: copy.rulesConsentTitle, body: copy.rulesConsentBodyUs },
+  { title: copy.rulesOptOutTitle, body: copy.rulesOptOutBody },
 ];
 
-const CA_PROOF_POINTS: readonly ProofPoint[] = [
-  {
-    title: "No registration to file.",
-    body: "Texting Canadian customers doesn't go through the US phone-company registration, so there's nothing to file and nothing to wait on. You pick a local number and start the same day.",
-  },
-  {
-    title: "STOP means stop, instantly.",
-    body: "When a customer texts STOP, they're opted out on the spot, and Loonext blocks any future send to that number until they opt back in.",
-  },
-  {
-    title: "Consent, on the record.",
-    body: "Every conversation you start is recorded with who started it and when, so your CASL consent trail is a real name and date, not a memory.",
-  },
-  {
-    title: "Opt-outs honored, however they're said.",
-    body: 'The rules count "please stop texting me" the same as STOP, so one click marks a customer opted out and Loonext blocks every send until they ask back in.',
-  },
+const caProofPoints = (copy: HomeCopy): readonly ProofPoint[] => [
+  { title: copy.rulesNoRegTitle, body: copy.rulesNoRegBody },
+  { title: copy.rulesStopTitle, body: copy.rulesStopBody },
+  { title: copy.rulesConsentTitle, body: copy.rulesConsentBodyCa },
+  { title: copy.rulesOptOutTitle, body: copy.rulesOptOutBody },
 ];
 
 interface Chip {
@@ -76,31 +54,33 @@ interface Chip {
   tick?: boolean;
 }
 
-const US_CHIPS: readonly Chip[] = [
-  { label: "Filed for you at signup" },
-  { label: "Receiving texts, day one", tick: true },
-  { label: "Plain-English privacy" },
+const usChips = (copy: HomeCopy): readonly Chip[] => [
+  { label: copy.rulesChipFiled },
+  { label: copy.rulesChipReceiving, tick: true },
+  { label: copy.rulesChipPrivacy },
 ];
 
-const CANADA_CHIPS: readonly Chip[] = [
-  { label: "Local Canadian numbers" },
-  { label: "Texting works day one", tick: true },
-  { label: "Plain-English privacy" },
+const canadaChips = (copy: HomeCopy): readonly Chip[] => [
+  { label: copy.rulesChipLocal },
+  { label: copy.rulesChipDayOne, tick: true },
+  { label: copy.rulesChipPrivacy },
 ];
 
 /** The left column: the country's four compliance proof points. */
 function ProofColumn({
   eyebrow,
   points,
+  copy,
 }: {
   eyebrow: string;
   points: readonly ProofPoint[];
+  copy: HomeCopy;
 }) {
   return (
     <div>
       <Eyebrow>{eyebrow}</Eyebrow>
       <h2 className="fr-h2 mt-4 max-w-[20ch]">
-        Texting rules are real. We deal with them so you don&apos;t have to.
+        {copy.rulesCardHeading}
       </h2>
       <dl className="mt-10 space-y-7">
         {points.map((point) => (
@@ -169,7 +149,16 @@ function ReassuranceCard({
   );
 }
 
-export function RulesCanada() {
+export function RulesCanada({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+} = {}) {
+  const copy = homeCopy(locale);
+  const US_PROOF_POINTS = usProofPoints(copy);
+  const CA_PROOF_POINTS = caProofPoints(copy);
+  const US_CHIPS = usChips(copy);
+  const CANADA_CHIPS = canadaChips(copy);
   return (
     <FrSection ground="white" id="rules">
       {/* US (SSR default): the carrier proof points + the registration-tracked
@@ -177,15 +166,16 @@ export function RulesCanada() {
       <CountryOnly country="us">
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
           <ProofColumn
-            eyebrow="The carrier stuff, handled"
+            eyebrow={copy.rulesEyebrowUs}
             points={US_PROOF_POINTS}
+            copy={copy}
           />
           <ReassuranceCard
-            heading="Your registration, filed and tracked."
-            body="The US registration is filed the minute you pay and carried all the way through carrier approval, resubmissions included. Receiving texts works right away, and we email you the moment US texting goes live, usually 3 to 7 business days after signup."
+            heading={copy.rulesTitleUs}
+            body={copy.rulesBodyUs}
             chips={US_CHIPS}
             linkHref={LIVE_ROUTES.featuresCompliance}
-            linkLabel="How Loonext handles the rules"
+            linkLabel={copy.rulesLinkUs}
           />
         </div>
       </CountryOnly>
@@ -194,13 +184,17 @@ export function RulesCanada() {
           US registration, wait, or fee. */}
       <CountryOnly country="ca">
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
-          <ProofColumn eyebrow="The rules, handled" points={CA_PROOF_POINTS} />
+          <ProofColumn
+            eyebrow={copy.rulesEyebrowCa}
+            points={CA_PROOF_POINTS}
+            copy={copy}
+          />
           <ReassuranceCard
-            heading="Texting Canadian customers, day one."
-            body="The US phone-company registration doesn't apply to a Canadian business texting Canadian customers, so on Loonext you're texting the same day you sign up. Local numbers in every province, CASL-aware consent records, and a privacy policy that says plainly where your data lives."
+            heading={copy.rulesTitleCa}
+            body={copy.rulesBodyCa}
             chips={CANADA_CHIPS}
             linkHref={LIVE_ROUTES.canada}
-            linkLabel="How Loonext works in Canada"
+            linkLabel={copy.rulesLinkCa}
           />
         </div>
       </CountryOnly>
