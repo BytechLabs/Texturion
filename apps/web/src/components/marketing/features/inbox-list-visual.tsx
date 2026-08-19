@@ -17,6 +17,11 @@
  * 555-01XX safe fictional range.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import {
+  sharedInboxCopy,
+  type SharedInboxCopy,
+} from "@/i18n/marketing/shared-inbox";
 import { Check, Lock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -33,34 +38,34 @@ interface Row {
 }
 
 /** Seed rows: the Reyes Plumbing crew (Priya/Dale/Marcus) mid-morning. */
-const ROWS: Row[] = [
+const rows = (copy: SharedInboxCopy): Row[] => [
   {
     name: "Marcus T",
     initials: "MT",
-    snippet: "Basement floor drain is backing up again",
+    snippet: copy.listDrainSnippet,
     time: "2m",
     unread: true,
   },
   {
     name: "Karen M",
     initials: "KM",
-    snippet: "Tomorrow between 9 and 11 works. Thank you so much",
+    snippet: copy.listKarenSnippet,
     time: "18m",
-    tag: "Scheduled",
+    tag: copy.listScheduled,
     assignee: "D",
   },
   {
     name: "Nguyen family",
     initials: "NF",
-    snippet: "You: Here's the quote for the water heater swap",
+    snippet: copy.listQuoteSnippet,
     time: "1h",
-    tag: "Quote sent",
+    tag: copy.listQuoteSent,
     assignee: "P",
   },
   {
     name: "The Hendersons",
     initials: "TH",
-    snippet: "Gate code is 4482, dog is friendly",
+    snippet: copy.listGateSnippet,
     time: "3h",
     noteSnippet: true,
     assignee: "M",
@@ -68,17 +73,17 @@ const ROWS: Row[] = [
   {
     name: "Rivera, D.",
     initials: "RD",
-    snippet: "You: All done, you're good to run the washer.",
-    time: "Tue",
+    snippet: copy.listDoneSnippet,
+    time: copy.listDueTue,
     assignee: "D",
   },
 ];
 
 /** The real inbox segments (FilterBar): a pill track, selected tab lifted. */
-function Segments() {
+function Segments({ copy }: { copy: SharedInboxCopy }) {
   return (
     <div className="flex gap-0.5 rounded-full bg-app-line-soft p-[3px]">
-      {["Open", "Mine", "All", "Closed"].map((label, i) => (
+      {[copy.listFilterOpen, copy.listFilterMine, copy.listFilterAll, copy.listFilterClosed].map((label, i) => (
         <span
           key={label}
           className={cn(
@@ -200,13 +205,20 @@ function AssignMenu() {
   );
 }
 
-export function InboxListVisual({ className }: { className?: string }) {
+export function InboxListVisual({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = sharedInboxCopy(locale);
   return (
     <div className={cn("relative p-3 sm:p-4", className)}>
-      <Segments />
+      <Segments copy={copy} />
       <AssignMenu />
       <div className="mt-2.5 space-y-0.5">
-        {ROWS.map((row, i) => (
+        {rows(copy).map((row, i) => (
           <InboxRow key={row.name} row={row} active={i === 0} />
         ))}
       </div>
