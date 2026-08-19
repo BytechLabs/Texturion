@@ -25,6 +25,7 @@ import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/home";
 import { cleanersCopy } from "@/i18n/marketing/for-cleaners";
 import { hvacCopy } from "@/i18n/marketing/for-hvac";
+import { landscapersCopy } from "@/i18n/marketing/for-landscapers";
 import { plumbersCopy } from "@/i18n/marketing/for-plumbers";
 
 export type TradeScriptStatus = "new" | "open" | "waiting" | "closed";
@@ -250,7 +251,11 @@ export const HVAC_SCRIPT: TradeScript = hvacScript("en");
 /* into a back-beds upsell (v2 script).                                        */
 /* -------------------------------------------------------------------------- */
 
-export const LANDSCAPERS_SCRIPT: TradeScript = {
+export const landscapersScript = (
+  locale: MarketingLocale = "en",
+): TradeScript => {
+  const copy = landscapersCopy(locale);
+  return {
   contact: { name: "Diane Alvarez", number: "(905) 555-0164" },
   status: "open",
   assignee: "Sofia",
@@ -264,44 +269,44 @@ export const LANDSCAPERS_SCRIPT: TradeScript = {
     {
       id: "ls-out-1",
       kind: "outbound",
-      body:
-        "Morning Diane, it's Greenline. The crew's at your side gate for the mowing and it's locked. Is there a code we should use?",
+      body: copy.scriptGateAsk,
       time: "7:15 AM",
     },
     {
       id: "ls-in-1",
       kind: "inbound",
-      body:
-        "So sorry! Code is 2580. While they're there, could you add the back beds this week? They're getting away from us.",
+      body: copy.scriptCodeReply,
       time: "7:19 AM",
     },
     {
       id: "ls-note-1",
       kind: "note",
       by: "Marco",
-      body:
-        "Saving 2580 to her contact so nobody's stuck at that gate again. Sofia, walk the back beds after the mow and price the cleanup",
+      body: copy.scriptNote,
       time: "7:22 AM",
     },
     {
       id: "ls-event-1",
       kind: "event",
-      text: "Marco assigned this conversation to Sofia",
+      text: fill(copy.scriptAssigned, { by: "Marco", to: "Sofia" }),
     },
     {
       id: "ls-out-2",
       kind: "outbound",
-      body:
-        "We're in, thanks Diane. I'll look at the back beds once the mowing's done and text you a price this afternoon. If it works for you, we can fold the cleanup into Thursday's visit.",
+      body: copy.scriptReply,
       time: "7:26 AM",
     },
     {
       id: "ls-event-2",
       kind: "event",
-      text: "Sofia added the tag Quote sent",
+      text: fill(copy.scriptTagged, { by: "Sofia", tag: copy.scriptTagQuoteSent }),
     },
   ],
+  };
 };
+
+/** The English thread, for tests and any English-only surface. */
+export const LANDSCAPERS_SCRIPT: TradeScript = landscapersScript("en");
 
 /* -------------------------------------------------------------------------- */
 /* Cleaners: 5:56 PM, new access instructions (key under the mat) plus a       */
