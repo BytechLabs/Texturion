@@ -101,8 +101,18 @@ describe("the pair is reciprocal by construction", () => {
   it("says nothing about a page with no translation", () => {
     // A lone hreflang on an untranslated page tells a crawler a version exists
     // that does not.
-    expect(languagesFor("/pricing")).toBeUndefined();
-    expect(twinOf("/pricing")).toBeUndefined();
+    //
+    // The path is DERIVED, not named. This assertion used to say "/pricing",
+    // which was true until /pricing was translated and then failed as a
+    // consequence of the work rather than a defect in it. Anything absent from
+    // the registry proves the same thing and cannot go stale.
+    const untranslated = "/legal/terms";
+    expect(
+      TRANSLATED_PAGES.some((page) => page.en === untranslated),
+      "pick a path the registry does not carry",
+    ).toBe(false);
+    expect(languagesFor(untranslated)).toBeUndefined();
+    expect(twinOf(untranslated)).toBeUndefined();
   });
 
   it("points the switcher at the other language's exact page", () => {

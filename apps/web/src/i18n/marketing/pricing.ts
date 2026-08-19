@@ -27,6 +27,74 @@ import type { MarketingLocale } from "./footer";
  * rate. The footnote says which currency the table is in, in both languages.
  */
 export const pricingEn = {
+  timelineDay0: "DAY 0",
+  timelineDay0Title: "You're live, not waiting.",
+  timelineDay0Body:
+    "Your number is up. Receiving texts works. Texting Canadian customers works. You can invite the crew and start today.",
+  timelineReviewLabel: "DAYS 1 TO 7",
+  timelineReviewTitle: "The phone companies review you.",
+  timelineReviewBody:
+    "US carriers require every business that texts to register. We filed yours the minute you paid. Approval typically takes 3 to 7 business days, about a week.",
+  timelineApprovedLabel: "APPROVED",
+  timelineApprovedTitle: "US texting turns on.",
+  timelineApprovedBody:
+    "We email you the moment it's live. Nothing else for you to do.",
+  timelineYouAreHere: "You are here",
+  timelineDayOneLabel: "Day one · No wait",
+  timelineDayOneTitle: "You're live the same day you sign up.",
+  timelineDayOneBody:
+    "Your number is up, receiving texts works, and texting Canadian customers works right away, usually a minute or two after you subscribe. Invite the crew and start today.",
+  builderStep1: "Step 1 · Pick your plan",
+  builderPlanAria: "Plan",
+  builderStep2: "Step 2 · Add only what you need",
+  builderAddonsNote:
+    "Every add-on is off by default and none is required to text. Turn them on here or later in settings, and off the same way.",
+  builderChangePlans:
+    "Change plans anytime in billing settings: upgrades apply immediately, downgrades at the end of your billing period.",
+  builderReceiptTitle: "Your plan, priced",
+  builderEveryMonth: "Every month",
+  builderRegLine: "One-time US registration, first month only",
+  builderFirstMonth: "First month, US shops",
+  builderCaBefore: "No registration fee in Canada. Your first month is",
+  builderCaAfter:
+    ", the same as every month after, and texting Canadian customers works the same day.",
+  builderTaxUs: "Prices in USD, plus sales tax where it applies.",
+  builderTaxCa:
+    "Prices in Canadian dollars, plus sales tax where it applies. Your card is charged in CAD, so the amount does not move with the exchange rate.",
+  builderCtaAria: "{cta}: start with {plan} at {price} a month",
+
+  toggleTitle: "Where are your customers?",
+  toggleAria: "Where you text: United States or Canada",
+  toggleHelperUs:
+    "One-time {fee} registration, then US texting turns on in about a week.",
+  toggleHelperCa:
+    "No registration fee, and texting Canadian customers works the same day.",
+
+  addonsTitle: "The add-ons, in plain words.",
+  addonsBody:
+    "The base plan is the complete product, calling included, nothing above is held back. Canada numbers is the only add-on that exists, optional and priced right here, with the limits written out before you pay.",
+  addonPerMo: "/mo",
+  addonRegionsCaLabel: "Canada numbers",
+  addonRegionsCaBlurb:
+    "Get and text Canadian numbers alongside your US number.",
+  addonRegionsCaFinePrint:
+    "Adds Canadian phone numbers you can get and text alongside your US number. It isn't switchable on quite yet: we sell it when it works, not before, and this is the price it will be.",
+
+  counterHint:
+    "Type your usual message. We count it with the same code that does our billing.",
+  counterSample:
+    "Hi Karen, it's Dale from Reyes Plumbing. I can come by tomorrow between 9 and 11 to look at the water heater. Does that work?",
+  counterZero: "0 texts",
+  counterOne: "text",
+  counterMany: "texts",
+  counterPlain: "plain",
+  counterSpecial: "special characters or emoji",
+  counterSplit: ", splits into {parts} parts behind the scenes",
+  counterChars: "({chars} characters, {kind}{split})",
+  counterUnicodeNote:
+    "Emoji and some special characters (like a curly quote) switch the message to a format that fits fewer characters per part, so it can count as more than one.",
+  counterPlainNote:
+    "A plain text fits up to 160 characters in one; you've used {used}.",
   metaTitle: "Pricing, {starter}/mo flat for the whole crew",
   metaDescription:
     "Build your plan and see the total before you pay: Starter {starter}/mo for up to 3 people, Pro {pro}/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. One-time {fee} US registration fee. No per-user fees, no quote calls.",
@@ -198,6 +266,77 @@ export const pricingEn = {
 } as const;
 
 export const pricingFr: Translated<typeof pricingEn> = {
+  timelineDay0: "JOUR 0",
+  timelineDay0Title: "Vous êtes en service, pas en attente.",
+  timelineDay0Body:
+    "Votre numéro est actif. La réception des textos fonctionne. Écrire à des clients canadiens fonctionne. Vous pouvez inviter l'équipe et commencer aujourd'hui.",
+  timelineReviewLabel: "JOURS 1 À 7",
+  timelineReviewTitle: "Les compagnies de téléphone vous révisent.",
+  timelineReviewBody:
+    "Les opérateurs américains exigent que chaque entreprise qui envoie des textos s'enregistre. Nous avons déposé la vôtre dès que vous avez payé. L'approbation prend généralement de 3 à 7 jours ouvrables, environ une semaine.",
+  timelineApprovedLabel: "APPROUVÉ",
+  timelineApprovedTitle: "L'envoi vers les États-Unis s'active.",
+  timelineApprovedBody:
+    "Nous vous écrivons dès que c'est en service. Rien d'autre à faire de votre côté.",
+  timelineYouAreHere: "Vous êtes ici",
+  timelineDayOneLabel: "Premier jour · Aucune attente",
+  timelineDayOneTitle: "Vous êtes en service le jour même de votre inscription.",
+  timelineDayOneBody:
+    "Votre numéro est actif, la réception des textos fonctionne, et écrire à des clients canadiens fonctionne tout de suite, habituellement une minute ou deux après votre abonnement. Invitez l'équipe et commencez aujourd'hui.",
+  builderStep1: "Étape 1 · Choisissez votre forfait",
+  builderPlanAria: "Forfait",
+  builderStep2: "Étape 2 · Ajoutez seulement ce dont vous avez besoin",
+  builderAddonsNote:
+    "Chaque supplément est désactivé par défaut et aucun n'est requis pour envoyer des textos. Activez-les ici ou plus tard dans les réglages, et désactivez-les de la même façon.",
+  builderChangePlans:
+    "Changez de forfait quand vous voulez dans les réglages de facturation : les mises à niveau s'appliquent immédiatement, les rétrogradations à la fin de votre période de facturation.",
+  builderReceiptTitle: "Votre forfait, chiffré",
+  builderEveryMonth: "Chaque mois",
+  builderRegLine:
+    "Enregistrement américain unique, premier mois seulement",
+  builderFirstMonth: "Premier mois, commerces américains",
+  builderCaBefore:
+    "Aucuns frais d'enregistrement au Canada. Votre premier mois est de",
+  builderCaAfter:
+    ", le même que chaque mois ensuite, et écrire à des clients canadiens fonctionne le jour même.",
+  builderTaxUs:
+    "Prix en dollars américains, plus les taxes de vente là où elles s'appliquent.",
+  builderTaxCa:
+    "Prix en dollars canadiens, plus les taxes de vente là où elles s'appliquent. Votre carte est débitée en CAD, alors le montant ne bouge pas avec le taux de change.",
+  builderCtaAria: "{cta} : commencer avec {plan} à {price} par mois",
+
+  toggleTitle: "Où sont vos clients ?",
+  toggleAria: "Où vous écrivez : États-Unis ou Canada",
+  toggleHelperUs:
+    "Enregistrement unique de {fee}, puis l'envoi vers les États-Unis s'active en environ une semaine.",
+  toggleHelperCa:
+    "Aucuns frais d'enregistrement, et écrire à des clients canadiens fonctionne le jour même.",
+
+  addonsTitle: "Les suppléments, en mots simples.",
+  addonsBody:
+    "Le forfait de base est le produit complet, appels compris, rien de ce qui précède n'est retenu. Les numéros canadiens sont le seul supplément qui existe, optionnel et chiffré ici même, avec les limites écrites avant que vous payiez.",
+  addonPerMo: "/mois",
+  addonRegionsCaLabel: "Numéros canadiens",
+  addonRegionsCaBlurb:
+    "Obtenez des numéros canadiens et écrivez avec, à côté de votre numéro américain.",
+  addonRegionsCaFinePrint:
+    "Ajoute des numéros de téléphone canadiens que vous pouvez obtenir et utiliser à côté de votre numéro américain. Il n'est pas encore activable : on le vend quand il fonctionne, pas avant, et voici le prix qu'il aura.",
+
+  counterHint:
+    "Tapez votre message habituel. On le compte avec le même code que celui de notre facturation.",
+  counterSample:
+    "Bonjour Karen, ici Dale de Reyes Plumbing. Je peux passer demain entre 9 h et 11 h pour regarder le chauffe-eau. Est-ce que ça vous convient ?",
+  counterZero: "0 texto",
+  counterOne: "texto",
+  counterMany: "textos",
+  counterPlain: "simple",
+  counterSpecial: "caractères spéciaux ou émojis",
+  counterSplit: ", se découpe en {parts} parties en coulisses",
+  counterChars: "({chars} caractères, {kind}{split})",
+  counterUnicodeNote:
+    "Les émojis et certains caractères spéciaux (comme une apostrophe courbe) font basculer le message vers un format qui contient moins de caractères par partie, alors il peut compter pour plus d'un.",
+  counterPlainNote:
+    "Un texto simple entre jusqu'à 160 caractères dans un seul ; vous en avez utilisé {used}.",
   metaTitle: "Tarifs, {starter}/mois prix fixe pour toute l'équipe",
   metaDescription:
     "Bâtissez votre forfait et voyez le total avant de payer : Starter {starter}/mois pour un maximum de 3 personnes, Pro {pro}/mois pour un maximum de 15. Textos, photos et appels inclus sous l'utilisation équitable automatisée, stockage gratuit. Frais uniques d'enregistrement américain de {fee}. Aucuns frais par personne, aucun appel pour une soumission.",

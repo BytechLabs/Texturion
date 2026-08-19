@@ -2,6 +2,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { TRANSLATED_PAGES } from "@/lib/marketing/translated-pages";
 import { LanguageSwitch } from "./language-switch";
 
 /**
@@ -44,7 +45,16 @@ describe("the language switch", () => {
   it("renders nothing at all where there is no translation", () => {
     // Absent rather than disabled: a greyed-out toggle tells a Quebec reader
     // the French exists and they are not allowed it.
-    pathname.current = "/pricing";
+    //
+    // The path is checked against the registry rather than assumed. This said
+    // "/pricing" until /pricing was translated, at which point a passing test
+    // turned into a failing one because the work succeeded.
+    const untranslated = "/legal/terms";
+    expect(
+      TRANSLATED_PAGES.some((page) => page.en === untranslated),
+      "pick a path the registry does not carry",
+    ).toBe(false);
+    pathname.current = untranslated;
     const { container } = render(<LanguageSwitch />);
     expect(container.innerHTML).toBe("");
   });

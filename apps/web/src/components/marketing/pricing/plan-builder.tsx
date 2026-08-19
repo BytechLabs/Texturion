@@ -25,6 +25,9 @@
  * buttons for the add-ons, and an aria-live receipt.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { fill } from "@/i18n/marketing/home";
+import { pricingCopy } from "@/i18n/marketing/pricing";
 import { PLAN_PRICE_CENTS } from "@loonext/shared";
 import {
   currencyForCountry,
@@ -117,7 +120,14 @@ function Switch({ on }: { on: boolean }) {
   );
 }
 
-export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
+export function PlanBuilder({
+  plans: plansProp,
+  locale = "en",
+}: {
+  plans: Plan[];
+  locale?: MarketingLocale;
+}) {
+  const copy = pricingCopy(locale);
   const { country } = useCountry();
   const [plan, setPlan] = useState<PlanId>(DEFAULT_SELECTION.plan);
   const planRefs = useRef<Partial<Record<PlanId, HTMLButtonElement | null>>>({});
@@ -188,11 +198,11 @@ export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
       {/* ------------------------------------------------------------------ */}
       <div>
         <p className="fr-eyebrow text-[color:var(--fr-ink-55)]">
-          Step 1 · Pick your plan
+          {copy.builderStep1}
         </p>
         <div
           role="radiogroup"
-          aria-label="Plan"
+          aria-label={copy.builderPlanAria}
           className="mt-4 grid gap-4 sm:grid-cols-2"
         >
           {plans.map((p) => {
@@ -286,7 +296,7 @@ export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
         {SELLABLE_ADDON_CARDS.length > 0 && (
           <>
             <p className="fr-eyebrow mt-10 text-[color:var(--fr-ink-55)]">
-              Step 2 · Add only what you need
+              {copy.builderStep2}
             </p>
             <div className="mt-4 space-y-3">
               {SELLABLE_ADDON_CARDS.map((card) => {
@@ -329,8 +339,7 @@ export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
               })}
             </div>
             <p className="mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-              Every add-on is off by default and none is required to text.
-              Turn them on here or later in settings, and off the same way.
+              {copy.builderAddonsNote}
             </p>
           </>
         )}
@@ -342,7 +351,7 @@ export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
       {/* ------------------------------------------------------------------ */}
       <div className="fr-card p-6 sm:p-7 lg:sticky lg:top-24">
         <p className="fr-eyebrow text-[color:var(--fr-ink-55)]">
-          Your plan, priced
+          {copy.builderReceiptTitle}
         </p>
 
         <div aria-live="polite">
@@ -374,7 +383,7 @@ export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
 
           <div className="mt-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-[10px] bg-[color:var(--fr-frost)] px-4 py-3.5">
             <span className="text-[0.9375rem] font-semibold text-[color:var(--fr-ink)]">
-              Every month
+              {copy.builderEveryMonth}
             </span>
             <span className="fr-figure text-[color:var(--fr-ink)]">
               {usd(monthly, currency)}
@@ -394,7 +403,7 @@ export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
             <dl className="mt-4 space-y-2">
               <div className="flex items-baseline justify-between gap-4">
                 <dt className="text-[0.875rem] text-[color:var(--fr-ink-70)]">
-                  One-time US registration, first month only
+                  {copy.builderRegLine}
                 </dt>
                 <dd className="fr-mono-data text-[color:var(--fr-ink)]">
                   + {usd(US_REGISTRATION_FEE_CENTS[currency] / 100, currency)}
@@ -402,7 +411,7 @@ export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
               </div>
               <div className="flex items-baseline justify-between gap-4">
                 <dt className="text-[0.875rem] font-semibold text-[color:var(--fr-ink)]">
-                  First month, US shops
+                  {copy.builderFirstMonth}
                 </dt>
                 <dd className="fr-mono-data font-medium text-[color:var(--fr-ink)]">
                   {usd(firstMonth, currency)}
@@ -413,9 +422,8 @@ export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
             <div className="mt-4 flex items-start gap-2 rounded-[10px] bg-[color:var(--fr-frost)] px-4 py-3.5">
               <GreenTick />
               <p className="text-[0.875rem] leading-relaxed text-[color:var(--fr-ink)]">
-                No registration fee in Canada. Your first month is{" "}
-                {usd(monthly, currency)}, the same as every month after, and texting
-                Canadian customers works the same day.
+                {copy.builderCaBefore} {usd(monthly, currency)}
+                {copy.builderCaAfter}
               </p>
             </div>
           )}
@@ -423,21 +431,23 @@ export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
 
         {country === "us" ? (
           <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-            Prices in USD, plus sales tax where it applies.
+            {copy.builderTaxUs}
           </p>
         ) : (
           <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
             {/* #328: this used to say CAD billing wasn't here yet. It is. */}
-            Prices in Canadian dollars, plus sales tax where it applies. Your
-            card is charged in CAD, so the amount does not move with the
-            exchange rate.
+            {copy.builderTaxCa}
           </p>
         )}
 
         <CtaButton
           href={signupHref(selection)}
           className="mt-6 w-full"
-          ariaLabel={`${PRIMARY_CTA_LABEL}: start with ${chosenPlan.name} at ${usd(monthly, currency)} a month`}
+          ariaLabel={fill(copy.builderCtaAria, {
+            cta: PRIMARY_CTA_LABEL,
+            plan: chosenPlan.name,
+            price: usd(monthly, currency),
+          })}
         >
           {PRIMARY_CTA_LABEL}
         </CtaButton>

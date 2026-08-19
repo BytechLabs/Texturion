@@ -18,6 +18,9 @@
  * the reader scrolls the receipt. No fake liveness, no em-dashes.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { fill } from "@/i18n/marketing/home";
+import { pricingCopy, type PricingCopy } from "@/i18n/marketing/pricing";
 import { type KeyboardEvent } from "react";
 
 import { formatMoney, US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
@@ -40,14 +43,22 @@ import {
  * A record of functions rather than a ternary so a third country cannot be
  * added without answering this question for it.
  */
-const HELPER: Record<Country, (fee: string) => string> = {
-  us: (fee) =>
-    `One-time ${fee} registration, then US texting turns on in about a week.`,
-  ca: () =>
-    "No registration fee, and texting Canadian customers works the same day.",
+const HELPER: Record<
+  Country,
+  (fee: string, copy: PricingCopy) => string
+> = {
+  us: (fee, copy) => fill(copy.toggleHelperUs, { fee }),
+  ca: (_fee, copy) => copy.toggleHelperCa,
 };
 
-export function CountryToggle({ className }: { className?: string }) {
+export function CountryToggle({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = pricingCopy(locale);
   const { country, setCountry } = useCountry();
   const currency = useMarketingCurrency();
   const fee = formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
@@ -62,11 +73,11 @@ export function CountryToggle({ className }: { className?: string }) {
   return (
     <div className={className}>
       <p className="fr-eyebrow text-[color:var(--fr-ink-55)]">
-        Where are your customers?
+        {copy.toggleTitle}
       </p>
       <div
         role="radiogroup"
-        aria-label="Where you text: United States or Canada"
+        aria-label={copy.toggleAria}
         className="mt-3 inline-flex rounded-full bg-[color:var(--fr-frost)] p-1"
       >
         {COUNTRY_OPTIONS.map((option) => {
@@ -93,7 +104,7 @@ export function CountryToggle({ className }: { className?: string }) {
         })}
       </div>
       <p className="fr-mono-data mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-        {HELPER[country](fee)}
+        {HELPER[country](fee, copy)}
       </p>
     </div>
   );

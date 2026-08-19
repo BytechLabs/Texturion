@@ -24,6 +24,7 @@
  */
 export const TRANSLATED_PAGES: readonly { readonly en: string; readonly fr: string }[] = [
   { en: "/", fr: "/fr" },
+  { en: "/pricing", fr: "/fr/tarifs" },
   { en: "/contact", fr: "/fr/contact" },
   { en: "/canada", fr: "/fr/canada" },
   { en: "/features/tasks", fr: "/fr/taches" },

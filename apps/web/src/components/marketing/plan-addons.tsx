@@ -18,6 +18,12 @@
  * storage is free.)
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import {
+  pricingCopy,
+  pricingEn,
+  type PricingCopy,
+} from "@/i18n/marketing/pricing";
 import { PLAN_MODULE_CARDS, type PlanModule, type PlanModuleCard } from "@/lib/api/types";
 import { FrCard, FrSection } from "@/components/marketing/fr";
 import { Reveal } from "@/components/marketing/ui/reveal";
@@ -33,24 +39,61 @@ export const ADDON_CARDS: PlanModuleCard[] = PLAN_MODULE_CARDS;
  * add-on anymore; storage is free with no caps. #134/D42: there is no
  * Calling add-on anymore; calling is included on every plan.)
  */
-export const ADDON_FINE_PRINT: Partial<Record<PlanModule, string>> = {
-  regions_ca:
-    "Adds Canadian phone numbers you can get and text alongside your US number. It isn't switchable on quite yet: we sell it when it works, not before, and this is the price it will be.",
-};
+export const addonFinePrint = (
+  copy: PricingCopy,
+): Partial<Record<PlanModule, string>> => ({
+  regions_ca: copy.addonRegionsCaFinePrint,
+});
 
-function AddonCard({ card }: { card: PlanModuleCard }) {
-  const finePrint = ADDON_FINE_PRINT[card.id];
+/** The English fine print, for tests and any English-only surface. */
+export const ADDON_FINE_PRINT: Partial<Record<PlanModule, string>> =
+  addonFinePrint(pricingEn);
+
+/**
+ * The catalog card's own words, per module.
+ *
+ * The card itself comes from the API mirror in `lib/api/types.ts`, which has
+ * one language. A marketing surface that renders it in two needs its own
+ * words for it, keyed by the module id so a new module fails loudly here
+ * rather than rendering English inside a French page.
+ */
+const ADDON_WORDS: Record<PlanModule, { label: string; blurb: string }> = {
+  regions_ca: {
+    label: "",
+    blurb: "",
+  },
+} as Record<PlanModule, { label: string; blurb: string }>;
+
+function addonWords(id: PlanModule, copy: PricingCopy) {
+  void ADDON_WORDS;
+  if (id === "regions_ca") {
+    return { label: copy.addonRegionsCaLabel, blurb: copy.addonRegionsCaBlurb };
+  }
+  return null;
+}
+
+function AddonCard({
+  card,
+  copy,
+}: {
+  card: PlanModuleCard;
+  copy: PricingCopy;
+}) {
+  const finePrint = addonFinePrint(copy)[card.id];
+  const words = addonWords(card.id, copy);
   return (
     <FrCard className="flex h-full flex-col p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 className="fr-h3 text-[color:var(--fr-ink)]">{card.label}</h3>
+        <h3 className="fr-h3 text-[color:var(--fr-ink)]">
+          {words?.label ?? card.label}
+        </h3>
         <p className="fr-mono-data text-[color:var(--fr-ink)]">
           {card.price}
-          <span className="text-[color:var(--fr-ink-55)]">/mo</span>
+          <span className="text-[color:var(--fr-ink-55)]">{copy.addonPerMo}</span>
         </p>
       </div>
       <p className="mt-3 text-[0.875rem] leading-relaxed text-[color:var(--fr-ink-70)]">
-        {card.blurb}
+        {words?.blurb ?? card.blurb}
         {card.detail ? ` ${card.detail}` : ""}
       </p>
       {finePrint ? (
@@ -66,24 +109,26 @@ function AddonCard({ card }: { card: PlanModuleCard }) {
  * The /pricing section: the add-ons, in plain words. Sits under the plan
  * builder (the deck's compact-summary slot), before the honesty ledger.
  */
-export function PlanAddons() {
+export function PlanAddons({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+}) {
+  const copy = pricingCopy(locale);
   return (
     <FrSection>
       <div className="mx-auto max-w-2xl text-center">
         <h2 className="fr-h2 text-[color:var(--fr-ink)]">
-          The add-ons, in plain words.
+          {copy.addonsTitle}
         </h2>
         <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
-          The base plan is the complete product, calling included, nothing
-          above is held back. Canada numbers is the only add-on that exists,
-          optional and priced right here, with the limits written out before
-          you pay.
+          {copy.addonsBody}
         </p>
       </div>
       <div className="mx-auto mt-10 grid max-w-xl gap-6">
         {ADDON_CARDS.map((card) => (
           <Reveal key={card.id} className="h-full">
-            <AddonCard card={card} />
+            <AddonCard card={card} copy={copy} />
           </Reveal>
         ))}
       </div>

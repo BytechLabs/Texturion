@@ -19,29 +19,31 @@
  * so the card is complete before and without JavaScript. No em-dashes.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { pricingCopy, type PricingCopy } from "@/i18n/marketing/pricing";
 import { useCountry } from "./country-context";
 
-const US_STEPS = [
+const usSteps = (copy: PricingCopy) => [
   {
     key: "day-0",
-    label: "DAY 0",
+    label: copy.timelineDay0,
     node: "green" as const,
-    title: "You're live, not waiting.",
-    body: "Your number is up. Receiving texts works. Texting Canadian customers works. You can invite the crew and start today.",
+    title: copy.timelineDay0Title,
+    body: copy.timelineDay0Body,
   },
   {
     key: "days-1-7",
-    label: "DAYS 1 TO 7",
+    label: copy.timelineReviewLabel,
     node: "cobalt" as const,
-    title: "The phone companies review you.",
-    body: "US carriers require every business that texts to register. We filed yours the minute you paid. Approval typically takes 3 to 7 business days, about a week.",
+    title: copy.timelineReviewTitle,
+    body: copy.timelineReviewBody,
   },
   {
     key: "approved",
-    label: "APPROVED",
+    label: copy.timelineApprovedLabel,
     node: "green" as const,
-    title: "US texting turns on.",
-    body: "We email you the moment it's live. Nothing else for you to do.",
+    title: copy.timelineApprovedTitle,
+    body: copy.timelineApprovedBody,
   },
 ];
 
@@ -78,7 +80,8 @@ function Node({ kind }: { kind: "green" | "cobalt" }) {
   );
 }
 
-function UsTimeline() {
+function UsTimeline({ copy }: { copy: PricingCopy }) {
+  const US_STEPS = usSteps(copy);
   return (
     <div className="fr-card p-6 sm:p-8">
       {/* The progress track: green dock, cobalt review segment, green dock.
@@ -93,7 +96,7 @@ function UsTimeline() {
 
       {/* The YOU ARE HERE tab (§3.4.4): white tag, ink text, Flare border. */}
       <span className="fr-eyebrow mt-3 inline-flex items-center rounded-[6px] border-[1.5px] border-[color:var(--fr-flare)] bg-[color:var(--fr-card)] px-2 py-1 text-[color:var(--fr-ink)]">
-        You are here
+        {copy.timelineYouAreHere}
       </span>
 
       <ol className="mt-6 grid gap-6 md:grid-cols-3 md:gap-8">
@@ -118,7 +121,7 @@ function UsTimeline() {
   );
 }
 
-function CanadaTimeline() {
+function CanadaTimeline({ copy }: { copy: PricingCopy }) {
   return (
     <div className="fr-card p-6 sm:p-8">
       {/* The whole track is a green dock: in Canada there is no waiting
@@ -133,15 +136,13 @@ function CanadaTimeline() {
         <GreenNode />
         <div>
           <span className="fr-eyebrow text-[color:var(--fr-ink-55)]">
-            Day one · No wait
+            {copy.timelineDayOneLabel}
           </span>
           <p className="mt-2 font-body-mkt text-[0.9375rem] font-semibold text-[color:var(--fr-ink)]">
-            You&apos;re live the same day you sign up.
+            {copy.timelineDayOneTitle}
           </p>
           <p className="mt-1.5 text-[0.875rem] leading-relaxed text-[color:var(--fr-ink-70)]">
-            Your number is up, receiving texts works, and texting Canadian
-            customers works right away, usually a minute or two after you
-            subscribe. Invite the crew and start today.
+            {copy.timelineDayOneBody}
           </p>
         </div>
       </div>
@@ -149,11 +150,22 @@ function CanadaTimeline() {
   );
 }
 
-export function FirstWeekTimeline({ className }: { className?: string }) {
+export function FirstWeekTimeline({
+  className,
+  locale = "en",
+}: {
+  className?: string;
+  locale?: MarketingLocale;
+}) {
+  const copy = pricingCopy(locale);
   const { country } = useCountry();
   return (
     <div className={className}>
-      {country === "ca" ? <CanadaTimeline /> : <UsTimeline />}
+      {country === "ca" ? (
+        <CanadaTimeline copy={copy} />
+      ) : (
+        <UsTimeline copy={copy} />
+      )}
     </div>
   );
 }

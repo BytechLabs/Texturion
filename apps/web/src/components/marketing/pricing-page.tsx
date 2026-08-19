@@ -165,9 +165,9 @@ export function PricingPageBody({
             {/* The country toggle: US shops see the $29 registration fee and
                 the carrier wait; Canadian businesses texting Canadian
                 customers see neither. */}
-            <CountryToggle className="mt-8" />
+            <CountryToggle className="mt-8" locale={locale} />
             <div className="mt-8">
-              <PlanBuilder plans={plansFor("usd", locale)} />
+              <PlanBuilder plans={plansFor("usd", locale)} locale={locale} />
             </div>
             {/* #85: the plan's allowances are a fair-use line, not a hard wall.
                 This footnote is the plan-card fair-use reference the dynamic
@@ -209,7 +209,7 @@ export function PricingPageBody({
         </FrSection>
 
         {/* The add-on fine print: the exact limits behind the builder toggles. */}
-        <PlanAddons />
+        <PlanAddons locale={locale} />
 
         {/* Crew-size slider (demoted below the builder per the owner ruling):
             the cobalt flat line vs the Flare climbing line. */}
@@ -222,7 +222,7 @@ export function PricingPageBody({
           <Reveal className="mx-auto mt-10 max-w-xl">
             <LazyCrewSizeSlider
               locale={locale}
-              fallback={<CrewSizeSliderStatic />}
+              fallback={<CrewSizeSliderStatic locale={locale} />}
             />
           </Reveal>
         </FrSection>
@@ -284,7 +284,7 @@ export function PricingPageBody({
             </CountryOnly>
 
             <Reveal className="mt-6">
-              <FirstWeekTimeline />
+              <FirstWeekTimeline locale={locale} />
             </Reveal>
 
             {/* The usage meter, staged with the app's own tokens (Law 2). */}
@@ -348,7 +348,10 @@ export function PricingPageBody({
           </div>
           <Reveal>
             <PanelFrame ariaLabel={copy.segmentAria}>
-              <LazySegmentCounter fallback={<SegmentCounterStatic />} />
+              <LazySegmentCounter
+              locale={locale}
+              fallback={<SegmentCounterStatic locale={locale} />}
+            />
             </PanelFrame>
           </Reveal>
         </div>
