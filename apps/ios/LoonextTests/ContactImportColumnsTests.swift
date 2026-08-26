@@ -1420,7 +1420,9 @@ final class ContactImportColumnsTests: XCTestCase {
         let file = try repoPath("apps/ios/Loonext/Features/Contacts/ContactsTab.swift")
         let code = try codeLines(of: file)
         XCTAssertTrue(
-            code.contains(where: { $0.contains("consent.unlistedLine") }),
+            code.contains(where: {
+                $0.contains("consent.localizedUnlistedLine(locale: appLocale)")
+            }),
             "a count larger than its list must be said out loud, or the heading reads as wrong"
         )
     }
