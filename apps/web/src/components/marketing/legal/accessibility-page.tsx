@@ -108,7 +108,7 @@ export function AccessibilityPageBody({
       title={copy.title}
       summary={copy.summary}
       lastUpdated={copy.lastUpdated}
-      lastUpdatedIso="2026-08-14"
+      lastUpdatedIso="2026-08-25"
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? FR_PATH : EN_PATH}
       sections={sections}
@@ -167,6 +167,7 @@ export function AccessibilityPageBody({
           <li><LegalRichText text={copy.gapAudit} /></li>
           <li><LegalRichText text={copy.gapScreenReader} /></li>
           <li><LegalRichText text={copy.gapIos} /></li>
+          <li><LegalRichText text={copy.gapLocale} /></li>
         </ul>
       </LegalSectionBlock>
 

@@ -12,6 +12,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { sayEnglish, sayWith, useT } from "@/i18n/provider";
+import { reducedMotionScrollBehavior } from "@/lib/motion";
 
 /**
  * #352 — what a rejected customer reads, and the one thing they do next.
@@ -81,7 +82,10 @@ export function RejectionNotice({
     if (!input) return;
     // Centred rather than at the top: a focused input pinned under the card
     // header reads as "nothing happened" on a short viewport.
-    input.scrollIntoView({ behavior: "smooth", block: "center" });
+    input.scrollIntoView({
+      behavior: reducedMotionScrollBehavior(),
+      block: "center",
+    });
     input.focus({ preventScroll: true });
   }, [guidance?.field, formRef]);
 

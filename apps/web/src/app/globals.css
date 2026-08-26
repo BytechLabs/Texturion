@@ -342,10 +342,10 @@
 }
 
 @utility tap-target {
-  /* G11: hit targets ≥44px on mobile. Small controls (chip removers, inline
-     pills) keep their visual size but extend their clickable area with an
-     invisible centered pseudo-element — no layout shift. Inert from md: up
-     (mouse pointers, G3 desktop). */
+  /* APP-LAYOUT-V2 §7: ordinary touch controls reach 44px while WCAG 2.2
+     §2.5.8 remains the 24px minimum. Small controls keep their visual size but
+     extend their clickable area with an invisible centred pseudo-element — no
+     layout shift. Inert from md: up (mouse pointers, G3 desktop). */
   @media (width < 48rem) {
     position: relative;
 

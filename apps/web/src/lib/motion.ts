@@ -19,3 +19,17 @@ export function prefersReducedMotion(): boolean {
   }
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+
+/**
+ * Keep a functional scroll, but make it immediate when motion was reduced.
+ *
+ * CSS `scroll-behavior: auto` does not override an explicit
+ * `scrollIntoView({ behavior: "smooth" })` / `scrollTo({ behavior: "smooth" })`.
+ * Scripted scrolls therefore have the same obligation as WAAPI animations: ask
+ * the media query before starting motion.
+ */
+export function reducedMotionScrollBehavior(
+  behavior: ScrollBehavior = "smooth",
+): ScrollBehavior {
+  return behavior === "smooth" && prefersReducedMotion() ? "auto" : behavior;
+}

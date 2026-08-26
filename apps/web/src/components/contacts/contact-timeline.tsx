@@ -13,6 +13,7 @@ import {
   type TimelineEntry,
 } from "@/lib/api/contact-timeline";
 import { useMembers } from "@/lib/api/team";
+import { reducedMotionScrollBehavior } from "@/lib/motion";
 
 /**
  * #324 — "what have we done for this customer?", answered by scrolling once.
@@ -189,7 +190,10 @@ function JumpToDate() {
           const target = document.querySelector<HTMLElement>(
             `[data-timeline-day="${next}"]`,
           );
-          target?.scrollIntoView({ behavior: "smooth", block: "start" });
+          target?.scrollIntoView({
+            behavior: reducedMotionScrollBehavior(),
+            block: "start",
+          });
         }}
         className="rounded-md border border-app-line bg-app-paper px-1.5 py-0.5 text-[11px]"
       />

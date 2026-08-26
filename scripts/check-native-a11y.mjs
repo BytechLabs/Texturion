@@ -23,11 +23,12 @@
  *   Android  A text size expressed in `dp`. `sp` carries the reader's font
  *            scale and `dp` does not, and the two are one character apart.
  *
- * DELIBERATELY NOT CHECKED: whether the result is legible, whether layouts
- * survive 200%, or whether a screen reader can drive the flow. Those need a
- * device and a person, and are recorded as unverified in the statement rather
- * than approximated here. This checks the mechanism, which is the part that
- * regresses silently.
+ * DELIBERATELY NOT CHECKED HERE: whether every layout remains usable at large
+ * text, or whether a screen reader can drive a flow. Representative rendering
+ * exists separately for Android's lead-sources card and iOS's For You dashboard;
+ * the three primary flows and assistive-technology behaviour remain unverified
+ * in `docs/ACCESSIBILITY.md`. This checks the scaling mechanism, which is the
+ * part that regresses silently.
  *
  * Usage:  node scripts/check-native-a11y.mjs
  */

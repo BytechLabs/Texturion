@@ -83,6 +83,17 @@ enum UiLocale {
         Locale.preferredLanguages.first
     }
 
+    /// The same resolved tag in Foundation's native locale type.
+    ///
+    /// SwiftUI's `locale` environment is inherited by the accessibility and
+    /// text systems. Keeping this conversion beside `resolve` prevents the app
+    /// root from reinterpreting `fr-CA` independently. This publishes language
+    /// metadata; it does not replace the physical VoiceOver pronunciation pass
+    /// required by `docs/ACCESSIBILITY.md`.
+    static func platformLocale(_ resolved: String) -> Locale {
+        Locale(identifier: resolved)
+    }
+
     private static func isKnown(_ value: String?) -> Bool {
         value == MessageLocale.en || value == MessageLocale.frCA
     }

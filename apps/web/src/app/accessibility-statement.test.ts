@@ -28,6 +28,15 @@ const REPO_ROOT = join(process.cwd(), "..", "..");
 const STATEMENT = join(REPO_ROOT, "docs", "ACCESSIBILITY.md");
 
 const doc = readFileSync(STATEMENT, "utf8");
+const contract = readFileSync(
+  join(REPO_ROOT, "docs", "APP-LAYOUT-V2.md"),
+  "utf8",
+);
+const design = readFileSync(join(REPO_ROOT, "docs", "DESIGN.md"), "utf8");
+const elevation = readFileSync(
+  join(REPO_ROOT, "docs", "APP-UI-ELEVATION.md"),
+  "utf8",
+);
 
 /** The verified table, sliced out of the document. */
 function verifiedTable(): string {
@@ -116,5 +125,25 @@ describe("#238/#285 the accessibility statement is backed by real tests", () => 
       expect(principle).toBeGreaterThanOrEqual(1);
       expect(guideline, `${number} names guideline ${guideline}`).toBeLessThanOrEqual(5);
     }
+  });
+
+  it("AS-5: one document owns the accessibility contract", () => {
+    expect(contract).toContain(
+      "Accessibility — canonical product contract (WCAG 2.2 Level AA)",
+    );
+    expect(design).toContain("docs/APP-LAYOUT-V2.md` §7 owns");
+    expect(elevation).toContain(
+      "docs/APP-LAYOUT-V2.md` §7 is the canonical",
+    );
+    expect(contract).not.toContain(
+      "Inherits every guardrail in **APP-UI-ELEVATION §6** unchanged",
+    );
+    expect(design).not.toContain("WCAG 2.1 AA");
+    expect(elevation).not.toContain("WCAG 2.1 AA");
+    expect(contract).not.toContain("Accessibility (WCAG 2.1 AA)");
+    expect(design).not.toMatch(/(?:hit|touch) targets?\s*(?:≥|>=|at least)\s*44px/i);
+    expect(elevation).not.toMatch(
+      /(?:hit|touch) targets?\s*(?:≥|>=|at least)\s*44px/i,
+    );
   });
 });

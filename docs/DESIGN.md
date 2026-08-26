@@ -123,9 +123,10 @@ ratios, which fail only when something is genuinely wrong.
   Right: thread pane (flexible) with a 320px contact panel toggled by an info button
   (persisted preference).
 - **Tablet (768–1023px):** sidebar collapses to 64px icon rail; list+thread as master-detail.
-- **Mobile (<768px):** bottom tab bar (Inbox, Contacts, Settings) with 44px+ touch targets
-  and safe-area padding; conversation list full-screen; thread pushes in as a full-screen
-  view with back header; compose FAB (petrol, bottom-right, above tab bar) on the inbox tab.
+- **Mobile (<768px):** bottom tab bar (Inbox, Contacts, Settings) with target sizing
+  governed by `docs/APP-LAYOUT-V2.md` §7 and safe-area padding; conversation list
+  full-screen; thread pushes in as a full-screen view with back header; compose FAB
+  (petrol, bottom-right, above tab bar) on the inbox tab.
 - **URLs:** `/inbox` (list; `?status=&assignee=&tag=&q=` filters in the URL),
   `/inbox/[conversationId]` (thread), `/contacts`, `/contacts/[id]`, `/templates`,
   `/settings/{workspace|team|billing|usage|notifications|numbers|profile}`, `/onboarding/*`,
@@ -276,10 +277,10 @@ Left-nav settings layout (mobile: stacked list → detail pages). Sections:
 
 ## G11. Accessibility & quality bar
 
-- WCAG 2.1 AA: 4.5:1 text contrast (petrol-on-tint verified in both themes), visible focus
-  rings (2px petrol offset), full keyboard path through inbox → thread → composer,
-  `aria-live=polite` for incoming messages, labels on every input, hit targets ≥44px on
-  mobile, reduced-motion support, screen-reader text for delivery states.
+- **Canonical accessibility contract:** `docs/APP-LAYOUT-V2.md` §7 owns the WCAG 2.2
+  Level AA requirements, including the keyboard path, names and roles, target sizing,
+  contrast, reduced motion and gallery behaviour. Do not restate its thresholds here;
+  `docs/ACCESSIBILITY.md` records what is verified and what remains unverified.
 - Performance: skeletons < 100ms, route-level code splitting, list virtualization
   (conversation list + thread) via `@tanstack/react-virtual`, images lazy + blur-up.
 - Every interactive state designed: hover, focus, active, disabled, loading, error, empty.

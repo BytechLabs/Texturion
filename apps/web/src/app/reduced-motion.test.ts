@@ -28,12 +28,43 @@
  * mechanism exists and still does its job, and claims nothing about any
  * individual animation.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  maxTransitionDurationMs,
+  reducedMotionTransitionProblem,
+} from "../../../../scripts/reduced-motion-duration.mjs";
+
 const CSS = readFileSync(join(import.meta.dirname, "globals.css"), "utf8");
+const REPO = join(import.meta.dirname, "..", "..", "..", "..");
+const RENDERED_AUDIT = readFileSync(
+  join(REPO, "scripts", "check-app-a11y.mjs"),
+  "utf8",
+);
+
+function appSourceFiles(dir = join(REPO, "apps", "web", "src")): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...appSourceFiles(full));
+    else if (
+      /\.[jt]sx?$/.test(entry.name) &&
+      !/\.(?:test|spec)\.[jt]sx?$/.test(entry.name)
+    ) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
+function withoutComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+}
 
 /** The `@media (prefers-reduced-motion: reduce)` blocks, brace-balanced. */
 function reducedMotionBlocks(): string[] {
@@ -122,5 +153,42 @@ describe("#238 prefers-reduced-motion is honoured", () => {
     const universal = reducedMotionBlocks().find((b) => /\*\s*,/.test(b)) ?? "";
     expect(universal).toContain("::before");
     expect(universal).toContain("::after");
+  });
+
+  it("makes the rendered audit emulate reduced motion", () => {
+    // This used to print `transition-duration 1s` twenty times in CI and still
+    // pass because the page never enabled the preference and the value was only
+    // a note. Both halves are pinned: enter the media mode, then make the
+    // measured duration part of the failure path.
+    expect(RENDERED_AUDIT).toContain(
+      'await page.emulateMedia({ reducedMotion: "reduce" });',
+    );
+    expect(RENDERED_AUDIT).toContain("reducedMotionTransitionProblem(");
+  });
+
+  it("fails the rendered audit when a transition survives reduced motion", () => {
+    expect(maxTransitionDurationMs("0s, 250ms")).toBe(250);
+    expect(reducedMotionTransitionProblem("Inbox @375px", "1s")).toContain(
+      "prefers-reduced-motion left a scripted 1s transition",
+    );
+    expect(reducedMotionTransitionProblem("Inbox @375px", "250ms")).toContain(
+      "250ms",
+    );
+    expect(reducedMotionTransitionProblem("Inbox @375px", "0.01ms")).toBeNull();
+  });
+
+  it("does not bypass the media query with a raw smooth CSSOM scroll", () => {
+    // `scroll-behavior: auto !important` does not override an explicit
+    // `{ behavior: "smooth" }` passed to scrollIntoView/scrollTo. Callers use
+    // reducedMotionScrollBehavior instead; this catches the next direct escape.
+    const directSmooth = /\b(?:scrollIntoView|scrollTo)\s*\(\s*\{[^}]*\bbehavior\s*:\s*["']smooth["']/s;
+    const offenders = appSourceFiles()
+      .filter((file) => directSmooth.test(withoutComments(readFileSync(file, "utf8"))))
+      .map((file) => file.slice(REPO.length + 1).replaceAll("\\", "/"));
+    expect(
+      offenders,
+      "Raw smooth scrolling ignores prefers-reduced-motion. Pass the behavior " +
+        "through reducedMotionScrollBehavior().",
+    ).toEqual([]);
   });
 });

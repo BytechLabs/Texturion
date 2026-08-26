@@ -180,8 +180,9 @@ the conversation.
 - **`768–1023px` (tablet)** — **nav collapses to the 64px icon rail** (§1.3); **list + thread are
   master-detail** (list full-width → tapping a row slides the thread in over it with a back header),
   the fixed-height shell rule still holds; context panel = bottom sheet.
-- **`<768px` (mobile)** — **bottom tab bar** (For You · Inbox · Tasks · Contacts · Settings; 44px+
-  targets, safe-area padding). The list is a full-screen view; the thread pushes in as a full-screen
+- **`<768px` (mobile)** — **bottom tab bar** (For You · Inbox · Tasks · Contacts · Settings;
+  target sizing follows the canonical §7 contract, with safe-area padding). The list is a
+  full-screen view; the thread pushes in as a full-screen
   view with a back header; the **composer is docked to the bottom above the safe area**; the compose
   **FAB** (petrol) floats bottom-right above the tab bar on list screens. No nav rail on mobile.
   Message text 16px (prevents iOS zoom). Everything one-handed on 375px.
@@ -491,18 +492,25 @@ placement* (nav order §1.3, top region §1.4), **not their internals and not th
 
 ## 7. Guardrails (mobile-first · a11y · reduced-motion · performance)
 
-Inherits every guardrail in **APP-UI-ELEVATION §6** unchanged; these are the overhaul-specific
-additions.
+The non-accessibility product guardrails in **APP-UI-ELEVATION §6** remain in
+force. Accessibility is owned by this section; the other design documents cite
+it instead of creating an inheritance cycle.
 
 **Mobile-first**
 - Every new surface is designed at 375px first: the composer collapses to `+`-overflow so the field
   is maximal; the context panel + attachments gallery are bottom sheets; the in-thread filter and
   status tabs remain full segmented controls (they fit 4 segments at 375px) or scroll horizontally
   if a chip row overflows. Bottom tab bar owns primary nav; no rail on mobile.
-- 16px message field + message text (iOS zoom lock). Hit targets ≥44px (`.tap-target`). Compose FAB
-  above the tab bar. One-handed throughout.
+- 16px message field + message text (iOS zoom lock). Interactive targets meet WCAG
+  2.2 §2.5.8's 24px minimum; ordinary touch controls use `.tap-target` to reach 44px.
+  A compact control may stay below 44px only when enlarging it would overlap another
+  target, and the choice is documented at the call site. Compose FAB above the tab bar.
+  One-handed throughout.
 
-**Accessibility (WCAG 2.1 AA)**
+**Accessibility — canonical product contract (WCAG 2.2 Level AA)**
+- This section is the single normative accessibility contract. `DESIGN.md` G11 and
+  `APP-UI-ELEVATION.md` §6 cite it rather than carrying competing copies;
+  `ACCESSIBILITY.md` is the evidence/conformance statement, not a second specification.
 - The fixed-height shell must keep a **complete keyboard path**: rail → list (`J/K` optional, Enter
   opens) → thread messages → composer → context panel; focus never trapped in a scroll region;
   `Tab` order follows visual order across panes.
@@ -513,7 +521,7 @@ additions.
   `menu`. The per-message action is an `aria-pressed` toggle + a labeled overflow `menu`.
 - Incoming messages announce via `aria-live="polite"` (unchanged). Timeline event lines (including
   done/undone) are readable text, not icon-only. `stone-400` meta must still clear 4.5:1 on its
-  surface; anything carrying essential meaning bumps to `stone-500` (APP-UI-ELEVATION §6).
+  surface; anything carrying essential meaning bumps to `stone-500`.
 - Attachments gallery: every thumbnail has alt/label text; lightbox is a focus-trapped dialog with
   ESC; downloads are keyboard-reachable.
 

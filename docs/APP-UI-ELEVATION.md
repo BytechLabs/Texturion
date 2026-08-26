@@ -362,9 +362,10 @@ Restrained, delightful, alive but calm — every item reduced-motion-aware via t
 - **Keyboard (desktop, optional + discoverable):** Command-K palette (cmdk) with the shortcut shown
   beside each row; J/K list navigation + Enter-to-open; E to close/archive; Cmd/Ctrl+Enter to send.
   **Strictly optional, invisible on mobile** — no keyboard-cult tax on the phone-first tradesperson.
-- **Mobile ergonomics:** every flow one-handed on 375px; hit targets ≥44px (reuse `.tap-target`);
-  16px message input to prevent iOS zoom; bottom tab bar + safe-area padding; compose FAB above the tab
-  bar; PWA installable for the truck.
+- **Mobile ergonomics:** every flow one-handed on 375px; target sizing follows the
+  canonical contract in `docs/APP-LAYOUT-V2.md` §7; 16px message input to prevent
+  iOS zoom; bottom tab bar + safe-area padding; compose FAB above the tab bar; PWA
+  installable for the truck.
 
 ---
 
@@ -374,12 +375,10 @@ Restrained, delightful, alive but calm — every item reduced-motion-aware via t
   Motion is CSS transitions/keyframes + the existing FLIP; the reduced-motion base rule covers it.
   Keep list + thread virtualization (`@tanstack/react-virtual`), skeletons < 100ms, route-level code
   splitting, lazy blur-up images. The UI must never make a tradesperson wait.
-- **Accessible (WCAG 2.1 AA):** 4.5:1 text contrast including petrol-on-tint verified in both themes;
-  the new `--foreground-tertiary` (stone-400) is for *non-essential* meta only and must still clear
-  4.5:1 on its background — verify stone-400 on white/stone-50 and bump to stone-500 anywhere it
-  carries essential meaning. Visible 2px petrol focus rings; full keyboard path inbox → thread →
-  composer; `aria-live=polite` incoming messages; labels on every input; screen-reader text for
-  delivery states; reduced-motion honored.
+- **Accessible:** `docs/APP-LAYOUT-V2.md` §7 is the canonical WCAG 2.2 Level AA
+  contract. It owns the contrast, target-size, focus, keyboard, live-region and
+  reduced-motion requirements; `docs/ACCESSIBILITY.md` records their current evidence.
+  Do not duplicate those thresholds here.
 - **On-brand:** petrol `#0F766E` + warm stone + Inter only. No second chromatic accent, no rainbow
   status coding (tinted pills are the ceiling), no gradient/glass/shadow decoration in the app. Do not
   import the marketing `.display-*` / `.marketing-glow` / `[data-reveal]` utilities into app screens —

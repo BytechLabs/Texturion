@@ -61,6 +61,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppAccessibilityLanguage
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.i18n.t
@@ -346,26 +347,28 @@ class MainActivity : FragmentActivity() {
                     // past to fix.
                     LocalAppLocale provides appLocale,
                 ) {
-                    // #330: OUTSIDE Root, so a locked app does not compose the
-                    // inbox at all rather than covering it. A scrim is one
-                    // screenshot away from being nothing.
-                    //
-                    // #581: this placement buys nothing against the RECENTS
-                    // thumbnail, which it used to claim. That picture is taken on
-                    // the way out, while the app is unlocked and composing the
-                    // inbox — the gate turns the card off itself instead.
-                    AppLockGate(graph.prefs) {
-                    Root(graph, deepLinks)
-                    // #168A: no adb on the founder's device — if the last run
-                    // crashed, offer the saved report once via the share sheet.
-                    CrashReportPrompt(graph.diagnostics)
-                    // #339: ambient when an update is merely available; a full
-                    // stop only below the server-set floor (D71). Last in the
-                    // stack so the block genuinely covers everything.
-                    val updateState by graph.updates.state
-                        .collectAsStateWithLifecycle(initialValue = UpdateState())
-                    LaunchedEffect(Unit) { graph.updates.refresh() }
-                    UpdatePrompt(updateState)
+                    AppAccessibilityLanguage(appLocale) {
+                        // #330: OUTSIDE Root, so a locked app does not compose the
+                        // inbox at all rather than covering it. A scrim is one
+                        // screenshot away from being nothing.
+                        //
+                        // #581: this placement buys nothing against the RECENTS
+                        // thumbnail, which it used to claim. That picture is taken on
+                        // the way out, while the app is unlocked and composing the
+                        // inbox — the gate turns the card off itself instead.
+                        AppLockGate(graph.prefs) {
+                            Root(graph, deepLinks)
+                            // #168A: no adb on the founder's device — if the last run
+                            // crashed, offer the saved report once via the share sheet.
+                            CrashReportPrompt(graph.diagnostics)
+                            // #339: ambient when an update is merely available; a full
+                            // stop only below the server-set floor (D71). Last in the
+                            // stack so the block genuinely covers everything.
+                            val updateState by graph.updates.state
+                                .collectAsStateWithLifecycle(initialValue = UpdateState())
+                            LaunchedEffect(Unit) { graph.updates.refresh() }
+                            UpdatePrompt(updateState)
+                        }
                     }
                 }
             }

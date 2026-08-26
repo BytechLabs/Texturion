@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { prefersReducedMotion } from "./motion";
+import {
+  prefersReducedMotion,
+  reducedMotionScrollBehavior,
+} from "./motion";
 
 describe("prefersReducedMotion", () => {
   afterEach(() => {
@@ -24,5 +27,21 @@ describe("prefersReducedMotion", () => {
   it("is SSR-safe when matchMedia is unavailable", () => {
     vi.stubGlobal("window", {} as unknown);
     expect(prefersReducedMotion()).toBe(false);
+  });
+
+  it("turns an explicit smooth scroll into an immediate one when motion is reduced", () => {
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: true }) });
+    expect(reducedMotionScrollBehavior("smooth")).toBe("auto");
+  });
+
+  it("keeps smooth scrolling when the reader did not reduce motion", () => {
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+    expect(reducedMotionScrollBehavior("smooth")).toBe("smooth");
+  });
+
+  it("never rewrites an already-immediate scroll", () => {
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: true }) });
+    expect(reducedMotionScrollBehavior("auto")).toBe("auto");
+    expect(reducedMotionScrollBehavior("instant")).toBe("instant");
   });
 });

@@ -23,6 +23,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import { offerThreadSummary } from "@/lib/api/thread-summary";
 import type { Message } from "@/lib/api/types";
 import { contactDisplayName } from "@/lib/format/phone";
+import { reducedMotionScrollBehavior } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import { buildThreadItems, type ThreadItem } from "./clusters";
@@ -198,7 +199,10 @@ export function MessageList({
     (behavior: ScrollBehavior = "auto") => {
       const el = scrollRef.current;
       if (!el) return;
-      el.scrollTo({ top: el.scrollHeight, behavior });
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: reducedMotionScrollBehavior(behavior),
+      });
       setNewWhileScrolledUp(false);
     },
     [],

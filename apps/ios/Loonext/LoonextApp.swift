@@ -38,6 +38,14 @@ struct LoonextApp: App {
             AppLockGate(prefs: graph.prefs) {
                 RootView(graph: graph)
             }
+                // #238: `.appLocale` chooses our catalogue; SwiftUI's native
+                // locale environment carries the same resolved choice into its
+                // text and accessibility systems. Both sit ABOVE AppLockGate so
+                // the lock screen and app-switcher cover are in scope too.
+                // Environment values preserve every child's own accessibility
+                // element, role, state and action; this does not merge the tree.
+                .environment(\.appLocale, appLocale)
+                .environment(\.locale, UiLocale.platformLocale(appLocale))
                 .tint(BrandColor.olive)
                 .preferredColorScheme(preferredScheme)
                 // Universal links: app.loonext.com/inbox/{id} and
@@ -51,6 +59,9 @@ struct LoonextApp: App {
                 }
         }
     }
+
+    /// One answer for both the product catalogue and native language metadata.
+    private var appLocale: String { UiLocaleStore.shared.resolved }
 
     private func routeUniversalLink(_ url: URL) {
         guard let route = parsePushRoute(url: url.absoluteString) else { return }

@@ -7,8 +7,8 @@ it is maintained by hand — but every row names a test, and
 
 **Standard:** WCAG 2.2 Level AA
 **Applies to:** the Loonext web application, and the Android and iOS apps where stated
-**Last verified:** 2026-08-14
-**Basis:** `docs/APP-LAYOUT-V2.md` §7, `docs/APP-UI-ELEVATION.md` §6
+**Last verified:** 2026-08-25
+**Basis:** `docs/APP-LAYOUT-V2.md` §7 (the canonical product contract)
 
 This document exists to be handed to a buyer who asks (#285). Everything in it
 is either **enforced by a test named below** or listed as **not yet verified**.
@@ -77,15 +77,16 @@ cannot promise they still hold on any given day.
 
 ## Not verified — native apps
 
-**§7 is a web-shell document.** It does not cover Android or iOS, and no
-equivalent specification exists for them. What we can state factually today,
-from the source:
+**§7 is a web-shell document.** The evidence table below and the manual protocol
+that follows are the native verification contract. They do not turn an unperformed
+TalkBack or VoiceOver pass into evidence. What we can state factually today:
 
 | Point | Android | iOS |
 |---|---|---|
 | Icon-only controls with no accessible name | **None**, and enforced — `scripts/check-screen-reader-names.mjs` | **None**, and enforced — `scripts/check-screen-reader-names.mjs` |
-| A layout that survives the reader's largest text setting | **Rendered at 200% and fixed** — `DashboardScreenshotTest.the panels at 200 percent font scale` writes a PNG on every run | **Not rendered.** The same two defects were fixed on the same evidence, because the frames were the identical 104 and 28 points — but no iOS render exists on this machine |
+| Large-text render coverage | **Partial** — `DashboardScreenshotTest.the panels at 200 percent font scale` renders `LeadSourcesCard` at 200% and writes a PNG; it is not a primary-flow pass | **Partial** — `DashboardScreenshotTests.testRepresentativeDashboardInBothThemesAndTextSizes` renders the full For You dashboard in both themes at `.accessibility5`, keeps paginated PNG attachments, and asserts that the large-text layout materially grows; it is not a primary-flow pass |
 | Text sizes are declared in a scaling unit | **Yes**, and enforced — `scripts/check-native-a11y.mjs` | **Yes**, and enforced — `scripts/check-native-a11y.mjs` |
+| In-app language attached to native accessibility content | **Yes, mechanically** — the Compose accessibility provider adds the resolved locale as `LocaleSpan` metadata while preserving node semantics and explicit per-content language spans; `AccessibilityLanguageTest` | **Yes, mechanically** — the app root publishes the resolved locale through SwiftUI's native `locale` environment above the lock gate; `AccessibilityLanguageTests` |
 
 ### The iOS row above used to say "Partly", and the number in it was wrong
 
@@ -105,8 +106,10 @@ next commit. It is now a build step, which is why the row cites a path.
 
 **What the guard proves, and what it does not.** It proves the *mechanism*:
 every font on both phones is declared in a unit that carries the reader's font
-scale. It does not prove the *outcome* — that a screen still works at 200%, with
-nothing clipped, truncated or pushed off. That needs a device and a person.
+scale. Render coverage is partial: Android covers `LeadSourcesCard` at 200%; iOS
+covers the For You dashboard at `.accessibility5` in both themes. Neither client
+has large-text evidence for sending a message, answering an inbound call, or
+completing a task.
 
 **No TalkBack or VoiceOver pass has been performed**, on any flow. Nobody has
 sat down with either screen reader and worked through sending a message,
@@ -115,9 +118,37 @@ to "do the phone apps work with a screen reader" is *we do not know* — and the
 labelling scan above is evidence that the groundwork is there, not evidence
 that the flows work.
 
-**Dynamic Type to 200% has not been visually tested on iOS.** Since 2026-08-04
-the text does scale rather than ignoring the setting, which is a precondition
-for that test rather than a substitute for it.
+**iOS now has a large-text visual render for the For You dashboard.** Since
+`5abac13d`, the iOS simulator renders it at `.accessibility5` in light and dark
+themes and uploads every viewport as a CI attachment. No large-text render or
+walkthrough exists for the messaging, inbound-call, or task-completion flows.
+
+### Native manual evidence required for closure
+
+A native pass is evidence only when its record contains all of the following:
+
+1. The git SHA/app build, client, OS version, physical device model, assistive
+   technology/version, tester and date. Emulator/simulator screenshots may
+   supplement the record, but do not count as the TalkBack or VoiceOver pass.
+2. The app locale, device locale and text-size setting. Each client must include
+   English on an English device and in-app `fr-CA` on an English device, because
+   pronunciation must follow the reader's app setting rather than happen to match
+   the phone.
+3. These three primary flows, completed on the physical device with the screen
+   reader enabled and without looking at the screen: send a message from the
+   inbox, answer and decline an inbound call, and complete a task.
+4. For every flow: the focus/reading order, each control's name/role/state, all
+   required actions, focus after state changes, incoming/status announcements,
+   and French pronunciation.
+5. The same three flows at the platform's largest supported text setting, with
+   screenshots or a recording covering clipping, truncation and controls pushed
+   off screen.
+6. Every failure filed separately and linked from the record. A skipped step is
+   `not run`, never a pass. Store the completed record under
+   `docs/accessibility-runs/YYYY-MM-DD-<client>.md` so the result names the build
+   it actually tested.
+
+No record matching this protocol exists yet.
 
 ---
 
@@ -137,10 +168,16 @@ believing the rest of the document.
   speaks at the right moment, whether a custom control exposes the right role
   and state, and whether a whole flow can be driven by TalkBack or VoiceOver
   all need a person with a phone. None of that is claimed.
-- **iOS is not rendered anywhere.** Android's layout at 200% text is a picture
-  produced on every test run; iOS has no equivalent on this machine, so its
-  matching fix rests on the two apps having had identical measurements rather
-  than on a second picture.
+- **Large-text render coverage is partial.** Android covers one dashboard card
+  at 200%; iOS covers the For You dashboard at `.accessibility5` in both themes.
+  Neither covers the three primary flows in the protocol above.
+- **Native spoken language remains unverified.** Android now attaches the resolved
+  in-app locale to the text, labels, values and hints exposed by Compose as Android's
+  `LocaleSpan` metadata; iOS publishes the same resolved value through SwiftUI's
+  native `locale` environment at the app root. Tests enforce both mechanisms and
+  preserve explicit per-content language metadata. They do not prove that TalkBack
+  or VoiceOver selects the right voice or pronounces every French phrase correctly;
+  no physical-device pass has measured that outcome.
 
 ---
 

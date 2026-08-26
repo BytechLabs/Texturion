@@ -103,6 +103,30 @@ describe("#238 the accessibility statement is published", () => {
     expect(page).toContain("refusing");
     expect(page).toMatch(/rows\.length === 0/);
   });
+
+  it("publishes the partial native large-text evidence without turning it into a pass", () => {
+    expect(doc).toContain("Large-text render coverage");
+    expect(doc).toContain(
+      "DashboardScreenshotTests.testRepresentativeDashboardInBothThemesAndTextSizes",
+    );
+    expect(doc).toContain("it is not a primary-flow pass");
+    expect(catalogue).toContain("Render evidence is partial");
+    expect(catalogue).toContain("Neither covers all three primary native flows");
+    expect(catalogue).not.toMatch(/iOS has no equivalent render/i);
+    expect(catalogue).not.toMatch(/iOS is not rendered at 200% text anywhere/i);
+  });
+
+  it("dates the page to the evidence change and keeps the native protocol visible", () => {
+    expect(doc).toContain("**Last verified:** 2026-08-25");
+    expect(page).toContain('lastUpdatedIso="2026-08-25"');
+    expect(catalogue).toContain('lastUpdated: "August 25, 2026"');
+    expect(doc).toContain("### Native manual evidence required for closure");
+    expect(doc).toContain("physical device model");
+    expect(doc).toContain("do not count as the TalkBack or VoiceOver pass");
+    expect(doc).toContain("No record matching this protocol exists yet");
+    expect(catalogue).toContain("native accessibility content");
+    expect(catalogue).toContain("no physical-device TalkBack or VoiceOver pass");
+  });
 });
 
 describe("#238 the page keeps the document's refusals", () => {

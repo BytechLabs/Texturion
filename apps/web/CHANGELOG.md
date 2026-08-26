@@ -279,7 +279,7 @@
 * **web:** say when we would tell you about a breach, and what we do not hold ([08ea5b9](https://github.com/BytechLabs/Texturion/commit/08ea5b9d09809edaba876cc4285fd076c59a9bed)), closes [#285](https://github.com/BytechLabs/Texturion/issues/285)
 * **web:** schedule a text from the composer instead of remembering to send it ([60be513](https://github.com/BytechLabs/Texturion/commit/60be513d4a2fec7aa7caf0495e4f02be2ed89045))
 * **web:** send an on-my-way text with an ETA, one tap from the thread ([5d0ce47](https://github.com/BytechLabs/Texturion/commit/5d0ce472fcb57422c9e7df64232cd90fae119c23))
-* **web:** three controls a screen reader user could not reliably hit ([ff0323b](https://github.com/BytechLabs/Texturion/commit/ff0323ba74a8faa7e8180dcddcf6d3da5b826b7c)), closes [#238](https://github.com/BytechLabs/Texturion/issues/238)
+* **web:** three controls a screen reader user could not reliably hit ([ff0323b](https://github.com/BytechLabs/Texturion/commit/ff0323ba74a8faa7e8180dcddcf6d3da5b826b7c)), addresses [#238](https://github.com/BytechLabs/Texturion/issues/238)
 * **web:** when this line is open, beside how it answers ([8d40191](https://github.com/BytechLabs/Texturion/commit/8d401916a117ff567fcd82f78dfff37e609c0398))
 * **web:** where your customers come from ([6de33ae](https://github.com/BytechLabs/Texturion/commit/6de33ae26ab978798ff563594199353f67456799))
 
@@ -303,7 +303,7 @@
 * **web:** drop the zero-width space that failed lint ([71eb098](https://github.com/BytechLabs/Texturion/commit/71eb0982f8a323002dcfdc43b058dff8551cf690))
 * **web:** searching for a number by digits actually searches for it ([0cf1d20](https://github.com/BytechLabs/Texturion/commit/0cf1d20f1a590cfe2210958e88624452f1cd2694)), closes [#513](https://github.com/BytechLabs/Texturion/issues/513)
 * **web:** stop showing two prices for one registration fee ([3befaf6](https://github.com/BytechLabs/Texturion/commit/3befaf618af37fcb9206a0542662c4e5a9a1d91f))
-* **web:** the calendar can be rescheduled without dragging ([cf7a05d](https://github.com/BytechLabs/Texturion/commit/cf7a05de0fce63b8c6cdf8970ce851e2a01f4d86)), closes [#238](https://github.com/BytechLabs/Texturion/issues/238)
+* **web:** the calendar can be rescheduled without dragging ([cf7a05d](https://github.com/BytechLabs/Texturion/commit/cf7a05de0fce63b8c6cdf8970ce851e2a01f4d86)), addresses [#238](https://github.com/BytechLabs/Texturion/issues/238)
 
 ## [0.10.0](https://github.com/BytechLabs/Texturion/compare/web-v0.9.0...web-v0.10.0) (2026-08-02)
 

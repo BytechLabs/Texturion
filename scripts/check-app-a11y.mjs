@@ -7,7 +7,7 @@
  * §7 is a good specification. It names the keyboard path through the shell, the
  * roles on the segmented tabs and the filter chips, the live region on incoming
  * messages, the 4.5:1 floor on meta text, `prefers-reduced-motion` by
- * construction, and 44px targets. Nothing checks any of it.
+ * construction, and the WCAG 2.2 target-size floor. Nothing checks any of it.
  *
  * That is the shape #320 already found in theming: a binding spec with precise
  * numbers, enforced by memory. Every theme-contrast bug this product has shipped
@@ -61,6 +61,11 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { chromium } from "playwright";
+
+import {
+  MAX_REDUCED_TRANSITION_MS,
+  reducedMotionTransitionProblem,
+} from "./reduced-motion-duration.mjs";
 
 const base = process.env.AUDIT_BASE_URL ?? "http://localhost:3100";
 const EMAIL = process.env.AUDIT_EMAIL ?? "dev@loonext.local";
@@ -266,19 +271,30 @@ try {
         );
       }
 
-      // "Reduced motion by construction": the base rule has to actually exist,
-      // or every `prefers-reduced-motion` claim in the spec rests on each author
-      // remembering. Checked by asking the browser, not by grepping CSS.
-      const honoursReducedMotion = await page.evaluate(() => {
+      // "Reduced motion by construction": ask a browser that is ACTUALLY
+      // emulating the preference. The first version never enabled it, printed a
+      // 1s duration on every surface, and treated that as a note — a check that
+      // existed and could not fail. Keep the raw value in the output, but make
+      // the numeric result load-bearing.
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      const reducedTransitionDuration = await page.evaluate(() => {
         const probe = document.createElement("div");
-        probe.style.transition = "opacity 1s";
+        probe.style.transition = "opacity 1s linear";
         probe.setAttribute("data-a11y-probe", "");
         document.body.appendChild(probe);
-        const duration = getComputedStyle(probe).transitionDuration;
+        const raw = getComputedStyle(probe).transitionDuration;
         probe.remove();
-        return duration;
+        return raw;
       });
-      notes.push(`${where}: probe transition-duration ${honoursReducedMotion}`);
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      notes.push(
+        `${where}: reduced-motion probe transition-duration ${reducedTransitionDuration}`,
+      );
+      const reducedMotionProblem = reducedMotionTransitionProblem(
+        where,
+        reducedTransitionDuration,
+      );
+      if (reducedMotionProblem) problems.push(reducedMotionProblem);
 
       // 2.4.11 Focus Not Obscured is NOT checked here, and that is a
       // correction rather than an omission. `scripts/theme-audit.mjs`
@@ -312,5 +328,6 @@ if (problems.length > 0) {
 
 console.log(
   `\ncheck-app-a11y: no serious or critical violations across the audited ` +
-    `surfaces, every visible text field at 16px or more.`,
+    `surfaces; every visible text field is at least 16px and the rendered ` +
+    `reduced-motion probe is at most ${MAX_REDUCED_TRANSITION_MS}ms.`,
 );
