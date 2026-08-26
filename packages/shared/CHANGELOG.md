@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.14.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.13.2...shared-v0.14.0) (2026-08-26)
+
+
+### Features
+
+* **calendar:** sync mapped jobs with providers ([5de7d0d](https://github.com/BytechLabs/Texturion/commit/5de7d0df780d506370d4ec76b7e369b507d386ba))
+* **clients:** the phones now refuse in the reader's language too ([0536f1e](https://github.com/BytechLabs/Texturion/commit/0536f1e3b80177d2d6851e241e49994528bfcbff))
+* **i18n:** expand fr-CA across product surfaces ([2e71805](https://github.com/BytechLabs/Texturion/commit/2e71805bde6873129dd2a31b09b81d9a9fcdcf06))
+
+
+### Bug Fixes
+
+* **clients:** the voicemail preview shows what callers really hear ([703e6a4](https://github.com/BytechLabs/Texturion/commit/703e6a427f451ca44ce0c1c66252547129dff489))
+
 ## [0.13.2](https://github.com/BytechLabs/Texturion/compare/shared-v0.13.1...shared-v0.13.2) (2026-08-19)
 
 

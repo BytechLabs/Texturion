@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.16.0](https://github.com/BytechLabs/Texturion/compare/android-v0.15.1...android-v0.16.0) (2026-08-26)
+
+
+### Features
+
+* **a11y:** publish native language metadata ([c87a8f1](https://github.com/BytechLabs/Texturion/commit/c87a8f1955c3ff46e279aebdb1a8d78498138f09))
+* **calendar:** sync mapped jobs with providers ([5de7d0d](https://github.com/BytechLabs/Texturion/commit/5de7d0df780d506370d4ec76b7e369b507d386ba))
+* **clients:** the phones now refuse in the reader's language too ([0536f1e](https://github.com/BytechLabs/Texturion/commit/0536f1e3b80177d2d6851e241e49994528bfcbff))
+* **i18n:** expand fr-CA across product surfaces ([2e71805](https://github.com/BytechLabs/Texturion/commit/2e71805bde6873129dd2a31b09b81d9a9fcdcf06))
+
+
+### Bug Fixes
+
+* **clients:** the voicemail preview shows what callers really hear ([703e6a4](https://github.com/BytechLabs/Texturion/commit/703e6a427f451ca44ce0c1c66252547129dff489))
+
 ## [0.15.1](https://github.com/BytechLabs/Texturion/compare/android-v0.15.0...android-v0.15.1) (2026-08-19)
 
 
