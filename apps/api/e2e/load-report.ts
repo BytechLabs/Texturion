@@ -34,6 +34,25 @@ export interface Report {
 }
 
 /**
+ * Stable prefix for machine-readable capacity evidence in test output.
+ *
+ * CI and a human terminal can keep all the ordinary Vitest prose around it;
+ * `rg '^CAPACITY_RESULT '` extracts only records that can be archived or
+ * compared with a later run. The payload must contain aggregate measurements
+ * only — never request bodies, tokens, phone numbers, or customer data.
+ */
+export const CAPACITY_RESULT_PREFIX = "CAPACITY_RESULT ";
+
+export interface CapacityEvidence {
+  scenario: string;
+  environment: "local-postgres" | "local-realtime" | "workerd";
+  tested_bound: Record<string, number | string>;
+  ceiling_reached: boolean;
+  measurements: Record<string, unknown>;
+  notes?: string[];
+}
+
+/**
  * Run `count` copies of `task` at once and describe what came back.
  *
  * True concurrency, not a pool: the point of a burst scenario is the moment
@@ -126,4 +145,59 @@ export function line(report: Report): string {
     `p50=${report.p50}ms p95=${report.p95}ms max=${report.max}ms ` +
     `[${statuses}] hangs=${report.hangs}`
   );
+}
+
+/** One JSON-lines record per scenario, safe to scrape from a noisy test run. */
+export function capacityResult(evidence: CapacityEvidence): string {
+  return (
+    CAPACITY_RESULT_PREFIX +
+    JSON.stringify({
+      schema: "loonext.capacity.v1",
+      ...evidence,
+    })
+  );
+}
+
+/**
+ * Vitest captures `console.log` on a green node run. Write the one durable
+ * result record directly so it remains visible without also exposing every
+ * expected warning produced by a load fixture.
+ */
+export function emitCapacityResult(result: string): void {
+  process.stdout.write(`${result}\n`);
+}
+
+/** The HTTP-burst report in the common capacity evidence envelope. */
+export function burstCapacityResult(
+  scenario: string,
+  report: Report,
+  testedBound: Record<string, number | string>,
+  measurements: Record<string, unknown> = {},
+): string {
+  const refusalStatuses = Object.keys(report.statuses).some((raw) => {
+    const status = Number(raw);
+    return status === 429 || status >= 500;
+  });
+  return capacityResult({
+    scenario,
+    environment: "local-postgres",
+    tested_bound: testedBound,
+    // A hang/throw or an overload/server refusal is evidence that this bound
+    // crossed a limit. Callers still decide whether that is an acceptable,
+    // truthful degradation, but the evidence must not label it "not reached".
+    ceiling_reached: report.hangs > 0 || report.throws > 0 || refusalStatuses,
+    measurements: {
+      wall_ms: report.totalMs,
+      p50_ms: report.p50,
+      p95_ms: report.p95,
+      max_ms: report.max,
+      statuses: report.statuses,
+      hangs: report.hangs,
+      throws: report.throws,
+      ...measurements,
+    },
+    notes: [
+      "Local timings are not production latency; counts, statuses, drops, and hangs are the transferable evidence.",
+    ],
+  });
 }

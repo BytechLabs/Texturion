@@ -1,6 +1,7 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+import { capacityResult } from "../e2e/load-report";
 import { buildMemberRingState } from "../src/messaging/inbound-ring";
 import type { TelnyxEvent } from "../src/messaging/types";
 import { ctx, makeRuntime, SESSION } from "../src/calls/session-do-fake";
@@ -16,9 +17,10 @@ import type { CallSessionDO } from "../src/calls/session-do";
  * serializes — which is true, and is a property of plain JavaScript. What they
  * cannot show is the object on the real runtime: real Durable Object SQLite
  * storage with real I/O gates, in a real single-threaded isolate.
- * `docs/CAPACITY.md` §2's remaining open row says, in its own words, that
- * "nothing in this repository has ever run a Durable Object under concurrency
- * on the real runtime". This is that.
+ * `docs/CAPACITY.md` §2 used to say that nothing in this repository had run a
+ * Durable Object under concurrency on the real runtime. This suite closes that
+ * structural gap for one full session and a twelve-object fleet. Deployed
+ * latency, provider round trips, co-tenancy, and compute cost remain open.
  *
  * ## Why there are no milliseconds here
  *
@@ -45,6 +47,13 @@ import type { CallSessionDO } from "../src/calls/session-do";
  */
 
 const CUSTOMER_CCID = "cust-ccid";
+const HOT_OBJECTS = 12;
+
+interface FleetGauge {
+  inFlight: number;
+  peakInFlight: number;
+  opened: number;
+}
 
 function initiatedEvent(id: string): TelnyxEvent {
   return {
@@ -107,7 +116,7 @@ function crew(n: number) {
  * nothing, and they are the whole instrument: peak concurrency is a count, and
  * a count is immune to the frozen clock this file's header is about.
  */
-function gatedRuntime(targets: number) {
+function gatedRuntime(targets: number, fleet?: FleetGauge) {
   let inFlight = 0;
   let peak = 0;
   let opened = 0;
@@ -119,12 +128,18 @@ function gatedRuntime(targets: number) {
       inFlight += 1;
       opened += 1;
       peak = Math.max(peak, inFlight);
+      if (fleet) {
+        fleet.inFlight += 1;
+        fleet.opened += 1;
+        fleet.peakInFlight = Math.max(fleet.peakInFlight, fleet.inFlight);
+      }
       const ccid = "cc" + String(opened - 1);
       // Long enough that a batch's members genuinely overlap, short enough
       // that 24 of them do not make this suite slow.
       return new Promise((resolve) => {
         setTimeout(() => {
           inFlight -= 1;
+          if (fleet) fleet.inFlight -= 1;
           resolve({ ccid });
         }, 5);
       });
@@ -186,6 +201,25 @@ describe("#251 CallSessionDO ring fan-out, on workerd", () => {
         DIAL_BATCH_SIZE +
         ")\n",
     );
+    console.log(
+      capacityResult({
+        scenario: "durable-object-single-session-fanout",
+        environment: "workerd",
+        tested_bound: {
+          hot_objects: 1,
+          targets_per_object: MAX_LEGS_PER_SESSION,
+        },
+        ceiling_reached: false,
+        measurements: {
+          targets_dialled: gate.calls.dials.length,
+          peak_dials_in_flight: gate.peakInFlight(),
+          configured_batch_size: DIAL_BATCH_SIZE,
+        },
+        notes: [
+          "Counts and ordering are valid; workerd wall-clock milliseconds are deliberately not reported.",
+        ],
+      }),
+    );
   });
 
   it("serializes an answer that arrives mid-fan-out, behind every dial", async () => {
@@ -231,6 +265,100 @@ describe("#251 CallSessionDO ring fan-out, on workerd", () => {
         " of " +
         MAX_LEGS_PER_SESSION +
         "\n",
+    );
+    console.log(
+      capacityResult({
+        scenario: "durable-object-fifo-answer-admission",
+        environment: "workerd",
+        tested_bound: {
+          hot_objects: 1,
+          targets_per_object: MAX_LEGS_PER_SESSION,
+        },
+        ceiling_reached: false,
+        measurements: {
+          dials_opened_before_answer_admission: dialsWhenAnswerRan,
+          total_dials: MAX_LEGS_PER_SESSION,
+        },
+        notes: [
+          "The answer was submitted during fan-out and admitted only after the FIFO work ahead of it.",
+        ],
+      }),
+    );
+  });
+
+  it("runs twelve hot call objects together without crossing any per-object batch", async () => {
+    // The single-object cases above prove the FIFO and its batch. #251's buyer
+    // question is twelve live calls, which means twelve DISTINCT objects. This
+    // case makes that topology real on workerd and checks the structural facts
+    // that do not require a production clock: every effect lands, every object
+    // keeps its own batch bound, and more than one object is live at once.
+    const fleet: FleetGauge = { inFlight: 0, peakInFlight: 0, opened: 0 };
+    const sessions = Array.from({ length: HOT_OBJECTS }, (_, index) => {
+      const gate = gatedRuntime(MAX_LEGS_PER_SESSION, fleet);
+      const stub = env.CALL_SESSIONS.get(
+        env.CALL_SESSIONS.idFromName(`fleet-${index}`),
+      );
+      return { index, gate, stub };
+    });
+
+    await Promise.all(
+      sessions.map(({ gate, stub }) =>
+        runInDurableObject(stub, (instance: CallSessionDO) => {
+          instance.installRuntime(gate.runtime);
+        }),
+      ),
+    );
+
+    // Admission first, then the cascade tail. Awaiting only onTelnyxEvent would
+    // measure the durable ACK (#617), not whether all fan-out effects finished.
+    await Promise.all(
+      sessions.map(({ index, stub }) =>
+        stub.onTelnyxEvent(initiatedEvent(`fleet-initiated-${index}`)),
+      ),
+    );
+    await Promise.all(sessions.map(({ stub }) => stub.whenIdle()));
+
+    const perObjectDials = sessions.map(({ gate }) => gate.calls.dials.length);
+    const perObjectPeaks = sessions.map(({ gate }) => gate.peakInFlight());
+    const expectedDials = HOT_OBJECTS * MAX_LEGS_PER_SESSION;
+
+    expect(perObjectDials).toEqual(
+      Array(HOT_OBJECTS).fill(MAX_LEGS_PER_SESSION),
+    );
+    for (const peak of perObjectPeaks) {
+      expect(peak).toBeGreaterThan(1);
+      expect(peak).toBeLessThanOrEqual(DIAL_BATCH_SIZE);
+    }
+    expect(fleet.opened).toBe(expectedDials);
+    expect(
+      fleet.peakInFlight,
+      "twelve object invocations never overlapped; this would only be twelve serial single-object tests",
+    ).toBeGreaterThan(DIAL_BATCH_SIZE);
+    expect(fleet.inFlight).toBe(0);
+
+    console.log(
+      capacityResult({
+        scenario: "durable-object-multi-session-structure",
+        environment: "workerd",
+        tested_bound: {
+          hot_objects: HOT_OBJECTS,
+          targets_per_object: MAX_LEGS_PER_SESSION,
+          total_dial_effects: expectedDials,
+        },
+        ceiling_reached: false,
+        measurements: {
+          completed_dial_effects: fleet.opened,
+          per_object_dials_min: Math.min(...perObjectDials),
+          per_object_dials_max: Math.max(...perObjectDials),
+          per_object_peak_min: Math.min(...perObjectPeaks),
+          per_object_peak_max: Math.max(...perObjectPeaks),
+          fleet_peak_dials_in_flight: fleet.peakInFlight,
+          unfinished_dials: fleet.inFlight,
+        },
+        notes: [
+          "This is structural workerd evidence, not deployed latency, co-tenancy capacity, or a Telnyx round trip.",
+        ],
+      }),
     );
   });
 });

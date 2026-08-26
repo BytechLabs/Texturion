@@ -6,11 +6,12 @@ import { defineConfig } from "vitest/config";
  *
  * ## The row this exists to close
  *
- * `docs/CAPACITY.md` §2 has one open unknown left: DO saturation. Its "why
- * local cannot answer it" column says, in the document's own words, that
- * "nothing in this repository has ever run a Durable Object under concurrency
- * on the real runtime" — `vitest.load.config.ts` aliases `cloudflare:workers`
- * to a double, so the node suites measure our FIFO and nothing else.
+ * `docs/CAPACITY.md` §2 leaves the deployed half of DO saturation open:
+ * latency, provider round trips, co-tenancy, and cost. This project closes the
+ * structural half. `vitest.load.config.ts` aliases `cloudflare:workers` to a
+ * double, so the node suites measure our JavaScript FIFO and nothing else;
+ * here one full call and twelve simultaneously hot call objects run on workerd
+ * with real Durable Object storage and I/O gates.
  *
  * Our FIFO is plain JavaScript and node tells the truth about it. What node
  * cannot tell the truth about is workerd: real Durable Object storage with real

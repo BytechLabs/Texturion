@@ -21,19 +21,24 @@ import { defineConfig } from "vitest/config";
  * - does a carrier retry storm delivered CONCURRENTLY create duplicate rows;
  * - does a burst of distinct events land completely, or silently drop some;
  * - when Postgres refuses to keep up, does a request come back with a truthful
- *   error or does it hang.
+ *   error or does it hang;
+ * - do private Realtime topics admit forty real authenticated websocket
+ *   clients, and does each receive twenty broadcasts exactly once.
  *
  * That last one is #251's third acceptance criterion, and it is a property of
  * our code rather than of the deployment — which is precisely why it is worth
  * measuring here instead of waiting for an environment that does not exist.
  *
- * It CANNOT answer anything about workerd: this is node, so there are no
- * isolate limits, no CPU-time limits, and — see the alias below — no Durable
- * Objects. Absolute latencies here are node-and-laptop numbers and mean nothing
- * about production. The SHAPE of the degradation is the transferable finding;
- * the milliseconds are not. `docs/CAPACITY.md` repeats that where the numbers
- * are written down, because a number that reads as measured production capacity
- * and was measured on a laptop is the number somebody quotes to a prospect.
+ * It CANNOT answer managed Supavisor/Realtime ceilings or anything about
+ * workerd: the Worker-handler cases are node, so there are no isolate limits,
+ * no CPU-time limits, and — see the alias below — no Durable Objects. The
+ * Realtime case reaches the real local Realtime container, not the hosted
+ * service. Absolute latencies here are laptop numbers and mean nothing about
+ * production. The SHAPE of the degradation and exact counts are the
+ * transferable findings; the milliseconds are not. `docs/CAPACITY.md` repeats
+ * that where the numbers are written down, because a number that reads as
+ * measured production capacity and was measured on a laptop is the number
+ * somebody quotes to a prospect.
  */
 
 /** Same reason as the e2e project: `cloudflare:workers` is unresolvable in node. */

@@ -8,21 +8,17 @@
  * ---------------------------------------------------------------------------
  * WHAT THIS ANSWERS, AND WHAT IT DELIBERATELY DOES NOT.
  *
- * #251 lists five unmeasured axes. Four of them — Durable Object saturation,
- * the Supabase pooler ceiling, realtime fan-out, and webhook burst — are
- * properties of a DEPLOYED system under concurrency, and no local script can
- * speak to them honestly. Claiming otherwise would be the worst outcome here:
- * a capacity number that reads as measured and was guessed.
+ * This script owns ONE axis: *"their behaviour on a workspace with 50,000
+ * conversations and 200,000 messages is unmeasured — and index behaviour on
+ * realistic data volumes is not something unit tests can tell us."* Index
+ * behaviour at volume is a property of Postgres and the schema, not of the
+ * network, so a local database with the same migrations answers it exactly.
  *
- * The fifth is different, and it is the one the issue says unit tests cannot
- * reach: *"their behaviour on a workspace with 50,000 conversations and 200,000
- * messages is unmeasured — and index behaviour on realistic data volumes is not
- * something unit tests can tell us."* Index behaviour at volume is a property of
- * Postgres and the schema, not of the network, so a local database with the same
- * migrations answers it exactly.
- *
- * So this measures the queries and says nothing about the rest. The capacity
- * document records both halves, including which numbers do not exist yet.
+ * Other committed harnesses now cover local webhook contention, Realtime
+ * delivery, and Durable Object structure. None of those local lower bounds —
+ * and nothing here — claims the managed pooler ceiling, hosted Realtime
+ * ceiling, deployed DO latency/co-tenancy, or compute cost. `docs/CAPACITY.md`'s
+ * acceptance matrix keeps those distinctions explicit.
  *
  * ---------------------------------------------------------------------------
  * LOCAL-ONLY BY CONSTRUCTION.
@@ -174,7 +170,8 @@ psql(`
   analyze public.messages;
   analyze public.contacts;
 `);
-console.log(`  seeded in ${((Date.now() - seedStarted) / 1000).toFixed(1)}s\n`);
+const seedMs = Date.now() - seedStarted;
+console.log(`  seeded in ${(seedMs / 1000).toFixed(1)}s\n`);
 
 /**
  * Each query timed inside Postgres rather than from here, so the number is the
@@ -225,6 +222,14 @@ console.table(
   })),
 );
 
+const failedQueries = results.filter((result) => result.ms === null);
+if (failedQueries.length > 0) {
+  if (!keep) cleanup();
+  throw new Error(
+    `No capacity result emitted: ${failedQueries.map((result) => result.label).join(", ")} did not return a timing`,
+  );
+}
+
 // A page a person waits for. Not a hard budget — this is a report, and the
 // number that matters is written into the capacity doc rather than enforced
 // here — but a line worth drawing attention to.
@@ -243,12 +248,38 @@ if (slow.length > 0) {
 }
 
 console.log(
+  "CAPACITY_RESULT " +
+    JSON.stringify({
+      schema: "loonext.capacity.v1",
+      scenario: "hot-query-volume",
+      environment: "local-postgres",
+      tested_bound: {
+        conversations,
+        messages,
+        workspace_count: 1,
+      },
+      ceiling_reached: false,
+      measurements: {
+        seed_ms: seedMs,
+        attention_threshold_ms: SLOW_MS,
+        attention_threshold_exceeded: slow.length > 0,
+        queries: Object.fromEntries(
+          results.map((result) => [result.label, result.ms]),
+        ),
+      },
+      notes: [
+        "Best of three warm local Postgres timings; not production end-to-end latency.",
+        "A 200ms attention threshold is not a system ceiling.",
+      ],
+    }),
+);
+
+console.log(
   "  MEASURED HERE: index behaviour on the hot list queries, which is a\n" +
     "  property of Postgres and the schema and therefore identical locally.\n" +
-    "  NOT MEASURED: Durable Object saturation, the Supabase pooler ceiling,\n" +
-    "  realtime fan-out and webhook burst. Those are properties of a deployed\n" +
-    "  system under concurrency, and a local script that claimed them would be\n" +
-    "  worse than no number at all. See docs/CAPACITY.md.\n",
+    "  NOT MEASURED HERE: managed pooler/Realtime ceilings, deployed DO\n" +
+    "  latency/co-tenancy, honest degradation at overload, or compute cost.\n" +
+    "  The dedicated local scenarios and external gaps are in CAPACITY.md.\n",
 );
 
 if (keep) {

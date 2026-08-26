@@ -1,23 +1,45 @@
 # Capacity: what breaks first, and at what volume
 
-> **Status: partial, and the partiality is the point.** Updated 2026-08-17
-> with the concurrency pass. #251 asks for "a documented capacity plan naming
-> the first thing that breaks and at what volume." **Three of its five unknowns
-> are now measured** — the hot list queries at volume, the webhook burst, and
-> concurrent reads. The remaining two need a deployed environment and this
-> document says so rather than estimating them, because a capacity number that
-> reads as measured and was guessed is worse than an admitted gap: it is the
-> number somebody quotes to a 50-tech prospect.
+> **Status: partial; #251 remains open.** Updated 2026-08-25 with a committed
+> Realtime fan-out scenario and a twelve-object workerd scenario. Local lower
+> bounds now exist for every functional axis, but the managed pooler ceiling,
+> hosted Realtime ceiling, deployed call latency/co-tenancy, honest degradation
+> at those ceilings, and Worker/DO compute cost still need a deployed
+> non-production environment. A capacity number that reads as measured and was
+> guessed is worse than an admitted gap: it is the number somebody quotes to a
+> 50-tech prospect.
 
 Re-run the measured halves with:
 
 ```bash
+pnpm db:start
 node scripts/ops/query-load.mjs
+pnpm --filter @loonext/api test:load
+pnpm --filter @loonext/api test:workerd
 ```
 
-```bash
-pnpm --filter @loonext/api test:load
-```
+Every scenario emits an aggregate `CAPACITY_RESULT {json}` line. Save those
+lines with the date and commit rather than copying terminal prose into this
+document; they contain no request bodies, tokens, phone numbers, or customer
+data.
+
+## Acceptance matrix
+
+This is the source of truth for #251's axes. A lower bound means the scenario
+completed at that size; it is not a claim that the next size works or that a
+ceiling was found.
+
+<!-- capacity-matrix:start -->
+| Axis ID | What | Rerun | Tested bound | Ceiling | Acceptance state |
+|---|---|---|---|---|---|
+| query | Hot list queries at realistic volume | `node scripts/ops/query-load.mjs` | 50,000 conversations / 200,000 messages; all current surfaces under 200 ms | Not reached | Local lower bound measured |
+| webhook | Duplicate retry storm and distinct inbound burst | `pnpm --filter @loonext/api test:load` | 25 concurrent copies → 1 row; 40 distinct → 40 rows; zero hangs | Not reached | Local lower bound measured |
+| pooler | Concurrent reads and database failure shape | `pnpm --filter @loonext/api test:load` | 40 concurrent local reads; every database request has a 10 s deadline | Managed Supavisor refusal point unknown | Deployed measurement required |
+| realtime | Private-topic join and broadcast fan-out | `pnpm --filter @loonext/api test:load` | 40 independent websockets × 20 broadcasts = 800 exact deliveries | Hosted connection/fan-out ceiling unknown | Local lower bound measured; deployed measurement required |
+| durable-object | Call-session FIFO and bounded ring fan-out | `pnpm --filter @loonext/api test:workerd` | 12 hot objects × 24 targets = 288 completed dial effects; per-object peak ≤ 6 | Deployed latency, co-tenancy, and saturation point unknown | Structure measured; deployed measurement required |
+| degradation | Truthful error instead of hang or silent drop | `pnpm --filter @loonext/api exec vitest run src/db-timeout.test.ts src/routes/honest-failure.test.ts src/app.test.ts` | Database stall/refusal and Telnyx 429/503 paths are bounded and truthful | Behaviour at an actually reached load ceiling unknown | Partial; deployed overload required |
+| cost | Storage/vendor units and serving compute | `pnpm --filter @loonext/api exec vitest run src/billing/costs.test.ts` | Message, voice, AI, storage, and egress units modelled | Worker and Durable Object compute per load unit unknown | Partial; deployed usage delta required |
+<!-- capacity-matrix:end -->
 
 ---
 
@@ -39,33 +61,24 @@ does.
 or dropping** (section 1b), and the guarantee is a database constraint rather
 than application logic, which is the strongest place for it.
 
-**What breaks first is therefore still unknown, and there is exactly ONE
-candidate left:** Durable Object saturation on the call path. It is a
-concurrency property of the deployed runtime, and section 2 says what measuring
-it would take.
+**What breaks first is therefore still unknown.** Local runs establish useful
+lower bounds, but they cannot order the managed pooler ceiling, hosted Realtime
+ceiling, or deployed call-path latency/co-tenancy. Section 2 says what each
+measurement requires. The acceptance matrix above names every axis explicitly
+so improving one row cannot make an omitted row disappear from the headline.
 
-This paragraph used to name two, and to say neither could be measured on a
-laptop. Section 2 disproved half of that on 2026-08-17 — a local Supabase stack
-runs the same Realtime server, 800 of 800 broadcasts arrived with no drops, and
-the row moved out of the table. The headline was not updated with it, so for a
-day the summary a reader takes away contradicted the body it summarises. Said
-out loud because the failure is structural rather than careless: **a document's
-summary goes stale exactly when its body is being improved**, and this one is
-read by people who will never reach section 2.
-
-**So the honest sentence for a prospect** is: *the parts we have measured are
-comfortable well beyond your size. The one part we have not measured is call
-setup when many calls are live at once. We can tell you exactly what we have
-tested and what we have not.* That is a better answer than a confident number,
-and it is the only one currently true.
-
-Note what that sentence no longer claims to be unsure about. Live updates are
-measured (section 2), so "the live-update paths" came out of it.
+**So the honest sentence for a prospect** is: *the local paths we have measured
+are comfortable well beyond your data size and absorb the tested bursts. We
+have not yet measured the hosted connection ceilings or call-setup latency when
+many calls are live at once. We can tell you exactly what we tested and what we
+did not.* That is better than a confident number, and it is the only answer
+currently supported by evidence.
 
 **What would change this.** A staging environment (`docs/ENVIRONMENTS.md`
-records what that costs and why it does not exist yet), or a test harness that
-runs our own Durable Object inside workerd rather than against a double.
-Until then the one open row stays open, and nobody should fill it in from
+records what that costs and why it does not exist yet) and a safe deployed
+driver. The Durable Object already runs locally on workerd, including twelve hot
+objects together; that closes structural questions, not deployed milliseconds,
+co-tenancy, provider round trips, or cost. Nobody should fill those in from
 reasoning.
 
 ---
@@ -425,15 +438,19 @@ not proof about behaviour at a ceiling — which by definition needs a ceiling.
 
 ## 2. What is NOT measured, and why not
 
-These two are properties of a **deployed system under concurrency**. Nothing
-local can speak to them honestly, and each needs a non-production environment
-plus a driver that generates real concurrent load.
+These are properties of a **managed, deployed system under concurrency**.
+Local runs establish the lower bounds in the acceptance matrix; they cannot
+establish where a hosted service refuses, how production co-tenancy behaves, or
+what serving that load costs. Each row needs a non-production deployment plus a
+driver that generates real concurrent load.
 
 | Unknown | Why local cannot answer it | What it would take |
 |---|---|---|
 | **Durable Object saturation — the LATENCY half only** | Structure is now measured on the real runtime (see below). What remains is milliseconds, and workerd cannot give them: a Worker's clock only advances on I/O, so `Date.now()` deltas inside an isolate measure when I/O happened rather than how long work took. | A deployed Worker, N synthetic concurrent calls per workspace, measuring time-to-answer against a real Telnyx round trip. |
+| **Hosted Realtime ceiling** | The local container proves exact delivery at 40 sockets, but it has neither the hosted connection budget nor managed-service tenancy. | N authenticated subscribers against a deployed non-production project, ramped until join refusal or delivery loss, with exact per-subscriber counts. |
+| **Managed pooler ceiling** | Local Postgres has neither Supavisor nor the production project's connection budget. The API's 10 s deadline proves the failure is bounded, not where refusal begins. | Concurrent Worker requests against a deployed non-production project, ramped until managed refusal while recording statuses, hangs, and pooler metrics. |
 
-### The Durable Object — MEASURED ON workerd 2026-08-19
+### The Durable Object — MEASURED ON workerd, updated 2026-08-25
 
 The row above used to say that "nothing in this repository has ever run a
 Durable Object under concurrency on the real runtime". Something does now:
@@ -452,6 +469,12 @@ opened.** The FIFO serializes on the real runtime, which is the property #251
 names — and it is also the cost: a technician who picks up early waits behind
 the remaining dials.
 
+**Twelve hot call objects now run together on workerd.** Each object dialled all
+24 targets, all **288 effects completed**, every object's peak stayed at the
+six-dial batch, and the fleet overlapped rather than replaying twelve serial
+single-object cases. The command emits the current aggregate as
+`CAPACITY_RESULT` JSON rather than making this paragraph the only record.
+
 **Three things this cost, worth recording so the next attempt does not.**
 
 1. **Wall-clock latency is not obtainable locally, at any effort.** A Worker's
@@ -469,12 +492,12 @@ the remaining dials.
    cannot be accessed from a different Durable Object in the same isolate."* The
    dials release themselves from a timer created inside the object instead.
 
-**What this does NOT license.** It is one object on one laptop. It says nothing
-about co-tenancy, isolate memory pressure, or what Cloudflare does when many
-objects are hot at once — and nothing about the millisecond cost of anything.
-Do not quote it as "the call path scales".
+**What this does NOT license.** It is twelve objects on one laptop. It says
+nothing about production co-tenancy, isolate memory pressure, provider round
+trips, or the millisecond cost of anything. Do not quote it as "the call path
+scales".
 
-### Realtime fan-out — MEASURED LOCALLY 2026-08-17, and the old entry was stale
+### Realtime fan-out — COMMITTED LOOPBACK HARNESS 2026-08-25
 
 This row used to sit in the table above, on the reasoning that "broadcast
 delivery to many subscribers is a Supabase Realtime property" and therefore
@@ -482,9 +505,14 @@ needed a deployed project. That reasoning was true and **the conclusion did not
 follow**: a local Supabase stack runs the same Realtime server in a container,
 and the thing worth knowing about fan-out is whether messages arrive at all.
 
-**40 concurrent websockets, one topic, 20 broadcasts: 800/800 delivered, every
-subscriber received exactly 20, 3–6 ms spread, zero drops, zero failures.**
-Reproduced independently at N=50.
+**40 concurrent websockets, one private topic, 20 broadcasts: 800/800 delivered,
+every subscriber received exactly 20, zero drops, zero failures.** This no longer
+lives only in prose: `test:load` creates a real local Auth user, joins 40
+independent supabase-js clients through private-topic RLS, sends through the real
+`realtime.send`, applies explicit join and delivery deadlines, and reports
+missing/duplicate frames plus current latency/spread as `CAPACITY_RESULT` JSON.
+The harness refuses every non-loopback target. Laptop timings belong in each
+run's result record rather than in this document as if they were hosted latency.
 
 **What that does and does not license.** It answers the half with the track
 record — Realtime has died silently twice (#215, and the mobile parked-reconnect
@@ -496,12 +524,10 @@ have before.
 
 ---
 
-**Partly reduced, and stated precisely.** The *Supabase pooler* row moved out of
-this table but only half of it: section 1b shows our code answers rather than
-hangs under contention, which was the behavioural half. **Where the managed
-pooler refuses is still unknown** and stays a deployment property — a local
-Postgres has neither Supavisor nor production's connection budget. The number is
-missing; the failure mode is not.
+**Partly reduced, and stated precisely.** Section 1b shows our code answers
+rather than hangs under local database contention, which is the behavioural
+half. **Where the managed pooler refuses is still unknown** and remains in the
+table above. The number is missing; the bounded failure mode is not.
 
 ---
 
@@ -615,10 +641,11 @@ not need it yet. The number-management path is the one to watch.
 dial POST from a Worker — the 300–800 ms above is an estimate written in a
 design doc, and the magnitude of everything in this section is linear in it.
 Whether the FIFO admission warning has ever fired in production. The actual
-distribution of dial-target counts across real workspaces. Telnyx's account-level
-rate limit and our aggregate against it: every budget in this subsystem is scoped
-to a single session, so twelve concurrent calls authorise up to 288 dial POSTs
-and nothing bounds their sum.
+distribution of dial-target counts across real workspaces. Telnyx's published
+call-control bucket is now measured above; what remains unmeasured is the real
+aggregate arrival pattern against it. Twelve fully fanned-out calls can still
+authorise up to 288 dial POSTs, but the measured 2,000/s bucket puts that far
+below the vendor ceiling at the design document's estimated round trip.
 
 **One caution on a tempting argument.** That co-located DO instances share a
 128 MB isolate is a Cloudflare platform property, not something this repository

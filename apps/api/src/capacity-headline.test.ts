@@ -4,30 +4,17 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * #251 — the capacity headline agrees with the body it summarises.
+ * #251 — every required capacity axis stays visible in the plan.
  *
- * ## Why this exists
+ * The first guard counted rows in §2 and checked that the headline repeated
+ * that number. It could prove two copies of the same omission agreed: hosted
+ * Realtime and the managed pooler disappeared from the table, the headline
+ * said "exactly one", and the test was green while prose below admitted both
+ * numbers were still unknown.
  *
- * `docs/CAPACITY.md` §0 is the part a CEO or a prospect's CTO actually reads:
- * what breaks first, and how many unknowns are left. §2 is the table those
- * unknowns live in.
- *
- * On 2026-08-17 the Realtime fan-out row was measured locally and moved out of
- * §2, leaving one row. §0 still said "exactly two candidates left" and "neither
- * can be measured on a laptop" — a claim the same document disproved 380 lines
- * further down. For a day the summary contradicted the body.
- *
- * That is structural rather than careless: a summary goes stale exactly when
- * the body it summarises is being improved, and nobody re-reads the top of a
- * long document after editing the middle of it. So the agreement is checked
- * rather than remembered.
- *
- * ## What it asserts
- *
- * That the number §0 claims is the number §2 lists. It deliberately does NOT
- * assert which unknowns those are or what the measurements say — that is the
- * document's job, and a test that pinned the findings would become a ceiling on
- * changing them (this repo has shipped several of those).
+ * The acceptance matrix is now the contract. It names the required axes and
+ * requires each to carry a rerun command, a tested bound, a ceiling statement,
+ * and an acceptance state. Findings may change freely; an axis cannot vanish.
  */
 
 const DOC = join(
@@ -39,65 +26,114 @@ const DOC = join(
   "CAPACITY.md",
 );
 
-/** The §2 table's rows: lines that open a bolded cell inside the table. */
-function openUnknowns(source: string): string[] {
-  const start = source.indexOf("## 2. What is NOT measured");
-  if (start === -1) return [];
-  const rest = source.slice(start);
-  const end = rest.indexOf("\n### ");
-  const table = end === -1 ? rest : rest.slice(0, end);
-  return table
-    .split("\n")
-    .filter((line) => /^\|\s*\*\*/.test(line))
-    .map((line) => line.slice(0, 60));
+const MATRIX_START = "<!-- capacity-matrix:start -->";
+const MATRIX_END = "<!-- capacity-matrix:end -->";
+const HEADERS = [
+  "Axis ID",
+  "What",
+  "Rerun",
+  "Tested bound",
+  "Ceiling",
+  "Acceptance state",
+] as const;
+const REQUIRED_AXES = [
+  "query",
+  "webhook",
+  "pooler",
+  "realtime",
+  "durable-object",
+  "degradation",
+  "cost",
+] as const;
+
+type MatrixRow = Record<(typeof HEADERS)[number], string>;
+
+function cells(line: string): string[] {
+  return line
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
 }
 
-const WORDS: Record<string, number> = {
-  zero: 0,
-  one: 1,
-  two: 2,
-  three: 3,
-  four: 4,
-};
+function matrix(source: string): { headers: string[]; rows: MatrixRow[] } {
+  const start = source.indexOf(MATRIX_START);
+  const end = source.indexOf(MATRIX_END);
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("capacity acceptance matrix markers are missing or reversed");
+  }
+  const lines = source
+    .slice(start + MATRIX_START.length, end)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("|"));
+  if (lines.length < 3) throw new Error("capacity acceptance matrix has no data rows");
 
-describe("#251 the capacity headline matches the table it summarises", () => {
+  const headers = cells(lines[0]);
+  const rows = lines.slice(2).map((line) => {
+    const values = cells(line);
+    if (values.length !== headers.length) {
+      throw new Error(`capacity matrix row has ${values.length} cells: ${line}`);
+    }
+    return Object.fromEntries(
+      headers.map((header, index) => [header, values[index]]),
+    ) as MatrixRow;
+  });
+  return { headers, rows };
+}
+
+describe("#251 required capacity-axis matrix", () => {
   const source = readFileSync(DOC, "utf8");
+  const parsed = matrix(source);
 
-  it("found the document and both sections, so a pass means something", () => {
-    // A path that resolves to nothing makes every assertion below vacuously
-    // true, which is the failure mode of every file-derived check here.
+  it("found the real document and the complete matrix schema", () => {
+    // Prevent a wrong path or a malformed parser from making the assertions
+    // below pass vacuously.
     expect(source.length).toBeGreaterThan(5000);
     expect(source).toContain("## 0. The headline");
     expect(source).toContain("## 2. What is NOT measured");
+    expect(parsed.headers).toEqual(HEADERS);
   });
 
-  it("counts the same number of open unknowns in both places", () => {
-    const rows = openUnknowns(source);
-    expect(
-      rows.length,
-      "§2's table has no rows at all — either every unknown is closed (in " +
-        "which case §0 should say so) or the parser stopped matching the table",
-    ).toBeGreaterThan(0);
-
-    const claim = /candidates? left|candidate left/.exec(source);
-    expect(claim, "§0 no longer states how many candidates are left").toBeTruthy();
-
-    const headline = source.slice(source.indexOf("## 0. The headline"));
-    const stated = /exactly (ZERO|ONE|TWO|THREE|FOUR|zero|one|two|three|four)\s*\n?\s*candidates?/i.exec(
-      headline.slice(0, 4000),
+  it("names every required axis exactly once", () => {
+    const ids = parsed.rows.map((row) => row["Axis ID"]);
+    expect(new Set(ids).size, "duplicate capacity axis in acceptance matrix").toBe(
+      ids.length,
     );
-    expect(
-      stated,
-      "§0 must say 'exactly <word> candidate(s)' so this can be checked",
-    ).toBeTruthy();
+    expect([...ids].sort()).toEqual([...REQUIRED_AXES].sort());
+  });
 
-    const claimed = WORDS[stated![1].toLowerCase()];
-    expect(
-      claimed,
-      `§0 says exactly ${stated![1].toLowerCase()} open candidate(s); §2's ` +
-        `table lists ${rows.length}:\n  ${rows.join("\n  ")}\n\n` +
-        `The headline is what a prospect reads. When a row is measured and ` +
-        `moved out of §2, §0 has to move with it.`,
-    ).toBe(rows.length);
+  it("gives every axis a rerun, bound, ceiling statement, and state", () => {
+    for (const row of parsed.rows) {
+      expect(row.What, `${row["Axis ID"]}: missing scenario description`).not.toBe("");
+      expect(row.Rerun, `${row["Axis ID"]}: rerun must be one code-formatted command`).toMatch(
+        /^`[^`]+`$/,
+      );
+      expect(row["Tested bound"], `${row["Axis ID"]}: missing tested bound`).not.toBe("");
+      expect(row.Ceiling, `${row["Axis ID"]}: missing ceiling statement`).not.toBe("");
+      expect(
+        row["Acceptance state"],
+        `${row["Axis ID"]}: missing acceptance state`,
+      ).not.toBe("");
+    }
+  });
+
+  it("keeps the externally blocked deployment axes explicit", () => {
+    const byId = new Map(parsed.rows.map((row) => [row["Axis ID"], row]));
+    for (const id of ["pooler", "realtime", "durable-object", "degradation", "cost"]) {
+      const row = byId.get(id)!;
+      expect(`${row.Ceiling} ${row["Acceptance state"]}`).toMatch(
+        /unknown|required/i,
+      );
+    }
+  });
+
+  it("does not turn lower bounds into a first-break claim", () => {
+    const start = source.indexOf("## 0. The headline");
+    const end = source.indexOf("\n## 1.", start);
+    const headline = source.slice(start, end);
+    expect(headline).toContain("What breaks first is therefore still unknown");
+    expect(headline).not.toMatch(/exactly\s+(one|two|three|four)\s+candidates?/i);
+    expect(source.slice(0, start)).toContain("#251 remains open");
   });
 });

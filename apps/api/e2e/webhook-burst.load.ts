@@ -34,7 +34,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { startHarness, type Harness } from "./harness";
-import { burst, line } from "./load-report";
+import {
+  burst,
+  burstCapacityResult,
+  emitCapacityResult,
+  line,
+} from "./load-report";
 
 let h: Harness;
 
@@ -158,6 +163,15 @@ describe("#251 webhook burst", () => {
     for (const status of Object.keys(report.statuses)) {
       expect(Number(status)).toBeGreaterThanOrEqual(200);
     }
+
+    emitCapacityResult(
+      burstCapacityResult(
+        "webhook-retry-storm",
+        report,
+        { concurrent_copies: STORM, distinct_events: 1 },
+        { message_rows: 1 },
+      ),
+    );
   });
 
   it("a burst of DISTINCT inbound messages lands completely, none dropped", async () => {
@@ -184,6 +198,15 @@ describe("#251 webhook burst", () => {
     // Completeness, which is the property a dropped inbound message violates
     // with no error anywhere to notice.
     expect(await messageCount()).toBe(before + DISTINCT);
+
+    emitCapacityResult(
+      burstCapacityResult(
+        "webhook-distinct-inbound-burst",
+        report,
+        { concurrent_events: DISTINCT },
+        { expected_message_rows: DISTINCT, landed_message_rows: DISTINCT },
+      ),
+    );
   });
 
   it("concurrent reads of a workspace answer, rather than hanging", async () => {
@@ -204,6 +227,12 @@ describe("#251 webhook burst", () => {
     // requirement is truthfulness rather than success.
     expect(report.count).toBe(
       Object.values(report.statuses).reduce((sum, n) => sum + n, 0),
+    );
+
+    emitCapacityResult(
+      burstCapacityResult("concurrent-conversation-reads", report, {
+        concurrent_requests: 40,
+      }),
     );
   });
 });
