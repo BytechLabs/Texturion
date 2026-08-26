@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.18.0](https://github.com/BytechLabs/Texturion/compare/web-v0.17.3...web-v0.18.0) (2026-08-26)
+
+
+### Features
+
+* **a11y:** publish native language metadata ([c87a8f1](https://github.com/BytechLabs/Texturion/commit/c87a8f1955c3ff46e279aebdb1a8d78498138f09))
+* **calendar:** sync mapped jobs with providers ([5de7d0d](https://github.com/BytechLabs/Texturion/commit/5de7d0df780d506370d4ec76b7e369b507d386ba))
+* **clients:** the phones now refuse in the reader's language too ([0536f1e](https://github.com/BytechLabs/Texturion/commit/0536f1e3b80177d2d6851e241e49994528bfcbff))
+* **i18n:** expand fr-CA across product surfaces ([2e71805](https://github.com/BytechLabs/Texturion/commit/2e71805bde6873129dd2a31b09b81d9a9fcdcf06))
+* **web:** /fr/contact is the first page of the site in French ([92d4202](https://github.com/BytechLabs/Texturion/commit/92d420266cd0299e25537026f18d51627a2ef55d))
+* **web:** a French reader can find the French page from the English one ([e281279](https://github.com/BytechLabs/Texturion/commit/e281279d4354ffd7c04a934f070e91f7b536fbb0))
+* **web:** a refusal now speaks the language the reader chose ([d5d713b](https://github.com/BytechLabs/Texturion/commit/d5d713b9f954ea057760fdb189f6d38b6dedba98))
+* **web:** the 30-day guarantee reads in french ([a9ea07c](https://github.com/BytechLabs/Texturion/commit/a9ea07cb39666011ae5067fbdc15eaba98148431))
+* **web:** the assistant page reads in French ([dd4370e](https://github.com/BytechLabs/Texturion/commit/dd4370e40060683aa4d9b2002af29b5b1267315d))
+* **web:** the business number page reads in French ([7aa15d1](https://github.com/BytechLabs/Texturion/commit/7aa15d190bdb8c7e84d22e664eb5125d67041ef6))
+* **web:** the calls page reads in French ([d91dc80](https://github.com/BytechLabs/Texturion/commit/d91dc806d55f8ed51dc56c8cbfb73bb580ba6bc9))
+* **web:** the Canada page reads in French for a Quebec buyer ([bee4127](https://github.com/BytechLabs/Texturion/commit/bee4127faf4e3bfcf718d5308331da19d33d7b97))
+* **web:** the cleaners page reads in french ([8dc33f8](https://github.com/BytechLabs/Texturion/commit/8dc33f8d888c5b07f341447b4e9989d8983e72fb))
+* **web:** the compliance page reads in french ([446e36b](https://github.com/BytechLabs/Texturion/commit/446e36b0761c3ba42c0c9946b89ac989e5ff589f))
+* **web:** the consent illustration reads in French ([474e608](https://github.com/BytechLabs/Texturion/commit/474e6089793c4cca2ee8a2af5a0f0a67810b8ef6))
+* **web:** the contact form can refuse you in French ([33946c9](https://github.com/BytechLabs/Texturion/commit/33946c99983659134b4913e46aeeef6c61293742))
+* **web:** the contacts page reads in French ([4e9db3c](https://github.com/BytechLabs/Texturion/commit/4e9db3ce48ec1f61cafe8e9ba9f464ee4c76aa53))
+* **web:** the contractors page reads in french ([5ecb450](https://github.com/BytechLabs/Texturion/commit/5ecb450b4664669f69c777dad73d35d35e14cbb1))
+* **web:** the home page reads in french ([9e54e4c](https://github.com/BytechLabs/Texturion/commit/9e54e4c86c68d088efe38b07025ddffd5a196d47))
+* **web:** the hvac page reads in french ([3ea5031](https://github.com/BytechLabs/Texturion/commit/3ea5031309481dc992e391d44f7c980c2662cb8d))
+* **web:** the landscapers page reads in french ([614452f](https://github.com/BytechLabs/Texturion/commit/614452fd7716d087789b21b9be0ebf524afc4826))
+* **web:** the marketing footer can speak French ([3784b35](https://github.com/BytechLabs/Texturion/commit/3784b35d4e1eb75703c1fb37688be307b953ea4c))
+* **web:** the marketing nav can speak French ([5bcefd7](https://github.com/BytechLabs/Texturion/commit/5bcefd781cdb8f3343e57440cd8c2620dafa82ba))
+* **web:** the nav bar itself renders in either language ([45f3f05](https://github.com/BytechLabs/Texturion/commit/45f3f05c1f69aa793a352cc2f0fb8c303bb4c3f1))
+* **web:** the plumbers page reads in french ([67c2e57](https://github.com/BytechLabs/Texturion/commit/67c2e5782560ecec4d31a3af04f9cf3b9f285dbf))
+* **web:** the pricing page reads in french ([07bc85a](https://github.com/BytechLabs/Texturion/commit/07bc85ad4c2387bc16ff65790f93c86c932ab8f9))
+* **web:** the salons page reads in french ([7999235](https://github.com/BytechLabs/Texturion/commit/7999235ccd0d2165b00897f2ffb93d65717a5de5))
+* **web:** the shared inbox page reads in French ([b8dadf8](https://github.com/BytechLabs/Texturion/commit/b8dadf8e05c8fefcd6a9dd9f52f098c849f95c6f))
+* **web:** the tasks feature page reads in French ([54d61d3](https://github.com/BytechLabs/Texturion/commit/54d61d3948d00f8e15109bca0450fe8f53c512ff))
+* **web:** the templates and tags page reads in french ([08c878c](https://github.com/BytechLabs/Texturion/commit/08c878cfce88a89c754e7f9fb194f60096028d3a))
+* **web:** translate /canada's copy, checked before the page reads it ([130df12](https://github.com/BytechLabs/Texturion/commit/130df12f43e6d039b4699e417a37ad7355dd6ca9))
+
+
+### Bug Fixes
+
+* **a11y:** add pointer panel resizing controls ([e06a6af](https://github.com/BytechLabs/Texturion/commit/e06a6afaeac5fc251c07544a2284235795b45e31))
+* **clients:** the voicemail preview shows what callers really hear ([703e6a4](https://github.com/BytechLabs/Texturion/commit/703e6a427f451ca44ce0c1c66252547129dff489))
+* **web:** a screen reader now speaks French with a French voice ([e4ad416](https://github.com/BytechLabs/Texturion/commit/e4ad4160c48bfe16134655672695ff809f7f752d))
+* **web:** six french pages no longer close on an english sentence ([91ffaf1](https://github.com/BytechLabs/Texturion/commit/91ffaf146b3985159b650115725aca00d042e554))
+* **web:** the canadian price ledger picked its rows by an english sentence ([81cec37](https://github.com/BytechLabs/Texturion/commit/81cec3745fa6c67d6f562b7f6071ad72bf535efb))
+* **web:** the French marketing page says it is French ([24dca7a](https://github.com/BytechLabs/Texturion/commit/24dca7ae507e5e8b9d1d4a90a99f4e63a4729bbd))
+* **web:** two shipped french pages had english hiding behind an apostrophe ([cb6df54](https://github.com/BytechLabs/Texturion/commit/cb6df54536827f57f911cc494cb78fb8930fe1bd))
+
 ## [0.17.3](https://github.com/BytechLabs/Texturion/compare/web-v0.17.2...web-v0.17.3) (2026-08-19)
 
 

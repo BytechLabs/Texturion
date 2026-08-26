@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.0](https://github.com/BytechLabs/Texturion/compare/api-v0.17.2...api-v0.18.0) (2026-08-26)
+
+
+### Features
+
+* **calendar:** sync mapped jobs with providers ([5de7d0d](https://github.com/BytechLabs/Texturion/commit/5de7d0df780d506370d4ec76b7e369b507d386ba))
+* **i18n:** expand fr-CA across product surfaces ([2e71805](https://github.com/BytechLabs/Texturion/commit/2e71805bde6873129dd2a31b09b81d9a9fcdcf06))
+
 ## [0.17.2](https://github.com/BytechLabs/Texturion/compare/api-v0.17.1...api-v0.17.2) (2026-08-19)
 
 
