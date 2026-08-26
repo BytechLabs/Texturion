@@ -20,7 +20,8 @@
 begin;
 
 insert into auth.users (id, email) values
-  ('a9000000-0000-4000-8000-00000000000a','purge-owner@test.local');
+  ('a9000000-0000-4000-8000-00000000000a','purge-owner@test.local'),
+  ('a9000000-0000-4000-8000-00000000000b','purge-member@test.local');
 
 insert into public.companies
   (id, name, owner_user_id, country, requested_area_code, aup_accepted_at,
@@ -31,7 +32,40 @@ values ('a9000000-0000-4000-8000-000000000001','Purge Co',
 
 insert into public.company_members (id, company_id, user_id, role) values
   ('a9000000-0000-4000-8000-000000000010','a9000000-0000-4000-8000-000000000001',
-   'a9000000-0000-4000-8000-00000000000a','owner');
+   'a9000000-0000-4000-8000-00000000000a','owner'),
+  ('a9000000-0000-4000-8000-000000000011','a9000000-0000-4000-8000-000000000001',
+   'a9000000-0000-4000-8000-00000000000b','member');
+
+-- Two independent provider connections keep durable stopWatch work after the
+-- close. At the retention deadline the same purge call must report the exact
+-- number of remote cleanups it had to abandon, not merely a boolean.
+insert into public.calendar_connections (
+  id, company_id, user_id, provider, provider_account_id,
+  selected_calendar_id, selected_calendar_timezone,
+  credential_ciphertext, credential_iv, credential_key_version
+) values
+  ('a9000000-0000-4000-8000-000000000080',
+   'a9000000-0000-4000-8000-000000000001',
+   'a9000000-0000-4000-8000-00000000000a', 'google',
+   'purge-owner-google', 'primary', 'America/Edmonton',
+   'AAECAwQFBgcICQoLDA0ODxAREhM', 'AAECAwQFBgcICQoL', 'v1'),
+  ('a9000000-0000-4000-8000-000000000081',
+   'a9000000-0000-4000-8000-000000000001',
+   'a9000000-0000-4000-8000-00000000000b', 'microsoft',
+   'purge-member-graph', 'calendar-jobs', 'America/Edmonton',
+   'AQIDBAUGBwgJCgsMDQ4PEBESExQ', 'AQIDBAUGBwgJCgsM', 'v1');
+
+insert into public.webhook_subscriptions (
+  company_id, connection_id, provider_subscription_id,
+  provider_resource_id, provider_calendar_id, client_state_hash, expires_at
+) values
+  ('a9000000-0000-4000-8000-000000000001',
+   'a9000000-0000-4000-8000-000000000080', 'purge-google-watch',
+   'purge-google-resource', 'primary', repeat('8', 64), now() + interval '1 day'),
+  ('a9000000-0000-4000-8000-000000000001',
+   'a9000000-0000-4000-8000-000000000081', 'purge-graph-watch',
+   '/me/calendars/calendar-jobs/events', 'calendar-jobs', repeat('9', 64),
+   now() + interval '1 day');
 
 insert into public.phone_numbers (id, company_id, status, provisioning_key, country, number_e164)
   values ('a9000000-0000-4000-8000-000000000020','a9000000-0000-4000-8000-000000000001',
@@ -125,17 +159,34 @@ begin
   update public.companies set purge_after = now() - interval '1 minute'
    where id = v_company;
 
-  -- The first cut is a restrict-child, never a parent: tasks and usage_events
-  -- have to go before messages, whatever the company-level policy says.
+  -- First, the retention deadline terminalizes both still-pending provider
+  -- cleanups and returns the exact cumulative count for the same-run receipt.
+  v := public.purge_workspace_step(v_company, 500);
+  if v->>'step' is distinct from 'calendar_cleanup_abandoned'
+     or (v->>'remote_calendar_cleanup_unconfirmed')::boolean is not true
+     or (v->>'remote_calendar_cleanup_unconfirmed_count')::integer
+          is distinct from 2 then
+    raise exception 'PW-2 FAILED: multi-connection cleanup count was not exact: %', v;
+  end if;
+
+  -- The next cut is a restrict-child, never a parent. Calendar stopWatch
+  -- tombstones now lead the child-first roster; their exact receipt count must
+  -- remain visible on every later batch result.
   v := public.purge_workspace_step(v_company, 500);
   v_first := v->>'step';
-  if v_first not in ('usage_events', 'tasks') then
-    raise exception 'PW-2 FAILED: first step was % (want a restrict-child)', v_first;
+  if v_first is distinct from 'webhook_subscriptions'
+     or (v->>'remote_calendar_cleanup_unconfirmed_count')::integer
+          is distinct from 2 then
+    raise exception 'PW-2 FAILED: first child/count was %', v;
   end if;
 
   loop
     v := public.purge_workspace_step(v_company, 500);
     v_steps := v_steps + 1;
+    if (v->>'remote_calendar_cleanup_unconfirmed_count')::integer
+         is distinct from 2 then
+      raise exception 'PW-2 FAILED: cleanup receipt count changed mid-run: %', v;
+    end if;
     exit when (v->>'done')::boolean;
     if v_steps > 100 then
       raise exception 'PW-2 FAILED: teardown did not converge';
@@ -160,7 +211,10 @@ begin
 
   -- ...and running again finds nothing to do.
   v := public.purge_workspace_step(v_company, 500);
-  if (v->>'done')::boolean is not true or (v->>'deleted')::int is distinct from 0 then
+  if (v->>'done')::boolean is not true
+     or (v->>'deleted')::int is distinct from 0
+     or (v->>'remote_calendar_cleanup_unconfirmed_count')::integer
+          is distinct from 2 then
     raise exception 'PW-2 FAILED: a repeat run was not a no-op: %', v;
   end if;
 

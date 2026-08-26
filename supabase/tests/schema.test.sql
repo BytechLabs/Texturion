@@ -22,7 +22,9 @@ declare
     'messages','message_attachments','conversation_events','tags',
     'conversation_tags','opt_outs','usage_events','webhook_events','templates',
     'push_subscriptions','notification_prefs','usage_alerts','grace_notices',
-    'port_requests','call_records','company_modules'];
+    'port_requests','call_records','company_modules',
+    'calendar_connections','oauth_states','webhook_subscriptions',
+    'task_calendar_links','calendar_outbox','calendar_reminder_replans'];
   missing text;
   no_rls  text;
 begin
@@ -120,7 +122,7 @@ begin
 end $$;
 
 -- ===========================================================================
--- T5. Expected triggers exist: 17 moddatetime, auth sync, 6 broadcast.
+-- T5. Expected triggers exist: moddatetime, auth sync, 6 broadcast.
 --     Plus the realtime.messages topic-authorization policy.
 -- ===========================================================================
 do $$
@@ -142,10 +144,12 @@ begin
   -- + billing_disputes (#422, 20260728001600_billing_disputes.sql) — a
   --   chargeback advances through statuses, so the row is updated after it is
   --   written.
+  -- + four mutable #245 calendar ledgers: connections, webhook subscriptions,
+  --   task links and the outbox. OAuth state is append/consume and has none.
   -- The generic attachments table (D19) is append-only and deliberately has NO
   -- moddatetime trigger.
-  if n is distinct from 19 then
-    raise exception 'T5 FAILED: expected 19 set_updated_at triggers, found %', n;
+  if n is distinct from 23 then
+    raise exception 'T5 FAILED: expected 23 set_updated_at triggers, found %', n;
   end if;
 
   select count(*) into n
@@ -177,7 +181,7 @@ begin
   if n is distinct from 1 then
     raise exception 'T5 FAILED: company_topic_read policy missing on realtime.messages';
   end if;
-  raise notice 'T5 PASSED: 17 moddatetime + auth-sync + 6 broadcast triggers, realtime policy present';
+  raise notice 'T5 PASSED: 23 moddatetime + auth-sync + 6 broadcast triggers, realtime policy present';
 end $$;
 
 -- ===========================================================================

@@ -276,6 +276,7 @@
         "Your plan is paused, so this has not been sent. It will go out when you resume.",
         "This is waiting on carrier approval for US texting. It will send once that clears.",
         "Texting is paused while we deal with an issue. This is still queued and nothing was lost.",
+        "Calendar sync is disconnected or has not checked in recently, so this reminder is waiting. It will send after sync is verified again.",
         "They replied after you scheduled this, so we held it rather than talk over them. Send it anyway, or cancel it.",
         "They replied STOP after you scheduled this, so it was not sent. Only they can undo that.",
         "We cannot text this number any more, so this was not sent.",

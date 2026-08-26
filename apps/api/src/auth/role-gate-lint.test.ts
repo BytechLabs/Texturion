@@ -164,6 +164,15 @@ const UNGATED_WRITES: Record<string, string> = {
   "POST /marketing/unsubscribe":
     "public — an unsubscribe must work from an email link, where the reader " +
     "is by definition not signed in",
+  "POST /calendar/webhooks/google":
+    "#245: public provider callback — Google has no member session. Ungated " +
+    "is not unguarded: the opaque X-Goog-Channel-Token is shape-checked, " +
+    "hashed, and matched to the one live subscription before a bounded pull " +
+    "can be requested",
+  "POST /calendar/webhooks/microsoft":
+    "#245: public provider callback — Microsoft has no member session. Every " +
+    "notification carries the per-subscription clientState; it is shape-checked, " +
+    "hashed, and matched in the same service-role RPC before a bounded pull",
 
   // PRE-COMPANY — authenticated, but no company to evaluate against.
   "POST /companies":

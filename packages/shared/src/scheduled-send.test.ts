@@ -161,6 +161,7 @@ describe("#233 what we tell somebody when it did not send", () => {
     expect(scheduledReasonRecovers("subscription_inactive")).toBe(true);
     expect(scheduledReasonRecovers("registration_pending")).toBe(true);
     expect(scheduledReasonRecovers("service_unavailable")).toBe(true);
+    expect(scheduledReasonRecovers("calendar_unverified")).toBe(true);
     expect(scheduledReasonRecovers("customer_replied")).toBe(true);
   });
 

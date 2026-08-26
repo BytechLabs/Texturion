@@ -125,6 +125,9 @@ import { auditLogRoutes } from "./routes/audit-log";
 import { workspaceClosureRoutes } from "./routes/workspace-closure";
 import { calendarFeedRoutes } from "./routes/calendar-feed";
 import { calendarRoutes } from "./routes/calendar";
+import { calendarConnectionRoutes } from "./routes/calendar-connections";
+import { calendarPublicRoutes } from "./routes/calendar-oauth";
+import { runCalendarSyncJob } from "./calendar/worker";
 import { publicQuoteRoutes } from "./routes/quotes-public";
 import { quotesRoutes } from "./routes/quotes";
 import { tagsRoutes } from "./routes/tags";
@@ -261,6 +264,7 @@ app.route("/v1", usageRoutes);
 // #245: a member manages their OWN schedule feed. The feed itself is public
 // and mounted below — these are the session-bound half.
 app.route("/v1", calendarRoutes);
+app.route("/v1", calendarConnectionRoutes);
 app.route("/v1", reportsRoutes); // #239 GET /v1/reports/response-time
 app.route("/v1/referrals", referralRoutes);
 app.route("/v1/numbers", numbersRoutes);
@@ -307,6 +311,9 @@ app.route("/", publicQuoteRoutes);
 // #245: the per-member schedule feed. Public by construction — a calendar
 // client has no session and the token IS the credential.
 app.route("/", calendarFeedRoutes);
+// OAuth callbacks and authenticated provider notifications have no Loonext
+// session. Hashed state/client-state credentials are their authentication.
+app.route("/", calendarPublicRoutes);
 app.route("/v1", templatesRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", teamRoutes);
@@ -508,6 +515,9 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     job("job:retry-interrupted-sends", retryInterruptedSends),
     job("job:fail-stuck-sends", failStuckOutboundSends),
     job("job:sweep-stuck-provisioning", sweepStuckProvisioning),
+    // #245: provider notifications only accelerate this durable drain. The
+    // five-minute poll remains the proof when a watch expires or goes silent.
+    job("job:calendar-sync", runCalendarSyncJob),
     // #243: the outbound half. Last in the tick deliberately — every job above
     // it either moves a customer's message or unsticks one, and a slow
     // integration endpoint must never be what delays them. This one talks to

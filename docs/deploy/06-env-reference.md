@@ -72,6 +72,13 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `TELNYX_WEBRTC_CONNECTION_ID` | yes — **required for calling** | Telnyx → Voice → Credential connection used to mint softphone tokens. Unset boots fine and the token endpoint 503s honestly, which means **the browser phone does not work** — every call feature is dark. | `2XXXXXXXXXXXXXXXXX` |
 | `TURNSTILE_SECRET_KEY` | yes — **OPTIONAL** | Cloudflare → Turnstile → widget secret. Unset leaves signup on its honeypot, rate limits and daily cap only, and no token is required — weaker, not broken. | `0x4AAAAAAA...` |
 | `FCM_SERVICE_ACCOUNT_JSON` | yes — **required for Android push** | Firebase → Project settings → Service accounts → generate key, pasted as one JSON line. Unset makes an Android push a logged no-op; Web Push is unaffected. | `{"type":"service_account",…}` |
+| `GOOGLE_CALENDAR_CLIENT_ID` | yes — **required for Google two-way calendar (#245)** | Google Cloud Console → OAuth 2.0 client. Unset keeps the Google connector disabled. Register `${API_ORIGIN}/calendar/oauth/google/callback`. | `123456789.apps.googleusercontent.com` |
+| `GOOGLE_CALENDAR_CLIENT_SECRET` | yes — **required for Google two-way calendar (#245)** | The same Google OAuth client. Set and rotate as an encrypted Worker secret. | `GOCSPX-…` |
+| `MICROSOFT_CALENDAR_CLIENT_ID` | yes — **required for Microsoft two-way calendar (#245)** | Microsoft Entra → App registrations → Application (client) ID. Register `${API_ORIGIN}/calendar/oauth/microsoft/callback`. | UUID |
+| `MICROSOFT_CALENDAR_CLIENT_SECRET` | yes — **required for Microsoft two-way calendar (#245)** | Microsoft Entra → Certificates & secrets. Store the secret VALUE, not its id. | opaque secret |
+| `MICROSOFT_CALENDAR_TENANT` | yes — **optional; defaults to `common` in connector config** | Entra tenant id, or `common` to admit organizational and personal Microsoft accounts. | `common` or UUID |
+| `CALENDAR_TOKEN_ENCRYPTION_KEYS` | yes — **required for either two-way connector (#245)** | Operator-generated AES-256 keyring. JSON maps versions to base64url-encoded 32-byte keys. Add before rotating; retain old versions until every row has been re-encrypted. | `{"v1":"<43 chars>"}` |
+| `CALENDAR_TOKEN_ENCRYPTION_ACTIVE_KEY` | yes — **required for either two-way connector (#245)** | Operator decision naming the keyring version used for new OAuth credentials. | `v1` |
 | `RESEND_WEBHOOK_SECRET` | yes — **OPTIONAL** | The Svix signing secret from the Resend dashboard's webhook page. Without it `/webhooks/resend` returns 503 to every request and NOTHING is suppressed — bounces and spam complaints accumulate against the sending domain unseen, which is the #386 failure in full. The endpoint refuses rather than trusting an unsigned body: an unauthenticated bounce feed would let anybody suppress any address in the product. Resend retries, so events queue up and arrive once this is set. | `whsec_…` |
 | `RESEND_FROM_CRITICAL` | yes — **OPTIONAL** | Operator decision; the sender for mail a customer cannot afford to miss (the number-release ladder). Unset falls back to `RESEND_FROM` and nothing changes. Setting it needs a SECOND authenticated subdomain in DNS, which is what buys the separation: routine notification volume is the stream whose bounces accumulate, and it must not be able to take the critical stream down with it (#252). | `Loonext <billing@send2.loonext.com>` |
 | `RESEND_REPLY_TO` | yes — **OPTIONAL** | Operator decision; the Reply-To stamped on every outbound email. A per-send value overrides it. | `support@loonext.com` |
@@ -89,6 +96,12 @@ unsellable until each is set; see the header note) and `POSTHOG_API_KEY`
 (`apps/api/src/analytics/posthog.ts:31`). Set them all with `wrangler secret put`
 — see [05](./05-workers-deploy.md) §2. `wrangler.jsonc` `vars` is intentionally
 empty (`apps/api/wrangler.jsonc:64`).
+
+The seven calendar variables above are also schema-optional as one feature
+group. With them absent, the API and the read-only ICS feed continue to work,
+but two-way authorization is refused as not configured. A connector may run
+only when its provider id/secret and both encryption settings are present;
+partial configuration fails closed at the connector boundary.
 
 ### A.1 Not secrets — the two rate-limiter bindings
 

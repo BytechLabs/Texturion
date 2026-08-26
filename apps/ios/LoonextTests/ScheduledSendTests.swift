@@ -108,6 +108,7 @@ final class ScheduledSendTests: XCTestCase {
         XCTAssertTrue(ScheduledSend.reasonRecovers("subscription_inactive"))
         XCTAssertTrue(ScheduledSend.reasonRecovers("registration_pending"))
         XCTAssertTrue(ScheduledSend.reasonRecovers("service_unavailable"))
+        XCTAssertTrue(ScheduledSend.reasonRecovers("calendar_unverified"))
         XCTAssertTrue(ScheduledSend.reasonRecovers("customer_replied"))
     }
 

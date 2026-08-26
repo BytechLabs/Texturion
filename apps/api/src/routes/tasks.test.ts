@@ -355,11 +355,28 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     // Inner-embed of the SOURCE message (disambiguated from the reverse
     // messages.task_id FK) drives the derived status.
     expect(q.get("select")).toContain("messages!message_id!inner");
+    // D137: provider-removal/refusal attention rows are a hold, not ordinary
+    // undated work. The empty calendar_hold embed is an anti-join over the
+    // composite tenant/task FK. A conflict is deliberately absent: it remains
+    // a dated task while the member chooses which schedule wins.
+    expect(q.get("select")).toContain(
+      "calendar_hold:task_calendar_links!task_calendar_links_company_id_task_id_fkey()",
+    );
+    expect(q.get("calendar_hold.company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(q.get("calendar_hold.link_state")).toBe(
+      "in.(event_removed,refused)",
+    );
+    expect(q.get("calendar_hold.link_state")).not.toContain("conflict");
+    expect(q.get("calendar_hold")).toBe("is.null");
   });
 
   it("derives done from the joined messages.done_at (no task-side column)", async () => {
     const list = listStub([
-      taskRow({ id: TASK_ID, messages: { id: MESSAGE_ID, done_at: null } }),
+      taskRow({
+        id: TASK_ID,
+        messages: { id: MESSAGE_ID, done_at: null },
+        calendar_hold: [],
+      }),
       taskRow({
         id: "77777777-0000-4000-8000-000000000078",
         messages: { id: "m2", done_at: "2026-07-02T14:00:00.000Z" },
@@ -376,6 +393,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     expect(body.data[0]).toMatchObject({ done: false, status: "open" });
     expect(body.data[1]).toMatchObject({ done: true, status: "done" });
     expect(body.data[0]).not.toHaveProperty("messages");
+    expect(body.data[0]).not.toHaveProperty("calendar_hold");
   });
 
   it("status=done filters the join with done_at not-null", async () => {
@@ -543,6 +561,13 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     // THE #221 fix: map_lat = coalesce(task.lat, contact.lat) — a task with its
     // OWN geocode but a non-geocoded contact now qualifies.
     expect(q.get("map_lat")).toBe("not.is.null");
+    // The map is another ordinary task-list projection and observes the same
+    // D137 hold; otherwise an all-day/refused task could still appear as a pin.
+    expect(q.get("calendar_hold.company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(q.get("calendar_hold.link_state")).toBe(
+      "in.(event_removed,refused)",
+    );
+    expect(q.get("calendar_hold")).toBe("is.null");
     // Unrestricted caller → no hidden-number exclusion on the map view.
     expect(q.get("phone_number_id")).toBeNull();
   });
@@ -614,6 +639,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
       "contact_lng",
       "map_lat",
       "phone_number_id",
+      "calendar_hold",
     ]) {
       expect(row).not.toHaveProperty(leak);
     }
@@ -1458,6 +1484,14 @@ describe("POST /v1/tasks/bulk (#478)", () => {
     // task status column), and overdue adds the past-due bound.
     expect(url.searchParams.get("messages.done_at")).toBe("is.null");
     expect(url.searchParams.get("due_at")).toContain("lt.");
+    // Select-all must not reach the attention-held rows the list hid.
+    expect(url.searchParams.get("calendar_hold.company_id")).toBe(
+      `eq.${COMPANY_ID}`,
+    );
+    expect(url.searchParams.get("calendar_hold.link_state")).toBe(
+      "in.(event_removed,refused)",
+    );
+    expect(url.searchParams.get("calendar_hold")).toBe("is.null");
   });
 
   it("answers an empty filter match without calling the RPC", async () => {

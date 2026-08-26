@@ -62,6 +62,7 @@ enum ScheduledSend {
         "workspace_paused": "domain.scheduledHoldWorkspacePaused",
         "registration_pending": "domain.scheduledHoldRegistrationPending",
         "service_unavailable": "domain.scheduledHoldServiceUnavailable",
+        "calendar_unverified": "domain.scheduledHoldCalendarUnverified",
         "customer_replied": "domain.scheduledHoldCustomerReplied",
         "recipient_opted_out": "domain.scheduledHoldOptedOut",
         "invalid_destination": "domain.scheduledHoldInvalidDestination",
@@ -103,7 +104,7 @@ enum ScheduledSend {
         // when the crew comes back. Marked terminal, pausing would quietly
         // destroy a workspace's scheduled work.
         case "subscription_inactive", "workspace_paused", "registration_pending",
-             "service_unavailable", "customer_replied":
+             "service_unavailable", "calendar_unverified", "customer_replied":
             return true
         default:
             return false

@@ -54,6 +54,7 @@ import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
 import { notifyDueTasksJob } from "./tasks/due-notice";
+import { runCalendarSyncJob } from "./calendar/worker";
 import { app, CRON_JOBS } from "./index";
 import {
   failStuckOutboundSends,
@@ -315,6 +316,16 @@ describe("route inventory (SPEC §7: every built sub-app mounted under /v1)", ()
     ["POST", "/v1/billing/portal"],
     ["POST", "/v1/billing/change-plan"],
     ["GET", "/v1/usage"],
+    // calendar: member-owned management + public OAuth/provider callbacks
+    ["GET", "/v1/calendar/connections"],
+    ["POST", "/v1/calendar/connections/:provider/authorize"],
+    ["DELETE", "/v1/calendar/connections/:id"],
+    ["GET", "/v1/calendar/attention"],
+    ["GET", "/v1/calendar/attention/:id"],
+    ["POST", "/v1/calendar/attention/:id/resolve"],
+    ["GET", "/calendar/oauth/:provider/callback"],
+    ["POST", "/calendar/webhooks/google"],
+    ["POST", "/calendar/webhooks/microsoft"],
     // numbers
     ["GET", "/v1/numbers"],
     ["POST", "/v1/numbers/provision"],
@@ -517,6 +528,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       retryInterruptedSends,
       failStuckOutboundSends,
       sweepStuckProvisioning,
+      runCalendarSyncJob,
       deliverOutboundWebhooks,
     ]);
     expect(runs("*/15 * * * *")).toEqual([

@@ -545,6 +545,81 @@ begin
   raise notice 'AR-10 PASSED: one rule per offset per workspace';
 end $$;
 
+-- AR-11. Regeneration refreshes held copy when the schedule is unchanged. A
+-- due move terminalizes EVERY held reason before any best-effort replan, so a
+-- failed replan/fire attempt cannot send the old literal; the corrected plan
+-- can reuse the offset while retaining the old disclosure as history.
+do $$
+declare
+  v_id uuid;
+  v_old_reason text := 'Sending is temporarily unavailable.';
+  v_new_send timestamptz := now() + interval '2 days 3 hours';
+  v_res jsonb;
+  v_fire jsonb;
+  v_new_id uuid;
+begin
+  delete from public.scheduled_messages
+   where company_id = '5e000000-0000-4000-8000-0000000000c1'::uuid
+     and task_id = '5e000000-0000-4000-8000-00000000ab02'::uuid
+     and origin = 'reminder';
+  perform pg_temp.sync(jsonb_build_array(jsonb_build_object(
+    'offset_minutes', 90,
+    'body', 'Old literal appointment time.',
+    'send_at', (now() + interval '1 day')::text
+  )));
+  update public.scheduled_messages
+     set status = 'held', held_reason = v_old_reason,
+         held_reason_key = 'service_unavailable', held_at = now()
+   where task_id = '5e000000-0000-4000-8000-00000000ab02'::uuid
+     and reminder_offset_minutes = 90 and status = 'pending'
+  returning id into v_id;
+
+  v_res := pg_temp.sync(jsonb_build_array(jsonb_build_object(
+    'offset_minutes', 90,
+    'body', 'Corrected literal appointment time.',
+    'send_at', v_new_send::text
+  )));
+  if (v_res->>'updated_held')::integer is distinct from 1
+     or not exists (
+       select 1 from public.scheduled_messages
+        where id = v_id and status = 'held'
+          and held_reason = v_old_reason
+          and held_reason_key = 'service_unavailable'
+          and body = 'Corrected literal appointment time.'
+          and send_at = v_new_send
+     ) then
+    raise exception 'AR-11 FAILED: held reminder kept stale literal or lost disclosure %', v_res;
+  end if;
+
+  update public.tasks set due_at = due_at + interval '1 hour'
+   where id = '5e000000-0000-4000-8000-00000000ab02'::uuid;
+  v_fire := public.api_fire_scheduled_message(v_id, 1);
+  if v_fire->>'outcome' is distinct from 'gone'
+     or not exists (
+       select 1 from public.scheduled_messages
+        where id = v_id and status = 'canceled'
+          and canceled_at is not null
+          and held_reason = v_old_reason
+          and held_reason_key = 'service_unavailable'
+     ) then
+    raise exception 'AR-11 FAILED: due move left stale held copy fireable %', v_fire;
+  end if;
+
+  v_res := pg_temp.sync(jsonb_build_array(jsonb_build_object(
+    'offset_minutes', 90,
+    'body', 'Replanned appointment after due move.',
+    'send_at', (v_new_send + interval '1 hour')::text
+  )));
+  select id into v_new_id from public.scheduled_messages
+   where task_id = '5e000000-0000-4000-8000-00000000ab02'::uuid
+     and reminder_offset_minutes = 90 and status = 'pending';
+  if v_new_id is null or v_new_id = v_id
+     or (v_res->>'added')::integer is distinct from 1 then
+    raise exception 'AR-11 FAILED: corrected plan could not replace stale hold %', v_res;
+  end if;
+  raise notice 'AR-11 PASSED: held reminders refresh safely and every due move terminalizes stale copy';
+end $$;
+
 -- AR-N: the timeline has a word for a confirmed appointment.
 --
 -- #554, the same shape as the rating bug beside it: `appointment_confirmed` was

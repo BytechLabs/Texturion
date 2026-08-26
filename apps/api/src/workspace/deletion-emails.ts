@@ -151,7 +151,21 @@ export function workspaceClosedEmail(args: {
 export function workspacePurgedEmail(args: {
   companyName: string;
   purgedAt: Date;
+  calendarCleanupUnconfirmed?: boolean;
+  calendarCleanupUnconfirmedCount?: number;
 }): DeletionEmail {
+  const calendarWarning = args.calendarCleanupUnconfirmed
+    ? [
+        `We could not confirm removal of ${Math.max(
+          1,
+          args.calendarCleanupUnconfirmedCount ?? 1,
+        )} linked calendar ${
+          Math.max(1, args.calendarCleanupUnconfirmedCount ?? 1) === 1
+            ? "copy"
+            : "copies"
+        } at the calendar provider. Check the connected calendar account and remove any remaining Loonext event. This receipt confirms erasure from Loonext only.`,
+      ]
+    : [];
   return build(
     "Your Loonext data has been erased",
     [
@@ -162,6 +176,7 @@ export function workspacePurgedEmail(args: {
       "Messages, photos, voicemails, contacts, tasks and notes are gone from " +
         "our database and our file storage.",
       "Your billing records at our payment provider are deleted.",
+      ...calendarWarning,
       ...WHAT_SURVIVES,
     ],
     [

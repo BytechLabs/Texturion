@@ -69,6 +69,7 @@ object ScheduledSend {
         "workspace_paused" to "domain.scheduledHoldWorkspacePaused",
         "registration_pending" to "domain.scheduledHoldRegistrationPending",
         "service_unavailable" to "domain.scheduledHoldServiceUnavailable",
+        "calendar_unverified" to "domain.scheduledHoldCalendarUnverified",
         "customer_replied" to "domain.scheduledHoldCustomerReplied",
         "recipient_opted_out" to "domain.scheduledHoldOptedOut",
         "invalid_destination" to "domain.scheduledHoldInvalidDestination",
@@ -104,7 +105,7 @@ object ScheduledSend {
         // when the crew comes back. Marked terminal, pausing would quietly
         // destroy a workspace's scheduled work.
         "subscription_inactive", "workspace_paused", "registration_pending",
-        "service_unavailable", "customer_replied" -> true
+        "service_unavailable", "calendar_unverified", "customer_replied" -> true
         else -> false
     }
 

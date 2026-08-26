@@ -58,6 +58,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
+import { CALENDAR_VERIFICATION_MAX_AGE_MS } from "../calendar/liveness";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
@@ -100,6 +101,20 @@ interface Destination {
   to: string;
   newestInbound: string | null;
 }
+
+type FireScheduledMessageResult =
+  | { outcome: "fired"; message: MessageRow }
+  | { outcome: "gone" }
+  | {
+      outcome: "held";
+      reason_key: string;
+      scheduled_message?: ScheduledRow;
+    }
+  | {
+      outcome: "failed";
+      reason_key: string;
+      scheduled_message?: ScheduledRow;
+    };
 
 export interface ScheduledSendSummary {
   sent: number;
@@ -260,6 +275,115 @@ async function jobStillBooked(
     task.due_at !== null &&
     (source?.done_at ?? null) === null
   );
+}
+
+/**
+ * Has every calendar this appointment is mirrored to proved a recent provider
+ * round trip?
+ *
+ * No link means the task is not calendar-backed and keeps the pre-#245 path.
+ * Once a live link exists, however, uncertainty fails CLOSED: an unreadable,
+ * missing, disconnected, revoked, never-verified, or stale connection holds
+ * the reminder. That asymmetry with `jobStillBooked` is deliberate. A failed
+ * task read is weighed against the booking that originally queued the reminder;
+ * a failed calendar read is exactly the silence D137 says must never be treated
+ * as proof that the mirrored time is still right.
+ */
+async function linkedCalendarsVerifiedRecently(
+  db: SupabaseClient,
+  row: ScheduledRow,
+  now: Date,
+): Promise<boolean> {
+  if (row.origin !== "reminder" || !row.task_id) return true;
+
+  // A recent provider round trip proves only the last agreed snapshot. A live
+  // outbox row means a newer local schedule is still being created, patched,
+  // or unlinked, so the literal reminder is not yet safe even when the
+  // connection itself is fresh. This check must precede the no-link return:
+  // initial provider creates intentionally have no mapping until they commit.
+  const { data: outboxData, error: outboxError } = await db
+    .from("calendar_outbox")
+    .select("id")
+    .eq("company_id", row.company_id)
+    .eq("task_id", row.task_id)
+    .in("state", ["queued", "leased"])
+    .limit(1);
+  if (outboxError || !Array.isArray(outboxData)) return false;
+  if (outboxData.length > 0) return false;
+
+  const { data: linkData, error: linkError } = await db
+    .from("task_calendar_links")
+    .select("connection_id,link_state")
+    .eq("company_id", row.company_id)
+    .eq("task_id", row.task_id)
+    .neq("link_state", "unlinked");
+  if (linkError || !Array.isArray(linkData)) return false;
+
+  const connectionIds: string[] = [];
+  for (const link of linkData) {
+    const value = link as {
+      connection_id?: unknown;
+      link_state?: unknown;
+    };
+    const connectionId = value.connection_id;
+    // A conflict, removed event, or refused provider shape means the mirrored
+    // appointment is not presently authoritative. Even a fresh connection
+    // must not turn that uncertainty into a stale customer reminder.
+    if (value.link_state !== "active") return false;
+    if (typeof connectionId !== "string" || connectionId.length === 0) {
+      return false;
+    }
+    if (!connectionIds.includes(connectionId)) connectionIds.push(connectionId);
+  }
+  if (connectionIds.length === 0) return true;
+
+  const { data: connectionData, error: connectionError } = await db
+    .from("calendar_connections")
+    .select(
+      "id,status,last_verified_at,revoked_at,sync_due_at,pull_lease_owner",
+    )
+    .eq("company_id", row.company_id)
+    .in("id", connectionIds);
+  if (connectionError || !Array.isArray(connectionData)) return false;
+
+  const connections = new Map(
+    connectionData.map((connection) => {
+      const value = connection as {
+        id: string;
+        status: string;
+        last_verified_at: string | null;
+        revoked_at: string | null;
+        sync_due_at: string | null;
+        pull_lease_owner: string | null;
+      };
+      return [value.id, value] as const;
+    }),
+  );
+  const oldestSafeVerification =
+    now.getTime() - CALENDAR_VERIFICATION_MAX_AGE_MS;
+
+  return connectionIds.every((connectionId) => {
+    const connection = connections.get(connectionId);
+    if (
+      !connection ||
+      connection.status !== "active" ||
+      connection.revoked_at !== null ||
+      connection.pull_lease_owner !== null ||
+      !connection.last_verified_at
+    ) {
+      return false;
+    }
+    const verifiedAt = Date.parse(connection.last_verified_at);
+    const syncDueAt = connection.sync_due_at
+      ? Date.parse(connection.sync_due_at)
+      : Number.NaN;
+    return (
+      Number.isFinite(verifiedAt) &&
+      verifiedAt >= oldestSafeVerification &&
+      Number.isFinite(syncDueAt) &&
+      syncDueAt > now.getTime()
+    );
+  });
 }
 
 /**
@@ -464,6 +588,17 @@ export async function runScheduledSendJob(
         continue;
       }
 
+      // #245/D137: a reminder contains a literal appointment time. For a task
+      // mirrored to a provider, only a recent successful round trip makes that
+      // time safe to repeat to the customer. This is a HOLD, not a failure:
+      // the five-minute pull loop can verify the connection and the next sweep
+      // will retry it without anybody recreating the reminder.
+      if (!(await linkedCalendarsVerifiedRecently(db, row, now))) {
+        await hold(env, db, row, "calendar_unverified");
+        summary.held += 1;
+        continue;
+      }
+
       let clearance;
       try {
         clearance = await runPreSendGates(env, row.company_id, destination.to);
@@ -482,14 +617,52 @@ export async function runScheduledSendJob(
       // The intent becomes a real queued message and closes, in one statement.
       // A cancel that landed while the gates were running wins here: the row is
       // no longer claimable and this returns 'gone' without writing a message.
-      const fired = unwrap<{ outcome: string; message?: MessageRow }>(
+      const fired = unwrap<FireScheduledMessageResult>(
         await db.rpc("api_fire_scheduled_message", {
           p_id: row.id,
           p_segments_estimate: Math.max(1, estimateSegments(row.body).segments),
         }),
         "fire scheduled message",
       );
-      if (fired.outcome !== "fired" || !fired.message) continue;
+      // The SQL statement repeats the two task/calendar checks while it owns
+      // the scheduled row lock. A webhook, provider pull, or local task edit
+      // can land after the read-side checks above; treating an atomic hold as
+      // merely "not fired" would leave the owner unaware, while calling
+      // `hold()` again would race the state transition SQL already made.
+      if (fired.outcome === "held") {
+        if (fired.reason_key !== "calendar_unverified") {
+          throw new Error(
+            `fire scheduled message returned unsupported hold reason ${String(fired.reason_key)}`,
+          );
+        }
+        await disclose(
+          env,
+          db,
+          fired.scheduled_message ?? row,
+          "calendar_unverified",
+        );
+        summary.held += 1;
+        continue;
+      }
+      if (fired.outcome === "failed") {
+        if (fired.reason_key !== "job_no_longer_scheduled") {
+          throw new Error(
+            `fire scheduled message returned unsupported failure reason ${String(fired.reason_key)}`,
+          );
+        }
+        await disclose(
+          env,
+          db,
+          fired.scheduled_message ?? row,
+          "job_no_longer_scheduled",
+        );
+        summary.failed += 1;
+        continue;
+      }
+      if (fired.outcome === "gone") continue;
+      if (fired.outcome !== "fired" || !fired.message) {
+        throw new Error("fire scheduled message returned an invalid result");
+      }
 
       // From here the message row exists as 'queued'. If this throws,
       // job:retry-interrupted-sends owns it — that is why the insert is

@@ -15,6 +15,19 @@ RESEND_API_KEY=
 SENTRY_DSN=
 APP_ORIGIN=
 API_ORIGIN=
+# OPTIONAL #245/D137 calendar connectors. Leave all unset to disable. Provider
+# pairs are OAuth app credentials; redirect URIs are
+# `${API_ORIGIN}/calendar/oauth/{google|microsoft}/callback`.
+GOOGLE_CALENDAR_CLIENT_ID=
+GOOGLE_CALENDAR_CLIENT_SECRET=
+MICROSOFT_CALENDAR_CLIENT_ID=
+MICROSOFT_CALENDAR_CLIENT_SECRET=
+# `common` accepts work/school and personal Microsoft accounts.
+MICROSOFT_CALENDAR_TENANT=common
+# JSON keyring: {"v1":"<base64url of 32 random bytes>"}. Keep old versions
+# while rows still name them; rotate by adding a key then changing ACTIVE.
+CALENDAR_TOKEN_ENCRYPTION_KEYS=
+CALENDAR_TOKEN_ENCRYPTION_ACTIVE_KEY=v1
 # OPTIONAL — canonical MARKETING origin (D27 host split), e.g. https://loonext.com.
 # REQUIRED in production when marketing (loonext.com) and app (app.loonext.com)
 # are different origins, or the public /contact form is CORS-blocked. Unset in

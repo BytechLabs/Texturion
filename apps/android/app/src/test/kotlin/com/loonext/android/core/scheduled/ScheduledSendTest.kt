@@ -111,6 +111,7 @@ class ScheduledSendTest {
         assertTrue(ScheduledSend.reasonRecovers("subscription_inactive"))
         assertTrue(ScheduledSend.reasonRecovers("registration_pending"))
         assertTrue(ScheduledSend.reasonRecovers("service_unavailable"))
+        assertTrue(ScheduledSend.reasonRecovers("calendar_unverified"))
         assertTrue(ScheduledSend.reasonRecovers("customer_replied"))
     }
 

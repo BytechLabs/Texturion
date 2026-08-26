@@ -172,6 +172,9 @@ const SUITES = [
   // #232/D124: the widget verification lifecycle — the budgets that stop a
   // public endpoint spending money on texts to strangers.
   "widget_verification",
+  // #245/D137: encrypted calendar connection, three-way snapshots, durable
+  // pull/write leases, echo suppression and ICS handoff.
+  "calendar_sync",
 ];
 
 const args = process.argv.slice(2);

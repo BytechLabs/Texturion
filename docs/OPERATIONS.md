@@ -115,6 +115,20 @@ that is broken.
 
 Named here rather than left to be rediscovered:
 
+- **Calendar conflict-rate review (#245/D137).** A true three-way conflict
+  increments the content-free seven-day counter on `calendar_connections` only
+  when a link first enters `conflict`; retries and notification replay do not.
+  Treat more than one flag for a connected crew member in the current window as
+  our sync bug, not as user error. In the Supabase SQL editor, inspect
+  `select c.company_id, c.user_id, c.provider, count(*) as conflicts_last_7d,
+  min(x.observed_at) as first_conflict_at, max(x.observed_at) as
+  last_conflict_at from calendar_connections c cross join lateral
+  unnest(c.conflict_occurrences_at) x(observed_at) where c.revoked_at is null
+  and x.observed_at > now() - interval '7 days' group by 1,2,3 having count(*)
+  > 1 order by conflicts_last_7d desc`. Do not
+  join task/link snapshots for this alert; the counter deliberately carries no
+  job or calendar content.
+
 - **A stuck port-in.** Telnyx dashboard plus state fixes. The port saga has its
   own resume path (`pollPortRequests`); reach for that first.
 - **"My texts stopped arriving."** Investigation, not a fix — start with the

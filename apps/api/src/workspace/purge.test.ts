@@ -55,6 +55,8 @@ function world(options: WorldOptions = {}): {
         name: "Acme Plumbing",
         stripe_customer_id: "cus_1",
         purge_receipt_email: "owner@acme.test",
+        calendar_cleanup_unconfirmed_at: null,
+        calendar_cleanup_unconfirmed_count: 0,
       },
     ],
   );
@@ -283,6 +285,63 @@ describe("purgeClosedWorkspaces", () => {
         .url.searchParams.get("select");
       expect(columns).toContain("name");
       expect(columns).toContain("purge_receipt_email");
+      expect(columns).toContain("calendar_cleanup_unconfirmed_at");
+      expect(columns).toContain("calendar_cleanup_unconfirmed_count");
+    });
+
+    it("warns when provider-side calendar cleanup could not be confirmed", async () => {
+      const { routes, emails } = world({
+        companies: [
+          {
+            id: COMPANY_ID,
+            name: "Acme Plumbing",
+            stripe_customer_id: null,
+            purge_receipt_email: "owner@acme.test",
+            calendar_cleanup_unconfirmed_at: "2026-08-24T20:00:00Z",
+            calendar_cleanup_unconfirmed_count: 2,
+          },
+        ],
+      });
+      stubFetch(...routes);
+
+      await purgeClosedWorkspaces(env, new Date("2026-08-25T00:00:00Z"));
+
+      expect(emails).toHaveLength(1);
+      expect(emails[0].text).toContain(
+        "could not confirm removal of 2 linked calendar copies",
+      );
+      expect(emails[0].text).toContain(
+        "This receipt confirms erasure from Loonext only",
+      );
+    });
+
+    it("carries a cleanup abandonment discovered during the purge into the receipt", async () => {
+      const { routes, emails } = world({
+        steps: [
+          {
+            step: "calendar_cleanup_abandoned",
+            deleted: 0,
+            done: false,
+            remote_calendar_cleanup_unconfirmed: true,
+            remote_calendar_cleanup_unconfirmed_count: 3,
+          },
+          {
+            step: null,
+            deleted: 0,
+            done: true,
+            remote_calendar_cleanup_unconfirmed: true,
+            remote_calendar_cleanup_unconfirmed_count: 3,
+          },
+        ],
+      });
+      stubFetch(...routes);
+
+      await purgeClosedWorkspaces(env, new Date("2026-08-25T00:00:00Z"));
+
+      expect(emails).toHaveLength(1);
+      expect(emails[0].text).toContain(
+        "could not confirm removal of 3 linked calendar copies",
+      );
     });
 
     it("does not send twice, or before the erasure has finished", async () => {

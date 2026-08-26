@@ -54,12 +54,14 @@ export function SettingsPage({
 }
 
 export function SettingsCard({
+  id,
   title,
   description,
   children,
   footer,
   className,
 }: {
+  id?: string;
   title?: string;
   description?: string;
   children: React.ReactNode;
@@ -70,7 +72,7 @@ export function SettingsCard({
     // §2.4 border-first, no card shadow. Interior rules use the softer
     // stone-100 divider (§2.1 border-subtle) so the header/footer splits almost
     // disappear while the card edge stays crisp.
-    <section className={cn("rounded-lg border bg-card", className)}>
+    <section id={id} className={cn("rounded-lg border bg-card", className)}>
       {(title || description) && (
         <div className="space-y-1 border-b border-border-subtle px-5 py-4 sm:px-6">
           {/* Section heading — 18px/600, the confident §3.6 rung. */}

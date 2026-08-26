@@ -72,6 +72,7 @@ export function CalendarFeedCard() {
 
   return (
     <SettingsCard
+      id="calendar-read-only-feed"
       title={t("calendarFeed.title")}
       description={t("calendarFeed.description")}
     >
@@ -137,7 +138,12 @@ export function CalendarFeedCard() {
             */}
             {status.data?.last_read_at
               ? t("calendarFeed.lastRead", {
-                  when: formatRelativeTime(status.data.last_read_at),
+                  when: formatRelativeTime(
+                    status.data.last_read_at,
+                    new Date(),
+                    t,
+                    t.locale,
+                  ),
                 })
               : t("calendarFeed.neverRead")}
           </p>

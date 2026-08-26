@@ -44,7 +44,7 @@ describe("#228 the scheduled disclosure a push goes out in", () => {
     const reasons = Object.keys(SCHEDULED_HOLD_REASONS);
     // A count, so "they all match" is a claim with a number behind it. An
     // empty table would otherwise pass this loop in silence.
-    expect(reasons.length).toBe(10);
+    expect(reasons.length).toBe(11);
     for (const reason of reasons) {
       const key = reason as keyof typeof SCHEDULED_HOLD_REASONS;
       for (const [locale, block] of [

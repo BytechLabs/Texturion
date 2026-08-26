@@ -11,7 +11,10 @@
  * customer who sent STOP gets a text; get it wrong in the other and a
  * workspace's follow-ups vanish because a card expired for an afternoon.
  */
-import { SCHEDULED_HOLD_REASONS } from "@loonext/shared";
+import {
+  SCHEDULED_HOLD_REASONS,
+  SCHEDULED_HOLD_REASON_KEYS,
+} from "@loonext/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { pgError, supabaseStub } from "../test/routes-harness";
@@ -64,6 +67,8 @@ interface HarnessOptions {
   optOuts?: Record<string, unknown>[];
   /** Make the fire RPC blow up, to test that one bad row does not stop the rest. */
   fireThrows?: boolean;
+  /** #245: the atomic fire-time task/calendar check can overrule stale reads. */
+  fireResult?: Record<string, unknown>;
   /**
    * #237: the job a reminder is about, as the fire-time check reads it.
    *  means no task row at all (deleted outright).
@@ -71,6 +76,16 @@ interface HarnessOptions {
   task?: Record<string, unknown> | null;
   /** #237: make the job read error, to pin the send-anyway direction. */
   taskReadFails?: boolean;
+  /** #245: live calendar mirrors for the claimed reminder's task. */
+  calendarLinks?: Record<string, unknown>[];
+  /** #245: provider connections referenced by those mirrors. */
+  calendarConnections?: Record<string, unknown>[];
+  /** #245: durable provider writes not yet reflected in the calendar. */
+  calendarOutbox?: Record<string, unknown>[];
+  /** #245/D137: provider-state uncertainty must hold, never send. */
+  calendarOutboxReadFails?: boolean;
+  calendarLinkReadFails?: boolean;
+  calendarConnectionReadFails?: boolean;
 }
 
 function harness(options: HarnessOptions = {}) {
@@ -98,6 +113,7 @@ function harness(options: HarnessOptions = {}) {
     // An option rather than a re-registration: this harness is first-match-
     // wins, so a later `sb.on` for the same path never runs.
     if (options.fireThrows) throw new Error("boom");
+    if (options.fireResult) return options.fireResult;
     return {
       outcome: "fired",
       message: {
@@ -147,6 +163,26 @@ function harness(options: HarnessOptions = {}) {
   sb.on("GET", "/rest/v1/tasks", () => {
     if (options.taskReadFails) return pgError("57014", "statement timeout");
     return options.task ? [options.task] : [];
+  });
+  sb.on("GET", "/rest/v1/calendar_outbox", () => {
+    if (options.calendarOutboxReadFails) {
+      return pgError("57014", "statement timeout");
+    }
+    return (options.calendarOutbox ?? [])
+      .filter((row) => row.state === "queued" || row.state === "leased")
+      .map((row) => ({ id: row.id }));
+  });
+  sb.on("GET", "/rest/v1/task_calendar_links", () => {
+    if (options.calendarLinkReadFails) {
+      return pgError("57014", "statement timeout");
+    }
+    return options.calendarLinks ?? [];
+  });
+  sb.on("GET", "/rest/v1/calendar_connections", () => {
+    if (options.calendarConnectionReadFails) {
+      return pgError("57014", "statement timeout");
+    }
+    return options.calendarConnections ?? [];
   });
 
   // The gates, through the cross-track double rather than a companies row:
@@ -402,5 +438,289 @@ describe("#237 a reminder for a job that is no longer booked", () => {
     const summary = await runScheduledSendJob(env, NOW);
     expect(summary.sent).toBe(1);
     expect(fires).toHaveLength(1);
+  });
+
+  describe("#245/D137 calendar round-trip freshness", () => {
+    const CONNECTION_ID = "99999999-0000-4000-8000-000000000099";
+    const calendarLink = {
+      connection_id: CONNECTION_ID,
+      link_state: "active",
+    };
+    const connection = (overrides: Record<string, unknown> = {}) => ({
+      id: CONNECTION_ID,
+      status: "active",
+      revoked_at: null,
+      last_verified_at: "2026-08-03T12:55:00Z",
+      sync_due_at: "2026-08-03T13:05:00Z",
+      pull_lease_owner: null,
+      ...overrides,
+    });
+
+    it("holds a mirrored reminder with an unverified calendar and stores a stable reason key", async () => {
+      const { sb, holds, fires } = harness({
+        due: [reminderRow()],
+        task: bookedJob(),
+        calendarLinks: [calendarLink],
+        calendarConnections: [connection({ last_verified_at: null })],
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary.held).toBe(1);
+      expect(summary.sent).toBe(0);
+      expect(fires).toHaveLength(0);
+      expect(holds[0]).toMatchObject({
+        p_reason: SCHEDULED_HOLD_REASONS.calendar_unverified,
+        p_reason_key: SCHEDULED_HOLD_REASON_KEYS.calendar_unverified,
+      });
+    });
+
+    it.each([
+      ["older than 15 minutes", connection({ last_verified_at: "2026-08-03T12:44:59Z" })],
+      ["disconnected", connection({ status: "disconnected" })],
+      ["revoked", connection({ status: "revoked", revoked_at: "2026-08-03T12:00:00Z" })],
+    ])("holds when the linked calendar is %s", async (_label, calendar) => {
+      const { sb, holds, fires } = harness({
+        due: [reminderRow()],
+        task: bookedJob(),
+        calendarLinks: [calendarLink],
+        calendarConnections: [calendar],
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary.held).toBe(1);
+      expect(holds[0]?.p_reason_key).toBe(
+        SCHEDULED_HOLD_REASON_KEYS.calendar_unverified,
+      );
+      expect(fires).toHaveLength(0);
+    });
+
+    it.each(["conflict", "event_removed", "refused"])(
+      "holds when the calendar link needs %s attention despite a fresh connection",
+      async (linkState) => {
+        const { sb, holds, fires } = harness({
+          due: [reminderRow()],
+          task: bookedJob(),
+          calendarLinks: [{ ...calendarLink, link_state: linkState }],
+          calendarConnections: [connection()],
+        });
+        stubFetch(sb.route);
+
+        const summary = await runScheduledSendJob(env, NOW);
+
+        expect(summary.held).toBe(1);
+        expect(holds[0]?.p_reason_key).toBe(
+          SCHEDULED_HOLD_REASON_KEYS.calendar_unverified,
+        );
+        expect(fires).toHaveLength(0);
+      },
+    );
+
+    it.each([
+      ["provider notification is waiting", { sync_due_at: "2026-08-03T13:00:00Z" }],
+      ["provider pull is in flight", { pull_lease_owner: "calendar-worker" }],
+    ])("holds when a %s", async (_label, calendarPatch) => {
+      const { sb, holds, fires } = harness({
+        due: [reminderRow()],
+        task: bookedJob(),
+        calendarLinks: [calendarLink],
+        calendarConnections: [connection(calendarPatch)],
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary.held).toBe(1);
+      expect(holds[0]?.p_reason_key).toBe(
+        SCHEDULED_HOLD_REASON_KEYS.calendar_unverified,
+      );
+      expect(fires).toHaveLength(0);
+    });
+
+    it.each(["queued", "leased"])(
+      "holds while a %s provider write has not committed",
+      async (state) => {
+        const { sb, holds, fires } = harness({
+          due: [reminderRow()],
+          task: bookedJob(),
+          calendarOutbox: [{ id: "outbox-live", state }],
+          calendarLinks: [calendarLink],
+          calendarConnections: [connection()],
+        });
+        stubFetch(sb.route);
+
+        const summary = await runScheduledSendJob(env, NOW);
+
+        expect(summary.held).toBe(1);
+        expect(holds[0]?.p_reason_key).toBe(
+          SCHEDULED_HOLD_REASON_KEYS.calendar_unverified,
+        );
+        expect(fires).toHaveLength(0);
+      },
+    );
+
+    it("holds an initial create before its first calendar link exists", async () => {
+      const { sb, holds, fires } = harness({
+        due: [reminderRow()],
+        task: bookedJob(),
+        calendarOutbox: [{ id: "outbox-create", state: "queued" }],
+        calendarLinks: [],
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary.held).toBe(1);
+      expect(holds[0]?.p_reason_key).toBe(
+        SCHEDULED_HOLD_REASON_KEYS.calendar_unverified,
+      );
+      expect(fires).toHaveLength(0);
+      expect(sb.find("GET", "/rest/v1/task_calendar_links")).toHaveLength(0);
+    });
+
+    it.each(["completed", "cancelled"])(
+      "does not hold for a %s provider write",
+      async (state) => {
+        const { sb, holds, fires } = harness({
+          due: [reminderRow()],
+          task: bookedJob(),
+          calendarOutbox: [{ id: "outbox-terminal", state }],
+          calendarLinks: [calendarLink],
+          calendarConnections: [connection()],
+        });
+        stubFetch(sb.route);
+
+        const summary = await runScheduledSendJob(env, NOW);
+
+        expect(summary.sent).toBe(1);
+        expect(holds).toHaveLength(0);
+        expect(fires).toHaveLength(1);
+      },
+    );
+
+    it("fires a preserved overdue reminder after abandoned cleanup unlinks the dead calendar", async () => {
+      const { sb, holds, fires } = harness({
+        due: [reminderRow()],
+        task: bookedJob(),
+        calendarOutbox: [],
+        calendarLinks: [],
+        calendarConnections: [],
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary.sent).toBe(1);
+      expect(holds).toHaveLength(0);
+      expect(fires).toHaveLength(1);
+    });
+
+    it("honours an atomic calendar hold when a webhook lands after the read-side check", async () => {
+      const claimed = reminderRow();
+      const { sb, holds, fires } = harness({
+        due: [claimed],
+        task: bookedJob(),
+        calendarLinks: [calendarLink],
+        calendarConnections: [connection()],
+        fireResult: {
+          outcome: "held",
+          reason_key: "calendar_unverified",
+          scheduled_message: claimed,
+        },
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary).toMatchObject({ sent: 0, held: 1, failed: 0 });
+      expect(fires).toHaveLength(1);
+      // The fire RPC performed the state change under the row lock; the TS
+      // layer must disclose it, not issue a second non-atomic hold.
+      expect(holds).toHaveLength(0);
+      expect(
+        sb.find("POST", "/rest/v1/rpc/api_fire_scheduled_message"),
+      ).toHaveLength(1);
+    });
+
+    it("honours an atomic booking failure when the task changes after its read", async () => {
+      const claimed = reminderRow();
+      const { sb, fails, fires } = harness({
+        due: [claimed],
+        task: bookedJob(),
+        fireResult: {
+          outcome: "failed",
+          reason_key: "job_no_longer_scheduled",
+          scheduled_message: claimed,
+        },
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary).toMatchObject({ sent: 0, held: 0, failed: 1 });
+      expect(fires).toHaveLength(1);
+      expect(fails).toHaveLength(0);
+    });
+
+    it("fails closed when the live provider-write read is unavailable", async () => {
+      const { sb, holds, fires } = harness({
+        due: [reminderRow()],
+        task: bookedJob(),
+        calendarOutboxReadFails: true,
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary.held).toBe(1);
+      expect(holds[0]?.p_reason_key).toBe(
+        SCHEDULED_HOLD_REASON_KEYS.calendar_unverified,
+      );
+      expect(fires).toHaveLength(0);
+    });
+
+    it("accepts a successful round trip exactly 15 minutes old", async () => {
+      const { sb, holds, fires } = harness({
+        due: [reminderRow()],
+        task: bookedJob(),
+        calendarLinks: [calendarLink],
+        calendarConnections: [
+          connection({ last_verified_at: "2026-08-03T12:45:00Z" }),
+        ],
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary.sent).toBe(1);
+      expect(holds).toHaveLength(0);
+      expect(fires).toHaveLength(1);
+    });
+
+    it.each(["links", "connections"])(
+      "fails closed when the calendar %s read is unavailable",
+      async (failedRead) => {
+        const { sb, holds, fires } = harness({
+          due: [reminderRow()],
+          task: bookedJob(),
+          calendarLinks: [calendarLink],
+          calendarConnections: [connection()],
+          calendarLinkReadFails: failedRead === "links",
+          calendarConnectionReadFails: failedRead === "connections",
+        });
+        stubFetch(sb.route);
+
+        const summary = await runScheduledSendJob(env, NOW);
+
+        expect(summary.held).toBe(1);
+        expect(holds[0]?.p_reason_key).toBe(
+          SCHEDULED_HOLD_REASON_KEYS.calendar_unverified,
+        );
+        expect(fires).toHaveLength(0);
+      },
+    );
   });
 });

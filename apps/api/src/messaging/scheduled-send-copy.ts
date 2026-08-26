@@ -101,6 +101,10 @@ const FR_CA: ScheduledDisclosureCopy = {
     service_unavailable:
       "Les textos sont en pause pendant que nous réglons un problème. " +
       "Ceci est toujours en file et rien n'a été perdu.",
+    calendar_unverified:
+      "La synchronisation du calendrier est déconnectée ou n'a pas été " +
+      "vérifiée récemment, alors ce rappel est en attente. Il partira après " +
+      "une nouvelle vérification.",
     // The French NAMES the actor where the English says "They". French has no
     // comfortable subject-less equivalent, and "Le client" is who it is — the
     // sentence is asking the crew to decide about a conversation, so being

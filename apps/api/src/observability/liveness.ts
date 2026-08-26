@@ -464,6 +464,20 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 5,
     graceMinutes: 25,
   },
+  "job:calendar-sync": {
+    what:
+      "Connected Google and Microsoft calendars are not completing round trips, so mirrored jobs are stale and their customer reminders are held.",
+    doThis:
+      "Workers Logs, search `cron job job:calendar-sync failed` first. Then " +
+      "query `calendar_connections` for rows whose `last_verified_at` is older " +
+      "than 15 minutes and inspect `last_error_code`: `*_reauth` means the " +
+      "member must reconnect from Settings; `*_retry` means the provider is " +
+      "throttling or unavailable and the durable pull/outbox will catch up by " +
+      "itself. Do not replay events by hand: every write is leased and version-" +
+      "conditional, and a manual replay can overwrite a human reschedule.",
+    everyMinutes: 5,
+    graceMinutes: 25,
+  },
   "job:fail-stuck-sends": {
     what: "Sends that crashed before reaching Telnyx are not being failed out, so they never surface as retryable.",
     doThis:

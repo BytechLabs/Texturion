@@ -235,6 +235,35 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
   return q as never as T;
 }
 
+/**
+ * D137: a provider-removed/all-day/unknown-zone occurrence is waiting for the
+ * member's explicit answer. It must not fall through into the ordinary task
+ * queue as if it were simply an undated job. The empty embed plus `is.null` is
+ * PostgREST's anti-join: first restrict the child relation to attention holds,
+ * then keep only parent tasks with no such child. The composite FK named here
+ * joins on BOTH company_id and task_id, so a link from another tenant can
+ * neither hide nor reveal this workspace's task.
+ *
+ * Keep this helper on the list and bulk-filter paths together. A select-all
+ * bulk action must never reach a task the corresponding list deliberately hid.
+ */
+const CALENDAR_HOLD_EMBED =
+  "calendar_hold:task_calendar_links!task_calendar_links_company_id_task_id_fkey()";
+const CALENDAR_HOLD_STATES = ["event_removed", "refused"];
+
+function excludeCalendarAttentionHolds<T>(query: T, companyId: string): T {
+  let q = query as never as {
+    eq(col: string, value: string): typeof q;
+    in(col: string, values: string[]): typeof q;
+    is(col: string, value: null): typeof q;
+  };
+  q = q
+    .eq("calendar_hold.company_id", companyId)
+    .in("calendar_hold.link_state", CALENDAR_HOLD_STATES)
+    .is("calendar_hold", null);
+  return q as never as T;
+}
+
 function dueKeysetFilter(cursor: DueCursor): string {
   if (cursor.d === null) {
     return `and(due_at.is.null,id.gt.${cursor.id})`;
@@ -887,7 +916,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     ? db
         .from("task_map_rows")
         .select(
-          `${TASK_COLUMNS},done_at,contact_id,contact_name,contact_lat,contact_lng`,
+          `${TASK_COLUMNS},done_at,contact_id,contact_name,contact_lat,contact_lng,${CALENDAR_HOLD_EMBED}`,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null)
@@ -895,10 +924,13 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
         .not("map_lat", "is", null)
     : db
         .from("tasks")
-        .select(`${TASK_COLUMNS},messages!message_id!inner(id,done_at)`)
+        .select(
+          `${TASK_COLUMNS},messages!message_id!inner(id,done_at),${CALENDAR_HOLD_EMBED}`,
+        )
         .eq("company_id", companyId)
         .is("deleted_at", null);
 
+  query = excludeCalendarAttentionHolds(query, companyId);
   query = applyTaskFilters(query, {
     doneAtCol,
     effectiveStatus,
@@ -975,6 +1007,8 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   const pageRows = hasNext ? rows.slice(0, limit) : rows;
   const data = pageRows.map((row) => {
     const rest = { ...row } as Record<string, unknown>;
+    // Empty embeds are filtering artifacts, never part of the task contract.
+    delete rest.calendar_hold;
     if (hasLocation) {
       // Map view (task_map_rows view): `done` + the source contact's geocode
       // arrive as FLAT columns. Derive done, fold the geocode into `contact`
@@ -1134,11 +1168,16 @@ tasksRoutes.post(
       // what was on screen.
       const filter = body.filter ?? {};
       const query = applyTaskFilters(
-        db
-          .from("tasks")
-          .select("id,messages!message_id!inner(id,done_at)")
-          .eq("company_id", companyId)
-          .is("deleted_at", null),
+        excludeCalendarAttentionHolds(
+          db
+            .from("tasks")
+            .select(
+              `id,messages!message_id!inner(id,done_at),${CALENDAR_HOLD_EMBED}`,
+            )
+            .eq("company_id", companyId)
+            .is("deleted_at", null),
+          companyId,
+        ),
         {
           doneAtCol: "messages.done_at",
           effectiveStatus: filter.status,

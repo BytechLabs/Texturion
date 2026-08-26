@@ -45,6 +45,9 @@ declare
     'conversation_summaries',
     'attachments', 'message_attachments', 'calls', 'call_member_legs',
     'opt_outs', 'blocked_senders', 'contact_consent_events', 'tasks',
+    -- #245: exact task/calendar scheduling snapshots. Titles can name a
+    -- person or address; descriptions participate by hash only.
+    'task_calendar_links', 'calendar_outbox', 'calendar_reminder_replans',
     'number_port_outs',
     -- #291: a customer's addresses, plural. Squarely contact data — it is
     -- where somebody lives, which is the most sensitive thing in the
@@ -123,6 +126,8 @@ declare
     -- is answered.
     'widget_verifications',
     'calendar_feed_tokens',
+    -- #245: a provider account identifier and encrypted bearer/PKCE material.
+    'calendar_connections', 'oauth_states',
     -- §5 operational data with an identifier attached
     'prepayments', 'referrals',
     'email_events', 'email_suppressions', 'email_ledger', 'public_link_access',
@@ -131,6 +136,8 @@ declare
     -- the other way and carries the same content, so it is classified beside it
     -- rather than anywhere gentler.
     'webhook_deliveries', 'webhook_endpoints',
+    -- #245: opaque Google/Graph watch ids and a client-state hash.
+    'webhook_subscriptions',
     -- #243: the credentials themselves. No contact data, and said so in §5
     -- rather than left implied.
     'api_keys',

@@ -265,22 +265,37 @@ final class CalendarFeedCardTests: XCTestCase {
         let english = String(raw[start.upperBound ..< split.lowerBound])
         let french = String(raw[split.upperBound...])
 
-        let keys = [
-            "title", "description", "create", "rotate", "revoke", "revokeConfirm",
-            "shownOnceTitle", "shownOnceDetail", "copy", "copied", "done",
-            "lastRead", "neverRead", "failed",
-        ]
-        // A list written by hand is a list that can rot short. It is checked
-        // against what the section actually defines, both ways.
+        let keyPattern = try NSRegularExpression(
+            pattern: #"(?m)^ {2}([a-zA-Z][A-Za-z0-9]*):"#
+        )
+        func keys(in source: String) -> Set<String> {
+            let range = NSRange(source.startIndex ..< source.endIndex, in: source)
+            return Set(
+                keyPattern.matches(in: source, range: range).compactMap { match in
+                    Range(match.range(at: 1), in: source).map { String(source[$0]) }
+                }
+            )
+        }
+
+        let englishKeys = keys(in: english)
+        let frenchKeys = keys(in: french)
+        XCTAssertFalse(englishKeys.isEmpty, "no keys parsed from the English catalogue")
+        XCTAssertEqual(
+            englishKeys, frenchKeys,
+            "the web catalogue's English and French halves define different keys"
+        )
+
+        // Derive the list from the source rather than maintaining a hand-written
+        // sample that can rot short when the web adds another calendar surface.
         let defined = Set(
             AppStrings.en.keys.filter { $0.hasPrefix("calendarFeed.") }
         )
         XCTAssertEqual(
-            defined, Set(keys.map { "calendarFeed.\($0)" }),
+            defined, Set(englishKeys.map { "calendarFeed.\($0)" }),
             "the section and this test disagree about which keys exist"
         )
 
-        for key in keys {
+        for key in englishKeys.sorted() {
             let en = try XCTUnwrap(AppStrings.en["calendarFeed.\(key)"], "no English for \(key)")
             let fr = try XCTUnwrap(AppStrings.frCA["calendarFeed.\(key)"], "no French for \(key)")
             XCTAssertTrue(

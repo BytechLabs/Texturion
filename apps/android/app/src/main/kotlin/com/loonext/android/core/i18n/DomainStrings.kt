@@ -412,6 +412,9 @@ object DomainStrings : AppStrings.Section {
         "domain.scheduledHoldServiceUnavailable" to
             "Texting is paused while we deal with an issue. This is still queued " +
             "and nothing was lost.",
+        "domain.scheduledHoldCalendarUnverified" to
+            "Calendar sync is disconnected or has not checked in recently, so this " +
+            "reminder is waiting. It will send after sync is verified again.",
         "domain.scheduledHoldCustomerReplied" to
             "They replied after you scheduled this, so we held it rather than talk " +
             "over them. Send it anyway, or cancel it.",
@@ -981,6 +984,10 @@ object DomainStrings : AppStrings.Section {
         "domain.scheduledHoldServiceUnavailable" to
             "Les textos sont en pause pendant que nous réglons un problème. Ceci est " +
             "toujours en file et rien n'a été perdu.",
+        "domain.scheduledHoldCalendarUnverified" to
+            "La synchronisation du calendrier est déconnectée ou n'a pas été " +
+            "vérifiée récemment, alors ce rappel est en attente. Il partira après " +
+            "une nouvelle vérification.",
         "domain.scheduledHoldCustomerReplied" to
             "Le client a répondu après votre programmation, alors nous avons retenu " +
             "le message plutôt que de lui couper la parole. Envoyez-le quand même, " +

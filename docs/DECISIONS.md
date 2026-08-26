@@ -8580,6 +8580,19 @@ writes for recurring work.
 Not planned: creating recurring events from our side, and any resolution rule
 that reintroduces a timestamp comparison.
 
+**Implementation boundary, 2026-08-25.** The first connector slice mirrors
+scheduled Loonext tasks and accepts provider changes only for occurrences that
+already have a `task_calendar_links` mapping. It deliberately ignores every
+unmapped provider event, recurring occurrences included. That is narrower than
+the inbound-recurring sentence above and remains open on #245: under D17/D64 a
+task must promote a real source message in a real conversation, and the product
+has not decided which source, customer, completion history, or audit identity an
+arbitrary calendar occurrence should acquire. Manufacturing those records in a
+sync worker would violate the task model rather than complete this decision.
+The connect screen therefore says plainly that unrelated events are not
+imported; this issue must not close until that missing product contract is
+decided and implemented (or the inbound requirement is explicitly withdrawn).
+
 **Unresolved, and named rather than smoothed over.**
 
 1. **The two attackers disagree about how often rule 5 will fire** — one holds

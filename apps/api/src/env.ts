@@ -201,6 +201,26 @@ const envSchema = z.object({
    * is a logged no-op — Web Push is unaffected.
    */
   FCM_SERVICE_ACCOUNT_JSON: z.string().min(1).optional(),
+  /**
+   * #245/D137 — two-way Google Calendar and Microsoft 365 connectors.
+   *
+   * Optional as a group so ordinary local/test deployments boot without a
+   * provider application. Connector routes fail closed as "not configured"
+   * unless the selected provider pair and both encryption settings exist.
+   * OAuth refresh tokens are never stored with these secrets or in plaintext:
+   * `CALENDAR_TOKEN_ENCRYPTION_KEYS` is a JSON object of
+   * `{ "version": "base64url-32-byte-AES-key" }`, and ACTIVE names the
+   * version used for new writes while old versions remain available to read
+   * during rotation.
+   */
+  GOOGLE_CALENDAR_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CALENDAR_CLIENT_SECRET: z.string().min(1).optional(),
+  MICROSOFT_CALENDAR_CLIENT_ID: z.string().min(1).optional(),
+  MICROSOFT_CALENDAR_CLIENT_SECRET: z.string().min(1).optional(),
+  /** `common` permits organizational and personal Microsoft accounts. */
+  MICROSOFT_CALENDAR_TENANT: z.string().min(1).optional(),
+  CALENDAR_TOKEN_ENCRYPTION_KEYS: z.string().min(2).optional(),
+  CALENDAR_TOKEN_ENCRYPTION_ACTIVE_KEY: z.string().min(1).optional(),
   // Stripe catalog ids printed by `pnpm stripe:setup` (SPEC §9: the catalog is
   // created by a checked-in setup script, ids stored as env config).
   STRIPE_STARTER_PRICE_ID: z.string().min(1),

@@ -76,3 +76,44 @@ describe("TURNSTILE_SECRET_KEY (optional)", () => {
     );
   });
 });
+
+describe("calendar connector secrets (optional, #245)", () => {
+  it("boots with the connector unconfigured", () => {
+    const env = getEnv(bindings());
+    expect(env.GOOGLE_CALENDAR_CLIENT_ID).toBeUndefined();
+    expect(env.CALENDAR_TOKEN_ENCRYPTION_KEYS).toBeUndefined();
+  });
+
+  it("round-trips provider and versioned encryption configuration", () => {
+    const env = getEnv(
+      bindings({
+        GOOGLE_CALENDAR_CLIENT_ID: "google-client",
+        GOOGLE_CALENDAR_CLIENT_SECRET: "google-secret",
+        MICROSOFT_CALENDAR_CLIENT_ID: "microsoft-client",
+        MICROSOFT_CALENDAR_CLIENT_SECRET: "microsoft-secret",
+        MICROSOFT_CALENDAR_TENANT: "common",
+        CALENDAR_TOKEN_ENCRYPTION_KEYS: '{"v1":"base64url-key"}',
+        CALENDAR_TOKEN_ENCRYPTION_ACTIVE_KEY: "v1",
+      }),
+    );
+    expect(env.GOOGLE_CALENDAR_CLIENT_ID).toBe("google-client");
+    expect(env.MICROSOFT_CALENDAR_TENANT).toBe("common");
+    expect(env.CALENDAR_TOKEN_ENCRYPTION_ACTIVE_KEY).toBe("v1");
+  });
+
+  it("rejects configured empty values instead of treating them as disabled", () => {
+    for (const key of [
+      "GOOGLE_CALENDAR_CLIENT_ID",
+      "GOOGLE_CALENDAR_CLIENT_SECRET",
+      "MICROSOFT_CALENDAR_CLIENT_ID",
+      "MICROSOFT_CALENDAR_CLIENT_SECRET",
+      "MICROSOFT_CALENDAR_TENANT",
+      "CALENDAR_TOKEN_ENCRYPTION_KEYS",
+      "CALENDAR_TOKEN_ENCRYPTION_ACTIVE_KEY",
+    ]) {
+      expect(() => getEnv(bindings({ [key]: "" })), key).toThrowError(
+        new RegExp(key),
+      );
+    }
+  });
+});

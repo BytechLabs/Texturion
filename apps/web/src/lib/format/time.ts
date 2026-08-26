@@ -29,6 +29,131 @@ export function browserTimezone(): string | undefined {
   }
 }
 
+export type ZonedWallClockResult =
+  | { ok: true; iso: string }
+  | { ok: false; reason: "invalid" | "nonexistent" | "ambiguous" };
+
+interface WallClockParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+}
+
+function zonedWallClockParts(
+  formatter: Intl.DateTimeFormat,
+  instant: number,
+): WallClockParts | null {
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(new Date(instant))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)]),
+  );
+  return [parts.year, parts.month, parts.day, parts.hour, parts.minute].every(
+    Number.isInteger,
+  )
+    ? (parts as unknown as WallClockParts)
+    : null;
+}
+
+function sameWallClock(
+  left: WallClockParts | null,
+  right: WallClockParts,
+): boolean {
+  return Boolean(
+    left &&
+      left.year === right.year &&
+      left.month === right.month &&
+      left.day === right.day &&
+      left.hour === right.hour &&
+      left.minute === right.minute,
+  );
+}
+
+/**
+ * Convert a `datetime-local` wall clock in an explicit IANA zone to an instant.
+ * DST gaps and repeated clocks are refused: choosing either side silently
+ * would invent information the dispatcher never supplied.
+ */
+export function instantFromZonedWallClock(
+  value: string,
+  timeZone: string,
+): ZonedWallClockResult {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match || !timeZone) return { ok: false, reason: "invalid" };
+  const target: WallClockParts = {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+    hour: Number(match[4]),
+    minute: Number(match[5]),
+  };
+  const naive = new Date(0);
+  naive.setUTCFullYear(target.year, target.month - 1, target.day);
+  naive.setUTCHours(target.hour, target.minute, 0, 0);
+  if (
+    naive.getUTCFullYear() !== target.year ||
+    naive.getUTCMonth() !== target.month - 1 ||
+    naive.getUTCDate() !== target.day ||
+    naive.getUTCHours() !== target.hour ||
+    naive.getUTCMinutes() !== target.minute
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+  } catch {
+    return { ok: false, reason: "invalid" };
+  }
+
+  // Derive every offset in force around the requested day, then retain only
+  // candidates that round-trip to the exact wall clock. Sampling both sides
+  // of a transition captures half-hour DST zones as well as one-hour zones.
+  const offsets = new Set<number>();
+  for (let hours = -72; hours <= 72; hours += 6) {
+    const sampledInstant = naive.getTime() + hours * 3_600_000;
+    const sampledWall = zonedWallClockParts(formatter, sampledInstant);
+    if (!sampledWall) return { ok: false, reason: "invalid" };
+    const wallAsUtc = new Date(0);
+    wallAsUtc.setUTCFullYear(
+      sampledWall.year,
+      sampledWall.month - 1,
+      sampledWall.day,
+    );
+    wallAsUtc.setUTCHours(
+      sampledWall.hour,
+      sampledWall.minute,
+      0,
+      0,
+    );
+    offsets.add(wallAsUtc.getTime() - sampledInstant);
+  }
+
+  const matches = new Set<number>();
+  for (const offset of offsets) {
+    const candidate = naive.getTime() - offset;
+    if (sameWallClock(zonedWallClockParts(formatter, candidate), target)) {
+      matches.add(candidate);
+    }
+  }
+  if (matches.size === 0) return { ok: false, reason: "nonexistent" };
+  if (matches.size > 1) return { ok: false, reason: "ambiguous" };
+  return { ok: true, iso: new Date([...matches][0]!).toISOString() };
+}
+
 /**
  * Absolute datetime with zone abbreviation for timestamp tooltips (D15):
  * "Jul 2, 2026, 2:14 PM EDT" in the viewer's browser timezone. `timeZone`
@@ -37,12 +162,13 @@ export function browserTimezone(): string | undefined {
 export function formatAbsoluteDateTime(
   iso: string,
   timeZone?: string,
+  locale?: string,
 ): string {
   // Guard bad/absent input so a tooltip never shows "Invalid Date" or throws.
   const parsed = new Date(iso);
   if (!iso || Number.isNaN(parsed.getTime())) return "";
   // timeZoneName cannot combine with dateStyle/timeStyle — components only.
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",

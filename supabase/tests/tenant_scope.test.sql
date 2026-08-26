@@ -62,6 +62,8 @@ declare
     -- #232: the website widget's verification codes.
     'widget_verifications',
     'calendar_feed_tokens',
+    'calendar_connections', 'oauth_states', 'webhook_subscriptions',
+    'task_calendar_links', 'calendar_outbox', 'calendar_reminder_replans',
     'lead_sources',
     -- #224: text-to-pay.
     'payment_requests', 'stripe_connect_accounts',

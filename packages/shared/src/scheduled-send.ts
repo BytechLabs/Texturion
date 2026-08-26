@@ -79,6 +79,15 @@ export const SCHEDULED_HOLD_REASONS = {
     "Texting is paused while we deal with an issue. This is still queued and nothing was lost.",
 
   /**
+   * #245/D137: a provider round trip has not proved the mirrored appointment
+   * current recently enough to trust the time embedded in its reminder.
+   * Recoverable: the calendar pull loop advances `last_verified_at`, and the
+   * held reminder is eligible again on the next scheduled-send sweep.
+   */
+  calendar_unverified:
+    "Calendar sync is disconnected or has not checked in recently, so this reminder is waiting. It will send after sync is verified again.",
+
+  /**
    * The customer answered after this was scheduled.
    *
    * #233 asks for this explicitly, and it is the one hold that is about
@@ -157,6 +166,7 @@ export const SCHEDULED_HOLD_REASON_KEYS = {
   workspace_paused: "domain.scheduledHoldWorkspacePaused",
   registration_pending: "domain.scheduledHoldRegistrationPending",
   service_unavailable: "domain.scheduledHoldServiceUnavailable",
+  calendar_unverified: "domain.scheduledHoldCalendarUnverified",
   customer_replied: "domain.scheduledHoldCustomerReplied",
   recipient_opted_out: "domain.scheduledHoldOptedOut",
   invalid_destination: "domain.scheduledHoldInvalidDestination",
@@ -211,6 +221,7 @@ export function scheduledReasonRecovers(reason: ScheduledHoldReason): boolean {
     reason === "workspace_paused" ||
     reason === "registration_pending" ||
     reason === "service_unavailable" ||
+    reason === "calendar_unverified" ||
     reason === "customer_replied"
   );
 }

@@ -97,6 +97,10 @@ const TENANT_TABLES = new Set([
   "widget_verifications",
   // #245: per-member schedule feed credentials.
   "calendar_feed_tokens",
+  // #245/D137: encrypted connection state, short-lived OAuth proof, provider
+  // watch identity, per-task mirror snapshots and durable write intents.
+  "calendar_connections", "oauth_states", "webhook_subscriptions",
+  "task_calendar_links", "calendar_outbox", "calendar_reminder_replans",
   "lead_sources",
   // #224: the ask for money, and the mirror of the Stripe account it is paid
   // into. An unscoped read of either is the most valuable cross-tenant leak in

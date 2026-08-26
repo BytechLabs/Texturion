@@ -98,6 +98,8 @@ interface PurgeStep {
   step: string | null;
   deleted: number;
   done: boolean;
+  remote_calendar_cleanup_unconfirmed?: boolean;
+  remote_calendar_cleanup_unconfirmed_count?: number;
 }
 
 export interface PurgeSummary {
@@ -131,7 +133,9 @@ export async function purgeClosedWorkspaces(
     // #371: the name and the receipt address are read HERE, at the top of the
     // run, because both are cleared by the anonymise at the end of it. A
     // resumed purge that finishes today still carries what it needs to say so.
-    .select("id,name,stripe_customer_id,purge_receipt_email")
+    .select(
+      "id,name,stripe_customer_id,purge_receipt_email,calendar_cleanup_unconfirmed_at,calendar_cleanup_unconfirmed_count",
+    )
     .not("purge_after", "is", null)
     .lte("purge_after", now.toISOString())
     .is("purged_at", null)
@@ -150,6 +154,8 @@ export async function purgeClosedWorkspaces(
     name: string | null;
     stripe_customer_id: string | null;
     purge_receipt_email: string | null;
+    calendar_cleanup_unconfirmed_at: string | null;
+    calendar_cleanup_unconfirmed_count: number;
   }[]) {
     summary.workspaces += 1;
     try {
@@ -170,6 +176,14 @@ export async function purgeClosedWorkspaces(
             workspacePurgedEmail({
               companyName: row.name ?? "your workspace",
               purgedAt: now,
+              calendarCleanupUnconfirmed:
+                row.calendar_cleanup_unconfirmed_at !== null ||
+                result.calendarCleanupUnconfirmed,
+              calendarCleanupUnconfirmedCount:
+                Math.max(
+                  row.calendar_cleanup_unconfirmed_count,
+                  result.calendarCleanupUnconfirmedCount,
+                ),
             }),
               `workspace purge ${row.id}`,
             )
@@ -197,9 +211,17 @@ async function purgeWorkspace(
   db: SupabaseClient,
   companyId: string,
   stripeCustomerId: string | null,
-): Promise<{ rowsDeleted: number; objectsRemoved: number; completed: boolean }> {
+): Promise<{
+  rowsDeleted: number;
+  objectsRemoved: number;
+  completed: boolean;
+  calendarCleanupUnconfirmed: boolean;
+  calendarCleanupUnconfirmedCount: number;
+}> {
   let rowsDeleted = 0;
   let objectsRemoved = 0;
+  let calendarCleanupUnconfirmed = false;
+  let calendarCleanupUnconfirmedCount = 0;
 
   for (let step = 0; step < MAX_STEPS_PER_RUN; step += 1) {
     // Files before rows, every pass: the rows are where the paths are, and a
@@ -213,6 +235,19 @@ async function purgeWorkspace(
     if (error) throw new Error(`purge_workspace_step failed: ${error.message}`);
     const result = data as PurgeStep;
     rowsDeleted += result.deleted;
+    calendarCleanupUnconfirmed ||=
+      result.remote_calendar_cleanup_unconfirmed === true;
+    if (
+      Number.isSafeInteger(result.remote_calendar_cleanup_unconfirmed_count) &&
+      result.remote_calendar_cleanup_unconfirmed_count! >= 0
+    ) {
+      // The RPC returns the company's cumulative count on every step. Take the
+      // maximum rather than summing repeated observations across purge pages.
+      calendarCleanupUnconfirmedCount = Math.max(
+        calendarCleanupUnconfirmedCount,
+        result.remote_calendar_cleanup_unconfirmed_count!,
+      );
+    }
 
     if (result.done) {
       // Rows gone. Stripe next — its failure must not block the anonymise,
@@ -225,12 +260,24 @@ async function purgeWorkspace(
       if (anonError) {
         throw new Error(`anonymize_purged_workspace failed: ${anonError.message}`);
       }
-      return { rowsDeleted, objectsRemoved, completed: true };
+      return {
+        rowsDeleted,
+        objectsRemoved,
+        completed: true,
+        calendarCleanupUnconfirmed,
+        calendarCleanupUnconfirmedCount,
+      };
     }
   }
 
   // Out of budget, not out of work. Tomorrow resumes here.
-  return { rowsDeleted, objectsRemoved, completed: false };
+  return {
+    rowsDeleted,
+    objectsRemoved,
+    completed: false,
+    calendarCleanupUnconfirmed,
+    calendarCleanupUnconfirmedCount,
+  };
 }
 
 /**
