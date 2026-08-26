@@ -407,7 +407,7 @@ struct ForYouTab: View {
     }
 }
 
-private struct ForYouList: View {
+struct ForYouList: View {
     let forYou: ForYou
     let spamReview: [SpamReviewItem]
     let onAnswerSpamReview: @MainActor (String, Bool) -> Void

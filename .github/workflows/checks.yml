@@ -1031,11 +1031,38 @@ jobs:
         id: sim
         run: |
           xcrun simctl list devices available
-          UDID=$(xcrun simctl list devices available | grep -Eo 'iPhone [^(]*\(([0-9A-F-]+)\)' | head -1 | grep -Eo '[0-9A-F-]{36}')
+          # The plain-text `head -1` used to choose the OLDEST installed iOS
+          # runtime. A runner with 26.2, 26.4 and 26.5 therefore built against
+          # 26.2, and a future image reorder could change screenshot pixels with
+          # no app change. Read the structured list, choose the newest runtime,
+          # and prefer one representative phone within it.
+          UDID=$(
+            xcrun simctl list devices available -j |
+            python3 -c '
+          import json, re, sys
+
+          rows = []
+          for runtime, devices in json.load(sys.stdin).get("devices", {}).items():
+              match = re.search(r"\.iOS-(\d+(?:-\d+)*)$", runtime)
+              if match is None:
+                  continue
+              version = tuple(int(part) for part in match.group(1).split("-"))
+              for device in devices:
+                  name = device.get("name", "")
+                  udid = device.get("udid", "")
+                  if device.get("isAvailable", True) and name.startswith("iPhone") and udid:
+                      rows.append((version, name == "iPhone 17 Pro", name, udid))
+
+          if not rows:
+              raise SystemExit(1)
+          print(max(rows)[3])
+          '
+          )
           if [ -z "$UDID" ]; then
             echo "::error::No available iPhone simulator on this image."
             exit 1
           fi
+          xcrun simctl list devices available | grep "$UDID"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
       # App Store Connect rejects an upload whose CFBundleVersion repeats one it
@@ -1064,6 +1091,7 @@ jobs:
             -project Loonext.xcodeproj \
             -scheme Loonext \
             -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath "$RUNNER_TEMP/ios-tests.xcresult" \
             CODE_SIGNING_ALLOWED=NO | tee /tmp/ios-tests.log
 
       # [#599] A SKIPPED TEST REPORTS GREEN, WHICH IS BACKWARDS.
@@ -1091,3 +1119,29 @@ jobs:
             exit 1
           fi
           echo "No test skipped."
+
+      # #540: pictures a person can inspect, not pixel goldens. The hosted test
+      # renders the real ForYouList in both themes and at normal/accessibility
+      # text sizes, keeps every viewport as an XCTAttachment, and asserts the
+      # images are not blank. Exporting from the xcresult is the supported path
+      # that preserves successful-test attachments; writing into a simulator
+      # container would leave the host guessing where Xcode installed the app.
+      - name: Export dashboard screenshots
+        run: |
+          ATTACHMENTS="$RUNNER_TEMP/ios-dashboard-screenshots"
+          xcrun xcresulttool export attachments \
+            --path "$RUNNER_TEMP/ios-tests.xcresult" \
+            --output-path "$ATTACHMENTS"
+          COUNT=$(find "$ATTACHMENTS" -type f -name '*.png' | wc -l | tr -d ' ')
+          if [ "$COUNT" -lt 8 ]; then
+            echo "::error::Expected at least two pages for each dashboard variant; exported $COUNT PNGs."
+            exit 1
+          fi
+          echo "Exported $COUNT dashboard screenshot pages."
+
+      - name: Upload dashboard screenshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-dashboard-screenshots
+          path: ${{ runner.temp }}/ios-dashboard-screenshots
+          retention-days: 14
