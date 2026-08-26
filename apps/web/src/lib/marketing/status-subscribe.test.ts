@@ -14,12 +14,16 @@ import {
   MAX_FANOUTS_PER_DAY,
   MAX_SUBSCRIBERS,
   SUBSCRIBE_KEYS,
+  confirmEmailText,
   confirmSubscription,
+  confirmUrl,
   decideNotification,
+  incidentEmailText,
   isToken,
   mintToken,
   normalizeEmail,
   notifySubscribers,
+  resolvedEmailText,
   startSubscription,
   subscriptionsOpen,
   unsubscribe,
@@ -52,18 +56,29 @@ function fakeStore(): SubscriberStore & { map: Map<string, string> } {
   };
 }
 
-function fakeMailer(): Mailer & { sent: { to: string; text: string }[] } {
-  const sent: { to: string; text: string }[] = [];
+type SentMessage = {
+  to: string;
+  subject: string;
+  text: string;
+  listUnsubscribeUrl?: string;
+};
+
+function fakeMailer(): Mailer & { sent: SentMessage[] } {
+  const sent: SentMessage[] = [];
   return {
     sent,
     async send(message) {
-      sent.push({ to: message.to, text: message.text });
+      sent.push(message);
       return true;
     },
   };
 }
 
 const NOW = new Date("2026-07-31T12:00:00Z");
+const incidentCopy = (en: string | null, fr: string | null = null) => ({
+  en,
+  "fr-CA": fr,
+});
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -114,12 +129,61 @@ describe("tokens", () => {
   });
 });
 
+describe("English email compatibility", () => {
+  const token = "0123456789abcdef0123456789abcdef";
+
+  it("keeps the existing confirmation email byte-for-byte", () => {
+    expect(confirmEmailText(token)).toBe(
+      [
+        "You asked to be emailed when Loonext has a service incident.",
+        "",
+        "Confirm that here:",
+        `https://loonext.com/api/status/confirm?token=${token}`,
+        "",
+        "If that wasn't you, ignore this email — nothing happens until the link is",
+        "opened, and the request expires on its own within a day.",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps the existing incident and resolution links and line wrapping", () => {
+    expect(incidentEmailText("Texting is delayed", token)).toBe(
+      [
+        "Loonext service incident",
+        "",
+        "Texting is delayed",
+        "",
+        "This is what's on our status page right now, written by hand as we learn",
+        "more. We'll email again when it's resolved.",
+        "",
+        "https://loonext.com/status",
+        "",
+        "---",
+        `Unsubscribe: https://loonext.com/api/status/unsubscribe?token=${token}`,
+      ].join("\n"),
+    );
+    expect(resolvedEmailText(token)).toBe(
+      [
+        "Loonext incident resolved",
+        "",
+        "The incident we emailed you about is over. The written report goes on the",
+        "status page once we've finished it.",
+        "",
+        "https://loonext.com/status",
+        "",
+        "---",
+        `Unsubscribe: https://loonext.com/api/status/unsubscribe?token=${token}`,
+      ].join("\n"),
+    );
+  });
+});
+
 describe("double opt-in", () => {
   it("does not add an address until the link is opened", async () => {
     const store = fakeStore();
     const mailer = fakeMailer();
 
-    expect(await startSubscription(store, mailer, "sam@example.com", NOW)).toBe(
+    expect(await startSubscription(store, mailer, "sam@example.com", "en", NOW)).toBe(
       "sent",
     );
     // Pending, not subscribed. This is the whole anti-abuse story: anyone can
@@ -132,15 +196,48 @@ describe("double opt-in", () => {
     const token = [...store.map.keys()]
       .find((key) => key.startsWith(SUBSCRIBE_KEYS.pending))!
       .slice(SUBSCRIBE_KEYS.pending.length);
-    expect(await confirmSubscription(store, token)).toBe(true);
+    expect(await confirmSubscription(store, token)).toBe("en");
     expect((await store.list({ prefix: SUBSCRIBE_KEYS.subscriber })).keys)
       .toHaveLength(1);
   });
 
+  it("persists fr-CA through confirmation and sends the French link", async () => {
+    const store = fakeStore();
+    const mailer = fakeMailer();
+
+    expect(
+      await startSubscription(
+        store,
+        mailer,
+        "marie@example.com",
+        "fr-CA",
+        NOW,
+      ),
+    ).toBe("sent");
+
+    const pendingKey = [...store.map.keys()].find((key) =>
+      key.startsWith(SUBSCRIBE_KEYS.pending),
+    )!;
+    const token = pendingKey.slice(SUBSCRIBE_KEYS.pending.length);
+    expect(JSON.parse(store.map.get(pendingKey)!)).toEqual({
+      email: "marie@example.com",
+      locale: "fr-CA",
+    });
+    expect(mailer.sent[0].subject).toBe(
+      "Confirmez vos avis d'état du service Loonext",
+    );
+    expect(mailer.sent[0].text).toContain(confirmUrl(token, "fr-CA"));
+
+    expect(await confirmSubscription(store, token)).toBe("fr-CA");
+    expect(
+      JSON.parse(store.map.get(`${SUBSCRIBE_KEYS.subscriber}${token}`)!),
+    ).toEqual({ email: "marie@example.com", locale: "fr-CA" });
+  });
+
   it("refuses a token it never issued", async () => {
     const store = fakeStore();
-    expect(await confirmSubscription(store, mintToken())).toBe(false);
-    expect(await confirmSubscription(store, "not-a-token")).toBe(false);
+    expect(await confirmSubscription(store, mintToken())).toBeNull();
+    expect(await confirmSubscription(store, "not-a-token")).toBeNull();
   });
 
   it("does not mail an address that is already on the list", async () => {
@@ -148,7 +245,7 @@ describe("double opt-in", () => {
     const mailer = fakeMailer();
     await store.put(`${SUBSCRIBE_KEYS.subscriber}${mintToken()}`, "sam@example.com");
 
-    expect(await startSubscription(store, mailer, "sam@example.com", NOW)).toBe(
+    expect(await startSubscription(store, mailer, "sam@example.com", "en", NOW)).toBe(
       "already",
     );
     expect(mailer.sent).toHaveLength(0);
@@ -161,12 +258,24 @@ describe("unsubscribe", () => {
     const token = mintToken();
     await store.put(`${SUBSCRIBE_KEYS.subscriber}${token}`, "sam@example.com");
 
-    expect(await unsubscribe(store, token)).toBe(true);
+    expect(await unsubscribe(store, token)).toBe("en");
     expect((await store.list({ prefix: SUBSCRIBE_KEYS.subscriber })).keys)
       .toHaveLength(0);
     // A mail client that prefetched the link, or somebody clicking twice, must
     // not be told it failed. They are off the list either way.
-    expect(await unsubscribe(store, token)).toBe(true);
+    expect(await unsubscribe(store, token)).toBeNull();
+  });
+
+  it("returns the persisted French locale before deleting the row", async () => {
+    const store = fakeStore();
+    const token = mintToken();
+    await store.put(
+      `${SUBSCRIBE_KEYS.subscriber}${token}`,
+      JSON.stringify({ email: "marie@example.com", locale: "fr-CA" }),
+    );
+
+    expect(await unsubscribe(store, token)).toBe("fr-CA");
+    expect(await store.get(`${SUBSCRIBE_KEYS.subscriber}${token}`)).toBeNull();
   });
 });
 
@@ -205,12 +314,22 @@ describe("notifySubscribers", () => {
     const store = await withSubscribers(3);
     const mailer = fakeMailer();
 
-    const first = await notifySubscribers(store, mailer, "Texting is delayed", NOW);
+    const first = await notifySubscribers(
+      store,
+      mailer,
+      incidentCopy("Texting is delayed"),
+      NOW,
+    );
     expect(first).toEqual({ kind: "incident", sent: 3 });
 
     // The same sentence again is the same incident. A page that re-mails on
     // every render is a page nobody stays subscribed to.
-    const second = await notifySubscribers(store, mailer, "Texting is delayed", NOW);
+    const second = await notifySubscribers(
+      store,
+      mailer,
+      incidentCopy("Texting is delayed"),
+      NOW,
+    );
     expect(second.kind).toBe("none");
     expect(mailer.sent).toHaveLength(3);
   });
@@ -222,7 +341,12 @@ describe("notifySubscribers", () => {
         throw new Error("resend is down");
       },
     };
-    await notifySubscribers(store, exploding, "Texting is delayed", NOW);
+    await notifySubscribers(
+      store,
+      exploding,
+      incidentCopy("Texting is delayed"),
+      NOW,
+    );
     // The marker moved even though the send blew up. Losing one announcement is
     // the right way to be wrong: the alternative ordering mails the list twice.
     expect(await store.get(SUBSCRIBE_KEYS.notified)).toBe("Texting is delayed");
@@ -231,7 +355,12 @@ describe("notifySubscribers", () => {
   it("moves the marker with nobody on the list", async () => {
     const store = fakeStore();
     const mailer = fakeMailer();
-    await notifySubscribers(store, mailer, "Texting is delayed", NOW);
+    await notifySubscribers(
+      store,
+      mailer,
+      incidentCopy("Texting is delayed"),
+      NOW,
+    );
     // Otherwise the first person to subscribe mid-incident is mailed about it
     // as though it had just started.
     expect(await store.get(SUBSCRIBE_KEYS.notified)).toBe("Texting is delayed");
@@ -240,8 +369,18 @@ describe("notifySubscribers", () => {
   it("announces the resolution too", async () => {
     const store = await withSubscribers(2);
     const mailer = fakeMailer();
-    await notifySubscribers(store, mailer, "Texting is delayed", NOW);
-    const resolved = await notifySubscribers(store, mailer, null, NOW);
+    await notifySubscribers(
+      store,
+      mailer,
+      incidentCopy("Texting is delayed"),
+      NOW,
+    );
+    const resolved = await notifySubscribers(
+      store,
+      mailer,
+      incidentCopy(null),
+      NOW,
+    );
     expect(resolved.kind).toBe("resolved");
     expect(mailer.sent).toHaveLength(4);
   });
@@ -249,11 +388,85 @@ describe("notifySubscribers", () => {
   it("puts an unsubscribe link in every message", async () => {
     const store = await withSubscribers(1);
     const mailer = fakeMailer();
-    await notifySubscribers(store, mailer, "Texting is delayed", NOW);
+    await notifySubscribers(
+      store,
+      mailer,
+      incidentCopy("Texting is delayed"),
+      NOW,
+    );
     const token = [...store.map.keys()]
       .find((key) => key.startsWith(SUBSCRIBE_KEYS.subscriber))!
       .slice(SUBSCRIBE_KEYS.subscriber.length);
     expect(mailer.sent[0].text).toContain(unsubscribeUrl(token));
+  });
+
+  it("fans out incident, update, and unsubscribe copy in each subscriber's locale", async () => {
+    const store = fakeStore();
+    const englishToken = mintToken();
+    const frenchToken = mintToken();
+    // A pre-locale row remains English without a migration.
+    await store.put(
+      `${SUBSCRIBE_KEYS.subscriber}${englishToken}`,
+      "sam@example.com",
+    );
+    await store.put(
+      `${SUBSCRIBE_KEYS.subscriber}${frenchToken}`,
+      JSON.stringify({ email: "marie@example.com", locale: "fr-CA" }),
+    );
+    const mailer = fakeMailer();
+
+    await notifySubscribers(
+      store,
+      mailer,
+      incidentCopy(
+        "Texting is delayed",
+        "Les textos sont retardés en ce moment.",
+      ),
+      NOW,
+    );
+
+    const english = mailer.sent.find((message) => message.to === "sam@example.com")!;
+    const french = mailer.sent.find((message) => message.to === "marie@example.com")!;
+    expect(english.subject).toBe("Loonext service incident");
+    expect(english.text).toContain("Texting is delayed");
+    expect(english.text).toContain("https://loonext.com/status");
+    expect(french.subject).toBe("Incident de service Loonext");
+    expect(french.text).toContain("Les textos sont retardés en ce moment.");
+    expect(french.text).not.toContain("Texting is delayed");
+    expect(french.text).toContain("https://loonext.com/fr/etat-du-service");
+    expect(french.listUnsubscribeUrl).toBe(
+      unsubscribeUrl(frenchToken, "fr-CA"),
+    );
+
+    await notifySubscribers(store, mailer, incidentCopy(null), NOW);
+    const frenchResolution = mailer.sent.filter(
+      (message) => message.to === "marie@example.com",
+    )[1];
+    expect(frenchResolution.subject).toBe("Incident Loonext réglé");
+    expect(frenchResolution.text).toContain(
+      "L'incident au sujet duquel nous vous avons écrit est terminé.",
+    );
+  });
+
+  it("uses honest French fallback copy when no human translation was posted", async () => {
+    const store = fakeStore();
+    await store.put(
+      `${SUBSCRIBE_KEYS.subscriber}${mintToken()}`,
+      JSON.stringify({ email: "marie@example.com", locale: "fr-CA" }),
+    );
+    const mailer = fakeMailer();
+
+    await notifySubscribers(
+      store,
+      mailer,
+      incidentCopy("Texting is delayed"),
+      NOW,
+    );
+
+    expect(mailer.sent[0].text).toContain(
+      "Un incident de service est en cours.",
+    );
+    expect(mailer.sent[0].text).not.toContain("Texting is delayed");
   });
 
   it("never throws, because it runs inside a page render", async () => {
@@ -268,7 +481,12 @@ describe("notifySubscribers", () => {
       },
     };
     await expect(
-      notifySubscribers(broken, fakeMailer(), "Texting is delayed", NOW),
+      notifySubscribers(
+        broken,
+        fakeMailer(),
+        incidentCopy("Texting is delayed"),
+        NOW,
+      ),
     ).resolves.toEqual({ kind: "none", sent: 0 });
   });
 });
@@ -291,7 +509,7 @@ describe("the caps, which are the part that spends money", () => {
     expect(await subscriptionsOpen(store)).toBe(false);
 
     const mailer = fakeMailer();
-    expect(await startSubscription(store, mailer, "new@example.com", NOW)).toBe(
+    expect(await startSubscription(store, mailer, "new@example.com", "en", NOW)).toBe(
       "full",
     );
     expect(mailer.sent).toHaveLength(0);
@@ -304,7 +522,7 @@ describe("the caps, which are the part that spends money", () => {
       `${SUBSCRIBE_KEYS.confirmDay}2026-07-31`,
       String(MAX_CONFIRMS_PER_DAY),
     );
-    expect(await startSubscription(store, mailer, "sam@example.com", NOW)).toBe(
+    expect(await startSubscription(store, mailer, "sam@example.com", "en", NOW)).toBe(
       "rate_limited",
     );
     expect(mailer.sent).toHaveLength(0);
@@ -318,7 +536,12 @@ describe("the caps, which are the part that spends money", () => {
     await store.put(`${SUBSCRIBE_KEYS.fanoutDay}2026-07-31`, String(MAX_FANOUTS_PER_DAY));
     const mailer = fakeMailer();
 
-    const result = await notifySubscribers(store, mailer, "Texting is delayed", NOW);
+    const result = await notifySubscribers(
+      store,
+      mailer,
+      incidentCopy("Texting is delayed"),
+      NOW,
+    );
     expect(result.sent).toBe(0);
     expect(mailer.sent).toHaveLength(0);
     // The marker must NOT have moved: this incident still needs announcing when
@@ -340,7 +563,12 @@ describe("the caps, which are the part that spends money", () => {
     // Five subscribers, two of the month's budget left: it does not send three
     // of them and drop the rest. Partial delivery of an outage notice is worse
     // than none — it tells some customers and silently doesn't tell others.
-    const result = await notifySubscribers(store, mailer, "Texting is delayed", NOW);
+    const result = await notifySubscribers(
+      store,
+      mailer,
+      incidentCopy("Texting is delayed"),
+      NOW,
+    );
     expect(result.sent).toBe(0);
     expect(mailer.sent).toHaveLength(0);
     expect(await store.get(SUBSCRIBE_KEYS.notified)).toBeNull();
@@ -353,7 +581,7 @@ describe("the caps, which are the part that spends money", () => {
       String(MAX_EMAILS_PER_MONTH),
     );
     const mailer = fakeMailer();
-    expect(await startSubscription(store, mailer, "sam@example.com", NOW)).toBe(
+    expect(await startSubscription(store, mailer, "sam@example.com", "en", NOW)).toBe(
       "rate_limited",
     );
     expect(mailer.sent).toHaveLength(0);
@@ -369,7 +597,7 @@ describe("the caps, which are the part that spends money", () => {
     // 23:30 UTC is already "tomorrow" in Auckland and still "yesterday" in Los
     // Angeles. Both must land on the same counter as noon UTC did.
     const late = new Date("2026-07-31T23:30:00Z");
-    expect(await startSubscription(store, mailer, "sam@example.com", late)).toBe(
+    expect(await startSubscription(store, mailer, "sam@example.com", "en", late)).toBe(
       "rate_limited",
     );
   });

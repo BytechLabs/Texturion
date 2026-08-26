@@ -1,5 +1,6 @@
 package com.loonext.android.push
 
+import com.loonext.android.core.model.MessageLocale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -289,6 +290,16 @@ class PushPayloadTest {
         assertEquals("Loonext", content.title)
         assertEquals("You have a new notification.", content.body)
         assertEquals("https://app.loonext.com/inbox/c1", content.url)
+    }
+
+    @Test
+    fun `missing push copy follows the reader locale`() {
+        val generic = parsePush(emptyMap(), MessageLocale.FR_CA)
+        val call = parsePush(mapOf("kind" to PushKind.CALL), MessageLocale.FR_CA)
+
+        assertEquals("Vous avez une nouvelle notification.", generic.body)
+        assertEquals("Appel entrant", call.title)
+        assertEquals("Quelqu'un appelle votre numéro d'affaires.", call.body)
     }
 
     // --- normalizeDeepLink ---

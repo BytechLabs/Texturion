@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts.sync
 
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.features.contacts.device.DeviceContact
 import com.loonext.android.features.contacts.device.DevicePhoneNumber
 import org.junit.Assert.assertEquals
@@ -42,10 +43,22 @@ class ContactsSyncPlanTest {
         assertTrue(raw.dataRows.all { it.data1 == "+14165550123" })
 
         val call = raw.dataRows[1]
-        assertEquals(CALL_ACTION_LABEL, call.summary)
+        assertEquals("Call with Loonext", call.summary)
         assertEquals("(416) 555-0123", call.detail)
         val text = raw.dataRows[2]
-        assertEquals(TEXT_ACTION_LABEL, text.summary)
+        assertEquals("Text with Loonext", text.summary)
+    }
+
+    @Test
+    fun `connected action rows follow the system Contacts locale`() {
+        val plan = buildSyncRawContacts(
+            pkg,
+            listOf(contact("a", "Ada", phone("(416) 555-0123", "+14165550123"))),
+            MessageLocale.FR_CA,
+        )
+
+        assertEquals("Appeler avec Loonext", plan.single().dataRows[1].summary)
+        assertEquals("Envoyer un texto avec Loonext", plan.single().dataRows[2].summary)
     }
 
     @Test

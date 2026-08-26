@@ -12,12 +12,12 @@
  *
  * ## What is deliberately NOT here
  *
- * - The carrier-registration DEFAULTS on the texting step (the opt-in flow
- *   sentence and the two sample texts). Those are not chrome: they are the
- *   payload a US carrier reviews under TCR, they are pre-filled into editable
- *   fields, and SPEC §4.1 pins the wording verbatim. Translating what we submit
- *   to an American regulator would be a behaviour change wearing a copy change's
- *   clothes.
+ * - The carrier-registration DEFAULTS on the texting step are catalogue keys,
+ *   but deliberately have the same English values in both locales. They are
+ *   not chrome: they are the payload a US carrier reviews under TCR, they are
+ *   pre-filled into editable fields, and SPEC §4.1 pins the wording verbatim.
+ *   Translating what we submit to an American regulator would be a behaviour
+ *   change wearing a copy change's clothes.
  * - Product names (Loonext, Stripe, Telnyx) and anything a machine matches on.
  */
 import type { Translated } from "../translated";
@@ -161,6 +161,12 @@ export const onboardingEn = {
   sample1Label: "A text you'd actually send",
   sample2Label: "One more example",
   sample2Hint: "Carriers just want to see everyday customer conversations.",
+  textingDefaultMessageFlow:
+    "Customers text our business number first, or ask us in person / by phone to text them. We never send marketing blasts.",
+  textingDefaultSample1:
+    "Hi, it's {name}. We can fit you in tomorrow between 9 and 11am. Does that still work for you?",
+  textingDefaultSample2:
+    "{name} here. Your quote is ready: $180 for the full job. Reply YES to book it, or text us any questions.",
 
   // ── Step: plan + checkout ─────────────────────────────────────────────────
   planTitle: "Pick your plan",
@@ -437,8 +443,8 @@ export const onboardingEn = {
 
   /*
    * The texting-details step's floors (§4.4), mirrored from the API's
-   * campaignDraftSchema. The FIELD VALUES on that step are deliberately not
-   * here — see the note on `DEFAULT_MESSAGE_FLOW` in texting/page.tsx.
+   * campaignDraftSchema. The FIELD VALUES live beside the step's visible copy
+   * above, with the same English carrier-review payload in both locales.
    */
   textingFlowTooShort:
     "Give carriers at least a sentence or two (40+ characters).",
@@ -817,6 +823,13 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   sample2Label: "Un autre exemple",
   sample2Hint:
     "Les opérateurs veulent simplement voir des conversations courantes avec des clients.",
+  // Submitted verbatim to the US carrier registry; see the catalogue header.
+  textingDefaultMessageFlow:
+    "Customers text our business number first, or ask us in person / by phone to text them. We never send marketing blasts.",
+  textingDefaultSample1:
+    "Hi, it's {name}. We can fit you in tomorrow between 9 and 11am. Does that still work for you?",
+  textingDefaultSample2:
+    "{name} here. Your quote is ready: $180 for the full job. Reply YES to book it, or text us any questions.",
 
   // ── Step: plan + checkout ─────────────────────────────────────────────────
   planTitle: "Choisissez votre forfait",

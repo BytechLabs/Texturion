@@ -23,3 +23,8 @@
 export const CONSENT_LABEL =
   "Email me this comparison. I understand Loonext may email me about the " +
   "product, and I can unsubscribe from any message.";
+
+/** The same express consent, written for the French comparison route. */
+export const CONSENT_LABEL_FR =
+  "Envoyez-moi cette comparaison. Je comprends que Loonext peut m'écrire au " +
+  "sujet du produit et que je peux me désabonner de chaque message.";

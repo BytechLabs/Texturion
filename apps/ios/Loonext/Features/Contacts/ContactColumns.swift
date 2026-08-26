@@ -20,15 +20,22 @@ enum ContactImportField: String, CaseIterable, Sendable {
     /// their "Do Not Call" column means; a menu offering "Opted out" asks them
     /// to translate, and this is the one choice on the screen where a
     /// translation error texts somebody who said stop.
-    var label: String {
+    /// English-default forwarding API for model tests and non-UI callers.
+    var label: String { localizedLabel(nil) }
+
+    /// The label as the current reader sees it.
+    func localizedLabel(_ locale: String?) -> String {
         switch self {
-        case .phone: return "Phone"
-        case .name: return "Name"
-        case .firstName: return "First name"
-        case .lastName: return "Last name"
-        case .address: return "Address"
-        case .notes: return "Notes"
-        case .optedOut: return "Do not text"
+        case .phone: return AppStrings.translate(locale, "contactsTasks.phoneField")
+        case .name: return AppStrings.translate(locale, "contactsTasks.nameField")
+        case .firstName:
+            return AppStrings.translate(locale, "contactsTasks.importActionFirstName")
+        case .lastName:
+            return AppStrings.translate(locale, "contactsTasks.importActionLastName")
+        case .address: return AppStrings.translate(locale, "contactsTasks.address")
+        case .notes: return AppStrings.translate(locale, "contactsTasks.notesField")
+        case .optedOut:
+            return AppStrings.translate(locale, "contactsTasks.importActionOptedOut")
         }
     }
 
@@ -62,10 +69,13 @@ enum ContactImportColumnAction: Hashable, Sendable {
         }
     }
 
-    var label: String {
+    /// English-default forwarding API for existing pure callers.
+    var label: String { localizedLabel(nil) }
+
+    func localizedLabel(_ locale: String?) -> String {
         switch self {
-        case .field(let field): return field.label
-        case .ignore: return ContactColumns.ignoreLabel
+        case .field(let field): return field.localizedLabel(locale)
+        case .ignore: return ContactColumns.localizedIgnoreLabel(locale)
         }
     }
 
@@ -172,8 +182,15 @@ struct ContactImportColumn: Identifiable, Hashable, Sendable {
     /// What the row is headed. A column with no heading is named by its
     /// position — "column 4" is something a person can find in a spreadsheet,
     /// and a pair of quotes around nothing reads as a bug.
-    var title: String {
-        header.isEmpty ? "Column \(index + 1) — no heading" : header
+    var title: String { localizedTitle(nil) }
+
+    func localizedTitle(_ locale: String?) -> String {
+        guard header.isEmpty else { return header }
+        return AppStrings.translate(
+            locale,
+            "contactsTasks.importColumnNoHeading",
+            ["number": ContactColumns.formattedCount(index + 1, locale: locale)]
+        )
     }
 
     /// Its values, said out loud, bounded — and the count of the ones left out.
@@ -188,11 +205,17 @@ struct ContactImportColumn: Identifiable, Hashable, Sendable {
     /// The same line in either state. Expanded, it reports the length of what it
     /// actually listed, so it does not end in ", and 40 more" while
     /// `ContactColumns.valueCeilingNote` says the same thing a second way.
-    func line(showingAll: Bool) -> String {
+    func line(showingAll: Bool, locale: String? = nil) -> String {
         let listed = showingAll ? values : samples
-        if listed.isEmpty { return ContactColumns.emptyColumnNote }
+        if listed.isEmpty { return ContactColumns.localizedEmptyColumnNote(locale) }
         let hidden = (showingAll ? values.count : total) - listed.count
-        let more = hidden > 0 ? ", and \(hidden) more" : ""
+        let more = hidden > 0
+            ? ", " + AppStrings.translate(
+                locale,
+                "contactsTasks.importHiddenValues",
+                ["count": ContactColumns.formattedCount(hidden, locale: locale)]
+            )
+            : ""
         return listed.joined(separator: " · ") + more
     }
 }
@@ -242,27 +265,47 @@ struct ContactImportBlocker: Equatable, Sendable {
     /// How many more there were than `values` holds.
     let more: Int
 
-    var title: String { "We can't read the do-not-text column" }
+    var title: String { localizedTitle(nil) }
 
-    var detail: String {
-        let shown = values.map { "\u{201C}\($0)\u{201D}" }.joined(separator: ", ")
-        let rest = more > 0 ? ", and \(more) more" : ""
-        return "\(ContactColumns.quoted(header)) is the column you marked as do-not-text, and "
-            + "it holds answers we can't read as yes or no: \(shown)\(rest). Reading one of "
-            + "those as a blank would text somebody who asked this business to stop. "
-            // Said out loud because it is TRUE and somebody will otherwise
-            // discover it by accident: the answer above is a person's, so
-            // changing it to Ignore does clear this card — and imports every
-            // one of those people as textable. The design concedes that a
-            // determined caller can dismiss anything; what it refuses to allow
-            // is dismissing it without being told what it costs.
-            + "Marking it \(ContactColumns.ignoreLabel) instead would import all of them as "
-            + "textable. Use \(ContactColumns.flagVocabulary) in the file, then import again."
+    func localizedTitle(_ locale: String?) -> String {
+        AppStrings.translate(locale, "contactsTasks.importBlockerTitle")
+    }
+
+    var detail: String { localizedDetail(nil) }
+
+    func localizedDetail(_ locale: String?) -> String {
+        let shown = values.map {
+            AppStrings.translate(
+                locale,
+                "contactsTasks.importColumnQuoted",
+                ["header": $0]
+            )
+        }.joined(separator: ", ")
+        let rest = more > 0
+            ? ", " + AppStrings.translate(
+                locale,
+                "contactsTasks.importHiddenValues",
+                ["count": ContactColumns.formattedCount(more, locale: locale)]
+            )
+            : ""
+        return AppStrings.translate(
+            locale,
+            "contactsTasks.importBlockerDetail",
+            [
+                "column": ContactColumns.quoted(header, locale: locale),
+                "shown": shown,
+                "rest": rest,
+                "ignore": ContactColumns.localizedIgnoreLabel(locale),
+                "vocabulary": ContactColumns.localizedFlagVocabulary(locale),
+            ]
+        )
     }
 
     /// The one line printed under a disabled Import button.
-    var wayOut: String {
-        "Fix the do-not-text column in the file, then import it again."
+    var wayOut: String { localizedWayOut(nil) }
+
+    func localizedWayOut(_ locale: String?) -> String {
+        AppStrings.translate(locale, "contactsTasks.importBlockerWayOut")
     }
 }
 
@@ -500,15 +543,25 @@ enum ContactColumns {
     /// cannot outlive the vocabulary it describes — a value added to `flagTrue`
     /// and not to this line would be a column somebody was told to fix in a way
     /// that was already fine.
-    static var flagVocabulary: String {
+    static var flagVocabulary: String { localizedFlagVocabulary(nil) }
+
+    static func localizedFlagVocabulary(_ locale: String?) -> String {
         let pairs = zip(flagTrue, flagFalse).map { pair in "\(pair.0)/\(pair.1)" }
         // Whatever has no opposite. `x` marks the rows to block, and its
         // opposite is an empty cell rather than another word.
-        let unpaired = flagTrue.dropFirst(flagFalse.count).map { "\($0) on the rows to block" }
+        let unpaired = flagTrue.dropFirst(flagFalse.count).map {
+            AppStrings.translate(
+                locale,
+                "contactsTasks.importFlagBlockRows",
+                ["value": $0]
+            )
+        }
         let parts = pairs + unpaired
         guard let last = parts.last else { return "" }
         if parts.count == 1 { return last }
-        return parts.dropLast().joined(separator: ", ") + ", or " + last
+        return parts.dropLast().joined(separator: ", ")
+            + ", " + AppStrings.translate(locale, "contactsTasks.importFlagOr")
+            + " " + last
     }
 
     // MARK: - What a column holds
@@ -567,10 +620,9 @@ enum ContactColumns {
     /// The control that puts every value a column holds on the screen.
     ///
     /// #228: the locale is optional and nil-defaulted, which is this app's
-    /// established shape for a said string (see `AppStrings.translate`) — nil
-    /// means the device's own resolution rather than a silent English, so a
-    /// caller that forgets it still reads correctly for most people. The
-    /// forwarding guard is what makes sure the views pass theirs.
+    /// established shape for pure copy APIs (see `AppStrings.translate`) — nil
+    /// preserves the existing English result for tests and non-UI callers. The
+    /// forwarding guard is what makes sure views pass the reader's app locale.
     static func showAllValuesLabel(total: Int, locale: String? = nil) -> String {
         AppStrings.translate(
             locale,
@@ -822,33 +874,60 @@ enum ContactColumns {
     /// the sheet: the sheet is `@MainActor`, and a piece of copy that can only
     /// be read from the main actor is a piece of copy a plain unit test cannot
     /// assert against.
-    static let ignoreAssertion = "says nothing about who may be texted"
+    static let ignoreAssertion = localizedIgnoreAssertion(nil)
+
+    static func localizedIgnoreAssertion(_ locale: String?) -> String {
+        AppStrings.translate(locale, "contactsTasks.importIgnoreAssertion")
+    }
 
     /// The menu's word for it. Short, because it sits in a chip beside seven
     /// field names; what it MEANS is spelled out once, above the list, in
     /// `ignoreMeaning`.
-    static let ignoreLabel = "Ignore"
+    static let ignoreLabel = localizedIgnoreLabel(nil)
+
+    static func localizedIgnoreLabel(_ locale: String?) -> String {
+        AppStrings.translate(locale, "contactsTasks.importIgnore")
+    }
 
     /// The instruction over the list, BUILT from the assertion, so the promise
     /// a person makes and the promise they are shown cannot come to differ.
-    static let ignoreMeaning = ignoreLabel + " means the column " + ignoreAssertion + "."
+    static let ignoreMeaning = localizedIgnoreMeaning(nil)
+
+    static func localizedIgnoreMeaning(_ locale: String?) -> String {
+        AppStrings.translate(
+            locale,
+            "contactsTasks.importIgnoreMeaning",
+            [
+                "ignore": localizedIgnoreLabel(locale),
+                "assertion": localizedIgnoreAssertion(locale),
+            ]
+        )
+    }
 
     /// What the card is called. A constant so the two doors' headings sit
     /// beside each other in source and read as the same promise.
-    static let columnsHeading = "Every column, accounted for"
+    static let columnsHeading = localizedColumnsHeading(nil)
 
-    static let columnsExplanation = """
-        Nothing here is dropped without somebody looking at it. A column read \
-        as nothing is how a "Do Not Call" list gets texted, so every column \
-        needs an answer — including the ones we guessed.
-        """
+    static func localizedColumnsHeading(_ locale: String?) -> String {
+        AppStrings.translate(locale, "contactsTasks.importColumnsHeading")
+    }
+
+    static let columnsExplanation = localizedColumnsExplanation(nil)
+
+    static func localizedColumnsExplanation(_ locale: String?) -> String {
+        AppStrings.translate(locale, "contactsTasks.importColumnsExplanation")
+    }
 
     /// What a column with nothing in it says for itself.
     ///
     /// It still has to be answered. An empty column is answered in one tap and
     /// costs a person nothing; an exemption for it is a rule about which
     /// columns may be skipped, which is the thing that lost twice.
-    static let emptyColumnNote = "every row leaves this blank"
+    static let emptyColumnNote = localizedEmptyColumnNote(nil)
+
+    static func localizedEmptyColumnNote(_ locale: String?) -> String {
+        AppStrings.translate(locale, "contactsTasks.importEmptyColumn")
+    }
 
     /// The bulk answer, and the only one this app offers.
     ///
@@ -857,10 +936,14 @@ enum ContactColumns {
     /// phone's version of "the columns are on screen when it is pressed". A
     /// button at the top of the card would be a way to skip the screen, which
     /// is the screen's whole opposite.
-    static func ignoreRestLabel(_ count: Int) -> String {
-        count == 1
-            ? "Ignore the 1 column left"
-            : "Ignore the \(count.formatted()) columns left"
+    static func ignoreRestLabel(_ count: Int, locale: String? = nil) -> String {
+        AppStrings.translate(
+            locale,
+            count == 1
+                ? "contactsTasks.importIgnoreColumnOne"
+                : "contactsTasks.importIgnoreColumnsMany",
+            ["count": formattedCount(count, locale: locale)]
+        )
     }
 
     /// How many of them have an answer, said plainly.
@@ -868,15 +951,26 @@ enum ContactColumns {
     /// A counter rather than a bar: the number that matters is how many
     /// questions are LEFT, and it never starts at zero on a real file because
     /// the detector has already answered the phone and name columns.
-    static func answeredLine(answered: Int, total: Int) -> String {
-        "\(answered.formatted()) of \(total.formatted()) answered"
+    static func answeredLine(answered: Int, total: Int, locale: String? = nil) -> String {
+        AppStrings.translate(
+            locale,
+            "contactsTasks.importProgress",
+            [
+                "answered": formattedCount(answered, locale: locale),
+                "total": formattedCount(total, locale: locale),
+            ]
+        )
     }
 
     /// Why the Import button is grey, when it is grey for this reason.
-    static func unansweredReason(_ count: Int) -> String {
-        count == 1
-            ? "1 column still needs an answer."
-            : "\(count.formatted()) columns still need an answer."
+    static func unansweredReason(_ count: Int, locale: String? = nil) -> String {
+        AppStrings.translate(
+            locale,
+            count == 1
+                ? "contactsTasks.importUnansweredColumnOne"
+                : "contactsTasks.importUnansweredColumnsMany",
+            ["count": formattedCount(count, locale: locale)]
+        )
     }
 
     // MARK: - Small shared shapes
@@ -884,8 +978,25 @@ enum ContactColumns {
     /// A header in curly quotes, or a plain phrase when it has no name. Typing
     /// `""` around an empty header prints a pair of quotes around nothing,
     /// which reads as a bug rather than as a blank column.
-    static func quoted(_ header: String) -> String {
+    static func quoted(_ header: String, locale: String? = nil) -> String {
         let trimmed = header.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "The unnamed column" : "\u{201C}\(trimmed)\u{201D}"
+        if trimmed.isEmpty {
+            return AppStrings.translate(locale, "contactsTasks.importUnnamedColumn")
+        }
+        return AppStrings.translate(
+            locale,
+            "contactsTasks.importColumnQuoted",
+            ["header": trimmed]
+        )
+    }
+
+    /// Counts follow the app's language rather than the device's. The pure APIs
+    /// pass nil and therefore preserve their long-standing English default.
+    static func formattedCount(_ value: Int, locale: String?) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(
+            identifier: locale == MessageLocale.frCA ? "fr_CA" : "en_CA"
+        )
+        return formatter.string(from: NSNumber(value: value)) ?? String(value)
     }
 }

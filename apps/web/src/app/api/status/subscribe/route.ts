@@ -7,8 +7,10 @@ import {
 import {
   normalizeEmail,
   startSubscription,
+  statusSubscriptionLocale,
   type SubscriberStore,
 } from "@/lib/marketing/status-subscribe";
+import { statusCopy } from "@/i18n/marketing/status";
 
 /**
  * #477 — "email me when something is broken", step one.
@@ -37,9 +39,6 @@ import {
  * would record them as handled by a scheme that can never reach them.
  */
 
-/** The response every non-actionable outcome gets. */
-const NEUTRAL = "Check your email for a link to confirm.";
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let payload: unknown;
   try {
@@ -48,18 +47,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
   const body = (payload ?? {}) as Record<string, unknown>;
+  const locale = statusSubscriptionLocale(body.locale);
+  const copy = statusCopy(locale);
 
   // The honeypot the contact form already uses: a field no person sees and no
   // person fills. A bot that fills it gets the success sentence and nothing
   // else happens, so it has no signal to learn from.
   if (typeof body.website === "string" && body.website.trim().length > 0) {
-    return NextResponse.json({ message: NEUTRAL });
+    return NextResponse.json({ message: copy.confirmFallback });
   }
 
   const email = normalizeEmail(body.email);
   if (!email) {
     return NextResponse.json(
-      { error: "That doesn't look like an email address." },
+      { error: copy.invalidEmail },
       { status: 400 },
     );
   }
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // "too many attempts" tells a script its rate is being measured and what to
       // slow down to; this tells it nothing it did not already have. Same reasoning
       // as the honeypot two checks up.
-      return NextResponse.json({ message: NEUTRAL });
+      return NextResponse.json({ message: copy.confirmFallback });
     }
   }
 
@@ -101,20 +102,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // still better than a success message for a subscription that cannot exist.
   if (!store || !mailer) {
     return NextResponse.json(
-      { error: "Status updates by email aren't available right now." },
+      { error: copy.unavailable },
       { status: 503 },
     );
   }
 
-  const outcome = await startSubscription(store, mailer, email, new Date());
+  const outcome = await startSubscription(
+    store,
+    mailer,
+    email,
+    locale,
+    new Date(),
+  );
   if (outcome === "full") {
     return NextResponse.json(
       {
-        error:
-          "The status list is full right now. Email support and we'll add you.",
+        error: copy.listFull,
       },
       { status: 503 },
     );
   }
-  return NextResponse.json({ message: NEUTRAL });
+  return NextResponse.json({ message: copy.confirmFallback });
 }

@@ -1,10 +1,17 @@
 import {
   NANP_AREA_CODES,
+  type Locale,
   type NanpCountry,
   type NanpGeographicEntry,
 } from "@loonext/shared";
 
-import { cityNpaMatches } from "./city-npas";
+import {
+  areaCodeRegionAliases,
+  areaCodeRegionName,
+  areaCodeRegionNames,
+} from "@/i18n/sections/areaCodes";
+
+import { cityNpaMatches, normalizePlaceSearch } from "./city-npas";
 
 /**
  * Area-code picker search (DESIGN.md G7 step 2): type a city, state/province,
@@ -15,52 +22,26 @@ import { cityNpaMatches } from "./city-npas";
  * via the curated index, with the IANA timezone-city name as a last-resort
  * fallback for anything the curated list misses.
  *
- * #228: THE PLACE NAMES BELOW ARE NOT IN THE CATALOGUE, AND THIS IS NOT AN
- * OVERSIGHT.
- *
- * They are a SEARCH INDEX as much as a label — `areaCodeHints` matches what
- * somebody types against these exact strings, and `city-npas.ts` is keyed on
- * the same names. Translating the display half alone would leave a French
- * reader looking at "Ontario" and unable to find it by typing anything, which
- * is worse than an English label on a picker whose input is a three-digit code.
- *
- * Doing it properly means a French name AND a French match arm for all ~180
- * entries, in both directions, so a Quebecker can type either "Quebec" or
- * "Québec" — real work with real sources (Canada Post and the Commission de
- * toponymie for the provinces; there is no French name for a US state code).
- * Recorded as its own item rather than half-done here.
+ * #228: display names come from the locale catalogue, while search deliberately
+ * matches BOTH catalogue spellings. A French reader sees "Québec" and can type
+ * either "Québec" or "Quebec"; switching language changes the label without
+ * throwing away the place name someone already knows.
  */
 
-export const US_REGION_NAMES: Readonly<Record<string, string>> = {
-  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas",
-  CA: "California", CO: "Colorado", CT: "Connecticut", DE: "Delaware",
-  DC: "Washington, DC", FL: "Florida", GA: "Georgia", HI: "Hawaii",
-  ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas",
-  KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland",
-  MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi",
-  MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada",
-  NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York",
-  NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma",
-  OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina",
-  SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah",
-  VT: "Vermont", VA: "Virginia", WA: "Washington", WV: "West Virginia",
-  WI: "Wisconsin", WY: "Wyoming",
-  // NANP-served US territories.
-  PR: "Puerto Rico", VI: "U.S. Virgin Islands", GU: "Guam",
-  MP: "Northern Mariana Islands", AS: "American Samoa",
-};
+export function regionName(
+  country: NanpCountry,
+  region: string,
+  locale: Locale,
+): string {
+  return areaCodeRegionName(country, region, locale);
+}
 
-export const CA_REGION_NAMES: Readonly<Record<string, string>> = {
-  AB: "Alberta", BC: "British Columbia", MB: "Manitoba",
-  NB: "New Brunswick", NL: "Newfoundland and Labrador",
-  NS: "Nova Scotia", NT: "Northwest Territories", NU: "Nunavut",
-  ON: "Ontario", PE: "Prince Edward Island", QC: "Quebec",
-  SK: "Saskatchewan", YT: "Yukon",
-};
-
-export function regionName(country: NanpCountry, region: string): string {
-  const table = country === "US" ? US_REGION_NAMES : CA_REGION_NAMES;
-  return table[region] ?? region;
+/** All supported states, provinces, and territories, labelled for this reader. */
+export function regionNames(
+  country: NanpCountry,
+  locale: Locale,
+): Readonly<Record<string, string>> {
+  return areaCodeRegionNames(country, locale);
 }
 
 export interface AreaCodeHint {
@@ -76,11 +57,15 @@ export interface AreaCodeHint {
 /** "America/New_York" → "new york" (search matching only, never displayed). */
 function timezoneCity(timezone: string): string {
   const city = timezone.split("/").pop() ?? "";
-  return city.replace(/_/g, " ").toLowerCase();
+  return normalizePlaceSearch(city.replace(/_/g, " "));
 }
 
-function toHint(code: string, entry: NanpGeographicEntry): AreaCodeHint {
-  const name = regionName(entry.country, entry.region);
+function toHint(
+  code: string,
+  entry: NanpGeographicEntry,
+  locale: Locale,
+): AreaCodeHint {
+  const name = regionName(entry.country, entry.region, locale);
   return {
     code,
     country: entry.country,
@@ -91,28 +76,33 @@ function toHint(code: string, entry: NanpGeographicEntry): AreaCodeHint {
 }
 
 /** Geographic codes for one country, ascending — the pickable universe. */
-export function areaCodesForCountry(country: NanpCountry): AreaCodeHint[] {
+export function areaCodesForCountry(
+  country: NanpCountry,
+  locale: Locale,
+): AreaCodeHint[] {
   return Object.entries(NANP_AREA_CODES)
     .filter(
       (pair): pair is [string, NanpGeographicEntry] =>
         pair[1].geographic && pair[1].country === country,
     )
-    .map(([code, entry]) => toHint(code, entry))
+    .map(([code, entry]) => toHint(code, entry, locale))
     .sort((a, b) => a.code.localeCompare(b.code));
 }
 
 /**
  * Rank: exact/prefix code match → curated metro-name match → region-name
- * starts-with → region-name / region-code match → timezone-city match.
+ * starts-with → either-language region-name / region-code match →
+ * timezone-city match.
  * Empty/whitespace queries return [] (the picker shows its own prompt instead
  * of 300+ rows).
  */
 export function searchAreaCodes(
   query: string,
   country: NanpCountry,
+  locale: Locale,
   limit = 8,
 ): AreaCodeHint[] {
-  const q = query.trim().toLowerCase();
+  const q = normalizePlaceSearch(query);
   if (q.length === 0) return [];
 
   const digits = /^\d{1,3}$/.test(q) ? q : null;
@@ -122,21 +112,33 @@ export function searchAreaCodes(
 
   for (const [code, entry] of Object.entries(NANP_AREA_CODES)) {
     if (!entry.geographic || entry.country !== country) continue;
-    const name = regionName(entry.country, entry.region).toLowerCase();
+    const localizedName = normalizePlaceSearch(
+      regionName(entry.country, entry.region, locale),
+    );
+    const aliases = areaCodeRegionAliases(entry.country, entry.region).map(
+      normalizePlaceSearch,
+    );
 
     let rank: number | null = null;
     if (digits) {
       if (code.startsWith(digits)) rank = code === digits ? 0 : 1;
     } else if (cityCodes.has(code)) {
       rank = 2;
-    } else if (name.startsWith(q)) {
+    } else if (localizedName.startsWith(q)) {
       rank = 3;
-    } else if (name.includes(q) || entry.region.toLowerCase() === q) {
+    } else if (aliases.some((name) => name.startsWith(q))) {
       rank = 4;
-    } else if (timezoneCity(entry.timezone).includes(q)) {
+    } else if (
+      aliases.some((name) => name.includes(q)) ||
+      entry.region.toLowerCase() === q
+    ) {
       rank = 5;
+    } else if (timezoneCity(entry.timezone).includes(q)) {
+      rank = 6;
     }
-    if (rank !== null) ranked.push({ hint: toHint(code, entry), rank });
+    if (rank !== null) {
+      ranked.push({ hint: toHint(code, entry, locale), rank });
+    }
   }
 
   ranked.sort(
@@ -149,8 +151,9 @@ export function searchAreaCodes(
 export function areaCodeHint(
   code: string,
   country: NanpCountry,
+  locale: Locale,
 ): AreaCodeHint | null {
   const entry = NANP_AREA_CODES[code];
   if (!entry || !entry.geographic || entry.country !== country) return null;
-  return toHint(code, entry);
+  return toHint(code, entry, locale);
 }

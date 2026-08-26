@@ -59,6 +59,9 @@ import type { Env } from "../env";
 /** Where a consent was given. Stored on the row so a complaint is traceable. */
 export type MarketingConsentSource = "compare_page" | "pricing_page";
 
+/** The language shown at consent time and used for the requested email. */
+export type MarketingConsentLocale = "en" | "fr-CA";
+
 /**
  * The exact words a person agrees to, snapshotted onto their consent row.
  *
@@ -69,6 +72,18 @@ export type MarketingConsentSource = "compare_page" | "pricing_page";
 export const MARKETING_CONSENT_TEXT =
   "Email me this comparison. I understand Loonext may email me about the " +
   "product, and I can unsubscribe from any message.";
+
+/** Server-owned wording shown by the French comparison route. */
+export const MARKETING_CONSENT_TEXT_FR =
+  "Envoyez-moi cette comparaison. Je comprends que Loonext peut m'écrire au " +
+  "sujet du produit et que je peux me désabonner de chaque message.";
+
+/** The request selects a language, never arbitrary consent prose. */
+export function marketingConsentText(locale: MarketingConsentLocale): string {
+  return locale === "fr-CA"
+    ? MARKETING_CONSENT_TEXT_FR
+    : MARKETING_CONSENT_TEXT;
+}
 
 /**
  * Global daily ceiling on captures.
@@ -92,9 +107,20 @@ export interface MarketingSendResult {
   refusal?: MarketingSendRefusal;
 }
 
-/** The unsubscribe URL for a token. One place, so the email and the page agree. */
-export function unsubscribeUrl(env: Env, token: string): string {
-  return `${env.APP_ORIGIN}/unsubscribe?token=${encodeURIComponent(token)}`;
+/** Human-facing unsubscribe page, localized to the requested email. */
+export function unsubscribeUrl(
+  env: Env,
+  token: string,
+  locale: MarketingConsentLocale = "en",
+): string {
+  const path = locale === "fr-CA" ? "/fr/desabonnement" : "/unsubscribe";
+  const origin = env.SITE_ORIGIN ?? env.APP_ORIGIN;
+  return `${origin}${path}?token=${encodeURIComponent(token)}`;
+}
+
+/** RFC 8058 endpoint for a mail client's direct POST, never a browser page. */
+export function oneClickUnsubscribeUrl(env: Env, token: string): string {
+  return `${env.API_ORIGIN}/marketing/unsubscribe?token=${encodeURIComponent(token)}`;
 }
 
 /**
@@ -120,7 +146,7 @@ export async function sendComparisonEmail(
   const normalized = email.trim().toLowerCase();
   const { data, error } = await db
     .from("marketing_contacts")
-    .select("email,unsubscribe_token,unsubscribed_at")
+    .select("email,unsubscribe_token,unsubscribed_at,consent_locale")
     .eq("email", normalized)
     .limit(1);
 
@@ -129,13 +155,23 @@ export async function sendComparisonEmail(
   if (error) return { sent: false, refusal: "lookup_failed" };
 
   const row = (data ?? [])[0] as
-    | { email: string; unsubscribe_token: string; unsubscribed_at: string | null }
+    | {
+        email: string;
+        unsubscribe_token: string;
+        unsubscribed_at: string | null;
+        consent_locale: MarketingConsentLocale;
+      }
     | undefined;
   if (!row) return { sent: false, refusal: "unknown_contact" };
   if (row.unsubscribed_at !== null) return { sent: false, refusal: "unsubscribed" };
 
-  const unsubscribe = unsubscribeUrl(env, row.unsubscribe_token);
-  const { subject, text, html } = comparisonEmailCopy(unsubscribe, address);
+  const unsubscribe = unsubscribeUrl(env, row.unsubscribe_token, row.consent_locale);
+  const oneClickUnsubscribe = oneClickUnsubscribeUrl(env, row.unsubscribe_token);
+  const { subject, text, html } = comparisonEmailCopy(
+    unsubscribe,
+    address,
+    row.consent_locale,
+  );
 
   await sendEmail(env, {
     to: row.email,
@@ -148,12 +184,10 @@ export async function sendComparisonEmail(
     // this email and sit underneath its unsubscribe line.
     kind: "commercial",
     headers: {
-      // RFC 8058 one-click. The URL-only header (the pattern the inbound-alert
-      // email already uses) lets a mail client SHOW an unsubscribe button; the
-      // -Post header lets it press the button itself without opening a browser,
-      // which is the difference between an unsubscribe somebody has to work for
-      // and one that just happens.
-      "List-Unsubscribe": `<${unsubscribe}>`,
+      // RFC 8058 one-click goes to the API, not the localized browser GET page
+      // linked in the body. A mail client POSTs the marker below directly; a
+      // page-only URL would answer 405 and merely LOOK like one-click worked.
+      "List-Unsubscribe": `<${oneClickUnsubscribe}>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     },
   });
@@ -180,7 +214,12 @@ export async function sendComparisonEmail(
 export function comparisonEmailCopy(
   unsubscribe: string,
   postalAddress: string,
+  locale: MarketingConsentLocale = "en",
 ): { subject: string; text: string; html: string } {
+  if (locale === "fr-CA") {
+    return frenchComparisonEmailCopy(unsubscribe, postalAddress);
+  }
+
   const compareUrl = "https://loonext.com/compare";
   const subject = "The comparison you asked for";
 
@@ -218,6 +257,56 @@ export function comparisonEmailCopy(
     "Loonext<br>",
     `${escapeHtml(postalAddress)}<br><br>`,
     `<a href="${escapeHtml(unsubscribe)}">Unsubscribe</a>`,
+    "</p></div>",
+  ].join("");
+
+  return { subject, text, html };
+}
+
+/** French commercial copy stays beside English so their compliance block matches. */
+function frenchComparisonEmailCopy(
+  unsubscribe: string,
+  postalAddress: string,
+): { subject: string; text: string; html: string } {
+  const compareUrl = "https://loonext.com/fr/comparer";
+  const subject = "La comparaison que vous avez demandée";
+
+  const text = [
+    "Voici la comparaison que vous avez demandée :",
+    "",
+    compareUrl,
+    "",
+    "Chaque chiffre de cette page est daté et accompagné de sa source. Vous",
+    "pouvez donc voir quand nous l'avons vérifié pour la dernière fois. Si un",
+    "concurrent a modifié ses tarifs depuis, la page le dit plutôt que de",
+    "laisser l'information devenir périmée en silence.",
+    "",
+    "Vous n'avez rien d'autre à faire. Si vous avez une question, répondez",
+    "simplement à ce courriel et une personne vous répondra.",
+    "",
+    "---",
+    "Loonext",
+    postalAddress,
+    "",
+    `Se désabonner : ${unsubscribe}`,
+  ].join("\n");
+
+  const html = [
+    '<div style="font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;',
+    'font-size:15px;line-height:1.55;color:#1b1d1a;max-width:560px">',
+    "<p>Voici la comparaison que vous avez demandée :</p>",
+    `<p><a href="${escapeHtml(compareUrl)}">${escapeHtml(compareUrl)}</a></p>`,
+    "<p>Chaque chiffre de cette page est daté et accompagné de sa source. ",
+    "Vous pouvez donc voir quand nous l'avons vérifié pour la dernière fois. ",
+    "Si un concurrent a modifié ses tarifs depuis, la page le dit plutôt que de ",
+    "laisser l'information devenir périmée en silence.</p>",
+    "<p>Vous n'avez rien d'autre à faire. Si vous avez une question, répondez ",
+    "simplement à ce courriel et une personne vous répondra.</p>",
+    '<hr style="border:none;border-top:1px solid #e3e2dd;margin:24px 0">',
+    '<p style="font-size:12.5px;color:#6b6f68">',
+    "Loonext<br>",
+    `${escapeHtml(postalAddress)}<br><br>`,
+    `<a href="${escapeHtml(unsubscribe)}">Se désabonner</a>`,
     "</p></div>",
   ].join("");
 

@@ -22,26 +22,15 @@
  */
 
 /**
- * What a workspace teardown does NOT reach, stated because #357 requires it:
- * *"A published page must not imply either is handled."*
+ * Boundaries a workspace teardown cannot cross.
  *
- * This is the section a vendor omits. Publishing it is the point — a page that
- * lists only what works is a page whose silence is the interesting part.
- *
- * #357 named two gaps and BOTH have since closed, which is why this list is
- * shorter than the issue implies and why it was worth checking rather than
- * copying: account deletion shipped (#346), and the marketing form's messages
- * got their own retention rather than a hook into the teardown (#340,
- * `api_prune_contact_messages`). Publishing the issue's version would have told
- * customers two things that stopped being true.
- *
- * So what remains is not a gap but a boundary, and it is still worth saying:
- * something held outside your workspace is not removed by closing your
- * workspace, and a reader deserves to know where to ask.
+ * These are stable identifiers, not copy: each public surface supplies the
+ * reader's language for every id. Keeping the inventory here prevents a page,
+ * email or questionnaire from silently omitting a boundary while still letting
+ * the wording be translated.
  */
-export const DELETION_GAPS: readonly string[] = [
-  "If you sent us a message through the contact form on our website, that is held outside any workspace, so closing one does not remove it. It is deleted on its own schedule after a year, and you can ask us to remove it sooner.",
-];
+export const DELETION_GAPS = ["contact_form_message"] as const;
+export type DeletionGap = (typeof DELETION_GAPS)[number];
 
 /** The reversible window, in days. One number, quoted by every surface. */
 export const DELETION_GRACE_DAYS = 30;

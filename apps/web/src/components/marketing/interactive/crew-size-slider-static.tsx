@@ -20,11 +20,12 @@
  */
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { compareUiCopy } from "@/i18n/marketing/compare-ui";
 import { homeCopy } from "@/i18n/marketing/home";
 import { formatMoney, type BillingCurrency } from "@loonext/shared";
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
-import { COMPARE_AS_OF } from "@/app/(marketing)/compare/verification";
+import { compareAsOf } from "@/app/(marketing)/compare/verification";
 
 /**
  * #370 — the rival's seat rate is a PROP, not a constant.
@@ -86,6 +87,7 @@ export function CrewSizeSliderStatic({
   locale?: MarketingLocale;
 } = {}) {
   const copy = homeCopy(locale);
+  const ui = compareUiCopy(locale);
   // Derived per render rather than at module scope: the rate is now a prop, and
   // a module constant would silently keep the default on every page that passes
   // a different one — which is exactly the bug this is fixing.
@@ -122,7 +124,7 @@ export function CrewSizeSliderStatic({
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                {usd(LOONEXT_PRICE, audience)}/mo
+                {usd(LOONEXT_PRICE, audience)}{ui.perMonth}
               </span>
               <span className="text-[color:var(--fr-ink-55)]">{copy.sliderFlat}</span>
             </span>
@@ -144,7 +146,7 @@ export function CrewSizeSliderStatic({
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                {usd(PER_USER, audience)}/mo
+                {usd(PER_USER, audience)}{ui.perMonth}
               </span>
               <span className="text-[color:var(--fr-ink-55)]">
                 {copy.sliderClimbing}
@@ -173,19 +175,16 @@ export function CrewSizeSliderStatic({
         href={APP_LINKS.signup}
         className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       >
-        Start for {usd(LOONEXT_PRICE, audience)} flat →
+        {ui.startForBefore} {usd(LOONEXT_PRICE, audience)} {ui.startForAfter}
       </a>
 
       <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-        The $19/user figure is the published monthly Starter seat price of a
-        leading per-user business-texting tool {COMPARE_AS_OF} (that tool bills
-        texting separately, so real totals run higher). See the named, sourced
-        math on{" "}
+        {ui.sliderSourceBefore} {compareAsOf(locale)} {ui.sliderSourceAfter}{" "}
         <a
-          href={LIVE_ROUTES.compareQuo}
+          href={locale === "fr-CA" ? "/fr/comparer/quo" : LIVE_ROUTES.compareQuo}
           className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
         >
-          our comparison pages
+          {ui.sliderSourceLink}
         </a>
         .
       </p>

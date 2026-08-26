@@ -1,7 +1,8 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.features.compose.MmsKind
-import com.loonext.android.features.compose.attachmentLabel
 
 /**
  * Pure decision + copy for the global inbound-message toast (#165) — no
@@ -44,42 +45,43 @@ fun inboundToastLine(
     /** The kind of media that arrived, when known; null → the neutral wording. */
     attachmentKind: MmsKind? = null,
     attachmentCount: Int = 1,
+    locale: String = MessageLocale.EN,
 ): String {
-    val who = contactName?.trim()?.takeIf { it.isNotEmpty() } ?: "New message"
+    val who = contactName?.trim()?.takeIf { it.isNotEmpty() }
+        ?: AppStrings.translate(locale, "inbox.inboundToastNewMessage")
     val text = body?.trim()?.replace(Regex("\\s+"), " ").orEmpty()
     val snippet = when {
         text.isNotEmpty() -> text
         // "Sent a photo" was wrong for every non-image attachment, a voice
         // message included.
         hasAttachments -> {
-            // #271: NOT a bare replaceFirstChar. attachmentLabel returns "PDF"
-            // for a single document, and lowercasing its first character gave
-            // "Sent a pDF". A second uppercase character means the word is an
-            // acronym and keeps its capitals. iOS carries the same rule.
-            val label = attachmentLabel(attachmentKind, attachmentCount)
-            val noun = if (label.length > 1 &&
-                label[0].isUpperCase() && label[1].isUpperCase()
-            ) {
-                label
-            } else {
-                label.replaceFirstChar { it.lowercase() }
+            val many = attachmentCount > 1
+            val stem = when (attachmentKind) {
+                MmsKind.Image -> "Image"
+                MmsKind.Audio -> "Audio"
+                MmsKind.Video -> "Video"
+                MmsKind.Contact -> "Contact"
+                MmsKind.Calendar -> "Calendar"
+                MmsKind.Document -> "Document"
+                MmsKind.Text -> "Text"
+                MmsKind.File, null -> "File"
             }
-            // A counted label ("3 photos") already reads as a phrase; a single
-            // one needs an article, and "audio"/"attachment" need "an".
-            val phrase = if (attachmentCount > 1) {
-                noun
-            } else {
-                // The SOUND decides: "an audio message", "an attachment",
-                // "a photo", "a PDF" (P reads as a consonant).
-                val article = if (noun.firstOrNull()?.lowercaseChar() in
-                    listOf('a', 'e', 'i', 'o', 'u')
-                ) "an" else "a"
-                "$article $noun"
-            }
-            "Sent $phrase"
+            val noun = AppStrings.translate(
+                locale,
+                "inbox.inboundToast$stem${if (many) "Many" else "One"}",
+            )
+            AppStrings.translate(
+                locale,
+                if (many) "inbox.inboundToastSentMany" else "inbox.inboundToastSentOne",
+                mapOf("count" to maxOf(attachmentCount, 1).toString(), "noun" to noun),
+            )
         }
-        else -> "Sent a message"
+        else -> AppStrings.translate(locale, "inbox.inboundToastSentMessage")
     }
-    val line = "$who: $snippet"
+    val line = AppStrings.translate(
+        locale,
+        "inbox.inboundToastLine",
+        mapOf("who" to who, "snippet" to snippet),
+    )
     return if (line.length <= maxLength) line else line.take(maxLength - 1).trimEnd() + "…"
 }

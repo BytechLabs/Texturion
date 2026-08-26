@@ -109,8 +109,11 @@ export function NumberPicker({
   // search do we hand the view over to the NANP results instead of the numbers.
   const searchingAreaCode = areaCode === null && query.trim() !== "";
   const areaResults = useMemo(
-    () => (searchingAreaCode ? searchAreaCodes(query, country) : []),
-    [searchingAreaCode, query, country],
+    () =>
+      searchingAreaCode
+        ? searchAreaCodes(query, country, t.locale)
+        : [],
+    [searchingAreaCode, query, country, t.locale],
   );
 
   // Fires immediately with a broad country search; an area code, when set,
@@ -128,7 +131,7 @@ export function NumberPicker({
     contains: searchDigits,
   });
 
-  const hint = areaCode ? areaCodeHint(areaCode, country) : null;
+  const hint = areaCode ? areaCodeHint(areaCode, country, t.locale) : null;
   const numbers = list.data?.data ?? [];
   const masked = list.data?.masked ?? false;
   const filtered = numbers.filter((n) =>

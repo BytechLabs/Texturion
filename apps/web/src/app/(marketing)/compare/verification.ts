@@ -56,6 +56,20 @@ export const COMPARE_AS_OF = asOfLabel(COMPARE_VERIFIED_ON);
  */
 export const COMPARE_MONTH = COMPARE_AS_OF.replace(/^as of /, "");
 
+/** The same dateline for URL-selected marketing locales. */
+export function compareMonth(locale: "en" | "fr-CA" = "en"): string {
+  if (locale === "en") return COMPARE_MONTH;
+  return new Intl.DateTimeFormat("fr-CA", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${COMPARE_VERIFIED_ON}T00:00:00Z`));
+}
+
+export function compareAsOf(locale: "en" | "fr-CA" = "en"): string {
+  return locale === "fr-CA" ? `en date de ${compareMonth(locale)}` : COMPARE_AS_OF;
+}
+
 /** "as of July 2026" for an ISO date. Pure, so the test can re-derive it. */
 export function asOfLabel(isoDate: string): string {
   const [year, month] = isoDate.split("-");

@@ -159,6 +159,12 @@ function bilingualBodies(): string[] {
   const pages = readdirSync(BODIES)
     .filter((name) => name.endsWith("-page.tsx"))
     .map((name) => join(BODIES, name));
+  // Legal documents share their bodies too. They live one directory deeper
+  // than the campaign pages, which left the first translated legal page
+  // outside this guard and allowed the shared shell's English labels to pass.
+  const legalPages = readdirSync(join(BODIES, "legal"))
+    .filter((name) => name.endsWith("-page.tsx"))
+    .map((name) => join(BODIES, "legal", name));
   // A visual is checked once it ACCEPTS A LOCALE. That is the moment it
   // claims to render in both languages, and until then it is only ever on an
   // English page — so the check turns itself on as each one is converted,
@@ -192,7 +198,7 @@ function bilingualBodies(): string[] {
     .filter((name) => name.endsWith(".tsx") && !name.endsWith(".test.tsx"))
     .map((name) => join(demoDir, name))
     .filter((file) => readFileSync(file, "utf8").includes("MarketingLocale"));
-  return [...pages, ...visuals, ...sections, ...hero, ...demo];
+  return [...pages, ...legalPages, ...visuals, ...sections, ...hero, ...demo];
 }
 
 describe("#228/D138 the bilingual page bodies carry no words of their own", () => {
@@ -206,6 +212,10 @@ describe("#228/D138 the bilingual page bodies carry no words of their own", () =
     expect(
       files.some((f) => f.includes("-visual")),
       "the visuals are not being checked, which is where every miss has been",
+    ).toBe(true);
+    expect(
+      files.some((f) => f.includes(`${join("marketing", "legal")}`)),
+      "the shared legal page bodies are not being checked",
     ).toBe(true);
   });
 

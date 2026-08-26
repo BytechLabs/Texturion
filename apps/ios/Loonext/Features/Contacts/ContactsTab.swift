@@ -1134,13 +1134,13 @@ private struct ImportReportSheet: View {
                         Image(systemName: "hand.raised.fill")
                             .font(.scaled(11, weight: .medium))
                             .foregroundStyle(BrandColor.destructive)
-                        Text(consent.heading)
+                        Text(consent.localizedHeading(locale: appLocale))
                             .font(.golos(12.5, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
                     }
-                    Text(consent.note)
+                    Text(consent.localizedNote(locale: appLocale))
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted700)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1155,7 +1155,7 @@ private struct ImportReportSheet: View {
                 // reading "40 people" over five lines. A reader counts the
                 // lines and concludes the heading is wrong — which is how a
                 // number nobody believes stops being read at all.
-                if let unlisted = consent.unlistedLine {
+                if let unlisted = consent.localizedUnlistedLine(locale: appLocale) {
                     Text(unlisted)
                         .font(.golos(11))
                         .foregroundStyle(BrandColor.muted500)

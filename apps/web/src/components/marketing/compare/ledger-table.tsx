@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils";
+import { compareUiCopy } from "@/i18n/marketing/compare-ui";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 
 /**
  * HONESTY LEDGER, columnar form (DESIGN-DIRECTION v4 §5.3): the mono table
@@ -49,13 +51,16 @@ export function LedgerTable({
   rows,
   caption,
   className,
+  locale = "en",
 }: {
   columns: LedgerColumn[];
   rows: LedgerTableRow[];
   /** sr-only <caption> naming the table for screen readers. */
   caption: string;
   className?: string;
+  locale?: MarketingLocale;
 }) {
+  const copy = compareUiCopy(locale);
   return (
     <div className={cn("fr-card overflow-hidden", className)}>
       {/* #238: `min-w-[40rem]` guarantees this scrolls sideways on a phone, so
@@ -75,7 +80,7 @@ export function LedgerTable({
           <thead>
             <tr>
               <th scope="col" className="w-[22%] px-5 py-4">
-                <span className="sr-only">Line item</span>
+                <span className="sr-only">{copy.lineItem}</span>
               </th>
               {columns.map((col) => (
                 <th key={col.label} scope="col" className="px-5 py-4 align-top">

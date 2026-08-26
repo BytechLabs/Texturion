@@ -420,7 +420,7 @@ struct SettingsHome: View {
                 Image(systemName: "rectangle.portrait.and.arrow.right")
                     .font(.scaled(15))
                     .foregroundStyle(BrandColor.muted600)
-                Text(HandOverPhone.action)
+                Text(HandOverPhone.localizedAction(locale: appLocale))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted600)
                 Spacer(minLength: 0)
@@ -430,10 +430,10 @@ struct SettingsHome: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .alert(HandOverPhone.title, isPresented: $askingToHandOver) {
-            Button(HandOverPhone.cancel, role: .cancel) {}
+        .alert(HandOverPhone.localizedTitle(locale: appLocale), isPresented: $askingToHandOver) {
+            Button(HandOverPhone.localizedCancel(locale: appLocale), role: .cancel) {}
             Button(
-                HandOverPhone.confirm,
+                HandOverPhone.localizedConfirm(locale: appLocale),
                 // Destructive only when something would actually be lost. Colouring a
                 // clean handover as a danger teaches people to ignore the colour on
                 // the day it means something.
@@ -444,7 +444,7 @@ struct SettingsHome: View {
                 onSignOut()
             }
         } message: {
-            Text(HandOverPhone.body(unsent: unsentAtHandover))
+            Text(HandOverPhone.body(unsent: unsentAtHandover, locale: appLocale))
         }
     }
 

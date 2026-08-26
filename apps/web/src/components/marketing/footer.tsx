@@ -7,6 +7,7 @@ import {
   type MarketingLocale,
 } from "@/i18n/marketing/footer";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { twinOf } from "@/lib/marketing/translated-pages";
 
 /**
  * FOOTER (COPY-DECK v2 §F, DESIGN-DIRECTION v4 §4): the separate band,
@@ -127,16 +128,26 @@ const CSS = `
 }
 `;
 
-function LinkList({ links }: { links: FooterLinkItem[] }) {
+function LinkList({
+  links,
+  locale,
+}: {
+  links: FooterLinkItem[];
+  locale: MarketingLocale;
+}) {
   return (
     <ul className="mt-4 space-y-2.5">
-      {links.map((link) => (
-        <li key={`${link.label}-${link.href}`}>
-          <Link href={link.href} className="frf-link font-body-mkt text-sm">
-            {link.label}
-          </Link>
-        </li>
-      ))}
+      {links.map((link) => {
+        const twin = locale === "fr-CA" ? twinOf(link.href) : undefined;
+        const href = twin?.locale === "fr-CA" ? twin.path : link.href;
+        return (
+          <li key={`${link.label}-${href}`}>
+            <Link href={href} className="frf-link font-body-mkt text-sm">
+              {link.label}
+            </Link>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -179,22 +190,22 @@ export function Footer({ locale = "en" }: { locale?: MarketingLocale } = {}) {
 
           <nav aria-label={copy.headingProduct} className="lg:col-span-3">
             <ColumnHeading>{copy.headingProduct}</ColumnHeading>
-            <LinkList links={PRODUCT(copy)} />
+            <LinkList links={PRODUCT(copy)} locale={locale} />
           </nav>
 
           <nav aria-label={copy.headingWhoItsFor} className="lg:col-span-2">
             <ColumnHeading>{copy.headingWhoItsFor}</ColumnHeading>
-            <LinkList links={WHO_ITS_FOR(copy)} />
+            <LinkList links={WHO_ITS_FOR(copy)} locale={locale} />
           </nav>
 
           <nav aria-label={copy.headingCompare} className="lg:col-span-2">
             <ColumnHeading>{copy.headingCompare}</ColumnHeading>
-            <LinkList links={COMPARE(copy)} />
+            <LinkList links={COMPARE(copy)} locale={locale} />
           </nav>
 
           <nav aria-label={copy.headingCompanyLegal} className="lg:col-span-2">
             <ColumnHeading>{copy.headingCompanyLegal}</ColumnHeading>
-            <LinkList links={COMPANY_AND_LEGAL(copy)} />
+            <LinkList links={COMPANY_AND_LEGAL(copy)} locale={locale} />
           </nav>
         </div>
 

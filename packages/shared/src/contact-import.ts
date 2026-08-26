@@ -66,6 +66,32 @@ export const CONTACT_IMPORT_CONSENT_REFUSED_NOTE =
   "statement was not recorded against them.";
 
 /**
+ * Specific, localizable API refusals emitted by the contact importer.
+ *
+ * The legacy English `message` remains in the envelope for older builds and
+ * diagnostics. Current clients prefer one of these keys, which preserves the
+ * actionable detail for a French reader instead of reducing every validation
+ * failure to the generic per-code sentence.
+ */
+export const CONTACT_IMPORT_ERROR_MESSAGE_KEYS = [
+  "apiErrors.contactImportUndeclaredColumnsOne",
+  "apiErrors.contactImportUndeclaredColumnsMany",
+  "apiErrors.contactImportUndeclaredPropertiesOne",
+  "apiErrors.contactImportUndeclaredPropertiesMany",
+  "apiErrors.contactImportUndeclaredPropertiesCapped",
+  "apiErrors.contactImportUnreadableFlag",
+  "apiErrors.contactImportUnreadableFlagCapped",
+] as const;
+
+export type ContactImportErrorMessageKey =
+  (typeof CONTACT_IMPORT_ERROR_MESSAGE_KEYS)[number];
+
+export interface ContactImportErrorReference {
+  key: ContactImportErrorMessageKey;
+  vars: Record<string, string>;
+}
+
+/**
  * The per-row reason, in the same `<what happened>: <phone>` shape as the
  * importer's other row reasons, so a client can render it with the one list it
  * already has.
@@ -276,6 +302,14 @@ function namedColumn(column: { index: number; header: string }): string {
     : `column ${column.index + 1} ("${header}")`;
 }
 
+/** A language-neutral column label for interpolation into catalogue copy. */
+function referencedColumn(column: { index: number; header: string }): string {
+  const header = column.header.trim();
+  return header === ""
+    ? `#${column.index + 1}`
+    : `#${column.index + 1} (\u201c${header}\u201d)`;
+}
+
 /**
  * What the server says when the declaration does not cover the whole file.
  *
@@ -300,6 +334,25 @@ export function contactImportUndeclaredColumnsMessage(
     `column, as \`<index>:<field or ${CONTACT_IMPORT_IGNORE}>:<header>\`. ` +
     "Nothing was imported."
   );
+}
+
+/** The catalogue key and values paired with the legacy English refusal. */
+export function contactImportUndeclaredColumnsReference(
+  undeclared: readonly { index: number; header: string }[],
+  totalColumns: number,
+): ContactImportErrorReference {
+  return {
+    key:
+      undeclared.length === 1
+        ? "apiErrors.contactImportUndeclaredColumnsOne"
+        : "apiErrors.contactImportUndeclaredColumnsMany",
+    vars: {
+      columns: undeclared.map(referencedColumn).join(", "),
+      total: String(totalColumns),
+      field: CONTACT_IMPORT_COLUMN_FIELD,
+      ignore: CONTACT_IMPORT_IGNORE,
+    },
+  };
 }
 
 /**
@@ -473,18 +526,22 @@ export function parseVCardProperty(raw: string): VCardPropertyDeclaration | null
 const VCARD_PROPERTIES_NAMED = 20;
 const VCARD_PROPERTY_NAME_SHOWN = 60;
 
-/** What the server says when a card carries a property nobody answered for. */
-export function contactImportUndeclaredPropertiesMessage(
-  properties: readonly string[],
-): string {
-  const one = properties.length === 1;
-  const shown = properties
+function displayedVCardProperties(properties: readonly string[]): string[] {
+  return properties
     .slice(0, VCARD_PROPERTIES_NAMED)
     .map((property) =>
       property.length > VCARD_PROPERTY_NAME_SHOWN
         ? `${property.slice(0, VCARD_PROPERTY_NAME_SHOWN)}…`
         : property,
     );
+}
+
+/** What the server says when a card carries a property nobody answered for. */
+export function contactImportUndeclaredPropertiesMessage(
+  properties: readonly string[],
+): string {
+  const one = properties.length === 1;
+  const shown = displayedVCardProperties(properties);
   const more = properties.length - shown.length;
   return (
     `file: ${shown.map((property) => `\`${property}\``).join(", ")}` +
@@ -513,6 +570,29 @@ export function contactImportUndeclaredPropertiesMessage(
   );
 }
 
+/** The catalogue key and values paired with the legacy vCard refusal. */
+export function contactImportUndeclaredPropertiesReference(
+  properties: readonly string[],
+): ContactImportErrorReference {
+  const shown = displayedVCardProperties(properties);
+  const more = properties.length - shown.length;
+  const key: ContactImportErrorMessageKey =
+    more > 0
+      ? "apiErrors.contactImportUndeclaredPropertiesCapped"
+      : properties.length === 1
+        ? "apiErrors.contactImportUndeclaredPropertiesOne"
+        : "apiErrors.contactImportUndeclaredPropertiesMany";
+  return {
+    key,
+    vars: {
+      properties: shown.map((property) => `\`${property}\``).join(", "),
+      more: String(more),
+      field: CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
+      ignore: CONTACT_IMPORT_IGNORE,
+    },
+  };
+}
+
 /**
  * What the server says when the do-not-text column itself is unreadable.
  *
@@ -535,6 +615,26 @@ export function contactImportUnreadableFlagMessage(
     "text somebody who asked this business to stop, so nothing was imported. Use true/false " +
     "(yes/no, 1/0, or x on the rows to block) and import again."
   );
+}
+
+/** The catalogue key and values paired with the legacy flag-value refusal. */
+export function contactImportUnreadableFlagReference(
+  header: string,
+  values: readonly string[],
+): ContactImportErrorReference {
+  const shown = values.slice(0, 5).map((value) => `\u201c${value}\u201d`);
+  const more = values.length - shown.length;
+  return {
+    key:
+      more > 0
+        ? "apiErrors.contactImportUnreadableFlagCapped"
+        : "apiErrors.contactImportUnreadableFlag",
+    vars: {
+      header: header.trim(),
+      values: shown.join(", "),
+      more: String(more),
+    },
+  };
 }
 
 /**

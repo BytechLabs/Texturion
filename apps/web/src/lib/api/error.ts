@@ -5,13 +5,18 @@ import {
   type ApiErrorCode,
 } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import {
+  makeTranslate,
+  type MessageKey,
+  type Translate,
+} from "@/i18n/provider";
 
 /**
  * Typed error for every non-2xx API response (SPEC §7 envelope
- * `{ error: { code, message } }`, G12). `code` is one of the stable SPEC
- * codes, or `internal_error` for a 5xx / unparseable body. `message` is the
- * server's customer-facing sentence (G10: what happened + what to do).
+ * `{ error: { code, message } }`, optionally with a catalogue key and values.
+ * `code` is one of the stable SPEC codes, or `internal_error` for a 5xx /
+ * unparseable body. `message` is the backwards-compatible customer-facing
+ * sentence (G10: what happened + what to do).
  */
 export class ApiError extends Error {
   readonly code: ApiErrorCode;
@@ -84,8 +89,17 @@ function readerFacing(
   serverMessage: string,
   t: Translate,
   requestId?: string,
+  messageKey?: string,
+  messageVars?: Record<string, string>,
 ): string {
-  const sentence = t.locale === DEFAULT_LOCALE ? serverMessage : t(`apiErrors.${code}`);
+  const keyed = messageKey
+    ? t(messageKey as MessageKey, messageVars)
+    : undefined;
+  const sentence = keyed && keyed !== messageKey
+    ? keyed
+    : t.locale === DEFAULT_LOCALE
+      ? serverMessage
+      : t(`apiErrors.${code}`);
   // Only on a 5xx, which is the only body that carries one. Appending a
   // reference to a 422 that already names the wrong field would be noise on
   // copy that is doing its job.
@@ -112,11 +126,30 @@ export function parseErrorBody(
       const message = (inner as { message: string }).message;
       const rawId = (inner as { request_id?: unknown }).request_id;
       const requestId = typeof rawId === "string" && rawId.length > 0 ? rawId : undefined;
+      const rawKey = (inner as { message_key?: unknown }).message_key;
+      const messageKey = typeof rawKey === "string" && rawKey.length > 0
+        ? rawKey
+        : undefined;
+      const rawVars = (inner as { message_vars?: unknown }).message_vars;
+      const messageVars = typeof rawVars === "object" && rawVars !== null
+        ? Object.fromEntries(
+            Object.entries(rawVars).filter(
+              (entry): entry is [string, string] => typeof entry[1] === "string",
+            ),
+          )
+        : undefined;
       if (KNOWN_CODES.has(code)) {
         const known = code as ApiErrorCode;
         return new ApiError(
           known,
-          readerFacing(known, message, t, requestId),
+          readerFacing(
+            known,
+            message,
+            t,
+            requestId,
+            messageKey,
+            messageVars,
+          ),
           status,
           requestId,
         );
@@ -124,7 +157,14 @@ export function parseErrorBody(
       // Unknown-but-shaped code: keep the message, flag the code as internal.
       return new ApiError(
         INTERNAL_ERROR_CODE,
-        readerFacing(INTERNAL_ERROR_CODE, message, t, requestId),
+        readerFacing(
+          INTERNAL_ERROR_CODE,
+          message,
+          t,
+          requestId,
+          messageKey,
+          messageVars,
+        ),
         status,
         requestId,
       );

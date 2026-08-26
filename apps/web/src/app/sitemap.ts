@@ -153,6 +153,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // missing from the other. Same priority as their English twin would be
   // over-claiming; these are translations, not separate destinations.
   for (const page of TRANSLATED_PAGES) {
+    if (page.index === false) continue;
     entries.push({ path: page.fr, priority: 0.5, changeFrequency: "monthly" });
   }
 

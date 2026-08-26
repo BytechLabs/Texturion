@@ -88,17 +88,13 @@ const LEAD_CHASE_COPY: Record<Locale, LeadChaseCopy> = { en: EN, "fr-CA": FR_CA 
  * is that it has gone unanswered. A second identical-looking alert reads as a
  * duplicate and gets swiped away.
  *
- * #228: `locale` DEFAULTS, which is the one place in this sweep where a caller
- * can still drop the reader's language without the compiler noticing. It is a
- * bridge, not a preference — `apps/api/src/notifications/lead-chase.ts` calls
- * this once, above its `web:` closure, where there is no locale in scope yet.
- * Moving that call inside the closure and passing the argument is what finishes
- * this, and the default should go with it.
+ * #228: locale is required so every caller has to resolve the reader's
+ * language before composing the lock-screen copy.
  */
 export function leadChaseNotification(
   rung: 2,
   contactName: string,
-  locale: Locale = "en",
+  locale: Locale,
 ): { title: string; body: string } {
   void rung;
   const copy = LEAD_CHASE_COPY[locale];

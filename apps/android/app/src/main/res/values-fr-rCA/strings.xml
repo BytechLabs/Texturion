@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android may render these Connected-Apps labels from the XML metadata
+         instead of the per-row DATA2 summary on some Contacts implementations. -->
+    <string name="loonext_account_label">Loonext</string>
+    <string name="contacts_action_call">Appeler avec Loonext</string>
+    <string name="contacts_action_text">Envoyer un texto avec Loonext</string>
+</resources>

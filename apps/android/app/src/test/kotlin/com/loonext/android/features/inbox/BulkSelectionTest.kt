@@ -1,5 +1,6 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.BulkAppliedRow
 import com.loonext.android.core.model.BulkConversationsResult
 import kotlinx.serialization.json.JsonElement
@@ -99,6 +100,69 @@ class BulkSelectionTest {
         assertEquals(
             "Closed 1 conversation",
             bulkResultMessage("Closed", applied = 1, failed = 0, matched = 1, capped = false),
+        )
+    }
+
+    @Test
+    fun `the result message localizes French grammar and plural verbs`() {
+        assertEquals(
+            "Terminée 1 tâche",
+            bulkResultMessage(
+                verb = "Terminée",
+                verbMany = "Terminées",
+                applied = 1,
+                failed = 0,
+                matched = 1,
+                capped = false,
+                nounOne = "tâche",
+                nounMany = "tâches",
+                locale = "fr-CA",
+            ),
+        )
+        assertEquals(
+            "Terminées 2 tâches",
+            bulkResultMessage(
+                verb = "Terminée",
+                verbMany = "Terminées",
+                applied = 2,
+                failed = 0,
+                matched = 2,
+                capped = false,
+                nounOne = "tâche",
+                nounMany = "tâches",
+                locale = "fr-CA",
+            ),
+        )
+    }
+
+    @Test
+    fun `inbox French verbs agree with one or many conversations`() {
+        val one = AppStrings.translate("fr-CA", "inbox.bulkVerbClosedOne")
+        val many = AppStrings.translate("fr-CA", "inbox.bulkVerbClosedMany")
+
+        assertEquals(
+            "Fermée 1 conversation",
+            bulkResultMessage(
+                verb = one,
+                verbMany = many,
+                applied = 1,
+                failed = 0,
+                matched = 1,
+                capped = false,
+                locale = "fr-CA",
+            ),
+        )
+        assertEquals(
+            "Fermées 2 conversations",
+            bulkResultMessage(
+                verb = one,
+                verbMany = many,
+                applied = 2,
+                failed = 0,
+                matched = 2,
+                capped = false,
+                locale = "fr-CA",
+            ),
         )
     }
 

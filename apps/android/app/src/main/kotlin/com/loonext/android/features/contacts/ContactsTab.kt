@@ -2293,20 +2293,18 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
                             ),
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )
-                        // The server's sentence, verbatim. It is the one place
-                        // the consequence is spelled out — that they were
-                        // imported, that the opt-out stands, and that the
-                        // attestation was not recorded — and paraphrasing it on
-                        // three clients is how the record starts disagreeing
-                        // with itself.
-                        result.consent_refused_note?.let { note ->
-                            Text(
-                                note,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.padding(top = 5.dp),
-                            )
-                        }
+                        // The wire retains English for installed builds. This
+                        // catalogue entry carries the same compliance fact in
+                        // the current reader's language.
+                        Text(
+                            AppStrings.translate(
+                                locale,
+                                "contactsTasks.importConsentRefusedNote",
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(top = 5.dp),
+                        )
                         ImportRowList(
                             rows = result.consent_refusals,
                             rowWord = report.kind.rowWord,

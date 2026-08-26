@@ -365,7 +365,7 @@ app.onError((error, c) => {
   // client can read the SPEC §7 envelope and show the actual message. Wrapped
   // defensively: onError must never itself throw.
   if (error instanceof ApiError) {
-    return errorResponse(c, error.code, error.message);
+    return errorResponse(c, error.code, error.message, error.reference);
   }
   /*
    * #251 — a vendor throttling US must not read as our software breaking.

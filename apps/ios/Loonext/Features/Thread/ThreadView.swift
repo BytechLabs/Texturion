@@ -343,6 +343,10 @@ private struct ThreadBody: View {
                     conversationId: detail.id,
                     role: viewerRole,
                     viewerLevel: detail.viewer_level,
+                    messageLocale: MessageLocale.resolve(
+                        contact: detail.contact.locale,
+                        company: controller.company?.locale
+                    ),
                     businessName: controller.company?.name,
                     // #607: the strip's live wire. The controller is the thread's
                     // only realtime listener, so a `payment.updated` naming this

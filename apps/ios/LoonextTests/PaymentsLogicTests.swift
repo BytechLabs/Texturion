@@ -347,7 +347,8 @@ final class PaymentsLogicTests: XCTestCase {
             amountCents: 25_000,
             currency: .usd,
             description: " Deposit ",
-            url: "https://app.loonext.com/pay/abc123"
+            url: "https://app.loonext.com/pay/abc123",
+            locale: MessageLocale.en
         )
         XCTAssertEqual(
             text,
@@ -365,7 +366,8 @@ final class PaymentsLogicTests: XCTestCase {
             amountCents: 125_000,
             currency: .cad,
             description: "Final payment",
-            url: "https://app.loonext.com/pay/abc123"
+            url: "https://app.loonext.com/pay/abc123",
+            locale: MessageLocale.en
         )
         XCTAssertTrue(text.hasPrefix("Ridgeline Plumbing:"))
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)

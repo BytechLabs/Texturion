@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AvailableNumbersResult } from "@/lib/api/types";
+import { LocaleProvider } from "@/i18n/provider";
 
 /** Hoisted mock the hook reads; each test seeds it before rendering. */
 const listState: {
@@ -68,5 +69,20 @@ describe("NumberPicker (#86: area code + digits are filters, not a gate)", () =>
     );
     // Masked CA numbers can't be browsed, so the picker points at the filter.
     expect(html).toContain("pick an area code above");
+  });
+
+  it("renders a selected area code in the reader's locale", () => {
+    listState.data = { data: [], masked: true, best_effort_exhausted: false };
+    const html = renderToStaticMarkup(
+      <LocaleProvider userLocale="fr-CA">
+        <NumberPicker
+          country="CA"
+          initialAreaCode="604"
+          onSelect={() => {}}
+        />
+      </LocaleProvider>,
+    );
+    expect(html).toContain("(604) · Colombie-Britannique");
+    expect(html).toContain("Changer l&#x27;indicatif régional");
   });
 });

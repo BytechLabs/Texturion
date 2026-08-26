@@ -21,10 +21,6 @@ import {
   FrCard,
   FrSection,
 } from "@/components/marketing/fr";
-import {
-  PRIMARY_CTA_LABEL,
-  SECONDARY_CTA_LABEL,
-} from "@/components/marketing/nav-links";
 import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
 import {
@@ -32,6 +28,9 @@ import {
   type TruthStripItem,
 } from "@/components/marketing/pricing/truth-strip";
 import { Reveal } from "@/components/marketing/ui/reveal";
+import { compareUiCopy } from "@/i18n/marketing/compare-ui";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { navCopy } from "@/i18n/marketing/nav";
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /* -------------------------------------------------------------------------- */
@@ -42,12 +41,15 @@ export function CompareHero({
   dateline,
   title,
   lead,
+  locale = "en",
 }: {
   /** The page's load-bearing arithmetic, e.g. "$49/USER/MO · THEIR PUBLISHED STARTER SEAT". */
   dateline: string;
   title: string;
   lead: ReactNode;
+  locale?: MarketingLocale;
 }) {
+  const nav = navCopy(locale);
   return (
     <FrSection as="header" className="pb-10 md:pb-14">
       <div className="mx-auto max-w-3xl text-center">
@@ -60,9 +62,12 @@ export function CompareHero({
           {lead}
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <CtaButton href={APP_LINKS.signup}>{PRIMARY_CTA_LABEL}</CtaButton>
-          <CtaButton href={LIVE_ROUTES.pricing} variant="secondary">
-            {SECONDARY_CTA_LABEL}
+          <CtaButton href={APP_LINKS.signup}>{nav.ctaPrimary}</CtaButton>
+          <CtaButton
+            href={locale === "fr-CA" ? "/fr/tarifs" : LIVE_ROUTES.pricing}
+            variant="secondary"
+          >
+            {nav.ctaSecondary}
           </CtaButton>
         </div>
       </div>
@@ -110,6 +115,7 @@ export function SliderBand({
   lead,
   perUserMonthly,
   minimumSeats,
+  locale = "en",
 }: {
   heading: string;
   lead: ReactNode;
@@ -122,6 +128,7 @@ export function SliderBand({
   perUserMonthly?: number;
   /** The fewest seats they will sell. A floor, not a discount. */
   minimumSeats?: number;
+  locale?: MarketingLocale;
 }) {
   return (
     <FrSection>
@@ -135,10 +142,12 @@ export function SliderBand({
             <CrewSizeSliderStatic
               perUserMonthly={perUserMonthly}
               minimumSeats={minimumSeats}
+              locale={locale}
             />
           }
           perUserMonthly={perUserMonthly}
           minimumSeats={minimumSeats}
+          locale={locale}
         />
       </Reveal>
     </FrSection>
@@ -261,10 +270,14 @@ export function SwitchBand({
 export function CompareCta({
   heading,
   sub,
+  locale = "en",
 }: {
   heading: string;
   sub: ReactNode;
+  locale?: MarketingLocale;
 }) {
+  const copy = compareUiCopy(locale);
+  const nav = navCopy(locale);
   return (
     <FrSection>
       <div className="mx-auto max-w-3xl text-center">
@@ -274,11 +287,11 @@ export function CompareCta({
         </p>
         <div className="mt-8 flex justify-center">
           <CtaButton href={APP_LINKS.signup} size="lg">
-            {PRIMARY_CTA_LABEL}
+            {nav.ctaPrimary}
           </CtaButton>
         </div>
         <p className="fr-eyebrow mt-5 text-[color:var(--fr-ink-55)]">
-          $29/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK
+          {copy.ctaMicrocopy}
         </p>
       </div>
     </FrSection>

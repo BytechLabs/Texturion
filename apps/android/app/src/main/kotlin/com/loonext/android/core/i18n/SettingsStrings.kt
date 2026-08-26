@@ -1636,6 +1636,15 @@ private val BILLING_EN = mapOf(
     "settings.offerStarterTailGrace" to "Come back on Starter and your number and your whole message history come with you.",
     "settings.offerStarterTailPaused" to "Your plan is paused, so this takes two steps in this order: resume first, then switch plans. The switch takes effect at the end of your current billing period. Your message history comes with you, and so does the number you text from — a second number does not: the downgrade is refused until you release it, and until the crew is back inside {seats} seats.",
 
+    "settings.planStateUnknownNote" to
+        "We couldn't check this plan's status just now, so nothing here is claimed " +
+        "either way. Your plan and your number are untouched.",
+    "settings.pausedCancelNote" to
+        "Your plan is paused, so texting is already off — what cancelling ends is the " +
+        "plan itself. It also starts the clock on your number: {days} days from the " +
+        "day you cancel, not from the day the plan ends. That is the clock a pause " +
+        "keeps off it.",
+
     "settings.planSwitchToStarter" to "Switch to Starter",
     "settings.planUpgradeToPro" to "Upgrade to Pro",
 
@@ -1988,6 +1997,17 @@ private val BILLING_FR = mapOf(
     "settings.offerStarterTail" to "Le changement prend effet à la fin de votre période de facturation en cours. Votre historique de messages vous suit, et le numéro d'où vous textez aussi — un deuxième numéro, non : le passage au forfait inférieur est refusé tant que vous ne l'avez pas libéré, et tant que l'équipe n'est pas revenue sous les {seats} places.",
     "settings.offerStarterTailGrace" to "Revenez sur Starter et votre numéro ainsi que tout votre historique de messages vous suivent.",
     "settings.offerStarterTailPaused" to "Votre forfait est en pause : cela se fait donc en deux étapes, dans cet ordre — reprenez d'abord, puis changez de forfait. Le changement prend effet à la fin de votre période de facturation en cours. Votre historique de messages vous suit, et le numéro d'où vous textez aussi — un deuxième numéro, non : le passage au forfait inférieur est refusé tant que vous ne l'avez pas libéré, et tant que l'équipe n'est pas revenue sous les {seats} places.",
+
+    "settings.planStateUnknownNote" to
+        "Nous n'avons pas pu vérifier l'état de ce forfait pour l'instant; rien ici " +
+        "n'est donc affirmé dans un sens ou dans l'autre. Votre forfait et votre " +
+        "numéro n'ont pas été modifiés.",
+    "settings.pausedCancelNote" to
+        "Votre forfait est en pause, donc les textos sont déjà désactivés — " +
+        "l'annulation met fin au forfait lui-même. Elle démarre aussi le compte à " +
+        "rebours pour votre numéro : {days} jours à compter du jour où vous annulez, " +
+        "et non du jour où le forfait prend fin. C'est le compte à rebours qu'une " +
+        "pause empêche de démarrer.",
 
     "settings.planSwitchToStarter" to "Passer à Starter",
     "settings.planUpgradeToPro" to "Passer à Pro",

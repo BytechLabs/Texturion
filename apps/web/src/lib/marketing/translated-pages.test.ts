@@ -122,3 +122,38 @@ describe("the pair is reciprocal by construction", () => {
     expect(twinOf("/fr/contact")).toEqual({ locale: "en", path: "/contact" });
   });
 });
+
+describe("#228 the non-contract legal translations ship as exact twins", () => {
+  const legalPairs = [
+    { en: "/legal/accessibility", fr: "/fr/accessibilite" },
+    { en: "/legal/cookies", fr: "/fr/temoins" },
+    { en: "/legal/delete-my-data", fr: "/fr/supprimer-mes-donnees" },
+    { en: "/legal/fair-use", fr: "/fr/utilisation-equitable" },
+    { en: "/legal/messaging", fr: "/fr/messagerie" },
+    { en: "/legal/subprocessors", fr: "/fr/sous-traitants" },
+    {
+      en: "/legal/vulnerability-disclosure",
+      fr: "/fr/divulgation-vulnerabilites",
+    },
+  ] as const;
+
+  it("registers all seven translated legal documents, with no contract hold", () => {
+    for (const pair of legalPairs) {
+      expect(TRANSLATED_PAGES).toContainEqual(pair);
+      expect(languagesFor(pair.en)).toEqual({
+        "en-CA": pair.en,
+        "fr-CA": pair.fr,
+        "x-default": pair.en,
+      });
+    }
+
+    for (const held of [
+      "/legal/terms",
+      "/legal/dpa",
+      "/legal/aup",
+      "/legal/privacy",
+    ]) {
+      expect(TRANSLATED_PAGES.some((page) => page.en === held)).toBe(false);
+    }
+  });
+});

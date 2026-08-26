@@ -64,7 +64,12 @@ struct MultipartClient: Sendable {
     // MARK: - Internals
 
     private var signedOut: ApiError {
-        ApiError(code: ApiErrorCode.unauthorized, message: "You're signed out.", httpStatus: 401)
+        ApiError(
+            code: ApiErrorCode.unauthorized,
+            message: "You're signed out.",
+            httpStatus: 401,
+            messageKey: "common.errSignedOut"
+        )
     }
 
     /// A not-(about-to-be)-expired access token. When the stored one is
@@ -107,7 +112,8 @@ struct MultipartClient: Sendable {
             throw ApiError(
                 code: ApiErrorCode.network,
                 message: "Can't reach Loonext. Check your connection.",
-                httpStatus: 0
+                httpStatus: 0,
+                messageKey: "common.errNetwork"
             )
         }
     }
@@ -115,11 +121,22 @@ struct MultipartClient: Sendable {
     /// SPEC §7 envelope decoding — the same contract ApiClient enforces.
     private func expectSuccess(_ raw: Raw) throws -> Data {
         if (200 ..< 300).contains(raw.status) { return raw.data }
-        let parsed = try? JSONDecoder().decode(ErrorEnvelope.self, from: raw.data)
-        throw ApiError(
+        throw Self.responseError(status: raw.status, data: raw.data)
+    }
+
+    /// Kept testable because contact import uses this client instead of
+    /// `ApiClient`, and must preserve the same localized error envelope.
+    static func responseError(status: Int, data: Data) -> ApiError {
+        let parsed = try? JSONDecoder().decode(ErrorEnvelope.self, from: data)
+        let serverMessage = parsed?.error.message
+        return ApiError(
             code: parsed?.error.code ?? ApiErrorCode.internalError,
-            message: parsed?.error.message ?? "Something went wrong (\(raw.status)).",
-            httpStatus: raw.status
+            message: serverMessage ?? "Something went wrong (\(status)).",
+            httpStatus: status,
+            messageKey: parsed?.error.message_key
+                ?? (serverMessage == nil ? "common.errServer" : nil),
+            messageVars: parsed?.error.message_vars
+                ?? ["status": String(status)]
         )
     }
 }

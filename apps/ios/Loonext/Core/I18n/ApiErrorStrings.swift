@@ -57,6 +57,22 @@ enum ApiErrorStrings {
             "apiErrors.service_unavailable": "That's busy right now. Try again in a moment.",
             "apiErrors.internal_error":
                 "Something went wrong on our end. Try again in a moment.",
+            "apiErrors.contactImportUndeclaredColumnsOne":
+                "File column {columns} was not declared. This import never guesses what a column means because treating a do-not-text column as empty could message somebody who opted out. Every file column ({total} total) must be mapped or explicitly ignored. Send one `{field}` value per column as `<index>:<field or {ignore}>:<header>`. Nothing was imported.",
+            "apiErrors.contactImportUndeclaredColumnsMany":
+                "File columns {columns} were not declared. This import never guesses what a column means because treating a do-not-text column as empty could message somebody who opted out. Every file column ({total} total) must be mapped or explicitly ignored. Send one `{field}` value per column as `<index>:<field or {ignore}>:<header>`. Nothing was imported.",
+            "apiErrors.contactImportUndeclaredPropertiesOne":
+                "{properties} is a vCard property this import does not read. CATEGORIES, NOTE, and property parameters can carry do-not-text instructions. Send one `{field}` value for it as `<PROPERTY>:<{ignore} or opted_out>`. Nothing was imported.",
+            "apiErrors.contactImportUndeclaredPropertiesMany":
+                "{properties} are vCard properties this import does not read. CATEGORIES, NOTE, and property parameters can carry do-not-text instructions. Send one `{field}` value per property as `<PROPERTY>:<{ignore} or opted_out>`. Nothing was imported.",
+            "apiErrors.contactImportUndeclaredPropertiesCapped":
+                "{properties}, and {more} more, are vCard properties this import does not read. CATEGORIES, NOTE, and property parameters can carry do-not-text instructions. Send one `{field}` value per property as `<PROPERTY>:<{ignore} or opted_out>`. Nothing was imported.",
+            "apiErrors.contactImportUnreadableFlag":
+                "The do-not-text column “{header}” contains values this import cannot read as yes or no: {values}. Use true/false (yes/no, 1/0, or x on rows to block), then import again. Nothing was imported.",
+            "apiErrors.contactImportUnreadableFlagCapped":
+                "The do-not-text column “{header}” contains values this import cannot read as yes or no: {values}, and {more} more. Use true/false (yes/no, 1/0, or x on rows to block), then import again. Nothing was imported.",
+            "apiErrors.selfDowngradeAcknowledgementRequired":
+                "Confirm that you understand what you'll lose before changing your own role.",
             // #555 — a whole template rather than a suffix, because French does
             // not have to put the reference where English does.
             "apiErrors.withReference": "{message} Reference {id}.",
@@ -94,6 +110,22 @@ enum ApiErrorStrings {
                 "C'est occupé en ce moment. Réessayez dans un instant.",
             "apiErrors.internal_error":
                 "Une erreur s'est produite de notre côté. Réessayez dans un instant.",
+            "apiErrors.contactImportUndeclaredColumnsOne":
+                "La colonne {columns} du fichier n’a pas été déclarée. Cette importation ne devine jamais le sens d’une colonne, car traiter une colonne d’interdiction de textos comme vide pourrait envoyer un message à une personne désabonnée. Chaque colonne du fichier ({total} au total) doit être associée à un champ ou explicitement ignorée. Envoyez une valeur `{field}` par colonne au format `<index>:<field ou {ignore}>:<header>`. Aucune donnée n’a été importée.",
+            "apiErrors.contactImportUndeclaredColumnsMany":
+                "Les colonnes {columns} du fichier n’ont pas été déclarées. Cette importation ne devine jamais le sens d’une colonne, car traiter une colonne d’interdiction de textos comme vide pourrait envoyer un message à une personne désabonnée. Chaque colonne du fichier ({total} au total) doit être associée à un champ ou explicitement ignorée. Envoyez une valeur `{field}` par colonne au format `<index>:<field ou {ignore}>:<header>`. Aucune donnée n’a été importée.",
+            "apiErrors.contactImportUndeclaredPropertiesOne":
+                "{properties} est une propriété vCard que cette importation ne lit pas. CATEGORIES, NOTE et les paramètres de propriété peuvent contenir une consigne de ne pas envoyer de textos. Envoyez pour cette propriété une valeur `{field}` au format `<PROPERTY>:<{ignore} ou opted_out>`. Aucune donnée n’a été importée.",
+            "apiErrors.contactImportUndeclaredPropertiesMany":
+                "{properties} sont des propriétés vCard que cette importation ne lit pas. CATEGORIES, NOTE et les paramètres de propriété peuvent contenir une consigne de ne pas envoyer de textos. Envoyez une valeur `{field}` par propriété au format `<PROPERTY>:<{ignore} ou opted_out>`. Aucune donnée n’a été importée.",
+            "apiErrors.contactImportUndeclaredPropertiesCapped":
+                "{properties}, ainsi que {more} autres, sont des propriétés vCard que cette importation ne lit pas. CATEGORIES, NOTE et les paramètres de propriété peuvent contenir une consigne de ne pas envoyer de textos. Envoyez une valeur `{field}` par propriété au format `<PROPERTY>:<{ignore} ou opted_out>`. Aucune donnée n’a été importée.",
+            "apiErrors.contactImportUnreadableFlag":
+                "La colonne d’interdiction de textos « {header} » contient des valeurs que cette importation ne peut pas interpréter comme oui ou non : {values}. Utilisez true/false (yes/no, 1/0 ou x sur les lignes à bloquer), puis recommencez l’importation. Aucune donnée n’a été importée.",
+            "apiErrors.contactImportUnreadableFlagCapped":
+                "La colonne d’interdiction de textos « {header} » contient des valeurs que cette importation ne peut pas interpréter comme oui ou non : {values}, ainsi que {more} autres. Utilisez true/false (yes/no, 1/0 ou x sur les lignes à bloquer), puis recommencez l’importation. Aucune donnée n’a été importée.",
+            "apiErrors.selfDowngradeAcknowledgementRequired":
+                "Confirmez que vous comprenez ce que vous perdrez avant de modifier votre propre rôle.",
             "apiErrors.withReference": "{message} Référence {id}.",
         ]
     )

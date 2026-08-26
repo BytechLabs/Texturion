@@ -33,8 +33,11 @@ import {
   contactImportColumnMismatchMessage,
   contactImportConsentRefusedReason,
   contactImportUndeclaredColumnsMessage,
+  contactImportUndeclaredColumnsReference,
   contactImportUndeclaredPropertiesMessage,
+  contactImportUndeclaredPropertiesReference,
   contactImportUnreadableFlagMessage,
+  contactImportUnreadableFlagReference,
   contactImportUnterminatedQuoteMessage,
   defaultContactImportColumns,
   formatContactImportColumn,
@@ -2748,6 +2751,18 @@ describe("#248 every column of the file is answered for", () => {
         3,
       ),
     );
+    const reference = contactImportUndeclaredColumnsReference(
+      [
+        { index: 0, header: "phone" },
+        { index: 1, header: "name" },
+        { index: 2, header: "Marketing Status" },
+      ],
+      3,
+    );
+    expect(body.error).toMatchObject({
+      message_key: reference.key,
+      message_vars: reference.vars,
+    });
     // NOTHING was written. "Refuse the flagged rows" is not available to us —
     // `y` under "Do Not Call" and `y` under "OK to Text" are opposite
     // instructions — and refusing only the attestation would not protect
@@ -3284,6 +3299,14 @@ describe("#248 every column of the file is answered for", () => {
         "Unsubscribed",
       ]),
     );
+    const reference = contactImportUnreadableFlagReference("Do Not Contact", [
+      "Subscribed",
+      "Unsubscribed",
+    ]);
+    expect(body.error).toMatchObject({
+      message_key: reference.key,
+      message_vars: reference.vars,
+    });
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 
@@ -4591,6 +4614,14 @@ describe("#248 every property on the cards is answered for", () => {
     expect(body.error.message).toBe(
       contactImportUndeclaredPropertiesMessage(["CATEGORIES", "NOTE"]),
     );
+    const reference = contactImportUndeclaredPropertiesReference([
+      "CATEGORIES",
+      "NOTE",
+    ]);
+    expect(body.error).toMatchObject({
+      message_key: reference.key,
+      message_vars: reference.vars,
+    });
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 

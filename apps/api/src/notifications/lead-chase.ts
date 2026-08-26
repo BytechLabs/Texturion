@@ -173,7 +173,6 @@ async function sendChase(
   if (pushUsers.length === 0) return;
 
   const contactName = row.contact_name?.trim() || row.contact_phone;
-  const copy = leadChaseNotification(2, contactName);
 
   await deliverPush(env, db, {
     category: "messages_all",
@@ -182,11 +181,14 @@ async function sendChase(
     // #430: `leadChaseNotification` writes both lines; the customer's name is
     // the only thing of theirs in it, and the setting keeps names.
     content: { written: "us" },
-    web: () => ({
-      title: copy.title,
-      body: copy.body,
-      url: `${env.APP_ORIGIN}/inbox/${row.conversation_id}`,
-    }),
+    web: (locale) => {
+      const copy = leadChaseNotification(2, contactName, locale);
+      return {
+        title: copy.title,
+        body: copy.body,
+        url: `${env.APP_ORIGIN}/inbox/${row.conversation_id}`,
+      };
+    },
     // Its OWN key, not the thread's, so a later run of this rung coalesces
     // with itself rather than replacing the customer's own message on the lock
     // screen. The rung number stays in the key: it cost nothing when there

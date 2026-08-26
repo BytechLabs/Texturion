@@ -10,6 +10,9 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.loonext.android.R
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.UiLocale
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.push.ChannelIds
 import com.loonext.android.push.ensureChannels
 
@@ -56,12 +59,17 @@ class CallForegroundService : Service() {
 
         /** Hold the process + mic for a call, and post/UPDATE its notification.
          *  Idempotent — call it again to change the title/status. */
-        fun start(context: Context, title: String, text: String = "Call in progress", sinceMs: Long? = null) {
+        fun start(
+            context: Context,
+            title: String,
+            text: String? = null,
+            sinceMs: Long? = null,
+        ) {
             runCatching {
                 val intent = Intent(context, CallForegroundService::class.java)
                     .setAction(ACTION_START)
                     .putExtra(EXTRA_TITLE, title)
-                    .putExtra(EXTRA_TEXT, text)
+                    .putExtra(EXTRA_TEXT, text ?: copy("telephony.callInProgress"))
                     .putExtra(EXTRA_SINCE, sinceMs ?: 0L)
                 context.startForegroundService(intent)
             }
@@ -78,6 +86,12 @@ class CallForegroundService : Service() {
         fun stop(context: Context) {
             runCatching { context.stopService(Intent(context, CallForegroundService::class.java)) }
         }
+
+        private fun copy(key: String): String {
+            val locale =
+                UiLocale.normalizeDevice(UiLocale.deviceTag()) ?: MessageLocale.DEFAULT
+            return AppStrings.translate(locale, key)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -89,8 +103,12 @@ class CallForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val title = intent?.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { "Ongoing call" }
-        val text = intent?.getStringExtra(EXTRA_TEXT).orEmpty().ifBlank { "Call in progress" }
+        val title = intent?.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank {
+            copy("telephony.ongoingCall")
+        }
+        val text = intent?.getStringExtra(EXTRA_TEXT).orEmpty().ifBlank {
+            copy("telephony.callInProgress")
+        }
         val since = intent?.getLongExtra(EXTRA_SINCE, 0L) ?: 0L
         val notification = buildNotification(title, text, since.takeIf { it > 0L })
         // We were started with startForegroundService, so we MUST reach a successful

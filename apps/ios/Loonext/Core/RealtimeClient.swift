@@ -339,16 +339,32 @@ actor RealtimeClient {
     /// that can be partially wrong: a company topic that joined while a number
     /// topic silently did not is a live socket delivering three quarters of the
     /// events, which looks healthy from every other angle.
-    func stateLabel() -> String {
+    func stateLabel(locale: String = MessageLocale.en) -> String {
         guard socket != nil else {
-            return everJoined ? "Disconnected" : "Not started"
+            return AppStrings.translate(
+                locale,
+                everJoined
+                    ? "shell.diagRealtimeDisconnected"
+                    : "shell.diagRealtimeNotStarted"
+            )
         }
-        guard joined else { return "Connecting" }
+        guard joined else {
+            return AppStrings.translate(locale, "shell.diagRealtimeConnecting")
+        }
         let want = numberIds.count
         let have = confirmedNumberTopics.count
-        return want == have
-            ? "Joined (\(have) number topics)"
-            : "Joined (\(have)/\(want) number topics)"
+        if want != have {
+            return AppStrings.translate(
+                locale,
+                "shell.diagRealtimeJoinedPartial",
+                ["have": String(have), "want": String(want)]
+            )
+        }
+        return AppStrings.translate(
+            locale,
+            have == 1 ? "shell.diagRealtimeJoinedOne" : "shell.diagRealtimeJoinedMany",
+            ["count": String(have)]
+        )
     }
 
     func disconnect() {

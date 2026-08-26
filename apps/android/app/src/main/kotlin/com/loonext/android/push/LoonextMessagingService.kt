@@ -13,6 +13,8 @@ import com.loonext.android.LoonextApp
 import com.loonext.android.MainActivity
 import com.loonext.android.R
 import com.loonext.android.core.diag.CallFlowLog
+import com.loonext.android.core.i18n.UiLocale
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.telephony.SoftphoneManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -68,7 +70,11 @@ class LoonextMessagingService : FirebaseMessagingService() {
                 message.notification?.title?.let { put("title", it) }
                 message.notification?.body?.let { put("body", it) }
             }
-        val content = parsePush(data)
+        // Server-authored pushes already carry their final localized text. This
+        // locale is only for malformed/legacy payloads whose fields are absent.
+        val readerLocale =
+            UiLocale.normalizeDevice(UiLocale.deviceTag()) ?: MessageLocale.DEFAULT
+        val content = parsePush(data, readerLocale)
 
         // `kind:'call_end'` revocation (calls-v3 §9.2): Android FCM sends are
         // data-only with NO collapse key, so the tray is never replaced by the

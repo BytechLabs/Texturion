@@ -66,7 +66,7 @@ type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 /**
  * SPEC §4.1 step 3 — the pre-filled truthful default, verbatim.
  *
- * #228: THIS ONE STAYS ENGLISH, and so do the sample texts below it.
+ * #228: These stay English in both catalogue locales.
  *
  * They are not UI copy. They are the FIELD VALUES this form submits to The
  * Campaign Registry, where a US carrier's reviewer reads them to decide whether
@@ -76,14 +76,14 @@ type FormValues = z.infer<ReturnType<typeof buildSchema>>;
  * around the fields are all in the catalogue; what goes IN the fields is the
  * business's own words, seeded in the language the registry reads.
  */
-const DEFAULT_MESSAGE_FLOW =
-  "Customers text our business number first, or ask us in person / by phone to text them. We never send marketing blasts.";
-
-function defaultSamples(businessName: string): Pick<FormValues, "sample1" | "sample2"> {
+function defaultSamples(
+  t: Translate,
+  businessName: string,
+): Pick<FormValues, "sample1" | "sample2"> {
   const name = businessName.trim() || "our team";
   return {
-    sample1: `Hi, it's ${name}. We can fit you in tomorrow between 9 and 11am. Does that still work for you?`,
-    sample2: `${name} here. Your quote is ready: $180 for the full job. Reply YES to book it, or text us any questions.`,
+    sample1: t("onboarding.textingDefaultSample1", { name }),
+    sample2: t("onboarding.textingDefaultSample2", { name }),
   };
 }
 
@@ -115,13 +115,14 @@ export default function TextingDetailsPage() {
     if (!ready || seeded) return;
     setSeeded(true);
     const data = campaignRow?.data ?? {};
-    const samples = defaultSamples(state.company?.name ?? "");
+    const samples = defaultSamples(t, state.company?.name ?? "");
     form.reset({
-      messageFlow: asString(data.messageFlow) || DEFAULT_MESSAGE_FLOW,
+      messageFlow:
+        asString(data.messageFlow) || t("onboarding.textingDefaultMessageFlow"),
       sample1: asString(data.sample1) || samples.sample1,
       sample2: asString(data.sample2) || samples.sample2,
     });
-  }, [ready, seeded, campaignRow, state.company?.name, form]);
+  }, [ready, seeded, campaignRow, state.company?.name, form, t]);
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
   if (!ready || !state.snapshot) return <StepLoading />;

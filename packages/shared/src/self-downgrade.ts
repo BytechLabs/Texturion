@@ -162,6 +162,6 @@ export function selfDowngradeWarning(
  */
 export const SELF_DOWNGRADE_ACK = "confirm_losing_access" as const;
 
-/** What the server says when the acknowledgement is missing. */
-export const SELF_DOWNGRADE_REQUIRED_MESSAGE =
-  "Confirm that you understand what you're giving up before changing your own role.";
+/** Specific catalogue copy paired with the API's legacy English refusal. */
+export const SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY =
+  "apiErrors.selfDowngradeAcknowledgementRequired" as const;

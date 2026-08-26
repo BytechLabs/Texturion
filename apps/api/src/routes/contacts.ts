@@ -103,8 +103,11 @@ import {
   contactImportColumnMismatchMessage,
   contactImportConsentRefusedReason,
   contactImportUndeclaredColumnsMessage,
+  contactImportUndeclaredColumnsReference,
   contactImportUndeclaredPropertiesMessage,
+  contactImportUndeclaredPropertiesReference,
   contactImportUnreadableFlagMessage,
+  contactImportUnreadableFlagReference,
   contactImportUnterminatedQuoteMessage,
   contactImportVCardMergedCardMessage,
   contactImportVCardNamelessPropertyMessage,
@@ -437,6 +440,7 @@ function declaredColumns(
     throw new ApiError(
       "validation_failed",
       contactImportUndeclaredColumnsMessage(undeclared, total),
+      contactImportUndeclaredColumnsReference(undeclared, total),
     );
   }
   return [...byIndex.values()].sort((a, b) => a.index - b.index);
@@ -464,6 +468,10 @@ function assertFlagColumnReadable(
     throw new ApiError(
       "validation_failed",
       contactImportUnreadableFlagMessage(headers[flagCol] ?? "", unreadable),
+      contactImportUnreadableFlagReference(
+        headers[flagCol] ?? "",
+        unreadable,
+      ),
     );
   }
 }
@@ -507,9 +515,11 @@ function declaredVCardProperties(
     answered.push(declaration);
   }
   if (present.size > 0) {
+    const undeclared = [...present].sort();
     throw new ApiError(
       "validation_failed",
-      contactImportUndeclaredPropertiesMessage([...present].sort()),
+      contactImportUndeclaredPropertiesMessage(undeclared),
+      contactImportUndeclaredPropertiesReference(undeclared),
     );
   }
   return answered;

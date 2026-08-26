@@ -193,4 +193,18 @@ final class ContactsDataTests: XCTestCase {
         let text = String(decoding: body, as: UTF8.self)
         XCTAssertTrue(text.contains("filename=\"weird.txt\""), "got \(text)")
     }
+
+    func testMultipartErrorKeepsServerCatalogueKeyAndVariables() {
+        let data = Data(
+            #"{"error":{"code":"validation_failed","message":"The CSV declares undeclared columns.","message_key":"contactImport.errors.undeclaredColumnsMany","message_vars":{"header":"Phone","values":"Company, Role"}}}"#.utf8
+        )
+
+        let error = MultipartClient.responseError(status: 422, data: data)
+
+        XCTAssertEqual(error.code, ApiErrorCode.validationFailed)
+        XCTAssertEqual(error.httpStatus, 422)
+        XCTAssertEqual(error.messageKey, "contactImport.errors.undeclaredColumnsMany")
+        XCTAssertEqual(error.messageVars["header"], "Phone")
+        XCTAssertEqual(error.messageVars["values"], "Company, Role")
+    }
 }

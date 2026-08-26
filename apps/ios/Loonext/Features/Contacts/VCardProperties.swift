@@ -20,15 +20,19 @@ enum VCardPropertyAction: Hashable, Sendable, CaseIterable {
         }
     }
 
-    var label: String {
+    /// English-default forwarding API for existing pure callers.
+    var label: String { localizedLabel(nil) }
+
+    func localizedLabel(_ locale: String?) -> String {
         switch self {
-        case .ignore: return ContactColumns.ignoreLabel
+        case .ignore: return ContactColumns.localizedIgnoreLabel(locale)
         // Deliberately blunt about how COARSE this is: declaring it blocks
         // every card carrying the property at all, a `CATEGORIES` of "Friends"
         // alongside one of "DNC". Coarse in the direction of not texting
         // somebody is the only direction this feature may be wrong in, and the
         // person choosing it can see which cards carry it.
-        case .optedOut: return "Don't text any card with it"
+        case .optedOut:
+            return AppStrings.translate(locale, "contactsTasks.importVCardOptedOut")
         }
     }
 
@@ -88,10 +92,24 @@ struct VCardProperty: Identifiable, Hashable, Sendable {
 
     var id: String { name }
 
-    var title: String { name.isEmpty ? "A property with no name" : name }
+    var title: String { localizedTitle(nil) }
 
-    var cardLine: String {
-        cards == 1 ? "on 1 card" : "on \(cards.formatted()) cards"
+    func localizedTitle(_ locale: String?) -> String {
+        name.isEmpty
+            ? AppStrings.translate(locale, "contactsTasks.importVCardNoName")
+            : name
+    }
+
+    var cardLine: String { localizedCardLine(nil) }
+
+    func localizedCardLine(_ locale: String?) -> String {
+        AppStrings.translate(
+            locale,
+            cards == 1
+                ? "contactsTasks.importVCardOnOne"
+                : "contactsTasks.importVCardOnMany",
+            ["count": ContactColumns.formattedCount(cards, locale: locale)]
+        )
     }
 
     /// Its values, said out loud, bounded — and the count of the ones left out.
@@ -100,12 +118,19 @@ struct VCardProperty: Identifiable, Hashable, Sendable {
     /// The same line in either state. Expanded, it reports the length of what it
     /// actually listed, so it does not end in ", and 40 more" while
     /// `ContactColumns.valueCeilingNote` says the same thing a second way.
-    func line(showingAll: Bool) -> String {
+    func line(showingAll: Bool, locale: String? = nil) -> String {
         let listed = showingAll ? values : samples
-        if listed.isEmpty { return cardLine }
+        let cards = localizedCardLine(locale)
+        if listed.isEmpty { return cards }
         let hidden = (showingAll ? values.count : total) - listed.count
-        let more = hidden > 0 ? ", and \(hidden) more" : ""
-        return cardLine + " · " + listed.joined(separator: " · ") + more
+        let more = hidden > 0
+            ? ", " + AppStrings.translate(
+                locale,
+                "contactsTasks.importHiddenValues",
+                ["count": ContactColumns.formattedCount(hidden, locale: locale)]
+            )
+            : ""
+        return cards + " · " + listed.joined(separator: " · ") + more
     }
 }
 
@@ -378,26 +403,38 @@ enum VCardProperties {
 
     // MARK: - What the sheet says about them
 
-    static let heading = "Every property, accounted for"
+    static let heading = localizedHeading(nil)
 
-    static let explanation = """
-        These cards carry fields this import doesn't read. A card's \
-        CATEGORIES or a NOTE saying they asked us to stop is the only place a \
-        vCard can say do-not-text, so each one needs an answer.
-        """
+    static func localizedHeading(_ locale: String?) -> String {
+        AppStrings.translate(locale, "contactsTasks.importPropertiesHeading")
+    }
+
+    static let explanation = localizedExplanation(nil)
+
+    static func localizedExplanation(_ locale: String?) -> String {
+        AppStrings.translate(locale, "contactsTasks.importPropertiesExplanation")
+    }
 
     /// Why the Import button is grey, when it is grey for this reason.
-    static func unansweredReason(_ count: Int) -> String {
-        count == 1
-            ? "1 property still needs an answer."
-            : "\(count.formatted()) properties still need an answer."
+    static func unansweredReason(_ count: Int, locale: String? = nil) -> String {
+        AppStrings.translate(
+            locale,
+            count == 1
+                ? "contactsTasks.importUnansweredPropertyOne"
+                : "contactsTasks.importUnansweredPropertiesMany",
+            ["count": ContactColumns.formattedCount(count, locale: locale)]
+        )
     }
 
     /// The bulk answer, at the bottom of the list for the same reason the CSV's
     /// is — see `ContactColumns.ignoreRestLabel`.
-    static func ignoreRestLabel(_ count: Int) -> String {
-        count == 1
-            ? "Ignore the 1 property left"
-            : "Ignore the \(count.formatted()) properties left"
+    static func ignoreRestLabel(_ count: Int, locale: String? = nil) -> String {
+        AppStrings.translate(
+            locale,
+            count == 1
+                ? "contactsTasks.importIgnorePropertyOne"
+                : "contactsTasks.importIgnorePropertiesMany",
+            ["count": ContactColumns.formattedCount(count, locale: locale)]
+        )
     }
 }

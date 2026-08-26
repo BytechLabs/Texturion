@@ -9,6 +9,8 @@ import type { PipelineStage } from "@loonext/shared";
 import type { DeferralKind } from "@loonext/shared";
 import type { WorkPhase } from "@loonext/shared";
 
+import { pricingEn } from "@/i18n/marketing/pricing";
+
 /**
  * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
  * guessed — SPEC §7 is the contract, the route files are the truth).
@@ -1951,8 +1953,10 @@ export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
   // policy, never sales copy).
   {
     id: "regions_ca",
-    label: "Canada numbers",
-    blurb: "Get and text Canadian numbers alongside your US number.",
+    // Display copy is catalogued once and marketing resolves the French twin
+    // by module id. This mirror owns product ids and prices, not prose.
+    label: pricingEn.addonRegionsCaLabel,
+    blurb: pricingEn.addonRegionsCaBlurb,
     price: "$5",
   },
 ];

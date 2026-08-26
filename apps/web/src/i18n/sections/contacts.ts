@@ -290,6 +290,8 @@ export const contactsEn = {
   // ── The rows an import brought in but could not attest for ──────────────
   consentNotRecordedLead: "Consent not recorded for",
   consentNotRecordedTail: "of these contacts",
+  consentRefusedNote:
+    "Some of these customers have already asked this business to stop texting them. They were imported and their opt-out still stands — your consent statement was not recorded against them.",
   downloadRefusedRows: "Download the refused rows",
   andMore: "…and {count} more.",
 
@@ -718,6 +720,8 @@ export const contactsFr: Translated<typeof contactsEn> = {
   // ── Les lignes importées sans consentement enregistré ───────────────────
   consentNotRecordedLead: "Consentement non enregistré pour",
   consentNotRecordedTail: "de ces clients",
+  consentRefusedNote:
+    "Certains de ces clients ont déjà demandé à cette entreprise de cesser de leur envoyer des textos. Ils ont été importés et leur désabonnement demeure en vigueur — votre déclaration de consentement n'a pas été enregistrée pour eux.",
   downloadRefusedRows: "Télécharger les lignes refusées",
   andMore: "…et {count} de plus.",
 

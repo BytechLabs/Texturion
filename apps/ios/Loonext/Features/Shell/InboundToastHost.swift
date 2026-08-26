@@ -38,19 +38,19 @@ func shouldToastInbound(
 /// label vocabulary rather than an extraction of these lines. Recorded here
 /// rather than half-done: a French toast with an English noun in the middle of
 /// it is worse than an English toast.
-/// Lowercase a label's first letter for mid-sentence use — unless it is an
-/// ACRONYM, which must keep its capitals.
-///
-/// `attachmentLabel` returns "PDF" for a single document, and lowercasing the
-/// first character of that gives "pDF". The Android twin does exactly that, so
-/// its banner reads "Sent a pDF"; #271 fixes it there too rather than porting
-/// the defect across. The rule: a second uppercase character means the word is
-/// an acronym and is left alone.
-private func labelForSentence(_ value: String) -> String {
-    guard let first = value.first, first.isUppercase else { return value }
-    let second = value.dropFirst().first
-    if let second, second.isUppercase { return value } // PDF, and any future acronym
-    return first.lowercased() + value.dropFirst()
+private func inboundToastNounKey(_ kind: MediaKind?, many: Bool) -> String {
+    let suffix = many ? "Many" : "One"
+    let stem = switch kind {
+    case .image: "Image"
+    case .audio: "Audio"
+    case .video: "Video"
+    case .contact: "Contact"
+    case .calendar: "Calendar"
+    case .document: "Document"
+    case .text: "Text"
+    case .file, .none: "File"
+    }
+    return "shell.inboundToast\(stem)\(suffix)"
 }
 
 func inboundToastLine(
@@ -60,10 +60,13 @@ func inboundToastLine(
     maxLength: Int = 90,
     /// #271: the kind that arrived, when known; nil takes the neutral wording.
     attachmentKind: MediaKind? = nil,
-    attachmentCount: Int = 1
+    attachmentCount: Int = 1,
+    locale: String = MessageLocale.en
 ) -> String {
     let trimmedName = contactName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let who = trimmedName.isEmpty ? "New message" : trimmedName
+    let who = trimmedName.isEmpty
+        ? AppStrings.translate(locale, "shell.inboundToastNewMessage")
+        : trimmedName
     let text = (body ?? "")
         .trimmingCharacters(in: .whitespacesAndNewlines)
         .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
@@ -77,22 +80,24 @@ func inboundToastLine(
         // and the media view — the toast was the one caller that was missed,
         // so a 20-second voice message announced itself as a snapshot.
         // Ported from the Android twin so both banners read identically.
-        let noun = labelForSentence(
-            attachmentLabel(kind: attachmentKind, count: attachmentCount)
+        let many = attachmentCount > 1
+        let noun = AppStrings.translate(
+            locale,
+            inboundToastNounKey(attachmentKind, many: many)
         )
-        if attachmentCount > 1 {
-            // A counted label ("3 photos") already reads as a phrase.
-            snippet = "Sent \(noun)"
-        } else {
-            // "an audio message", "an attachment"; "a photo", "a PDF" (the
-            // sound is what decides, and P reads as a consonant).
-            let article = "aeiouAEIOU".contains(noun.first ?? "x") ? "an" : "a"
-            snippet = "Sent \(article) \(noun)"
-        }
+        snippet = AppStrings.translate(
+            locale,
+            many ? "shell.inboundToastSentMany" : "shell.inboundToastSentOne",
+            ["count": String(max(attachmentCount, 1)), "noun": noun]
+        )
     } else {
-        snippet = "Sent a message"
+        snippet = AppStrings.translate(locale, "shell.inboundToastSentMessage")
     }
-    let line = "\(who): \(snippet)"
+    let line = AppStrings.translate(
+        locale,
+        "shell.inboundToastLine",
+        ["who": who, "snippet": snippet]
+    )
     if line.count <= maxLength { return line }
     var head = String(line.prefix(maxLength - 1))
     while let last = head.last, last.isWhitespace {
@@ -201,7 +206,8 @@ struct InboundToastHost: View {
                     body: newestInbound.body,
                     hasAttachments: !kinds.isEmpty,
                     attachmentKind: sharedMediaKind(kinds),
-                    attachmentCount: kinds.count
+                    attachmentCount: kinds.count,
+                    locale: appLocale
                 )
             )
         }

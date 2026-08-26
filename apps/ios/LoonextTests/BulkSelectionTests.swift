@@ -84,6 +84,67 @@ final class BulkSelectionTests: XCTestCase {
         )
     }
 
+    func testTheResultMessageLocalizesFrenchGrammarAndPluralVerbs() {
+        XCTAssertEqual(
+            bulkResultMessage(
+                verb: "Terminée",
+                verbMany: "Terminées",
+                applied: 1,
+                failed: 0,
+                matched: 1,
+                capped: false,
+                nounOne: "tâche",
+                nounMany: "tâches",
+                locale: "fr-CA"
+            ),
+            "Terminée 1 tâche"
+        )
+        XCTAssertEqual(
+            bulkResultMessage(
+                verb: "Terminée",
+                verbMany: "Terminées",
+                applied: 2,
+                failed: 0,
+                matched: 2,
+                capped: false,
+                nounOne: "tâche",
+                nounMany: "tâches",
+                locale: "fr-CA"
+            ),
+            "Terminées 2 tâches"
+        )
+    }
+
+    func testInboxFrenchVerbsAgreeWithOneOrManyConversations() {
+        let one = AppStrings.translate("fr-CA", "inbox.bulkVerbClosedOne")
+        let many = AppStrings.translate("fr-CA", "inbox.bulkVerbClosedMany")
+
+        XCTAssertEqual(
+            bulkResultMessage(
+                verb: one,
+                verbMany: many,
+                applied: 1,
+                failed: 0,
+                matched: 1,
+                capped: false,
+                locale: "fr-CA"
+            ),
+            "Fermée 1 conversation"
+        )
+        XCTAssertEqual(
+            bulkResultMessage(
+                verb: one,
+                verbMany: many,
+                applied: 2,
+                failed: 0,
+                matched: 2,
+                capped: false,
+                locale: "fr-CA"
+            ),
+            "Fermées 2 conversations"
+        )
+    }
+
     func testZeroAppliedReadsHonestlyRatherThanAsAWin() {
         let message =
             bulkResultMessage(verb: "Closed", applied: 0, failed: 1, matched: 1, capped: false)

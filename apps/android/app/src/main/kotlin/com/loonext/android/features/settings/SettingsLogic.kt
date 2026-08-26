@@ -1295,7 +1295,7 @@ private fun tooExpensiveOffer(
     } else {
         CancellationOffer(
             reason = "too_expensive",
-            heading = "Starter is the same product, priced for a smaller crew",
+            heading = AppStrings.translate(locale, "settings.offerStarterHeading"),
             body = "$price $limits " + AppStrings.translate(
                 locale,
                 "settings.offerStarterTail",
@@ -1825,10 +1825,9 @@ fun planBadge(
  * nothing changed, because the reader's next thought after "couldn't check" is
  * "did something happen to my plan".
  */
-fun planStateUnknownNote(pause: PauseRead): String? = when (pause) {
+fun planStateUnknownNote(pause: PauseRead, locale: String? = null): String? = when (pause) {
     is PauseRead.Failed ->
-        "We couldn't check this plan's status just now, so nothing here is claimed " +
-            "either way. Your plan and your number are untouched."
+        AppStrings.translate(locale, "settings.planStateUnknownNote")
 
     else -> null
 }
@@ -1877,11 +1876,12 @@ fun planStateUnknownNote(pause: PauseRead): String? = when (pause) {
  * read it. The sentence is now the same shape as `CANCEL_CONSEQUENCE` on web:
  * the number of days, and immediately what they are counted from.
  */
-fun pausedCancelNote(pause: PauseRead): String? = if (pause.isPaused) {
-    "Your plan is paused, so texting is already off — what cancelling ends is the " +
-        "plan itself. It also starts the clock on your number: " +
-        "$CANCELLATION_GRACE_DAYS days from the day you cancel, not from the day " +
-        "the plan ends. That is the clock a pause keeps off it."
+fun pausedCancelNote(pause: PauseRead, locale: String? = null): String? = if (pause.isPaused) {
+    AppStrings.translate(
+        locale,
+        "settings.pausedCancelNote",
+        mapOf("days" to CANCELLATION_GRACE_DAYS.toString()),
+    )
 } else {
     null
 }

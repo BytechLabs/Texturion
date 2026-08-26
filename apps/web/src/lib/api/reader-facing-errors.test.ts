@@ -87,6 +87,51 @@ describe("a French reader gets French", () => {
   });
 });
 
+describe("specific server message keys", () => {
+  const keyed = {
+    error: {
+      code: "validation_failed",
+      message: "Legacy English refusal.",
+      message_key: "apiErrors.contactImportUnreadableFlag",
+      message_vars: {
+        header: "Do not text",
+        values: "“maybe”",
+        ignored_number: 3,
+      },
+    },
+  };
+
+  it("keeps the instruction specific and interpolated in English", () => {
+    const error = parseErrorBody(422, keyed, makeTranslate("en"));
+    expect(error.message).toContain("Do not text");
+    expect(error.message).toContain("“maybe”");
+    expect(error.message).toContain("true/false");
+    expect(error.message).not.toContain("Legacy English refusal");
+    expect(error.message).not.toContain("{header}");
+  });
+
+  it("keeps the same instruction specific in French", () => {
+    const error = parseErrorBody(422, keyed, makeTranslate("fr-CA"));
+    expect(error.message).toContain("Do not text");
+    expect(error.message).toContain("“maybe”");
+    expect(error.message).toContain("interpréter comme oui ou non");
+    expect(error.message).not.toContain("Legacy English refusal");
+  });
+
+  it("fails open when a rolling deploy sends a key this build does not know", () => {
+    const unknown = {
+      error: {
+        ...keyed.error,
+        message_key: "apiErrors.fromTheFuture",
+      },
+    };
+    expect(parseErrorBody(422, unknown).message).toBe("Legacy English refusal.");
+    expect(
+      parseErrorBody(422, unknown, makeTranslate("fr-CA")).message,
+    ).toBe(apiErrorsFr.validation_failed);
+  });
+});
+
 describe("an unrecognised locale behaves as English", () => {
   it("keeps the server's specific sentence rather than English generic copy", () => {
     // makeTranslate falls back to the English catalogue for a locale it does

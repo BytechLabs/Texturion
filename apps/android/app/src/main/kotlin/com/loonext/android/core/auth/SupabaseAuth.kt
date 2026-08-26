@@ -400,6 +400,7 @@ class SupabaseAuth(
                 ApiErrorCode.NETWORK,
                 "Can't reach the sign-in service. Check your connection.",
                 0,
+                messageKey = "common.errSignInNetwork",
             )
         }
         response.use {

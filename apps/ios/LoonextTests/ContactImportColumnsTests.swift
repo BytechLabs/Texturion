@@ -986,6 +986,50 @@ final class ContactImportColumnsTests: XCTestCase {
         )
     }
 
+    /// #228: the model helpers stay usable from pure tests and wire code with
+    /// their established English defaults, while the sheet can explicitly ask
+    /// for the reader's app language.
+    func testTheColumnAndPropertyCopyHasFrenchTwinsWithoutChangingEnglishDefaults() {
+        let fr = MessageLocale.frCA
+
+        XCTAssertEqual(ContactImportField.phone.label, "Phone")
+        XCTAssertEqual(ContactImportField.phone.localizedLabel(fr), "Téléphone")
+        XCTAssertEqual(ContactImportField.optedOut.label, "Do not text")
+        XCTAssertEqual(ContactImportField.optedOut.localizedLabel(fr), "Ne pas texter")
+
+        let column = ContactImportColumn(index: 3, header: "", samples: [])
+        XCTAssertEqual(column.title, "Column 4 — no heading")
+        XCTAssertEqual(column.localizedTitle(fr), "Colonne 4 — sans en-tête")
+        XCTAssertEqual(column.sampleLine, "every row leaves this blank")
+        XCTAssertEqual(
+            column.line(showingAll: false, locale: fr),
+            "chaque ligne laisse cette colonne vide"
+        )
+        XCTAssertEqual(ContactColumns.ignoreRestLabel(4), "Ignore the 4 columns left")
+        XCTAssertEqual(
+            ContactColumns.ignoreRestLabel(4, locale: fr),
+            "Ignorer les 4 colonnes restantes"
+        )
+
+        let property = VCardProperty(name: "", cards: 2, samples: [])
+        XCTAssertEqual(property.title, "A property with no name")
+        XCTAssertEqual(property.localizedTitle(fr), "Un élément sans nom")
+        XCTAssertEqual(property.cardLine, "on 2 cards")
+        XCTAssertEqual(property.localizedCardLine(fr), "sur 2 fiches")
+        XCTAssertEqual(VCardPropertyAction.optedOut.label, "Don't text any card with it")
+        XCTAssertEqual(
+            VCardPropertyAction.optedOut.localizedLabel(fr),
+            "Ne texter aucune fiche qui le contient"
+        )
+
+        let blocker = ContactImportBlocker(header: "DNC", values: ["peut-être"], more: 2)
+        XCTAssertEqual(blocker.title, "We can't read the do-not-text column")
+        XCTAssertTrue(blocker.localizedTitle(fr).contains("ne pas texter"))
+        XCTAssertTrue(blocker.localizedDetail(fr).contains("oui ou non"))
+        XCTAssertTrue(blocker.localizedDetail(fr).contains("Ignorer"))
+        XCTAssertTrue(blocker.localizedWayOut(fr).contains("Corrigez"))
+    }
+
     // MARK: - The vCard door's own scan
 
     /// One MIX .vcf: two cards, folded lines, a grouped property, a parameter
@@ -1179,8 +1223,8 @@ final class ContactImportColumnsTests: XCTestCase {
         for drawn in [
             "candidate.columns",
             "columnRow(column)",
-            "column.title",
-            "column.line(showingAll:",
+            "column.localizedTitle(appLocale)",
+            "column.line(showingAll: showingAll, locale: appLocale)",
             "columnMenu(column)",
             // #528: and a way to reach the values it did NOT print. A list
             // that simply stopped read as complete, so a restriction at the
@@ -1188,14 +1232,16 @@ final class ContactImportColumnsTests: XCTestCase {
             "column.total > column.samples.count",
             "showAllValuesButton(total: column.total",
             "ContactImportColumnAction.answers",
-            "ContactColumns.columnsExplanation",
-            "ContactColumns.ignoreMeaning",
+            "ContactColumns.localizedColumnsExplanation(appLocale)",
+            "ContactColumns.localizedIgnoreMeaning(appLocale)",
+            "ContactColumns.localizedColumnsHeading(appLocale)",
             "ContactColumns.answeredLine(",
             "ignoreRestButton",
-            "ContactColumns.ignoreRestLabel(",
+            "ContactColumns.ignoreRestLabel(unansweredColumns, locale: appLocale)",
+            "action.localizedLabel(appLocale)",
             "ContactImport.guessedAnswers(",
-            "blocker.title",
-            "blocker.detail",
+            "blocker.localizedTitle(appLocale)",
+            "blocker.localizedDetail(appLocale)",
             "ContactImport.mayImport(",
             "ContactImport.gateReason(",
         ] {
@@ -1230,13 +1276,15 @@ final class ContactImportColumnsTests: XCTestCase {
         for drawn in [
             "candidate.properties",
             "propertyRow(property)",
-            "property.title",
-            "property.line(showingAll:",
+            "property.localizedTitle(appLocale)",
+            "property.line(showingAll: showingAll, locale: appLocale)",
             "propertyMenu(property)",
             "property.total > property.samples.count",
             "showAllValuesButton(total: property.total",
             "VCardPropertyAction.allCases",
-            "VCardProperties.explanation",
+            "VCardProperties.localizedHeading(appLocale)",
+            "VCardProperties.localizedExplanation(appLocale)",
+            "VCardProperties.ignoreRestLabel(unansweredProperties, locale: appLocale)",
             "ignoreRestPropertiesButton",
         ] {
             XCTAssertTrue(

@@ -13,6 +13,8 @@ import android.os.Bundle
 import android.os.IBinder
 import android.provider.ContactsContract
 import com.loonext.android.core.diag.CallFlowLog
+import com.loonext.android.core.i18n.UiLocale
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.features.contacts.device.ContentResolverDeviceContacts
 import kotlinx.coroutines.runBlocking
 
@@ -43,7 +45,10 @@ class ContactsSyncAdapter(context: Context) :
     ) {
         runCatching {
             val contacts = runBlocking { deviceContacts.loadContacts() }
-            val plan = buildSyncRawContacts(pkg, contacts)
+            // These rows are rendered by the system Contacts app, so follow the
+            // system/device language rather than a Compose-local value.
+            val locale = UiLocale.normalizeDevice(UiLocale.deviceTag()) ?: MessageLocale.DEFAULT
+            val plan = buildSyncRawContacts(pkg, contacts, locale)
 
             val ops = ArrayList<ContentProviderOperation>()
             // Clean slate: drop every RawContact we previously wrote for this

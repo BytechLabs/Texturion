@@ -121,6 +121,7 @@ import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.compose.OnMyWay
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.shouldOfferThreadSummaryFor
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.isConversationFlaggedUrgent
@@ -1108,6 +1109,10 @@ private fun ThreadLoaded(
                 companyId = companyId,
                 conversationId = controller.conversationId,
                 businessName = controller.company?.name,
+                messageLocale = MessageLocale.resolve(
+                    detail.contact.locale,
+                    controller.company?.locale,
+                ),
                 canAct = !viewerReadOnly,
                 onNotice = onNotice,
                 // The ask went out as an ordinary text, so the transcript has a

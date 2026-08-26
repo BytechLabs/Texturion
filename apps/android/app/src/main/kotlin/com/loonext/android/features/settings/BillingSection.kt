@@ -614,7 +614,7 @@ private fun CancelCard(
         // Above it, this would appear the moment a Stripe round trip landed and
         // push the exit down the screen — the regression this whole card is
         // built against, arriving as a correction to the card's own copy.
-        pausedCancelNote(pause)?.let { note ->
+        pausedCancelNote(pause, locale)?.let { note ->
             Spacer(Modifier.height(12.dp))
             ReadOnlyLine(note)
         }
@@ -1485,7 +1485,7 @@ private fun PlanCard(
         // Asked and not answered. One sentence for the failure and a way to ask
         // again; nothing at all while it is still in flight, because the pill
         // above already says so and narrating a request is not information.
-        planStateUnknownNote(pause)?.let { note ->
+        planStateUnknownNote(pause, locale)?.let { note ->
             ReadOnlyLine(note)
             LinkButton(onClick = onRetryPause) { Text(t("common.retry")) }
         }

@@ -9,6 +9,9 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.loonext.android.core.diag.CallFlowLog
 import com.loonext.android.core.diag.CrashDiagnostics
 import com.loonext.android.core.diag.PostCrashHonesty
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.UiLocale
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.push.CallEndHandler
 import com.loonext.android.push.CallWakeHandler
@@ -58,7 +61,7 @@ class SoftphoneManager private constructor(
          * [com.loonext.android.features.calls.CallActivity] (which matches on
          * it to replace the endless "Connecting…" with the truth).
          */
-        const val ANSWER_FAILED_MESSAGE = "Couldn't connect the call."
+        private const val ANSWER_FAILED_KEY = "telephony.connectFailed"
 
         @Volatile
         private var instance: SoftphoneManager? = null
@@ -78,6 +81,23 @@ class SoftphoneManager private constructor(
     private val diagnostics = CrashDiagnostics.get(appContext)
 
     /**
+     * FCM/Telecom can build the singleton before Compose exists, so start with
+     * the device language. ReadyShell replaces it with the full user > device >
+     * workspace resolution as soon as the signed-in UI is available.
+     */
+    @Volatile
+    private var readerLocale: String =
+        UiLocale.normalizeDevice(UiLocale.deviceTag()) ?: MessageLocale.DEFAULT
+
+    private fun copy(key: String): String = AppStrings.translate(readerLocale, key)
+
+    fun setReaderLocale(locale: String) {
+        readerLocale = locale
+    }
+
+    fun answerFailedMessage(): String = copy(ANSWER_FAILED_KEY)
+
+    /**
      * #168A: an uncaught failure in ANY child coroutine used to reach the
      * default handler — Android kills the process for uncaught coroutine
      * exceptions — taking a live call down with it. The handler records the
@@ -90,7 +110,7 @@ class SoftphoneManager private constructor(
             },
     )
     private val sdk = TelnyxSdkClient(appContext, scope)
-    private val core = SoftphoneCore(HttpCallsApi(api), sdk, scope)
+    private val core = SoftphoneCore(HttpCallsApi(api), sdk, scope, translate = ::copy)
     private val notifier = CallNotifier(appContext)
 
     /** The one softphone state stream every surface renders from. */
@@ -215,7 +235,7 @@ class SoftphoneManager private constructor(
                 "answer",
                 "answered call never connected sess=${CallFlowLog.tail(session)} - surfacing failure",
             )
-            core.reportUiError(ANSWER_FAILED_MESSAGE)
+            core.reportUiError(answerFailedMessage())
             core.forceRecoverAfterAnswerFailure()
         }
 
@@ -327,7 +347,7 @@ class SoftphoneManager private constructor(
             )
             diagnostics.callMarker.clear()
             if (interrupted) {
-                core.reportUiError("A call was interrupted when the app closed unexpectedly.")
+                core.reportUiError(copy("telephony.interruptedByCrash"))
             }
         }
     }
@@ -428,7 +448,9 @@ class SoftphoneManager private constructor(
         // phoneCall-only, which does not carry the background mic-capture right;
         // restarting re-evaluates the type and upgrades it to include microphone
         // (idempotent — same notification id, no user-visible change).
-        runCatching { CallForegroundService.start(appContext, "Ongoing call") }
+        runCatching {
+            CallForegroundService.start(appContext, copy("telephony.ongoingCall"))
+        }
         leg?.let { runCatching { core.answer(it.id) } }
     }
 
@@ -466,7 +488,9 @@ class SoftphoneManager private constructor(
         }
         // Every accept path must re-assert the FGS: one started at ring time (before
         // RECORD_AUDIO existed) is phoneCall-only and carries no background mic right.
-        runCatching { CallForegroundService.start(appContext, "Ongoing call") }
+        runCatching {
+            CallForegroundService.start(appContext, copy("telephony.ongoingCall"))
+        }
         core.answer(id)
     }
 
@@ -631,7 +655,11 @@ class SoftphoneManager private constructor(
                 CallForegroundService.start(
                     appContext,
                     title = featured.peerName.ifBlank { featured.peerNumber },
-                    text = if (featured.phase == CallPhase.HELD) "On hold" else "Call in progress",
+                    text = if (featured.phase == CallPhase.HELD) {
+                        copy("telephony.callOnHold")
+                    } else {
+                        copy("telephony.callInProgress")
+                    },
                     sinceMs = featured.activeSinceMs,
                 )
                 // The "Connecting…" row hands off to the ongoing one. Cancel by the

@@ -7,12 +7,37 @@ import {
 import type { Context } from "hono";
 
 /**
- * SPEC §7 error envelope: `{ error: { code, message } }` with the stable
- * HTTP status defined for each code. The full code→status map lives in
- * @loonext/shared (`ERROR_CODE_STATUS`) as the single source of truth.
+ * SPEC §7 error envelope: `{ error: { code, message } }` with an optional
+ * catalogue reference for clients that can localize the specific sentence.
+ * The full code→status map lives in @loonext/shared (`ERROR_CODE_STATUS`) as
+ * the single source of truth.
  */
-export function errorResponse(c: Context, code: ErrorCode, message: string) {
-  return c.json({ error: { code, message } }, ERROR_CODE_STATUS[code]);
+export interface ErrorMessageReference {
+  key: string;
+  vars?: Record<string, string>;
+}
+
+export function errorResponse(
+  c: Context,
+  code: ErrorCode,
+  message: string,
+  reference?: ErrorMessageReference,
+) {
+  return c.json(
+    {
+      error: {
+        code,
+        message,
+        ...(reference
+          ? {
+              message_key: reference.key,
+              ...(reference.vars ? { message_vars: reference.vars } : {}),
+            }
+          : {}),
+      },
+    },
+    ERROR_CODE_STATUS[code],
+  );
 }
 
 /**
@@ -73,10 +98,16 @@ export function internalErrorResponse(
  */
 export class ApiError extends Error {
   readonly code: ErrorCode;
+  readonly reference?: ErrorMessageReference;
 
-  constructor(code: ErrorCode, message: string) {
+  constructor(
+    code: ErrorCode,
+    message: string,
+    reference?: ErrorMessageReference,
+  ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
+    this.reference = reference;
   }
 }

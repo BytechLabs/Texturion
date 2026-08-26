@@ -43,8 +43,8 @@ import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { verifyTurnstile } from "../http/turnstile";
 import {
-  MARKETING_CONSENT_TEXT,
   MARKETING_DAILY_CAP,
+  marketingConsentText,
   sendComparisonEmail,
 } from "../marketing/comparison-email";
 
@@ -57,6 +57,8 @@ const captureSchema = z.object({
    * what somebody agreed to.
    */
   source: z.enum(["compare_page", "pricing_page"]),
+  /** The route language chooses server-owned consent and email copy. */
+  locale: z.enum(["en", "fr-CA"]).default("en"),
   /** Honeypot — rendered invisibly by the form; humans never fill it. */
   website: z.string().max(400).optional(),
   turnstileToken: z.string().min(1).max(4096).optional(),
@@ -140,8 +142,9 @@ marketingRoutes.post("/marketing/comparison", async (c) => {
     // Stored from the SERVER's constant, never from the request. The record of
     // what somebody agreed to must be the words we actually showed, and a client
     // that could send its own consent text could record any agreement it liked.
-    p_consent_text: MARKETING_CONSENT_TEXT,
+    p_consent_text: marketingConsentText(body.locale),
     p_cap: MARKETING_DAILY_CAP,
+    p_locale: body.locale,
   });
   if (error) {
     return errorResponse(c, "service_unavailable", "Could not record that right now.");
@@ -178,8 +181,35 @@ marketingRoutes.post("/marketing/comparison", async (c) => {
 marketingRoutes.post("/marketing/unsubscribe", async (c) => {
   const env = getEnv(c.env);
 
-  const raw = await readJson(c.req.raw);
-  if (raw === null) return errorResponse(c, "validation_failed", "Body must be JSON.");
+  const contentType = (c.req.header("Content-Type") ?? "")
+    .split(";", 1)[0]
+    ?.trim()
+    .toLowerCase();
+  let raw: unknown | null;
+  if (contentType === "application/x-www-form-urlencoded") {
+    // RFC 8058: a mail client POSTs this exact marker to the URL from the
+    // List-Unsubscribe header. The unguessable token stays in that URL; this
+    // body proves the caller is exercising one-click rather than submitting a
+    // browser form that happens to share the endpoint.
+    try {
+      const form = await c.req.raw.formData();
+      raw = form.get("List-Unsubscribe") === "One-Click"
+        ? { token: c.req.query("token") }
+        : null;
+    } catch {
+      raw = null;
+    }
+    if (raw === null) {
+      return errorResponse(c, "validation_failed", "Invalid one-click request.");
+    }
+  } else {
+    // The localized browser page calls the same operation with JSON after a
+    // person follows its GET link. Keeping this path preserves that client.
+    raw = await readJson(c.req.raw);
+    if (raw === null) {
+      return errorResponse(c, "validation_failed", "Body must be JSON.");
+    }
+  }
   const parsed = unsubscribeSchema.safeParse(raw);
   if (!parsed.success) {
     // A malformed token cannot be acted on, and there is nothing the person

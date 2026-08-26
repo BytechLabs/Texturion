@@ -126,6 +126,7 @@ func selectLoaded(_ loadedIds: [String]) -> BulkSelection {
 /// the same sentence.
 func bulkResultMessage(
     verb: String,
+    verbMany: String? = nil,
     applied: Int,
     failed: Int,
     matched: Int,
@@ -138,10 +139,11 @@ func bulkResultMessage(
     let one = nounOne ?? AppStrings.translate(locale, "inbox.bulkNounOne")
     let many = nounMany ?? AppStrings.translate(locale, "inbox.bulkNounMany")
     let thing = applied == 1 ? one : many
+    let chosenVerb = applied == 1 ? verb : (verbMany ?? verb)
     var message = AppStrings.translate(
         locale,
         "inbox.bulkResultApplied",
-        ["verb": verb, "count": String(applied), "thing": thing]
+        ["verb": chosenVerb, "count": String(applied), "thing": thing]
     )
     // The cap is where "it worked" and "it finished" are different answers, so the
     // remainder is named rather than left to be discovered.

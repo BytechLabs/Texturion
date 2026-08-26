@@ -782,7 +782,11 @@ extension TasksTab {
             if bulkRunning { ProgressView() }
 
             Button(AppStrings.translate(appLocale, "contactsTasks.columnDone")) {
-                runBulk(action: "mark_done", verb: "Marked done")
+                runBulk(
+                    action: "mark_done",
+                    verbOneKey: "contactsTasks.bulkMarkedDoneOne",
+                    verbManyKey: "contactsTasks.bulkMarkedDoneMany"
+                )
             }
                 .font(.golos(13, weight: .semibold))
                 .foregroundStyle(BrandColor.olive)
@@ -799,19 +803,37 @@ extension TasksTab {
                             appLocale, "contactsTasks.assignTo", ["who": who]
                         )
                     ) {
-                        runBulk(action: "assign", verb: "Assigned", targetUserId: member.user_id)
+                        runBulk(
+                            action: "assign",
+                            verbOneKey: "contactsTasks.bulkAssignedOne",
+                            verbManyKey: "contactsTasks.bulkAssignedMany",
+                            targetUserId: member.user_id
+                        )
                     }
                 }
                 Button(AppStrings.translate(appLocale, "contactsTasks.unassign")) {
-                    runBulk(action: "assign", verb: "Unassigned", unassign: true)
+                    runBulk(
+                        action: "assign",
+                        verbOneKey: "contactsTasks.bulkUnassignedOne",
+                        verbManyKey: "contactsTasks.bulkUnassignedMany",
+                        unassign: true
+                    )
                 }
                 Button(AppStrings.translate(appLocale, "contactsTasks.markNotDone")) {
-                    runBulk(action: "mark_undone", verb: "Marked not done")
+                    runBulk(
+                        action: "mark_undone",
+                        verbOneKey: "contactsTasks.bulkMarkedNotDoneOne",
+                        verbManyKey: "contactsTasks.bulkMarkedNotDoneMany"
+                    )
                 }
                 // Destructive and last: an action adjacent to the ones people
                 // use by momentum is one somebody hits by momentum.
                 Button(AppStrings.translate(appLocale, "common.delete"), role: .destructive) {
-                    runBulk(action: "delete", verb: "Deleted")
+                    runBulk(
+                        action: "delete",
+                        verbOneKey: "contactsTasks.bulkDeletedOne",
+                        verbManyKey: "contactsTasks.bulkDeletedMany"
+                    )
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -864,7 +886,8 @@ extension TasksTab {
     /// it guessed would be a count somebody trusted.
     func runBulk(
         action: String,
-        verb: String,
+        verbOneKey: String,
+        verbManyKey: String,
         targetUserId: String? = nil,
         unassign: Bool = false
     ) {
@@ -896,13 +919,15 @@ extension TasksTab {
                     unassign: unassign
                 )
                 toggleError = bulkResultMessage(
-                    verb: verb,
+                    verb: AppStrings.translate(appLocale, verbOneKey),
+                    verbMany: AppStrings.translate(appLocale, verbManyKey),
                     applied: result.applied.count,
                     failed: result.failed.count,
                     matched: result.matched,
                     capped: result.capped,
-                    nounOne: "task",
-                    nounMany: "tasks"
+                    nounOne: AppStrings.translate(appLocale, "contactsTasks.bulkTaskOne"),
+                    nounMany: AppStrings.translate(appLocale, "contactsTasks.bulkTaskMany"),
+                    locale: appLocale
                 )
                 bulkSelection = .empty
                 refreshKey += 1

@@ -1,5 +1,7 @@
 package com.loonext.android.push
 
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.model.MessageLocale
 import java.net.URI
 import java.net.URLDecoder
 
@@ -99,7 +101,10 @@ data class PushContent(
  * the wire; missing/garbage input degrades to a generic notice on the
  * Messages channel with the inbox fallback link.
  */
-fun parsePush(data: Map<String, String>): PushContent {
+fun parsePush(
+    data: Map<String, String>,
+    locale: String = MessageLocale.DEFAULT,
+): PushContent {
     val kind = data["kind"]?.trim()?.takeIf { it.isNotEmpty() }
     val url = normalizeDeepLink(data["url"])
     val title = data["title"]?.trim()?.takeIf { it.isNotEmpty() }
@@ -112,8 +117,10 @@ fun parsePush(data: Map<String, String>): PushContent {
         // never posted; the messaging service cancels by this tag instead.
         return PushContent(
             kind = kind,
-            title = title ?: "Incoming call",
-            body = body.ifEmpty { "Someone is calling your business number." },
+            title = title ?: AppStrings.translate(locale, "push.fallbackIncomingTitle"),
+            body = body.ifEmpty {
+                AppStrings.translate(locale, "push.fallbackIncomingBody")
+            },
             url = url,
             tag = tag,
             channelId = ChannelIds.INCOMING_CALLS,
@@ -122,7 +129,7 @@ fun parsePush(data: Map<String, String>): PushContent {
     return PushContent(
         kind = kind,
         title = title ?: "Loonext",
-        body = body.ifEmpty { "You have a new notification." },
+        body = body.ifEmpty { AppStrings.translate(locale, "push.fallbackGenericBody") },
         url = url,
         tag = tag,
         channelId = when (kind) {

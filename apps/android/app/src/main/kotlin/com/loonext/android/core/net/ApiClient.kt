@@ -300,18 +300,20 @@ class ApiClient(
             RecentErrors.record(
                 listOfNotNull(label, "$status", code, requestId).joinToString(" ").trim(),
             )
-            // #228: the one place both cases meet. When the envelope carried a
-            // sentence it is the SERVER's, worded and translated there, and a
-            // client-side copy of it would go stale the moment the API rewords
-            // one. The fallback is ours, so it gets a key.
+            // #228: the server's English sentence remains useful to old builds
+            // and diagnostics. New endpoints may pair it with a catalogue key,
+            // which keeps the same specific instruction in the reader's locale.
+            // Only a locally composed fallback invents its key here.
             val serverMessage = parsed?.error?.message
             throw ApiException(
                 code = code,
                 message = serverMessage ?: "Something went wrong ($status).",
                 httpStatus = status,
                 requestId = requestId,
-                messageKey = if (serverMessage == null) "common.errServer" else null,
-                messageVars = mapOf("status" to status.toString()),
+                messageKey = parsed?.error?.message_key
+                    ?: if (serverMessage == null) "common.errServer" else null,
+                messageVars = parsed?.error?.message_vars
+                    ?: mapOf("status" to status.toString()),
             )
         }
     }

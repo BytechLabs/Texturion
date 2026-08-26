@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { Dateline } from "@/components/marketing/fr";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { legalPageCopy } from "@/i18n/marketing/legal-page";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { breadcrumbJsonLd } from "@/lib/marketing/seo";
 
@@ -31,6 +33,7 @@ export function LegalPage({
   breadcrumbLabel,
   path,
   sections,
+  locale = "en",
   children,
 }: {
   title: string;
@@ -44,13 +47,16 @@ export function LegalPage({
   breadcrumbLabel: string;
   path: string;
   sections: LegalSection[];
+  locale?: MarketingLocale;
   children: React.ReactNode;
 }) {
+  const copy = legalPageCopy(locale);
+
   return (
     <div className="bg-[color:var(--fr-ground)] py-16 md:py-24">
       <JsonLd
         data={breadcrumbJsonLd([
-          { name: "Home", path: "/" },
+          { name: copy.home, path: "/" },
           { name: breadcrumbLabel, path },
         ])}
       />
@@ -60,7 +66,7 @@ export function LegalPage({
             {title}
           </h1>
           <p className="fr-mono-data mt-4 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-            Last updated{" "}
+            {copy.lastUpdated}{" "}
             <time dateTime={lastUpdatedIso}>{lastUpdated}</time>
           </p>
 
@@ -68,13 +74,13 @@ export function LegalPage({
               it the true summary in plain English. */}
           <div className="mt-8 rounded-xl bg-[color:var(--fr-frost)] p-5 sm:p-6">
             <Dateline tone="frost" className="bg-[color:var(--fr-card)]">
-              Plain English summary
+              {copy.summaryLabel}
             </Dateline>
             <p className="fr-body mt-3 text-[color:var(--fr-ink)]">{summary}</p>
           </div>
 
           {/* Quiet contents: mono numbers, no box, no rules. */}
-          <nav aria-label="Contents" className="mt-8">
+          <nav aria-label={copy.contents} className="mt-8">
             <ol className="space-y-1.5">
               {sections.map((s) => (
                 <li key={s.id}>

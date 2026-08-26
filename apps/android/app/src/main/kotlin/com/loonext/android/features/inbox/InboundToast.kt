@@ -89,6 +89,7 @@ fun InboundMessageToastHost(
                 hasAttachments = kinds.isNotEmpty(),
                 attachmentKind = sharedMmsKind(kinds),
                 attachmentCount = kinds.size,
+                locale = locale,
             )
             val result = snackbar.showSnackbar(
                 message = line,

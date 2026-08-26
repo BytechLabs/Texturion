@@ -279,7 +279,7 @@ private fun CallSurface(
     // deadline / ring window reaped it) — show the truth, not "Connecting…".
     LaunchedEffect(answering, live, snapshot.error) {
         if (answering && live == null && !wentLive &&
-            snapshot.error == SoftphoneManager.ANSWER_FAILED_MESSAGE
+            snapshot.error == manager.answerFailedMessage()
         ) {
             answerFailed = true
         }
@@ -427,7 +427,7 @@ private fun CallSurfaceContent(
             }
             CallStatus(
                 title = callerName.ifBlank { callerNumber },
-                status = SoftphoneManager.ANSWER_FAILED_MESSAGE,
+                status = manager.answerFailedMessage(),
                 actionLabel = t("common.close"),
                 onAction = {
                     manager.clearError()

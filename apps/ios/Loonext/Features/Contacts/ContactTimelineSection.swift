@@ -107,7 +107,10 @@ struct ContactTimelineSection: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 6)
             } else {
-                readyList(groupTimelineByDay(entries), nextCursor: log.nextCursor)
+                readyList(
+                    groupTimelineByDay(entries, locale: appLocale),
+                    nextCursor: log.nextCursor
+                )
             }
         }
     }
@@ -209,6 +212,7 @@ private struct TimelineRow: View {
     let entry: TimelineEntry
     let memberNames: [String: String]
     let onOpen: (@MainActor () -> Void)?
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         let row = HStack(spacing: 10) {
@@ -217,10 +221,10 @@ private struct TimelineRow: View {
                 .foregroundStyle(BrandColor.muted500)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 2) {
-                Text(timelineTitle(entry, memberNames: memberNames))
+                Text(timelineTitle(entry, memberNames: memberNames, locale: appLocale))
                     .font(.golos(14))
                     .lineLimit(1)
-                Text(timelineDetail(entry))
+                Text(timelineDetail(entry, locale: appLocale))
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted500)
                     .lineLimit(1)
@@ -254,6 +258,11 @@ private struct TimelineRow: View {
         // `.formatted(.dateTime...)` API is used nowhere else here, and Swift
         // only compiles in CI, so an unproven API is a 25-minute round trip.
         guard let date = parseWireTimestamp(entry.occurred_at) else { return "" }
-        return timelineShortDate(date, calendar: .current, format: "h:mm a")
+        return timelineShortDate(
+            date,
+            calendar: .current,
+            template: "jm",
+            locale: appLocale
+        )
     }
 }

@@ -55,51 +55,97 @@ struct ContactTimelinePage: Decodable, Sendable {
 /// name is a decoration on a line that already reads correctly without it.
 func timelineTitle(
     _ entry: TimelineEntry,
-    memberNames: [String: String] = [:]
+    memberNames: [String: String] = [:],
+    locale: String = MessageLocale.en
 ) -> String {
     switch entry.kind {
     case "task":
-        return entry.detail ?? "Job"
+        return entry.detail ?? AppStrings.translate(locale, "contactsTasks.timelineJob")
     case "call":
         switch entry.status {
         case "answered":
             guard let who = entry.answered_by_user_id.flatMap({ memberNames[$0] })
-            else { return "Call answered" }
-            return "Call answered by \(who)"
-        case "voicemail": return "Voicemail"
-        default: return "Missed call"
+            else {
+                return AppStrings.translate(locale, "contactsTasks.timelineCallAnswered")
+            }
+            return AppStrings.translate(
+                locale,
+                "contactsTasks.timelineCallAnsweredBy",
+                ["name": who]
+            )
+        case "voicemail":
+            return AppStrings.translate(locale, "contactsTasks.timelineVoicemail")
+        default:
+            return AppStrings.translate(locale, "contactsTasks.timelineMissedCall")
         }
     default:
-        return "Conversation"
+        return AppStrings.translate(locale, "contactsTasks.timelineConversation")
     }
 }
 
 /// The second line: the one detail worth carrying at a glance.
-func timelineDetail(_ entry: TimelineEntry) -> String {
+func timelineDetail(
+    _ entry: TimelineEntry,
+    locale: String = MessageLocale.en
+) -> String {
     switch entry.kind {
     case "task":
-        if entry.done == true { return "Done" }
-        if let due = entry.due_at { return "Due \(timelineDueLabel(due))" }
-        return "Open"
+        if entry.done == true {
+            return AppStrings.translate(locale, "contactsTasks.timelineDone")
+        }
+        if let due = entry.due_at {
+            return AppStrings.translate(
+                locale,
+                "contactsTasks.timelineDue",
+                ["date": timelineDueLabel(due, locale: locale)]
+            )
+        }
+        return AppStrings.translate(locale, "contactsTasks.timelineOpen")
     case "call":
         // Talk time only, and only when there was any: "0s" on a missed call
         // reads as a fault rather than as an absence.
         let seconds = entry.talk_seconds ?? 0
-        return seconds > 0 ? "Talked for \(timelineTalkTime(seconds))" : "No answer"
+        return seconds > 0
+            ? AppStrings.translate(
+                locale,
+                "contactsTasks.timelineTalkedFor",
+                ["duration": timelineTalkTime(seconds, locale: locale)]
+            )
+            : AppStrings.translate(locale, "contactsTasks.timelineNoAnswer")
     default:
-        return entry.status == "closed" ? "Closed" : "Open"
+        return AppStrings.translate(
+            locale,
+            entry.status == "closed"
+                ? "contactsTasks.timelineClosed"
+                : "contactsTasks.timelineOpen"
+        )
     }
 }
 
-func timelineTalkTime(_ seconds: Int) -> String {
+func timelineTalkTime(
+    _ seconds: Int,
+    locale: String = MessageLocale.en
+) -> String {
     let minutes = seconds / 60
     let rest = seconds % 60
-    return minutes > 0 ? "\(minutes)m \(rest)s" : "\(rest)s"
+    return AppStrings.translate(
+        locale,
+        minutes > 0
+            ? "contactsTasks.timelineDurationMinutes"
+            : "contactsTasks.timelineDurationSeconds",
+        ["minutes": String(minutes), "seconds": String(rest)]
+    )
 }
 
-private func timelineDueLabel(_ iso: String, calendar: Calendar = .current) -> String {
-    guard let date = parseWireTimestamp(iso) else { return "soon" }
-    return timelineShortDate(date, calendar: calendar, format: "MMM d")
+private func timelineDueLabel(
+    _ iso: String,
+    calendar: Calendar = .current,
+    locale: String = MessageLocale.en
+) -> String {
+    guard let date = parseWireTimestamp(iso) else {
+        return AppStrings.translate(locale, "contactsTasks.timelineSoon")
+    }
+    return timelineShortDate(date, calendar: calendar, template: "MMMd", locale: locale)
 }
 
 /// The app's established date formatting: a LOCAL DateFormatter with the posix
@@ -108,15 +154,17 @@ private func timelineDueLabel(_ iso: String, calendar: Calendar = .current) -> S
 /// Not `.formatted(.dateTime...)`: that API appears nowhere else in this app, so
 /// it is unproven here, and Swift only compiles in CI. Not a cached formatter
 /// either — the class is not Sendable, so a `static let` is a build error.
-func timelineShortDate(_ date: Date, calendar: Calendar, format: String) -> String {
+func timelineShortDate(
+    _ date: Date,
+    calendar: Calendar,
+    template: String,
+    locale: String = MessageLocale.en
+) -> String {
     let formatter = DateFormatter()
-    // Format.swift's `posixLocale` is file-private, so it is spelled out here
-    // rather than reached for. A fixed pattern needs a fixed locale, or the
-    // device's regional settings reorder it.
-    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.locale = Locale(identifier: locale == MessageLocale.frCA ? "fr_CA" : "en_CA")
     formatter.calendar = calendar
     formatter.timeZone = calendar.timeZone
-    formatter.dateFormat = format
+    formatter.setLocalizedDateFormatFromTemplate(template)
     return formatter.string(from: date)
 }
 
@@ -135,7 +183,8 @@ struct TimelineDayGroup: Identifiable, Equatable {
 func groupTimelineByDay(
     _ entries: [TimelineEntry],
     calendar: Calendar = .current,
-    now: Date = Date()
+    now: Date = Date(),
+    locale: String = MessageLocale.en
 ) -> [TimelineDayGroup] {
     var order: [Date] = []
     var buckets: [Date: [TimelineEntry]] = [:]
@@ -153,7 +202,7 @@ func groupTimelineByDay(
             // A stable, unique key per day. `formatted(.iso8601)` rather than
             // an ISO8601DateFormatter instance, for the Sendable reason above.
             id: day.formatted(.iso8601),
-            label: timelineDayLabel(day, calendar: calendar, now: now),
+            label: timelineDayLabel(day, calendar: calendar, now: now, locale: locale),
             entries: buckets[day] ?? []
         )
     }
@@ -169,14 +218,22 @@ func groupTimelineByDay(
 func timelineDayLabel(
     _ day: Date,
     calendar: Calendar = .current,
-    now: Date = Date()
+    now: Date = Date(),
+    locale: String = MessageLocale.en
 ) -> String {
-    if calendar.isDate(day, inSameDayAs: now) { return "Today" }
+    if calendar.isDate(day, inSameDayAs: now) {
+        return AppStrings.translate(locale, "contactsTasks.today")
+    }
     if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
        calendar.isDate(day, inSameDayAs: yesterday) {
-        return "Yesterday"
+        return AppStrings.translate(locale, "contactsTasks.timelineYesterday")
     }
-    return timelineShortDate(day, calendar: calendar, format: "MMM d yyyy")
+    return timelineShortDate(
+        day,
+        calendar: calendar,
+        template: "MMMdyyyy",
+        locale: locale
+    )
 }
 
 /// The accumulated history plus the cursor that continues it.

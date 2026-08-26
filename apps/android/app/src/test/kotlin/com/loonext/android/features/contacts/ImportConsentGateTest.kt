@@ -128,9 +128,9 @@ class ImportConsentGateTest {
                 .containsMatchIn(tab),
         )
         assertTrue(
-            "the server's own sentence must reach the screen verbatim — it is " +
+            "the localized compliance sentence must reach the screen — it is " +
                 "the only place the consequence is spelled out",
-            tab.contains("result.consent_refused_note"),
+            tab.contains("contactsTasks.importConsentRefusedNote"),
         )
         assertTrue(
             "and WHICH rows: 'how many' without 'which of them' is a number " +

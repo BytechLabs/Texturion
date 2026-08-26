@@ -313,7 +313,12 @@ final class ContactImportConsentTests: XCTestCase {
     func testTheImportReportDrawsWhatTheAttestationCouldNotCover() throws {
         let file = try repoPath("apps/ios/Loonext/Features/Contacts/ContactsTab.swift")
         let code = try codeLines(of: file)
-        for drawn in ["ImportConsentOutcome(", "consent.heading", "consent.note", "consent.rows"] {
+        for drawn in [
+            "ImportConsentOutcome(",
+            "consent.localizedHeading",
+            "consent.localizedNote",
+            "consent.rows",
+        ] {
             XCTAssertTrue(
                 code.contains(where: { $0.contains(drawn) }),
                 "the import report must draw \(drawn) — a refusal the sheet computes and "

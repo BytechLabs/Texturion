@@ -101,7 +101,7 @@ enum AppLock {
     }
 
     /// Why it cannot be turned on, for the one case where that is true.
-    static let cannotEnableNote =
-        "Set a passcode, Face ID or Touch ID on this phone first — without one "
-        + "there is nothing for this to ask you for."
+    static func cannotEnableNote(locale: String = MessageLocale.en) -> String {
+        AppStrings.translate(locale, "shell.lockCannotEnable")
+    }
 }

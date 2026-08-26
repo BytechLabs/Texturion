@@ -38,7 +38,7 @@ export function buildTestApp(...subApps: Hono<AppEnv>[]): Hono<AppEnv> {
   // log) stays in `index.ts`, because a test must not perform it.
   app.onError((error, c) => {
     if (error instanceof ApiError) {
-      return errorResponse(c, error.code, error.message);
+      return errorResponse(c, error.code, error.message, error.reference);
     }
     let allowed: (string | undefined)[] = [];
     try {

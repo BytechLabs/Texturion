@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { readWorkerBindings } from "@/lib/marketing/status-mailer";
 import {
+  STATUS_SUBSCRIPTION_PATHS,
+  statusSubscriptionLocale,
   unsubscribe,
+  type StatusSubscriptionLocale,
   type SubscriberStore,
 } from "@/lib/marketing/status-subscribe";
 
@@ -23,16 +26,24 @@ import {
  *
  * No `export const runtime` — the OpenNext adapter runs the Node runtime (D1).
  */
-async function drop(token: string): Promise<void> {
+async function drop(token: string): Promise<StatusSubscriptionLocale | null> {
   const bindings = await readWorkerBindings();
   const store = bindings?.STATUS_FEED as SubscriberStore | undefined;
-  if (store) await unsubscribe(store, token);
+  return store ? unsubscribe(store, token) : null;
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  await drop(request.nextUrl.searchParams.get("token") ?? "");
+  const storedLocale = await drop(
+    request.nextUrl.searchParams.get("token") ?? "",
+  );
+  const locale =
+    storedLocale ??
+    statusSubscriptionLocale(request.nextUrl.searchParams.get("locale"));
   return NextResponse.redirect(
-    new URL("/status/unsubscribed", request.nextUrl.origin),
+    new URL(
+      STATUS_SUBSCRIPTION_PATHS[locale].unsubscribed,
+      request.nextUrl.origin,
+    ),
   );
 }
 

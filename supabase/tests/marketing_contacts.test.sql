@@ -12,6 +12,7 @@
 --   MC-5  unsubscribe is idempotent and safe for an unknown token
 --   MC-6  a fresh consent reverses an unsubscribe but NEVER a complaint
 --   MC-7  retention: two windows, and the live consent survives both
+--   MC-8  the selected language and exact localized consent survive the claim
 --
 -- One transaction, rolled back. Fixtures use example.test addresses.
 
@@ -329,6 +330,40 @@ begin
   raise notice 'MC-7 PASSED: two windows, live consent kept, no resurrection';
 end $$;
 
-select 'marketing_contacts.test.sql: MC-1..MC-7 PASSED' as result;
+-- ===========================================================================
+-- MC-8. Locale is evidence and delivery state, not a guess from the address.
+-- ===========================================================================
+do $$
+declare
+  v_result jsonb;
+  v_wording text := 'Envoyez-moi cette comparaison. Je peux me désabonner.';
+begin
+  v_result := public.api_claim_marketing_contact(
+    'francais@example.test',
+    'compare_page',
+    v_wording,
+    500,
+    'fr-CA'
+  );
+  if (v_result ->> 'ok')::boolean is not true then
+    raise exception 'MC-8 FAILED: valid French consent was refused: %', v_result;
+  end if;
+  if (select consent_locale from public.marketing_contacts
+       where email = 'francais@example.test') is distinct from 'fr-CA' then
+    raise exception 'MC-8 FAILED: French locale was not stored';
+  end if;
+  if (select consent_text from public.marketing_contacts
+       where email = 'francais@example.test') is distinct from v_wording then
+    raise exception 'MC-8 FAILED: localized consent wording was not stored exactly';
+  end if;
+  if (public.api_claim_marketing_contact(
+        'bad-locale@example.test', 'compare_page', 'c', 500, 'fr'
+      ) ->> 'reason') is distinct from 'validation_failed' then
+    raise exception 'MC-8 FAILED: an unsupported locale was accepted';
+  end if;
+  raise notice 'MC-8 PASSED: locale and exact localized wording stored';
+end $$;
+
+select 'marketing_contacts.test.sql: MC-1..MC-8 PASSED' as result;
 
 rollback;

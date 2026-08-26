@@ -307,6 +307,62 @@ function stripComments(text) {
     .join("\n");
 }
 
+/**
+ * Reader-facing failures are the high-volume synchronous path this guard's
+ * function-call analysis cannot model.
+ *
+ * Android can make the rule structural: `userMessage` requires a locale, so a
+ * forgotten argument cannot compile. iOS has 234 property reads spread across
+ * UI and model code; that property must therefore resolve through the
+ * concurrency-safe process snapshot rather than preserve its old English
+ * default. These narrow source assertions fail in the fast guard job, before
+ * waiting for either native compiler.
+ */
+function assertErrorLocaleBridges() {
+  const androidUiPath =
+    "apps/android/app/src/main/kotlin/com/loonext/android/ui/common/Ui.kt";
+  const androidUi = readFileSync(androidUiPath, "utf8");
+  if (
+    !androidUi.includes("fun Throwable.userMessage(locale: String): String") ||
+    /fun Throwable\.userMessage\(locale:\s*String\s*=/.test(androidUi)
+  ) {
+    console.error(
+      "Locale forwarding: Android Throwable.userMessage must require a reader " +
+        "locale; an English default makes forgotten forwarding compile.",
+    );
+    process.exit(1);
+  }
+
+  for (const file of walk("apps/android/app/src/main/kotlin", ".kt")) {
+    const source = stripComments(readFileSync(file, "utf8"));
+    if (!/\.userMessage\(\s*\)/.test(source)) continue;
+    console.error(
+      `Locale forwarding: ${file.replace(/\\/g, "/")} calls userMessage() ` +
+        "without the reader locale.",
+    );
+    process.exit(1);
+  }
+
+  const iosUiPath = "apps/ios/Loonext/Support/Ui.swift";
+  const iosUi = readFileSync(iosUiPath, "utf8");
+  const property = /var userMessage:\s*String\s*\{([^}]+)\}/.exec(iosUi)?.[1] ?? "";
+  if (
+    !property.includes("UiLocaleStore.readerLocale") ||
+    property.includes("MessageLocale.en")
+  ) {
+    console.error(
+      "Locale forwarding: iOS Error.userMessage must read " +
+        "UiLocaleStore.readerLocale; its 234 synchronous callers cannot fall " +
+        "back to English.",
+    );
+    process.exit(1);
+  }
+}
+
+  // The helper lives in the per-client analysis scope because it reuses that
+  // scope's comment stripper. Run it once; it checks both clients itself.
+  if (client.name === "android") assertErrorLocaleBridges();
+
   for (const file of files) {
   const source = readFileSync(file, "utf8");
   /**

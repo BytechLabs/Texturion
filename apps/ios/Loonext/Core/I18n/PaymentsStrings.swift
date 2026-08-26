@@ -18,6 +18,9 @@ enum PaymentsStrings {
             "payments.askFor": "Ask for {amount}",
             "payments.asked": "Asked for {amount}.",
             "payments.sendFailed": "That didn't send.",
+            "payments.requestSms":
+                "{business}: {amount} for {description}.\n"
+                + "Pay securely here:\n{url}",
             "payments.stripeNeeds": "Stripe still needs:",
             "payments.refundedBack": "{amount} went back to them.",
             "payments.disputedNote":
@@ -119,6 +122,9 @@ enum PaymentsStrings {
             "payments.askFor": "Demander {amount}",
             "payments.asked": "Demande de {amount} envoyée.",
             "payments.sendFailed": "L'envoi a échoué.",
+            "payments.requestSms":
+                "{business} : {amount} pour {description}.\n"
+                + "Payez en toute sécurité ici :\n{url}",
             "payments.stripeNeeds": "Stripe a encore besoin de :",
             "payments.refundedBack": "{amount} leur a été remboursé.",
             "payments.disputedNote":

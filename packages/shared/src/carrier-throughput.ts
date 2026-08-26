@@ -18,7 +18,49 @@
  * here without replacing the source and the date with it.
  */
 
+import { DEFAULT_LOCALE, type Locale } from "./locale";
+
 export type TenDlcUseCase = "LOW_VOLUME" | "SOLE_PROPRIETOR";
+
+export type CarrierThroughputCopyKey =
+  | "lowVolumeLabel"
+  | "soleProprietorLabel"
+  | "tMobileLowVolumeNote"
+  | "attLowVolumeNote"
+  | "tMobileSoleProprietorNote";
+
+type CarrierThroughputCopy = Record<CarrierThroughputCopyKey, string>;
+
+const CARRIER_THROUGHPUT_COPY: Record<Locale, CarrierThroughputCopy> = {
+  en: {
+    lowVolumeLabel: "Low Volume Standard",
+    soleProprietorLabel: "Sole Proprietor",
+    tMobileLowVolumeNote:
+      "Per brand per day, not per number or campaign. Counts only messages to T-Mobile subscribers.",
+    attLowVolumeNote:
+      "Segments per minute. This limits a burst rather than a daily total.",
+    tMobileSoleProprietorNote:
+      "Segments per day for a sole-proprietor brand. Half the Low Volume Standard allowance.",
+  },
+  "fr-CA": {
+    lowVolumeLabel: "Norme de faible volume",
+    soleProprietorLabel: "Propriétaire unique",
+    tMobileLowVolumeNote:
+      "Par marque et par jour, et non par numéro ou campagne. Compte seulement les messages destinés aux abonnés de T-Mobile.",
+    attLowVolumeNote:
+      "Segments par minute. Cette limite s’applique à une pointe d’envoi plutôt qu’au total quotidien.",
+    tMobileSoleProprietorNote:
+      "Segments par jour pour une marque à propriétaire unique. La moitié de la limite de la norme de faible volume.",
+  },
+};
+
+/** Resolve one sourced carrier explanation in the reader's language. */
+export function carrierThroughputCopy(
+  key: CarrierThroughputCopyKey,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return CARRIER_THROUGHPUT_COPY[locale][key];
+}
 
 export interface CarrierCeiling {
   carrier: string;
@@ -26,13 +68,13 @@ export interface CarrierCeiling {
   perDay: number | null;
   /** Segments per minute, or null when the carrier limits by daily volume. */
   perMinute: number | null;
-  note: string;
+  noteKey: CarrierThroughputCopyKey;
 }
 
 export interface TierCeiling {
   useCase: TenDlcUseCase;
   /** What a customer would call this tier. */
-  label: string;
+  labelKey: CarrierThroughputCopyKey;
   carriers: readonly CarrierCeiling[];
   /**
    * The daily figure that actually bites first, across carriers.
@@ -59,19 +101,19 @@ export const TEN_DLC_CEILINGS_RECHECK_AFTER = "2027-01-28";
 export const TEN_DLC_CEILINGS: Record<TenDlcUseCase, TierCeiling> = {
   LOW_VOLUME: {
     useCase: "LOW_VOLUME",
-    label: "Low Volume Standard",
+    labelKey: "lowVolumeLabel",
     carriers: [
       {
         carrier: "T-Mobile",
         perDay: 2_000,
         perMinute: null,
-        note: "Per BRAND per day, not per number and not per campaign. Counts only messages to T-Mobile subscribers.",
+        noteKey: "tMobileLowVolumeNote",
       },
       {
         carrier: "AT&T",
         perDay: null,
         perMinute: 75,
-        note: "Segments per minute. Constrains a burst rather than a daily total.",
+        noteKey: "attLowVolumeNote",
       },
     ],
     bindingDailyMessages: 2_000,
@@ -82,13 +124,13 @@ export const TEN_DLC_CEILINGS: Record<TenDlcUseCase, TierCeiling> = {
   },
   SOLE_PROPRIETOR: {
     useCase: "SOLE_PROPRIETOR",
-    label: "Sole Proprietor",
+    labelKey: "soleProprietorLabel",
     carriers: [
       {
         carrier: "T-Mobile",
         perDay: 1_000,
         perMinute: null,
-        note: "Segments per day for a sole-proprietor brand. Half the Low Volume Standard allowance.",
+        noteKey: "tMobileSoleProprietorNote",
       },
     ],
     bindingDailyMessages: 1_000,

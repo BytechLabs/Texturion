@@ -29,7 +29,7 @@ import {
 
 import { PLAN_MODULE_CARDS, PLAN_PRICING, type PlanId } from "@/lib/api/types";
 
-import { COMPARE_AS_OF } from "../compare/verification";
+import { compareAsOf } from "../compare/verification";
 
 import type { LedgerEntry } from "@/components/marketing/pricing/honesty-ledger";
 import type {
@@ -327,8 +327,8 @@ export const elsewhereColumns = (
   locale: MarketingLocale = "en",
 ): LedgerColumn[] => [
   { label: pricingCopy(locale).elsewhereLoonext, highlight: true },
-  { label: "Heymarket Standard", sub: COMPARE_AS_OF },
-  { label: "Quo", sub: COMPARE_AS_OF },
+  { label: "Heymarket Standard", sub: compareAsOf(locale) },
+  { label: "Quo", sub: compareAsOf(locale) },
 ];
 
 /** The English columns, for tests and any English-only surface. */
@@ -338,13 +338,16 @@ export const elsewhereRows = (
   locale: MarketingLocale = "en",
 ): LedgerTableRow[] => {
   const copy = pricingCopy(locale);
+  const french = locale === "fr-CA";
   return [
   {
     label: copy.elsewhereSoftware,
     cells: [
       fill(copy.elsewhereFlat, { starter: price("starter", "usd") }),
-      "$49/user/mo × 3 = $147",
-      "$19/user/mo × 3 = $57 (monthly billing)",
+      french ? "49 $ US/personne/mois × 3 = 147 $ US" : "$49/user/mo × 3 = $147",
+      french
+        ? "19 $ US/personne/mois × 3 = 57 $ US (facturation mensuelle)"
+        : "$19/user/mo × 3 = $57 (monthly billing)",
     ],
   },
   {
@@ -353,18 +356,24 @@ export const elsewhereRows = (
     label: copy.elsewhereWorkload,
     cells: [
       copy.elsewhereIncluded,
-      "~$15 (3¢/segment × 500)",
+      french ? "~15 $ US (3 ¢ US/segment × 500)" : "~$15 (3¢/segment × 500)",
       copy.elsewhereNotIncluded,
     ],
   },
   {
     label: copy.elsewhereCarrier,
-    cells: ["$0", "$10/mo", "$1.50 to $3/mo"],
+    cells: french
+      ? ["0 $ US", "10 $ US/mois", "1,50 à 3 $ US/mois"]
+      : ["$0", "$10/mo", "$1.50 to $3/mo"],
   },
   {
     label: copy.elsewhereTotal,
     total: true,
-    cells: [price("starter", "usd"), "~$172", copy.elsewhereQuoTotal],
+    cells: [
+      french ? "29 $ US" : price("starter", "usd"),
+      french ? "~172 $ US" : "~$172",
+      copy.elsewhereQuoTotal,
+    ],
   },
   ];
 };
@@ -412,4 +421,3 @@ export const faqs = (
 
 /** The English list, for tests and any English-only surface. */
 export const FAQS: { q: string; a: string }[] = faqs("en");
-

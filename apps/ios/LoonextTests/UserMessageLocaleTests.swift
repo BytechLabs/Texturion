@@ -53,6 +53,20 @@ final class UserMessageLocaleTests: XCTestCase {
         }
     }
 
+    func testASpecificServerKeyStaysActionableInBothLanguages() {
+        var error = serverError("validation_failed", "Legacy English refusal.", status: 422)
+        error.messageKey = "apiErrors.contactImportUnreadableFlag"
+        error.messageVars = ["header": "Do not text", "values": "“maybe”"]
+
+        let english = error.userMessage(MessageLocale.en)
+        let french = error.userMessage(MessageLocale.frCA)
+        XCTAssertTrue(english.contains("Do not text"))
+        XCTAssertTrue(english.contains("true/false"))
+        XCTAssertTrue(french.contains("Do not text"))
+        XCTAssertTrue(french.contains("interpréter comme oui ou non"))
+        XCTAssertFalse(french.contains("Legacy English refusal"))
+    }
+
     func testUnknownCodeNeverPutsARawKeyOnScreen() {
         // `translate` fails open, so a code this build has never heard of would
         // otherwise render `apiErrors.teapot_error` — worse than the English it
@@ -106,5 +120,27 @@ final class UserMessageLocaleTests: XCTestCase {
             XCTAssertFalse(shown.contains("common."), "left a raw key showing")
             XCTAssertTrue(shown.count > 10, "said nothing")
         }
+    }
+
+    /// Regression guard for the 234 synchronous call sites that use the
+    /// property rather than carrying an environment value themselves. Before
+    /// #228 that property silently forced English.
+    @MainActor
+    func testZeroArgumentPropertyFollowsTheProcessReaderLocale() {
+        let store = UiLocaleStore.shared
+        let previousUser = store.userLocale
+        let previousCompany = store.companyLocale
+        defer { store.apply(user: previousUser, company: previousCompany) }
+
+        let error = serverError("not_found", "No such API key.")
+
+        store.apply(user: MessageLocale.frCA, company: nil)
+        XCTAssertEqual(
+            error.userMessage,
+            ApiErrorStrings.section.frCA["apiErrors.not_found"]
+        )
+
+        store.apply(user: MessageLocale.en, company: nil)
+        XCTAssertEqual(error.userMessage, "No such API key.")
     }
 }

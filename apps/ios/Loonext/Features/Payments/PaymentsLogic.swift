@@ -267,13 +267,22 @@ func paymentRequestSms(
     amountCents: Int,
     currency: BillingCurrency,
     description: String,
-    url: String
+    url: String,
+    locale: String
 ) -> String {
     let amount = formatMoneyIn(amountCents, currency, audience: currency)
     let trimmedName = businessName.trimmingCharacters(in: .whitespacesAndNewlines)
     let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
-    return "\(trimmedName): \(amount) for \(trimmedDescription).\n"
-        + "Pay securely here:\n\(url)"
+    return AppStrings.translate(
+        locale,
+        "payments.requestSms",
+        [
+            "business": trimmedName,
+            "amount": amount,
+            "description": trimmedDescription,
+            "url": url,
+        ]
+    )
 }
 
 /// What the composer's preview puts where the real link will go.

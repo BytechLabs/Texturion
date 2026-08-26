@@ -3,9 +3,11 @@
 import { useRef, useState } from "react";
 
 import { publicEnv } from "@/env";
+import { compareUiCopy } from "@/i18n/marketing/compare-ui";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { trackComparisonRequested } from "@/lib/analytics/events";
 
-import { CONSENT_LABEL } from "./comparison-consent";
+import { CONSENT_LABEL, CONSENT_LABEL_FR } from "./comparison-consent";
 
 /**
  * #312 — the one thing a non-converting visitor can do besides leave.
@@ -53,9 +55,12 @@ type Status = "idle" | "submitting" | "sent" | "recorded";
 
 export function ComparisonEmailForm({
   source = "compare_page",
+  locale = "en",
 }: {
   source?: "compare_page" | "pricing_page";
+  locale?: MarketingLocale;
 }) {
+  const copy = compareUiCopy(locale);
   const [email, setEmail] = useState("");
   const [consented, setConsented] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
@@ -75,13 +80,13 @@ export function ComparisonEmailForm({
 
     const trimmed = email.trim();
     if (trimmed === "" || !trimmed.includes("@")) {
-      setError("Enter an email address we can send it to.");
+      setError(copy.formInvalid);
       return;
     }
     // An unchecked box is not consent, and a pre-checked one would not be
     // express consent at all — so this is a real gate, not a formality.
     if (!consented) {
-      setError("Tick the box so we know you are happy to be emailed.");
+      setError(copy.formConsent);
       return;
     }
 
@@ -93,15 +98,18 @@ export function ComparisonEmailForm({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: trimmed, source, website }),
+          // The server owns the consent wording, but it needs the route's
+          // language to choose the exact wording this checkbox displayed and
+          // to send the requested comparison in that same language.
+          body: JSON.stringify({ email: trimmed, source, website, locale }),
         },
       );
       if (!response.ok) {
         setStatus("idle");
         setError(
           response.status === 429
-            ? "We have had a lot of these today. Try again tomorrow."
-            : "That did not go through. Try again in a moment.",
+            ? copy.formBusy
+            : copy.formError,
         );
         return;
       }
@@ -117,7 +125,7 @@ export function ComparisonEmailForm({
       requestAnimationFrame(() => confirmationRef.current?.focus());
     } catch {
       setStatus("idle");
-      setError("That did not go through. Try again in a moment.");
+      setError(copy.formError);
     }
   }
 
@@ -129,8 +137,8 @@ export function ComparisonEmailForm({
         className="fr-body max-w-xl text-[color:var(--fr-ink-70)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[color:var(--fr-olive)]"
       >
         {status === "sent"
-          ? "Sent. It should be in your inbox in a moment, and every message we send has a one-click unsubscribe."
-          : "Noted, and thank you. We are not sending marketing email yet, so you will hear from us only once there is something worth sending."}
+          ? copy.formSent
+          : copy.formRecorded}
       </p>
     );
   }
@@ -142,7 +150,7 @@ export function ComparisonEmailForm({
           htmlFor="comparison-email"
           className="block text-sm font-semibold text-[color:var(--fr-ink)]"
         >
-          Send these numbers to
+          {copy.formLabel}
         </label>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
@@ -150,7 +158,7 @@ export function ComparisonEmailForm({
             type="email"
             inputMode="email"
             autoComplete="email"
-            placeholder="you@yourbusiness.com"
+            placeholder={copy.formPlaceholder}
             className={fieldClass}
             value={email}
             onChange={(event) => {
@@ -169,7 +177,7 @@ export function ComparisonEmailForm({
             disabled={submitting}
             className="inline-flex shrink-0 items-center justify-center rounded-full border border-[color:var(--fr-ink-55)]/40 px-5 py-2.5 text-[0.9375rem] font-semibold whitespace-nowrap text-[color:var(--fr-ink)] transition-colors duration-200 ease-out hover:border-[color:var(--fr-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {submitting ? "Sending..." : "Email it to me"}
+            {submitting ? copy.formSending : copy.formSubmit}
           </button>
         </div>
       </div>
@@ -185,7 +193,7 @@ export function ComparisonEmailForm({
           disabled={submitting}
           className="mt-0.5 size-4 shrink-0 accent-[color:var(--fr-olive)]"
         />
-        <span>{CONSENT_LABEL}</span>
+        <span>{locale === "fr-CA" ? CONSENT_LABEL_FR : CONSENT_LABEL}</span>
       </label>
 
       {error !== null && (
@@ -212,7 +220,7 @@ export function ComparisonEmailForm({
           whiteSpace: "nowrap",
         }}
       >
-        <label htmlFor="comparison-website">Website</label>
+        <label htmlFor="comparison-website">{copy.formWebsite}</label>
         <input
           id="comparison-website"
           name="website"

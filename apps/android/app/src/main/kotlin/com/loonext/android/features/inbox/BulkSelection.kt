@@ -120,26 +120,50 @@ fun BulkSelection.idsOrNull(): List<String>? = when (this) {
  */
 fun bulkResultMessage(
     verb: String,
+    verbMany: String? = null,
     applied: Int,
     failed: Int,
     matched: Int,
     capped: Boolean,
     /** #478: what was acted on. Defaulted so every existing call is unchanged. */
-    nounOne: String = "conversation",
-    nounMany: String = "conversations",
+    nounOne: String? = null,
+    nounMany: String? = null,
+    locale: String = MessageLocale.EN,
 ): String {
-    val thing = if (applied == 1) nounOne else nounMany
-    val message = StringBuilder("$verb $applied $thing")
+    val one = nounOne ?: AppStrings.translate(locale, "inbox.bulkNounOne")
+    val many = nounMany ?: AppStrings.translate(locale, "inbox.bulkNounMany")
+    val thing = if (applied == 1) one else many
+    val chosenVerb = if (applied == 1) verb else (verbMany ?: verb)
+    val message = StringBuilder(
+        AppStrings.translate(
+            locale,
+            "inbox.bulkResultApplied",
+            mapOf(
+                "verb" to chosenVerb,
+                "count" to "$applied",
+                "thing" to thing,
+            ),
+        ),
+    )
     // The cap is where "it worked" and "it finished" are different answers, so
     // the remainder is named rather than left to be discovered.
     if (capped && matched > applied) {
         message.append(
-            ". ${matched - applied} more matched than one go can handle, so run it again",
+            AppStrings.translate(
+                locale,
+                "inbox.bulkResultCapped",
+                mapOf("count" to "${matched - applied}"),
+            ),
         )
     }
     if (failed > 0) {
-        val was = if (failed == 1) "was" else "were"
-        message.append(". $failed couldn't be reached and $was left alone")
+        message.append(
+            AppStrings.translate(
+                locale,
+                if (failed == 1) "inbox.bulkResultFailedOne" else "inbox.bulkResultFailedMany",
+                mapOf("count" to "$failed"),
+            ),
+        )
     }
     return message.toString()
 }

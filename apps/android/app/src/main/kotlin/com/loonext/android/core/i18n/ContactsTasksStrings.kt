@@ -158,6 +158,18 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.selectThese" to "Select these {count}",
         "contactsTasks.selectAllMatching" to "Select all matching",
         "contactsTasks.bulkFailed" to "That didn't go through. Nothing was changed.",
+        "contactsTasks.bulkTaskOne" to "task",
+        "contactsTasks.bulkTaskMany" to "tasks",
+        "contactsTasks.bulkMarkedDoneOne" to "Marked done",
+        "contactsTasks.bulkMarkedDoneMany" to "Marked done",
+        "contactsTasks.bulkMarkedNotDoneOne" to "Marked not done",
+        "contactsTasks.bulkMarkedNotDoneMany" to "Marked not done",
+        "contactsTasks.bulkAssignedOne" to "Assigned",
+        "contactsTasks.bulkAssignedMany" to "Assigned",
+        "contactsTasks.bulkUnassignedOne" to "Unassigned",
+        "contactsTasks.bulkUnassignedMany" to "Unassigned",
+        "contactsTasks.bulkDeletedOne" to "Deleted",
+        "contactsTasks.bulkDeletedMany" to "Deleted",
 
         // Calendar
         "contactsTasks.calendarEmptyRange" to
@@ -600,6 +612,8 @@ object ContactsTasksStrings : AppStrings.Section {
             "{count} customer in this file had already opted out",
         "contactsTasks.importOptedOutMany" to
             "{count} customers in this file had already opted out",
+        "contactsTasks.importConsentRefusedNote" to
+            "Some of these customers have already asked this business to stop texting them. They were imported and their opt-out still stands — your consent statement was not recorded against them.",
 
         // ── Bulk import: the per-column step (#248 round 3) ──────────────
         // Every column of the file is asked about, including the recognised
@@ -816,6 +830,18 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.selectAllMatching" to "Tout sélectionner",
         "contactsTasks.bulkFailed" to
             "L'opération n'a pas abouti. Rien n'a été modifié.",
+        "contactsTasks.bulkTaskOne" to "tâche",
+        "contactsTasks.bulkTaskMany" to "tâches",
+        "contactsTasks.bulkMarkedDoneOne" to "Terminée",
+        "contactsTasks.bulkMarkedDoneMany" to "Terminées",
+        "contactsTasks.bulkMarkedNotDoneOne" to "Marquée non terminée",
+        "contactsTasks.bulkMarkedNotDoneMany" to "Marquées non terminées",
+        "contactsTasks.bulkAssignedOne" to "Assignée",
+        "contactsTasks.bulkAssignedMany" to "Assignées",
+        "contactsTasks.bulkUnassignedOne" to "Désassignée",
+        "contactsTasks.bulkUnassignedMany" to "Désassignées",
+        "contactsTasks.bulkDeletedOne" to "Supprimée",
+        "contactsTasks.bulkDeletedMany" to "Supprimées",
 
         // Calendrier
         "contactsTasks.calendarEmptyRange" to
@@ -1261,6 +1287,8 @@ object ContactsTasksStrings : AppStrings.Section {
             "{count} client de ce fichier s'était déjà désabonné",
         "contactsTasks.importOptedOutMany" to
             "{count} clients de ce fichier s'étaient déjà désabonnés",
+        "contactsTasks.importConsentRefusedNote" to
+            "Certains de ces clients ont déjà demandé à cette entreprise de cesser de leur envoyer des textos. Ils ont été importés et leur désabonnement demeure en vigueur — votre déclaration de consentement n'a pas été enregistrée pour eux.",
 
         // ── Importation en lot : l'étape par colonne (#248, ronde 3) ─────
         "contactsTasks.importColumnsTitle" to "Qu'y a-t-il dans ce fichier ?",

@@ -46,7 +46,7 @@ import {
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
-import { CA_REGION_NAMES, US_REGION_NAMES } from "../area-codes";
+import { regionNames } from "../area-codes";
 import { clearOnboardingDraft } from "../local-draft";
 import { normalizeNanpPhone, normalizeWebsite } from "../normalize";
 import { StepError, StepLoading, StepShell } from "../step-shell";
@@ -274,7 +274,7 @@ export default function BusinessIdentityPage() {
     country === "US" ? t("onboarding.einNameUs") : t("onboarding.einNameCa");
   const sinName =
     country === "US" ? t("onboarding.sinNameUs") : t("onboarding.sinNameCa");
-  const regions = country === "US" ? US_REGION_NAMES : CA_REGION_NAMES;
+  const regions = regionNames(country, t.locale);
 
   // Already submitted to carriers → nothing to edit here (409 server-side).
   if (brandLocked) {

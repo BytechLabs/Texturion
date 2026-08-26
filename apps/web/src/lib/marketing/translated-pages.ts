@@ -22,7 +22,12 @@
  * route file with no row fails. The second is the one that matters — it means
  * a page shipped without telling anybody it existed.
  */
-export const TRANSLATED_PAGES: readonly { readonly en: string; readonly fr: string }[] = [
+export const TRANSLATED_PAGES: readonly {
+  readonly en: string;
+  readonly fr: string;
+  /** False for token/result pages that declare noindex and stay out of sitemap. */
+  readonly index?: false;
+}[] = [
   { en: "/", fr: "/fr" },
   { en: "/pricing", fr: "/fr/tarifs" },
   { en: "/for/plumbers", fr: "/fr/plombiers" },
@@ -42,6 +47,34 @@ export const TRANSLATED_PAGES: readonly { readonly en: string; readonly fr: stri
   { en: "/features/business-number", fr: "/fr/numero-entreprise" },
   { en: "/features/templates-and-tags", fr: "/fr/modeles-etiquettes" },
   { en: "/features/compliance", fr: "/fr/conformite" },
+  { en: "/developers", fr: "/fr/developpeurs" },
+  { en: "/security", fr: "/fr/securite" },
+  { en: "/status", fr: "/fr/etat-du-service" },
+  { en: "/whats-new", fr: "/fr/nouveautes" },
+  { en: "/compare", fr: "/fr/comparer" },
+  { en: "/compare/heymarket", fr: "/fr/comparer/heymarket" },
+  { en: "/compare/quo", fr: "/fr/comparer/quo" },
+  { en: "/legal/accessibility", fr: "/fr/accessibilite" },
+  { en: "/legal/cookies", fr: "/fr/temoins" },
+  { en: "/legal/delete-my-data", fr: "/fr/supprimer-mes-donnees" },
+  { en: "/legal/fair-use", fr: "/fr/utilisation-equitable" },
+  { en: "/legal/messaging", fr: "/fr/messagerie" },
+  { en: "/legal/subprocessors", fr: "/fr/sous-traitants" },
+  {
+    en: "/legal/vulnerability-disclosure",
+    fr: "/fr/divulgation-vulnerabilites",
+  },
+  {
+    en: "/status/subscribed",
+    fr: "/fr/etat-du-service/abonnement-confirme",
+    index: false,
+  },
+  {
+    en: "/status/unsubscribed",
+    fr: "/fr/etat-du-service/desabonnement-confirme",
+    index: false,
+  },
+  { en: "/unsubscribe", fr: "/fr/desabonnement", index: false },
 ];
 
 /** The `alternates.languages` pair for a path, in either language, or nothing. */

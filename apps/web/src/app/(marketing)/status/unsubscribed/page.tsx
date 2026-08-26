@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
-import { FrCard, FrSection } from "@/components/marketing/fr";
+import { StatusResultPage } from "@/components/marketing/status-result-page";
+import { statusEn } from "@/i18n/marketing/status";
 import { buildMetadata } from "@/lib/marketing/seo";
 
 /**
@@ -17,25 +18,13 @@ import { buildMetadata } from "@/lib/marketing/seo";
  */
 export const metadata: Metadata = {
   ...buildMetadata({
-    title: "Unsubscribed",
-    description: "You're off the Loonext status email list.",
+    title: statusEn.unsubscribedMetadataTitle,
+    description: statusEn.unsubscribedMetadataDescription,
     path: "/status/unsubscribed",
   }),
   robots: { index: false, follow: false },
 };
 
 export default function StatusUnsubscribedPage() {
-  return (
-    <FrSection ground="white">
-      <div className="mx-auto max-w-2xl">
-        <h1 className="fr-h1 text-[color:var(--fr-ink)]">Unsubscribed.</h1>
-        <FrCard className="mt-8 p-6 sm:p-8">
-          <p className="fr-body text-[color:var(--fr-ink-70)]">
-            You won&apos;t get status emails from us again. Your address is
-            gone, not flagged.
-          </p>
-        </FrCard>
-      </div>
-    </FrSection>
-  );
+  return <StatusResultPage result="unsubscribed" />;
 }

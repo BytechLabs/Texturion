@@ -1,4 +1,14 @@
-import { NANP_AREA_CODES, type NanpGeographicEntry } from "@loonext/shared";
+import {
+  NANP_AREA_CODES,
+  type Locale,
+  type NanpGeographicEntry,
+} from "@loonext/shared";
+
+import {
+  areaCodeCityAliases,
+  areaCodeCityName,
+  areaCodesEn,
+} from "@/i18n/sections/areaCodes";
 
 /**
  * Curated metro-name → NPA index for the onboarding area-code picker.
@@ -25,9 +35,10 @@ import { NANP_AREA_CODES, type NanpGeographicEntry } from "@loonext/shared";
  * Census / 2021 Canadian Census metro areas). Metros already discoverable via
  * their timezone-city name are still listed for completeness and ranking.
  *
- * #228: the city names are KEYS somebody types against, not labels — see the
- * note in `area-codes.ts` for why translating them is its own item rather than
- * part of the catalogue extraction.
+ * #228: these authored names are stable index keys, while
+ * `i18n/sections/areaCodes.ts` supplies the en/fr-CA name pair. Search matches
+ * both names (with accents and punctuation normalized), so changing locale
+ * never makes the other language's familiar spelling stop working.
  */
 export const CITY_NPAS: Readonly<Record<string, readonly string[]>> = {
   // ---- United States (largest metros) ----------------------------------
@@ -138,7 +149,7 @@ export const CITY_NPAS: Readonly<Record<string, readonly string[]>> = {
   Tacoma: ["253"],
   Oxnard: ["805"],
   Fontana: ["909"],
-  "Salt Lake City": ["801", "385"],
+  [areaCodesEn.citySaltLakeCity]: ["801", "385"],
   Provo: ["801", "385"],
   Huntsville: ["256", "938"],
   Grand: ["616"],
@@ -246,11 +257,23 @@ assertCityNpasValid();
 
 /** Normalized "city name" → set of NPAs, for fast substring lookup. */
 export interface CityNpaEntry {
-  /** Lower-cased city name used for matching. */
+  /** Normalized English city name, retained for existing index consumers. */
   readonly search: string;
-  /** Display city name (title-cased as authored). */
+  /** Every distinct normalized English/French search alias. */
+  readonly searches: readonly string[];
+  /** English display city name (title-cased as authored). */
   readonly city: string;
   readonly codes: readonly string[];
+}
+
+/** Accent- and punctuation-insensitive normalization for typed place names. */
+export function normalizePlaceSearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 /**
@@ -263,16 +286,28 @@ export const CITY_NPA_INDEX: readonly CityNpaEntry[] = Object.entries(
   CITY_NPAS,
 ).map(([city, codes]) => {
   const display = city.replace(/\d+$/, "");
-  return { search: display.toLowerCase(), city: display, codes };
+  const aliases = areaCodeCityAliases(display);
+  const searches = [...new Set(aliases.map(normalizePlaceSearch))];
+  return {
+    search: normalizePlaceSearch(aliases[0] ?? display),
+    searches,
+    city: aliases[0] ?? display,
+    codes,
+  };
 });
+
+/** The city label corresponding to the reader's current locale. */
+export function cityNpaName(entry: CityNpaEntry, locale: Locale): string {
+  return areaCodeCityName(entry.city, locale);
+}
 
 /** All NPAs a typed city query matches, in authored order, de-duplicated. */
 export function cityNpaMatches(query: string): string[] {
-  const q = query.trim().toLowerCase();
+  const q = normalizePlaceSearch(query);
   if (q.length < 2) return [];
   const seen = new Set<string>();
   for (const entry of CITY_NPA_INDEX) {
-    if (entry.search.includes(q)) {
+    if (entry.searches.some((search) => search.includes(q))) {
       for (const code of entry.codes) seen.add(code);
     }
   }

@@ -14,6 +14,7 @@ import {
   TEN_DLC_CEILINGS_RECHECK_AFTER,
   TEN_DLC_CEILINGS_VERIFIED_ON,
   approachingCarrierCeiling,
+  carrierThroughputCopy,
   dailyCeiling,
 } from "./carrier-throughput";
 
@@ -23,7 +24,7 @@ describe("the ceilings themselves", () => {
       expect(tier.useCase, useCase).toBe(useCase);
       expect(tier.carriers.length, useCase).toBeGreaterThan(0);
       expect(tier.bindingDailyMessages, useCase).toBeGreaterThan(0);
-      expect(tier.label.length, useCase).toBeGreaterThan(3);
+      expect(carrierThroughputCopy(tier.labelKey).length, useCase).toBeGreaterThan(3);
     }
   });
 
@@ -56,7 +57,23 @@ describe("the ceilings themselves", () => {
           carrier.perDay !== null || carrier.perMinute !== null,
           `${tier.useCase}/${carrier.carrier}`,
         ).toBe(true);
-        expect(carrier.note.length, carrier.carrier).toBeGreaterThan(20);
+        expect(
+          carrierThroughputCopy(carrier.noteKey).length,
+          carrier.carrier,
+        ).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  it("ships every carrier explanation in Canadian French", () => {
+    for (const tier of Object.values(TEN_DLC_CEILINGS)) {
+      expect(carrierThroughputCopy(tier.labelKey, "fr-CA")).not.toBe(
+        carrierThroughputCopy(tier.labelKey),
+      );
+      for (const carrier of tier.carriers) {
+        expect(carrierThroughputCopy(carrier.noteKey, "fr-CA")).not.toBe(
+          carrierThroughputCopy(carrier.noteKey),
+        );
       }
     }
   });

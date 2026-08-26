@@ -41,6 +41,8 @@ struct ThreadPaymentsPane: View {
     let role: String?
     /// #106: 'text' or 'note' on this conversation's number.
     let viewerLevel: String
+    /// The customer's effective language, resolved from contact then workspace.
+    let messageLocale: String
     /// The name the preview puts first in the SMS. Nil while the company view
     /// is still loading — the composer stands in a neutral word rather than
     /// showing a text that starts with a colon.
@@ -176,6 +178,7 @@ struct ThreadPaymentsPane: View {
                 AskForPaymentSheet(
                     businessName: businessName,
                     currency: account.payoutCurrency,
+                    messageLocale: messageLocale,
                     onSend: send,
                     onDismiss: { asking = false }
                 )
@@ -515,6 +518,7 @@ private struct PaymentStripRow: View {
 private struct AskForPaymentSheet: View {
     let businessName: String?
     let currency: BillingCurrency
+    let messageLocale: String
     /// Returns the server's refusal, or nil on success.
     let onSend: @MainActor (Int, String, String) async -> String?
     let onDismiss: @MainActor () -> Void
@@ -561,7 +565,7 @@ private struct AskForPaymentSheet: View {
     /// preview, rather than a text that begins with a colon.
     private var senderName: String {
         guard let businessName = businessName, !businessName.isBlank else {
-            return AppStrings.translate(appLocale, "payments.yourBusiness")
+            return AppStrings.translate(messageLocale, "payments.yourBusiness")
         }
         return businessName
     }
@@ -581,7 +585,8 @@ private struct AskForPaymentSheet: View {
             amountCents: chargeable,
             currency: currency,
             description: trimmedDescription,
-            url: paymentPreviewUrl
+            url: paymentPreviewUrl,
+            locale: messageLocale
         )
     }
 
@@ -669,9 +674,7 @@ private struct AskForPaymentSheet: View {
         // a re-appearance never overwrites what somebody has typed.
         .onAppear {
             if description.isEmpty {
-                description = AppStrings.translate(
-                    appLocale, "payments.deposit"
-                )
+                description = AppStrings.translate(messageLocale, "payments.deposit")
             }
         }
         // A changed figure is a different ask. See `idempotencyKey`.

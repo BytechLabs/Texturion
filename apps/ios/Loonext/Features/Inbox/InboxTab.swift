@@ -839,6 +839,7 @@ private final class InboxController {
     func runBulk(
         action: String,
         verb: String,
+        verbMany: String,
         targetStatus: String? = nil,
         targetSpam: Bool? = nil,
         targetUserId: String? = nil,
@@ -865,6 +866,7 @@ private final class InboxController {
                 await refreshFirstPage()
                 let message = bulkResultMessage(
                     verb: verb,
+                    verbMany: verbMany,
                     applied: result.applied.count,
                     failed: result.failed.count,
                     matched: result.matched,
@@ -2583,7 +2585,10 @@ private struct BulkSelectionBar: View {
                             controller.runBulk(
                                 action: "assign",
                                 verb: AppStrings.translate(
-                                    appLocale, "inbox.bulkVerbAssigned"
+                                    appLocale, "inbox.bulkVerbAssignedOne"
+                                ),
+                                verbMany: AppStrings.translate(
+                                    appLocale, "inbox.bulkVerbAssignedMany"
                                 ),
                                 targetUserId: member.user_id
                             )
@@ -2593,7 +2598,10 @@ private struct BulkSelectionBar: View {
                         controller.runBulk(
                             action: "assign",
                             verb: AppStrings.translate(
-                                appLocale, "inbox.bulkVerbUnassigned"
+                                appLocale, "inbox.bulkVerbUnassignedOne"
+                            ),
+                            verbMany: AppStrings.translate(
+                                appLocale, "inbox.bulkVerbUnassignedMany"
                             ),
                             unassign: true
                         )
@@ -2647,7 +2655,8 @@ private struct BulkSelectionBar: View {
                 ) {
                     controller.runBulk(
                         action: "mark_read",
-                        verb: AppStrings.translate(appLocale, "inbox.bulkVerbMarkedRead")
+                        verb: AppStrings.translate(appLocale, "inbox.bulkVerbMarkedReadOne"),
+                        verbMany: AppStrings.translate(appLocale, "inbox.bulkVerbMarkedReadMany")
                     )
                 }
                 BulkActionButton(
@@ -2656,7 +2665,8 @@ private struct BulkSelectionBar: View {
                 ) {
                     controller.runBulk(
                         action: "set_status",
-                        verb: AppStrings.translate(appLocale, "inbox.bulkVerbClosed"),
+                        verb: AppStrings.translate(appLocale, "inbox.bulkVerbClosedOne"),
+                        verbMany: AppStrings.translate(appLocale, "inbox.bulkVerbClosedMany"),
                         targetStatus: ConversationStatus.closed
                     )
                 }
@@ -2666,7 +2676,8 @@ private struct BulkSelectionBar: View {
                 ) {
                     controller.runBulk(
                         action: "set_spam",
-                        verb: AppStrings.translate(appLocale, "inbox.bulkVerbMarkedSpam"),
+                        verb: AppStrings.translate(appLocale, "inbox.bulkVerbMarkedSpamOne"),
+                        verbMany: AppStrings.translate(appLocale, "inbox.bulkVerbMarkedSpamMany"),
                         targetSpam: true
                     )
                 }

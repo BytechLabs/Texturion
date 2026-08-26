@@ -33,18 +33,28 @@ import { describe, expect, it } from "vitest";
 
 const REPO = join(process.cwd(), "..", "..");
 const INVENTORY = readFileSync(join(REPO, "docs", "DATA-INVENTORY.md"), "utf8");
-const SUBPROCESSORS = readFileSync(
+const SUBPROCESSORS_BODY = readFileSync(
   join(
     process.cwd(),
     "src",
-    "app",
-    "(marketing)",
+    "components",
+    "marketing",
     "legal",
-    "subprocessors",
-    "page.tsx",
+    "subprocessors-page.tsx",
   ),
   "utf8",
 );
+const SUBPROCESSORS_COPY = readFileSync(
+  join(
+    process.cwd(),
+    "src",
+    "i18n",
+    "marketing",
+    "legal-subprocessors.ts",
+  ),
+  "utf8",
+);
+const SUBPROCESSORS = SUBPROCESSORS_BODY + SUBPROCESSORS_COPY;
 
 /**
  * Every third party, with the token each surface spells it with.

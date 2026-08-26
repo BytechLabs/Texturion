@@ -55,11 +55,10 @@ enum ContactImport {
     /// cannot drift here: `ContactImportConsentTests` reads the sentence out of
     /// `packages/shared/src/contact-import.ts` and fails on any difference,
     /// which is the same treatment the four values above get.
-    static let consentRefusedNote = """
-        Some of these customers have already asked this business to stop texting \
-        them. They were imported and their opt-out still stands — your consent \
-        statement was not recorded against them.
-        """
+    static let consentRefusedNote = AppStrings.translate(
+        MessageLocale.en,
+        "contactsTasks.importConsentRefusedNote"
+    )
 
     // MARK: - #248 round 3: the declaration
 
@@ -240,21 +239,31 @@ enum ContactImport {
         _ candidate: ContactImportCandidate,
         attested: Bool,
         columnAnswers: [Int: ContactImportColumnAction],
-        propertyAnswers: [String: VCardPropertyAction]
+        propertyAnswers: [String: VCardPropertyAction],
+        locale: String = MessageLocale.en
     ) -> String? {
         if let blocker = ContactColumns.blocker(candidate.columns, answers: columnAnswers) {
-            return blocker.wayOut
+            return blocker.localizedWayOut(locale)
         }
         let columns = candidate.columns.filter { columnAnswers[$0.index] == nil }.count
-        if columns > 0 { return ContactColumns.unansweredReason(columns) }
+        if columns > 0 { return ContactColumns.unansweredReason(columns, locale: locale) }
         let properties = candidate.properties.filter { propertyAnswers[$0.name] == nil }.count
-        if properties > 0 { return VCardProperties.unansweredReason(properties) }
-        if !attested { return attestationReason }
+        if properties > 0 {
+            return VCardProperties.unansweredReason(properties, locale: locale)
+        }
+        if !attested { return localizedAttestationReason(locale: locale) }
         return nil
     }
 
     /// The last thing left to do, when it is the only thing left to do.
-    static let attestationReason = "Confirm the statement above to import."
+    static let attestationReason = AppStrings.translate(
+        MessageLocale.en,
+        "contactsTasks.importConfirmStatement"
+    )
+
+    static func localizedAttestationReason(locale: String) -> String {
+        AppStrings.translate(locale, "contactsTasks.importConfirmStatement")
+    }
 
     /// May this file be uploaded at all?
     ///
@@ -428,8 +437,16 @@ struct ImportConsentOutcome {
     /// Said out loud, because the alternative is a number nobody can reconcile
     /// with what is under it.
     var unlistedLine: String? {
+        localizedUnlistedLine(locale: MessageLocale.en)
+    }
+
+    func localizedUnlistedLine(locale: String) -> String? {
         guard unlisted > 0 else { return nil }
-        return "\(unlisted.formatted()) more were refused and this answer did not name them."
+        return AppStrings.translate(
+            locale,
+            "contactsTasks.importConsentUnlisted",
+            ["count": unlisted.formatted()]
+        )
     }
 
     /// The outcome in this app's voice, carrying the number.
@@ -439,9 +456,23 @@ struct ImportConsentOutcome {
     /// the half the sentence cannot carry, because the server writes one
     /// sentence for every import.
     var heading: String {
-        refused == 1
-            ? "Consent not recorded for 1 person"
-            : "Consent not recorded for \(refused.formatted()) people"
+        localizedHeading(locale: MessageLocale.en)
+    }
+
+    func localizedHeading(locale: String) -> String {
+        AppStrings.translate(
+            locale,
+            refused == 1
+                ? "contactsTasks.importConsentMissingOne"
+                : "contactsTasks.importConsentMissingMany",
+            ["count": refused.formatted()]
+        )
+    }
+
+    func localizedNote(locale: String) -> String {
+        locale == MessageLocale.en
+            ? note
+            : AppStrings.translate(locale, "contactsTasks.importConsentRefusedNote")
     }
 }
 
@@ -571,11 +602,16 @@ struct ContactImportConsentSheet: View {
     /// `StringProtocol` overload, and a bare ternary of two literals leaves the
     /// type checker to guess between them.
     private var attestationState: String {
-        attested ? "Confirmed" : "Not confirmed"
+        AppStrings.translate(
+            appLocale,
+            attested ? "contactsTasks.importConfirmed" : "contactsTasks.importNotConfirmed"
+        )
     }
 
     /// What a column with no answer shows in its chip.
-    static let unansweredLabel = "Choose"
+    private var unansweredLabel: String {
+        AppStrings.translate(appLocale, "contactsTasks.importChoose")
+    }
 
     /// The one gate and its one sentence, both decided outside the view.
     private var gateReason: String? {
@@ -583,7 +619,8 @@ struct ContactImportConsentSheet: View {
             candidate,
             attested: attested,
             columnAnswers: columnAnswers,
-            propertyAnswers: propertyAnswers
+            propertyAnswers: propertyAnswers,
+            locale: appLocale
         )
     }
 
@@ -765,7 +802,7 @@ struct ContactImportConsentSheet: View {
                         Image(systemName: "tablecells.badge.ellipsis")
                             .font(.scaled(11, weight: .medium))
                             .foregroundStyle(BrandColor.muted900)
-                        Text(ContactColumns.columnsHeading)
+                        Text(ContactColumns.localizedColumnsHeading(appLocale))
                             .font(.golos(12.5, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
                             .fixedSize(horizontal: false, vertical: true)
@@ -773,7 +810,8 @@ struct ContactImportConsentSheet: View {
                         Text(
                             ContactColumns.answeredLine(
                                 answered: candidate.columns.count - unansweredColumns,
-                                total: candidate.columns.count
+                                total: candidate.columns.count,
+                                locale: appLocale
                             )
                         )
                         .font(.golos(11, weight: .semibold))
@@ -782,7 +820,10 @@ struct ContactImportConsentSheet: View {
                             unansweredColumns == 0 ? BrandColor.muted500 : BrandColor.overdueAmber
                         )
                     }
-                    Text(ContactColumns.columnsExplanation + " " + ContactColumns.ignoreMeaning)
+                    Text(
+                        ContactColumns.localizedColumnsExplanation(appLocale)
+                            + " " + ContactColumns.localizedIgnoreMeaning(appLocale)
+                    )
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted700)
                         .fixedSize(horizontal: false, vertical: true)
@@ -806,14 +847,14 @@ struct ContactImportConsentSheet: View {
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(column.title)
+                    Text(column.localizedTitle(appLocale))
                         .font(.golos(12.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     // What the column SAYS, which is the only thing that lets
                     // anybody decide. A name alone ("Status") is not a question
                     // anybody can answer, and a name is all round two ever showed.
-                    Text(column.line(showingAll: showingAll))
+                    Text(column.line(showingAll: showingAll, locale: appLocale))
                         .font(.golos(11))
                         .foregroundStyle(BrandColor.muted500)
                         .fixedSize(horizontal: false, vertical: true)
@@ -881,14 +922,24 @@ struct ContactImportConsentSheet: View {
                 Button {
                     columnAnswers[column.index] = action
                 } label: {
-                    Label(action.label, systemImage: action.icon)
+                    Label(action.localizedLabel(appLocale), systemImage: action.icon)
                 }
             }
         } label: {
-            answerChip(icon: chosen?.icon, label: chosen?.label, answered: chosen != nil)
+            answerChip(
+                icon: chosen?.icon,
+                label: chosen?.localizedLabel(appLocale),
+                answered: chosen != nil
+            )
         }
-        .accessibilityLabel(column.title + " — what this column holds")
-        .accessibilityValue(chosen?.label ?? Self.unansweredLabel)
+        .accessibilityLabel(
+            AppStrings.translate(
+                appLocale,
+                "contactsTasks.importColumnAccessibility",
+                ["title": column.localizedTitle(appLocale)]
+            )
+        )
+        .accessibilityValue(chosen?.localizedLabel(appLocale) ?? unansweredLabel)
     }
 
     /// The bulk answer, and the ONLY one this app offers.
@@ -911,7 +962,7 @@ struct ContactImportConsentSheet: View {
             HStack(spacing: 7) {
                 Image(systemName: "minus.circle")
                     .font(.scaled(11, weight: .semibold))
-                Text(ContactColumns.ignoreRestLabel(unansweredColumns))
+                Text(ContactColumns.ignoreRestLabel(unansweredColumns, locale: appLocale))
                     .font(.golos(11.5, weight: .semibold))
                 Spacer(minLength: 0)
             }
@@ -924,7 +975,8 @@ struct ContactImportConsentSheet: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            ContactColumns.ignoreRestLabel(unansweredColumns) + ". " + ContactColumns.ignoreMeaning
+            ContactColumns.ignoreRestLabel(unansweredColumns, locale: appLocale)
+                + ". " + ContactColumns.localizedIgnoreMeaning(appLocale)
         )
     }
 
@@ -938,7 +990,7 @@ struct ContactImportConsentSheet: View {
                         Image(systemName: "list.bullet.rectangle")
                             .font(.scaled(11, weight: .medium))
                             .foregroundStyle(BrandColor.muted900)
-                        Text(VCardProperties.heading)
+                        Text(VCardProperties.localizedHeading(appLocale))
                             .font(.golos(12.5, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
                             .fixedSize(horizontal: false, vertical: true)
@@ -946,7 +998,8 @@ struct ContactImportConsentSheet: View {
                         Text(
                             ContactColumns.answeredLine(
                                 answered: candidate.properties.count - unansweredProperties,
-                                total: candidate.properties.count
+                                total: candidate.properties.count,
+                                locale: appLocale
                             )
                         )
                         .font(.golos(11, weight: .semibold))
@@ -957,7 +1010,10 @@ struct ContactImportConsentSheet: View {
                                 : BrandColor.overdueAmber
                         )
                     }
-                    Text(VCardProperties.explanation + " " + ContactColumns.ignoreMeaning)
+                    Text(
+                        VCardProperties.localizedExplanation(appLocale)
+                            + " " + ContactColumns.localizedIgnoreMeaning(appLocale)
+                    )
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted700)
                         .fixedSize(horizontal: false, vertical: true)
@@ -986,11 +1042,11 @@ struct ContactImportConsentSheet: View {
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(property.title)
+                    Text(property.localizedTitle(appLocale))
                         .font(.golos(12.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(property.line(showingAll: showingAll))
+                    Text(property.line(showingAll: showingAll, locale: appLocale))
                         .font(.golos(11))
                         .foregroundStyle(BrandColor.muted500)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1033,14 +1089,24 @@ struct ContactImportConsentSheet: View {
                 Button {
                     propertyAnswers[property.name] = action
                 } label: {
-                    Label(action.label, systemImage: action.icon)
+                    Label(action.localizedLabel(appLocale), systemImage: action.icon)
                 }
             }
         } label: {
-            answerChip(icon: chosen?.icon, label: chosen?.label, answered: chosen != nil)
+            answerChip(
+                icon: chosen?.icon,
+                label: chosen?.localizedLabel(appLocale),
+                answered: chosen != nil
+            )
         }
-        .accessibilityLabel(property.title + " — what this property means")
-        .accessibilityValue(chosen?.label ?? Self.unansweredLabel)
+        .accessibilityLabel(
+            AppStrings.translate(
+                appLocale,
+                "contactsTasks.importPropertyAccessibility",
+                ["title": property.localizedTitle(appLocale)]
+            )
+        )
+        .accessibilityValue(chosen?.localizedLabel(appLocale) ?? unansweredLabel)
     }
 
     private var ignoreRestPropertiesButton: some View {
@@ -1052,7 +1118,7 @@ struct ContactImportConsentSheet: View {
             HStack(spacing: 7) {
                 Image(systemName: "minus.circle")
                     .font(.scaled(11, weight: .semibold))
-                Text(VCardProperties.ignoreRestLabel(unansweredProperties))
+                Text(VCardProperties.ignoreRestLabel(unansweredProperties, locale: appLocale))
                     .font(.golos(11.5, weight: .semibold))
                 Spacer(minLength: 0)
             }
@@ -1065,8 +1131,8 @@ struct ContactImportConsentSheet: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            VCardProperties.ignoreRestLabel(unansweredProperties) + ". "
-                + ContactColumns.ignoreMeaning
+            VCardProperties.ignoreRestLabel(unansweredProperties, locale: appLocale) + ". "
+                + ContactColumns.localizedIgnoreMeaning(appLocale)
         )
     }
 
@@ -1079,7 +1145,7 @@ struct ContactImportConsentSheet: View {
         HStack(spacing: 5) {
             Image(systemName: icon ?? "questionmark")
                 .font(.scaled(10, weight: .semibold))
-            Text(label ?? Self.unansweredLabel)
+            Text(label ?? unansweredLabel)
                 .font(.golos(11.5, weight: .semibold))
                 .lineLimit(1)
             Image(systemName: "chevron.down")
@@ -1105,13 +1171,13 @@ struct ContactImportConsentSheet: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.scaled(11, weight: .medium))
                         .foregroundStyle(BrandColor.destructive)
-                    Text(blocker.title)
+                    Text(blocker.localizedTitle(appLocale))
                         .font(.golos(12.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
-                Text(blocker.detail)
+                Text(blocker.localizedDetail(appLocale))
                     .font(.golos(11.5))
                     .foregroundStyle(BrandColor.muted700)
                     .fixedSize(horizontal: false, vertical: true)

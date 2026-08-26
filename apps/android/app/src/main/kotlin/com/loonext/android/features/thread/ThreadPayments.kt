@@ -61,6 +61,8 @@ fun ThreadPayments(
     conversationId: String,
     /** The workspace's name, for the SMS preview. Null while it is still loading. */
     businessName: String?,
+    /** The customer's effective language, resolved from contact then workspace. */
+    messageLocale: String,
     /**
      * May this reader act on the thread? #315's view-only observer reads the
      * strip and is offered nothing — the same split web draws on the spam
@@ -186,6 +188,7 @@ fun ThreadPayments(
             AskForPayment(
                 account = account,
                 businessName = businessName,
+                messageLocale = messageLocale,
                 onAsk = { ask ->
                     try {
                         repo.createRequest(
@@ -228,4 +231,3 @@ fun ThreadPayments(
         }
     }
 }
-

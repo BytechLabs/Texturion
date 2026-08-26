@@ -4,6 +4,7 @@ import com.loonext.android.core.i18n.ApiErrorStrings
 import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.net.ApiDecodeException
 import com.loonext.android.core.net.ApiException
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -120,5 +121,44 @@ class UserMessageLocaleTest {
             assertFalse("$thrown left a raw key showing", shown.contains("common."))
             assertTrue("$thrown said nothing", shown.length > 10)
         }
+    }
+
+    @Test
+    fun `a caller cannot silently fall back to English`() {
+        val source = repoFile(
+            "apps/android/app/src/main/kotlin/com/loonext/android/ui/common/Ui.kt",
+        )
+        assertTrue(
+            "userMessage must require the reader locale",
+            source.contains("fun Throwable.userMessage(locale: String): String"),
+        )
+        assertFalse(
+            "a default locale would let a future call compile in English",
+            Regex("""fun Throwable\.userMessage\(locale: String\s*=""")
+                .containsMatchIn(source),
+        )
+    }
+
+    @Test
+    fun `auth captures the resolved composition locale for its catch blocks`() {
+        val source = repoFile(
+            "apps/android/app/src/main/kotlin/com/loonext/android/features/auth/AuthScreens.kt",
+        )
+        assertTrue(source.contains("val locale = LocalAppLocale.current"))
+        assertTrue(source.contains("cause.userMessage(locale)"))
+        assertFalse(
+            "auth must not regain an English-only error path",
+            Regex("""cause\.userMessage\(\s*\)""").containsMatchIn(source),
+        )
+    }
+
+    private fun repoFile(relative: String): String {
+        var directory: File? = File("").absoluteFile
+        while (directory != null) {
+            val candidate = File(directory, relative)
+            if (candidate.isFile) return candidate.readText()
+            directory = directory.parentFile
+        }
+        throw AssertionError("$relative not found from ${File("").absolutePath}")
     }
 }

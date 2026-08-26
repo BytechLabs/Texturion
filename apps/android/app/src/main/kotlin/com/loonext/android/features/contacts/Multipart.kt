@@ -51,6 +51,7 @@ class MultipartClient(private val api: ApiClient, private val baseUrl: String) {
             ApiErrorCode.UNAUTHORIZED,
             "You're signed out.",
             401,
+            messageKey = "common.errSignedOut",
         )
         val body = MultipartBody.Builder().setType(MultipartBody.FORM).apply {
             fields.forEach { (name, value) -> addFormDataPart(name, value) }
@@ -80,6 +81,7 @@ class MultipartClient(private val api: ApiClient, private val baseUrl: String) {
                 ApiErrorCode.NETWORK,
                 "Can't reach Loonext. Check your connection.",
                 0,
+                messageKey = "common.errNetwork",
             )
         }
         val (status, text) = response.use { it.code to it.body?.string().orEmpty() }

@@ -38,6 +38,8 @@ vi.mock("@/lib/marketing/status-subscribe", () => ({
   normalizeEmail: (value: unknown) =>
     typeof value === "string" && value.includes("@") ? value.toLowerCase() : null,
   startSubscription: (...args: unknown[]) => startSubscription(...args),
+  statusSubscriptionLocale: (raw: unknown) =>
+    raw === "fr-CA" ? "fr-CA" : "en",
 }));
 
 const { POST } = await import("./route");
@@ -143,5 +145,41 @@ describe("#575 the limiter does not weaken what was already there", () => {
 
     expect(res.status).toBe(400);
     expect(startSubscription).not.toHaveBeenCalled();
+  });
+
+  it("answers the French status route in French without losing specificity", async () => {
+    readWorkerBindings.mockResolvedValue({ STATUS_FEED: {} });
+
+    const invalid = await POST(
+      post({ email: "not-an-address", locale: "fr-CA" }) as never,
+    );
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toEqual({
+      error: "Cette adresse courriel ne semble pas valide.",
+    });
+
+    const limited = vi.fn().mockResolvedValue({ success: false });
+    readWorkerBindings.mockResolvedValue({
+      STATUS_FEED: {},
+      STATUS_SUBSCRIBE_RATE_LIMITER: { limit: limited },
+    });
+    const neutral = await POST(
+      post({ email: "someone@example.com", locale: "fr-CA" }) as never,
+    );
+    expect(await neutral.json()).toEqual({
+      message: "Vérifiez votre courriel pour confirmer votre abonnement.",
+    });
+
+    readWorkerBindings.mockResolvedValue({ STATUS_FEED: {} });
+    await POST(
+      post({ email: "marie@example.com", locale: "fr-CA" }) as never,
+    );
+    expect(startSubscription).toHaveBeenLastCalledWith(
+      {},
+      expect.anything(),
+      "marie@example.com",
+      "fr-CA",
+      expect.any(Date),
+    );
   });
 });

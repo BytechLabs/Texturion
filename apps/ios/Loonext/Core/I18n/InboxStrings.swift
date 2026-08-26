@@ -160,11 +160,16 @@ enum InboxStrings {
             // The verbs that fill `{verb}` above. Named like web's
             // `tasks.bulkVerb…` set, which is the only client that had already
             // lifted them out of the component.
-            "inbox.bulkVerbMarkedRead": "Marked read",
-            "inbox.bulkVerbClosed": "Closed",
-            "inbox.bulkVerbMarkedSpam": "Marked as spam",
-            "inbox.bulkVerbAssigned": "Assigned",
-            "inbox.bulkVerbUnassigned": "Unassigned",
+            "inbox.bulkVerbMarkedReadOne": "Marked read",
+            "inbox.bulkVerbMarkedReadMany": "Marked read",
+            "inbox.bulkVerbClosedOne": "Closed",
+            "inbox.bulkVerbClosedMany": "Closed",
+            "inbox.bulkVerbMarkedSpamOne": "Marked as spam",
+            "inbox.bulkVerbMarkedSpamMany": "Marked as spam",
+            "inbox.bulkVerbAssignedOne": "Assigned",
+            "inbox.bulkVerbAssignedMany": "Assigned",
+            "inbox.bulkVerbUnassignedOne": "Unassigned",
+            "inbox.bulkVerbUnassignedMany": "Unassigned",
 
             // --- Saved views (#280) ---------------------------------------------------
             "inbox.viewsSave": "Save this view",
@@ -575,11 +580,16 @@ enum InboxStrings {
                 ". {count} n'ont pas pu être atteintes et ont été laissées telles quelles",
             "inbox.bulkNounOne": "conversation",
             "inbox.bulkNounMany": "conversations",
-            "inbox.bulkVerbMarkedRead": "Marquées comme lues",
-            "inbox.bulkVerbClosed": "Fermées",
-            "inbox.bulkVerbMarkedSpam": "Marquées comme indésirables",
-            "inbox.bulkVerbAssigned": "Assignées",
-            "inbox.bulkVerbUnassigned": "Désassignées",
+            "inbox.bulkVerbMarkedReadOne": "Marquée comme lue",
+            "inbox.bulkVerbMarkedReadMany": "Marquées comme lues",
+            "inbox.bulkVerbClosedOne": "Fermée",
+            "inbox.bulkVerbClosedMany": "Fermées",
+            "inbox.bulkVerbMarkedSpamOne": "Marquée comme indésirable",
+            "inbox.bulkVerbMarkedSpamMany": "Marquées comme indésirables",
+            "inbox.bulkVerbAssignedOne": "Assignée",
+            "inbox.bulkVerbAssignedMany": "Assignées",
+            "inbox.bulkVerbUnassignedOne": "Désassignée",
+            "inbox.bulkVerbUnassignedMany": "Désassignées",
 
             // --- Saved views (#280) ---------------------------------------------------
             "inbox.viewsSave": "Enregistrer cette vue",

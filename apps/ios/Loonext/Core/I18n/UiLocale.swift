@@ -88,6 +88,47 @@ enum UiLocale {
     }
 }
 
+/// A synchronous, concurrency-safe view of the locale chosen by the main-actor
+/// store.
+///
+/// Error rendering is also used from callbacks and model code that cannot hop
+/// to `MainActor` just to turn an already-caught failure into a sentence. A
+/// plain `nonisolated(unsafe)` string would make those reads race a language
+/// change. This tiny lock is the bridge: `UiLocaleStore` remains the sole
+/// writer, while any actor can safely read the last fully resolved value.
+private final class LockedUiLocale: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: String
+
+    init(_ locale: String) {
+        stored = locale
+    }
+
+    func read() -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        return stored
+    }
+
+    func write(_ locale: String) {
+        lock.lock()
+        stored = locale
+        lock.unlock()
+    }
+}
+
+/// Starts with the same cold-launch evidence as `UiLocaleStore.shared`, so a
+/// failure that happens before the root view first touches the store still
+/// follows the cached member choice or the phone rather than assuming English.
+private let uiLocalePreferenceKey = "ui_locale"
+private let processUiLocale = LockedUiLocale(
+    UiLocale.resolve(
+        user: UserDefaults.standard.string(forKey: uiLocalePreferenceKey),
+        device: UiLocale.deviceTag(),
+        company: nil
+    )
+)
+
 /// The answer to "what language is this app in right now", in one place.
 ///
 /// ## Why a store rather than reading `Me` where it is needed
@@ -110,7 +151,13 @@ enum UiLocale {
 @MainActor
 @Observable
 final class UiLocaleStore {
-    static let shared = UiLocaleStore()
+    static let shared = UiLocaleStore(publishesProcessLocale: true)
+
+    /// The process-wide reader locale for synchronous code outside MainActor.
+    ///
+    /// Production has one publishing store (`shared`). Other store instances
+    /// are test fixtures and deliberately do not alter this value.
+    nonisolated static var readerLocale: String { processUiLocale.read() }
 
     /// The member's own setting, or nil for "ask the device, then the
     /// workspace". Nil is a real value, not an absence.
@@ -124,13 +171,18 @@ final class UiLocaleStore {
     /// re-reading it per frame would ask a question that cannot have a new
     /// answer while this process is alive.
     @ObservationIgnored private let deviceTag: String?
+    @ObservationIgnored private let publishesProcessLocale: Bool
 
-    private static let userLocaleKey = "ui_locale"
-
-    init(defaults: UserDefaults = .standard, deviceTag: String? = UiLocale.deviceTag()) {
+    init(
+        defaults: UserDefaults = .standard,
+        deviceTag: String? = UiLocale.deviceTag(),
+        publishesProcessLocale: Bool = false
+    ) {
         self.defaults = defaults
         self.deviceTag = deviceTag
-        userLocale = defaults.string(forKey: Self.userLocaleKey)
+        self.publishesProcessLocale = publishesProcessLocale
+        userLocale = defaults.string(forKey: uiLocalePreferenceKey)
+        publishResolvedLocale()
     }
 
     /// The language every screen should be drawn in.
@@ -146,8 +198,10 @@ final class UiLocaleStore {
     /// Everything `/v1/me` just said. Called on every bootstrap, so a setting
     /// changed on another device corrects here without anybody signing out.
     func apply(user: String?, company: String?) {
-        setUserLocale(user)
+        userLocale = user
         companyLocale = company
+        persistUserLocale(user)
+        publishResolvedLocale()
     }
 
     /// The member picked a language (or picked "same as my phone", which is
@@ -155,10 +209,22 @@ final class UiLocaleStore {
     /// caller puts it back if the write fails.
     func setUserLocale(_ locale: String?) {
         userLocale = locale
+        persistUserLocale(locale)
+        publishResolvedLocale()
+    }
+
+    private func persistUserLocale(_ locale: String?) {
         if let locale {
-            defaults.set(locale, forKey: Self.userLocaleKey)
+            defaults.set(locale, forKey: uiLocalePreferenceKey)
         } else {
-            defaults.removeObject(forKey: Self.userLocaleKey)
+            defaults.removeObject(forKey: uiLocalePreferenceKey)
         }
+    }
+
+    private func publishResolvedLocale() {
+        guard publishesProcessLocale else { return }
+        processUiLocale.write(
+            UiLocale.resolve(user: userLocale, device: deviceTag, company: companyLocale)
+        )
     }
 }

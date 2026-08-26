@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import { FrCard } from "@/components/marketing/fr";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { statusCopy } from "@/i18n/marketing/status";
 
 /**
  * #477 — "email me instead of making me watch this page".
@@ -37,7 +39,12 @@ const fieldClass =
 
 type Status = "idle" | "submitting" | "done" | "error";
 
-export function StatusSubscribeCard() {
+export function StatusSubscribeCard({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+}) {
+  const copy = statusCopy(locale);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string | null>(null);
@@ -58,21 +65,21 @@ export function StatusSubscribeCard() {
         headers: { "Content-Type": "application/json" },
         // `website` is the honeypot the contact form already uses: a field no
         // person sees, so anything in it came from a bot.
-        body: JSON.stringify({ email, website: "" }),
+        body: JSON.stringify({ email, website: "", locale }),
       });
       const body = (await response.json().catch(() => ({}))) as {
         message?: string;
         error?: string;
       };
       if (response.ok) {
-        setMessage(body.message ?? "Check your email for a link to confirm.");
+        setMessage(body.message ?? copy.confirmFallback);
         setStatus("done");
       } else {
-        setMessage(body.error ?? "That didn't go through. Try again in a moment.");
+        setMessage(body.error ?? copy.errorFallback);
         setStatus("error");
       }
     } catch {
-      setMessage("That didn't go through. Try again in a moment.");
+      setMessage(copy.errorFallback);
       setStatus("error");
     }
   }
@@ -80,12 +87,10 @@ export function StatusSubscribeCard() {
   return (
     <FrCard className="mt-10 p-6 sm:p-8">
       <h2 className="fr-eyebrow text-[color:var(--fr-ink)]">
-        Get told instead of checking
+        {copy.subscribeHeading}
       </h2>
       <p className="mt-3 text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
-        We&apos;ll email you when there&apos;s an incident and again when
-        it&apos;s resolved. That&apos;s all it is: no newsletter, and one-click
-        unsubscribe on every message.
+        {copy.subscribeIntro}
       </p>
 
       {status === "done" ? (
@@ -103,7 +108,7 @@ export function StatusSubscribeCard() {
             htmlFor="status-subscribe-email"
             className="block text-sm font-semibold text-[color:var(--fr-ink)]"
           >
-            Email address
+            {copy.emailAddress}
           </label>
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
@@ -115,7 +120,7 @@ export function StatusSubscribeCard() {
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="email"
               inputMode="email"
-              placeholder="you@company.com"
+              placeholder={copy.emailPlaceholder}
               required
               disabled={status === "submitting"}
               aria-describedby={
@@ -128,7 +133,7 @@ export function StatusSubscribeCard() {
               disabled={status === "submitting"}
               className="inline-flex items-center justify-center rounded-full bg-[color:var(--fr-olive)] px-7 py-3.5 text-[0.9375rem] font-semibold whitespace-nowrap text-[color:var(--fr-on-olive)] transition-colors duration-200 ease-out hover:bg-[color:var(--fr-olive-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {status === "submitting" ? "Sending..." : "Email me"}
+              {status === "submitting" ? copy.sending : copy.emailMe}
             </button>
           </div>
           {status === "error" && message ? (

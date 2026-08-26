@@ -1646,10 +1646,20 @@ final class SettingsLogicTests: XCTestCase {
     /// the van.
     ///
     /// Read as the READER sees it, not as it is wrapped: the copy here is
-    /// line-broken Swift concatenation, so a guard matching raw source would
-    /// pass on any sentence that happened to break in the middle.
+    /// line-broken Swift concatenation or a catalogue entry, so a guard matching
+    /// only raw view source would go blind the moment a sentence was translated.
     func testEverySentenceOnTheBillingScreenCountsTheHoldFromTheCancellation() throws {
-        let rendered = renderedCopy(codeOnly(try billingSource()))
+        let source = codeOnly(try billingSource())
+        let rendered = try billingCopyAndHoldCatalogue()
+
+        // The three states are all wired to the catalogue. Checking only the
+        // catalogue would let the view silently stop using one of them.
+        for key in ["settings.holdRule", "settings.holdUntil", "settings.holdEndedOn"] {
+            XCTAssertTrue(
+                source.contains("t(\"\(key)\""),
+                "the billing screen no longer reads \(key)"
+            )
+        }
 
         // Nowhere ties the days to the period — the same property the shared
         // module asserts over its own strings.
@@ -1701,15 +1711,18 @@ final class SettingsLogicTests: XCTestCase {
     /// that suffers is the expired one ("the hold ended on 3 September"), read
     /// by definition after the deadline and possibly a year later by somebody
     /// signing back in to find out what happened to their number.
-    func testTheReleaseDateIsPrintedWithItsYearInTheSameShapeTheMailUses() throws {
+    func testTheReleaseDateCarriesItsYearAndFollowsTheAppLanguage() throws {
         let formatter = try topLevelDeclaration(
             try billingSource(),
             "private func numberReleaseDay("
         )
         XCTAssertTrue(
-            formatter.contains("\"MMMM d, yyyy\""),
-            "the release-date formatter no longer matches releaseDateLabel in "
-                + "grace.ts, which is the mail that sends people to this screen"
+            formatter.contains("setLocalizedDateFormatFromTemplate(\"MMMMdyyyy\")"),
+            "the release date lost its year or stopped following the app language"
+        )
+        XCTAssertTrue(
+            formatter.contains("locale == MessageLocale.frCA"),
+            "a French app would still print the English release-date shape"
         )
         XCTAssertTrue(
             formatter.contains("TimeZone(identifier: \"UTC\")"),
@@ -1728,7 +1741,7 @@ final class SettingsLogicTests: XCTestCase {
     /// tense here tells them they have lost something they still have, at the
     /// same moment the win-back disappears.
     func testTheScreenSaysTheHoldEndedRatherThanThatTheNumberIsGone() throws {
-        let rendered = renderedCopy(codeOnly(try billingSource()))
+        let rendered = try billingCopyAndHoldCatalogue()
         XCTAssertNil(
             rendered.range(
                 of: "(has|have) (already )?(gone back|been released|been reassigned)"
@@ -1776,6 +1789,21 @@ final class SettingsLogicTests: XCTestCase {
             .appendingPathComponent("BillingSection.swift")
         return try String(contentsOf: path, encoding: .utf8)
             .replacingOccurrences(of: "\r\n", with: "\n")
+    }
+
+    /// The English a reader can actually meet on this screen, including the
+    /// three hold states that #228 moved out of the view and into AppStrings.
+    /// Slots are filled with representative values so the semantic guards keep
+    /// testing complete sentences rather than catalogue templates.
+    private func billingCopyAndHoldCatalogue() throws -> String {
+        let keys = ["settings.holdRule", "settings.holdUntil", "settings.holdEndedOn"]
+        let hold = try keys.map { key in
+            let copy = try XCTUnwrap(AppStrings.en[key], "missing English copy for \(key)")
+            return copy
+                .replacingOccurrences(of: "{days}", with: String(cancellationGraceDays))
+                .replacingOccurrences(of: "{date}", with: "August 14, 2026")
+        }
+        return renderedCopy(codeOnly(try billingSource())) + "\n" + hold.joined(separator: "\n")
     }
 
     /// The pure-logic file's source, for the one property that cannot be seen

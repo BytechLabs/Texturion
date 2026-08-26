@@ -92,6 +92,18 @@ enum ContactsTasksStrings {
             "contactsTasks.selectThese": "Select these {count}",
             "contactsTasks.selectAllMatching": "Select all matching",
             "contactsTasks.bulkFailed": "That didn't go through. Nothing was changed.",
+            "contactsTasks.bulkTaskOne": "task",
+            "contactsTasks.bulkTaskMany": "tasks",
+            "contactsTasks.bulkMarkedDoneOne": "Marked done",
+            "contactsTasks.bulkMarkedDoneMany": "Marked done",
+            "contactsTasks.bulkMarkedNotDoneOne": "Marked not done",
+            "contactsTasks.bulkMarkedNotDoneMany": "Marked not done",
+            "contactsTasks.bulkAssignedOne": "Assigned",
+            "contactsTasks.bulkAssignedMany": "Assigned",
+            "contactsTasks.bulkUnassignedOne": "Unassigned",
+            "contactsTasks.bulkUnassignedMany": "Unassigned",
+            "contactsTasks.bulkDeletedOne": "Deleted",
+            "contactsTasks.bulkDeletedMany": "Deleted",
             "contactsTasks.taskUpdateFailed": "Couldn't update the task",
             "contactsTasks.everyTaskLinksBack": "Every task links back to its message",
 
@@ -351,6 +363,70 @@ enum ContactsTasksStrings {
             "contactsTasks.importShowAllValues": "Show all {count} values",
             "contactsTasks.importShowFewerValues": "Show fewer values",
             "contactsTasks.importValueCeiling": "Showing {shown} of the {total} different answers in this column.",
+            // The whole CSV/vCard review contract. These keys deliberately
+            // include the short labels too: a French explanation followed by
+            // an English menu choice is still an untranslated decision.
+            "contactsTasks.importActionFirstName": "First name",
+            "contactsTasks.importActionLastName": "Last name",
+            "contactsTasks.importActionOptedOut": "Do not text",
+            "contactsTasks.importIgnore": "Ignore",
+            "contactsTasks.importColumnNoHeading": "Column {number} — no heading",
+            "contactsTasks.importEmptyColumn": "every row leaves this blank",
+            "contactsTasks.importFlagBlockRows": "{value} on the rows to block",
+            "contactsTasks.importFlagOr": "or",
+            "contactsTasks.importBlockerTitle":
+                "We can't read the do-not-text column",
+            "contactsTasks.importBlockerDetail":
+                "{column} is the column you marked as do-not-text, and it holds "
+                + "answers we can't read as yes or no: {shown}{rest}. Reading one of "
+                + "those as a blank would text somebody who asked this business to "
+                + "stop. Marking it {ignore} instead would import all of them as "
+                + "textable. Use {vocabulary} in the file, then import again.",
+            "contactsTasks.importBlockerWayOut":
+                "Fix the do-not-text column in the file, then import it again.",
+            "contactsTasks.importIgnoreAssertion":
+                "says nothing about who may be texted",
+            "contactsTasks.importIgnoreMeaning":
+                "{ignore} means the column {assertion}.",
+            "contactsTasks.importColumnsHeading": "Every column, accounted for",
+            "contactsTasks.importColumnsExplanation":
+                "Nothing here is dropped without somebody looking at it. A column read "
+                + "as nothing is how a \"Do Not Call\" list gets texted, so every "
+                + "column needs an answer — including the ones we guessed.",
+            "contactsTasks.importIgnoreColumnOne": "Ignore the 1 column left",
+            "contactsTasks.importIgnoreColumnsMany":
+                "Ignore the {count} columns left",
+            "contactsTasks.importProgress": "{answered} of {total} answered",
+            "contactsTasks.importUnansweredColumnOne":
+                "1 column still needs an answer.",
+            "contactsTasks.importUnansweredColumnsMany":
+                "{count} columns still need an answer.",
+            "contactsTasks.importUnnamedColumn": "The unnamed column",
+            "contactsTasks.importColumnQuoted": "“{header}”",
+            "contactsTasks.importVCardOptedOut":
+                "Don't text any card with it",
+            "contactsTasks.importVCardNoName": "A property with no name",
+            "contactsTasks.importVCardOnOne": "on 1 card",
+            "contactsTasks.importVCardOnMany": "on {count} cards",
+            "contactsTasks.importPropertiesHeading": "Every property, accounted for",
+            "contactsTasks.importPropertiesExplanation":
+                "These cards carry fields this import doesn't read. A card's "
+                + "CATEGORIES or a NOTE saying they asked us to stop is the only "
+                + "place a vCard can say do-not-text, so each one needs an answer.",
+            "contactsTasks.importUnansweredPropertyOne":
+                "1 property still needs an answer.",
+            "contactsTasks.importUnansweredPropertiesMany":
+                "{count} properties still need an answer.",
+            "contactsTasks.importIgnorePropertyOne": "Ignore the 1 property left",
+            "contactsTasks.importIgnorePropertiesMany":
+                "Ignore the {count} properties left",
+            "contactsTasks.importConfirmed": "Confirmed",
+            "contactsTasks.importNotConfirmed": "Not confirmed",
+            "contactsTasks.importChoose": "Choose",
+            "contactsTasks.importColumnAccessibility":
+                "{title} — what this column holds",
+            "contactsTasks.importPropertyAccessibility":
+                "{title} — what this property means",
             "contactsTasks.contactsNeedSettings":
                 "Turn Contacts on for Loonext in Settings.",
             "contactsTasks.addToContacts": "Add {name} to contacts",
@@ -392,6 +468,22 @@ enum ContactsTasksStrings {
             "contactsTasks.importStopStaysBlocked":
                 "Anyone who has texted STOP stays blocked. Importing them again does "
                 + "not undo that.",
+            "contactsTasks.importConfirmStatement":
+                "Confirm the statement above to import.",
+            "contactsTasks.importConsentMissingOne":
+                "Consent not recorded for 1 person",
+            "contactsTasks.importConsentMissingMany":
+                "Consent not recorded for {count} people",
+            "contactsTasks.importConsentUnlisted":
+                "{count} more were refused and this answer did not name them.",
+            "contactsTasks.importConsentRefusedNote":
+                "Some of these customers have already asked this business to stop texting "
+                + "them. They were imported and their opt-out still stands — your consent "
+                + "statement was not recorded against them.",
+            "contactsTasks.localeContactScopeNote":
+                "Only automated texts follow this: the away reply, the missed-call "
+                + "text-back, the emergency reply and the rating ask. It does not change "
+                + "the app's language, and what your crew types is sent as typed.",
 
             // Duplicates and merging (#246)
             "contactsTasks.duplicatesOnePair": "These two look like the same customer",
@@ -420,6 +512,22 @@ enum ContactsTasksStrings {
             "contactsTasks.noCallsYet": "No calls with this contact yet.",
             "contactsTasks.timelineEmpty":
                 "Texts, calls and jobs for this customer will collect here.",
+            "contactsTasks.timelineJob": "Job",
+            "contactsTasks.timelineCallAnsweredBy": "Call answered by {name}",
+            "contactsTasks.timelineCallAnswered": "Call answered",
+            "contactsTasks.timelineVoicemail": "Voicemail",
+            "contactsTasks.timelineMissedCall": "Missed call",
+            "contactsTasks.timelineConversation": "Conversation",
+            "contactsTasks.timelineDone": "Done",
+            "contactsTasks.timelineDue": "Due {date}",
+            "contactsTasks.timelineOpen": "Open",
+            "contactsTasks.timelineTalkedFor": "Talked for {duration}",
+            "contactsTasks.timelineNoAnswer": "No answer",
+            "contactsTasks.timelineClosed": "Closed",
+            "contactsTasks.timelineYesterday": "Yesterday",
+            "contactsTasks.timelineSoon": "soon",
+            "contactsTasks.timelineDurationMinutes": "{minutes}m {seconds}s",
+            "contactsTasks.timelineDurationSeconds": "{seconds}s",
             "contactsTasks.showMore": "Show more",
             "contactsTasks.showEarlier": "Show earlier",
             "contactsTasks.playVoicemail": "Play voicemail",
@@ -565,6 +673,18 @@ enum ContactsTasksStrings {
             "contactsTasks.selectThese": "Sélectionner ces {count}",
             "contactsTasks.selectAllMatching": "Tout sélectionner",
             "contactsTasks.bulkFailed": "L'opération n'a pas abouti. Rien n'a été modifié.",
+            "contactsTasks.bulkTaskOne": "tâche",
+            "contactsTasks.bulkTaskMany": "tâches",
+            "contactsTasks.bulkMarkedDoneOne": "Terminée",
+            "contactsTasks.bulkMarkedDoneMany": "Terminées",
+            "contactsTasks.bulkMarkedNotDoneOne": "Marquée non terminée",
+            "contactsTasks.bulkMarkedNotDoneMany": "Marquées non terminées",
+            "contactsTasks.bulkAssignedOne": "Assignée",
+            "contactsTasks.bulkAssignedMany": "Assignées",
+            "contactsTasks.bulkUnassignedOne": "Désassignée",
+            "contactsTasks.bulkUnassignedMany": "Désassignées",
+            "contactsTasks.bulkDeletedOne": "Supprimée",
+            "contactsTasks.bulkDeletedMany": "Supprimées",
             "contactsTasks.taskUpdateFailed": "Impossible de mettre à jour la tâche",
             "contactsTasks.everyTaskLinksBack": "Chaque tâche renvoie à son texto",
 
@@ -815,6 +935,79 @@ enum ContactsTasksStrings {
             "contactsTasks.importShowAllValues": "Afficher les {count} valeurs",
             "contactsTasks.importShowFewerValues": "Afficher moins de valeurs",
             "contactsTasks.importValueCeiling": "Affichage de {shown} des {total} réponses différentes de cette colonne.",
+            "contactsTasks.importActionFirstName": "Prénom",
+            "contactsTasks.importActionLastName": "Nom de famille",
+            "contactsTasks.importActionOptedOut": "Ne pas texter",
+            "contactsTasks.importIgnore": "Ignorer",
+            "contactsTasks.importColumnNoHeading":
+                "Colonne {number} — sans en-tête",
+            "contactsTasks.importEmptyColumn":
+                "chaque ligne laisse cette colonne vide",
+            "contactsTasks.importFlagBlockRows":
+                "{value} pour les lignes à bloquer",
+            "contactsTasks.importFlagOr": "ou",
+            "contactsTasks.importBlockerTitle":
+                "Nous ne pouvons pas lire la colonne « ne pas texter »",
+            "contactsTasks.importBlockerDetail":
+                "{column} est la colonne que vous avez marquée « ne pas texter » : "
+                + "elle contient des réponses que nous ne pouvons pas interpréter "
+                + "comme oui ou non : {shown}{rest}. Lire l'une d'elles comme une "
+                + "case vide enverrait un texto à quelqu'un qui a demandé à cette "
+                + "entreprise d'arrêter. La marquer {ignore} à la place les "
+                + "importerait toutes comme pouvant être textées. Utilisez "
+                + "{vocabulary} dans le fichier, puis recommencez l'importation.",
+            "contactsTasks.importBlockerWayOut":
+                "Corrigez la colonne « ne pas texter » dans le fichier, puis "
+                + "recommencez l'importation.",
+            "contactsTasks.importIgnoreAssertion":
+                "n'indique rien sur qui peut être texté",
+            "contactsTasks.importIgnoreMeaning":
+                "{ignore} signifie que la colonne {assertion}.",
+            "contactsTasks.importColumnsHeading":
+                "Chaque colonne est prise en compte",
+            "contactsTasks.importColumnsExplanation":
+                "Rien n'est écarté ici sans que quelqu'un l'examine. Lire une "
+                + "colonne comme si elle ne contenait rien, c'est texter une liste "
+                + "« DO NOT CALL » : chaque colonne doit donc avoir une réponse — "
+                + "y compris celles que nous avons devinées.",
+            "contactsTasks.importIgnoreColumnOne":
+                "Ignorer la colonne restante",
+            "contactsTasks.importIgnoreColumnsMany":
+                "Ignorer les {count} colonnes restantes",
+            "contactsTasks.importProgress": "{answered} sur {total} répondues",
+            "contactsTasks.importUnansweredColumnOne":
+                "1 colonne doit encore avoir une réponse.",
+            "contactsTasks.importUnansweredColumnsMany":
+                "{count} colonnes doivent encore avoir une réponse.",
+            "contactsTasks.importUnnamedColumn": "La colonne sans nom",
+            "contactsTasks.importColumnQuoted": "« {header} »",
+            "contactsTasks.importVCardOptedOut":
+                "Ne texter aucune fiche qui le contient",
+            "contactsTasks.importVCardNoName": "Un élément sans nom",
+            "contactsTasks.importVCardOnOne": "sur 1 fiche",
+            "contactsTasks.importVCardOnMany": "sur {count} fiches",
+            "contactsTasks.importPropertiesHeading":
+                "Chaque élément est pris en compte",
+            "contactsTasks.importPropertiesExplanation":
+                "Ces fiches contiennent des champs que cette importation ne lit "
+                + "pas. Les CATEGORIES ou une NOTE disant qu'une personne a demandé "
+                + "d'arrêter sont les seuls endroits où une vCard peut dire « ne "
+                + "pas texter » : chaque élément doit donc avoir une réponse.",
+            "contactsTasks.importUnansweredPropertyOne":
+                "1 élément doit encore avoir une réponse.",
+            "contactsTasks.importUnansweredPropertiesMany":
+                "{count} éléments doivent encore avoir une réponse.",
+            "contactsTasks.importIgnorePropertyOne":
+                "Ignorer l'élément restant",
+            "contactsTasks.importIgnorePropertiesMany":
+                "Ignorer les {count} éléments restants",
+            "contactsTasks.importConfirmed": "Confirmé",
+            "contactsTasks.importNotConfirmed": "Non confirmé",
+            "contactsTasks.importChoose": "Choisir",
+            "contactsTasks.importColumnAccessibility":
+                "{title} — ce que contient cette colonne",
+            "contactsTasks.importPropertyAccessibility":
+                "{title} — ce que signifie cet élément",
             "contactsTasks.contactsNeedSettings":
                 "Activez les contacts pour Loonext dans les Réglages.",
             "contactsTasks.addToContacts": "Ajouter {name} aux clients",
@@ -851,6 +1044,24 @@ enum ContactsTasksStrings {
             "contactsTasks.importStopStaysBlocked":
                 "Toute personne qui a texté STOP reste bloquée. L'importer de nouveau "
                 + "n'annule pas cela.",
+            "contactsTasks.importConfirmStatement":
+                "Confirmez la déclaration ci-dessus pour importer.",
+            "contactsTasks.importConsentMissingOne":
+                "Consentement non enregistré pour 1 personne",
+            "contactsTasks.importConsentMissingMany":
+                "Consentement non enregistré pour {count} personnes",
+            "contactsTasks.importConsentUnlisted":
+                "{count} autres refus n'étaient pas nommés dans cette réponse.",
+            "contactsTasks.importConsentRefusedNote":
+                "Certains de ces clients ont déjà demandé à cette entreprise de cesser "
+                + "de leur envoyer des textos. Ils ont été importés et leur désabonnement "
+                + "demeure en vigueur — votre déclaration de consentement n'a pas été "
+                + "enregistrée pour eux.",
+            "contactsTasks.localeContactScopeNote":
+                "Seuls les textos automatisés suivent ce réglage : la réponse d'absence, "
+                + "le texto après un appel manqué, la réponse d'urgence et la demande "
+                + "d'évaluation. Il ne change pas la langue de l'app, et les messages "
+                + "rédigés par votre équipe sont envoyés tels quels.",
 
             // Doublons et fusion (#246)
             "contactsTasks.duplicatesOnePair":
@@ -883,6 +1094,22 @@ enum ContactsTasksStrings {
             "contactsTasks.noCallsYet": "Aucun appel avec ce client pour l'instant.",
             "contactsTasks.timelineEmpty":
                 "Les textos, les appels et les travaux de ce client s'accumuleront ici.",
+            "contactsTasks.timelineJob": "Tâche",
+            "contactsTasks.timelineCallAnsweredBy": "Appel pris par {name}",
+            "contactsTasks.timelineCallAnswered": "Appel pris",
+            "contactsTasks.timelineVoicemail": "Message vocal",
+            "contactsTasks.timelineMissedCall": "Appel manqué",
+            "contactsTasks.timelineConversation": "Conversation",
+            "contactsTasks.timelineDone": "Faite",
+            "contactsTasks.timelineDue": "Échéance {date}",
+            "contactsTasks.timelineOpen": "Ouverte",
+            "contactsTasks.timelineTalkedFor": "Durée de l'appel : {duration}",
+            "contactsTasks.timelineNoAnswer": "Sans réponse",
+            "contactsTasks.timelineClosed": "Fermée",
+            "contactsTasks.timelineYesterday": "Hier",
+            "contactsTasks.timelineSoon": "bientôt",
+            "contactsTasks.timelineDurationMinutes": "{minutes} min {seconds} s",
+            "contactsTasks.timelineDurationSeconds": "{seconds} s",
             "contactsTasks.showMore": "Voir plus",
             "contactsTasks.showEarlier": "Voir plus ancien",
             "contactsTasks.playVoicemail": "Lire le message vocal",

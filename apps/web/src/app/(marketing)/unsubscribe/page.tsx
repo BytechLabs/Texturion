@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 
 import { FrSection } from "@/components/marketing/fr";
-
-import { UnsubscribeClient } from "./unsubscribe-client";
+import { UnsubscribeClient } from "@/components/marketing/unsubscribe-client";
+import { unsubscribeEn } from "@/i18n/marketing/unsubscribe";
+import { buildMetadata } from "@/lib/marketing/seo";
 
 /**
  * #312 /unsubscribe — where the link in a commercial email lands.
@@ -16,7 +17,11 @@ import { UnsubscribeClient } from "./unsubscribe-client";
  * spam report instead.
  */
 export const metadata: Metadata = {
-  title: "Unsubscribe",
+  ...buildMetadata({
+    title: unsubscribeEn.metadataTitle,
+    description: unsubscribeEn.metadataDescription,
+    path: "/unsubscribe",
+  }),
   robots: { index: false, follow: false },
 };
 

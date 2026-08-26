@@ -4,6 +4,7 @@
  * acceptance, email-match rule on accept.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY } from "@loonext/shared";
 
 import {
   apiRequest,
@@ -1008,6 +1009,12 @@ describe("PATCH /v1/members/:id (O/A; owner immutable)", () => {
       { method: "PATCH", companyId: COMPANY_ID, body: { role: "member" } },
     );
     expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({
+      error: {
+        code: "validation_failed",
+        message_key: SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY,
+      },
+    });
     // And nothing was written. A refusal that still changed the row would be the
     // worst of both.
     expect(sb.find("PATCH", "/rest/v1/company_members")).toHaveLength(0);

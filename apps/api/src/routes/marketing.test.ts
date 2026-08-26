@@ -25,6 +25,7 @@ import type { Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import {
   MARKETING_CONSENT_TEXT,
+  MARKETING_CONSENT_TEXT_FR,
   MARKETING_DAILY_CAP,
 } from "../marketing/comparison-email";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
@@ -76,6 +77,7 @@ interface World {
   sb: SupabaseStub;
   resend: { calls: Record<string, unknown>[] };
   claimArgs: Record<string, unknown>[];
+  unsubscribeArgs: Record<string, unknown>[];
 }
 
 function buildWorld(
@@ -88,14 +90,16 @@ function buildWorld(
 ): World {
   const sb = supabaseStub(env);
   const claimArgs: Record<string, unknown>[] = [];
+  const unsubscribeArgs: Record<string, unknown>[] = [];
 
   sb.on("POST", "/rest/v1/rpc/api_claim_marketing_contact", (request) => {
     claimArgs.push(request.body as Record<string, unknown>);
     return options.claim ?? { ok: true, token: TOKEN };
   });
-  sb.on("POST", "/rest/v1/rpc/api_marketing_unsubscribe", () =>
-    options.unsubscribeResult ?? { ok: true, known: true },
-  );
+  sb.on("POST", "/rest/v1/rpc/api_marketing_unsubscribe", (request) => {
+    unsubscribeArgs.push(request.body as Record<string, unknown>);
+    return options.unsubscribeResult ?? { ok: true, known: true };
+  });
   sb.on("GET", "/rest/v1/marketing_contacts", () =>
     options.contactRow === null
       ? []
@@ -104,6 +108,7 @@ function buildWorld(
             email: "dana@example.com",
             unsubscribe_token: TOKEN,
             unsubscribed_at: null,
+            consent_locale: "en",
           },
         ],
   );
@@ -117,7 +122,7 @@ function buildWorld(
   };
 
   stubFetch(resendRoute, sb.route);
-  return { sb, resend: { calls: resendCalls }, claimArgs };
+  return { sb, resend: { calls: resendCalls }, claimArgs, unsubscribeArgs };
 }
 
 async function post(
@@ -132,6 +137,25 @@ async function post(
       headers: { "Content-Type": "application/json", "CF-Connecting-IP": IP },
       body: JSON.stringify(body),
     }),
+    env,
+  );
+}
+
+async function oneClickPost(
+  app: Hono<AppEnv>,
+  env: Env,
+  token: string,
+  marker = "One-Click",
+): Promise<Response> {
+  return app.fetch(
+    new Request(
+      `https://api.test/marketing/unsubscribe?token=${encodeURIComponent(token)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ "List-Unsubscribe": marker }),
+      },
+    ),
     env,
   );
 }
@@ -168,7 +192,48 @@ describe("POST /marketing/comparison", () => {
       p_source: "compare_page",
       p_consent_text: MARKETING_CONSENT_TEXT,
       p_cap: MARKETING_DAILY_CAP,
+      p_locale: "en",
     });
+  });
+
+  it("stores and sends a French comparison in the route language", async () => {
+    const env = {
+      ...completeEnv(),
+      SITE_ORIGIN: "https://loonext.com",
+    } as Env;
+    const world = buildWorld(env, {
+      contactRow: {
+        email: "dana@example.com",
+        unsubscribe_token: TOKEN,
+        unsubscribed_at: null,
+        consent_locale: "fr-CA",
+      },
+    });
+    const res = await post(buildApp(), env, "/marketing/comparison", {
+      email: "dana@example.com",
+      source: "compare_page",
+      locale: "fr-CA",
+    });
+
+    expect(res.status).toBe(201);
+    expect(world.claimArgs[0]).toMatchObject({
+      p_consent_text: MARKETING_CONSENT_TEXT_FR,
+      p_locale: "fr-CA",
+    });
+    const sent = world.resend.calls[0] as {
+      subject: string;
+      text: string;
+      html: string;
+      headers: Record<string, string>;
+    };
+    const unsubscribe = `${env.SITE_ORIGIN}/fr/desabonnement?token=${TOKEN}`;
+    const oneClick = `${env.API_ORIGIN}/marketing/unsubscribe?token=${TOKEN}`;
+    expect(sent.subject).toBe("La comparaison que vous avez demandée");
+    expect(sent.text).toContain("https://loonext.com/fr/comparer");
+    expect(sent.text).toContain("Se désabonner");
+    expect(sent.html).toContain("Se désabonner");
+    expect(sent.text).toContain(unsubscribe);
+    expect(sent.headers["List-Unsubscribe"]).toBe(`<${oneClick}>`);
   });
 
   it("stores the consent but sends nothing when no postal address is set", async () => {
@@ -220,11 +285,15 @@ describe("POST /marketing/comparison", () => {
     });
 
     const sent = world.resend.calls[0] as {
+      subject: string;
       text: string;
       html: string;
       headers: Record<string, string>;
     };
     const unsubscribe = `${env.APP_ORIGIN}/unsubscribe?token=${TOKEN}`;
+    const oneClick = `${env.API_ORIGIN}/marketing/unsubscribe?token=${TOKEN}`;
+    expect(sent.subject).toBe("The comparison you asked for");
+    expect(sent.text).toContain("https://loonext.com/compare");
     expect(sent.text).toContain(unsubscribe);
     expect(sent.html).toContain(unsubscribe);
     expect(sent.text).toContain(ADDRESS);
@@ -232,7 +301,7 @@ describe("POST /marketing/comparison", () => {
     // RFC 8058: the -Post header is what lets a mail client press the button
     // itself, which is the difference between an unsubscribe somebody has to
     // work for and one that just happens.
-    expect(sent.headers["List-Unsubscribe"]).toBe(`<${unsubscribe}>`);
+    expect(sent.headers["List-Unsubscribe"]).toBe(`<${oneClick}>`);
     expect(sent.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
   });
 
@@ -291,6 +360,19 @@ describe("POST /marketing/comparison", () => {
     expect(res.status).toBe(422);
   });
 
+  it("refuses an unsupported locale instead of guessing consent wording", async () => {
+    const env = completeEnv() as Env;
+    const world = buildWorld(env);
+    const res = await post(buildApp(), env, "/marketing/comparison", {
+      email: "dana@example.com",
+      source: "compare_page",
+      locale: "fr",
+    });
+
+    expect(res.status).toBe(422);
+    expect(world.claimArgs).toHaveLength(0);
+  });
+
   it("still records the consent when the send throws", async () => {
     const env = completeEnv() as Env;
     const sb = supabaseStub(env);
@@ -300,7 +382,12 @@ describe("POST /marketing/comparison", () => {
       return { ok: true, token: TOKEN };
     });
     sb.on("GET", "/rest/v1/marketing_contacts", () => [
-      { email: "dana@example.com", unsubscribe_token: TOKEN, unsubscribed_at: null },
+      {
+        email: "dana@example.com",
+        unsubscribe_token: TOKEN,
+        unsubscribed_at: null,
+        consent_locale: "en",
+      },
     ]);
     sb.on("PATCH", "/rest/v1/marketing_contacts", () => []);
     const failing: FetchRoute = async (url) =>
@@ -322,6 +409,25 @@ describe("POST /marketing/comparison", () => {
 });
 
 describe("POST /marketing/unsubscribe", () => {
+  it("accepts an RFC 8058 one-click POST at the API URL", async () => {
+    const env = completeEnv() as Env;
+    const world = buildWorld(env);
+    const res = await oneClickPost(buildApp(), env, TOKEN);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, known: true });
+    expect(world.unsubscribeArgs).toEqual([{ p_token: TOKEN }]);
+  });
+
+  it("refuses a form POST without the RFC 8058 marker", async () => {
+    const env = completeEnv() as Env;
+    const world = buildWorld(env);
+    const res = await oneClickPost(buildApp(), env, TOKEN, "Later");
+
+    expect(res.status).toBe(422);
+    expect(world.unsubscribeArgs).toHaveLength(0);
+  });
+
   it("unsubscribes by token, with no account and no confirmation step", async () => {
     const env = completeEnv() as Env;
     buildWorld(env);

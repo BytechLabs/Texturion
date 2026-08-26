@@ -17,6 +17,7 @@ struct DiagnosticsSectionView: View {
     let companyId: String
 
     @State private var snapshot: DiagnosticsSnapshot?
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         Group {
@@ -30,7 +31,7 @@ struct DiagnosticsSectionView: View {
     }
 
     private func load() async -> DiagnosticsSnapshot {
-        let realtimeState = await graph.realtime.stateLabel()
+        let realtimeState = await graph.realtime.stateLabel(locale: appLocale)
         let notificationsAllowed = await notificationsAuthorized()
         return DiagnosticsSnapshot.current(
             realtimeState: realtimeState,

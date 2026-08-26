@@ -30,7 +30,7 @@
 import {
   isDowngrade,
   SELF_DOWNGRADE_ACK,
-  SELF_DOWNGRADE_REQUIRED_MESSAGE,
+  SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY,
   roleHasCapability,
   shouldShowOrientation,
   type MemberRole,
@@ -60,6 +60,9 @@ import {
   unwrap,
 } from "./core/http";
 import { seatLimit } from "./core/plans";
+
+const SELF_DOWNGRADE_REQUIRED_MESSAGE =
+  "Confirm that you understand what you're giving up before changing your own role.";
 
 const MEMBER_COLUMNS = "id,user_id,role,deactivated_at,created_at";
 const INVITE_COLUMNS =
@@ -271,6 +274,7 @@ teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => 
       c,
       "validation_failed",
       SELF_DOWNGRADE_REQUIRED_MESSAGE,
+      { key: SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY },
     );
   }
 

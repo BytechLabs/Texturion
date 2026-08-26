@@ -221,8 +221,10 @@ export {
   TEN_DLC_CEILINGS_VERIFIED_ON,
   TEN_DLC_CEILINGS_RECHECK_AFTER,
   CARRIER_CEILING_WARN_FRACTION,
+  carrierThroughputCopy,
   dailyCeiling,
   approachingCarrierCeiling,
+  type CarrierThroughputCopyKey,
   type TenDlcUseCase,
   type TierCeiling,
   type CarrierCeiling,
@@ -282,6 +284,7 @@ export {
 export {
   DELETION_GAPS,
   DELETION_GRACE_DAYS,
+  type DeletionGap,
 } from "./deletion-promises";
 
 export {
@@ -369,6 +372,7 @@ export {
   CONTACT_IMPORT_CONSENT_REFUSED_NOTE,
   CONTACT_IMPORT_CONSENT_REQUIRED,
   CONTACT_IMPORT_CONSENT_VALUE,
+  CONTACT_IMPORT_ERROR_MESSAGE_KEYS,
   CONTACT_IMPORT_IGNORE,
   CONTACT_IMPORT_MAX_BYTES,
   CONTACT_IMPORT_MAX_ROWS,
@@ -382,8 +386,11 @@ export {
   contactImportHiddenValuesLabel,
   contactImportShowAllValuesLabel,
   contactImportUndeclaredColumnsMessage,
+  contactImportUndeclaredColumnsReference,
   contactImportUndeclaredPropertiesMessage,
+  contactImportUndeclaredPropertiesReference,
   contactImportUnreadableFlagMessage,
+  contactImportUnreadableFlagReference,
   contactImportUnterminatedQuoteMessage,
   contactImportValueCeilingNote,
   contactImportVCardMergedCardMessage,
@@ -401,6 +408,8 @@ export {
   type ContactImportColumnAction,
   type ContactImportColumnDeclaration,
   type ContactImportColumnGuess,
+  type ContactImportErrorMessageKey,
+  type ContactImportErrorReference,
   type VCardPropertyAction,
   type VCardPropertyDeclaration,
 } from "./contact-import";
@@ -1052,7 +1061,7 @@ export {
   isDowngrade,
   losesRoleControl,
   SELF_DOWNGRADE_ACK,
-  SELF_DOWNGRADE_REQUIRED_MESSAGE,
+  SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY,
   selfDowngradeWarning,
   type SaySelfDowngrade,
   type SelfDowngradeKey,

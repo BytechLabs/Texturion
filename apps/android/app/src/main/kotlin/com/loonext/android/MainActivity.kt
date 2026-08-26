@@ -628,6 +628,10 @@ private fun ReadyShell(
     val softphone = remember(context) {
         SoftphoneManager.get(context.applicationContext, graph.api)
     }
+    val appLocale = LocalAppLocale.current
+    LaunchedEffect(appLocale) {
+        softphone.setReaderLocale(appLocale)
+    }
 
     // Session-scoped device wiring: push registration (no-op without Firebase
     // config) + softphone ring-registration.

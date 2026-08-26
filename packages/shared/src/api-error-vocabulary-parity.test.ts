@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { ERROR_CODES, INTERNAL_ERROR_CODE } from "./error-codes";
+import { CONTACT_IMPORT_ERROR_MESSAGE_KEYS } from "./contact-import";
+import { SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY } from "./self-downgrade";
 
 /**
  * #228 — the three clients say the same thing when the server refuses.
@@ -79,6 +81,10 @@ function webKeys(source: string): Set<string> {
 const REQUIRED = new Set<string>([
   ...ERROR_CODES,
   INTERNAL_ERROR_CODE,
+  ...CONTACT_IMPORT_ERROR_MESSAGE_KEYS.map((key) =>
+    key.slice("apiErrors.".length),
+  ),
+  SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY.slice("apiErrors.".length),
   "withReference",
 ]);
 

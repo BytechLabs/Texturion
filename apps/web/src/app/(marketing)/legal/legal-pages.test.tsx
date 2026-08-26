@@ -24,6 +24,7 @@ import SubprocessorsPage, {
 } from "./subprocessors/page";
 import TermsPage, { metadata as termsMetadata } from "./terms/page";
 import { CountryProvider } from "@/components/marketing/country";
+import { legalDeleteMyDataEn } from "@/i18n/marketing/legal-delete-my-data";
 import {
   DELETION_GAPS,
   DELETION_GRACE_DAYS,
@@ -501,18 +502,17 @@ describe("delete-my-data — the store-facing deletion page", () => {
 describe("#357 — the deletion page is bound to the facts, not to prose", () => {
   const page = PAGES.find((entry) => entry.name === "delete-my-data")!;
 
-  it("states the boundary from the shared constant", () => {
+  it("states every boundary in the shared inventory", () => {
     // #357: "A published page must not imply either is handled." The gap text
     // lives in packages/shared so the page, the emails and #285's questionnaire
     // answers cannot drift into three different promises — D48's own
     // requirement, applied to the surface where a mismatch reads as dishonesty
     // rather than staleness.
-    for (const gap of DELETION_GAPS) {
-      // A distinctive fragment: the rendered HTML escapes apostrophes, so the
-      // whole sentence would never match literally.
-      const fragment = gap.split(",")[0];
-      expect(page.html, `missing boundary: ${fragment}`).toContain(fragment);
-    }
+    expect(DELETION_GAPS).toEqual(["contact_form_message"]);
+    // A distinctive fragment: the rendered HTML escapes apostrophes, so the
+    // whole sentence would never match literally.
+    const fragment = legalDeleteMyDataEn.boundaryItem.split(",")[0];
+    expect(page.html, `missing boundary: ${fragment}`).toContain(fragment);
   });
 
   it("quotes the same reversible window everything else does", () => {

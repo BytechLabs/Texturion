@@ -89,6 +89,27 @@ class ApiExceptionLocaleTest {
     }
 
     @Test
+    fun `a specific server key stays actionable in both languages`() {
+        val cause = ApiException(
+            ApiErrorCode.VALIDATION_FAILED,
+            "Legacy English refusal.",
+            422,
+            messageKey = "apiErrors.contactImportUnreadableFlag",
+            messageVars = mapOf(
+                "header" to "Do not text",
+                "values" to "“maybe”",
+            ),
+        )
+        val english = cause.userMessage(MessageLocale.EN)
+        val french = cause.userMessage(MessageLocale.FR_CA)
+        assertTrue(english.contains("Do not text"))
+        assertTrue(english.contains("true/false"))
+        assertTrue(french.contains("Do not text"))
+        assertTrue(french.contains("interpréter comme oui ou non"))
+        assertFalse(french.contains("Legacy English refusal"))
+    }
+
+    @Test
     fun `every key a throw site names exists in both languages`() {
         /*
          * The half that keeps this true as the app grows. A new

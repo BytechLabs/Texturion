@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.features.payments.PayoutAccount
@@ -105,6 +106,7 @@ data class PaymentAsk(
 fun AskForPayment(
     account: PayoutAccount?,
     businessName: String?,
+    messageLocale: String,
     /**
      * Returns true when the ask actually went out. False keeps the form open
      * with everything still typed in it: a refusal here is almost always a RULE
@@ -124,12 +126,12 @@ fun AskForPayment(
 
     // Read once, up here: the reset below runs inside a coroutine, where a
     // @Composable lookup cannot go.
-    val defaultDescription = t("thread.askDefaultDescription")
+    val defaultDescription = AppStrings.translate(messageLocale, "thread.askDefaultDescription")
 
     var open by remember { mutableStateOf(false) }
     var amount by remember { mutableStateOf("") }
     // Smart Defaults: the ask this feature was built for, editable in one tap.
-    var description by remember { mutableStateOf(defaultDescription) }
+    var description by remember(messageLocale) { mutableStateOf(defaultDescription) }
     var sending by remember { mutableStateOf(false) }
     // Minted once per ASK, not per tap. A tap that timed out on a cell
     // connection and the tap the person makes again are the same request, and
@@ -166,11 +168,12 @@ fun AskForPayment(
             // preview: the customer will see the real name, and a blank first
             // word would read as a broken message rather than a pending fetch.
             businessName = businessName?.takeIf { it.isNotBlank() }
-                ?: t("thread.yourBusiness"),
+                ?: AppStrings.translate(messageLocale, "thread.yourBusiness"),
             amountCents = cents,
             currency = currency,
             description = description,
             url = PREVIEW_URL,
+            locale = messageLocale,
         )
     } else {
         null

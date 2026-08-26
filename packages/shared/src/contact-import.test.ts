@@ -14,7 +14,10 @@ import {
   CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
   contactImportColumnMismatchMessage,
   contactImportUndeclaredColumnsMessage,
+  contactImportUndeclaredColumnsReference,
   contactImportUndeclaredPropertiesMessage,
+  contactImportUndeclaredPropertiesReference,
+  contactImportUnreadableFlagReference,
   contactImportUnterminatedQuoteMessage,
   defaultContactImportColumns,
   formatContactImportColumn,
@@ -196,6 +199,30 @@ describe("#248 what the refusals say", () => {
     ).not.toMatch(/columns means|column mean\b/);
   });
 
+  it("pairs column refusals with language-neutral catalogue values", () => {
+    expect(
+      contactImportUndeclaredColumnsReference(
+        [
+          { index: 2, header: "Marketing Status" },
+          { index: 3, header: "" },
+        ],
+        4,
+      ),
+    ).toEqual({
+      key: "apiErrors.contactImportUndeclaredColumnsMany",
+      vars: {
+        columns: "#3 (“Marketing Status”), #4",
+        total: "4",
+        field: CONTACT_IMPORT_COLUMN_FIELD,
+        ignore: CONTACT_IMPORT_IGNORE,
+      },
+    });
+    expect(
+      contactImportUndeclaredColumnsReference([{ index: 0, header: "Phone" }], 1)
+        .key,
+    ).toBe("apiErrors.contactImportUndeclaredColumnsOne");
+  });
+
   it("keeps the mismatch sentence one sentence, whatever went wrong", () => {
     const message = contactImportColumnMismatchMessage("column 2 is declared twice");
     expect(message).toContain("column 2 is declared twice");
@@ -305,6 +332,53 @@ describe("#248 the vCard property declaration", () => {
     expect(
       contactImportUndeclaredPropertiesMessage(["CATEGORIES", "NOTE"]),
     ).not.toContain("more");
+  });
+
+  it("pairs vCard refusals with singular, plural and capped catalogue keys", () => {
+    expect(contactImportUndeclaredPropertiesReference(["NOTE"])).toEqual({
+      key: "apiErrors.contactImportUndeclaredPropertiesOne",
+      vars: {
+        properties: "`NOTE`",
+        more: "0",
+        field: CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
+        ignore: CONTACT_IMPORT_IGNORE,
+      },
+    });
+    expect(
+      contactImportUndeclaredPropertiesReference(["CATEGORIES", "NOTE"]).key,
+    ).toBe("apiErrors.contactImportUndeclaredPropertiesMany");
+    const capped = contactImportUndeclaredPropertiesReference(
+      Array.from({ length: 25 }, (_, i) => `X-PROP-${i}`),
+    );
+    expect(capped.key).toBe("apiErrors.contactImportUndeclaredPropertiesCapped");
+    expect(capped.vars.more).toBe("5");
+    expect(capped.vars.properties).not.toContain("X-PROP-24");
+  });
+});
+
+describe("#228 contact-import refusal references", () => {
+  it("caps unreadable values without losing their total", () => {
+    expect(
+      contactImportUnreadableFlagReference(" Do not text ", ["maybe", "unknown"]),
+    ).toEqual({
+      key: "apiErrors.contactImportUnreadableFlag",
+      vars: {
+        header: "Do not text",
+        values: "“maybe”, “unknown”",
+        more: "0",
+      },
+    });
+    const capped = contactImportUnreadableFlagReference("DNC", [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+      "f",
+    ]);
+    expect(capped.key).toBe("apiErrors.contactImportUnreadableFlagCapped");
+    expect(capped.vars.more).toBe("1");
+    expect(capped.vars.values).not.toContain("f");
   });
 });
 

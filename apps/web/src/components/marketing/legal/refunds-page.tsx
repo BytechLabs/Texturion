@@ -49,6 +49,7 @@ export function RefundsPageBody({
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? "/fr/remboursements" : PATH}
       sections={sections}
+      locale={locale}
     >
       <LegalSectionBlock id="guarantee" number="1" heading={copy.sectionGuarantee}>
         <p>

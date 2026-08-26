@@ -34,23 +34,21 @@ extension Error {
     ///
     /// Word for word the same as the Android twin in `ui/common/Ui.kt`.
     ///
-    /// #228: both sentences are in the catalogue now, and the locale enters
-    /// through a FUNCTION beside the property rather than by rewriting the 231
-    /// call sites that read it. The property keeps its exact old behaviour, so
-    /// nothing had to move; a screen that knows its reader opts in by calling
-    /// `userMessage(locale)`.
+    /// #228: both sentences are in the catalogue now. A caller with an explicit
+    /// environment locale can pass it to `userMessage(locale)`; the synchronous
+    /// property below reads the concurrency-safe snapshot maintained by
+    /// `UiLocaleStore`, so every existing call site follows the reader too.
     ///
     /// (The server-sentence branch was always fine in any language: it renders
     /// what the API wrote, which is the API's to word and to translate.)
 
-    /// English, for a caller with no reader to ask.
+    /// The sentence in the app's currently resolved reader language.
     ///
-    /// Unchanged behaviour for every existing call site — 231 of them across 69
-    /// files — which is the point. A screen that KNOWS its reader calls
-    /// `userMessage(locale)` below and gets French; one that does not keeps
-    /// exactly what it had. Converting all of them in one commit is the mass
-    /// rewrite this file's own header warns about.
-    var userMessage: String { userMessage(MessageLocale.en) }
+    /// `UiLocaleStore` is `@MainActor`, while errors are rendered from callbacks
+    /// and model code on several executors. Its lock-protected `readerLocale`
+    /// bridge makes this synchronous read safe without freezing English into
+    /// the 234 call sites that use the property.
+    var userMessage: String { userMessage(UiLocaleStore.readerLocale) }
 
     /// The same sentence, in the reader's language where it is ours to give.
     ///
@@ -83,7 +81,8 @@ extension ApiError {
     /// whether the server's English can be used as it arrived.
     fileprivate func readerFacing(_ locale: String) -> String {
         if let key = messageKey {
-            return AppStrings.translate(locale, key, messageVars)
+            let translated = AppStrings.translate(locale, key, messageVars)
+            if translated != key { return translated }
         }
         if locale == MessageLocale.en { return message }
         let key = "apiErrors.\(code)"

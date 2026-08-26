@@ -93,4 +93,28 @@ describe("LegalPage — the v4 quiet register", () => {
     expect(html).not.toContain("—");
     expect(html).not.toMatch(/real interface|stock photo|built with next/i);
   });
+
+  it("localizes the shared legal chrome for a French document", () => {
+    const html = renderToStaticMarkup(
+      <LegalPage
+        title="Politique"
+        summary="Un résumé fidèle."
+        lastUpdated="2 juillet 2026"
+        breadcrumbLabel="Politique"
+        path="/fr/politique"
+        sections={[{ id: "portee", number: "1", heading: "Portée" }]}
+        locale="fr-CA"
+      >
+        <LegalSectionBlock id="portee" number="1" heading="Portée">
+          <p>Texte.</p>
+        </LegalSectionBlock>
+      </LegalPage>,
+    );
+
+    expect(html).toContain("Dernière mise à jour");
+    expect(html).toContain("Résumé en langage clair");
+    expect(html).toContain('aria-label="Table des matières"');
+    expect(html).toContain("Accueil");
+    expect(html).not.toContain("Plain English summary");
+  });
 });

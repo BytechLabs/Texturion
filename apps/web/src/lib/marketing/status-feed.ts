@@ -19,7 +19,7 @@
  * textarea with no validation. A JSON payload means one missing brace makes the
  * value unparseable — and the only safe thing a parser can then do is fall back
  * to "no incident", which is EXACTLY the silence this issue exists to fix, now
- * with a syntax error as its cause. So the live feed is two plain-text keys that
+ * with a syntax error as its cause. So the live feed is plain-text keys that
  * cannot fail to parse. There is no schema to get wrong under stress.
  *
  * The division of labour follows the failure boundary rather than the data shape:
@@ -39,6 +39,8 @@
 export const STATUS_FEED_KEYS = {
   /** One plain sentence about what is broken right now. Empty/absent = nothing. */
   incident: "incident",
+  /** Optional human-written French counterpart. Never machine-translated. */
+  incidentFr: "incident:fr-CA",
   /** ISO date (YYYY-MM-DD) somebody last actually checked the service. */
   confirmed: "confirmed",
 } as const;
@@ -61,6 +63,8 @@ export const CONFIRMED_STALE_DAYS = 7;
 export interface StatusFeed {
   /** The live sentence, trimmed and bounded; null when there is nothing live. */
   incident: string | null;
+  /** Optional fr-CA sentence for the same incident. */
+  incidentFr: string | null;
   /** ISO date somebody last checked, or null when unknown/unparseable. */
   confirmedIso: string | null;
   /** True when `confirmedIso` is missing or older than CONFIRMED_STALE_DAYS. */
@@ -70,6 +74,7 @@ export interface StatusFeed {
 /** A feed that claims nothing — the shape every failure path resolves to. */
 export const EMPTY_STATUS_FEED: StatusFeed = {
   incident: null,
+  incidentFr: null,
   confirmedIso: null,
   confirmedIsStale: true,
 };
@@ -152,13 +157,15 @@ export async function readStatusFeed(
 ): Promise<StatusFeed> {
   if (!store) return EMPTY_STATUS_FEED;
   try {
-    const [incidentRaw, confirmedRaw] = await Promise.all([
+    const [incidentRaw, incidentFrRaw, confirmedRaw] = await Promise.all([
       store.get(STATUS_FEED_KEYS.incident),
+      store.get(STATUS_FEED_KEYS.incidentFr),
       store.get(STATUS_FEED_KEYS.confirmed),
     ]);
     const confirmedIso = parseConfirmedIso(confirmedRaw);
     return {
       incident: parseIncidentText(incidentRaw),
+      incidentFr: parseIncidentText(incidentFrRaw),
       confirmedIso,
       confirmedIsStale: confirmedIsStale(confirmedIso, now),
     };
@@ -173,8 +180,11 @@ export async function readStatusFeed(
  * "JULY 7, 2026" from an ISO date, matching the page's existing eyebrow voice.
  * UTC-pinned so the rendered string cannot depend on where the worker ran.
  */
-export function formatConfirmedDisplay(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+export function formatConfirmedDisplay(
+  iso: string,
+  locale: "en" | "fr-CA" = "en",
+): string {
+  return new Intl.DateTimeFormat(locale === "fr-CA" ? "fr-CA" : "en-US", {
     timeZone: "UTC",
     month: "long",
     day: "numeric",

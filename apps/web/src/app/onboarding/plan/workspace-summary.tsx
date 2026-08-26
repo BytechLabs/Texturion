@@ -85,7 +85,9 @@ export function WorkspaceSummary({
     feeCurrency,
   );
 
-  const areaHint = areaCode ? areaCodeHint(areaCode, country) : null;
+  const areaHint = areaCode
+    ? areaCodeHint(areaCode, country, t.locale)
+    : null;
   // What the number line shows when not editing: the exact chosen number if the
   // user picked one, else the area code we'll auto-assign within.
   const numberLabel = chosenNumber

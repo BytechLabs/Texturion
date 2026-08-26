@@ -1,22 +1,15 @@
 import type { Metadata } from "next";
 
-import { StatusContent } from "@/components/marketing/status-content";
+import { StatusPageBody } from "@/components/marketing/status-page";
+import { statusEn } from "@/i18n/marketing/status";
 import { buildMetadata } from "@/lib/marketing/seo";
-import { buildMailer } from "@/lib/marketing/status-mailer";
-import { EMPTY_STATUS_FEED, readStatusFeed } from "@/lib/marketing/status-feed";
-import {
-  notifySubscribers,
-  subscriptionsOpen,
-  type SubscriberStore,
-} from "@/lib/marketing/status-subscribe";
 
 const PATH = "/status";
 
 
 export const metadata: Metadata = buildMetadata({
-  title: "Status",
-  description:
-    "Where Loonext publishes service status for texting, the inbox, and notifications: incident reports as they happen, plus the two things that can look like an outage but aren't.",
+  title: statusEn.metadataTitle,
+  description: statusEn.metadataDescription,
   path: PATH,
 });
 
@@ -79,39 +72,5 @@ export const revalidate = 60;
  * anything. It cannot fail toward reassurance.
  */
 export default async function StatusPage() {
-  let feed = EMPTY_STATUS_FEED;
-  let canSubscribe = false;
-  try {
-    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
-    const { env, ctx } = await getCloudflareContext({ async: true });
-    const bindings = env as {
-      STATUS_FEED?: SubscriberStore;
-      RESEND_API_KEY?: string;
-      RESEND_FROM?: string;
-    };
-    feed = await readStatusFeed(bindings.STATUS_FEED);
-
-    // #477: the fan-out rides on this render rather than a cron, because the
-    // OpenNext worker entry is generated and has no `scheduled` handler to hang
-    // one on. That is a smaller constraint than it looks: an incident line only
-    // matters once somebody loads this page, this page is the first thing the
-    // founder opens after editing KV, and `revalidate = 60` bounds how often
-    // the check can run no matter how hard the page is hit. The send is
-    // transition-only and marks before it sends, so a link storm cannot turn
-    // into a mail storm.
-    const mailer = buildMailer(bindings);
-    if (bindings.STATUS_FEED && mailer) {
-      canSubscribe = await subscriptionsOpen(bindings.STATUS_FEED);
-      const store = bindings.STATUS_FEED;
-      const work = notifySubscribers(store, mailer, feed.incident, new Date());
-      // waitUntil so a reader never waits on our mail. Awaited when the runtime
-      // has no waitUntil to give — dropping the promise there would abandon it
-      // mid-flight, and this is the send that matters most.
-      if (ctx?.waitUntil) ctx.waitUntil(work);
-      else await work;
-    }
-  } catch {
-    // Not on Workers, or the adapter is unavailable: the compiled-in page stands.
-  }
-  return <StatusContent feed={feed} canSubscribe={canSubscribe} />;
+  return <StatusPageBody />;
 }

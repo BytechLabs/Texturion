@@ -1,4 +1,9 @@
-import { ERROR_CODES, INTERNAL_ERROR_CODE, type ErrorCode } from "@loonext/shared";
+import {
+  ERROR_CODES,
+  INTERNAL_ERROR_CODE,
+  type ContactImportErrorMessageKey,
+  type ErrorCode,
+} from "@loonext/shared";
 
 import type { Translated } from "../translated";
 
@@ -57,7 +62,16 @@ import type { Translated } from "../translated";
  * this, so `api-error-vocabulary-parity.test.ts` holds them to the same key set
  * in both directions.
  */
-export type ApiErrorVocabulary = Record<ErrorCode | typeof INTERNAL_ERROR_CODE, string> & {
+type ContactImportErrorName =
+  ContactImportErrorMessageKey extends `apiErrors.${infer Name}` ? Name : never;
+
+export type ApiErrorVocabulary = Record<
+  | ErrorCode
+  | typeof INTERNAL_ERROR_CODE
+  | ContactImportErrorName
+  | "selfDowngradeAcknowledgementRequired",
+  string
+> & {
   /**
    * A 5xx, with the server's own reference for it (#555).
    *
@@ -97,6 +111,22 @@ export const apiErrorsEn: ApiErrorVocabulary = {
   rate_limited: "Too many tries. Wait a minute and try again.",
   service_unavailable: "That's busy right now. Try again in a moment.",
   internal_error: "Something went wrong on our end. Try again in a moment.",
+  contactImportUndeclaredColumnsOne:
+    "File column {columns} was not declared. This import never guesses what a column means because treating a do-not-text column as empty could message somebody who opted out. Every file column ({total} total) must be mapped or explicitly ignored. Send one `{field}` value per column as `<index>:<field or {ignore}>:<header>`. Nothing was imported.",
+  contactImportUndeclaredColumnsMany:
+    "File columns {columns} were not declared. This import never guesses what a column means because treating a do-not-text column as empty could message somebody who opted out. Every file column ({total} total) must be mapped or explicitly ignored. Send one `{field}` value per column as `<index>:<field or {ignore}>:<header>`. Nothing was imported.",
+  contactImportUndeclaredPropertiesOne:
+    "{properties} is a vCard property this import does not read. CATEGORIES, NOTE, and property parameters can carry do-not-text instructions. Send one `{field}` value for it as `<PROPERTY>:<{ignore} or opted_out>`. Nothing was imported.",
+  contactImportUndeclaredPropertiesMany:
+    "{properties} are vCard properties this import does not read. CATEGORIES, NOTE, and property parameters can carry do-not-text instructions. Send one `{field}` value per property as `<PROPERTY>:<{ignore} or opted_out>`. Nothing was imported.",
+  contactImportUndeclaredPropertiesCapped:
+    "{properties}, and {more} more, are vCard properties this import does not read. CATEGORIES, NOTE, and property parameters can carry do-not-text instructions. Send one `{field}` value per property as `<PROPERTY>:<{ignore} or opted_out>`. Nothing was imported.",
+  contactImportUnreadableFlag:
+    "The do-not-text column “{header}” contains values this import cannot read as yes or no: {values}. Use true/false (yes/no, 1/0, or x on rows to block), then import again. Nothing was imported.",
+  contactImportUnreadableFlagCapped:
+    "The do-not-text column “{header}” contains values this import cannot read as yes or no: {values}, and {more} more. Use true/false (yes/no, 1/0, or x on rows to block), then import again. Nothing was imported.",
+  selfDowngradeAcknowledgementRequired:
+    "Confirm that you understand what you'll lose before changing your own role.",
   withReference: "{message} Reference {id}.",
 };
 
@@ -124,5 +154,21 @@ export const apiErrorsFr: Translated<typeof apiErrorsEn> = {
   rate_limited: "Trop de tentatives. Attendez une minute et réessayez.",
   service_unavailable: "C'est occupé en ce moment. Réessayez dans un instant.",
   internal_error: "Une erreur s'est produite de notre côté. Réessayez dans un instant.",
+  contactImportUndeclaredColumnsOne:
+    "La colonne {columns} du fichier n’a pas été déclarée. Cette importation ne devine jamais le sens d’une colonne, car traiter une colonne d’interdiction de textos comme vide pourrait envoyer un message à une personne désabonnée. Chaque colonne du fichier ({total} au total) doit être associée à un champ ou explicitement ignorée. Envoyez une valeur `{field}` par colonne au format `<index>:<field ou {ignore}>:<header>`. Aucune donnée n’a été importée.",
+  contactImportUndeclaredColumnsMany:
+    "Les colonnes {columns} du fichier n’ont pas été déclarées. Cette importation ne devine jamais le sens d’une colonne, car traiter une colonne d’interdiction de textos comme vide pourrait envoyer un message à une personne désabonnée. Chaque colonne du fichier ({total} au total) doit être associée à un champ ou explicitement ignorée. Envoyez une valeur `{field}` par colonne au format `<index>:<field ou {ignore}>:<header>`. Aucune donnée n’a été importée.",
+  contactImportUndeclaredPropertiesOne:
+    "{properties} est une propriété vCard que cette importation ne lit pas. CATEGORIES, NOTE et les paramètres de propriété peuvent contenir une consigne de ne pas envoyer de textos. Envoyez pour cette propriété une valeur `{field}` au format `<PROPERTY>:<{ignore} ou opted_out>`. Aucune donnée n’a été importée.",
+  contactImportUndeclaredPropertiesMany:
+    "{properties} sont des propriétés vCard que cette importation ne lit pas. CATEGORIES, NOTE et les paramètres de propriété peuvent contenir une consigne de ne pas envoyer de textos. Envoyez une valeur `{field}` par propriété au format `<PROPERTY>:<{ignore} ou opted_out>`. Aucune donnée n’a été importée.",
+  contactImportUndeclaredPropertiesCapped:
+    "{properties}, ainsi que {more} autres, sont des propriétés vCard que cette importation ne lit pas. CATEGORIES, NOTE et les paramètres de propriété peuvent contenir une consigne de ne pas envoyer de textos. Envoyez une valeur `{field}` par propriété au format `<PROPERTY>:<{ignore} ou opted_out>`. Aucune donnée n’a été importée.",
+  contactImportUnreadableFlag:
+    "La colonne d’interdiction de textos « {header} » contient des valeurs que cette importation ne peut pas interpréter comme oui ou non : {values}. Utilisez true/false (yes/no, 1/0 ou x sur les lignes à bloquer), puis recommencez l’importation. Aucune donnée n’a été importée.",
+  contactImportUnreadableFlagCapped:
+    "La colonne d’interdiction de textos « {header} » contient des valeurs que cette importation ne peut pas interpréter comme oui ou non : {values}, ainsi que {more} autres. Utilisez true/false (yes/no, 1/0 ou x sur les lignes à bloquer), puis recommencez l’importation. Aucune donnée n’a été importée.",
+  selfDowngradeAcknowledgementRequired:
+    "Confirmez que vous comprenez ce que vous perdrez avant de modifier votre propre rôle.",
   withReference: "{message} Référence {id}.",
 };

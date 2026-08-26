@@ -99,6 +99,7 @@ describe("nav-links (deck §Global: Product · Pricing · Who it's for · Compar
 
 describe("footer (deck §F: the Dispatch Ink band)", () => {
   const html = renderToStaticMarkup(<Footer />);
+  const frenchHtml = renderToStaticMarkup(<Footer locale="fr-CA" />);
 
   /**
    * #491: the FEATURE half is derived, for the same reason the Product-menu
@@ -187,5 +188,32 @@ describe("footer (deck §F: the Dispatch Ink band)", () => {
     // which on the dark band would be the wrong end of the scale.
     expect(html).toContain("--fr-on-inverse");
     expect(html).not.toContain("text-white");
+  });
+
+  it("links French readers to every translated legal twin", () => {
+    for (const href of [
+      "/fr/accessibilite",
+      "/fr/temoins",
+      "/fr/supprimer-mes-donnees",
+      "/fr/utilisation-equitable",
+      "/fr/messagerie",
+      "/fr/sous-traitants",
+      "/fr/divulgation-vulnerabilites",
+    ]) {
+      expect(frenchHtml, `French footer missing ${href}`).toContain(
+        `href="${href}"`,
+      );
+    }
+
+    // D138's four professional-translation holds still point at their real,
+    // English documents rather than inventing a French URL.
+    for (const href of [
+      "/legal/terms",
+      "/legal/dpa",
+      "/legal/aup",
+      "/legal/privacy",
+    ]) {
+      expect(frenchHtml).toContain(`href="${href}"`);
+    }
   });
 });

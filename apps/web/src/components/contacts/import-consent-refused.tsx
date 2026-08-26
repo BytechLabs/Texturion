@@ -69,14 +69,12 @@ export function ImportConsentRefused({ result }: { result: ImportResult }) {
               </span>{" "}
               {t("contacts.consentNotRecordedTail")}
             </p>
-            {/* The server's own sentence, printed rather than paraphrased. A
-                second wording of a compliance fact is a second thing to keep
-                true, and this one is quoted back to carriers. */}
-            {refusals.note && (
-              <p className="text-sm leading-snug text-muted-foreground">
-                {refusals.note}
-              </p>
-            )}
+            {/* The API retains its English sentence for installed clients; this
+                build uses the matching catalogue fact so the legal standing is
+                just as explicit in the language its reader selected. */}
+            <p className="text-sm leading-snug text-muted-foreground">
+              {t("contacts.consentRefusedNote")}
+            </p>
           </div>
           {/* Rendered for a hidden count with NOTHING visible too. The overflow
               line lives inside this list, so gating the list on `visible` alone

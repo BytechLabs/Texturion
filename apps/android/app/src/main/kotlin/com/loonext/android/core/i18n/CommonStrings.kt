@@ -66,6 +66,40 @@ object CommonStrings : AppStrings.Section {
         "common.errTwoCalls" to "You're already on two calls.",
 
         /*
+         * Connected Apps is rendered by Android's Contacts/Accounts surfaces,
+         * outside Compose.  It still uses the same catalogue so those rows do
+         * not become the one English island on a French phone.
+         */
+        "contactsSync.accountSyncOnly" to "Loonext account is sync-only",
+        "contactsSync.callAction" to "Call with Loonext",
+        "contactsSync.textAction" to "Text with Loonext",
+
+        /*
+         * Client-authored call failures and the call foreground notification.
+         * Server envelope copy remains the server's; these are the sentences
+         * the Android client itself owns.
+         */
+        "telephony.placementUnreachable" to
+            "Couldn't reach the line. Please try again.",
+        "telephony.placementNoSession" to
+            "Couldn't start the call. Please try again.",
+        "telephony.temporarilyUnavailable" to
+            "Calling is temporarily unavailable.",
+        "telephony.connectFailed" to "Couldn't connect the call.",
+        "telephony.answerFailed" to "Couldn't answer — try again.",
+        "telephony.interruptedByCrash" to
+            "A call was interrupted when the app closed unexpectedly.",
+        "telephony.callInProgress" to "Call in progress",
+        "telephony.callOnHold" to "On hold",
+        "telephony.ongoingCall" to "Ongoing call",
+
+        /* Malformed/legacy FCM data still produces a readable notification. */
+        "push.fallbackIncomingTitle" to "Incoming call",
+        "push.fallbackIncomingBody" to
+            "Someone is calling your business number.",
+        "push.fallbackGenericBody" to "You have a new notification.",
+
+        /*
          * ── What "selected" says in a bulk bar ────────────────────────────────
          *
          * Common rather than inbox: the conversation list and the task list both
@@ -115,6 +149,30 @@ object CommonStrings : AppStrings.Section {
         "common.errCallingNotReady" to
             "Les appels ne sont pas encore prêts. Réessayez dans un moment.",
         "common.errTwoCalls" to "Vous êtes déjà sur deux appels.",
+
+        "contactsSync.accountSyncOnly" to
+            "Le compte Loonext sert seulement à la synchronisation",
+        "contactsSync.callAction" to "Appeler avec Loonext",
+        "contactsSync.textAction" to "Envoyer un texto avec Loonext",
+
+        "telephony.placementUnreachable" to
+            "Impossible de joindre la ligne. Veuillez réessayer.",
+        "telephony.placementNoSession" to
+            "Impossible de démarrer l'appel. Veuillez réessayer.",
+        "telephony.temporarilyUnavailable" to
+            "Les appels sont temporairement indisponibles.",
+        "telephony.connectFailed" to "Impossible de connecter l'appel.",
+        "telephony.answerFailed" to "Impossible de répondre — réessayez.",
+        "telephony.interruptedByCrash" to
+            "Un appel a été interrompu lorsque l'application s'est fermée de façon inattendue.",
+        "telephony.callInProgress" to "Appel en cours",
+        "telephony.callOnHold" to "En attente",
+        "telephony.ongoingCall" to "Appel en cours",
+
+        "push.fallbackIncomingTitle" to "Appel entrant",
+        "push.fallbackIncomingBody" to
+            "Quelqu'un appelle votre numéro d'affaires.",
+        "push.fallbackGenericBody" to "Vous avez une nouvelle notification.",
 
         "common.bulkSelectedCount" to "{count} sélectionnées",
         "common.bulkSelectedAllMatching" to

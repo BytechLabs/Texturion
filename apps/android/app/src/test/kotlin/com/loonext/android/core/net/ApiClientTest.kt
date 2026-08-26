@@ -103,7 +103,7 @@ class ApiClientTest {
         api.enqueue(
             MockResponse(
                 code = 409,
-                body = """{"error":{"code":"quiet_hours_confirmation_required","message":"It's late there."}}""",
+                body = """{"error":{"code":"quiet_hours_confirmation_required","message":"It's late there.","message_key":"apiErrors.contactImportUnreadableFlag","message_vars":{"header":"DNC"}}}""",
             ),
         )
         try {
@@ -113,6 +113,8 @@ class ApiClientTest {
             assertEquals(ApiErrorCode.QUIET_HOURS_CONFIRMATION_REQUIRED, e.code)
             assertEquals("It's late there.", e.message)
             assertEquals(409, e.httpStatus)
+            assertEquals("apiErrors.contactImportUnreadableFlag", e.messageKey)
+            assertEquals(mapOf("header" to "DNC"), e.messageVars)
         }
     }
 

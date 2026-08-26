@@ -42,9 +42,10 @@ private func fullDate(_ iso: String?) -> String? {
 /// inside it. Three of them disagreeing about when somebody loses their
 /// business number is worse than none of them saying it.
 ///
-/// WITH THE YEAR, and in the same shape the mail uses. The day-27 grace email
-/// prints "August 4, 2026" through `releaseDateLabel` in grace.ts and sends the
-/// reader to this screen, which printed "4 August" — the same deadline in two
+/// WITH THE YEAR. English keeps the same shape the mail uses; French follows
+/// the app locale while retaining the same year. The day-27 grace email prints
+/// "August 4, 2026" through `releaseDateLabel` in grace.ts and sends the reader
+/// to this screen, which used to print "4 August" — the same deadline in two
 /// formats, one of them undated. The branch that suffers is the expired one
 /// ("the hold ended on 3 September"), which is read by definition after the
 /// deadline and can be read a year later by somebody signing back in to find
@@ -55,12 +56,14 @@ private func fullDate(_ iso: String?) -> String? {
 /// date a day either side of the one the job acts on — which is why this stays
 /// separate from `fullDate` above despite the identical format string: that one
 /// prints a billing period end, which is a moment in the reader's own life.
-private func numberReleaseDay(_ canceledAt: String?) -> String? {
+private func numberReleaseDay(_ canceledAt: String?, locale: String? = nil) -> String? {
     guard let release = numberReleaseAt(canceledAt) else { return nil }
     let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.locale = Locale(
+        identifier: locale == MessageLocale.frCA ? "fr_CA" : "en_CA"
+    )
     formatter.timeZone = TimeZone(identifier: "UTC")
-    formatter.dateFormat = "MMMM d, yyyy"
+    formatter.setLocalizedDateFormatFromTemplate("MMMMdyyyy")
     return formatter.string(from: release)
 }
 
@@ -803,43 +806,20 @@ private struct PlanCard: View {
     /// them was gone. What is certain at that boundary is that we can no longer
     /// PROMISE it, and that is what it says. It does not promise the reverse
     /// either: inviting somebody to race a cron is not an offer.
-    /// #228 — THE THREE SENTENCES THAT STAY ENGLISH, AND A GUARD SAYS WHY.
-    ///
-    /// `settings.holdRule`, `settings.holdUntil` and `settings.holdEndedOn`
-    /// exist in the catalogue in both languages and this branch is one edit from
-    /// reading them. It does not, because two assertions in `SettingsLogicTests`
-    /// read THIS FILE'S string literals and require these exact words to be
-    /// here: `testEverySentenceOnTheBillingScreenCountsTheHoldFromTheCancellation`
-    /// counts every "{days} days" on the screen and fails when there are none,
-    /// and `testTheScreenSaysTheHoldEndedRatherThanThatTheNumberIsGone` looks
-    /// for "hold on your number ended on" and "can't promise it any more".
-    ///
-    /// Those two guards are worth more than these three translations. Between
-    /// them they hold the anchor of the hold (counted from the cancellation, not
-    /// from the period end — a miscount that costs somebody the number on their
-    /// van) and the tense of the expired branch (the release is a once-daily
-    /// cron, so "your number is gone" can be false for a day). Moving the words
-    /// out silently blinds both, and neither failure would show up anywhere but
-    /// on a customer.
-    ///
-    /// Finishing this means re-pointing those two at
-    /// `AppStrings.en["settings.hold*"]`, which is where the sentences now live
-    /// as well. That is a test-file change, not this file's, and it is reported
-    /// rather than done here.
+    /// The guards in `SettingsLogicTests` follow these three keys into the
+    /// English catalogue. That preserves the two load-bearing claims after the
+    /// extraction: the hold starts on cancellation, and an expired hold says we
+    /// cannot promise the number rather than claiming the daily release job has
+    /// already run.
     private var holdSentence: String {
-        guard let day = numberReleaseDay(company.canceled_at) else {
-            return "We hold your number for \(cancellationGraceDays) days from the day "
-                + "you cancel. Resubscribe before then and everything picks up where it "
-                + "left off."
+        let days = String(cancellationGraceDays)
+        guard let day = numberReleaseDay(company.canceled_at, locale: appLocale) else {
+            return t("settings.holdRule", ["days": days])
         }
         if !isWithinCancellationGrace(company.canceled_at) {
-            return "The \(cancellationGraceDays)-day hold on your number ended on \(day). "
-                + "We can't promise it any more — once it goes back to the phone company, "
-                + "resubscribing sets you up with a new number. Your message history is "
-                + "still here either way."
+            return t("settings.holdEndedOn", ["days": days, "date": day])
         }
-        return "We hold your number until \(day). Resubscribe before then and everything "
-            + "picks up where it left off."
+        return t("settings.holdUntil", ["date": day])
     }
 
     private func resubscribe(plan: String) {
@@ -1385,7 +1365,7 @@ private struct OffRampCard: View {
     /// middle: the dated and undated readings put the date in different places in
     /// French, and a splice fixes it where English wants it.
     private var blurb: String {
-        numberReleaseDay(company.canceled_at)
+        numberReleaseDay(company.canceled_at, locale: appLocale)
             .map { t("settings.offRampIntroDated", ["date": $0]) }
             ?? t("settings.offRampIntro")
     }

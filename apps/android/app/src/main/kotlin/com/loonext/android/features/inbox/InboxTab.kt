@@ -947,6 +947,7 @@ private class InboxController(
     fun runBulk(
         action: String,
         verb: String,
+        verbMany: String,
         targetStatus: String? = null,
         targetSpam: Boolean? = null,
         targetUserId: String? = null,
@@ -973,10 +974,12 @@ private class InboxController(
                 scheduleRealtimeRefresh()
                 val message = bulkResultMessage(
                     verb = verb,
+                    verbMany = verbMany,
                     applied = result.applied.size,
                     failed = result.failed.size,
                     matched = result.matched,
                     capped = result.capped,
+                    locale = locale,
                 )
                 val undo = bulkUndoPlan(result)
                 if (undo == null) {
@@ -2899,6 +2902,7 @@ private fun BulkSelectionBar(controller: InboxController) {
     val selection = controller.selection
     val loadedIds = controller.rows.map { it.id }
     val running = controller.bulkRunning
+    val locale = LocalAppLocale.current
     var menuOpen by remember { mutableStateOf(false) }
     val showSelectLoaded = selection is BulkSelection.Ids &&
         loadedIds.isNotEmpty() &&
@@ -2917,7 +2921,7 @@ private fun BulkSelectionBar(controller: InboxController) {
                     )
                 }
                 Text(
-                    selection.label(LocalAppLocale.current),
+                    selection.label(locale),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
@@ -2947,7 +2951,8 @@ private fun BulkSelectionBar(controller: InboxController) {
                                     menuOpen = false
                                     controller.runBulk(
                                         action = "assign",
-                                        verb = "Assigned",
+                                        verb = AppStrings.translate(locale, "inbox.bulkVerbAssignedOne"),
+                                        verbMany = AppStrings.translate(locale, "inbox.bulkVerbAssignedMany"),
                                         targetUserId = member.user_id,
                                     )
                                 },
@@ -2959,7 +2964,8 @@ private fun BulkSelectionBar(controller: InboxController) {
                                 menuOpen = false
                                 controller.runBulk(
                                     action = "assign",
-                                    verb = "Unassigned",
+                                    verb = AppStrings.translate(locale, "inbox.bulkVerbUnassignedOne"),
+                                    verbMany = AppStrings.translate(locale, "inbox.bulkVerbUnassignedMany"),
                                     unassign = true,
                                 )
                             },
@@ -2989,14 +2995,21 @@ private fun BulkSelectionBar(controller: InboxController) {
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick = { controller.runBulk("mark_read", "Marked read") },
+                    onClick = {
+                        controller.runBulk(
+                            "mark_read",
+                            AppStrings.translate(locale, "inbox.bulkVerbMarkedReadOne"),
+                            AppStrings.translate(locale, "inbox.bulkVerbMarkedReadMany"),
+                        )
+                    },
                     enabled = !running,
                 ) { Text(t("inbox.bulkMarkRead")) }
                 OutlinedButton(
                     onClick = {
                         controller.runBulk(
                             action = "set_status",
-                            verb = "Closed",
+                            verb = AppStrings.translate(locale, "inbox.bulkVerbClosedOne"),
+                            verbMany = AppStrings.translate(locale, "inbox.bulkVerbClosedMany"),
                             targetStatus = ConversationStatus.CLOSED,
                         )
                     },
@@ -3006,7 +3019,8 @@ private fun BulkSelectionBar(controller: InboxController) {
                     onClick = {
                         controller.runBulk(
                             action = "set_spam",
-                            verb = "Marked as spam",
+                            verb = AppStrings.translate(locale, "inbox.bulkVerbMarkedSpamOne"),
+                            verbMany = AppStrings.translate(locale, "inbox.bulkVerbMarkedSpamMany"),
                             targetSpam = true,
                         )
                     },

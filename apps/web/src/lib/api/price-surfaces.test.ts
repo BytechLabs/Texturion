@@ -43,6 +43,13 @@ const ALLOWED = [
   // of a sentence about somebody ELSE's pricing and sourcing it from our own
   // price book would be wrong.
   "compare",
+  // The bilingual comparison copy lives outside the route's `compare`
+  // directory so both languages can share it. These exact catalogues are the
+  // same sourced comparison prose, not additional pricing surfaces.
+  "compare-heymarket",
+  "compare-index",
+  "compare-quo",
+  "compare-ui",
   // Changelogs record what a price WAS. Rewriting history to match today's
   // number is the opposite of what a changelog is for.
   "CHANGELOG",

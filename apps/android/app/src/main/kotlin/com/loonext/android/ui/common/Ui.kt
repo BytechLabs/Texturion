@@ -76,14 +76,12 @@ sealed interface LoadState<out T> {
  * only ever replaces a sentence the reader could not use. See
  * `apps/web/src/i18n/sections/apiErrors.ts` for the full argument.
  *
- * [locale] is defaulted to English because this is called from coroutines,
- * ViewModels and `catch` blocks that have no composition to read a reader out
- * of — the same shape `AppLock.headline` uses. `rememberCacheFirst`, which is
- * the ONLY way a screen may load data, passes the real one, so the general
- * load-failure sentence follows the reader; call sites that still pass nothing
- * are listed on #228 rather than left to be discovered.
+ * [locale] is required. Callers capture `LocalAppLocale.current` while they are
+ * in composition and carry that value into coroutines and ViewModels. Keeping
+ * the parameter non-defaulted makes a future English-only call a compile error
+ * instead of another reader-facing regression.
  */
-fun Throwable.userMessage(locale: String = MessageLocale.EN): String = when (this) {
+fun Throwable.userMessage(locale: String): String = when (this) {
     is ApiException -> withReference(locale, readerFacing(locale))
     is ApiDecodeException -> AppStrings.translate(locale, "common.decodeFailed")
     else -> AppStrings.translate(locale, "common.unknownError")
@@ -97,7 +95,10 @@ fun Throwable.userMessage(locale: String = MessageLocale.EN): String = when (thi
  * server's English can be used as-is.
  */
 private fun ApiException.readerFacing(locale: String): String {
-    messageKey?.let { return AppStrings.translate(locale, it, messageVars) }
+    messageKey?.let { key ->
+        val translated = AppStrings.translate(locale, key, messageVars)
+        if (translated != key) return translated
+    }
     if (locale == MessageLocale.EN) return message
     val key = "apiErrors.$code"
     val translated = AppStrings.translate(locale, key)

@@ -30,20 +30,30 @@ the longest. **Say something while you still do not know.**
 
 ## 2. Where it is posted, in priority order
 
-1. **The `/status` live line.** One plain sentence in Cloudflare KV. **No repo, no
-   CI, no deploy, no API worker** — you edit it in the Cloudflare dashboard from
-   your phone and the page picks it up within a minute. This is the channel that
-   works when the thing that is broken is our own pipeline.
+1. **The `/status` live line.** One plain sentence per language in Cloudflare
+   KV. **No repo, no CI, no deploy, no API worker** — you edit it in the
+   Cloudflare dashboard from your phone and the page picks it up within a minute.
+   This is the channel that works when the thing that is broken is our own
+   pipeline.
 
-   Dashboard: **Workers & Pages → KV → STATUS_FEED → key `incident`**. Type the
-   sentence. That is the entire procedure. From a terminal, if you have one:
+   Dashboard: **Workers & Pages → KV → STATUS_FEED**. Put the English sentence in
+   key `incident`, then its human-written Canadian French counterpart in key
+   `incident:fr-CA`. They stay two plain-text values: never paste machine-
+   translated incident prose into a customer notice, and never replace this with
+   hand-edited JSON during an outage. From a terminal, if you have one:
 
    ```bash
    pnpm --filter @loonext/web exec wrangler kv key put --binding STATUS_FEED incident "Texts are not sending right now. Incoming texts still arrive." --remote
+   pnpm --filter @loonext/web exec wrangler kv key put --binding STATUS_FEED 'incident:fr-CA' "Les textos ne partent pas en ce moment. Les textos entrants continuent d'arriver." --remote
    ```
 
-   **Clear it the same way when it is over** (`--remote` delete, or empty the
-   value in the dashboard). An empty or absent value renders nothing at all.
+   **Write both before opening either status route.** That page load fans out the
+   email update. If the French value is absent, French readers get an honest
+   generic French incident notice rather than made-up translated detail.
+
+   **Clear both the same way when it is over** (`--remote` delete, or empty the
+   values in the dashboard). An empty or absent English value renders nothing at
+   all; it is the canonical transition marker.
 
    **Then open `/status` once.** That page load is what mails the subscriber
    list (#477) — there is no cron, because the OpenNext worker entry is
@@ -58,6 +68,12 @@ the longest. **Say something while you still do not know.**
    incident does not re-mail anybody. Capped at two fan-outs a day and 1000
    status emails a month, and it stops rather than overspending, so during a
    long flapping incident assume the second wording did not go out.
+
+   Subscriber and pending values are JSON shaped as
+   `{"email":"person@example.com","locale":"en"}` or `locale:"fr-CA"`.
+   Legacy plaintext-email rows remain valid and are read as English. Do not
+   hand-edit these rows: the confirmation and unsubscribe tokens are their keys,
+   and the stored locale decides which language and result route the person sees.
 
 3. **Direct email to affected owners.** Still the channel that matters most,
    because it does not depend on anybody remembering to check a page. Recipients:

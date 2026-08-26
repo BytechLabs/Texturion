@@ -11,7 +11,9 @@ const expectedPaths = new Set<string>([
   // D138 — the French pages come from the registry that also drives their
   // hreflang, so this stays a check that the sitemap matches the routes that
   // exist rather than a second list of them.
-  ...TRANSLATED_PAGES.map((page) => page.fr),
+  ...TRANSLATED_PAGES.filter((page) => page.index !== false).map(
+    (page) => page.fr,
+  ),
 ]);
 
 describe("sitemap route inventory (BLUEPRINT §11.3 single source of truth)", () => {

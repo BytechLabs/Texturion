@@ -17,6 +17,66 @@
     "hard' and not 'nobody reads it'."
   ],
   "android": {
+    "com/loonext/android/core/auth/SupabaseAuth.kt": {
+      "why": "These are stable English diagnostics attached to failures that now carry catalogue message keys; every rendered surface resolves those keys in the reader's locale. Translating the diagnostic field would make logs locale-dependent without changing customer-visible copy.",
+      "literals": [
+        "Can't reach the sign-in service. Check your connection.",
+        "Google sign-in isn't set up for this app yet."
+      ]
+    },
+    "com/loonext/android/core/net/ApiClient.kt": {
+      "why": "ApiException keeps a stable English message for crash and support diagnostics, while the adjacent messageKey and messageVars are what customer surfaces render. Translating these diagnostic fallbacks would fragment searchable incidents by device locale; omitting the keys would expose English, so both are enforced here.",
+      "literals": [
+        "You're signed out.",
+        "Something went wrong ($status).",
+        "Can't reach Loonext. Check your connection."
+      ]
+    },
+    "com/loonext/android/core/net/ApiError.kt": {
+      "why": "ApiDecodeException is a diagnostics-only client-model failure after a request already succeeded; its own docblock requires callers to report it and treat the action as success, never render the sentence. Translating it would make incident diagnostics locale-dependent without changing customer UI.",
+      "literals": [
+        "Response for $path did not match the client model"
+      ]
+    },
+    "com/loonext/android/features/contacts/device/ContentResolverDeviceContacts.kt": {
+      "why": "This is an Android ContactsProvider SQL sort clause appended to a column name, not prose. Translating COLLATE NOCASE ASC would change or break query semantics rather than localise a label.",
+      "literals": [
+        " COLLATE NOCASE ASC"
+      ]
+    },
+    "com/loonext/android/features/contacts/Multipart.kt": {
+      "why": "These English values are retained solely as stable ApiException diagnostics; both throws carry catalogue message keys that all customer surfaces resolve in the reader's locale. Translating the diagnostic field would make support evidence locale-dependent without translating any UI.",
+      "literals": [
+        "You're signed out.",
+        "Can't reach Loonext. Check your connection."
+      ]
+    },
+    "com/loonext/android/features/diagnostics/DiagnosticsScreen.kt": {
+      "why": "These values belong to the support artifact produced by the developer-only Diagnostics screen, not to its rendered controls (which already use the EN/fr-CA catalogue). The share subjects and export header deliberately stay stable so reports can be searched together, the empty-log sentence is export content sent to that same support channel, and the SimpleDateFormat pattern is executable formatting syntax whose quoted word cannot safely be handed to translation.",
+      "literals": [
+        "Loonext call flow log",
+        "No call events recorded.",
+        "Loonext Android crash reports",
+        "Loonext Android crash report",
+        "Loonext Android diagnostics",
+        "MMM d, yyyy 'at' h:mm a"
+      ]
+    },
+    "com/loonext/android/MainActivity.kt": {
+      "why": "The ViewModel factory string is a private crash invariant that cannot be rendered. The crash-report subject is the stable label attached to an English stack trace sent into the support inbox; the visible dialog, body, button and chooser label all use catalogue copy. Translating either literal would change only incident evidence, not customer UI.",
+      "literals": [
+        "Loonext Android crash report",
+        "Unknown ViewModel: $modelClass"
+      ]
+    },
+    "com/loonext/android/ui/common/ImeContract.kt": {
+      "why": "Debug guard failure assembled for CallFlowLog and error() when a developer breaks the keyboard-avoidance host contract. It deliberately names source concepts and pixel values for diagnosis; translating its fragments would make a crash assertion harder to search without localising any UI.",
+      "literals": [
+        "IME-COVERED INPUT on host '$host': focused ",
+        "(root=$rootHeightPx ime=$imeBottom). The host contract ",
+        "(#199, ui/common/ImeContract.kt) is broken - fix the "
+      ]
+    },
     "com/loonext/android/core/model/Countries.kt": {
       "why": "The country list writes into a freeform address column — the string IS the stored value, not a label over it. Translated, the same workspace stores 'United Arab Emirates' for a member reading English and 'Émirats arabes unis' for one reading French, so two contacts at the same address stop matching and any grouping by country splits in half. The list is one language for the same reason a phone number is one format. Only the multi-word names appear here; the scanner reads them as sentences.",
       "literals": [
@@ -33,6 +93,45 @@
     }
   },
   "ios": {
+    "Core/ApiClient.swift": {
+      "why": "These are stable English diagnostics attached to failures that also carry catalogue message keys; every rendered surface resolves the key in the reader's locale. Translating the diagnostic field would make support evidence locale-dependent without changing customer-visible copy.",
+      "literals": [
+        "You're signed out.",
+        "Something went wrong (\\(status)).",
+        "Bad request URL.",
+        "Can't reach Loonext. Check your connection."
+      ]
+    },
+    "Core/ApiError.swift": {
+      "why": "ApiDecodeException is a diagnostics-only client-model invariant after a request already succeeded; callers report it and do not render the sentence. Translating it would make incident diagnostics locale-dependent without localising any UI.",
+      "literals": [
+        "Response for \\(path) did not match the client model"
+      ]
+    },
+    "Core/AppGraph.swift": {
+      "why": "This stable diagnostic is paired with shell.authAppleNotConfigured, which is what customer surfaces resolve in the app locale. Translating the diagnostic would fragment searchable setup incidents while leaving the visible copy unchanged.",
+      "literals": [
+        "Apple sign-in isn't set up for this app yet."
+      ]
+    },
+    "Core/Diagnostics/CrashDiagnostics.swift": {
+      "why": "This is a sentinel inside the English crash artifact sent to support when MetricKit cannot provide a stack, not rendered interface copy. Keeping it stable makes diagnostic reports searchable across device locales.",
+      "literals": [
+        "(call stack unavailable)"
+      ]
+    },
+    "Core/Diagnostics/DiagnosticsReport.swift": {
+      "why": "This is the stable header of the support artifact exported from the developer diagnostics surface, not one of that surface's rendered controls. Translating it would vary incident evidence by device locale without localising UI.",
+      "literals": [
+        "Loonext iOS diagnostics\\n"
+      ]
+    },
+    "Core/JSONValue.swift": {
+      "why": "This is a private programmer-error invariant emitted only when a value cannot be represented by the JSON model. It is diagnostic vocabulary, not customer copy, and keeping it stable makes failures searchable.",
+      "literals": [
+        "Not a JSON value"
+      ]
+    },
     "Core/Model/Countries.swift": {
       "why": "Twin of the Android list, and exempt for the same reason: the string is the stored value of a freeform address column rather than a label over it, so translating it makes the same address store differently depending on who typed it.",
       "literals": [
@@ -46,9 +145,159 @@
         "Trinidad and Tobago",
         "United Arab Emirates"
       ]
+    },
+    "Core/SupabaseAuth.swift": {
+      "why": "This stable English diagnostic is attached to an authentication failure that carries a catalogue message key for customer surfaces. Translating the diagnostic would make support evidence locale-dependent without changing the localized UI.",
+      "literals": [
+        "Can't reach the sign-in service. Check your connection."
+      ]
+    },
+    "Features/Compose/NoteUpload.swift": {
+      "why": "This is an HTTP multipart Content-Disposition header prefix. Its spelling and escaping are protocol bytes consumed by the server; translating it would corrupt uploads rather than localise a label.",
+      "literals": [
+        "Content-Disposition: form-data; name=\\"
+      ]
+    },
+    "Features/Contacts/ContactDetailView.swift": {
+      "why": "This sentence is fixture content inside an Xcode preview, not a shipped label or default shown to a customer. Translating it would only change the developer's representative sample data.",
+      "literals": [
+        "Gate code 4411. Dog is friendly."
+      ]
+    },
+    "Features/Contacts/Multipart.swift": {
+      "why": "The Content-Disposition fragment is HTTP multipart protocol syntax whose bytes cannot be translated. The other values are stable English ApiException diagnostics paired with localized catalogue message keys, so changing them would vary support evidence without changing customer copy.",
+      "literals": [
+        "Content-Disposition: form-data; name=\\",
+        "You're signed out.",
+        "Can't reach Loonext. Check your connection.",
+        "Something went wrong (\\(status))."
+      ]
+    },
+    "Features/Settings/SettingsHome.swift": {
+      "why": "This is the literal fragment of the bespoke Loonext brand wordmark, where each character is styled individually and the following version is runtime data. Moving it into prose translation would break the wordmark composition rather than localise copy.",
+      "literals": [
+        "next \\(version)"
+      ]
+    },
+    "Features/Settings/SettingsRepository.swift": {
+      "why": "This is an HTTP multipart Content-Disposition header prefix. Its exact spelling and escaping are executable protocol bytes consumed by the server, so translating it would corrupt the request rather than localise UI.",
+      "literals": [
+        "Content-Disposition: form-data; name=\\"
+      ]
+    },
+    "Features/Tasks/TaskDetailView.swift": {
+      "why": "These sentences are representative task, note, and message fixture data inside an Xcode preview, not shipped labels or defaults. Translating them would only change the developer preview's sample records.",
+      "literals": [
+        "Send the quote for the deck repair",
+        "Cedar boards, two tiers. They want it before the long weekend.",
+        "Can you send over the quote for the deck?",
+        "Measured the yard — 14x20. Drafting the quote now."
+      ]
+    }
+  },
+  "web": {
+    "app/layout.tsx": {
+      "why": "These two sentences are the route-independent English metadata fallback for the app shell, signup, onboarding, and any page without its own metadata; every localized public page supplies locale-specific metadata itself. Translating this single root value would replace the English fallback for all routes rather than select copy by the current URL locale.",
+      "literals": [
+        "Loonext: the shared line for your crew",
+        "Local business numbers your whole team works from. Texts and calls land in one shared inbox anyone can answer, assign, turn into a job, and close."
+      ]
+    },
+    "app/manifest.ts": {
+      "why": "This is install metadata for the one stable /manifest.webmanifest identity and /inbox start URL, not page copy; the metadata route has no reader locale and a translated value would replace the English installed-app description globally rather than localize a URL-specific surface.",
+      "literals": [
+        "Your business line, shared. Texts and calls land in one inbox the whole crew can answer, assign, turn into a job, and close."
+      ]
+    },
+    "app/(app)/error.tsx": {
+      "why": "Console-only boundary label paired with the Error object for developers and Sentry correlation; the reader sees the translated appShell.segmentErrorTitle and appShell.segmentErrorBody instead. Translating this diagnostic would only change the debugging vocabulary, not customer copy.",
+      "literals": [
+        "App segment error"
+      ]
+    },
+    "app/error.tsx": {
+      "why": "Both strings are console diagnostics: one reports that best-effort Sentry capture itself failed and one labels the root-boundary Error object. The rendered boundary already uses catalogue keys, so translating these would change only developer incident output.",
+      "literals": [
+        "Sentry capture failed:",
+        "Root boundary error"
+      ]
+    },
+    "app/global-error.tsx": {
+      "why": "Console-only label emitted beside the Error object before the boundary renders its catalogue copy. It is incident vocabulary for developers, not a sentence exposed to the reader, so translating it changes diagnostics without localising a surface.",
+      "literals": [
+        "Global boundary error"
+      ]
+    },
+    "components/auth/turnstile.tsx": {
+      "why": "Private rejected-Promise detail that is deliberately swallowed; the catch sets failed and the person sees onboarding.securityCheckFailed from the catalogue. Translating this hidden Error would duplicate the real user-facing sentence and make diagnostic wording depend on UI locale.",
+      "literals": [
+        "Failed to load the Turnstile script."
+      ]
+    },
+    "lib/analytics/posthog.ts": {
+      "why": "Console-only observability bootstrap diagnostic; initialization fails closed to null and no reader sees this label. Translating it would change the developer console and nothing in the product UI.",
+      "literals": [
+        "PostHog init failed:"
+      ]
+    },
+    "lib/observability/sentry.ts": {
+      "why": "Console-only observability bootstrap diagnostic emitted when the reporting tool itself cannot start. No UI renders it, and translating it would make incident output vary with a member's language rather than localising customer copy.",
+      "literals": [
+        "Sentry browser init failed:"
+      ]
+    },
+    "lib/push/register.ts": {
+      "why": "The unsupported-browser Error is converted to the translated misc.pushTurnOnFailed fallback, and the registration label is console-only best-effort boot output. Translating either hidden diagnostic would duplicate the catalogue sentence or make developer logs locale-dependent.",
+      "literals": [
+        "Service workers are not supported in this browser.",
+        "Loonext service worker registration failed:"
+      ]
+    },
+    "lib/push/subscription-machine.ts": {
+      "why": "These are invariant details for malformed VAPID configuration or a broken browser PushSubscription. errorSentence intentionally exposes only ApiError text and maps ordinary Error instances to the translated misc.pushTurnOnFailed fallback, so changing these diagnostics cannot localise what a customer sees.",
+      "literals": [
+        "VAPID public key is not base64url.",
+        "VAPID public key is not an uncompressed P-256 point.",
+        "Browser returned an incomplete push subscription."
+      ]
     }
   },
   "shared": {
+    "ai-disclosure.ts": {
+      "why": "This is Cloudflare's verbatim English quotation, kept attributable to the vendor whose promise it records. Translating the words inside quotation marks would turn their commitment into our paraphrase; the French public page must carry a separate French gloss while preserving this original.",
+      "literals": [
+        "Cloudflare does not use your Customer Content to (1) train any AI models "
+      ]
+    },
+    "scheduled-send.ts": {
+      "why": "These are the legacy English half of an expand-and-contract wire format. Existing installed clients render held_reason verbatim while current clients prefer held_reason_key and localise it; translating this fallback would send French to old English clients and deleting it would blank existing rows. It is removed only when the legacy field can be contracted.",
+      "literals": [
+        "Your subscription has lapsed, so this has not been sent. It will go out when billing is sorted.",
+        "Your plan is paused, so this has not been sent. It will go out when you resume.",
+        "This is waiting on carrier approval for US texting. It will send once that clears.",
+        "Texting is paused while we deal with an issue. This is still queued and nothing was lost.",
+        "They replied after you scheduled this, so we held it rather than talk over them. Send it anyway, or cancel it.",
+        "They replied STOP after you scheduled this, so it was not sent. Only they can undo that.",
+        "We cannot text this number any more, so this was not sent.",
+        "The send window passed before this could go, so it was not sent. A late message is usually worse than none.",
+        "The workspace was closed before this was due to send.",
+        "That job is no longer booked, so this reminder was not sent."
+      ]
+    },
+    "prohibited-categories.ts": {
+      "why": "This sentence is an internal screening summary emailed to the fixed English-language operations inbox, not client copy. Giving it a tenant locale would make one operator-facing alert change language according to the business being screened, which changes and obscures the review workflow rather than localising a customer surface.",
+      "literals": [
+        "“${name}” matched nothing."
+      ]
+    },
+    "pipeline.ts": {
+      "why": "Two strings are the legacy English wire half kept for installed clients predating insight_key; current clients resolve the parallel catalogue keys, so translating this fallback would send French to old English clients. The delete warning is also an English server-envelope fallback for a route no client currently calls; when deletion is exposed it needs a message key, since changing the lone fallback to French would change it for every reader.",
+      "literals": [
+        "\"${label}\" is one of the four stages your pipeline report counts.",
+        "You win ${rate}% of the quotes that get an answer. ${report.open} ${ report.open === 1 ? \"quote is\" : \"quotes are\" } still waiting on one.",
+        "You win ${rate}% of the quotes that get an answer."
+      ]
+    },
     "payments.ts": {
       "why": "The legacy half of #339's expand-and-contract, and the file says so: this is what the API puts on the wire for clients that predate payoutReadinessKeys, and an old build renders it VERBATIM. Translating it would send French to a build that cannot read a key, and changing a word would change what those builds display. It is deleted, not translated, when those builds are gone — and this exemption fails the moment the function goes, which is the reminder.",
       "literals": [
@@ -63,6 +312,18 @@
         "Stripe has paused payments on your account and needs something from ",
         "Ready to take payments",
         "Ask for a deposit or a final payment from any thread. It arrives as "
+      ]
+    },
+    "contact-import.ts": {
+      "why": "The consent note and actionable import refusals are legacy English wire copy retained for installed clients; current web, Android and iOS builds render the matching catalogue key (with server-provided variables for refusals) in the reader's locale. The remaining column-mismatch fragments diagnose a malformed client declaration rather than an operator choice and current French clients deliberately use the localized validation fallback. Removing these English values would blank or break older builds, while translating them would send French to clients that predate locale-aware fields.",
+      "literals": [
+        "Some of these customers have already asked this business to stop texting ",
+        "Nothing was imported.",
+        "Nothing was imported. Read the header row of the file being uploaded and ",
+        "Name, phone and version are not in that list because this import does ",
+        "(yes/no, 1/0, or x on the rows to block) and import again.",
+        "file: the column declaration does not describe this file — ${detail}.",
+        "send one \\`${CONTACT_IMPORT_COLUMN_FIELD}\\` per column, by index."
       ]
     },
     "contact-relationship.ts": {

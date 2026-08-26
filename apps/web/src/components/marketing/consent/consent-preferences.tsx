@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { publicEnv } from "@/env";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { consentCopy } from "@/i18n/marketing/consent";
 
 import {
   CONSENT_CHANGE_EVENT,
@@ -57,13 +59,17 @@ const CSS = `
 }
 `;
 
-export function ConsentPreferences() {
+export function ConsentPreferences({
+  locale = "en",
+}: {
+  locale?: MarketingLocale;
+}) {
   // Env gate before any hooks: builds without GTM render nothing.
   if (!publicEnv.NEXT_PUBLIC_GTM_ID) return null;
-  return <ConsentPreferencesInner />;
+  return <ConsentPreferencesInner locale={locale} />;
 }
 
-function ConsentPreferencesInner() {
+function ConsentPreferencesInner({ locale }: { locale: MarketingLocale }) {
   const [mounted, setMounted] = useState(false);
   const [choice, setChoice] = useState<ConsentChoice | null>(null);
 
@@ -85,7 +91,7 @@ function ConsentPreferencesInner() {
     <div className="min-h-28 rounded-xl bg-[color:var(--fr-frost)] p-5">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       {mounted ? (
-        <ConsentPreferencesPanel choice={choice} onChoose={choose} />
+        <ConsentPreferencesPanel choice={choice} onChoose={choose} locale={locale} />
       ) : null}
     </div>
   );
@@ -98,10 +104,14 @@ function ConsentPreferencesInner() {
 export function ConsentPreferencesPanel({
   choice,
   onChoose,
+  locale = "en",
 }: {
   choice: ConsentChoice | null;
   onChoose: (choice: ConsentChoice) => void;
+  locale?: MarketingLocale;
 }) {
+  const copy = consentCopy(locale);
+
   return (
     <>
       <p
@@ -109,10 +119,10 @@ export function ConsentPreferencesPanel({
         className="font-body-mkt text-sm leading-relaxed text-[color:var(--fr-ink)]"
       >
         {choice === "granted"
-          ? "Your current choice: cookies allowed."
+          ? copy.preferencesGranted
           : choice === "denied"
-            ? "Your current choice: no optional cookies."
-            : "You have not made a choice yet, so no optional cookies are set."}
+            ? copy.preferencesDenied
+            : copy.preferencesUnset}
       </p>
       <div className="mt-3 flex flex-wrap gap-3">
         <button
@@ -121,7 +131,7 @@ export function ConsentPreferencesPanel({
           aria-pressed={choice === "granted"}
           onClick={() => onChoose("granted")}
         >
-          Allow cookies
+          {copy.allow}
         </button>
         <button
           type="button"
@@ -129,7 +139,7 @@ export function ConsentPreferencesPanel({
           aria-pressed={choice === "denied"}
           onClick={() => onChoose("denied")}
         >
-          No thanks
+          {copy.deny}
         </button>
       </div>
     </>

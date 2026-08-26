@@ -109,6 +109,7 @@ enum ShellStrings {
                 "Couldn't open the Google sign-in window. Try again.",
             "shell.authSignInUnreachable":
                 "Can't reach the sign-in service. Check your connection.",
+            "shell.authAppleNotConfigured": "Apple sign-in isn't set up for this app yet.",
             "shell.authAppleIncomplete": "Apple sign-in didn't complete. Try again.",
             "shell.authAppleNoCredential":
                 "Apple didn't return a usable credential. Try again.",
@@ -192,6 +193,27 @@ enum ShellStrings {
             "shell.currentWorkspace": "Current",
             "shell.copyNumber": "Copy number",
             "shell.toastView": "View",
+            "shell.inboundToastNewMessage": "New message",
+            "shell.inboundToastLine": "{who}: {snippet}",
+            "shell.inboundToastSentMessage": "Sent a message",
+            "shell.inboundToastSentOne": "Sent {noun}",
+            "shell.inboundToastSentMany": "Sent {count} {noun}",
+            "shell.inboundToastImageOne": "a photo",
+            "shell.inboundToastImageMany": "photos",
+            "shell.inboundToastAudioOne": "an audio message",
+            "shell.inboundToastAudioMany": "audio messages",
+            "shell.inboundToastVideoOne": "a video",
+            "shell.inboundToastVideoMany": "videos",
+            "shell.inboundToastContactOne": "a contact card",
+            "shell.inboundToastContactMany": "contact cards",
+            "shell.inboundToastCalendarOne": "a calendar invite",
+            "shell.inboundToastCalendarMany": "calendar invites",
+            "shell.inboundToastDocumentOne": "a PDF",
+            "shell.inboundToastDocumentMany": "PDFs",
+            "shell.inboundToastTextOne": "a text file",
+            "shell.inboundToastTextMany": "text files",
+            "shell.inboundToastFileOne": "an attachment",
+            "shell.inboundToastFileMany": "attachments",
 
             // ── The update notice, and the floor (#339) ───────────────────────
             "shell.updateReadyTitle": "A newer version of Loonext is ready",
@@ -206,6 +228,22 @@ enum ShellStrings {
             "shell.updateUnknownVersion": "an unknown version",
             "shell.updateMinimum": " · {version} or newer is required",
 
+            // ── Handing this phone to the next person (#330) ────────────────
+            "shell.handOverAction": "Hand this phone to someone else",
+            "shell.handOverTitle": "Hand this phone over?",
+            "shell.handOverConfirm": "Sign out and clear",
+            "shell.handOverCancel": "Stay signed in",
+            "shell.handOverBody":
+                "You'll be signed out and everything from this workspace comes "
+                + "off this phone: the conversations, your customers' details, and the "
+                + "unread counts. The next person signs in as themselves.",
+            "shell.handOverUnsentOne":
+                "One message hasn't sent yet and will be discarded. If it matters, "
+                + "stay signed in until you have signal.",
+            "shell.handOverUnsentMany":
+                "{count} messages haven't sent yet and will be discarded. If they "
+                + "matter, stay signed in until you have signal.",
+
             // ── The app lock (#330) and the switcher cover (#581) ─────────────
             // Never a fault, in either language: nothing has gone wrong, the
             // person turned this on, and the phone is theirs. `AppLockTests`
@@ -218,6 +256,9 @@ enum ShellStrings {
             "shell.lockBody": "Your customers' conversations are on this phone.",
             "shell.lockAction": "Unlock",
             "shell.lockPromptSubtitle": "Your customers' conversations are on this phone",
+            "shell.lockCannotEnable":
+                "Set a passcode, Face ID or Touch ID on this phone first — without one "
+                + "there is nothing for this to ask you for.",
             /**
              * The one word on the app-switcher card. iOS-only: Android sets
              * `FLAG_SECURE` and gets a blank from the system instead.
@@ -361,6 +402,12 @@ enum ShellStrings {
             "shell.diagKeep": "Keep",
             "shell.diagBuild": "build {version}",
             "shell.diagNoReason": "No reason reported",
+            "shell.diagRealtimeNotStarted": "Not started",
+            "shell.diagRealtimeDisconnected": "Disconnected",
+            "shell.diagRealtimeConnecting": "Connecting",
+            "shell.diagRealtimeJoinedOne": "Joined (1 number topic)",
+            "shell.diagRealtimeJoinedMany": "Joined ({count} number topics)",
+            "shell.diagRealtimeJoinedPartial": "Joined ({have}/{want} number topics)",
         ],
         frCA: [
             "shell.meteredHint": "Vous êtes sur les données mobiles. Touchez pour charger la photo en pleine résolution.",
@@ -418,6 +465,8 @@ enum ShellStrings {
                 "Impossible d'ouvrir la fenêtre de connexion avec Google. Réessayez.",
             "shell.authSignInUnreachable":
                 "Impossible de joindre le service de connexion. Vérifiez votre connexion.",
+            "shell.authAppleNotConfigured":
+                "La connexion avec Apple n'est pas encore configurée pour cette application.",
             "shell.authAppleIncomplete":
                 "La connexion avec Apple ne s'est pas terminée. Réessayez.",
             "shell.authAppleNoCredential":
@@ -493,6 +542,27 @@ enum ShellStrings {
             "shell.currentWorkspace": "Actuel",
             "shell.copyNumber": "Copier le numéro",
             "shell.toastView": "Voir",
+            "shell.inboundToastNewMessage": "Nouveau message",
+            "shell.inboundToastLine": "{who} : {snippet}",
+            "shell.inboundToastSentMessage": "A envoyé un message",
+            "shell.inboundToastSentOne": "A envoyé {noun}",
+            "shell.inboundToastSentMany": "A envoyé {count} {noun}",
+            "shell.inboundToastImageOne": "une photo",
+            "shell.inboundToastImageMany": "photos",
+            "shell.inboundToastAudioOne": "un message audio",
+            "shell.inboundToastAudioMany": "messages audio",
+            "shell.inboundToastVideoOne": "une vidéo",
+            "shell.inboundToastVideoMany": "vidéos",
+            "shell.inboundToastContactOne": "une fiche de contact",
+            "shell.inboundToastContactMany": "fiches de contact",
+            "shell.inboundToastCalendarOne": "une invitation d'agenda",
+            "shell.inboundToastCalendarMany": "invitations d'agenda",
+            "shell.inboundToastDocumentOne": "un PDF",
+            "shell.inboundToastDocumentMany": "PDF",
+            "shell.inboundToastTextOne": "un fichier texte",
+            "shell.inboundToastTextMany": "fichiers texte",
+            "shell.inboundToastFileOne": "une pièce jointe",
+            "shell.inboundToastFileMany": "pièces jointes",
 
             "shell.updateReadyTitle": "Une nouvelle version de Loonext est prête",
             "shell.updateReadyBody": "Mettez à jour pour obtenir les derniers correctifs.",
@@ -507,6 +577,22 @@ enum ShellStrings {
             "shell.updateUnknownVersion": "une version inconnue",
             "shell.updateMinimum": " · {version} ou plus récente est requise",
 
+            "shell.handOverAction": "Confier ce téléphone à quelqu'un d'autre",
+            "shell.handOverTitle": "Confier ce téléphone ?",
+            "shell.handOverConfirm": "Se déconnecter et tout effacer",
+            "shell.handOverCancel": "Rester connecté",
+            "shell.handOverBody":
+                "Vous serez déconnecté et tout ce qui vient de cet espace de travail "
+                + "quittera ce téléphone : les conversations, les coordonnées de vos "
+                + "clients et les compteurs de messages non lus. La prochaine personne "
+                + "se connectera en son propre nom.",
+            "shell.handOverUnsentOne":
+                "Un message n'est pas encore envoyé et sera supprimé. Si c'est "
+                + "important, restez connecté jusqu'à ce que vous ayez du signal.",
+            "shell.handOverUnsentMany":
+                "{count} messages ne sont pas encore envoyés et seront supprimés. "
+                + "S'ils sont importants, restez connecté jusqu'à ce que vous ayez du signal.",
+
             "shell.lockHeadlineInbox":
                 "Déverrouillez pour voir votre boîte de réception",
             "shell.lockHeadlineFinish": "Déverrouillez pour terminer l'activation",
@@ -514,6 +600,9 @@ enum ShellStrings {
             "shell.lockAction": "Déverrouiller",
             "shell.lockPromptSubtitle":
                 "Les conversations de vos clients sont sur ce téléphone",
+            "shell.lockCannotEnable":
+                "Configurez d'abord un code d'accès, Face ID ou Touch ID sur ce téléphone — "
+                + "sans cela, il n'y a rien à vous demander.",
             "shell.lockedCover": "Verrouillé",
 
             "shell.orientationInboxTitle": "Une boîte de réception, toute l'équipe",
@@ -613,6 +702,13 @@ enum ShellStrings {
             "shell.diagKeep": "Conserver",
             "shell.diagBuild": "version {version}",
             "shell.diagNoReason": "Aucune raison signalée",
+            "shell.diagRealtimeNotStarted": "Pas démarrée",
+            "shell.diagRealtimeDisconnected": "Déconnectée",
+            "shell.diagRealtimeConnecting": "Connexion en cours",
+            "shell.diagRealtimeJoinedOne": "Connectée (1 canal de numéro)",
+            "shell.diagRealtimeJoinedMany": "Connectée ({count} canaux de numéro)",
+            "shell.diagRealtimeJoinedPartial":
+                "Connectée ({have}/{want} canaux de numéro)",
         ]
     )
 }

@@ -23,6 +23,8 @@ import { metadata } from "./page";
  */
 const render = (feed: StatusFeed = EMPTY_STATUS_FEED) =>
   renderToStaticMarkup(<StatusContent feed={feed} />);
+const renderFr = (feed: StatusFeed = EMPTY_STATUS_FEED) =>
+  renderToStaticMarkup(<StatusContent feed={feed} locale="fr-CA" />);
 
 const html = render();
 
@@ -99,6 +101,8 @@ describe("/status — #242: the page says what it is, and does not imply a probe
 describe("/status — #242: the live feed, and which way it fails", () => {
   const live: StatusFeed = {
     incident: "Texts are not sending right now. Incoming texts still arrive.",
+    incidentFr:
+      "Les textos ne partent pas en ce moment. Les textos entrants continuent d'arriver.",
     confirmedIso: "2026-07-29",
     confirmedIsStale: false,
   };
@@ -118,6 +122,18 @@ describe("/status — #242: the live feed, and which way it fails", () => {
     // Never an empty banner — that reads as a broken page precisely when trust
     // matters most.
     expect(html).not.toContain("Happening now");
+  });
+
+  it("renders the human-written French incident on the French route", () => {
+    const out = renderFr(live);
+    expect(out).toContain("Les textos ne partent pas en ce moment.");
+    expect(out).not.toContain("Texts are not sending right now.");
+  });
+
+  it("uses a known French incident fallback instead of translating arbitrary prose", () => {
+    const out = renderFr({ ...live, incidentFr: null });
+    expect(out).toContain("Un incident de service est en cours.");
+    expect(out).not.toContain("Texts are not sending right now.");
   });
 
   it("STILL renders no operational indicator with a live incident", () => {
@@ -152,6 +168,7 @@ describe("/status — #242: the live feed, and which way it fails", () => {
     // "is anything wrong right now".
     const out = render({
       incident: null,
+      incidentFr: null,
       confirmedIso: "2026-07-01",
       confirmedIsStale: true,
     });

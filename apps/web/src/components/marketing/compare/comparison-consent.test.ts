@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { CONSENT_LABEL } from "./comparison-consent";
+import { CONSENT_LABEL, CONSENT_LABEL_FR } from "./comparison-consent";
 
 /**
  * #312 — the words shown and the words stored must be the same words.
@@ -32,14 +32,15 @@ const API_MODULE = join(
   "comparison-email.ts",
 );
 
-/** The value of `MARKETING_CONSENT_TEXT`, evaluated from its source. */
-function serverConsentText(): string {
+/** The value of one server consent constant, evaluated from its source. */
+function serverConsentText(name: string): string {
   const source = readFileSync(API_MODULE, "utf8");
-  const match =
-    /export const MARKETING_CONSENT_TEXT\s*=\s*([\s\S]*?);\n/.exec(source);
+  const match = new RegExp(
+    `export const ${name}\\s*=\\s*([\\s\\S]*?);\\n`,
+  ).exec(source);
   expect(
     match,
-    "MARKETING_CONSENT_TEXT is no longer declared in apps/api/src/marketing/" +
+    `${name} is no longer declared in apps/api/src/marketing/` +
       "comparison-email.ts. If it moved, point this test at the new home rather " +
       "than deleting it.",
   ).not.toBeNull();
@@ -59,7 +60,14 @@ describe("#312 the consent shown is the consent stored", () => {
       "The checkbox label and the text stored on the consent record have " +
         "diverged. Every consent taken from now on would record a sentence the " +
         "person was never shown.",
-    ).toBe(serverConsentText());
+    ).toBe(serverConsentText("MARKETING_CONSENT_TEXT"));
+  });
+
+  it("matches the server's French consent wording exactly", () => {
+    expect(
+      CONSENT_LABEL_FR,
+      "A French consent would otherwise snapshot words the visitor was never shown.",
+    ).toBe(serverConsentText("MARKETING_CONSENT_TEXT_FR"));
   });
 
   it("says the two things a consent has to say", () => {
@@ -68,11 +76,13 @@ describe("#312 the consent shown is the consent stored", () => {
     // not support a marketing send later.
     expect(CONSENT_LABEL.toLowerCase()).toContain("email me");
     expect(CONSENT_LABEL.toLowerCase()).toContain("unsubscribe");
+    expect(CONSENT_LABEL_FR.toLowerCase()).toContain("désabonner");
   });
 
   it("has no em or en dash (Law 6)", () => {
     // The same rule the blog pages are held to: this string is rendered on a
     // marketing page and stored verbatim in a record we might have to produce.
     expect(CONSENT_LABEL).not.toMatch(/[–—]/);
+    expect(CONSENT_LABEL_FR).not.toMatch(/[–—]/);
   });
 });

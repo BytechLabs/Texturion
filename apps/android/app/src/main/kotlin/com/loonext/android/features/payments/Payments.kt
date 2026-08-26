@@ -226,10 +226,19 @@ object Payments {
         currency: BillingCurrency,
         description: String,
         url: String,
+        locale: String,
     ): String {
         val amount = formatMoney(amountCents, currency)
-        return "${businessName.trim()}: $amount for ${description.trim()}.\n" +
-            "Pay securely here:\n$url"
+        return AppStrings.translate(
+            locale,
+            "payments.requestSms",
+            mapOf(
+                "business" to businessName.trim(),
+                "amount" to amount,
+                "description" to description.trim(),
+                "url" to url,
+            ),
+        )
     }
 
     /**

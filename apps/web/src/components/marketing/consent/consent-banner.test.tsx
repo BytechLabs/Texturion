@@ -6,14 +6,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const env = { NEXT_PUBLIC_GTM_ID: undefined as string | undefined };
 vi.mock("@/env", () => ({ publicEnv: env }));
 
-async function renderBanner(initialOpen?: boolean) {
+async function renderBanner(
+  initialOpen?: boolean,
+  locale: "en" | "fr-CA" = "en",
+) {
   const { ConsentBanner } = await import("./consent-banner");
-  return renderToStaticMarkup(<ConsentBanner initialOpen={initialOpen} />);
+  return renderToStaticMarkup(
+    <ConsentBanner initialOpen={initialOpen} locale={locale} />,
+  );
 }
 
-async function renderPreferences() {
+async function renderPreferences(locale: "en" | "fr-CA" = "en") {
   const { ConsentPreferences } = await import("./consent-preferences");
-  return renderToStaticMarkup(<ConsentPreferences />);
+  return renderToStaticMarkup(<ConsentPreferences locale={locale} />);
 }
 
 afterEach(() => {
@@ -48,6 +53,15 @@ describe("ConsentBanner (#124)", () => {
     expect(html).toContain("fixed");
     expect(html).toContain("bottom-0");
   });
+
+  it("uses French copy and the French policy route in the French shell", async () => {
+    env.NEXT_PUBLIC_GTM_ID = "GTM-MTL658DD";
+    const html = await renderBanner(true, "fr-CA");
+    expect(html).toContain("Autoriser les témoins");
+    expect(html).toContain("Non merci");
+    expect(html).toContain('href="/fr/temoins"');
+    expect(html).not.toContain("Cookie policy");
+  });
 });
 
 describe("ConsentPreferences (#124)", () => {
@@ -67,10 +81,15 @@ describe("ConsentPreferences (#124)", () => {
 describe("ConsentPreferencesPanel (#124)", () => {
   async function renderPanel(
     choice: "granted" | "denied" | null,
+    locale: "en" | "fr-CA" = "en",
   ): Promise<string> {
     const { ConsentPreferencesPanel } = await import("./consent-preferences");
     return renderToStaticMarkup(
-      <ConsentPreferencesPanel choice={choice} onChoose={() => {}} />,
+      <ConsentPreferencesPanel
+        choice={choice}
+        onChoose={() => {}}
+        locale={locale}
+      />,
     );
   }
 
@@ -87,5 +106,12 @@ describe("ConsentPreferencesPanel (#124)", () => {
     expect(granted).toContain('aria-pressed="true"');
     const denied = await renderPanel("denied");
     expect(denied).toContain("no optional cookies");
+  });
+
+  it("renders the preference states and actions in French", async () => {
+    const html = await renderPanel(null, "fr-CA");
+    expect(html).toContain("aucun témoin facultatif");
+    expect(html).toContain("Autoriser les témoins");
+    expect(html).toContain("Non merci");
   });
 });

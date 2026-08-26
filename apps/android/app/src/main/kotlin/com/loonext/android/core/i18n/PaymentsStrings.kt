@@ -19,6 +19,8 @@ object PaymentsStrings : AppStrings.Section {
         "payments.askFor" to "Ask for {amount}",
         "payments.asked" to "Asked for {amount}.",
         "payments.sendFailed" to "That didn't send.",
+        "payments.requestSms" to
+            "{business}: {amount} for {description}.\nPay securely here:\n{url}",
         "payments.stripeNeeds" to "Stripe still needs:",
         "payments.refundedBack" to "{amount} went back to them.",
         "payments.disputedNote" to
@@ -108,6 +110,8 @@ object PaymentsStrings : AppStrings.Section {
         "payments.askFor" to "Demander {amount}",
         "payments.asked" to "Demande de {amount} envoyée.",
         "payments.sendFailed" to "L'envoi a échoué.",
+        "payments.requestSms" to
+            "{business} : {amount} pour {description}.\nPayez en toute sécurité ici :\n{url}",
         "payments.stripeNeeds" to "Stripe a encore besoin de :",
         "payments.refundedBack" to "{amount} leur a été remboursé.",
         "payments.disputedNote" to

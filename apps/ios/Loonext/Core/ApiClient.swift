@@ -240,17 +240,20 @@ actor ApiClient {
                     .compactMap { $0 }
                     .joined(separator: " ")
             )
-            // #228: the one place both cases meet. When the envelope carried a
-            // sentence it is the SERVER's, worded and translated there; the
-            // fallback is ours, so only that one gets a key.
+            // #228: the server's English sentence remains useful to old builds
+            // and diagnostics. New endpoints may pair it with a catalogue key,
+            // which keeps the same specific instruction in the reader's locale.
+            // Only a locally composed fallback invents its key here.
             let serverMessage = parsed?.error.message
             throw ApiError(
                 code: code,
                 message: serverMessage ?? "Something went wrong (\(status)).",
                 httpStatus: status,
                 requestId: requestId,
-                messageKey: serverMessage == nil ? "common.errServer" : nil,
-                messageVars: ["status": String(status)]
+                messageKey: parsed?.error.message_key
+                    ?? (serverMessage == nil ? "common.errServer" : nil),
+                messageVars: parsed?.error.message_vars
+                    ?? ["status": String(status)]
             )
         }
     }
@@ -268,14 +271,24 @@ actor ApiClient {
             url: baseURL.appending(path: path),
             resolvingAgainstBaseURL: false
         ) else {
-            throw ApiError(code: ApiErrorCode.network, message: "Bad request URL.", httpStatus: 0)
+            throw ApiError(
+                code: ApiErrorCode.network,
+                message: "Bad request URL.",
+                httpStatus: 0,
+                messageKey: "common.errNetwork"
+            )
         }
         let items = query.compactMap { key, value in value.map { URLQueryItem(name: key, value: $0) } }
         if !items.isEmpty {
             components.queryItems = items
         }
         guard let url = components.url else {
-            throw ApiError(code: ApiErrorCode.network, message: "Bad request URL.", httpStatus: 0)
+            throw ApiError(
+                code: ApiErrorCode.network,
+                message: "Bad request URL.",
+                httpStatus: 0,
+                messageKey: "common.errNetwork"
+            )
         }
         var request = URLRequest(url: url)
         request.httpMethod = method

@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { readWorkerBindings } from "@/lib/marketing/status-mailer";
 import {
+  STATUS_SUBSCRIPTION_PATHS,
   confirmSubscription,
+  statusSubscriptionLocale,
   type SubscriberStore,
 } from "@/lib/marketing/status-subscribe";
 
@@ -26,8 +28,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const bindings = await readWorkerBindings();
   const store = bindings?.STATUS_FEED as SubscriberStore | undefined;
 
-  const confirmed = store ? await confirmSubscription(store, token) : false;
+  const confirmedLocale = store
+    ? await confirmSubscription(store, token)
+    : null;
+  const locale =
+    confirmedLocale ??
+    statusSubscriptionLocale(request.nextUrl.searchParams.get("locale"));
+  const paths = STATUS_SUBSCRIPTION_PATHS[locale];
   return NextResponse.redirect(
-    new URL(confirmed ? "/status/subscribed" : "/status", request.nextUrl.origin),
+    new URL(
+      confirmedLocale ? paths.subscribed : paths.status,
+      request.nextUrl.origin,
+    ),
   );
 }

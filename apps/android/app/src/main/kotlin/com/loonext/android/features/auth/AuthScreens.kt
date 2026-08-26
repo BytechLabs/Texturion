@@ -61,6 +61,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.loonext.android.core.auth.AuthManager
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
@@ -139,7 +140,7 @@ sealed interface AuthError {
 /**
  * The server's sentence when it wrote one, otherwise our own key.
  *
- * `userMessage()` returns a blank string when the failure carried nothing a
+ * `userMessage(locale)` returns a blank string when the failure carried nothing a
  * person could read — a network drop, a parse error — which is exactly when a
  * screen showing nothing at all is the worst outcome.
  */
@@ -157,31 +158,40 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
     private val google = GoogleSignIn(authManager)
 
     /** The call awaiting a captcha token (null = no captcha loop running). */
-    private var pendingAction: PendingAuthAction? = null
+    private data class PendingCaptcha(
+        val action: PendingAuthAction,
+        val locale: String,
+    )
 
-    fun signIn(email: String, password: String) =
-        attempt(PendingAuthAction.SignIn(email.trim(), password), captchaToken = null)
+    private var pendingCaptcha: PendingCaptcha? = null
 
-    fun signUp(name: String, email: String, password: String) =
-        attempt(PendingAuthAction.SignUp(name.trim(), email.trim(), password), captchaToken = null)
+    fun signIn(email: String, password: String, locale: String) =
+        attempt(PendingAuthAction.SignIn(email.trim(), password), captchaToken = null, locale)
 
-    fun sendReset(email: String) =
-        attempt(PendingAuthAction.Reset(email.trim()), captchaToken = null)
+    fun signUp(name: String, email: String, password: String, locale: String) =
+        attempt(
+            PendingAuthAction.SignUp(name.trim(), email.trim(), password),
+            captchaToken = null,
+            locale,
+        )
+
+    fun sendReset(email: String, locale: String) =
+        attempt(PendingAuthAction.Reset(email.trim()), captchaToken = null, locale)
 
     /** Token from the captcha sheet; null = the user dismissed it. */
     fun onCaptchaResult(token: String?) {
         _state.value = _state.value.copy(awaitingCaptcha = false)
-        val action = pendingAction
+        val pending = pendingCaptcha
         if (token == null) {
-            pendingAction = null
+            pendingCaptcha = null
             _state.value =
                 _state.value.copy(error = AuthError.Ours("auth.captchaNeeded"))
             return
         }
-        if (action != null) attempt(action, token)
+        if (pending != null) attempt(pending.action, token, pending.locale)
     }
 
-    fun signInWithGoogle() {
+    fun signInWithGoogle(locale: String) {
         if (_state.value.busy) return
         _state.value = _state.value.copy(busy = true, error = null)
         viewModelScope.launch {
@@ -191,7 +201,7 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
             } catch (cause: Exception) {
                 _state.value = _state.value.copy(
                     busy = false,
-                    error = authError(cause.userMessage(), "auth.googleFailed"),
+                    error = authError(cause.userMessage(locale), "auth.googleFailed"),
                 )
             }
         }
@@ -253,11 +263,11 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
 
     /**
      * Runs a password-path call. First attempt goes without a token; the
-     * structural captcha rejection parks the call in [pendingAction] and
+     * structural captcha rejection parks the call in [pendingCaptcha] and
      * raises the sheet. A rejection WITH a token means it expired mid-flight —
      * re-mint (the sheet comes back) rather than failing the user.
      */
-    private fun attempt(action: PendingAuthAction, captchaToken: String?) {
+    private fun attempt(action: PendingAuthAction, captchaToken: String?, locale: String) {
         if (_state.value.busy) return
         _state.value = _state.value.copy(busy = true, error = null)
         viewModelScope.launch {
@@ -280,17 +290,17 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
                         _state.value = _state.value.copy(resetSent = true)
                     }
                 }
-                pendingAction = null
+                pendingCaptcha = null
                 _state.value = _state.value.copy(busy = false)
             } catch (cause: Exception) {
                 if (isCaptchaRejection(cause)) {
-                    pendingAction = action
+                    pendingCaptcha = PendingCaptcha(action, locale)
                     _state.value = _state.value.copy(busy = false, awaitingCaptcha = true)
                 } else {
-                    pendingAction = null
+                    pendingCaptcha = null
                     _state.value = _state.value.copy(
                         busy = false,
-                        error = authError(cause.userMessage(), action.fallbackKey),
+                        error = authError(cause.userMessage(locale), action.fallbackKey),
                     )
                 }
             }
@@ -311,6 +321,7 @@ fun AuthFlow(viewModel: AuthViewModel) {
     var screen by rememberSaveable { mutableStateOf(AuthScreen.Login) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val locale = LocalAppLocale.current
 
     // OAuth redirects (buffered across process death by AuthCallbacks) land
     // in the ViewModel while this signed-out surface is mounted.
@@ -360,8 +371,8 @@ fun AuthFlow(viewModel: AuthViewModel) {
             AuthScreen.Login -> LoginForm(
                 busy = state.busy,
                 error = state.error,
-                onSubmit = viewModel::signIn,
-                onGoogle = viewModel::signInWithGoogle,
+                onSubmit = { email, password -> viewModel.signIn(email, password, locale) },
+                onGoogle = { viewModel.signInWithGoogle(locale) },
                 onForgot = { screen = AuthScreen.Forgot },
                 onSignUp = { screen = AuthScreen.SignUp },
             )
@@ -370,8 +381,10 @@ fun AuthFlow(viewModel: AuthViewModel) {
                 busy = state.busy,
                 error = state.error,
                 confirmationSent = state.confirmationSent,
-                onSubmit = viewModel::signUp,
-                onGoogle = viewModel::signInWithGoogle,
+                onSubmit = { name, email, password ->
+                    viewModel.signUp(name, email, password, locale)
+                },
+                onGoogle = { viewModel.signInWithGoogle(locale) },
                 onLogin = { screen = AuthScreen.Login },
             )
 
@@ -379,7 +392,7 @@ fun AuthFlow(viewModel: AuthViewModel) {
                 busy = state.busy,
                 error = state.error,
                 resetSent = state.resetSent,
-                onSubmit = viewModel::sendReset,
+                onSubmit = { email -> viewModel.sendReset(email, locale) },
                 onLogin = { screen = AuthScreen.Login },
             )
         }

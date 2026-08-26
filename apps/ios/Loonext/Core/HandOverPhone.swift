@@ -28,32 +28,48 @@ import Foundation
 enum HandOverPhone {
 
     /// The action, named for what somebody is actually doing.
-    static let action = "Hand this phone to someone else"
+    static let action = localizedAction()
+
+    static func localizedAction(locale: String = MessageLocale.en) -> String {
+        AppStrings.translate(locale, "shell.handOverAction")
+    }
 
     /// The confirmation's heading.
-    static let title = "Hand this phone over?"
+    static let title = localizedTitle()
+
+    static func localizedTitle(locale: String = MessageLocale.en) -> String {
+        AppStrings.translate(locale, "shell.handOverTitle")
+    }
 
     /// Goes through with it.
-    static let confirm = "Sign out and clear"
+    static let confirm = localizedConfirm()
+
+    static func localizedConfirm(locale: String = MessageLocale.en) -> String {
+        AppStrings.translate(locale, "shell.handOverConfirm")
+    }
 
     /// Backs out.
-    static let cancel = "Stay signed in"
+    static let cancel = localizedCancel()
+
+    static func localizedCancel(locale: String = MessageLocale.en) -> String {
+        AppStrings.translate(locale, "shell.handOverCancel")
+    }
 
     /// What happens, in the order it matters to the person holding the phone.
     ///
     /// `unsent` is how many messages are still waiting for signal. Naming the number
     /// rather than saying "any unsent messages" is the difference between a warning
     /// somebody reads past and one they act on.
-    static func body(unsent: Int) -> String {
-        let first = "You'll be signed out and everything from this workspace comes "
-            + "off this phone: the conversations, your customers' details, and the "
-            + "unread counts. The next person signs in as themselves."
+    static func body(unsent: Int, locale: String = MessageLocale.en) -> String {
+        let first = AppStrings.translate(locale, "shell.handOverBody")
         guard unsent > 0 else { return first }
         let warning = unsent == 1
-            ? "One message hasn't sent yet and will be discarded. If it matters, "
-                + "stay signed in until you have signal."
-            : "\(unsent) messages haven't sent yet and will be discarded. If they "
-                + "matter, stay signed in until you have signal."
+            ? AppStrings.translate(locale, "shell.handOverUnsentOne")
+            : AppStrings.translate(
+                locale,
+                "shell.handOverUnsentMany",
+                ["count": String(unsent)]
+            )
         return "\(first)\n\n\(warning)"
     }
 

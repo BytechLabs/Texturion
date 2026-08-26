@@ -1,5 +1,7 @@
 package com.loonext.android.telephony
 
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.WebRtcToken
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
@@ -283,6 +285,7 @@ class SoftphoneCoreTest {
     private fun TestScope.harness(
         virtualClock: Boolean = false,
         placementTimeoutMs: Long = 20_000,
+        locale: String = MessageLocale.DEFAULT,
     ): Harness {
         // The core's scope shares runTest's scheduler through a
         // StandardTestDispatcher: every launch inside SoftphoneCore is queued
@@ -299,9 +302,16 @@ class SoftphoneCoreTest {
                 FakeCallsApi(), sdk, scope,
                 now = { testScheduler.currentTime },
                 placementTimeoutMs = placementTimeoutMs,
+                translate = { key -> AppStrings.translate(locale, key) },
             )
         } else {
-            SoftphoneCore(FakeCallsApi(), sdk, scope, placementTimeoutMs = placementTimeoutMs)
+            SoftphoneCore(
+                FakeCallsApi(),
+                sdk,
+                scope,
+                placementTimeoutMs = placementTimeoutMs,
+                translate = { key -> AppStrings.translate(locale, key) },
+            )
         }
         return Harness(core, sdk, scope)
     }
@@ -1112,6 +1122,23 @@ class SoftphoneCoreTest {
         assertEquals("Couldn't answer — try again.", state.error)
         assertEquals("the ring survives the failed answer", CallPhase.RINGING, state.calls.single().phase)
         assertEquals("answer", reportedTag)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `client-authored call errors follow the reader locale`() = runTest {
+        val h = harness(locale = MessageLocale.FR_CA)
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        val ringLeg = FakeHandle("in-fr")
+        ringLeg.acceptThrows = IllegalStateException("Call not found for ID: in-fr")
+        h.sdk.ring(ringLeg)
+        runCurrent()
+
+        h.core.answer("in-fr")
+
+        assertEquals("Impossible de répondre — réessayez.", h.core.state.value.error)
         h.scope.cancel()
     }
 

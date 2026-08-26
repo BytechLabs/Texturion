@@ -480,7 +480,7 @@ private struct AppLockCard: View {
                     Text(
                         canLock
                             ? AppStrings.translate(appLocale, "settings.devicesAppLockHelp")
-                            : AppLock.cannotEnableNote
+                            : AppLock.cannotEnableNote(locale: appLocale)
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)

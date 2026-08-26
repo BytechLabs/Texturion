@@ -46,6 +46,9 @@
  * accepting an address it will never mail.
  */
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { statusCopy } from "@/i18n/marketing/status";
+
 import { absoluteUrl } from "./site";
 
 /** Nothing subscribes, confirms or sends past these. */
@@ -59,9 +62,9 @@ export const PENDING_TTL_SECONDS = 24 * 60 * 60;
 
 /** KV key prefixes, sharing the namespace the live line already uses. */
 export const SUBSCRIBE_KEYS = {
-  /** `sub:<token>` → the address. The token is also its unsubscribe link. */
+  /** `sub:<token>` → `{ email, locale }`. The token is its unsubscribe link. */
   subscriber: "sub:",
-  /** `pending:<token>` → the address, until confirmed or expired. */
+  /** `pending:<token>` → `{ email, locale }`, until confirmed or expired. */
   pending: "pending:",
   /** The incident sentence the list was last mailed about. "" means resolved. */
   notified: "notified",
@@ -88,6 +91,55 @@ export interface SubscriberStore {
   delete(key: string): Promise<void>;
   list(options: { prefix: string }): Promise<{ keys: { name: string }[] }>;
 }
+
+export type StatusSubscriptionLocale = MarketingLocale;
+
+interface SubscriberRecord {
+  email: string;
+  locale: StatusSubscriptionLocale;
+}
+
+/** Only URL-backed marketing locales are valid for this anonymous workflow. */
+export function statusSubscriptionLocale(
+  raw: unknown,
+): StatusSubscriptionLocale {
+  return raw === "fr-CA" ? "fr-CA" : "en";
+}
+
+/**
+ * Existing KV rows contain only an email address. Read those as English while
+ * new rows carry their locale in JSON. This is expand-and-contract without a
+ * migration job or a window where the outage list cannot send.
+ */
+function readSubscriberRecord(raw: string | null): SubscriberRecord | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const email = normalizeEmail(parsed.email);
+    if (!email) return null;
+    return { email, locale: statusSubscriptionLocale(parsed.locale) };
+  } catch {
+    const email = normalizeEmail(raw);
+    return email ? { email, locale: "en" } : null;
+  }
+}
+
+function writeSubscriberRecord(record: SubscriberRecord): string {
+  return JSON.stringify(record);
+}
+
+export const STATUS_SUBSCRIPTION_PATHS = {
+  en: {
+    status: "/status",
+    subscribed: "/status/subscribed",
+    unsubscribed: "/status/unsubscribed",
+  },
+  "fr-CA": {
+    status: "/fr/etat-du-service",
+    subscribed: "/fr/etat-du-service/abonnement-confirme",
+    unsubscribed: "/fr/etat-du-service/desabonnement-confirme",
+  },
+} as const;
 
 /**
  * Normalize an address, or reject it.
@@ -175,15 +227,22 @@ export type SubscribeOutcome =
 /** The address rows currently on the list. */
 async function listSubscribers(
   store: SubscriberStore,
-): Promise<{ token: string; email: string }[]> {
+): Promise<(SubscriberRecord & { token: string })[]> {
   const { keys } = await store.list({ prefix: SUBSCRIBE_KEYS.subscriber });
   const rows = await Promise.all(
-    keys.map(async (key) => ({
-      token: key.name.slice(SUBSCRIBE_KEYS.subscriber.length),
-      email: (await store.get(key.name)) ?? "",
-    })),
+    keys.map(async (key) => {
+      const record = readSubscriberRecord(await store.get(key.name));
+      return record
+        ? {
+            token: key.name.slice(SUBSCRIBE_KEYS.subscriber.length),
+            ...record,
+          }
+        : null;
+    }),
   );
-  return rows.filter((row) => row.email.length > 0);
+  return rows.filter(
+    (row): row is SubscriberRecord & { token: string } => row !== null,
+  );
 }
 
 /**
@@ -202,6 +261,7 @@ export async function startSubscription(
   store: SubscriberStore,
   mailer: Mailer,
   email: string,
+  locale: StatusSubscriptionLocale,
   now: Date,
 ): Promise<SubscribeOutcome> {
   const existing = await listSubscribers(store);
@@ -221,13 +281,16 @@ export async function startSubscription(
   if (!(await claimMonthlyBudget(store, now, 1))) return "rate_limited";
 
   const token = mintToken();
-  await store.put(`${SUBSCRIBE_KEYS.pending}${token}`, email, {
-    expirationTtl: PENDING_TTL_SECONDS,
-  });
+  await store.put(
+    `${SUBSCRIBE_KEYS.pending}${token}`,
+    writeSubscriberRecord({ email, locale }),
+    { expirationTtl: PENDING_TTL_SECONDS },
+  );
+  const copy = statusCopy(locale);
   const sent = await mailer.send({
     to: email,
-    subject: "Confirm your Loonext status updates",
-    text: confirmEmailText(token),
+    subject: copy.confirmEmailSubject,
+    text: confirmEmailText(token, locale),
   });
   return sent ? "sent" : "failed";
 }
@@ -236,32 +299,44 @@ export async function startSubscription(
 export async function confirmSubscription(
   store: SubscriberStore,
   token: string,
-): Promise<boolean> {
-  if (!isToken(token)) return false;
+): Promise<StatusSubscriptionLocale | null> {
+  if (!isToken(token)) return null;
   const pendingKey = `${SUBSCRIBE_KEYS.pending}${token}`;
-  const email = await store.get(pendingKey);
-  if (!email) return false;
-  await store.put(`${SUBSCRIBE_KEYS.subscriber}${token}`, email);
+  const record = readSubscriberRecord(await store.get(pendingKey));
+  if (!record) return null;
+  await store.put(
+    `${SUBSCRIBE_KEYS.subscriber}${token}`,
+    writeSubscriberRecord(record),
+  );
   await store.delete(pendingKey);
-  return true;
+  return record.locale;
 }
 
 /**
  * Leaving, in one click and with no questions.
  *
- * Returns true even when the token is already gone. Somebody who clicks
- * unsubscribe twice, or whose mail client prefetched the link, must not be told
- * it failed — they are off the list either way, and that is the only fact the
- * page should assert.
+ * Returns the stored locale when the row still exists. The link also carries
+ * that locale because a mail client may prefetch the GET and delete the row
+ * before the person clicks it; the visible result must still stay French.
  */
 export async function unsubscribe(
   store: SubscriberStore,
   token: string,
-): Promise<boolean> {
-  if (!isToken(token)) return false;
-  await store.delete(`${SUBSCRIBE_KEYS.subscriber}${token}`);
-  await store.delete(`${SUBSCRIBE_KEYS.pending}${token}`);
-  return true;
+): Promise<StatusSubscriptionLocale | null> {
+  if (!isToken(token)) return null;
+  const subscriberKey = `${SUBSCRIBE_KEYS.subscriber}${token}`;
+  const pendingKey = `${SUBSCRIBE_KEYS.pending}${token}`;
+  const [subscriber, pending] = await Promise.all([
+    store.get(subscriberKey),
+    store.get(pendingKey),
+  ]);
+  await store.delete(subscriberKey);
+  await store.delete(pendingKey);
+  return (
+    readSubscriberRecord(subscriber)?.locale ??
+    readSubscriberRecord(pending)?.locale ??
+    null
+  );
 }
 
 export type NotificationKind = "none" | "incident" | "resolved";
@@ -298,50 +373,83 @@ export interface Mailer {
   }): Promise<boolean>;
 }
 
-export function confirmEmailText(token: string): string {
+function localeQuery(locale: StatusSubscriptionLocale): string {
+  return locale === "fr-CA" ? "&locale=fr-CA" : "";
+}
+
+export function confirmUrl(
+  token: string,
+  locale: StatusSubscriptionLocale = "en",
+): string {
+  return absoluteUrl(
+    `/api/status/confirm?token=${token}${localeQuery(locale)}`,
+  );
+}
+
+export function confirmEmailText(
+  token: string,
+  locale: StatusSubscriptionLocale = "en",
+): string {
+  const copy = statusCopy(locale);
   return [
-    "You asked to be emailed when Loonext has a service incident.",
+    copy.confirmEmailIntro,
     "",
-    "Confirm that here:",
-    absoluteUrl(`/api/status/confirm?token=${token}`),
+    copy.confirmEmailAction,
+    confirmUrl(token, locale),
     "",
-    "If that wasn't you, ignore this email — nothing happens until the link is",
-    "opened, and the request expires on its own within a day.",
+    copy.confirmEmailIgnore,
   ].join("\n");
 }
 
-export function incidentEmailText(incident: string, token: string): string {
+export function incidentEmailText(
+  incident: string,
+  token: string,
+  locale: StatusSubscriptionLocale = "en",
+): string {
+  const copy = statusCopy(locale);
   return [
-    "Loonext service incident",
+    copy.incidentEmailSubject,
     "",
     incident,
     "",
-    "This is what's on our status page right now, written by hand as we learn",
-    "more. We'll email again when it's resolved.",
+    copy.incidentEmailBody,
     "",
-    absoluteUrl("/status"),
+    absoluteUrl(STATUS_SUBSCRIPTION_PATHS[locale].status),
     "",
     "---",
-    `Unsubscribe: ${unsubscribeUrl(token)}`,
+    `${copy.unsubscribeLabel}: ${unsubscribeUrl(token, locale)}`,
   ].join("\n");
 }
 
-export function resolvedEmailText(token: string): string {
+export function resolvedEmailText(
+  token: string,
+  locale: StatusSubscriptionLocale = "en",
+): string {
+  const copy = statusCopy(locale);
   return [
-    "Loonext incident resolved",
+    copy.resolvedEmailSubject,
     "",
-    "The incident we emailed you about is over. The written report goes on the",
-    "status page once we've finished it.",
+    copy.resolvedEmailBody,
     "",
-    absoluteUrl("/status"),
+    absoluteUrl(STATUS_SUBSCRIPTION_PATHS[locale].status),
     "",
     "---",
-    `Unsubscribe: ${unsubscribeUrl(token)}`,
+    `${copy.unsubscribeLabel}: ${unsubscribeUrl(token, locale)}`,
   ].join("\n");
 }
 
-export function unsubscribeUrl(token: string): string {
-  return absoluteUrl(`/api/status/unsubscribe?token=${token}`);
+export function unsubscribeUrl(
+  token: string,
+  locale: StatusSubscriptionLocale = "en",
+): string {
+  return absoluteUrl(
+    `/api/status/unsubscribe?token=${token}${localeQuery(locale)}`,
+  );
+}
+
+export interface StatusIncidentCopy {
+  en: string | null;
+  "fr-CA": string | null;
 }
 
 /**
@@ -361,16 +469,16 @@ export function unsubscribeUrl(token: string): string {
 export async function notifySubscribers(
   store: SubscriberStore,
   mailer: Mailer,
-  incident: string | null,
+  incident: StatusIncidentCopy,
   now: Date,
 ): Promise<{ kind: NotificationKind; sent: number }> {
   try {
     const last = await store.get(SUBSCRIBE_KEYS.notified);
-    const kind = decideNotification(incident, last);
+    const kind = decideNotification(incident.en, last);
     if (kind === "none") return { kind, sent: 0 };
 
     const subscribers = await listSubscribers(store);
-    const marker = (incident ?? "").trim();
+    const marker = (incident.en ?? "").trim();
     if (subscribers.length === 0) {
       // Nobody to tell, but the marker still moves — otherwise the first person
       // to subscribe during an incident gets mailed about it as if it were new.
@@ -399,22 +507,26 @@ export async function notifySubscribers(
 
     await store.put(SUBSCRIBE_KEYS.notified, marker);
 
-    const subject =
-      kind === "incident"
-        ? "Loonext service incident"
-        : "Loonext incident resolved";
     const results = await Promise.all(
-      subscribers.map((row) =>
-        mailer.send({
+      subscribers.map((row) => {
+        const copy = statusCopy(row.locale);
+        const incidentText =
+          row.locale === "fr-CA"
+            ? incident["fr-CA"] ?? copy.incidentFallback
+            : marker;
+        return mailer.send({
           to: row.email,
-          subject,
+          subject:
+            kind === "incident"
+              ? copy.incidentEmailSubject
+              : copy.resolvedEmailSubject,
           text:
             kind === "incident"
-              ? incidentEmailText(marker, row.token)
-              : resolvedEmailText(row.token),
-          listUnsubscribeUrl: unsubscribeUrl(row.token),
-        }),
-      ),
+              ? incidentEmailText(incidentText, row.token, row.locale)
+              : resolvedEmailText(row.token, row.locale),
+          listUnsubscribeUrl: unsubscribeUrl(row.token, row.locale),
+        });
+      }),
     );
     return { kind, sent: results.filter(Boolean).length };
   } catch (cause) {

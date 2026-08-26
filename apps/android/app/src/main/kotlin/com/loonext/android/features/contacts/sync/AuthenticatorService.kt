@@ -9,6 +9,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.IBinder
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.UiLocale
+import com.loonext.android.core.model.MessageLocale
 
 /**
  * The device-side account that anchors the Connected-Apps sync (#183, part 3).
@@ -21,7 +24,7 @@ import android.os.IBinder
  * carries no auth), and the app's real sign-in is Supabase (core/auth) — this is
  * deliberately separate and never touches it.
  */
-class LoonextAuthenticator(context: Context) : AbstractAccountAuthenticator(context) {
+class LoonextAuthenticator(private val context: Context) : AbstractAccountAuthenticator(context) {
 
     override fun addAccount(
         response: AccountAuthenticatorResponse?,
@@ -66,7 +69,11 @@ class LoonextAuthenticator(context: Context) : AbstractAccountAuthenticator(cont
 
     private fun unsupported(): Bundle = Bundle().apply {
         putInt(AccountManager.KEY_ERROR_CODE, AccountManager.ERROR_CODE_UNSUPPORTED_OPERATION)
-        putString(AccountManager.KEY_ERROR_MESSAGE, "Loonext account is sync-only")
+        val locale = UiLocale.normalizeDevice(UiLocale.deviceTag()) ?: MessageLocale.DEFAULT
+        putString(
+            AccountManager.KEY_ERROR_MESSAGE,
+            AppStrings.translate(locale, "contactsSync.accountSyncOnly"),
+        )
     }
 }
 

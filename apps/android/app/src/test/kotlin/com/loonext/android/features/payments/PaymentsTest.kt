@@ -1,5 +1,6 @@
 package com.loonext.android.features.payments
 
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.features.settings.BillingCurrency
 import com.loonext.android.features.settings.formatMoney
 import java.time.Instant
@@ -137,6 +138,7 @@ class PaymentsTest {
             currency = cad,
             description = "  Deposit  ",
             url = "https://app.loonext.com/pay/abc123",
+            locale = MessageLocale.EN,
         )
         assertEquals(
             "Maple Plumbing: ${formatMoney(25_000, cad)} for Deposit.\n" +

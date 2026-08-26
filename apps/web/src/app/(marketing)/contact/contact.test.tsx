@@ -18,9 +18,11 @@ vi.stubEnv("NEXT_PUBLIC_API_URL", "https://stub-api.local");
 
 const { ContactForm } = await import("./contact-form");
 const { default: ContactPage, metadata } = await import("./page");
+const { ContactPageBody } = await import("@/components/marketing/contact-page");
 
 const pageHtml = renderToStaticMarkup(<ContactPage />);
 const formHtml = renderToStaticMarkup(<ContactForm />);
+const frenchPageHtml = renderToStaticMarkup(<ContactPageBody locale="fr-CA" />);
 
 describe("/contact — the work-order page", () => {
   it("opens with the deck's dateline, H1, and reply promise", () => {
@@ -72,6 +74,13 @@ describe("/contact — the work-order page", () => {
     expect(pageHtml).toContain('href="/security"');
     expect(pageHtml).toContain('href="/status"');
     expect(pageHtml).toContain("security@loonext.com");
+  });
+
+  it("keeps security and status links in French on the French route", () => {
+    expect(frenchPageHtml).toContain('href="/fr/securite"');
+    expect(frenchPageHtml).toContain('href="/fr/etat-du-service"');
+    expect(frenchPageHtml).not.toContain('href="/security"');
+    expect(frenchPageHtml).not.toContain('href="/status"');
   });
 
   it("never renders a placeholder identity line (purge 7)", () => {

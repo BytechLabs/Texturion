@@ -32,12 +32,28 @@ import { LIVE_ROUTES } from "@/lib/marketing/site";
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "..", "..", "..");
 const DOC = join(REPO, "docs", "ACCESSIBILITY.md");
 const PAGE = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "page.tsx",
+  REPO,
+  "apps",
+  "web",
+  "src",
+  "components",
+  "marketing",
+  "legal",
+  "accessibility-page.tsx",
+);
+const CATALOGUE = join(
+  REPO,
+  "apps",
+  "web",
+  "src",
+  "i18n",
+  "marketing",
+  "legal-accessibility.ts",
 );
 
 const doc = readFileSync(DOC, "utf8");
 const page = readFileSync(PAGE, "utf8");
+const catalogue = readFileSync(CATALOGUE, "utf8");
 
 /**
  * Only the part that RENDERS — everything from the component down.
@@ -49,7 +65,8 @@ const page = readFileSync(PAGE, "utf8");
  * breaking this file case-insensitively: the capitalised body copy could be
  * removed entirely and the lowercase metadata kept it green.
  */
-const body = page.slice(page.indexOf("export default function"));
+const refusalCopy = catalogue.slice(catalogue.indexOf("notVerifiedOne:"));
+const body = page + refusalCopy;
 if (body.length < 500) {
   throw new Error(
     "published-statement.test.ts could not find the component body — the " +
@@ -67,7 +84,7 @@ describe("#238 the accessibility statement is published", () => {
       "utf8",
     );
     expect(footer).toContain("LIVE_ROUTES.accessibility");
-    expect(page).toContain('const PATH = "/legal/accessibility"');
+    expect(page).toContain('const EN_PATH = "/legal/accessibility"');
   });
 
   it("reads the table out of the document instead of restating it", () => {
@@ -109,7 +126,7 @@ describe("#238 the page keeps the document's refusals", () => {
     // The document targets 2.2 AA. A page that quietly said "AAA", or dropped
     // the level, would be the drift this file exists for.
     expect(doc).toContain("WCAG 2.2 Level AA");
-    expect(page).toContain("WCAG 2.2");
-    expect(page).not.toMatch(/AAA/);
+    expect(catalogue).toContain("WCAG 2.2");
+    expect(catalogue).not.toMatch(/AAA/);
   });
 });

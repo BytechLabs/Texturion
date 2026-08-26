@@ -1,17 +1,1 @@
-{
-  "app/(app)/error.tsx": 1,
-  "app/api/status/subscribe/route.ts": 4,
-  "app/error.tsx": 2,
-  "app/global-error.tsx": 1,
-  "app/layout.tsx": 2,
-  "app/manifest.ts": 1,
-  "app/onboarding/area-codes.ts": 4,
-  "app/onboarding/city-npas.ts": 1,
-  "app/onboarding/texting/page.tsx": 3,
-  "components/auth/turnstile.tsx": 1,
-  "lib/analytics/posthog.ts": 1,
-  "lib/api/types.ts": 1,
-  "lib/observability/sentry.ts": 1,
-  "lib/push/register.ts": 2,
-  "lib/push/subscription-machine.ts": 3
-}
+{}

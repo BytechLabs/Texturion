@@ -119,5 +119,9 @@ export interface ErrorEnvelope {
   error: {
     code: ApiErrorCode;
     message: string;
+    /** Optional catalogue key preferred by current clients over [message]. */
+    message_key?: string;
+    /** Interpolation values for [message_key]. */
+    message_vars?: Record<string, string>;
   };
 }

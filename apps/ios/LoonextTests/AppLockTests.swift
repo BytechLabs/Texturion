@@ -70,7 +70,7 @@ final class AppLockTests: XCTestCase {
         XCTAssertFalse(AppLock.canEnable(hasBiometric: false, hasPasscode: false))
         XCTAssertTrue(AppLock.canEnable(hasBiometric: true, hasPasscode: false))
         XCTAssertTrue(AppLock.canEnable(hasBiometric: false, hasPasscode: true))
-        XCTAssertTrue(AppLock.cannotEnableNote.contains("passcode"))
+        XCTAssertTrue(AppLock.cannotEnableNote().contains("passcode"))
     }
 
     func testTheLockScreenNeverReadsAsAFault() {

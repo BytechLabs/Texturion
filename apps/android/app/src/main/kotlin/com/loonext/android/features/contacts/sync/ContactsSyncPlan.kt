@@ -1,5 +1,7 @@
 package com.loonext.android.features.contacts.sync
 
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.features.contacts.Nanp
 import com.loonext.android.features.contacts.device.DeviceContact
 
@@ -66,11 +68,6 @@ data class SyncRawContact(
     val dataRows: List<SyncDataRow>,
 )
 
-/** The action-row labels the Contacts app renders (kept beside the plan so the
- *  copy and the strings.xml fallbacks never drift). */
-const val CALL_ACTION_LABEL = "Call with Loonext"
-const val TEXT_ACTION_LABEL = "Text with Loonext"
-
 /**
  * Build the RawContacts to write. Only strictly-dialable US/CA numbers get
  * action rows ([Nanp.normalize] gives a non-null E.164) — a number Loonext
@@ -78,9 +75,15 @@ const val TEXT_ACTION_LABEL = "Text with Loonext"
  * distinct dialable E.164 across all contacts yields at most one raw contact
  * (de-duped), preserving first-seen order.
  */
-fun buildSyncRawContacts(pkg: String, contacts: List<DeviceContact>): List<SyncRawContact> {
+fun buildSyncRawContacts(
+    pkg: String,
+    contacts: List<DeviceContact>,
+    locale: String = MessageLocale.DEFAULT,
+): List<SyncRawContact> {
     val callMime = callMimeType(pkg)
     val textMime = textMimeType(pkg)
+    val callActionLabel = AppStrings.translate(locale, "contactsSync.callAction")
+    val textActionLabel = AppStrings.translate(locale, "contactsSync.textAction")
     val seen = HashSet<String>()
     val out = ArrayList<SyncRawContact>()
     for (contact in contacts) {
@@ -99,13 +102,13 @@ fun buildSyncRawContacts(pkg: String, contacts: List<DeviceContact>): List<SyncR
                     SyncDataRow(
                         mimeType = callMime,
                         data1 = e164,
-                        summary = CALL_ACTION_LABEL,
+                        summary = callActionLabel,
                         detail = pretty,
                     ),
                     SyncDataRow(
                         mimeType = textMime,
                         data1 = e164,
-                        summary = TEXT_ACTION_LABEL,
+                        summary = textActionLabel,
                         detail = pretty,
                     ),
                 ),

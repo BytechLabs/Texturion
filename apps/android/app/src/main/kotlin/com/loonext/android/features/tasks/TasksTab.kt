@@ -755,7 +755,13 @@ private fun TaskList(
                 val doneRows = rows.filter { it.done }
                 val loadedIds = rows.map { it.id }
 
-                fun runBulk(action: String, verb: String, targetUserId: String? = null, unassign: Boolean = false) {
+                fun runBulk(
+                    action: String,
+                    verbOneKey: String,
+                    verbManyKey: String,
+                    targetUserId: String? = null,
+                    unassign: Boolean = false,
+                ) {
                     if (bulkRunning) return
                     bulkRunning = true
                     scope.launch {
@@ -784,13 +790,15 @@ private fun TaskList(
                             // it guessed would be a count somebody trusted.
                             onMessage(
                                 bulkResultMessage(
-                                    verb = verb,
+                                    verb = AppStrings.translate(locale, verbOneKey),
+                                    verbMany = AppStrings.translate(locale, verbManyKey),
                                     applied = result.applied.size,
                                     failed = result.failed.size,
                                     matched = result.matched,
                                     capped = result.capped,
-                                    nounOne = "task",
-                                    nounMany = "tasks",
+                                    nounOne = AppStrings.translate(locale, "contactsTasks.bulkTaskOne"),
+                                    nounMany = AppStrings.translate(locale, "contactsTasks.bulkTaskMany"),
+                                    locale = locale,
                                 ),
                             )
                             selection = BulkSelection.EMPTY
@@ -818,11 +826,43 @@ private fun TaskList(
                         onSelectLoaded = { selection = selectLoaded(loadedIds) },
                         onSelectAllMatching = { selection = BulkSelection.Filter },
                         onClear = { selection = BulkSelection.EMPTY },
-                        onMarkDone = { runBulk("mark_done", "Marked done") },
-                        onMarkUndone = { runBulk("mark_undone", "Marked not done") },
-                        onAssign = { userId -> runBulk("assign", "Assigned", targetUserId = userId) },
-                        onUnassign = { runBulk("assign", "Unassigned", unassign = true) },
-                        onDelete = { runBulk("delete", "Deleted") },
+                        onMarkDone = {
+                            runBulk(
+                                "mark_done",
+                                "contactsTasks.bulkMarkedDoneOne",
+                                "contactsTasks.bulkMarkedDoneMany",
+                            )
+                        },
+                        onMarkUndone = {
+                            runBulk(
+                                "mark_undone",
+                                "contactsTasks.bulkMarkedNotDoneOne",
+                                "contactsTasks.bulkMarkedNotDoneMany",
+                            )
+                        },
+                        onAssign = { userId ->
+                            runBulk(
+                                "assign",
+                                "contactsTasks.bulkAssignedOne",
+                                "contactsTasks.bulkAssignedMany",
+                                targetUserId = userId,
+                            )
+                        },
+                        onUnassign = {
+                            runBulk(
+                                "assign",
+                                "contactsTasks.bulkUnassignedOne",
+                                "contactsTasks.bulkUnassignedMany",
+                                unassign = true,
+                            )
+                        },
+                        onDelete = {
+                            runBulk(
+                                "delete",
+                                "contactsTasks.bulkDeletedOne",
+                                "contactsTasks.bulkDeletedMany",
+                            )
+                        },
                     )
                 }
 

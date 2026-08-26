@@ -21,6 +21,7 @@
  */
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { compareUiCopy } from "@/i18n/marketing/compare-ui";
 import { homeCopy } from "@/i18n/marketing/home";
 import { useMarketingCurrency } from "@/components/marketing/pricing/plan-price";
 import { formatMoney, type BillingCurrency } from "@loonext/shared";
@@ -28,7 +29,7 @@ import { useId, useState } from "react";
 
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
-import { COMPARE_AS_OF } from "@/app/(marketing)/compare/verification";
+import { compareAsOf } from "@/app/(marketing)/compare/verification";
 
 /** The published monthly Starter seat price of a leading per-user tool (July 2026). */
 /**
@@ -103,6 +104,7 @@ export function CrewSizeSlider({
   locale = "en",
 }: RivalSeatPricing & { locale?: MarketingLocale } = {}) {
   const copy = homeCopy(locale);
+  const ui = compareUiCopy(locale);
   // #328: the reader's own currency, so the USD figures below can be marked as
   // foreign when they are. Client component, so this reads the country
   // directly — the static twin takes it as a prop because it cannot.
@@ -138,7 +140,7 @@ export function CrewSizeSlider({
         step={1}
         value={seats}
         onChange={(e) => setSeats(Number(e.target.value))}
-        aria-valuetext={`${seats} ${seats === 1 ? "person" : "people"}`}
+        aria-valuetext={`${seats} ${seats === 1 ? ui.person : ui.people}`}
         className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[color:var(--fr-frost)] accent-[color:var(--fr-olive)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       />
       <div className="fr-mono-data mt-1 flex justify-between text-[0.6875rem] text-[color:var(--fr-ink-55)]">
@@ -155,7 +157,7 @@ export function CrewSizeSlider({
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                {usd(loonext.price, audience)}/mo
+                {usd(loonext.price, audience)}{ui.perMonth}
               </span>
               <span className="text-[color:var(--fr-ink-55)]">{copy.sliderFlat}</span>
             </span>
@@ -177,7 +179,7 @@ export function CrewSizeSlider({
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                {usd(perUser, audience)}/mo
+                {usd(perUser, audience)}{ui.perMonth}
               </span>
               <span className="text-[color:var(--fr-ink-55)]">
                 {seats > 1 ? copy.sliderClimbing : ""}
@@ -208,19 +210,16 @@ export function CrewSizeSlider({
         href={APP_LINKS.signup}
         className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       >
-        Start for {usd(loonext.price, audience)} flat →
+        {ui.startForBefore} {usd(loonext.price, audience)} {ui.startForAfter}
       </a>
 
       <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-        The $19/user figure is the published monthly Starter seat price of a
-        leading per-user business-texting tool {COMPARE_AS_OF} (that tool bills
-        texting separately, so real totals run higher). See the named, sourced
-        math on{" "}
+        {ui.sliderSourceBefore} {compareAsOf(locale)} {ui.sliderSourceAfter}{" "}
         <a
-          href={LIVE_ROUTES.compareQuo}
+          href={locale === "fr-CA" ? "/fr/comparer/quo" : LIVE_ROUTES.compareQuo}
           className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
         >
-          our comparison pages
+          {ui.sliderSourceLink}
         </a>
         .
       </p>

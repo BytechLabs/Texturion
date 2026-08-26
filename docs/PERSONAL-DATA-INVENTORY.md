@@ -115,7 +115,7 @@ The most sensitive category, because the person never chose us.
 |---|---|---|
 | `contact_messages` | name, **email**, company, message, **IP** | **IP at 30 days**, whole row at **1 year** (#340). Erasure: `scripts/ops/erase-contact.mjs` — no account required |
 | `widget_verifications` | **the visitor's mobile number**, **IP**, and a code **hash** — never the code (#232/D124) | **Whole row at 30 days**, `api_prune_widget_verifications`. Deliberately far shorter than `contact_messages`' year: a contact submission is a message somebody meant to send and may reference later, while this is a machine artifact nobody will ever ask about, kept only for a few days of abuse forensics. Goes with the workspace in the teardown |
-| `marketing_contacts` | **email**, the consent timestamp, the surface it was given on, and **the exact words agreed to** | **Unsubscribed rows at 30 days**; a consent that never produced a send at **1 year**. A LIVE consent is kept while it is the basis for sends — deleting it while still mailing somebody is worse than never recording it (#312) |
+| `marketing_contacts` | **email**, the consent timestamp, the surface and language it was given in, and **the exact words agreed to** | **Unsubscribed rows at 30 days**; a consent that never produced a send at **1 year**. A LIVE consent is kept while it is the basis for sends — deleting it while still mailing somebody is worse than never recording it (#312) |
 
 **One asymmetry in §4 worth stating out loud, because it looks like an oversight
 and is not.** An unsubscribed `marketing_contacts` row loses its plaintext at 30

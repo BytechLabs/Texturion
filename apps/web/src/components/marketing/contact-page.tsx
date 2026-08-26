@@ -52,10 +52,8 @@ function ContactLink({
  * Duplicating the markup instead would be how the two pages come to differ by
  * a card nobody meant to move.
  *
- * The links stay on their English targets: `/security` and `/status` have no
- * French twin yet, and D138 Rule 4 says a `/fr` URL with no translation 404s
- * rather than serving English. Sending a French reader to the English page
- * that exists is the honest option; sending them to one that does not is not.
+ * Security and status now have French twins, so these links stay in the
+ * reader's language just like the breadcrumb and form.
  */
 export function ContactPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
   const copy = contactCopy(locale);
@@ -107,7 +105,9 @@ export function ContactPageBody({ locale = "en" }: { locale?: MarketingLocale })
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
                 {copy.securityBodyBefore}{" "}
-                <ContactLink href="/security">{copy.securityPageLink}</ContactLink>
+                <ContactLink href={french ? "/fr/securite" : "/security"}>
+                  {copy.securityPageLink}
+                </ContactLink>
                 {copy.securityBodyAfter}
               </p>
               <p className="mt-2">
@@ -123,7 +123,9 @@ export function ContactPageBody({ locale = "en" }: { locale?: MarketingLocale })
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
                 {copy.statusBodyBefore}{" "}
-                <ContactLink href="/status">{copy.statusPageLink}</ContactLink>.
+                <ContactLink href={french ? "/fr/etat-du-service" : "/status"}>
+                  {copy.statusPageLink}
+                </ContactLink>.
               </p>
             </FrCard>
 

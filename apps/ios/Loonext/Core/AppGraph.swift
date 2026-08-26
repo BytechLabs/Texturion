@@ -155,7 +155,8 @@ final class AuthManager {
             throw ApiError(
                 code: "provider_not_configured",
                 message: "Apple sign-in isn't set up for this app yet.",
-                httpStatus: error.httpStatus
+                httpStatus: error.httpStatus,
+                messageKey: "shell.authAppleNotConfigured"
             )
         }
         sessionStore.save(authSession.session)

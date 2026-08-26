@@ -5,6 +5,9 @@ struct ErrorEnvelope: Decodable {
     struct Body: Decodable {
         let code: String
         let message: String
+        /// Optional catalogue copy preferred over the legacy English sentence.
+        let message_key: String?
+        let message_vars: [String: String]?
         /// #555: the Cloudflare ray the server already puts on a 500, and which
         /// every client dropped.
         ///

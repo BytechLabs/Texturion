@@ -12,6 +12,9 @@ data class ErrorEnvelope(val error: ErrorBody) {
     data class ErrorBody(
         val code: String,
         val message: String,
+        /** Optional catalogue copy preferred over the legacy English sentence. */
+        val message_key: String? = null,
+        val message_vars: Map<String, String> = emptyMap(),
         /**
          * #555: the Cloudflare ray the server already puts on a 500, and which
          * every client dropped.

@@ -188,7 +188,8 @@ struct SupabaseAuth: Sendable {
             throw ApiError(
                 code: ApiErrorCode.network,
                 message: "Can't reach the sign-in service. Check your connection.",
-                httpStatus: 0
+                httpStatus: 0,
+                messageKey: "shell.authSignInUnreachable"
             )
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0

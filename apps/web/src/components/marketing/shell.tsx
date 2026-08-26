@@ -69,7 +69,7 @@ export function MarketingShell({
           tags may set cookies, and the loader's Consent Mode v2 default stays
           denied until the visitor says yes. Overlay, never inserts (CLS 0). */}
       <GoogleTagManager />
-      <ConsentBanner />
+      <ConsentBanner locale={locale} />
       <JsonLd data={organizationJsonLd()} />
       {/* One shared IntersectionObserver drives every [data-reveal] (§4). */}
       <RevealActivator />

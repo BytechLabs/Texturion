@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { publicEnv } from "@/env";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { consentCopy } from "@/i18n/marketing/consent";
 
 import {
   CONSENT_CHANGE_EVENT,
@@ -81,13 +83,26 @@ const CSS = `
 }
 `;
 
-export function ConsentBanner({ initialOpen }: { initialOpen?: boolean }) {
+export function ConsentBanner({
+  initialOpen,
+  locale = "en",
+}: {
+  initialOpen?: boolean;
+  locale?: MarketingLocale;
+}) {
   // Env gate before any hooks: builds without GTM render nothing, ever.
   if (!publicEnv.NEXT_PUBLIC_GTM_ID) return null;
-  return <ConsentBannerInner initialOpen={initialOpen} />;
+  return <ConsentBannerInner initialOpen={initialOpen} locale={locale} />;
 }
 
-function ConsentBannerInner({ initialOpen = false }: { initialOpen?: boolean }) {
+function ConsentBannerInner({
+  initialOpen = false,
+  locale,
+}: {
+  initialOpen?: boolean;
+  locale: MarketingLocale;
+}) {
+  const copy = consentCopy(locale);
   const [open, setOpen] = useState(initialOpen);
 
   useEffect(() => {
@@ -110,20 +125,21 @@ function ConsentBannerInner({ initialOpen = false }: { initialOpen?: boolean }) 
   return (
     <div
       role="region"
-      aria-label="Cookie choices"
+      aria-label={copy.bannerAria}
       className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-4 sm:px-6 sm:pb-6"
     >
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="frcc-card pointer-events-auto mx-auto w-full max-w-2xl rounded-2xl bg-[color:var(--fr-card)] p-5 sm:p-6">
         <p className="font-body-mkt text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
           <strong className="font-semibold text-[color:var(--fr-ink)]">
-            Cookies, your call.
+            {copy.bannerTitle}
           </strong>{" "}
-          We would like to set cookies that show us how people find Loonext and
-          help our ads reach the right folks. Say no and we set none of them.
-          The signed-in app never uses tracking cookies either way.{" "}
-          <Link href="/legal/cookies" className="frcc-link">
-            Cookie policy
+          {copy.bannerBody}{" "}
+          <Link
+            href={locale === "fr-CA" ? "/fr/temoins" : "/legal/cookies"}
+            className="frcc-link"
+          >
+            {copy.policyLink}
           </Link>
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
@@ -132,14 +148,14 @@ function ConsentBannerInner({ initialOpen = false }: { initialOpen?: boolean }) 
             className="frcc-btn frcc-btn-yes"
             onClick={() => choose("granted")}
           >
-            Allow cookies
+            {copy.allow}
           </button>
           <button
             type="button"
             className="frcc-btn frcc-btn-no"
             onClick={() => choose("denied")}
           >
-            No thanks
+            {copy.deny}
           </button>
         </div>
       </div>

@@ -860,7 +860,7 @@ struct ContactDetailView: View {
                     .foregroundStyle(BrandColor.olive)
                 }
                 .disabled(working)
-                Text(localeContactScopeNote)
+                Text(AppStrings.translate(appLocale, "contactsTasks.localeContactScopeNote"))
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted500)
             }
@@ -1154,10 +1154,10 @@ func inheritedLocaleLabel(companyLocale: String?, locale: String? = nil) -> Stri
 /// What this override does, and the two things it does not do, said where the
 /// choice is made rather than in a help page nobody opens. The workspace card's
 /// `localeScopeCaveat` makes the same promise about the workspace-wide setting.
-let localeContactScopeNote =
-    "Only automated texts follow this: the away reply, the missed-call "
-        + "text-back, the emergency reply and the rating ask. It does not change "
-        + "the app's language, and what your crew types is sent as typed."
+let localeContactScopeNote = AppStrings.translate(
+    MessageLocale.en,
+    "contactsTasks.localeContactScopeNote"
+)
 
 // MARK: - #191 record attribution (pure, testable)
 

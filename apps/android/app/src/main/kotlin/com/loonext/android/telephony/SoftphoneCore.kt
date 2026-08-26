@@ -1,6 +1,8 @@
 package com.loonext.android.telephony
 
 import com.loonext.android.core.diag.CallFlowLog
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import kotlinx.coroutines.CancellationException
@@ -77,8 +79,15 @@ class SoftphoneCore(
      * be mistaken for a fresh inbound ring (matches web PLACEMENT_TIMEOUT_MS): by
      * the time this elapses the server-dialed op/oc legs have themselves timed out.
      * The normal INVITE arrives in ~1–3s.
-     */
+    */
     private val placementTimeoutMs: Long = 48_000,
+    /**
+     * Client-owned UI copy. Production supplies the current reader locale;
+     * the English default keeps the pure JVM harness deterministic.
+     */
+    private val translate: (String) -> String = { key ->
+        AppStrings.translate(MessageLocale.DEFAULT, key)
+    },
 ) {
     companion object {
         /**
@@ -96,13 +105,19 @@ class SoftphoneCore(
         fun placementSession(id: String): String? =
             if (id.startsWith(PLACEMENT_PREFIX)) id.removePrefix(PLACEMENT_PREFIX) else null
 
-        /** Honest failure copy when the op INVITE never arrives (mirror web). */
-        const val PLACEMENT_UNREACHABLE = "Couldn't reach the line. Please try again."
+        /** Honest failure key when the op INVITE never arrives (mirror web). */
+        private const val PLACEMENT_UNREACHABLE_KEY = "telephony.placementUnreachable"
 
         /** A server that returned no session S can't be correlated to an op
          *  INVITE — fail honestly rather than leave a silent dead chip. */
-        const val PLACEMENT_NO_SESSION = "Couldn't start the call. Please try again."
+        private const val PLACEMENT_NO_SESSION_KEY = "telephony.placementNoSession"
     }
+
+    private fun uiText(key: String): String = translate(key)
+
+    /** ApiException.message remains stable English for logs; messageKey is UI. */
+    private fun diagnosticText(key: String): String =
+        AppStrings.translate(MessageLocale.DEFAULT, key)
 
     private val _state = MutableStateFlow(SoftphoneSnapshot())
     val state: StateFlow<SoftphoneSnapshot> = _state
@@ -281,9 +296,10 @@ class SoftphoneCore(
         withTimeoutOrNull(readyTimeoutMs) {
             state.first { it.status == SoftphoneStatus.READY }
         } ?: throw ApiException(
-            ApiErrorCode.NETWORK,
-            "Couldn't connect your phone. Check your connection and try again.",
-            0,
+            code = ApiErrorCode.NETWORK,
+            message = diagnosticText("common.errPhoneConnect"),
+            httpStatus = 0,
+            messageKey = "common.errPhoneConnect",
         )
     }
 
@@ -389,7 +405,10 @@ class SoftphoneCore(
                 _state.update {
                     val down = CallStateMachine.disconnected(it)
                     if (worthTelling) {
-                        CallStateMachine.error(down, "Calling is temporarily unavailable.")
+                        CallStateMachine.error(
+                            down,
+                            uiText("telephony.temporarilyUnavailable"),
+                        )
                     } else {
                         down
                     }
@@ -517,7 +536,7 @@ class SoftphoneCore(
                 // #168A: degrade to an in-app line, never process death. The chip is
                 // reconciled below regardless; a leg the SDK already tore down ends
                 // itself through its phase flow.
-                reportUiError("Couldn't connect the call.")
+                reportUiError(uiText("telephony.connectFailed"))
                 onInternalFailure?.invoke("placement-accept", cause)
             }
         _state.update { CallStateMachine.placementConnected(it, pending.placementId, id, session) }
@@ -841,7 +860,11 @@ class SoftphoneCore(
             pendingPlacements.remove(session)
             CallFlowLog.log("reap", "client died - failing pending placement S=${CallFlowLog.tail(session)}")
             _state.update {
-                CallStateMachine.placementFailed(it, pending.placementId, PLACEMENT_UNREACHABLE)
+                CallStateMachine.placementFailed(
+                    it,
+                    pending.placementId,
+                    uiText(PLACEMENT_UNREACHABLE_KEY),
+                )
             }
         }
     }
@@ -1034,15 +1057,17 @@ class SoftphoneCore(
         phoneNumberId: String? = null,
     ) {
         val company = companyId ?: throw ApiException(
-            ApiErrorCode.NETWORK,
-            "Calling isn't ready yet. Try again in a moment.",
-            0,
+            code = ApiErrorCode.NETWORK,
+            message = diagnosticText("common.errCallingNotReady"),
+            httpStatus = 0,
+            messageKey = "common.errCallingNotReady",
         )
         if (_state.value.liveCalls.size >= CallStateMachine.MAX_CONCURRENT_CALLS) {
             throw ApiException(
-                ApiErrorCode.CONFLICT,
-                "You're already on two calls.",
-                0,
+                code = ApiErrorCode.CONFLICT,
+                message = diagnosticText("common.errTwoCalls"),
+                httpStatus = 0,
+                messageKey = "common.errTwoCalls",
             )
         }
         val auth = api.authorizeBrowserCall(
@@ -1057,7 +1082,12 @@ class SoftphoneCore(
             // A server that returned no S cannot be correlated to an op INVITE —
             // fail honestly rather than leave a silent dead chip. (Calls v3 always
             // mints S; the field stays nullable only for decode safety.)
-            throw ApiException(ApiErrorCode.CONFLICT, PLACEMENT_NO_SESSION, 409)
+            throw ApiException(
+                code = ApiErrorCode.CONFLICT,
+                message = diagnosticText(PLACEMENT_NO_SESSION_KEY),
+                httpStatus = 409,
+                messageKey = PLACEMENT_NO_SESSION_KEY,
+            )
         }
         val placementId = placementId(session)
         val peerName = displayName.ifBlank { auth.to }
@@ -1103,7 +1133,11 @@ class SoftphoneCore(
                 if (pendingPlacements.remove(session) != null) {
                     CallFlowLog.log("place", "placement timed out S=${CallFlowLog.tail(session)}")
                     _state.update {
-                        CallStateMachine.placementFailed(it, placementId, PLACEMENT_UNREACHABLE)
+                        CallStateMachine.placementFailed(
+                            it,
+                            placementId,
+                            uiText(PLACEMENT_UNREACHABLE_KEY),
+                        )
                     }
                 }
             }
@@ -1121,7 +1155,7 @@ class SoftphoneCore(
                 // #168A: an SDK refusal degrades to an in-app line, never
                 // process death. The call stays RINGING — the user can retry
                 // or decline; a leg the SDK already tore down ends itself.
-                reportUiError("Couldn't answer — try again.")
+                reportUiError(uiText("telephony.answerFailed"))
                 onInternalFailure?.invoke("answer", cause)
             }
         // The caller may have hung up in the same instant — the ring's end
@@ -1413,8 +1447,9 @@ class SoftphoneCore(
     }
 
     private fun requireCompany(): String = companyId ?: throw ApiException(
-        ApiErrorCode.NETWORK,
-        "Calling isn't ready yet. Try again in a moment.",
-        0,
+        code = ApiErrorCode.NETWORK,
+        message = diagnosticText("common.errCallingNotReady"),
+        httpStatus = 0,
+        messageKey = "common.errCallingNotReady",
     )
 }
