@@ -273,10 +273,10 @@ create table public.calendar_connections (
       )),
   owner_disclosure_generation bigint not null default 0
     check (owner_disclosure_generation >= 0),
-  owner_disclosure_delivered_generation bigint not null default 0
-    check (owner_disclosure_delivered_generation >= 0
-      and owner_disclosure_delivered_generation <= owner_disclosure_generation),
-  owner_disclosure_delivered_at timestamptz,
+  owner_disclosure_sent_generation bigint not null default 0
+    check (owner_disclosure_sent_generation >= 0
+      and owner_disclosure_sent_generation <= owner_disclosure_generation),
+  owner_disclosure_sent_at timestamptz,
   owner_disclosure_started_at timestamptz,
   owner_disclosure_available_at timestamptz,
   owner_disclosure_attempts integer not null default 0
@@ -388,7 +388,7 @@ begin
     new.owner_disclosure_available_at := now();
     new.owner_disclosure_started_at := now();
     new.owner_disclosure_attempts := 0;
-    new.owner_disclosure_delivered_at := null;
+    new.owner_disclosure_sent_at := null;
     new.owner_disclosure_lease_owner := null;
     new.owner_disclosure_lease_expires_at := null;
     new.owner_disclosure_last_error_code := null;
@@ -400,7 +400,7 @@ begin
     new.owner_disclosure_available_at := now();
     new.owner_disclosure_started_at := now();
     new.owner_disclosure_attempts := 0;
-    new.owner_disclosure_delivered_at := null;
+    new.owner_disclosure_sent_at := null;
     new.owner_disclosure_lease_owner := null;
     new.owner_disclosure_lease_expires_at := null;
     new.owner_disclosure_last_error_code := null;
@@ -412,7 +412,7 @@ begin
     new.owner_disclosure_available_at := now();
     new.owner_disclosure_started_at := now();
     new.owner_disclosure_attempts := 0;
-    new.owner_disclosure_delivered_at := null;
+    new.owner_disclosure_sent_at := null;
     new.owner_disclosure_lease_owner := null;
     new.owner_disclosure_lease_expires_at := null;
     new.owner_disclosure_last_error_code := null;
@@ -2642,7 +2642,7 @@ begin
     return jsonb_build_object(
       'outcome', 'coalesced',
       'generation', v_connection.owner_disclosure_generation,
-      'delivered', v_connection.owner_disclosure_delivered_generation
+      'delivered', v_connection.owner_disclosure_sent_generation
                    = v_connection.owner_disclosure_generation
     );
   end if;
@@ -2652,7 +2652,7 @@ begin
          owner_disclosure_available_at = now(),
          owner_disclosure_started_at = now(),
          owner_disclosure_attempts = 0,
-         owner_disclosure_delivered_at = null,
+         owner_disclosure_sent_at = null,
          owner_disclosure_lease_owner = null,
          owner_disclosure_lease_expires_at = null,
          owner_disclosure_last_error_code = null,
@@ -2710,7 +2710,7 @@ begin
          )
        )
        and c.owner_disclosure_reason is not null
-       and c.owner_disclosure_delivered_generation
+       and c.owner_disclosure_sent_generation
              < c.owner_disclosure_generation
        and c.owner_disclosure_available_at <= now()
        and (c.owner_disclosure_lease_expires_at is null
@@ -2774,7 +2774,7 @@ begin
          owner_disclosure_available_at = now(),
          owner_disclosure_started_at = now(),
          owner_disclosure_attempts = 0,
-         owner_disclosure_delivered_at = null,
+         owner_disclosure_sent_at = null,
          owner_disclosure_lease_owner = null,
          owner_disclosure_lease_expires_at = null,
          owner_disclosure_last_error_code = null,
@@ -2813,8 +2813,8 @@ begin
     return jsonb_build_object('outcome', 'superseded');
   end if;
   update public.calendar_connections
-     set owner_disclosure_delivered_generation = p_generation,
-         owner_disclosure_delivered_at = now(),
+     set owner_disclosure_sent_generation = p_generation,
+         owner_disclosure_sent_at = now(),
          owner_disclosure_lease_owner = null,
          owner_disclosure_lease_expires_at = null,
          owner_disclosure_last_error_code = null,
@@ -2882,7 +2882,7 @@ security definer
 set search_path = ''
 as $$
   select c.id, c.provider, c.owner_disclosure_reason,
-         c.owner_disclosure_started_at, c.owner_disclosure_delivered_at
+         c.owner_disclosure_started_at, c.owner_disclosure_sent_at
     from public.calendar_connections c
     join public.companies co on co.id = c.company_id
    where c.company_id = p_company_id

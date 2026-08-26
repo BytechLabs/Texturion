@@ -83,3 +83,17 @@ f53a434a21d7f5128a8b54b8cc099966c39fbfbf:apps/web/src/lib/observability/scrub.te
 # which is the scan working. Pinned by fingerprint so the rule stays live: a
 # real Resend key in this same file, on the next line, still fails.
 ef5f390943cf370c643a151a217393fd16a12a3c:supabase/migrations/20260819010000_erasure_clears_three_columns_it_could_not_see.sql:resend-api-key:3
+
+# Seven #245 schema/test identifiers from 5de7d0df, not credentials. The
+# generic rule read the fixture pair `calendar-access`, `America/Edmonton` as
+# an access-key assignment. The Resend rule found `re_` across the middle of
+# `owner_disclosure_delivered_generation`; those are integer column names.
+# Fixed forward by using a neutral fixture id and `owner_disclosure_sent_*`,
+# but a full-history scan correctly keeps seeing the original commit.
+5de7d0df780d506370d4ec76b7e369b507d386ba:supabase/tests/calendar_sync.test.sql:generic-api-key:2763
+5de7d0df780d506370d4ec76b7e369b507d386ba:supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:resend-api-key:276
+5de7d0df780d506370d4ec76b7e369b507d386ba:supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:resend-api-key:277
+5de7d0df780d506370d4ec76b7e369b507d386ba:supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:resend-api-key:278
+5de7d0df780d506370d4ec76b7e369b507d386ba:supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:resend-api-key:2645
+5de7d0df780d506370d4ec76b7e369b507d386ba:supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:resend-api-key:2713
+5de7d0df780d506370d4ec76b7e369b507d386ba:supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:resend-api-key:2816

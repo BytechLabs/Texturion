@@ -2748,7 +2748,7 @@ declare
   v jsonb;
 begin
   insert into auth.users (id, email)
-  values (v_user_id, 'calendar-access-member@test.local');
+  values (v_user_id, 'calendar-scope-member@test.local');
   insert into public.company_members (company_id, user_id, role)
   values (pg_temp.company_id(), v_user_id, 'member');
   update public.tasks
@@ -2760,7 +2760,7 @@ begin
     credential_ciphertext, credential_iv, credential_key_version
   ) values (
     pg_temp.company_id(), v_user_id, 'google', 'access-member-account',
-    'calendar-access', 'America/Edmonton',
+    'member-calendar', 'America/Edmonton',
     'AQIDBAUGBwgJCgsMDQ4PEBESExQ', 'AQIDBAUGBwgJCgsM', 'v1'
   ) returning id into v_connection_id;
   insert into public.webhook_subscriptions (
@@ -2768,7 +2768,7 @@ begin
     provider_resource_id, provider_calendar_id, client_state_hash, expires_at
   ) values (
     pg_temp.company_id(), v_connection_id, 'access-member-watch',
-    '/access-member/events', 'calendar-access', repeat('8', 64),
+    '/member-events', 'member-calendar', repeat('8', 64),
     now() + interval '2 days'
   );
   v_base := public.calendar_snapshot_from_fields(
