@@ -41,37 +41,56 @@ const SRC = join(process.cwd(), "src");
  * Every file allowed to start a drag, and the single-pointer path that does
  * the same job.
  *
- * `alternative` is a string that must appear in the file with comments
- * stripped. It is the code that implements the way out, so deleting the
- * alternative fails here even though the drag still works — which is the
- * regression this exists to catch, because the drag going on working is
+ * `pointerAlternative` names the code that must appear in the file with
+ * comments stripped. The markers are deliberately pointer-shaped rather than
+ * merely keyboard-shaped: WCAG 2.5.7 is independent of keyboard access. More
+ * than one marker is allowed when the full range/bounds are part of the proof.
+ * Deleting any marker fails here even though the drag still works — which is
+ * the regression this exists to catch, because the drag going on working is
  * precisely why nobody would notice.
  */
-const DRAG_SURFACES: Record<string, { alternative: string; why: string }> = {
+const DRAG_SURFACES: Record<
+  string,
+  { pointerAlternative: readonly string[]; why: string }
+> = {
   "components/attachments/photo-markup-dialog.tsx": {
-    alternative: "if (anchor === null) {",
+    pointerAlternative: ["if (anchor === null) {"],
     why:
       "Tap once to anchor, tap again to finish the mark. The same arrow or circle, " +
       "with two pointer-downs and no movement — for a tremor, a trackpad, or a " +
       "touch that never registers as a drag.",
   },
   "components/tasks/views/board-view.tsx": {
-    alternative: "onClick={onMove}",
+    pointerAlternative: ["onClick={onMove}"],
     why: "A visible 'Move to To do / Move to Done' button on every card.",
   },
   "components/tasks/views/calendar-view.tsx": {
-    alternative: "RESCHEDULE_MOVES.map",
+    pointerAlternative: ["RESCHEDULE_MOVES.map"],
     why: "A per-chip menu with relative moves — a day earlier, a day later, a week later.",
   },
   "components/thread/thread-view.tsx": {
-    alternative: 'event.key !== "ArrowLeft" && event.key !== "ArrowRight"',
+    pointerAlternative: [
+      "htmlFor={panelWidthControlId}",
+      "id={panelWidthControlId}",
+      "onClick={narrowPanel}",
+      "onClick={widenPanel}",
+      "const PANEL_WIDTH_NUDGE = 16",
+      "clampPanelWidth(width + delta)",
+      'aria-label={t("thread.narrowPanelAria")}',
+      'aria-label={t("thread.widenPanelAria")}',
+      "disabled={panelWidth <= PANEL_MIN_WIDTH}",
+      "disabled={panelWidth >= PANEL_MAX_WIDTH}",
+      'type="range"',
+      "min={PANEL_MIN_WIDTH}",
+      "max={PANEL_MAX_WIDTH}",
+      "step={1}",
+      "setAndPersistPanelWidth(event.currentTarget.valueAsNumber)",
+    ],
     why:
-      "The context panel's resize handle. Arrow keys move it in 16px steps " +
-      "and a double-click resets it to the default width, on a role=separator " +
-      "with live aria-valuenow. Stated precisely because the two do not cover " +
-      "the same ground: the double-click is the single-pointer path but only " +
-      "to ONE width, and an arbitrary width without dragging is keyboard-only. " +
-      "That is a real limit, recorded rather than rounded up to compliant.",
+      "Visible narrower/wider buttons take deterministic pointer steps and " +
+      "clamp at the shared endpoints; a labelled range keeps fine control. " +
+      "Both onClick handlers, both disabled bounds and the range wiring are " +
+      "pinned so keyboard arrows or a decorative slider cannot satisfy it.",
   },
 };
 
@@ -81,8 +100,10 @@ const DRAG_SURFACES: Record<string, { alternative: string; why: string }> = {
  *
  * `draggable` on a marketing image is the BROWSER's native image-drag, which
  * nothing depends on and which carries no functionality — 2.5.7 governs
- * operations performed BY dragging, and there is none here. A slider is a
- * different rule (2.1.1 keyboard, which the native input satisfies).
+ * operations performed BY dragging, and there is none here. Native range
+ * inputs are browser-owned controls rather than custom authored pointer-drag
+ * handlers, so there is no authored drag in those files for this scan to
+ * roster.
  */
 const NOT_AN_OPERATION = ["components/marketing/"];
 
@@ -136,7 +157,7 @@ describe("#238 every draggable operation has a way out (WCAG 2.2 2.5.7)", () => 
     ).toEqual([]);
   });
 
-  it("DA-3: every recorded alternative is still in its file", () => {
+  it("DA-3: every recorded pointer alternative is still in its file", () => {
     // The regression that would otherwise be silent. Deleting the menu leaves
     // the drag working perfectly, so every mouse user — including whoever
     // deleted it — sees a calendar that behaves exactly as before.
@@ -145,12 +166,44 @@ describe("#238 every draggable operation has a way out (WCAG 2.2 2.5.7)", () => 
       expect(path, `${rel} is in DRAG_SURFACES but not in the tree`).toBeTruthy();
 
       const code = stripComments(sourceText(path!));
-      expect(
-        code.includes(surface.alternative),
-        `${rel} no longer contains its single-pointer alternative ` +
-          `(${surface.alternative}). ${surface.why}`,
-      ).toBe(true);
+      for (const marker of surface.pointerAlternative) {
+        expect(
+          code.includes(marker),
+          `${rel} no longer contains its single-pointer alternative marker ` +
+            `(${marker}). ${surface.why}`,
+        ).toBe(true);
+      }
     }
+  });
+
+  it("DA-6: the panel-width record pins both pointer buttons and its range", () => {
+    // The old record cited only `event.key`, so the test stayed green while
+    // arbitrary non-drag resizing was keyboard-only. Keep the exact failure
+    // from returning under another explanatory comment.
+    const panel = DRAG_SURFACES["components/thread/thread-view.tsx"];
+    expect(panel.pointerAlternative).toContain("htmlFor={panelWidthControlId}");
+    expect(panel.pointerAlternative).toContain("id={panelWidthControlId}");
+    expect(panel.pointerAlternative).toContain("onClick={narrowPanel}");
+    expect(panel.pointerAlternative).toContain("onClick={widenPanel}");
+    expect(panel.pointerAlternative).toContain("const PANEL_WIDTH_NUDGE = 16");
+    expect(panel.pointerAlternative).toContain("clampPanelWidth(width + delta)");
+    expect(panel.pointerAlternative).toContain(
+      'aria-label={t("thread.narrowPanelAria")}',
+    );
+    expect(panel.pointerAlternative).toContain(
+      'aria-label={t("thread.widenPanelAria")}',
+    );
+    expect(panel.pointerAlternative).toContain(
+      "disabled={panelWidth <= PANEL_MIN_WIDTH}",
+    );
+    expect(panel.pointerAlternative).toContain(
+      "disabled={panelWidth >= PANEL_MAX_WIDTH}",
+    );
+    expect(panel.pointerAlternative).toContain('type="range"');
+    expect(panel.pointerAlternative).toContain("min={PANEL_MIN_WIDTH}");
+    expect(panel.pointerAlternative).toContain("max={PANEL_MAX_WIDTH}");
+    expect(panel.pointerAlternative).toContain("step={1}");
+    expect(panel.pointerAlternative.join(" ")).not.toContain("event.key");
   });
 
   it("DA-5: the exemption list cannot be widened into an off switch", () => {

@@ -163,7 +163,6 @@ export function AccessibilityPageBody({
       <LegalSectionBlock id="gaps" number="4" heading={copy.sectionGaps}>
         <p><LegalRichText text={copy.gapsIntro} /></p>
         <ul>
-          <li><LegalRichText text={copy.gapResize} /></li>
           <li><LegalRichText text={copy.gapAudit} /></li>
           <li><LegalRichText text={copy.gapScreenReader} /></li>
           <li><LegalRichText text={copy.gapIos} /></li>

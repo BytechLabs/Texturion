@@ -1,8 +1,9 @@
 "use client";
 
+import { Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { ContactPanel } from "@/components/contact-panel/contact-panel";
 import { SpamSuspectedBanner } from "@/components/thread/spam-suspected-banner";
@@ -65,15 +66,19 @@ function readPanelPref(): boolean {
   }
 }
 
-// Persisted contact-panel width (drag the panel's left edge to resize). Clamped
-// so the thread column (min-w-0) is never crushed even at a 1280px viewport.
+// Persisted contact-panel width (drag the panel's left edge or use the controls
+// below it). Clamped so the thread column (min-w-0) is never crushed even at a
+// 1280px viewport.
 const PANEL_WIDTH_KEY = "loonext:contact-panel-width";
 const PANEL_MIN_WIDTH = 260;
 const PANEL_MAX_WIDTH = 560;
 const PANEL_DEFAULT_WIDTH = 300;
+const PANEL_WIDTH_NUDGE = 16;
 
 function clampPanelWidth(px: number): number {
-  return Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, px));
+  // Persist whole CSS pixels so drag, range and button changes all share one
+  // stable value and the endpoint disabled states cannot hover between values.
+  return Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, Math.round(px)));
 }
 
 function readPanelWidth(): number {
@@ -206,11 +211,32 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   // then adopts the stored value on mount — avoids a hydration mismatch on the
   // inline style. A ref mirrors it so the drag handler reads the live width.
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
+  const panelWidthControlId = useId();
   useEffect(() => {
     setPanelWidth(readPanelWidth());
   }, []);
   const panelWidthRef = useRef(panelWidth);
   panelWidthRef.current = panelWidth;
+  const setAndPersistPanelWidth = useCallback((width: number) => {
+    const next = clampPanelWidth(width);
+    setPanelWidth(next);
+    persistPanelWidth(next);
+  }, []);
+  const nudgePanelWidth = useCallback((delta: number) => {
+    setPanelWidth((width) => {
+      const next = clampPanelWidth(width + delta);
+      persistPanelWidth(next);
+      return next;
+    });
+  }, []);
+  const narrowPanel = useCallback(
+    () => nudgePanelWidth(-PANEL_WIDTH_NUDGE),
+    [nudgePanelWidth],
+  );
+  const widenPanel = useCallback(
+    () => nudgePanelWidth(PANEL_WIDTH_NUDGE),
+    [nudgePanelWidth],
+  );
   // §5.2: the attachments gallery has ONE entry point (the thread-header
   // overflow); the context panel's "View all attachments" row opens this same
   // surface. State lives here so both entry points share it.
@@ -416,10 +442,11 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             name: contactDisplayName(conversation.contact),
           })}
           style={{ width: panelWidth }}
-          className="relative hidden shrink-0 border-l border-app-line bg-app-paper xl:block"
+          className="relative hidden shrink-0 border-l border-app-line bg-app-paper xl:flex xl:flex-col"
         >
           {/* Left-edge resize handle. Drag to resize (persisted); double-click
-              resets to the default; ←/→ nudge by 16px for keyboard users. */}
+              resets to the default; ←/→ nudge by 16px for keyboard users. The
+              buttons below provide the deterministic click/tap path. */}
           <div
             role="separator"
             aria-orientation="vertical"
@@ -434,10 +461,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             })}
             tabIndex={0}
             onPointerDown={startResize}
-            onDoubleClick={() => {
-              setPanelWidth(PANEL_DEFAULT_WIDTH);
-              persistPanelWidth(PANEL_DEFAULT_WIDTH);
-            }}
+            onDoubleClick={() => setAndPersistPanelWidth(PANEL_DEFAULT_WIDTH)}
             onKeyDown={(event) => {
               if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
               event.preventDefault();
@@ -451,13 +475,67 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             }}
             className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none select-none transition-colors hover:bg-app-tint-line focus-visible:bg-app-olive/40 focus-visible:outline-none"
           />
-          <ContactPanel
-            conversation={conversation}
-            contact={contact.data}
-            contactPending={contact.isPending}
-            onOpenGallery={openGallery}
-            active={panelOpen}
-          />
+          <div className="min-h-0 flex-1">
+            <ContactPanel
+              conversation={conversation}
+              contact={contact.data}
+              contactPending={contact.isPending}
+              onOpenGallery={openGallery}
+              active={panelOpen}
+            />
+          </div>
+          {/* WCAG 2.2 2.5.7: the authored drag above is not the only pointer
+              path. The visible buttons take deterministic 16px steps and
+              clamp at both endpoints; the range remains for fine pointer and
+              keyboard control. None appears only on hover, because the people
+              who need the alternative may never hover the handle. */}
+          <div className="shrink-0 border-t border-app-line-soft bg-app-paper px-3 py-2">
+            <label
+              htmlFor={panelWidthControlId}
+              className="shrink-0 text-[11px] font-semibold text-app-muted-2"
+            >
+              {t("thread.panelWidthLabel")}
+            </label>
+            <div className="mt-1 flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={narrowPanel}
+                disabled={panelWidth <= PANEL_MIN_WIDTH}
+                aria-label={t("thread.narrowPanelAria")}
+                title={t("thread.narrowPanelAria")}
+              >
+                <Minus aria-hidden strokeWidth={1.75} />
+              </Button>
+              <input
+                id={panelWidthControlId}
+                type="range"
+                min={PANEL_MIN_WIDTH}
+                max={PANEL_MAX_WIDTH}
+                step={1}
+                value={Math.round(panelWidth)}
+                onChange={(event) =>
+                  setAndPersistPanelWidth(event.currentTarget.valueAsNumber)
+                }
+                aria-valuetext={t("thread.panelWidthAria", {
+                  pixels: Math.round(panelWidth),
+                })}
+                className="h-6 min-w-0 flex-1 cursor-pointer accent-app-olive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={widenPanel}
+                disabled={panelWidth >= PANEL_MAX_WIDTH}
+                aria-label={t("thread.widenPanelAria")}
+                title={t("thread.widenPanelAria")}
+              >
+                <Plus aria-hidden strokeWidth={1.75} />
+              </Button>
+            </div>
+          </div>
         </aside>
       )}
 

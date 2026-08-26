@@ -482,7 +482,10 @@ export const threadEn = {
   conversationNotFound: "This conversation doesn't exist or was removed.",
   conversationInfoForAria: "Conversation info for {name}",
   resizePanelAria: "Resize contact panel",
+  panelWidthLabel: "Panel width",
   panelWidthAria: "{pixels} pixels",
+  narrowPanelAria: "Make panel narrower",
+  widenPanelAria: "Make panel wider",
 
   // --- In-thread filter (thread-filter-bar.tsx) -----------------------------
   showInConversationAria: "Show in conversation",
@@ -1202,7 +1205,10 @@ export const threadFr: Translated<typeof threadEn> = {
   conversationNotFound: "Cette conversation n'existe pas ou a été supprimée.",
   conversationInfoForAria: "Détails de la conversation avec {name}",
   resizePanelAria: "Redimensionner le panneau du contact",
+  panelWidthLabel: "Largeur du panneau",
   panelWidthAria: "{pixels} pixels",
+  narrowPanelAria: "Rétrécir le panneau",
+  widenPanelAria: "Élargir le panneau",
 
   // --- In-thread filter -----------------------------------------------------
   showInConversationAria: "Afficher dans la conversation",

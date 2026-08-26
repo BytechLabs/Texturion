@@ -40,8 +40,6 @@ export const legalAccessibilityEn = {
     "**Text scaling** is enforced as a mechanism on both phones. Render evidence is partial: Android renders the lead-sources dashboard card at 200%; iOS renders the full For You dashboard in both themes at its largest accessibility text size. The send-message, answer-call, and complete-task flows have not been visually walked at large text on either client.",
   gapsIntro:
     "Stated plainly, because a buyer who finds one of these themselves stops believing the rest of the page.",
-  gapResize:
-    "The thread panel's resize handle offers arrow-key resizing and a double-click reset. The double-click is the single-pointer path but reaches only one width; an arbitrary width without dragging is keyboard-only.",
   gapAudit:
     "**No third-party audit** has been carried out. Everything here is first-party, which is why each claim names the check behind it.",
   gapScreenReader: "Native screen-reader flows are untested end to end, as above.",
@@ -92,8 +90,6 @@ export const legalAccessibilityFr: Translated<typeof legalAccessibilityEn> = {
     "**La mise à l'échelle du texte** est imposée comme mécanisme sur les deux téléphones. Les preuves de rendu sont partielles : Android rend la carte des sources de clients potentiels du tableau de bord à 200 %; iOS rend le tableau de bord Pour vous complet, dans les deux thèmes, à sa plus grande taille de texte d'accessibilité. Les parcours d'envoi d'un message, de réponse à un appel et d'achèvement d'une tâche n'ont pas été parcourus visuellement avec du texte agrandi sur aucun des deux clients.",
   gapsIntro:
     "Nous les indiquons clairement, parce qu'un acheteur qui découvre lui-même l'une de ces lacunes cesse de croire le reste de la page.",
-  gapResize:
-    "La poignée de redimensionnement du panneau de conversation permet un ajustement avec les touches fléchées et une réinitialisation par double-clic. Le double-clic offre le parcours avec un seul dispositif de pointage, mais n'atteint qu'une largeur; une largeur arbitraire sans glisser est possible seulement au clavier.",
   gapAudit:
     "**Aucun audit indépendant** n'a été effectué. Toutes les vérifications sont internes, raison pour laquelle chaque affirmation nomme le test qui l'appuie.",
   gapScreenReader:

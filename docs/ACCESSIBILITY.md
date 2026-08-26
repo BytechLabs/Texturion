@@ -157,9 +157,6 @@ No record matching this protocol exists yet.
 Stated plainly, because a buyer who finds one of these themselves stops
 believing the rest of the document.
 
-- **The thread panel's resize handle** offers arrow-key resizing and a
-  double-click reset. The double-click is the single-pointer path but reaches
-  only one width; an arbitrary width without dragging is keyboard-only.
 - **No third-party audit** has been carried out. Everything here is
   first-party, which is exactly why each claim names the test behind it.
 - **Native screen-reader flows are untested end to end.** Every icon-only
