@@ -1,13 +1,14 @@
 # Capacity: what breaks first, and at what volume
 
-> **Status: partial; #251 remains open.** Updated 2026-08-25 with a committed
-> Realtime fan-out scenario and a twelve-object workerd scenario. Local lower
-> bounds now exist for every functional axis, but the managed pooler ceiling,
-> hosted Realtime ceiling, deployed call latency/co-tenancy, honest degradation
-> at those ceilings, and Worker/DO compute cost still need a deployed
-> non-production environment. A capacity number that reads as measured and was
-> guessed is worse than an admitted gap: it is the number somebody quotes to a
-> 50-tech prospect.
+> **Status: partial; #251 remains open.** Updated 2026-08-25 with local lower
+> bounds for every functional axis and a fail-closed deployed driver for the
+> managed-pooler and hosted-Realtime connection axes. The driver has **not run**:
+> there is still no deployed non-production environment or credential. Hosted
+> ceilings, Realtime delivery under hosted fan-out, deployed call
+> latency/co-tenancy, honest degradation at those ceilings, and Worker/DO
+> compute cost therefore remain unknown. A capacity number that reads as
+> measured and was guessed is worse than an admitted gap: it is the number
+> somebody quotes to a 50-tech prospect.
 
 Re-run the measured halves with:
 
@@ -16,9 +17,10 @@ pnpm db:start
 node scripts/ops/query-load.mjs
 pnpm --filter @loonext/api test:load
 pnpm --filter @loonext/api test:workerd
+pnpm --filter @loonext/api capacity:deployed -- --help
 ```
 
-Every scenario emits an aggregate `CAPACITY_RESULT {json}` line. Save those
+Every scenario that runs emits an aggregate `CAPACITY_RESULT {json}` line. Save those
 lines with the date and commit rather than copying terminal prose into this
 document; they contain no request bodies, tokens, phone numbers, or customer
 data.
@@ -34,8 +36,8 @@ ceiling was found.
 |---|---|---|---|---|---|
 | query | Hot list queries at realistic volume | `node scripts/ops/query-load.mjs` | 50,000 conversations / 200,000 messages; all current surfaces under 200 ms | Not reached | Local lower bound measured |
 | webhook | Duplicate retry storm and distinct inbound burst | `pnpm --filter @loonext/api test:load` | 25 concurrent copies → 1 row; 40 distinct → 40 rows; zero hangs | Not reached | Local lower bound measured |
-| pooler | Concurrent reads and database failure shape | `pnpm --filter @loonext/api test:load` | 40 concurrent local reads; every database request has a 10 s deadline | Managed Supavisor refusal point unknown | Deployed measurement required |
-| realtime | Private-topic join and broadcast fan-out | `pnpm --filter @loonext/api test:load` | 40 independent websockets × 20 broadcasts = 800 exact deliveries | Hosted connection/fan-out ceiling unknown | Local lower bound measured; deployed measurement required |
+| pooler | Concurrent reads and database failure shape | Local: `pnpm --filter @loonext/api test:load`; hosted: `capacity:deployed -- --scenario api ...` | 40 concurrent local reads; every database request has a 10 s deadline | Managed Supavisor refusal point unknown | Deployed driver committed; authorized run required |
+| realtime | Private-topic join and broadcast fan-out | Local delivery: `pnpm --filter @loonext/api test:load`; hosted connections: `capacity:deployed -- --scenario realtime ...` | 40 independent local websockets × 20 broadcasts = 800 exact deliveries | Hosted connection and delivery-fan-out ceilings unknown | Local delivery measured; hosted connection driver committed; authorized run required |
 | durable-object | Call-session FIFO and bounded ring fan-out | `pnpm --filter @loonext/api test:workerd` | 12 hot objects × 24 targets = 288 completed dial effects; per-object peak ≤ 6 | Deployed latency, co-tenancy, and saturation point unknown | Structure measured; deployed measurement required |
 | degradation | Truthful error instead of hang or silent drop | `pnpm --filter @loonext/api exec vitest run src/db-timeout.test.ts src/routes/honest-failure.test.ts src/app.test.ts` | Database stall/refusal and Telnyx 429/503 paths are bounded and truthful | Behaviour at an actually reached load ceiling unknown | Partial; deployed overload required |
 | cost | Storage/vendor units and serving compute | `pnpm --filter @loonext/api exec vitest run src/billing/costs.test.ts` | Message, voice, AI, storage, and egress units modelled | Worker and Durable Object compute per load unit unknown | Partial; deployed usage delta required |
@@ -75,11 +77,12 @@ did not.* That is better than a confident number, and it is the only answer
 currently supported by evidence.
 
 **What would change this.** A staging environment (`docs/ENVIRONMENTS.md`
-records what that costs and why it does not exist yet) and a safe deployed
-driver. The Durable Object already runs locally on workerd, including twelve hot
-objects together; that closes structural questions, not deployed milliseconds,
-co-tenancy, provider round trips, or cost. Nobody should fill those in from
-reasoning.
+records what that costs and why it does not exist yet) and an authorized run of
+the safe deployed driver below will answer the managed-pooler and hosted
+Realtime connection questions. The Durable Object already runs locally on
+workerd, including twelve hot objects together; that closes structural
+questions, not deployed milliseconds, co-tenancy, provider round trips, or
+cost. Nobody should fill those in from reasoning.
 
 ---
 
@@ -441,14 +444,104 @@ not proof about behaviour at a ceiling — which by definition needs a ceiling.
 These are properties of a **managed, deployed system under concurrency**.
 Local runs establish the lower bounds in the acceptance matrix; they cannot
 establish where a hosted service refuses, how production co-tenancy behaves, or
-what serving that load costs. Each row needs a non-production deployment plus a
-driver that generates real concurrent load.
+what serving that load costs. Each row needs a non-production deployment; the
+pooler and Realtime-connection rows now have a driver, while the remaining axes
+still need the additional tooling or approved event source named below.
 
 | Unknown | Why local cannot answer it | What it would take |
 |---|---|---|
 | **Durable Object saturation — the LATENCY half only** | Structure is now measured on the real runtime (see below). What remains is milliseconds, and workerd cannot give them: a Worker's clock only advances on I/O, so `Date.now()` deltas inside an isolate measure when I/O happened rather than how long work took. | A deployed Worker, N synthetic concurrent calls per workspace, measuring time-to-answer against a real Telnyx round trip. |
-| **Hosted Realtime ceiling** | The local container proves exact delivery at 40 sockets, but it has neither the hosted connection budget nor managed-service tenancy. | N authenticated subscribers against a deployed non-production project, ramped until join refusal or delivery loss, with exact per-subscriber counts. |
-| **Managed pooler ceiling** | Local Postgres has neither Supavisor nor the production project's connection budget. The API's 10 s deadline proves the failure is bounded, not where refusal begins. | Concurrent Worker requests against a deployed non-production project, ramped until managed refusal while recording statuses, hangs, and pooler metrics. |
+| **Hosted Realtime ceiling** | The local container proves exact delivery at 40 sockets, but it has neither the hosted connection budget nor managed-service tenancy. | The committed deployed driver can ramp independent authenticated private-topic connections and distinguish a repeated join/stability limit from a one-off join burst. Hosted broadcast delivery still needs an approved non-production event emitter; the user role is intentionally read-only on `realtime.messages`. |
+| **Managed pooler ceiling** | Local Postgres has neither Supavisor nor the production project's connection budget. The API's 10 s deadline proves the failure is bounded, not where refusal begins. | The committed deployed driver ramps authenticated `GET /v1/for-you` waves through the Worker and managed pooler, recording statuses and client deadlines. It still needs an authorized deployed target. |
+
+### Deployed non-production driver — COMMITTED, NOT RUN
+
+The code-owned half of the hosted harness now exists as a separate, opt-in
+operator command. It does not relax or replace any local harness's loopback
+guard:
+
+```bash
+pnpm --filter @loonext/api capacity:deployed -- --help
+```
+
+Provision a short-lived **ordinary member** session in a seeded non-production
+workspace, then keep all credentials in environment variables (never shell
+arguments):
+
+```bash
+export LOONEXT_CAPACITY_ACCESS_TOKEN='<short-lived non-production user JWT>'
+export LOONEXT_CAPACITY_SUPABASE_PUBLISHABLE_KEY='<non-production publishable key>'
+export LOONEXT_CAPACITY_COMPANY_ID='<seeded non-production company UUID>'
+export LOONEXT_CAPACITY_CONFIRM='I_AUTHORIZE_NONPRODUCTION_CAPACITY_LOAD:staging-capacity-251:api-staging.example.net:abcdefghijklmnopqrst.supabase.co'
+
+pnpm --filter @loonext/api capacity:deployed -- \
+  --target-id staging-capacity-251 \
+  --api-origin https://api-staging.example.net \
+  --supabase-origin https://abcdefghijklmnopqrst.supabase.co \
+  --scenario all \
+  --api-ramp 5,10,20,40 \
+  --realtime-ramp 5,10,20,40 \
+  --api-rounds 3 \
+  --deadline-ms 10000 \
+  --dwell-ms 2000
+```
+
+The ceremony is load-bearing, not documentation around a dangerous switch:
+
+- live `loonext.com` hosts and the production Supabase project are hard-denied;
+  HTTP, redirects, loopback/private addresses, privileged Supabase keys, and a
+  token whose issuer does not equal the supplied project are also denied;
+- the confirmation phrase is an exact function of the target label and both
+  hostnames. Token expiry must cover the selected ramp's conservative
+  worst-case duration plus a two-minute buffer (and never less than ten
+  minutes), so expiry cannot masquerade as a ceiling;
+- before any ramp, `/health` must answer without credentials,
+  authenticated `GET /v1/for-you` must answer with the selected company header,
+  and (for Realtime) that same member token must join the private company topic;
+- API waves use only that read endpoint. An ordinary non-429 4xx or redirect
+  invalidates the run before that level is recorded. A 429, 5xx, or deadline is
+  only a candidate: after cooldown the driver requires a healthy serialized
+  request, cools down again, and repeats the exact wave. Only a repeated
+  server/deadline signal is a confirmed ceiling. Network-only and
+  non-reproduced candidates are recorded as inconclusive and exit nonzero;
+- Realtime opens one independent client per requested connection, observes it
+  for the configured dwell (minimum one second), and sends no event. Every
+  post-join `CHANNEL_ERROR`, `TIMED_OUT`, and `CLOSED` transition remains counted
+  even if the client later reports `SUBSCRIBED` again. A suspect cumulative wave
+  is fully closed, followed by cooldown, a healthy one-connection control,
+  another cooldown, and a full-concurrency repeat. Only the same join or
+  post-join signal repeated in both waves is a confirmed **join/stability
+  limit**; this is not labelled a generic concurrent-connection ceiling.
+  Cumulative-level attempted, joined, and stable counts all describe the full
+  active set; newly attempted connections are reported separately;
+- requests, joins, observation waits, and cleanup are bounded. Realtime cleanup
+  requires a successful unsubscribe and disconnect; a timeout, rejection, or
+  non-`ok` Supabase removal result invalidates the run;
+- each completed level emits `CAPACITY_RESULT` with aggregate counts, status
+  buckets, classifications, and percentiles. Inconclusive candidates emit a
+  record for diagnosis and then exit nonzero. A runtime guard refuses a record
+  if it contains a URL, token, company/topic id, user subject, publishable key,
+  confirmation, or target label.
+
+One reusable member token is deliberate and matches the local harness: this is
+measuring concurrent sockets and the pooler, not Auth's ability to mint many
+sessions. It also avoids a mixed-credential run mistaking one unauthorized user
+for a hosted ceiling.
+
+**What this advances.** Once a non-production stack is authorized, a confirmed
+managed-pooler/API refusal point and a repeated hosted private-topic
+join/stability limit can be measured without writing more code or risking
+production. A one-off burst failure, network-only failure, failed recovery
+control, or differently shaped repeat does not become a quotable ceiling. The
+driver has not produced a hosted number today, and this document records none.
+
+**What it still cannot answer.** Authenticated users have SELECT-only access to
+the private Realtime topic, so this safe read-only driver cannot manufacture the
+database broadcasts needed for a hosted delivery-fan-out result. It also does
+not deploy or exercise `CallSessionDO`, call Telnyx, read provider metrics, or
+measure Cloudflare cost. Those require the non-production resources and owner
+authorization described above; a synthetic temporary Worker would not turn its
+latency into a production-plan or real-Telnyx measurement.
 
 ### The Durable Object — MEASURED ON workerd, updated 2026-08-25
 

@@ -16,7 +16,8 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
-    "erasableSyntaxOnly": true
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true
   },
   "include": ["./*.ts"]
 }
