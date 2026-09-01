@@ -268,7 +268,7 @@ jobs:
             echo "::warning title=Dependency review did not run::The dependency graph is off for this repository, so no dependency in this change was checked against the advisory database. This is an organisation setting and not something this pull request can fix — see the weekly Security run."
           fi
 
-      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0 (was a BRANCH ref)
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v4.9.0 (was a BRANCH ref)
         if: steps.graph.outputs.available == 'true'
         with:
           # HIGH, not LOW. See D68: the floor is the whole design.
@@ -341,7 +341,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
       # Deliberately NO `cache: pnpm`: this job never installs, so the store
       # path does not exist and the action's post-step fails the whole job
       # trying to save a cache of nothing. `pnpm audit` resolves the tree from
@@ -390,11 +390,11 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6
+      - uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           languages: javascript-typescript
           config-file: .github/codeql-config.yml
-      - uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6
+      - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           category: "/language:javascript-typescript"
 
