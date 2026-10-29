@@ -1418,7 +1418,9 @@ export const LIVENESS_EXPECTATIONS = {
       "canary line appears in this email, the canary is simply switched off — " +
       "setting CANARY_FROM_E164 and CANARY_TO_E164 makes this key " +
       "self-answering, because the canary's own round trip writes a " +
-      "`message.received` every hour whether or not a customer texts.",
+      "`message.received` every hour whether or not a customer texts. A " +
+      "platform that has received no text at all in the past week beats this " +
+      "heartbeat itself, so its arrival means texts were arriving and stopped.",
     everyMinutes: 60,
     graceMinutes: 720,
   },
@@ -1438,7 +1440,9 @@ export const LIVENESS_EXPECTATIONS = {
       "with no matching `usage_events` row are the ones you will never " +
       "invoice. Expect `channel:sms-outbound` in the next email too — its " +
       "probe reads the very statuses that stopped arriving, so it is a " +
-      "symptom of this and not a second outage.",
+      "symptom of this and not a second outage. Believe this one: it is now " +
+      "withheld unless we actually handed the carrier a message and heard " +
+      "nothing back, so it no longer fires on a weekend when nobody sent.",
     everyMinutes: 60,
     graceMinutes: 720,
   },
@@ -1458,10 +1462,20 @@ export const LIVENESS_EXPECTATIONS = {
       "business number from your own phone: three days of silence is the bar " +
       "here because a small crew really can go that long without a call, and " +
       "one test call settles it — if nothing rings and no voicemail lands, " +
-      "every caller for those three days reached nothing.",
+      "every caller for those three days reached nothing. This is no longer " +
+      "the alert that could not stop: a platform with no call at all in the " +
+      "past week now beats this heartbeat itself, so its arrival means calls " +
+      "were arriving recently and then stopped.",
     // The widest grace here, because call volume is the lowest: a whole day
     // with no calls is an ordinary day for a small crew, so this key can only
     // ever be a slow backstop. A synthetic call is what would make it sharp.
+    //
+    // It is also the key that proved traffic-passive expectations cannot clear
+    // themselves — it alerted every six hours for twenty-two days, because
+    // only a customer phoning in could satisfy it. `liveness-check.ts` now
+    // excuses it on a platform that takes no calls at all; between the grace
+    // and that week-long window a genuinely rare caller still trips it, and
+    // the synthetic call above is what closes the remaining band.
     everyMinutes: 1440,
     graceMinutes: 2880,
   },

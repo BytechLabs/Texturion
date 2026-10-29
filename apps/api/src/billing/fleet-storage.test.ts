@@ -83,7 +83,7 @@ describe("the fleet storage tripwire", () => {
     });
     await checkFleetStorage(env);
     expect(emails).toHaveLength(1);
-    expect(emails[0].to).toEqual(["support@loonext.com"]);
+    expect(emails[0].to).toEqual([env.OPS_ALERT_EMAIL]);
     expect(emails[0].subject).toContain("Fleet storage");
   });
 
@@ -94,7 +94,7 @@ describe("the fleet storage tripwire", () => {
     const { emails } = world({ fleetBytes: 500 * GIB });
     await checkFleetStorage(env);
     expect(emails.every((mail) => mail.to.length === 1)).toBe(true);
-    expect(emails[0].to[0]).toBe("support@loonext.com");
+    expect(emails[0].to[0]).toBe(env.OPS_ALERT_EMAIL);
   });
 
   it("throws rather than reporting zero when it cannot read", async () => {

@@ -27,10 +27,9 @@ import {
   reportHighPriorityPushAlert,
 } from "./high-priority";
 
-vi.mock("@sentry/cloudflare", () => ({
-  captureMessage: vi.fn(),
-  captureException: vi.fn(),
-}));
+vi.mock("@sentry/cloudflare", async () =>
+  (await import("../test/sentry-mock")).sentryModuleMock(),
+);
 
 const env = completeEnv();
 const COMPANY = "cccccccc-0000-4000-8000-00000000000c";
@@ -233,7 +232,7 @@ describe("#452 — the meter on high-priority push", () => {
 
     expect(w.resend).toHaveLength(1);
     const email = w.resend[0] as { to: string[]; subject: string; text: string };
-    expect(email.to).toEqual([env.OPS_ALERT_EMAIL ?? "support@loonext.com"]);
+    expect(email.to).toEqual([env.OPS_ALERT_EMAIL]);
     expect(email.to).not.toContain("owner@team.example");
     expect(email.subject).toContain("nearing");
     expect(email.text).toContain(COMPANY);

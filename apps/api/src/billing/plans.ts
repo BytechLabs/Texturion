@@ -221,8 +221,8 @@ export const VOICE_OVERAGE_CENTS_PER_MINUTE = 1;
  * #121 (supersedes D30's budgets): storage is FREE — no per-plan pools, no
  * caps, nothing pauses. The only storage backstop left is ALERTING: when a
  * company's total stored bytes (attachments + MMS media) crosses one of
- * these absolute tiers, the usage-alerts cron emails the customer AND ops
- * (OPS_ALERT_EMAIL) once per tier per period, and a human takes it from
+ * these absolute tiers, the usage-alerts cron emails the customer AND
+ * alerts ops once per tier per period, and a human takes it from
  * there under the fair-use policy. Tiers escalate so a runaway tenant keeps
  * re-alerting as it doubles.
  */

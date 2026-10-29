@@ -256,7 +256,7 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
       "of our traffic as a whole",
   },
   "observability/liveness-check.ts::messages": {
-    count: 2,
+    count: 3,
     why:
       "#387 outbound-SMS probe: asks whether ANY workspace got a text to the " +
       "carrier in the window. Per-tenant it would be noise — one plumber " +
@@ -264,7 +264,12 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
       "#510 adds the second: the same question over a WEEK, because 'every " +
       "inbox silent' is also what a platform with three customers looks like " +
       "on a Sunday, and an alert that cannot tell that from an outage fires " +
-      "forever and teaches its reader to delete it",
+      "forever and teaches its reader to delete it. The third asks whether " +
+      "the platform ATTEMPTED any send, in any status, so " +
+      "channel:telnyx-message-status is withheld unless a status webhook was " +
+      "actually owed — platform-wide for the same reason as the other two, " +
+      "and status-blind on purpose, since the broken path is the only thing " +
+      "that would have moved those rows off 'queued'",
   },
   "observability/inbound-canary.ts::phone_numbers": {
     count: 1,

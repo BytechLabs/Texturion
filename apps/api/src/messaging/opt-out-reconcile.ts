@@ -32,8 +32,8 @@ import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { emailLayout, escapeHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { escapeHtml } from "../email/html";
+import { opsBodyHtml, opsEmail } from "../observability/ops-alert";
 import type { Env } from "../env";
 import { listCarrierOptOuts } from "../telnyx/opt-outs";
 import { recordCarrierOptOut } from "./opt-out";
@@ -220,11 +220,11 @@ async function reportDivergence(
     "customer behaviour.\n";
 
   try {
-    await sendEmail(env, {
-      to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+    await opsEmail(env, {
+    key: "ops:messaging-opt-out-reconcile",
       subject: `Opt-out reconciliation: ${summary.recorded} missed by our webhook`,
       text,
-      html: emailLayout(
+      html: opsBodyHtml(
         text
           .split("\n\n")
           // Company names are customer-controlled and reach this verbatim,

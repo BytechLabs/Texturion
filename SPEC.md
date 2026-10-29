@@ -1283,7 +1283,7 @@ MMS shifts the mix ($0.015/part out + $0.005–0.01 carrier; $0.005/part in) —
 **Storage (D34, supersedes D30's enforcement):** storage is FREE — unmetered and unenforced.
 Uploads never 409 and inbound MMS media is never dropped for space. Cost exposure (~$0.021/GB-month
 marginal on Supabase Pro) is managed by the usage-alerts cron's `storage_abuse` arm: absolute tiers
-(25/50/100/200/400 GB total stored) email the customer and ops (`OPS_ALERT_EMAIL`) once per tier per
+(25/50/100/200/400 GB total stored) email the customer and alert ops (D139) once per tier per
 period, and a human follows up under the fair-use policy. Per-message inbound item caps (≤10 items ×
 ≤5 MB) remain as ingestion sanity, and the signed-URL egress backstop is a fixed 200 GB/period.
 

@@ -238,12 +238,11 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(emails[0].subject).toBe("A note about Acme Plumbing's storage");
     expect(emails[0].to).toEqual(["owner@example.com"]);
     expect(emails[0].text).toContain("free and nothing is paused");
-    // Ops copy rides the SAME ledger claim, to OPS_ALERT_EMAIL (unset in the
-    // test env → the support@loonext.com default).
+    // Ops copy rides the SAME ledger claim, and goes to the ops address.
     expect(emails[1].subject).toBe(
       "[ops] storage abuse tier 25 GB: Acme Plumbing",
     );
-    expect(emails[1].to).toEqual(["support@loonext.com"]);
+    expect(emails[1].to).toEqual([env.OPS_ALERT_EMAIL]);
     // ONE ledger row: metric storage_abuse, threshold = the GB tier.
     expect(state.ledger).toEqual(new Set(["storage_abuse:25"]));
 

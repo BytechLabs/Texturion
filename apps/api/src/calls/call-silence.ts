@@ -18,8 +18,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 /** One workspace whose call state changed. */
@@ -75,14 +74,14 @@ export async function runCallSilenceJob(
   }
 
   const text = parts.join("\n");
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:calls-call-silence",
     subject:
       gone.length > 0
         ? `[ops] ${gone.length} workspace(s) stopped receiving calls`
         : `[ops] call traffic resumed for ${back.length} workspace(s)`,
     text,
-    html: renderEmailHtml(text),
+    html: opsTextHtml(text),
   });
 
   return transitions;

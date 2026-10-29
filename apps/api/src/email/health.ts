@@ -15,8 +15,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { emailLayout } from "../email/html";
-import { sendEmail } from "../email/resend";
+
+import { opsBodyHtml, opsEmail } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 import {
@@ -120,11 +120,11 @@ export async function runEmailHealthJob(
     `deploy fixes. Find the addresses in email_events and confirm SPF, DKIM ` +
     `and DMARC are still aligned for the sending domain.`;
 
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:email-deliverability",
     subject: `[ops] email deliverability drifting (${problems.length} threshold(s) crossed)`,
     text,
-    html: emailLayout(
+    html: opsBodyHtml(
       `<p><strong>Email deliverability is drifting.</strong></p><ul>` +
         problems.map((line) => `<li>${escapeText(line)}</li>`).join("") +
         `</ul>`,
@@ -156,11 +156,11 @@ async function checkAuthPosture(env: Env, now: Date): Promise<void> {
   const problems = postureProblems(posture);
   if (problems.length === 0) return;
 
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:email-auth-posture",
     subject: `[ops] email authentication gap on ${domain} (${problems.length})`,
     text: postureAlertText(posture, problems),
-    html: emailLayout(
+    html: opsBodyHtml(
       `<p><strong>Email authentication on ${escapeText(domain)} is not what ` +
         `the deploy doc records.</strong></p><ul>` +
         problems.map((line) => `<li>${escapeText(line)}</li>`).join("") +

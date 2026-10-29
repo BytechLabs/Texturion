@@ -1340,8 +1340,9 @@ Founder ruling (supersedes D30's enforcement posture and the #12 extra_storage m
   `claim_attachment_storage` RPC keeps its atomic row-insert/accounting role (the Worker passes an
   unbounded budget); a later migration may drop its gate parameter.
 - **The backstop is alerting, not blocking.** The hourly usage-alerts cron's `storage_abuse` arm
-  emails the customer (friendly, explicitly non-blocking copy) and ops (`OPS_ALERT_EMAIL`, default
-  support@loonext.com) when a company's total stored bytes crosses absolute tiers
+  emails the customer (friendly, explicitly non-blocking copy) and alerts ops (Sentry, plus
+  `OPS_ALERT_EMAIL` where one is configured — D139) when a company's total stored bytes crosses
+  absolute tiers
   (25/50/100/200/400 GB), once per tier per period via the existing ledger. Human follow-up under
   the fair-use policy replaces the old 409/cap-and-drop.
 - **`extra_storage` retired exactly like `mms` (D-#103 recipe):** removed from the catalog and
@@ -2687,7 +2688,7 @@ closed by this.
 permanent bounce or a spam complaint **suppresses** the address, enforced inside
 `sendEmail` so all eighteen send sites are covered by construction rather than
 by convention. The domain's bounce and complaint rates are checked hourly and
-alert to `OPS_ALERT_EMAIL`.
+raise an ops alert (D139).
 
 **Why it is urgent rather than merely incomplete.** One crew member mistypes an
 address at invite, or a tech leaves and IT disables the mailbox. Every inbound-
@@ -8762,3 +8763,90 @@ rewrite to `/en/canada`, and that rewrite is the middleware stage this decision
 exists to avoid. A catch-all `/fr/[[...slug]]` mapping paths to components was
 rejected because it moves `generateMetadata` into a registry, and per-page
 metadata is most of what a marketing page is for.
+
+## D139 — observability is a system, not a mailbox; and a key only a customer can satisfy must be able to clear itself (#387 follow-up, 2026-10-29)
+
+**Decision.** Operational alerts go to **Sentry**, fingerprinted by a stable
+`key`. Email is an optional secondary copy, sent only when `OPS_ALERT_EMAIL` is
+configured, and there is **no fallback recipient**. One module —
+`apps/api/src/observability/ops-alert.ts` — owns both channels; it is the only
+place permitted to read that binding, and `ops-alert.test.ts` enforces that by
+sweeping the tree. Ops mail is `kind: "operational"`, which exempts it from the
+customer service-message footer and points its Reply-To back at ops.
+
+Separately, the three **traffic-passive** liveness keys (inbound messages,
+message statuses, call events) are satisfied only by customers doing things, so
+they now clear themselves when the platform has no traffic of that kind at all:
+a week-long baseline for the two with no internal cause, and for message
+statuses the sharper conjunction "did we hand the carrier anything for a status
+to be about".
+
+**Why.** The founder received this, every six hours, for twenty-two days:
+
+> 1 expected thing(s) have not happened … Last seen 32460 min ago
+> *This is a service message about your Loonext account… or write to
+> support@loonext.com*
+
+Four separate faults produced it, and only one was the alert itself.
+
+1. **It wore the customer chrome, in three places at once.** `emailLayout`
+   signs every message as a service message about the reader's account. Four
+   ops senders called it by name; thirteen more reached it through
+   `renderEmailHtml`, which is the same function one alias removed; and
+   `sendEmail` appended the matching TEXT footer to all nineteen regardless. So
+   each of the three had to be fixed separately, and fixing any one of them
+   alone would still have shipped the sentence. The thirteen are the lesson
+   worth keeping: converging the senders and fixing the four obvious wrappers
+   produced a clean-looking diff and left most of the defect in place, because
+   a count of conversions is not a reading of the result.
+2. **It defaulted to `support@loonext.com`.** Nineteen modules each wrote
+   `env.OPS_ALERT_EMAIL ?? "support@loonext.com"`. The default looked like a
+   kindness; the effect was internal diagnostics arriving in the queue
+   customers write to. It was also load-bearing in the tests, which is how it
+   survived review: the liveness suite never set the variable and passed
+   entirely through the fallback.
+3. **Email is the wrong instrument.** It has no grouping, no mute, no history,
+   no acknowledgement and no escalation, so the tenth copy of one problem is
+   indistinguishable from ten problems, and the only habit the channel teaches
+   is deletion. It also cannot report the failures worth waking for: an alert
+   the Worker sends through Resend is silent exactly when the Worker or Resend
+   is down. `SENTRY_DSN` is already required config and already owns every
+   thrown error here; splitting absences into a second, weaker channel put half
+   the operational picture where nobody could search it.
+4. **The alert could not stop.** This is the one that made it bombardment
+   rather than noise. `channel:telnyx-call-events` is satisfied by a customer
+   phoning in — nothing an operator can do satisfies it — so once tripped on a
+   low-volume platform it re-alerted forever. #510 had already answered this
+   for `channel:sms-outbound` ("silence is only news if the platform is
+   normally noisy"); the answer simply had not been carried to the keys that
+   needed it most.
+
+`key` is the load-bearing part of the new interface, not decoration: it becomes
+the Sentry fingerprint, which is what makes "mute `channel:telnyx-call-events`,
+keep everything else" a sentence the operator can say. The one-alert-per-key
+loop replaces the digest for the same reason — a digest is a single issue whose
+identity changes every time the set changes, so it can be neither muted per
+problem nor tracked to a resolution.
+
+**What this does not fix, stated plainly.** Between a grace expiring and the
+week-long baseline closing there is still a band where a genuinely rare caller
+trips the alert — day three to day seven for calls. It is bounded instead of
+infinite, it is the same band `channel:sms-outbound` has carried since #510, and
+closing it needs the synthetic call that key's own `doThis` already names: a
+probe that generates the traffic is the only thing that can tell "nobody
+called" from "nothing rang".
+
+---
+
+**What this rejects, and why.** Keeping email as the primary channel and merely
+fixing the layout was rejected on fault 3: the chrome was the visible defect and
+the absence of grouping was the one that made the mailbox unreadable. Deleting
+the email channel outright was rejected because it is one line of config for an
+operator who wants a copy, and because `opsAlert` is now the single seam where a
+different backend — Better Stack, Grafana, PagerDuty — would be substituted, so
+the choice of Sentry is cheap to revisit. Suppressing the noisy key with a flag
+was rejected for the reason #510 gives: a flag is a thing somebody has to
+remember to turn back on, and the baseline becomes meaningful again by itself
+the instant real traffic appears. Widening the graces instead was rejected
+because it trades a false alarm for a slower true one and leaves the
+never-clearing shape intact.

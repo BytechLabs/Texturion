@@ -138,8 +138,12 @@ const envSchema = z.object({
    * requires a second authenticated subdomain, which is a DNS action.
    */
   RESEND_FROM_CRITICAL: z.string().min(1).optional(),
-  /** #121: ops recipient for abuse alerts (storage tiers). Optional — unset
-   * falls back to support@loonext.com, which routes to the founder. */
+  /**
+   * Optional SECONDARY recipient for operational alerts. Sentry (SENTRY_DSN,
+   * required) is the ops channel; this only adds an email copy where somebody
+   * wants one. Unset means Sentry only — deliberately NOT the support address,
+   * which is where customers write (observability/ops-alert.ts).
+   */
   OPS_ALERT_EMAIL: z.string().min(3).optional(),
   /**
    * #308: the synthetic inbound canary's number pair, in E.164.

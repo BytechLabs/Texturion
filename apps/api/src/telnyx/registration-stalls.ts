@@ -26,8 +26,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 /**
@@ -85,11 +84,11 @@ export async function runRegistrationStallJob(
     `it can mean the submission never landed at the carrier at all, which the ` +
     `poller would not distinguish from a slow review.`;
 
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:telnyx-registration-stalls",
     subject: `[ops] ${stalled.length} registration(s) stalled past ${STALL_DAYS} days`,
     text,
-    html: renderEmailHtml(text),
+    html: opsTextHtml(text),
   });
 
   return stalled;

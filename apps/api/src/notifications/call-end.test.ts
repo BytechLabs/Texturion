@@ -13,10 +13,9 @@ import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { callEndAlert, notifyCallEnd } from "./call-end";
 import { encodeBase64Url } from "./webpush";
 
-vi.mock("@sentry/cloudflare", () => ({
-  captureMessage: vi.fn(),
-  captureException: vi.fn(),
-}));
+vi.mock("@sentry/cloudflare", async () =>
+  (await import("../test/sentry-mock")).sentryModuleMock(),
+);
 
 const env = completeEnv();
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";

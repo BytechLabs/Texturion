@@ -24,8 +24,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 /** One row from api_assess_number_health — a number that changed state. */
@@ -91,14 +90,14 @@ export async function runNumberHealthJob(
   const degraded = transitions.filter((row) => row.state === "degraded").length;
   const text = parts.join("\n");
 
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:messaging-number-health",
     subject:
       degraded > 0
         ? `[ops] ${degraded} number(s) now DEGRADED — customers can see this`
         : `[ops] number health changed for ${transitions.length} number(s)`,
     text,
-    html: renderEmailHtml(text),
+    html: opsTextHtml(text),
   });
 
   return transitions;

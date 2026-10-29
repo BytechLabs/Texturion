@@ -37,10 +37,9 @@ import { scrubProperties } from "./analytics/posthog";
 import { buildNumberAccessView as viewFrom } from "./auth/number-access";
 import { sanitizeWithReport } from "./messaging/reply-suggestions";
 
-vi.mock("@sentry/cloudflare", () => ({
-  captureMessage: vi.fn(),
-  addBreadcrumb: vi.fn(),
-}));
+vi.mock("@sentry/cloudflare", async () =>
+  (await import("./test/sentry-mock")).sentryModuleMock(),
+);
 
 describe("premise: no PII reaches third-party telemetry (analytics/posthog.ts)", () => {
   // > "distinct_id is ALWAYS the company_id — never a person, never PII

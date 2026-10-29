@@ -13,8 +13,7 @@
  * us a suggestion, never an unbounded bill.
  */
 import type { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 type Db = ReturnType<typeof getDb>;
@@ -169,10 +168,10 @@ export async function sendAiCapAlert(
     `Company ${args.companyId} has used ${args.count} of ${args.cap} AI ` +
     `${args.label} calls this month (alerting at ${args.alertThreshold}). ` +
     `At the cap, ${args.stops} Review if this volume looks abusive.`;
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:ai-settings",
     subject: `AI ${args.label} nearing monthly cap — company ${args.companyId}`,
     text,
-    html: renderEmailHtml(text),
+    html: opsTextHtml(text),
   });
 }

@@ -48,12 +48,9 @@ import { submitRegistration } from "../test/telnyx-doubles/registration";
  * The whole surface this module graph touches is listed, because vitest fails
  * the import — not the call — on a name the factory does not provide.
  */
-vi.mock("@sentry/cloudflare", () => ({
-  captureException: vi.fn(),
-  captureMessage: vi.fn(),
-  addBreadcrumb: vi.fn(),
-  getClient: vi.fn(() => undefined),
-}));
+vi.mock("@sentry/cloudflare", async () =>
+  (await import("../test/sentry-mock")).sentryModuleMock(),
+);
 
 const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";

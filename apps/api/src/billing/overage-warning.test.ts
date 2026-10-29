@@ -19,9 +19,7 @@ import {
 } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
 
-// #447: an explicit ops address, so the assertions prove the founder's copy is
-// ROUTED rather than merely sent (unset falls back to support@loonext.com).
-const env = { ...completeEnv(), OPS_ALERT_EMAIL: "ops@example.com" };
+const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 const PERIOD_START = "2026-06-01T00:00:00.000Z";
 const PERIOD_END = "2026-07-01T00:00:00.000Z";

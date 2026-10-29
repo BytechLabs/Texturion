@@ -16,8 +16,7 @@
  * later children) points the owner at the controls.
  */
 import { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 import { decideOverage, type OverageCompany } from "./overage-projection";
 import { recordAndSendAlert } from "./usage-alerts";
@@ -228,10 +227,10 @@ export async function runOverageDigestJob(
       `this is the only place the answer shows up.\n\n` +
       `Nothing was paused. Warning and enforcing are separate jobs.`;
 
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:billing-overage-warning",
     subject: `[ops] ${tenants.size} tenant${tenants.size === 1 ? "" : "s"} projected over revenue in the last ${DIGEST_WINDOW_DAYS} days`,
     text,
-    html: renderEmailHtml(text),
+    html: opsTextHtml(text),
   });
 }

@@ -1,8 +1,7 @@
 import * as Sentry from "@sentry/cloudflare";
 
 import { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 /**
@@ -105,10 +104,10 @@ export async function checkFleetStorage(env: Env): Promise<void> {
     `fleet storage past the included allowance: ${gb.toFixed(1)} GB`,
     "warning",
   );
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:billing-fleet-storage",
     subject: `Fleet storage is past the included ${SUPABASE_INCLUDED_STORAGE_GB} GB`,
     text,
-    html: renderEmailHtml(text),
+    html: opsTextHtml(text),
   });
 }

@@ -23,8 +23,7 @@
 import { lookupAreaCode, type NanpCountry } from "@loonext/shared";
 
 import { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 /** How far back each run looks. */
@@ -164,10 +163,10 @@ export async function runDeliveryByCountryJob(
     `2025-03-26 cutoff, so none of them is grandfathered for domestic ` +
     `Canadian traffic, and none carries a messaging campaign.`;
 
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:messaging-delivery-by-country",
     subject: `[ops] delivery rate low in ${bad.map((b) => b.country).join(", ")}`,
     text,
-    html: renderEmailHtml(text),
+    html: opsTextHtml(text),
   });
 }

@@ -19,10 +19,9 @@ import {
   widgetMayDiscloseGateError,
 } from "./widget";
 
-vi.mock("@sentry/cloudflare", () => ({
-  captureMessage: vi.fn(),
-  captureException: vi.fn(),
-}));
+vi.mock("@sentry/cloudflare", async () =>
+  (await import("../test/sentry-mock")).sentryModuleMock(),
+);
 
 describe("the number a visitor typed", () => {
   it("accepts the shapes a person actually types", () => {

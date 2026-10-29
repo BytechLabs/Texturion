@@ -25,10 +25,9 @@ import {
 import { conversationsRoutes } from "./conversations";
 import { spamReviewRoutes } from "./spam-review";
 
-vi.mock("@sentry/cloudflare", () => ({
-  captureMessage: vi.fn(),
-  captureException: vi.fn(),
-}));
+vi.mock("@sentry/cloudflare", async () =>
+  (await import("../test/sentry-mock")).sentryModuleMock(),
+);
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";

@@ -20,8 +20,7 @@
 import type { CategoryMatch } from "@loonext/shared";
 import { screeningSummary } from "@loonext/shared";
 
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 export async function alertProhibitedCategory(
@@ -51,13 +50,13 @@ export async function alertProhibitedCategory(
     "did its job.",
   ].join("\n");
 
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:messaging-aup-signup-screen",
     // The subject says "check", not "violation". Whoever opens this is about
     // to look at a real business, and a subject line that has already decided
     // makes that harder to do fairly.
     subject: `Check a new workspace: possible ${categories}`,
     text,
-    html: renderEmailHtml(text),
+    html: opsTextHtml(text),
   });
 }

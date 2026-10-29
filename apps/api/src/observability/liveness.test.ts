@@ -149,10 +149,25 @@ function checkWorld(options: {
    * apart by that floor rather than by call order.
    */
   smsBaselineRows?: Record<string, unknown>[];
+  /**
+   * Outbound rows in ANY status — a different question from `smsRows`, since a
+   * status webhook is the only thing that moves a row off 'queued'. The stub
+   * tells the two reads apart by that status filter rather than by order.
+   */
+  outboundAttemptRows?: Record<string, unknown>[];
   /** #308 — what `api_webhook_inbound_probe` reports. Default: all quiet. */
   inbound?: Record<string, unknown>;
+  /**
+   * The same RPC over the WEEK-long window: has this platform ever had traffic
+   * of each kind? Defaults to whatever `inbound` says — quiet for three hours
+   * and quiet for a week is the ordinary case, and the one that used to alert
+   * forever.
+   */
+  inboundBaseline?: Record<string, unknown>;
   /** #308 — fail the probe RPC itself with this HTTP status. */
   inboundStatus?: number;
+  /** Fail only the week-long baseline read, leaving the narrow one healthy. */
+  inboundBaselineStatus?: number;
 }) {
   const sb = supabaseStub(env);
   const beats: string[] = [];
@@ -167,25 +182,38 @@ function checkWorld(options: {
     const isBaseline =
       floor !== "" &&
       CHECK_NOW.getTime() - new Date(floor).getTime() > 24 * 60 * 60_000;
-    return isBaseline
-      ? (options.smsBaselineRows ?? [])
-      : (options.smsRows ?? []);
+    if (isBaseline) return options.smsBaselineRows ?? [];
+    // The status-attempt read is the one that does NOT constrain status.
+    return call.url.searchParams.has("status")
+      ? (options.smsRows ?? [])
+      : (options.outboundAttemptRows ?? []);
   });
   // Registered here rather than overridden by the caller: stub handlers run in
   // REGISTRATION order and the first non-undefined wins, so a later `on()` for
   // the same path would never be reached.
-  sb.on("POST", "/rest/v1/rpc/api_webhook_inbound_probe", () =>
-    options.inboundStatus !== undefined
-      ? new Response("boom", { status: options.inboundStatus })
-      : {
-          inbound_message: 0,
-          message_status: 0,
-          call_event: 0,
-          telnyx_accepted: 0,
-          rejections: {},
-          ...(options.inbound ?? {}),
-        },
-  );
+  sb.on("POST", "/rest/v1/rpc/api_webhook_inbound_probe", (call) => {
+    // Both reads hit this RPC; the week-long one is told apart by its floor,
+    // exactly as the two `messages` reads above are.
+    const since = String((call.body as { p_since?: unknown }).p_since ?? "");
+    const isBaseline =
+      since !== "" &&
+      CHECK_NOW.getTime() - new Date(since).getTime() > 24 * 60 * 60_000;
+    if (isBaseline && options.inboundBaselineStatus !== undefined) {
+      return new Response("boom", { status: options.inboundBaselineStatus });
+    }
+    if (!isBaseline && options.inboundStatus !== undefined) {
+      return new Response("boom", { status: options.inboundStatus });
+    }
+    return {
+      inbound_message: 0,
+      message_status: 0,
+      call_event: 0,
+      telnyx_accepted: 0,
+      rejections: {},
+      ...(options.inbound ?? {}),
+      ...(isBaseline ? (options.inboundBaseline ?? options.inbound ?? {}) : {}),
+    };
+  });
   sb.on("POST", "/rest/v1/rpc/record_heartbeat", (call) => {
     beats.push((call.body as { p_key: string }).p_key);
     return { recovered: false };
@@ -233,12 +261,14 @@ describe("the checker", () => {
 
     expect(world.emails).toHaveLength(1);
     const email = world.emails[0] as { subject: string; text: string };
-    expect(email.subject).toContain("did not happen");
+    // The KEY, not a count: "1 expected thing(s) did not happen" is the same
+    // subject for every problem, so it sorts and searches as one stream.
+    expect(email.subject).toContain("cron:0 15 * * *");
     expect(email.text).toContain("cron:0 15 * * *");
     expect(email.text).toContain("The daily subscription reconcile has not run.");
-    // 21 hours stale — the number is the difference between "check this" and
-    // "this has been broken since yesterday".
-    expect(email.text).toContain("1260 min ago");
+    // Hours, because "1260 min" makes the reader do the division before the
+    // signal lands — and at this magnitude the division IS the signal.
+    expect(email.text).toContain("21h ago");
   });
 
   /**
@@ -267,7 +297,10 @@ describe("the checker", () => {
     await runLivenessCheckJob(env, CHECK_NOW);
 
     const email = world.emails[0] as { text: string; html: string };
-    expect(email.text).toContain("DO THIS:");
+    // The remedy is LABELLED, not appended. #510's complaint was that the
+    // alert ended on the diagnosis; an unlabelled remedy reads as a fourth
+    // line of it.
+    expect(email.text).toContain("What to do:");
     expect(email.text).toContain(
       LIVENESS_EXPECTATIONS["cron:0 15 * * *"].doThis,
     );
@@ -479,8 +512,12 @@ describe("the inbound-webhook probe (#308)", () => {
     // The whole reason there are three keys: "message webhooks fine, call
     // webhooks dead" is a real shape, and one combined key would report the
     // path as healthy while every inbound call rang nowhere.
+    //
+    // The baseline says this platform DOES take calls, so a quiet window is
+    // an anomaly rather than an ordinary week.
     const world = checkWorld({
       inbound: { inbound_message: 4, message_status: 9, call_event: 0 },
+      inboundBaseline: { inbound_message: 90, message_status: 200, call_event: 12 },
     });
     stubFetch(...world.routes);
 
@@ -491,10 +528,15 @@ describe("the inbound-webhook probe (#308)", () => {
     expect(world.beats).not.toContain("channel:telnyx-call-events");
   });
 
-  it("beats nothing when the whole inbound path is silent", async () => {
+  it("beats nothing when a BUSY platform's inbound path goes silent", async () => {
     // No heartbeat means each key ages toward its own alert. The probe never
     // asserts an outage itself — absence is the signal.
-    const world = checkWorld({});
+    const world = checkWorld({
+      inboundBaseline: { inbound_message: 90, message_status: 200, call_event: 12 },
+      // We handed the carrier a message in the window, so a status webhook was
+      // owed. That is the conjunction that makes the status key meaningful.
+      outboundAttemptRows: [{ id: "m1" }],
+    });
     stubFetch(...world.routes);
 
     await runLivenessCheckJob(env, AT);
@@ -503,6 +545,83 @@ describe("the inbound-webhook probe (#308)", () => {
     expect(world.beats).not.toContain("channel:telnyx-message-status");
     expect(world.beats).not.toContain("channel:telnyx-call-events");
   });
+});
+
+describe("a traffic-passive key clears itself on a quiet platform", () => {
+  const AT = CHECK_NOW;
+
+  it("beats all three when a WEEK has been silent too", async () => {
+    // The founder's report: `channel:telnyx-call-events` every six hours for
+    // twenty-two days. Nothing an operator can do satisfies a key only a
+    // customer can satisfy, so no sequence of events cleared it (D139).
+    const world = checkWorld({ inbound: {}, inboundBaseline: {} });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).toContain("channel:telnyx-call-events");
+    expect(world.beats).toContain("channel:telnyx-inbound-message");
+    expect(world.beats).toContain("channel:telnyx-message-status");
+  });
+
+  it("stops excusing the key the moment real traffic appears", async () => {
+    // Not a snooze and not a flag: one call inside the baseline window makes
+    // the narrow window meaningful again by itself, with nothing to remember
+    // to turn back on.
+    const world = checkWorld({
+      inbound: {},
+      inboundBaseline: { call_event: 1 },
+    });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).not.toContain("channel:telnyx-call-events");
+    // Still excused — this platform has never received a text.
+    expect(world.beats).toContain("channel:telnyx-inbound-message");
+  });
+
+  it("asks the status key whether we sent anything, not whether we ever did", async () => {
+    // A status webhook is a reply to our own send. Sending nothing means
+    // nothing is owed; sending and hearing nothing back is the money line.
+    const sentNothing = checkWorld({
+      inbound: {},
+      inboundBaseline: { message_status: 5000 },
+      outboundAttemptRows: [],
+    });
+    stubFetch(...sentNothing.routes);
+    await runLivenessCheckJob(env, AT);
+    expect(sentNothing.beats).toContain("channel:telnyx-message-status");
+
+    vi.unstubAllGlobals();
+
+    const sentAndHeardNothing = checkWorld({
+      inbound: {},
+      inboundBaseline: {},
+      outboundAttemptRows: [{ id: "m1" }],
+    });
+    stubFetch(...sentAndHeardNothing.routes);
+    await runLivenessCheckJob(env, AT);
+    expect(sentAndHeardNothing.beats).not.toContain(
+      "channel:telnyx-message-status",
+    );
+  });
+
+  it("claims nothing when the baseline read itself fails", async () => {
+    // A failed read is not evidence either way. Excusing a key on a database
+    // error would be the invented all-clear this whole file exists to avoid.
+    const world = checkWorld({ inbound: {}, inboundBaselineStatus: 500 });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).not.toContain("channel:telnyx-call-events");
+    expect(world.beats).not.toContain("channel:telnyx-inbound-message");
+  });
+});
+
+describe("the signature-rejection conjunction (#308)", () => {
+  const AT = CHECK_NOW;
 
   it("treats rejections ALONGSIDE acceptances as noise, not an outage", async () => {
     // A retry, a stale delivery, a probe. If this alerted, it would alert

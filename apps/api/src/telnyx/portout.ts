@@ -31,6 +31,7 @@ import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 import type { TelnyxEvent } from "../messaging/types";
 
@@ -244,11 +245,11 @@ async function handleOneNumber(
   }
 
   const ops = opsCopy(companyName, companyId, notice, phone);
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:telnyx-portout",
     subject: ops.subject,
     text: ops.text,
-    html: renderEmailHtml(ops.text),
+    html: opsTextHtml(ops.text),
   });
 
   // The customer hears about the states that matter to them: someone is taking

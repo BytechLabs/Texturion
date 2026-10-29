@@ -17,10 +17,9 @@ import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { aupConcerns, runAupWatchJob, type AupSignals } from "./aup-watch";
 
-vi.mock("@sentry/cloudflare", () => ({
-  captureMessage: vi.fn(),
-  captureException: vi.fn(),
-}));
+vi.mock("@sentry/cloudflare", async () =>
+  (await import("../test/sentry-mock")).sentryModuleMock(),
+);
 
 const env = completeEnv();
 

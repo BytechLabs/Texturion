@@ -36,11 +36,16 @@ export interface SendEmailInput {
    * below that unsubscribe line would both misdescribe the message and put a
    * second footer under the compliance block.
    *
+   * OPERATIONAL is the third audience, and it is us. The account voice is
+   * wrong twice over on an ops alert: it tells the operator the alert is
+   * customer mail, and it points their reply at the queue customers write to.
+   * Those sends all go through `observability/ops-alert.ts` (D139).
+   *
    * Defaulted rather than required because transactional is the overwhelming
    * majority and a wrong default there is silent; `commercial-footer.test.ts`
    * is what stops the next commercial sender from inheriting it by omission.
    */
-  kind?: "transactional" | "commercial";
+  kind?: "transactional" | "commercial" | "operational";
   /**
    * #252 — STREAM SEPARATION. True for the handful of messages a customer
    * cannot afford to miss: your payment failed, your number is released in
@@ -147,8 +152,11 @@ export async function sendEmail(
       //
       // Commercial mail is exempt: it carries its own compliance block and is
       // not a service message about an account the recipient does not have.
+      // "operational" is exempt for a different reason than "commercial": an
+      // ops alert is addressed to US, and this footer was on the text part of
+      // all nineteen of them.
       text:
-        input.kind === "commercial"
+        input.kind === "commercial" || input.kind === "operational"
           ? input.text
           : input.text + emailTextFooter(),
       reply_to: replyTo,

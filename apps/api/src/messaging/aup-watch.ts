@@ -43,8 +43,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { sendEmail } from "../email/resend";
-import { renderEmailHtml } from "../email/html";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 /**
@@ -242,11 +241,11 @@ export async function runAupWatchJob(
     `and the enforcement ladder (warn, rate-limit, suspend sending, terminate) ` +
     `is a decision for a person.`;
 
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:messaging-aup-watch",
     subject: `AUP: ${flagged.length} workspace(s) worth a look`,
     text,
-    html: renderEmailHtml(text),
+    html: opsTextHtml(text),
   });
 
   return flagged.length;

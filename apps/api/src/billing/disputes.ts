@@ -25,8 +25,8 @@ import type Stripe from "stripe";
 import { recordAudit } from "../audit/log";
 import { getDb } from "../db";
 import { revokePrepaidYearForPaymentIntent } from "./prepay";
-import { emailLayout } from "../email/html";
-import { sendEmail } from "../email/resend";
+
+import { opsBodyHtml, opsEmail } from "../observability/ops-alert";
 import type { Env } from "../env";
 import { getStripe } from "./stripe";
 
@@ -216,13 +216,13 @@ async function alertFounder(
     `Whether to keep serving them is your call. The evidence deadline above is ` +
     `when Stripe stops waiting for you to make it.`;
 
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+  await opsEmail(env, {
+    key: "ops:billing-disputes",
     subject: `[ops] chargeback: ${dollars(dispute.amount + context.feeCents)} on ${
       context.companyName ?? "an unmatched customer"
     }`,
     text,
-    html: emailLayout(
+    html: opsBodyHtml(
       `<p><strong>A charge was disputed.</strong></p><pre style="white-space:pre-wrap;font-family:inherit;">${text
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")

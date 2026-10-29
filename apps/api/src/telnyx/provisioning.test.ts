@@ -29,12 +29,9 @@ import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
  * failure produces no throw, no email and no retry — Sentry is the entire
  * record that it happened. Guarding "never silent" needs it observable.
  */
-vi.mock("@sentry/cloudflare", () => ({
-  captureException: vi.fn(),
-  captureMessage: vi.fn(),
-  addBreadcrumb: vi.fn(),
-  getClient: vi.fn(() => undefined),
-}));
+vi.mock("@sentry/cloudflare", async () =>
+  (await import("../test/sentry-mock")).sentryModuleMock(),
+);
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";

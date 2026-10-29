@@ -161,9 +161,11 @@ nslookup -type=TXT _dmarc.loonext.com 8.8.8.8
 ```
 
 **You do not have to remember to.** `job:email-health` now asks the DNS itself
-once a day (`apps/api/src/email/auth-posture.ts`) and emails
-`OPS_ALERT_EMAIL` while any of the three records is missing — with the exact
-TXT to add and the command above in the body. A dated line in this document is
+once a day (`apps/api/src/email/auth-posture.ts`) and raises an ops alert
+while any of the three records is missing — with the exact TXT to add and the
+command above in the body. It reaches Sentry under the key
+`ops:email-auth-posture`, and a mailbox too where `OPS_ALERT_EMAIL` is set
+(D139). A dated line in this document is
 only true on the day it was written; DNS is edited by hand, at a registrar, by
 one person, usually while doing something else. The check exists because the
 gap is a founder action, and a gap somebody has to go and act on is exactly the

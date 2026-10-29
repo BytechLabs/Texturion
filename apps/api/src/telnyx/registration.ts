@@ -26,8 +26,8 @@ import { capture } from "../analytics/posthog";
 import { billingRecipients } from "../billing/recipients";
 import { owesUsRegistration } from "../billing/registration-draft";
 import { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import { pushRegistrationApproved } from "../notifications/registration-approved";
 import type { Env } from "../env";
 
@@ -502,11 +502,11 @@ ${reason}
 ` +
       `Registration: ${env.APP_ORIGIN}/settings/numbers
 `;
-    await sendEmail(env, {
-      to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+    await opsEmail(env, {
+    key: "ops:telnyx-registration",
       subject: `[ops] ${company.name}: carrier suspended the 10DLC ${kind}`,
       text,
-      html: renderEmailHtml(text),
+      html: opsTextHtml(text),
     });
   } catch (cause) {
     Sentry.captureException(cause);

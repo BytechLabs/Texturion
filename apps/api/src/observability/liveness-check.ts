@@ -9,9 +9,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { emailLayout, escapeHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { escapeHtml } from "../email/html";
 import type { Env } from "../env";
+import { opsAlert } from "./ops-alert";
 import { canaryConfig } from "./inbound-canary";
 import {
   LIVENESS_EXPECTATIONS,
@@ -156,44 +156,21 @@ async function sendOverdueAlert(
     doThis: doThisFor(row.key),
   }));
 
-  // #510: the remedy gets its OWN line and its own label, never a clause
-  // appended to `what`. The founder's complaint was not that the sentence was
-  // too short — it was that the email ended on the diagnosis, so the reader had
-  // to supply the next step themselves at whatever hour it arrived. Last in the
-  // block on purpose: the diagnosis is what you read, the remedy is what you
-  // are left holding.
-  const lines = items
-    .map(
-      (row) =>
-        `• ${row.key}\n` +
-        `  ${row.what}\n` +
-        `  Last seen ${row.minutes} min ago (due by ${row.due_by}).\n` +
-        `  → DO THIS: ${row.doThis}`,
-    )
-    .join("\n\n");
+  // ONE ALERT PER KEY, not one digest listing N of them: a digest is a single
+  // Sentry issue whose identity changes every time the set changes, so it can
+  // be neither muted per problem nor tracked to a resolution (D139).
+  for (const row of items) {
+    await opsAlert(env, {
+      key: row.key,
+      summary: `${row.key} has not happened`,
+      detail:
+        `${row.what}
 
-  const closing =
-    `You will get one more of these in ${REALERT_AFTER_MINUTES / 60}h if it ` +
-    `is still overdue, and nothing at all once it recovers.`;
-
-  const text =
-    `${overdue.length} expected thing(s) have not happened.\n\n${lines}\n\n` +
-    `Nothing threw. These are absences, which is why Sentry is quiet: the ` +
-    `carrier accepts and drops, the mailbox bounces after we were told 200, ` +
-    `the cron simply does not fire. Silence and health look identical from ` +
-    `here, which is the whole reason this check exists (#387).\n\n` +
-    closing;
-
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
-    subject: `[ops] ${overdue.length} expected thing(s) did not happen`,
-    text,
-    html: emailLayout(
-      `<p><strong>${overdue.length} expected thing(s) have not happened.</strong></p>` +
-        items.map(overdueCardHtml).join("") +
-        `<p style="font-size:13px;line-height:1.5;color:#6E7163;">${escapeHtml(closing)}</p>`,
-    ),
-  });
+Last seen ${describeAge(row.minutes)} ago; due by ${row.due_by}.`,
+      action: row.doThis,
+      html: overdueCardHtml(row),
+    });
+  }
 }
 
 /**
@@ -226,6 +203,18 @@ const MONO_STACK = "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace";
  * text can forge the tags this adds. Unpaired backticks are left as-is rather
  * than swallowing the rest of the sentence into a code span.
  */
+/**
+ * "32460 min ago" is a number the reader has to divide before it means
+ * anything, and at that magnitude the division is the whole signal: 22 days of
+ * silence and 6 hours of silence are different problems with the same shape.
+ */
+export function describeAge(minutes: number): string {
+  if (minutes < 90) return `${Math.round(minutes)} min`;
+  const hours = minutes / 60;
+  if (hours < 48) return `${Math.round(hours)}h`;
+  return `${Math.round(hours / 24)} days`;
+}
+
 function withCodeSpans(escaped: string): string {
   return escaped.replaceAll(
     /`([^`]+)`/g,
@@ -352,6 +341,95 @@ interface InboundProbe {
   rejections?: Record<string, number>;
 }
 
+/** Same seven days as `SMS_BASELINE_WINDOW_DAYS`, for the same reason. */
+const INBOUND_BASELINE_WINDOW_DAYS = 7;
+
+/**
+ * The three inbound keys are TRAFFIC-PASSIVE: only a customer can satisfy
+ * them, so once tripped on a quiet platform they re-alert forever — nothing an
+ * operator does clears them (D139). Same answer #510 gave
+ * `channel:sms-outbound`: silence is only news if this platform is normally
+ * noisy, and the instant real traffic appears the narrow window becomes
+ * meaningful again by itself, with no flag to remember to flip.
+ *
+ * Message status is asked differently, because it is the one with an internal
+ * cause — a status webhook is a reply to our own send, so the question is "did
+ * we send anything for a status to be about" rather than "has this ever
+ * happened".
+ *
+ * Residual, and bounded rather than infinite: between the grace expiring and
+ * the baseline closing (day three to day seven for calls) a genuinely rare
+ * caller still trips it. Closing that needs the synthetic call `doThis` names.
+ */
+async function heartbeatQuietInboundClasses(
+  env: Env,
+  now: Date,
+  db: SupabaseClient,
+  probe: InboundProbe,
+): Promise<void> {
+  const inboundQuiet = (probe.inbound_message ?? 0) === 0;
+  const callsQuiet = (probe.call_event ?? 0) === 0;
+  const statusQuiet = (probe.message_status ?? 0) === 0;
+  // Nothing is missing, so there is nothing to excuse and no read to pay for.
+  if (!inboundQuiet && !callsQuiet && !statusQuiet) return;
+
+  if (statusQuiet) {
+    await heartbeatStatusIfWeSentNothing(env, now, db);
+  }
+
+  if (!inboundQuiet && !callsQuiet) return;
+
+  const baselineSince = new Date(
+    now.getTime() - INBOUND_BASELINE_WINDOW_DAYS * 24 * 60 * 60_000,
+  );
+  const { data, error } = await db.rpc("api_webhook_inbound_probe", {
+    p_since: baselineSince.toISOString(),
+    p_now: now.toISOString(),
+  });
+  if (error) {
+    // A failed read is not evidence either way, so claim nothing and let the
+    // next cadence decide — the posture every probe in this file takes.
+    console.error(`liveness: inbound baseline failed: ${error.message}`);
+    return;
+  }
+  const baseline = (data ?? {}) as InboundProbe;
+
+  if (inboundQuiet && (baseline.inbound_message ?? 0) === 0) {
+    await recordHeartbeatBestEffort(env, "channel:telnyx-inbound-message", now, db);
+  }
+  if (callsQuiet && (baseline.call_event ?? 0) === 0) {
+    await recordHeartbeatBestEffort(env, "channel:telnyx-call-events", now, db);
+  }
+}
+
+/**
+ * No status webhooks arrived — was there anything for one to be about?
+ *
+ * ANY status, deliberately: a status webhook is the only thing that moves a row
+ * off 'queued', so filtering to 'sent' would ask the broken path to prove it is
+ * broken.
+ */
+async function heartbeatStatusIfWeSentNothing(
+  env: Env,
+  now: Date,
+  db: SupabaseClient,
+): Promise<void> {
+  const since = new Date(now.getTime() - INBOUND_PROBE_WINDOW_MINUTES * 60_000);
+  const { data, error } = await db
+    .from("messages")
+    .select("id")
+    .eq("direction", "outbound")
+    .gte("created_at", since.toISOString())
+    .limit(1);
+  if (error) {
+    console.error(`liveness: outbound attempt probe failed: ${error.message}`);
+    return;
+  }
+  if ((data ?? []).length === 0) {
+    await recordHeartbeatBestEffort(env, "channel:telnyx-message-status", now, db);
+  }
+}
+
 /**
  * #308 — the inbound half. One RPC, four heartbeats.
  *
@@ -396,6 +474,8 @@ async function probeInboundWebhooks(
   if ((probe.call_event ?? 0) > 0) {
     await recordHeartbeatBestEffort(env, "channel:telnyx-call-events", now, db);
   }
+
+  await heartbeatQuietInboundClasses(env, now, db, probe);
 
   // The conjunction, asked ONCE PER PROVIDER. Healthy is everything EXCEPT "we
   // rejected this provider's signed deliveries and accepted none of them", so a quiet

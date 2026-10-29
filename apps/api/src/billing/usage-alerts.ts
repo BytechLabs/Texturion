@@ -29,6 +29,7 @@ import { checkFleetStorage } from "./fleet-storage";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 /** Ledger-backed thresholds (SPEC §6 `usage_alerts.threshold in (80,100)`). */
@@ -298,8 +299,8 @@ export async function recordAndSendAlert(
   // storage_abuse (#121) — the ledger PK treats it purely as a dedupe key.
   threshold: number,
   copy: { subject: string; text: string },
-  /** #121: when set, a second email rides the SAME ledger dedupe to ops
-   * (OPS_ALERT_EMAIL, default support@loonext.com — routes to the founder). */
+  /** #121: when set, a second alert rides the SAME ledger dedupe to ops —
+   * Sentry always, and OPS_ALERT_EMAIL too where one is configured. */
   ops?: { subject: string; text: string },
 ): Promise<boolean> {
   const db = getDb(env);
@@ -333,11 +334,11 @@ export async function recordAndSendAlert(
     html: renderEmailHtml(copy.text),
   });
   if (ops) {
-    await sendEmail(env, {
-      to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+    await opsEmail(env, {
+    key: "ops:billing-usage-alerts",
       subject: ops.subject,
       text: ops.text,
-      html: renderEmailHtml(ops.text),
+      html: opsTextHtml(ops.text),
     });
   }
   return true;

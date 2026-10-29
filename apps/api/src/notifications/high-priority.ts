@@ -22,8 +22,7 @@ import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { billingRecipients } from "../billing/recipients";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
 
 /**
@@ -183,14 +182,14 @@ export async function reportHighPriorityPushAlert(
       `inbound flood (check the workspace for spam threads).\n\n` +
       `Last 7 days by company: select api_high_priority_push_report(7);\n`;
 
-    await sendEmail(env, {
-      to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+    await opsEmail(env, {
+    key: "ops:notifications-high-priority",
       subject:
         threshold === 100
           ? `[ops] ${name} hit the high-priority push ceiling`
           : `[ops] ${name} is nearing the high-priority push ceiling`,
       text,
-      html: renderEmailHtml(text),
+      html: opsTextHtml(text),
     });
   } catch (cause) {
     const message =
