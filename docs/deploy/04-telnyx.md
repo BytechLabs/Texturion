@@ -144,6 +144,30 @@ Event dispatch by `event_type` (`apps/api/src/messaging/dispatch.ts:14-43`):
 - `porting_order.*` → port-in state machine (`apps/api/src/telnyx/porting.ts`)
 - anything else → acked as a no-op
 
+### Production talks to Telnyx directly; the rig goes through its guard (D142)
+
+The rig (`docs/RIG.md`) runs this same Worker against the same Telnyx account,
+so every difference is configuration, read in one place
+(`apps/api/src/environments/`). For production that means:
+
+- **Leave `TELNYX_API_BASE`, `TELNYX_WEBHOOK_URL` and `TELNYX_MEDIA_PUBLIC_BASE`
+  unset.** A production Worker (`DEPLOY_ENV=production`, stamped by `ship.yml`)
+  refuses to start with `TELNYX_API_BASE` set, because that would send
+  customers' calls and texts to a stub or to the rig. With the other two unset,
+  the webhook URL is `${API_ORIGIN}/webhooks/telnyx` as above and Telnyx fetches
+  media from the signed storage URL directly.
+- Nothing about the profile body above changes in production.
+
+On the rig, `TELNYX_API_BASE` points at the guard behind the edge, and the
+other two point Telnyx's callbacks and media fetches at the edge. In rig mode
+the Worker also refuses, before any request, a dial, transfer, text or
+verification code to a number outside the partition, and any 10DLC, porting or
+hosted-messaging request, since those act on the whole account and the
+sole-proprietor OTP texts a number the request does not carry; rejects inbound
+calls and texts from strangers before they ring, reach voicemail or get a
+text-back; and caps each messaging profile it creates at $0.03 a day with a
+US/CA whitelist.
+
 ---
 
 ## 4. Runtime flows (no portal steps) — for your awareness

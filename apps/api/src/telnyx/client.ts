@@ -1,4 +1,11 @@
 import type { Env } from "../env";
+import {
+  outboundDestinationRefusal,
+  restrictTelnyxBody,
+  RIG_DESTINATION_REFUSED,
+  RIG_ENDPOINT_REFUSED,
+  telnyxRequestRefusal,
+} from "../environments/policy";
 
 /**
  * Typed fetch client for the Telnyx v2 REST API (SPEC §3, §4.3, §4.4).
@@ -9,10 +16,125 @@ import type { Env } from "../env";
  * matching.
  *
  * The base URL is `api.telnyx.com` unless `env.TELNYX_API_BASE` overrides it
- * (unset in production; the E2E launch-pass harness points it at a fake — D31).
+ * (refused in production; the E2E launch-pass harness points it at a fake —
+ * D31 — and the rig at its guard — D142).
  */
 
-export const TELNYX_API_BASE = "https://api.telnyx.com";
+/**
+ * Not exported, on purpose (D142). A module holding its own copy of the host
+ * is a module that keeps talking to Telnyx when the rig points this client
+ * at the guard. Ask {@link telnyxUrl} instead; `base-url.test.ts` keeps the
+ * host from reappearing elsewhere.
+ */
+const DEFAULT_TELNYX_API_BASE = "https://api.telnyx.com";
+
+/** The Telnyx base this deployment talks to, without a trailing slash. */
+function telnyxApiBase(env: Env): string {
+  return (env.TELNYX_API_BASE ?? DEFAULT_TELNYX_API_BASE).replace(/\/+$/, "");
+}
+
+/**
+ * A Telnyx API URL. Joined as text rather than resolved with `new URL(path,
+ * base)`, which drops a base path: the rig reaches its guard under a prefix on
+ * the edge, and resolving `/v2/...` against that prefix would skip the guard.
+ */
+export function telnyxUrl(env: Env, path: string): URL {
+  return new URL(`${telnyxApiBase(env)}${path}`);
+}
+
+/**
+ * A URL of ours that Telnyx must fetch (MMS media, a recorded greeting).
+ *
+ * Unchanged unless TELNYX_MEDIA_PUBLIC_BASE is set: the rig's storage is not
+ * on the internet, so its edge relays Telnyx's fetch, and the storage prefix
+ * of a signed URL is swapped for the edge's media path.
+ */
+export function telnyxMediaUrl(env: Env, url: string): string {
+  const base = env.TELNYX_MEDIA_PUBLIC_BASE;
+  if (base === undefined) return url;
+  const storage = `${env.SUPABASE_URL.replace(/\/+$/, "")}/storage/v1/`;
+  return url.startsWith(storage) ? `${base}/${url.slice(storage.length)}` : url;
+}
+
+const WEBHOOK_URL_FIELDS = [
+  "webhook_url",
+  "webhook_failover_url",
+  "webhookURL",
+  "webhookFailoverURL",
+] as const;
+
+/**
+ * The D142 seams, applied where every Telnyx-bound body passes rather than at
+ * each place that builds one, so a new caller cannot forget them. With
+ * neither variable set the body is returned as the same object, untouched.
+ */
+function withSeams(env: Env, body: unknown): unknown {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return body;
+  }
+  if (
+    env.TELNYX_WEBHOOK_URL === undefined &&
+    env.TELNYX_MEDIA_PUBLIC_BASE === undefined
+  ) {
+    return body;
+  }
+  const next: Record<string, unknown> = { ...(body as Record<string, unknown>) };
+  if (env.TELNYX_WEBHOOK_URL !== undefined) {
+    for (const field of WEBHOOK_URL_FIELDS) {
+      if (typeof next[field] === "string") next[field] = env.TELNYX_WEBHOOK_URL;
+    }
+  }
+  if (typeof next.audio_url === "string") {
+    next.audio_url = telnyxMediaUrl(env, next.audio_url);
+  }
+  if (Array.isArray(next.media_urls)) {
+    next.media_urls = next.media_urls.map((url: unknown) =>
+      typeof url === "string" ? telnyxMediaUrl(env, url) : url,
+    );
+  }
+  return next;
+}
+
+/**
+ * A dial, or any command on a leg. Every action is judged rather than only
+ * `transfer`, because one call site sends whichever action it was handed.
+ */
+const CALL_PATH = /^\/v2\/calls(?:\/[^/]+\/actions\/[^/]+)?$/;
+const MESSAGE_PATH = /^\/v2\/messages(?:\/|$)/;
+const VERIFICATION_CODE_PATH = /\/verification_codes$/;
+
+function asDestinations(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string");
+  }
+  return [];
+}
+
+/**
+ * Who a request would make Telnyx call or text: a dial, a transfer or SIP
+ * REFER, a message, or a hosted-number verification code (Telnyx texts or
+ * calls the number).
+ */
+export function telnyxDestinations(options: {
+  method: string;
+  path: string;
+  body?: unknown;
+}): string[] {
+  if (options.method !== "POST") return [];
+  const body =
+    options.body !== null && typeof options.body === "object"
+      ? (options.body as Record<string, unknown>)
+      : {};
+  if (CALL_PATH.test(options.path)) {
+    return [...asDestinations(body.to), ...asDestinations(body.sip_address)];
+  }
+  if (MESSAGE_PATH.test(options.path)) return asDestinations(body.to);
+  if (VERIFICATION_CODE_PATH.test(options.path)) {
+    return asDestinations(body.phone_numbers);
+  }
+  return [];
+}
 
 /**
  * Hard ceiling on a single Telnyx REST call. Without it a stalled Telnyx
@@ -109,6 +231,21 @@ export interface TelnyxRequestOptions {
 }
 
 /**
+ * D142: the rig never sends an account-wide request. Exported for the raw
+ * fetches that cannot go through telnyxRequest (a file download or upload).
+ */
+export function refuseAccountWide(env: Env, path: string, label: string): void {
+  const refusal = telnyxRequestRefusal(env, { path });
+  if (refusal) {
+    throw new TelnyxApiError(
+      403,
+      [{ code: RIG_ENDPOINT_REFUSED, title: "Endpoint refused", detail: refusal }],
+      label,
+    );
+  }
+}
+
+/**
  * Perform one Telnyx v2 API call. Returns the parsed JSON body (Telnyx wraps
  * results in `{ data: ... }`; callers type `T` accordingly), or `undefined`
  * for empty 2xx bodies (e.g. DELETE 204). Throws {@link TelnyxApiError} on any
@@ -118,7 +255,25 @@ export async function telnyxRequest<T = unknown>(
   env: Env,
   options: TelnyxRequestOptions,
 ): Promise<T> {
-  const url = new URL(options.path, env.TELNYX_API_BASE ?? TELNYX_API_BASE);
+  const label = `${options.method} ${options.path}`;
+
+  // D142: the rig's destination gate, then the endpoints the guard never
+  // forwards from the rig. A refusal is the 403 the guard would have answered,
+  // so each caller takes the path it already has for "Telnyx refused this",
+  // and no request leaves.
+  for (const destination of telnyxDestinations(options)) {
+    const refusal = outboundDestinationRefusal(env, destination);
+    if (refusal) {
+      throw new TelnyxApiError(
+        403,
+        [{ code: RIG_DESTINATION_REFUSED, title: "Destination refused", detail: refusal.detail }],
+        label,
+      );
+    }
+  }
+  refuseAccountWide(env, options.path, label);
+
+  const url = telnyxUrl(env, options.path);
   for (const [key, value] of Object.entries(options.query ?? {})) {
     url.searchParams.set(key, value);
   }
@@ -134,15 +289,15 @@ export async function telnyxRequest<T = unknown>(
     headers["Idempotency-Key"] = options.idempotencyKey;
   }
 
+  const body = restrictTelnyxBody(env, options, withSeams(env, options.body));
   const response = await fetch(url.toString(), {
     method: options.method,
     headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
     // Bound the call so a stalled Telnyx endpoint can't hang the request/isolate.
     signal: AbortSignal.timeout(TELNYX_TIMEOUT_MS),
   });
 
-  const label = `${options.method} ${options.path}`;
   if (!response.ok) {
     let errors: TelnyxErrorItem[] = [];
     try {
@@ -193,7 +348,8 @@ export async function telnyxUpload<T = unknown>(
   env: Env,
   options: TelnyxUploadOptions,
 ): Promise<T> {
-  const url = new URL(options.path, env.TELNYX_API_BASE ?? TELNYX_API_BASE);
+  refuseAccountWide(env, options.path, `POST ${options.path}`);
+  const url = telnyxUrl(env, options.path);
   const form = new FormData();
   const blob =
     options.file instanceof Blob

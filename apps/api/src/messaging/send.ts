@@ -17,9 +17,10 @@ import { enqueueWebhookEvent } from "../webhooks/outbound";
 import { GRACE_PERIOD_DAYS } from "../billing/grace";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { outboundDestinationRefusal } from "../environments/policy";
 import { classifySendFailure } from "@loonext/shared";
 import { isKilled } from "../flags/evaluate";
-import { TELNYX_TIMEOUT_MS } from "../telnyx/client";
+import { TELNYX_TIMEOUT_MS, telnyxMediaUrl, telnyxUrl } from "../telnyx/client";
 import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
 import { recordCarrierOptOut } from "./opt-out";
@@ -437,14 +438,6 @@ export async function claimMessageRetry(
   return result.message;
 }
 
-/**
- * Default Telnyx host; `env.TELNYX_API_BASE` overrides it (unset in production
- * → the real host). This is the SAME seam telnyx/client.ts uses, so the D31
- * launch-pass harness can retarget the outbound `/v2/messages` send at its
- * in-process fake exactly as it does every other Telnyx call.
- */
-const TELNYX_API_BASE = "https://api.telnyx.com";
-
 /** A Telnyx /v2/messages API failure — surfaced, never silent (SPEC §5, §8). */
 export interface TelnyxSendFailure {
   errorCode: string | null;
@@ -531,9 +524,17 @@ async function telnyxCreateMessage(
     idempotencyKey: string;
   },
 ): Promise<TelnyxSendResult> {
+  // D142: this send bypasses telnyxRequest, so it asks the destination gate
+  // and applies the media seam itself. A refusal is a failed send with a code,
+  // never a request.
+  const refusal = outboundDestinationRefusal(env, args.to);
+  if (refusal) {
+    return { ok: false, errorCode: refusal.code, errorDetail: refusal.detail };
+  }
+  const mediaUrls = args.mediaUrls.map((url) => telnyxMediaUrl(env, url));
   let response: Response;
   try {
-    response = await fetch(`${env.TELNYX_API_BASE ?? TELNYX_API_BASE}/v2/messages`, {
+    response = await fetch(telnyxUrl(env, "/v2/messages").toString(), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.TELNYX_API_KEY}`,
@@ -544,7 +545,7 @@ async function telnyxCreateMessage(
         from: args.from,
         to: args.to,
         text: args.text,
-        ...(args.mediaUrls.length > 0 ? { media_urls: args.mediaUrls } : {}),
+        ...(mediaUrls.length > 0 ? { media_urls: mediaUrls } : {}),
       }),
       // Bound the call like the shared Telnyx client — a stalled endpoint would
       // otherwise hang the send (a webhook waitUntil isolate, or a user route);

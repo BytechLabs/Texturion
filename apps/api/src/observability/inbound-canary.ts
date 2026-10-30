@@ -24,7 +24,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { TELNYX_API_BASE } from "../telnyx/client";
+import { outboundDestinationRefusal } from "../environments/policy";
+import { telnyxUrl } from "../telnyx/client";
 import { recordHeartbeatBestEffort } from "./liveness";
 
 const TELNYX_TIMEOUT_MS = 10_000;
@@ -205,9 +206,11 @@ async function sendCanaryText(
   config: CanaryConfig,
   token: string,
 ): Promise<{ ok: true } | { ok: false; detail: string }> {
+  const refusal = outboundDestinationRefusal(env, config.to);
+  if (refusal) return { ok: false, detail: refusal.detail };
   try {
     const response = await fetch(
-      `${env.TELNYX_API_BASE ?? TELNYX_API_BASE}/v2/messages`,
+      telnyxUrl(env, "/v2/messages").toString(),
       {
         method: "POST",
         headers: {

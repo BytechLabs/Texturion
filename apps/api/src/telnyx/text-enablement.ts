@@ -73,9 +73,10 @@ import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  refuseAccountWide,
   telnyxRequest,
+  telnyxUrl,
   TelnyxApiError,
-  TELNYX_API_BASE,
   TELNYX_TIMEOUT_MS,
   type TelnyxErrorItem,
 } from "./client";
@@ -424,9 +425,11 @@ async function downloadTelnyxDocument(
   env: Env,
   documentId: string,
 ): Promise<ArrayBuffer> {
-  const label = `GET /v2/documents/${documentId}/download`;
+  const path = `/v2/documents/${documentId}/download`;
+  const label = `GET ${path}`;
+  refuseAccountWide(env, path, label);
   const response = await fetch(
-    new URL(`/v2/documents/${documentId}/download`, TELNYX_API_BASE).toString(),
+    telnyxUrl(env, path).toString(),
     {
       headers: { Authorization: `Bearer ${env.TELNYX_API_KEY}` },
       signal: AbortSignal.timeout(TELNYX_TIMEOUT_MS),
@@ -467,7 +470,8 @@ export async function attachHostedOrderDocuments(
   form.append("loa", new Blob([loa], { type: "application/pdf" }), "loa.pdf");
   form.append("bill", new Blob([bill], { type: "application/pdf" }), "bill.pdf");
   const path = `/v2/messaging_hosted_number_orders/${order.telnyx_hosted_order_id}/actions/file_upload`;
-  const response = await fetch(new URL(path, TELNYX_API_BASE).toString(), {
+  refuseAccountWide(env, path, `POST ${path}`);
+  const response = await fetch(telnyxUrl(env, path).toString(), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.TELNYX_API_KEY}`,

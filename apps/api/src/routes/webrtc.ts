@@ -24,7 +24,7 @@ import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
 import { isKilled } from "../flags/evaluate";
 import { errorResponse } from "../http/errors";
-import { telnyxRequest } from "../telnyx/client";
+import { telnyxRequest, telnyxUrl } from "../telnyx/client";
 import { unwrap } from "./core/http";
 
 interface CredentialRow {
@@ -173,9 +173,8 @@ webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), asyn
 
   // Telnyx returns the JWT as raw text (201 text/plain) — not JSON, so this
   // one call bypasses telnyxRequest's JSON parsing.
-  const base = env.TELNYX_API_BASE ?? "https://api.telnyx.com";
   const tokenResponse = await fetch(
-    `${base}/v2/telephony_credentials/${credential.telnyx_credential_id}/token`,
+    telnyxUrl(env, `/v2/telephony_credentials/${credential.telnyx_credential_id}/token`),
     {
       method: "POST",
       headers: { Authorization: `Bearer ${env.TELNYX_API_KEY}` },
