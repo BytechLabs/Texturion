@@ -238,7 +238,7 @@ begin
   end if;
 
   raise notice 'DA-5 PASSED: the provider id comes back so the route can use it';
-end $;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- DA-6. [D142] The push and ring evidence about the person goes with them.
@@ -247,7 +247,7 @@ end $;
 --       that row, so only delete_account itself can erase them. Another
 --       member's evidence in the same workspace stays.
 -- ---------------------------------------------------------------------------
-do $
+do $$
 declare
   v_leaver uuid := 'da000000-0000-4000-8000-00000000000d';
   -- The owner, who stays: DA-1 refused their deletion.
@@ -290,6 +290,6 @@ begin
   end if;
 
   raise notice 'DA-6 PASSED: the evidence about a deleted account goes with it';
-end $;
+end $$;
 
 rollback;
