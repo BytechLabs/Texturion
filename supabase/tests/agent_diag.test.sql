@@ -110,10 +110,13 @@ end $$;
 -- one by name. Coverage is reported, because a check that matched nothing
 -- would also pass.
 --
--- One exemption, by name: pg_stat_statements grants itself to PUBLIC, but to
--- a role outside pg_read_all_stats, as AD-1 proves agent_diag is, every other
--- role's statement text reads as "<insufficient privilege>", leaving counts
--- and timings.
+-- Two exemptions. pg_stat_statements grants itself to PUBLIC, but to a role
+-- outside pg_read_all_stats, as AD-1 proves agent_diag is, every other role's
+-- statement text reads as "<insufficient privilege>", leaving counts and
+-- timings. And the tables the pg_net extension owns, which the local Supabase
+-- image installs and grants to PUBLIC: production has no pg_net (checked
+-- 2026-10-30) and no migration uses it, and enabling it there means revoking
+-- PUBLIC on them before agent_diag can log in.
 -- ===========================================================================
 do $$
 declare
@@ -129,7 +132,12 @@ begin
                            'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
                      and not ((n.nspname || '.' || c.relname) = any (array[
                            'extensions.pg_stat_statements',
-                           'extensions.pg_stat_statements_info'])))
+                           'extensions.pg_stat_statements_info']))
+                     and not exists (
+                           select 1 from pg_depend d
+                             join pg_extension e on e.oid = d.refobjid
+                            where d.classid = 'pg_class'::regclass and d.objid = c.oid
+                              and d.deptype = 'e' and e.extname = 'pg_net'))
     into v_checked, v_schemas, v_reachable
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
