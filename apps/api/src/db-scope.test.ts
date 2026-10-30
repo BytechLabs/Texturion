@@ -117,6 +117,9 @@ const TENANT_TABLES = new Set([
   // #243: the workspace API credentials. An unscoped read would hand one
   // tenant the hash of another tenant own live key.
   "api_keys",
+  // D142: push outcomes and device ring stages. No customer content, but an
+  // unscoped read would still show one workspace another's calling pattern.
+  "push_attempts", "ring_beacons",
 ]);
 
 /**

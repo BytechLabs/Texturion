@@ -141,6 +141,10 @@ declare
     -- #243: the credentials themselves. No contact data, and said so in §5
     -- rather than left implied.
     'api_keys',
+    -- D142: a member's id beside their device's push outcomes, app version,
+    -- OS and settings. No contact data, but device state tied to a named
+    -- member is still about that member, so not "no personal data".
+    'push_attempts', 'ring_beacons',
     'data_exports', 'usage_events', 'usage_alerts', 'egress_events',
     'company_ai_usage', 'call_records', 'provider_costs', 'billing_disputes',
     -- §6 no personal data

@@ -72,7 +72,9 @@ declare
     -- #243: the workspace's own API credentials.
     'api_keys',
     -- #287: the quote itself.
-    'quotes'
+    'quotes',
+    -- D142: what happened to each push and each ring, per member.
+    'push_attempts', 'ring_beacons'
   ];
   actual text[];
   missing text;

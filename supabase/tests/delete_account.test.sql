@@ -238,6 +238,58 @@ begin
   end if;
 
   raise notice 'DA-5 PASSED: the provider id comes back so the route can use it';
-end $$;
+end $;
+
+-- ---------------------------------------------------------------------------
+-- DA-6. [D142] The push and ring evidence about the person goes with them.
+--
+--       Both tables cascade from company_members, and account deletion keeps
+--       that row, so only delete_account itself can erase them. Another
+--       member's evidence in the same workspace stays.
+-- ---------------------------------------------------------------------------
+do $
+declare
+  v_leaver uuid := 'da000000-0000-4000-8000-00000000000d';
+  -- The owner, who stays: DA-1 refused their deletion.
+  v_stayer uuid := 'da000000-0000-4000-8000-00000000000a';
+  v_company uuid := 'da000000-0000-4000-8000-000000000001';
+  v jsonb;
+begin
+  insert into auth.users (id, email) values (v_leaver, 'evidence-leaver@test.local');
+  insert into public.company_members (id, company_id, user_id, role)
+  values ('da000000-0000-4000-8000-000000000013', v_company, v_leaver, 'member');
+
+  insert into public.push_attempts
+    (company_id, user_id, call_session_id, purpose, channel, platform, priority,
+     response_class, http_status, latency_ms)
+  values
+    (v_company, v_leaver, 'session-da6', 'ring', 'fcm', 'android', 'high', 'accepted', 200, 40),
+    (v_company, v_stayer, 'session-da6', 'ring', 'webpush', 'web', 'high', 'accepted', 201, 35);
+  insert into public.ring_beacons (company_id, user_id, call_session_id, platform, stage)
+  values
+    (v_company, v_leaver, 'session-da6', 'android', 'push_received'),
+    (v_company, v_stayer, 'session-da6', 'web', 'ringing_shown');
+
+  v := public.delete_account(v_leaver);
+
+  if v->>'outcome' is distinct from 'deleted' then
+    raise exception 'DA-6 FAILED: deletion refused: %', v;
+  end if;
+  if (v->>'personal_rows')::int < 2 then
+    raise exception 'DA-6 FAILED: the evidence rows were not counted: %', v;
+  end if;
+  if exists (select 1 from public.push_attempts where user_id = v_leaver) then
+    raise exception 'DA-6 FAILED: push attempts survived the account';
+  end if;
+  if exists (select 1 from public.ring_beacons where user_id = v_leaver) then
+    raise exception 'DA-6 FAILED: ring beacons survived the account';
+  end if;
+  if not exists (select 1 from public.push_attempts where user_id = v_stayer)
+     or not exists (select 1 from public.ring_beacons where user_id = v_stayer) then
+    raise exception 'DA-6 FAILED: another member''s evidence went too';
+  end if;
+
+  raise notice 'DA-6 PASSED: the evidence about a deleted account goes with it';
+end $;
 
 rollback;
