@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/BytechLabs/Texturion/compare/web-v0.18.1...web-v0.19.0) (2026-10-30)
+
+
+### Features
+
+* **clients:** your devices report how far each ring got, so a missed one can be traced ([820f481](https://github.com/BytechLabs/Texturion/commit/820f481d0561a0a06143c8b6076b9bbc96934651))
+
 ## [0.18.1](https://github.com/BytechLabs/Texturion/compare/web-v0.18.0...web-v0.18.1) (2026-10-30)
 
 

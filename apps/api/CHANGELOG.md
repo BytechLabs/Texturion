@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.0](https://github.com/BytechLabs/Texturion/compare/api-v0.18.1...api-v0.19.0) (2026-10-30)
+
+
+### Features
+
+* **calls:** we log each notification for 14 days so a missed ring can be traced ([c767507](https://github.com/BytechLabs/Texturion/commit/c76750716d9949be4cb17a60b1e8020994ad180d))
+* **clients:** your devices report how far each ring got, so a missed one can be traced ([820f481](https://github.com/BytechLabs/Texturion/commit/820f481d0561a0a06143c8b6076b9bbc96934651))
+
 ## [0.18.1](https://github.com/BytechLabs/Texturion/compare/api-v0.18.0...api-v0.18.1) (2026-10-30)
 
 

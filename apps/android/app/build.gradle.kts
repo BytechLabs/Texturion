@@ -31,7 +31,7 @@ plugins {
 val loonextVersionCode = providers.gradleProperty("loonextVersionCode")
     .orNull?.toIntOrNull() ?: 1
 val loonextVersionName = providers.gradleProperty("loonextVersionName")
-    .orNull ?: "0.16.0" // x-release-please-version
+    .orNull ?: "0.17.0" // x-release-please-version
 
 /**
  * The rig's `nonprod` build (D142) takes every value from these Gradle
