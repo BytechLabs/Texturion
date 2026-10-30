@@ -184,7 +184,7 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Run launch-pass E2E (smoke + 3 golden paths)
+      - name: Run launch-pass E2E (smoke, golden paths, call journeys)
         run: pnpm --filter @loonext/api test:e2e
 
       - name: Stop Supabase
@@ -423,6 +423,36 @@ jobs:
       # growing. Cheap, so it runs beside the migration guard.
       - name: Guard the env reference
         run: node scripts/check-env-doc.mjs
+
+      # D142: production and the rig run the same code, which is safe only while
+      # rig mode can add restrictions and never relax one. That is reviewable
+      # only if every difference lives in apps/api/src/environments/: a
+      # `DEPLOY_ENV === "rig"` branch in a route is a difference nobody reading
+      # that module would see.
+      - name: Guard DEPLOY_ENV branches
+        run: node scripts/check-deploy-env-branches.mjs
+
+      # D142: the rig reaches Telnyx only through a guard Worker whose policy is
+      # built from apps/api/src/telnyx/endpoints.ts. An endpoint the API calls
+      # but the registry does not list is refused on the rig, and the scenario
+      # fails for a reason nobody can see in the diff that caused it. An entry
+      # nothing calls fails too, so the guard stops granting it.
+      - name: Guard the Telnyx endpoint registry
+        run: node scripts/check-telnyx-endpoints.mjs
+
+      # D142: the rig works on real numbers and this repository is public. A
+      # number pasted into a recipe, a fixture or a runbook is published, and
+      # one in a seed is a number a later run may text. Only 555-0100..0199
+      # passes in rig and test tooling, its configs and the operator docs.
+      - name: Guard rig tooling against real phone numbers
+        run: node scripts/check-rig-no-e164.mjs
+
+      # D142: the rig's nonprod Android build is pointed at the rig by build
+      # configuration. A production host written anywhere else is a captcha, a
+      # passkey ceremony or a deep link the nonprod build still sends to
+      # production, while the run reports what the rig did.
+      - name: Guard production hosts in the phone apps
+        run: node scripts/check-production-host-literals.mjs
 
       # #442: renaming these very workflow files broke 36 line-numbered citations
       # across 8 operator documents in one afternoon. The audience is somebody
@@ -967,6 +997,29 @@ jobs:
 
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest
+
+      # D142: the nonprod build type exists only when every loonextNonprod*
+      # property is set, which no other CI run does, so without this its Gradle
+      # branch would rot unseen until the rig next built an APK. Configured
+      # here with stand-in rig values (nothing is built, so the files need not
+      # exist), then again with a production app host, which must be refused.
+      - name: Configure the nonprod build type
+        run: |
+          set -euo pipefail
+          common=(
+            -PloonextNonprodApiUrl=https://api.rig.internal
+            -PloonextNonprodSupabaseUrl=https://db.rig.internal
+            -PloonextNonprodSupabasePublishableKey=sb_publishable_ci_placeholder
+            -PloonextNonprodStoreFile=/nonexistent/rig.jks
+            -PloonextNonprodStorePassword=ci-placeholder
+            -PloonextNonprodKeyAlias=rig
+            -PloonextNonprodKeyPassword=ci-placeholder
+          )
+          ./gradlew -q :app:help "${common[@]}" -PloonextNonprodAppHost=app.rig.internal
+          if ./gradlew -q :app:help "${common[@]}" -PloonextNonprodAppHost=app.loonext.com; then
+            echo "A production app host configured the nonprod build type." >&2
+            exit 1
+          fi
 
       # Google Play rejects a versionCode that is not strictly greater than the
       # last accepted one, so it cannot stay hardcoded at 1. The git commit count
