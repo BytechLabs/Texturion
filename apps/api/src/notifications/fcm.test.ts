@@ -8,11 +8,13 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { getEnv } from "../env";
 import {
   fcmEnv,
   fcmService,
   makeServiceAccount,
 } from "../test/fcm-account";
+import { RIG_FCM_API_BASE, rigEnv } from "../test/rig-env";
 import { completeEnv, stubFetch } from "../test/support";
 import { decodeBase64Url } from "./webpush";
 import { isFcmConfigured, sendFcm } from "./fcm";
@@ -379,4 +381,194 @@ describe("sendFcm — delivery outcomes", () => {
     );
     expect(result).toEqual({ ok: true, status: 200, gone: false, errorBody: "" });
   });
+});
+
+/**
+ * D142: where a send goes and how it authenticates are configuration. The rig
+ * points both hosts at its edge relay and sends with its guard caller token;
+ * production sets neither.
+ */
+describe("sendFcm — D142 seams", () => {
+  const RELAY = "https://rig-edge.example.workers.dev/g/fcm";
+  const RELAY_TOKEN_URL = "https://rig-edge.example.workers.dev/g/fcm-token";
+
+  /** Records every request; answers the relay and refuses anything Google. */
+  function relay(options: { tokenAnswers?: boolean } = {}) {
+    const seen: { url: string; authorization: string | null }[] = [];
+    const route = (url: URL, request: Request) => {
+      seen.push({ url: url.href, authorization: request.headers.get("authorization") });
+      if (url.hostname.endsWith("googleapis.com")) {
+        return new Response("Google must not be reached", { status: 599 });
+      }
+      if (url.href === RELAY_TOKEN_URL && options.tokenAnswers) {
+        return Response.json({ access_token: "relay-access-token", expires_in: 3599 });
+      }
+      if (url.href.startsWith(`${RELAY}/v1/projects/`)) {
+        return new Response(JSON.stringify({ name: "ok" }), { status: 200 });
+      }
+      return undefined;
+    };
+    return { seen, route };
+  }
+
+  it("sends to FCM_API_BASE when it is set", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const proxy = relay();
+    stubFetch(...service.routes, proxy.route);
+
+    const result = await sendFcm(
+      { ...fcmEnv(account), FCM_API_BASE: RELAY },
+      { platform: "android", token: "tok-1" },
+      MESSAGE_PAYLOAD,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(service.sends, "Google's send host is not reached").toHaveLength(0);
+    const sends = proxy.seen.filter((hit) => hit.url.includes("/messages:send"));
+    expect(sends.map((hit) => hit.url)).toEqual([
+      `${RELAY}/v1/projects/${account.projectId}/messages:send`,
+    ]);
+  });
+
+  it("asks FCM_OAUTH_TOKEN_URL for the token, with an assertion still addressed to Google", async () => {
+    const account = await makeServiceAccount();
+    const assertions: string[] = [];
+    const proxy = relay({ tokenAnswers: true });
+    stubFetch(async (url, request) => {
+      if (url.href === RELAY_TOKEN_URL) {
+        assertions.push(new URLSearchParams(await request.clone().text()).get("assertion") ?? "");
+      }
+      return proxy.route(url, request);
+    });
+
+    await sendFcm(
+      { ...fcmEnv(account), FCM_API_BASE: RELAY, FCM_OAUTH_TOKEN_URL: RELAY_TOKEN_URL },
+      { platform: "android", token: "tok-1" },
+      MESSAGE_PAYLOAD,
+    );
+
+    expect(proxy.seen.some((hit) => hit.url.includes("googleapis.com"))).toBe(false);
+    expect(assertions).toHaveLength(1);
+    const claims = JSON.parse(
+      decoder.decode(decodeBase64Url(assertions[0].split(".")[1])),
+    ) as { aud: string };
+    expect(claims.aud).toBe("https://oauth2.googleapis.com/token");
+    const send = proxy.seen.find((hit) => hit.url.includes("/messages:send"));
+    expect(send?.authorization).toBe("Bearer relay-access-token");
+  });
+
+  it("never offers one token endpoint's token to another", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService({ accessToken: "google-token" });
+    const proxy = relay({ tokenAnswers: true });
+    stubFetch(...service.routes, proxy.route);
+    const target = { platform: "android" as const, token: "tok-1" };
+
+    await sendFcm(fcmEnv(account), target, MESSAGE_PAYLOAD);
+    await sendFcm(
+      { ...fcmEnv(account), FCM_API_BASE: RELAY, FCM_OAUTH_TOKEN_URL: RELAY_TOKEN_URL },
+      target,
+      MESSAGE_PAYLOAD,
+    );
+
+    const send = proxy.seen.find((hit) => hit.url.includes("/messages:send"));
+    expect(send?.authorization).toBe("Bearer relay-access-token");
+  });
+
+  it("with the guard credential, mints nothing and imports no key", async () => {
+    // The rig's service account is a dummy: a key that would throw on import
+    // proves the guard path never reaches the RS256 signer.
+    const dummy = JSON.stringify({
+      type: "service_account",
+      project_id: "loonext-nonprod",
+      client_email: "rig-api@guard.invalid",
+      private_key: "not a key",
+    });
+    const proxy = relay();
+    stubFetch(proxy.route);
+
+    const result = await sendFcm(
+      {
+        ...completeEnv(),
+        FCM_SERVICE_ACCOUNT_JSON: dummy,
+        FCM_API_BASE: RELAY,
+        FCM_OAUTH_TOKEN_URL: RELAY_TOKEN_URL,
+      },
+      { platform: "android", token: "tok-1" },
+      CALL_PAYLOAD,
+      45,
+      "high",
+      "call:sess-1",
+      { kind: "guard", bearer: "guard-caller-token" },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(proxy.seen).toEqual([
+      {
+        url: `${RELAY}/v1/projects/loonext-nonprod/messages:send`,
+        authorization: "Bearer guard-caller-token",
+      },
+    ]);
+  });
+
+  it("in rig mode sends with the guard token unasked, and never reaches a token endpoint", async () => {
+    // What a sender gets with no credential passed, which is every sender.
+    const env = getEnv(
+      rigEnv({
+        FCM_SERVICE_ACCOUNT_JSON: JSON.stringify({
+          type: "service_account",
+          project_id: "loonext-nonprod",
+          client_email: "rig-api@guard.invalid",
+          private_key: "not a key",
+        }),
+      }),
+    );
+    const seen: { url: string; authorization: string | null }[] = [];
+    stubFetch((url, request) => {
+      seen.push({ url: url.href, authorization: request.headers.get("authorization") });
+      return new Response(JSON.stringify({ name: "ok" }), { status: 200 });
+    });
+
+    const result = await sendFcm(env, { platform: "android", token: "tok-1" }, CALL_PAYLOAD);
+
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual([
+      {
+        url: `${RIG_FCM_API_BASE}/v1/projects/loonext-nonprod/messages:send`,
+        authorization: `Bearer ${env.TELNYX_API_KEY}`,
+      },
+    ]);
+  });
+
+  it.each([
+    ["unset", undefined],
+    ["Google's own host", "https://fcm.googleapis.com"],
+  ])(
+    "with the guard credential and FCM_API_BASE %s, refuses rather than hand Google the guard token",
+    async (_label, base) => {
+      const dummy = JSON.stringify({
+        type: "service_account",
+        project_id: "loonext-nonprod",
+        client_email: "rig-api@guard.invalid",
+        private_key: "not a key",
+      });
+      const proxy = relay();
+      stubFetch(proxy.route);
+
+      await expect(
+        sendFcm(
+          { ...completeEnv(), FCM_SERVICE_ACCOUNT_JSON: dummy, FCM_API_BASE: base },
+          { platform: "android", token: "tok-1" },
+          MESSAGE_PAYLOAD,
+          undefined,
+          undefined,
+          undefined,
+          { kind: "guard", bearer: "guard-caller-token" },
+        ),
+      ).rejects.toThrow("guard credential needs FCM_API_BASE");
+
+      expect(proxy.seen, "nothing was sent anywhere").toEqual([]);
+    },
+  );
 });

@@ -8,10 +8,15 @@
  * exactly like a Web Push 404/410).
  *
  * Auth is the Google service-account OAuth flow: an RS256 JWT (WebCrypto,
- * PKCS#8 key from the service-account JSON) asserted at
- * https://oauth2.googleapis.com/token for a ~1 h access token, cached in a
- * module-level var (~55 min, keyed by client_email) so an isolate mints one
- * token per hour, not one per push.
+ * PKCS#8 key from the service-account JSON) asserted at Google's token
+ * endpoint for a ~1 h access token, cached in a module-level var (~55 min,
+ * keyed by token endpoint and client_email) so an isolate mints one token per
+ * hour, not one per push.
+ *
+ * D142 seams: FCM_API_BASE and FCM_OAUTH_TOKEN_URL replace Google's send host
+ * and token endpoint, and are unset in production. The rig points both at its
+ * edge relay, where the guard holds the only Google key, so a rig send presents
+ * its guard caller token instead of minting a Google token.
  *
  * FCM_SERVICE_ACCOUNT_JSON is OPTIONAL (#151: deploys stay green until the
  * founder provisions Firebase). The three §8 senders gate their native branch
@@ -21,6 +26,7 @@
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { fcmCredential, type FcmCredential } from "../environments/policy";
 
 import { encodeBase64Url } from "./webpush";
 
@@ -48,7 +54,13 @@ export interface FcmResult {
   errorBody: string;
 }
 
-const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_FCM_API_BASE = "https://fcm.googleapis.com";
+/**
+ * Google's token endpoint, and the audience every assertion names wherever
+ * FCM_OAUTH_TOKEN_URL sends it: Google checks `aud` against itself, so an
+ * assertion relayed to it must still be addressed to it.
+ */
+const GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 const OAUTH_JWT_LIFETIME_SECONDS = 3600; // Google's maximum assertion lifetime
 /** Cache the access token well under its ~1 h life so a send never races expiry. */
@@ -130,7 +142,7 @@ async function signOauthJwt(account: ServiceAccount): Promise<string> {
       JSON.stringify({
         iss: account.client_email,
         scope: FCM_SCOPE,
-        aud: OAUTH_TOKEN_URL,
+        aud: GOOGLE_OAUTH_TOKEN_URL,
         iat: now,
         exp: now + OAUTH_JWT_LIFETIME_SECONDS,
       }),
@@ -147,21 +159,27 @@ async function signOauthJwt(account: ServiceAccount): Promise<string> {
 }
 
 interface CachedAccessToken {
+  tokenUrl: string;
   clientEmail: string;
   token: string;
   expiresAt: number;
 }
 
 /**
- * Module-level access-token cache, keyed by client_email (a rotated service
- * account invalidates it naturally). Isolate-lifetime, like env validation.
+ * Module-level access-token cache, keyed by token endpoint and client_email (a
+ * rotated service account invalidates it naturally, and a token one endpoint
+ * issued is never offered to another). Isolate-lifetime, like env validation.
  */
 let cachedAccessToken: CachedAccessToken | null = null;
 
-async function getAccessToken(account: ServiceAccount): Promise<string> {
+async function getAccessToken(
+  account: ServiceAccount,
+  tokenUrl: string,
+): Promise<string> {
   const now = Date.now();
   if (
     cachedAccessToken !== null &&
+    cachedAccessToken.tokenUrl === tokenUrl &&
     cachedAccessToken.clientEmail === account.client_email &&
     now < cachedAccessToken.expiresAt
   ) {
@@ -169,7 +187,7 @@ async function getAccessToken(account: ServiceAccount): Promise<string> {
   }
 
   const assertion = await signOauthJwt(account);
-  const response = await fetch(OAUTH_TOKEN_URL, {
+  const response = await fetch(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -199,6 +217,7 @@ async function getAccessToken(account: ServiceAccount): Promise<string> {
       ? body.expires_in * 1000 - 5 * 60 * 1000
       : TOKEN_CACHE_MS;
   cachedAccessToken = {
+    tokenUrl,
     clientEmail: account.client_email,
     token: body.access_token,
     expiresAt: now + Math.min(Math.max(grantedMs, 0), TOKEN_CACHE_MS),
@@ -293,6 +312,36 @@ function buildMessage(
 }
 
 /**
+ * A guard caller token is a credential for the rig's edge and nothing else.
+ * With no relay configured the send would go to Google with it, so that is a
+ * configuration error, thrown like a malformed service account.
+ */
+function sendBaseFor(env: Env, credential: FcmCredential): string {
+  const base = env.FCM_API_BASE ?? GOOGLE_FCM_API_BASE;
+  if (credential.kind === "guard") {
+    let host = "";
+    try {
+      host = new URL(base).hostname.toLowerCase();
+    } catch {
+      host = "";
+    }
+    if (host === "" || host === "googleapis.com" || host.endsWith(".googleapis.com")) {
+      throw new Error("fcm: a guard credential needs FCM_API_BASE pointed at the relay, not Google");
+    }
+  }
+  return base;
+}
+
+async function bearerFor(
+  env: Env,
+  account: ServiceAccount,
+  credential: FcmCredential,
+): Promise<string> {
+  if (credential.kind === "guard") return credential.bearer;
+  return getAccessToken(account, env.FCM_OAUTH_TOKEN_URL ?? GOOGLE_OAUTH_TOKEN_URL);
+}
+
+/**
  * Deliver one native device push. Never throws for delivery outcomes — the
  * caller branches on `{ ok, gone }` (gone → drop the device_push_tokens row);
  * only a malformed service account / payload or the OAuth exchange throws.
@@ -306,6 +355,12 @@ export async function sendFcm(
   urgency: "normal" | "high" = "normal",
   /** iOS coalescing tag (#162): apns-collapse-id, e.g. `conversation:<id>`. */
   collapseId?: string,
+  /**
+   * With `guard`, no token endpoint is asked for anything and the service
+   * account is read only for its project id, so the rig's dummy key is never
+   * imported. Passed explicitly only by tests.
+   */
+  credential: FcmCredential = fcmCredential(env),
 ): Promise<FcmResult> {
   if (!isFcmConfigured(env)) {
     console.log(
@@ -315,14 +370,15 @@ export async function sendFcm(
   }
   const account = parseServiceAccount(env.FCM_SERVICE_ACCOUNT_JSON as string);
   const message = buildMessage(target, payload, ttlSeconds, urgency, collapseId);
-  const accessToken = await getAccessToken(account);
+  const base = sendBaseFor(env, credential);
+  const bearer = await bearerFor(env, account, credential);
 
   const response = await fetch(
-    `https://fcm.googleapis.com/v1/projects/${account.project_id}/messages:send`,
+    `${base}/v1/projects/${account.project_id}/messages:send`,
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${bearer}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ message }),
