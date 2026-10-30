@@ -39,6 +39,10 @@ const inter = localFont({
   ],
   variable: "--font-inter",
   display: "swap",
+  // Turbopack preloads every next/font face on every route. Inter renders only
+  // outside the marketing and app scopes, which use their own faces, so
+  // preloading it put 230 KiB in front of every page's LCP (D141).
+  preload: false,
   declarations: [
     {
       prop: "unicode-range",

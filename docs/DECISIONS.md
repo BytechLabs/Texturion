@@ -8925,3 +8925,12 @@ later clears them.
 **Open.** Local mobile Lighthouse on the 16 build scored 54–69, with or without
 inlined CSS, against July's 90. That machine was loaded and Next 15 was not
 measured on it, so the cause is unattributed until the live origin is measured.
+
+**Update, 2026-10-30.** Measured A/B on one machine (Next 15 tree vs Next 16, same
+build flags and server, alternating runs): the drop from July's 90 predates the
+upgrade, since Next 15 scored the same 64–76. Next 16 itself added about 1.5 s of
+LCP, because Turbopack preloads every `next/font` face on every route: each page
+fetched 472 KiB of fonts, including 230 KiB of Inter that only renders outside
+the marketing and app scopes. Inter is now `preload: false`. Home LCP went from
+7.2 s to 5.8 s, matching Next 15, and first paint is about a second earlier than
+on 15.
