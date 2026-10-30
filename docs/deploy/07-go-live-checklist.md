@@ -161,7 +161,7 @@ with `processed_at IS NULL` (the `*/5` sweeper should clear transient failures).
 
 ## D. Flip to production
 
-- [ ] Re-run `stripe:setup` in **live** mode; swap **all 10** `STRIPE_*` catalog
+- [ ] Re-run `stripe:setup --live` with the live key; swap **all 10** `STRIPE_*` catalog
       IDs — the 6 plan/meter IDs **and** the 4 `STRIPE_MODULE_*_PRICE_ID` add-on
       prices (a module ID left on its test-mode price makes every live checkout
       that selects that add-on fail at Stripe) — plus `STRIPE_SECRET_KEY` (live

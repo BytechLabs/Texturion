@@ -19,7 +19,9 @@
  * Pairs with scripts/dev-seed.ts (same local service key / PostgREST edge).
  */
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+import { localSupabaseUrl } from "./local-supabase.mjs";
+
+const SUPABASE_URL = localSupabaseUrl(process.env);
 const SERVICE_KEY =
   process.env.SUPABASE_SECRET_KEY ?? "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
 

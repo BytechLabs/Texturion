@@ -33,7 +33,7 @@ write):
 STRIPE_SECRET_KEY=sk_test_... pnpm --filter @loonext/api stripe:setup
 
 # live mode (do this when going to production)
-STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup
+STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup --live
 ```
 
 (The script is `node --experimental-strip-types scripts/stripe-setup.ts`,

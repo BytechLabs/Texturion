@@ -3,7 +3,8 @@
  * script, ids stored as env config"). Run by the operator, once per Stripe
  * mode (test/live):
  *
- *   STRIPE_SECRET_KEY=sk_... pnpm --filter @loonext/api stripe:setup
+ *   STRIPE_SECRET_KEY=sk_test_... pnpm --filter @loonext/api stripe:setup
+ *   STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup --live
  *
  * Finds-or-creates, exactly per SPEC §2/§9:
  *   - Billing Meter `sms_segments` (sum aggregation, customer mapping by
@@ -91,6 +92,17 @@ if (!secretKey) {
   console.error(
     "STRIPE_SECRET_KEY is not set.\n" +
       "Usage: STRIPE_SECRET_KEY=sk_... pnpm --filter @loonext/api stripe:setup",
+  );
+  process.exit(1);
+}
+
+// An operator's shell can export the LIVE key for ops work, so a run meant for a
+// test or sandbox catalog that forgot its own key would rename live products and
+// update live prices in place. Live mode is opted into by flag.
+if (/^(sk|rk)_live_/.test(secretKey) && !process.argv.includes("--live")) {
+  console.error(
+    "STRIPE_SECRET_KEY is a LIVE key, and this script changes the live catalog.\n" +
+      "To do that on purpose: STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup --live",
   );
   process.exit(1);
 }

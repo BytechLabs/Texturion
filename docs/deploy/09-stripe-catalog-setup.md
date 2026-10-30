@@ -34,7 +34,7 @@ Source: `apps/api/src/billing/stripe.ts:25` constructs the client from
 From the repo, with the key in the environment:
 
 ```
-STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup
+STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup --live
 ```
 
 (Exact invocation from the script header: `apps/api/scripts/stripe-setup.ts:6`.)

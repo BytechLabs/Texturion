@@ -124,7 +124,7 @@ objects by meter `event_name`, product `metadata.loonext_catalog`, and price
 
 ```bash
 # Run ONCE per Stripe mode (i.e. once against your LIVE key), from repo root:
-STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup
+STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup --live
 ```
 
 It creates: the `sms_segments` billing meter; Starter/Pro licensed prices
