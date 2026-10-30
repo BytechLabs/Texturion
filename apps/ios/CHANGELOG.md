@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.16.0...ios-v0.17.0) (2026-10-30)
+
+
+### Features
+
+* **clients:** your devices report how far each ring got, so a missed one can be traced ([820f481](https://github.com/BytechLabs/Texturion/commit/820f481d0561a0a06143c8b6076b9bbc96934651))
+
 ## [0.16.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.15.1...ios-v0.16.0) (2026-10-30)
 
 
