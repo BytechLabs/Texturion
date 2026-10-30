@@ -1,15 +1,15 @@
 [versions]
-agp = "9.3.0"
-kotlin = "2.4.10"
-composeBom = "2026.06.01"
+agp = "9.5.0"
+kotlin = "2.4.21"
+composeBom = "2026.09.00"
 # 1.5.0 alphas: MaterialExpressiveTheme/MotionScheme are public (experimental);
 # in 1.4.0 stable they are internal.
 material3 = "1.5.0-alpha24"
 activityCompose = "1.13.0"
 lifecycle = "2.11.0"
-navigationCompose = "2.9.8"
-datastore = "1.2.1"
-coreKtx = "1.19.0"
+navigationCompose = "2.10.2"
+datastore = "1.3.0"
+coreKtx = "1.19.1"
 coreSplashscreen = "1.2.0"
 # #330 app lock. 1.1.0 is the latest STABLE; 1.2.0 is alpha-only, and the same
 # rule as coreTelecom applies — never ship an alpha on a path whose failure
@@ -25,10 +25,10 @@ credentials = "1.6.0"
 # and route. 1.0.1 is the latest STABLE (1.1.0 is alpha-only — never ship an
 # alpha on the ring path). Backports to minSdk 26; the project is minSdk 28.
 coreTelecom = "1.0.1"
-okhttp = "5.4.0"
-kotlinxSerialization = "1.11.0"
+okhttp = "5.5.1"
+kotlinxSerialization = "1.12.0"
 kotlinxCoroutines = "1.11.0"
-coil = "3.5.0"
+coil = "3.6.3"
 firebaseMessaging = "25.1.1"
 telnyx = "3.5.0"
 # #524: the Android framework on the JVM, so a Compose test can PRESS a control
@@ -38,7 +38,7 @@ telnyx = "3.5.0"
 # card, a condition at the call site and a guard inside the click handler, which
 # is why three of those shipped past a green suite. A press has one answer for
 # all of them, including the ones nobody has written down.
-robolectric = "4.16.1"
+robolectric = "4.17"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -86,7 +86,7 @@ telnyx-webrtc = { group = "com.github.team-telnyx", name = "telnyx-webrtc-androi
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 google-services = { id = "com.google.gms.google-services", version = "4.5.0" }
-crashlytics = { id = "com.google.firebase.crashlytics", version = "3.0.7" }
+crashlytics = { id = "com.google.firebase.crashlytics", version = "3.0.8" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
