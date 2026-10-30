@@ -15,6 +15,9 @@ name: Backup posture
 # snapshot quietly failing, because that is the one change that would otherwise be
 # discovered during a recovery.
 #
+# The red run is not how anybody hears about it: a failure opens an issue through
+# scheduled-failures.yml, once, and the issue closes when the check passes again.
+#
 # PITR turning ON is printed loudly and fails nothing. It is good news whose
 # correct response is editing D74 and §2, not paging anybody.
 on:

@@ -52,6 +52,10 @@ on:
   schedule:
     # Weekly, Monday morning, off the hour. A CVE published on Wednesday should
     # not wait for somebody to open a pull request.
+    #
+    # A red run here is not a notification. A job that fails on this schedule, or
+    # on a manual run, gets its own issue from scheduled-failures.yml, opened once
+    # and closed when the job passes again.
     - cron: "37 6 * * 1"
   # #601: so the scheduled jobs can be RUN rather than waited for.
   #
@@ -280,9 +284,13 @@ jobs:
   # ---------------------------------------------------------------------------
   # #601: the loud half of the job above.
   #
-  # Scheduled only, so it gates no merge and a red run is the notification —
-  # the same shape as `iOS package advisories`, and for the same reason: "I
-  # could not check" is a different sentence from "there is nothing to find".
+  # Scheduled only, so it gates no merge — the same shape as `iOS package
+  # advisories`, and for the same reason: "I could not check" is a different
+  # sentence from "there is nothing to find".
+  #
+  # Its failure opens an issue through scheduled-failures.yml. The red run is not
+  # the notification, because a job that is red on purpose hides the next job
+  # that goes red (D140).
   #
   # It stays red for as long as the dependency graph is off, which is the point.
   # The pull-request gate is allowed to step aside precisely because this does
@@ -312,7 +320,8 @@ jobs:
   # ---------------------------------------------------------------------------
   # The installed tree, on a schedule. Reports rather than blocks: an advisory
   # published against a transitive dependency is not the fault of the pull
-  # request that happens to be open when it lands.
+  # request that happens to be open when it lands. On a scheduled run, the report
+  # is an issue from scheduled-failures.yml, not the red run.
   # ---------------------------------------------------------------------------
   audit:
     name: pnpm audit
@@ -409,9 +418,9 @@ jobs:
   # Scheduled only, so it still cannot fail a merge. What changed in #581 is what
   # it does when it cannot get an answer: the script used to log the failed lookup
   # and finish on "No HIGH or CRITICAL advisories", so two dead network calls read
-  # exactly like two clean packages. It now retries, and then FAILS — for this job
-  # a red run is the notification, and "I could not check" is a different sentence
-  # from "there is nothing to find".
+  # exactly like two clean packages. It now retries, and then FAILS, and that
+  # failure opens an issue through scheduled-failures.yml: "I could not check" is
+  # a different sentence from "there is nothing to find".
   # ---------------------------------------------------------------------------
   swift-advisories:
     name: iOS package advisories

@@ -8850,3 +8850,34 @@ remember to turn back on, and the baseline becomes meaningful again by itself
 the instant real traffic appears. Widening the graces instead was rejected
 because it trades a false alarm for a slower true one and leaves the
 never-clearing shape intact.
+
+## D140 — a failing scheduled job opens its own issue; a red run is not a notification (2026-10-29)
+
+**Decision.** Every scheduled or manually started run of a workflow that has a
+schedule is read job by job, on the default branch only, by
+`scripts/report-scheduled-failures.mjs` through
+`.github/workflows/scheduled-failures.yml` (`workflow_run`). A failing job with no
+open issue gets one; that is the only notification. While the job keeps failing,
+only the issue body's "latest failing run" block is rewritten and nobody is
+notified again. The first passing run closes the issue with one comment. Issues
+are found by a hidden marker naming the workflow and job, never by title, and
+only bot-opened issues count. A job that disappears closes its issue as not
+planned. The `workflows:` list must name every workflow with a schedule, and
+`packages/shared/src/scheduled-failures.test.ts` fails when it does not.
+
+**Why.** Security's weekly run was red on purpose while the dependency graph was
+off (#601), and its comments said the red run was the notification. On
+2026-09-14 `pnpm audit` began failing as well, and by 2026-10-29 Dependabot
+showed 87 open alerts, 5 of them critical. The weekly run looked exactly like
+every Monday before it, so nobody saw the change for seven weeks. A red run
+cannot be the signal while red is also somebody's resting state. A distinct
+failure needs a distinct signal, which is the principle D139 applied to ops
+alerts with Sentry fingerprints.
+
+**What this rejects.** A reporter job inside each workflow that `needs:` every
+other job: that is a list somebody has to remember to extend, and a job left off
+it fails in silence again. Sentry as the channel: CI would need a DSN secret, and
+a GitHub issue is where the fix gets tracked anyway. Muting by closing the issue
+by hand: a mute needs an expiry that nobody would maintain, so closing does not
+mute, the next failing run opens a new issue, and the issue body says so. Fixing
+or removing the job is how the notifications stop.

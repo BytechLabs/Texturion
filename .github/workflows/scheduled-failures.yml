@@ -1,0 +1,55 @@
+name: Scheduled failures
+
+# One issue per failing scheduled job: opened once, silent while the job keeps
+# failing, closed with one comment when it passes again (D140). The rules are in
+# scripts/report-scheduled-failures.mjs.
+#
+# A trigger on the finished run, not a reporter job inside each workflow: a job
+# that needs every other job is a list somebody has to remember to extend, and a
+# job left off it fails in silence again. This reads every job the run had.
+#
+# The list below must name every workflow that has a schedule.
+# packages/shared/src/scheduled-failures.test.ts fails when it does not.
+on:
+  workflow_run:
+    workflows:
+      - Security
+      - Backup posture
+    types: [completed]
+
+# workflow_run always runs this file as it is on the default branch, with this
+# repository's token, whatever started the watched run, including a pull request
+# from a fork. So nothing here checks out or runs the watched run's code.
+permissions:
+  contents: read
+  # List the watched run's jobs.
+  actions: read
+  # Open, refresh and close the job issues.
+  issues: write
+
+jobs:
+  report:
+    name: One issue per failing scheduled job
+    # The script applies the whole rule, default branch included. This only avoids
+    # starting a runner for every push and pull request that Security also runs on.
+    if: >-
+      github.event.workflow_run.event == 'schedule' ||
+      github.event.workflow_run.event == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Per watched workflow, and on the job rather than the run: a skipped run for a
+    # pull request must never cancel a pending report about a scheduled one.
+    concurrency:
+      group: scheduled-failures-${{ github.event.workflow_run.name }}
+      cancel-in-progress: false
+    steps:
+      # The default branch, never the watched run's head.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Open, refresh or close the job issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/report-scheduled-failures.mjs
