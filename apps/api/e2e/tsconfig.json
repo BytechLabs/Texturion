@@ -1,0 +1,11 @@
+{
+  // The e2e harness, fakes and journeys. The package config covers src/ only,
+  // and vitest strips types without checking them, so without this an e2e
+  // file that no longer typechecks is found only by the CI job that needs
+  // Docker to run it.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": ["./*.ts"]
+}
