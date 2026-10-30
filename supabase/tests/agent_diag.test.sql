@@ -14,10 +14,10 @@
 
 begin;
 
--- AD-3 and AD-7 act AS agent_diag. The role's creator holds ADMIN on it but,
--- since Postgres 16, not the right to become it; granted for this transaction
--- only.
-grant agent_diag to current_user with set true;
+-- Nothing here acts AS agent_diag. Every check asks the catalog, because the
+-- Supabase image CI runs (postgres 17.6.1.111) has a supautils bug that crashes
+-- the backend on some permission-denied errors instead of raising 42501, so a
+-- refused read cannot be the test.
 
 -- ===========================================================================
 -- Fixtures: a workspace with a call, a ring leg, a push attempt and a beacon,
@@ -151,8 +151,8 @@ begin
 end $$;
 
 -- ===========================================================================
--- AD-3. And by trying: as agent_diag, every read of a personal table is
--- refused.
+-- AD-3. The personal tables by name, stricter than AD-2: not one column of
+-- them is readable by agent_diag, whether or not it could reach the schema.
 -- ===========================================================================
 do $$
 declare
@@ -164,20 +164,15 @@ declare
     'public.ring_beacons', 'auth.users'];
   v_read    text[] := array[]::text[];
 begin
-  execute 'set local role agent_diag';
   foreach v_table in array v_tables loop
-    begin
-      execute format('select 1 from %s limit 1', v_table);
+    if has_any_column_privilege('agent_diag', v_table::regclass, 'SELECT') then
       v_read := v_read || v_table;
-    exception when insufficient_privilege then
-      null;
-    end;
+    end if;
   end loop;
-  execute 'reset role';
   if cardinality(v_read) is distinct from 0 then
-    raise exception 'AD-3 FAILED: agent_diag read %', array_to_string(v_read, ', ');
+    raise exception 'AD-3 FAILED: agent_diag can read %', array_to_string(v_read, ', ');
   end if;
-  raise notice 'AD-3 PASSED: agent_diag was refused all % personal tables it tried', cardinality(v_tables);
+  raise notice 'AD-3 PASSED: agent_diag can read none of the % personal tables', cardinality(v_tables);
 end $$;
 
 -- ===========================================================================
@@ -285,9 +280,10 @@ begin
 end $$;
 
 -- ===========================================================================
--- AD-7. As agent_diag: every view is readable, the fixture's evidence comes
--- back under its hash, and none of the personal data planted under the views
--- comes back with it.
+-- AD-7. agent_diag can read every view and run every function the views
+-- call, the fixture's evidence comes back under its hash, and none of the
+-- personal data planted under the views comes back with it. The views run with
+-- their owner's rights, so their rows are the same whoever reads them.
 -- ===========================================================================
 do $$
 declare
@@ -302,8 +298,8 @@ declare
     'd1a90000-0000-4000-8000-000000000001', 'd1a90000-0000-4000-8000-0000000000a1',
     'd1a90000-0000-4000-8000-0000000000b1', 'd1a90000-0000-4000-8000-0000000000c1'];
   v_leaked  text[] := array[]::text[];
+  v_missing text;
 begin
-  execute 'set local role agent_diag';
   for v_view in
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'ops_diag' and c.relkind = 'v' order by c.relname
@@ -316,28 +312,23 @@ begin
   select count(*) into v_rows from ops_diag.push_attempts
    where company_ref = '36e0f2739806ec8a' and call_session_id = 'v3:agent-diag-session';
   if v_rows is distinct from 1 then
-    execute 'reset role';
     raise exception 'AD-7 FAILED: the fixture push attempt read back % time(s) under its hash', v_rows;
   end if;
   select count(*) into v_rows from ops_diag.ring_beacons
    where company_ref = '36e0f2739806ec8a' and stage = 'ringing_shown';
   if v_rows is distinct from 1 then
-    execute 'reset role';
     raise exception 'AD-7 FAILED: the fixture beacon read back % time(s)', v_rows;
   end if;
   select count(*) into v_rows from ops_diag.call_sessions
    where company_ref = '36e0f2739806ec8a' and outcome = 'answered';
   if v_rows is distinct from 1 then
-    execute 'reset role';
     raise exception 'AD-7 FAILED: the fixture call read back % time(s)', v_rows;
   end if;
   select ring_legs_ceiling into v_rows from ops_diag.ring_audience_sizes
    where company_ref = '36e0f2739806ec8a';
   if v_rows is distinct from 1 then
-    execute 'reset role';
     raise exception 'AD-7 FAILED: the fixture number''s ring ceiling read %, want 1', v_rows;
   end if;
-  execute 'reset role';
 
   foreach v_planted in array v_plants loop
     if position(v_planted in v_dump) > 0 then
@@ -348,6 +339,24 @@ begin
     raise exception 'AD-7 FAILED: ops_diag returned planted personal data or raw ids: %',
       array_to_string(v_leaked, ', ');
   end if;
+  select string_agg(c.relname, ', ') into v_missing
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'ops_diag' and c.relkind = 'v'
+     and not has_table_privilege('agent_diag', c.oid, 'SELECT');
+  if v_missing is not null then
+    raise exception 'AD-7 FAILED: agent_diag cannot read view(s) %', v_missing;
+  end if;
+  select string_agg(p.proname, ', ') into v_missing
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'ops_diag'
+     and not has_function_privilege('agent_diag', p.oid, 'EXECUTE');
+  if v_missing is not null then
+    raise exception 'AD-7 FAILED: agent_diag cannot run ops_diag function(s) %, which its views call', v_missing;
+  end if;
+  if not has_schema_privilege('agent_diag', 'ops_diag', 'USAGE') then
+    raise exception 'AD-7 FAILED: agent_diag cannot use the ops_diag schema';
+  end if;
+
   if length(v_dump) < 200 then
     raise exception 'AD-7 FAILED: the views returned almost nothing (% chars), so the leak check proved nothing',
       length(v_dump);
