@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/BytechLabs/Texturion/compare/web-v0.18.0...web-v0.18.1) (2026-10-30)
+
+
+### Performance
+
+* **web:** pages stop downloading a typeface they never show ([c7864da](https://github.com/BytechLabs/Texturion/commit/c7864daa5adeb635defba9b831f1868439f5ebd4))
+
 ## [0.18.0](https://github.com/BytechLabs/Texturion/compare/web-v0.17.3...web-v0.18.0) (2026-10-30)
 
 
