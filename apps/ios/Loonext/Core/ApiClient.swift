@@ -161,6 +161,25 @@ actor ApiClient {
         return try second.expectSuccess()
     }
 
+    /// A request whose outcome nobody reads (ring beacons): one attempt, no
+    /// refresh-and-retry, no sign-out, and nothing in DiagnosticsLog. A
+    /// refusal of evidence is not a failure a support report should show,
+    /// and an older server without the route would otherwise add a line per
+    /// ring.
+    func sendQuietly(
+        _ method: String,
+        _ path: String,
+        body: Data?,
+        companyId: String?
+    ) async {
+        guard let session = try? await freshSession() else { return }
+        _ = try? await execute(
+            method, path,
+            query: [:], body: body, token: session.accessToken,
+            companyId: companyId, idempotencyKey: nil, quiet: true
+        )
+    }
+
     /// Returns a session whose access token is not (about to be) expired.
     private func freshSession() async throws -> Session? {
         guard let session = sessionStore.current() else { return nil }
@@ -265,7 +284,8 @@ actor ApiClient {
         body: Data?,
         token: String,
         companyId: String?,
-        idempotencyKey: String?
+        idempotencyKey: String?,
+        quiet: Bool = false
     ) async throws -> RawResponse {
         guard var components = URLComponents(
             url: baseURL.appending(path: path),
@@ -333,7 +353,9 @@ actor ApiClient {
             // from an error envelope because "the server said no" and "the
             // server was never reached" are the two answers a support
             // conversation is actually trying to tell apart.
-            DiagnosticsLog.record(.api, "unreachable")
+            if !quiet {
+                DiagnosticsLog.record(.api, "unreachable")
+            }
             throw ApiError(
                 code: ApiErrorCode.network,
                 message: "Can't reach Loonext. Check your connection.",

@@ -15,6 +15,8 @@ import com.loonext.android.R
 import com.loonext.android.core.diag.CallFlowLog
 import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.model.MessageLocale
+import com.loonext.android.telephony.RingBeaconStage
+import com.loonext.android.telephony.RingBeacons
 import com.loonext.android.telephony.SoftphoneManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -99,6 +101,17 @@ class LoonextMessagingService : FirebaseMessagingService() {
 
         if (content.isCall) {
             CallFlowLog.log("push", "kind:call received sess=${CallFlowLog.tail(content.callSessionId)}")
+            // Evidence only, and never in the way of the ring below.
+            runCatching {
+                val graph = (applicationContext as? LoonextApp)?.graph ?: return@runCatching
+                RingBeacons.emit(
+                    context = applicationContext,
+                    api = graph.api,
+                    companyId = PushPrefs.companyId(applicationContext),
+                    sessionId = content.callSessionId,
+                    stage = RingBeaconStage.PUSH_RECEIVED,
+                )
+            }
             // Cold-process wake (§10.2/§5): in an FCM-woken process with no UI,
             // nobody built the softphone yet — build it now so the wake handler
             // is installed. The handler (SoftphoneManager.onCallWakePush)

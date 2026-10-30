@@ -17,6 +17,7 @@ import com.loonext.android.push.CallEndHandler
 import com.loonext.android.push.CallWakeHandler
 import com.loonext.android.push.PushContent
 import com.loonext.android.push.PushHooks
+import com.loonext.android.push.PushPrefs
 import com.loonext.android.push.postPushNotification
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -79,6 +80,9 @@ class SoftphoneManager private constructor(
     }
 
     private val diagnostics = CrashDiagnostics.get(appContext)
+
+    /** Ring beacons ride the app's session and HTTP client, never its errors list. */
+    private val beaconApi: ApiClient = api
 
     /**
      * FCM/Telecom can build the singleton before Compose exists, so start with
@@ -162,6 +166,7 @@ class SoftphoneManager private constructor(
         watchNetwork()
         watchForeground()
         core.onInternalFailure = { tag, error -> diagnostics.recordNonFatal(tag, error) }
+        core.onRingMeSent = { session -> beacon(RingBeaconStage.RING_ME_SENT, session) }
         // #168A: per-emission guards — one bad snapshot must not kill the
         // collector (all future syncs) or the process.
         scope.launch {
@@ -209,7 +214,11 @@ class SoftphoneManager private constructor(
      */
     private inner class TelecomBridge : TelecomCallRegistry.Bridge {
         override fun acceptLeg(session: String): Boolean =
-            legFor(session)?.let { answer(it.id); true } ?: false
+            legFor(session)?.let {
+                answer(it.id)
+                beacon(RingBeaconStage.ANSWERED, it.sessionId ?: serverSessionFor(session))
+                true
+            } ?: false
 
         override fun endLeg(session: String) {
             legFor(session)?.let { hangup(it.id) }
@@ -223,7 +232,14 @@ class SoftphoneManager private constructor(
 
         /** Member-scoped server signal ONLY — the OS callback that triggered
          *  this already owns the leg teardown (§3.3). */
-        override fun declineMine() = core.declineMineSignal()
+        override fun declineMine() {
+            // Member-scoped: it declines every ring on this device, so each one
+            // still ringing with a known session gets its own beacon.
+            core.state.value.calls
+                .filter { it.direction == CallDirection.INBOUND && it.phase == CallPhase.RINGING }
+                .forEach { beacon(RingBeaconStage.DECLINED, it.sessionId) }
+            core.declineMineSignal()
+        }
 
         override fun releaseHeldSession(session: String) = core.releaseHeldForSession(session)
 
@@ -242,7 +258,10 @@ class SoftphoneManager private constructor(
         /** Per-session decline (IMPORTANT-4) — drop this device from ONLY the
          *  rejected session, so a reject with another ring live doesn't decline
          *  both. The OS callback already owns the leg teardown. */
-        override fun declineSession(session: String) = core.declineSessionSignal(session)
+        override fun declineSession(session: String) {
+            beacon(RingBeaconStage.DECLINED, serverSessionFor(session))
+            core.declineSessionSignal(session)
+        }
 
         /** Follower route mirror (§4.2/§4.3) — Telnyx follows Telecom's endpoint. */
         override fun mirrorRouteToTelnyx(route: AudioRoute) = core.setAudioRoute(route)
@@ -256,7 +275,13 @@ class SoftphoneManager private constructor(
         }
 
         override fun showIncomingCall(session: String, callerName: String, callerNumber: String) {
-            notifier.showIncoming(session, callerName, callerNumber)
+            if (notifier.showIncoming(session, callerName, callerNumber)) {
+                beacon(RingBeaconStage.RINGING_SHOWN, serverSessionFor(session))
+            }
+        }
+
+        override fun onIncomingCallAdded(session: String) {
+            beacon(RingBeaconStage.OS_REPORTED, serverSessionFor(session))
         }
 
         override fun cancelIncomingCall(session: String) {
@@ -451,7 +476,11 @@ class SoftphoneManager private constructor(
         runCatching {
             CallForegroundService.start(appContext, copy("telephony.ongoingCall"))
         }
-        leg?.let { runCatching { core.answer(it.id) } }
+        leg?.let {
+            runCatching { core.answer(it.id) }
+            // This path bypasses the bridge's accept, which would otherwise send it.
+            beacon(RingBeaconStage.ANSWERED, it.sessionId)
+        }
     }
 
     /**
@@ -474,6 +503,7 @@ class SoftphoneManager private constructor(
      *  fire-and-forget server decline so the caller stops ringing. */
     fun declineIncoming(session: String) {
         CallFlowLog.log("answer", "declineIncoming sess=${CallFlowLog.tail(session)}")
+        beacon(RingBeaconStage.DECLINED, serverSessionFor(session))
         val handled = runCatching { registry.declineFromNotification(session) }.getOrDefault(false)
         if (!handled) runCatching { core.declineCurrent(sessionHint = session) }
     }
@@ -497,7 +527,38 @@ class SoftphoneManager private constructor(
     /** Decline a ringing call / hang up a live one. */
     fun hangup(id: String) {
         userHungUp.add(id)
+        core.state.value.calls
+            .firstOrNull {
+                it.id == id && it.direction == CallDirection.INBOUND && it.phase == CallPhase.RINGING
+            }
+            ?.let { beacon(RingBeaconStage.DECLINED, it.sessionId) }
         core.hangup(id)
+    }
+
+    // ------------------------------------------------------------ ring beacons
+
+    /**
+     * The server session behind a registry key. The key IS the session when the
+     * INVITE carried `X-Loonext-Session`; otherwise it is the leg's own id, which
+     * the server cannot join a beacon to, so the leg's resolved session is used
+     * (null until an answer resolves it).
+     */
+    private fun serverSessionFor(key: String): String? {
+        val leg = core.state.value.calls.firstOrNull { it.id == key }
+        return if (leg != null) leg.sessionId else key
+    }
+
+    /** Called from Telecom callbacks, so it must never throw back into one. */
+    private fun beacon(stage: RingBeaconStage, session: String?) {
+        runCatching {
+            RingBeacons.emit(
+                context = appContext,
+                api = beaconApi,
+                companyId = core.companyId ?: PushPrefs.companyId(appContext),
+                sessionId = session,
+                stage = stage,
+            )
+        }
     }
 
     /** Universal user Decline (#171 R1) — member-scoped decline-mine + optional

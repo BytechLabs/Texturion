@@ -122,11 +122,11 @@ internal class CallNotifier(private val context: Context) {
      * (permission revoked between the check and the notify).
      */
     @SuppressLint("MissingPermission")
-    private fun post(tag: String, id: Int, notification: Notification) {
-        if (!canPost()) return
-        runCatching {
+    private fun post(tag: String, id: Int, notification: Notification): Boolean {
+        if (!canPost()) return false
+        return runCatching {
             NotificationManagerCompat.from(context).notify(tag, id, notification)
-        }
+        }.isSuccess
     }
 
     /**
@@ -138,9 +138,12 @@ internal class CallNotifier(private val context: Context) {
      * collapses onto one ring. Answer/Decline broadcast to [CallActionReceiver],
      * which drives the Telecom call — the OS never sees this as anything but our
      * own ring, but Telecom still owns the audio/FGS once answered.
+     *
+     * Returns whether the ring was actually posted, which is what the
+     * `ringing_shown` beacon reports.
      */
-    fun showIncoming(session: String, callerName: String, callerNumber: String) {
-        if (!canPost()) return
+    fun showIncoming(session: String, callerName: String, callerNumber: String): Boolean {
+        if (!canPost()) return false
         ensureChannels(context)
         val name = callerName.ifBlank { callerNumber.ifBlank { "Incoming call" } }
         val caller = Person.Builder().setName(name).setImportant(true).build()
@@ -179,7 +182,7 @@ internal class CallNotifier(private val context: Context) {
             // Second guard: if this process dies mid-ring, no cancel path survives —
             // let the OS reap the row when the server ring window is over.
             .setTimeoutAfter(TelecomCallReducer.RING_WINDOW_MS)
-        post("call:$session", INCOMING_ID, builder.build())
+        return post("call:$session", INCOMING_ID, builder.build())
     }
 
     fun cancelIncoming(session: String) = cancelIncomingForSession(context, session)

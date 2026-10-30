@@ -57,6 +57,10 @@ final class CallsManager {
     /// Calls currently reported to CallKit (lowercased UUID strings).
     @ObservationIgnored private var reportedToCallKit: Set<String> = []
 
+    /// When CallKit took a pushed ring whose INVITE has not yet named its
+    /// session. Ring-beacon evidence only; pruned with `reportedToCallKit`.
+    @ObservationIgnored private var callKitTookRingAt: [String: Date] = [:]
+
     /// Ends CallKit already knows about (its own CXEndCallAction) — never
     /// re-reported.
     @ObservationIgnored private var locallyEnded: Set<String> = []
@@ -152,6 +156,7 @@ final class CallsManager {
     func answer(_ id: String) {
         // #195 F5: only arm the failsafe for a genuine answer of a ringing call.
         let ringing = core.state.calls.first { $0.id == id }?.phase == .ringing
+        beaconIfRinging(.answered, id)
         guard reportedToCallKit.contains(id), let uuid = UUID(uuidString: id) else {
             core.answer(id)
             if ringing { scheduleAnswerFailsafe(id) }
@@ -182,6 +187,7 @@ final class CallsManager {
 
     /// Decline a ringing call / hang up a live one; dismiss an ended chip.
     func hangup(_ id: String) {
+        beaconIfRinging(.declined, id)
         let call = core.state.calls.first { $0.id == id }
         guard let call, call.phase != .ended else {
             core.hangup(id) // no handle -> just clears the chip
@@ -224,7 +230,49 @@ final class CallsManager {
     /// answered/ended) and not_found are swallowed by contract; other
     /// failures propagate to the caller.
     func onIncomingCallPush(sessionId: String) async throws {
+        beacon(.pushReceived, sessionId: sessionId)
         try await core.onIncomingCallPush(sessionId: sessionId)
+    }
+
+    // MARK: - Ring beacons
+
+    /// Evidence for "my phone didn't ring"; never in the way of the call.
+    private func beacon(_ stage: RingBeaconStage, sessionId: String?, at: Date = Date()) {
+        RingBeacons.emit(
+            stage,
+            sessionId: sessionId,
+            companyId: core.companyId ?? prefs.activeCompanyId,
+            api: backend.api,
+            at: at
+        )
+    }
+
+    /// The member answering or ending an inbound call that is still ringing.
+    private func beaconIfRinging(_ stage: RingBeaconStage, _ id: String) {
+        let call = core.state.calls.first { $0.id == id }
+        beacon(stage, sessionId: RingBeacons.ringingSession(call, ringSession: core.ringSessionId(for: id)))
+    }
+
+    /// CallKit accepted an incoming report. The ring is on screen once that
+    /// and the INVITE behind it have both happened, in whichever order; a
+    /// pushed ring is taken before its INVITE names the session, so the
+    /// moment is kept until it does.
+    private func beaconCallKitTookRing(_ id: String) {
+        if let session = core.ringSessionId(for: id) {
+            beacon(.osReported, sessionId: session)
+            beacon(.ringingShown, sessionId: session)
+        } else if reportedToCallKit.contains(id) {
+            callKitTookRingAt[id] = Date()
+        }
+    }
+
+    /// The INVITE for `call` arrived.
+    private func beaconRingArrived(_ call: CallSnapshot) {
+        guard let session = core.ringSessionId(for: call.id),
+              let tookAt = callKitTookRingAt.removeValue(forKey: call.id)
+        else { return }
+        beacon(.osReported, sessionId: session, at: tookAt)
+        beacon(.ringingShown, sessionId: session)
     }
 
     // MARK: - Core -> platform
@@ -234,12 +282,16 @@ final class CallsManager {
             switch event {
             case .incomingRinging(let call):
                 self?.reportIncomingToCallKit(call)
+                self?.beaconRingArrived(call)
             case .outgoingPlaced(let call):
                 self?.reportOutgoingToCallKit(call)
             }
         }
         core.onState = { [weak self] snapshot in
             self?.syncCallKit(snapshot)
+        }
+        core.onRingMeSent = { [weak self] session in
+            self?.beacon(.ringMeSent, sessionId: session)
         }
     }
 
@@ -254,7 +306,10 @@ final class CallsManager {
             displayName: call.peerName,
             number: call.peerNumber
         ) { [weak self] error in
-            guard error != nil else { return }
+            guard error != nil else {
+                self?.beaconCallKitTookRing(call.id)
+                return
+            }
             // CallKit refused (DND-style block) — the in-app chip still rings
             // it; keep audio alive without the system session.
             self?.reportedToCallKit.remove(call.id)
@@ -300,6 +355,12 @@ final class CallsManager {
         }
 
         for call in snapshot.calls {
+            // A CallKit answer of a pushed ring can land before its INVITE,
+            // when there is no session to report it under; the leg going
+            // active is then the first moment there is.
+            if call.direction == .inbound, call.phase == .active {
+                beacon(.answered, sessionId: core.ringSessionId(for: call.id) ?? call.sessionId)
+            }
             if call.phase == .active,
                call.direction == .outbound,
                reportedToCallKit.contains(call.id),
@@ -320,6 +381,7 @@ final class CallsManager {
         lastPhases = lastPhases.filter {
             reportedToCallKit.contains($0.key) || byId[$0.key] != nil
         }
+        callKitTookRingAt = callKitTookRingAt.filter { reportedToCallKit.contains($0.key) }
 
         syncAudioFallback()
     }
@@ -364,6 +426,7 @@ final class CallsManager {
                 return
             }
             let id = action.callUUID.uuidString.lowercased()
+            self.beaconIfRinging(.answered, id)
             // Call-waiting bookkeeping first; the SDK's CallKit path answers
             // (and parks the action when the pushed INVITE hasn't landed yet).
             self.core.noteAnswerIntent(id)
@@ -375,6 +438,7 @@ final class CallsManager {
                 return
             }
             let id = action.callUUID.uuidString.lowercased()
+            self.beaconIfRinging(.declined, id)
             self.locallyEnded.insert(id)
             if self.core.hasHandle(id) || self.sdkClient.hasCall(uuid: action.callUUID) {
                 self.sdkClient.endFromCallKit(action)
@@ -418,6 +482,7 @@ final class CallsManager {
                 self.core.hangup(call.id)
             }
             self.reportedToCallKit.removeAll()
+            self.callKitTookRingAt.removeAll()
             self.connectedReported.removeAll()
             self.locallyEnded.removeAll()
             self.lastPhases.removeAll()
@@ -466,7 +531,10 @@ final class CallsManager {
         // 1. REQUIRED synchronously: the CallKit report.
         reportedToCallKit.insert(id)
         lastPhases[id] = .ringing
-        callKit.reportIncoming(uuid: uuid, displayName: name, number: number) { _ in }
+        callKit.reportIncoming(uuid: uuid, displayName: name, number: number) { [weak self] error in
+            guard error == nil else { return }
+            self?.beaconCallKitTookRing(id)
+        }
         completion()
 
         // 2. Wake the SDK. Signed out / no workspace = nothing can ring —
@@ -505,6 +573,7 @@ final class CallsManager {
     private func endDanglingPushCall(id: String, uuid: UUID, reason: CXCallEndedReason) {
         guard reportedToCallKit.contains(id) else { return }
         reportedToCallKit.remove(id)
+        callKitTookRingAt.removeValue(forKey: id)
         lastPhases.removeValue(forKey: id)
         callKit.reportEnded(uuid: uuid, reason: reason)
     }

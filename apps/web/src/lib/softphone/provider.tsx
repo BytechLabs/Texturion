@@ -37,7 +37,9 @@ import {
   useWebrtcToken,
 } from "@/lib/api/calls";
 import { ApiError } from "@/lib/api/error";
+import { useCompanyId } from "@/lib/company/provider";
 
+import { emitRingBeacon } from "./beacons";
 import {
   INITIAL_SOFTPHONE_STATE,
   isTerminalSdkState,
@@ -258,6 +260,14 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   const resolveSession = useResolveLiveSession();
   const resolveRef = useRef(resolveSession);
   resolveRef.current = resolveSession;
+  // Read by the SDK handlers, which are captured once in ensureClient.
+  const companyId = useCompanyId();
+  const companyRef = useRef(companyId);
+  companyRef.current = companyId;
+  // D142 ring beacons: the server session of each genuine inbound ring still
+  // unanswered, by SDK call id. The ring leg's own SDK session is not the
+  // server's, so this is the X-Loonext-Session header the INVITE carried.
+  const ringSessionsRef = useRef<Map<string, string>>(new Map());
   // Ring-leg ccids whose by-leg resolution is running or done — the SDK
   // fires 'active' repeatedly, and we only need to resolve once per call.
   const resolvedRef = useRef<Set<string>>(new Set());
@@ -524,6 +534,10 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
               number,
               t,
             );
+            if (opSession) {
+              ringSessionsRef.current.set(call.id, opSession);
+              void emitRingBeacon(companyRef.current, "ringing_shown", opSession);
+            }
           }
           return;
         }
@@ -575,6 +589,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         if (isTerminalSdkState(call.state)) {
           closeRingNotification(ringNotesRef.current, call.id);
           callsRef.current.delete(call.id);
+          ringSessionsRef.current.delete(call.id);
           placementSdkIdsRef.current.delete(call.id); // #213 cleanup
           // A recovery may have been deferred while this call held the client
           // (#138). Now that the line may be idle, re-arm the watchdog so a
@@ -834,6 +849,11 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       } catch {
         /* the caller hung up in the same instant — the chip clears itself */
       }
+      const ringSession = ringSessionsRef.current.get(id);
+      if (ringSession) {
+        ringSessionsRef.current.delete(id);
+        void emitRingBeacon(companyRef.current, "answered", ringSession);
+      }
     },
     [holdActive, t],
   );
@@ -860,6 +880,12 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       }
     }
     const call = callsRef.current.get(targetId);
+    // Hanging up a ring nobody answered is this member declining it.
+    const ringSession = ringSessionsRef.current.get(targetId);
+    if (ringSession && call?.state === "ringing") {
+      ringSessionsRef.current.delete(targetId);
+      void emitRingBeacon(companyRef.current, "declined", ringSession);
+    }
     try {
       call?.hangup();
     } catch {

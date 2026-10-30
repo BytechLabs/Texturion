@@ -929,6 +929,57 @@ final class TelephonyMappingTests: XCTestCase {
         }
     }
 
+    func testTheRingMeBeaconHookHearsOnlyARingMeTheServerAnswered() async throws {
+        var heard: [String] = []
+
+        let (answered, _, _) = makeCore()
+        answered.onRingMeSent = { heard.append($0) }
+        try await startReady(answered)
+        try await answered.onIncomingCallPush(sessionId: "sess-live")
+        XCTAssertEqual(["sess-live"], heard)
+
+        heard.removeAll()
+        let (refused, _, backend) = makeCore()
+        backend.ringMeError = ApiError(
+            code: ApiErrorCode.conflict,
+            message: "That call isn't ringing anymore.",
+            httpStatus: 409
+        )
+        refused.onRingMeSent = { heard.append($0) }
+        try await startReady(refused)
+        try await refused.onIncomingCallPush(sessionId: "sess-stale")
+        XCTAssertEqual([], heard)
+    }
+
+    func testARingIsKeyedByTheSessionItsInviteNamedFromTheMomentItRings() async throws {
+        let (core, sdk, backend) = makeCore()
+        try await startReady(core)
+
+        let first = FakeHandle(id: "in-1", callControlId: "ccid-in-1")
+        sdk.ring(first, name: "Dana", number: "+16135550100", sessionHeader: "v3:ring-1")
+        // The beacons' key, while the live-call ops still wait for by-leg.
+        XCTAssertEqual("v3:ring-1", core.ringSessionId(for: "in-1"))
+        XCTAssertNil(core.state.calls.first { $0.id == "in-1" }?.sessionId)
+
+        let bare = FakeHandle(id: "in-2", callControlId: "ccid-in-2")
+        sdk.ring(bare, name: "Ari", number: "+16135550101")
+        XCTAssertNil(core.ringSessionId(for: "in-2"), "no header, no session to report under")
+
+        // An ended ring is forgotten once the next ring arrives.
+        first.report(.ended)
+        bare.report(.ended)
+        let next = FakeHandle(id: "in-3", callControlId: "ccid-in-3")
+        sdk.ring(next, name: "Dana", number: "+16135550100", sessionHeader: "v3:ring-3")
+        XCTAssertNil(core.ringSessionId(for: "in-1"))
+        XCTAssertEqual("v3:ring-3", core.ringSessionId(for: "in-3"))
+        next.report(.ended)
+
+        // The member's own placer leg carries a session header too, but it is
+        // not a ring and must never be reported as one.
+        let op = try await placeAndConnect(core, sdk, backend, session: sessionB)
+        XCTAssertNil(core.ringSessionId(for: op.id))
+    }
+
     func testRingMeReusesALiveRegistrationNoReconnectNoRemint() async throws {
         let (core, sdk, backend) = makeCore()
         try await startReady(core)

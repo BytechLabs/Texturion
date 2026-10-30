@@ -236,6 +236,10 @@ class SoftphoneCore(
     /** Hook for a listener that must hear about swallowed failures (#168A). */
     var onInternalFailure: ((String, Throwable) -> Unit)? = null
 
+    /** Hears each session whose ring-me the server answered. Evidence only
+     *  (ring beacons); a listener that throws never reaches the wake path. */
+    var onRingMeSent: ((String) -> Unit)? = null
+
     var companyId: String? = null
         private set
     private var callerIdName: String = ""
@@ -1433,7 +1437,9 @@ class SoftphoneCore(
     /** ring-me with the §6 attestation; 409/404 (request-property refusals,
      *  §8.3) are silent by contract — anything else propagates. */
     private suspend fun requestRingMe(company: String, sessionId: String): RingAck? = try {
-        api.ringMe(company, sessionId, noLocalLeg = true)
+        api.ringMe(company, sessionId, noLocalLeg = true).also {
+            runCatching { onRingMeSent?.invoke(sessionId) }
+        }
     } catch (cause: ApiException) {
         if (cause.code == ApiErrorCode.CONFLICT || cause.code == ApiErrorCode.NOT_FOUND) {
             null

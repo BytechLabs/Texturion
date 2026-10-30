@@ -833,6 +833,41 @@ class SoftphoneCoreTest {
     }
 
     @Test
+    fun `the ring-me beacon hook hears only a ring-me the server answered`() = runTest {
+        val heard = mutableListOf<String>()
+
+        val answered = harness()
+        answered.core.onRingMeSent = { heard += it }
+        answered.core.start("company-1")
+        answered.core.awaitReady()
+        answered.core.onIncomingCallPush("sess-live")
+        assertEquals(listOf("sess-live"), heard)
+        answered.scope.cancel()
+
+        heard.clear()
+        ringMeBehavior = { throw ApiException(ApiErrorCode.CONFLICT, "Can't take calls.", 409) }
+        val refused = harness()
+        refused.core.onRingMeSent = { heard += it }
+        refused.core.start("company-1")
+        refused.core.awaitReady()
+        refused.core.onIncomingCallPush("sess-live")
+        assertTrue("a refused ring-me is not evidence of one sent", heard.isEmpty())
+        refused.scope.cancel()
+    }
+
+    @Test
+    fun `a throwing ring-me beacon hook never breaks the wake path`() = runTest {
+        val h = harness()
+        h.core.onRingMeSent = { throw IllegalStateException("beacon blew up") }
+        h.core.start("company-1")
+        h.core.awaitReady()
+        // Must not throw: evidence is never allowed to cost the ring.
+        h.core.onIncomingCallPush("sess-live")
+        assertEquals(listOf(true), ringMeNoLocalLeg)
+        h.scope.cancel()
+    }
+
+    @Test
     fun `ring-me propagates real failures so the caller can retry`() = runTest {
         ringMeBehavior = { throw ApiException(ApiErrorCode.INTERNAL_ERROR, "Broke.", 500) }
         val h = harness()

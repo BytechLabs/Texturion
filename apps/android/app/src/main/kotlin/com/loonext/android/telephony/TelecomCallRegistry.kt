@@ -111,6 +111,11 @@ class TelecomCallRegistry(
          *  Answer/Decline drive this registry). Cancel when answered or ended. */
         fun showIncomingCall(session: String, callerName: String, callerNumber: String)
         fun cancelIncomingCall(session: String)
+
+        /** Telecom accepted the inbound call keyed [session]. Evidence only (ring
+         *  beacons): nothing on the call path may depend on it, hence the no-op
+         *  default. */
+        fun onIncomingCallAdded(session: String) {}
     }
 
     private val appContext = context.applicationContext
@@ -596,6 +601,8 @@ class TelecomCallRegistry(
                                 entry.key.removePrefix("out:"), callerName, callerNumber,
                             )
                         }
+                    } else {
+                        runCatching { bridge.onIncomingCallAdded(session) }
                     }
                     // Follower routing (§4.2/§4.3): mirror the OS endpoint into
                     // Telnyx — never lead, never touch setCommunicationDevice.

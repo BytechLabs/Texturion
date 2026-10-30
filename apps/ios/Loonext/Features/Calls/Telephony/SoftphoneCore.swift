@@ -83,6 +83,10 @@ final class SoftphoneCore {
     /// Discrete ring/place moments (CallKit report triggers).
     @ObservationIgnored var onEvent: ((CoreEvent) -> Void)?
 
+    /// Each session whose ring-me the server answered. Evidence only (ring
+    /// beacons): nothing on the wake path waits for it.
+    @ObservationIgnored var onRingMeSent: ((String) -> Void)?
+
     @ObservationIgnored private var handles: [String: any SdkCallHandle] = [:]
 
     /// Ground truth of what the SDK last reported per call — hold commands
@@ -102,6 +106,12 @@ final class SoftphoneCore {
     /// grow a field for a private TTL. Entries die with the leg (ended / reap).
     /// Mirrors the Android `ringFirstSeenMs`.
     @ObservationIgnored private var ringFirstSeen: [String: Date] = [:]
+
+    /// The server session each genuine inbound ring's INVITE named in
+    /// X-Loonext-Session, by call id. Evidence only (ring beacons): kept apart
+    /// from the snapshot's `sessionId`, which gates live-call ops and waits for
+    /// `resolveSession`. Pruned to the calls in state on every insert.
+    @ObservationIgnored private var ringSessions: [String: String] = [:]
 
     @ObservationIgnored private var connectTask: Task<Void, Error>?
     @ObservationIgnored private var recoverTask: Task<Void, Never>?
@@ -414,9 +424,20 @@ final class SoftphoneCore {
         // #195 F2: start this ring's TTL clock and ensure the sweep is running.
         ringFirstSeen[handle.id] = now()
         state = CallStateMachine.incoming(state, snapshot)
+        if let session = sessionHeader, !session.isEmpty {
+            let live = Set(state.calls.map(\.id))
+            ringSessions = ringSessions.filter { live.contains($0.key) }
+            ringSessions[handle.id] = session
+        }
         watch(handle)
         ensureRingTtlSweep()
         onEvent?(.incomingRinging(snapshot))
+    }
+
+    /// The session an inbound ring's INVITE named, known from the moment it
+    /// rings; nil for a ring whose INVITE carried none.
+    func ringSessionId(for id: String) -> String? {
+        ringSessions[id]
     }
 
     /// #213 — the server-dialed placer (op) INVITE for a pending placement
@@ -859,6 +880,7 @@ final class SoftphoneCore {
         try await awaitReady()
         do {
             _ = try await api.ringMe(companyId: company, sessionId: sessionId)
+            onRingMeSent?(sessionId)
         } catch let error as ApiError
             where error.code == ApiErrorCode.conflict || error.code == ApiErrorCode.notFound {
             // Answered/ended elsewhere, or the push aged out — silent.
