@@ -18,7 +18,7 @@
  * Lives under apps/api/e2e/ ONLY; never imported by src/.
  */
 import { createServer, type IncomingMessage, type Server } from "node:http";
-import { AddressInfo } from "node:net";
+import type { AddressInfo } from "node:net";
 
 export interface StripeCall {
   method: string;

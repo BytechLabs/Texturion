@@ -11,7 +11,7 @@
  * code — the hard rule).
  */
 import { createServer, type Server } from "node:http";
-import { AddressInfo } from "node:net";
+import type { AddressInfo } from "node:net";
 
 import { exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
 

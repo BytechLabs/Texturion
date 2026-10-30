@@ -1,0 +1,39 @@
+{
+  "schema": "loonext.call-budget.v1",
+  "notes": [
+    "Measured by the hermetic call journeys on every push, and both fail when this file and the code disagree. apps/api/src/calls/call-journeys.test.ts runs the code that decides every dial (the softphone routes, the initiated contexts and ring audience, the session object, the voice path) over an in-memory database; apps/api/e2e/call-journeys.e2e.ts adds the real SQL and the signed webhook route.",
+    "dials: legs Loonext creates (POST /v2/calls and transfer targets). far_end_legs: legs a caller creates; on the rig each is a robot dial, so the rig's dials per run are dials + far_end_legs (printed as rig_dials on each CALL_BUDGET line).",
+    "Peaks count the legs Loonext's side of the call sees. On the rig the far end is the robot on the same account, which holds one more leg for the whole call, whichever side dialled.",
+    "transfer-blind rings a crew of two, so both ring legs are counted; the other journeys ring one surface, as the rig's scheduled runs do."
+  ],
+  "journeys": {
+    "inbound-answered": {
+      "rig_scenario": "S02",
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_legs": 2,
+      "peak_concurrent_outbound_legs": 1
+    },
+    "voicemail": {
+      "rig_scenario": "S04",
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_legs": 2,
+      "peak_concurrent_outbound_legs": 1
+    },
+    "outbound-answered": {
+      "rig_scenario": "S01",
+      "dials": 2,
+      "far_end_legs": 0,
+      "peak_concurrent_legs": 2,
+      "peak_concurrent_outbound_legs": 2
+    },
+    "transfer-blind": {
+      "rig_scenario": "S07",
+      "dials": 3,
+      "far_end_legs": 1,
+      "peak_concurrent_legs": 3,
+      "peak_concurrent_outbound_legs": 2
+    }
+  }
+}

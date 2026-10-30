@@ -13,6 +13,10 @@
  *   - sql()/seed      → docker psql fixtures under a unique run prefix
  *   - close()         → shut the fakes down
  *
+ * `CALL_SESSIONS` is bound to the real CallSessionDO class (call-sessions.ts),
+ * building its runtime from this env, so a call follows the same path through
+ * the Durable Object that it does in production.
+ *
  * Lives under apps/api/e2e/ ONLY; never imported by src/ (no mocks in product
  * code — the hard rule). The ONLY thing "faked" is the vendor HTTP boundary;
  * fetch is NOT stubbed, so supabase-js talks to the real 54321 PostgREST.
@@ -25,6 +29,7 @@ import Stripe from "stripe";
 import { app } from "../src/index";
 import { expectedIssuer } from "../src/auth/jwt";
 import { generateVapidPair } from "../src/test/vapid-keys";
+import { createCallSessions, type CallSessionsDouble } from "./call-sessions";
 import { startFakeJwks, type JwksAuth } from "./fake-jwks";
 import { startFakeStripe, type FakeStripe } from "./fake-stripe";
 import { startFakeTelnyx, type FakeTelnyx } from "./fake-telnyx";
@@ -86,6 +91,8 @@ export interface Harness {
   telnyx: FakeTelnyx;
   stripe: FakeStripe;
   jwks: JwksAuth;
+  /** What `env.CALL_SESSIONS` is: one real CallSessionDO per session id. */
+  sessions: CallSessionsDouble;
   /**
    * Emails the Worker sent. Resend has NO env base seam (its endpoint is
    * hardcoded), so the harness intercepts ONLY `api.resend.com` at the fetch
@@ -210,6 +217,7 @@ export async function startHarness(): Promise<Harness> {
     TELNYX_API_KEY: "KEY_E2E_TELNYX",
     TELNYX_PUBLIC_KEY: telnyx.publicKeyB64,
     TELNYX_VOICE_CONNECTION_ID: "2000000000000000001",
+    TELNYX_WEBRTC_CONNECTION_ID: "3000000000000000002",
     STRIPE_SECRET_KEY: "sk_test_e2e",
     STRIPE_WEBHOOK_SECRET,
     RESEND_API_KEY: "re_e2e",
@@ -228,6 +236,8 @@ export async function startHarness(): Promise<Harness> {
     TELNYX_API_BASE: telnyx.origin,
     STRIPE_API_BASE: stripe.origin,
   };
+  const sessions = createCallSessions(env);
+  env.CALL_SESSIONS = sessions.namespace;
 
   const db = createClient(apiUrl, secretKey, {
     auth: {
@@ -358,6 +368,7 @@ export async function startHarness(): Promise<Harness> {
     telnyx,
     stripe,
     jwks,
+    sessions,
     emails,
     runId,
     token: (sub: string) => jwks.token({ sub, issuer }),

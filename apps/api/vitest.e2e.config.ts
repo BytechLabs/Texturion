@@ -19,9 +19,9 @@ import { defineConfig } from "vitest/config";
  * Calls v3 (#170 §15.2): the real Worker entry re-exports CallSessionDO, which
  * extends DurableObject from `cloudflare:workers` — a Workers-runtime module
  * node cannot resolve. This project loads the real app, so it needs the same
- * no-op double the unit projects use. The DO itself is never exercised by the
- * golden paths (checkout → provision → register → send, not inbound calls);
- * the alias only has to make the module resolvable under node.
+ * no-op double the unit projects use. The golden paths never reach the DO; the
+ * call journeys do, through e2e/call-sessions.ts, which runs the real class on
+ * that double with in-memory storage.
  */
 const cloudflareWorkersDouble = {
   find: /^cloudflare:workers$/,

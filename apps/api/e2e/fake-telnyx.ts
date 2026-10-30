@@ -16,10 +16,27 @@
  * harness advances them the same way (D31). This server returns stable "in
  * flight" shapes and records every call for assertions.
  *
- * Lives under apps/api/e2e/ ONLY; never imported by src/.
+ * Calls, recordings and telephony credentials live in fake-telnyx-voice.ts,
+ * which also owns the call webhooks those commands cause.
+ *
+ * Lives under apps/api/e2e/ ONLY. No product module imports it; the one test
+ * under src/ that does is src/calls/call-journeys.test.ts, the session-layer
+ * twin of the e2e call journeys.
  */
-import { createServer, type IncomingMessage, type Server } from "node:http";
-import { AddressInfo } from "node:net";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
+import type { AddressInfo } from "node:net";
+
+import {
+  createVoiceModel,
+  type FakeHandler,
+  type FakeResponse,
+  type FakeVoice,
+} from "./fake-telnyx-voice";
 
 export interface TelnyxCall {
   method: string;
@@ -38,18 +55,13 @@ export interface FakeTelnyx {
   privateKey: CryptoKey;
   calls: TelnyxCall[];
   callsTo(method: string, pattern: RegExp): TelnyxCall[];
+  /** Legs, call webhooks, recordings, credentials and the dial ledger. */
+  voice: FakeVoice;
   reset(): void;
   close(): Promise<void>;
 }
 
-interface Handler {
-  method: string;
-  pattern: RegExp;
-  respond: (
-    call: TelnyxCall,
-    match: RegExpMatchArray,
-  ) => { status?: number; body: unknown };
-}
+type Handler = FakeHandler;
 
 let orderSeq = 0;
 let numberSeq = 0;
@@ -264,13 +276,6 @@ function buildHandlers(): Handler[] {
       },
     },
 
-    // --- Voice (missed-call text-back) ---
-    {
-      method: "POST",
-      pattern: /^\/v2\/calls\/([^/]+)\/actions\/[^/]+$/,
-      respond: () => ({ body: { data: { result: "ok" } } }),
-    },
-
     // --- Hosted messaging (keep-your-number) ---
     {
       method: "POST",
@@ -298,6 +303,34 @@ function buildHandlers(): Handler[] {
   ];
 }
 
+function writeResponse(
+  res: ServerResponse,
+  response: FakeResponse,
+): void {
+  const status = response.status ?? 200;
+  if (response.bytes) {
+    res.writeHead(status, {
+      "content-type": response.contentType ?? "application/octet-stream",
+    });
+    res.end(Buffer.from(response.bytes));
+    return;
+  }
+  if (response.text !== undefined) {
+    res.writeHead(status, {
+      "content-type": response.contentType ?? "text/plain",
+    });
+    res.end(response.text);
+    return;
+  }
+  if (status === 204 || response.body === null || response.body === undefined) {
+    res.writeHead(status);
+    res.end();
+    return;
+  }
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify(response.body));
+}
+
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
@@ -315,7 +348,8 @@ export async function startFakeTelnyx(): Promise<FakeTelnyx> {
   );
   const publicKeyB64 = Buffer.from(rawPub).toString("base64");
 
-  const handlers = buildHandlers();
+  const voiceModel = createVoiceModel();
+  const handlers = [...voiceModel.handlers, ...buildHandlers()];
   const calls: TelnyxCall[] = [];
 
   const server: Server = createServer((req, res) => {
@@ -343,14 +377,7 @@ export async function startFakeTelnyx(): Promise<FakeTelnyx> {
         if (handler.method !== call.method) continue;
         const match = call.path.match(handler.pattern);
         if (!match) continue;
-        const { status = 200, body: out } = handler.respond(call, match);
-        if (status === 204 || out === null) {
-          res.writeHead(status);
-          res.end();
-          return;
-        }
-        res.writeHead(status, { "content-type": "application/json" });
-        res.end(JSON.stringify(out));
+        writeResponse(res, handler.respond(call, match));
         return;
       }
 
@@ -365,14 +392,17 @@ export async function startFakeTelnyx(): Promise<FakeTelnyx> {
 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as AddressInfo).port;
+  const origin = `http://127.0.0.1:${port}`;
+  voiceModel.setOrigin(origin);
 
   return {
-    origin: `http://127.0.0.1:${port}`,
+    origin,
     publicKeyB64,
     privateKey: pair.privateKey,
     calls,
     callsTo: (method, pattern) =>
       calls.filter((c) => c.method === method && pattern.test(c.path)),
+    voice: voiceModel.voice,
     reset: () => {
       calls.length = 0;
     },
