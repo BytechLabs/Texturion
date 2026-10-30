@@ -90,6 +90,14 @@ and `main` deploying to staging first, with production promoted from the same
 artifact. That last part matters more than the environment itself: promoting the
 *same build* is what makes staging meaningful rather than theatre.
 
+## Repro and testing without staging: the rig (D142)
+
+Step 3 above, a Telnyx sub-account, is superseded. Calls and texts are
+reproduced on the rig, one box running the whole stack locally at any ref and
+reaching real Telnyx only through a guard that confines it to a capped partition
+of the existing account. Production remains the only deployed environment. See
+`docs/RIG.md`.
+
 ## Cheaper middle step, if you want one sooner
 
 `wrangler versions upload` publishes a Worker version with its own preview URL

@@ -8934,3 +8934,57 @@ fetched 472 KiB of fonts, including 230 KiB of Inter that only renders outside
 the marketing and app scopes. Inter is now `preload: false`. Home LCP went from
 7.2 s to 5.8 s, matching Next 15, and first paint is about a second earlier than
 on 15.
+
+## D142 — rig mode, not staging: human-free repro inside the accounts Loonext already has (2026-10-30)
+
+**Decision.** Reproducing and testing calls and texts happens on **the rig**, one
+always-on Linux box that runs the whole stack locally at any git ref and is
+driven by agents with no person in the loop. Real Telnyx traffic leaves it only
+through `loonext-telnyx-guard`, a Worker in the existing Cloudflare account that
+holds one extra Telnyx key and confines the rig to a capped nonprod partition of
+the EXISTING Telnyx account (its own billing group, apps, profiles and numbers).
+The design, runbook and verification checklist are `docs/RIG.md`.
+
+- **#323 stands.** There is still one deployed Loonext environment. The rig is
+  the local stack connected to real vendors; its two Workers never run app code
+  and hold no customer data.
+- **Superseded:** step 3 of the staging recipe in `docs/ENVIRONMENTS.md`, "a
+  Telnyx sub-account with one test number". It is replaced by the in-account
+  partition behind the guard.
+- **Production changes first.** Production's account-wide number sweep acts only
+  on numbers it positively owns (no billing group), and `/health` advertises the
+  rule before the guard may order a number.
+- **Test calls never take a customer's capacity.** The guard sizes them from the
+  account's concurrent-call limit minus production's largest ring audience, and
+  hangs up test legs on the first production call.
+- **No new vendor account** of any kind, including sub-accounts, SIMs, seats and
+  enrollments.
+
+**Why.** The founder asked for an EDR-style repro environment where an agent
+reproduces and diagnoses calling and texting end to end, then made it binding
+that it be human-free and that no new vendor account be opened. A first design
+with separate accounts for every vendor was rejected on the second point alone.
+Of three no-new-account designs (a hosted twin in the existing accounts, this
+rig, and synthetic tenants inside production), two independent reviews chose the
+rig. It has no public test page, no hosted test database, and no test data in
+production, and it costs about $24 a month plus about $918 of hardware.
+
+**Amended, against the design as delivered.** The design made two workstation
+changes prerequisites: agents in their own Windows user without production keys,
+and production writes behind one approval tap each. Those are optional hardening
+here, not prerequisites. A tap per production write is the recurring human act
+the human-free directive rules out, and agents were given production credentials
+on purpose. Agents act under the founder's GitHub identity, so an approval gate
+could not stop one anyway. The guard therefore earns its safety in code: policy
+tests, the two-way endpoint registry, start-up refusals, attestation and the CI
+guards. It deploys from `main` like production does.
+
+**Accepted residual, stated plainly.** Telnyx does not disclose whether a fraud
+hold covers the whole account. Test traffic may become most of the account's
+calls, so a hold triggered by it could stop production calling. Paid call lanes
+stay off until Telnyx answers in writing, and any suspicious-traffic notice halts
+them for seven days.
+
+**Lost against separate accounts:** carrier-handset paths, real-iPhone wake
+(unless an Apple membership already exists), real calendar consent, and the
+hosted runtime. Each is a named defect in `docs/RIG.md`.
