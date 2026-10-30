@@ -54,6 +54,7 @@ import { getStripe, stripeCryptoProvider, type Stripe } from "../billing/stripe"
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
+import { liveStripeEventRefusal } from "../environments/policy";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import { portDocumentsNeededCopy } from "../telnyx/emails";
@@ -125,6 +126,13 @@ stripeWebhookRoute.post("/", async (c) => {
     // state change reaching us, which looks exactly like nobody subscribing.
     countWebhookRejection(c, "stripe");
     return c.json({ error: "signature verification failed" }, 400);
+  }
+
+  // D142: the rig's sandbox can never act on a live-mode event. Refused
+  // before the ledger, so the sweeper has nothing to replay either.
+  const liveRefusal = liveStripeEventRefusal(env, event);
+  if (liveRefusal) {
+    return c.json({ error: liveRefusal }, 403);
   }
 
   // 2. LEDGER: INSERT ... ON CONFLICT (provider, event_id) DO NOTHING.

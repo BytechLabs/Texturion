@@ -177,7 +177,7 @@ describe("deliverWebhookBatch", () => {
     };
     stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, capturing);
 
-    const result = await deliverWebhookBatch(getDb(env));
+    const result = await deliverWebhookBatch(getDb(env), env);
 
     expect(result).toMatchObject({ claimed: 1, delivered: 1, failed: 0 });
     expect(sent).not.toBeNull();
@@ -209,7 +209,7 @@ describe("deliverWebhookBatch", () => {
     );
     stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, receiver.route);
 
-    await deliverWebhookBatch(getDb(env));
+    await deliverWebhookBatch(getDb(env), env);
 
     expect(update.calls[0]?.body).toMatchObject({ status: "succeeded", response_status: 204 });
     // An endpoint that is up but rejected one event is not a dead endpoint.
@@ -230,7 +230,7 @@ describe("deliverWebhookBatch", () => {
     stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, receiver.route);
 
     const before = Date.now();
-    await deliverWebhookBatch(getDb(env));
+    await deliverWebhookBatch(getDb(env), env);
 
     const body = update.calls[0]?.body as {
       status: string;
@@ -262,7 +262,7 @@ describe("deliverWebhookBatch", () => {
     );
     stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, receiver.route);
 
-    await deliverWebhookBatch(getDb(env));
+    await deliverWebhookBatch(getDb(env), env);
 
     const body = update.calls[0]?.body as { status: string; next_attempt_at?: string };
     expect(body.status).toBe("failed");
@@ -283,7 +283,7 @@ describe("deliverWebhookBatch", () => {
     );
     stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, receiver.route);
 
-    const result = await deliverWebhookBatch(getDb(env));
+    const result = await deliverWebhookBatch(getDb(env), env);
 
     expect(result.disabled).toBe(1);
     const body = endpointUpdate.calls[0]?.body as {
@@ -311,7 +311,7 @@ describe("deliverWebhookBatch", () => {
     );
     stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, receiver.route);
 
-    const result = await deliverWebhookBatch(getDb(env));
+    const result = await deliverWebhookBatch(getDb(env), env);
 
     expect(result.disabled).toBe(0);
     const body = endpointUpdate.calls[0]?.body as Record<string, unknown>;
@@ -330,7 +330,7 @@ describe("deliverWebhookBatch", () => {
     }, () => new Response("", { status: 200 }));
     stubFetch(claim.route, endpoints.route, update.route, receiver.route);
 
-    const result = await deliverWebhookBatch(getDb(env));
+    const result = await deliverWebhookBatch(getDb(env), env);
 
     expect(posted).toBe(0);
     expect(result).toMatchObject({ delivered: 0, failed: 1 });
@@ -344,7 +344,7 @@ describe("deliverWebhookBatch", () => {
     const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => []);
     stubFetch(claim.route);
 
-    await expect(deliverWebhookBatch(getDb(env))).resolves.toEqual({
+    await expect(deliverWebhookBatch(getDb(env), env)).resolves.toEqual({
       claimed: 0,
       delivered: 0,
       failed: 0,
@@ -385,7 +385,7 @@ describe("#581 a paused endpoint receives nothing further", () => {
     }, () => new Response("", { status: 200 }));
     stubFetch(claim.route, endpoints.route, update.route, receiver.route);
 
-    const result = await deliverWebhookBatch(getDb(env));
+    const result = await deliverWebhookBatch(getDb(env), env);
 
     // THE ASSERTION. Nothing reached the endpoint the owner turned off.
     expect(posted).toBe(0);
@@ -412,7 +412,7 @@ describe("#581 a paused endpoint receives nothing further", () => {
     }, () => new Response("", { status: 200 }));
     stubFetch(claim.route, endpoints.route, update.route, receiver.route);
 
-    const result = await deliverWebhookBatch(getDb(env));
+    const result = await deliverWebhookBatch(getDb(env), env);
 
     expect(posted).toBe(1);
     expect(result).toMatchObject({ delivered: 1 });
@@ -460,7 +460,7 @@ describe("#581 a delivery is never redirected", () => {
     );
     stubFetch(claim.route, endpoints.route, update.route, receiver.route);
 
-    await deliverWebhookBatch(getDb(env));
+    await deliverWebhookBatch(getDb(env), env);
 
     // THE ASSERTION, on the request the dispatcher actually built.
     expect(modes).toEqual(["manual"]);
@@ -485,7 +485,7 @@ describe("#581 a delivery is never redirected", () => {
     );
     stubFetch(claim.route, endpoints.route, update.route, receiver.route);
 
-    const result = await deliverWebhookBatch(getDb(env));
+    const result = await deliverWebhookBatch(getDb(env), env);
 
     expect(result.delivered).toBe(0);
   });

@@ -49,6 +49,7 @@ import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { customerWebhookRefusal } from "../environments/policy";
 import { errorResponse } from "../http/errors";
 import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
@@ -368,6 +369,11 @@ webhooksRoutes.post("/webhooks/:id/test", requireCapability("settings.manage"), 
   // before a rule tightened is exactly the one worth refusing.
   const rejected = rejectUrl(c, endpoint.url);
   if (rejected) return rejected;
+
+  // D142: on the rig a ping goes where a real delivery would, the robot or
+  // nowhere. Not sent is a failed test, so the same 200 with `ok: false`.
+  const rigRefusal = customerWebhookRefusal(getEnv(c.env), endpoint.url);
+  if (rigRefusal) return c.json({ ok: false, status: null, error: rigRefusal });
 
   const body = JSON.stringify({
     id: crypto.randomUUID(),

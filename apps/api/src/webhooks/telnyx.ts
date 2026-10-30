@@ -28,6 +28,7 @@ import { recordVoiceCost } from "../billing/provider-costs";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
+import { refuseStrangerInbound } from "../environments/inbound";
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
 import { countWebhookRejection } from "../observability/webhook-rejections";
 import type { TelnyxEvent } from "../messaging/types";
@@ -55,6 +56,12 @@ telnyxWebhookRoute.post("/", async (c) => {
   const eventType = event.data?.event_type;
   if (typeof eventId !== "string" || !eventId || typeof eventType !== "string") {
     // Authentic (signed) but unusable envelope: ack so Telnyx stops retrying.
+    return c.json({ received: true, ignored: true });
+  }
+
+  // D142: on the rig, a caller or texter outside the partition's allowlist
+  // stops here, before the ledger, so nothing downstream ever sees them.
+  if (await refuseStrangerInbound(env, event)) {
     return c.json({ received: true, ignored: true });
   }
 

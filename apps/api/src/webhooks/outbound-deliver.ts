@@ -14,6 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { customerWebhookRefusal } from "../environments/policy";
 
 /**
  * #243 — the half that talks to the network.
@@ -129,9 +130,13 @@ async function postOnce(endpoint: EndpointRow, delivery: ClaimedDelivery): Promi
  * occasional undercount delays a disable by one round. Making it exact would
  * mean a lock on the endpoint row for every delivery, which is a real cost for
  * an imaginary problem.
+ *
+ * `env` is required because it carries the D142 deployment rules: an optional
+ * one would let a caller deliver on the rig without asking where to.
  */
 export async function deliverWebhookBatch(
   db: SupabaseClient,
+  env: Env,
   limit = 50,
 ): Promise<{ claimed: number; delivered: number; failed: number; disabled: number }> {
   const { data: claimed, error } = await db.rpc("api_claim_webhook_deliveries", {
@@ -201,6 +206,19 @@ export async function deliverWebhookBatch(
       await db
         .from("webhook_deliveries")
         .update({ status: "failed", last_error: "endpoint paused" })
+        .eq("id", delivery.id);
+      failed += 1;
+      continue;
+    }
+
+    // D142: on the rig a workspace's webhook goes to the robot or nowhere.
+    // Terminal, like a paused endpoint, and not held against the endpoint's
+    // failure streak: the receiver did nothing wrong.
+    const refusal = customerWebhookRefusal(env, endpoint.url);
+    if (refusal) {
+      await db
+        .from("webhook_deliveries")
+        .update({ status: "failed", last_error: refusal })
         .eq("id", delivery.id);
       failed += 1;
       continue;
@@ -312,7 +330,7 @@ export async function deliverOutboundWebhooks(
   let disabled = 0;
 
   for (let batch = 0; batch < MAX_BATCHES_PER_TICK; batch += 1) {
-    const result = await deliverWebhookBatch(db);
+    const result = await deliverWebhookBatch(db, env);
     delivered += result.delivered;
     failed += result.failed;
     disabled += result.disabled;

@@ -10,6 +10,8 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { getEnv } from "../env";
+import { rigEnv } from "../test/rig-env";
 import {
   apiRequest,
   buildTestApp,
@@ -365,6 +367,66 @@ describe("POST /v1/webhooks/:id/test", () => {
     });
     expect(res.status).toBe(422);
     expect(posted).toBe(0);
+  });
+});
+
+describe("POST /v1/webhooks/:id/test on the rig", () => {
+  // A ping re-checks the URL rule, which refuses *.internal names, so the
+  // robot here has a public one.
+  const ROBOT = "https://robot-hooks.example.com";
+  const rig = getEnv(rigEnv({ RIG_ROBOT_WEBHOOK_ORIGIN: ROBOT }));
+  let rigAuth: TestAuth;
+
+  beforeAll(async () => {
+    rigAuth = await createTestAuth(rig);
+  });
+
+  function rigStub(url: string): SupabaseStub {
+    const sb = supabaseStub(rig);
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "owner"));
+    sb.on("GET", "/rest/v1/webhook_endpoints", () => [
+      { id: ENDPOINT_ID, url, secret: "whsec_abc" },
+    ]);
+    return sb;
+  }
+
+  it("sends nothing to a receiver that is not the robot", async () => {
+    let posted = 0;
+    const receiver = async (url: URL) => {
+      if (url.origin !== "https://hooks.example.com") return undefined;
+      posted += 1;
+      return new Response("thanks", { status: 200 });
+    };
+    stubFetch(jwksRoute(rigAuth), rigStub("https://hooks.example.com/loonext").route, receiver);
+
+    const res = await apiRequest(app, rig, await rigAuth.token(), `/v1/webhooks/${ENDPOINT_ID}/test`, {
+      companyId: COMPANY_ID,
+      method: "POST",
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: false,
+      status: null,
+      error: "rig mode delivers webhooks only to the robot",
+    });
+    expect(posted).toBe(0);
+  });
+
+  it("still pings the robot", async () => {
+    let posted = 0;
+    const robot = async (url: URL) => {
+      if (url.origin !== ROBOT) return undefined;
+      posted += 1;
+      return new Response(null, { status: 204 });
+    };
+    stubFetch(jwksRoute(rigAuth), rigStub(`${ROBOT}/hooks/qa-w`).route, robot);
+
+    const res = await apiRequest(app, rig, await rigAuth.token(), `/v1/webhooks/${ENDPOINT_ID}/test`, {
+      companyId: COMPANY_ID,
+      method: "POST",
+    });
+    expect(await res.json()).toEqual({ ok: true, status: 204 });
+    expect(posted).toBe(1);
   });
 });
 
