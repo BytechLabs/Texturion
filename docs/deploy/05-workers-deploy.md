@@ -135,16 +135,24 @@ Full descriptions and formats are in [06 — env reference](./06-env-reference.m
 
 ## 3. Deploy the Workers
 
-The pipeline does this when the release PR merges, not on every push to `main` (§5). To deploy **manually**: To deploy **manually**:
+The pipeline does this when the release PR merges, not on every push to `main` (§5). To deploy **manually**:
 
 ### API Worker (`loonext-api`)
 
 ```bash
-pnpm --filter @loonext/api exec wrangler deploy
+pnpm --filter @loonext/api exec wrangler deploy   --var GIT_SHA:"$(git rev-parse HEAD)"   --var DEPLOY_ENV:production
 ```
 
 This runs `wrangler deploy` (`apps/api/package.json:8`), which also **registers the
 cron triggers** (§6) — no dashboard action needed.
+
+**Keep both `--var` flags, exactly as `ship.yml` passes them.** `wrangler.jsonc`
+declares no vars, so a deploy without them drops what the last one stamped.
+Without `DEPLOY_ENV` the Worker runs as `local` (D142): production's start-up
+refusals (a stub `TELNYX_API_BASE`, a database on the rig) stop applying, and
+Sentry files its events under `development`. Without `GIT_SHA` Sentry loses the
+release. `wrangler rollback` restores a previous version with its vars, so a
+rollback needs neither flag.
 
 ### Web Worker (`loonext-web`) — MUST build on Linux/WSL
 
@@ -263,7 +271,8 @@ Steps in the deploy itself (`.github/workflows/ship.yml` → the `backend` job):
    separate workflow reacting to one, so there is no other commit it could get.
 2. `pnpm install --frozen-lockfile`.
 3. `supabase link --project-ref <ref>` → `supabase db push` (**migrations first**).
-4. `pnpm --filter @loonext/api exec wrangler deploy` (API Worker).
+4. `pnpm --filter @loonext/api exec wrangler deploy --var GIT_SHA:<sha> --var DEPLOY_ENV:production`
+   (API Worker).
 5. `pnpm --filter @loonext/web run deploy` (OpenNext build + deploy).
 6. Purge the Cloudflare cache — the marketing apex is edge-cached for an hour, so
    a deploy stays hidden behind stale HTML without it.

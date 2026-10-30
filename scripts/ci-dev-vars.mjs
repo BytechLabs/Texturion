@@ -107,6 +107,9 @@ if (!["127.0.0.1", "localhost", "::1"].includes(host)) {
  * exist only to satisfy the Worker's env validation at boot.
  */
 const VARS = {
+  // D142: stated rather than left unset, though unset means the same. Only
+  // ship.yml stamps production, and this file must never pass for it.
+  DEPLOY_ENV: "local",
   SUPABASE_URL: url,
   SUPABASE_SECRET_KEY: secret,
   SUPABASE_JWKS_URL: `${url}/auth/v1/.well-known/jwks.json`,

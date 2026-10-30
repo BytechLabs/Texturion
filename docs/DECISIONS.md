@@ -8988,3 +8988,11 @@ them for seven days.
 **Lost against separate accounts:** carrier-handset paths, real-iPhone wake
 (unless an Apple membership already exists), real calendar consent, and the
 hosted runtime. Each is a named defect in `docs/RIG.md`.
+
+**Update, 2026-10-30 (Phase 0b).** A production Worker refuses to start with
+any vendor seam set, not only `TELNYX_API_BASE` as first designed:
+`TELNYX_WEBHOOK_URL`, `TELNYX_MEDIA_PUBLIC_BASE`, `STRIPE_API_BASE`,
+`RESEND_API_BASE`, `FCM_API_BASE` and `FCM_OAUTH_TOKEN_URL` too. Each one would
+send a vendor credential or customer traffic to whatever host it names, and
+production's secret list sets none of them, so the refusal costs nothing until
+the day it is needed.

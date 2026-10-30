@@ -146,10 +146,16 @@ jobs:
       # GIT_SHA is the Sentry release: it maps a production error back to the
       # exact commit that shipped it, and drives Sentry's regression detection
       # and suspect commits.
+      #
+      # DEPLOY_ENV is stamped here and nowhere else (D142). It is what makes
+      # this Worker production: Sentry's environment, and the start-up refusals
+      # that keep a stub Telnyx host or the rig's database out of production.
+      # Unset, the Worker runs as `local`.
       - name: Deploy api Worker
         run: |
           pnpm --filter @loonext/api exec wrangler deploy \
-            --var GIT_SHA:"${{ github.sha }}"
+            --var GIT_SHA:"${{ github.sha }}" \
+            --var DEPLOY_ENV:production
 
       - name: Deploy web Worker (OpenNext build + deploy)
         run: pnpm --filter @loonext/web run deploy

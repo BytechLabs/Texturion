@@ -40,6 +40,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { sentryEnvironment } from "../environments/policy";
 import { recordHeartbeatBestEffort } from "./liveness";
 
 /** Sentry's ingest is a hard dependency of nothing else; fail fast. */
@@ -206,11 +207,11 @@ export async function probeSentryChannel(
     };
   }
 
-  // The same production/development split `sentry.ts` uses, so the canary
-  // lands in the same bucket as the alarms it speaks for. A canary filed under
-  // a different environment than the alerts would still prove the channel and
+  // The same environment `sentry.ts` reports under, so the canary lands in
+  // the same bucket as the alarms it speaks for. A canary filed under a
+  // different environment than the alerts would still prove the channel and
   // still be impossible to find next to them.
-  const environment = env.GIT_SHA ? "production" : "development";
+  const environment = sentryEnvironment(env);
   const sent = await postCanaryEnvelope(dsn, environment, now, fetchImpl);
   return {
     clientPresent,

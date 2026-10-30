@@ -24,6 +24,7 @@ import type {
 } from "@sentry/cloudflare";
 
 import { getEnv, type Bindings } from "../env";
+import { sentryEnvironment } from "../environments/policy";
 
 /**
  * E.164-shaped digit runs (SPEC §10): optional '+' (or its URL-encoded form
@@ -342,9 +343,10 @@ export function sentryOptions(bindings: Bindings): CloudflareOptions {
     // work. Undefined locally / on a manual deploy, which Sentry treats as an
     // untagged release rather than an error.
     release: env.GIT_SHA,
-    // Keeps a local or preview Worker's noise out of the production issue
-    // stream; without it every environment shared one bucket.
-    environment: env.GIT_SHA ? "production" : "development",
+    // Keeps a local or rig Worker's noise out of the production issue stream.
+    // Named by DEPLOY_ENV rather than inferred from GIT_SHA, which any deploy
+    // carrying a SHA would pass for (D142).
+    environment: sentryEnvironment(env),
     // #581 asked whether outbound fetch breadcrumbs are worth keeping at all
     // once scrubbed. They are, so `integrations` stays unset and
     // `fetchIntegration({ breadcrumbs: false })` is deliberately NOT passed:

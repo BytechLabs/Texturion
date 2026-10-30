@@ -286,8 +286,9 @@ affected leg (e.g. a Stripe test event after rotating the webhook secret).
 5. **CORS failures in the browser** — `APP_ORIGIN` on the Worker must exactly equal
    the web origin, no trailing slash mismatch (`apps/api/src/index.ts:75`).
 6. **Rollback** — deploys are per-Worker; redeploy the previous commit
-   (`pnpm --filter @loonext/api exec wrangler deploy` / the web deploy) or use
-   Cloudflare's version rollback. Migrations are **forward-only** — never `db push` a
+   (`pnpm --filter @loonext/api exec wrangler deploy --var GIT_SHA:<sha> --var DEPLOY_ENV:production`
+   / the web deploy; without `DEPLOY_ENV` the Worker runs as `local`, see
+   [05](./05-workers-deploy.md) §3) or use Cloudflare's version rollback. Migrations are **forward-only** — never `db push` a
    destructive change without a reviewed migration.
 7. **Escalation** — Sentry issue → identify the failing call (Supabase / Stripe /
    Telnyx / Resend), check that vendor's status page, and confirm the relevant secret.

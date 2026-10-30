@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { deployPostureRefusals } from "./environments/policy";
+
 /**
  * The Workers rate-limiting binding surface (wrangler's "ratelimit" unsafe
  * binding — not importable from a package, so typed here). `success: false`
@@ -119,6 +121,32 @@ const envSchema = z.object({
    * report.
    */
   LOCAL_DEV: z.literal("1").optional(),
+  /**
+   * D142: which deployment this Worker is. The deploy workflow stamps
+   * `production` beside GIT_SHA, the rig sets `rig`, and unset means `local`
+   * (wrangler dev, CI, the e2e harness).
+   *
+   * Only `src/environments/` reads it (scripts/check-deploy-env-branches.mjs),
+   * and that module may only ADD restrictions, so no value relaxes a runtime
+   * rule. A missing value runs as local, without production's start-up
+   * refusals, which is why every deploy path stamps it. An unknown value fails
+   * validation rather than falling back to something permissive.
+   */
+  DEPLOY_ENV: z.enum(["local", "rig", "production"]).optional(),
+  /**
+   * D142 rig mode only: the numbers the rig may text, dial, and accept calls
+   * and texts from. Comma- or space-separated E.164, generated from the guard's
+   * live listing and never committed. Unset in rig mode means every number is
+   * refused. Production ignores it, and a Worker with no DEPLOY_ENV refuses to
+   * start with it set: there it means a rig configuration lost its flag.
+   */
+  RIG_OWNED_E164: z.string().min(1).optional(),
+  /**
+   * D142 rig mode only: the robot's webhook sink. Customer webhooks are
+   * delivered to this origin and nowhere else; unset in rig mode means none
+   * are delivered. Refused without DEPLOY_ENV, like RIG_OWNED_E164.
+   */
+  RIG_ROBOT_WEBHOOK_ORIGIN: originUrl().optional(),
   APP_ORIGIN: originUrl(),
   /** Public origin of THIS Worker (webhook callback URLs, e.g. Telnyx profiles). */
   API_ORIGIN: originUrl(),
@@ -393,10 +421,33 @@ const envSchema = z.object({
    * `api.stripe.com`). The hermetic E2E launch-pass harness (SPEC §12 step 19,
    * D31) points them at in-process fake servers so both golden paths run with
    * no external network and no live keys. Must be a full origin, e.g.
-   * `http://127.0.0.1:8791`.
+   * `http://127.0.0.1:8791`. A production Worker refuses to start with
+   * TELNYX_API_BASE set (D142): production must never send its customers'
+   * calls and texts to a stub or to the rig's relay.
    */
   TELNYX_API_BASE: z.url().optional(),
   STRIPE_API_BASE: z.url().optional(),
+  /**
+   * D142 seams: the rig points each of these at its edge relay, because
+   * nothing on the rig is reachable from the internet and its vendor keys live
+   * behind the guard. All unset in production, where each falls back to the
+   * value production has always used, and a production Worker refuses to
+   * start with any of them set.
+   *
+   * TELNYX_WEBHOOK_URL replaces `${API_ORIGIN}/webhooks/telnyx` wherever we
+   * hand Telnyx a webhook URL. TELNYX_MEDIA_PUBLIC_BASE replaces the Supabase
+   * storage prefix of a signed URL Telnyx must fetch (MMS media, greetings).
+   * RESEND_API_BASE replaces `https://api.resend.com`. The two FCM bases
+   * replace Google's send host and OAuth token endpoint.
+   */
+  TELNYX_WEBHOOK_URL: z.url().optional(),
+  TELNYX_MEDIA_PUBLIC_BASE: z
+    .url()
+    .transform((value) => value.replace(/\/+$/, ""))
+    .optional(),
+  RESEND_API_BASE: originUrl().optional(),
+  FCM_API_BASE: originUrl().optional(),
+  FCM_OAUTH_TOKEN_URL: z.url().optional(),
   /**
    * D142: the Telnyx billing group that marks this environment's numbers in
    * the account production shares with the rig (telnyx/ownership.ts). UNSET in
@@ -528,6 +579,16 @@ export function getEnv(bindings: Bindings): Env {
     ];
     throw new Error(
       `Environment validation failed. Missing or invalid bindings: ${keys.join(", ")}`,
+    );
+  }
+
+  // D142: a well-formed configuration can still be the wrong one for where it
+  // runs — a live Stripe key on the rig, a stub Telnyx host in production.
+  // Refused here, before any request or cron can act on it.
+  const refusals = deployPostureRefusals(result.data);
+  if (refusals.length > 0) {
+    throw new Error(
+      `Environment validation failed. Refused for this deployment: ${refusals.join("; ")}`,
     );
   }
 
