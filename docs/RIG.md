@@ -1,5 +1,7 @@
 # Loonext Rig: human-free repro and testing inside the accounts Loonext already has
 
+**Status: CURRENT DIRECTION (D142).** The design and runbook for the rig. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 Prepared 2026-10-30, revision 2.
 
 This replaces the separate-accounts design, which was rejected only because it needed new vendor accounts. Everything from that design that did not depend on a new account is kept:
