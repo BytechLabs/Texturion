@@ -422,6 +422,9 @@ describe("route inventory (SPEC §7: every built sub-app mounted under /v1)", ()
     ["POST", "/v1/notifications/mark-read"],
     ["POST", "/v1/notifications/:id/read"],
     ["GET", "/v1/for-you"],
+    // D142 ring beacons: every client drops a refused beacon silently, so an
+    // unmounted route would lose all the evidence and say nothing
+    ["POST", "/v1/ring-beacons"],
     // webhooks (unversioned, outside the /v1 chain)
     ["POST", "/webhooks/telnyx"],
     ["POST", "/webhooks/stripe"],

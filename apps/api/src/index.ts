@@ -1,6 +1,6 @@
 import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@loonext/shared";
 import * as Sentry from "@sentry/cloudflare";
-import { Hono } from "hono";
+import { Hono, type ErrorHandler } from "hono";
 import { cors } from "hono/cors";
 
 import { securityHeaders } from "./http/security-headers";
@@ -23,6 +23,8 @@ import {
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import type { AppEnv } from "./context";
 import { getEnv, type Bindings, type Env } from "./env";
+import { rigDatabaseRefusal } from "./environments/database";
+import { servesRigRoutes } from "./environments/policy";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
@@ -79,6 +81,7 @@ import { billingRoutes } from "./routes/billing";
 import { callsRoutes } from "./routes/calls";
 import { liveCallsRoutes } from "./routes/live-calls";
 import { webrtcRoutes } from "./routes/webrtc";
+import { ringBeaconsRoutes } from "./routes/ring-beacons";
 import { companiesRoutes } from "./routes/companies";
 import { composeRoutes } from "./routes/compose";
 import { contactRoutes } from "./routes/contact";
@@ -145,6 +148,7 @@ import { teamRoutes } from "./routes/team";
 import { templatesRoutes } from "./routes/templates";
 import { textEnablementRoutes } from "./routes/text-enablement";
 import { reportsRoutes } from "./routes/reports";
+import { rigRoutes } from "./routes/rig";
 import { usageRoutes } from "./routes/usage";
 import { expirePaymentRequests } from "./crons/payment-requests";
 import { pollPortRequests } from "./telnyx/porting";
@@ -195,29 +199,27 @@ app.use("*", securityHeaders());
  * signature — Telnyx Ed25519 / Stripe HMAC — not JWT, and they must never
  * carry CORS headers (SPEC §7).
  */
-app.use(
-  "/v1/*",
-  cors({
-    origin: (origin, c) => (origin === getEnv(c.env).APP_ORIGIN ? origin : null),
-    allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
-    allowHeaders: [
-      "Authorization",
-      "X-Company-Id",
-      "Idempotency-Key",
-      "Content-Type",
-      // #236: which app is calling, so the signed-in-devices list can say
-      // "web browser" rather than guess from a user agent string.
-      "X-Client",
-      // #339: which build. Without it a shipped fix has no adoption curve and
-      // "everyone has it" is a hope rather than a number.
-      "X-App-Version",
-    ],
-    // Let the browser cache the preflight for a day so the SPA doesn't re-issue
-    // an OPTIONS round-trip before every /v1 call (the allowed methods/headers
-    // are static). Purely a latency + request-count win; no header is widened.
-    maxAge: 86400,
-  }),
-);
+const v1Cors = cors({
+  origin: (origin, c) => (origin === getEnv(c.env).APP_ORIGIN ? origin : null),
+  allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
+  allowHeaders: [
+    "Authorization",
+    "X-Company-Id",
+    "Idempotency-Key",
+    "Content-Type",
+    // #236: which app is calling, so the signed-in-devices list can say
+    // "web browser" rather than guess from a user agent string.
+    "X-Client",
+    // #339: which build. Without it a shipped fix has no adoption curve and
+    // "everyone has it" is a hope rather than a number.
+    "X-App-Version",
+  ],
+  // Let the browser cache the preflight for a day so the SPA doesn't re-issue
+  // an OPTIONS round-trip before every /v1 call (the allowed methods/headers
+  // are static). Purely a latency + request-count win; no header is widened.
+  maxAge: 86400,
+});
+app.use("/v1/*", v1Cors);
 app.use("/v1/*", jwtAuth());
 app.use("/v1/*", companyContext());
 
@@ -333,6 +335,7 @@ app.route("/v1", blockedSendersRoutes);
 app.route("/v1", callsRoutes); // #129 GET /v1/calls — the call log
 app.route("/v1", liveCallsRoutes); // #135 D43 phase 3 — live-call transfers
 app.route("/v1", webrtcRoutes); // #135 D43 — browser softphone tokens
+app.route("/v1", ringBeaconsRoutes); // D142 ring beacons: device-side ring stages
 
 /**
  * Webhooks (SPEC §7): unversioned, outside the JWT/CORS chain — the provider
@@ -367,7 +370,7 @@ app.route("/", widgetRoutes);
 
 app.notFound((c) => errorResponse(c, "not_found", "No such route."));
 
-app.onError((error, c) => {
+const handleAppError: ErrorHandler<AppEnv> = (error, c) => {
   // A thrown error unwinds past the CORS middleware before its post-`next()`
   // header pass runs, so this response would otherwise ship WITHOUT
   // Access-Control-Allow-Origin — which the browser reports as a "CORS error",
@@ -439,7 +442,63 @@ app.onError((error, c) => {
     // still ships; the client just cannot read it cross-origin.
   }
   return internalErrorResponse(c, allowed);
-});
+};
+app.onError(handleAppError);
+
+/**
+ * D142: the rig-only routes, behind the same chain and error handling as
+ * every other /v1 route. A separate app rather than routes on `app`, so the
+ * production route table never contains them, and built on the first rig
+ * request, so a production isolate never constructs it at all.
+ */
+let rigApp: Hono<AppEnv> | null = null;
+
+function rigRoutesApp(): Hono<AppEnv> {
+  if (rigApp !== null) return rigApp;
+  const built = new Hono<AppEnv>();
+  built.use("*", securityHeaders());
+  built.use("/v1/*", v1Cors);
+  built.use("/v1/*", jwtAuth());
+  built.use("/v1/*", companyContext());
+  built.route("/v1", rigRoutes);
+  built.notFound((c) => errorResponse(c, "not_found", "No such route."));
+  built.onError(handleAppError);
+  rigApp = built;
+  return built;
+}
+
+/**
+ * The path is checked first, so only a rig-shaped path pays for reading the
+ * environment.
+ */
+function appFor(request: Request, env: Bindings): Hono<AppEnv> {
+  const path = new URL(request.url).pathname;
+  if (path.startsWith("/v1/rig/") && servesRigRoutes(getEnv(env))) {
+    return rigRoutesApp();
+  }
+  return app;
+}
+
+/**
+ * D142: on the rig, the answer while its database's destination gate is off.
+ * A configuration that does not parse is left to the app to report, and
+ * outside the rig nothing is asked.
+ */
+async function rigUnreadyResponse(env: Bindings): Promise<Response | null> {
+  let validated: Env;
+  try {
+    validated = getEnv(env);
+  } catch {
+    return null;
+  }
+  const refusal = await rigDatabaseRefusal(validated);
+  if (refusal === null) return null;
+  console.error(`[rig] not serving: ${refusal}`);
+  return Response.json(
+    { error: { code: "service_unavailable", message: refusal } },
+    { status: 503 },
+  );
+}
 
 type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;
 
@@ -745,7 +804,9 @@ export const handler = {
    */
   async fetch(request: Request, env: Bindings, ctx: ExecutionContext) {
     try {
-      return await app.fetch(request, env, ctx);
+      const unready = await rigUnreadyResponse(env);
+      if (unready !== null) return unready;
+      return await appFor(request, env).fetch(request, env, ctx);
     } catch (error) {
       const rayId = request.headers.get("cf-ray") ?? undefined;
       try {
@@ -837,6 +898,9 @@ export const handler = {
       `cron:${controller.cron}` as `cron:${CronSchedule}`,
       now,
     );
+
+    const rigRefusal = await rigDatabaseRefusal(validated);
+    if (rigRefusal !== null) throw new Error(`rig cron not run: ${rigRefusal}`);
 
     await runScheduledJobs(validated, controller.cron, jobs, now);
   },
