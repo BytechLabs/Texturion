@@ -85,8 +85,12 @@ describe("#252 the reply posture is stated once", () => {
       .filter((path) => !isScaffolding(path))
       .filter((path) => {
         const text = readFileSync(path, "utf8");
+        // The base URL is overridable, so the host and the `/emails` path are
+        // separate literals and are matched separately.
         return (
-          /api\.resend\.com\/emails/.test(text) && /method:\s*"POST"/.test(text)
+          /api\.resend\.com/.test(text) &&
+          /\/emails\b/.test(text) &&
+          /method:\s*"POST"/.test(text)
         );
       });
     expect(posters.length).toBeGreaterThan(1);

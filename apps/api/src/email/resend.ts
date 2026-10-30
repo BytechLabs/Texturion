@@ -77,7 +77,15 @@ export interface SentEmail {
   id: string | null;
 }
 
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
+const DEFAULT_RESEND_API_BASE = "https://api.resend.com";
+
+/**
+ * D142: the rig sends through its guard, which holds the only key and keeps
+ * recipients to Resend's test addresses. Unset everywhere else.
+ */
+function resendEndpoint(env: Env): string {
+  return `${env.RESEND_API_BASE ?? DEFAULT_RESEND_API_BASE}/emails`;
+}
 
 /**
  * Resend REST client (SPEC §3: Resend owns ALL transactional email). Plain
@@ -127,7 +135,7 @@ export async function sendEmail(
    * keeps deciding for itself.
    */
   const replyTo = input.replyTo ?? env.RESEND_REPLY_TO ?? SUPPORT_EMAIL;
-  const response = await fetch(RESEND_ENDPOINT, {
+  const response = await fetch(resendEndpoint(env), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
