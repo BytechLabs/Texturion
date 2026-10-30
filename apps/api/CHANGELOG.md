@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/BytechLabs/Texturion/compare/api-v0.18.0...api-v0.18.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* **numbers:** a release deletes a number only when Telnyx confirms it is ours ([cc7968b](https://github.com/BytechLabs/Texturion/commit/cc7968bae5ccfdc99bcb1c1886e1a3392f7ee585))
+
 ## [0.18.0](https://github.com/BytechLabs/Texturion/compare/api-v0.17.2...api-v0.18.0) (2026-10-30)
 
 
