@@ -51,6 +51,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -206,7 +207,9 @@ fun InCallScreen(
     // weight-spacer layout on tall screens and grows past it (scrolling) on
     // short ones. Compact height also shrinks the identity block so it rarely
     // needs to scroll at all. Telecom/answer logic is untouched — layout only.
-    BoxWithConstraints(modifier.fillMaxSize()) {
+    BoxWithConstraints(
+        modifier.fillMaxSize().testTag(CallTestTags.IN_CALL).exposeCallTestTags(),
+    ) {
       val compact = isCompactHeight()
       Column(
         Modifier
@@ -335,7 +338,7 @@ fun InCallScreen(
                         haptics.tap()
                         manager.setMuted(featured.id, !featured.muted)
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).testTag(CallTestTags.MUTE),
                 )
                 ControlCircle(
                     icon = Icons.Outlined.Dialpad,
@@ -346,7 +349,7 @@ fun InCallScreen(
                         haptics.tap()
                         dtmfOpen = true
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).testTag(CallTestTags.KEYPAD),
                 )
                 ControlCircle(
                     icon = if (featured.phase == CallPhase.HELD) {
@@ -369,7 +372,7 @@ fun InCallScreen(
                         haptics.tap()
                         manager.toggleHold(featured.id)
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).testTag(CallTestTags.HOLD),
                 )
             }
             Spacer(Modifier.height(12.dp))
@@ -489,6 +492,7 @@ fun InCallScreen(
                         haptics.reject()
                         manager.hangup(featured.id)
                     },
+                    modifier = Modifier.testTag(CallTestTags.DECLINE),
                 )
                 RingActionCircle(
                     icon = Icons.Outlined.Call,
@@ -506,6 +510,7 @@ fun InCallScreen(
                             answerLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
+                    modifier = Modifier.testTag(CallTestTags.ANSWER),
                 )
             }
         } else {
@@ -518,7 +523,7 @@ fun InCallScreen(
                 },
                 enabled = featured != null,
                 label = t("contactsTasks.endCall"),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag(CallTestTags.HANG_UP),
             )
         }
         }

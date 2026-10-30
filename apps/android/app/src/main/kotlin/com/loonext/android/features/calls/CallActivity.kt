@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -181,7 +182,7 @@ class CallActivity : ComponentActivity() {
                 // host already pads it above the keyboard and the debug
                 // guard already watches it. No screen inside may add its own
                 // ime handling (ImeContractLintTest).
-                Box(Modifier.fillMaxSize().imeHost("call-activity")) {
+                Box(Modifier.fillMaxSize().imeHost("call-activity").exposeCallTestTags()) {
                     CallSurface(
                         manager = manager,
                         repo = remember { CallsRepository(graph.api) },
@@ -514,6 +515,7 @@ private fun RingingSurface(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .testTag(CallTestTags.RINGING)
             .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -584,6 +586,7 @@ private fun RingingSurface(
                     haptics.reject()
                     onDecline()
                 },
+                modifier = Modifier.testTag(CallTestTags.DECLINE),
             )
             RingActionCircle(
                 icon = Icons.Outlined.Call,
@@ -597,6 +600,7 @@ private fun RingingSurface(
                     haptics.confirm()
                     onAnswer()
                 },
+                modifier = Modifier.testTag(CallTestTags.ANSWER),
             )
         }
     }
