@@ -14,6 +14,7 @@ import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { encodeBase64Url } from "./webpush";
 import { notifyIncomingCall } from "./incoming-call";
+import { pushAttemptsSettled } from "./push-attempts";
 
 vi.mock("@sentry/cloudflare", async () =>
   (await import("../test/sentry-mock")).sentryModuleMock(),
@@ -25,7 +26,10 @@ const USER_A = "aaaaaaaa-0000-4000-8000-00000000000a";
 const USER_B = "bbbbbbbb-0000-4000-8000-00000000000b";
 const PUSH_ORIGIN = "https://fcm.googleapis.com";
 
-afterEach(() => {
+// The fan-out writes its evidence in the background; let it land in this
+// test's stubs rather than the next one's.
+afterEach(async () => {
+  await pushAttemptsSettled();
   vi.unstubAllGlobals();
 });
 beforeEach(() => {

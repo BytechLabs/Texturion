@@ -750,7 +750,12 @@ export async function handleTerminalCallEvent(
   // answered-at anchor. Inbound passes no opts and falls through to
   // call_session_id (inbound's S IS Telnyx's id). The middle parseOutbound read
   // is defense in depth for a stray 4-part tag arriving without opts.
-  opts?: { outboundSessionId?: string; outboundAnsweredAtIso?: string | null },
+  opts?: {
+    outboundSessionId?: string;
+    outboundAnsweredAtIso?: string | null;
+    /** Set by the call engine; see PushDelivery.recordAttemptsInBackground. */
+    recordAttemptsInBackground?: boolean;
+  },
 ): Promise<void> {
   const callId =
     opts?.outboundSessionId ??
@@ -925,6 +930,7 @@ export async function handleTerminalCallEvent(
     fromNumberE164: ourNumberE164,
     callerE164: finalCaller,
     callId,
+    recordAttemptsInBackground: opts?.recordAttemptsInBackground,
   });
 
   // #132: the crew alert is a MISSED-CALL behavior, not a TEXT-BACK behavior —
@@ -944,6 +950,7 @@ export async function handleTerminalCallEvent(
           conversationId: thread.conversationId,
           callerE164: call?.caller_e164 ?? finalCaller,
           textStatus: "none",
+          recordAttemptsInBackground: opts?.recordAttemptsInBackground,
         },
         db,
       );

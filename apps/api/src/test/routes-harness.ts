@@ -296,6 +296,22 @@ export function supabaseStub(env: Env): SupabaseStub {
           ? [{ subscription_status: "active" }]
           : undefined,
     },
+    {
+      // D142: every push fan-out writes its evidence after the sends. The
+      // ambient answer is "written"; the ledger's own suites register this
+      // path and assert on it.
+      method: "POST",
+      matcher: "/rest/v1/push_attempts",
+      respond: () => new Response(null, { status: 201 }),
+    },
+    {
+      // D142: on the rig the Worker asks its database whether the destination
+      // gate is on before serving. The ambient answer is a bootstrapped rig
+      // database. Production and local never ask.
+      method: "POST",
+      matcher: "/rest/v1/rpc/rig_database_posture",
+      respond: () => ({ deploy_env: "rig", endpoints: 2 }),
+    },
   ];
 
   const matches = (matcher: string | RegExp, path: string) =>

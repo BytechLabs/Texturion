@@ -28,6 +28,11 @@ import type { Env } from "../env";
 import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { claimHighPriority } from "./high-priority";
+import {
+  recordPushAttemptsInBackground,
+  timedPush,
+  type PushAttempt,
+} from "./push-attempts";
 import { sendWebPush } from "./webpush";
 
 /** Per-recipient device bound (#267): never a single ceiling across the crew. */
@@ -135,11 +140,17 @@ export async function notifyIncomingCall(
   // the caller can safely await without a try/catch of its own. On an error we
   // cannot prove any channel dead → report NO one unreachable (the DO holds the
   // ladder to the alarm rather than pruning on a guess — §5.5).
+  const attempts: PushAttempt[] = [];
   try {
-    return await deliverIncomingCallPush(env, db, input);
+    return await deliverIncomingCallPush(env, db, input, attempts);
   } catch (cause) {
     Sentry.captureException(cause);
     return { unreachableUserIds: [] };
+  } finally {
+    // D142: not awaited. The DO holds this call's queue until the report comes
+    // back, and the answer claim waiting behind it must not also wait on the
+    // evidence about the ring.
+    recordPushAttemptsInBackground(env, db, attempts);
   }
 }
 
@@ -152,6 +163,7 @@ async function deliverIncomingCallPush(
     caller: string | null;
     callSessionId: string;
   },
+  attempts: PushAttempt[],
 ): Promise<IncomingCallPushReport> {
   if (input.userIds.length === 0) return { unreachableUserIds: [] };
 
@@ -211,12 +223,19 @@ async function deliverIncomingCallPush(
   await Promise.all(
     subscriptions.map(async (sub) => {
       try {
-        const result = await sendWebPush(
-          env,
-          sub,
-          payload,
-          CALL_PUSH_TTL_SECS,
-          "high",
+        const result = await timedPush(
+          attempts,
+          {
+            companyId: input.companyId,
+            userId: sub.user_id,
+            callSessionId: input.callSessionId,
+            purpose: "ring",
+            channel: "webpush",
+            platform: "web",
+            priority: "high",
+            targetId: sub.id,
+          },
+          () => sendWebPush(env, sub, payload, CALL_PUSH_TTL_SECS, "high"),
         );
         if (result.gone) {
           await db.from("push_subscriptions").delete().eq("id", sub.id);
@@ -289,15 +308,29 @@ async function deliverIncomingCallPush(
   await Promise.all(
     deviceTokens.map(async (device) => {
       try {
-        const result = await sendFcm(
-          env,
-          device,
-          payload,
-          CALL_PUSH_TTL_SECS,
-          "high",
-          // #162/#149 iOS coalescing: per call SESSION — repeats for one call
-          // replace each other; two concurrent calls stay two alerts.
-          `call:${input.callSessionId}`,
+        const result = await timedPush(
+          attempts,
+          {
+            companyId: input.companyId,
+            userId: device.user_id,
+            callSessionId: input.callSessionId,
+            purpose: "ring",
+            channel: "fcm",
+            platform: device.platform,
+            priority: "high",
+            targetId: device.id,
+          },
+          () =>
+            sendFcm(
+              env,
+              device,
+              payload,
+              CALL_PUSH_TTL_SECS,
+              "high",
+              // #162/#149 iOS coalescing: per call SESSION — repeats for one
+              // call replace each other; two concurrent calls stay two alerts.
+              `call:${input.callSessionId}`,
+            ),
         );
         if (result.gone) {
           // UNREGISTERED token (app uninstalled / rotated): expected

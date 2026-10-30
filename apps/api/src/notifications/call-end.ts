@@ -36,6 +36,11 @@ import type { Env } from "../env";
 import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { claimHighPriority } from "./high-priority";
+import {
+  recordPushAttemptsInBackground,
+  timedPush,
+  type PushAttempt,
+} from "./push-attempts";
 import { sendWebPush } from "./webpush";
 
 /** The capability string a v3 client declares to opt into `call_end`. */
@@ -102,10 +107,15 @@ export async function notifyCallEnd(
   db: SupabaseClient,
   input: CallEndInput,
 ): Promise<void> {
+  const attempts: PushAttempt[] = [];
   try {
-    await deliverCallEnd(env, db, input);
+    await deliverCallEnd(env, db, input, attempts);
   } catch (cause) {
     Sentry.captureException(cause);
+  } finally {
+    // Not awaited, for the same reason as the ring's: this runs in the call's
+    // serialized queue.
+    recordPushAttemptsInBackground(env, db, attempts);
   }
 }
 
@@ -113,6 +123,7 @@ async function deliverCallEnd(
   env: Env,
   db: SupabaseClient,
   input: CallEndInput,
+  attempts: PushAttempt[],
 ): Promise<void> {
   if (input.userIds.length === 0) return;
 
@@ -178,15 +189,29 @@ async function deliverCallEnd(
     await Promise.all(
       subscriptions.map(async (sub) => {
         try {
-          const result = await sendWebPush(
-            env,
-            sub,
-            payload,
-            CALL_END_TTL_SECS,
-            "high",
-            // The ring's own collapse identity: the outcome card REPLACES the
-            // ring rather than landing beside it.
-            `call:${input.callSessionId}`,
+          const result = await timedPush(
+            attempts,
+            {
+              companyId: input.companyId,
+              userId: sub.user_id,
+              callSessionId: input.callSessionId,
+              purpose: "call_end",
+              channel: "webpush",
+              platform: "web",
+              priority: "high",
+              targetId: sub.id,
+            },
+            () =>
+              sendWebPush(
+                env,
+                sub,
+                payload,
+                CALL_END_TTL_SECS,
+                "high",
+                // The ring's own collapse identity: the outcome card REPLACES
+                // the ring rather than landing beside it.
+                `call:${input.callSessionId}`,
+              ),
           );
           if (result.gone) {
             await db.from("push_subscriptions").delete().eq("id", sub.id);
@@ -224,13 +249,27 @@ async function deliverCallEnd(
   await Promise.all(
     deviceTokens.map(async (device) => {
       try {
-        const result = await sendFcm(
-          env,
-          device,
-          payload,
-          CALL_END_TTL_SECS,
-          "high",
-          `call:${input.callSessionId}`,
+        const result = await timedPush(
+          attempts,
+          {
+            companyId: input.companyId,
+            userId: device.user_id,
+            callSessionId: input.callSessionId,
+            purpose: "call_end",
+            channel: "fcm",
+            platform: device.platform,
+            priority: "high",
+            targetId: device.id,
+          },
+          () =>
+            sendFcm(
+              env,
+              device,
+              payload,
+              CALL_END_TTL_SECS,
+              "high",
+              `call:${input.callSessionId}`,
+            ),
         );
         if (result.gone) {
           await db.from("device_push_tokens").delete().eq("id", device.id);

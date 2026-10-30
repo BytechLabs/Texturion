@@ -30,6 +30,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { resolveHighPriority, type HighPriorityRequest } from "./high-priority";
+import {
+  recordPushAttempts,
+  recordPushAttemptsInBackground,
+  timedPush,
+  type PushAttempt,
+} from "./push-attempts";
 import { sendWebPush } from "./webpush";
 
 /**
@@ -229,6 +235,13 @@ export interface PushDelivery {
    * to the on-call member is the second without being the first.
    */
   overridesQuietHours?: { reason: "on_call_page" | "escalation" };
+  /**
+   * D142: record the push_attempts rows without waiting for the write. Only
+   * the call engine sets it: its effects run one at a time, so an awaited
+   * write would hold the call-end push behind it. A Worker request must leave
+   * it unset, because it may be cut off once it has answered.
+   */
+  recordAttemptsInBackground?: boolean;
   /**
    * Every failure lands here rather than throwing, so one dead device cannot
    * stop the rest of the fan-out. The caller decides what a non-empty list
@@ -520,6 +533,26 @@ export async function deliverPush(
   db: SupabaseClient,
   delivery: PushDelivery,
 ): Promise<void> {
+  // D142: recorded in `finally` so a lookup that throws after the web sends
+  // still leaves the evidence of the sends that did go out.
+  const attempts: PushAttempt[] = [];
+  try {
+    await fanOutPush(env, db, delivery, attempts);
+  } finally {
+    if (delivery.recordAttemptsInBackground) {
+      recordPushAttemptsInBackground(env, db, attempts);
+    } else {
+      await recordPushAttempts(env, db, attempts);
+    }
+  }
+}
+
+async function fanOutPush(
+  env: Env,
+  db: SupabaseClient,
+  delivery: PushDelivery,
+  attempts: PushAttempt[],
+): Promise<void> {
   if (delivery.userIds.length === 0) return;
 
   // #244: a member's own do-not-disturb, applied HERE rather than at each of
@@ -631,13 +664,28 @@ export async function deliverPush(
       // Web Push urgency is NOT metered (#452): no push service rations it,
       // so degrading it would save nothing and cost a wake. The meter below
       // covers the native sends, which are the ones Google and Apple count.
-      const result = await sendWebPush(
-        env,
-        subscription,
-        payloadFor(webPayloads, delivery.web, localeFor(subscription)),
-        undefined,
-        delivery.highPriority ? "high" : "normal",
-        delivery.collapseKey,
+      const priority = delivery.highPriority ? "high" : "normal";
+      const result = await timedPush(
+        attempts,
+        {
+          companyId: delivery.companyId,
+          userId: subscription.user_id,
+          callSessionId: null,
+          purpose: "alert",
+          channel: "webpush",
+          platform: "web",
+          priority,
+          targetId: subscription.id,
+        },
+        () =>
+          sendWebPush(
+            env,
+            subscription,
+            payloadFor(webPayloads, delivery.web, localeFor(subscription)),
+            undefined,
+            priority,
+            delivery.collapseKey,
+          ),
       );
       if (result.gone) {
         // Permanently dead endpoint (unsubscribed/expired): drop the row.
@@ -698,17 +746,31 @@ export async function deliverPush(
       // late, unlike a ring. Urgency does NOT — #414 needs HIGH to wake a
       // phone in Doze, which is the whole mechanism behind the emergency
       // promise.
-      const result = await sendFcm(
-        env,
-        device,
-        payloadFor(
-          nativePayloads,
-          delivery.native ?? delivery.web,
-          localeFor(device),
-        ),
-        undefined,
-        urgency,
-        delivery.collapseKey,
+      const result = await timedPush(
+        attempts,
+        {
+          companyId: delivery.companyId,
+          userId: device.user_id,
+          callSessionId: null,
+          purpose: "alert",
+          channel: "fcm",
+          platform: device.platform,
+          priority: urgency,
+          targetId: device.id,
+        },
+        () =>
+          sendFcm(
+            env,
+            device,
+            payloadFor(
+              nativePayloads,
+              delivery.native ?? delivery.web,
+              localeFor(device),
+            ),
+            undefined,
+            urgency,
+            delivery.collapseKey,
+          ),
       );
       if (result.gone) {
         // FCM says UNREGISTERED (app uninstalled / token rotated): drop the

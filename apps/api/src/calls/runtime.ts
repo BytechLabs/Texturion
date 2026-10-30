@@ -1216,7 +1216,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         db,
         "call.hangup",
         payload as never,
-        opts,
+        { ...opts, recordAttemptsInBackground: true },
       );
     },
 
@@ -1276,6 +1276,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         fromNumberE164: machine.businessNumberE164,
         callerE164: machine.callerE164,
         callId: machine.callSessionId,
+        recordAttemptsInBackground: true,
       });
       if (!textBack.alerted && thread?.eventInserted && thread.conversationId) {
         try {
@@ -1286,6 +1287,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
               conversationId: thread.conversationId,
               callerE164: machine.callerE164,
               textStatus: "none",
+              recordAttemptsInBackground: true,
             },
             db,
           );
