@@ -242,7 +242,7 @@ Every verdict records the SHA it ran against.
 
 A cron registry, `tools/rig/crons.json`, classifies every cron as one of:
 - **run**;
-- **run, expecting a refusal**, with that refusal's fingerprint suppressed (for example 10DLC polls and porting reconciles, which the guard refuses);
+- **run, expecting a refusal**, with that refusal's fingerprint suppressed (for example 10DLC polls and porting reconciles: in rig mode the app refuses every 10DLC, porting, hosted-messaging and documents request itself, with `rig_endpoint_refused`, before it reaches the guard, which refuses them too);
 - **skip**, with a reason.
 
 CI checks the registry against each ref's `wrangler.jsonc`. R00 requires zero unexplained Sentry fingerprints over 24 hours, so a standing red cannot hide a new one.
@@ -268,6 +268,7 @@ CI checks the registry against each ref's `wrangler.jsonc`. R00 requires zero un
 - the sandbox Stripe key;
 - the `loonext-rig` Sentry DSN, through the relay;
 - `RIG_OWNED_E164`, generated from the guard's live listing and never committed;
+- `RIG_ROBOT_WEBHOOK_ORIGIN`, the robot's webhook sink: customer webhooks and their test pings go there or nowhere. It must be a public https name, because the webhook URL rule refuses `*.internal` hosts when an endpoint is created and when it is pinged. **Verify:** no edge path relays it to the robot yet.
 - Turnstile test keys.
 
 **Old versions.**
@@ -438,7 +439,7 @@ The guard's setup routine creates everything from a committed spec, `tools/guard
 ### 3.7 Production changes (through release-please)
 
 **Phase 0a: a small release, first.**
-1. **Ownership rule.** A new *apps/api/src/telnyx/ownership.ts* (planned) provides `ownsTelnyxNumber(env, number)`.
+1. **Ownership rule.** `apps/api/src/telnyx/ownership.ts` provides `ownsTelnyxNumber(env, number)`.
    - With `TELNYX_BILLING_GROUP_ID` set, an environment owns only numbers in that group. With it unset, as in production, it owns only numbers with no group.
    - It is checked before both the warning and the DELETE in `reconcileNumbers`, in `adoptOrphanNumber`, and as a GET-then-check before `releaseNumberRow` deletes anything.
    - Foreign numbers are counted, never flagged and never deleted.
@@ -461,21 +462,22 @@ Already shipped in release 0.18.0: `0fd3583c` (2026-10-30). It stops `scripts/de
    - Importing the Telnyx base-URL constant outside `client.ts` is banned.
 2. **`DEPLOY_ENV`.**
    - `ship.yml` stamps `DEPLOY_ENV=production` beside `GIT_SHA`. Unset means `local`, and `scripts/ci-dev-vars.mjs` and `.dev.vars.example` say so explicitly. The e2e harness therefore runs as `local`, and a test proves it.
-   - Only `src/environments/` may read the variable (*scripts/check-deploy-env-branches.mjs* (planned)), and it may only add restrictions. In rig mode it adds:
+   - Only `src/environments/` may read the variable (`scripts/check-deploy-env-branches.mjs`), and it may only add restrictions. In rig mode it adds:
      - an outbound destination gate, plus a call-site test that fails if any send or dial site skips it, or if it finds zero sites;
      - an inbound gate that rejects any non-allowlisted caller or texter before ring, voicemail, transcription or text-back;
      - refusal of live Stripe keys and live events;
      - refusal of any Supabase host outside `*.rig.internal` or loopback;
      - customer webhooks delivered to the robot only.
    - The one rig-only route is `POST /v1/rig/simulate-incoming`, for D02p. Its synthetic sessions refuse ring-me before Telnyx, so D02p never dials. A test proves production's route table lacks it, and another asserts zero guard dials per D02p run.
-   - Production refuses `TELNYX_API_BASE`, and Sentry's environment comes from `DEPLOY_ENV`.
+   - Production refuses to start with any vendor seam set (`TELNYX_API_BASE`, `TELNYX_WEBHOOK_URL`, `TELNYX_MEDIA_PUBLIC_BASE`, `STRIPE_API_BASE`, `RESEND_API_BASE`, `FCM_API_BASE`, `FCM_OAUTH_TOKEN_URL`). This goes further than the design's original `TELNYX_API_BASE` alone: each of the others would send a vendor credential or customer traffic to the host it names. Sentry's environment comes from `DEPLOY_ENV`.
 3. **SQL destination gate.** `gate_outbound_send`, `api_claim_outbound_line` and the greeting-capture claim refuse non-endpoint destinations when the database setting `loonext.deploy_env` is `rig`. That setting exists only on the rig's local database. A SQL test proves production is unchanged.
+   - The setting fails open: `supabase db reset` drops it, and a pooled connection opened before it was set never sees it. So the rig's API asks `rig_database_posture()` before it serves, and answers every request 503, and runs no cron, until the database reports `rig` with at least one endpoint. The rig bootstrap therefore runs `alter database postgres set loonext.deploy_env = 'rig'` and sets `loonext.rig_endpoints` to the `RIG_OWNED_E164` list after every reset, then restarts PostgREST and the pooler.
 4. **Repro evidence.**
    - The `push_attempts` ledger: provider response class, priority and latency, kept 14 days, registered in the four add-a-table guards.
    - Ring beacons from the web, Android and iOS apps (the iOS code compiles in CI): stage events plus app, OS, permission and standby state, nothing personal.
    - `ops_diag` views, including hourly call counts and ring-audience sizes.
    - The `agent_diag` role, with an SQL test proving it cannot read messages, contacts, numbers or payloads.
-   - *scripts/ops/call-trace.mjs* (planned).
+   - `scripts/ops/call-trace.mjs`, which reads only the `ops_diag` views as `agent_diag`.
    - P01 and PW01 (section 3.11).
 5. **Hermetic call journeys.** The fake Telnyx gains dialing and telephony credentials, and `CALL_SESSIONS` is bound. Inbound, outbound, voicemail and transfer journeys run on every push. They also emit each scenario's dial count and peak concurrent legs, which feed the budget check in section 4.1. A trace-to-fixture tool renumbers real traces into the fictional 555-01xx range.
 6. **Android `nonprod` build type**, created with `initWith(release)`:
@@ -642,7 +644,7 @@ This catches portal and webhook drift without a dial or any exception to the gua
 
 ### 4.1 Budget, concurrency and window
 
-**Dials, not calls.** Telnyx limits count dials, and ring legs, transfers and ring-me legs are dials too. Each scenario's dials and peak concurrent outbound legs are taken from the hermetic journeys. The numbers below are the planning estimates.
+**Dials, not calls.** Telnyx limits count dials, and ring legs, transfers and ring-me legs are dials too. Each scenario's dials and peak concurrent outbound legs are taken from the hermetic journeys, which record them in `apps/api/e2e/call-journey-budget.json` and fail when the code disagrees with it. A rig run's dials are its `dials` plus its `far_end_legs`. For S01, S02, S04 and S07 the measured values equal the planning estimates; the numbers below are planning estimates for the rest.
 
 **Budget rule, checked in CI.** Scheduled dials times their frequency, plus a 20% retry reserve, plus a 60-dial monthly repro reserve, must fit the daily cap times 30.
 
@@ -945,7 +947,7 @@ If either is higher, the guard sheds tests to stay under the cap.
   - `rig budget`, `rig room`, `rig lease`, `rig evidence <run>`.
 - **The hourly cloud triage task**, which holds only a triage-scoped token.
 - **Workstation agents** (in the agent Windows user), for production reads only:
-  - *scripts/ops/call-trace.mjs* (planned) as `agent_diag`;
+  - `scripts/ops/call-trace.mjs` as `agent_diag`;
   - Workers logs through `agent-logs-read`;
   - the guard's `diag` class;
   - production Sentry through `agent-read`.
@@ -1009,7 +1011,7 @@ There is no Telnyx, Cloudflare or Sentry MCP there.
 Example: "A customer's Android phone didn't ring yesterday."
 
 1. **Intake.** Open a GitHub issue holding only a hash of the workspace id, the platform and the time window. The issue number stays out of commit trailers until the work is done.
-2. **Read production without copying it** (agent Windows user). Run `node scripts/ops/call-trace.mjs --company-hash <h> --since 48h` as `agent_diag`. For the window it shows:
+2. **Read production without copying it** (agent Windows user). Run `node scripts/ops/call-trace.mjs --company-hash <h> --since 48h` as `agent_diag`. The connection comes only from `AGENT_DIAG_DATABASE_URL` (the pooler login `agent_diag.<project ref>`), any other login is refused, and the tool needs `psql`. `--company-id <uuid>` hashes the id locally and sends only the hash. For the window it shows:
    - sessions and legs per device;
    - each push attempt, with response class, priority and latency;
    - ring-beacon stages;
@@ -1022,7 +1024,7 @@ Example: "A customer's Android phone didn't ring yesterday."
    - (c) received, no ring shown;
    - (d) rang, but answering or audio failed.
 
-   If the customer's app predates the beacon, (b) and (c) cannot be separated, so reproduce both.
+   If the customer's app predates the beacon, (b) and (c) cannot be separated, so reproduce both. Android and iOS send all six stages (`push_received`, `os_reported`, `ring_me_sent`, `ringing_shown`, `answered`, `declined`); the web sends the last three it can see. Every client keys a beacon on the INVITE's `X-Loonext-Session`, and `apps/api/src/routes/ring-beacons.test.ts` fails if a client stops sending a stage it is listed for.
 4. **Write a recipe.** `tools/synthetic/recipes/<issue>.yml` holds settings only: app version, Android level, phone state, ring strategy, member levels, network. `check-rig-no-e164` checks it in CI.
 5. **Hand it to the rig.** Send the issue link to the rig's Remote Control session, or run `rig repro <issue>`.
 6. **Rebuild what the customer ran.**
@@ -1044,7 +1046,7 @@ Example: "A customer's Android phone didn't ring yesterday."
     - Production changes only when the release-please PR merges.
     - The rig reruns the recipe against the released tag.
     - The issue stays open, labelled `awaiting-production-evidence`, until P01 has at least 30 attempts for that platform and version with a passing rate; P01 then closes it automatically. With today's volume that can take a long time, and the label says so.
-    - The recipe joins the rotation for good, and its trace becomes a hermetic fixture.
+    - The recipe joins the rotation for good, and its trace becomes a hermetic fixture under `apps/api/e2e/` through `node scripts/trace-to-fixture.mjs <trace> --out <fixture>`, which renumbers every number into 555-0100..0199 and writes nothing if any number survives.
 
 At no step does any customer number, name, message, recording or database row leave production.
 
