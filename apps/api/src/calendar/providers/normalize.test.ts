@@ -12,6 +12,31 @@ import {
   windowsZoneToIana,
 } from "./windows-zones";
 
+/**
+ * tzdata 2026c made Alberta permanent UTC-6 from 2026-11-01, so what
+ * America/Edmonton does that day depends on the runtime's tzdata release.
+ * The era comes from the release name rather than from probing Intl: a probe
+ * would let a runtime with wrong Alberta rules file itself under whichever era
+ * matches its wrong answer, and the era's assertions would then agree with it.
+ *
+ * Keep in step with its web twin, apps/web/src/test/tzdata-era.ts.
+ */
+function tzdataEra(release: string | undefined): "pre-2026c" | "2026c+" | null {
+  const match = /^(\d{4})([a-z])$/.exec(release ?? "");
+  if (!match) return null;
+  const year = Number(match[1]);
+  return year < 2026 || (year === 2026 && match[2] < "c")
+    ? "pre-2026c"
+    : "2026c+";
+}
+
+const TZDATA_RELEASE = process.versions.tz;
+const TZDATA_ERA = tzdataEra(TZDATA_RELEASE);
+
+// Every tzdata release in use agrees on these zones' 2026 transitions. Alberta
+// does not, which is why it has its own era-aware block below.
+const STABLE_DST_ZONES = ["America/New_York", "America/Toronto"] as const;
+
 describe("calendar provider normalization", () => {
   it("resolves the offset at the event date across the fall transition", () => {
     expect(
@@ -22,23 +47,31 @@ describe("calendar provider normalization", () => {
     ).toBe("2026-07-01T13:00:00.000Z");
   });
 
-  it("refuses a wall clock that never existed during spring forward", () => {
-    expect(
-      instantFromWallClock("2026-03-08T02:30:00", "America/New_York"),
-    ).toBeNull();
-  });
+  it.each(STABLE_DST_ZONES)(
+    "refuses %s 2026-03-08T02:30, a wall clock spring-forward skipped",
+    (zone) => {
+      expect(wallClockFromInstant("2026-03-08T06:59:59.000Z", zone)).toBe(
+        "2026-03-08T01:59:59",
+      );
+      expect(wallClockFromInstant("2026-03-08T07:00:00.000Z", zone)).toBe(
+        "2026-03-08T03:00:00",
+      );
+      expect(instantFromWallClock("2026-03-08T02:30:00", zone)).toBeNull();
+    },
+  );
 
-  it("refuses an overlapping wall clock when no offset or fold is provided", () => {
-    expect(
-      instantFromWallClock("2026-11-01T01:30:00", "America/Edmonton"),
-    ).toBeNull();
-  });
-
-  it("round trips an Edmonton instant for an outbound Graph event", () => {
-    expect(
-      wallClockFromInstant("2026-11-01T16:00:00.000Z", "America/Edmonton"),
-    ).toBe("2026-11-01T09:00:00");
-  });
+  it.each(STABLE_DST_ZONES)(
+    "refuses %s 2026-11-01T01:30, a wall clock fall-back repeats, when no offset or fold is provided",
+    (zone) => {
+      expect(wallClockFromInstant("2026-11-01T05:30:00.000Z", zone)).toBe(
+        "2026-11-01T01:30:00",
+      );
+      expect(wallClockFromInstant("2026-11-01T06:30:00.000Z", zone)).toBe(
+        "2026-11-01T01:30:00",
+      );
+      expect(instantFromWallClock("2026-11-01T01:30:00", zone)).toBeNull();
+    },
+  );
 
   it("hashes normalized provider text without retaining customer text", async () => {
     await expect(hashCalendarDescription("Cafe\u0301\r\nUnit 4")).resolves.toBe(
@@ -102,4 +135,75 @@ describe("calendar provider normalization", () => {
     );
     expect(windowsZoneToIana("Made Up Standard Time")).toBeNull();
   });
+});
+
+describe(`Alberta (America/Edmonton) on tzdata ${TZDATA_RELEASE ?? "unknown"}, era ${TZDATA_ERA ?? "unclassified"}`, () => {
+  const zone = "America/Edmonton";
+
+  it("runs on a tzdata release whose Alberta rules this suite knows", () => {
+    expect(
+      TZDATA_ERA,
+      `process.versions.tz is ${String(TZDATA_RELEASE)}`,
+    ).not.toBeNull();
+  });
+
+  it("refuses 2026-03-08T02:30, which spring-forward skipped in every era", () => {
+    expect(instantFromWallClock("2026-03-08T02:30:00", zone)).toBeNull();
+  });
+
+  if (TZDATA_ERA === "pre-2026c") {
+    it("pre-2026c: refuses 2026-11-01T01:30, which fall-back repeats", () => {
+      expect(wallClockFromInstant("2026-11-01T07:30:00.000Z", zone)).toBe(
+        "2026-11-01T01:30:00",
+      );
+      expect(wallClockFromInstant("2026-11-01T08:30:00.000Z", zone)).toBe(
+        "2026-11-01T01:30:00",
+      );
+      expect(instantFromWallClock("2026-11-01T01:30:00", zone)).toBeNull();
+    });
+
+    it("pre-2026c: round trips 2026-11-01T16:00Z as 09:00 local", () => {
+      expect(wallClockFromInstant("2026-11-01T16:00:00.000Z", zone)).toBe(
+        "2026-11-01T09:00:00",
+      );
+      expect(instantFromWallClock("2026-11-01T09:00:00", zone)).toBe(
+        "2026-11-01T16:00:00.000Z",
+      );
+    });
+
+    it("pre-2026c: is UTC-7 in January 2027", () => {
+      expect(wallClockFromInstant("2027-01-15T18:00:00.000Z", zone)).toBe(
+        "2027-01-15T11:00:00",
+      );
+      expect(instantFromWallClock("2027-01-15T11:00:00", zone)).toBe(
+        "2027-01-15T18:00:00.000Z",
+      );
+    });
+  }
+
+  if (TZDATA_ERA === "2026c+") {
+    it("2026c+: resolves 2026-11-01T01:30 to its only instant, as Alberta no longer falls back", () => {
+      expect(instantFromWallClock("2026-11-01T01:30:00", zone)).toBe(
+        "2026-11-01T07:30:00.000Z",
+      );
+    });
+
+    it("2026c+: round trips 2026-11-01T16:00Z as 10:00 local", () => {
+      expect(wallClockFromInstant("2026-11-01T16:00:00.000Z", zone)).toBe(
+        "2026-11-01T10:00:00",
+      );
+      expect(instantFromWallClock("2026-11-01T10:00:00", zone)).toBe(
+        "2026-11-01T16:00:00.000Z",
+      );
+    });
+
+    it("2026c+: is UTC-6 in January 2027", () => {
+      expect(wallClockFromInstant("2027-01-15T18:00:00.000Z", zone)).toBe(
+        "2027-01-15T12:00:00",
+      );
+      expect(instantFromWallClock("2027-01-15T12:00:00", zone)).toBe(
+        "2027-01-15T18:00:00.000Z",
+      );
+    });
+  }
 });

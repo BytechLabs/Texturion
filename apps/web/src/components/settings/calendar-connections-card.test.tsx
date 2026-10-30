@@ -65,6 +65,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { LocaleProvider } from "@/i18n/provider";
+import { TZDATA_ERA, TZDATA_RELEASE } from "@/test/tzdata-era";
 
 import { CalendarConnectionsCard } from "./calendar-connections-card";
 
@@ -150,6 +151,49 @@ function renderCard(locale: "en" | "fr-CA" = "en") {
     </LocaleProvider>,
   );
 }
+
+function submitMovedTime(timeZone: string, value: string) {
+  setView([connection()]);
+  mocks.attentionView.data = {
+    attention: [
+      attentionItem({
+        state: "event_removed",
+        ours: {
+          start: "2026-11-01T16:00:00.000Z",
+          end: "2026-11-01T17:00:00.000Z",
+          time_zone: timeZone,
+          title: "Furnace tune-up",
+        },
+        theirs: null,
+      }),
+    ],
+  };
+  renderCard();
+
+  fireEvent.click(screen.getByRole("button", { name: "The job was moved" }));
+  fireEvent.change(screen.getByLabelText("New date and time"), {
+    target: { value },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save new time" }));
+}
+
+function expectMovedTo(newDueAt: string) {
+  expect(mocks.resolveAttention).toHaveBeenCalledWith(
+    {
+      id: "link-1",
+      resolution: { action: "moved", new_due_at: newDueAt },
+    },
+    expect.anything(),
+  );
+}
+
+function expectRefused(message: RegExp) {
+  expect(mocks.resolveAttention).not.toHaveBeenCalled();
+  expect(mocks.toastError).toHaveBeenCalledWith(expect.stringMatching(message));
+}
+
+const DST_GAP = /does not exist because daylight saving time starts/i;
+const DST_FOLD = /happens twice because daylight saving time ends/i;
 
 afterEach(cleanup);
 
@@ -532,77 +576,81 @@ describe("#245 two-way calendar settings", () => {
   );
 
   it("requires and submits a new instant when a removed event was moved", () => {
-    setView([connection()]);
-    mocks.attentionView.data = {
-      attention: [
-        attentionItem({
-          state: "event_removed",
-          ours: {
-            start: "2026-11-01T16:00:00.000Z",
-            end: "2026-11-01T17:00:00.000Z",
-            time_zone: "America/Edmonton",
-            title: "Furnace tune-up",
-          },
-          theirs: null,
-        }),
-      ],
-    };
-    renderCard();
+    // Etc/GMT+6 is UTC-6 by definition (POSIX sign), so no tzdata release can
+    // move the instant this test expects.
+    submitMovedTime("Etc/GMT+6", "2026-11-03T09:30");
 
-    fireEvent.click(screen.getByRole("button", { name: "The job was moved" }));
-    fireEvent.change(screen.getByLabelText("New date and time"), {
-      target: { value: "2026-11-03T09:30" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save new time" }));
+    expectMovedTo("2026-11-03T15:30:00.000Z");
+    expect(screen.getByText("This time is in Etc/GMT+6.")).toBeTruthy();
+  });
 
-    expect(mocks.resolveAttention).toHaveBeenCalledWith(
-      {
-        id: "link-1",
-        resolution: {
-          action: "moved",
-          new_due_at: "2026-11-03T16:30:00.000Z",
-        },
-      },
-      expect.anything(),
-    );
-    expect(screen.getByText("This time is in America/Edmonton.")).toBeTruthy();
+  // Every tzdata release in use agrees on these zones' 2026 transitions.
+  // Alberta does not, which is why it has its own era-aware block below.
+  it.each([
+    ["America/New_York", "2026-03-01T09:30", "2026-03-01T14:30:00.000Z"],
+    ["America/New_York", "2026-07-01T09:30", "2026-07-01T13:30:00.000Z"],
+    ["America/Toronto", "2026-03-01T09:30", "2026-03-01T14:30:00.000Z"],
+    ["America/Toronto", "2026-07-01T09:30", "2026-07-01T13:30:00.000Z"],
+  ])("submits a moved time at the offset in force on that date in %s (%s)", (zone, value, instant) => {
+    submitMovedTime(zone, value);
+
+    expectMovedTo(instant);
   });
 
   it.each([
-    [
-      "2026-03-08T02:30",
-      /does not exist because daylight saving time starts/i,
-    ],
-    [
-      "2026-11-01T01:30",
-      /happens twice because daylight saving time ends/i,
-    ],
-  ])("refuses a DST-invalid moved wall clock (%s)", (value, message) => {
-    setView([connection()]);
-    mocks.attentionView.data = {
-      attention: [
-        attentionItem({
-          state: "event_removed",
-          ours: {
-            start: "2026-11-01T16:00:00.000Z",
-            end: "2026-11-01T17:00:00.000Z",
-            time_zone: "America/Edmonton",
-            title: "Furnace tune-up",
-          },
-          theirs: null,
-        }),
-      ],
-    };
-    renderCard();
+    ["America/New_York", "2026-03-08T02:30", DST_GAP],
+    ["America/New_York", "2026-11-01T01:30", DST_FOLD],
+    ["America/Toronto", "2026-03-08T02:30", DST_GAP],
+    ["America/Toronto", "2026-11-01T01:30", DST_FOLD],
+  ])("refuses a DST-invalid moved wall clock in %s (%s)", (zone, value, message) => {
+    submitMovedTime(zone, value);
 
-    fireEvent.click(screen.getByRole("button", { name: "The job was moved" }));
-    fireEvent.change(screen.getByLabelText("New date and time"), {
-      target: { value },
+    expectRefused(message);
+  });
+
+  describe(`Alberta (America/Edmonton) on tzdata ${TZDATA_RELEASE ?? "unknown"}, era ${TZDATA_ERA ?? "unclassified"}`, () => {
+    const zone = "America/Edmonton";
+
+    it("runs on a tzdata release whose Alberta rules this suite knows", () => {
+      expect(
+        TZDATA_ERA,
+        `process.versions.tz is ${String(TZDATA_RELEASE)}`,
+      ).not.toBeNull();
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save new time" }));
 
-    expect(mocks.resolveAttention).not.toHaveBeenCalled();
-    expect(mocks.toastError).toHaveBeenCalledWith(expect.stringMatching(message));
+    it("refuses 2026-03-08T02:30, which spring-forward skipped in every era", () => {
+      submitMovedTime(zone, "2026-03-08T02:30");
+
+      expectRefused(DST_GAP);
+    });
+
+    if (TZDATA_ERA === "pre-2026c") {
+      it("pre-2026c: refuses 2026-11-01T01:30, which fall-back repeats", () => {
+        submitMovedTime(zone, "2026-11-01T01:30");
+
+        expectRefused(DST_FOLD);
+      });
+
+      it("pre-2026c: submits a January 2027 time at UTC-7", () => {
+        submitMovedTime(zone, "2027-01-15T09:30");
+
+        expectMovedTo("2027-01-15T16:30:00.000Z");
+      });
+    }
+
+    if (TZDATA_ERA === "2026c+") {
+      it("2026c+: submits 2026-11-01T01:30 as its only instant, as Alberta no longer falls back", () => {
+        submitMovedTime(zone, "2026-11-01T01:30");
+
+        expectMovedTo("2026-11-01T07:30:00.000Z");
+      });
+
+      it("2026c+: submits a January 2027 time at UTC-6", () => {
+        submitMovedTime(zone, "2027-01-15T09:30");
+
+        expectMovedTo("2027-01-15T15:30:00.000Z");
+      });
+    }
   });
 
   it("explains a refused all-day event without offering a destructive guess", () => {
