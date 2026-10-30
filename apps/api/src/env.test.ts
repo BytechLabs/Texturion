@@ -57,6 +57,23 @@ describe("RESEND_REPLY_TO (optional)", () => {
   });
 });
 
+describe("TELNYX_BILLING_GROUP_ID (optional, D142)", () => {
+  it("parses when unset: production, which owns only ungrouped numbers", () => {
+    expect(getEnv(bindings()).TELNYX_BILLING_GROUP_ID).toBeUndefined();
+  });
+
+  it("round-trips a configured group", () => {
+    const env = getEnv(bindings({ TELNYX_BILLING_GROUP_ID: "bg-nonprod" }));
+    expect(env.TELNYX_BILLING_GROUP_ID).toBe("bg-nonprod");
+  });
+
+  it("rejects an empty string, naming the key, rather than ordering into a blank group", () => {
+    expect(() => getEnv(bindings({ TELNYX_BILLING_GROUP_ID: "" }))).toThrowError(
+      /TELNYX_BILLING_GROUP_ID/,
+    );
+  });
+});
+
 describe("TURNSTILE_SECRET_KEY (optional)", () => {
   it("parses when unset (contact endpoint requires no captcha token)", () => {
     const env = getEnv(bindings());

@@ -398,6 +398,13 @@ const envSchema = z.object({
   TELNYX_API_BASE: z.url().optional(),
   STRIPE_API_BASE: z.url().optional(),
   /**
+   * D142: the Telnyx billing group that marks this environment's numbers in
+   * the account production shares with the rig (telnyx/ownership.ts). UNSET in
+   * production, which then owns only numbers with NO billing group; set, the
+   * environment owns only numbers in this group and orders into it.
+   */
+  TELNYX_BILLING_GROUP_ID: z.string().min(1).optional(),
+  /**
    * Calls v3 (#170) — the per-call session Durable Object namespace
    * (wrangler.jsonc `CALL_SESSIONS` → class CallSessionDO). Optional so every
    * existing test fixture boots without it; the v3 inbound path guards on its

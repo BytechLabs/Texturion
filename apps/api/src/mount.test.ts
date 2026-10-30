@@ -193,7 +193,10 @@ describe("middleware order on /v1/* (CORS → JWT → company context)", () => {
     stubFetch();
     const res = await app.request("/health", {}, env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
+    expect(await res.json()).toEqual({
+      ok: true,
+      capabilities: ["telnyx-partition-v1"],
+    });
   });
 });
 

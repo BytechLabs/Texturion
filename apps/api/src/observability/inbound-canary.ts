@@ -24,9 +24,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { TELNYX_API_BASE } from "../telnyx/client";
 import { recordHeartbeatBestEffort } from "./liveness";
 
-const TELNYX_API_BASE = "https://api.telnyx.com";
 const TELNYX_TIMEOUT_MS = 10_000;
 
 /**
@@ -105,7 +105,7 @@ export async function runInboundCanaryJob(
   const { data: owned, error: ownedError } = await db
     .from("phone_numbers")
     .select("id")
-    .eq("e164", config.to)
+    .eq("number_e164", config.to)
     .limit(1);
   if (ownedError) {
     console.error(`canary: number ownership check failed: ${ownedError.message}`);

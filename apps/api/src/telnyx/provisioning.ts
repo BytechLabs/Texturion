@@ -4,6 +4,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { telnyxRequest, TelnyxApiError } from "./client";
 import { provisioningDelayedCopy } from "./emails";
+import {
+  alertOwnershipMismatch,
+  mismatchSweepAlertDue,
+  ownsTelnyxNumber,
+  partitionOrderFields,
+  type TelnyxPartitionedNumber,
+} from "./ownership";
 // Type-only (erased at runtime): a VALUE import here would close a module
 // cycle with text-enablement.ts (which reuses ensureMessagingProfile /
 // fetchProvisioningCompany from this file) and break module init under
@@ -248,12 +255,12 @@ interface NumberOrderResponse {
 }
 
 interface PhoneNumbersListResponse {
-  data?: {
-    id?: string;
-    phone_number?: string;
-    customer_reference?: string | null;
-  }[];
+  data?: (TelnyxPartitionedNumber & { phone_number?: string })[];
   meta?: { total_pages?: number };
+}
+
+interface PhoneNumberResponse {
+  data?: TelnyxPartitionedNumber;
 }
 
 // ---------------------------------------------------------------------------
@@ -552,7 +559,11 @@ async function adoptOrphanNumber(
     path: "/v2/phone_numbers",
     query: { "filter[customer_reference]": company.id },
   });
-  const candidates = owned.data ?? [];
+  // D142: a number in another partition is never adopted, whatever it is
+  // tagged to. The reconcile sweep counts it and raises the mismatch alert.
+  const candidates = (owned.data ?? []).filter((item) =>
+    ownsTelnyxNumber(env, item),
+  );
   if (candidates.length === 0) return null;
 
   const { data, error } = await db
@@ -604,6 +615,9 @@ function placeNumberOrder(
       phone_numbers: [{ phone_number: phoneNumber }],
       messaging_profile_id: profileId,
       customer_reference: companyId,
+      // D142: the purchase lands in this environment's partition. Nothing in
+      // production, where numbers carry no billing group.
+      ...partitionOrderFields(env),
     },
   });
 }
@@ -1168,16 +1182,33 @@ export async function releaseNumberRow(
     });
   }
   if (row.telnyx_phone_number_id) {
-    try {
-      await telnyxRequest(env, {
-        method: "DELETE",
-        path: `/v2/phone_numbers/${row.telnyx_phone_number_id}`,
-      });
-    } catch (cause) {
-      // Already released on the Telnyx side → converge; anything else must
-      // keep the row un-released so the daily cron retries.
-      if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
-        throw cause;
+    // D142: GET-then-check. The id is this environment's own, but the account
+    // is shared, so nothing is DELETEd until Telnyx confirms the number is in
+    // this partition. Null means it is already gone.
+    const current = await fetchTelnyxNumber(env, row.telnyx_phone_number_id);
+    if (current && !ownsTelnyxNumber(env, current)) {
+      // Our own row holds this id, which is evidence enough that the number is
+      // ours to manage, whatever its customer_reference says.
+      await alertOwnershipMismatch(
+        env,
+        [current],
+        `the release of row ${row.id}`,
+      );
+      // Kept un-released: "released" would claim a number we did not give up.
+      throw new TelnyxPartitionRefusal(row.telnyx_phone_number_id, row.id);
+    }
+    if (current) {
+      try {
+        await telnyxRequest(env, {
+          method: "DELETE",
+          path: `/v2/phone_numbers/${row.telnyx_phone_number_id}`,
+        });
+      } catch (cause) {
+        // Already released on the Telnyx side → converge; anything else must
+        // keep the row un-released so the daily cron retries.
+        if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
+          throw cause;
+        }
       }
     }
   }
@@ -1188,9 +1219,73 @@ export async function releaseNumberRow(
 }
 
 /**
+ * D142: a release refused because Telnyx places the number outside this
+ * environment's partition. No retry can fix it: a person has to change the
+ * number's billing group in the portal. The mismatch alert has already been
+ * raised by the time this is thrown.
+ */
+export class TelnyxPartitionRefusal extends Error {
+  readonly telnyxPhoneNumberId: string;
+  readonly rowId: string;
+
+  constructor(telnyxPhoneNumberId: string, rowId: string) {
+    super(
+      `release refused: Telnyx number ${telnyxPhoneNumberId} is outside ` +
+        `this environment's partition (D142); row ${rowId} stays un-released`,
+    );
+    this.name = "TelnyxPartitionRefusal";
+    this.telnyxPhoneNumberId = telnyxPhoneNumberId;
+    this.rowId = rowId;
+  }
+}
+
+/**
+ * One Telnyx phone-number resource by id, or null when Telnyx says it no longer
+ * exists (404). Any other failure propagates, so a release never guesses.
+ *
+ * Fails closed: the release DELETEs only on a positive reading. An empty body,
+ * `data: null`, a different resource, or one that does not state its billing
+ * group would otherwise read as "no group", which is production's partition.
+ */
+async function fetchTelnyxNumber(
+  env: Env,
+  telnyxPhoneNumberId: string,
+): Promise<TelnyxPartitionedNumber | null> {
+  let response: PhoneNumberResponse | undefined;
+  try {
+    response = await telnyxRequest<PhoneNumberResponse>(env, {
+      method: "GET",
+      path: `/v2/phone_numbers/${telnyxPhoneNumberId}`,
+    });
+  } catch (cause) {
+    if (cause instanceof TelnyxApiError && cause.status === 404) return null;
+    throw cause;
+  }
+  const data = response?.data;
+  if (
+    !data ||
+    typeof data !== "object" ||
+    data.id !== telnyxPhoneNumberId ||
+    !("billing_group_id" in data)
+  ) {
+    throw new Error(
+      `release: Telnyx's read of number ${telnyxPhoneNumberId} did not confirm ` +
+        `its billing group (D142); nothing was deleted`,
+    );
+  }
+  return data;
+}
+
+/**
  * Grace-expiry release (SPEC §9, §11): release every non-released number the
  * company has. One number's failure doesn't stop the others; failures are
  * re-thrown in aggregate so the caller's retry machinery sees them.
+ *
+ * A D142 partition refusal is not one of those failures. It has already
+ * raised the mismatch alert, no retry can clear it, and failing the batch
+ * would block the grace job's campaign deactivation and withhold its heartbeat
+ * until someone edits the portal. The row stays un-released, so the next
+ * daily pass tries it again, and the reconcile sweep keeps paging about it.
  */
 export async function releaseCompanyNumbers(
   env: Env,
@@ -1210,6 +1305,10 @@ export async function releaseCompanyNumbers(
     try {
       released.push(await releaseNumberRow(env, row));
     } catch (cause) {
+      if (cause instanceof TelnyxPartitionRefusal) {
+        console.warn(cause.message);
+        continue;
+      }
       failures.push(cause);
     }
   }
@@ -1235,6 +1334,14 @@ export interface ReconcileSummary {
   orphansFlagged: number;
   /** §4.3 cost-protection: double-buy orphans conservatively reclaimed (DELETEd). */
   orphansReleased: number;
+  /** D142: numbers in another environment's partition — counted, never flagged, deleted or adopted. */
+  foreign: number;
+  /**
+   * D142: the foreign numbers this environment has evidence are its own
+   * (tagged to one of its companies, or claimed by one of its rows). They
+   * raise the mismatch alert, at most once every six hours.
+   */
+  mismatched: number;
 }
 
 /**
@@ -1247,6 +1354,8 @@ export interface ReconcileSummary {
  *  2. Compare ALL Telnyx-owned numbers against `phone_numbers` and flag any
  *     the database does not know — a number costing money that no tenant is
  *     using is an operator page, not a silent leak (§4.3 failure handling).
+ *     "Owned" is this environment's partition only (D142, telnyx/ownership.ts):
+ *     the rest of the shared account is counted in `foreign` and left alone.
  */
 export async function reconcileNumbers(
   env: Env,
@@ -1258,6 +1367,8 @@ export async function reconcileNumbers(
     activated: 0,
     orphansFlagged: 0,
     orphansReleased: 0,
+    foreign: 0,
+    mismatched: 0,
   };
 
   // Work-set: ONLY source='provisioned' rows. Ported rows sit at
@@ -1312,6 +1423,7 @@ export async function reconcileNumbers(
   const knownIds = new Set(
     known.map((r) => r.telnyx_phone_number_id).filter(Boolean),
   );
+  const knownCompanies = new Set(known.map((r) => r.company_id));
 
   // §4.3 cost-protection: which companies is it SAFE to auto-reclaim a stray
   // Telnyx number from? Only a SETTLED tenant — one that already holds a live
@@ -1356,6 +1468,7 @@ export async function reconcileNumbers(
       .filter(Boolean),
   );
 
+  const mismatched: TelnyxPartitionedNumber[] = [];
   let page = 1;
   let totalPages = 1;
   while (page <= totalPages) {
@@ -1367,6 +1480,28 @@ export async function reconcileNumbers(
     totalPages = listing.meta?.total_pages ?? 1;
     for (const owned of listing.data ?? []) {
       if (!owned.id) continue;
+      // D142: the listing is account-wide and the account is shared. Ownership
+      // is decided FIRST — ahead of the known-row checks, so a customer's
+      // number that gained a billing group is caught rather than skipped as
+      // known, and ahead of everything below that can warn or DELETE.
+      if (!ownsTelnyxNumber(env, owned)) {
+        summary.foreign += 1;
+        // Ours by any evidence the sweep already holds. A ported number never
+        // gets our customer_reference, so the row's id and E.164 count too.
+        const ref = owned.customer_reference ?? null;
+        if (
+          (ref && knownCompanies.has(ref)) ||
+          knownIds.has(owned.id) ||
+          (owned.phone_number && knownE164.has(owned.phone_number))
+        ) {
+          mismatched.push({
+            id: owned.id,
+            customer_reference: owned.customer_reference,
+            billing_group_id: owned.billing_group_id,
+          });
+        }
+        continue;
+      }
       if (knownIds.has(owned.id)) continue;
       if (owned.phone_number && knownE164.has(owned.phone_number)) continue;
       // An in-flight port owns this number even before P6a adopts the row.
@@ -1410,6 +1545,16 @@ export async function reconcileNumbers(
     page += 1;
   }
 
+  summary.mismatched = mismatched.length;
+  if (summary.foreign > 0) {
+    console.log(
+      `reconcile: ${summary.foreign} Telnyx number(s) belong to another partition (D142), ` +
+        `${summary.mismatched} of them this environment's own — counted, not acted on`,
+    );
+  }
+  if (mismatched.length > 0 && mismatchSweepAlertDue(now)) {
+    await alertOwnershipMismatch(env, mismatched, "the reconcile sweep");
+  }
   return summary;
 }
 

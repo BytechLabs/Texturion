@@ -50,7 +50,7 @@ prerequisites flagged by the marketing/legal docs.
       including the 4 `STRIPE_MODULE_*_PRICE_ID` secrets, which `/health` does
       **not** check (they are schema-optional so the Worker can boot before the
       catalog exists) — plus optional `POSTHOG_API_KEY` if you use analytics;
-      `GET https://api.loonext.com/health` → `{"ok":true}`
+      `GET https://api.loonext.com/health` → `{"ok":true,"capabilities":["telnyx-partition-v1"]}`
       ([05](./05-workers-deploy.md) §2). Confirm the modules are actually
       sellable: `GET /v1/billing/modules` must report `available: true` for
       `mms`, `voice`, and `extra_storage` (`regions_ca` stays `false` — coming
@@ -169,7 +169,7 @@ with `processed_at IS NULL` (the `*/5` sweeper should clear transient failures).
 - [ ] Swap `TELNYX_API_KEY` / `TELNYX_PUBLIC_KEY` to the live Telnyx account (and
       `TELNYX_VOICE_CONNECTION_ID` to a Call-Control app created in that account);
       confirm 10DLC approval.
-- [ ] Re-hit `https://api.loonext.com/health` → `{"ok":true}`.
+- [ ] Re-hit `https://api.loonext.com/health` → `{"ok":true,"capabilities":["telnyx-partition-v1"]}`.
 - [ ] Repeat the smoke test's send/receive with a **live** number and a real card
       (small amount), then refund.
 

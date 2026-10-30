@@ -39,8 +39,14 @@ function world(options: {
 } = {}) {
   const sb = supabaseStub(env);
   const beats: string[] = [];
-  sb.on("GET", "/rest/v1/phone_numbers", () =>
-    (options.owned ?? true) ? [{ id: "num-1" }] : [],
+  // Answers only the query the real table can answer: the destination, by
+  // `number_e164`. A stub that answers any phone_numbers read passes a filter
+  // on a column the table does not have, which then never sends in production.
+  sb.on("GET", "/rest/v1/phone_numbers", (call) =>
+    (options.owned ?? true) &&
+    call.url.searchParams.get("number_e164") === `eq.${env.CANARY_TO_E164}`
+      ? [{ id: "num-1" }]
+      : [],
   );
   sb.on("POST", "/rest/v1/rpc/inbound_canary_unanswered", () =>
     options.unanswered ?? 0,
@@ -147,6 +153,56 @@ describe("the canary cannot text a person", () => {
 
     expect(result).toEqual({ status: "not-our-number", to: "+15125550199" });
     expect(w.sends).toEqual([]);
+  });
+
+  it("asks phone_numbers by number_e164, the column the table actually has", async () => {
+    // supabase/migrations/20260701000200_tables.sql: `number_e164 text`. The
+    // check filtered on `e164`, which PostgREST refuses (42703), so a configured
+    // canary failed its own ownership check every hour and never sent.
+    const w = world();
+    stubFetch(...w.routes);
+
+    await runInboundCanaryJob(env, new Date());
+
+    const reads = w.sb.find("GET", "/rest/v1/phone_numbers");
+    expect(reads).toHaveLength(1);
+    expect(reads[0].url.searchParams.get("number_e164")).toBe("eq.+15125550199");
+    expect(reads[0].url.searchParams.has("e164")).toBe(false);
+  });
+});
+
+describe("the canary honours TELNYX_API_BASE", () => {
+  it("sends to api.telnyx.com when unset", async () => {
+    const w = world();
+    const hosts: string[] = [];
+    const record: FetchRoute = (url) => {
+      if (url.pathname === "/v2/messages") hosts.push(url.origin);
+      return undefined;
+    };
+    stubFetch(record, ...w.routes);
+
+    await runInboundCanaryJob(env, new Date());
+
+    expect(hosts).toEqual(["https://api.telnyx.com"]);
+  });
+
+  it("sends to the override when set, exactly as before", async () => {
+    const w = world();
+    const hosts: string[] = [];
+    const fake: FetchRoute = (url) => {
+      if (url.origin !== "http://127.0.0.1:8791") return undefined;
+      hosts.push(url.origin);
+      return Response.json({ data: { id: "msg-1" } });
+    };
+    stubFetch(fake, ...w.routes);
+
+    const result = await runInboundCanaryJob(
+      { ...env, TELNYX_API_BASE: "http://127.0.0.1:8791" },
+      new Date(),
+    );
+
+    expect(result.status).toBe("sent");
+    expect(hosts).toEqual(["http://127.0.0.1:8791"]);
   });
 });
 

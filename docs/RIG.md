@@ -443,7 +443,7 @@ The guard's setup routine creates everything from a committed spec, `tools/guard
    - A foreign number whose customer reference names a production company raises `['ops','telnyx-ownership-mismatch']`, so a production number that ever gains a group is caught instead of silently orphaned.
    - Number orders carry `billing_group_id` when the variable is set.
    - `docs/deploy/04-telnyx.md` gains a rule: production numbers never carry a billing group.
-2. **Capability flag.** `/health` returns `capabilities: ['telnyx-partition-v1']`. Today it returns only `{ ok: true }` (`apps/api/src/index.ts`, checked 2026-10-30).
+2. **Capability flag.** `/health` returns `capabilities: ['telnyx-partition-v1']` beside `ok: true`. Before Phase 0a it returned only `{ ok: true }` (`apps/api/src/index.ts`, checked 2026-10-30).
 3. **Inbound-canary fix.** `observability/inbound-canary.ts` filters on `.eq("e164", ...)`, but the column is `number_e164`, so once configured it would never send. Fix the filter and drop the file's private base-URL constant.
 
 Already shipped in release 0.18.0: `0fd3583c` (2026-10-30). It stops `scripts/dev-seed.ts` and `scripts/dev-activate-number.ts` from targeting a non-local Supabase, and makes `stripe-setup.ts` refuse a live key without `--live`.

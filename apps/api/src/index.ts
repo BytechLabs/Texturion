@@ -151,6 +151,7 @@ import { pollPortRequests } from "./telnyx/porting";
 import { reconcileNumbers, sweepStuckProvisioning } from "./telnyx/provisioning";
 import { reconcileTextEnablement } from "./telnyx/text-enablement";
 import { TelnyxApiError } from "./telnyx/client";
+import { TELNYX_PARTITION_CAPABILITY } from "./telnyx/ownership";
 import { reconcileVoiceEnablement } from "./telnyx/voice";
 import {
   nudgeSoleProprietorOtp,
@@ -223,7 +224,10 @@ app.use("/v1/*", companyContext());
 app.get("/health", (c) => {
   // A misconfigured Worker must fail loudly, not serve a healthy-looking 200.
   getEnv(c.env);
-  return c.json({ ok: true });
+  // D142: the rig's guard orders no Telnyx number until production lists the
+  // partition rule here, so a deploy that predates it can never be mistaken
+  // for one that has it.
+  return c.json({ ok: true, capabilities: [TELNYX_PARTITION_CAPABILITY] });
 });
 
 /**

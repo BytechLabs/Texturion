@@ -81,7 +81,13 @@ describe("GET /health", () => {
   it("returns 200 { ok: true } with a fully configured environment", async () => {
     const res = await app.request("/health", {}, completeEnv());
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
+    // D142: the rig's guard orders no Telnyx number until production lists
+    // this capability, and it matches the literal from outside this codebase —
+    // spelled out rather than imported, so renaming the constant fails here.
+    expect(await res.json()).toEqual({
+      ok: true,
+      capabilities: ["telnyx-partition-v1"],
+    });
   });
 });
 
@@ -189,6 +195,9 @@ describe("outermost fetch guard (escaped-onError safety net)", () => {
       executionCtx,
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
+    expect(await res.json()).toEqual({
+      ok: true,
+      capabilities: ["telnyx-partition-v1"],
+    });
   });
 });

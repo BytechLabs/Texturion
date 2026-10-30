@@ -78,7 +78,7 @@ Cloudflare auth (3 — `CLOUDFLARE_API_TOKEN` with **Workers Scripts + DNS + Cac
 3. `stripe:setup` (catalog) → 10 IDs (6 plan/meter + 4 module add-on prices); webhook; Tax; portal.
 4. Telnyx API key + Ed25519 public key + Call-Control voice app → 3 Telnyx values.
 5. Set all 25 API secrets + the GitHub Actions secrets; deploy both Workers; bind custom domains; register the live webhook URLs.
-6. **Go-live checklist + smoke test** — [docs/deploy/07-go-live-checklist.md](docs/deploy/07-go-live-checklist.md). Confirm all **9 cron triggers** are visible, `GET https://api.loonext.com/health` → `{"ok":true}`, and run the test-mode end-to-end (sign up → pay → number provisions → send/receive a real text → cancel→grace).
+6. **Go-live checklist + smoke test** — [docs/deploy/07-go-live-checklist.md](docs/deploy/07-go-live-checklist.md). Confirm all **9 cron triggers** are visible, `GET https://api.loonext.com/health` → `{"ok":true,"capabilities":["telnyx-partition-v1"]}`, and run the test-mode end-to-end (sign up → pay → number provisions → send/receive a real text → cancel→grace).
 
 ---
 

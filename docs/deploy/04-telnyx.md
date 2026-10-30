@@ -187,6 +187,33 @@ So the operator's job is only: keep `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`,
 `TELNYX_VOICE_CONNECTION_ID` (the §1 Call-Control app), and `API_ORIGIN` correct
 on the Worker, and ensure the account has US/CA + 10DLC permissions and balance.
 
+### Production numbers never carry a billing group (D142)
+
+**Production numbers never carry a billing group; the billing group marks a
+number as belonging to the nonprod partition (D142).** The rig's test numbers
+live in this same Telnyx account, in the `loonext-nonprod` billing group
+(`docs/RIG.md` §3.6), so the group is the only thing telling the two apart.
+
+- Production leaves `TELNYX_BILLING_GROUP_ID` **unset**. It then owns only
+  numbers with no billing group, and its orders carry none
+  (`apps/api/src/telnyx/ownership.ts`).
+- The 15-minute reconcile sweep counts a number outside its partition and does
+  nothing else: no orphan warning, no DELETE, no adoption. A release confirms the
+  number is in the partition (`GET /v2/phone_numbers/{id}`) before it DELETEs,
+  and refuses when the read does not positively state the number's group.
+- If a customer's number ever gains a billing group, production stops managing
+  it. It raises the `telnyx-ownership-mismatch` alert (Sentry fingerprint
+  `['ops','telnyx-ownership-mismatch']`, level error) when it has evidence the
+  number is its own: the number's `customer_reference` names one of its
+  companies, or one of its `phone_numbers` rows holds the number's id or E.164.
+  The sweep repeats the alert at most once every six hours (00, 06, 12 and 18
+  UTC); a refused release raises it every time. A refused release keeps the row
+  un-released, and the daily grace pass carries on with the company's campaign
+  and its other numbers. Fix it by clearing the group on the number in the
+  portal. Never assign a billing group to a production number.
+- `GET /health` lists `telnyx-partition-v1` in `capabilities` once a deploy
+  enforces this rule. The rig orders no number until it sees it.
+
 ---
 
 ## 6. Sandbox vs production

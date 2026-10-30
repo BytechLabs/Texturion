@@ -148,6 +148,15 @@ function buildHandlers(): Handler[] {
       },
     },
     {
+      // D142: a release reads the number before it DELETEs it. Every number
+      // this fake sells is production-shaped, so it carries no billing group.
+      method: "GET",
+      pattern: /^\/v2\/phone_numbers\/([^/]+)$/,
+      respond: (_call, match) => ({
+        body: { data: { id: match[1], billing_group_id: null } },
+      }),
+    },
+    {
       method: "PATCH",
       pattern: /^\/v2\/phone_numbers\/([^/]+)(\/voice)?$/,
       respond: (_call, match) => ({

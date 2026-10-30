@@ -183,7 +183,7 @@ build var set (§5), the middleware enforces the D27 host split across those thr
 hostnames: marketing only on the apex (`www` → apex), the product only on `app.`
 (`apps/web/src/lib/hosts.ts`). After this, confirm:
 
-- `https://api.loonext.com/health` returns `{"ok":true}` (`apps/api/src/index.ts:88-92`).
+- `https://api.loonext.com/health` returns `{"ok":true,"capabilities":["telnyx-partition-v1"]}` (`apps/api/src/index.ts:88-92`).
 - `https://app.loonext.com` loads the app.
 
 The origins must match the secrets exactly: CORS is `APP_ORIGIN` with **no wildcard**

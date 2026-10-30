@@ -217,7 +217,7 @@ Set under repo → Settings → Secrets and variables → Actions. Consumed by
 4. Telnyx API key + Ed25519 public key + Call-Control voice app → the 3 Telnyx values.
 5. `wrangler secret put` all §1 secrets (incl. the §3 IDs, `SITE_ORIGIN`, `RESEND_REPLY_TO`) + set the §5 GitHub Actions secrets.
 6. Push `main` → CI typechecks/lints/tests/builds, then deploys both Workers and pushes migrations. Bind the custom domains; register the live webhook URLs.
-7. **Go-live smoke test** — [docs/deploy/07-go-live-checklist.md](docs/deploy/07-go-live-checklist.md): confirm the 9 cron triggers, `GET /health` → `{"ok":true}`, and run the test-mode end-to-end (sign up → pay → number provisions → send/receive a real text → cancel → grace).
+7. **Go-live smoke test** — [docs/deploy/07-go-live-checklist.md](docs/deploy/07-go-live-checklist.md): confirm the 9 cron triggers, `GET /health` → `{"ok":true,"capabilities":["telnyx-partition-v1"]}`, and run the test-mode end-to-end (sign up → pay → number provisions → send/receive a real text → cancel → grace).
 
 ---
 

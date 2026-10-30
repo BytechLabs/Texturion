@@ -542,7 +542,8 @@ export const LIVENESS_EXPECTATIONS = {
       "covers. It selects by state and nothing is lost, but after it " +
       "recovers compare the Telnyx portal's number list against our " +
       "`phone_numbers` rows once — an orphan bought during the gap is " +
-      "billable the whole time it sits there.",
+      "billable the whole time it sits there. Skip every number that " +
+      "carries a billing group: those are the rig's (D142), never ours to release.",
     everyMinutes: 15,
     graceMinutes: 45,
   },

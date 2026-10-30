@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/cloudflare";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
 
 import {
@@ -8,9 +8,11 @@ import {
   provisionCompanyNumber,
   reconcileNumbers,
   releaseCompanyNumbers,
+  releaseNumberRow,
   resumeProvisioning,
   suspendCompanyNumbers,
   sweepStuckProvisioning,
+  TelnyxPartitionRefusal,
   type PhoneNumberRow,
 } from "./provisioning";
 import {
@@ -22,6 +24,11 @@ import {
   type SentEmailCapture,
 } from "./test-support";
 import { getDb } from "../db";
+import {
+  opsCaptures,
+  resetSentryCaptures,
+  sentryCaptures,
+} from "../test/sentry-mock";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 
 /**
@@ -1377,6 +1384,10 @@ describe("suspend / release", () => {
       number_e164: "+12125550002",
       telnyx_phone_number_id: "pn-2",
     });
+    // D142: each release reads the number first; both are ungrouped (ours).
+    telnyx.on("GET", /^\/v2\/phone_numbers\/(pn-[12])$/, (_call, match) => ({
+      data: { id: match[1], billing_group_id: null },
+    }));
     telnyx.on("DELETE", /^\/v2\/phone_numbers\/pn-1$/, () => new Response(null, { status: 204 }));
     telnyx.on("DELETE", /^\/v2\/phone_numbers\/pn-2$/, () => telnyxError(404, "10005"));
 
@@ -1398,6 +1409,9 @@ describe("suspend / release", () => {
       number_e164: "+12125550001",
       telnyx_phone_number_id: "pn-1",
     });
+    telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => ({
+      data: { id: "pn-1", billing_group_id: null },
+    }));
     telnyx.on("DELETE", /^\/v2\/phone_numbers\/pn-1$/, () => telnyxError(500, "10000"));
 
     await expect(releaseCompanyNumbers(env, COMPANY_ID)).rejects.toThrow(
@@ -1433,5 +1447,517 @@ describe("suspend / release", () => {
         /unexpected shape/,
       );
     })();
+  });
+});
+
+/**
+ * D142 — production and the rig share one Telnyx account, and every path below
+ * sees the whole of it. Each environment may act only on its own partition:
+ * production on numbers with NO billing group, the rig on its own group. A
+ * number outside it is counted and left alone — never flagged, deleted or
+ * adopted — and pages only when this environment has evidence it is its own
+ * (tagged to one of OUR companies, or claimed by one of our rows), which is
+ * what a customer's number gaining a billing group looks like.
+ */
+describe("D142 — the shared-account partition", () => {
+  const RIG_GROUP = "bg-nonprod";
+  /** A company only the OTHER environment's database knows. */
+  const STRANGER_COMPANY = "33333333-3333-4333-8333-333333333333";
+  /** A sweep that may page (first quarter hour of 00/06/12/18 UTC), and one that may not. */
+  const ALERT_DUE = new Date("2026-10-30T06:00:00.000Z");
+  const NOT_DUE = new Date("2026-10-30T06:15:00.000Z");
+
+  beforeEach(() => {
+    resetSentryCaptures();
+  });
+
+  /** The orphan scan's own warnings ("flagged" / "reclaimed"), not ops alerts. */
+  const orphanWarnings = () =>
+    sentryCaptures.filter(
+      (c) => c.fingerprint === undefined && c.message.startsWith("reconcile:"),
+    );
+
+  const mismatchAlerts = () => opsCaptures("telnyx-ownership-mismatch");
+
+  /** A SETTLED company with nothing in flight: an unknown number tagged to it is reclaimed. */
+  function insertSettled(rest: FakeRest) {
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: CHECKOUT,
+      country: "US",
+      number_e164: "+12125550001",
+      telnyx_phone_number_id: "pn-live",
+    });
+  }
+
+  describe("the reconcile sweep", () => {
+    it("production counts a rig number and does nothing else: no warning, no DELETE, no alert", async () => {
+      const { env, rest, telnyx } = setup();
+      insertSettled(rest);
+      telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+        data: [
+          { id: "pn-live", phone_number: "+12125550001", customer_reference: COMPANY_ID, billing_group_id: null },
+          { id: "pn-rig", phone_number: "+12125550998", customer_reference: STRANGER_COMPANY, billing_group_id: RIG_GROUP },
+          { id: "pn-rig-untagged", phone_number: "+12125550997", customer_reference: null, billing_group_id: RIG_GROUP },
+        ],
+        meta: { total_pages: 1 },
+      }));
+      telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
+
+      const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+      let logged: string;
+      let summary: Awaited<ReturnType<typeof reconcileNumbers>>;
+      try {
+        summary = await reconcileNumbers(env, ALERT_DUE);
+        logged = log.mock.calls.flat().join("\n");
+      } finally {
+        log.mockRestore();
+      }
+
+      expect(summary.foreign).toBe(2);
+      expect(summary.mismatched).toBe(0);
+      expect(summary.orphansFlagged).toBe(0);
+      expect(summary.orphansReleased).toBe(0);
+      expect(telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+      expect(orphanWarnings()).toEqual([]);
+      // Tagged to nobody production knows: the rig's own business, not a page.
+      expect(mismatchAlerts()).toEqual([]);
+      // The sweep's one line of output is where an operator sees the count:
+      // the cron runner discards the returned summary.
+      expect(logged).toContain("2 Telnyx number(s) belong to another partition");
+    });
+
+    it("never DELETEs a grouped number even where an ungrouped one would be reclaimed", async () => {
+      // The exact shape the double-buy net reclaims — settled company, nothing
+      // in flight, unknown id tagged to it — except for the billing group. If
+      // the rule ran after the reclaim branch, this is the number it deletes.
+      const { env, rest, telnyx } = setup();
+      insertSettled(rest);
+      telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+        data: [
+          { id: "pn-live", phone_number: "+12125550001", customer_reference: COMPANY_ID, billing_group_id: null },
+          { id: "pn-grouped", phone_number: "+12125550999", customer_reference: COMPANY_ID, billing_group_id: "bg-oops" },
+        ],
+        meta: { total_pages: 1 },
+      }));
+      telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
+
+      const summary = await reconcileNumbers(env, ALERT_DUE);
+
+      expect(summary.foreign).toBe(1);
+      expect(summary.orphansReleased).toBe(0);
+      expect(summary.orphansFlagged).toBe(0);
+      expect(telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+      expect(orphanWarnings()).toEqual([]);
+    });
+
+    it("pages exactly when a foreign number's customer_reference names one of OUR companies", async () => {
+      const { env, rest, telnyx } = setup();
+      insertSettled(rest);
+      telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+        data: [
+          // A customer's number that gained a group: production stops managing
+          // it, so without the page it would be orphaned in silence. Known to
+          // phone_numbers, which is why ownership is decided before that skip.
+          { id: "pn-live", phone_number: "+12125550001", customer_reference: COMPANY_ID, billing_group_id: "bg-oops" },
+          { id: "pn-rig", phone_number: "+12125550998", customer_reference: STRANGER_COMPANY, billing_group_id: RIG_GROUP },
+          { id: "pn-rig-untagged", phone_number: "+12125550997", customer_reference: null, billing_group_id: RIG_GROUP },
+        ],
+        meta: { total_pages: 1 },
+      }));
+
+      const summary = await reconcileNumbers(env, ALERT_DUE);
+
+      expect(summary.foreign).toBe(3);
+      expect(summary.mismatched).toBe(1);
+      const alerts = mismatchAlerts();
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0].fingerprint).toEqual(["ops", "telnyx-ownership-mismatch"]);
+      // A page, not a warning: Sentry alert rules route on level.
+      expect(alerts[0].level).toBe("error");
+      expect(alerts[0].message).toContain("pn-live");
+      expect(alerts[0].message).toContain(COMPANY_ID);
+      // IDs only: phone numbers stay out of telemetry.
+      expect(JSON.stringify(alerts[0])).not.toContain("+1212555");
+    });
+
+    it("pages for a number one of our rows claims by id or E.164, with no customer_reference at all", async () => {
+      // A ported number never gets our customer_reference; the row's own id
+      // and E.164 are the evidence it is ours.
+      const { env, rest, telnyx } = setup();
+      insertSettled(rest);
+      rest.insert("phone_numbers", {
+        company_id: COMPANY_ID,
+        status: "active",
+        source: "ported",
+        provisioning_key: "port-1",
+        country: "US",
+        number_e164: "+12125550002",
+        telnyx_phone_number_id: null,
+      });
+      telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+        data: [
+          // Matched by id alone.
+          { id: "pn-live", customer_reference: null, billing_group_id: "bg-oops" },
+          // Matched by E.164 alone.
+          { id: "pn-ported", phone_number: "+12125550002", customer_reference: null, billing_group_id: "bg-oops" },
+          // Neither: the rig's.
+          { id: "pn-rig", phone_number: "+12125550998", customer_reference: null, billing_group_id: RIG_GROUP },
+        ],
+        meta: { total_pages: 1 },
+      }));
+
+      const summary = await reconcileNumbers(env, ALERT_DUE);
+
+      expect(summary.foreign).toBe(3);
+      expect(summary.mismatched).toBe(2);
+      const alerts = mismatchAlerts();
+      // One page for the batch, not one per number.
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0].message).toContain("2 Telnyx numbers");
+      const detail = String(alerts[0].extra.detail);
+      expect(detail).toContain("pn-live");
+      expect(detail).toContain("pn-ported");
+      expect(detail).not.toContain("pn-rig");
+      expect(JSON.stringify(alerts[0])).not.toContain("+1212555");
+    });
+
+    it("pages for a company that holds no live number yet (an open port)", async () => {
+      // Recognised by customer_reference alone: the company is neither settled
+      // nor mid-provisioning, so only the full set of known companies sees it.
+      const { env, rest, telnyx } = setup();
+      rest.insert("phone_numbers", {
+        company_id: COMPANY_ID,
+        status: "provisioning",
+        source: "ported",
+        provisioning_key: "port-1",
+        country: "US",
+        number_e164: null,
+        telnyx_phone_number_id: null,
+      });
+      telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+        data: [
+          { id: "pn-port", phone_number: "+12125550777", customer_reference: COMPANY_ID, billing_group_id: "bg-oops" },
+        ],
+        meta: { total_pages: 1 },
+      }));
+
+      const summary = await reconcileNumbers(env, ALERT_DUE);
+
+      expect(summary.mismatched).toBe(1);
+      expect(mismatchAlerts()).toHaveLength(1);
+      expect(mismatchAlerts()[0].message).toContain("pn-port");
+    });
+
+    it("repeats a standing page at most once every six hours, while still counting it every pass", async () => {
+      const { env, rest, telnyx } = setup();
+      insertSettled(rest);
+      telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+        data: [
+          { id: "pn-live", phone_number: "+12125550001", customer_reference: COMPANY_ID, billing_group_id: "bg-oops" },
+        ],
+        meta: { total_pages: 1 },
+      }));
+
+      expect((await reconcileNumbers(env, NOT_DUE)).mismatched).toBe(1);
+      expect(
+        (await reconcileNumbers(env, new Date("2026-10-30T07:00:00.000Z"))).mismatched,
+      ).toBe(1);
+      expect(mismatchAlerts()).toEqual([]);
+
+      await reconcileNumbers(env, ALERT_DUE);
+      expect(mismatchAlerts()).toHaveLength(1);
+    });
+
+    it("the rig reclaims an orphan in its OWN group and leaves production's numbers alone", async () => {
+      const { env: base, rest, telnyx } = setup();
+      const env = { ...base, TELNYX_BILLING_GROUP_ID: RIG_GROUP };
+      // The rig's own database: one settled company whose live number is in
+      // the rig's group.
+      insertSettled(rest);
+      telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+        data: [
+          { id: "pn-live", phone_number: "+12125550001", customer_reference: COMPANY_ID, billing_group_id: RIG_GROUP },
+          // Production's customer: ungrouped, tagged to a company the rig has never seen.
+          { id: "pn-prod", phone_number: "+12125550500", customer_reference: STRANGER_COMPANY, billing_group_id: null },
+          // Ungrouped but tagged to a RIG company — the reclaim shape. Ownership
+          // must stop it before the DELETE, and it pages.
+          { id: "pn-prod-shaped", phone_number: "+12125550501", customer_reference: COMPANY_ID, billing_group_id: null },
+          // The rig's own double-buy orphan: reclaimed as production would its own.
+          { id: "pn-rig-orphan", phone_number: "+12125550999", customer_reference: COMPANY_ID, billing_group_id: RIG_GROUP },
+        ],
+        meta: { total_pages: 1 },
+      }));
+      telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
+
+      const summary = await reconcileNumbers(env, ALERT_DUE);
+
+      expect(summary.foreign).toBe(2);
+      expect(summary.mismatched).toBe(1);
+      expect(summary.orphansReleased).toBe(1);
+      expect(summary.orphansFlagged).toBe(0);
+      expect(
+        telnyx.callsTo("DELETE", /phone_numbers/).map((call) => call.path),
+      ).toEqual(["/v2/phone_numbers/pn-rig-orphan"]);
+      expect(mismatchAlerts()).toHaveLength(1);
+      expect(mismatchAlerts()[0].message).toContain("pn-prod-shaped");
+    });
+  });
+
+  describe("orphan adoption", () => {
+    function orderingTelnyx(
+      telnyx: TelnyxMock,
+      tagged: Record<string, unknown>,
+    ) {
+      telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+      telnyx.on("GET", /^\/v2\/available_phone_numbers$/, () => ({
+        data: [{ phone_number: "+12125550123" }],
+      }));
+      telnyx.on("POST", /^\/v2\/number_orders$/, () => ({
+        data: { id: "order-1", status: "success", phone_numbers: [{ phone_number: "+12125550123" }] },
+      }));
+      telnyx.on("GET", /^\/v2\/phone_numbers$/, (call) => {
+        if (call.query.get("filter[customer_reference]") === COMPANY_ID) {
+          return { data: [tagged] };
+        }
+        if (call.query.get("filter[phone_number]") === "+12125550123") {
+          return { data: [{ id: "pn-1", phone_number: "+12125550123", billing_group_id: null }] };
+        }
+        return { data: [], meta: { total_pages: 1 } };
+      });
+    }
+
+    it("never adopts a number outside the partition, even one tagged to this company", async () => {
+      const { env, rest, telnyx } = setup();
+      orderingTelnyx(telnyx, {
+        id: "pn-grouped",
+        phone_number: "+12125550999",
+        customer_reference: COMPANY_ID,
+        billing_group_id: RIG_GROUP,
+      });
+
+      const row = await provisionCompanyNumber(env, {
+        companyId: COMPANY_ID,
+        checkoutSessionId: CHECKOUT,
+      });
+
+      expect(row?.status).toBe("active");
+      // Ordered its own number instead of taking the foreign one.
+      expect(row?.telnyx_phone_number_id).toBe("pn-1");
+      expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(1);
+      expect(rest.rows("phone_numbers").map((r) => r.telnyx_phone_number_id)).not.toContain(
+        "pn-grouped",
+      );
+    });
+
+    it("the rig adopts an orphan in its own group", async () => {
+      const { env: base, telnyx } = setup();
+      const env = { ...base, TELNYX_BILLING_GROUP_ID: RIG_GROUP };
+      orderingTelnyx(telnyx, {
+        id: "pn-rig",
+        phone_number: "+12125550999",
+        customer_reference: COMPANY_ID,
+        billing_group_id: RIG_GROUP,
+      });
+
+      const row = await provisionCompanyNumber(env, {
+        companyId: COMPANY_ID,
+        checkoutSessionId: CHECKOUT,
+      });
+
+      expect(row?.telnyx_phone_number_id).toBe("pn-rig");
+      expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+    });
+  });
+
+  describe("number orders", () => {
+    it("production's order body is unchanged: no billing_group_id key at all", async () => {
+      const { env, telnyx } = setup();
+      happyPathTelnyx(telnyx);
+      await provisionCompanyNumber(env, { companyId: COMPANY_ID, checkoutSessionId: CHECKOUT });
+
+      const order = telnyx.callsTo("POST", /number_orders/)[0];
+      expect(order.body).toEqual({
+        phone_numbers: [{ phone_number: "+12125550123" }],
+        messaging_profile_id: "profile-1",
+        customer_reference: COMPANY_ID,
+      });
+      expect(order.body).not.toHaveProperty("billing_group_id");
+    });
+
+    it("the rig's order carries its billing group", async () => {
+      const { env: base, telnyx } = setup();
+      const env = { ...base, TELNYX_BILLING_GROUP_ID: RIG_GROUP };
+      happyPathTelnyx(telnyx);
+      await provisionCompanyNumber(env, { companyId: COMPANY_ID, checkoutSessionId: CHECKOUT });
+
+      const order = telnyx.callsTo("POST", /number_orders/)[0];
+      expect(order.body).toEqual({
+        phone_numbers: [{ phone_number: "+12125550123" }],
+        messaging_profile_id: "profile-1",
+        customer_reference: COMPANY_ID,
+        billing_group_id: RIG_GROUP,
+      });
+    });
+  });
+
+  describe("release (GET-then-check)", () => {
+    function insertHeld(rest: FakeRest, telnyxId = "pn-1", e164 = "+12125550001") {
+      return rest.insert("phone_numbers", {
+        company_id: COMPANY_ID,
+        status: "suspended",
+        provisioning_key: `k-${telnyxId}`,
+        country: "US",
+        number_e164: e164,
+        telnyx_phone_number_id: telnyxId,
+      });
+    }
+
+    it("reads the number before deleting it, and deletes one that is ours", async () => {
+      const { env, rest, telnyx } = setup();
+      insertHeld(rest);
+      telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => ({
+        data: { id: "pn-1", customer_reference: COMPANY_ID, billing_group_id: null },
+      }));
+      telnyx.on("DELETE", /^\/v2\/phone_numbers\/pn-1$/, () => new Response(null, { status: 204 }));
+
+      await releaseCompanyNumbers(env, COMPANY_ID);
+
+      expect(telnyx.calls.map((call) => `${call.method} ${call.path}`)).toEqual([
+        "GET /v2/phone_numbers/pn-1",
+        "DELETE /v2/phone_numbers/pn-1",
+      ]);
+      expect(rest.rows("phone_numbers")[0].status).toBe("released");
+    });
+
+    it("NEVER DELETEs a number outside the partition, keeps the row, and pages", async () => {
+      const { env, rest, telnyx } = setup();
+      const row = insertHeld(rest) as unknown as PhoneNumberRow;
+      telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => ({
+        data: { id: "pn-1", customer_reference: COMPANY_ID, billing_group_id: "bg-oops" },
+      }));
+      telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
+
+      // The single release (the owner's DELETE /v1/numbers/:id) fails loudly...
+      await expect(releaseNumberRow(env, row)).rejects.toBeInstanceOf(
+        TelnyxPartitionRefusal,
+      );
+
+      expect(telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+      // "released" would claim a number we did not give up.
+      expect(rest.rows("phone_numbers")[0].status).toBe("suspended");
+      expect(mismatchAlerts()).toHaveLength(1);
+      expect(mismatchAlerts()[0].level).toBe("error");
+      expect(mismatchAlerts()[0].message).toContain("pn-1");
+    });
+
+    it("a refusal does not fail the grace batch: no retry can fix it, and the company's other numbers are still released", async () => {
+      // A failed batch would block the grace job's campaign deactivation and
+      // withhold its heartbeat until someone edits the portal.
+      const { env, rest, telnyx } = setup();
+      insertHeld(rest, "pn-1", "+12125550001");
+      insertHeld(rest, "pn-2", "+12125550002");
+      telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => ({
+        data: { id: "pn-1", customer_reference: COMPANY_ID, billing_group_id: "bg-oops" },
+      }));
+      telnyx.on("GET", /^\/v2\/phone_numbers\/pn-2$/, () => ({
+        data: { id: "pn-2", customer_reference: COMPANY_ID, billing_group_id: null },
+      }));
+      telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
+
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      let released: PhoneNumberRow[];
+      try {
+        released = await releaseCompanyNumbers(env, COMPANY_ID);
+      } finally {
+        warn.mockRestore();
+      }
+
+      expect(released.map((row) => row.telnyx_phone_number_id)).toEqual(["pn-2"]);
+      expect(
+        telnyx.callsTo("DELETE", /phone_numbers/).map((call) => call.path),
+      ).toEqual(["/v2/phone_numbers/pn-2"]);
+      const status = Object.fromEntries(
+        rest.rows("phone_numbers").map((row) => [row.telnyx_phone_number_id, row.status]),
+      );
+      expect(status).toEqual({ "pn-1": "suspended", "pn-2": "released" });
+      expect(mismatchAlerts()).toHaveLength(1);
+    });
+
+    it("pages whatever the customer_reference says: our own row claiming the id is the evidence", async () => {
+      const { env, rest, telnyx } = setup();
+      const row = insertHeld(rest) as unknown as PhoneNumberRow;
+      telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => ({
+        data: { id: "pn-1", customer_reference: null, billing_group_id: "bg-oops" },
+      }));
+
+      await expect(releaseNumberRow(env, row)).rejects.toBeInstanceOf(
+        TelnyxPartitionRefusal,
+      );
+
+      expect(telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+      expect(mismatchAlerts()).toHaveLength(1);
+    });
+
+    it("the rig never DELETEs a production number its own row points at, and pages", async () => {
+      const { env: base, rest, telnyx } = setup();
+      const env = { ...base, TELNYX_BILLING_GROUP_ID: RIG_GROUP };
+      const row = insertHeld(rest) as unknown as PhoneNumberRow;
+      telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => ({
+        data: { id: "pn-1", customer_reference: STRANGER_COMPANY, billing_group_id: null },
+      }));
+      telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
+
+      await expect(releaseNumberRow(env, row)).rejects.toBeInstanceOf(
+        TelnyxPartitionRefusal,
+      );
+
+      expect(telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+      expect(rest.rows("phone_numbers")[0].status).toBe("suspended");
+      expect(mismatchAlerts()).toHaveLength(1);
+    });
+
+    it("converges without a DELETE when Telnyx says the number is already gone", async () => {
+      const { env, rest, telnyx } = setup();
+      insertHeld(rest);
+      telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => telnyxError(404, "10005"));
+
+      await releaseCompanyNumbers(env, COMPANY_ID);
+
+      expect(telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+      expect(rest.rows("phone_numbers")[0].status).toBe("released");
+    });
+
+    it("keeps the row un-released when the read itself fails", async () => {
+      const { env, rest, telnyx } = setup();
+      insertHeld(rest);
+      telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => telnyxError(500, "10000"));
+
+      await expect(releaseCompanyNumbers(env, COMPANY_ID)).rejects.toThrow(/release failed/);
+
+      expect(telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+      expect(rest.rows("phone_numbers")[0].status).toBe("suspended");
+    });
+
+    // Production's partition is "no billing group", so any read that does not
+    // positively state the group would otherwise count as production's own
+    // number and be DELETEd.
+    it.each([
+      ["a number that does not state its billing group", () => ({ data: { id: "pn-1" } })],
+      ["data: null", () => ({ data: null })],
+      ["an empty 204", () => new Response(null, { status: 204 })],
+      ["a different number", () => ({ data: { id: "pn-other", billing_group_id: null } })],
+    ])("fails closed on %s: no DELETE, the row is kept", async (_label, reply) => {
+      const { env, rest, telnyx } = setup();
+      insertHeld(rest);
+      telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, reply);
+      telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
+
+      await expect(releaseCompanyNumbers(env, COMPANY_ID)).rejects.toThrow(/release failed/);
+
+      expect(telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+      expect(rest.rows("phone_numbers")[0].status).toBe("suspended");
+    });
   });
 });

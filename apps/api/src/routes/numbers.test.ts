@@ -1483,6 +1483,10 @@ describe("DELETE /v1/numbers/:id", () => {
       number_e164: "+12125550003",
       telnyx_phone_number_id: "pn-extra",
     });
+    // D142: the release reads the number first, and deletes only our own.
+    harness.telnyx.on("GET", /^\/v2\/phone_numbers\/pn-extra$/, () => ({
+      data: { id: "pn-extra", billing_group_id: null },
+    }));
     harness.telnyx.on(
       "DELETE",
       /^\/v2\/phone_numbers\/pn-extra$/,
@@ -1511,6 +1515,9 @@ describe("DELETE /v1/numbers/:id", () => {
       number_e164: "+12125550123",
       telnyx_phone_number_id: "pn-1",
     });
+    harness.telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => ({
+      data: { id: "pn-1", billing_group_id: null },
+    }));
     harness.telnyx.on(
       "DELETE",
       /^\/v2\/phone_numbers\/pn-1$/,
@@ -1540,6 +1547,9 @@ describe("DELETE /v1/numbers/:id", () => {
       number_e164: "+12125550123",
       telnyx_phone_number_id: "pn-1",
     });
+    harness.telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => ({
+      data: { id: "pn-1", billing_group_id: null },
+    }));
     harness.telnyx.on("DELETE", /^\/v2\/phone_numbers\/pn-1$/, () =>
       telnyxError(500, "10000"),
     );
@@ -1549,6 +1559,39 @@ describe("DELETE /v1/numbers/:id", () => {
     });
     expect(res.status).toBe(500);
     expect(harness.rest.rows("phone_numbers")[0].status).toBe("suspended");
+  });
+
+  it("never DELETEs a number outside this environment's partition (D142)", async () => {
+    // A customer's number that gained a billing group is no longer production's
+    // to give up. The owner's release fails loudly and the row is kept, rather
+    // than a DELETE reaching a number another environment manages.
+    const harness = buildHarness();
+    harness.state.role = "owner";
+    const row = harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "cs_1",
+      country: "US",
+      number_e164: "+12125550123",
+      telnyx_phone_number_id: "pn-1",
+    });
+    harness.telnyx.on("GET", /^\/v2\/phone_numbers\/pn-1$/, () => ({
+      data: { id: "pn-1", customer_reference: COMPANY_ID, billing_group_id: "bg-nonprod" },
+    }));
+    harness.telnyx.on(
+      "DELETE",
+      /^\/v2\/phone_numbers\/pn-1$/,
+      () => new Response(null, { status: 204 }),
+    );
+
+    const res = await harness.request(`/v1/numbers/${row.id as string}`, {
+      method: "DELETE",
+      ...withCode(),
+    });
+
+    expect(res.status).toBe(500);
+    expect(harness.telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+    expect(harness.rest.rows("phone_numbers")[0].status).toBe("active");
   });
 });
 
