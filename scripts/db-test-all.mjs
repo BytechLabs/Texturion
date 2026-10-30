@@ -175,6 +175,13 @@ const SUITES = [
   // #245/D137: encrypted calendar connection, three-way snapshots, durable
   // pull/write leases, echo suppression and ICS handoff.
   "calendar_sync",
+  // D142: the rig's database texts and dials only its own numbers, and
+  // production's is unchanged.
+  "rig_destination_gate",
+  // D142: push and ring evidence holds nothing personal, for 14 days.
+  "push_evidence",
+  // D142: agent_diag reads the non-personal views and nothing else.
+  "agent_diag",
 ];
 
 const args = process.argv.slice(2);
