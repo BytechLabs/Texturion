@@ -100,6 +100,7 @@ import com.loonext.android.features.shell.ShellTab
 import com.loonext.android.features.tasks.TaskDetailScreen
 import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.features.thread.ThreadScreen
+import com.loonext.android.push.APP_ORIGIN
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
@@ -484,7 +485,7 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
                 headline = t("shell.setupWorkspaceTitle"),
                 body = t("shell.setupWorkspaceBody"),
                 cta = t("shell.setupWorkspaceAction"),
-                url = "https://app.loonext.com/onboarding",
+                url = "$APP_ORIGIN/onboarding",
                 onRefresh = root::retry,
                 onSignOut = root::signOut,
             )
@@ -495,7 +496,7 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
                 headline = t("shell.finishSetupTitle"),
                 body = t("shell.finishSetupBody"),
                 cta = t("shell.finishSetupAction"),
-                url = "https://app.loonext.com/onboarding/plan",
+                url = "$APP_ORIGIN/onboarding/plan",
                 onRefresh = root::retry,
                 onSignOut = root::signOut,
             )

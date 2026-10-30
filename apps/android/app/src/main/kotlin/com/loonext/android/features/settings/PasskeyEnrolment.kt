@@ -8,6 +8,7 @@ import androidx.credentials.CreatePublicKeyCredentialResponse
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.CreateCredentialCancellationException
 import androidx.credentials.exceptions.CreateCredentialException
+import com.loonext.android.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -59,7 +60,7 @@ import okhttp3.Request
  * `window.location.hostname`, which is this, and the phones must match it or the
  * credentials do not travel.
  */
-const val WEBAUTHN_RP_ID = "app.loonext.com"
+val WEBAUTHN_RP_ID: String = BuildConfig.APP_HOST
 
 /**
  * Whether this domain has authorised this app to hold passkeys for it.
@@ -123,8 +124,8 @@ suspend fun isPasskeyDomainAssociated(
     }
 }
 
-/** This app's package, as the statement file must name it. */
-private const val ANDROID_PACKAGE = "com.loonext.android"
+/** This app's package, as the statement file must name it (suffix included). */
+private val ANDROID_PACKAGE: String = BuildConfig.APPLICATION_ID
 
 /** The relation WebAuthn checks. See the web route that serves the file. */
 private const val LOGIN_CREDS_RELATION = "delegate_permission/common.get_login_creds"

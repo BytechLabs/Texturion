@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.loonext.android.BuildConfig
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.ui.common.AppSheet
@@ -39,12 +40,12 @@ import com.loonext.android.ui.common.CenteredLoading
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * The captcha bridge page (#166): app.loonext.com hosts the Turnstile widget
+ * The captcha bridge page (#166): the web app hosts the Turnstile widget
  * (site-key hostname validation forces it onto that domain) and posts the
  * minted token to `window.LoonextCaptcha.postToken`.
  */
-private const val CAPTCHA_URL = "https://app.loonext.com/native-captcha"
-private const val CAPTCHA_HOST = "app.loonext.com"
+private val CAPTCHA_URL = "${BuildConfig.APP_ORIGIN}/native-captcha"
+private val CAPTCHA_HOST = BuildConfig.APP_HOST
 
 /**
  * True when a GoTrue failure is the captcha gate — the signal to mint a token

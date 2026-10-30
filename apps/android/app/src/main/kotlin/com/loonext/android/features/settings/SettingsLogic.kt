@@ -9,6 +9,7 @@ import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.model.Usage
+import com.loonext.android.push.APP_ORIGIN
 import com.loonext.android.ui.common.absoluteTime
 import java.time.Instant
 import java.util.Locale
@@ -610,7 +611,7 @@ fun formatBytes(bytes: Long): String {
 }
 
 /** The shareable invite accept link (same origin the web copies). */
-fun inviteLink(inviteId: String): String = "https://app.loonext.com/invite/$inviteId"
+fun inviteLink(inviteId: String): String = "$APP_ORIGIN/invite/$inviteId"
 
 /** Plan display facts (SPEC §2, mirrored from web plan-facts.ts). */
 data class PlanFacts(

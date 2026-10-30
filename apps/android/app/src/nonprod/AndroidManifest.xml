@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Both nonprod build types use this overlay; build.gradle.kts points
+     nonprodDebug here. Store builds keep the platform's network-security defaults. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

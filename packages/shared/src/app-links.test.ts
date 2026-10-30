@@ -153,8 +153,27 @@ describe("#613 the manifest and the entitlement carry the same claim", () => {
   it("declares an autoVerify filter for the host", () => {
     const xml = manifest();
     expect(xml).toContain('android:autoVerify="true"');
-    expect(xml).toContain(`android:host="${APP_LINK_HOST}"`);
+    // D142: the host is a placeholder so the nonprod build claims nothing.
+    // What production ships is the default config's value.
+    expect(xml).toContain('android:host="${appLinkHost}"');
     expect(xml).toContain('android:scheme="https"');
+
+    const gradle = read("apps", "android", "app", "build.gradle.kts");
+    const defaultConfig = gradle.slice(
+      gradle.indexOf("defaultConfig {"),
+      gradle.indexOf("signingConfigs {"),
+    );
+    expect(defaultConfig).toContain(
+      `manifestPlaceholders["appLinkHost"] = "${APP_LINK_HOST}"`,
+    );
+    // Every value the placeholder is ever given: production's host, and the
+    // inert one, which no association file can be served for.
+    const assigned = [
+      ...gradle.matchAll(/manifestPlaceholders\["appLinkHost"\] = "([^"]+)"/g),
+    ].map((match) => match[1]!);
+    expect([...new Set(assigned)].sort()).toEqual(
+      [APP_LINK_HOST, "nonprod.invalid"].sort(),
+    );
   });
 
   it("declares exactly the shared list, and nothing else", () => {

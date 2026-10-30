@@ -6,3 +6,8 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+# The rig's nonprod build inputs (D142): written by the rig before it builds,
+# never committed. The keystore is already covered by *.keystore above.
+app/src/nonprod/google-services.json
+app/src/nonprodDebug/google-services.json
+app/src/nonprod/res/raw/

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The rig serves *.rig.internal with a certificate authority it generated
+     itself. This build trusts that authority for those names only; every other
+     host keeps the platform defaults, so a leaked rig key can never vouch for a
+     real site.
+
+     raw/rig_ca is written by the rig and gitignored; a checkout without it
+     cannot build nonprod, on purpose. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">rig.internal</domain>
+        <trust-anchors>
+            <certificates src="@raw/rig_ca" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

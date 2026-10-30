@@ -1,5 +1,6 @@
 package com.loonext.android.push
 
+import com.loonext.android.BuildConfig
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.MessageLocale
 import java.net.URI
@@ -21,10 +22,13 @@ import java.net.URLDecoder
  */
 
 /** The only origin push deep links may target (web sw.js does the same). */
-const val APP_ORIGIN = "https://app.loonext.com"
+val APP_ORIGIN: String = BuildConfig.APP_ORIGIN
+
+/** [APP_ORIGIN]'s host. */
+val APP_HOST: String = BuildConfig.APP_HOST
 
 /** Default deep link when a push carries no usable url. */
-const val FALLBACK_DEEP_LINK = "$APP_ORIGIN/inbox"
+val FALLBACK_DEEP_LINK: String = "$APP_ORIGIN/inbox"
 
 /**
  * Structural `kind` discriminator values. `call` is live today
@@ -170,7 +174,7 @@ fun normalizeDeepLink(raw: String?): String {
     } catch (_: Exception) {
         return FALLBACK_DEEP_LINK
     }
-    if (uri.scheme != "https" || uri.host != "app.loonext.com") return FALLBACK_DEEP_LINK
+    if (uri.scheme != "https" || uri.host != APP_HOST) return FALLBACK_DEEP_LINK
     val path = uri.rawPath.orEmpty().ifEmpty { "/inbox" }
     val normalizedPath = Regex("^/conversations/([^/?#]+)$").find(path)
         ?.let { "/inbox/${it.groupValues[1]}" }

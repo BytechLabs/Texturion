@@ -93,12 +93,15 @@
 
                  /calls is an exact path AND a prefix: pathPrefix="/calls" would
                  also swallow /callsomething, and the bare form is a real
-                 destination (the ring-wake link carries ?call=). -->
+                 destination (the ring-wake link carries ?call=).
+
+                 The host is a placeholder set in build.gradle.kts: production's
+                 for store builds, the inert nonprod.invalid for the nonprod build. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="app.loonext.com" />
+                <data android:scheme="https" android:host="${appLinkHost}" />
                 <data android:pathPrefix="/inbox/" />
                 <data android:pathPrefix="/conversations/" />
                 <data android:pathPrefix="/tasks/" />

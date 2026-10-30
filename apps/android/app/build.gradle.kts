@@ -1,3 +1,6 @@
+import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
+import java.net.URI
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -30,6 +33,66 @@ val loonextVersionCode = providers.gradleProperty("loonextVersionCode")
 val loonextVersionName = providers.gradleProperty("loonextVersionName")
     .orNull ?: "0.16.0" // x-release-please-version
 
+/**
+ * The rig's `nonprod` build (D142) takes every value from these Gradle
+ * properties, which only the rig sets. Some but not all set fails the build
+ * rather than producing an APK with production values in it.
+ */
+val nonprodPropertyNames = listOf(
+    "loonextNonprodApiUrl",
+    "loonextNonprodAppHost",
+    "loonextNonprodSupabaseUrl",
+    "loonextNonprodSupabasePublishableKey",
+    "loonextNonprodStoreFile",
+    "loonextNonprodStorePassword",
+    "loonextNonprodKeyAlias",
+    "loonextNonprodKeyPassword",
+)
+
+val nonprodProperties: Map<String, String>? = run {
+    val values = nonprodPropertyNames.associateWith { name ->
+        providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
+    }
+    val missing = values.filterValues { it == null }.keys
+    when {
+        missing.size == values.size -> null
+        missing.isNotEmpty() -> throw GradleException(
+            "The nonprod build is half-configured; missing ${missing.joinToString()}. " +
+                "Set every loonextNonprod* property, or none of them.",
+        )
+        else -> values.mapValues { (_, value) -> value!! }
+    }
+}
+
+/** The nonprod build may talk to the rig and nothing else. */
+fun requireRigHost(property: String, host: String?) {
+    if (host == null || !(host == "rig.internal" || host.endsWith(".rig.internal"))) {
+        throw GradleException("$property must name a *.rig.internal host, not '$host'.")
+    }
+}
+
+nonprodProperties?.let { props ->
+    for (name in listOf("loonextNonprodApiUrl", "loonextNonprodSupabaseUrl")) {
+        val uri = URI(props.getValue(name))
+        if (uri.scheme != "https") throw GradleException("$name must be an https URL.")
+        requireRigHost(name, uri.host)
+    }
+    // Spliced into URLs verbatim, so a path, port or user info could move the
+    // origin off the rig while still passing the suffix check.
+    val appHost = props.getValue("loonextNonprodAppHost")
+    if (!Regex("""[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*""").matches(appHost)) {
+        throw GradleException("loonextNonprodAppHost must be a bare host name, not '$appHost'.")
+    }
+    requireRigHost("loonextNonprodAppHost", appHost)
+}
+
+fun buildConfigString(value: String): String {
+    if (value.any { it == '"' || it == '\\' }) {
+        throw GradleException("A nonprod build value may not contain quotes or backslashes.")
+    }
+    return "\"$value\""
+}
+
 android {
     namespace = "com.loonext.android"
     compileSdk = 37
@@ -61,6 +124,27 @@ android {
         // Filling them in is the whole configuration; see docs/MAP-TILES.md.
         buildConfigField("String", "MAP_TILE_URL", "\"\"")
         buildConfigField("String", "MAP_TILE_ATTRIBUTION", "\"\"")
+        // Production's web app; only the nonprod build replaces these.
+        buildConfigField("String", "APP_ORIGIN", "\"https://app.loonext.com\"")
+        buildConfigField("String", "APP_HOST", "\"app.loonext.com\"")
+        // Compose test tags reach UIAutomator only when this is on, which is only
+        // in the nonprod builds; elsewhere the semantics tree is unchanged.
+        buildConfigField("boolean", "TEST_TAGS_AS_RESOURCE_IDS", "false")
+        // The App Links host the manifest claims (packages/shared/src/app-links.ts).
+        manifestPlaceholders["appLinkHost"] = "app.loonext.com"
+    }
+
+    signingConfigs {
+        // A stable key held on the rig, so each new nonprod build installs over
+        // the last one without wiping the phone's state.
+        nonprodProperties?.let { props ->
+            create("nonprod") {
+                storeFile = file(props.getValue("loonextNonprodStoreFile"))
+                storePassword = props.getValue("loonextNonprodStorePassword")
+                keyAlias = props.getValue("loonextNonprodKeyAlias")
+                keyPassword = props.getValue("loonextNonprodKeyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -75,6 +159,55 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+        // Release, minified, so an R8 fault shows on the rig before a store build.
+        create("nonprod") {
+            initWith(getByName("release"))
+            // Keeps it apart from a production install and production's Firebase
+            // app; the rig supplies this package's google-services.json, gitignored.
+            applicationIdSuffix = ".nonprod"
+            nonprodProperties?.let { props ->
+                signingConfig = signingConfigs.getByName("nonprod")
+                buildConfigField(
+                    "String",
+                    "API_URL",
+                    buildConfigString(props.getValue("loonextNonprodApiUrl")),
+                )
+                buildConfigField(
+                    "String",
+                    "SUPABASE_URL",
+                    buildConfigString(props.getValue("loonextNonprodSupabaseUrl")),
+                )
+                buildConfigField(
+                    "String",
+                    "SUPABASE_PUBLISHABLE_KEY",
+                    buildConfigString(props.getValue("loonextNonprodSupabasePublishableKey")),
+                )
+                val appHost = props.getValue("loonextNonprodAppHost")
+                buildConfigField("String", "APP_ORIGIN", buildConfigString("https://$appHost"))
+                buildConfigField("String", "APP_HOST", buildConfigString(appHost))
+            }
+            buildConfigField("boolean", "TEST_TAGS_AS_RESOURCE_IDS", "true")
+            // Inert on purpose: this build must never claim a real domain's links.
+            manifestPlaceholders["appLinkHost"] = "nonprod.invalid"
+            // The upload would run inside every rig build, from a box whose DNS
+            // refuses vendor hosts, for crash reports nobody reads there.
+            configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
+        }
+        create("nonprodDebug") {
+            initWith(getByName("nonprod"))
+            isDebuggable = true
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+    }
+
+    sourceSets {
+        // The twin shares the nonprod overlay: one network-security config, and
+        // one place the rig puts its certificate authority.
+        maybeCreate("nonprodDebug").apply {
+            manifest.srcFile("src/nonprod/AndroidManifest.xml")
+            res.directories.add("src/nonprod/res")
         }
     }
 
@@ -94,6 +227,17 @@ android {
         // merged manifest and the real resource table. Without this the Compose
         // test rule cannot launch its host activity at all.
         unitTests.isIncludeAndroidResources = true
+    }
+}
+
+androidComponents {
+    // Without the rig's properties the nonprod variants do not exist at all: no
+    // tasks, and no Firebase lookup for a package this checkout has no config for.
+    beforeVariants(selector().withBuildType("nonprod")) { variantBuilder ->
+        variantBuilder.enable = nonprodProperties != null
+    }
+    beforeVariants(selector().withBuildType("nonprodDebug")) { variantBuilder ->
+        variantBuilder.enable = nonprodProperties != null
     }
 }
 
