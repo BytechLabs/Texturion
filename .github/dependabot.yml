@@ -53,10 +53,16 @@ updates:
           - "stripe"
           - "jose"
           - "@sentry/*"
+      # next, @next/mdx, eslint-config-next and the OpenNext adapter move as one:
+      # #469 bumped next to 16 alone, and @next/mdx 15's Turbopack rule failed
+      # every blog post with "Unknown module type".
       web:
         applies-to: version-updates
         patterns:
           - "next"
+          - "@next/*"
+          - "eslint-config-next"
+          - "@opennextjs/*"
           - "react"
           - "react-dom"
           - "@tanstack/*"

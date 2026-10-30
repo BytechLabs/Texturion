@@ -24,8 +24,11 @@ import { SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
  * users off the auth pages, and keeps the Supabase cookie session fresh on
  * every matched request.
  *
- * Default (edge) middleware runtime on purpose — the OpenNext adapter does
- * not support Next 15.2+ Node middleware (SPEC §3).
+ * Edge runtime on purpose (SPEC §3). Next 16 deprecates this file name in
+ * favour of proxy.ts, but proxy runs only on Node, and the OpenNext adapter's
+ * Node middleware support is experimental and not officially maintained. The
+ * deprecation warning on every build is the price of staying on the runtime
+ * production has always run.
  */
 export async function middleware(request: NextRequest) {
   // Blog subdomain FIRST (#130): blog.loonext.com serves blog content at its

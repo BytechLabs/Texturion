@@ -8881,3 +8881,47 @@ a GitHub issue is where the fix gets tracked anyway. Muting by closing the issue
 by hand: a mute needs an expiry that nobody would maintain, so closing does not
 mute, the next failing run opens a new issue, and the issue body says so. Fixing
 or removing the job is how the notifications stop.
+
+## D141 — Next 16 builds with Turbopack, without inlined CSS, and the web Worker's size is a gate (2026-10-29)
+
+**Decision.** `apps/web` runs Next 16.4 on `@opennextjs/cloudflare` 1.20.14.
+- `next build --turbopack` is explicit in `package.json` and
+  `build-isolated.mjs`. The webpack rules stay, and only a `--webpack` rollback
+  reads them.
+- `experimental.inlineCss` is off.
+- The middleware stays `middleware.ts` on the edge runtime, despite Next 16
+  deprecating it in favour of `proxy.ts`.
+- `@next/mdx`, `eslint-config-next` and the OpenNext adapter move in lockstep
+  with `next`, and Dependabot's `web` group now bumps them together.
+- CI fails if the web Worker's compressed upload exceeds 7,168 KiB
+  (`scripts/check-worker-size.mjs`, run right after the OpenNext build).
+
+**Why the major, now.** It was forced, not chosen. `opennextjs-cloudflare build`
+exits for any Next major past its vendor support date. Next 15's ended on
+2026-10-21, and from that day no 15.x build could deploy, including the patched
+15.5.28. Six of the 87 open advisories were in `next` itself, and only 16.4.1 or
+later clears them.
+
+**Why each detail.**
+- **inlineCss.** Turbopack lists every ancestor's CSS in each segment of a
+  page's client-reference manifest. Inlining therefore copies the 150 KB global
+  stylesheet into every segment of every page, and OpenNext bundles every
+  manifest into the Worker. Measured on 16.4.3, that is 26,927 KiB gzip with
+  inlining and 4,593 KiB without, against Cloudflare's 10 MB limit. Under
+  webpack it was worth about 2 mobile Lighthouse points.
+- **The size gate.** Without it, the first place an oversized Worker shows up is
+  ship.yml's web deploy, which runs after the migration and the api deploy have
+  already gone out.
+- **middleware.ts.** `proxy.ts` runs only on Node, and the adapter's Node
+  middleware is experimental. Production has always run edge middleware, and the
+  deprecation warning on every build is the cost of keeping it.
+- **`@next/mdx` matches `next`.** Its Turbopack rule changed shape in 16. A
+  Dependabot PR that bumped `next` alone failed all twelve blog posts with
+  "Unknown module type".
+- **Lint.** eslint-config-next 16 brings eslint-plugin-react-hooks 7, whose
+  React Compiler rules flag existing components across the app. They are off.
+  Adopting them is separate work, not a condition of the upgrade.
+
+**Open.** Local mobile Lighthouse on the 16 build scored 54–69, with or without
+inlined CSS, against July's 90. That machine was loaded and Next 15 was not
+measured on it, so the cause is unattributed until the live origin is measured.

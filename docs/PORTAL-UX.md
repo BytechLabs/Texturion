@@ -212,4 +212,4 @@ Desktop-primary, but the truck phone is a first-class device.
 - **Job spine + stages** = the pre-seeded pipeline tags; advancing = PATCH a tag; the Pipeline/board is a grouped **view** over `GET /v1/conversations` filtered by tag — pure UI, off by default.
 - **Auto-lifted facts** = a one-tap `Save to job` suggestion + confirm event, not silent parsing.
 - **⌘K** = a client palette over existing search + action endpoints.
-- Buildable on the existing Next.js 15 / React / Tailwind (shadcn-style) component stack.
+- Buildable on the existing Next.js / React / Tailwind (shadcn-style) component stack.

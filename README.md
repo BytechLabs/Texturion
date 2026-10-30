@@ -15,7 +15,7 @@ Text SemiBold with the second o in the accent color).
 
 ```
 apps/
-  web/            Next.js 15 UI, deployed to Cloudflare Workers via @opennextjs/cloudflare
+  web/            Next.js 16 UI, deployed to Cloudflare Workers via @opennextjs/cloudflare
   api/            Hono Worker: /v1 API, /webhooks, Cron Triggers
 packages/
   shared/         Code shared by web + api (error codes; schemas/constants land later)

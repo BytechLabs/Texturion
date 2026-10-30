@@ -62,7 +62,7 @@ $0.004/part Telnyx local SMS (each direction) + ~$0.003–0.0045/part US carrier
 ```
                          ┌──────────────────────────────────────────┐
 Browser (desktop+mobile) │  apps/web — Cloudflare Worker            │
-  Next.js UI, PWA,       │  Next.js 15 via @opennextjs/cloudflare   │
+  Next.js UI, PWA,       │  Next.js 16 via @opennextjs/cloudflare   │
   service worker    ───► │  (OpenNext adapter, Node.js runtime)     │
         │                │  UI ONLY — no API routes, no webhooks    │
         │                └──────────────────────────────────────────┘
@@ -95,7 +95,7 @@ GitHub Actions (Linux CI): typecheck, lint, vitest, build, wrangler deploy on ma
 ### Components
 
 - **Two Workers (D1).** `apps/web` serves the Next.js UI via `@opennextjs/cloudflare` (OpenNext adapter, **Node.js runtime**). `apps/api` is a plain Hono Worker owning the entire API, all webhooks, and all Cron Triggers. Webhook ingestion is thereby isolated from frontend deploys.
-  - **No route may declare `export const runtime = 'edge'`** (OpenNext does not support the Edge runtime). **No Next.js 15.2+ Node middleware** (unsupported by the adapter).
+  - **No route may declare `export const runtime = 'edge'`** (OpenNext does not support the Edge runtime). **No Node.js middleware** — no `proxy.ts` and no `nodejs` runtime on the middleware: the adapter's Node middleware support is experimental and not officially maintained, so the middleware stays on the edge runtime.
   - **Workers Paid plan ($5/mo)** for cron CPU headroom (Paid: 10M requests + 30M CPU-ms included; cron allowance 250 triggers/account, 30s CPU for sub-hourly schedules; static asset requests free and unlimited).
   - Production builds and deploys run on **Linux CI (GitHub Actions)** — OpenNext does not guarantee Windows support locally; local development on Windows uses WSL.
   - `next/image` runs unoptimized (`images.unoptimized = true`) — Cloudflare Images is separately billed and the dashboard doesn't need it; keeps idle cost near zero.
@@ -116,7 +116,7 @@ GitHub Actions (Linux CI): typecheck, lint, vitest, build, wrangler deploy on ma
 ```
 loonext/
 ├── apps/
-│   ├── web/            # Next.js 15 + Tailwind + shadcn/ui (OpenNext → CF Worker)
+│   ├── web/            # Next.js 16 + Tailwind + shadcn/ui (OpenNext → CF Worker)
 │   └── api/            # Hono Worker: /v1, /webhooks, cron handlers
 ├── packages/
 │   └── shared/         # zod schemas, API types, error codes, segment estimator,

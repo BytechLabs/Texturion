@@ -94,19 +94,14 @@ const nextConfig: NextConfig = {
     return config;
   },
   /*
-   * THE SAME RULE FOR TURBOPACK, because the webpack one stops running.
+   * THE SAME RULE FOR TURBOPACK, which is the bundler production builds with.
    *
-   * The docblock above says "`next build` is webpack here, no
-   * turbopack". That is true of the version we ship and false of the next
-   * major, which builds with Turbopack by default — and Turbopack does not read
-   * the `webpack` config at all. Confirmed by running
-   * `next build --turbopack` on today's version: all three legal documents
-   * fail with "Unknown module type", which would put /legal/accessibility,
-   * /legal/dpa and /legal/vulnerability-disclosure straight back to the 500s
-   * they served until this morning.
-   *
-   * Declared now rather than during the upgrade so the rule is verifiable
-   * today. Both bundlers read their own entry; neither reads the other's.
+   * Turbopack does not read the `webpack` config at all, so the rule above
+   * only runs on a `next build --webpack` rollback. Without this one, all three
+   * legal documents fail with "Unknown module type" and /legal/accessibility,
+   * /legal/dpa and /legal/vulnerability-disclosure go straight back to the 500s
+   * they once served. Both bundlers read their own entry; neither reads the
+   * other's.
    */
   turbopack: {
     rules: {
@@ -126,14 +121,11 @@ const nextConfig: NextConfig = {
   // its parse/eval cost, the TBT driver) to only what's actually referenced.
   experimental: {
     optimizePackageImports: ["lucide-react", "radix-ui"],
-    // Inline each route's CSS into the HTML instead of a render-blocking
-    // <link rel="stylesheet"> (VISUALS-V2 §7, the mobile Lighthouse >=90 gate).
-    // On simulated Slow-4G the global stylesheet was a render-blocking resource
-    // gating first paint; inlining removes that round-trip so the hero H1 (the
-    // LCP element) paints from the HTML alone — measured ~+2 mobile perf points
-    // and ~150 ms FCP vs. the linked stylesheet. Pure delivery optimization: no
-    // styling/token/app-surface change.
-    inlineCss: true,
+    // Off: under Turbopack, inlining copies the global stylesheet into every
+    // segment of every page's client-reference manifest, and the Worker no
+    // longer fits Cloudflare's 10 MB compressed limit (D141). The web Worker
+    // size check in checks.yml fails the build if it is turned back on.
+    inlineCss: false,
   },
   // Security response headers on every route (D8 defense in depth). The list
   // + the proof that headers() survives the OpenNext/Workers adapter live in
@@ -253,13 +245,19 @@ const nextConfig: NextConfig = {
 };
 
 // #130: MDX blog. `content.mdx` files are imported into each post's thin
-// page.tsx and compiled to React at BUILD time (webpack loader — `next build`
-// is webpack here, no turbopack), so there's no runtime MDX and the OpenNext/
-// Workers output is unchanged. rehype-slug gives every `##` heading a stable
-// id so in-article anchors keep working. The element→component styling map is
-// src/mdx-components.tsx (Next App Router convention). The dev-server 500 the
-// blog used to hit was NOT an upstream limitation: it was the missing "mdx"
-// pageExtensions entry above.
+// page.tsx and compiled to React at BUILD time (the MDX loader @next/mdx
+// registers for whichever bundler runs), so there's no runtime MDX and the
+// OpenNext/Workers output is unchanged. rehype-slug gives every `##` heading a
+// stable id so in-article anchors keep working. The element→component styling
+// map is src/mdx-components.tsx (Next App Router convention). The dev-server
+// 500 the blog used to hit was NOT an upstream limitation: it was the missing
+// "mdx" pageExtensions entry above.
+//
+// @next/mdx must stay on the same version as next. The Turbopack rule it
+// registers changed shape in Next 16, and a mismatched pair fails every .mdx
+// file with "Unknown module type". The plugin is named as a string rather than
+// imported because Turbopack hands loader options across a serialization
+// boundary that a function does not survive.
 const withMDX = createMDX({
   options: {
     rehypePlugins: ["rehype-slug"],

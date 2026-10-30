@@ -114,10 +114,9 @@ describe("no page reads the filesystem while rendering", () => {
  * module is. Take that rule away and the import does not fall back to anything;
  * the build fails, or worse, a future bundler quietly treats it as unknown.
  *
- * Which is exactly what is coming. `next build` uses webpack on the version we
- * ship and **Turbopack on the next major**, and Turbopack does not read the
- * `webpack` key at all. Running `next build --turbopack` on today's version
- * reproduces it precisely:
+ * Production builds with **Turbopack**, and Turbopack does not read the
+ * `webpack` key at all; the webpack rule stays for the `--webpack` rollback.
+ * Remove the Turbopack rule and the build reproduces it precisely:
  *
  *     Turbopack build failed with 3 errors:
  *     ./SECURITY.md            Unknown module type
@@ -125,8 +124,8 @@ describe("no page reads the filesystem while rendering", () => {
  *     ./docs/DPA.md            Unknown module type
  *
  * Three documents, which is all three legal pages — the same three that
- * answered 500 in production for their whole life. The upgrade would have put
- * them straight back.
+ * answered 500 in production for their whole life. Losing either rule puts
+ * them straight back on the bundler that rule served.
  *
  * So the rule is declared twice, once per bundler, and this is what keeps the
  * pair together: a repo where one of them is edited and the other forgotten is
@@ -139,7 +138,7 @@ describe("both bundlers know what a .md module is", () => {
     expect(
       config.includes('type: "asset/source"'),
       "the webpack .md rule is gone; the legal pages' imports have nothing to " +
-        "resolve them and the build that ships today is the one that breaks",
+        "resolve them and the --webpack rollback build is the one that breaks",
     ).toBe(true);
   });
 
@@ -148,7 +147,7 @@ describe("both bundlers know what a .md module is", () => {
       config.includes("turbopack:") && config.includes('"*.md"'),
       "next.config.ts declares a .md rule for webpack only. That is the state " +
         "this repo was in before the Turbopack rule was added, and it means " +
-        "the next Next major returns /legal/accessibility, /legal/dpa and " +
+        "the production build returns /legal/accessibility, /legal/dpa and " +
         "/legal/vulnerability-disclosure to the 500s they used to serve.",
     ).toBe(true);
   });

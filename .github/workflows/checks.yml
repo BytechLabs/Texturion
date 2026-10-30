@@ -689,6 +689,12 @@ jobs:
       - name: Build web (OpenNext Cloudflare adapter)
         run: pnpm --filter @loonext/web exec opennextjs-cloudflare build
 
+      # Workers Paid refuses a script over 10 MB compressed, and without this the
+      # first upload is ship.yml's deploy, after the migration and the api deploy
+      # have gone out. The budget keeps about 2.5 MiB below the limit (D141).
+      - name: Check the web Worker's upload size (wrangler deploy --dry-run)
+        run: node scripts/check-worker-size.mjs apps/web --budget-kib 7168
+
       - name: Validate api Worker (wrangler deploy --dry-run)
         run: pnpm --filter @loonext/api exec wrangler deploy --dry-run --outdir=dist
 

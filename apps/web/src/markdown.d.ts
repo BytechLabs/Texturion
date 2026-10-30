@@ -15,8 +15,9 @@
  * `no such file or directory`. All three pages were 500 from the day each
  * shipped.
  *
- * The webpack rule in `next.config.ts` turns a `.md` import into its source
- * text at build time, so the document travels INSIDE the bundle and no
+ * The `.md` rules in `next.config.ts` turn the import into its source text at
+ * build time — the Turbopack loader for the production build, the webpack rule
+ * for a `--webpack` rollback — so the document travels INSIDE the bundle and no
  * filesystem exists at request time to be wrong about.
  */
 declare module "*.md" {

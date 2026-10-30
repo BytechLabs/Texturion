@@ -5,7 +5,7 @@
 The operator's authoritative guide to standing up and deploying **Loonext** in
 production. Loonext is two Cloudflare Workers plus five backing SaaS vendors:
 
-- **`loonext-web`** — Next.js 15, deployed to Cloudflare Workers via the
+- **`loonext-web`** — Next.js 16, deployed to Cloudflare Workers via the
   `@opennextjs/cloudflare` adapter (`apps/web/wrangler.jsonc:3`, `apps/web/package.json:11`).
 - **`loonext-api`** — Hono API + scheduled cron jobs, deployed with `wrangler deploy`
   (`apps/api/wrangler.jsonc:3`, `apps/api/package.json:8`).
@@ -90,8 +90,9 @@ zod schemas ever disagree again.
 ### Toolchain (local operator machine)
 
 - **Node ≥ 22**, **pnpm** (CI pins Node 22 — `.github/workflows/checks.yml` → every job's `actions/setup-node` step).
-- **wrangler `^4.106.0`** (bundled as a dev dependency — `apps/api/package.json:32`,
-  `apps/web/package.json:61`; invoke via `pnpm --filter … exec wrangler`).
+- **wrangler** (bundled as a dev dependency — `^4.106.0` in `apps/api/package.json:37`,
+  `^4.148.0` in `apps/web/package.json:69`, the floor the OpenNext adapter declares as a
+  peer; invoke via `pnpm --filter … exec wrangler`).
 - **Supabase CLI** (`supabase/setup-cli@v1` in CI — `.github/workflows/ship.yml` → the `backend` job's `supabase/setup-cli` step).
 - **Stripe CLI** (optional, for testing webhooks locally).
 - A **Linux or WSL** shell for the web deploy — the OpenNext Cloudflare build must

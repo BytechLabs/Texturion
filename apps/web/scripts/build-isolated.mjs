@@ -53,7 +53,7 @@ const nextBin = require.resolve("next/dist/bin/next");
 const env = { ...process.env, LOONEXT_DIST_DIR: distDir };
 
 function nextBuild() {
-  return spawnSync(process.execPath, [nextBin, "build"], {
+  return spawnSync(process.execPath, [nextBin, "build", "--turbopack"], {
     cwd: webDir,
     stdio: "inherit",
     env,
