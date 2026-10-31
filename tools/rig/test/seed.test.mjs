@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { generateTenantIds, seedSql, stableUuid, totpCode } from "../../../scripts/rig/seed.mjs";
+import { checkTenantIds, completeTenantIds, generateTenantIds, seedSql, stableUuid, totpCode } from "../../../scripts/rig/seed.mjs";
 import { TENANTS } from "../../../scripts/rig/tenants.mjs";
 import { STANDING_ROLES, standingNumbers } from "../src/guard.mjs";
 import { secretStore } from "../src/secrets.mjs";
@@ -49,6 +49,36 @@ test("generated ids are random UUIDs, never the dev seed's, and mail goes to Res
   }
 });
 
+test("a stored member address off Resend's test domain is refused before any user is written", () => {
+  const ids = generateTenantIds();
+  assert.doesNotThrow(() => checkTenantIds(ids));
+  const edited = structuredClone(ids);
+  edited["qa-c"].members.owner.email = "owner@rig.invalid";
+  assert.throws(() => checkTenantIds(edited), /qa-c owner's email in tenants\.json is not a Resend test address/);
+  edited["qa-c"].members.owner.email = "owner@resend.dev.example";
+  assert.throws(() => checkTenantIds(edited), /not a Resend test address/);
+  const older = structuredClone(ids);
+  delete older.robot;
+  assert.throws(() => checkTenantIds(older), /tenants\.json has no entry for robot/);
+});
+
+test("a store made before a tenant or member existed gains them and keeps every stored id", () => {
+  const ids = generateTenantIds();
+  const before = structuredClone(ids);
+  assert.equal(completeTenantIds(ids), false);
+  assert.deepEqual(ids, before);
+
+  const older = structuredClone(ids);
+  delete older.robot;
+  delete older["qa-w"].members["mfa-member"];
+  assert.equal(completeTenantIds(older), true);
+  assert.deepEqual(older["qa-w"].members.owner, before["qa-w"].members.owner);
+  assert.equal(older["qa-a"].company_id, before["qa-a"].company_id);
+  assert.notEqual(older.robot.company_id, before.robot.company_id);
+  assert.match(older["qa-w"].members["mfa-member"].email, /@resend\.dev$/);
+  assert.doesNotThrow(() => checkTenantIds(older));
+});
+
 test("each number's audience at rest is everyone at note level plus the listed members", () => {
   const { standing, ids, userIds } = fixture();
   const sql = seedSql({ ids, userIds, standing, voiceConnectionId: "stub-voice" });
@@ -81,6 +111,27 @@ test("numbers carry the guard's ids and profiles, and only tenants' numbers get 
   assert.match(sql, /'STRANGER-1',\s+null, false\)/);
   assert.match(sql, /^begin;/);
   assert.match(sql, /commit;$/);
+});
+
+test("every standing number gets the live row the 15-minute number sweep knows it by", () => {
+  // reconcileNumbers (apps/api/src/telnyx/provisioning.ts) flags, once per
+  // run, every group number that no row outside 'released' claims by Telnyx
+  // id or E.164. The robot's three numbers are in the rig's group too.
+  const { standing, ids, userIds } = fixture();
+  const sql = seedSql({ ids, userIds, standing, voiceConnectionId: "stub-voice" });
+  const rows = [...sql.matchAll(/insert into public\.phone_numbers[\s\S]*?values\s*\(([\s\S]*?)\)\s*on conflict \(id\) do update set([\s\S]*?);/g)];
+  assert.equal(rows.length, STANDING_ROLES.length);
+  for (const role of STANDING_ROLES) {
+    const { e164, telnyx_phone_number_id: telnyxId } = standing.get(role);
+    const row = rows.find(([, values]) => values.includes(`'rig-seed-${role}'`));
+    assert.ok(row, `${role} has a phone_numbers row`);
+    const [, values, update] = row;
+    assert.match(values, new RegExp(`'active', 'rig-seed-${role}', '\\d{3}',\\s+'CA', '\\${e164}', '${telnyxId}', 'provisioned'`));
+    // A reseed brings back a row a scenario released or suspended.
+    assert.match(update, /status = 'active'/);
+    assert.match(update, /number_e164 = excluded\.number_e164/);
+    assert.match(update, /telnyx_phone_number_id = excluded\.telnyx_phone_number_id/);
+  }
 });
 
 test("a tenant split across messaging profiles is refused", () => {

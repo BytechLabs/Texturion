@@ -56,6 +56,46 @@ export function generateTenantIds(tenants = TENANTS) {
   );
 }
 
+/**
+ * Adds ids for the tenants and members a store made before they existed, and
+ * leaves every stored one alone. Returns whether anything was added.
+ */
+export function completeTenantIds(ids, tenants = TENANTS) {
+  let added = false;
+  for (const tenant of tenants) {
+    const fresh = generateTenantIds([tenant])[tenant.key];
+    if (!ids[tenant.key]) {
+      ids[tenant.key] = fresh;
+      added = true;
+      continue;
+    }
+    ids[tenant.key].members ??= {};
+    for (const member of tenant.members) {
+      if (ids[tenant.key].members[member.key]) continue;
+      ids[tenant.key].members[member.key] = fresh.members[member.key];
+      added = true;
+    }
+  }
+  return added;
+}
+
+/**
+ * Refuses a tenants.json missing a tenant or member, or with a member address
+ * off Resend's test domain, the only one the guard sends mail to.
+ */
+export function checkTenantIds(ids, tenants = TENANTS) {
+  for (const tenant of tenants) {
+    if (!ids[tenant.key]) throw new Error(`rig seed: tenants.json has no entry for ${tenant.key}`);
+    for (const member of tenant.members) {
+      const credentials = ids[tenant.key].members?.[member.key];
+      if (!credentials) throw new Error(`rig seed: tenants.json has no ${tenant.key} ${member.key}`);
+      if (!/^[^@\s]+@resend\.dev$/.test(credentials.email ?? "")) {
+        throw new Error(`rig seed: ${tenant.key} ${member.key}'s email in tenants.json is not a Resend test address`);
+      }
+    }
+  }
+}
+
 function lit(value) {
   if (value === null || value === undefined) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -254,16 +294,17 @@ export async function seed({ workdir, store, partition, log = console.log }) {
   // rigd and the robot find the numbers by role in this file.
   recordStanding(store, standing);
   const ids = store.ensureJson("tenants.json", () => generateTenantIds());
-  for (const tenant of TENANTS) {
-    if (!ids[tenant.key]) throw new Error(`rig seed: tenants.json has no entry for ${tenant.key}`);
+  if (completeTenantIds(ids)) {
+    store.write("tenants.json", ids);
+    log("seed: tenants.json gained the tenants and members added since it was made");
   }
+  checkTenantIds(ids);
 
   const userIds = {};
   for (const tenant of TENANTS) {
     userIds[tenant.key] = {};
     for (const member of tenant.members) {
       const credentials = ids[tenant.key].members[member.key];
-      if (!credentials) throw new Error(`rig seed: tenants.json has no ${tenant.key} ${member.key}`);
       userIds[tenant.key][member.key] = await ensureUser(status, projectId, credentials, member.displayName);
     }
   }

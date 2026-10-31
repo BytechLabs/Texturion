@@ -43,6 +43,7 @@ import { ensureStripeCatalog, requiredCatalogKeys, stripeSandboxKey, stripeWebho
 import { appliedMigrationVersions, localStatus, psql, refMigrationVersions, schemaPlan, supabase } from "./supabase.mjs";
 import { aiShimConfig, deriveRigConfig, renderRigConfig } from "./wrangler-config.mjs";
 import { seed } from "../../../scripts/rig/seed.mjs";
+import { TENANTS } from "../../../scripts/rig/tenants.mjs";
 
 /** The CLI's own address for its stack; anything else is set as the issuer. */
 const CLI_API_URL = "http://127.0.0.1:54321";
@@ -188,10 +189,15 @@ function installCronTimers({ timers, nodeBin }) {
   systemctlUser(["restart", ...names]);
 }
 
-/** Whether every tenant in the store has its company row, whoever reset the database last. */
+/**
+ * Whether every tenant the seed writes has its company row, whoever reset the
+ * database last. A tenant the store does not name yet counts as missing, so
+ * the seed runs and its numbers get the rows the number sweep needs.
+ */
 function tenantsPresent(projectId, store) {
   if (!store.has("tenants.json")) return false;
-  const ids = Object.values(store.readJson("tenants.json")).map((tenant) => tenant.company_id);
+  const stored = store.readJson("tenants.json");
+  const ids = TENANTS.map((tenant) => stored[tenant.key]?.company_id);
   if (ids.some((id) => !/^[0-9a-f-]{36}$/.test(id ?? ""))) return false;
   const found = psql(projectId, `select count(*) from public.companies where id in (${ids.map((id) => `'${id}'`).join(", ")});`);
   return Number(found.trim()) === ids.length;
