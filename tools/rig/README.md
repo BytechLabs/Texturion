@@ -114,15 +114,17 @@ Sentry relay publish there).
   does not classify gets no timer, and `rig health` fails until it does. Only
   the API's crons get timers: the edge's and the guard's are skips, because
   they run on Cloudflare.
-- Then rigd's own units, which rigd writes itself
-  (`node tools/rig/rigd/src/cli.ts schedule --install`, from this checkout):
-  a timer per scheduled scenario run, and the rigd and robotd services. A
-  failure there fails the deploy.
+- Then, after the services restart, rigd's own units, which rigd writes
+  itself (`node tools/rig/rigd/src/cli.ts schedule --install`, from this
+  checkout): a timer per scheduled scenario run, and the rigd and robotd
+  services. A failure there fails the deploy, with the new SHA already
+  serving.
 
 Everything that can refuse (an untaught config key, a missing or live
-secret, the cron registry) is derived before the database or a service
-changes. When the schema changes, the services and cron timers are stopped
-first, so a failed migration leaves nothing running against it.
+secret, the cron registry, a rigd that cannot build its schedule from this
+checkout) is checked before the database or a service changes. When the
+schema changes, the services, the cron timers and rigd's scenario timers are
+stopped first, so a failed migration leaves nothing running against it.
 `state/deployed.json` names what the units start; each `rig serve` writes
 `state/serving-<service>.json` with the SHA it actually serves, and
 `rig health` fails while the two differ.

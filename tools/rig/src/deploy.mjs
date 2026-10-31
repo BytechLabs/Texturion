@@ -6,8 +6,8 @@
  *   3. the local database migrated, or reset and reseeded when the ref's
  *      schema cannot be reached by migrating, with the services stopped
  *      first when the schema changes;
- *   4. the SHA recorded for every verdict, the ref's cron timers and rigd's
- *      scenario timers installed, and the services restarted.
+ *   4. the SHA recorded for every verdict, the ref's cron timers installed,
+ *      the services restarted, and then rigd's scenario timers installed.
  *
  * `--worktree <path>` deploys a checkout in place instead, for a branch an
  * agent is working on; nothing is fetched, created or installed.
@@ -17,6 +17,7 @@ import {
   appendFileSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -24,7 +25,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { bootstrapDb } from "./bootstrap-db.mjs";
@@ -54,6 +55,9 @@ export const STACK_EXCLUDES = ["vector", "logflare", "imgproxy", "edge-runtime"]
 
 /** User-level units (`loginctl enable-linger`), so deploy needs no root. */
 export const SERVICE_UNITS = ["loonext-rig-api.service", "loonext-rig-web.service", "loonext-rig-stripe-listen.service"];
+
+/** Stopped before a schema change: the services, and every timer that starts something against them. */
+export const SCHEMA_CHANGE_STOPS = [...SERVICE_UNITS, "loonext-rig-cron-*.timer", "loonext-rig-scenario-*.timer"];
 
 /** Files the rig writes into a worktree; none may ever be committed from one. */
 export const DERIVED_FILES = ["apps/api/wrangler.rig.jsonc", "apps/api/.dev.vars.rig", "apps/web/wrangler.rig.jsonc"];
@@ -190,16 +194,41 @@ function installCronTimers({ timers, nodeBin, unitDir, systemctl }) {
 }
 
 /** rigd writes its own units. Like the `rig` CLI, it runs from the tooling checkout, never the deployed ref. */
-export function rigdScheduleCommand(nodeBin = process.execPath, root = TOOLING_ROOT) {
-  return { command: nodeBin, args: [join(root, "tools", "rig", "rigd", "src", "cli.ts"), "schedule", "--install"] };
+export function rigdScheduleCommand(nodeBin = process.execPath, root = TOOLING_ROOT, target = ["--install"]) {
+  return { command: nodeBin, args: [join(root, "tools", "rig", "rigd", "src", "cli.ts"), "schedule", ...target] };
 }
 
 /**
- * The ref's cron timers, then rigd's. rigd's systemctl calls need the user
- * manager's runtime directory as much as the CLI's own do.
+ * rigd's schedule built into a scratch folder and thrown away, before
+ * anything changes: a rigd that cannot load from this checkout (its packages
+ * not installed there), or that lacks what its schedule reads, refuses the
+ * deploy here rather than after the services were stopped.
  */
-export function installTimers({
+export function checkRigdSchedule({ nodeBin = process.execPath, runner = run } = {}) {
+  const out = mkdtempSync(join(tmpdir(), "rig-rigd-schedule-"));
+  try {
+    const { command, args } = rigdScheduleCommand(nodeBin, TOOLING_ROOT, ["--out", out]);
+    runner(command, args);
+  } catch (error) {
+    throw new Error(
+      `rig deploy: rigd cannot build its schedule from ${TOOLING_ROOT}, so nothing was changed ` +
+        `(run pnpm install there if its packages are missing): ${error.message}`,
+    );
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+}
+
+/**
+ * The ref's cron timers, the services, then rigd's timers. rigd's come after
+ * the restart, so a failure there leaves the new SHA serving, and a run its
+ * timers catch up on (they are Persistent) finds the API up. rigd's
+ * systemctl calls need the user manager's runtime directory as much as the
+ * CLI's own do.
+ */
+export function activate({
   timers,
+  sha,
   nodeBin = process.execPath,
   log,
   unitDir = join(homedir(), ".config", "systemd", "user"),
@@ -208,8 +237,19 @@ export function installTimers({
 }) {
   installCronTimers({ timers, nodeBin, unitDir, systemctl });
   log(`crons: ${timers.length} timer(s)`);
+  systemctl(["restart", ...SERVICE_UNITS], { inherit: true });
+  log(`services restarted: ${SERVICE_UNITS.join(", ")}`);
   const { command, args } = rigdScheduleCommand(nodeBin);
-  const { stdout } = runner(command, args, { env: userManagerEnv() });
+  let stdout;
+  try {
+    ({ stdout } = runner(command, args, { env: userManagerEnv() }));
+  } catch (error) {
+    throw new Error(
+      `rig deploy: ${sha} is deployed and its services restarted, but rigd's schedule install failed, so ` +
+        `its scenario timers stay as the last install left them (stopped, after a schema change) until ` +
+        `"node tools/rig/rigd/src/cli.ts schedule --install" succeeds: ${error.message}`,
+    );
+  }
   let installed = null;
   try {
     installed = JSON.parse(stdout);
@@ -327,7 +367,10 @@ function writeDerived(files) {
  */
 export async function deploy({ layout, settings, store, ref, worktree, options, log }) {
   const restart = settings.systemd && !options.noRestart;
-  if (restart) requireUserManager();
+  if (restart) {
+    requireUserManager();
+    checkRigdSchedule();
+  }
 
   let root;
   let sha;
@@ -393,7 +436,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   if (restart && plan.action !== "none") {
     // Nothing keeps running against a schema it was not built for, even if
     // the migration fails half way.
-    systemctlUser(["stop", ...SERVICE_UNITS, "loonext-rig-cron-*.timer"]);
+    systemctlUser(["stop", ...SCHEMA_CHANGE_STOPS]);
     log("services stopped for the schema change");
   }
   if (plan.action === "migrate") {
@@ -434,9 +477,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   pointCurrent(layout, root);
 
   if (restart) {
-    installTimers({ timers, log });
-    systemctlUser(["restart", ...SERVICE_UNITS], { inherit: true });
-    log(`services restarted: ${SERVICE_UNITS.join(", ")}`);
+    activate({ timers, sha, log });
   } else if (settings.systemd) {
     log(`--no-restart: the services and timers still run ${previous?.sha ?? "what they ran"} until restarted, and rig health fails until then`);
   }
