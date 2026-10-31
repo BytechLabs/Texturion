@@ -18,6 +18,7 @@ import {
   inboundCallerRefusal,
   liveStripeEventRefusal,
   outboundDestinationRefusal,
+  productionWatchRefusal,
   restrictTelnyxBody,
   RIG_DESTINATION_REFUSED,
   RIG_MESSAGING_PROFILE_DAILY_LIMIT,
@@ -196,6 +197,12 @@ const INERT_OUTSIDE_RIG: Record<string, ((env: Env) => void) | "constant"> = {
     );
   },
   servesRigRoutes: (env) => expect(servesRigRoutes(env)).toBe(false),
+  // Not permissive on a laptop, and that is a restriction rather than a
+  // widening: a watch of production's account belongs to production alone.
+  productionWatchRefusal: (env) => {
+    if (deployEnv(env) === "production") expect(productionWatchRefusal(env)).toBeNull();
+    else expect(productionWatchRefusal(env)).toMatch(/only in production/);
+  },
   fcmCredential: (env) => expect(fcmCredential(env)).toEqual({ kind: "google" }),
   outboundDestinationRefusal: (env) => {
     expect(outboundDestinationRefusal(env, STRANGER)).toBeNull();
@@ -312,6 +319,12 @@ describe("the rig's Stripe and webhook refusals", () => {
     expect(
       customerWebhookRefusal(getEnv(bindings), "https://robot.rig.internal/hooks/1"),
     ).not.toBeNull();
+  });
+});
+
+describe("watches of production's Telnyx account", () => {
+  it("never run on the rig, which shares the account", () => {
+    expect(productionWatchRefusal(getEnv(rigEnv()))).toMatch(/only in production/);
   });
 });
 

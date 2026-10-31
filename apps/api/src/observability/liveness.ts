@@ -211,13 +211,14 @@ export const LIVENESS_EXPECTATIONS = {
   "cron:0 13 * * *": {
     what: "The daily registration poller has not run — 10DLC/A2P status is not being reconciled.",
     doThis:
-      "Six jobs ride this trigger and it gets one attempt a day — nothing can " +
+      "Eight jobs ride this trigger and it gets one attempt a day — nothing can " +
       "force an extra run, so a fix now still means the next attempt is 13:00 " +
       "UTC tomorrow. The registration poll itself is only the webhook fallback " +
-      "and rarely matters; what actually stopped is the five daily watchers " +
+      "and rarely matters; what actually stopped is the seven daily watchers " +
       "that run nowhere else (carrier filtering by country, per-number " +
       "reputation, stalled registrations, a workspace's calls going quiet, " +
-      "activation stalls) — nobody is watching any of those until it fires " +
+      "production's Telnyx webhook wiring, AUP signals, activation stalls) — " +
+      "nobody is watching any of those until it fires " +
       "again. Confirm `0 13 * * *` is listed under Cloudflare → loonext-api → " +
       "Triggers → Cron Triggers and redeploy the API if it is missing.",
     everyMinutes: 1440,
@@ -726,6 +727,20 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 60,
     graceMinutes: 60,
   },
+  "job:ring-success-watch": {
+    what:
+      "Nothing is measuring whether customers' phones ring (D142 P01). A " +
+      "platform or build that stopped ringing would show only as missed calls.",
+    doThis:
+      "Workers Logs, search `cron job job:ring-success-watch failed` for the " +
+      "stack; the usual cause is the api_ring_success migration missing or a " +
+      "column it reads renamed. While it is down nothing alerts on ring " +
+      "success, so read the answer by hand: `select * from " +
+      "api_ring_success()` in the Supabase SQL editor returns the same rows, " +
+      "counts and verdicts the job reads.",
+    everyMinutes: 60,
+    graceMinutes: 60,
+  },
   "job:sweep-stale-calls": {
     what: "Calls wedged in-flight are not being closed, so /calls lies and the per-conversation dial guard stays shut.",
     doThis:
@@ -1063,6 +1078,22 @@ export const LIVENESS_EXPECTATIONS = {
       "progress. Daily and self-draining, so one good run re-checks every " +
       "workspace — but a customer who left during the gap is best caught " +
       "by hand today.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
+  "job:telnyx-wiring-watch": {
+    what:
+      "Nothing is checking that production's Telnyx webhooks still point at " +
+      "production (D142 PW01), so a portal edit could divert calls or texts " +
+      "unnoticed.",
+    doThis:
+      "Workers Logs, search `cron job job:telnyx-wiring-watch failed` for " +
+      "the stack; a Telnyx 401 means the API key changed. Then check by hand " +
+      "in portal.telnyx.com that the Call Control application, the WebRTC " +
+      "credential connection and the messaging profiles send webhooks to " +
+      "`<API_ORIGIN>/webhooks/telnyx`, and that Debugging > Webhooks shows " +
+      "no failed deliveries today. It runs once a day, so the next automatic " +
+      "check is 13:00 UTC tomorrow.",
     everyMinutes: 1440,
     graceMinutes: 360,
   },

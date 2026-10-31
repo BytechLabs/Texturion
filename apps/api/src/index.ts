@@ -16,6 +16,8 @@ import {
   runOverageDigestJob,
 } from "./billing/overage-warning";
 import { runProbes } from "./observability/probes";
+import { runRingSuccessWatch } from "./observability/ring-success";
+import { runTelnyxWiringWatch } from "./observability/telnyx-wiring";
 import { runResponseTimeRecapJob } from "./reports/monthly-recap";
 import {
   runOverageWarningJob,
@@ -644,6 +646,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // 24h window — reputation is not a per-message property and cannot be
     // judged from one send.
     job("job:email-health", runEmailHealthJob),
+    // D142 P01: do customers' phones ring? Hourly because the window it reads
+    // is 24 hours wide and a drop is worth hearing about the hour it appears;
+    // the job itself keeps a persisting drop to one alert every six hours.
+    job("job:ring-success-watch", runRingSuccessWatch),
     // #308: the synthetic inbound canary — one text from our number to our
     // number, confirmed by its own webhook coming back. HOURLY because the
     // cadence is the cost: each round trip is ~1.7c, and an hour is the
@@ -685,6 +691,11 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #397 ask 2: one workspace's calls going quiet. The fleet-wide call-event
     // key catches a Telnyx outage; this catches a customer replacing us.
     job("job:call-silence", runCallSilenceJob),
+    // D142 PW01: production's Telnyx webhook settings and the last day of
+    // failed deliveries. Daily, on the slow trigger: settings drift is a
+    // portal edit, and the delivery log it reads is 24 hours wide. Production
+    // only; the job refuses anywhere else before any request.
+    job("job:telnyx-wiring-watch", runTelnyxWiringWatch),
     // #303: the AUP has been accepted by everyone and enforced against nobody.
     // Daily, on the slow trigger, because the signals it reads are day-scale by
     // construction — a workspace's own median day against the last one.

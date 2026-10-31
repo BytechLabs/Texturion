@@ -11,6 +11,8 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runEmailHealthJob } from "./email/health";
+import { runRingSuccessWatch } from "./observability/ring-success";
+import { runTelnyxWiringWatch } from "./observability/telnyx-wiring";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runActivationStallJob } from "./analytics/activation-stall";
@@ -562,6 +564,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runOverageWarningJob,
       sweepStaleCalls, // #133: stale-calls sweeper (in-flight >4h → missed)
       runEmailHealthJob, // #386: domain bounce/complaint rates, rolling 24h
+      runRingSuccessWatch, // D142 P01: ring pushes that became a shown ring
       runInboundCanaryJob, // #308: synthetic inbound round trip (off until configured)
       // #224: retires payment requests past their 14-day expiry, so a thread
       // stops showing "Waiting" for a link that no longer opens.
@@ -580,6 +583,8 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runRegistrationStallJob,
       // #397: one workspace's calls going quiet.
       runCallSilenceJob,
+      // D142 PW01: production's Telnyx webhook settings and failed deliveries.
+      runTelnyxWiringWatch,
       // #303: the AUP watcher, on the same daily trigger as the other slow
       // watchers — its signals are day-scale by construction.
       runAupWatchJob,
