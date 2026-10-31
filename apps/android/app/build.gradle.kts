@@ -307,13 +307,15 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
-    // The empty activity `createAndroidComposeRule` launches lives in this
-    // artifact's manifest, which reaches a variant's merged manifest only from
-    // that build type's own configuration, so each build type with unit tests
-    // declares it.
+    // The empty, exported activity `createAndroidComposeRule` launches lives in
+    // this artifact's manifest.
     debugImplementation(libs.compose.ui.test.manifest)
-    "nonprodImplementation"(libs.compose.ui.test.manifest)
-    "nonprodDebugImplementation"(libs.compose.ui.test.manifest)
+    // The nonprod builds take it from their unit-test configurations, keeping it
+    // out of the APK the rig installs as release's twin. That suffices because
+    // Robolectric loads the unit test's own merged manifest, which takes in
+    // every manifest on the unit-test runtime classpath.
+    "testNonprodImplementation"(libs.compose.ui.test.manifest)
+    "testNonprodDebugImplementation"(libs.compose.ui.test.manifest)
 }
 
 // ---------------------------------------------------------------------------
