@@ -1,0 +1,62 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // D142, docs/RIG.md. The only Worker that holds the rig's Telnyx,
+  // Resend and FCM keys. Deployed from main by .github/workflows/guard.yml.
+  "name": "loonext-telnyx-guard",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+
+  // No public URL of any kind. The edge's service binding is the only way in,
+  // which is the whole reason the guard may trust the caller-class header.
+  // tools/guard/test/config.test.ts fails if either flips or a route appears.
+  "workers_dev": false,
+  "preview_urls": false,
+
+  "durable_objects": {
+    "bindings": [{ "name": "GUARD", "class_name": "GuardState" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GuardState"] }],
+
+  // The rig's AI shim runs here, under the guard's daily neuron cap.
+  "ai": { "binding": "AI" },
+
+  // The edge's named entrypoint, for the robot mailbox's status before a send
+  // to it. A named entrypoint is reachable only over a service binding.
+  "services": [{ "binding": "EDGE", "service": "loonext-rig-edge", "entrypoint": "EdgeForGuard" }],
+
+  // /version answers with this deployment's id for the hourly attestation.
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
+
+  "triggers": {
+    "crons": [
+      // The weekly key inventory (Monday 06:00 UTC).
+      "0 6 * * 1",
+      // Upkeep: the first order's read-back, the daily balance sample, the
+      // robot-mailbox arrival deadline, expired legs.
+      "7 * * * *"
+    ]
+  },
+
+  "vars": {
+    // The account's concurrent call limit, from FA0. "unknown" keeps every
+    // paid dial and every number order off; set the number Telnyx states in
+    // writing, and guard.yml deploys it.
+    "TELNYX_CONCURRENT_LIMIT": "unknown",
+    // A second account signal inside 30 days latches the paid lanes off until
+    // this value changes, which takes a reviewed commit: the design change the
+    // latch waits for.
+    "SIGNAL_LATCH_RESET": "2026-10-31"
+  },
+
+  // Logs on, for debugging refusals. The guard logs rule names and statuses,
+  // never a body, a number or a key.
+  "observability": {
+    "enabled": false,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    }
+  }
+}

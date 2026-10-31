@@ -288,6 +288,40 @@ importers:
         specifier: ^4.106.0
         version: 4.153.0(@cloudflare/workers-types@4.20260701.1)(@types/node@22.20.0)
 
+  tools/guard:
+    dependencies:
+      '@loonext/rig-protocol':
+        specifier: workspace:*
+        version: link:../rig-protocol
+    devDependencies:
+      '@cloudflare/vitest-pool-workers':
+        specifier: 0.22.0
+        version: 0.22.0(@cloudflare/workers-types@4.20260701.1)(@types/node@22.20.0)(@vitest/runner@4.1.12)(@vitest/snapshot@4.1.12)(vitest@4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(happy-dom@21.0.4)(vite@8.1.6(@types/node@22.20.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.36.0)(yaml@2.9.1)))
+      '@cloudflare/workers-types':
+        specifier: ^4.20260701.1
+        version: 4.20260701.1
+      '@eslint/js':
+        specifier: ^9.39.4
+        version: 9.39.4
+      '@types/node':
+        specifier: ^22.18.0
+        version: 22.20.0
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.7.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.62.1
+        version: 8.62.1(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(happy-dom@21.0.4)(vite@8.1.6(@types/node@22.20.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.36.0)(yaml@2.9.1))
+      wrangler:
+        specifier: 4.106.0
+        version: 4.106.0(@cloudflare/workers-types@4.20260701.1)(@types/node@22.20.0)
+
   tools/rig-protocol:
     devDependencies:
       typescript:

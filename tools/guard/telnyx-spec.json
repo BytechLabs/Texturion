@@ -1,0 +1,97 @@
+{
+  "$comment": "The rig's Telnyx partition (docs/RIG.md). Names and values only, never ids: the setup routine finds each resource by name and creates what is missing. Webhook paths are joined to the guard's EDGE_ORIGIN at setup time.",
+  "billing_group": { "name": "loonext-nonprod" },
+  "outbound_voice_profiles": [
+    {
+      "key": "voice",
+      "name": "nonprod-voice-ovp",
+      "daily_spend_limit": "0.40",
+      "max_destination_rate": 0.01,
+      "whitelisted_destinations": ["US", "CA"],
+      "concurrent_call_limit": "room-minus-robot",
+      "calls_per_cld": 20
+    },
+    {
+      "key": "robot",
+      "name": "nonprod-robot-ovp",
+      "daily_spend_limit": "0.20",
+      "max_destination_rate": 0.01,
+      "whitelisted_destinations": ["US", "CA"],
+      "concurrent_call_limit": 1,
+      "calls_per_cld": 20
+    }
+  ],
+  "call_control_applications": [
+    {
+      "key": "voice",
+      "application_name": "nonprod-voice",
+      "webhook_path": "/t/v",
+      "failover_path": "/t/v2",
+      "webhook_timeout_secs": 10,
+      "outbound_voice_profile": "voice",
+      "channel_limit": "room"
+    },
+    {
+      "key": "robot",
+      "application_name": "nonprod-robot",
+      "webhook_path": "/t/r",
+      "webhook_timeout_secs": 10,
+      "outbound_voice_profile": "robot",
+      "channel_limit": 1
+    }
+  ],
+  "credential_connections": [
+    {
+      "key": "webrtc",
+      "connection_name": "nonprod-webrtc",
+      "webhook_path": "/t/w",
+      "sip_uri_calling_preference": "internal",
+      "max_credentials": null
+    },
+    {
+      "key": "sentinel",
+      "connection_name": "nonprod-sentinel",
+      "webhook_path": "/t/w",
+      "sip_uri_calling_preference": "internal",
+      "max_credentials": 1
+    }
+  ],
+  "messaging_profiles": {
+    "max_profiles": 6,
+    "max_daily_spend_limit": "0.06",
+    "whitelisted_destinations": ["US", "CA"],
+    "webhook_path": "/t/m",
+    "profiles": [
+      { "key": "robot", "name": "nonprod-robot", "daily_spend_limit": "0.06" },
+      { "key": "qa-w", "name": "nonprod-qa-w", "daily_spend_limit": "0.03" },
+      { "key": "qa-a", "name": "nonprod-qa-a", "daily_spend_limit": "0.03" },
+      { "key": "qa-c", "name": "nonprod-qa-c", "daily_spend_limit": "0.03" },
+      { "key": "qa-e", "name": "nonprod-qa-e", "daily_spend_limit": "0.03" }
+    ]
+  },
+  "numbers": {
+    "country": "CA",
+    "area_codes": ["416", "647", "437", "905", "289", "365", "613", "343", "519", "226", "705", "249", "807"],
+    "standing": [
+      { "role": "ROBOT-1", "connection": "robot", "messaging_profile": "robot" },
+      { "role": "ROBOT-2", "connection": "robot", "messaging_profile": "robot" },
+      { "role": "STRANGER-1", "connection": "robot", "messaging_profile": "robot" },
+      { "role": "DEV-W1", "connection": "voice", "messaging_profile": "qa-w" },
+      { "role": "DEV-W2", "connection": "voice", "messaging_profile": "qa-w" },
+      { "role": "DEV-A1", "connection": "voice", "messaging_profile": "qa-a", "caller_name_lookup": true },
+      { "role": "DEV-C1", "connection": "voice", "messaging_profile": "qa-c" },
+      { "role": "DEV-E1", "connection": "voice", "messaging_profile": "qa-e" }
+    ]
+  },
+  "notifications": {
+    "profile_name": "nonprod-signals",
+    "event_conditions": [
+      "Suspicious Outbound Voice Traffic",
+      "Account Disabled",
+      "Low Balance",
+      "Messaging Suspicious Traffic",
+      "Abandoned",
+      "Short Duration"
+    ]
+  }
+}
