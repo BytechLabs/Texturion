@@ -8,18 +8,19 @@ The site's single algorithmic signature, on the home hero only. Each particle IS
 ## Files and loading
 - `apps/web/src/components/marketing/hero/arrival-field.tsx` (client component, p5 instance mode) loaded via `next/dynamic(..., { ssr: false })`.
 - `apps/web/src/components/marketing/hero/arrival-static.tsx` (server component): the static converged inline SVG. This is what SSR ships, what no-JS keeps, what reduced-motion keeps, and what the final CTA band and subpage header marks reuse at small scale.
-- p5 (~80KB gz) is its own lazy chunk, requested only on `/`, only after gating passes.
+- p5 is its own lazy chunk, requested only on `/`, only after gating passes. The sketch imports `hero/p5-lean.ts`, never `p5`: p5 2.x publishes its core and each addon as separate entry points, and the lean module registers only shape, color, math and accessibility (the core calls into accessibility unconditionally). That chunk is about 124KB gz; the full browser build was about 318KB gz and about 1.1MB raw (#640). `app/marketing-first-load.test.ts` fails on any value import of `p5` under `components/marketing`.
 
 ## Boot gating (in order; any failure means the static SVG stays)
 ```
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) stop
 if (navigator.connection?.saveData) stop
 if (navigator.deviceMemory !== undefined && navigator.deviceMemory < 4) stop
-onLCP(() => requestIdleCallback(() => {
+onLCP(() => onWindowLoad(() => requestIdleCallback(() => {
   io = new IntersectionObserver(boot, { rootMargin: '200px' })  // hero container
-}))
+})))
 ```
-The hero H1 text node must remain the LCP. The canvas mounts into a pre-sized, absolutely positioned layer (`inset:0` of the hero grid's right column zone, `pointer-events:none`), so CLS from this feature is 0.00. The static SVG crossfades out (200ms) only after the first p5 frame has rendered.
+The window-load wait (#640) keeps the p5 download off the connection while the page's own fonts and hydration chunks are still arriving. On a page where no LCP entry lands (bfcache restore) or the entry type is unsupported, load alone releases the boot.
+The hero H1 text node must remain the LCP. (Measured 2026-10-31, `lighthouse-2026-10-31.md`: on Lighthouse's 412px mobile viewport the sub-head paragraph is the LCP element, both before and after #640, because it has the larger area. Both are server-rendered text, so neither waits on p5.) The canvas mounts into a pre-sized, absolutely positioned layer (`inset:0` of the hero grid's right column zone, `pointer-events:none`), so CLS from this feature is 0.00. The static SVG crossfades out (200ms) only after the first p5 frame has rendered.
 
 ## Canvas sizing
 - Desktop (≥1024px): the layer spans the hero's right 5/12 plus the gutter, height 560px fixed, canvas = container box.
