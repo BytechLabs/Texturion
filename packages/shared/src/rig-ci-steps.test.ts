@@ -77,7 +77,9 @@ describe("the rig's checks in the gate", () => {
     expect(lane).toBeGreaterThan(indexOf("build", "playwright install --with-deps chromium"));
   });
 
-  it("runs the nonprodDebug unit tests in the Android job", () => {
-    expect(indexOf("android", "./gradlew :app:testNonprodDebugUnitTest")).toBeGreaterThan(-1);
+  it("runs CallTestTagsTest alone on the nonprodDebug build in the Android job", () => {
+    const step = indexOf("android", "./gradlew :app:testNonprodDebugUnitTest");
+    expect(step).toBeGreaterThan(-1);
+    expect(jobs.android[step]).toContain('--tests "com.loonext.android.features.calls.CallTestTagsTest"');
   });
 });

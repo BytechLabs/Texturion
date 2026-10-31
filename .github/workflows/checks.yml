@@ -1085,9 +1085,11 @@ jobs:
           fi
 
       # D142: only the rig ran the nonprod unit tests, so CallTestTagsTest's
-      # check that only nonprod builds expose test tags ran nowhere. Stand-in
-      # Firebase and CA files take the place of the rig's own, which are
-      # gitignored (apps/android/.gitignore).
+      # check that only nonprod builds expose test tags ran nowhere. It runs
+      # alone: the rest of the suite pins production's app origin, which the
+      # nonprod build replaces with the rig's. Stand-in Firebase and CA files
+      # take the place of the rig's own, which are gitignored
+      # (apps/android/.gitignore).
       - name: Unit tests (nonprodDebug)
         run: |
           set -euo pipefail
@@ -1099,6 +1101,7 @@ jobs:
           mkdir -p app/src/nonprod/res/raw
           printf 'ci placeholder\n' > app/src/nonprod/res/raw/rig_ca.pem
           ./gradlew :app:testNonprodDebugUnitTest \
+            --tests "com.loonext.android.features.calls.CallTestTagsTest" \
             -PloonextNonprodApiUrl=https://api.rig.internal \
             -PloonextNonprodAppHost=app.rig.internal \
             -PloonextNonprodSupabaseUrl=https://db.rig.internal \
