@@ -14,9 +14,41 @@ function wranglerBin(appDir) {
 }
 
 /**
+ * Cloudflare credentials wrangler would use to open a remote session on the
+ * production account. None belongs on the rig, but a workstation shell has
+ * them, so no rig Worker ever inherits them.
+ */
+export const CLOUDFLARE_CREDENTIALS = [
+  "CLOUDFLARE_API_TOKEN",
+  "CLOUDFLARE_API_KEY",
+  "CLOUDFLARE_EMAIL",
+  "CLOUDFLARE_ACCOUNT_ID",
+  "CF_API_TOKEN",
+  "CF_API_KEY",
+  "CF_EMAIL",
+  "CF_ACCOUNT_ID",
+];
+
+/**
+ * The environment a rig Worker runs with: no Cloudflare credentials, and a
+ * wrangler config folder of its own, so a `wrangler login` on the machine is
+ * not picked up either.
+ */
+export function workerEnv(layout, caFile) {
+  return {
+    ...Object.fromEntries(CLOUDFLARE_CREDENTIALS.map((name) => [name, undefined])),
+    XDG_CONFIG_HOME: join(layout.state, "wrangler-home"),
+    WRANGLER_SEND_METRICS: "false",
+    // The rig's own CA, so workerd trusts https://db.rig.internal. The CA is
+    // name-constrained to rig.internal (box/bootstrap.sh).
+    ...(caFile === null ? {} : { NODE_EXTRA_CA_CERTS: caFile }),
+  };
+}
+
+/**
  * The argument lists, exported so a test can pin what the units run.
- * `--env rig` makes wrangler read `.dev.vars.rig`; the derived configs declare
- * no environments, which wrangler then treats as the top level.
+ * `--env rig` selects the derived configs' `env.rig` and makes wrangler read
+ * `.dev.vars.rig`.
  */
 export function serveArgs(service, { root, layout, settings }) {
   if (service === "api") {
@@ -63,15 +95,7 @@ export function serve(service, { root, layout, settings, store }) {
   } else {
     const { cwd, args } = serveArgs(service, { root, layout, settings });
     const caFile = join(store.dir, "rig-ca.crt");
-    child = start(wranglerBin(cwd), args, {
-      cwd,
-      env: {
-        // The rig's own CA, so workerd trusts https://db.rig.internal. The CA
-        // is name-constrained to *.rig.internal (box/bootstrap.sh).
-        ...(existsSync(caFile) ? { NODE_EXTRA_CA_CERTS: caFile } : {}),
-        WRANGLER_SEND_METRICS: "false",
-      },
-    });
+    child = start(wranglerBin(cwd), args, { cwd, env: workerEnv(layout, existsSync(caFile) ? caFile : null) });
   }
   for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => child.kill(signal));
   return new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 1)));

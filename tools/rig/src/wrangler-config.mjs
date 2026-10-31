@@ -47,9 +47,8 @@ const PASS_THROUGH = new Set([
 
 /**
  * Production wiring with no meaning on the rig: routes name production
- * hostnames, and the rest reach the Cloudflare account. `env` is dropped
- * because the rig runs the top level with `--env rig`, which wrangler allows
- * only when no environment is declared.
+ * hostnames, and the rest reach the Cloudflare account. The ref's own
+ * environments give way to the rig's (withRigEnvironment).
  */
 const DROPPED = new Set([
   "routes",
@@ -135,7 +134,24 @@ export function deriveRigConfig(config, { port, aiShim = false }) {
   }
 
   derived.dev = { ip: "127.0.0.1", port, local_protocol: "http" };
-  return derived;
+  return withRigEnvironment(derived);
+}
+
+/**
+ * The same config again as `env.rig`, which `--env rig` selects so wrangler
+ * reads `.dev.vars.rig`. Without the section wrangler renames the Worker to
+ * `<name>-rig`, and a service binding to the AI shim's own name then finds
+ * nothing. An environment inherits no bindings, so every key is repeated.
+ */
+export function withRigEnvironment(config) {
+  const { $schema, dev, ...rest } = config;
+  delete rest.env;
+  return {
+    ...($schema === undefined ? {} : { $schema }),
+    ...rest,
+    ...(dev === undefined ? {} : { dev }),
+    env: { rig: rest },
+  };
 }
 
 /** The file the rig writes beside the ref's own config. */
@@ -156,10 +172,10 @@ export function deriveRigConfigText(text, options) {
  * ref's, so a ref from before the rig still gets one.
  */
 export function aiShimConfig({ main, compatibilityDate, guardAiUrl }) {
-  return {
+  return withRigEnvironment({
     name: AI_SHIM.service,
     main,
     compatibility_date: compatibilityDate,
     vars: { GUARD_AI_URL: guardAiUrl },
-  };
+  });
 }

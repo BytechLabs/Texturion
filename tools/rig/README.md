@@ -80,8 +80,11 @@ Sentry relay publish there).
 
 - `apps/api/wrangler.rig.jsonc` from the ref's `wrangler.jsonc`: no routes,
   crons emptied, rate limiters kept, the `ai` binding replaced by a service
-  binding to the AI shim (`ai-shim/`), production KV ids replaced. A key the
-  derivation was never taught is refused, as is anything `remote`.
+  binding to the AI shim (`ai-shim/`), production KV ids replaced, and all of
+  it repeated as `env.rig` under the Worker's own name (`--env rig` would
+  otherwise rename it). A key the derivation was never taught is refused, as
+  is anything `remote`. `rig serve` runs wrangler with no Cloudflare
+  credentials and its own config folder, so it cannot open a remote session.
 - `apps/api/.dev.vars.rig` from `templates/api.dev.vars.rig`, which names a
   source for every variable. `RIG_OWNED_E164` is the guard's live listing less
   STRANGER-1.
@@ -110,6 +113,9 @@ node tools/rig/bin/rig.mjs serve api &
 node tools/rig/bin/rig.mjs health --only api,database,signIn,tz
 node tools/rig/bin/rig.mjs cron "*/5 * * * *" --time 1793404800000
 ```
+
+`--time` is milliseconds. `/cdn-cgi/handler/scheduled` passes it to the job as
+`scheduledTime`; the `/__scheduled` fallback ignores it, and `rig cron` says so.
 
 ## Tests
 

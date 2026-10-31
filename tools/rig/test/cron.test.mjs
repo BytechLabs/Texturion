@@ -49,10 +49,13 @@ test("a 404 on the cdn-cgi route falls back to /__scheduled", async () => {
   assert.deepEqual(seen, ["/cdn-cgi/handler/scheduled", "/__scheduled"]);
   assert.equal(result.route, "/__scheduled");
   assert.equal(result.status, 200);
+  // /__scheduled runs the job at the wall clock whatever `time` says.
+  assert.equal(result.timeHonored, false);
 
   const failing = await fireCron("http://127.0.0.1:1", "* * * * *", 0, async () => new Response("boom", { status: 500 }));
   assert.equal(failing.route, "/cdn-cgi/handler/scheduled");
   assert.equal(failing.status, 500);
+  assert.equal(failing.timeHonored, true);
 });
 
 test("only classified crons get a timer, and a skip gets none", () => {

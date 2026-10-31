@@ -7,7 +7,7 @@ import { parseArgs } from "../src/cli.mjs";
 import { webBuildArgs } from "../src/deploy.mjs";
 import { expectedWebhooks, nodeOffsetMinutes, tzMismatches, tzProbeSql } from "../src/health.mjs";
 import { DEFAULT_SETTINGS, rigLayout } from "../src/layout.mjs";
-import { serveArgs } from "../src/serve.mjs";
+import { CLOUDFLARE_CREDENTIALS, serveArgs, workerEnv } from "../src/serve.mjs";
 import { pinnedCliVersion, schemaPlan } from "../src/supabase.mjs";
 import { startStubGuard, STUB_TOKEN, stubPartition } from "./support/stub-guard.mjs";
 
@@ -78,6 +78,19 @@ test("the API unit runs both configs, rig vars, loopback only, and the scheduled
   assert.deepEqual(pairs("--env"), ["rig"]);
   assert.deepEqual(pairs("--ip"), ["127.0.0.1"]);
   assert.ok(args.includes("--test-scheduled"));
+});
+
+test("a rig Worker never inherits Cloudflare credentials or a wrangler login", () => {
+  const layout = rigLayout({ RIG_HOME: "/var/lib/loonext-rig" });
+  const env = workerEnv(layout, "/var/lib/loonext-rig/secrets/rig-ca.crt");
+  for (const name of CLOUDFLARE_CREDENTIALS) {
+    assert.ok(name in env, `${name} is cleared`);
+    assert.equal(env[name], undefined);
+  }
+  assert.ok(CLOUDFLARE_CREDENTIALS.includes("CLOUDFLARE_API_TOKEN"));
+  assert.match(env.XDG_CONFIG_HOME, /state[\\/]wrangler-home$/);
+  assert.equal(env.NODE_EXTRA_CA_CERTS, "/var/lib/loonext-rig/secrets/rig-ca.crt");
+  assert.equal(workerEnv(layout, null).NODE_EXTRA_CA_CERTS, undefined);
 });
 
 test("arguments parse into flags and positionals", () => {

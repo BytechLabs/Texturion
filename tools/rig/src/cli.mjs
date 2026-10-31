@@ -149,6 +149,9 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
       if (!Number.isSafeInteger(time) || time < 0) throw new Error("rig cron: --time is milliseconds since the epoch");
       const result = await fireCron(`http://127.0.0.1:${settings.apiPort}`, cron, time);
       log(`cron "${cron}" at ${new Date(time).toISOString()} via ${result.route}: ${result.status}`);
+      if (!result.timeHonored && flags.time !== undefined) {
+        log(`rig cron: ${result.route} ignores --time; the job ran at the wall clock`);
+      }
       if (result.status >= 400 && result.body) log(result.body.slice(0, 2_000));
       return result.status < 400 ? 0 : 1;
     }

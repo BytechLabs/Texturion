@@ -14,7 +14,14 @@ import {
   projectIdOf,
   setTomlKey,
 } from "../src/supabase-config.mjs";
-import { AI_SHIM, DeriveRefusal, deriveRigConfig, deriveRigConfigText, renderRigConfig } from "../src/wrangler-config.mjs";
+import {
+  AI_SHIM,
+  aiShimConfig,
+  DeriveRefusal,
+  deriveRigConfig,
+  deriveRigConfigText,
+  renderRigConfig,
+} from "../src/wrangler-config.mjs";
 
 const repoFile = (...parts) => readFileSync(join(TOOLING_ROOT, ...parts), "utf8");
 
@@ -43,6 +50,24 @@ test("the API's derived config has no routes or crons, keeps its limiters and sw
   assert.deepEqual(derived.durable_objects, original.durable_objects);
   assert.equal(derived.main, original.main);
   assert.deepEqual(derived.dev, { ip: "127.0.0.1", port: 8787, local_protocol: "http" });
+});
+
+test("env.rig repeats every binding under the Worker's own name", () => {
+  const derived = deriveRigConfig(parseJsonc(repoFile("apps", "api", "wrangler.jsonc")), { port: 8787, aiShim: true });
+  const rig = derived.env.rig;
+  // Without its own name, `--env rig` would rename the Worker and orphan the AI binding.
+  assert.equal(rig.name, derived.name);
+  assert.deepEqual(rig.services, derived.services);
+  assert.deepEqual(rig.unsafe, derived.unsafe);
+  assert.deepEqual(rig.durable_objects, derived.durable_objects);
+  assert.deepEqual(rig.triggers.crons, []);
+  assert.equal(rig.dev, undefined);
+  assert.equal(rig.$schema, undefined);
+  assert.equal(rig.env, undefined);
+
+  const shim = aiShimConfig({ main: "/x/index.mjs", compatibilityDate: "2026-06-01", guardAiUrl: "https://e.invalid/g/ai" });
+  assert.equal(shim.env.rig.name, AI_SHIM.service);
+  assert.deepEqual(shim.env.rig.vars, { GUARD_AI_URL: "https://e.invalid/g/ai" });
 });
 
 test("the derived file parses back to the same config", () => {

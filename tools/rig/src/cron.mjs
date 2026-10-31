@@ -4,8 +4,10 @@
  * The rig's derived config has no crons, so nothing fires on wrangler's own
  * clock; the rig fires each one through the route wrangler dev serves for
  * that, at the minute it was due or at any instant an agent picks.
- * /cdn-cgi/handler/scheduled is what the pinned wrangler answers; /__scheduled
- * (served with --test-scheduled) is the fallback for one that does not.
+ * /cdn-cgi/handler/scheduled is what the pinned wrangler answers, and it
+ * takes `time` in milliseconds. /__scheduled (served with --test-scheduled)
+ * is the fallback for one that does not, and it ignores `time`: the job runs
+ * at the wall clock. Both checked against wrangler 4.106.0 on 2026-10-31.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -25,14 +27,14 @@ export function scheduledUrl(origin, route, cron, time) {
 }
 
 /**
- * @returns {Promise<{ route: string, status: number, body: string }>}
+ * @returns {Promise<{ route: string, status: number, body: string, timeHonored: boolean }>}
  */
 export async function fireCron(origin, cron, time, fetchImpl = fetch) {
   let last;
   for (const route of SCHEDULED_ROUTES) {
     const response = await fetchImpl(scheduledUrl(origin, route, cron, time));
     const body = await response.text();
-    last = { route, status: response.status, body };
+    last = { route, status: response.status, body, timeHonored: route === SCHEDULED_ROUTES[0] };
     if (response.status !== 404) return last;
   }
   return last;
