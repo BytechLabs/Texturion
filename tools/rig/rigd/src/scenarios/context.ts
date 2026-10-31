@@ -6,6 +6,7 @@
  * rigd builds the real ones; the tests build fakes, because no scenario can
  * run for real until the Telnyx partition exists.
  */
+import type { StandingRole } from "@loonext/rig-protocol";
 import type { HearOptions, PageHearing } from "@loonext/rig-lanes";
 import type { RobotApi, Surface } from "@loonext/rig-robot";
 import type { UndoAction } from "../lease.ts";
@@ -26,7 +27,7 @@ export interface MemberPageApi {
   answer(): Promise<void>;
   hangUp(): Promise<void>;
   /** Opens the dialer, enters the role's number and presses Call. */
-  dial(role: string): Promise<void>;
+  dial(role: StandingRole): Promise<void>;
   waitForText(text: string, timeoutMs: number): Promise<boolean>;
   /** Turns on this browser's push the way a member does; false when the browser cannot subscribe. */
   enablePush(): Promise<boolean>;
@@ -72,7 +73,7 @@ export type SendResult = { ok: true; messageId: string } | { ok: false; status: 
 /** The rig's own Loonext, read and driven from outside, as a member and as the database. */
 export interface AppApi {
   /** Texts as a member, from one of the tenant's numbers, through the local API. */
-  sendText(args: { member: string; fromRole: string; toRole: string; body: string }): Promise<SendResult>;
+  sendText(args: { member: string; fromRole: StandingRole; toRole: StandingRole; body: string }): Promise<SendResult>;
   /** Messages in a tenant with exactly this body, oldest first. */
   messages(args: { tenant: string; body: string; since: number }): Promise<MessageRow[]>;
   usageFor(messageId: string): Promise<{ type: string; quantity: number; stripe_reported_at: string | null }[]>;
@@ -82,10 +83,10 @@ export interface AppApi {
   /** A member's push subscriptions and device tokens: the places a push can go. */
   pushTargets(args: { member: string }): Promise<number>;
   /** The tenant's opt-out row for a role's number, or null when there has never been one. */
-  optOut(args: { tenant: string; role: string }): Promise<{ active: boolean; source: string } | null>;
+  optOut(args: { tenant: string; role: StandingRole }): Promise<{ active: boolean; source: string } | null>;
   /** When a plain-English opt-out was flagged on the thread with that number. */
-  optOutHint(args: { tenant: string; role: string }): Promise<string | null>;
-  calls(args: { tenant: string; callerRole: string; since: number }): Promise<CallRow[]>;
+  optOutHint(args: { tenant: string; role: StandingRole }): Promise<string | null>;
+  calls(args: { tenant: string; callerRole: StandingRole; since: number }): Promise<CallRow[]>;
   /** Billable seconds the voice meter recorded for a call's forward leg. */
   meteredSeconds(args: { tenant: string; callSessionId: string }): Promise<number>;
   /** Voice seconds metered for the tenant since a time, every leg. */
@@ -95,7 +96,7 @@ export interface AppApi {
    * outbound call rows, each of which only a consumed token creates, and
    * `left` the tokens minted and never consumed.
    */
-  outboundTokenUse(args: { tenant: string; toRole: string; since: number }): Promise<{ calls: number; left: number }>;
+  outboundTokenUse(args: { tenant: string; toRole: StandingRole; since: number }): Promise<{ calls: number; left: number }>;
   /**
    * Makes sure the member's workspace delivers these webhook events to the
    * robot's sink at the edge. Throws when the rig cannot name that sink.
@@ -106,7 +107,7 @@ export interface AppApi {
   /** Fires one of the API's crons at an instant, as the rig's timers do. */
   fireCron(cron: string, at?: number): Promise<void>;
   /** Seeds S25's automations for a nonce; the undo removes them. */
-  armAutomations(args: { tenant: string; toRole: string; nonce: string }): Promise<{ undo: { kind: string; params: Record<string, unknown> } }>;
+  armAutomations(args: { tenant: string; toRole: StandingRole; nonce: string }): Promise<{ undo: { kind: string; params: Record<string, unknown> } }>;
   automatedTexts(args: { tenant: string; nonce: string }): Promise<AutomatedText[]>;
 }
 

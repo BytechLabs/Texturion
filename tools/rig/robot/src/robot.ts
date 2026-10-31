@@ -10,6 +10,7 @@
  * verdict on its recording, judged here and then deleted from Telnyx.
  */
 import { randomUUID } from "node:crypto";
+import type { StandingRole } from "@loonext/rig-protocol";
 import type { Calibration } from "./audio/calibrate.ts";
 import type { Margins } from "./audio/detect.ts";
 import { type Surface } from "./audio/surfaces.ts";
@@ -17,7 +18,7 @@ import { judgeRecording, type RecordingJudgement } from "./judge.ts";
 import type { ProbeSource } from "./probe.ts";
 import { GuardRefusedError, type CallControlApi, type RequestContext } from "./telnyx.ts";
 
-export const ROBOT_ROLES = ["ROBOT-1", "ROBOT-2", "STRANGER-1"] as const;
+export const ROBOT_ROLES = ["ROBOT-1", "ROBOT-2", "STRANGER-1"] as const satisfies readonly StandingRole[];
 export type RobotRole = (typeof ROBOT_ROLES)[number];
 
 export function isRobotRole(value: unknown): value is RobotRole {

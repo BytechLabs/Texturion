@@ -119,7 +119,7 @@ export const S23: ScenarioRunner = {
     const legs = [
       { member: "qa-w-owner", from: "DEV-W1", to: "DEV-E1", sender: "QA-W", receiver: "QA-E" },
       { member: "qa-e-owner", from: "DEV-E1", to: "DEV-W1", sender: "QA-E", receiver: "QA-W" },
-    ];
+    ] as const;
     for (const leg of legs) {
       const since = ctx.now();
       const body = `Rig S23 ${leg.from} to ${leg.to} ${ctx.nonce}`;
