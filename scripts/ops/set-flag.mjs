@@ -17,6 +17,11 @@
  * Dry run by default, like every script here. On a kill switch the dry run
  * matters more than usual: it prints how many workspaces the change reaches
  * before it reaches them.
+ *
+ * `--withhold-notes`, always on under GitHub Actions: a stored note was
+ * written for the table, not for a log, and ops.yml's log is public. The
+ * notes are not selected at all, so nothing a note contains can reach the
+ * output, whatever shape it takes.
  */
 import { fail, runScript, showRows } from "./lib.mjs";
 
@@ -29,18 +34,32 @@ import { fail, runScript, showRows } from "./lib.mjs";
  */
 const KILL_SWITCHES = ["kill:ai", "kill:calls", "kill:realtime", "kill:outbound-send"];
 
+const WITHHELD = "(withheld from this log)";
+
+/** The columns to read, and the rows as printed, with or without stored notes. */
+function noteColumns(withhold) {
+  return {
+    columns: (names) => names.filter((name) => !(withhold && name === "note")).join(","),
+    rows: (rows) => (withhold ? rows.map((row) => ({ ...row, note: WITHHELD })) : rows),
+  };
+}
+
 await runScript("set-flag", async ({ args, apply, db, script }) => {
+  const notes = noteColumns(
+    args["withhold-notes"] === true || process.env.GITHUB_ACTIONS === "true",
+  );
+
   if (args.list === true) {
     const rows = await db.select(
       "feature_flags",
-      "key,enabled,rollout_percent,internal_only,note,updated_at",
+      notes.columns(["key", "enabled", "rollout_percent", "internal_only", "note", "updated_at"]),
     );
-    showRows("Flags with a row (everything else is at its code default)", rows);
+    showRows("Flags with a row (everything else is at its code default)", notes.rows(rows));
     const overrides = await db.select(
       "feature_flag_overrides",
-      "key,company_id,enabled,note",
+      notes.columns(["key", "company_id", "enabled", "note"]),
     );
-    showRows("Per-workspace overrides", overrides);
+    showRows("Per-workspace overrides", notes.rows(overrides));
     console.log(`  Kill switches declared in code: ${KILL_SWITCHES.join(", ")}\n`);
     return;
   }
@@ -104,10 +123,13 @@ await runScript("set-flag", async ({ args, apply, db, script }) => {
 
   const before = await db.select(
     "feature_flags",
-    "key,enabled,rollout_percent,internal_only,note,updated_at",
+    notes.columns(["key", "enabled", "rollout_percent", "internal_only", "note", "updated_at"]),
     { key: "eq." + key },
   );
-  showRows("Flag now", before.length ? before : [{ key, state: "(no row — code default)" }]);
+  showRows(
+    "Flag now",
+    before.length ? notes.rows(before) : [{ key, state: "(no row — code default)" }],
+  );
   showRows("Flag after", [
     {
       key,
