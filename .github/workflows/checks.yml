@@ -490,6 +490,14 @@ jobs:
       - name: Guard production hosts in the phone apps
         run: node scripts/check-production-host-literals.mjs
 
+      # D142: agents work in this checkout holding production keys, and the
+      # repository is public. A live Stripe, Telnyx or Supabase key, or a
+      # Supabase Postgres URL with a password, in any file git would stage is
+      # refused here and by .githooks/pre-push. Only the file and the shape
+      # print.
+      - name: Guard the checkout against live production secrets
+        run: node scripts/check-local-secrets.mjs
+
       # #442: renaming these very workflow files broke 36 line-numbered citations
       # across 8 operator documents in one afternoon. The audience is somebody
       # standing up or repairing production with no staging to be wrong in, so a

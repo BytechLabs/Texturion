@@ -1,0 +1,10 @@
+#!/bin/sh
+# D142: no live production secret in any file git would push. Agents work in
+# this checkout holding production keys, and the repository is public, so a
+# key that reaches a push is published.
+#
+# Enabled by `git config core.hooksPath .githooks`, which the root package.json
+# `prepare` script runs on install. CI re-checks the same rules ("Guard the
+# checkout against live production secrets"), because a hook can be skipped
+# with --no-verify.
+exec node scripts/check-local-secrets.mjs

@@ -54,6 +54,13 @@ describe("the rig's checks in the gate", () => {
     expect(indexOf("verify", command)).toBeGreaterThan(indexOf("verify", "node scripts/check-rig-no-e164.mjs"));
   });
 
+  it("scans the checkout for live production secrets after the phone-host guard", () => {
+    expect(jobs.verify).toContain("node scripts/check-local-secrets.mjs");
+    expect(indexOf("verify", "check-local-secrets")).toBeGreaterThan(
+      indexOf("verify", "check-production-host-literals"),
+    );
+  });
+
   it("runs the rig CLI's node:test suites after the install", () => {
     expect(jobs.verify).toContain('node --test "tools/rig/test/*.test.mjs"');
     expect(indexOf("verify", "node --test")).toBeGreaterThan(indexOf("verify", "pnpm install --frozen-lockfile"));
