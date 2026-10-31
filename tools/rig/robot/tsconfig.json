@@ -16,7 +16,10 @@
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    // The rig CLI's own .mjs modules are imported rather than copied; their
+    // types are inferred, never checked.
+    "allowJs": true
   },
   "include": ["src", "vitest.config.ts"]
 }

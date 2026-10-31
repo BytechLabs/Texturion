@@ -1,15 +1,23 @@
 /**
- * Where the rig keeps things, as the `rig` CLI lays them out
- * (tools/rig/src/layout.mjs): `$RIG_HOME` (default /var/lib/loonext-rig) holds
- * `rig.json`, `secrets/` (one file per secret, mode 0700), `work/` and
+ * Where the rig keeps things: `$RIG_HOME` (default /var/lib/loonext-rig)
+ * holds `rig.json`, `secrets/` (one file per secret, mode 0700), `work/` and
  * `state/`. rigd reads the same store and publishes into the same state
  * folder, so `rig health` can read what it writes.
+ *
+ * The layout, the settings and the store are the `rig` CLI's own code
+ * (tools/rig/src/layout.mjs and secrets.mjs), imported rather than copied, so
+ * the CLI and the daemons cannot disagree about where a file is. This module
+ * only types them.
  */
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { rigLayout, rigSettings as cliSettings } from "../../src/layout.mjs";
+import { MissingSecret, secretStore } from "../../src/secrets.mjs";
+
+export { MissingSecret };
 
 export interface RigHome {
   home: string;
@@ -21,15 +29,8 @@ export interface RigHome {
 }
 
 export function rigHome(env: NodeJS.ProcessEnv = process.env): RigHome {
-  const home = resolve(env.RIG_HOME ?? "/var/lib/loonext-rig");
-  return {
-    home,
-    secrets: resolve(env.RIG_SECRETS_DIR ?? join(home, "secrets")),
-    state: join(home, "state"),
-    work: join(home, "work"),
-    supabaseWorkdir: join(home, "work", "supabase"),
-    settingsFile: join(home, "rig.json"),
-  };
+  const { home, secrets, state, work, supabaseWorkdir, settingsFile } = rigLayout(env);
+  return { home, secrets, state, work, supabaseWorkdir, settingsFile };
 }
 
 /** The settings rigd reads from rig.json, with the CLI's defaults. */
@@ -41,78 +42,55 @@ export interface RigSettings {
   systemd: boolean;
 }
 
-const SETTING_DEFAULTS: RigSettings = {
-  appOrigin: "https://app.rig.internal",
-  apiPort: 8787,
-  sentryRelayOrigin: "http://127.0.0.1:8790",
-  systemd: true,
-};
-
+/** The CLI's reading of rig.json, which refuses unknown settings, held to the types rigd needs. */
 export function rigSettings(home: RigHome): RigSettings {
-  if (!existsSync(home.settingsFile)) return { ...SETTING_DEFAULTS };
-  const parsed = JSON.parse(readFileSync(home.settingsFile, "utf8")) as Partial<RigSettings>;
-  return {
-    appOrigin: typeof parsed.appOrigin === "string" ? parsed.appOrigin : SETTING_DEFAULTS.appOrigin,
-    apiPort: typeof parsed.apiPort === "number" ? parsed.apiPort : SETTING_DEFAULTS.apiPort,
-    sentryRelayOrigin:
-      typeof parsed.sentryRelayOrigin === "string" ? parsed.sentryRelayOrigin : SETTING_DEFAULTS.sentryRelayOrigin,
-    systemd: typeof parsed.systemd === "boolean" ? parsed.systemd : SETTING_DEFAULTS.systemd,
-  };
+  const settings = cliSettings(home) as Record<string, unknown>;
+  const { appOrigin, apiPort, sentryRelayOrigin, systemd } = settings;
+  if (typeof appOrigin !== "string" || typeof sentryRelayOrigin !== "string") {
+    throw new Error("rig: rig.json's appOrigin and sentryRelayOrigin must be strings");
+  }
+  if (typeof apiPort !== "number" || typeof systemd !== "boolean") {
+    throw new Error("rig: rig.json's apiPort must be a number and systemd a boolean");
+  }
+  return { appOrigin, apiPort, sentryRelayOrigin, systemd };
 }
 
-const NAME = /^[a-z0-9][a-z0-9.-]*$/;
-
-/** A secret the store does not hold. The message names the file, never a value. */
-export class MissingSecret extends Error {
-  constructor(name: string, dir: string) {
-    super(`rig secrets: ${name} is not in the store (${dir})`);
-    this.name = "MissingSecret";
-  }
+interface CliStore {
+  has(name: string): boolean;
+  read(name: string): string;
+  readOptional(name: string): string | undefined;
+  readJson(name: string): unknown;
+  write(name: string, value: string): void;
 }
 
 /** The secret store: one file per secret, read trimmed, written 0600 by rename. */
 export class SecretFiles {
   readonly dir: string;
+  readonly #store: CliStore;
 
   constructor(dir: string) {
     this.dir = dir;
+    this.#store = secretStore(dir) as CliStore;
   }
 
   has(name: string): boolean {
-    return existsSync(this.#path(name));
+    return this.#store.has(name);
   }
 
   read(name: string): string {
-    const path = this.#path(name);
-    if (!existsSync(path)) throw new MissingSecret(name, this.dir);
-    return readFileSync(path, "utf8").trim();
+    return this.#store.read(name);
   }
 
   readOptional(name: string): string | undefined {
-    return this.has(name) ? this.read(name) : undefined;
+    return this.#store.readOptional(name);
   }
 
   readJson<T>(name: string): T {
-    const text = this.read(name);
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      throw new Error(`rig secrets: ${name} is not valid JSON`);
-    }
+    return this.#store.readJson(name) as T;
   }
 
   write(name: string, value: string): void {
-    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    const path = this.#path(name);
-    const temp = `${path}.${process.pid}.tmp`;
-    writeFileSync(temp, `${value.trim()}\n`, { mode: 0o600 });
-    renameSync(temp, path);
-    chmodSync(path, 0o600);
-  }
-
-  #path(name: string): string {
-    if (!NAME.test(name)) throw new Error(`rig secrets: "${name}" is not a secret name`);
-    return join(this.dir, name);
+    this.#store.write(name, value.trim());
   }
 }
 

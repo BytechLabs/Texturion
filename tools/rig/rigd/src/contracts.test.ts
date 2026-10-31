@@ -1,14 +1,16 @@
 /**
- * rigd against its neighbours' contracts: the `rig` CLI's layout and store
- * (tools/rig/src), the edge's /ctl paths (tools/edge/src/ctl.ts) and the
- * seed's tenants (scripts/rig/seed.mjs).
+ * rigd against its neighbours' contracts: the `rig` CLI's layout, store and
+ * standing roles (tools/rig/src), the edge's /ctl paths (tools/edge/src/ctl.ts),
+ * the seed's tenants (scripts/rig/seed.mjs) and the bundle rig-secrets.yml seals.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EDGE_PATHS } from "@loonext/rig-protocol";
-import { numberBook, SecretFiles } from "@loonext/rig-robot";
+import { fileURLToPath } from "node:url";
+import { EDGE_PATHS, STANDING_ROLES } from "@loonext/rig-protocol";
+import { numberBook, SecretFiles, storeNameOf } from "@loonext/rig-robot";
 import { ManualClock } from "@loonext/rig-robot/test-support";
+import { STANDING_ROLES as CLI_STANDING_ROLES } from "../../src/guard.mjs";
 import { afterEach, describe, expect, it } from "vitest";
 import { AppProbe, splitMember, stableUuid } from "./app-probe.ts";
 import { edgeOriginOf, loadConfig, readDeployedSha, readRoom } from "./config.ts";
@@ -98,6 +100,51 @@ describe("secret delivery", () => {
   });
 });
 
+describe("rig-secrets.yml's bundle", () => {
+  const REPO = fileURLToPath(new URL("../../../../", import.meta.url));
+  /** Delivered before anything reads it. Each must still have no reader, so the entry goes when one lands. */
+  const AHEAD_OF_READER: Record<string, string> = {
+    "cf-guard-attest-token": "rigd's hourly guard attestation (docs/RIG.md 3.5) is not built",
+  };
+  const SOURCES = ["tools/rig/src", "tools/rig/templates", "tools/rig/rigd/src", "tools/rig/robot/src", "tools/rig/lanes/src", "tools/rig/triage/src", "scripts/rig"];
+
+  function bundleFiles(): string[] {
+    const workflow = readFileSync(join(REPO, ".github", "workflows", "rig-secrets.yml"), "utf8");
+    return [...workflow.matchAll(/^\s+BUNDLE__([A-Z0-9_]+):/gm)].map((match) => storeNameOf(match[1]!));
+  }
+
+  /**
+   * What the rig's code and templates say, comments left out, so a file only
+   * mentioned in prose is unread. A block comment opens only where one can
+   * (scripts/check-deploy-env-branches.mjs), so `tools/rig/*` in a string
+   * does not.
+   */
+  function rigCode(): string {
+    const files = SOURCES.flatMap((root) =>
+      (readdirSync(join(REPO, root), { recursive: true }) as string[])
+        .map((name) => join(REPO, root, name))
+        .filter((path) => statSync(path).isFile() && !/\.test\.(ts|mjs)$|test-support\.ts$/.test(path)),
+    );
+    return files
+      .map((path) => {
+        const text = readFileSync(path, "utf8");
+        if (!/\.(ts|mjs)$/.test(path)) return text.replace(/^\s*#.*$/gm, "");
+        return text
+          .replace(/(^|[(,={]|\breturn\b)([ \t]*)\/\*[\s\S]*?\*\//gm, "$1$2")
+          .replace(/(^|\s)\/\/[^\n]*/g, "$1");
+      })
+      .join("\n");
+  }
+
+  it("lands every secret in a store file something on the rig reads", () => {
+    const files = bundleFiles();
+    const code = rigCode();
+    expect(files.length).toBeGreaterThan(10);
+    const unread = files.filter((file) => !new RegExp(`["'\`:]${file.replace(/[.]/g, "\\.")}["'\`}]`).test(code));
+    expect(unread.sort()).toEqual(Object.keys(AHEAD_OF_READER).sort());
+  });
+});
+
 describe("the rpc router at /ctl/rpc", () => {
   it("holds each method to the caller class the edge stamped on the frame", async () => {
     const router = new RpcRouter()
@@ -117,6 +164,12 @@ describe("the rpc router at /ctl/rpc", () => {
     await expect(router.dispatch(bare)).rejects.toThrow(/unknown caller class/);
     const forged = { ...bare, caller: "admin" } as unknown as RpcFrame;
     await expect(router.dispatch(forged)).rejects.toThrow(/unknown caller class/);
+  });
+});
+
+describe("the standing roles", () => {
+  it("are the protocol's in the rig CLI too, in the same order", () => {
+    expect([...CLI_STANDING_ROLES]).toEqual([...STANDING_ROLES]);
   });
 });
 

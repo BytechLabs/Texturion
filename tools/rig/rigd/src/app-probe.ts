@@ -8,9 +8,10 @@
  * rig's secret store (scripts/rig/seed.mjs), which git never sees. Tenants are
  * keyed `qa-w`, members `owner`; scenarios name a member `qa-w-owner`.
  */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
 import type { NumberBook } from "@loonext/rig-robot";
+import { stableUuid as seedStableUuid } from "../../../../scripts/rig/seed.mjs";
 import type { AppApi, AutomatedText, CallRow, MessageRow, SendResult } from "./scenarios/context.ts";
 
 /** The seed's `tenants.json`: tenant key to company id and members' sign-ins. */
@@ -20,13 +21,11 @@ export type TenantsFile = Record<
 >;
 
 /**
- * The seed's deterministic ids (scripts/rig/seed.mjs, stableUuid): a phone
- * number's row id is stableUuid(company_id, role).
+ * The seed's deterministic ids, from the seed itself: a phone number's row id
+ * is stableUuid(company_id, role).
  */
 export function stableUuid(...parts: string[]): string {
-  const hex = createHash("sha256").update(parts.join("\u0000")).digest("hex");
-  const variant = ((parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+  return seedStableUuid(...parts);
 }
 
 /** `qa-w-owner` is tenant `qa-w`, member `owner`; `qa-c-signout-member` is tenant `qa-c`, member `signout-member`. */

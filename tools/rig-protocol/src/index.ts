@@ -176,7 +176,10 @@ export interface Partition {
   standing?: StandingEntry[];
 }
 
-/** The numbers the rig keeps for good; every other owned number is short-lived. */
+/**
+ * The numbers the rig keeps for good; every other owned number is short-lived.
+ * tools/rig/src/guard.mjs keeps a copy, which rigd's contracts test pins equal.
+ */
 export const STANDING_ROLES = [
   "ROBOT-1",
   "ROBOT-2",
