@@ -1,3 +1,4 @@
+import com.android.build.api.variant.HostTestBuilder
 import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
 import java.net.URI
 
@@ -231,13 +232,16 @@ android {
 }
 
 androidComponents {
-    // Without the rig's properties the nonprod variants do not exist at all: no
-    // tasks, and no Firebase lookup for a package this checkout has no config for.
-    beforeVariants(selector().withBuildType("nonprod")) { variantBuilder ->
-        variantBuilder.enable = nonprodProperties != null
-    }
-    beforeVariants(selector().withBuildType("nonprodDebug")) { variantBuilder ->
-        variantBuilder.enable = nonprodProperties != null
+    for (buildType in listOf("nonprod", "nonprodDebug")) {
+        beforeVariants(selector().withBuildType(buildType)) { variantBuilder ->
+            // Without the rig's properties the nonprod variants do not exist at
+            // all: no tasks, and no Firebase lookup for a package this checkout
+            // has no config for.
+            variantBuilder.enable = nonprodProperties != null
+            // AGP 9 creates unit tests for the tested build type (debug) only,
+            // and the rig runs them against both nonprod builds.
+            variantBuilder.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+        }
     }
 }
 
@@ -304,9 +308,12 @@ dependencies {
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     // The empty activity `createAndroidComposeRule` launches lives in this
-    // artifact's manifest, which only reaches the merged debug manifest from
-    // `debugImplementation`.
+    // artifact's manifest, which reaches a variant's merged manifest only from
+    // that build type's own configuration, so each build type with unit tests
+    // declares it.
     debugImplementation(libs.compose.ui.test.manifest)
+    "nonprodImplementation"(libs.compose.ui.test.manifest)
+    "nonprodDebugImplementation"(libs.compose.ui.test.manifest)
 }
 
 // ---------------------------------------------------------------------------
