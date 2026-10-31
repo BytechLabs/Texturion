@@ -56,3 +56,21 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: node scripts/ops/verify-backup-posture.mjs --monitor
+
+  postgres-image:
+    # CI's SQL, e2e and theme-audit jobs run the image in supabase/postgres-version.
+    # Supabase upgrades production's on its own schedule; this notices.
+    name: Does CI test production's Postgres image?
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Compare production's image with the CI pin
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: node scripts/ops/check-postgres-image.mjs

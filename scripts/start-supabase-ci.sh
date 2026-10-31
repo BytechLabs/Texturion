@@ -102,11 +102,29 @@ attempt_start() {
   supabase start
 }
 
+# The image must be production's. The CLI otherwise starts the one its own
+# release pins, which drifted behind production once already (see
+# scripts/pin-postgres-image.mjs). A mismatch fails the job rather than testing
+# a database production does not run.
+verify_image() {
+  want="$(node scripts/pin-postgres-image.mjs --print)"
+  image="$(docker inspect --format '{{.Config.Image}}' supabase_db_Loonext 2>/dev/null || true)"
+  echo "database image: ${image:-<none found>} (production runs $want)"
+  case "$image" in
+    *":$want") return 0 ;;
+  esac
+  echo "The local database is not production's image. Is supabase/postgres-version still read by this CLI?" >&2
+  exit 1
+}
+
+node scripts/pin-postgres-image.mjs
+
 echo "Starting local Supabase stack"
 report_holders "before"
 
 if attempt_start; then
   echo "Supabase started."
+  verify_image
   exit 0
 fi
 
@@ -122,6 +140,7 @@ report_holders "after-teardown"
 
 if attempt_start; then
   echo "Supabase started on the second attempt."
+  verify_image
   # Deliberately still exit 0. A stack that came up on a retry runs the tests
   # correctly; failing here would trade a flaky job for a guaranteed-red one.
   # The log above is the record that it took two goes.
