@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { withoutEdgeBinding } from "../scripts/without-edge-binding";
 import { parseConcurrentLimit, parseEdgeOrigin } from "../src/env";
 import { CRONS } from "../src/guard";
 import { GuardState } from "../src/index";
@@ -58,6 +59,20 @@ describe("wrangler.jsonc", () => {
 
   it("binds the edge's EdgeForGuard entrypoint, the mailbox status the Resend rules read", () => {
     expect(wrangler.services).toEqual([{ binding: "EDGE", service: "loonext-rig-edge", entrypoint: "EdgeForGuard" }]);
+  });
+
+  it("can be deployed without that binding when Cloudflare cannot resolve it, and otherwise unchanged", () => {
+    const source = readFileSync(join(GUARD_DIR, "wrangler.jsonc"), "utf8");
+    const bare = JSON.parse(stripJsonc(withoutEdgeBinding(source))) as Record<string, unknown>;
+    const { services: _services, ...rest } = wrangler;
+    expect(bare).toEqual(rest);
+    expect(() => withoutEdgeBinding(source.replace('"services"', '"services_moved"'))).toThrow();
+    expect(() => withoutEdgeBinding(`${source}\n  "services": [{ "binding": "EDGE" }],`)).toThrow();
+  });
+
+  it("keeps its own log lines only, never a request URL", () => {
+    const logs = (wrangler.observability as { logs: Record<string, unknown> }).logs;
+    expect(logs.invocation_logs).toBe(false);
   });
 
   it("schedules exactly the crons the guard has jobs for", () => {

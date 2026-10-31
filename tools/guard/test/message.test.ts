@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { charge } from "../src/state/ledger";
 import { recordSignal } from "../src/state/signals";
 import { messageCostUsd, smsParts } from "../src/telnyx/message";
-import { EDGE, N, ready, ruleOf, type Harness } from "./support";
+import { EDGE, lease, N, ready, ruleOf, type Harness } from "./support";
 
 const TEXT = { from: N.devW1, to: N.robot1, text: "hello" };
 
@@ -60,18 +60,30 @@ describe("messages", () => {
     expect(await h.store.get("count:texts:2026-11-02")).toBe(0);
   });
 
-  it("sends at amber only for a core scenario, and never at red", async () => {
+  it("sends at amber only under a core scenario's lease, and never at red", async () => {
     const h = await ready();
     await charge(h.ctx, 2);
     expect(await ruleOf(await send(h))).toBe("budget.tier_amber");
-    expect((await send(h, TEXT, { [HEADER.scenario]: "S20" })).status).toBe(200);
+    const other = await lease(h, "S05");
+    // The scenario header is the caller's claim; the live lease decides.
+    expect(await ruleOf(await send(h, TEXT, { [HEADER.scenario]: "S01" }))).toBe("budget.tier_amber");
+    await h.call(`/lease/${other}`, { caller: "robot", method: "DELETE" });
+    await lease(h, "S20");
+    expect((await send(h)).status).toBe(200);
     await charge(h.ctx, 40);
-    expect(await ruleOf(await send(h, TEXT, { [HEADER.scenario]: "S20" }))).toBe("budget.tier_red");
+    expect(await ruleOf(await send(h))).toBe("budget.tier_red");
+  });
+
+  it("refuses all test spend under the balance floor", async () => {
+    const h = await ready();
+    h.telnyx.balance = "99.00";
+    expect(await ruleOf(await send(h))).toBe("budget.balance_floor");
+    expect(h.telnyx.requests("POST", "/v2/messages")).toEqual([]);
   });
 
   it("stops during an account-signal halt", async () => {
     const h = await ready();
-    await recordSignal(h.ctx, { signal: "Messaging Suspicious Traffic", notice_id: null, corroborated_by: "notification_event" });
+    await recordSignal(h.ctx, { signal: "Messaging Suspicious Traffic", notice_id: null, corroborated_by: "signature" });
     expect(await ruleOf(await send(h))).toBe("signal.halted");
   });
 

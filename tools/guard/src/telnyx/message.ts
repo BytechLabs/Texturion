@@ -67,7 +67,9 @@ export const handleMessage: Handler = async (request) => {
   const tier = await readTier(ctx);
   if (tier.tier === "red") throw new Refusal("budget.tier_red");
   if (tier.tier === "amber") {
-    const scenario = request.scenario ?? (await liveLease(ctx))?.scenario ?? null;
+    // The live lease's scenario, never one the caller names: the scenario
+    // header is the caller's own claim.
+    const scenario = (await liveLease(ctx))?.scenario ?? null;
     if (!scenario || !CORE_SCENARIOS.includes(scenario)) throw new Refusal("budget.tier_amber");
   }
   await requireAboveFloor(ctx);

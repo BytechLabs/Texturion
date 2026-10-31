@@ -80,6 +80,7 @@ export const RULES = [
   "admission.reserve_unknown",
   "admission.no_room",
   "admission.production_call_live",
+  "admission.production_calls_unknown",
 
   "budget.dials_day",
   "budget.dials_hour",

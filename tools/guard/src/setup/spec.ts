@@ -1,5 +1,32 @@
+import { EDGE_PATHS } from "@loonext/rig-protocol";
+
 import raw from "../../telnyx-spec.json";
 import type { StandingRole } from "../edge-contract";
+
+/**
+ * The edge paths a Telnyx resource may send its webhooks to, by their
+ * EDGE_PATHS name. A name the protocol drops fails the typecheck here.
+ */
+export const WEBHOOK_PATHS = [
+  "telnyxVoice",
+  "telnyxVoiceFailover",
+  "telnyxWebrtc",
+  "telnyxMessaging",
+  "telnyxRobot",
+] as const satisfies readonly (keyof typeof EDGE_PATHS)[];
+
+export type WebhookPath = (typeof WEBHOOK_PATHS)[number];
+
+/**
+ * A webhook URL on the edge. The spec names the path rather than spelling
+ * it, so a path changed in the protocol changes here too. The JSON is not
+ * typechecked, so a name outside {@link WEBHOOK_PATHS} throws before setup
+ * writes anything with it.
+ */
+export function edgeUrl(edgeOrigin: string, path: WebhookPath): string {
+  if (!(WEBHOOK_PATHS as readonly string[]).includes(path)) throw new Error(`setup: ${path} is not an edge webhook path`);
+  return `${edgeOrigin}${EDGE_PATHS[path]}`;
+}
 
 /** tools/guard/telnyx-spec.json: the partition by name, never by id (docs/RIG.md). */
 export interface TelnyxSpec {
@@ -17,8 +44,8 @@ export interface TelnyxSpec {
   call_control_applications: {
     key: "voice" | "robot";
     application_name: string;
-    webhook_path: string;
-    failover_path?: string;
+    webhook: WebhookPath;
+    failover?: WebhookPath;
     webhook_timeout_secs: number;
     outbound_voice_profile: "voice" | "robot";
     /** A number, or "room": the room itself. */
@@ -27,7 +54,7 @@ export interface TelnyxSpec {
   credential_connections: {
     key: "webrtc" | "sentinel";
     connection_name: string;
-    webhook_path: string;
+    webhook: WebhookPath;
     sip_uri_calling_preference: "internal";
     max_credentials: number | null;
   }[];
@@ -35,8 +62,8 @@ export interface TelnyxSpec {
     max_profiles: number;
     max_daily_spend_limit: string;
     whitelisted_destinations: string[];
-    webhook_path: string;
-    profiles: { key: string; name: string; daily_spend_limit: string }[];
+    /** The robot's profile is on the robot's path, so the robot sees its own texts' events. */
+    profiles: { key: string; name: string; daily_spend_limit: string; webhook: WebhookPath }[];
   };
   numbers: {
     country: string;

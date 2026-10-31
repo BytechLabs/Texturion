@@ -16,14 +16,31 @@ export const RESEND_ORIGIN = "https://api.resend.com";
 
 const TEST_DOMAIN = "@resend.dev";
 
+/**
+ * One bare address from `addr` or `Name <addr>`, or null for anything that
+ * could be read as more than one: a comma or semicolon list, a second `@`, or
+ * an address outside the brackets. Only what this returns is sent.
+ */
+export function addressOf(item: string): string | null {
+  const text = item.trim();
+  if (/[,;]/.test(text) || (text.match(/@/g) ?? []).length !== 1) return null;
+  const angle = /^[^<>@]*<([^<>]+)>$/.exec(text);
+  if (!angle && /[<>]/.test(text)) return null;
+  const address = (angle ? angle[1] : text).trim().toLowerCase();
+  return /^[^\s@<>"()]+@[^\s@<>"()]+$/.test(address) ? address : null;
+}
+
+/** The bare addresses of a `to`, `cc` or `bcc` field, or null when any one is refused. */
 function addresses(value: unknown): string[] | null {
   if (value === undefined || value === null) return [];
   const list = Array.isArray(value) ? value : [value];
-  if (!list.every((item) => typeof item === "string")) return null;
-  return (list as string[]).map((item) => {
-    const angle = /<([^<>]+)>\s*$/.exec(item);
-    return (angle ? angle[1] : item).trim().toLowerCase();
-  });
+  const out: string[] = [];
+  for (const item of list) {
+    const address = typeof item === "string" ? addressOf(item) : null;
+    if (address === null) return null;
+    out.push(address);
+  }
+  return out;
 }
 
 function isTestAddress(address: string): boolean {
@@ -60,10 +77,13 @@ export async function handleResend(ctx: Ctx, request: Request, path: string): Pr
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Refusal("request.body_invalid");
 
   const recipients: string[] = [];
+  const outgoing: Record<string, unknown> = { ...body };
   for (const field of ["to", "cc", "bcc"]) {
     const list = addresses(body[field]);
     if (list === null) throw new Refusal("resend.recipient_refused");
     recipients.push(...list);
+    if (list.length > 0) outgoing[field] = list;
+    else delete outgoing[field];
   }
   if (recipients.length === 0) throw new Refusal("resend.recipient_refused");
 
@@ -92,7 +112,7 @@ export async function handleResend(ctx: Ctx, request: Request, path: string): Pr
       "content-type": "application/json",
       ...(idempotency ? { "idempotency-key": idempotency } : {}),
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(outgoing),
   });
   const text = await response.text();
   if (response.status >= 400 && response.status <= 499) await giveBack(ctx, "resend", day, 1);

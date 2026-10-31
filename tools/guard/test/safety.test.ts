@@ -59,6 +59,27 @@ describe("start-up checks", () => {
       [],
     );
     expect(result.reasons).toContain("id_overlap:connection");
+    const profile = assess(
+      ctx,
+      listings((telnyx) => {
+        const number = telnyx.numbers.find((item) => item.id === "num-prod");
+        if (number) number.messaging_profile_id = "prof-qa-w";
+      }),
+      [],
+    );
+    expect(profile.reasons).toContain("id_overlap:messaging_profile");
+  });
+
+  it("pass, and find the same production resources, when Telnyx ignores the group filter", async () => {
+    const h = harness();
+    seedAccount(h.telnyx);
+    h.telnyx.ignoreFilters = true;
+    const safety = await runSafetyChecks(h.ctx);
+    expect(safety).toMatchObject({ state: "ok", reasons: [] });
+    expect((await h.store.get<{ production: unknown }>("partition"))?.production).toEqual({
+      connection_ids: ["conn-prod-voice", "conn-prod-webrtc"],
+      messaging_profile_ids: ["prof-prod"],
+    });
   });
 
   it("refuse a nonprod number bound to production's connection or profile", () => {

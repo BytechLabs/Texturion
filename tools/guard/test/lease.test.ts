@@ -1,8 +1,8 @@
-import { LEASE_MAX_MS } from "@loonext/rig-protocol";
+import { HEADER, LEASE_MAX_MS } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
 import { recordSignal, requirePaidLanesOpen } from "../src/state/signals";
-import { harness, lease, ready, registerViaEdge, ruleOf } from "./support";
+import { harness, lease, N, ready, registerViaEdge, ruleOf } from "./support";
 
 describe("the run lease", () => {
   it("is one at a time across the system", async () => {
@@ -66,12 +66,64 @@ describe("preemption", () => {
     expect(h.alarms).toHaveLength(2);
   });
 
-  it("stops polling when Telnyx will not say what production has up", async () => {
+  it("stops polling only when Telnyx has no active-calls read at all", async () => {
     const h = await ready();
     await lease(h);
     h.telnyx.activeCallsSupported = false;
     await h.guard.alarm();
     expect(h.alarms).toHaveLength(1);
+  });
+
+  it("keeps polling through an active-calls read that failed for now", async () => {
+    const h = await ready();
+    await lease(h);
+    for (const status of [503, 429]) {
+      h.telnyx.failNext = { method: "GET", path: "/v2/connections/conn-prod-voice/active_calls", status };
+      await h.guard.alarm();
+    }
+    expect(h.alarms).toHaveLength(3);
+    h.telnyx.activeCalls.set("conn-prod-voice", [{ call_control_id: "ccid-production" }]);
+    await h.guard.alarm();
+    expect(await (await h.call("/lease", { caller: "robot" })).json()).toBeNull();
+  });
+
+  it("keeps polling when the partition cannot be refreshed", async () => {
+    const h = await ready();
+    await lease(h);
+    h.advance(6 * 60 * 1000);
+    h.telnyx.failNext = { method: "GET", path: "/v2/phone_numbers", status: 500 };
+    await h.guard.alarm();
+    expect(h.alarms).toHaveLength(2);
+  });
+
+  it("admits no new leg while it cannot see production's calls", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    h.telnyx.failNext = { method: "GET", path: "/v2/connections/conn-prod-webrtc/active_calls", status: 503 };
+    const dial = () =>
+      h.call("/telnyx/v2/calls", {
+        caller: "robot",
+        body: { connection_id: "conn-robot", from: N.robot1, to: N.devW1 },
+        headers: { [HEADER.lease]: id },
+      });
+    expect(await ruleOf(await dial())).toBe("admission.production_calls_unknown");
+    expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
+    expect((await dial()).status).toBe(200);
+  });
+
+  it("tries a failed hangup again on the next poll before it calls the run preempted", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    h.telnyx.calls.set("ccid-1", { alive: true });
+    await registerViaEdge(h, "ccid-1");
+    h.telnyx.activeCalls.set("conn-prod-voice", [{ call_control_id: "ccid-production" }]);
+    h.telnyx.failNext = { method: "POST", path: "/v2/calls/ccid-1/actions/hangup", status: 500 };
+    await h.guard.alarm();
+    expect(await h.store.get<{ preempted_at?: number }>("lease")).not.toHaveProperty("preempted_at");
+    expect(h.alarms).toHaveLength(2);
+    await h.guard.alarm();
+    expect(h.telnyx.requests("POST", "/v2/calls/ccid-1/actions/hangup")).toHaveLength(2);
+    expect(await h.store.get<{ preempted_at?: number }>("lease")).toMatchObject({ lease_id: id, preempted_at: h.clock.now });
   });
 
   it("does nothing without a live lease", async () => {
@@ -85,7 +137,7 @@ describe("account signals", () => {
   const halt = (signal: string, notice_id: string | null = null) => ({
     signal,
     notice_id,
-    corroborated_by: "notification_event" as const,
+    corroborated_by: "signature" as const,
   });
 
   it("halt paid tests for seven days and raise a production event", async () => {
@@ -95,7 +147,7 @@ describe("account signals", () => {
       body: {
         signal: "Suspicious Outbound Voice Traffic",
         notice_id: "notice-1",
-        corroborated_by: "notification_event",
+        corroborated_by: "signature",
         received_at: new Date(h.clock.now).toISOString(),
       },
     });
@@ -148,6 +200,8 @@ describe("account signals", () => {
     for (const body of [
       { signal: "", corroborated_by: "balance" },
       { signal: "Low Balance", corroborated_by: "a hunch" },
+      // The edge's contract names the signed notice `signature`.
+      { signal: "Low Balance", corroborated_by: "notification_event" },
       { signal: "Low Balance" },
     ]) {
       expect(await ruleOf(await h.call("/halt", { caller: "edge", body })), JSON.stringify(body)).toBe(

@@ -48,15 +48,16 @@
     "SIGNAL_LATCH_RESET": "2026-10-31"
   },
 
-  // Logs on, for debugging refusals. The guard logs rule names and statuses,
-  // never a body, a number or a key.
+  // Only the guard's own console lines are kept: rule names and statuses,
+  // never a body, a number or a key. Invocation logs would keep every request
+  // URL, and the app puts numbers in query strings (filter[phone_number]).
   "observability": {
     "enabled": false,
     "logs": {
       "enabled": true,
       "head_sampling_rate": 1,
       "persist": true,
-      "invocation_logs": true
+      "invocation_logs": false
     }
   }
 }

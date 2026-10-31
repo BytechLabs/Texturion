@@ -136,7 +136,6 @@ export async function handleTelnyx(ctx: Ctx, request: Request, caller: GuardCall
     body,
     bodyInvalid,
     lease: request.headers.get(HEADER.lease),
-    scenario: request.headers.get(HEADER.scenario),
     idempotencyKey: request.headers.get("idempotency-key"),
     view,
   };

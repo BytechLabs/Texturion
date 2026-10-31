@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 
+import { EDGE_PATHS } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
-import { SPEC } from "../src/setup/spec";
+import { edgeUrl, SPEC, WEBHOOK_PATHS } from "../src/setup/spec";
 import { vendorLimits } from "../src/setup/setup";
 import { EDGE, fileMeasurements, harness, ruleOf, type Harness } from "./support";
 
@@ -69,6 +70,18 @@ describe("the setup routine", () => {
     const webrtc = h.telnyx.lists.credential_connections.find((item) => item.connection_name === "nonprod-webrtc");
     expect(webrtc).toMatchObject({ sip_uri_calling_preference: "internal", webhook_event_url: `${EDGE}/t/w` });
     expect((webrtc?.outbound as Record<string, unknown> | undefined)?.outbound_voice_profile_id).toBeUndefined();
+
+    // The robot's profile reports to the robot's path, as its app does; the tenants' to the app's.
+    const hooks = Object.fromEntries(
+      h.telnyx.lists.messaging_profiles.map((item) => [item.name, [item.webhook_url, item.webhook_failover_url]]),
+    );
+    expect(hooks).toEqual({
+      "nonprod-robot": [`${EDGE}/t/r`, `${EDGE}/t/r`],
+      "nonprod-qa-w": [`${EDGE}/t/m`, `${EDGE}/t/m`],
+      "nonprod-qa-a": [`${EDGE}/t/m`, `${EDGE}/t/m`],
+      "nonprod-qa-c": [`${EDGE}/t/m`, `${EDGE}/t/m`],
+      "nonprod-qa-e": [`${EDGE}/t/m`, `${EDGE}/t/m`],
+    });
 
     const total = h.telnyx.lists.messaging_profiles.reduce((sum, item) => sum + Number(item.daily_spend_limit), 0);
     // $0.40 + $0.20 + $0.06 + 4 x $0.03: the vendor-enforced $0.78 a day (docs/RIG.md).
@@ -143,5 +156,19 @@ describe("the committed spec", () => {
     expect(SPEC.messaging_profiles.max_profiles).toBe(6);
     const keys = new Set(SPEC.messaging_profiles.profiles.map((item) => item.key));
     for (const item of SPEC.numbers.standing) expect(keys.has(item.messaging_profile), item.role).toBe(true);
+  });
+
+  it("names every webhook by an edge path the protocol has", () => {
+    const named = [
+      ...SPEC.call_control_applications.flatMap((item) => [item.webhook, ...(item.failover ? [item.failover] : [])]),
+      ...SPEC.credential_connections.map((item) => item.webhook),
+      ...SPEC.messaging_profiles.profiles.map((item) => item.webhook),
+    ];
+    expect(named.length).toBe(10);
+    for (const path of named) {
+      expect(WEBHOOK_PATHS, path).toContain(path);
+      expect(edgeUrl(EDGE, path)).toBe(`${EDGE}${EDGE_PATHS[path]}`);
+    }
+    expect(() => edgeUrl(EDGE, "ctlRpc" as never)).toThrow();
   });
 });

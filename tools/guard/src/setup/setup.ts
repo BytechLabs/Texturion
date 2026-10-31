@@ -1,3 +1,5 @@
+import { EDGE_PATHS } from "@loonext/rig-protocol";
+
 import type { Ctx } from "../context";
 import { Refusal } from "../refusal";
 import {
@@ -9,7 +11,7 @@ import {
 } from "../state/admission";
 import { rememberCredential, connectionOfResource } from "../telnyx/targets";
 import { runSafetyChecks, type SafetyState } from "./safety";
-import { SPEC, type TelnyxSpec } from "./spec";
+import { edgeUrl, SPEC, type TelnyxSpec } from "./spec";
 
 /**
  * The setup routine (docs/RIG.md), for the admin class. It makes
@@ -132,8 +134,8 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
   for (const app of spec.call_control_applications) {
     const channel = app.channel_limit === "room" ? limits.voiceApp : app.channel_limit;
     const settings: Item = {
-      webhook_event_url: `${edge}${app.webhook_path}`,
-      webhook_event_failover_url: app.failover_path ? `${edge}${app.failover_path}` : null,
+      webhook_event_url: edgeUrl(edge, app.webhook),
+      webhook_event_failover_url: app.failover ? edgeUrl(edge, app.failover) : null,
       webhook_timeout_secs: app.webhook_timeout_secs,
       webhook_api_version: "2",
       outbound: { outbound_voice_profile_id: ovpIds[app.outbound_voice_profile], channel_limit: channel },
@@ -145,7 +147,7 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
   for (const connection of spec.credential_connections) {
     const settings: Item = {
       sip_uri_calling_preference: connection.sip_uri_calling_preference,
-      webhook_event_url: `${edge}${connection.webhook_path}`,
+      webhook_event_url: edgeUrl(edge, connection.webhook),
       webhook_api_version: "2",
     };
     const id = await ensure(
@@ -167,8 +169,8 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
   for (const profile of profiles.profiles) {
     const settings: Item = {
       enabled: true,
-      webhook_url: `${edge}${profiles.webhook_path}`,
-      webhook_failover_url: `${edge}${profiles.webhook_path}`,
+      webhook_url: edgeUrl(edge, profile.webhook),
+      webhook_failover_url: edgeUrl(edge, profile.webhook),
       webhook_api_version: "2",
       whitelisted_destinations: profiles.whitelisted_destinations,
       daily_spend_limit: profile.daily_spend_limit,
@@ -241,7 +243,7 @@ async function ensureNotifications(ctx: Ctx, spec: TelnyxSpec): Promise<SetupSte
     }
     if (!profileId) return { resource: "notifications", name, action: "skipped", reason: "profile create returned no id" };
 
-    const destination = `${ctx.config.edgeOrigin}/t/n/${ctx.config.notificationSecret}`;
+    const destination = `${ctx.config.edgeOrigin}${EDGE_PATHS.telnyxNotificationsPrefix}${ctx.config.notificationSecret}`;
     const channels = await telnyx.listAll<Item>("/v2/notification_channels", {
       "filter[notification_profile_id][eq]": profileId,
     });

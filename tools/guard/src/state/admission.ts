@@ -22,9 +22,10 @@ import { requirePaidLanesOpen } from "./signals";
  *
  * Production's reserve, the measured window and the account's ratios come
  * from production's own records, which the guard cannot read (no production
- * database credential exists here). `rigd` files them through /admin from
- * `agent_diag` and detail-record reads; each goes stale, and a stale input
- * admits nothing rather than guessing.
+ * database credential exists here). They are filed through /admin, whose
+ * token lives only in the `guard` environment, by guard.yml's `measurements`
+ * routine with the values a production reader dispatched it with. Each goes
+ * stale, and a stale input admits nothing rather than guessing.
  */
 export interface ReserveRecord {
   /** Production's largest ring audience plus one. */
@@ -76,21 +77,43 @@ export function ratioRule(ratios: RatiosRecord | undefined, now: number): Refusa
 }
 
 /**
- * True when production has a call up right now, on any of its connections.
- * Null when Telnyx would not say: the active-calls API is unverified for this
- * account, and its absence leaves the room formula as the only protection.
+ * What production has up right now, across its connections:
+ *   - `live` or `idle`: a connection answered, and whether a call is up;
+ *   - `absent`: every connection answered that the read does not exist or
+ *     does not apply to it (404, 422). The active-calls API is unverified for
+ *     this account, and its absence leaves the room formula as the only
+ *     protection, as the design's fallback says;
+ *   - `unknown`: a read failed in a way that may pass (429, 5xx, the network),
+ *     or no production connection is known. Nothing is admitted on it, and the
+ *     poll keeps asking.
  */
-export async function productionCallLive(ctx: Ctx, view: PartitionView): Promise<boolean | null> {
-  if (!ctx.telnyx) return null;
+export type ProductionCalls = "live" | "idle" | "absent" | "unknown";
+
+export async function productionCalls(ctx: Ctx, view: PartitionView): Promise<ProductionCalls> {
+  const ids = view.record.production.connection_ids;
+  if (!ctx.telnyx || ids.length === 0) return "unknown";
   let answered = false;
-  for (const id of view.record.production.connection_ids) {
-    const reply = await ctx.telnyx.send("GET", `/v2/connections/${encodeURIComponent(id)}/active_calls`);
-    if (reply.status !== 200) continue;
+  let failed = false;
+  for (const id of ids) {
+    let status: number;
+    let body: unknown;
+    try {
+      ({ status, body } = await ctx.telnyx.send("GET", `/v2/connections/${encodeURIComponent(id)}/active_calls`));
+    } catch {
+      failed = true;
+      continue;
+    }
+    if (status === 404 || status === 422) continue;
+    if (status !== 200) {
+      failed = true;
+      continue;
+    }
     answered = true;
-    const data = (reply.body as { data?: unknown[] } | undefined)?.data;
-    if (Array.isArray(data) && data.length > 0) return true;
+    const data = (body as { data?: unknown[] } | undefined)?.data;
+    if (Array.isArray(data) && data.length > 0) return "live";
   }
-  return answered ? false : null;
+  if (failed) return "unknown";
+  return answered ? "idle" : "absent";
 }
 
 export interface PaidRequest {
@@ -123,6 +146,8 @@ export async function admitPaid(ctx: Ctx, view: PartitionView, request: PaidRequ
 
   if (request.newLegs > 0) {
     if ((await liveLegCount(ctx)) + request.newLegs > room) throw new Refusal("admission.no_room");
-    if ((await productionCallLive(ctx, view)) === true) throw new Refusal("admission.production_call_live");
+    const production = await productionCalls(ctx, view);
+    if (production === "live") throw new Refusal("admission.production_call_live");
+    if (production === "unknown") throw new Refusal("admission.production_calls_unknown");
   }
 }

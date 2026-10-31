@@ -12,13 +12,39 @@ function send(h: Harness, to: unknown, extra: Record<string, unknown> = {}) {
 const resendCalls = (h: Harness) => h.outbound.filter((item) => item.url === "https://api.resend.com/emails");
 
 describe("Resend", () => {
-  it("sends to Resend's test addresses with the guard's key", async () => {
+  it("sends to Resend's test addresses with the guard's key, exactly the addresses it checked", async () => {
     const h = harness();
-    const response = await send(h, ["delivered@resend.dev", "Bounce <bounced+s34@resend.dev>"]);
+    const response = await send(h, ["delivered@resend.dev", "Bounce <Bounced+s34@resend.dev>"], { cc: "Test <delivered@resend.dev>" });
     expect(response.status).toBe(200);
     const [sent] = resendCalls(h);
     expect(sent.headers.get("authorization")).toBe("Bearer test-resend-key");
-    expect(JSON.parse(sent.body).to).toEqual(["delivered@resend.dev", "Bounce <bounced+s34@resend.dev>"]);
+    expect(JSON.parse(sent.body)).toMatchObject({
+      to: ["delivered@resend.dev", "bounced+s34@resend.dev"],
+      cc: ["delivered@resend.dev"],
+      subject: "Invite",
+    });
+  });
+
+  it("refuses a recipient string that could be read as more than one address", async () => {
+    const h = harness();
+    for (const to of [
+      "customer@example.com, Test <delivered@resend.dev>",
+      "customer@example.com <delivered@resend.dev>",
+      ["customer@example.com, <delivered@resend.dev>"],
+      "customer@example.com; delivered@resend.dev",
+      "<customer@example.com> <delivered@resend.dev>",
+      "delivered@resend.dev <customer@example.com>",
+      "Test <delivered@resend.dev> trailing",
+      // One address, but a list separator Resend could split on.
+      "Doe, Jane <delivered@resend.dev>",
+      "delivered@resend.dev,",
+    ]) {
+      expect(await ruleOf(await send(h, to)), JSON.stringify(to)).toBe("resend.recipient_refused");
+      expect(await ruleOf(await send(h, "delivered@resend.dev", { bcc: to })), JSON.stringify(to)).toBe(
+        "resend.recipient_refused",
+      );
+    }
+    expect(resendCalls(h)).toEqual([]);
   });
 
   it("refuses any other recipient, in to, cc or bcc", async () => {

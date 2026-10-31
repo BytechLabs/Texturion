@@ -213,7 +213,7 @@ export function seedAccount(telnyx: FakeTelnyx): void {
     { id: "conn-prod-webrtc", connection_name: "loonext-webrtc", webhook_event_url: PROD_WEBHOOK, outbound: {} },
   );
   telnyx.lists.messaging_profiles.push(
-    { id: "prof-robot", name: "nonprod-robot", webhook_url: edge("/t/m"), webhook_failover_url: edge("/t/m") },
+    { id: "prof-robot", name: "nonprod-robot", webhook_url: edge("/t/r"), webhook_failover_url: edge("/t/r") },
     { id: "prof-qa-w", name: "nonprod-qa-w", webhook_url: edge("/t/m"), webhook_failover_url: edge("/t/m") },
     { id: "prof-qa-a", name: "nonprod-qa-a", webhook_url: edge("/t/m") },
     { id: "prof-qa-c", name: "nonprod-qa-c", webhook_url: edge("/t/m") },

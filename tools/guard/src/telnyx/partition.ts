@@ -3,6 +3,8 @@ import { PARTITION_CACHE_MS, type Partition } from "@loonext/rig-protocol";
 import type { Ctx } from "../context";
 import { STANDING_ROLES, type StandingEntry, type StandingRole } from "../edge-contract";
 import { Refusal } from "../refusal";
+import { SPEC } from "../setup/spec";
+import { noteHeld } from "../state/ledger";
 
 /**
  * The nonprod partition's resources, as the setup routine found or created
@@ -158,7 +160,7 @@ export async function loadPartition(ctx: Ctx, options: { fresh?: boolean } = {})
 
   const appProfiles = (await ctx.store.get<string[]>(KEYS.appProfiles)) ?? [];
   const { connections } = record;
-  return {
+  const view: PartitionView = {
     record,
     numbers: cache.numbers,
     byE164: new Map(cache.numbers.map((number) => [number.phone_number, number])),
@@ -169,6 +171,19 @@ export async function loadPartition(ctx: Ctx, options: { fresh?: boolean } = {})
     messagingProfiles: ids([...Object.values(record.messaging_profiles), ...appProfiles]),
     fetchedAt: cache.fetched_at,
   };
+  // Every number held this month is a month's rental off the cap, whether or
+  // not anything was ordered in it, so the ledger hears of each listing.
+  await noteHeld(ctx, view.numbers.length, callerNameHeld(view));
+  return view;
+}
+
+/** Held numbers whose standing role has inbound caller-name lookup on. */
+function callerNameHeld(view: PartitionView): number {
+  const roles = new Set(SPEC.numbers.standing.filter((item) => item.caller_name_lookup).map((item) => item.role));
+  return view.numbers.filter((number) => {
+    const role = standingRole(view, number);
+    return role !== null && roles.has(role);
+  }).length;
 }
 
 /** The wire shape of GET /partition: the protocol's fields, plus each standing number's role. */

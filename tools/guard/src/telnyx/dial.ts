@@ -2,7 +2,7 @@ import { COST_USD, DIALS_PER_DAY, DIALS_PER_HOUR } from "../limits";
 import { Refusal } from "../refusal";
 import { admitPaid } from "../state/admission";
 import { dayOf, giveBack, hourOf, tryTake } from "../state/counters";
-import { requireLeaseHeader } from "../state/lease";
+import { requireDialLease } from "../state/lease";
 import { charge, refund } from "../state/ledger";
 import { liveLeg, registerLeg } from "../state/legs";
 import { enforceCap } from "./detach";
@@ -62,7 +62,7 @@ async function shapeOf(request: TelnyxRequest): Promise<Shape> {
 export const handleDial: Handler = async (request) => {
   const { ctx } = request;
   if (!request.body) throw new Refusal("request.body_invalid");
-  const lease = await requireLeaseHeader(ctx, request.lease);
+  const lease = await requireDialLease(ctx, request.lease, request.caller);
   const shape = await shapeOf(request);
   await admitPaid(ctx, request.view, { newLegs: shape.newLegs, scenario: lease.scenario });
 

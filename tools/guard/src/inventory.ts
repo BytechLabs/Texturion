@@ -1,4 +1,5 @@
 import type { Ctx } from "./context";
+import { Refusal } from "./refusal";
 import { sendProductionEvent } from "./sentry";
 
 /**
@@ -90,8 +91,9 @@ export function unexpected(inventory: Inventory, baseline: Baseline | undefined)
   return out;
 }
 
+/** Refuses without the Telnyx key: an empty answer would read as a clean inventory. */
 export async function runKeyInventory(ctx: Ctx): Promise<{ unexpected: string[]; inventory: Inventory | null }> {
-  if (!ctx.telnyx) return { unexpected: [], inventory: null };
+  if (!ctx.telnyx) throw new Refusal("telnyx.key_missing");
   const state = (await ctx.store.get<InventoryState>(KEY)) ?? {};
   const since = state.last?.read_at ?? ctx.now() - 8 * 24 * 60 * 60 * 1000;
   let inventory: Inventory;

@@ -42,6 +42,23 @@ describe("dial", () => {
     expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
   });
 
+  it("lets the app's own dial run under the live lease without the header, and only then", async () => {
+    const h = await ready();
+    const appDial = (headers: Record<string, string> = {}) =>
+      h.call("/telnyx/v2/calls", {
+        caller: "rig-api",
+        body: { ...DIAL, connection_id: "conn-voice", from: N.devW1, to: "sip:gencredowner@sip.telnyx.com" },
+        headers,
+      });
+    expect(await ruleOf(await appDial())).toBe("dial.lease_not_live");
+    const id = await lease(h);
+    expect((await appDial()).status).toBe(200);
+    expect(await ruleOf(await appDial({ [HEADER.lease]: "another-lease" }))).toBe("dial.lease_not_live");
+    expect((await appDial({ [HEADER.lease]: id })).status).toBe(200);
+    // Test code names its lease.
+    expect(await ruleOf(await dial(h, null))).toBe("dial.lease_missing");
+  });
+
   it("refuses a released lease", async () => {
     const h = await ready();
     const id = await lease(h);
@@ -255,7 +272,7 @@ describe("admission", () => {
   it("refuses while an account signal has paid tests halted", async () => {
     const h = await ready();
     const id = await lease(h);
-    await recordSignal(h.ctx, { signal: "Suspicious Outbound Voice Traffic", notice_id: null, corroborated_by: "notification_event" });
+    await recordSignal(h.ctx, { signal: "Suspicious Outbound Voice Traffic", notice_id: null, corroborated_by: "signature" });
     expect(await ruleOf(await dial(h, id))).toBe("signal.halted");
   });
 

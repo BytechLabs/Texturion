@@ -1,5 +1,6 @@
 import type { GuardCaller } from "../caller";
 import type { Ctx } from "../context";
+import { withoutSecrets } from "../vendors/redact";
 import type { TelnyxReply } from "./client";
 import type { PartitionView } from "./partition";
 import type { PolicyEntry } from "./registry";
@@ -19,7 +20,6 @@ export interface TelnyxRequest {
   /** True when a body was sent but was not a JSON object. */
   bodyInvalid: boolean;
   lease: string | null;
-  scenario: string | null;
   idempotencyKey: string | null;
   view: PartitionView;
 }
@@ -42,7 +42,10 @@ export async function forward(
   );
 }
 
-/** Telnyx's answer, as the caller sees it. A body that was JSON stays JSON. */
+/**
+ * Telnyx's answer, as the caller sees it. A body that was JSON stays JSON,
+ * less any credential-named field ({@link withoutSecrets}).
+ */
 export function relay(reply: TelnyxReply, body: unknown = reply.body): Response {
   if (body === undefined || [204, 205, 304].includes(reply.status)) {
     // A null-body status cannot carry even an empty string.
@@ -52,7 +55,7 @@ export function relay(reply: TelnyxReply, body: unknown = reply.body): Response 
       headers: text ? { "content-type": "text/plain" } : {},
     });
   }
-  return new Response(JSON.stringify(body), {
+  return new Response(JSON.stringify(withoutSecrets(body)), {
     status: reply.status,
     headers: { "content-type": "application/json" },
   });

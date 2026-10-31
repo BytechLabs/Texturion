@@ -131,7 +131,10 @@ export class FakeTelnyx {
       if (resource === "telephony_credentials") {
         created.resource_id = `connection:${String(body?.connection_id)}`;
         created.sip_username = `gencred${this.serial}`;
+        created.sip_password = `fake-sip-password-${this.serial}`;
       }
+      // Telnyx returns a profile's v1 messaging secret with it.
+      if (resource === "messaging_profiles") created.v1_secret = `fake-v1-secret-${this.serial}`;
       items.push(created);
       return reply({ data: created }, 201);
     }

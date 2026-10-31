@@ -225,6 +225,14 @@ describe("messaging profiles", () => {
     expect(await h.store.get<string[]>("partition:app-profiles")).toContain(id);
     expect(await ruleOf(await create(h, { name: "company-y" }))).toBe("provisioning.profile_count");
   });
+
+  it("returns the new profile without its v1 secret", async () => {
+    const h = await ready();
+    const body = (await (await create(h, {})).json()) as { data: Record<string, unknown> };
+    expect(body.data).toMatchObject({ name: "company-x" });
+    expect(body.data).not.toHaveProperty("v1_secret");
+    expect(h.telnyx.lists.messaging_profiles.at(-1)).toHaveProperty("v1_secret");
+  });
 });
 
 describe("telephony credentials", () => {
@@ -238,6 +246,9 @@ describe("telephony credentials", () => {
     );
     const created = await h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-webrtc", name: "m1" } });
     expect(created.status).toBe(201);
+    const data = ((await created.json()) as { data: Record<string, unknown> }).data;
+    expect(data.sip_username).toMatch(/^gencred/);
+    expect(data).not.toHaveProperty("sip_password");
   });
 
   it("keeps the sentinel to one credential, counting what Telnyx holds", async () => {

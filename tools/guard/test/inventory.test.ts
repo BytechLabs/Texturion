@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CRONS } from "../src/guard";
-import { harness, ready, type Harness } from "./support";
+import { harness, ready, ruleOf, type Harness } from "./support";
 
 const inventoryEvents = (h: Harness) =>
   h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-key-inventory"]'));
@@ -66,8 +66,12 @@ describe("the weekly key inventory", () => {
     expect(inventoryEvents(blind)).toHaveLength(1);
   });
 
-  it("does nothing without the Telnyx key; /health already says so", async () => {
+  it("refuses without the Telnyx key rather than answer with a clean inventory", async () => {
     const h = harness({ env: { TELNYX_API_KEY: "" } });
+    expect(await ruleOf(await h.call("/admin/key-inventory/run", { caller: "admin", method: "POST" }))).toBe(
+      "telnyx.key_missing",
+    );
+    // The cron logs it; /health already says the key is missing.
     await h.guard.cron(CRONS.keyInventory);
     expect(h.outbound).toEqual([]);
   });

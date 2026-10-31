@@ -15,6 +15,21 @@ const NUMBER_KEY =
 const E164_ANYWHERE = /\+[1-9]\d{6,14}/g;
 const DIGIT_RUN = /\d{7,15}/g;
 
+/**
+ * A Telnyx answer with every credential-named field removed, at any depth:
+ * a messaging profile's `v1_secret`, a credential's `sip_password`. The rig's
+ * callers get resources, never a way to authenticate as the account.
+ */
+export function withoutSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutSecrets);
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [field, item] of Object.entries(value as Record<string, unknown>)) {
+    if (!SECRET_KEY.test(field)) out[field] = withoutSecrets(item);
+  }
+  return out;
+}
+
 export function cutNumber(digits: string): string {
   return `***${digits.slice(-4)}`;
 }

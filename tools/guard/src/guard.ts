@@ -11,10 +11,11 @@ import { requireSafe, SAFETY_KEY, type SafetyState } from "./setup/safety";
 import {
   ADMISSION_KEYS,
   inWindow,
-  productionCallLive,
+  productionCalls,
   ratioRule,
   roomFor,
   windowStartHour,
+  type ProductionCalls,
   type RatiosRecord,
   type ReserveRecord,
   type WindowRecord,
@@ -225,6 +226,9 @@ export class Guard {
     if (ctx.telnyx) {
       try {
         await requireSafe(ctx);
+        // Loading the partition notes the held numbers' rentals in the ledger,
+        // so the money reading below counts them.
+        await loadPartition(ctx);
       } catch {
         // The stored result below says why.
       }
@@ -294,7 +298,12 @@ export class Guard {
   async cron(expression: string): Promise<void> {
     const { ctx } = this;
     if (expression === CRONS.keyInventory) {
-      await runKeyInventory(ctx);
+      try {
+        await runKeyInventory(ctx);
+      } catch (cause) {
+        const rule = cause instanceof Refusal ? cause.rule : cause instanceof Error ? cause.message : String(cause);
+        console.error(`guard: key inventory not run: ${rule}`);
+      }
       return;
     }
     if (expression !== CRONS.upkeep) {
@@ -318,33 +327,50 @@ export class Guard {
   /**
    * Preemption (docs/RIG.md): while a lease is live,
    * production's active calls are polled every two seconds, and the first
-   * production call hangs up every test leg. If Telnyx will not answer the
-   * active-calls read, polling stops for that lease and the room formula is
-   * the only protection, as the design's fallback says.
+   * production call hangs up every test leg. Only an active-calls read that
+   * does not exist stops the poll, leaving the room formula as the only
+   * protection, as the design's fallback says. A read that failed for now is
+   * asked again, and admission admits nothing while it cannot see.
    */
   async alarm(): Promise<void> {
     const { ctx } = this;
     const lease = await liveLease(ctx);
     if (!lease || !ctx.telnyx) return;
-    let view: PartitionView;
+    let production: ProductionCalls = "unknown";
     try {
-      view = await loadPartition(ctx);
-    } catch {
+      production = await productionCalls(ctx, await loadPartition(ctx));
+    } catch (cause) {
+      const rule = cause instanceof Refusal ? cause.rule : cause instanceof Error ? cause.message : String(cause);
+      console.error(`guard: preemption poll failed: ${rule}`);
+    }
+    if (production === "absent") {
+      console.error("guard: no active-calls read for production's connections; preemption off for this lease");
       return;
     }
-    const live = await productionCallLive(ctx, view);
-    if (live === null) {
-      console.error("guard: active-calls read unavailable; preemption off for this lease");
-      return;
-    }
-    if (live) {
-      for (const leg of await candidateLiveLegs(ctx)) {
-        await ctx.telnyx.send("POST", `/v2/calls/${encodeURIComponent(leg.call_control_id)}/actions/hangup`, {});
-        await markEnded(ctx, leg.call_control_id);
-      }
+    if (production === "live" && (await this.hangUpTestLegs()) === 0) {
       await markPreempted(ctx, lease.lease_id);
       return;
     }
     await ctx.setAlarm(ctx.now() + PREEMPT_POLL_MS);
+  }
+
+  /** Hangs up every test leg that may be up; returns how many may still be. */
+  private async hangUpTestLegs(): Promise<number> {
+    const telnyx = this.ctx.telnyx!;
+    let left = 0;
+    for (const leg of await candidateLiveLegs(this.ctx)) {
+      const path = `/v2/calls/${encodeURIComponent(leg.call_control_id)}/actions/hangup`;
+      const status = await telnyx.send("POST", path, {}).then(
+        (reply) => reply.status,
+        () => 0,
+      );
+      // 404 and 422 are how Telnyx answers a command on a call that has already ended.
+      if ((status >= 200 && status <= 299) || status === 404 || status === 422) {
+        await markEnded(this.ctx, leg.call_control_id);
+      } else {
+        left += 1;
+      }
+    }
+    return left;
   }
 }

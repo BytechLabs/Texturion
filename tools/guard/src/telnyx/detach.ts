@@ -1,7 +1,8 @@
 import type { Ctx } from "../context";
 import type { DetachRequest } from "../edge-contract";
+import { sendProductionEvent } from "../sentry";
 import { SPEC } from "../setup/spec";
-import { monthOf } from "../state/counters";
+import { dayOf } from "../state/counters";
 import { readTier } from "../state/ledger";
 import { invalidateOwned, type OwnedNumber, type PartitionView } from "./partition";
 
@@ -12,7 +13,8 @@ import { invalidateOwned, type OwnedNumber, type PartitionView } from "./partiti
  * own, for two reasons only: strangers flooding it, and the month's cap.
  *
  * Telnyx documents `""` as "unassign" for the messaging profile. Clearing the
- * connection the same way is not in its docs, so a non-200 is logged.
+ * connection the same way is not in its docs, so anything but a 200 counts as
+ * a failed detach.
  */
 export interface DetachRecord {
   at: number;
@@ -23,7 +25,15 @@ export interface DetachRecord {
 }
 
 const DETACHED_PREFIX = "detached:";
-const CAP_DONE_PREFIX = "cap-detached:";
+const CAP_ALERTED_DAY = "cap-detach:alerted-day";
+
+async function statusOf(ctx: Ctx, path: string, body: Record<string, unknown>): Promise<number> {
+  try {
+    return (await ctx.telnyx!.send("PATCH", path, body)).status;
+  } catch {
+    return 0;
+  }
+}
 
 export async function detachNumber(
   ctx: Ctx,
@@ -31,14 +41,13 @@ export async function detachNumber(
   reason: DetachRecord["reason"],
   flood: Pick<DetachRecord, "strangers" | "window_ms"> = {},
 ): Promise<boolean> {
-  const telnyx = ctx.telnyx;
-  if (!telnyx) return false;
+  if (!ctx.telnyx) return false;
   const id = encodeURIComponent(number.id);
-  const voice = await telnyx.send("PATCH", `/v2/phone_numbers/${id}`, { connection_id: "" });
-  const messaging = await telnyx.send("PATCH", `/v2/phone_numbers/${id}/messaging`, { messaging_profile_id: "" });
-  const ok = voice.status === 200 && messaging.status === 200;
+  const voice = await statusOf(ctx, `/v2/phone_numbers/${id}`, { connection_id: "" });
+  const messaging = await statusOf(ctx, `/v2/phone_numbers/${id}/messaging`, { messaging_profile_id: "" });
+  const ok = voice === 200 && messaging === 200;
   if (ok) await ctx.store.put(`${DETACHED_PREFIX}${number.id}`, { at: ctx.now(), reason, ...flood } satisfies DetachRecord);
-  else console.error(`guard: detach of ${number.id} answered ${voice.status}/${messaging.status}`);
+  else console.error(`guard: detach of ${number.id} answered ${voice}/${messaging}`);
   await invalidateOwned(ctx);
   return ok;
 }
@@ -76,21 +85,39 @@ export async function detachFlooded(
 
 /**
  * At the month's cap every number off the robot's connection is detached, so
- * stranger inbound stops costing money too. Once per month.
+ * stranger inbound stops costing money too. What counts is the listing, not a
+ * record of having run: a number that still shows a connection or profile is
+ * detached again on the next pass (the hourly upkeep reads a fresh listing),
+ * and a pass that leaves one attached raises a production event, once a day.
  */
 export async function enforceCap(ctx: Ctx, view: PartitionView): Promise<number> {
   const reading = await readTier(ctx);
   if (reading.month_to_date_usd < reading.usage_budget_usd) return 0;
-  const doneKey = `${CAP_DONE_PREFIX}${monthOf(ctx.now())}`;
-  if (await ctx.store.get(doneKey)) return 0;
-  await ctx.store.put(doneKey, ctx.now());
-  let detached = 0;
   const robot = view.record.connections.robot;
-  for (const number of view.numbers) {
-    if (robot && number.connection_id === robot) continue;
+  const attached = view.numbers.filter(
+    (number) =>
+      !(robot && number.connection_id === robot) && (number.connection_id !== null || number.messaging_profile_id !== null),
+  );
+  let detached = 0;
+  for (const number of attached) {
     if (await detachNumber(ctx, number, "monthly_cap")) detached += 1;
   }
+  if (detached < attached.length) await alertCapDetachFailed(ctx, attached.length - detached);
   return detached;
+}
+
+async function alertCapDetachFailed(ctx: Ctx, failed: number): Promise<void> {
+  const today = dayOf(ctx.now());
+  if ((await ctx.store.get<string>(CAP_ALERTED_DAY)) === today) return;
+  await ctx.store.put(CAP_ALERTED_DAY, today);
+  await sendProductionEvent(ctx, {
+    key: "telnyx-guard-detach",
+    summary: `The rig is at its monthly cap and ${failed} number(s) would not detach`,
+    detail:
+      "Telnyx refused clearing a number's connection or messaging profile, so stranger calls and texts to it " +
+      "still bill. The guard tries again every hour. If it keeps failing, clear them in the portal.",
+    level: "error",
+  });
 }
 
 /** The connection and profile each standing role is bound to, from the spec. */

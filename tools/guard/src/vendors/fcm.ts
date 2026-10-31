@@ -12,6 +12,13 @@ import { dayOf, giveBack, tryTake } from "../state/counters";
  * notification and an APNs block on every iOS alert
  * (apps/api/src/notifications/fcm.ts), which is why this rewrites rather than
  * refusing.
+ *
+ * What this cannot do: `restricted_package_name` binds Android deliveries
+ * only, and FCM gives the sender no way to tell an iOS or web registration
+ * token from an Android one. A token from production's iOS app would still
+ * get the `data` block. The guard relies on the rig never holding one: its
+ * database is synthetic, and every device that registers with it runs the
+ * nonprod Android build.
  */
 export const FCM_ORIGIN = "https://fcm.googleapis.com";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";

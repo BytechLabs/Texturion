@@ -59,11 +59,17 @@ export async function markPreempted(ctx: Ctx, leaseId: string): Promise<void> {
   if (lease && lease.lease_id === leaseId) await ctx.store.put(KEY, { ...lease, preempted_at: ctx.now() });
 }
 
-/** The live lease named by a request's lease header, or the refusal for its absence. */
-export async function requireLeaseHeader(ctx: Ctx, header: string | null): Promise<LeaseRecord> {
-  if (!header) throw new Refusal("dial.lease_missing");
+/**
+ * The live lease a dial, transfer or bridge runs under. Test code names it in
+ * the lease header. The app under test cannot, since nothing in it knows the
+ * lease, so a `rig-api` request without the header runs under whatever lease
+ * is live, and there must be one. A header naming another lease is refused
+ * for every caller.
+ */
+export async function requireDialLease(ctx: Ctx, header: string | null, caller: GuardCaller): Promise<LeaseRecord> {
+  if (!header && caller !== "rig-api") throw new Refusal("dial.lease_missing");
   const lease = await liveLease(ctx);
-  if (!lease || lease.lease_id !== header) throw new Refusal("dial.lease_not_live");
+  if (!lease || (header && lease.lease_id !== header)) throw new Refusal("dial.lease_not_live");
   return lease;
 }
 

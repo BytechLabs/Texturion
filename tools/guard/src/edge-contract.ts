@@ -17,15 +17,12 @@ export interface DetachRequest {
 export interface HaltRequest {
   signal: string;
   notice_id: string | null;
-  corroborated_by: "balance" | "notification_event" | "account_refused";
+  /** `signature`: Telnyx signed the notice within five minutes, and it names a type enabled on the account. */
+  corroborated_by: "balance" | "signature" | "account_refused";
   received_at: string;
 }
 
-export const CORROBORATIONS: readonly HaltRequest["corroborated_by"][] = [
-  "balance",
-  "notification_event",
-  "account_refused",
-];
+export const CORROBORATIONS: readonly HaltRequest["corroborated_by"][] = ["balance", "signature", "account_refused"];
 
 /** What EdgeForGuard.mailStatus() answers. */
 export interface MailStatus {

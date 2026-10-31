@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { averageDailySpend, balanceFloor, floorFor, readBalance, requireAboveFloor } from "../src/state/balance";
 import { charge, noteHeld, readTier, reconcile, tierOf, type MonthLedger } from "../src/state/ledger";
+import { CRONS } from "../src/guard";
 import { enforceCap } from "../src/telnyx/detach";
 import { loadPartition } from "../src/telnyx/partition";
-import { harness, ready } from "./support";
+import { harness, ready, type Harness } from "./support";
 
 const LEDGER: MonthLedger = { usage_usd: 0, one_time_usd: 0, reconciled_usd: 0, peak_numbers: 8, caller_name_numbers: 1 };
 /** 2026-11-16, with 15 days left in the month counting today. */
@@ -49,6 +50,26 @@ describe("money tiers", () => {
     await noteHeld(h.ctx, 9, 1);
     await noteHeld(h.ctx, 8, 1);
     expect((await readTier(h.ctx)).rentals_usd).toBeCloseTo(9 * 1.1 + 0.4);
+  });
+
+  it("counts the rentals of every number held in a month nothing was ordered in", async () => {
+    const h = await ready();
+    h.clock.now = Date.parse("2026-12-01T05:00:00Z");
+    expect((await readTier(h.ctx)).rentals_usd).toBe(0);
+    // Any read of the partition notes what is held; /health reads it.
+    const health = (await (await h.call("/health", { caller: "admin" })).json()) as { money: Record<string, number> };
+    const held = h.telnyx.numbers.filter((item) => item.billing_group_id === "bg-nonprod").length;
+    expect(health.money.rentals_usd).toBeCloseTo(held * 1.1);
+    expect(health.money.next_month_reserve_usd).toBeCloseTo(held * 1.1);
+    expect(health.money.usage_budget_usd).toBeCloseTo(35 - 2 * held * 1.1);
+  });
+
+  it("counts a caller-name lookup for each held number whose role has one", async () => {
+    const h = await ready();
+    const number = h.telnyx.numbers.find((item) => item.id === "num-deva1");
+    if (number) number.customer_reference = "rig-standing-dev-a1";
+    await loadPartition(h.ctx, { fresh: true });
+    expect((await readTier(h.ctx)).rentals_usd).toBeCloseTo(7 * 1.1 + 0.4);
   });
 
   it("starts each month with an empty ledger", async () => {
@@ -101,7 +122,10 @@ describe("the balance floor", () => {
 });
 
 describe("the cap", () => {
-  it("detaches every number off the robot's connection, once a month", async () => {
+  const detachEvents = (h: Harness) =>
+    h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-guard-detach"]'));
+
+  it("detaches every number off the robot's connection, and nothing twice", async () => {
     const h = await ready();
     await charge(h.ctx, 40);
     const view = await loadPartition(h.ctx);
@@ -111,5 +135,36 @@ describe("the cap", () => {
     expect(robot.map((item) => item.id).sort()).toEqual(["num-robot1", "num-robot2", "num-stranger1"]);
     expect(h.telnyx.numbers.find((item) => item.id === "num-prod")?.connection_id).toBe("conn-prod-voice");
     expect(await enforceCap(h.ctx, await loadPartition(h.ctx, { fresh: true }))).toBe(0);
+    expect(detachEvents(h)).toEqual([]);
+  });
+
+  it("raises a production event when a number will not detach, and retries it on the hourly upkeep", async () => {
+    const h = await ready();
+    await charge(h.ctx, 40);
+    h.telnyx.failNext = { method: "PATCH", path: "/v2/phone_numbers/num-devw1", status: 500 };
+    expect(await enforceCap(h.ctx, await loadPartition(h.ctx))).toBe(3);
+    expect(h.telnyx.numbers.find((item) => item.id === "num-devw1")?.connection_id).toBe("conn-voice");
+    expect(detachEvents(h)).toHaveLength(1);
+
+    h.advance(60 * 60 * 1000);
+    await h.guard.cron(CRONS.upkeep);
+    expect(h.telnyx.numbers.find((item) => item.id === "num-devw1")).toMatchObject({
+      connection_id: "",
+      messaging_profile_id: "",
+    });
+    expect(detachEvents(h)).toHaveLength(1);
+  });
+
+  it("alerts at most once a day while a detach keeps failing", async () => {
+    const h = await ready();
+    await charge(h.ctx, 40);
+    const realHandle = h.telnyx.handle.bind(h.telnyx);
+    h.telnyx.handle = async (request) =>
+      request.method === "PATCH" && new URL(request.url).pathname === "/v2/phone_numbers/num-devw2"
+        ? new Response("{}", { status: 422 })
+        : realHandle(request);
+    for (let i = 0; i < 3; i++) await enforceCap(h.ctx, await loadPartition(h.ctx, { fresh: true }));
+    expect(h.telnyx.numbers.find((item) => item.id === "num-devw2")?.connection_id).toBe("conn-voice");
+    expect(detachEvents(h)).toHaveLength(1);
   });
 });
