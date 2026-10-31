@@ -26,7 +26,7 @@ import {
   type SentryChannelProbe,
 } from "../observability/do-sentry-canary";
 
-import type { Env } from "../env";
+import { getEnv, type Bindings, type Env } from "../env";
 import {
   BROWSER_INBOUND_STATE,
   parseBrowserAnsweredAtMs,
@@ -145,8 +145,18 @@ export class CallSessionDO extends DurableObject<Env> {
     this._runtime = runtime;
   }
 
+  /**
+   * Every Telnyx command, push, text and database write this object makes goes
+   * through the runtime, so this is where its bindings are validated. The
+   * Worker validates its own on every request and cron, but an alarm wakes the
+   * object with no request at all: without this, a rig whose TELNYX_API_BASE
+   * was lost would dial Telnyx directly from an alarm armed before the change.
+   * A refusal throws, the alarm is retried, and nothing leaves.
+   */
   private get rt(): SessionRuntime {
-    return (this._runtime ??= createSessionRuntime(this.env));
+    return (this._runtime ??= createSessionRuntime(
+      getEnv(this.env as unknown as Bindings),
+    ));
   }
 
   // ---- §4.1 FIFO: every entrypoint enqueues its ENTIRE body ---------------
