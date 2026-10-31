@@ -1,0 +1,265 @@
+{
+  "schema": "loonext.rig-crons.v1",
+  "notes": [
+    "What the rig does with each cron a tracked Worker config declares (docs/RIG.md, Loonext in rig mode). The rig fires every cron itself through /cdn-cgi/handler/scheduled; scripts/check-rig-crons.mjs fails when a config and this file disagree, and `--ref <ref>` checks another ref's configs against it.",
+    "run: fire it on schedule. run-expect-refusal: fire it, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it; a skip silences the cron's liveness keys, so it lists the alerts that follows.",
+    "Refusals are listed for every code path that can reach one, not only for what today's seed exercises: a refusal that never happens costs nothing, and one that is missing is an unexplained Sentry fingerprint in R00.",
+    "A refused job throws, so runScheduledJobs rejects with an AggregateError that holds the TelnyxApiError (see refusal_match), and the job's own heartbeat is withheld, so after its grace the liveness checker raises the job's ops fingerprint.",
+    "Every cron here first asks rig_database_posture(): until the rig's database reports rig mode it throws `rig cron not run: ...`. That is an infrastructure fault for R00 to report, not an expected event, so no entry suppresses it."
+  ],
+  "refusal_match": {
+    "code": "rig_endpoint_refused",
+    "exception_type": "TelnyxApiError",
+    "message_contains": "[codes rig_endpoint_refused]",
+    "why": "The app sets no fingerprint on a cron failure, so Sentry groups it by exception. Match the refused request by this text inside the cron's AggregateError, and suppress the event only when every exception in it matches a refusal listed for that cron; anything else in the same event is a real failure."
+  },
+  "crons": [
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "* * * * *",
+      "class": "run",
+      "jobs": ["job:lead-chase", "job:escalation-sweep", "job:batch-flush", "job:scheduled-send"],
+      "note": "Database scans plus pushes and texts through the guard. Scheduled sends pass the outbound destination gate, which refuses a destination outside the partition with rig_destination_refused before any request leaves. S05 and S25 depend on this cron."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "*/5 * * * *",
+      "class": "run",
+      "jobs": [
+        "job:sweep-webhooks",
+        "job:retry-interrupted-sends",
+        "job:fail-stuck-sends",
+        "job:sweep-stuck-provisioning",
+        "job:calendar-sync",
+        "job:deliver-outbound-webhooks"
+      ],
+      "note": "Webhook replay, send recovery and outbound webhooks, which rig mode delivers to the robot sink or nowhere. Calendar sync has no connection to work on (X22). The edge relays no 10DLC or porting event, so the replay never reaches a refused endpoint."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "*/15 * * * *",
+      "class": "run-expect-refusal",
+      "jobs": [
+        "job:daily-summary",
+        "job:liveness-check",
+        "job:notify-due-tasks",
+        "job:reconcile-numbers",
+        "job:retry-campaign-assignments",
+        "job:sweep-deleted-attachments",
+        "job:credit-converted-prepayments",
+        "job:reconcile-text-enablement",
+        "job:reconcile-voice-enablement"
+      ],
+      "note": "reconcile-numbers lists the partition's numbers through the guard and acts only on its own billing group. It flags every group number with no phone_numbers row, once per number per run, so the robot's numbers need a row from the seed or must be hidden from the rig-api caller by the guard. The liveness checker alerts on channels a sparse rig leaves quiet; the scenarios that use each channel judge it instead.",
+      "refusals": [
+        {
+          "job": "job:retry-campaign-assignments",
+          "code": "rig_endpoint_refused",
+          "telnyx_paths": ["/v2/10dlc/phoneNumberCampaign"],
+          "when": "an approved, live 10DLC campaign row exists (the US-number fallback's seeded registration)",
+          "fingerprints": [["ops", "job:retry-campaign-assignments"]]
+        },
+        {
+          "job": "job:reconcile-text-enablement",
+          "code": "rig_endpoint_refused",
+          "telnyx_paths": ["/v2/messaging_hosted_number_orders", "/v2/documents"],
+          "when": "a hosted text-enablement order is in flight",
+          "fingerprints": [["ops", "job:reconcile-text-enablement"]]
+        }
+      ],
+      "expected_events": [
+        {
+          "match": "fingerprint [\"ops\", \"channel:sms-outbound\"]",
+          "why": "The rig texts a few times a day, so most hours have no outbound text while the 7-day baseline is not empty. S20 judges outbound texts."
+        },
+        {
+          "match": "fingerprint [\"ops\", \"channel:telnyx-inbound-message\"]",
+          "why": "The same gap for inbound texts. S21 judges them."
+        },
+        {
+          "match": "fingerprint [\"ops\", \"channel:email-outbound\"]",
+          "why": "The rig sends email rarely. S34 judges it."
+        },
+        {
+          "match": "fingerprint [\"ops\", \"channel:telnyx-call-events\"]",
+          "why": "A day with no paid call lane (room, budget or a halt) leaves call events quiet. The call scenarios judge them."
+        }
+      ]
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "0 * * * *",
+      "class": "run",
+      "jobs": [
+        "job:report-usage",
+        "job:report-voice-usage",
+        "job:usage-alerts",
+        "job:overage-warning",
+        "job:sweep-stale-calls",
+        "job:email-health",
+        "job:inbound-canary",
+        "job:expire-payment-requests"
+      ],
+      "note": "Usage goes to the Stripe sandbox, which S01's meter check reads. The inbound canary stays off because the rig sets no CANARY_* numbers. sweep-stale-calls hangs up a runaway leg through the guard's leg-command class."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "30 * * * *",
+      "class": "run",
+      "jobs": ["job:nudge-sole-prop-otp"],
+      "note": "Email only, through the guard's Resend path; it calls no 10DLC endpoint."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "20 * * * *",
+      "class": "run",
+      "jobs": ["job:geocode-contacts"],
+      "note": "Calls the public Nominatim service, which has no seam and is not on the rig's DNS block list. It only ever sees seeded synthetic addresses, once each, at one request a second, and caches the answer."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "40 * * * *",
+      "class": "run",
+      "jobs": ["job:geocode-tasks"],
+      "note": "As the contact geocoder: public Nominatim, seeded synthetic addresses only."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "25 * * * *",
+      "class": "run",
+      "jobs": ["job:carrier-ceiling"],
+      "note": "Database read plus one warning email per crew per day; S26 judges its 80% alert."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "0 13 * * *",
+      "class": "run-expect-refusal",
+      "jobs": [
+        "job:poll-registrations",
+        "job:delivery-by-country",
+        "job:number-health",
+        "job:registration-stalls",
+        "job:call-silence",
+        "job:aup-watch",
+        "job:activation-stall"
+      ],
+      "note": "No job but the registration poller makes a Telnyx request.",
+      "refusals": [
+        {
+          "job": "job:poll-registrations",
+          "code": "rig_endpoint_refused",
+          "telnyx_paths": [
+            "/v2/10dlc/brand",
+            "/v2/10dlc/campaign",
+            "/v2/10dlc/campaignBuilder",
+            "/v2/10dlc/phoneNumberCampaign"
+          ],
+          "when": "a brand or campaign row is submitted, pending, approved or suspended, or an approved brand's campaign is still a draft",
+          "fingerprints": [["ops", "job:poll-registrations"]]
+        }
+      ]
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "10 13 * * *",
+      "class": "run-expect-refusal",
+      "jobs": ["job:poll-port-requests"],
+      "refusals": [
+        {
+          "job": "job:poll-port-requests",
+          "code": "rig_endpoint_refused",
+          "telnyx_paths": ["/v2/porting_orders", "/v2/portability_checks", "/v2/documents"],
+          "when": "a port_requests row is not yet ported or cancelled",
+          "fingerprints": [["ops", "job:poll-port-requests"]]
+        }
+      ]
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "0 14 * * *",
+      "class": "run-expect-refusal",
+      "jobs": ["job:grace-and-release"],
+      "note": "S29 fires this after backdating QA-C's cancellation. Releasing a number goes through the guard, which refuses a DELETE on a standing number, so the number S29 expects released must not be one of the eight standing numbers.",
+      "refusals": [
+        {
+          "job": "job:grace-and-release",
+          "code": "rig_endpoint_refused",
+          "telnyx_paths": ["/v2/10dlc/campaign"],
+          "when": "a workspace past its grace period still has an active 10DLC campaign to deactivate",
+          "fingerprints": [["ops", "job:grace-and-release"]]
+        }
+      ]
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "0 15 * * *",
+      "class": "run",
+      "jobs": ["job:subscription-reconcile"],
+      "note": "Re-mirrors subscriptions from the Stripe sandbox."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "45 15 * * *",
+      "class": "run",
+      "jobs": ["job:opt-out-reconcile"],
+      "note": "Reads /v2/messaging_optouts filtered by each workspace's own messaging profile, which the guard's read class allows. It keeps going past a workspace whose list cannot be read, reporting each one as its own Sentry message."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "30 15 * * *",
+      "class": "run",
+      "jobs": [
+        "job:prune-webhook-events",
+        "job:prune-widget-verifications",
+        "job:prune-webhook-deliveries",
+        "job:prune-audit-log",
+        "job:prune-user-sessions",
+        "job:prune-public-link-access",
+        "job:prune-probe-results",
+        "job:purge-closed-workspaces",
+        "job:build-data-exports",
+        "job:prune-expired-exports",
+        "job:prune-abandoned-identity",
+        "job:prune-contact-messages",
+        "job:prune-marketing-contacts",
+        "job:retention-notice",
+        "job:retention-enforce"
+      ],
+      "note": "Retention and purge against the local database and storage; the notices are email through the guard."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "15 */6 * * *",
+      "class": "run",
+      "jobs": ["job:do-sentry-canary"],
+      "note": "Proves the Durable Object can still reach Sentry, here the loonext-rig project through the relay. Four debug events a day of the relay's 100.",
+      "expected_events": [
+        {
+          "match": "level debug, tag canary=do-sentry",
+          "why": "The canary's arrival is its assertion (#375); it is never a failure."
+        }
+      ]
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "50 13 * * 1",
+      "class": "run",
+      "jobs": ["job:overage-digest"],
+      "note": "Weekly founder digest. On the rig it can only describe seeded tenants, and it reaches no inbox outside the guard's Resend allowlist."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "5 */2 * * *",
+      "class": "run",
+      "jobs": ["job:probes"],
+      "note": "The free probes: local auth health and the webhook ledger. Nothing is billed."
+    },
+    {
+      "config": "apps/api/wrangler.jsonc",
+      "cron": "35 14 1 * *",
+      "class": "run",
+      "jobs": ["job:response-time-recap"],
+      "note": "Monthly recap email to every active seeded workspace. The guard sends only to Resend's test addresses, so the seed's member emails must be @resend.dev or every send is refused."
+    }
+  ]
+}
