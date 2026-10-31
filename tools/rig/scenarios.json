@@ -1,0 +1,922 @@
+{
+  "schema": "loonext.rig-scenarios.v1",
+  "notes": [
+    "The machine copy of docs/RIG.md 4.2. name, far_end and cadence are the table's own text, and scripts/check-rig-scenarios.mjs fails when they differ, when the dials in a cadence's brackets differ from dials + far_end_legs, or when min_room differs from what 4.1's room table implies.",
+    "dials: legs Loonext creates. far_end_legs: legs the far end creates, on the rig the robot's. A run's rig dials are their sum, as in apps/api/e2e/call-journey-budget.json. peak_concurrent_outbound_legs counts Loonext's legs only; the robot holds its own.",
+    "Scenarios that name a journey carry the journey's measured values. Every other split between dials and far_end_legs, and every other peak, is a planning estimate that keeps 4.2's total for the run.",
+    "runs: when the rig starts the scenario. A run with dials sits on a day of its period (offset_days, counted from the cycle's day 0) and an hour inside the dial window (hour_utc). A scenario with no dials runs at any hour, so its runs carry only a period.",
+    "scheduled: false means the cadence is not in force under the current cap. hourly-cap: one run has more rig dials than the hourly cap, so no hour can hold it. phase-4: an optional lane that waits on Phase 4.",
+    "4.2 as written does not fit the default cap: S07, S08, S10 and D01 need 4 dials in one run and S09 needs 5, against 3 an hour. The schedule here is 4.2's cadence for everything that fits, laid out one hour per period: 04:00 daily wake (D02), 05:00 the daily G01 with S02 every other day, 06:00 the every-3-days runs, 07:00 weekly, 08:00 fortnightly, 09:00 monthly."
+  ],
+  "budget": {
+    "daily_cap": 18,
+    "hourly_cap": 3,
+    "days_per_month": 30,
+    "retry_reserve": 0.2,
+    "repro_reserve_dials": 60,
+    "window_utc": [4, 10],
+    "source": "docs/RIG.md 4.1, the default cap until Telnyx states its limits in writing; the window is 3.5's 04:00-10:00 UTC until production has 28 days of call history"
+  },
+  "lanes": [
+    { "id": "health", "what": "The rig's own health check" },
+    { "id": "hermetic", "what": "The CI suite against fake Telnyx and Stripe" },
+    { "id": "isolation", "what": "Proofs that the partition holds" },
+    { "id": "production-watch", "what": "Read-only checks of production itself" },
+    { "id": "browser", "what": "Calls between the rig's browser pages and the robot" },
+    { "id": "texts", "what": "Texts, and the STOP and START lane" },
+    { "id": "account", "what": "Numbers, billing, AI, sign-in, email and sign-up" },
+    { "id": "device", "what": "The Pixel, and QA-A's dispatcher page" },
+    { "id": "emulator", "what": "The Android emulators" },
+    { "id": "carrier", "what": "Calls that leave the Telnyx network" }
+  ],
+  "named_defects": [
+    {
+      "id": "X25",
+      "gap": "A rig credential's SDK ringing another internal credential directly",
+      "named_by": ["G02"]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "R00",
+      "name": "Rig health",
+      "lane": "health",
+      "far_end": "none",
+      "cadence": "Every 15 min (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "15m" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "H01",
+      "name": "Hermetic suite, including the call journeys",
+      "lane": "hermetic",
+      "far_end": "Fake Telnyx and Stripe",
+      "cadence": "Every push (0)",
+      "runs_on": "ci",
+      "runs": [
+        { "every": "push" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "G01",
+      "name": "Isolation self-test",
+      "lane": "isolation",
+      "far_end": "A fictional 555-01xx number; STRANGER-1",
+      "cadence": "Daily (1)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "1d", "offset_days": 0, "hour_utc": 5 }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 3,
+      "note": "STRANGER-1's call is rejected before any ring leg, so its one dial is the far end's."
+    },
+    {
+      "id": "G02",
+      "name": "Calls the apps' SDK places itself",
+      "lane": "isolation",
+      "far_end": "The sentinel credential, held by a test page on the rig",
+      "cadence": "Weekly (1)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d", "offset_days": 4, "hour_utc": 7 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 1,
+      "min_room": 3,
+      "note": "The SDK places the sentinel call itself, outside the guard; budgeted as one dial for both attempts, as 4.2 does."
+    },
+    {
+      "id": "P01",
+      "name": "Production ring-success watch",
+      "lane": "production-watch",
+      "far_end": "Real customers' calls",
+      "cadence": "Hourly, in production (0)",
+      "runs_on": "production",
+      "runs": [
+        { "every": "1h" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "PW01",
+      "name": "Production wiring check",
+      "lane": "production-watch",
+      "far_end": "Production's own settings",
+      "cadence": "Daily (0)",
+      "runs_on": "workstation",
+      "runs": [
+        { "every": "1d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S01",
+      "name": "Browser calls a phone number (on-net)",
+      "lane": "browser",
+      "far_end": "ROBOT-1 answers after 4 s",
+      "cadence": "Every 3 days (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "3d", "offset_days": 1, "hour_utc": 6 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 2,
+      "peak_concurrent_legs": 2,
+      "min_room": 2,
+      "journey": "outbound-answered"
+    },
+    {
+      "id": "S02",
+      "name": "Phone number calls Loonext, answered in the browser",
+      "lane": "browser",
+      "far_end": "ROBOT-1 dials DEV-W1",
+      "cadence": "Every 2 days (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "2d", "offset_days": 0, "hour_utc": 5 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 1,
+      "peak_concurrent_legs": 2,
+      "min_room": 2,
+      "journey": "inbound-answered"
+    },
+    {
+      "id": "S03",
+      "name": "Loonext calls Loonext across workspaces",
+      "lane": "browser",
+      "far_end": "QA-C page dials DEV-W1",
+      "cadence": "Weekly (3)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d", "offset_days": 0, "hour_utc": 7 }
+      ],
+      "scheduled": true,
+      "dials": 3,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 3,
+      "min_room": 3,
+      "note": "The QA-C page's two outbound legs, plus DEV-W1's ring leg to the QA-W owner."
+    },
+    {
+      "id": "S04",
+      "name": "Unanswered call: voicemail, transcript, intake, webhook, text-back",
+      "lane": "browser",
+      "far_end": "ROBOT-1 speaks after the beep",
+      "cadence": "Every 3 days (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "3d", "offset_days": 2, "hour_utc": 6 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 1,
+      "peak_concurrent_legs": 2,
+      "min_room": 2,
+      "journey": "voicemail"
+    },
+    {
+      "id": "S05",
+      "name": "Caller hangs up while ringing",
+      "lane": "browser",
+      "far_end": "ROBOT-1 hangs up at 8 s",
+      "cadence": "Fortnightly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 3, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 1,
+      "min_room": 2
+    },
+    {
+      "id": "S06",
+      "name": "Hold, mute, keypad",
+      "lane": "browser",
+      "far_end": "ROBOT-1",
+      "cadence": "Fortnightly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 4, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 1,
+      "min_room": 2
+    },
+    {
+      "id": "S07",
+      "name": "Blind transfer; decline, timeout and hop-cap variants",
+      "lane": "browser",
+      "far_end": "ROBOT-1 to DEV-W2",
+      "cadence": "Weekly; variants monthly (4)",
+      "runs_on": "rig",
+      "runs": [
+        { "label": "blind", "every": "7d" },
+        { "label": "decline", "every": "30d" },
+        { "label": "timeout", "every": "30d" },
+        { "label": "hop-cap", "every": "30d" }
+      ],
+      "scheduled": false,
+      "unscheduled_because": "hourly-cap",
+      "dials": 3,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 2,
+      "peak_concurrent_legs": 3,
+      "min_room": 3,
+      "journey": "transfer-blind"
+    },
+    {
+      "id": "S08",
+      "name": "Consult transfer, inbound and outbound (the first live test of outbound transfer)",
+      "lane": "browser",
+      "far_end": "ROBOT-1",
+      "cadence": "Weekly, alternating direction (4)",
+      "runs_on": "rig",
+      "runs": [
+        { "label": "alternating direction", "every": "7d" }
+      ],
+      "scheduled": false,
+      "unscheduled_because": "hourly-cap",
+      "dials": 3,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 3,
+      "min_room": 3,
+      "note": "Inbound rings a crew of two, then dials the consult target; the outbound direction holds three Loonext legs during the consult."
+    },
+    {
+      "id": "S09",
+      "name": "Busy line, second caller, self-dial",
+      "lane": "browser",
+      "far_end": "ROBOT-1, ROBOT-2",
+      "cadence": "Monthly (5)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "30d" }
+      ],
+      "scheduled": false,
+      "unscheduled_because": "hourly-cap",
+      "dials": 3,
+      "far_end_legs": 2,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 3,
+      "note": "ROBOT-1 and ROBOT-2 are on calls at once, and nonprod-robot-ovp allows the robot one concurrent call (3.6), so it cannot run as written even under a higher hourly cap."
+    },
+    {
+      "id": "S10",
+      "name": "Number X calls number Y in one workspace; call waiting",
+      "lane": "browser",
+      "far_end": "DEV-W1 to DEV-W2",
+      "cadence": "Monthly (4)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "30d" }
+      ],
+      "scheduled": false,
+      "unscheduled_because": "hourly-cap",
+      "dials": 4,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 4,
+      "min_room": 4
+    },
+    {
+      "id": "S11",
+      "name": "After-hours, on-call, in-turn, ring length",
+      "lane": "browser",
+      "far_end": "ROBOT-1",
+      "cadence": "Weekly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d", "offset_days": 4, "hour_utc": 7 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 1,
+      "min_room": 2
+    },
+    {
+      "id": "S12",
+      "name": "Voice and dial-count caps (QA-C)",
+      "lane": "browser",
+      "far_end": "ROBOT-1",
+      "cadence": "Fortnightly (1)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 3, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 2,
+      "note": "The inbound call ends busy before a ring leg, and the outbound attempt gets 402 before a dial."
+    },
+    {
+      "id": "S13",
+      "name": "Paused, suspended or released number receives a call",
+      "lane": "browser",
+      "far_end": "ROBOT-1",
+      "cadence": "Fortnightly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 5, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 2,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 2,
+      "note": "Two robot calls, to the paused and the released number; neither gets a ring leg."
+    },
+    {
+      "id": "S14",
+      "name": "Kill switches (local flags only)",
+      "lane": "browser",
+      "far_end": "ROBOT-1",
+      "cadence": "Fortnightly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 6, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 1,
+      "min_room": 2
+    },
+    {
+      "id": "S15",
+      "name": "Greeting-capture call",
+      "lane": "browser",
+      "far_end": "ROBOT-2, seeded as the owner's mobile",
+      "cadence": "Monthly (1)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "30d", "offset_days": 1, "hour_utc": 9 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 1,
+      "min_room": 2
+    },
+    {
+      "id": "S16",
+      "name": "Note-level member; signing a device out revokes voice for the person (D130)",
+      "lane": "browser",
+      "far_end": "ROBOT-1",
+      "cadence": "Fortnightly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 7, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 1,
+      "min_room": 2
+    },
+    {
+      "id": "S17",
+      "name": "Webhook failover and duplicate delivery",
+      "lane": "browser",
+      "far_end": "The edge returns 503 once",
+      "cadence": "Monthly (3)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "30d", "offset_days": 0, "hour_utc": 9 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 1,
+      "min_room": 2
+    },
+    {
+      "id": "S20",
+      "name": "Outbound text",
+      "lane": "texts",
+      "far_end": "ROBOT-1",
+      "cadence": "Daily (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "1d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S21",
+      "name": "Inbound text",
+      "lane": "texts",
+      "far_end": "ROBOT-1 to DEV-W1",
+      "cadence": "Daily (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "1d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S22",
+      "name": "Picture messages both ways",
+      "lane": "texts",
+      "far_end": "ROBOT-1",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S23",
+      "name": "Loonext texts Loonext",
+      "lane": "texts",
+      "far_end": "DEV-W1 and DEV-E1",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S24",
+      "name": "STOP, START, HELP, ARRET, AIDE, plain-English opt-out",
+      "lane": "texts",
+      "far_end": "ROBOT-2 to DEV-E1 only",
+      "cadence": "Weekly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d", "offset_days": 5, "hour_utc": 7 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 2,
+      "note": "The dials are the call to ROBOT-2 that must still connect after the STOP (D38)."
+    },
+    {
+      "id": "S25",
+      "name": "Automated texts and quiet hours",
+      "lane": "texts",
+      "far_end": "ROBOT-1",
+      "cadence": "Weekly, two runs (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "label": "daytime", "every": "7d" },
+        { "label": "night", "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S26",
+      "name": "Messaging caps and budgets",
+      "lane": "texts",
+      "far_end": "Seeded rows, at most 2 real sends",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S27",
+      "name": "Website widget code",
+      "lane": "texts",
+      "far_end": "ROBOT-1",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S28",
+      "name": "Number buy, bind, call, release",
+      "lane": "account",
+      "far_end": "ROBOT-1 calls the new number",
+      "cadence": "Monthly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "30d", "offset_days": 1, "hour_utc": 9 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 1,
+      "min_room": 2
+    },
+    {
+      "id": "S29",
+      "name": "Cancel, grace, release, billing",
+      "lane": "account",
+      "far_end": "Stripe sandbox",
+      "cadence": "Monthly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "30d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S31",
+      "name": "Lou reply drafts and AI caps",
+      "lane": "account",
+      "far_end": "A synthetic thread",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S32",
+      "name": "Onboarding, Checkout with the 4242 test card, customer portal",
+      "lane": "account",
+      "far_end": "Stripe sandbox",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S33",
+      "name": "Two-factor login",
+      "lane": "account",
+      "far_end": "none",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S34",
+      "name": "Emails",
+      "lane": "account",
+      "far_end": "Robot mailbox; Mailpit",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "S35",
+      "name": "Public sign-up form",
+      "lane": "account",
+      "far_end": "Mailpit",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "D01",
+      "name": "Inbound call rings every rig surface; the answering surface rotates",
+      "lane": "device",
+      "far_end": "ROBOT-1 to DEV-A1, dispatcher added under the lease",
+      "cadence": "Weekly (4)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": false,
+      "unscheduled_because": "hourly-cap",
+      "dials": 3,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 3,
+      "min_room": 4
+    },
+    {
+      "id": "D02",
+      "name": "Android wake: app killed, forced Doze, locked with a PIN",
+      "lane": "device",
+      "far_end": "ROBOT-1 to DEV-A1",
+      "cadence": "Daily (3)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "1d", "offset_days": 0, "hour_utc": 4 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 3,
+      "note": "The ring leg to the Pixel, plus the ring-me leg its answer opens."
+    },
+    {
+      "id": "D02p",
+      "name": "Android wake with no call",
+      "lane": "device",
+      "far_end": "none",
+      "cadence": "4 times a day (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "6h" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "D03",
+      "name": "Natural Doze",
+      "lane": "device",
+      "far_end": "ROBOT-1",
+      "cadence": "Weekly (3)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d", "offset_days": 1, "hour_utc": 7 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 3
+    },
+    {
+      "id": "D04",
+      "name": "Android variants: standby buckets, battery saver, secure lock, before first unlock, app hibernation",
+      "lane": "device",
+      "far_end": "ROBOT-1",
+      "cadence": "Fortnightly, rotating (3)",
+      "runs_on": "rig",
+      "runs": [
+        { "label": "rotating variant", "every": "14d", "offset_days": 0, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 3
+    },
+    {
+      "id": "D07",
+      "name": "Android app calls out",
+      "lane": "device",
+      "far_end": "ROBOT-1 answers",
+      "cadence": "Fortnightly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 8, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 2
+    },
+    {
+      "id": "D08",
+      "name": "Background tab and Web Push",
+      "lane": "device",
+      "far_end": "ROBOT-1, dispatcher-only audience under the lease",
+      "cadence": "Fortnightly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 10, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 1,
+      "min_room": 2
+    },
+    {
+      "id": "D09",
+      "name": "First-answer race",
+      "lane": "device",
+      "far_end": "ROBOT-1",
+      "cadence": "Fortnightly (3)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 1, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 3
+    },
+    {
+      "id": "D10",
+      "name": "Fresh install; upgrade from the previous release",
+      "lane": "device",
+      "far_end": "ROBOT-1",
+      "cadence": "Weekly, alternating (3)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 2, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 3,
+      "note": "Alternates weekly with D12, so each runs every other week."
+    },
+    {
+      "id": "D12",
+      "name": "Fresh install; upgrade from the previous release",
+      "lane": "device",
+      "far_end": "ROBOT-1",
+      "cadence": "Weekly, alternating (3)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "14d", "offset_days": 9, "hour_utc": 8 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 3,
+      "note": "Alternates weekly with D10, so each runs every other week."
+    },
+    {
+      "id": "D11",
+      "name": "Unattended recovery",
+      "lane": "device",
+      "far_end": "none",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "D13",
+      "name": "Bad network and a mid-call Wi-Fi drop",
+      "lane": "device",
+      "far_end": "ROBOT-1",
+      "cadence": "Monthly (2)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "30d", "offset_days": 2, "hour_utc": 9 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 3
+    },
+    {
+      "id": "D14",
+      "name": "In-app voicemail and MMS playback",
+      "lane": "device",
+      "far_end": "none",
+      "cadence": "Weekly (0)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": true,
+      "dials": 0,
+      "far_end_legs": 0,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 0
+    },
+    {
+      "id": "E01",
+      "name": "Emulator wake, rotating through API 34, 35 and 36",
+      "lane": "emulator",
+      "far_end": "ROBOT-1 to DEV-E1",
+      "cadence": "Every 3 days (3)",
+      "runs_on": "rig",
+      "runs": [
+        { "label": "wake", "every": "3d", "offset_days": 0, "hour_utc": 6 },
+        { "label": "notifications revoked", "every": "7d", "offset_days": 2, "hour_utc": 7 },
+        { "label": "force-stopped", "every": "7d", "offset_days": 3, "hour_utc": 7 }
+      ],
+      "scheduled": true,
+      "dials": 2,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 2,
+      "min_room": 3,
+      "note": "The two weekly variants are runs of their own, budgeted at E01's dials; they may dial one fewer, since nothing should answer."
+    },
+    {
+      "id": "K01",
+      "name": "Outbound carrier egress (optional, Phase 4)",
+      "lane": "carrier",
+      "far_end": "A public echo-test line",
+      "cadence": "Weekly (1)",
+      "runs_on": "rig",
+      "runs": [
+        { "every": "7d" }
+      ],
+      "scheduled": false,
+      "unscheduled_because": "phase-4",
+      "dials": 0,
+      "far_end_legs": 1,
+      "peak_concurrent_outbound_legs": 0,
+      "min_room": 3,
+      "note": "Optional, Phase 4, and only once Telnyx agrees (2.3)."
+    }
+  ]
+}
