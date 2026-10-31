@@ -1,0 +1,37 @@
+{
+  "schema": "loonext.rig-test-ids.v1",
+  "notes": [
+    "The ids the rig's drivers find call controls by. The drivers live outside the apps, so a renamed id breaks a rig scenario rather than a test in the app. scripts/check-rig-test-ids.mjs fails when an id here is not in the platform's source, or the source has one that is not here.",
+    "Android: the values of CallTestTags.kt. Only the nonprod builds expose them to UIAutomator as resource ids (BuildConfig.TEST_TAGS_AS_RESOURCE_IDS), and CallTestTagsTest asserts that every one is applied on a call surface.",
+    "Web and iOS call surfaces carry no test ids today: no data-testid under the web call components and pages, and no accessibilityIdentifier under the iOS call features. The check scans those directories, so the first one added has to be registered here. There is no iOS lane (X21)."
+  ],
+  "platforms": [
+    {
+      "platform": "android",
+      "kind": "compose-test-tag",
+      "sources": ["apps/android/app/src/main/kotlin/com/loonext/android/features/calls/CallTestTags.kt"],
+      "ids": [
+        { "id": "call_ringing", "constant": "RINGING", "on": "the full-screen ring in CallActivity" },
+        { "id": "call_in_call", "constant": "IN_CALL", "on": "the root of InCallScreen" },
+        { "id": "call_answer", "constant": "ANSWER", "on": "the full-screen ring and the in-call screen's ringing row" },
+        { "id": "call_decline", "constant": "DECLINE", "on": "the full-screen ring and the in-call screen's ringing row" },
+        { "id": "call_hang_up", "constant": "HANG_UP", "on": "the in-call screen" },
+        { "id": "call_mute", "constant": "MUTE", "on": "the in-call screen's controls" },
+        { "id": "call_keypad", "constant": "KEYPAD", "on": "the in-call screen's controls" },
+        { "id": "call_hold", "constant": "HOLD", "on": "the in-call screen's controls" }
+      ]
+    },
+    {
+      "platform": "web",
+      "kind": "data-testid",
+      "sources": ["apps/web/src/components/calls", "apps/web/src/app/(app)/calls"],
+      "ids": []
+    },
+    {
+      "platform": "ios",
+      "kind": "accessibility-identifier",
+      "sources": ["apps/ios/Loonext/Features/Calls"],
+      "ids": []
+    }
+  ]
+}
