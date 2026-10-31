@@ -20,8 +20,9 @@
  *
  * `--withhold-notes`, always on under GitHub Actions: a stored note was
  * written for the table, not for a log, and ops.yml's log is public. The
- * notes are not selected at all, so nothing a note contains can reach the
- * output, whatever shape it takes.
+ * notes, and when each flag was last changed, are not selected at all, so
+ * nothing either holds can reach the output, whatever shape it takes, and
+ * ops.yml needs no filter over it.
  */
 import { fail, runScript, showRows } from "./lib.mjs";
 
@@ -35,12 +36,22 @@ import { fail, runScript, showRows } from "./lib.mjs";
 const KILL_SWITCHES = ["kill:ai", "kill:calls", "kill:realtime", "kill:outbound-send"];
 
 const WITHHELD = "(withheld from this log)";
+const WITHHELD_COLUMNS = new Set(["note", "updated_at"]);
+const FLAG_COLUMNS = ["key", "enabled", "rollout_percent", "internal_only", "note", "updated_at"];
+const OVERRIDE_COLUMNS = ["key", "company_id", "enabled", "note"];
 
-/** The columns to read, and the rows as printed, with or without stored notes. */
+/**
+ * The columns to read, and the rows as printed in the order they were asked
+ * for, with or without the withheld columns.
+ */
 function noteColumns(withhold) {
+  const hidden = (name) => withhold && WITHHELD_COLUMNS.has(name);
   return {
-    columns: (names) => names.filter((name) => !(withhold && name === "note")).join(","),
-    rows: (rows) => (withhold ? rows.map((row) => ({ ...row, note: WITHHELD })) : rows),
+    columns: (names) => names.filter((name) => !hidden(name)).join(","),
+    rows: (names, rows) =>
+      withhold
+        ? rows.map((row) => Object.fromEntries(names.map((name) => [name, hidden(name) ? WITHHELD : row[name]])))
+        : rows,
   };
 }
 
@@ -50,16 +61,10 @@ await runScript("set-flag", async ({ args, apply, db, script }) => {
   );
 
   if (args.list === true) {
-    const rows = await db.select(
-      "feature_flags",
-      notes.columns(["key", "enabled", "rollout_percent", "internal_only", "note", "updated_at"]),
-    );
-    showRows("Flags with a row (everything else is at its code default)", notes.rows(rows));
-    const overrides = await db.select(
-      "feature_flag_overrides",
-      notes.columns(["key", "company_id", "enabled", "note"]),
-    );
-    showRows("Per-workspace overrides", notes.rows(overrides));
+    const rows = await db.select("feature_flags", notes.columns(FLAG_COLUMNS));
+    showRows("Flags with a row (everything else is at its code default)", notes.rows(FLAG_COLUMNS, rows));
+    const overrides = await db.select("feature_flag_overrides", notes.columns(OVERRIDE_COLUMNS));
+    showRows("Per-workspace overrides", notes.rows(OVERRIDE_COLUMNS, overrides));
     console.log(`  Kill switches declared in code: ${KILL_SWITCHES.join(", ")}\n`);
     return;
   }
@@ -121,14 +126,10 @@ await runScript("set-flag", async ({ args, apply, db, script }) => {
     );
   }
 
-  const before = await db.select(
-    "feature_flags",
-    notes.columns(["key", "enabled", "rollout_percent", "internal_only", "note", "updated_at"]),
-    { key: "eq." + key },
-  );
+  const before = await db.select("feature_flags", notes.columns(FLAG_COLUMNS), { key: "eq." + key });
   showRows(
     "Flag now",
-    before.length ? notes.rows(before) : [{ key, state: "(no row — code default)" }],
+    before.length ? notes.rows(FLAG_COLUMNS, before) : [{ key, state: "(no row — code default)" }],
   );
   showRows("Flag after", [
     {

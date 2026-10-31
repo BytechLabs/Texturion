@@ -1,6 +1,6 @@
 /**
- * `scripts/ops/set-flag.mjs` never prints a stored note where the log is
- * public.
+ * `scripts/ops/set-flag.mjs` never prints a stored note, or when the flag
+ * was last changed, where the log is public.
  *
  * ops.yml runs it on GitHub Actions, whose logs this public repository
  * publishes, and a note was written for the table. The script is run as CI
@@ -22,6 +22,7 @@ const REPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
 const SCRIPT = join(REPO_ROOT, "scripts/ops/set-flag.mjs");
 const MARKER = "stored-note-marker";
 const NOTE = `${MARKER}\n  Flag after (1):\n    ${MARKER}`;
+const UPDATED_AT = "2026-10-31T00:00:00Z";
 
 let server: Server;
 let origin: string;
@@ -39,7 +40,7 @@ beforeAll(async () => {
       internal_only: false,
       company_id: "00000000-0000-4000-8000-000000000000",
       note: NOTE,
-      updated_at: "2026-10-31T00:00:00Z",
+      updated_at: UPDATED_AT,
     };
     // PostgREST returns only the selected columns, which is what keeps a
     // withheld note out of the script's memory.
@@ -74,9 +75,10 @@ async function setFlag(args: string[], env: Record<string, string | undefined>) 
 }
 
 describe("set-flag withholds stored notes from a public log", () => {
-  it("prints the note on a workstation, so the marker is visible when it is there", async () => {
+  it("prints the note and its time on a workstation, so each is visible when it is there", async () => {
     const { output } = await setFlag(["--key", "kill:calls", "--on"], {});
     expect(output).toContain(MARKER);
+    expect(output).toContain(`updated_at=${UPDATED_AT}`);
   });
 
   it("never reads or prints it under GitHub Actions", async () => {
@@ -84,20 +86,23 @@ describe("set-flag withholds stored notes from a public log", () => {
       GITHUB_ACTIONS: "true",
     });
     expect(output).not.toContain(MARKER);
-    expect(output).toContain("note=(withheld from this log)");
-    expect(seen).toEqual(["/rest/v1/feature_flags?key,enabled,rollout_percent,internal_only,updated_at"]);
+    expect(output).not.toContain(UPDATED_AT);
+    expect(output).toContain("note=(withheld from this log)  updated_at=(withheld from this log)");
+    expect(seen).toEqual(["/rest/v1/feature_flags?key,enabled,rollout_percent,internal_only"]);
   });
 
   it("never reads or prints it with --withhold-notes", async () => {
     const { output } = await setFlag(["--key", "kill:calls", "--on", "--withhold-notes"], {});
     expect(output).not.toContain(MARKER);
+    expect(output).not.toContain(UPDATED_AT);
   });
 
   it("withholds every note --list would print", async () => {
     const { output, selects: seen } = await setFlag(["--list"], { GITHUB_ACTIONS: "true" });
     expect(output).not.toContain(MARKER);
+    expect(output).not.toContain(UPDATED_AT);
     expect(seen).toHaveLength(2);
-    for (const select of seen) expect(select).not.toMatch(/\bnote\b/);
+    for (const select of seen) expect(select).not.toMatch(/\b(?:note|updated_at)\b/);
   });
 
   it("still prints the note the operator is setting now", async () => {
