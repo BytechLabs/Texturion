@@ -2,7 +2,7 @@
   "schema": "loonext.rig-crons.v1",
   "notes": [
     "What the rig does with each cron a tracked Worker config declares (docs/RIG.md, Loonext in rig mode). The rig fires every cron itself through /cdn-cgi/handler/scheduled; scripts/check-rig-crons.mjs fails when a config and this file disagree, and `--ref <ref>` checks another ref's configs against it.",
-    "run: fire it on schedule. run-expect-refusal: fire it, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it; a skip silences the cron's liveness keys, so it lists the alerts that follow.",
+    "run: fire it on schedule. run-expect-refusal: fire it, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it. A skipped API cron silences its liveness keys, [\"ops\",\"cron:<expr>\"] and each job's, so it lists them in fingerprints. Another Worker's cron (the edge's, the guard's) runs on Cloudflare and feeds no liveness key the rig's API raises, so it lists none: the API runs */15 too, and its key there would hide the API's real alert.",
     "Refusals are listed for every code path that can reach one, not only for what today's seed exercises: a refusal that never happens costs nothing, and one that is missing is an unexplained Sentry fingerprint in R00.",
     "A refusal's outcome says what Sentry receives. job-fails: the job lets the TelnyxApiError out, runScheduledJobs rejects with an AggregateError that holds it, the job's heartbeat is withheld, and after its grace the liveness checker raises the job's ops fingerprint. captured: the job catches it at caught_in, reports it as its own event and returns normally, so its heartbeat is recorded and no ops fingerprint follows; follow_on_events lists what the job raises next because of it.",
     "defects: events that mean the rig's seed or a scenario's setup is wrong, with the cause. Nothing suppresses them; R00 reports them with that cause instead of as unexplained.",
@@ -52,7 +52,7 @@
         "job:reconcile-text-enablement",
         "job:reconcile-voice-enablement"
       ],
-      "note": "reconcile-numbers lists the account's numbers through the guard and acts only on its own billing group. A group number with no phone_numbers row is flagged once per run, or, when its customer_reference names a settled workspace with nothing provisioning, DELETEd (provisioning.ts reconcileNumbers): the robot's numbers need a row from the seed, or no customer_reference, or the guard must leave them out of the rig-api caller's listing. The liveness checker alerts on channels a sparse rig leaves quiet; the scenarios that use each channel judge it instead.",
+      "note": "reconcile-numbers lists the account's numbers through the guard and acts only on its own billing group. A group number with no phone_numbers row is flagged once per run, or, when its customer_reference names a settled workspace with nothing provisioning, DELETEd (provisioning.ts reconcileNumbers). The seed gives every standing number an active row, ROBOT-1, ROBOT-2 and STRANGER-1 under the Robot workspace (scripts/rig/tenants.mjs), so the sweep knows all eight. The liveness checker alerts on channels a sparse rig leaves quiet; the scenarios that use each channel judge it instead.",
       "refusals": [
         {
           "job": "job:retry-campaign-assignments",
@@ -80,7 +80,7 @@
       "defects": [
         {
           "match": "message starts \"reconcile: Telnyx number \" and contains \"is unknown to phone_numbers\"",
-          "means": "A number in the rig's group has no phone_numbers row: on the rig, ROBOT-1, ROBOT-2 or STRANGER-1. One warning per number per run, 96 a day each, against the relay's 100. Give each a row from the seed, or have the guard leave them out of the rig-api caller's listing."
+          "means": "A number in the rig's group has no live phone_numbers row. The seed writes one for every standing number, so either a row was released or lost since the last seed (run rig seed), or the group holds a number that is not a standing one and no workspace bought. One warning per number per run, 96 a day each, against the relay's 100."
         },
         {
           "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...]",
@@ -121,10 +121,11 @@
         "job:overage-warning",
         "job:sweep-stale-calls",
         "job:email-health",
+        "job:ring-success-watch",
         "job:inbound-canary",
         "job:expire-payment-requests"
       ],
-      "note": "Usage goes to the Stripe sandbox, which S01's meter check reads. The inbound canary stays off because the rig sets no CANARY_* numbers. sweep-stale-calls hangs up a runaway leg through the guard's leg-command class."
+      "note": "Usage goes to the Stripe sandbox, which S01's meter check reads. The inbound canary stays off because the rig sets no CANARY_* numbers. sweep-stale-calls hangs up a runaway leg through the guard's leg-command class. ring-success-watch reads api_ring_success from the rig's own database and alerts [\"ops\",\"ring-success-<platform>\"] only on a drop, which takes 30 ring pushes in the 24-hour window and 30 in the week before it. On the rig that means the rig's own phones stopped ringing, so nothing suppresses it."
     },
     {
       "config": "apps/api/wrangler.jsonc",
@@ -164,10 +165,11 @@
         "job:number-health",
         "job:registration-stalls",
         "job:call-silence",
+        "job:telnyx-wiring-watch",
         "job:aup-watch",
         "job:activation-stall"
       ],
-      "note": "No job but the registration poller makes a Telnyx request.",
+      "note": "No job but the registration poller makes a Telnyx request. telnyx-wiring-watch reads production's Telnyx wiring in production only: productionWatchRefusal stops it in rig mode before any request, so it logs that it was skipped and returns, and its heartbeat is recorded.",
       "refusals": [
         {
           "job": "job:poll-registrations",
@@ -304,7 +306,28 @@
       "cron": "35 14 1 * *",
       "class": "run",
       "jobs": ["job:response-time-recap"],
-      "note": "Monthly recap email to every active seeded workspace. The guard sends only to Resend's test addresses, so the seed's member emails must be @resend.dev or every send is refused."
+      "note": "Monthly recap email to every active seeded workspace. The guard sends only to Resend's test addresses, and every member the seed creates has one (memberEmail in scripts/rig/tenants.mjs, pinned by tools/rig/test/seed.test.mjs)."
+    },
+    {
+      "config": "tools/edge/wrangler.jsonc",
+      "cron": "*/15 * * * *",
+      "class": "skip",
+      "reason": "loonext-rig-edge runs on Cloudflare, never on the rig box: its mail self-test, uplink tick and dead-man fire there on Cloudflare's clock, so the rig has nothing to fire. The dead-man reports to the synthetic project as [\"synthetic-infra\", <component>] and to production as [\"ops\",\"synthetic-dark\"], never through the rig's relay, and no liveness key watches this cron.",
+      "fingerprints": []
+    },
+    {
+      "config": "tools/guard/wrangler.jsonc",
+      "cron": "0 6 * * 1",
+      "class": "skip",
+      "reason": "The guard's weekly Telnyx key inventory, a Cloudflare cron on loonext-telnyx-guard that the rig box never fires. It reports to production's Sentry as [\"ops\",\"telnyx-key-inventory\"], never through the rig's relay, and no liveness key watches this cron.",
+      "fingerprints": []
+    },
+    {
+      "config": "tools/guard/wrangler.jsonc",
+      "cron": "7 * * * *",
+      "class": "skip",
+      "reason": "The guard's hourly upkeep on Cloudflare (expired legs, the robot mailbox's arrival deadline, the first order's read-back, the balance sample and the monthly cap), which the rig box never fires. What it raises goes to production's Sentry under the guard's own keys (telnyx-guard-order-group, telnyx-balance-low, telnyx-guard-detach), never through the rig's relay, and no liveness key watches this cron.",
+      "fingerprints": []
     }
   ]
 }

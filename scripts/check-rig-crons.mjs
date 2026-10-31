@@ -17,6 +17,10 @@
  * reports it as its own event and returns normally, so no liveness alert
  * follows, and suppressing one would hide a real failure.
  *
+ * A skipped API cron lists the liveness alerts that follow. A skipped cron of
+ * any other Worker (the edge's, the guard's) lists none, since nothing on the
+ * rig keeps its liveness and an API key listed there would hide the API's own.
+ *
  * Fails when a config declares a cron the registry does not classify, the
  * registry classifies one no config declares, an entry is malformed, an API
  * cron's jobs differ from `CRON_JOBS` (the jobs are what is classified), a
@@ -213,13 +217,30 @@ function checkClassFields(entry, at, problems, families, sourceAt) {
     if (typeof entry.reason !== "string" || entry.reason.trim() === "") {
       problems.push(`${at}: a skip needs a reason`);
     }
-    // A cron that never fires silences its liveness keys, and the checker
-    // alerts on each one.
-    const owed = [["ops", `cron:${entry.cron}`], ...(entry.jobs ?? []).map((job) => ["ops", job])];
-    const listed = Array.isArray(entry.fingerprints) ? entry.fingerprints : [];
-    for (const fingerprint of owed) {
-      if (!listed.some((item) => isFingerprint(item) && sameFingerprint(item, fingerprint))) {
-        problems.push(`${at}: a skip silences ${JSON.stringify(fingerprint)}, so list it in fingerprints`);
+    if (entry.fingerprints !== undefined && (!Array.isArray(entry.fingerprints) || !entry.fingerprints.every(isFingerprint))) {
+      problems.push(`${at}: fingerprints must be a list of fingerprints`);
+      return;
+    }
+    const listed = entry.fingerprints ?? [];
+    // The API's liveness checker watches only the API's own crons and jobs: a
+    // skipped one goes overdue and alerts under each key.
+    if (entry.config in JOB_SOURCES) {
+      const owed = [["ops", `cron:${entry.cron}`], ...(entry.jobs ?? []).map((job) => ["ops", job])];
+      for (const fingerprint of owed) {
+        if (!listed.some((item) => sameFingerprint(item, fingerprint))) {
+          problems.push(`${at}: a skip silences ${JSON.stringify(fingerprint)}, so list it in fingerprints`);
+        }
+      }
+      return;
+    }
+    // An API key listed here would be read as expected, and the API runs some
+    // of the same expressions (*/15).
+    for (const item of listed) {
+      if (item[0] === "ops" && /^(?:cron|job):/.test(item[1] ?? "")) {
+        problems.push(
+          `${at}: ${entry.config} feeds no liveness key, so ${JSON.stringify(item)} is the API's own ` +
+            `alert and listing it would hide the API's real one; remove it`,
+        );
       }
     }
     return;
@@ -492,16 +513,8 @@ function parseArgs(argv) {
   return { ref };
 }
 
-function main() {
-  const { ref } = parseArgs(process.argv.slice(2));
-  if (ref !== null) {
-    try {
-      git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
-    } catch {
-      console.error(`check-rig-crons: ${ref} is not a commit in this checkout.`);
-      process.exit(1);
-    }
-  }
+/** What `judge` reads, from a ref or (null) from this checkout. */
+export function readInput(ref = null) {
   const configs = {};
   const jobs = {};
   for (const file of trackedConfigs(ref)) {
@@ -524,7 +537,20 @@ function main() {
       if (pointer !== null && !(pointer[1] in sources)) sources[pointer[1]] = readAt(ref, pointer[1]);
     }
   }
-  const { problems, notes, counts } = judge({ registry, configs, jobs, families, sources, exact: ref === null });
+  return { registry, configs, jobs, families, sources, exact: ref === null };
+}
+
+function main() {
+  const { ref } = parseArgs(process.argv.slice(2));
+  if (ref !== null) {
+    try {
+      git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
+    } catch {
+      console.error(`check-rig-crons: ${ref} is not a commit in this checkout.`);
+      process.exit(1);
+    }
+  }
+  const { problems, notes, counts } = judge(readInput(ref));
 
   const where = ref === null ? "this checkout" : `ref ${ref}`;
   for (const note of notes) console.log(`  - ${note}`);

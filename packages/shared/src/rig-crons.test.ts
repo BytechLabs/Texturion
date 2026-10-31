@@ -26,34 +26,24 @@ const guard = (await import(join(REPO, "scripts", "check-rig-crons.mjs"))) as {
   cronJobsFromSource: (text: string) => Map<string, string[]> | null;
   refusedFamiliesFromPolicy: (text: string) => string[] | null;
   declaresFunction: (text: string, name: string) => boolean;
-  judge: (input: {
-    registry: unknown;
-    configs: Record<string, string[]>;
-    jobs?: Record<string, Map<string, string[]> | null>;
-    families?: string[] | null;
-    sources?: Record<string, string | null>;
-    exact?: boolean;
-  }) => Judged;
+  judge: (input: JudgeInput) => Judged;
+  readInput: (ref?: string | null) => JudgeInput & { registry: Registry; jobs: Record<string, Map<string, string[]> | null> };
+};
+type JudgeInput = {
+  registry: unknown;
+  configs: Record<string, string[]>;
+  jobs?: Record<string, Map<string, string[]> | null>;
+  families?: string[] | null;
+  sources?: Record<string, string | null>;
+  exact?: boolean;
 };
 
 const API = "apps/api/wrangler.jsonc";
-const WEB = "apps/web/wrangler.jsonc";
+const EDGE = "tools/edge/wrangler.jsonc";
+const GUARD = "tools/guard/wrangler.jsonc";
 
-/** The real tree, read the way the script reads it. */
-function realInput() {
-  const configs = { [API]: guard.cronsFromConfig(API, read(API)), [WEB]: guard.cronsFromConfig(WEB, read(WEB)) };
-  const jobs = { [API]: guard.cronJobsFromSource(read("apps/api/src/index.ts")) };
-  const families = guard.refusedFamiliesFromPolicy(read("apps/api/src/environments/policy.ts"));
-  const registry = JSON.parse(read(guard.REGISTRY_FILE)) as Registry;
-  const sources: Record<string, string> = {};
-  for (const entry of registry.crons) {
-    for (const refusal of (entry.refusals ?? []) as { caught_in?: string }[]) {
-      const file = refusal.caught_in?.split("#")[0];
-      if (file !== undefined) sources[file] = read(file);
-    }
-  }
-  return { configs, jobs, families, sources, registry };
-}
+/** The real tree, read by the script itself, so this sees the configs CI sees. */
+const realInput = () => guard.readInput(null);
 
 const MATCH = {
   code: "rig_endpoint_refused",
@@ -225,6 +215,25 @@ describe("malformed entries", () => {
     expect(guard.judge({ ...world(complete), exact: true }).problems).toEqual([]);
   });
 
+  it("owes no liveness key for another Worker's cron, and refuses the API's own key there", () => {
+    const input = world(run);
+    input.configs[EDGE] = ["*/15 * * * *"];
+    const edge = { config: EDGE, cron: "*/15 * * * *", class: "skip", reason: "x", fingerprints: [] as string[][] };
+    input.registry.crons.push(edge);
+    expect(guard.judge({ ...input, exact: true }).problems).toEqual([]);
+    edge.fingerprints = [["ops", "cron:*/15 * * * *"]];
+    expect(problems(input)).toMatch(/feeds no liveness key, so \["ops","cron:\*\/15 \* \* \* \*"\] is the API's own alert/);
+    edge.fingerprints = [["ops", "job:a"]];
+    expect(problems(input)).toMatch(/\["ops","job:a"\] is the API's own alert/);
+  });
+
+  it("fails skip fingerprints that are not a list of fingerprints", () => {
+    const input = world(run);
+    input.configs[GUARD] = ["7 * * * *"];
+    input.registry.crons.push({ config: GUARD, cron: "7 * * * *", class: "skip", reason: "x", fingerprints: ["ops"] });
+    expect(problems(input)).toMatch(/fingerprints must be a list of fingerprints/);
+  });
+
   it("fails a refusal on an endpoint rig mode does not refuse", () => {
     const entry = { ...run, class: "run-expect-refusal", refusals: [{ ...refusal, telnyx_paths: ["/v2/messages"] }] };
     expect(problems(world(entry))).toMatch(/rig mode does not refuse \/v2\/messages/);
@@ -298,6 +307,19 @@ describe("the real registry's refusals", () => {
       ]),
     );
     expect(outcomes).not.toContain("job:retry-campaign-assignments job-fails");
+  });
+
+  it("skips the edge's and the guard's Cloudflare crons, owing no liveness key", () => {
+    const { registry, configs } = realInput();
+    for (const config of [EDGE, GUARD]) {
+      const entries = registry.crons.filter((entry) => entry.config === config);
+      expect(entries.map((entry) => entry.cron).sort()).toEqual([...(configs[config] ?? [])].sort());
+      expect(entries.length).toBeGreaterThan(0);
+      for (const entry of entries) {
+        expect(entry.class).toBe("skip");
+        expect(entry.fingerprints).toEqual([]);
+      }
+    }
   });
 });
 
