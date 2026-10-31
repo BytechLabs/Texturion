@@ -10,14 +10,18 @@
  *   ROUTINE=check|setup|order-standing|key-inventory|accept-key-inventory|reattach|measurements
  *   EDGE_ORIGIN, GUARD_ADMIN_TOKEN
  *   measurements only: RESERVE_LEGS; CALLS, ABANDONED and SHORT together; WINDOW_START_HOUR;
- *     USAGE_USD, this month's actual Telnyx usage for the partition, from detail records
+ *     USAGE_USD, this month's actual Telnyx usage for the partition, from detail records.
+ *     With none of them (the daily run), production's reserve, and its window
+ *     when due, are read as agent_diag from AGENT_DIAG_DATABASE_URL
+ *     (production-measurements.ts) and filed.
  *
  *   node --experimental-strip-types tools/guard/scripts/admin-routine.ts
  */
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { EDGE_PATHS, GUARD_ROUTES } from "../../rig-protocol/src/index.ts";
+import { EDGE_PATHS, GUARD_ROUTES, type GuardHealth } from "../../rig-protocol/src/index.ts";
+import { planFiling, readProduction, windowDue, type ReadOutcome } from "./production-measurements.ts";
 
 export const ROUTINES = [
   "check",
@@ -269,16 +273,65 @@ export function edgePost(edgeOrigin: string, token: string, fetcher: typeof fetc
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    const text = await response.text();
-    let parsed: unknown = null;
-    try {
-      parsed = text ? JSON.parse(text) : null;
-    } catch {
-      parsed = null;
-    }
-    return { status: response.status, body: parsed };
+    return { status: response.status, body: await jsonOf(response) };
   };
 }
+
+/** The guard's /health through the edge, with the admin token. */
+export function edgeHealth(edgeOrigin: string, token: string, fetcher: typeof fetch = fetch): () => Promise<Answer> {
+  const url = `${new URL(edgeOrigin).origin}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.health}`;
+  return async () => {
+    const response = await fetcher(url, { headers: { authorization: `Bearer ${token}` } });
+    return { status: response.status, body: await jsonOf(response) };
+  };
+}
+
+async function jsonOf(response: Response): Promise<unknown> {
+  const text = await response.text();
+  try {
+    return text ? (JSON.parse(text) as unknown) : null;
+  } catch {
+    return null;
+  }
+}
+
+function given(inputs: Measurements): boolean {
+  return Object.values(inputs).some((value) => typeof value === "string" && value.trim() !== "");
+}
+
+/**
+ * `measurements` with nothing typed in: production's reserve, and the window
+ * once the guard's is due, read as agent_diag and filed. Without the login,
+ * a notice and nothing filed.
+ */
+export async function measureProduction(
+  post: Post,
+  health: () => Promise<Answer>,
+  read: () => ReadOutcome,
+  now: Date = new Date(),
+): Promise<Outcome> {
+  const outcome = read();
+  if (outcome.ok === "absent") return { ok: true, lines: outcome.lines };
+  if (outcome.ok === false) return { ok: false, lines: outcome.lines };
+  const answer = await health().catch(() => null);
+  const guard = answer && ok(answer) ? (answer.body as Partial<GuardHealth> | null) : null;
+  const lines: string[] = [];
+  if (!guard?.paid_dials) lines.push("::warning title=Window not checked::The guard's /health did not answer, so only the reserve is filed.");
+  const plan = planFiling(outcome.read, guard?.paid_dials ? windowDue(guard.paid_dials.window_measured_at, now) : false);
+  lines.push(...plan.lines, RATIOS_NOT_READ);
+  if (!given(plan.inputs)) return { ok: true, lines };
+  const filed = await runRoutine("measurements", post, plan.inputs);
+  return { ok: filed.ok, lines: [...lines, ...filed.lines] };
+}
+
+/**
+ * The ratios stay with whoever dispatches them: the guard has no reading of
+ * the account's detail records that says which calls Telnyx counts as
+ * abandoned or short. Until one is filed, admission refuses paid dials
+ * (`admission.ratios_unknown`).
+ */
+const RATIOS_NOT_READ =
+  "::notice title=Ratios not filed::Nothing here reads the account's abandoned and short calls; dispatch measurements with calls, abandoned and short to file them.";
 
 async function main(): Promise<number> {
   const routine = (process.env.ROUTINE ?? "check") as Routine;
@@ -286,26 +339,34 @@ async function main(): Promise<number> {
     console.log(`::error title=Unknown routine::${routine} is not one of ${ROUTINES.join(", ")}.`);
     return 1;
   }
-  const origin = process.env.EDGE_ORIGIN?.trim() ?? "";
-  const token = process.env.GUARD_ADMIN_TOKEN?.trim() ?? "";
-  if (!origin || !token) {
-    console.log(
-      `::${routine === "check" ? "notice" : "error"} title=Guard not reachable yet::EDGE_ORIGIN or GUARD_ADMIN_TOKEN is not set in the guard environment, so ${routine} did not run.`,
-    );
-    return routine === "check" ? 0 : 1;
-  }
-  if (new URL(origin).protocol !== "https:") {
-    console.log("::error title=EDGE_ORIGIN is not https::The admin token is sent only to an https edge.");
-    return 1;
-  }
-  const outcome = await runRoutine(routine, edgePost(origin, token), {
+  const inputs: Measurements = {
     reserveLegs: process.env.RESERVE_LEGS,
     calls: process.env.CALLS,
     abandoned: process.env.ABANDONED,
     short: process.env.SHORT,
     windowStartHour: process.env.WINDOW_START_HOUR,
     usageUsd: process.env.USAGE_USD,
-  });
+  };
+  // The daily run: a routine that is not set up yet says so and stays green.
+  const fromProduction = routine === "measurements" && !given(inputs);
+  const origin = process.env.EDGE_ORIGIN?.trim() ?? "";
+  const token = process.env.GUARD_ADMIN_TOKEN?.trim() ?? "";
+  if (!origin || !token) {
+    const quiet = routine === "check" || fromProduction;
+    console.log(
+      `::${quiet ? "notice" : "error"} title=Guard not reachable yet::EDGE_ORIGIN or GUARD_ADMIN_TOKEN is not set in the guard environment, so ${routine} did not run.`,
+    );
+    return quiet ? 0 : 1;
+  }
+  if (new URL(origin).protocol !== "https:") {
+    console.log("::error title=EDGE_ORIGIN is not https::The admin token is sent only to an https edge.");
+    return 1;
+  }
+  const outcome = fromProduction
+    ? await measureProduction(edgePost(origin, token), edgeHealth(origin, token), () =>
+        readProduction(process.env.AGENT_DIAG_DATABASE_URL),
+      )
+    : await runRoutine(routine, edgePost(origin, token), inputs);
   for (const line of outcome.lines) console.log(line);
   return outcome.ok ? 0 : 1;
 }

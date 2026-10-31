@@ -54,8 +54,12 @@ export const COST_USD = {
 /** The default until production's call history says otherwise. */
 export const WINDOW_DEFAULT_START_HOUR = 4;
 export const WINDOW_HOURS = 6;
+/** guard.yml measures the window again once it is this old, leaving a week of daily retries. */
+export const WINDOW_RECHECK_MS = 28 * DAY;
 /** A measured window is rechecked monthly; older than this, the default applies. */
 export const WINDOW_STALE_MS = 35 * DAY;
+/** The production call history a window is chosen from. */
+export const WINDOW_HISTORY_DAYS = 28;
 
 /** Over the whole account, production's calls included. */
 export const MAX_ABANDONED_SHARE = 0.15;

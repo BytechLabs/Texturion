@@ -1,14 +1,24 @@
-import { EDGE_PATHS, HEADER } from "@loonext/rig-protocol";
+import { EDGE_PATHS, HEADER, type GuardHealth } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
-import { edgePost, measurementPosts, runRoutine, type Post } from "../scripts/admin-routine";
+import { edgeHealth, edgePost, measurementPosts, measureProduction, runRoutine, type Post } from "../scripts/admin-routine";
+import {
+  parseRead,
+  planFiling,
+  PRODUCTION_SQL,
+  quietestWindow,
+  readProduction,
+  windowDue,
+  type ProductionRead,
+  type PsqlRunner,
+} from "../scripts/production-measurements";
 import { ADMISSION_KEYS } from "../src/state/admission";
 import { readTier } from "../src/state/ledger";
 import { EDGE, harness, N, ready, seedAccount, type Harness } from "./support";
 
 /** guard.yml's path to the guard: the edge's /g prefix, the admin class. */
-function throughEdge(h: Harness): Post {
-  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+function edgeFetcher(h: Harness): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
     const url = new URL(request.url);
     expect(url.origin).toBe(EDGE);
@@ -24,7 +34,10 @@ function throughEdge(h: Harness): Post {
       }),
     );
   }) as typeof fetch;
-  return edgePost(EDGE, "admin-token", fetcher);
+}
+
+function throughEdge(h: Harness): Post {
+  return edgePost(EDGE, "admin-token", edgeFetcher(h));
 }
 
 const noWait = async () => {};
@@ -136,10 +149,13 @@ describe("guard.yml's admin routines", () => {
         'filed window: {"start_hour":5}',
       ],
     });
-    const health = (await (await h.call("/health", { caller: "admin" })).json()) as {
-      paid_dials: { blockers: string[]; room: number; window_start_hour_utc: number };
-    };
-    expect(health.paid_dials).toMatchObject({ blockers: [], room: 3, window_start_hour_utc: 5 });
+    const health = (await (await h.call("/health", { caller: "admin" })).json()) as GuardHealth;
+    expect(health.paid_dials).toMatchObject({
+      blockers: [],
+      room: 3,
+      window_start_hour_utc: 5,
+      window_measured_at: new Date(h.clock.now).toISOString(),
+    });
   });
 
   it("refuse measurements that are partial or not whole numbers, before sending any", () => {
@@ -164,5 +180,131 @@ describe("guard.yml's admin routines", () => {
     await h.store.put("partition:standing", { "DEV-W1": { role: "DEV-W1", phone_number: N.devW1 } });
     const outcome = await runRoutine("reattach", throughEdge(h));
     expect(outcome).toEqual({ ok: true, lines: ["reattached: DEV-W1"] });
+  });
+});
+
+/** Production's calls by UTC hour: `busy` in every hour but the quiet ones. */
+function hourly(quiet: readonly number[], busy = 9): number[] {
+  return Array.from({ length: 24 }, (_, hour) => (quiet.includes(hour) ? 0 : busy));
+}
+
+const AGENT_DIAG_URL = "postgresql://agent_diag.abcdefghijklmnopqrst:pw@pooler.example.invalid:5432/postgres";
+
+describe("the daily measurements, read from production as agent_diag", () => {
+  it("read ops_diag's views and nothing else", () => {
+    // Qualified names only; the one-letter ones are the statement's own aliases.
+    const relations = new Set([...PRODUCTION_SQL.matchAll(/\b([a-z_]{2,}\.[a-z_]+)\b/gi)].map((match) => match[1]));
+    expect([...relations].sort()).toEqual(["ops_diag.hourly_call_counts", "ops_diag.ring_audience_sizes"]);
+    expect(PRODUCTION_SQL).not.toMatch(/\b(insert|update|delete|create|alter|grant|set)\b/i);
+  });
+
+  it("place the window on the quietest six hours, keeping 04:00 when nothing tells them apart", () => {
+    expect(quietestWindow(new Array(24).fill(0))).toBe(4);
+    expect(quietestWindow(hourly([6, 7, 8, 9, 10, 11]))).toBe(6);
+    expect(quietestWindow(hourly([22, 23, 0, 1, 2, 3]))).toBe(22);
+    expect(quietestWindow(hourly([5, 6, 7, 8, 9, 10, 11]))).toBe(5);
+  });
+
+  it("measure the window again only once the guard's is four weeks old", () => {
+    const now = new Date("2026-11-30T05:00:00.000Z");
+    expect(windowDue(null, now)).toBe(true);
+    expect(windowDue("not a date", now)).toBe(true);
+    expect(windowDue("2026-11-03T05:00:01.000Z", now)).toBe(false);
+    expect(windowDue("2026-11-02T05:00:00.000Z", now)).toBe(true);
+  });
+
+  it("reserve production's largest ring audience plus one, and never reserve for no number", () => {
+    const read: ProductionRead = { numbers: 1, largest_audience: 3, hourly_calls: hourly([6, 7, 8, 9, 10, 11]) };
+    expect(planFiling(read, true).inputs).toEqual({ reserveLegs: "4", windowStartHour: "6" });
+    expect(planFiling(read, false).inputs).toEqual({ reserveLegs: "4" });
+    const none = planFiling({ ...read, numbers: 0 }, false);
+    expect(none.inputs).toEqual({});
+    expect(none.lines[0]).toMatch(/^::warning title=Reserve not filed::/);
+    const quiet = planFiling({ ...read, hourly_calls: new Array(24).fill(0) }, true);
+    expect(quiet.inputs).toEqual({ reserveLegs: "4" });
+  });
+
+  it("take only the statement's own document from psql", () => {
+    const document = JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]) });
+    expect(parseRead(`${document}\n`)).toMatchObject({ numbers: 1, largest_audience: 2 });
+    expect(parseRead("")).toBeNull();
+    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: -1, hourly_calls: hourly([]) }))).toBeNull();
+    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: [1, 2] }))).toBeNull();
+  });
+
+  it("run the agent_diag self-check in the same session, and refuse any other login before psql", () => {
+    const sessions: { sql: string; env: Record<string, string> }[] = [];
+    const psql: PsqlRunner = (sql, env) => {
+      sessions.push({ sql, env });
+      return { status: 0, stdout: JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]) }) };
+    };
+    expect(readProduction(AGENT_DIAG_URL, psql)).toMatchObject({ ok: true, read: { largest_audience: 2 } });
+    expect(sessions[0].sql.indexOf("current_user <> 'agent_diag'")).toBeLessThan(sessions[0].sql.indexOf(PRODUCTION_SQL));
+    expect(sessions[0].sql).toContain("REFUSED: this agent_diag login is no longer safe");
+    expect(sessions[0].env).toMatchObject({ PGUSER: "agent_diag.abcdefghijklmnopqrst", PGSSLMODE: "require" });
+
+    const other = readProduction("postgresql://postgres.abcdefghijklmnopqrst:pw@pooler.example.invalid:5432/postgres", psql);
+    expect(other).toMatchObject({ ok: false });
+    expect(sessions).toHaveLength(1);
+  });
+
+  it("say why production was not read without repeating psql, whose errors name the login and host", () => {
+    const failing: PsqlRunner = () => ({
+      status: 2,
+      stderr: 'psql: error: connection to server at "pooler.example.invalid" failed: FATAL: password authentication failed for user "agent_diag.abcdefghijklmnopqrst"',
+    });
+    const refused: PsqlRunner = () => ({ status: 3, stderr: "ERROR:  REFUSED: this agent_diag login is no longer safe: it can reach public.calls" });
+    const lines = [
+      ...(readProduction(AGENT_DIAG_URL, failing) as { lines: string[] }).lines,
+      ...(readProduction(AGENT_DIAG_URL, refused) as { lines: string[] }).lines,
+    ];
+    expect(lines).toEqual([
+      "::error title=Production not read::psql exited 2",
+      "::error title=Production not read::the agent_diag self-check refused this login; see scripts/ops/call-trace.mjs --self-check",
+    ]);
+    expect(lines.join("\n")).not.toMatch(/abcdefghijklmnopqrst|pooler|public\.calls/);
+  });
+
+  it("file nothing, and stay green, while the guard environment has no agent_diag login", async () => {
+    const h = await ready();
+    await h.store.delete(ADMISSION_KEYS.reserve);
+    const outcome = await measureProduction(throughEdge(h), edgeHealth(EDGE, "admin-token", edgeFetcher(h)), () => readProduction(""));
+    expect(outcome.ok).toBe(true);
+    expect(outcome.lines).toEqual([expect.stringMatching(/^::notice title=Production not read::.*AGENT_DIAG_DATABASE_URL/)]);
+    expect(await h.store.get(ADMISSION_KEYS.reserve)).toBeUndefined();
+  });
+
+  it("file the reserve daily and the window monthly, which /health then shows", async () => {
+    const h = await ready();
+    await h.store.delete(ADMISSION_KEYS.reserve);
+    const read = () => ({ ok: true, read: { numbers: 2, largest_audience: 2, hourly_calls: hourly([7, 8, 9, 10, 11, 12]) } }) as const;
+    const health = edgeHealth(EDGE, "admin-token", edgeFetcher(h));
+
+    const first = await measureProduction(throughEdge(h), health, read, new Date(h.clock.now));
+    expect(first.ok).toBe(true);
+    expect(first.lines).toEqual([
+      "reserve read over 2 active number(s)",
+      expect.stringMatching(/^::notice title=Ratios not filed::/),
+      'filed reserve: {"legs":3}',
+      'filed window: {"start_hour":7}',
+    ]);
+    assertPublicSafe(first.lines);
+    const shown = (await health()).body as GuardHealth;
+    expect(shown.paid_dials).toMatchObject({ window_start_hour_utc: 7, window_measured_at: new Date(h.clock.now).toISOString() });
+
+    h.advance(24 * 60 * 60 * 1000);
+    const next = await measureProduction(throughEdge(h), health, read, new Date(h.clock.now));
+    expect(next.lines).toContain("window: measured within the month, not due");
+    expect(next.lines).toContain('filed reserve: {"legs":3}');
+    expect(next.lines.some((line) => line.startsWith("filed window"))).toBe(false);
+  });
+
+  it("fail the run when production could not be read, so a reserve going stale is never quiet", async () => {
+    const h = await ready();
+    const outcome = await measureProduction(throughEdge(h), edgeHealth(EDGE, "admin-token", edgeFetcher(h)), () => ({
+      ok: false,
+      lines: ["::error title=Production not read::psql exited 2"],
+    }));
+    expect(outcome).toEqual({ ok: false, lines: ["::error title=Production not read::psql exited 2"] });
   });
 });
