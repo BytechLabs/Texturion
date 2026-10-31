@@ -587,7 +587,8 @@
       "dials": 0,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "min_room": 0,
+      "note": "The workspace S29 backdates must hold no standing number. Grace releases every number the workspace holds, and the guard refuses a DELETE on a standing one, so the job fails before it deactivates the campaign and S29 cannot pass (tools/rig/crons.json, the 0 14 cron's defect). QA-C holds DEV-C1, so it cannot be S29's workspace as it stands."
     },
     {
       "id": "S31",
