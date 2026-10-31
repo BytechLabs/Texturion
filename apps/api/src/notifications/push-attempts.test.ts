@@ -71,6 +71,23 @@ describe("timedPush", () => {
     expect(log[0].latencyMs).toBeGreaterThanOrEqual(0);
   });
 
+  it("stamps the moment the send started, not the moment it answered", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-31T14:00:00.000Z") });
+    try {
+      const log: PushAttempt[] = [];
+      await timedPush(log, TARGET, async () => {
+        vi.setSystemTime(new Date("2026-10-31T14:00:04.000Z"));
+        return { ok: true, status: 200, gone: false };
+      });
+      expect(log[0]).toMatchObject({
+        startedAt: Date.parse("2026-10-31T14:00:00.000Z"),
+        latencyMs: 4_000,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("records a throw as transport_error and rethrows the same error", async () => {
     const log: PushAttempt[] = [];
     const boom = new Error("socket hang up");
@@ -97,6 +114,7 @@ describe("recordPushAttempts", () => {
     responseClass: "accepted",
     httpStatus: 200,
     latencyMs: 87.6,
+    startedAt: Date.parse("2026-10-31T14:00:00.000Z"),
   };
 
   it("writes one insert with the table's columns and nothing else", async () => {
@@ -121,6 +139,7 @@ describe("recordPushAttempts", () => {
         http_status: 200,
         latency_ms: 88,
         target_id: TARGET.targetId,
+        attempted_at: "2026-10-31T14:00:00.000Z",
       },
       expect.objectContaining({ platform: "ios" }),
     ]);

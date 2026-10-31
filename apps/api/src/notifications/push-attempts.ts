@@ -66,6 +66,12 @@ export interface PushAttempt extends PushTarget {
   /** Null when no response arrived at all. */
   httpStatus: number | null;
   latencyMs: number;
+  /**
+   * Epoch ms when the send started, stored as attempted_at. The row is
+   * written after the whole fan-out, so its insert time would be late by every
+   * send before it and the write itself.
+   */
+  startedAt: number;
 }
 
 /**
@@ -104,6 +110,7 @@ export async function timedPush<T extends PushOutcome>(
       responseClass: "transport_error",
       httpStatus: null,
       latencyMs: Date.now() - started,
+      startedAt: started,
     });
     throw cause;
   }
@@ -113,6 +120,7 @@ export async function timedPush<T extends PushOutcome>(
       responseClass: classifyPushResponse(result),
       httpStatus: result.status,
       latencyMs: Date.now() - started,
+      startedAt: started,
     });
   }
   return result;
@@ -163,6 +171,7 @@ export async function recordPushAttempts(
           http_status: attempt.httpStatus,
           latency_ms: Math.min(MAX_LATENCY_MS, Math.max(0, Math.round(attempt.latencyMs))),
           target_id: attempt.targetId,
+          attempted_at: new Date(attempt.startedAt).toISOString(),
         })),
       )
       .abortSignal(AbortSignal.timeout(PUSH_ATTEMPTS_WRITE_TIMEOUT_MS));
