@@ -42,6 +42,7 @@ jobs:
   posture:
     name: Are backups still arriving?
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -62,6 +63,7 @@ jobs:
     # Supabase upgrades production's on its own schedule; this notices.
     name: Does CI test production's Postgres image?
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 

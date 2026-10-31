@@ -76,6 +76,9 @@ jobs:
   backend:
     name: api + web + database
     runs-on: ubuntu-latest
+    # Deployable from main only. An environment secret overrides the repo-level
+    # one of the same name, so the deploy secrets can move in one at a time.
+    environment: production
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -244,6 +247,7 @@ jobs:
   android:
     name: android
     runs-on: ubuntu-latest
+    environment: production
     defaults:
       run:
         working-directory: apps/android
@@ -290,6 +294,7 @@ jobs:
   ios:
     name: ios
     runs-on: macos-latest
+    environment: production
     defaults:
       run:
         working-directory: apps/ios
