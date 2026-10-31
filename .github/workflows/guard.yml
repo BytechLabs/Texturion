@@ -104,11 +104,18 @@ jobs:
         if: steps.token.outputs.ready == 'true'
         run: pnpm install --frozen-lockfile
 
-      # The values that are not in git but live in the `guard` environment.
-      # Only the ones present are written, so an unset one never blanks what
-      # the Worker already holds. The vendor keys (FA3, FA6, FA8) are pasted
-      # into the Worker directly and never pass through here.
-      - name: Sync configuration from the environment
+      # The values that are not in git but live in the `guard` environment
+      # ride with the deploy as secrets, so a run makes one Worker version.
+      # Only the ones present are sent, and wrangler applies them additively,
+      # so an unset one never blanks what the Worker already holds. The vendor
+      # keys (FA3, FA6, FA8) are pasted into the Worker directly and never pass
+      # through here.
+      #
+      # The message names the commit, so the hourly attestation can tell a
+      # deployment from this workflow (a main commit) from any other, reading
+      # the live deployment with guard-attest-read. Version ids stay out of
+      # this public log.
+      - name: Deploy
         if: steps.token.outputs.ready == 'true'
         env:
           SENTRY_PROD_DSN: ${{ secrets.SENTRY_PROD_DSN }}
@@ -117,27 +124,20 @@ jobs:
           NOTIFICATION_PATH_SECRET: ${{ secrets.NOTIFICATION_PATH_SECRET }}
         run: |
           umask 077
-          file="$(mktemp)"
+          file="$(mktemp --suffix=.json)"
           jq -n \
             --arg SENTRY_PROD_DSN "$SENTRY_PROD_DSN" \
             --arg EDGE_ORIGIN "$EDGE_ORIGIN" \
             --arg ROBOT_MAILBOX "$ROBOT_MAILBOX" \
             --arg NOTIFICATION_PATH_SECRET "$NOTIFICATION_PATH_SECRET" \
             '$ARGS.named | with_entries(select(.value != ""))' > "$file"
-          if [ "$(jq 'length' "$file")" -gt 0 ]; then
-            pnpm --filter @loonext/telnyx-guard exec wrangler secret bulk "$file"
-          else
-            echo "::notice title=No guard configuration to sync::None of SENTRY_PROD_DSN, EDGE_ORIGIN, ROBOT_MAILBOX or NOTIFICATION_PATH_SECRET is set in the guard environment."
+          if [ "$(jq 'length' "$file")" -eq 0 ]; then
+            echo "::notice title=No guard configuration to send::None of SENTRY_PROD_DSN, EDGE_ORIGIN, ROBOT_MAILBOX or NOTIFICATION_PATH_SECRET is set in the guard environment."
           fi
+          pnpm --filter @loonext/telnyx-guard exec wrangler deploy \
+            --message "guard.yml ${GITHUB_SHA}" \
+            --secrets-file "$file"
           rm -f "$file"
-
-      # The message names the commit, so the hourly attestation can tell a
-      # deployment from this workflow (a main commit) from any other, reading
-      # the live deployment with guard-attest-read. Version ids stay out of
-      # this public log.
-      - name: Deploy
-        if: steps.token.outputs.ready == 'true'
-        run: pnpm --filter @loonext/telnyx-guard exec wrangler deploy --message "guard.yml ${GITHUB_SHA}"
 
       # Through the edge with the admin token, once both exist: the guard has
       # no URL of its own. A failed start-up check fails this run on purpose.
