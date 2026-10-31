@@ -2,10 +2,10 @@
   "schema": "loonext.rig-crons.v1",
   "notes": [
     "What the rig does with each cron a tracked Worker config declares (docs/RIG.md, Loonext in rig mode). The rig fires every cron itself through /cdn-cgi/handler/scheduled; scripts/check-rig-crons.mjs fails when a config and this file disagree, and `--ref <ref>` checks another ref's configs against it.",
-    "run: fire it on schedule. run-expect-refusal: fire it, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it. A skipped API cron silences its liveness keys, [\"ops\",\"cron:<expr>\"] and each job's, so it lists them in fingerprints. Another Worker's cron (the edge's, the guard's) runs on Cloudflare and feeds no liveness key the rig's API raises, so it lists none: the API runs */15 too, and its key there would hide the API's real alert.",
+    "run: fire it on schedule. run-expect-refusal: fire it, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it. A skipped API cron silences its liveness keys, [\"ops\",\"cron:<expr>\"] and each job's, so it lists them in fingerprints. Another Worker's cron (the edge's, the guard's) is always a skip, since the rig fires only the API's, and lists no fingerprint: that Worker reports nowhere the rig's relay reads, so a listed one could only hide an event the rig's own API raises (the API runs */15 too).",
     "Refusals are listed for every code path that can reach one, not only for what today's seed exercises: a refusal that never happens costs nothing, and one that is missing is an unexplained Sentry fingerprint in R00.",
-    "A refusal's outcome says what Sentry receives. job-fails: the job lets the TelnyxApiError out, runScheduledJobs rejects with an AggregateError that holds it, the job's heartbeat is withheld, and after its grace the liveness checker raises the job's ops fingerprint. captured: the job catches it at caught_in, reports it as its own event and returns normally, so its heartbeat is recorded and no ops fingerprint follows; follow_on_events lists what the job raises next because of it.",
-    "defects: events that mean the rig's seed or a scenario's setup is wrong, with the cause. Nothing suppresses them; R00 reports them with that cause instead of as unexplained.",
+    "A refusal's outcome says what Sentry receives. job-fails: the job lets the TelnyxApiError out, runScheduledJobs rejects with an AggregateError that holds it (under the job's own AggregateError too, since poll-registrations, poll-port-requests and grace-and-release each collect their failures, and the release's own inside grace's), the job's heartbeat is withheld, and after its grace the liveness checker raises the job's ops fingerprint. captured: the job catches it at caught_in, reports it as its own event and returns normally, so its heartbeat is recorded and no ops fingerprint follows; follow_on_events lists what the job raises next because of it.",
+    "defects: events that mean the rig's seed or a scenario's setup is wrong, with the cause. Nothing suppresses them; R00 reports them with that cause instead of as unexplained. rigd reports the first defect that matches, so no two may match one event: `message starts` reads the event's own text, which for a cron's failure is the cron's AggregateError, so it tells an exception a job captured from the same exception inside a cron's failure.",
     "A guard refusal (a 403 from the guard rather than the app) reaches the app as a TelnyxApiError with no code, which the app treats as a real Telnyx failure. None is expected: each one the crons can provoke is a defect.",
     "Every cron here first asks rig_database_posture(): until the rig's database reports rig mode it throws `rig cron not run: ...`. That is an infrastructure fault for R00 to report, not an expected event, so no entry suppresses it."
   ],
@@ -13,7 +13,7 @@
     "code": "rig_endpoint_refused",
     "exception_type": "TelnyxApiError",
     "message_contains": "[codes rig_endpoint_refused]",
-    "why": "The app sets no fingerprint on a refusal, so Sentry groups it by exception; its message is `Telnyx 403 on <METHOD> <path> [codes rig_endpoint_refused] ...`. A job-fails refusal arrives inside the cron's AggregateError: suppress that event only when every exception in it matches a job-fails refusal listed for that cron, since anything else in it is a real failure. A captured refusal arrives as its own TelnyxApiError event, raised while that cron runs: suppress it when the message has this text and one of the refusal's paths."
+    "why": "The app sets no fingerprint on a refusal, so Sentry groups it by exception; its message is `Telnyx 403 on <METHOD> <path> [codes rig_endpoint_refused] ...`. A job-fails refusal arrives inside the cron's AggregateError (`cron \"<expr>\": ...`, the last exception), usually under the job's own AggregateError: suppress that event only when every exception in it that is not an AggregateError matches a job-fails refusal listed for that cron, since anything else in it is a real failure. A captured refusal arrives as its own TelnyxApiError event, raised while that cron runs: suppress it when the message has this text and one of the refusal's paths."
   },
   "crons": [
     {
@@ -83,7 +83,7 @@
           "means": "A number in the rig's group has no live phone_numbers row. The seed writes one for every standing number, so either a row was released or lost since the last seed (run rig seed), or the group holds a number that is not a standing one and no workspace bought. One warning per number per run, 96 a day each, against the relay's 100."
         },
         {
-          "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...]",
+          "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...], message starts \"Telnyx 403 on DELETE /v2/phone_numbers/\"",
           "means": "reconcile-numbers tried to reclaim a group number that has no phone_numbers row and whose customer_reference names a settled seeded workspace, and the guard refused it because it is a standing number. Only the guard's standing-number rule stood between the sweep and the number: give the number a row or clear its customer_reference."
         },
         {
@@ -232,7 +232,7 @@
       ],
       "defects": [
         {
-          "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...], inside the cron's AggregateError",
+          "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...], inside the cron's AggregateError, contains \"0 14 * * *\"",
           "means": "The grace job tried to release a standing number and the guard refused it: S29 backdated a workspace that holds one. The job fails before it deactivates the workspace's campaign, and S29 cannot pass. Only the guard's standing-number rule kept the number. S29 needs a workspace whose only number is one bought for the run."
         }
       ]

@@ -17,13 +17,16 @@
  * reports it as its own event and returns normally, so no liveness alert
  * follows, and suppressing one would hide a real failure.
  *
- * A skipped API cron lists the liveness alerts that follow. A skipped cron of
- * any other Worker (the edge's, the guard's) lists none, since nothing on the
- * rig keeps its liveness and an API key listed there would hide the API's own.
+ * A skipped API cron lists the liveness alerts that follow. The rig fires
+ * only the API's crons (`rig deploy` gives no other config a timer), so any
+ * other Worker's (the edge's, the guard's) is a skip, and it lists no
+ * fingerprint: that Worker reports nowhere the rig's relay reads, so anything
+ * listed could only match an event the rig's own API raises, and hide it.
  *
  * Fails when a config declares a cron the registry does not classify, the
  * registry classifies one no config declares, an entry is malformed, an API
- * cron's jobs differ from `CRON_JOBS` (the jobs are what is classified), a
+ * cron's jobs differ from `CRON_JOBS` (the jobs are what is classified),
+ * another Worker's cron is not a skip or lists a fingerprint, a
  * refusal names an endpoint rig mode does not refuse, or a `caught_in`
  * function does not exist.
  *
@@ -37,6 +40,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { API_CONFIG } from "../tools/rig/src/cron.mjs";
+
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 export const REGISTRY_FILE = "tools/rig/crons.json";
@@ -44,7 +49,9 @@ export const SCHEMA = "loonext.rig-crons.v1";
 export const CLASSES = ["run", "run-expect-refusal", "skip"];
 export const REFUSAL_CODE = "rig_endpoint_refused";
 
-export const JOB_SOURCES = { "apps/api/wrangler.jsonc": "apps/api/src/index.ts" };
+/** The one config whose crons the rig fires, and where its jobs are listed. */
+export const FIRED_CONFIG = API_CONFIG;
+export const JOB_SOURCES = { [FIRED_CONFIG]: "apps/api/src/index.ts" };
 export const POLICY_FILE = "apps/api/src/environments/policy.ts";
 
 const CONFIG_NAME = /(?:^|\/)wrangler\.(?:jsonc?|toml)$/;
@@ -201,6 +208,13 @@ function validEntryShape(entry, at, problems) {
 }
 
 function checkClassFields(entry, at, problems, families, sourceAt) {
+  if (entry.config !== FIRED_CONFIG && entry.class !== "skip") {
+    problems.push(
+      `${at}: the rig fires only ${FIRED_CONFIG}'s crons, and rig deploy gives no other config a timer, so ` +
+        `${entry.config}'s cron is never fired here; classify it skip, with the reason`,
+    );
+    return;
+  }
   if (entry.jobs !== undefined && !isStringList(entry.jobs)) {
     problems.push(`${at}: jobs must be a non-empty list of job keys`);
   }
@@ -224,7 +238,7 @@ function checkClassFields(entry, at, problems, families, sourceAt) {
     const listed = entry.fingerprints ?? [];
     // The API's liveness checker watches only the API's own crons and jobs: a
     // skipped one goes overdue and alerts under each key.
-    if (entry.config in JOB_SOURCES) {
+    if (entry.config === FIRED_CONFIG) {
       const owed = [["ops", `cron:${entry.cron}`], ...(entry.jobs ?? []).map((job) => ["ops", job])];
       for (const fingerprint of owed) {
         if (!listed.some((item) => sameFingerprint(item, fingerprint))) {
@@ -233,15 +247,11 @@ function checkClassFields(entry, at, problems, families, sourceAt) {
       }
       return;
     }
-    // An API key listed here would be read as expected, and the API runs some
-    // of the same expressions (*/15).
     for (const item of listed) {
-      if (item[0] === "ops" && /^(?:cron|job):/.test(item[1] ?? "")) {
-        problems.push(
-          `${at}: ${entry.config} feeds no liveness key, so ${JSON.stringify(item)} is the API's own ` +
-            `alert and listing it would hide the API's real one; remove it`,
-        );
-      }
+      problems.push(
+        `${at}: ${entry.config} reports nowhere the rig's relay reads, so ${JSON.stringify(item)} could only ` +
+          `match an event the rig's own API raises, and would hide it; list no fingerprints`,
+      );
     }
     return;
   }

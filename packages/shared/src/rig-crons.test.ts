@@ -215,16 +215,39 @@ describe("malformed entries", () => {
     expect(guard.judge({ ...world(complete), exact: true }).problems).toEqual([]);
   });
 
-  it("owes no liveness key for another Worker's cron, and refuses the API's own key there", () => {
+  it("owes no liveness key for another Worker's cron, and refuses any fingerprint there", () => {
     const input = world(run);
     input.configs[EDGE] = ["*/15 * * * *"];
-    const edge = { config: EDGE, cron: "*/15 * * * *", class: "skip", reason: "x", fingerprints: [] as string[][] };
+    const edge: Entry = { config: EDGE, cron: "*/15 * * * *", class: "skip", reason: "x", fingerprints: [] as string[][] };
     input.registry.crons.push(edge);
     expect(guard.judge({ ...input, exact: true }).problems).toEqual([]);
-    edge.fingerprints = [["ops", "cron:*/15 * * * *"]];
-    expect(problems(input)).toMatch(/feeds no liveness key, so \["ops","cron:\*\/15 \* \* \* \*"\] is the API's own alert/);
-    edge.fingerprints = [["ops", "job:a"]];
-    expect(problems(input)).toMatch(/\["ops","job:a"\] is the API's own alert/);
+    delete edge.fingerprints;
+    expect(guard.judge({ ...input, exact: true }).problems).toEqual([]);
+    // The API's liveness keys, its channel keys, and anything else alike.
+    for (const fingerprint of [
+      ["ops", "cron:*/15 * * * *"],
+      ["ops", "job:a"],
+      ["ops", "channel:sms-outbound"],
+      ["exception", "TypeError"],
+    ]) {
+      edge.fingerprints = [fingerprint];
+      const escaped = JSON.stringify(fingerprint).replace(/[[\]*/]/g, "\\$&");
+      expect(problems(input)).toMatch(new RegExp(`reports nowhere the rig's relay reads, so ${escaped} could only match`));
+    }
+  });
+
+  it("refuses another Worker's cron classified as anything but skip, since nothing fires it", () => {
+    for (const entry of [
+      { config: EDGE, cron: "*/15 * * * *", class: "run" },
+      { config: EDGE, cron: "*/15 * * * *", class: "run-expect-refusal", refusals: [refusal] },
+    ]) {
+      const input = world(run);
+      input.configs[EDGE] = ["*/15 * * * *"];
+      input.registry.crons.push(entry);
+      expect(problems(input)).toMatch(
+        /the rig fires only apps\/api\/wrangler\.jsonc's crons.*tools\/edge\/wrangler\.jsonc's cron is never fired here; classify it skip/,
+      );
+    }
   });
 
   it("fails skip fingerprints that are not a list of fingerprints", () => {
