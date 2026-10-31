@@ -87,6 +87,14 @@ describe("check-deploy-env-branches refuses every way of reading DEPLOY_ENV", ()
     expect(offences([{ path: "apps/api/src/index.ts", text }])).toHaveLength(1);
   });
 
+  it("the production-only watch question, asked anywhere but the Telnyx wiring watch", () => {
+    const text = `import { productionWatchRefusal } from "../environments/policy";`;
+    expect(offences([{ path: "apps/api/src/observability/telnyx-wiring.ts", text }])).toEqual([]);
+    expect(offences([{ path: "apps/api/src/telnyx/sync.ts", text }]).map((o) => o.rule)).toEqual([
+      expect.stringMatching(/^imports productionWatchRefusal, which names the deployment/),
+    ]);
+  });
+
   it("a second declaration in env.ts", () => {
     const text = [
       'DEPLOY_ENV: z.enum(["local"]).optional(),',
