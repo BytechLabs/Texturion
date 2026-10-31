@@ -1,0 +1,130 @@
+name: Ops
+
+# D142 (docs/RIG.md): a named scripts/ops command, run from main with the
+# production-ops environment's keys. The run is recorded here, the code is
+# main's reviewed code rather than a workstation's working tree, and the keys
+# never leave the environment. It is the path that still works once FA1 takes
+# production keys off the workstation; until then an agent may equally run the
+# same script locally.
+#
+# ONE ACTION: set-flag, a global flag or kill switch through
+# scripts/ops/set-flag.mjs (the keys apps/api/src/flags/registry.ts declares).
+# Per-workspace overrides and `--list` are not offered: both print workspace
+# ids, and this log is public.
+#
+# NO set-agent-diag-password ACTION. The agent_diag password is set by
+# scripts/ops/set-agent-diag-password.mjs on the machine that uses it, which
+# sends the database only a SCRAM verifier. Run here, the password would be
+# born on a runner and have to travel back: as a ciphertext in a public
+# repository's artifacts, under a key pair someone must provision as a repo
+# variable, decrypted by more code. Each is new surface, and none protects
+# anything while the agent dispatching it already holds production's keys.
+# If FA1 is chosen, add it then: the job would run that script with
+# --target production and hand the login back encrypted.
+#
+# THE LOG IS PUBLIC. The project's host and ref are masked before anything
+# prints them, inputs reach the shell as environment variables and never as
+# interpolated script, and a note should say why without naming anyone.
+#
+# MAIN ONLY. The production-ops environment's deployment-branch rule is the
+# control: a dispatch from another branch runs that branch's copy of this
+# file, so the check below only stops an honest mistake.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: The scripts/ops command to run
+        type: choice
+        required: true
+        options:
+          - set-flag
+      key:
+        description: "set-flag: the flag key, e.g. kill:calls"
+        type: string
+        required: true
+      state:
+        description: "set-flag: the global state"
+        type: choice
+        required: true
+        options:
+          - "on"
+          - "off"
+      note:
+        description: "set-flag: why. Required to switch a kill switch off. This log is public: no names, numbers or ids"
+        type: string
+        required: false
+        default: ""
+      apply:
+        description: Write the change. Unticked is a dry run that prints what would change
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One production write at a time, and none cancelled half-way.
+concurrency:
+  group: ops
+  cancel-in-progress: false
+
+jobs:
+  set-flag:
+    name: Set a feature flag
+    if: inputs.action == 'set-flag'
+    runs-on: ubuntu-latest
+    environment: production-ops
+    timeout-minutes: 10
+    steps:
+      - name: Refuse anything but main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "ops.yml writes to production and runs from main only, not $GITHUB_REF" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Keep the project's address out of this public log
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          host="${SUPABASE_URL#*://}"
+          host="${host%%/*}"
+          if [ -z "$host" ]; then
+            echo "SUPABASE_URL is not set in the production-ops environment" >&2
+            exit 1
+          fi
+          echo "::add-mask::$host"
+          echo "::add-mask::${host%%.*}"
+
+      # No install: set-flag.mjs uses fetch and nothing else.
+      - name: Set the flag
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          FLAG_KEY: ${{ inputs.key }}
+          FLAG_STATE: ${{ inputs.state }}
+          FLAG_NOTE: ${{ inputs.note }}
+          FLAG_APPLY: ${{ inputs.apply }}
+        run: |
+          case "$FLAG_KEY" in
+            "" | *[!a-z0-9:_-]*)
+              echo "key takes lowercase letters, digits, ':', '_' and '-' only" >&2
+              exit 1
+              ;;
+          esac
+          case "$FLAG_STATE" in
+            on | off) ;;
+            *)
+              echo "state is on or off" >&2
+              exit 1
+              ;;
+          esac
+          set -- --key "$FLAG_KEY" "--$FLAG_STATE"
+          if [ -n "$FLAG_NOTE" ]; then set -- "$@" --note "$FLAG_NOTE"; fi
+          if [ "$FLAG_APPLY" = "true" ]; then set -- "$@" --apply; fi
+          node scripts/ops/set-flag.mjs "$@"
