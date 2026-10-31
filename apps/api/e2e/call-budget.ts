@@ -8,9 +8,11 @@
  *
  * Every measurement is also printed on one `CALL_BUDGET ` line, the same
  * scrape-friendly shape as CAPACITY_RESULT in load-report.ts: aggregate counts
- * only, never a number, a leg id or a body.
+ * only, never a number, a leg id or a body. In GitHub Actions each one is also
+ * a row of a table on the job's summary page, so the cost of a run is readable
+ * without opening the log.
  */
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import type { CallLedger, FakeVoice, TelnyxWebhookEvent } from "./fake-telnyx-voice";
@@ -62,6 +64,93 @@ export function measuredBudget(rigScenario: string, ledger: CallLedger): Journey
   };
 }
 
+export type CallBudgetLayer = "session" | "e2e";
+
+const SUMMARY_COLUMNS = [
+  "Journey",
+  "Rig scenario",
+  "Dials",
+  "Far-end legs",
+  "Rig dials",
+  "Peak legs",
+  "Peak outbound legs",
+  "Budget",
+] as const;
+
+/** The heading and header row of one layer's table. */
+export function callBudgetSummaryHeader(layer: CallBudgetLayer): string {
+  const align = SUMMARY_COLUMNS.map((_, i) => (i >= 2 && i <= 6 ? " ---: " : " --- "));
+  return (
+    `\n### Call journey budget (${layer} layer)\n\n` +
+    `| ${SUMMARY_COLUMNS.join(" | ")} |\n` +
+    `|${align.join("|")}|\n`
+  );
+}
+
+/**
+ * One journey's row. A count that differs from the committed file shows both,
+ * so a red run's summary says which number moved.
+ */
+export function callBudgetSummaryRow(
+  journey: string,
+  budget: JourneyBudget,
+  committed: JourneyBudget | undefined,
+): string {
+  const cell = (key: keyof Omit<JourneyBudget, "rig_scenario">) =>
+    committed === undefined || committed[key] === budget[key]
+      ? String(budget[key])
+      : `${budget[key]} (budget ${committed[key]})`;
+  const rigDials = budget.dials + budget.far_end_legs;
+  const committedRigDials =
+    committed === undefined ? rigDials : committed.dials + committed.far_end_legs;
+  const verdict =
+    committed === undefined
+      ? "not in call-journey-budget.json"
+      : JSON.stringify(committed) === JSON.stringify(budget)
+        ? "matches"
+        : "differs";
+  return (
+    `| ${[
+      journey,
+      budget.rig_scenario,
+      cell("dials"),
+      cell("far_end_legs"),
+      rigDials === committedRigDials ? String(rigDials) : `${rigDials} (budget ${committedRigDials})`,
+      cell("peak_concurrent_legs"),
+      cell("peak_concurrent_outbound_legs"),
+      verdict,
+    ].join(" | ")} |\n`
+  );
+}
+
+/** Layers whose table header this process has already written. */
+const summarizedLayers = new Set<CallBudgetLayer>();
+
+/**
+ * Append one journey's row to the job summary, starting the layer's table on
+ * its first row. Does nothing outside Actions, where GITHUB_STEP_SUMMARY is
+ * unset. Every journey of a layer runs in one test file, and so in one
+ * process, so each layer gets one table.
+ */
+export function appendCallBudgetSummary(
+  journey: string,
+  layer: CallBudgetLayer,
+  budget: JourneyBudget,
+  summaryPath: string | undefined = process.env.GITHUB_STEP_SUMMARY,
+): boolean {
+  if (summaryPath === undefined || summaryPath === "") return false;
+  const committed = committedBudgets()[journey];
+  const header = summarizedLayers.has(layer) ? "" : callBudgetSummaryHeader(layer);
+  appendFileSync(summaryPath, header + callBudgetSummaryRow(journey, budget, committed));
+  summarizedLayers.add(layer);
+  return true;
+}
+
+/** Forget which tables were started, so a test can write a fresh one. */
+export function resetCallBudgetSummaryForTest(): void {
+  summarizedLayers.clear();
+}
+
 /**
  * Print one journey's numbers. `layer` says which harness measured them:
  * `session` runs the router and the Durable Object with the database faked,
@@ -69,9 +158,10 @@ export function measuredBudget(rigScenario: string, ledger: CallLedger): Journey
  */
 export function emitCallBudget(
   journey: string,
-  layer: "session" | "e2e",
+  layer: CallBudgetLayer,
   budget: JourneyBudget,
 ): void {
+  appendCallBudgetSummary(journey, layer, budget);
   process.stdout.write(
     `${CALL_BUDGET_PREFIX}${JSON.stringify({
       schema: "loonext.call-budget.v1",
