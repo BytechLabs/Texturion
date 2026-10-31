@@ -18,9 +18,10 @@ import { avatarInitials } from "@loonext/shared";
  * components/thread/message-bubble.tsx). Marketing cobalt NEVER appears in
  * here; nothing in this file references an --fr-* token.
  *
- * Real product components that are server-safe are used directly (the inbox
- * <StatusPill>); the stateful ones (MessageBubble, ThreadHeader, Composer)
- * are reproduced as static DOM with the same classes and structure.
+ * The app's thread components (MessageBubble, ThreadHeader, Composer) and
+ * the inbox <StatusPill> are reproduced as static DOM with the same classes
+ * and structure. The real pill imports the i18n provider, which would put the
+ * whole app catalogue on every trade page's first load.
  *
  * Accessibility: the thread adds no tab stops (DESIGN-DIRECTION §7); the
  * photo placeholders carry content-describing labels. No text in this file
@@ -30,7 +31,7 @@ import { avatarInitials } from "@loonext/shared";
 
 import { CheckCheck, CircleCheck, ImageIcon, Lock, Play } from "lucide-react";
 
-import { StatusPill } from "@/components/inbox/status-pill";
+import { DemoStatusPill } from "@/components/marketing/thread-demo/thread-primitives";
 import { formatCallDuration } from "@/lib/format/call-duration";
 import { cn } from "@/lib/utils";
 
@@ -58,8 +59,14 @@ function Avatar({ name }: { name: string }) {
 }
 
 /** Static render of the app's G5 thread header: contact name + number, the
- *  real StatusPill, the assignee avatar. */
-function Header({ script }: { script: TradeScript }) {
+ *  status pill, the assignee avatar. */
+function Header({
+  script,
+  locale,
+}: {
+  script: TradeScript;
+  locale: MarketingLocale;
+}) {
   return (
     <div className="flex items-center gap-3 border-b border-app-line bg-app-paper px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -70,7 +77,7 @@ function Header({ script }: { script: TradeScript }) {
           {script.contact.number}
         </p>
       </div>
-      <StatusPill status={script.status} />
+      <DemoStatusPill status={script.status} locale={locale} />
       <Avatar name={script.assignee} />
     </div>
   );
@@ -346,7 +353,7 @@ export function TradeThread({
 
   return (
     <div className={cn("font-sans bg-background text-foreground", className)}>
-      <Header script={script} />
+      <Header script={script} locale={locale} />
       <div className="flex flex-col gap-3 px-4 py-4">
         {script.beats.map((beat) => renderBeat(beat, doneSet, doneLabels, threadCopy))}
       </div>

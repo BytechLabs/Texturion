@@ -46,7 +46,8 @@ With applied throttling (`--throttling-method=devtools`, 3 runs, same intermedia
 - **The home catalogue left the client** (the whole home page, both languages). The hero inbox now gets its rows from the server; the pricing page's plan builder and country toggle import `fill` from `i18n/marketing/fill.ts`.
 - **p5 is composed from its core** (`hero/p5-lean.ts`): shape, color, math and accessibility instead of the full browser build. The field draws as before (checked in the built pages at 390 and 1280 px); Lighthouse's script time for the p5 chunk went from a median of 842 ms to 598 ms on `/`.
 - **The p5 download waits for the window load** as well as the LCP entry, so it no longer shares the connection with the page's own fonts and hydration chunks.
-- Guard: `apps/web/src/app/marketing-first-load.test.ts` walks the static import graph of `/`, `/fr`, `/pricing` and `/fr/tarifs` and fails on any of the above coming back.
+- **The trade pages stopped shipping the app catalogue too.** The thread on every `/for/<trade>` page and its French twin rendered the inbox's `StatusPill`, a client component that imports `@/i18n/provider`. It now uses the thread demo's server-rendered pill, which has the same classes. The label is the same in English. On the French pages it now reads in French ("En attente", "Ouvert"); the app pill had no provider there and always read in English.
+- Guard: `apps/web/src/app/marketing-first-load.test.ts` walks the static import graph of every marketing page in both languages, with the TypeScript parser, and fails on any of the above coming back.
 
 ## Not reproduced, and why it matters
 
