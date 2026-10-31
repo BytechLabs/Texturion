@@ -18,11 +18,11 @@
   },
   "dependencies": {
     "@loonext/shared": "workspace:*",
-    "@sentry/cloudflare": "10.63.0",
-    "@supabase/supabase-js": "2.110.0",
+    "@sentry/cloudflare": "11.9.0",
+    "@supabase/supabase-js": "2.118.0",
     "hono": "^4.13.11",
-    "jose": "6.2.3",
-    "stripe": "22.3.0",
+    "jose": "6.2.13",
+    "stripe": "23.0.1",
     "zod": "^4.6.6"
   },
   "devDependencies": {
