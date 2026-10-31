@@ -2,16 +2,18 @@
   "schema": "loonext.rig-crons.v1",
   "notes": [
     "What the rig does with each cron a tracked Worker config declares (docs/RIG.md, Loonext in rig mode). The rig fires every cron itself through /cdn-cgi/handler/scheduled; scripts/check-rig-crons.mjs fails when a config and this file disagree, and `--ref <ref>` checks another ref's configs against it.",
-    "run: fire it on schedule. run-expect-refusal: fire it, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it; a skip silences the cron's liveness keys, so it lists the alerts that follows.",
+    "run: fire it on schedule. run-expect-refusal: fire it, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it; a skip silences the cron's liveness keys, so it lists the alerts that follow.",
     "Refusals are listed for every code path that can reach one, not only for what today's seed exercises: a refusal that never happens costs nothing, and one that is missing is an unexplained Sentry fingerprint in R00.",
-    "A refused job throws, so runScheduledJobs rejects with an AggregateError that holds the TelnyxApiError (see refusal_match), and the job's own heartbeat is withheld, so after its grace the liveness checker raises the job's ops fingerprint.",
+    "A refusal's outcome says what Sentry receives. job-fails: the job lets the TelnyxApiError out, runScheduledJobs rejects with an AggregateError that holds it, the job's heartbeat is withheld, and after its grace the liveness checker raises the job's ops fingerprint. captured: the job catches it at caught_in, reports it as its own event and returns normally, so its heartbeat is recorded and no ops fingerprint follows; follow_on_events lists what the job raises next because of it.",
+    "defects: events that mean the rig's seed or a scenario's setup is wrong, with the cause. Nothing suppresses them; R00 reports them with that cause instead of as unexplained.",
+    "A guard refusal (a 403 from the guard rather than the app) reaches the app as a TelnyxApiError with no code, which the app treats as a real Telnyx failure. None is expected: each one the crons can provoke is a defect.",
     "Every cron here first asks rig_database_posture(): until the rig's database reports rig mode it throws `rig cron not run: ...`. That is an infrastructure fault for R00 to report, not an expected event, so no entry suppresses it."
   ],
   "refusal_match": {
     "code": "rig_endpoint_refused",
     "exception_type": "TelnyxApiError",
     "message_contains": "[codes rig_endpoint_refused]",
-    "why": "The app sets no fingerprint on a cron failure, so Sentry groups it by exception. Match the refused request by this text inside the cron's AggregateError, and suppress the event only when every exception in it matches a refusal listed for that cron; anything else in the same event is a real failure."
+    "why": "The app sets no fingerprint on a refusal, so Sentry groups it by exception; its message is `Telnyx 403 on <METHOD> <path> [codes rig_endpoint_refused] ...`. A job-fails refusal arrives inside the cron's AggregateError: suppress that event only when every exception in it matches a job-fails refusal listed for that cron, since anything else in it is a real failure. A captured refusal arrives as its own TelnyxApiError event, raised while that cron runs: suppress it when the message has this text and one of the refusal's paths."
   },
   "crons": [
     {
@@ -50,21 +52,43 @@
         "job:reconcile-text-enablement",
         "job:reconcile-voice-enablement"
       ],
-      "note": "reconcile-numbers lists the partition's numbers through the guard and acts only on its own billing group. It flags every group number with no phone_numbers row, once per number per run, so the robot's numbers need a row from the seed or must be hidden from the rig-api caller by the guard. The liveness checker alerts on channels a sparse rig leaves quiet; the scenarios that use each channel judge it instead.",
+      "note": "reconcile-numbers lists the account's numbers through the guard and acts only on its own billing group. A group number with no phone_numbers row is flagged once per run, or, when its customer_reference names a settled workspace with nothing provisioning, DELETEd (provisioning.ts reconcileNumbers): the robot's numbers need a row from the seed, or no customer_reference, or the guard must leave them out of the rig-api caller's listing. The liveness checker alerts on channels a sparse rig leaves quiet; the scenarios that use each channel judge it instead.",
       "refusals": [
         {
           "job": "job:retry-campaign-assignments",
           "code": "rig_endpoint_refused",
+          "outcome": "captured",
           "telnyx_paths": ["/v2/10dlc/phoneNumberCampaign"],
-          "when": "an approved, live 10DLC campaign row exists (the US-number fallback's seeded registration)",
-          "fingerprints": [["ops", "job:retry-campaign-assignments"]]
+          "when": "an approved campaign row with a telnyx_id and no deactivated_at has an active number whose numberAssignments entry is neither added nor pending. Each run marks the number failed and the next run clears failed entries and tries again, so this is one event per such number every 15 minutes, 96 a day each: the US-number fallback's seeded registration must record every QA-W number as added, or carry no telnyx_id.",
+          "caught_in": "apps/api/src/telnyx/registration.ts#assignNumbersToCampaign"
         },
         {
           "job": "job:reconcile-text-enablement",
           "code": "rig_endpoint_refused",
+          "outcome": "captured",
           "telnyx_paths": ["/v2/messaging_hosted_number_orders", "/v2/documents"],
-          "when": "a hosted text-enablement order is in flight",
-          "fingerprints": [["ops", "job:reconcile-text-enablement"]]
+          "when": "a text_enablement_orders row is pending, action-required or in-progress with fewer than 5 attempts. Each run spends one attempt per such order and raises one event for it, so an order raises at most 5.",
+          "caught_in": "apps/api/src/telnyx/text-enablement.ts#resumeTextEnablement",
+          "follow_on_events": [
+            {
+              "match": "level fatal, message starts \"text-enablement exhausted \"",
+              "why": "The fifth refused attempt marks the order failed and says so once; nothing polls a failed order."
+            }
+          ]
+        }
+      ],
+      "defects": [
+        {
+          "match": "message starts \"reconcile: Telnyx number \" and contains \"is unknown to phone_numbers\"",
+          "means": "A number in the rig's group has no phone_numbers row: on the rig, ROBOT-1, ROBOT-2 or STRANGER-1. One warning per number per run, 96 a day each, against the relay's 100. Give each a row from the seed, or have the guard leave them out of the rig-api caller's listing."
+        },
+        {
+          "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...]",
+          "means": "reconcile-numbers tried to reclaim a group number that has no phone_numbers row and whose customer_reference names a settled seeded workspace, and the guard refused it because it is a standing number. Only the guard's standing-number rule stood between the sweep and the number: give the number a row or clear its customer_reference."
+        },
+        {
+          "match": "level warning, message starts \"reconcile: reclaimed orphaned Telnyx number \"",
+          "means": "The same reclaim got through and a number in the rig's group was deleted. If it was a standing number, the guard's standing-number rule failed: critical."
         }
       ],
       "expected_events": [
@@ -148,14 +172,18 @@
         {
           "job": "job:poll-registrations",
           "code": "rig_endpoint_refused",
-          "telnyx_paths": [
-            "/v2/10dlc/brand",
-            "/v2/10dlc/campaign",
-            "/v2/10dlc/campaignBuilder",
-            "/v2/10dlc/phoneNumberCampaign"
-          ],
-          "when": "a brand or campaign row is submitted, pending, approved or suspended, or an approved brand's campaign is still a draft",
+          "outcome": "job-fails",
+          "telnyx_paths": ["/v2/10dlc/brand", "/v2/10dlc/campaign", "/v2/10dlc/campaignBuilder"],
+          "when": "a brand or campaign row with a telnyx_id and no deactivated_at is submitted, pending, approved or suspended (each is polled), or an approved brand's campaign is a draft or deactivated (it is submitted). An approved campaign is also read a second time, for its content migration.",
           "fingerprints": [["ops", "job:poll-registrations"]]
+        },
+        {
+          "job": "job:poll-registrations",
+          "code": "rig_endpoint_refused",
+          "outcome": "captured",
+          "telnyx_paths": ["/v2/10dlc/phoneNumberCampaign"],
+          "when": "as retry-campaign-assignments on the */15 cron, which this job also runs once a day",
+          "caught_in": "apps/api/src/telnyx/registration.ts#assignNumbersToCampaign"
         }
       ]
     },
@@ -164,13 +192,23 @@
       "cron": "10 13 * * *",
       "class": "run-expect-refusal",
       "jobs": ["job:poll-port-requests"],
+      "note": "The portability check and the document upload are reached only from the porting routes, never from this job.",
       "refusals": [
         {
           "job": "job:poll-port-requests",
           "code": "rig_endpoint_refused",
-          "telnyx_paths": ["/v2/porting_orders", "/v2/portability_checks", "/v2/documents"],
-          "when": "a port_requests row is not yet ported or cancelled",
+          "outcome": "job-fails",
+          "telnyx_paths": ["/v2/porting_orders"],
+          "when": "a port_requests row with a Telnyx order id is not ported or cancelled, or is voice-ported with messaging still pending: the poll's read of the order is refused",
           "fingerprints": [["ops", "job:poll-port-requests"]]
+        },
+        {
+          "job": "job:poll-port-requests",
+          "code": "rig_endpoint_refused",
+          "outcome": "captured",
+          "telnyx_paths": ["/v2/porting_orders"],
+          "when": "a draft port_requests row is due a resume, with no order yet (the saga creates one) or with an order and both documents (it is confirmed). The refusal is written to the row's rejection_reason and raised as its own event, once per such row per day.",
+          "caught_in": "apps/api/src/telnyx/porting.ts#recordPortFailure"
         }
       ]
     },
@@ -179,14 +217,21 @@
       "cron": "0 14 * * *",
       "class": "run-expect-refusal",
       "jobs": ["job:grace-and-release"],
-      "note": "S29 fires this after backdating QA-C's cancellation. Releasing a number goes through the guard, which refuses a DELETE on a standing number, so the number S29 expects released must not be one of the eight standing numbers.",
+      "note": "S29 fires this after backdating a workspace's cancellation. The release deletes every number that workspace holds (provisioning.ts releaseCompanyNumbers), so S29's workspace must hold no standing number: QA-C as RIG.md 3.3 lists it holds DEV-C1. See defects.",
       "refusals": [
         {
           "job": "job:grace-and-release",
           "code": "rig_endpoint_refused",
-          "telnyx_paths": ["/v2/10dlc/campaign"],
-          "when": "a workspace past its grace period still has an active 10DLC campaign to deactivate",
+          "outcome": "job-fails",
+          "telnyx_paths": ["/v2/10dlc/campaign", "/v2/messaging_hosted_numbers", "/v2/messaging_hosted_number_orders"],
+          "when": "a workspace past its grace period still has an active 10DLC campaign to deactivate, or holds a hosted (text-enabled) number whose enablement order is not cancelled: releasing it deletes the hosted number, or the order while it is not completed",
           "fingerprints": [["ops", "job:grace-and-release"]]
+        }
+      ],
+      "defects": [
+        {
+          "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...], inside the cron's AggregateError",
+          "means": "The grace job tried to release a standing number and the guard refused it: S29 backdated a workspace that holds one. The job fails before it deactivates the workspace's campaign, and S29 cannot pass. Only the guard's standing-number rule kept the number. S29 needs a workspace whose only number is one bought for the run."
         }
       ]
     },

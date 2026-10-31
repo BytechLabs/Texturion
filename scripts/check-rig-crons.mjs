@@ -11,14 +11,22 @@
  * on any Sentry fingerprint nothing explains, so an unclassified cron is a
  * standing red.
  *
+ * A refusal's `outcome` says what Sentry receives. `job-fails`: the job lets
+ * the error out, so it arrives inside the cron's AggregateError and the job's
+ * liveness alert follows. `captured`: the job catches it at `caught_in`,
+ * reports it as its own event and returns normally, so no liveness alert
+ * follows, and suppressing one would hide a real failure.
+ *
  * Fails when a config declares a cron the registry does not classify, the
  * registry classifies one no config declares, an entry is malformed, an API
- * cron's jobs differ from `CRON_JOBS` (the jobs are what is classified), or a
- * refusal names an endpoint rig mode does not refuse.
+ * cron's jobs differ from `CRON_JOBS` (the jobs are what is classified), a
+ * refusal names an endpoint rig mode does not refuse, or a `caught_in`
+ * function does not exist.
  *
  * `--ref` reads the configs and sources from that ref. There, entries and jobs
- * the ref lacks are notes, since the registry may be newer; an unclassified
- * cron still fails.
+ * the ref lacks are notes, since the registry may be newer. A ref whose
+ * CRON_JOBS cannot be read, or that predates the app's own refusal, fails: the
+ * registry does not describe it, and passing would claim it does.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -39,11 +47,13 @@ const CONFIG_NAME = /(?:^|\/)wrangler\.(?:jsonc?|toml)$/;
 const CRON_FIELD = /^[0-9*/,-]+$/;
 
 const ENTRY_KEYS = {
-  run: ["config", "cron", "class", "jobs", "note", "expected_events"],
-  "run-expect-refusal": ["config", "cron", "class", "jobs", "note", "refusals", "expected_events"],
+  run: ["config", "cron", "class", "jobs", "note", "expected_events", "defects"],
+  "run-expect-refusal": ["config", "cron", "class", "jobs", "note", "refusals", "expected_events", "defects"],
   skip: ["config", "cron", "class", "jobs", "reason", "fingerprints"],
 };
-const REFUSAL_KEYS = ["job", "code", "telnyx_paths", "when", "fingerprints"];
+export const OUTCOMES = ["job-fails", "captured"];
+const REFUSAL_KEYS = ["job", "code", "outcome", "telnyx_paths", "when", "caught_in", "fingerprints", "follow_on_events"];
+const CAUGHT_IN = /^([\w./-]+\.ts)#(\w+)$/;
 
 /** Comments and trailing commas out, outside strings only: a `//` in a URL is not a comment. */
 export function stripJsonc(source) {
@@ -131,10 +141,34 @@ export function refusedFamiliesFromPolicy(text) {
   return match ? match[1].split("|") : null;
 }
 
+/** Whether `text` declares a function or function-valued binding named `name`. */
+export function declaresFunction(text, name) {
+  return new RegExp(`\\bfunction\\s*\\*?\\s*${name}\\s*[<(]|\\b(?:const|let|var)\\s+${name}\\s*[:=]`).test(text);
+}
+
 const isStringList = (value) =>
   Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string" && item.trim() !== "");
 const isFingerprint = (value) => isStringList(value);
 const sameFingerprint = (a, b) => a.length === b.length && a.every((part, i) => part === b[i]);
+const isSentence = (value) => typeof value === "string" && value.trim() !== "";
+
+/** `expected_events`, `defects` and `follow_on_events` are lists of a match and one explaining field. */
+function checkEventList(list, field, explain, at, problems) {
+  if (list === undefined) return;
+  if (!Array.isArray(list) || list.length === 0) {
+    problems.push(`${at}: ${field} must be a non-empty list when present`);
+    return;
+  }
+  for (const [i, event] of list.entries()) {
+    const ok =
+      event !== null &&
+      typeof event === "object" &&
+      Object.keys(event).every((key) => key === "match" || key === explain) &&
+      isSentence(event.match) &&
+      isSentence(event[explain]);
+    if (!ok) problems.push(`${at}: ${field}[${i}] needs exactly a match and a ${explain}`);
+  }
+}
 
 function validEntryShape(entry, at, problems) {
   if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
@@ -162,26 +196,19 @@ function validEntryShape(entry, at, problems) {
   return true;
 }
 
-function checkClassFields(entry, at, problems, families) {
+function checkClassFields(entry, at, problems, families, sourceAt) {
   if (entry.jobs !== undefined && !isStringList(entry.jobs)) {
     problems.push(`${at}: jobs must be a non-empty list of job keys`);
   }
-  if (entry.class === "run") {
-    if (entry.note !== undefined && (typeof entry.note !== "string" || entry.note.trim() === "")) {
+  if (entry.class !== "skip") {
+    if (entry.note !== undefined && !isSentence(entry.note)) {
       problems.push(`${at}: note must be a sentence when present`);
     }
-    for (const [i, event] of (entry.expected_events ?? []).entries()) {
-      const ok =
-        event !== null &&
-        typeof event === "object" &&
-        typeof event.match === "string" &&
-        event.match.trim() !== "" &&
-        typeof event.why === "string" &&
-        event.why.trim() !== "";
-      if (!ok) problems.push(`${at}: expected_events[${i}] needs a match and a why`);
-    }
-    return;
+    checkEventList(entry.expected_events, "expected_events", "why", at, problems);
+    // Never suppressed: R00 reports each with the cause given here.
+    checkEventList(entry.defects, "defects", "means", at, problems);
   }
+  if (entry.class === "run") return;
   if (entry.class === "skip") {
     if (typeof entry.reason !== "string" || entry.reason.trim() === "") {
       problems.push(`${at}: a skip needs a reason`);
@@ -215,15 +242,21 @@ function checkClassFields(entry, at, problems, families) {
       problems.push(`${where}: job is missing`);
       continue;
     }
-    if (seen.has(refusal.job)) problems.push(`${where}: ${refusal.job} is listed twice`);
-    seen.add(refusal.job);
+    if (!OUTCOMES.includes(refusal.outcome)) {
+      problems.push(`${where}: outcome must be one of ${OUTCOMES.join(", ")}`);
+      continue;
+    }
+    // One job can reach a refusal both ways, on different paths.
+    const key = `${refusal.job} ${refusal.outcome}`;
+    if (seen.has(key)) problems.push(`${where}: ${refusal.job} has two ${refusal.outcome} refusals; merge them`);
+    seen.add(key);
     if (entry.jobs !== undefined && !entry.jobs.includes(refusal.job)) {
       problems.push(`${where}: ${refusal.job} is not one of this cron's jobs`);
     }
     if (refusal.code !== REFUSAL_CODE) {
       problems.push(`${where}: code must be ${REFUSAL_CODE}`);
     }
-    if (typeof refusal.when !== "string" || refusal.when.trim() === "") {
+    if (!isSentence(refusal.when)) {
       problems.push(`${where}: when must say what work makes the job reach the refusal`);
     }
     if (!isStringList(refusal.telnyx_paths) || !refusal.telnyx_paths.every((path) => path.startsWith("/v2/"))) {
@@ -239,24 +272,58 @@ function checkClassFields(entry, at, problems, families) {
         }
       }
     }
-    // A job that throws withholds its own heartbeat, and the liveness checker
-    // then alerts on it under this fingerprint.
-    const owed = ["ops", refusal.job];
-    const listed = Array.isArray(refusal.fingerprints) ? refusal.fingerprints : [];
-    if (!listed.every(isFingerprint) || !listed.some((item) => sameFingerprint(item, owed))) {
-      problems.push(`${where}: fingerprints must include ${JSON.stringify(owed)}`);
+    checkEventList(refusal.follow_on_events, "follow_on_events", "why", where, problems);
+    const liveness = ["ops", refusal.job];
+    if (refusal.fingerprints !== undefined && (!Array.isArray(refusal.fingerprints) || !refusal.fingerprints.every(isFingerprint))) {
+      problems.push(`${where}: fingerprints must be a list of fingerprints`);
+      continue;
+    }
+    const listed = refusal.fingerprints ?? [];
+    const listsLiveness = listed.some((item) => sameFingerprint(item, liveness));
+    if (refusal.outcome === "job-fails") {
+      if (refusal.caught_in !== undefined) {
+        problems.push(`${where}: a job-fails refusal is not caught; drop caught_in, or make it captured`);
+      }
+      // The job withholds its heartbeat, and the liveness checker then alerts
+      // on it under this fingerprint.
+      if (!listsLiveness) problems.push(`${where}: fingerprints must include ${JSON.stringify(liveness)}`);
+      continue;
+    }
+    if (listsLiveness) {
+      problems.push(
+        `${where}: a captured refusal leaves the job's heartbeat recorded, so ${JSON.stringify(liveness)} ` +
+          `would only ever be a real failure; do not suppress it`,
+      );
+    }
+    const pointer = CAUGHT_IN.exec(typeof refusal.caught_in === "string" ? refusal.caught_in : "");
+    if (pointer === null) {
+      problems.push(`${where}: a captured refusal names where it is caught, as caught_in "<file>.ts#<function>"`);
+      continue;
+    }
+    if (sourceAt === null) continue;
+    const [, file, name] = pointer;
+    const text = sourceAt(file);
+    if (text === null) {
+      problems.push(`${where}: caught_in names ${file}, which does not exist here`);
+    } else if (!declaresFunction(text, name)) {
+      problems.push(
+        `${where}: ${file} declares no ${name}. Find where the refused request is caught now, ` +
+          `and whether it still is, before moving caught_in`,
+      );
     }
   }
 }
 
 /**
  * `configs` maps each Worker config to its crons; `jobs` maps a config to its
- * cron-to-jobs map, null when unreadable; `families` is null when unreadable.
- * `exact` is false for `--ref`, where entries and jobs the ref lacks are notes.
+ * cron-to-jobs map, null when unreadable; `families` is null when unreadable;
+ * `sources` maps each `caught_in` file to its text, null when absent. `exact`
+ * is false for `--ref`, where entries and jobs the ref lacks are notes.
  */
-export function judge({ registry, configs, jobs = {}, families = null, exact = true }) {
+export function judge({ registry, configs, jobs = {}, families = null, sources = {}, exact = true }) {
   const problems = [];
   const notes = [];
+  const sourceAt = (file) => sources[file] ?? null;
   if (registry === null || typeof registry !== "object" || registry.schema !== SCHEMA) {
     return { problems: [`${REGISTRY_FILE}: schema must be "${SCHEMA}"`], notes, counts: null };
   }
@@ -284,7 +351,8 @@ export function judge({ registry, configs, jobs = {}, families = null, exact = t
   }
 
   const classified = new Map();
-  const counts = { run: 0, "run-expect-refusal": 0, skip: 0, refusals: 0, jobs: 0 };
+  const counts = { run: 0, "run-expect-refusal": 0, skip: 0, "job-fails": 0, captured: 0, jobs: 0 };
+  const refusing = [];
   for (const [i, entry] of registry.crons.entries()) {
     const at = `${REGISTRY_FILE} crons[${i}]${typeof entry?.cron === "string" ? ` "${entry.cron}"` : ""}`;
     if (!validEntryShape(entry, at, problems)) continue;
@@ -294,9 +362,11 @@ export function judge({ registry, configs, jobs = {}, families = null, exact = t
       continue;
     }
     classified.set(key, entry);
-    checkClassFields(entry, at, problems, families);
+    // A cron the ref lacks need not have its catch sites there either.
+    const isDeclared = declared.has(key);
+    checkClassFields(entry, at, problems, families, isDeclared || exact ? sourceAt : null);
 
-    if (!declared.has(key)) {
+    if (!isDeclared) {
       const message = `${at}: no tracked Worker config declares "${entry.cron}" in ${entry.config}`;
       if (exact) problems.push(`${message}; delete the entry`);
       else notes.push(`${message} at this ref; fine if the registry is newer than the ref`);
@@ -304,7 +374,10 @@ export function judge({ registry, configs, jobs = {}, families = null, exact = t
     }
     counts[entry.class] += 1;
     if (entry.class === "run-expect-refusal" && Array.isArray(entry.refusals)) {
-      counts.refusals += entry.refusals.length;
+      refusing.push(entry.cron);
+      for (const refusal of entry.refusals) {
+        if (OUTCOMES.includes(refusal?.outcome)) counts[refusal.outcome] += 1;
+      }
     }
 
     if (!(entry.config in JOB_SOURCES)) {
@@ -342,14 +415,25 @@ export function judge({ registry, configs, jobs = {}, families = null, exact = t
     }
   }
 
+  // Both are what the classification rests on, so a ref without them is one
+  // this registry does not describe.
   for (const [config, source] of Object.entries(JOB_SOURCES)) {
     if (!(config in configs)) continue;
     if (jobs[config] === null || jobs[config] === undefined) {
-      notes.push(`${source} has no readable CRON_JOBS at this ref; jobs were not compared`);
+      problems.push(
+        `${source} has no CRON_JOBS in a shape this reads at this ref, so the jobs each cron runs, ` +
+          `which are what is classified, cannot be compared`,
+      );
     }
   }
-  if (families === null) {
-    notes.push(`${POLICY_FILE} has no account-wide refusal list at this ref; refusal paths were not compared`);
+  if (families === null && refusing.length > 0) {
+    problems.push(
+      `${POLICY_FILE} has no account-wide refusal list at this ref, so the app does not refuse those ` +
+        `requests itself. They reach the guard, whose 403 carries no ${REFUSAL_CODE} code, and the refusals ` +
+        `listed for ${refusing.map((cron) => `"${cron}"`).join(", ")} match nothing this ref raises`,
+    );
+  } else if (families === null) {
+    notes.push(`${POLICY_FILE} has no account-wide refusal list at this ref, and no cron here expects a refusal`);
   }
 
   if (declared.size === 0) {
@@ -433,7 +517,14 @@ function main() {
   const policy = readAt(ref, POLICY_FILE);
   const families = policy === null ? null : refusedFamiliesFromPolicy(policy);
   const registry = JSON.parse(readFileSync(join(REPO_ROOT, REGISTRY_FILE), "utf8"));
-  const { problems, notes, counts } = judge({ registry, configs, jobs, families, exact: ref === null });
+  const sources = {};
+  for (const entry of Array.isArray(registry.crons) ? registry.crons : []) {
+    for (const refusal of Array.isArray(entry?.refusals) ? entry.refusals : []) {
+      const pointer = CAUGHT_IN.exec(typeof refusal?.caught_in === "string" ? refusal.caught_in : "");
+      if (pointer !== null && !(pointer[1] in sources)) sources[pointer[1]] = readAt(ref, pointer[1]);
+    }
+  }
+  const { problems, notes, counts } = judge({ registry, configs, jobs, families, sources, exact: ref === null });
 
   const where = ref === null ? "this checkout" : `ref ${ref}`;
   for (const note of notes) console.log(`  - ${note}`);
@@ -445,8 +536,8 @@ function main() {
   console.log(
     `check-rig-crons: ${counts.crons} cron(s) in ${counts.configs} Worker config(s) at ${where}, ` +
       `${counts.jobs} job(s) compared with CRON_JOBS; ${counts.run} run, ` +
-      `${counts["run-expect-refusal"]} run-expect-refusal (${counts.refusals} refused job(s)), ` +
-      `${counts.skip} skip.`,
+      `${counts["run-expect-refusal"]} run-expect-refusal (${counts["job-fails"]} refusal(s) that fail the job, ` +
+      `${counts.captured} the job captures), ${counts.skip} skip.`,
   );
 }
 

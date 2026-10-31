@@ -17,7 +17,7 @@ type Registry = { schema: string; refusal_match: Record<string, string>; crons: 
 type Judged = {
   problems: string[];
   notes: string[];
-  counts: { crons: number; jobs: number; refusals: number } | null;
+  counts: { crons: number; jobs: number; "job-fails": number; captured: number } | null;
 };
 const guard = (await import(join(REPO, "scripts", "check-rig-crons.mjs"))) as {
   REGISTRY_FILE: string;
@@ -25,11 +25,13 @@ const guard = (await import(join(REPO, "scripts", "check-rig-crons.mjs"))) as {
   cronsFromConfig: (file: string, text: string) => string[];
   cronJobsFromSource: (text: string) => Map<string, string[]> | null;
   refusedFamiliesFromPolicy: (text: string) => string[] | null;
+  declaresFunction: (text: string, name: string) => boolean;
   judge: (input: {
     registry: unknown;
     configs: Record<string, string[]>;
     jobs?: Record<string, Map<string, string[]> | null>;
     families?: string[] | null;
+    sources?: Record<string, string | null>;
     exact?: boolean;
   }) => Judged;
 };
@@ -43,7 +45,14 @@ function realInput() {
   const jobs = { [API]: guard.cronJobsFromSource(read("apps/api/src/index.ts")) };
   const families = guard.refusedFamiliesFromPolicy(read("apps/api/src/environments/policy.ts"));
   const registry = JSON.parse(read(guard.REGISTRY_FILE)) as Registry;
-  return { configs, jobs, families, registry };
+  const sources: Record<string, string> = {};
+  for (const entry of registry.crons) {
+    for (const refusal of (entry.refusals ?? []) as { caught_in?: string }[]) {
+      const file = refusal.caught_in?.split("#")[0];
+      if (file !== undefined) sources[file] = read(file);
+    }
+  }
+  return { configs, jobs, families, sources, registry };
 }
 
 const MATCH = {
@@ -59,17 +68,28 @@ function world(entry: Entry, jobs: string[] = ["job:a"]) {
     registry: { schema: "loonext.rig-crons.v1", refusal_match: MATCH, crons: [entry] },
     configs: { [API]: ["0 13 * * *"] },
     jobs: { [API]: new Map([["0 13 * * *", jobs]]) },
-    families: ["10dlc", "porting_orders"],
+    families: ["10dlc", "porting_orders"] as string[] | null,
+    sources: { "apps/api/src/a.ts": "export async function catchesIt(env: Env) {}\n" } as Record<string, string | null>,
   };
 }
 const run = { config: API, cron: "0 13 * * *", class: "run", jobs: ["job:a"] };
 const refusal = {
   job: "job:a",
   code: "rig_endpoint_refused",
+  outcome: "job-fails",
   telnyx_paths: ["/v2/porting_orders"],
   when: "a port is open",
   fingerprints: [["ops", "job:a"]],
 };
+const captured = {
+  job: "job:a",
+  code: "rig_endpoint_refused",
+  outcome: "captured",
+  telnyx_paths: ["/v2/porting_orders"],
+  when: "a draft port is due",
+  caught_in: "apps/api/src/a.ts#catchesIt",
+};
+const refusing = (...refusals: Entry[]) => world({ ...run, class: "run-expect-refusal", refusals });
 const problems = (input: Parameters<typeof guard.judge>[0]) => guard.judge(input).problems.join("\n");
 
 describe("reading a Worker config", () => {
@@ -158,10 +178,17 @@ describe("registry against config", () => {
     expect(guard.judge({ ...input, exact: false }).problems).toEqual([]);
   });
 
-  it("notes an unreadable CRON_JOBS rather than passing it silently", () => {
-    const input = world(run);
-    const result = guard.judge({ ...input, jobs: { [API]: null }, exact: false });
-    expect(result.notes.join("\n")).toMatch(/no readable CRON_JOBS/);
+  it("fails a ref whose CRON_JOBS it cannot read, since the jobs are what is classified", () => {
+    const result = guard.judge({ ...world(run), jobs: { [API]: null }, exact: false });
+    expect(result.problems.join("\n")).toMatch(/no CRON_JOBS in a shape this reads/);
+  });
+
+  it("fails a ref that predates the app's own refusal when the registry expects one", () => {
+    const older = { ...refusing(refusal), families: null, exact: false };
+    expect(problems(older)).toMatch(/no account-wide refusal list at this ref.*match nothing this ref raises/);
+    const quiet = guard.judge({ ...world(run), families: null, exact: false });
+    expect(quiet.problems).toEqual([]);
+    expect(quiet.notes.join("\n")).toMatch(/no cron here expects a refusal/);
   });
 
   it("fails when there is nothing to read", () => {
@@ -210,6 +237,71 @@ describe("malformed entries", () => {
     expect(problems(world(unprinted))).toMatch(/fingerprints must include \["ops","job:a"\]/);
   });
 
+  it("fails a refusal that does not say whether the job fails or captures it", () => {
+    const { outcome: _outcome, ...unsaid } = refusal;
+    expect(problems(refusing(unsaid))).toMatch(/outcome must be one of job-fails, captured/);
+  });
+});
+
+describe("refusals the job captures", () => {
+  it("passes a captured refusal whose catch site exists, beside a job-fails one for the same job", () => {
+    expect(guard.judge({ ...refusing(captured, refusal), exact: true }).problems).toEqual([]);
+  });
+
+  it("fails a captured refusal that suppresses the job's liveness alert, since the job still beats", () => {
+    expect(problems(refusing({ ...captured, fingerprints: [["ops", "job:a"]] }))).toMatch(
+      /captured refusal leaves the job's heartbeat recorded/,
+    );
+  });
+
+  it("fails a captured refusal with no catch site, or one that no longer exists", () => {
+    const { caught_in: _site, ...unsited } = captured;
+    expect(problems(refusing(unsited))).toMatch(/names where it is caught/);
+    expect(problems(refusing({ ...captured, caught_in: "apps/api/src/a.ts#renamed" }))).toMatch(/declares no renamed/);
+    expect(problems(refusing({ ...captured, caught_in: "apps/api/src/gone.ts#catchesIt" }))).toMatch(/does not exist here/);
+  });
+
+  it("fails a job-fails refusal that names a catch site, and the same outcome twice for one job", () => {
+    expect(problems(refusing({ ...refusal, caught_in: captured.caught_in }))).toMatch(/job-fails refusal is not caught/);
+    expect(problems(refusing(captured, { ...captured }))).toMatch(/job:a has two captured refusals/);
+  });
+
+  it("reads a declaration of the catch site, not a call to it", () => {
+    expect(guard.declaresFunction("async function catchesIt(env) {}", "catchesIt")).toBe(true);
+    expect(guard.declaresFunction("export const catchesIt = async () => {}", "catchesIt")).toBe(true);
+    expect(guard.declaresFunction("await catchesIt(env);", "catchesIt")).toBe(false);
+  });
+
+  it("fails an expected event, defect or follow-on event without its explanation", () => {
+    expect(problems(refusing({ ...captured, follow_on_events: [{ match: "level fatal" }] }))).toMatch(
+      /follow_on_events\[0\] needs exactly a match and a why/,
+    );
+    expect(problems(world({ ...run, defects: [{ match: "x", why: "y" }] }))).toMatch(/defects\[0\] needs exactly a match and a means/);
+    const refusingWithEvent = { ...run, class: "run-expect-refusal", refusals: [refusal], expected_events: [{ match: "x" }] };
+    expect(problems(world(refusingWithEvent))).toMatch(/expected_events\[0\] needs exactly a match and a why/);
+  });
+});
+
+describe("the real registry's refusals", () => {
+  it("records the 10DLC assignment and hosted-order refusals as captured, as their jobs catch them", () => {
+    const { registry } = realInput();
+    const outcomes = registry.crons.flatMap((entry) =>
+      ((entry.refusals ?? []) as { job: string; outcome: string }[]).map((r) => `${r.job} ${r.outcome}`),
+    );
+    expect(outcomes).toEqual(
+      expect.arrayContaining([
+        "job:retry-campaign-assignments captured",
+        "job:reconcile-text-enablement captured",
+        "job:poll-port-requests captured",
+        "job:poll-port-requests job-fails",
+        "job:grace-and-release job-fails",
+      ]),
+    );
+    expect(outcomes).not.toContain("job:retry-campaign-assignments job-fails");
+  });
+});
+
+describe("refusal_match", () => {
   it("fails a refusal_match that does not name the refusal's text", () => {
     const input = world(run);
     input.registry.refusal_match = { ...MATCH, message_contains: "refused" };
