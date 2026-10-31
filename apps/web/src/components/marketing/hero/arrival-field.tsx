@@ -28,7 +28,7 @@ import { useEffect, useRef } from "react";
 
 import type p5 from "p5";
 
-import { ARRIVAL_DOCK_ATTR } from "./arrival-script";
+import { ARRIVAL_DOCK_ATTR } from "./arrival-constants";
 
 /* v4 tokens, exact. Cobalt in the open field warming to Green at the
  * confluence is the ENTIRE palette of this sketch (Flare dropped). */
@@ -104,7 +104,7 @@ export default function ArrivalField({
     let onVisibility: (() => void) | null = null;
     let cancelled = false;
 
-    import("p5").then((mod) => {
+    import("./p5-lean").then((mod) => {
       if (cancelled || !hostRef.current) return;
       const P5 = mod.default;
 
