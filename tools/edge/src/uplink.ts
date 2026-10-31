@@ -7,11 +7,11 @@ import {
   MEDIA_MAX_BYTES,
   QUEUED_DELIVERY_MAX_AGE_MS,
   type RigToEdge,
+  TELNYX_SIGNATURE_WINDOW_S,
 } from "@loonext/rig-protocol";
 
 import type { Env } from "./env";
 import { relayStatus } from "./http";
-import { TELNYX_SIGNATURE_WINDOW_S } from "./telnyx";
 
 /**
  * One Durable Object holding `rigd`'s outbound WebSocket, hibernating between
@@ -30,12 +30,7 @@ import { TELNYX_SIGNATURE_WINDOW_S } from "./telnyx";
 type WebhookFrame = Extract<EdgeToRig, { t: "webhook" }>;
 type MailFrame = Extract<EdgeToRig, { t: "mail" }>;
 type QueuedFrame = Omit<WebhookFrame, "id" | "attempt"> | Omit<MailFrame, "id">;
-/**
- * The protocol's rpc frame plus the class the edge admitted the caller as, so
- * `rigd` can hold each method to the classes it names. `caller` is not in
- * @loonext/rig-protocol yet.
- */
-type RpcFrame = Extract<EdgeToRig, { t: "rpc" }> & { caller: ControlClass };
+type RpcFrame = Extract<EdgeToRig, { t: "rpc" }>;
 
 /** Where an edge-sent Sentry event goes; each has its own daily budget. */
 export type AlertTarget = "synthetic" | "production";

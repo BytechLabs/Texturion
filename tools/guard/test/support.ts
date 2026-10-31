@@ -1,7 +1,6 @@
-import { HEADER } from "@loonext/rig-protocol";
+import { HEADER, type MailStatus } from "@loonext/rig-protocol";
 
 import type { AiRunner, Ctx } from "../src/context";
-import type { MailStatus } from "../src/edge-contract";
 import { readConfig, type Env } from "../src/env";
 import { Guard } from "../src/guard";
 import { runSafetyChecks } from "../src/setup/safety";

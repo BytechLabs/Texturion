@@ -7,7 +7,7 @@
  * and the registry's until it ever has. `RIG_DIAL_WINDOW` overrides all three.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
+import { EDGE_PATHS, GUARD_ROUTES, type GuardHealth } from "@loonext/rig-protocol";
 import type { DialWindow } from "./budget.ts";
 
 export interface WindowSourceOptions {
@@ -65,8 +65,8 @@ export class WindowSource {
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) return undefined;
-    const body = (await response.json()) as { paid_dials?: { window_start_hour_utc?: unknown } };
-    const start = body?.paid_dials?.window_start_hour_utc;
+    const body = (await response.json()) as Partial<Pick<GuardHealth, "paid_dials">> | null;
+    const start: unknown = body?.paid_dials?.window_start_hour_utc;
     return typeof start === "number" && Number.isInteger(start) && start >= 0 && start <= 23 ? start : undefined;
   }
 

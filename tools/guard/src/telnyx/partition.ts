@@ -1,7 +1,12 @@
-import { PARTITION_CACHE_MS, type Partition } from "@loonext/rig-protocol";
+import {
+  PARTITION_CACHE_MS,
+  STANDING_ROLES,
+  type Partition,
+  type StandingEntry,
+  type StandingRole,
+} from "@loonext/rig-protocol";
 
 import type { Ctx } from "../context";
-import { STANDING_ROLES, type StandingEntry, type StandingRole } from "../edge-contract";
 import { Refusal } from "../refusal";
 import { SPEC } from "../setup/spec";
 import { noteHeld } from "../state/ledger";

@@ -1,8 +1,8 @@
-import { HEADER } from "@loonext/rig-protocol";
+import { type HaltCorroboration, type HaltRequest, HEADER } from "@loonext/rig-protocol";
 
 import { secretSegmentMatches } from "./auth";
 import { uplink, type Env } from "./env";
-import { guardCall, requestHalt, type HaltRequest } from "./guard";
+import { guardCall, requestHalt } from "./guard";
 import { boundedText, empty } from "./http";
 import { parseDsn, sendSentryEvent } from "./sentry";
 import { verifyTelnyxSignature } from "./telnyx";
@@ -99,7 +99,7 @@ export function balanceOf(body: unknown): number | null {
 }
 
 type Corroboration =
-  | { outcome: "corroborated"; by: HaltRequest["corroborated_by"] }
+  | { outcome: "corroborated"; by: HaltCorroboration }
   | { outcome: "uncorroborated" }
   | { outcome: "unreadable" };
 

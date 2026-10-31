@@ -1,31 +1,19 @@
-import { CALLER_CLASSES, GUARD_ROUTES, type CallerClass } from "@loonext/rig-protocol";
+import {
+  CALLER_CLASSES,
+  EDGE_CALLER,
+  EDGE_ONLY_ROUTES,
+  GUARD_ROUTES,
+  type CallerClass,
+  type EdgeCaller,
+} from "@loonext/rig-protocol";
 
-/**
- * The edge itself, for the calls it makes on its own behalf: registering a
- * leg it relayed, rejecting a stranger, detaching a flooded number, halting
- * on an account signal, and the reads that corroborate one.
- *
- * Not in the protocol's CALLER_CLASSES, which are classes of bearer token.
- * It has to be distinct from all of them: a `rig-api` caller that could POST
- * /legs could register a production call's id and then command it. The edge
- * overwrites the header on every forward, so only the edge can send this.
- * Mirrors EDGE_CALLER in tools/edge/src/guard.ts until the protocol carries it.
- */
-export const EDGE_CALLER = "edge";
-
-export type GuardCaller = CallerClass | typeof EDGE_CALLER;
+export type GuardCaller = CallerClass | EdgeCaller;
 
 const KNOWN: ReadonlySet<string> = new Set<string>([...CALLER_CLASSES, EDGE_CALLER]);
 
 export function parseCaller(value: string | null): GuardCaller | null {
   return value !== null && KNOWN.has(value) ? (value as GuardCaller) : null;
 }
-
-/** Edge-only routes beyond the protocol's `/legs` and `/reject`; mirrors EDGE_GUARD_ROUTES in the edge. */
-export const EDGE_ROUTES = {
-  detach: "/detach",
-  halt: "/halt",
-} as const;
 
 /** The first path segment of each guard route, and the callers each admits. */
 export const ROUTE_CALLERS: Readonly<Record<string, readonly GuardCaller[]>> = {
@@ -37,10 +25,7 @@ export const ROUTE_CALLERS: Readonly<Record<string, readonly GuardCaller[]>> = {
   [GUARD_ROUTES.ai]: ["rig-api"],
   [GUARD_ROUTES.diag]: ["diag"],
   [GUARD_ROUTES.admin]: ["admin"],
-  [GUARD_ROUTES.legs]: [EDGE_CALLER],
-  [GUARD_ROUTES.reject]: [EDGE_CALLER],
-  [EDGE_ROUTES.detach]: [EDGE_CALLER],
-  [EDGE_ROUTES.halt]: [EDGE_CALLER],
+  ...Object.fromEntries(EDGE_ONLY_ROUTES.map((route) => [route, [EDGE_CALLER]])),
   [GUARD_ROUTES.partition]: ["rig-api", "robot", "admin", EDGE_CALLER],
   [GUARD_ROUTES.lease]: ["rig-api", "robot", "admin"],
   [GUARD_ROUTES.health]: ["rig-api", "robot", "diag", "admin"],

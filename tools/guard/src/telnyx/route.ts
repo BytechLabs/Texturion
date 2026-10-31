@@ -1,6 +1,6 @@
-import { HEADER } from "@loonext/rig-protocol";
+import { EDGE_CALLER, HEADER } from "@loonext/rig-protocol";
 
-import { EDGE_CALLER, TELNYX_CLASSES_BY_CALLER, type GuardCaller } from "../caller";
+import { TELNYX_CLASSES_BY_CALLER, type GuardCaller } from "../caller";
 import type { Ctx } from "../context";
 import { json, Refusal, type RuleName } from "../refusal";
 import { requireSafe } from "../setup/safety";

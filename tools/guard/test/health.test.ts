@@ -1,19 +1,15 @@
-import { HEADER } from "@loonext/rig-protocol";
+import { HEADER, type GuardHealth } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
 import { CRONS } from "../src/guard";
 import { harness, lease, N, ready, ruleOf, type Harness } from "./support";
 
-interface Health {
-  ok: boolean;
-  balance_above_floor: boolean;
-  room?: number;
-  telnyx: { key: string; rule?: string; safety: { state: string } };
-  paid_dials: { enabled: boolean; blockers: string[]; room: number | null };
+/** The protocol's fields, and the guard-only detail these cases read. */
+type Health = GuardHealth & {
   ordering: { enabled: boolean; blockers: string[] };
   money: Record<string, unknown>;
   lease: Record<string, unknown> | null;
-}
+};
 
 async function healthOf(h: Harness, caller: string): Promise<Health> {
   return (await (await h.call("/health", { caller })).json()) as Health;
@@ -62,7 +58,13 @@ describe("/health", () => {
     const health = await healthOf(h, "admin");
     expect(health.ok).toBe(true);
     expect(health.telnyx.safety.state).toBe("ok");
-    expect(health.paid_dials).toMatchObject({ enabled: false, room: null, window_start_hour_utc: 4, in_window: true });
+    expect(health.paid_dials).toMatchObject({
+      enabled: false,
+      room: null,
+      window_start_hour_utc: 4,
+      window_measured_at: null,
+      in_window: true,
+    });
     expect(health.paid_dials.blockers).toEqual(["admission.limit_unknown"]);
     expect(health.ordering).toEqual({ enabled: false, blockers: ["concurrent_limit_unknown"] });
     expect(health.money).toMatchObject({ tier: "green", balance_usd: 500, balance_floor_usd: 100 });

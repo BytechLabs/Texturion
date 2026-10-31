@@ -26,8 +26,8 @@ export function numberBook(entries: Record<string, string>): NumberBook {
 }
 
 /**
- * The store's `standing-numbers.json` (or the partition's `standing`, once the
- * guard sends it): `[{ role, e164, ... }]`. With the live owned list given,
+ * The store's `standing-numbers.json` or the partition's `standing`:
+ * `[{ role, e164, ... }]`. With the live owned list given,
  * every number must be in it, so a stale file cannot name a number the rig no
  * longer owns.
  */

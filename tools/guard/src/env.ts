@@ -5,7 +5,8 @@
  * founder creates them, and a missing key must fail its routes closed with a
  * rule that says so, never take the Worker down.
  */
-import type { EdgeForGuard } from "./edge-contract";
+import type { EdgeForGuardMethods } from "@loonext/rig-protocol";
+
 import type { GuardState } from "./index";
 
 export interface Env {
@@ -13,7 +14,7 @@ export interface Env {
   AI?: Ai;
   CF_VERSION_METADATA?: WorkerVersionMetadata;
   /** The edge's EdgeForGuard entrypoint: the robot mailbox's status. */
-  EDGE?: EdgeForGuard;
+  EDGE?: EdgeForGuardMethods;
 
   /** FA3. The one extra Telnyx key, `nonprod-guard`. Full account power. */
   TELNYX_API_KEY?: string;

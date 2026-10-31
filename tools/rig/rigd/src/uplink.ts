@@ -17,6 +17,7 @@ import {
   type EdgeToRig,
   type HeartbeatComponent,
   type RigToEdge,
+  WEBHOOK_KINDS,
 } from "@loonext/rig-protocol";
 import { systemClock, type Clock } from "@loonext/rig-robot";
 
@@ -277,8 +278,6 @@ export class Uplink {
   }
 }
 
-const WEBHOOK_KINDS = new Set(["call", "message", "robot-call", "robot-webhook"]);
-
 /** A frame from the edge, or undefined for anything not in the protocol. */
 export function parseFrame(data: unknown): EdgeToRig | undefined {
   let value: unknown;
@@ -294,7 +293,7 @@ export function parseFrame(data: unknown): EdgeToRig | undefined {
     case "webhook":
       return s("id") &&
         typeof f.kind === "string" &&
-        WEBHOOK_KINDS.has(f.kind) &&
+        (WEBHOOK_KINDS as readonly string[]).includes(f.kind) &&
         s("path") &&
         s("body") &&
         typeof f.attempt === "number" &&

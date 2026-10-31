@@ -1,7 +1,8 @@
+import { EDGE_GUARD_ENTRYPOINT } from "@loonext/rig-protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "./env";
-import worker from "./index";
+import worker, * as entry from "./index";
 import { fromOurDomain, mailStatus, robotTag } from "./mailbox";
 import { ROBOT_ADDRESS, connectRig, counters, edgeEnv, fakeGuard, mailboxStub, resetEdge } from "./test/support";
 
@@ -44,6 +45,13 @@ describe("robot addresses", () => {
     expect(fromOurDomain("bounces+x@send.loonext.com")).toBe(true);
     expect(fromOurDomain("noreply@loonext.com")).toBe(true);
     expect(fromOurDomain("someone@notloonext.com")).toBe(false);
+  });
+});
+
+describe("the guard's entrypoint", () => {
+  it("is exported under the name the guard binds", () => {
+    expect((entry as Record<string, unknown>)[EDGE_GUARD_ENTRYPOINT]).toBe(entry.EdgeForGuard);
+    expect(typeof entry.EdgeForGuard.prototype.mailStatus).toBe("function");
   });
 });
 

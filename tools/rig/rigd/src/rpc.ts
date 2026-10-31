@@ -1,9 +1,9 @@
 /**
  * Named commands reachable through `/ctl/rpc`. Each method names the control
- * classes that may call it. The edge admits only the `triage` class there
- * (tools/edge/src/ctl.ts), and the rpc frame does not say who called, so a
- * frame with no `caller` is triage's; a `caller` field, if the protocol gains
- * one, is enforced the same way. Every method keeps its own limits as well.
+ * classes that may call it, and the frame names the class the edge admitted
+ * its caller as (only `triage` today, tools/edge/src/ctl.ts). A frame whose
+ * caller is missing or unknown is refused. Every method keeps its own limits
+ * as well.
  */
 import { CONTROL_CLASSES, type ControlClass } from "@loonext/rig-protocol";
 import type { RpcFrame } from "./uplink.ts";
@@ -31,7 +31,8 @@ export class RpcRouter {
   async dispatch(frame: RpcFrame): Promise<unknown> {
     const method = this.#methods.get(frame.method);
     if (!method) throw new Error(`unknown method ${frame.method}`);
-    const caller = (frame as RpcFrame & { caller?: unknown }).caller ?? "triage";
+    // Off the wire: the type says ControlClass, the socket promises nothing.
+    const caller: unknown = frame.caller;
     if (!(CONTROL_CLASSES as readonly unknown[]).includes(caller)) throw new Error("unknown caller class");
     if (!method.callers.includes(caller as ControlClass)) throw new Error(`${frame.method} is not open to ${String(caller)}`);
     return await method.handler(frame.params);

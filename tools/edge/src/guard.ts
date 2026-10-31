@@ -1,6 +1,10 @@
 import {
   type CallerClass,
+  type DetachRequest,
+  EDGE_CALLER,
+  EDGE_ONLY_ROUTES,
   GUARD_ROUTES,
+  type HaltRequest,
   HEADER,
   type LegRegistration,
   PARTITION_CACHE_MS,
@@ -9,43 +13,6 @@ import {
 
 import type { Env } from "./env";
 import { json } from "./http";
-
-/**
- * The {@link HEADER.callerClass} value on the edge's own guard calls. No
- * forwarded request can carry it, because the edge overwrites that header on
- * every forward, so the guard identifies the edge positively rather than by a
- * missing header.
- */
-export const EDGE_CALLER = "edge";
-
-/**
- * Edge-only guard routes beyond the protocol's `legs` and `reject`. No
- * forwarded caller may reach any of them: a caller that could register a leg
- * could command a call it never made.
- */
-export const EDGE_GUARD_ROUTES = {
-  /** POST {@link DetachRequest}: strangers flooded an owned number. */
-  detach: "/detach",
-  /** POST {@link HaltRequest}: a corroborated account signal. */
-  halt: "/halt",
-} as const;
-
-const EDGE_ONLY = [GUARD_ROUTES.legs, GUARD_ROUTES.reject, EDGE_GUARD_ROUTES.detach, EDGE_GUARD_ROUTES.halt];
-
-export interface DetachRequest {
-  e164: string;
-  /** Stranger calls and texts to it inside the window. */
-  strangers: number;
-  window_ms: number;
-}
-
-export interface HaltRequest {
-  signal: string;
-  notice_id: string | null;
-  /** `signature`: Telnyx signed the notice within five minutes, and it names a type enabled on the account. */
-  corroborated_by: "balance" | "signature" | "account_refused";
-  received_at: string;
-}
 
 /** The service binding ignores the host; a fixed one keeps the edge's out of guard logic. */
 const GUARD_ORIGIN = "https://guard.internal";
@@ -96,11 +63,11 @@ export function rejectLeg(env: Env, leg: LegRegistration): Promise<boolean> {
 }
 
 export function requestDetach(env: Env, body: DetachRequest): Promise<boolean> {
-  return guardPost(env, EDGE_GUARD_ROUTES.detach, body);
+  return guardPost(env, GUARD_ROUTES.detach, body);
 }
 
 export function requestHalt(env: Env, body: HaltRequest): Promise<boolean> {
-  return guardPost(env, EDGE_GUARD_ROUTES.halt, body);
+  return guardPost(env, GUARD_ROUTES.halt, body);
 }
 
 /** Saves a guard round trip per event; the guard's registry is the record. */
@@ -204,7 +171,7 @@ export function isEdgeOnly(route: string): boolean {
   } catch {
     return true;
   }
-  return EDGE_ONLY.some((only) => folded === only || folded.startsWith(`${only}/`));
+  return EDGE_ONLY_ROUTES.some((only) => folded === only || folded.startsWith(`${only}/`));
 }
 
 /** The guard never sees a caller's bearer token: the class stands in for it. */

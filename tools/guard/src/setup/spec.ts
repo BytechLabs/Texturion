@@ -1,7 +1,6 @@
-import { EDGE_PATHS } from "@loonext/rig-protocol";
+import { EDGE_PATHS, type StandingRole } from "@loonext/rig-protocol";
 
 import raw from "../../telnyx-spec.json";
-import type { StandingRole } from "../edge-contract";
 
 /**
  * The edge paths a Telnyx resource may send its webhooks to, by their

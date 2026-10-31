@@ -1,9 +1,17 @@
-import { GUARD_ROUTES, HEADER, type LegRegistration } from "@loonext/rig-protocol";
+import {
+  GUARD_ROUTES,
+  HALT_CORROBORATIONS,
+  HEADER,
+  type GuardHealth,
+  type GuardSafety,
+  type HaltCorroboration,
+  type HaltRequest,
+  type LegRegistration,
+} from "@loonext/rig-protocol";
 
 import { handleAdmin } from "./admin";
-import { EDGE_ROUTES, parseCaller, ROUTE_CALLERS, routeOf, type GuardCaller } from "./caller";
+import { parseCaller, ROUTE_CALLERS, routeOf, type GuardCaller } from "./caller";
 import type { Ctx } from "./context";
-import { CORROBORATIONS, type HaltRequest } from "./edge-contract";
 import { runKeyInventory } from "./inventory";
 import { PREEMPT_POLL_MS } from "./limits";
 import { json, refuse, Refusal } from "./refusal";
@@ -14,7 +22,7 @@ import {
   productionCalls,
   ratioRule,
   roomFor,
-  windowStartHour,
+  windowInForce,
   type ProductionCalls,
   type RatiosRecord,
   type ReserveRecord,
@@ -120,9 +128,9 @@ export class Guard {
         return this.legs(request);
       case GUARD_ROUTES.reject:
         return this.reject(request);
-      case EDGE_ROUTES.detach:
+      case GUARD_ROUTES.detach:
         return this.detach(request);
-      case EDGE_ROUTES.halt:
+      case GUARD_ROUTES.halt:
         return this.halt(request);
       default:
         throw new Refusal("route.unknown");
@@ -207,22 +215,22 @@ export class Guard {
     const body = (await bodyOf(request)) as Partial<HaltRequest>;
     const signal = typeof body.signal === "string" ? body.signal.trim() : "";
     if (!signal || signal.length > 200) throw new Refusal("request.body_invalid");
-    if (!CORROBORATIONS.includes(body.corroborated_by as HaltRequest["corroborated_by"])) {
+    if (!HALT_CORROBORATIONS.includes(body.corroborated_by as HaltCorroboration)) {
       throw new Refusal("request.body_invalid");
     }
     const noticeId = typeof body.notice_id === "string" && body.notice_id ? body.notice_id : null;
     await recordSignal(this.ctx, {
       signal,
       notice_id: noticeId,
-      corroborated_by: body.corroborated_by as HaltRequest["corroborated_by"],
+      corroborated_by: body.corroborated_by as HaltCorroboration,
     });
     return json(await signalSummary(this.ctx));
   }
 
-  async health(): Promise<Record<string, unknown>> {
+  async health(): Promise<GuardHealth> {
     const { ctx } = this;
     const now = ctx.now();
-    let safety: SafetyState | { state: "unchecked"; reasons: string[] } = { state: "unchecked", reasons: [] };
+    let safety: GuardSafety = { state: "unchecked", reasons: [] };
     if (ctx.telnyx) {
       try {
         await requireSafe(ctx);
@@ -244,7 +252,7 @@ export class Guard {
     if (ctx.config.concurrentLimit !== null && room === null) paid.push("admission.reserve_unknown");
     const ratio = ratioRule(await ctx.store.get<RatiosRecord>(ADMISSION_KEYS.ratios), now);
     if (ratio) paid.push(ratio.rule);
-    const startHour = windowStartHour(await ctx.store.get<WindowRecord>(ADMISSION_KEYS.window), now);
+    const window = windowInForce(await ctx.store.get<WindowRecord>(ADMISSION_KEYS.window), now);
     const signals = await signalSummary(ctx);
     if (signals.latched) paid.push("signal.latched");
     else if (signals.halted_until) paid.push("signal.halted");
@@ -272,8 +280,9 @@ export class Guard {
         enabled: paid.length === 0,
         blockers: paid,
         room,
-        window_start_hour_utc: startHour,
-        in_window: inWindow(now, startHour),
+        window_start_hour_utc: window.startHour,
+        window_measured_at: window.measuredAt === null ? null : new Date(window.measuredAt).toISOString(),
+        in_window: inWindow(now, window.startHour),
       },
       money: { ...tier, balance_usd: balance, balance_floor_usd: floor },
       lease: lease ? toGrant(lease) : null,

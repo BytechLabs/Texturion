@@ -19,6 +19,7 @@ import { RpcRouter } from "./rpc.ts";
 import { BUNDLE_KEY_SECRET, deliverSecrets } from "./secrets.ts";
 import { parseDsn, SentryRelay, type SeenEvent } from "./sentry-relay.ts";
 import { fakeFetch, json } from "./test-support.ts";
+import type { RpcFrame } from "./uplink.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -98,13 +99,24 @@ describe("secret delivery", () => {
 });
 
 describe("the rpc router at /ctl/rpc", () => {
-  it("treats a frame with no caller as triage's, the only class the edge admits there", async () => {
+  it("holds each method to the caller class the edge stamped on the frame", async () => {
     const router = new RpcRouter()
       .register("triage.unresolved", () => [], ["triage", "rig"])
       .register("scenario.run", () => "ran");
-    expect(await router.dispatch({ t: "rpc", id: "1", method: "triage.unresolved", params: {} })).toEqual([]);
-    await expect(router.dispatch({ t: "rpc", id: "2", method: "scenario.run", params: {} })).rejects.toThrow(/not open to triage/);
-    await expect(router.dispatch({ t: "rpc", id: "3", method: "nope", params: {} })).rejects.toThrow(/unknown method/);
+    expect(await router.dispatch({ t: "rpc", id: "1", method: "triage.unresolved", params: {}, caller: "triage" })).toEqual([]);
+    await expect(router.dispatch({ t: "rpc", id: "2", method: "scenario.run", params: {}, caller: "triage" })).rejects.toThrow(
+      /not open to triage/,
+    );
+    expect(await router.dispatch({ t: "rpc", id: "3", method: "scenario.run", params: {}, caller: "rig" })).toBe("ran");
+    await expect(router.dispatch({ t: "rpc", id: "4", method: "nope", params: {}, caller: "rig" })).rejects.toThrow(/unknown method/);
+  });
+
+  it("refuses a frame that names no caller, or one that is not a control class", async () => {
+    const router = new RpcRouter().register("triage.unresolved", () => [], ["triage", "rig"]);
+    const bare = { t: "rpc", id: "5", method: "triage.unresolved", params: {} } as unknown as RpcFrame;
+    await expect(router.dispatch(bare)).rejects.toThrow(/unknown caller class/);
+    const forged = { ...bare, caller: "admin" } as unknown as RpcFrame;
+    await expect(router.dispatch(forged)).rejects.toThrow(/unknown caller class/);
   });
 });
 

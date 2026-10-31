@@ -17,9 +17,9 @@
  * the real signature itself.
  */
 import type { KeyObject } from "node:crypto";
-import { CALL_EVENT_RELAY_TIMEOUT_MS, EDGE_PATHS } from "@loonext/rig-protocol";
+import { CALL_EVENT_RELAY_TIMEOUT_MS, EDGE_PATHS, TELNYX_SIGNATURE_WINDOW_S } from "@loonext/rig-protocol";
 import { ROBOT_TOKEN_HEADER } from "@loonext/rig-robot";
-import { messageText, SIGNATURE_WINDOW_S, signatureAge, signedByTelnyx, textHash, type LateDelivery } from "./late.ts";
+import { messageText, signatureAge, signedByTelnyx, textHash, type LateDelivery } from "./late.ts";
 import type { WebhookFrame, WebhookResult } from "./uplink.ts";
 
 export const RIG_PATH_HEADER = "x-rig-path";
@@ -97,7 +97,7 @@ export function webhookForwarder(targets: ForwardTargets) {
     const result: WebhookResult = { status: response.status, body: body.length > MAX_RESULT_BODY ? undefined : body };
     if (frame.kind === "message" && !toRobot && response.status === 400) {
       const age = signatureAge(frame.headers, now());
-      const key = age !== undefined && age > SIGNATURE_WINDOW_S ? targets.telnyxKey?.() : undefined;
+      const key = age !== undefined && age > TELNYX_SIGNATURE_WINDOW_S ? targets.telnyxKey?.() : undefined;
       if (key && signedByTelnyx(key, frame.headers, frame.body)) {
         const text = messageText(frame.body);
         targets.onLate?.({

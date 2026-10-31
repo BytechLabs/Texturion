@@ -26,14 +26,14 @@ import { GuardedTelnyx } from "./telnyx.ts";
 
 const MAX_RECORDING_BYTES = 50 * 1024 * 1024;
 
-export async function fetchPartition(edgeOrigin: string, token: string): Promise<Partition & { standing?: unknown }> {
+export async function fetchPartition(edgeOrigin: string, token: string): Promise<Partition> {
   const url = `${edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.partition}`;
   const response = await fetch(url, {
     headers: { authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) throw new Error(`robotd: the guard's partition read returned ${response.status}`);
-  return (await response.json()) as Partition & { standing?: unknown };
+  return (await response.json()) as Partition;
 }
 
 /** Fetches a recording into memory, never to disk, refusing anything implausibly large. */

@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { EDGE_PATHS } from "@loonext/rig-protocol";
+import { EDGE_PATHS, type EdgeForGuardMethods, type MailStatus } from "@loonext/rig-protocol";
 
 import { callerClassOf } from "./auth";
 import { handleRpc, handleSecrets, handleUplink } from "./ctl";
@@ -7,7 +7,7 @@ import { scheduled } from "./deadman";
 import type { Env } from "./env";
 import { forwardToGuard } from "./guard";
 import { empty, harden, servesHost } from "./http";
-import { type MailStatus, mailStatus, receiveMail } from "./mailbox";
+import { mailStatus, receiveMail } from "./mailbox";
 import { relayMedia } from "./media";
 import { handleNotification } from "./notifications";
 import { TELNYX_WEBHOOK_PATHS } from "./telnyx";
@@ -90,12 +90,12 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 /**
- * The guard's way back in, `{ service: "loonext-rig-edge", entrypoint:
- * "EdgeForGuard" }`. A named entrypoint is reachable only over a service
- * binding, so it adds nothing to the public surface.
+ * The guard's way back in. The guard binds it by this export's name,
+ * EDGE_GUARD_ENTRYPOINT (mailbox.test.ts pins the two equal). A named
+ * entrypoint is reachable only over a service binding, so it adds nothing to
+ * the public surface.
  */
-export class EdgeForGuard extends WorkerEntrypoint<Env> {
-  /** The robot mailbox's heartbeat, read before the guard sends to it (S34). */
+export class EdgeForGuard extends WorkerEntrypoint<Env> implements EdgeForGuardMethods {
   async mailStatus(): Promise<MailStatus> {
     return mailStatus(this.env);
   }

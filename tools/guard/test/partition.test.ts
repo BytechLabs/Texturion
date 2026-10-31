@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { STANDING_ROLES } from "../src/edge-contract";
+import { STANDING_ROLES } from "@loonext/rig-protocol";
 import { SPEC } from "../src/setup/spec";
 import { standingReference } from "../src/telnyx/partition";
 import { N, ready, ruleOf, type Harness } from "./support";

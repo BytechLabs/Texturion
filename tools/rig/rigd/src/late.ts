@@ -14,8 +14,6 @@ import { createHash, createPublicKey, verify, type KeyObject } from "node:crypto
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-/** The API's tolerance for `telnyx-timestamp` (apps/api/src/telnyx/verify.ts). */
-export const SIGNATURE_WINDOW_S = 300;
 const CLOCK_SKEW_MS = 60_000;
 
 export interface LateDelivery {

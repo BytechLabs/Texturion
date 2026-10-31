@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { EDGE_GUARD_ENTRYPOINT } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
 import { withoutEdgeBinding } from "../scripts/without-edge-binding";
@@ -58,7 +59,7 @@ describe("wrangler.jsonc", () => {
   });
 
   it("binds the edge's EdgeForGuard entrypoint, the mailbox status the Resend rules read", () => {
-    expect(wrangler.services).toEqual([{ binding: "EDGE", service: "loonext-rig-edge", entrypoint: "EdgeForGuard" }]);
+    expect(wrangler.services).toEqual([{ binding: "EDGE", service: "loonext-rig-edge", entrypoint: EDGE_GUARD_ENTRYPOINT }]);
   });
 
   it("can be deployed without that binding when Cloudflare cannot resolve it, and otherwise unchanged", () => {

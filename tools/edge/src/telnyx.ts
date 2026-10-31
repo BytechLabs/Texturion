@@ -1,4 +1,4 @@
-import { EDGE_PATHS, type LegRegistration, type Partition } from "@loonext/rig-protocol";
+import { EDGE_PATHS, type LegRegistration, type Partition, TELNYX_SIGNATURE_WINDOW_S } from "@loonext/rig-protocol";
 
 /**
  * The account has one signing key, shared with production, so a valid
@@ -6,9 +6,6 @@ import { EDGE_PATHS, type LegRegistration, type Partition } from "@loonext/rig-p
  * decided by resource instead: a call event by its connection, a message
  * event by its messaging profile, both against the guard's live partition.
  */
-
-/** How far `telnyx-timestamp` may be from now, here and in the rig's API alike. */
-export const TELNYX_SIGNATURE_WINDOW_S = 5 * 60;
 
 function decodeBase64(text: string): Uint8Array | null {
   try {

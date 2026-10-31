@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import type { MailStatus } from "@loonext/rig-protocol";
 
 import { mailbox, uplink, type Env } from "./env";
 
@@ -31,19 +32,6 @@ export interface StoredMail {
   raw: string;
   truncated: boolean;
   receivedAt: number;
-}
-
-/** What the guard reads before it sends to the robot (EdgeForGuard.mailStatus). */
-export interface MailStatus {
-  /** The mailbox's last proven write: a stored mail or the cron's self-test. */
-  heartbeat_at: string | null;
-  last_received_at: string | null;
-  received: number;
-  stored: number;
-  /** Mail that arrived while storage was failing, counted on the uplink. */
-  store_failed: number;
-  /** The newest mail by `+tag`, so a sender can confirm one specific arrival. */
-  recent: { tag: string | null; received_at: string }[];
 }
 
 export class RobotMailbox extends DurableObject<Env> {

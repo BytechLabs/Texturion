@@ -51,10 +51,15 @@ export const ADMISSION_KEYS = {
   window: "admission:window",
 } as const;
 
+/** The window in force: the measured one while fresh, else the 04:00 default, with no measurement. */
+export function windowInForce(record: WindowRecord | undefined, now: number): { startHour: number; measuredAt: number | null } {
+  if (record && now - record.measured_at <= WINDOW_STALE_MS) return { startHour: record.start_hour, measuredAt: record.measured_at };
+  return { startHour: WINDOW_DEFAULT_START_HOUR, measuredAt: null };
+}
+
 /** The window's first UTC hour: the measured one while fresh, else 04:00. */
 export function windowStartHour(record: WindowRecord | undefined, now: number): number {
-  if (record && now - record.measured_at <= WINDOW_STALE_MS) return record.start_hour;
-  return WINDOW_DEFAULT_START_HOUR;
+  return windowInForce(record, now).startHour;
 }
 
 export function inWindow(now: number, startHour: number): boolean {

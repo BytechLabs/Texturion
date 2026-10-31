@@ -122,7 +122,7 @@ describe("the uplink", () => {
 
   it("answers an rpc with an error before the edge's 60 s timeout", async () => {
     const { socket, clock } = setup({ rpc: () => new Promise(() => undefined) });
-    socket.receive({ t: "rpc", id: "slow", method: "triage.unresolved", params: {} });
+    socket.receive({ t: "rpc", id: "slow", method: "triage.unresolved", params: {}, caller: "triage" });
     await flush();
     clock.advance(55_000);
     await flush();
@@ -147,8 +147,8 @@ describe("the uplink", () => {
       },
     });
     socket.receive({ t: "media", id: "m-1", path: "/m/object/sign/mms-media/a.jpg?token=x" });
-    socket.receive({ t: "rpc", id: "r-1", method: "echo", params: { a: 1 } });
-    socket.receive({ t: "rpc", id: "r-2", method: "boom", params: {} });
+    socket.receive({ t: "rpc", id: "r-1", method: "echo", params: { a: 1 }, caller: "triage" });
+    socket.receive({ t: "rpc", id: "r-2", method: "boom", params: {}, caller: "triage" });
     socket.receive({ t: "ping", at: "2026-10-31T00:00:00.000Z" });
     await flush();
     expect(socket.sent).toContainEqual({ t: "media-result", id: "m-1", status: 200, content_type: "audio/wav", body_b64: "UklGRg==" });

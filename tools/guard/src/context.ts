@@ -1,4 +1,5 @@
-import type { EdgeForGuard } from "./edge-contract";
+import type { EdgeForGuardMethods } from "@loonext/rig-protocol";
+
 import type { GuardConfig } from "./env";
 import type { Store } from "./store";
 import type { TelnyxApi } from "./telnyx/client";
@@ -17,7 +18,7 @@ export interface Ctx {
   telnyx: TelnyxApi | null;
   ai: AiRunner | null;
   /** Null without the EDGE binding; the robot mailbox then reads as dead. */
-  edge: EdgeForGuard | null;
+  edge: EdgeForGuardMethods | null;
   versionId: string;
   setAlarm(at: number): Promise<void>;
   /** In-isolate caches that are fine to lose: the FCM access token. */

@@ -1,5 +1,6 @@
+import type { DetachRequest } from "@loonext/rig-protocol";
+
 import type { Ctx } from "../context";
-import type { DetachRequest } from "../edge-contract";
 import { sendProductionEvent } from "../sentry";
 import { SPEC } from "../setup/spec";
 import { dayOf } from "../state/counters";

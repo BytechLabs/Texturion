@@ -1,5 +1,6 @@
+import type { HaltRequest } from "@loonext/rig-protocol";
+
 import type { Ctx } from "../context";
-import type { HaltRequest } from "../edge-contract";
 import { SIGNAL_HALT_MS, SIGNAL_REPEAT_WINDOW_MS } from "../limits";
 import { Refusal } from "../refusal";
 import { sendProductionEvent } from "../sentry";

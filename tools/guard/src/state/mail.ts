@@ -1,5 +1,6 @@
+import type { MailStatus } from "@loonext/rig-protocol";
+
 import type { Ctx } from "../context";
-import type { MailStatus } from "../edge-contract";
 import { MAIL_ARRIVAL_DEADLINE_MS, MAIL_HEARTBEAT_FRESH_MS } from "../limits";
 
 /**
