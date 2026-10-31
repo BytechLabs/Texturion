@@ -89,6 +89,27 @@ function fresh(at, maxAgeMs, now = Date.now()) {
 const short = (sha) => (typeof sha === "string" ? sha.slice(0, 12) : String(sha));
 
 /**
+ * R00's Sentry half, from rigd's state/sentry-relay.json. A defect is an event
+ * the cron registry says means the seed or a scenario's setup is wrong, so it
+ * fails as surely as an unexplained one, and with the registry's cause.
+ */
+export function sentryFailure(state) {
+  const { unexplained_24h: unexplained, defects_24h: defects } = state;
+  if (!Array.isArray(unexplained) || !Array.isArray(defects)) {
+    return "the relay's report does not list unexplained_24h and defects_24h";
+  }
+  const reasons = [];
+  if (unexplained.length > 0) reasons.push(`${unexplained.length} unexplained fingerprint(s) in 24 hours`);
+  const byMeans = new Map();
+  for (const defect of defects) {
+    const means = typeof defect?.means === "string" && defect.means !== "" ? defect.means : "a defect the cron registry names";
+    byMeans.set(means, (byMeans.get(means) ?? 0) + 1);
+  }
+  for (const [means, count] of byMeans) reasons.push(`defect (${count} fingerprint(s) in 24 hours): ${means}`);
+  return reasons.length === 0 ? null : reasons.join("; ");
+}
+
+/**
  * @param {{ layout, settings, store, status, projectId, deployed, fetch?: typeof fetch, systemctl?: typeof systemctlUser, cronRegistry?: object }} context
  */
 export function healthChecks(context) {
@@ -236,8 +257,7 @@ export function healthChecks(context) {
       const state = readJsonFile(join(context.layout.state, "sentry-relay.json"));
       if (state === null) return "the relay has not published state/sentry-relay.json";
       if (!fresh(state.at, 30 * 60_000)) return "the relay's report is stale";
-      const unexplained = state.unexplained_24h ?? [];
-      return unexplained.length === 0 ? null : `${unexplained.length} unexplained fingerprint(s) in 24 hours`;
+      return sentryFailure(state);
     },
   };
 }

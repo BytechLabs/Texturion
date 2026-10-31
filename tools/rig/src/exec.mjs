@@ -66,11 +66,16 @@ export function run(command, args = [], { cwd, env, input, inherit = false, allo
  * manager, which for a lingering account is always at /run/user/<uid>.
  */
 export function systemctlUser(args, options = {}) {
-  const env = { ...options.env };
+  return run("systemctl", ["--user", ...args], { ...options, env: userManagerEnv(options.env) });
+}
+
+/** `env` plus what a child needs to reach the rig account's user manager itself. */
+export function userManagerEnv(env = {}) {
+  const out = { ...env };
   if (!process.env.XDG_RUNTIME_DIR && typeof process.getuid === "function") {
-    env.XDG_RUNTIME_DIR = `/run/user/${process.getuid()}`;
+    out.XDG_RUNTIME_DIR = `/run/user/${process.getuid()}`;
   }
-  return run("systemctl", ["--user", ...args], { ...options, env });
+  return out;
 }
 
 /** A long-running child, its output on the rig's own. */

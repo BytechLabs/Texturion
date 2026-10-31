@@ -111,7 +111,13 @@ Sentry relay publish there).
   never touched.
 - One user timer per cron that `crons.json` classifies as run, or run
   expecting a refusal. Without `crons.json` the deploy is refused; a cron it
-  does not classify gets no timer, and `rig health` fails until it does.
+  does not classify gets no timer, and `rig health` fails until it does. Only
+  the API's crons get timers: the edge's and the guard's are skips, because
+  they run on Cloudflare.
+- Then rigd's own units, which rigd writes itself
+  (`node tools/rig/rigd/src/cli.ts schedule --install`, from this checkout):
+  a timer per scheduled scenario run, and the rigd and robotd services. A
+  failure there fails the deploy.
 
 Everything that can refuse (an untaught config key, a missing or live
 secret, the cron registry) is derived before the database or a service

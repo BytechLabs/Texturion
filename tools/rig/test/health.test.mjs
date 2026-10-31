@@ -146,6 +146,46 @@ test("an unclassified cron or an idle timer fails the crons check", async () => 
   });
 });
 
+test("the sentry check fails on an unexplained fingerprint and on each defect, naming its cause", async () => {
+  await withRig(async (context) => {
+    mkdirSync(context.layout.state, { recursive: true });
+    const relay = (state) =>
+      writeFileSync(join(context.layout.state, "sentry-relay.json"), JSON.stringify({ at: new Date().toISOString(), ...state }));
+    const check = () => healthChecks(context).sentry();
+
+    relay({ unexplained_24h: [], defects_24h: [] });
+    assert.equal(await check(), null);
+
+    const robot = "A number in the rig's group has no phone_numbers row.";
+    const standing = "The grace job tried to release a standing number.";
+    relay({
+      unexplained_24h: ["k1"],
+      defects_24h: [
+        { key: "k2", means: robot },
+        { key: "k3", means: robot },
+        { key: "k4", means: standing },
+      ],
+    });
+    assert.equal(
+      await check(),
+      `1 unexplained fingerprint(s) in 24 hours; defect (2 fingerprint(s) in 24 hours): ${robot}; ` +
+        `defect (1 fingerprint(s) in 24 hours): ${standing}`,
+    );
+
+    relay({ unexplained_24h: [], defects_24h: [{ key: "k4", means: standing }] });
+    assert.equal(await check(), `defect (1 fingerprint(s) in 24 hours): ${standing}`);
+
+    relay({ unexplained_24h: [] });
+    assert.match(await check(), /does not list unexplained_24h and defects_24h/);
+
+    writeFileSync(
+      join(context.layout.state, "sentry-relay.json"),
+      JSON.stringify({ at: "2026-01-01T00:00:00.000Z", unexplained_24h: [], defects_24h: [] }),
+    );
+    assert.equal(await check(), "the relay's report is stale");
+  });
+});
+
 test("a rig that cannot be measured writes a failing report over the last green one", async () => {
   await withRig(async (context) => {
     mkdirSync(context.layout.state, { recursive: true });

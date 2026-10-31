@@ -6,7 +6,8 @@
  *   3. the local database migrated, or reset and reseeded when the ref's
  *      schema cannot be reached by migrating, with the services stopped
  *      first when the schema changes;
- *   4. the SHA recorded for every verdict, and the services restarted.
+ *   4. the SHA recorded for every verdict, the ref's cron timers and rigd's
+ *      scenario timers installed, and the services restarted.
  *
  * `--worktree <path>` deploys a checkout in place instead, for a branch an
  * agent is working on; nothing is fetched, created or installed.
@@ -29,7 +30,7 @@ import { join, resolve } from "node:path";
 import { bootstrapDb } from "./bootstrap-db.mjs";
 import { cronTimers, cronUnits, cronsToSchedule, readCronRegistry } from "./cron.mjs";
 import { dummyServiceAccount, firebaseProjectId, generateVapidPair, relayDsn, renderDevVars, seams } from "./dev-vars.mjs";
-import { run, systemctlUser } from "./exec.mjs";
+import { run, systemctlUser, userManagerEnv } from "./exec.mjs";
 import { edgeOrigin, fetchPartition, recordStanding, rigEndpoints, standingNumbers } from "./guard.mjs";
 import { TOOLING_ROOT } from "./layout.mjs";
 import { parseJsonc } from "./jsonc.mjs";
@@ -165,8 +166,7 @@ function requireUserManager() {
  * The ref's crons as user timers. The new units are written before the stale
  * ones are removed, so a failure part way leaves timers that still fire.
  */
-function installCronTimers({ timers, nodeBin }) {
-  const unitDir = join(homedir(), ".config", "systemd", "user");
+function installCronTimers({ timers, nodeBin, unitDir, systemctl }) {
   mkdirSync(unitDir, { recursive: true });
   const keep = new Set();
   for (const { cron, slug } of timers) {
@@ -179,14 +179,48 @@ function installCronTimers({ timers, nodeBin }) {
   }
   for (const file of readdirSync(unitDir)) {
     if (!file.startsWith("loonext-rig-cron-") || keep.has(file)) continue;
-    if (file.endsWith(".timer")) systemctlUser(["disable", "--now", file], { allowFailure: true });
+    if (file.endsWith(".timer")) systemctl(["disable", "--now", file], { allowFailure: true });
     rmSync(join(unitDir, file), { force: true });
   }
-  systemctlUser(["daemon-reload"]);
+  systemctl(["daemon-reload"]);
   if (timers.length === 0) return;
   const names = timers.map((entry) => entry.timer);
-  systemctlUser(["enable", ...names]);
-  systemctlUser(["restart", ...names]);
+  systemctl(["enable", ...names]);
+  systemctl(["restart", ...names]);
+}
+
+/** rigd writes its own units. Like the `rig` CLI, it runs from the tooling checkout, never the deployed ref. */
+export function rigdScheduleCommand(nodeBin = process.execPath, root = TOOLING_ROOT) {
+  return { command: nodeBin, args: [join(root, "tools", "rig", "rigd", "src", "cli.ts"), "schedule", "--install"] };
+}
+
+/**
+ * The ref's cron timers, then rigd's. rigd's systemctl calls need the user
+ * manager's runtime directory as much as the CLI's own do.
+ */
+export function installTimers({
+  timers,
+  nodeBin = process.execPath,
+  log,
+  unitDir = join(homedir(), ".config", "systemd", "user"),
+  systemctl = systemctlUser,
+  runner = run,
+}) {
+  installCronTimers({ timers, nodeBin, unitDir, systemctl });
+  log(`crons: ${timers.length} timer(s)`);
+  const { command, args } = rigdScheduleCommand(nodeBin);
+  const { stdout } = runner(command, args, { env: userManagerEnv() });
+  let installed = null;
+  try {
+    installed = JSON.parse(stdout);
+  } catch {
+    // The units are in place once it exits 0; the count is only for the log.
+  }
+  log(
+    Array.isArray(installed?.timed)
+      ? `rigd: ${installed.timed.length} scenario timer(s), ${installed.not_timed?.length ?? 0} scenario(s) not timed`
+      : "rigd: scenario timers installed",
+  );
 }
 
 /**
@@ -400,8 +434,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   pointCurrent(layout, root);
 
   if (restart) {
-    installCronTimers({ timers, nodeBin: process.execPath });
-    log(`crons: ${timers.length} timer(s)`);
+    installTimers({ timers, log });
     systemctlUser(["restart", ...SERVICE_UNITS], { inherit: true });
     log(`services restarted: ${SERVICE_UNITS.join(", ")}`);
   } else if (settings.systemd) {
