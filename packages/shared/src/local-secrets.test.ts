@@ -83,6 +83,44 @@ describe("what it reads as a live secret", () => {
   });
 });
 
+describe("what it reads through escapes", () => {
+  const everyKey = [live.stripe, live.restricted, live.telnyx, live.supabase, live.pooler].join("\n");
+  const allFive = [
+    "pooler-url-with-password",
+    "stripe-live-restricted-key",
+    "stripe-live-secret-key",
+    "supabase-secret-key",
+    "telnyx-v2-key",
+  ];
+
+  it("reads every shape in a JSON string, a transcript's line", () => {
+    expect(shapesOf(JSON.stringify(`${everyKey}\n`)).sort()).toEqual(allFive);
+  });
+
+  it("reads them escaped twice, as in a JSON dump of a JSON log", () => {
+    expect(shapesOf(JSON.stringify(JSON.stringify(`${everyKey}\n`))).sort()).toEqual(allFive);
+  });
+
+  it("reads them URL-encoded, as in a request log or a HAR file", () => {
+    expect(shapesOf(`Authorization: Bearer%20${live.stripe}`)).toEqual(["stripe-live-secret-key"]);
+    expect(shapesOf(`next=${encodeURIComponent(everyKey)}`).sort()).toEqual(allFive);
+  });
+
+  it("reads them escaped as \\u sequences", () => {
+    const escaped = `token\\u003d${live.supabase}`;
+    expect(shapesOf(escaped)).toEqual(["supabase-secret-key"]);
+  });
+
+  it("counts a key found both as written and unescaped once", () => {
+    expect(guard.findShapes(`"${live.stripe}"\\n`)).toEqual([{ shape: "stripe-live-secret-key", count: 1 }]);
+  });
+
+  it("still passes a prefix inside an identifier, escaped or not", () => {
+    const buried = "FEATURE" + ["sk", "live", "readablestemforthistest"].join("_");
+    expect(shapesOf(JSON.stringify(`${buried}\n`))).toEqual([]);
+  });
+});
+
 describe("what passes", () => {
   it.each([
     ["the documented ellipsis", "STRIPE_SECRET_KEY=sk_live_..."],
@@ -95,6 +133,7 @@ describe("what passes", () => {
     ["a password placeholder", "postgresql://postgres.<ref>:<password>@aws-0-us-east-1.pooler." + "supabase.com:5432/postgres"],
     ["the dashboard's placeholder", "postgresql://postgres.ref:[YOUR-PASSWORD]@aws-0-us-east-1.pooler." + "supabase.com:6543/postgres"],
     ["a template", "postgresql://postgres.${ref}:${password}@${host}:5432/postgres"],
+    ["a fixture's stand-in password", "postgres://postgres:pw@aws-0-region.pooler." + "supabase.com:6543/postgres"],
     ["a local login", "postgresql://postgres:postgres@127.0.0.1:54322/postgres"],
     ["a non-Supabase host", "postgres://postgres:secret@db.example.invalid:5432/postgres"],
   ])("passes %s", (_label, text) => {
@@ -147,7 +186,7 @@ describe("on a checkout", () => {
     root = null;
   });
 
-  function checkout(files: Record<string, string>) {
+  function checkout(files: Record<string, string | Buffer>) {
     root = mkdtempSync(join(tmpdir(), "local-secrets-"));
     spawnSync("git", ["init", "-q"], { cwd: root });
     for (const [path, text] of Object.entries(files)) {
@@ -182,6 +221,27 @@ describe("on a checkout", () => {
     for (const value of [live.supabase, live.pooler, "stem-password-for-a-test", "readable-stem-for-this-test"]) {
       expect(output).not.toContain(value);
     }
+  });
+
+  it("refuses a key in a transcript, a request log, a UTF-16 file and a binary", { timeout: 60_000 }, () => {
+    const byteOrderMark = String.fromCharCode(0xfeff);
+    const utf16 = (text: string) => Buffer.from(`${byteOrderMark}${text}`, "utf16le");
+    const dir = checkout({
+      "transcript.jsonl": `${JSON.stringify({ text: `${live.supabase}\n${live.telnyx}\n` })}\n`,
+      "har.txt": `Bearer%20${live.stripe}\n`,
+      "notes-utf16.txt": utf16(`SUPABASE_SECRET_KEY=${live.supabase}\r\n`),
+      "notes-utf16-nobom.txt": Buffer.from(`STRIPE=${live.restricted}\r\n`, "utf16le"),
+      "blob.dat": Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(` ${live.stripe} `), Buffer.from([0, 0])]),
+    });
+    const { status, output } = run(dir);
+    expect(status).toBe(1);
+    expect(output).toContain("transcript.jsonl: telnyx-v2-key (1), supabase-secret-key (1)");
+    expect(output).toContain("har.txt: stripe-live-secret-key (1)");
+    expect(output).toContain("notes-utf16.txt: supabase-secret-key (1)");
+    expect(output).toContain("notes-utf16-nobom.txt: stripe-live-restricted-key (1)");
+    expect(output).toContain("blob.dat: stripe-live-secret-key (1)");
+    expect(output).toMatch(/2 decoded from UTF-16; 1 binary read for their ASCII runs/);
+    for (const value of Object.values(live)) expect(output).not.toContain(value);
   });
 
   it("reaches a gitignored .dev.vars only with --all, commented lines included", { timeout: 60_000 }, () => {

@@ -19,14 +19,17 @@
  * one Telnyx account and it is production's), a Supabase secret key, and a
  * Postgres URL with a password for a Supabase pooler or database host. The
  * Supabase CLI's published local key, and obvious placeholders, are not
- * secrets and pass.
+ * secrets and pass. Each file is read as written and with its JSON and URL
+ * escapes undone, UTF-16 is decoded, and any other binary is read for its
+ * ASCII runs: transcripts, request logs and Windows "Unicode" files are where
+ * pasted keys end up.
  *
  * WHAT IT PRINTS. The file and the shape's name, never the text that matched:
  * this output lands in agent transcripts and CI logs, which would otherwise
  * become the leak.
  */
 import { execFileSync } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -63,7 +66,8 @@ export const ALLOWED = {
 };
 
 const PLACEHOLDER = /0123456789abcdef|x{8}|not[_-]?a[_-]?real|placeholder|example|dummy|fake|redacted/i;
-const PASSWORD_PLACEHOLDER = /^(?:<.*|\[.*|\{.*|\$.*|%3C.*|\*+|x+|\.{3,}|password|your[_-]?password.*)$/i;
+const PASSWORD_PLACEHOLDER =
+  /^(?:<.*|\[.*|\{.*|\$.*|%3C.*|\*+|x+|\.{3,}|password|pw|pwd|pass|secret|test|changeme|your[_-]?password.*)$/i;
 
 /** Directories under an ignored path that hold dependencies or build output, never a credential someone wrote. */
 const SKIP_DIRS = new Set([
@@ -73,7 +77,8 @@ const SKIP_DIRS = new Set([
 ]);
 
 const BINARY = /\.(?:png|jpe?g|gif|webp|avif|ico|icns|pdf|zip|gz|tgz|br|woff2?|ttf|otf|eot|mp3|wav|ogg|m4a|mp4|mov|webm|keystore|jks|apk|aab|jar|class|so|dylib|dll|exe|bin|wasm|db|sqlite)$/i;
-const MAX_BYTES = 8 * 1024 * 1024;
+/** Larger than any file someone wrote by hand; each one skipped is named in the output. */
+const MAX_BYTES = 64 * 1024 * 1024;
 
 function isPlaceholder(shape, match) {
   if (PUBLISHED_LOCAL_KEYS.has(match[0])) return true;
@@ -81,14 +86,45 @@ function isPlaceholder(shape, match) {
   return PLACEHOLDER.test(match[0]);
 }
 
-/** The shapes a text holds, by name and count. The matched text never leaves this function. */
+/**
+ * JSON, JavaScript and URL escapes undone, twice for a doubly escaped dump. A
+ * key after `\n` or `%20` follows an escape's letter or digit, which START
+ * would read as part of an identifier. Escaped line breaks become spaces so
+ * they still separate tokens.
+ */
+export function unescaped(text) {
+  let out = text;
+  for (let pass = 0; pass < 2; pass += 1) {
+    const next = out
+      .replace(/%([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replace(/\\+u([0-9A-Fa-f]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replace(/\\+x([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replace(/\\+[nrtbfv0]/g, " ")
+      .replace(/\\+([^A-Za-z0-9\s])/g, (_, char) => char);
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
+function countShape(shape, text) {
+  let count = 0;
+  for (const match of text.matchAll(shape.pattern)) {
+    if (!isPlaceholder(shape, match)) count += 1;
+  }
+  return count;
+}
+
+/**
+ * The shapes a text holds, by name and count, read as written and with its
+ * escapes undone. Each shape counts the larger of the two readings, so a key
+ * found both ways is one key. The matched text never leaves this function.
+ */
 export function findShapes(text) {
+  const decoded = /[\\%]/.test(text) ? unescaped(text) : text;
   const found = [];
   for (const shape of SHAPES) {
-    let count = 0;
-    for (const match of text.matchAll(shape.pattern)) {
-      if (!isPlaceholder(shape, match)) count += 1;
-    }
+    const count = Math.max(countShape(shape, text), decoded === text ? 0 : countShape(shape, decoded));
     if (count > 0) found.push({ shape: shape.name, count });
   }
   return found;
@@ -148,15 +184,40 @@ export function listFiles(root, { all = false } = {}) {
   };
 }
 
-function looksBinary(path) {
-  const fd = openSync(path, "r");
-  try {
-    const head = Buffer.alloc(8000);
-    const read = readSync(fd, head, 0, head.length, 0);
-    return head.subarray(0, read).includes(0);
-  } finally {
-    closeSync(fd);
+/** "le" or "be" when a NUL-bearing head reads as UTF-16 text without a byte-order mark. */
+function utf16Order(head) {
+  const pairs = Math.floor(head.length / 2);
+  if (pairs < 2) return null;
+  let evenZeros = 0;
+  let oddZeros = 0;
+  for (let i = 0; i + 1 < head.length; i += 2) {
+    if (head[i] === 0) evenZeros += 1;
+    if (head[i + 1] === 0) oddZeros += 1;
   }
+  if (oddZeros / pairs > 0.3 && evenZeros / pairs < 0.05) return "le";
+  if (evenZeros / pairs > 0.3 && oddZeros / pairs < 0.05) return "be";
+  return null;
+}
+
+function fromUtf16(bytes, order) {
+  const even = bytes.subarray(0, bytes.length - (bytes.length % 2));
+  return (order === "be" ? Buffer.from(even).swap16() : even).toString("utf16le");
+}
+
+/**
+ * A file's text and how it was read. UTF-16, what Windows tools call
+ * "Unicode", is decoded rather than skipped as binary. Any other file with a
+ * NUL is read for its ASCII runs, where a key pasted into a binary would sit.
+ */
+export function readText(path) {
+  const bytes = readFileSync(path);
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return { text: fromUtf16(bytes.subarray(2), "le"), encoding: "utf16" };
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return { text: fromUtf16(bytes.subarray(2), "be"), encoding: "utf16" };
+  const head = bytes.subarray(0, 8000);
+  if (!head.includes(0)) return { text: bytes.toString("utf8"), encoding: "utf8" };
+  const order = utf16Order(head);
+  if (order) return { text: fromUtf16(bytes, order), encoding: "utf16" };
+  return { text: bytes.toString("latin1"), encoding: "binary" };
 }
 
 /** Every file's shapes under a root, and how much was read to find them. */
@@ -164,23 +225,30 @@ export function scan(root, { all = false } = {}) {
   const { committable, ignored } = listFiles(root, { all });
   const findings = [];
   const read = new Set();
-  const counts = { committable: 0, ignored: 0, skipped: 0 };
+  const counts = { committable: 0, ignored: 0, skipped: 0, utf16: 0, binary: 0 };
+  const oversized = [];
   for (const [kind, files] of [["committable", committable], ["ignored", ignored]]) {
     for (const file of files) {
       const path = join(root, file);
       if (!existsSync(path)) continue;
-      const size = statSync(path).size;
-      if (BINARY.test(file) || size > MAX_BYTES || looksBinary(path)) {
+      if (BINARY.test(file)) {
         counts.skipped += 1;
         continue;
       }
+      if (statSync(path).size > MAX_BYTES) {
+        counts.skipped += 1;
+        oversized.push(file);
+        continue;
+      }
+      const { text, encoding } = readText(path);
       counts[kind] += 1;
+      if (encoding !== "utf8") counts[encoding] += 1;
       read.add(file);
-      const shapes = findShapes(readFileSync(path, "utf8"));
+      const shapes = findShapes(text);
       if (shapes.length > 0) findings.push({ file, ignored: kind === "ignored", shapes });
     }
   }
-  return { findings, counts, read };
+  return { findings, counts, read, oversized };
 }
 
 /**
@@ -233,12 +301,18 @@ function main() {
   const root = rootFlag >= 0 && argv[rootFlag + 1] ? resolve(argv[rootFlag + 1]) : REPO_ROOT;
 
   const result = scan(root, { all });
-  const { counts } = result;
+  const { counts, oversized } = result;
   const failures = [...judge(result), ...coverage(counts)];
   const scope = all
     ? `${counts.committable} committable and ${counts.ignored} gitignored files`
-    : `${counts.committable} committable files (--all adds gitignored ones)`;
-  const skipped = counts.skipped > 0 ? `, ${counts.skipped} binary or oversized skipped` : "";
+    : `${counts.committable} committable files`;
+  const detail = [
+    counts.utf16 > 0 ? `${counts.utf16} decoded from UTF-16` : null,
+    counts.binary > 0 ? `${counts.binary} binary read for their ASCII runs` : null,
+    counts.skipped > 0 ? `${counts.skipped} binary-by-extension or oversized skipped` : null,
+  ].filter(Boolean);
+  const read = `${scope}${detail.length > 0 ? ` (${detail.join("; ")})` : ""}`;
+  for (const file of oversized) console.error(`  ! ${file} is over ${MAX_BYTES / 1024 / 1024} MB and was not read`);
   const excused = Object.values(ALLOWED).reduce(
     (sum, shapes) => sum + Object.values(shapes).reduce((s, n) => s + n, 0),
     0,
@@ -247,14 +321,14 @@ function main() {
   if (failures.length > 0) {
     for (const failure of failures) console.error(`  x ${failure}`);
     console.error("");
-    console.error(`check-local-secrets: ${failures.length} problem(s); read ${scope}${skipped}.`);
+    console.error(`check-local-secrets: ${failures.length} problem(s); read ${read}.`);
     console.error("  Move each secret out of the checkout: a password manager, a GitHub environment,");
     console.error("  or a file outside the repository. Nothing above prints one; open the file to see it.");
     process.exit(1);
   }
   console.log(
-    `check-local-secrets: no live-secret shape in ${scope}${skipped}; ` +
-      `${excused} published vendor example(s) excused.`,
+    `check-local-secrets: no live-secret shape in ${read}; ` +
+      `${excused} published vendor example(s) excused.${all ? "" : " --all adds gitignored files."}`,
   );
 }
 
