@@ -493,8 +493,8 @@ jobs:
       # D142: agents work in this checkout holding production keys, and the
       # repository is public. A live Stripe, Telnyx or Supabase key, or a
       # Supabase Postgres URL with a password, in any file git would stage is
-      # refused here and by .githooks/pre-push. Only the file and the shape
-      # print.
+      # refused here and by .githooks/pre-push, which also reads every line
+      # the pushed commits add. Only the file and the shape print.
       - name: Guard the checkout against live production secrets
         run: node scripts/check-local-secrets.mjs
 

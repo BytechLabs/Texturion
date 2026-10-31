@@ -1,10 +1,18 @@
 #!/bin/sh
-# D142: no live production secret in any file git would push. Agents work in
+# D142: no live production secret in what a push publishes. Agents work in
 # this checkout holding production keys, and the repository is public, so a
-# key that reaches a push is published.
+# key that reaches a push is published, and a later commit that deletes it
+# does not un-publish it.
+#
+# Two reads. First every line the pushed commits add, from the refs git
+# passes on stdin, so a key deleted again before the push, or on a branch
+# that is not checked out, is still found. Then every file in this checkout
+# git would stage, which stops a key before it is ever committed.
 #
 # Enabled by `git config core.hooksPath .githooks`, which the root package.json
-# `prepare` script runs on install. CI re-checks the same rules ("Guard the
+# `prepare` script runs on install. CI re-checks the checkout ("Guard the
 # checkout against live production secrets"), because a hook can be skipped
 # with --no-verify.
+set -e
+node .githooks/check-pushed-commits.mjs
 exec node scripts/check-local-secrets.mjs
