@@ -1,0 +1,19 @@
+# Local Supabase from the rig's derived config, then the database's rig
+# posture if a reset or a fresh volume lost it (`rig stack up`).
+# User unit for the `rig` account, which lingers (tools/rig/README.md).
+[Unit]
+Description=Loonext rig: local Supabase stack
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=RIG_HOME=/var/lib/loonext-rig
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# Docker is a system service this user manager cannot order against.
+ExecStartPre=/bin/sh -c 'for i in $$(seq 1 90); do docker info >/dev/null 2>&1 && exit 0; sleep 2; done; exit 1'
+ExecStart=/usr/local/bin/node /var/lib/loonext-rig/tooling/tools/rig/bin/rig.mjs stack up
+TimeoutStartSec=15min
+
+[Install]
+WantedBy=default.target

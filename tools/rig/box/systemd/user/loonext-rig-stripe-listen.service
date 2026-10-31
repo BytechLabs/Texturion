@@ -1,0 +1,16 @@
+# Stripe sandbox webhooks forwarded to the local API. Authenticated with the
+# sandbox key itself, never `stripe login`, whose pairing expires after 90
+# days.
+[Unit]
+Description=Loonext rig: stripe listen (sandbox)
+After=loonext-rig-api.service
+
+[Service]
+Environment=RIG_HOME=/var/lib/loonext-rig
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/node /var/lib/loonext-rig/tooling/tools/rig/bin/rig.mjs serve stripe
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

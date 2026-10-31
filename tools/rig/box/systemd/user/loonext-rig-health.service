@@ -1,0 +1,11 @@
+# R00's hardware-free checks; the result lands in state/health.json.
+[Unit]
+Description=Loonext rig: health (R00, no hardware)
+
+[Service]
+Type=oneshot
+Environment=RIG_HOME=/var/lib/loonext-rig
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/node /var/lib/loonext-rig/tooling/tools/rig/bin/rig.mjs health
+# A failing check is a result, recorded in the state file, not a unit failure.
+SuccessExitStatus=1

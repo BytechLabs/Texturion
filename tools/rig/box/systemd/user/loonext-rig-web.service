@@ -1,0 +1,18 @@
+# The deployed ref's OpenNext build under wrangler dev, on 127.0.0.1:8788
+# (Caddy serves it as app.rig.internal).
+[Unit]
+Description=Loonext rig: web app (OpenNext under wrangler dev)
+Requires=loonext-rig-stack.service
+After=loonext-rig-stack.service loonext-rig-api.service
+
+[Service]
+Environment=RIG_HOME=/var/lib/loonext-rig
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/node /var/lib/loonext-rig/tooling/tools/rig/bin/rig.mjs serve web
+Restart=on-failure
+RestartSec=5s
+KillMode=mixed
+TimeoutStopSec=20s
+
+[Install]
+WantedBy=default.target

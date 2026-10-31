@@ -1,0 +1,82 @@
+# apps/api/.dev.vars.rig: every variable the rig's API runs with, and where each
+# value comes from. `rig deploy` renders it into the deployed worktree, which
+# gitignores `.dev.vars*`. Values never appear here, only their sources:
+#   {{secret:<file>}}   the rig's secret store; {{secret?:<file>}} if present
+#   {{catalog:<VAR>}}   stripe-catalog.json in the store (the sandbox's ids)
+#   {{partition.<key>}} the guard's live listing, read at deploy time
+#   {{edge}}            the edge's origin, from the store
+#   {{rig.<setting>}}   rig.json
+#   {{supabase.<key>}}  `supabase status` of the rig's own stack
+#   {{seam.<name>}}     an edge path from tools/rig-protocol, on the edge origin
+#   {{derived.<name>}}  computed at deploy time (tools/rig/src/dev-vars.mjs)
+# A line whose optional source is absent is left out.
+
+DEPLOY_ENV=rig
+GIT_SHA={{deploy.sha}}
+
+SUPABASE_URL={{rig.supabaseUrl}}
+SUPABASE_SECRET_KEY={{supabase.secretKey}}
+SUPABASE_JWKS_URL={{rig.supabaseUrl}}/auth/v1/.well-known/jwks.json
+
+APP_ORIGIN={{rig.appOrigin}}
+# What vendors see: Telnyx fetches and Stripe redirects name the edge.
+API_ORIGIN={{edge}}
+
+# Telnyx, through the guard. The key is the guard caller token; the API refuses
+# to boot in rig mode with anything shaped like a raw Telnyx key.
+TELNYX_API_BASE={{seam.telnyxApiBase}}
+TELNYX_API_KEY={{secret:guard-token-rig-api}}
+TELNYX_PUBLIC_KEY={{secret:telnyx-public-key}}
+TELNYX_WEBHOOK_URL={{seam.telnyxWebhookUrl}}
+TELNYX_MEDIA_PUBLIC_BASE={{seam.telnyxMediaPublicBase}}
+TELNYX_BILLING_GROUP_ID={{partition.billing_group_id}}
+TELNYX_VOICE_CONNECTION_ID={{partition.connection_ids.voice}}
+TELNYX_WEBRTC_CONNECTION_ID={{partition.connection_ids.webrtc}}
+
+# Email and push, through the guard, authenticated by the same caller token.
+RESEND_API_BASE={{seam.resendApiBase}}
+RESEND_API_KEY={{secret:guard-token-rig-api}}
+RESEND_FROM={{secret:resend-from}}
+FCM_API_BASE={{seam.fcmApiBase}}
+FCM_OAUTH_TOKEN_URL={{seam.fcmOauthTokenUrl}}
+FCM_SERVICE_ACCOUNT_JSON={{derived.fcmServiceAccount}}
+
+# The Stripe sandbox, never a live key.
+STRIPE_SECRET_KEY={{secret:stripe-secret-key}}
+STRIPE_WEBHOOK_SECRET={{derived.stripeWebhookSecret}}
+STRIPE_STARTER_PRICE_ID={{catalog:STRIPE_STARTER_PRICE_ID}}
+STRIPE_PRO_PRICE_ID={{catalog:STRIPE_PRO_PRICE_ID}}
+STRIPE_STARTER_OVERAGE_PRICE_ID={{catalog:STRIPE_STARTER_OVERAGE_PRICE_ID}}
+STRIPE_PRO_OVERAGE_PRICE_ID={{catalog:STRIPE_PRO_OVERAGE_PRICE_ID}}
+STRIPE_US_FEE_PRICE_ID={{catalog:STRIPE_US_FEE_PRICE_ID}}
+STRIPE_STARTER_YEAR_PRICE_ID={{catalog?:STRIPE_STARTER_YEAR_PRICE_ID}}
+STRIPE_PRO_YEAR_PRICE_ID={{catalog?:STRIPE_PRO_YEAR_PRICE_ID}}
+STRIPE_PREPAID_YEAR_COUPON_ID={{catalog?:STRIPE_PREPAID_YEAR_COUPON_ID}}
+STRIPE_REFERRAL_MONTH_COUPON_ID={{catalog?:STRIPE_REFERRAL_MONTH_COUPON_ID}}
+STRIPE_PAUSE_PRICE_ID={{catalog?:STRIPE_PAUSE_PRICE_ID}}
+STRIPE_MODULE_MMS_PRICE_ID={{catalog?:STRIPE_MODULE_MMS_PRICE_ID}}
+STRIPE_MODULE_VOICE_PRICE_ID={{catalog?:STRIPE_MODULE_VOICE_PRICE_ID}}
+STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID={{catalog?:STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID}}
+STRIPE_MODULE_REGIONS_CA_PRICE_ID={{catalog?:STRIPE_MODULE_REGIONS_CA_PRICE_ID}}
+STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID={{catalog?:STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID}}
+STRIPE_EXTRA_NUMBER_PRO_PRICE_ID={{catalog?:STRIPE_EXTRA_NUMBER_PRO_PRICE_ID}}
+STRIPE_SMS_METER_EVENT_NAME=sms_segments
+STRIPE_VOICE_METER_EVENT_NAME={{catalog?:STRIPE_VOICE_METER_EVENT_NAME}}
+STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID={{catalog?:STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID}}
+STRIPE_PRO_VOICE_OVERAGE_PRICE_ID={{catalog?:STRIPE_PRO_VOICE_OVERAGE_PRICE_ID}}
+
+# loonext-rig, through rigd's capped relay.
+SENTRY_DSN={{derived.sentryDsn}}
+
+# Stable across deploys: a browser's push subscription is bound to the key.
+VAPID_PUBLIC_KEY={{derived.vapidPublicKey}}
+VAPID_PRIVATE_KEY={{derived.vapidPrivateKey}}
+
+# Generated from the guard's live listing at deploy time, STRANGER-1 left out.
+RIG_OWNED_E164={{derived.rigOwnedE164}}
+# The robot's webhook sink. The app refuses *.internal webhook hosts, so it is
+# the edge, which relays /w/<secret> to the robot.
+RIG_ROBOT_WEBHOOK_ORIGIN={{edge}}
+
+# Cloudflare's published always-pass Turnstile test secret.
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA

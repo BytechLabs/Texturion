@@ -1,0 +1,18 @@
+# The deployed ref's API under wrangler dev, with the AI shim beside it,
+# on 127.0.0.1:8787 (Caddy serves it as api.rig.internal).
+[Unit]
+Description=Loonext rig: API (wrangler dev, rig mode)
+Requires=loonext-rig-stack.service
+After=loonext-rig-stack.service
+
+[Service]
+Environment=RIG_HOME=/var/lib/loonext-rig
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/node /var/lib/loonext-rig/tooling/tools/rig/bin/rig.mjs serve api
+Restart=on-failure
+RestartSec=5s
+KillMode=mixed
+TimeoutStopSec=20s
+
+[Install]
+WantedBy=default.target

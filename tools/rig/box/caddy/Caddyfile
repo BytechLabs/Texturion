@@ -1,0 +1,47 @@
+# /etc/caddy/Caddyfile on the rig.
+#
+# The three rig names, served only on loopback and on the phone's access
+# point, never on the uplink. Certificates come from the rig's own authority,
+# generated on the box by tools/rig/box/bootstrap.sh and never committed; it is
+# name-constrained to rig.internal, so even a stolen key vouches for nothing
+# real. Caddy issues and renews the leaf certificates from it.
+{
+	admin localhost:2019
+	auto_https disable_redirects
+	pki {
+		ca rig {
+			name "Loonext Rig CA"
+			root {
+				cert /etc/loonext-rig/ca/root.crt
+				key /etc/loonext-rig/ca/root.key
+			}
+		}
+	}
+}
+
+(rig_site) {
+	bind 127.0.0.1 10.77.0.1
+	tls {
+		issuer internal {
+			ca rig
+		}
+	}
+	header {
+		-Server
+	}
+}
+
+api.rig.internal {
+	import rig_site
+	reverse_proxy 127.0.0.1:8787
+}
+
+app.rig.internal {
+	import rig_site
+	reverse_proxy 127.0.0.1:8788
+}
+
+db.rig.internal {
+	import rig_site
+	reverse_proxy 127.0.0.1:54321
+}

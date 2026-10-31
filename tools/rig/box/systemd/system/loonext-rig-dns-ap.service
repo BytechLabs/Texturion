@@ -1,0 +1,15 @@
+# DHCP and DNS for the phone's access point and the emulators
+# (tools/rig/box/dnsmasq/ap.conf). Starts only once the access point's
+# interface exists; hostapd brings it up.
+[Unit]
+Description=Loonext rig: access point DHCP and DNS (dnsmasq)
+After=network-online.target sys-subsystem-net-devices-rig\x2dap0.device
+BindsTo=sys-subsystem-net-devices-rig\x2dap0.device
+
+[Service]
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/loonext-rig/dnsmasq-ap.conf --pid-file=/run/loonext-rig-dns-ap.pid
+Restart=always
+RestartSec=2s
+
+[Install]
+WantedBy=sys-subsystem-net-devices-rig\x2dap0.device

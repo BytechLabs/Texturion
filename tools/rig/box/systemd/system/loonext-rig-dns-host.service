@@ -1,0 +1,15 @@
+# The rig host's resolver, with production and the vendor APIs blocked
+# (tools/rig/box/dnsmasq/host.conf). The stock dnsmasq.service is disabled.
+[Unit]
+Description=Loonext rig: host DNS (dnsmasq)
+After=network-online.target systemd-resolved.service
+Wants=network-online.target
+Before=nss-lookup.target
+
+[Service]
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/loonext-rig/dnsmasq-host.conf --pid-file=/run/loonext-rig-dns-host.pid
+Restart=always
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target

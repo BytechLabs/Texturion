@@ -1,0 +1,23 @@
+// /etc/apt/apt.conf.d/52loonext-rig-unattended-upgrades (docs/RIG.md 3.2).
+//
+// Security and updates install unattended, and the box reboots itself when a
+// package asks for it, at a time outside the dial window. The box runs in UTC
+// (bootstrap.sh), and the window before there is data is 04:00-10:00 UTC, so
+// upgrades run at 01:00 (apt timer override beside this file) and the reboot
+// at 02:00. If the measured window ever covers these hours, move both.
+
+Unattended-Upgrade::Allowed-Origins {
+	"${distro_id}:${distro_codename}";
+	"${distro_id}:${distro_codename}-security";
+	"${distro_id}ESMApps:${distro_codename}-apps-security";
+	"${distro_id}ESM:${distro_codename}-infra-security";
+	"${distro_id}:${distro_codename}-updates";
+};
+
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+Unattended-Upgrade::Automatic-Reboot "true";
+// The rig account lingers and Remote Control keeps a session open; without
+// this the reboot would wait for a logout that never comes.
+Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
+Unattended-Upgrade::Automatic-Reboot-Time "02:00";
