@@ -10,8 +10,9 @@
  *   1. prefers-reduced-motion: reduce  → static stays
  *   2. navigator.connection.saveData   → static stays
  *   3. navigator.deviceMemory < 4      → static stays
- *   4. after the LCP paint, then requestIdleCallback, then an
- *      IntersectionObserver (rootMargin 200px) on the hero layer → boot
+ *   4. after the LCP paint AND the window load event, then
+ *      requestIdleCallback, then an IntersectionObserver (rootMargin 200px)
+ *      on the hero layer → boot
  *
  * The layer is absolutely positioned inside a pre-sized box (the hero
  * reserves it), pointer-events none, so CLS from this feature is 0.00. The
@@ -28,42 +29,50 @@ import { ArrivalStatic } from "./arrival-static";
 
 const ArrivalField = dynamic(() => import("./arrival-field"), { ssr: false });
 
-/** Run `cb` after the LCP candidate has painted (PerformanceObserver), with a
- *  window-load fallback where the entry type is unsupported. */
-function afterLcp(cb: () => void): () => void {
+/**
+ * The LCP entry alone fires while the page is still arriving, so on a phone
+ * the p5 download shared one slow connection with the display face and the
+ * hydration chunks. After `load` nothing the page requested is in flight.
+ */
+function afterLcpAndLoad(cb: () => void): () => void {
+  let painted = false;
+  let loaded = document.readyState === "complete";
   let done = false;
+  let fallback: number | undefined;
+  let po: PerformanceObserver | undefined;
   const fire = () => {
-    if (done) return;
+    if (done || !painted || !loaded) return;
     done = true;
     cb();
   };
   try {
-    const po = new PerformanceObserver(() => {
-      po.disconnect();
+    po = new PerformanceObserver(() => {
+      po?.disconnect();
+      painted = true;
       fire();
     });
     po.observe({ type: "largest-contentful-paint", buffered: true });
-    // Safety net: if no LCP entry ever lands (already-loaded bfcache page),
-    // the load event releases the boot.
-    if (document.readyState === "complete") {
-      const t = setTimeout(fire, 1500);
-      return () => {
-        clearTimeout(t);
-        po.disconnect();
-      };
-    }
-    window.addEventListener("load", () => setTimeout(fire, 300), {
-      once: true,
-    });
-    return () => po.disconnect();
   } catch {
-    if (document.readyState === "complete") {
-      const t = setTimeout(fire, 0);
-      return () => clearTimeout(t);
-    }
-    window.addEventListener("load", fire, { once: true });
-    return () => window.removeEventListener("load", fire);
+    // Entry type unsupported: the load event alone releases the boot.
+    painted = true;
   }
+  const onLoad = () => {
+    loaded = true;
+    // No LCP entry ever lands on a page restored from the bfcache.
+    fallback = window.setTimeout(() => {
+      painted = true;
+      fire();
+    }, 1500);
+    fire();
+  };
+  if (loaded) onLoad();
+  else window.addEventListener("load", onLoad, { once: true });
+  return () => {
+    done = true;
+    po?.disconnect();
+    window.removeEventListener("load", onLoad);
+    if (fallback !== undefined) window.clearTimeout(fallback);
+  };
 }
 
 export function ArrivalLayer() {
@@ -90,7 +99,7 @@ export function ArrivalLayer() {
         cancelIdleCallback?: (id: number) => void;
       };
 
-    const cancelLcp = afterLcp(() => {
+    const cancelGate = afterLcpAndLoad(() => {
       const armObserver = () => {
         const el = hostRef.current;
         if (!el) return;
@@ -117,7 +126,7 @@ export function ArrivalLayer() {
     });
 
     return () => {
-      cancelLcp();
+      cancelGate();
       io?.disconnect();
       if (idleId !== undefined) w.cancelIdleCallback?.(idleId);
       if (idleTimeout !== undefined) window.clearTimeout(idleTimeout);
