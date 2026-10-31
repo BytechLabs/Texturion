@@ -20,16 +20,18 @@
  * vendor account that is not Loonext's production. none: named like a
  * credential and not one (empty, a placeholder, a public key, the Supabase
  * CLI's published local key). A value that names itself (`sk_live_`,
- * `sk_test_`, a Telnyx key, a Postgres URL's login and host) decides its own
- * tier; otherwise the name does. A credential this script cannot place is
- * listed as unclassified.
+ * `sk_test_`, a Telnyx key, a Postgres URL's login and host, a JWT's role)
+ * decides its own tier; otherwise the name does, and a name whose local and
+ * production values look alike is local only on an active `.dev.vars` line. A
+ * credential this script cannot place is listed as unclassified.
  *
  * THE GATE. docs/RIG.md's 2026-10-30 amendment made FA1 (agents run as a
  * user with no production write keys) optional and did not adopt it, so by
  * default this reports and passes, and says so. A founder who chooses FA1
  * sets LOONEXT_FA1=1, or writes {"fa1": true} to ~/.loonext/hardening.json;
- * from then on any production-write credential in reach fails the run. It
- * also fails when it read nothing at all, because a blind audit passes.
+ * from then on any production-write or unclassified credential in reach
+ * fails the run, since one this script cannot place is not shown to be safe.
+ * It also fails when it read nothing at all, because a blind audit passes.
  *
  * NOT CHECKED, AND SAID SO ON EVERY RUN: the Windows credential store,
  * browser sessions, and what a GitHub token's scopes allow. docs/RIG.md
@@ -38,7 +40,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { findShapes, PUBLISHED_LOCAL_KEYS, SHAPES } from "../check-local-secrets.mjs";
@@ -47,9 +49,12 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export const TIERS = ["production-write", "production-read", "nonprod", "none"];
 
-/** Names that hold a credential, whatever the value turns out to be. */
+/**
+ * Names that hold a credential, whatever the value turns out to be. The second
+ * half catches a word run into its prefix, such as PGPASSWORD.
+ */
 const CREDENTIAL_NAME =
-  /(?:^|_)(?:KEY|KEYS|TOKEN|SECRET|SECRETS|PASSWORD|PASSWD|PASS|DSN|CREDENTIALS?|PRIVATE|DATABASE_URL|DB_URL|CONNECTION_STRING)(?:_|$)/i;
+  /(?:^|_)(?:KEY|KEYS|TOKEN|SECRET|SECRETS|PASSWORD|PASSWD|PASS|DSN|CREDENTIALS?|PRIVATE|DATABASE_URL|DB_URL|CONNECTION_STRING)(?:_|$)|(?:PASSWORD|PASSWD|SECRET|TOKEN|APIKEY)$/i;
 const PUBLIC_NAME = /(?:^|_)(?:PUBLIC|PUBLISHABLE|ANON)(?:_|$)|^NEXT_PUBLIC_/i;
 /** An address or an identifier beside a credential, not one itself, unless its value says otherwise. */
 const NOT_A_SECRET_NAME = /_(?:URL|BASE|HOST|ID|NAME|PATH|FILE|REGION|ORG|PROJECT)$/i;
@@ -74,12 +79,25 @@ const BY_NAME = [
   [/^SENTRY_AUTH_TOKEN$/, "production-read", "reads production's errors"],
   [/^TURNSTILE_SECRET_KEY$/, "production-read", "verifies captcha answers for the production site; changes nothing"],
   [/^SENTRY_DSN$/, "none", "ingest-only, public by design"],
-  [/^STRIPE_WEBHOOK_SECRET$/, "nonprod", "a signing secret; an active .dev.vars line holds stripe listen's"],
-  [/^VAPID_PRIVATE_KEY$/, "nonprod", "a web-push signing key; an active .dev.vars line holds the local pair"],
   [/^TELNYX_API_KEY$/, "nonprod", "not Telnyx's key shape: a guard caller token or a fake"],
   [/^(?:AHREFS_API_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY|POSTHOG_API_KEY|POSTHOG_PERSONAL_API_KEY)$/, "nonprod", "a vendor account outside Loonext production"],
+  [/^CLAUDE_CODE_\w*TOKEN$/, "nonprod", "the agent's own Claude login, outside Loonext production"],
   [/^AGENT_DIAG_DATABASE_URL$/, "production-read", "the agent_diag login"],
 ];
+
+/**
+ * Credentials whose local and production values look alike: local only on an
+ * active `.dev.vars` line, production's anywhere else.
+ */
+const LOCAL_ONLY_ON_AN_ACTIVE_DEV_VARS_LINE = [
+  [/^STRIPE_WEBHOOK_SECRET$/, "a Stripe signing secret"],
+  [/^VAPID_PRIVATE_KEY$/, "a web-push signing key"],
+];
+
+/** Names of the one Stripe account's secret keys, which are never test-mode unless the value says so. */
+const STRIPE_SECRET_NAME = /^STRIPE_(?:SECRET|RESTRICTED|API)_KEY$/;
+/** Names of a Supabase key that bypasses RLS, whatever format its value is in. */
+const SUPABASE_SECRET_NAME = /^(?:SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY)$/;
 
 /**
  * In a `.dev.vars` the commented block is production's (scripts/
@@ -87,6 +105,38 @@ const BY_NAME = [
  * be production's there.
  */
 const COMMENTED_DEFAULT = ["production-write", "a commented .dev.vars line, which by this repo's convention is production's"];
+
+/** A JWT's claims, or null. Supabase's legacy keys carry their role there, base64url-encoded. */
+export function jwtClaims(raw) {
+  const parts = raw.split(".");
+  if (parts.length !== 3 || !parts[0].startsWith("eyJ")) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    return claims && typeof claims === "object" ? claims : null;
+  } catch {
+    return null;
+  }
+}
+
+function localSupabaseUrl(context) {
+  try {
+    return Boolean(context.SUPABASE_URL) && LOOPBACK.test(new URL(context.SUPABASE_URL).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** PGPASSWORD goes wherever PGHOST points, and says nothing itself. */
+function pgPasswordTier(raw, context) {
+  const host = context.PGHOST?.trim();
+  if (host && LOOPBACK.test(host)) return { tier: "nonprod", reason: "a Postgres password for a local server (PGHOST)" };
+  if (/^agent_diag(?:\.|$)/.test(context.PGUSER ?? "")) {
+    return { tier: "production-read", reason: "the agent_diag login's password (PGUSER)" };
+  }
+  if (host) return { tier: "production-write", reason: "a Postgres password for a remote server (PGHOST)" };
+  if (raw === "postgres") return { tier: "nonprod", reason: "the local stack's published postgres password" };
+  return { tier: "production-write", reason: "a Postgres password with no PGHOST beside it to show it is local" };
+}
 
 function postgresTier(value) {
   let url;
@@ -108,10 +158,12 @@ function postgresTier(value) {
 /**
  * The tier of one credential, from its value where the value names itself and
  * from its name otherwise. `context` carries the other values from the same
- * source, so a Supabase key is placed by the URL beside it.
+ * source, so a Supabase key is placed by the URL beside it. `devVars` marks a
+ * `.dev.vars` source, whose active lines are local by this repo's convention.
  */
-export function classify(name, value, { commented = false, context = {} } = {}) {
+export function classify(name, value, { commented = false, devVars = false, context = {} } = {}) {
   const raw = typeof value === "string" ? value.trim().replace(/^["']|["']$/g, "") : "";
+  const localLine = devVars && !commented;
   if (PLACEHOLDER.test(raw)) return { tier: "none", reason: "empty or a placeholder" };
   if (PUBLISHED_LOCAL_KEYS.has(raw)) return { tier: "nonprod", reason: "the Supabase CLI's published local key" };
 
@@ -122,21 +174,18 @@ export function classify(name, value, { commented = false, context = {} } = {}) 
   if (/^(?:[sr]k|pk)_test_/.test(raw)) return { tier: "nonprod", reason: "a Stripe test-mode key" };
   if (/^pk_live_/.test(raw)) return { tier: "none", reason: "a Stripe publishable key, public by design" };
   if (/^[123]x0{20,40}AA$/.test(raw)) return { tier: "nonprod", reason: "one of Cloudflare's published Turnstile test secrets" };
-  if (/^whsec_/.test(raw) && commented) return { tier: COMMENTED_DEFAULT[0], reason: "a Stripe signing secret on a commented .dev.vars line" };
   if (/^KEY[0-9A-F]{24,}/.test(raw)) {
     return { tier: "production-write", reason: "a Telnyx key: the one Telnyx account is production's" };
   }
   if (/^sbp_/.test(raw)) return { tier: "production-write", reason: "a Supabase platform token: manages the project" };
   if (/^sb_publishable_/.test(raw)) return { tier: "none", reason: "a Supabase publishable key, public by design" };
-  if (/^sb_secret_/.test(raw) || /^eyJ[\w-]+\.eyJ[\w-]*service_role/.test(raw)) {
-    const url = context.SUPABASE_URL;
-    let host = null;
-    try {
-      host = url ? new URL(url).hostname : null;
-    } catch {
-      host = null;
-    }
-    if (host && LOOPBACK.test(host)) return { tier: "nonprod", reason: "a Supabase secret key beside a local SUPABASE_URL" };
+  const claims = jwtClaims(raw);
+  if (claims?.role === "anon") return { tier: "none", reason: "a Supabase anon key, public by design" };
+  if (claims?.role === "service_role" && claims.iss === "supabase-demo") {
+    return { tier: "nonprod", reason: "the Supabase CLI's published local service_role key" };
+  }
+  if (/^sb_secret_/.test(raw) || claims?.role === "service_role" || SUPABASE_SECRET_NAME.test(name)) {
+    if (localSupabaseUrl(context)) return { tier: "nonprod", reason: "a Supabase secret key beside a local SUPABASE_URL" };
     return { tier: "production-write", reason: "a Supabase secret key: bypasses RLS on the project" };
   }
   if (/^re_[A-Za-z0-9_-]{8,}/.test(raw)) {
@@ -146,10 +195,26 @@ export function classify(name, value, { commented = false, context = {} } = {}) 
     return { tier: "production-write", reason: "a GitHub token: can merge to main, which deploys; its scopes are not probed" };
   }
 
+  const alike = LOCAL_ONLY_ON_AN_ACTIVE_DEV_VARS_LINE.find(([pattern]) => pattern.test(name));
+  if (alike || /^whsec_/.test(raw)) {
+    const what = alike ? alike[1] : "a Stripe signing secret";
+    return localLine
+      ? { tier: "nonprod", reason: `${what} on an active .dev.vars line, which is local` }
+      : { tier: "production-write", reason: `${what}, which looks the same in production; only an active .dev.vars line is taken to be local` };
+  }
+  if (STRIPE_SECRET_NAME.test(name)) {
+    if (/\s/.test(raw) && findShapes(raw).length === 0) {
+      return { tier: "none", reason: "prose under a Stripe key's name: a Stripe key has no spaces, and none is in it" };
+    }
+    if (localLine) return { tier: "nonprod", reason: "a Stripe key by name on an active .dev.vars line, which is local" };
+    return { tier: "production-write", reason: "a Stripe key by name whose value is not test-mode; the one Stripe account is production's" };
+  }
+  if (name === "PGPASSWORD") return pgPasswordTier(raw, context);
+
   if (PUBLIC_NAME.test(name)) return { tier: "none", reason: "a public value by name" };
   for (const [pattern, tier, reason] of BY_NAME) {
     if (pattern.test(name)) {
-      if (commented && tier === "nonprod" && !/^(?:AHREFS|ANTHROPIC|OPENAI|POSTHOG)/.test(name)) {
+      if (commented && tier === "nonprod" && !/^(?:AHREFS|ANTHROPIC|OPENAI|POSTHOG|CLAUDE_CODE)/.test(name)) {
         return { tier: COMMENTED_DEFAULT[0], reason: COMMENTED_DEFAULT[1] };
       }
       return { tier, reason };
@@ -214,14 +279,14 @@ function commentedContextOf(entries) {
 }
 
 /** The credentials one source holds, classified. */
-export function auditEntries(source, entries) {
+export function auditEntries(source, entries, { devVars = false } = {}) {
   const active = contextOf(entries);
   const commentedContext = commentedContextOf(entries);
   const found = [];
   for (const entry of entries) {
     if (!isCredential(entry.name, entry.value)) continue;
     const context = entry.commented ? { ...active, ...commentedContext } : active;
-    const { tier, reason } = classify(entry.name, entry.value, { commented: entry.commented, context });
+    const { tier, reason } = classify(entry.name, entry.value, { commented: entry.commented, devVars, context });
     found.push({ source, name: entry.name || "(unnamed)", commented: entry.commented, tier, reason });
   }
   return found;
@@ -347,7 +412,8 @@ export function audit({ env = process.env, home = homedir(), root = REPO_ROOT } 
       }
       const document = path.endsWith(".json") ? readJson(path) : undefined;
       const entries = document ? jsonEntries(document) : parseEnvText(text);
-      findings.push(...auditEntries(display(path, home), entries));
+      const devVars = /^\.dev\.vars/i.test(basename(path));
+      findings.push(...auditEntries(display(path, home), entries, { devVars }));
     }
   }
 
@@ -384,12 +450,23 @@ export function fa1Chosen({ env = process.env, home = homedir() } = {}) {
 export function verdict({ findings, sources }, { report, fa1 }) {
   const read = sources.variables + sources.settings + sources.envFiles + sources.loonext;
   const writes = findings.filter((f) => f.tier === "production-write");
+  const unplaced = findings.filter((f) => f.tier === "unclassified");
   if (report) return { exit: 0, why: "report mode" };
   if (read === 0) return { exit: 1, why: "nothing was read, so a pass would mean nothing" };
-  if (fa1.chosen && writes.length > 0) {
-    return { exit: 1, why: `FA1 is chosen (${fa1.where}) and ${writes.length} production-write credential(s) are in reach` };
+  if (fa1.chosen && writes.length + unplaced.length > 0) {
+    const why = [];
+    if (writes.length > 0) why.push(`${writes.length} production-write credential(s) are in reach`);
+    if (unplaced.length > 0) {
+      why.push(
+        `${unplaced.length} unclassified credential(s) cannot be shown not to be ` +
+          "(give each a rule here, or move it out of the agent user's reach)",
+      );
+    }
+    return { exit: 1, why: `FA1 is chosen (${fa1.where}) and ${why.join(", and ")}` };
   }
-  if (fa1.chosen) return { exit: 0, why: `FA1 is chosen (${fa1.where}) and no production-write credential is in reach` };
+  if (fa1.chosen) {
+    return { exit: 0, why: `FA1 is chosen (${fa1.where}) and no production-write or unclassified credential is in reach` };
+  }
   return {
     exit: 0,
     why: "FA1 is not chosen (optional since the 2026-10-30 amendment to docs/RIG.md), so this reports and passes",

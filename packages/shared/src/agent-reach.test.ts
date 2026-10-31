@@ -23,10 +23,15 @@ const reach = (await import(join(REPO, "scripts", "ops", "audit-agent-reach.mjs"
   classify: (
     name: string,
     value: string,
-    options?: { commented?: boolean; context?: Record<string, string> },
+    options?: { commented?: boolean; devVars?: boolean; context?: Record<string, string> },
   ) => { tier: string; reason: string };
+  isCredential: (name: string, value: string) => boolean;
   parseEnvText: (text: string) => { name: string; value: string; commented: boolean }[];
-  auditEntries: (source: string, entries: { name: string; value: string; commented: boolean }[]) => Finding[];
+  auditEntries: (
+    source: string,
+    entries: { name: string; value: string; commented: boolean }[],
+    options?: { devVars?: boolean },
+  ) => Finding[];
   verdict: (
     result: { findings: Finding[]; sources: Sources },
     options: { report: boolean; fa1: { chosen: boolean; where: string | null } },
@@ -47,6 +52,14 @@ const live = {
 };
 const diagUrl = (host: string) =>
   `postgresql://agent_diag.projectrefstem:${live.diagPassword}@${host}:5432/postgres`;
+/** A JWT carrying the given claims, built here so no token sits in the file. */
+const jwt = (claims: Record<string, string>) =>
+  [
+    Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"),
+    Buffer.from(JSON.stringify(claims)).toString("base64url"),
+    Buffer.from("readable-signature-stem").toString("base64url"),
+  ].join(".");
+const signingSecret = ["whsec", "readablestemforthistest"].join("_");
 
 const tierOf = (name: string, value: string, options = {}) => reach.classify(name, value, options).tier;
 
@@ -72,6 +85,23 @@ describe("a value that names itself decides its tier", () => {
   it("holds a Telnyx key to production even under an innocent name", () => {
     expect(tierOf("SOME_SETTING_KEY", live.telnyx)).toBe("production-write");
   });
+
+  it("reads a legacy Supabase key's role from its decoded claims", () => {
+    const serviceRole = jwt({ iss: "supabase", ref: "projectrefstem", role: "service_role" });
+    for (const name of ["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY", "SOME_OTHER_KEY"]) {
+      expect(tierOf(name, serviceRole)).toBe("production-write");
+    }
+    expect(tierOf("SUPABASE_SERVICE_ROLE_KEY", serviceRole, { context: { SUPABASE_URL: "http://127.0.0.1:54321" } })).toBe("nonprod");
+    expect(tierOf("SUPABASE_SERVICE_ROLE_KEY", jwt({ iss: "supabase-demo", role: "service_role" }))).toBe("nonprod");
+    expect(tierOf("SUPABASE_ANON_KEY_COPY", jwt({ iss: "supabase", role: "anon" }))).toBe("none");
+  });
+
+  it("takes a Supabase secret by name to be production's whatever its value", () => {
+    expect(tierOf("SUPABASE_SERVICE_ROLE_KEY", "readablestemforthistest")).toBe("production-write");
+    expect(
+      tierOf("SUPABASE_SECRET_KEY", "readablestemforthistest", { context: { SUPABASE_URL: "http://127.0.0.1:54321" } }),
+    ).toBe("nonprod");
+  });
 });
 
 describe("otherwise the name decides", () => {
@@ -93,9 +123,40 @@ describe("otherwise the name decides", () => {
   });
 
   it("takes a commented .dev.vars line to be production's when the name cannot tell", () => {
-    expect(tierOf("VAPID_PRIVATE_KEY", "readablestemforthistest")).toBe("nonprod");
-    expect(tierOf("VAPID_PRIVATE_KEY", "readablestemforthistest", { commented: true })).toBe("production-write");
     expect(tierOf("SOMETHING_NEW_SECRET", "readablestemforthistest", { commented: true })).toBe("production-write");
+  });
+
+  it.each([
+    ["VAPID_PRIVATE_KEY", "readablestemforthistest"],
+    ["STRIPE_WEBHOOK_SECRET", signingSecret],
+    ["ANY_WEBHOOK_SIGNING", signingSecret],
+  ])("holds %s to local only on an active .dev.vars line", (name, value) => {
+    expect(tierOf(name, value, { devVars: true })).toBe("nonprod");
+    expect(tierOf(name, value, { devVars: true, commented: true })).toBe("production-write");
+    // The environment, a settings file or a secrets JSON: production's looks the same.
+    expect(tierOf(name, value)).toBe("production-write");
+  });
+
+  it("takes a Stripe key by name to be production's unless its value is test-mode", () => {
+    expect(tierOf("STRIPE_SECRET_KEY", "readablestemforthistest")).toBe("production-write");
+    expect(tierOf("STRIPE_RESTRICTED_KEY", "readablestemforthistest")).toBe("production-write");
+    expect(tierOf("STRIPE_SECRET_KEY", "readablestemforthistest", { devVars: true })).toBe("nonprod");
+    expect(tierOf("STRIPE_SECRET_KEY", live.stripe, { devVars: true })).toBe("production-write");
+    expect(tierOf("STRIPE_SECRET_KEY", "check this one in the dashboard before use")).toBe("none");
+    expect(tierOf("STRIPE_SECRET_KEY", `rotated, was ${live.stripe}`)).toBe("production-write");
+  });
+
+  it("lists PGPASSWORD and places it by PGHOST and PGUSER", () => {
+    expect(reach.isCredential("PGPASSWORD", "readablestemforthistest")).toBe(true);
+    expect(reach.isCredential("TOKENIZERS_PARALLELISM", "false")).toBe(false);
+    const remote = { PGHOST: "aws-0-us-east-1.pooler.supabase.com" };
+    expect(tierOf("PGPASSWORD", "readablestemforthistest", { context: remote })).toBe("production-write");
+    expect(tierOf("PGPASSWORD", "readablestemforthistest", { context: { ...remote, PGUSER: "agent_diag.projectrefstem" } })).toBe(
+      "production-read",
+    );
+    expect(tierOf("PGPASSWORD", "readablestemforthistest", { context: { PGHOST: "127.0.0.1" } })).toBe("nonprod");
+    expect(tierOf("PGPASSWORD", "postgres")).toBe("nonprod");
+    expect(tierOf("PGPASSWORD", "readablestemforthistest")).toBe("production-write");
   });
 });
 
@@ -143,7 +204,14 @@ describe("the gate", () => {
 
   it("fails a production-write credential once FA1 is chosen", () => {
     expect(reach.verdict(result(["production-write"]), { report: false, fa1 }).exit).toBe(1);
-    expect(reach.verdict(result(["production-read", "nonprod"]), { report: false, fa1 }).exit).toBe(0);
+    expect(reach.verdict(result(["production-read", "nonprod", "none"]), { report: false, fa1 }).exit).toBe(0);
+  });
+
+  it("fails an unclassified credential once FA1 is chosen, since it is not shown to be safe", () => {
+    const decision = reach.verdict(result(["unclassified"]), { report: false, fa1 });
+    expect(decision.exit).toBe(1);
+    expect(decision.why).toMatch(/1 unclassified credential/);
+    expect(reach.verdict(result(["unclassified"]), { report: false, fa1: noFa1 }).exit).toBe(0);
   });
 
   it("passes in report mode whatever it finds", () => {
@@ -204,7 +272,7 @@ describe("run for real", () => {
     return { status: result.status, output: `${result.stdout}${result.stderr}` };
   };
 
-  const VALUES = [live.stripe, live.telnyx, live.diagPassword, "readablestemforthistest"];
+  const VALUES = [live.stripe, live.telnyx, live.diagPassword, "readablestemforthistest", signingSecret];
 
   it("names every source's credentials and tiers, and prints no value", { timeout: 60_000 }, () => {
     const { home, root } = machine();
@@ -217,6 +285,26 @@ describe("run for real", () => {
     expect(output).toMatch(/production-write \(3\)/);
     expect(output).toMatch(/production-read \(1\)/);
     expect(output).toContain("Not checked:");
+    for (const value of VALUES) expect(output).not.toContain(value);
+  });
+
+  it("holds a secrets JSON's look-alike credentials to production, and its local twins to local", { timeout: 60_000 }, () => {
+    const { home, root } = machine();
+    writeFileSync(
+      join(root, "prod-secrets.json"),
+      JSON.stringify({ api: { STRIPE_WEBHOOK_SECRET: signingSecret, VAPID_PRIVATE_KEY: "readablestemforthistest" } }),
+    );
+    writeFileSync(
+      join(root, "apps", "api", ".dev.vars"),
+      `STRIPE_WEBHOOK_SECRET=${signingSecret}\nVAPID_PRIVATE_KEY=readablestemforthistest\n`,
+    );
+    const { status, output } = run(home, root, {}, "--report", "--json");
+    expect(status).toBe(0);
+    const { findings } = JSON.parse(output) as { findings: Finding[] };
+    const tiers = (source: string) =>
+      findings.filter((f) => f.source.endsWith(source)).map((f) => `${f.name}:${f.tier}`).sort();
+    expect(tiers("prod-secrets.json")).toEqual(["STRIPE_WEBHOOK_SECRET:production-write", "VAPID_PRIVATE_KEY:production-write"]);
+    expect(tiers("apps/api/.dev.vars")).toEqual(["STRIPE_WEBHOOK_SECRET:nonprod", "VAPID_PRIVATE_KEY:nonprod"]);
     for (const value of VALUES) expect(output).not.toContain(value);
   });
 
