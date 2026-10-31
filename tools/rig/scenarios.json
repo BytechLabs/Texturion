@@ -4,7 +4,7 @@
     "The machine copy of docs/RIG.md 4.2. name, far_end and cadence are the table's own text, and scripts/check-rig-scenarios.mjs fails when they differ, when the dials in a cadence's brackets differ from dials + far_end_legs, or when min_room differs from what 4.1's room table implies.",
     "dials: legs Loonext creates. far_end_legs: legs the far end creates, on the rig the robot's. A run's rig dials are their sum, as in apps/api/e2e/call-journey-budget.json. peak_concurrent_outbound_legs counts Loonext's legs only; the robot holds its own.",
     "Scenarios that name a journey carry the journey's measured values. Every other split between dials and far_end_legs, and every other peak, is a planning estimate that keeps 4.2's total for the run.",
-    "runs: when the rig starts the scenario. A run with dials sits on a day of its period (offset_days, counted from the cycle's day 0) and an hour inside the dial window (hour_utc). A scenario with no dials runs at any hour, so its runs carry only a period.",
+    "runs: when the rig starts the scenario. A run with dials sits on a day of its period (offset_days, counted from the cycle's day 0) and an hour inside the dial window (hour_utc). A scenario with no dials runs at any hour, so its runs carry only a period. Runs after the first are the ones 4.2's row names, labelled as it names them: its variants at the period it gives them, or its stated number of runs. Each is budgeted at the scenario's dials.",
     "scheduled: false means the cadence is not in force under the current cap. hourly-cap: one run has more rig dials than the hourly cap, so no hour can hold it. phase-4: an optional lane that waits on Phase 4.",
     "4.2 as written does not fit the default cap: S07, S08, S10 and D01 need 4 dials in one run and S09 needs 5, against 3 an hour. The schedule here is 4.2's cadence for everything that fits, laid out one hour per period: 04:00 daily wake (D02), 05:00 the daily G01 with S02 every other day, 06:00 the every-3-days runs, 07:00 weekly, 08:00 fortnightly, 09:00 monthly."
   ],
@@ -15,7 +15,7 @@
     "retry_reserve": 0.2,
     "repro_reserve_dials": 60,
     "window_utc": [4, 10],
-    "source": "docs/RIG.md 4.1, the default cap until Telnyx states its limits in writing; the window is 3.5's 04:00-10:00 UTC until production has 28 days of call history"
+    "source": "docs/RIG.md 4.1, the default cap until Telnyx states its limits in writing; the window is 3.5's 04:00-10:00 UTC until production has 28 days of call history. The check reads each of these from the doc and fails when one here differs."
   },
   "lanes": [
     { "id": "health", "what": "The rig's own health check" },

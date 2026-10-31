@@ -18,11 +18,14 @@
  *   apps/api/e2e/call-journey-budget.json carries exactly the journey's dials,
  *   far-end legs and peaks, and every journey there belongs to a scenario.
  * - THE DOC. The ids, names, far ends and cadence text equal the 4.2 table,
- *   the dials in each cadence's brackets equal the entry's rig dials, the
- *   minimum room equals what 4.1's room table implies, and every X defect 4.2
- *   names is listed and exists in 4.3.
+ *   the dials in each cadence's brackets equal the entry's rig dials, the runs
+ *   are the ones the row implies (its variants at their period, or "two
+ *   runs"), the minimum room equals what 4.1's room table implies, a "phase-4"
+ *   scenario is one 4.2 puts in Phase 4, every X defect 4.2 names is listed and
+ *   exists in 4.3, and the cap, reserves and window are the ones 4.1 and 3.5
+ *   state.
  * - THE FIELDS. Ids are unique, lanes are known, frequencies parse, counts are
- *   non-negative integers.
+ *   non-negative integers, and peaks fit the legs a run creates.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -126,9 +129,9 @@ export function readDoc(markdown) {
       problems.push(`${DOC_FILE} 4.2: a row has ${cells.length} cells, not 5: ${cells[0] ?? ""}`);
       continue;
     }
-    const [idCell, name, farEnd, , cadence] = cells;
+    const [idCell, name, farEnd, verify, cadence] = cells;
     const ids = idCell.split(",").map((id) => id.trim());
-    for (const id of ids) scenarios.set(id, { id, name, far_end: farEnd, cadence, rowIds: ids });
+    for (const id of ids) scenarios.set(id, { id, name, far_end: farEnd, verify, cadence, rowIds: ids });
   }
 
   const rooms = [];
@@ -147,8 +150,61 @@ export function readDoc(markdown) {
   const named = s42 === null ? [] : [...new Set(s42.join("\n").match(/\bX\d{1,3}\b/g) ?? [])];
   const s43 = sectionLines(markdown, "4.3");
   const known = s43 === null ? [] : tableRows(s43).map((cells) => cells[0]);
-  return { problems, scenarios, rooms, defects: { named, known } };
+  const { budget, problems: budgetProblems } = budgetFromDoc(markdown, s41);
+  problems.push(...budgetProblems);
+  return { problems, scenarios, rooms, defects: { named, known }, budget };
 }
+
+/** The cap, reserves and window as 4.1 and 3.5 state them. */
+export function budgetFromDoc(markdown, s41) {
+  const problems = [];
+  const budget = {};
+  const text41 = (s41 ?? []).join("\n");
+  const cap = /(\d+) dials a day and (\d+) an hour/.exec(text41);
+  const rule = /plus a (\d+)% retry reserve, plus a (\d+)-dial monthly repro reserve, must fit the daily cap times (\d+)/.exec(
+    text41,
+  );
+  const windows = [...markdown.matchAll(/the window is (\d{2}):00-(\d{2}):00 UTC/g)];
+  if (cap === null) problems.push(`${DOC_FILE} 4.1: cannot read the default cap ("N dials a day and N an hour")`);
+  else Object.assign(budget, { daily_cap: Number(cap[1]), hourly_cap: Number(cap[2]) });
+  if (rule === null) problems.push(`${DOC_FILE} 4.1: cannot read the budget rule's reserves and month`);
+  else {
+    Object.assign(budget, {
+      retry_reserve: Number(rule[1]) / 100,
+      repro_reserve_dials: Number(rule[2]),
+      days_per_month: Number(rule[3]),
+    });
+  }
+  if (windows.length !== 1) {
+    problems.push(`${DOC_FILE}: expected one "the window is HH:00-HH:00 UTC", found ${windows.length}`);
+  } else {
+    budget.window_utc = [Number(windows[0][1]), Number(windows[0][2])];
+  }
+  return { budget, problems };
+}
+
+/**
+ * The runs 4.2's row implies beyond the first: named variants at their own
+ * period, or a stated number of runs at the row's period. Null when the row
+ * implies one run.
+ */
+export function impliedRuns(row) {
+  const many = /, (two|three|four) runs \(/.exec(row.cadence);
+  if (many) return { kind: "count", count: ["two", "three", "four"].indexOf(many[1]) + 2 };
+  const fromName = /;\s*(.+?) variants$/.exec(row.name);
+  const clause = /\*\*(?:(\w+) )?[Vv]ariants:\*\*\s*([^;.]+)/.exec(row.verify ?? "");
+  if (!fromName && !clause) return null;
+  const listed = fromName ? fromName[1] : clause[2];
+  const items = listed
+    .split(/,\s*(?:and\s+)?|\s+and\s+/)
+    .map(normalLabel)
+    .filter(Boolean);
+  const word = /; variants (\w+)/.exec(row.cadence)?.[1] ?? clause?.[1];
+  const period = word === undefined ? undefined : CADENCE_WORDS.find(([words]) => words.toLowerCase() === word.toLowerCase())?.[1];
+  return { kind: "variants", items, period: period ?? null, word: word?.toLowerCase() ?? null };
+}
+
+export const normalLabel = (text) => text.toLowerCase().replace(/-/g, " ").replace(/\s+/g, " ").trim();
 
 /** The smallest room each paid scenario runs at, per 4.1's table. */
 export function roomsFromTable(rooms, paidIds) {
@@ -352,6 +408,22 @@ function checkScenario(s, lanes, b, problems) {
   if (!paid && (s.min_room !== 0 || s.peak_concurrent_outbound_legs !== 0)) {
     problems.push(`${at}: a scenario with no dials holds no legs and needs no room`);
   }
+  // Outbound legs are the legs Loonext creates, so a run holds at most as many
+  // at once as it dials, and at least one if it dials at all.
+  if (s.peak_concurrent_outbound_legs > s.dials) {
+    problems.push(`${at}: peaks at ${s.peak_concurrent_outbound_legs} outbound legs but dials only ${s.dials}`);
+  }
+  if (s.dials > 0 && s.peak_concurrent_outbound_legs === 0) {
+    problems.push(`${at}: dials ${s.dials} but peaks at 0 outbound legs; each dial holds a leg`);
+  }
+  if (s.peak_concurrent_legs !== undefined && isCount(s.peak_concurrent_legs)) {
+    if (s.peak_concurrent_legs < s.peak_concurrent_outbound_legs || s.peak_concurrent_legs > rigDials(s)) {
+      problems.push(
+        `${at}: peak_concurrent_legs ${s.peak_concurrent_legs} must be between its outbound peak ` +
+          `(${s.peak_concurrent_outbound_legs}) and its rig dials (${rigDials(s)})`,
+      );
+    }
+  }
   if (paid && s.peak_concurrent_outbound_legs > s.min_room) {
     problems.push(
       `${at}: peaks at ${s.peak_concurrent_outbound_legs} outbound legs but its room is ${s.min_room}; ` +
@@ -359,6 +431,58 @@ function checkScenario(s, lanes, b, problems) {
     );
   }
   return ok;
+}
+
+/** Every run after the first is one 4.2 names, at the period 4.2 gives it. */
+function checkImpliedRuns(s, row, expected, shown, problems) {
+  const implied = impliedRuns(row);
+  const extra = s.runs.slice(1);
+  if (implied === null) {
+    if (extra.length > 0) {
+      problems.push(`${s.id}: lists ${s.runs.length} runs, but 4.2's row implies one; budget only what 4.2 runs`);
+    }
+    return;
+  }
+  if (implied.kind === "count") {
+    if (s.runs.length !== implied.count) {
+      problems.push(`${s.id}: lists ${s.runs.length} run(s), but 4.2 says "${row.cadence}"`);
+    }
+    for (const [i, run] of s.runs.entries()) {
+      if (periodMinutes(run.every) !== expected) {
+        problems.push(`${s.id}: runs[${i}] is every ${run.every}, but each of its runs is every ${shown(expected)}`);
+      }
+      if (typeof run.label !== "string" || !normalLabel(row.verify).includes(normalLabel(run.label))) {
+        problems.push(`${s.id}: runs[${i}] needs a label naming the run as 4.2 does`);
+      }
+    }
+    return;
+  }
+  if (implied.period === null) {
+    problems.push(`${s.id}: 4.2 names variants but no frequency for them that this reads`);
+    return;
+  }
+  const labels = extra.map((run) => (typeof run.label === "string" ? normalLabel(run.label) : ""));
+  const missing = implied.items.filter((item) => !labels.includes(item));
+  const unnamed = labels.filter((label) => !implied.items.includes(label));
+  if (missing.length > 0) {
+    problems.push(`${s.id}: 4.2 runs the ${missing.join(", ")} variant(s) ${implied.word}, and runs lists no such run`);
+  }
+  if (unnamed.length > 0) {
+    problems.push(`${s.id}: runs lists variant(s) ${unnamed.join(", ") || "(unlabelled)"} that 4.2 does not name`);
+  }
+  for (const [i, run] of extra.entries()) {
+    if (periodMinutes(run.every) !== periodMinutes(implied.period)) {
+      problems.push(`${s.id}: runs[${i + 1}] is every ${run.every}, but 4.2 runs its variants ${implied.word} (${implied.period})`);
+    }
+  }
+}
+
+function checkBudgetAgainstDoc(b, docBudget, problems) {
+  for (const [key, value] of Object.entries(docBudget)) {
+    if (JSON.stringify(b[key]) !== JSON.stringify(value)) {
+      problems.push(`${REGISTRY_FILE} budget: ${key} is ${JSON.stringify(b[key])} but ${DOC_FILE} says ${JSON.stringify(value)}`);
+    }
+  }
 }
 
 export function judge({ registry, markdown, journeys }) {
@@ -392,6 +516,7 @@ export function judge({ registry, markdown, journeys }) {
   // The doc.
   const doc = readDoc(markdown);
   problems.push(...doc.problems);
+  checkBudgetAgainstDoc(registry.budget, doc.budget, problems);
   for (const [id, row] of doc.scenarios) {
     const s = byId.get(id);
     if (s === undefined) {
@@ -418,12 +543,16 @@ export function judge({ registry, markdown, journeys }) {
       // "Weekly, alternating" over two ids means each runs every other week.
       const share = row.rowIds.length > 1 && /alternating/.test(row.cadence) ? row.rowIds.length : 1;
       const expected = periodMinutes(word[1]) * share;
+      const shown = (minutes) => (minutes % 1440 === 0 ? `${minutes / 1440}d` : `${minutes}m`);
       if (periodMinutes(s.runs[0].every) !== expected) {
-        problems.push(
-          `${id}: its first run is every ${s.runs[0].every}, but 4.2's "${row.cadence}" means every ` +
-            `${expected % 1440 === 0 ? `${expected / 1440}d` : `${expected}m`}`,
-        );
+        problems.push(`${id}: its first run is every ${s.runs[0].every}, but 4.2's "${row.cadence}" means every ${shown(expected)}`);
       }
+      checkImpliedRuns(s, row, expected, shown, problems);
+    }
+    // Phase 4 is the one reason to leave a scenario out that the doc, not the
+    // cap, decides, so the doc has to say it.
+    if (s.unscheduled_because === "phase-4" && !/\bPhase 4\b/.test(`${row.name} ${row.verify}`)) {
+      problems.push(`${id}: unscheduled_because is "phase-4" but 4.2 does not put ${id} in Phase 4; schedule it`);
     }
   }
   for (const id of byId.keys()) {

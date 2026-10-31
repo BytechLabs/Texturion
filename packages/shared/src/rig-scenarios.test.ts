@@ -142,6 +142,83 @@ describe("the budget", () => {
     registry.budget.daily_cap = 12;
     expect(problems(registry)).toMatch(/the schedule needs .* dials a month with reserves and the cap allows 360/);
   });
+
+  it("takes the cap, the reserves and the window from the doc, so none can be widened here", () => {
+    const window = fresh();
+    window.budget.window_utc = [0, 24];
+    expect(problems(window)).toMatch(/budget: window_utc is \[0,24\] but docs\/RIG\.md says \[4,10\]/);
+    const reserves = fresh();
+    reserves.budget.retry_reserve = 0;
+    reserves.budget.repro_reserve_dials = 1;
+    expect(problems(reserves)).toMatch(/retry_reserve is 0 but docs\/RIG\.md says 0.2/);
+    expect(problems(reserves)).toMatch(/repro_reserve_dials is 1 but docs\/RIG\.md says 60/);
+    const cap = fresh();
+    cap.budget.hourly_cap = 4;
+    expect(problems(cap)).toMatch(/hourly_cap is 4 but docs\/RIG\.md says 3/);
+  });
+
+  it("fails a doc whose budget sentences it cannot read, rather than trusting the registry", () => {
+    const blind = markdown.replace("the window is 04:00-10:00 UTC", "the window is the quiet hours");
+    expect(guard.judge({ registry: fresh(), markdown: blind, journeys }).problems.join("\n")).toMatch(
+      /expected one "the window is HH:00-HH:00 UTC", found 0/,
+    );
+  });
+
+  it("excuses a scenario as phase-4 only when 4.2 puts it in Phase 4", () => {
+    for (const id of ["S01", "D02"]) {
+      const registry = fresh();
+      const s = byId(registry, id);
+      s.scheduled = false;
+      s.unscheduled_because = "phase-4";
+      expect(problems(registry)).toMatch(new RegExp(`${id}: unscheduled_because is "phase-4" but 4.2 does not put ${id} in Phase 4`));
+    }
+  });
+});
+
+describe("runs beyond the first", () => {
+  it("fails dropping a variant 4.2 names, or every one of them", () => {
+    const one = fresh();
+    byId(one, "S07").runs = byId(one, "S07").runs.filter((run) => run.label !== "hop-cap");
+    expect(problems(one)).toMatch(/S07: 4.2 runs the hop cap variant\(s\) monthly, and runs lists no such run/);
+    const all = fresh();
+    byId(all, "E01").runs = byId(all, "E01").runs.slice(0, 1);
+    expect(problems(all)).toMatch(/E01: 4.2 runs the notifications revoked, force stopped variant\(s\) weekly/);
+  });
+
+  it("fails a variant at another period than 4.2's, or one 4.2 does not name", () => {
+    const fast = fresh();
+    byId(fast, "S07").runs[1].every = "1d";
+    expect(problems(fast)).toMatch(/S07: runs\[1\] is every 1d, but 4.2 runs its variants monthly \(30d\)/);
+    const invented = fresh();
+    byId(invented, "S07").runs.push({ label: "busy", every: "30d" });
+    expect(problems(invented)).toMatch(/S07: runs lists variant\(s\) busy that 4.2 does not name/);
+  });
+
+  it("fails dropping one of S25's two runs, and an extra run on a one-run row", () => {
+    const night = fresh();
+    byId(night, "S25").runs = byId(night, "S25").runs.slice(0, 1);
+    expect(problems(night)).toMatch(/S25: lists 1 run\(s\), but 4.2 says "Weekly, two runs \(0\)"/);
+    const extra = fresh();
+    byId(extra, "S22").runs.push({ every: "7d" });
+    expect(problems(extra)).toMatch(/S22: lists 2 runs, but 4.2's row implies one/);
+  });
+});
+
+describe("peaks", () => {
+  it("fails an outbound peak above the dials, or zero for a scenario that dials", () => {
+    const zero = fresh();
+    byId(zero, "S03").peak_concurrent_outbound_legs = 0;
+    expect(problems(zero)).toMatch(/S03: dials \d+ but peaks at 0 outbound legs/);
+    const over = fresh();
+    byId(over, "D02").peak_concurrent_outbound_legs = 3;
+    expect(problems(over)).toMatch(/D02: peaks at 3 outbound legs but dials only 2/);
+  });
+
+  it("fails a total peak below the outbound peak or above every leg the run creates", () => {
+    const registry = fresh();
+    byId(registry, "S07").peak_concurrent_legs = 5;
+    expect(problems(registry)).toMatch(/S07: peak_concurrent_legs 5 must be between its outbound peak \(2\) and its rig dials \(4\)/);
+  });
 });
 
 describe("the journeys", () => {
