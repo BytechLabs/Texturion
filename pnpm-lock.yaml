@@ -230,7 +230,7 @@ importers:
         version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(happy-dom@21.0.4)(vite@8.1.6(@types/node@22.20.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.36.0)(yaml@2.9.1))
       wrangler:
         specifier: ^4.148.0
-        version: 4.153.0(@cloudflare/workers-types@4.20260701.1)(@types/node@22.20.0)
+        version: 4.153.0(@types/node@22.20.0)
 
   packages/shared:
     dependencies:
@@ -285,8 +285,8 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(happy-dom@21.0.4)(vite@8.1.6(@types/node@22.20.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.36.0)(yaml@2.9.1))
       wrangler:
-        specifier: ^4.106.0
-        version: 4.153.0(@cloudflare/workers-types@4.20260701.1)(@types/node@22.20.0)
+        specifier: 4.106.0
+        version: 4.106.0(@cloudflare/workers-types@4.20260701.1)(@types/node@22.20.0)
 
   tools/guard:
     dependencies:
@@ -7138,7 +7138,7 @@ snapshots:
       glob: 13.0.6
       next: 16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       ts-tqdm: 0.8.6
-      wrangler: 4.153.0(@cloudflare/workers-types@4.20260701.1)(@types/node@22.20.0)
+      wrangler: 4.153.0(@types/node@22.20.0)
       yargs: 18.2.0
     transitivePeerDependencies:
       - diff
@@ -11883,7 +11883,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  wrangler@4.153.0(@cloudflare/workers-types@4.20260701.1)(@types/node@22.20.0):
+  wrangler@4.153.0(@types/node@22.20.0):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.5.0
       '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20261023.1)
@@ -11894,7 +11894,6 @@ snapshots:
       unenv: 2.0.0-rc.24
       workerd: 1.20261023.1
     optionalDependencies:
-      '@cloudflare/workers-types': 4.20260701.1
       fsevents: 2.3.3
     transitivePeerDependencies:
       - '@types/node'
