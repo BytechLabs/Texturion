@@ -66,6 +66,8 @@ export interface FakeGuard {
   partition: Partition | null;
   /** Per-path overrides, checked before the defaults. */
   respond: (call: GuardCall) => Response | undefined;
+  /** Milliseconds the guard takes to answer, by pathname. */
+  latency: Record<string, number>;
 }
 
 export function fakeGuard(): FakeGuard {
@@ -73,6 +75,7 @@ export function fakeGuard(): FakeGuard {
     calls: [],
     partition: PARTITION,
     respond: () => undefined,
+    latency: {},
     binding: undefined as unknown as Fetcher,
   };
   guard.binding = {
@@ -86,6 +89,8 @@ export function fakeGuard(): FakeGuard {
         body: request.body ? await request.text() : "",
       };
       guard.calls.push(call);
+      const wait = guard.latency[url.pathname];
+      if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
       const custom = guard.respond(call);
       if (custom) return custom;
       if (url.pathname === "/partition") {

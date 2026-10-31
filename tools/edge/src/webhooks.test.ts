@@ -198,11 +198,56 @@ describe("call events", () => {
     expect((await counters())["call.rig_offline"]).toBe(1);
   });
 
-  it("answers 503 when the rig does not answer in time", { timeout: 20_000 }, async () => {
+  it("answers inside Telnyx's 10 seconds however long the guard took, and remembers a late answer", async () => {
+    // Both guard calls inside their own timeouts, and together most of the budget.
+    guard.latency = { "/partition": 1_400, "/legs": 2_900 };
     const rig = await connectRig(env);
-    const response = await call(await telnyxDelivery("/t/v", callEvent("call.initiated", {})), env);
+    const event = callEvent("call.initiated", { call_control_id: "ccid-slow" }, "evt-slow-call");
+    const started = Date.now();
+    const response = await call(await telnyxDelivery("/t/v", event), env);
+    const elapsed = Date.now() - started;
     expect(response.status).toBe(503);
+    expect(elapsed).toBeLessThan(10_000);
     expect((await counters())["call.no_answer"]).toBe(1);
+
+    // The rig answers after the edge gave up: the event was handled, so
+    // Telnyx's retry is acked without relaying it a second time.
+    const frame = await rig.next((f) => f.t === "webhook");
+    rig.send({ t: "webhook-result", id: frame.t === "webhook" ? frame.id : "", status: 200 });
+    await rig.next(() => false, 100).catch(() => undefined);
+    expect((await counters())["call.late_answer"]).toBe(1);
+    guard.latency = {};
+    expect((await call(await telnyxDelivery("/t/v2", event), env)).status).toBe(200);
+    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow();
+    expect((await counters())["call.duplicate"]).toBe(1);
+    rig.close();
+  });
+
+  it("answers 503 to a retry of an event the rig is still handling, and relays it once", async () => {
+    const rig = await connectRig(env);
+    const event = callEvent("call.answered", {}, "evt-in-flight");
+    const first = call(await telnyxDelivery("/t/v", event), env);
+    const frame = await rig.next((f) => f.t === "webhook");
+    expect((await call(await telnyxDelivery("/t/v2", event), env)).status).toBe(503);
+    expect((await counters())["call.in_flight"]).toBe(1);
+    rig.send({ t: "webhook-result", id: frame.t === "webhook" ? frame.id : "", status: 200 });
+    expect((await first).status).toBe(200);
+    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow();
+    rig.close();
+  });
+
+  it("relays the sentinel's ring for G02 without registering its leg", async () => {
+    const rig = await connectRig(env);
+    const event = callEvent("call.initiated", {
+      connection_id: CONNECTIONS.sentinel,
+      call_control_id: "ccid-sentinel",
+      from: "sip:gencred@sip.telnyx.com",
+    });
+    const pending = call(await telnyxDelivery("/t/w", event), env);
+    const frame = await rig.next((f) => f.t === "webhook");
+    rig.send({ t: "webhook-result", id: frame.t === "webhook" ? frame.id : "", status: 200 });
+    expect((await pending).status).toBe(200);
+    expect(guard.calls.some((c) => c.path === "/legs")).toBe(false);
     rig.close();
   });
 });

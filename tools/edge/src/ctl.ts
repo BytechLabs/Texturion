@@ -29,7 +29,7 @@ export async function handleRpc(env: Env, request: Request): Promise<Response> {
   }
   // The stub's RPC typing cannot carry `result: unknown`; the value itself
   // crosses intact.
-  const outcome = (await uplink(env).rigRpc(call.method, call.params ?? null)) as unknown as RpcOutcome;
+  const outcome = (await uplink(env).rigRpc(call.method, call.params ?? null, "triage")) as unknown as RpcOutcome;
   switch (outcome.status) {
     case "ok":
       return json(200, { ok: true, result: outcome.result });

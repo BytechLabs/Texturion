@@ -1,8 +1,8 @@
-import { EDGE_PATHS } from "@loonext/rig-protocol";
+import { CALL_EVENT_RELAY_TIMEOUT_MS, EDGE_PATHS } from "@loonext/rig-protocol";
 
 import { secretSegmentMatches } from "./auth";
 import { uplink, type Env } from "./env";
-import { partitionFor, registerLegOnce, rejectLeg, requestDetach } from "./guard";
+import { GUARD_CALL_TIMEOUT_MS, partitionFor, registerLegOnce, rejectLeg, requestDetach } from "./guard";
 import { boundedText, empty } from "./http";
 import { judge, parseEvent, relayedTelnyxHeaders, verifyTelnyxSignature } from "./telnyx";
 import { STRANGER_WINDOW_MS } from "./uplink";
@@ -19,8 +19,15 @@ import { STRANGER_WINDOW_MS } from "./uplink";
  */
 
 const WEBHOOK_MAX_BYTES = 256 * 1024;
+/** Less than this left for the rig and the event is not relayed: it could not make it back in time. */
+const CALL_RELAY_MIN_MS = 1_000;
+/** A leg registration with less time than this left is skipped, leaving the time to the relay. */
+const LEG_REGISTRATION_MIN_MS = 200;
 
 export async function handleTelnyxWebhook(env: Env, request: Request, path: string): Promise<Response> {
+  // Telnyx gives a call event 10 seconds in all, so every wait below, the
+  // guard's included, comes out of one budget rather than adding to it.
+  const deadline = Date.now() + CALL_EVENT_RELAY_TIMEOUT_MS;
   const rig = uplink(env);
   const raw = await boundedText(request, WEBHOOK_MAX_BYTES);
   if (raw === null) return empty(413);
@@ -53,7 +60,7 @@ export async function handleTelnyxWebhook(env: Env, request: Request, path: stri
       if (verdict.action === "stranger-call" && verdict.reject) await rejectLeg(env, verdict.reject);
       // Only the event that opens a stranger's call or carries their text
       // counts toward a detach; a rejected leg's later events do not.
-      const opens = verdict.action === "stranger-text" || verdict.reject !== null;
+      const opens = verdict.action === "stranger-text" || verdict.opens;
       if (!opens) {
         await rig.bump("stranger.call_event");
         return empty(200);
@@ -70,14 +77,23 @@ export async function handleTelnyxWebhook(env: Env, request: Request, path: stri
     }
 
     case "relay-call": {
-      if (verdict.leg) await registerLegOnce(env, verdict.leg);
-      const { status } = await rig.relayCall({
-        eventId: event.id,
-        kind: verdict.kind,
-        path,
-        headers: relayedTelnyxHeaders(request.headers),
-        body: raw,
-      });
+      const forLeg = Math.min(GUARD_CALL_TIMEOUT_MS, deadline - Date.now() - CALL_RELAY_MIN_MS);
+      if (verdict.leg && forLeg >= LEG_REGISTRATION_MIN_MS) await registerLegOnce(env, verdict.leg, forLeg);
+      const forRig = deadline - Date.now();
+      if (forRig < CALL_RELAY_MIN_MS) {
+        await rig.bump("call.out_of_time");
+        return empty(503);
+      }
+      const { status } = await rig.relayCall(
+        {
+          eventId: event.id,
+          kind: verdict.kind,
+          path,
+          headers: relayedTelnyxHeaders(request.headers),
+          body: raw,
+        },
+        forRig,
+      );
       return empty(status);
     }
 

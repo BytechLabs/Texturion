@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { sha256Hex } from "./auth";
 import type { Env } from "./env";
-import { ORIGIN, TOKENS, call, edgeEnv, fakeGuard, resetEdge, type FakeGuard } from "./test/support";
+import { partitionFor } from "./guard";
+import { ORIGIN, PARTITION, TOKENS, call, edgeEnv, fakeGuard, resetEdge, type FakeGuard } from "./test/support";
 
 let guard: FakeGuard;
 let env: Env;
@@ -46,6 +47,28 @@ describe("token to caller class", () => {
     const off = await edgeEnv(guard, { TOKEN_SHA256_ROBOT: undefined, TOKEN_SHA256_DIAG: "not-a-digest" });
     expect((await call(toGuard("/g/health", TOKENS.robot), off)).status).toBe(401);
     expect((await call(toGuard("/g/health", TOKENS.diag), off)).status).toBe(401);
+  });
+});
+
+describe("the partition cache", () => {
+  const MINUTE = 60_000;
+  const T0 = 1_790_000_000_000;
+
+  it("serves a fresh copy without asking, and asks again once it is five minutes old", async () => {
+    expect(await partitionFor(env, T0)).toEqual(PARTITION);
+    expect(await partitionFor(env, T0 + 4 * MINUTE)).toEqual(PARTITION);
+    expect(guard.calls.filter((c) => c.path === "/partition")).toHaveLength(1);
+    await partitionFor(env, T0 + 5 * MINUTE);
+    expect(guard.calls.filter((c) => c.path === "/partition")).toHaveLength(2);
+  });
+
+  it("falls back to the last copy while the guard is down, for an hour and no longer", async () => {
+    expect(await partitionFor(env, T0)).toEqual(PARTITION);
+    guard.partition = null;
+    expect(await partitionFor(env, T0 + 10 * MINUTE)).toEqual(PARTITION);
+    expect(await partitionFor(env, T0 + 59 * MINUTE)).toEqual(PARTITION);
+    expect(await partitionFor(env, T0 + 60 * MINUTE)).toBeNull();
+    expect(await partitionFor(env, T0 + 3 * 60 * MINUTE)).toBeNull();
   });
 });
 

@@ -7,7 +7,8 @@ import { EDGE_PATHS, type LegRegistration, type Partition } from "@loonext/rig-p
  * event by its messaging profile, both against the guard's live partition.
  */
 
-const TIMESTAMP_TOLERANCE_SECONDS = 5 * 60;
+/** How far `telnyx-timestamp` may be from now, here and in the rig's API alike. */
+export const TELNYX_SIGNATURE_WINDOW_S = 5 * 60;
 
 function decodeBase64(text: string): Uint8Array | null {
   try {
@@ -49,7 +50,7 @@ export async function verifyTelnyxSignature(
   if (!publicKey || !signatureHeader || !timestampHeader) return false;
   if (!/^\d{1,12}$/.test(timestampHeader)) return false;
   const skew = Math.abs(Math.floor(nowMs / 1000) - Number(timestampHeader));
-  if (skew > TIMESTAMP_TOLERANCE_SECONDS) return false;
+  if (skew > TELNYX_SIGNATURE_WINDOW_S) return false;
 
   const signature = decodeBase64(signatureHeader);
   if (!signature || signature.length === 0) return false;
@@ -163,7 +164,9 @@ export type Verdict =
   | { action: "drop"; reason: "not_owned" | "unknown_type" }
   | {
       action: "stranger-call";
-      /** Set on the event that opens the leg, the one the guard rejects. */
+      /** Whether this is the event that opens the stranger's leg. */
+      opens: boolean;
+      /** The leg the guard rejects, on the opening event when the guard can take it. */
       reject: LegRegistration | null;
       ours: string | null;
       theirs: string;
@@ -192,12 +195,14 @@ function callVerdict(
 ): Verdict {
   const connectionId = stringField(event.payload, "connection_id");
   if (!path || !connectionId) return { action: "drop", reason: "not_owned" };
-  const ownedConnections = path.connections.map((role) => partition.connection_ids[role]);
-  if (!ownedConnections.includes(connectionId)) return { action: "drop", reason: "not_owned" };
+  const role = path.connections.find((r) => partition.connection_ids[r] === connectionId);
+  if (!role) return { action: "drop", reason: "not_owned" };
   const ccid = stringField(event.payload, "call_control_id");
-  const leg: LegRegistration | null = ccid
-    ? { call_control_id: ccid, connection_id: connectionId, via: path.via }
-    : null;
+  // The sentinel's legs are relayed so G02 sees a ring, but never registered:
+  // LegRegistration has no `via` for them, and a credential that must never
+  // ring has no leg for anyone to command.
+  const leg: LegRegistration | null =
+    ccid && role !== "sentinel" ? { call_control_id: ccid, connection_id: connectionId, via: path.via } : null;
 
   const caller = callerOf(event.payload);
   if (caller !== undefined) {
@@ -206,9 +211,11 @@ function callVerdict(
     const passes = isNumber ? owned.has(address) : path.sipCallers && address !== "";
     if (!passes) {
       const to = stringField(event.payload, "to");
+      const opens = event.type === "call.initiated";
       return {
         action: "stranger-call",
-        reject: event.type === "call.initiated" ? leg : null,
+        opens,
+        reject: opens ? leg : null,
         ours: to && E164.test(addressOf(to)) ? addressOf(to) : null,
         theirs: address || "withheld",
       };

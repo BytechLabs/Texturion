@@ -113,13 +113,51 @@ describe("the dead-man", () => {
 
   it("sends no more than the daily budget", async () => {
     await heard({ rig: STALE_AFTER_MS.rig + MINUTE, suite: MINUTE, triage: MINUTE }, 24 * 60 * MINUTE);
-    for (let i = 0; i < SENTRY_DAILY_MAX + 5; i++) {
+    for (let i = 0; i < SENTRY_DAILY_MAX.synthetic + 5; i++) {
       await runInDurableObject(uplinkStub(), (_instance, state) => {
         state.storage.sql.exec("DELETE FROM meta WHERE key LIKE 'alert:%'");
       });
       await runDeadman(env, NOW + i);
     }
-    expect(sent).toHaveLength(SENTRY_DAILY_MAX);
+    expect(sent).toHaveLength(SENTRY_DAILY_MAX.synthetic);
+  });
+
+  it("names no release on what it sends, so production's release history stays its own", async () => {
+    const silent = DARK_AFTER_MS + MINUTE;
+    await heard({ rig: silent, suite: silent, triage: silent }, 7 * 24 * 60 * MINUTE);
+    await runDeadman({ ...env, GIT_SHA: "0123abc" }, NOW);
+    expect(sent.length).toBeGreaterThan(0);
+    for (const { event } of sent) {
+      expect(event.release).toBeUndefined();
+      expect(event.tags).toMatchObject({ edge_sha: "0123abc" });
+    }
+  });
+
+  /** The rig, the suite and triage all go silent at once, and the cron runs every 15 minutes for 7 hours. */
+  async function goDark(e: Env): Promise<void> {
+    await heard({ rig: 0, suite: 0, triage: 0 }, 7 * 24 * 60 * MINUTE);
+    for (let at = NOW; at <= NOW + 7 * 60 * MINUTE; at += 15 * MINUTE) await runDeadman(e, at);
+  }
+  const darkAlerts = () => sent.filter((s) => s.url.includes("/api/202/"));
+
+  it("still tells production the rig is dark when no synthetic DSN is configured", async () => {
+    await goDark({ ...env, SENTRY_SYNTHETIC_DSN: undefined });
+    expect(darkAlerts()).toHaveLength(1);
+    expect(sent.filter((s) => s.url.includes("/api/101/"))).toEqual([]);
+  });
+
+  it("still tells production the rig is dark while the synthetic project refuses every event", async () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async (input, init) => {
+      const request = new Request(input, init);
+      const lines = (await request.text()).split("\n");
+      sent.push({ url: request.url, auth: request.headers.get("x-sentry-auth"), event: JSON.parse(lines[2]) });
+      return new Response("{}", { status: request.url.includes("/api/101/") ? 500 : 200 });
+    });
+    await goDark(env);
+    expect(darkAlerts()).toHaveLength(1);
+    // Refused sends are retried hourly, not every cron: the rig's from 45
+    // minutes in (7 tries), triage's from 3 h 15 (4 tries).
+    expect(sent.filter((s) => s.url.includes("/api/101/"))).toHaveLength(11);
   });
 
   it("runs from the cron, and refreshes the mail heartbeat even with no DSN", async () => {

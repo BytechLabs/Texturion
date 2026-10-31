@@ -42,14 +42,15 @@ export interface DetachRequest {
 export interface HaltRequest {
   signal: string;
   notice_id: string | null;
-  corroborated_by: "balance" | "notification_event" | "account_refused";
+  /** `signature`: Telnyx signed the notice within five minutes, and it names a type enabled on the account. */
+  corroborated_by: "balance" | "signature" | "account_refused";
   received_at: string;
 }
 
 /** The service binding ignores the host; a fixed one keeps the edge's out of guard logic. */
 const GUARD_ORIGIN = "https://guard.internal";
 
-const GUARD_CALL_TIMEOUT_MS = 3_000;
+export const GUARD_CALL_TIMEOUT_MS = 3_000;
 
 /** One call of the edge's own. Throws on a network failure or timeout. */
 export async function guardCall(
@@ -70,9 +71,14 @@ export async function guardCall(
 }
 
 /** True when the guard answered 2xx; a failure is logged, never thrown. */
-export async function guardPost(env: Env, route: string, body: unknown): Promise<boolean> {
+export async function guardPost(
+  env: Env,
+  route: string,
+  body: unknown,
+  timeoutMs: number = GUARD_CALL_TIMEOUT_MS,
+): Promise<boolean> {
   try {
-    const response = await guardCall(env, "POST", route, body);
+    const response = await guardCall(env, "POST", route, body, timeoutMs);
     if (!response.ok) console.warn(`guard ${route}: ${response.status}`);
     return response.ok;
   } catch (cause) {
@@ -81,8 +87,8 @@ export async function guardPost(env: Env, route: string, body: unknown): Promise
   }
 }
 
-export function registerLeg(env: Env, leg: LegRegistration): Promise<boolean> {
-  return guardPost(env, GUARD_ROUTES.legs, leg);
+export function registerLeg(env: Env, leg: LegRegistration, timeoutMs?: number): Promise<boolean> {
+  return guardPost(env, GUARD_ROUTES.legs, leg, timeoutMs);
 }
 
 export function rejectLeg(env: Env, leg: LegRegistration): Promise<boolean> {
@@ -101,10 +107,15 @@ export function requestHalt(env: Env, body: HaltRequest): Promise<boolean> {
 const registeredLegs = new Map<string, number>();
 const REGISTERED_LEG_MEMORY_MS = 10 * 60 * 1000;
 
-export async function registerLegOnce(env: Env, leg: LegRegistration, now = Date.now()): Promise<void> {
+export async function registerLegOnce(
+  env: Env,
+  leg: LegRegistration,
+  timeoutMs: number = GUARD_CALL_TIMEOUT_MS,
+  now = Date.now(),
+): Promise<void> {
   const at = registeredLegs.get(leg.call_control_id);
   if (at !== undefined && now - at < REGISTERED_LEG_MEMORY_MS) return;
-  if (await registerLeg(env, leg)) {
+  if (await registerLeg(env, leg, timeoutMs)) {
     if (registeredLegs.size > 5_000) registeredLegs.clear();
     registeredLegs.set(leg.call_control_id, now);
   }

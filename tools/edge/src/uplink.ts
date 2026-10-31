@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import {
-  CALL_EVENT_RELAY_TIMEOUT_MS,
+  type ControlClass,
   type EdgeToRig,
   HEARTBEAT_COMPONENTS,
   type HeartbeatComponent,
@@ -11,6 +11,7 @@ import {
 
 import type { Env } from "./env";
 import { relayStatus } from "./http";
+import { TELNYX_SIGNATURE_WINDOW_S } from "./telnyx";
 
 /**
  * One Durable Object holding `rigd`'s outbound WebSocket, hibernating between
@@ -19,7 +20,9 @@ import { relayStatus } from "./http";
  * Call events, media and rpc are exchanges: a frame goes down and the edge
  * waits for the answer with the same id. Text events, robot webhooks and mail
  * are stored before the sender is told "accepted", then redelivered until the
- * rig acks them or {@link QUEUED_DELIVERY_MAX_AGE_MS} passes.
+ * rig acks them or {@link QUEUED_DELIVERY_MAX_AGE_MS} passes. A text event
+ * carries Telnyx's own signature, which the rig's API accepts for five minutes
+ * only, so a text is offered once more after that and then dropped.
  *
  * It never calls the guard; the Worker does, so policy stays in one place.
  */
@@ -27,6 +30,15 @@ import { relayStatus } from "./http";
 type WebhookFrame = Extract<EdgeToRig, { t: "webhook" }>;
 type MailFrame = Extract<EdgeToRig, { t: "mail" }>;
 type QueuedFrame = Omit<WebhookFrame, "id" | "attempt"> | Omit<MailFrame, "id">;
+/**
+ * The protocol's rpc frame plus the class the edge admitted the caller as, so
+ * `rigd` can hold each method to the classes it names. `caller` is not in
+ * @loonext/rig-protocol yet.
+ */
+type RpcFrame = Extract<EdgeToRig, { t: "rpc" }> & { caller: ControlClass };
+
+/** Where an edge-sent Sentry event goes; each has its own daily budget. */
+export type AlertTarget = "synthetic" | "production";
 
 export interface CallRelay {
   eventId: string;
@@ -77,9 +89,12 @@ export interface StrangerRecord {
 export interface DeadmanView {
   /** When the first heartbeat of any component arrived; null until then. */
   armedAt: number | null;
+  /** When each component last did its work, as the rig reported it and never later than it arrived. */
   heartbeats: Record<HeartbeatComponent, number | null>;
-  /** Last alert sent per dead-man key. */
+  /** Last alert Sentry took, per dead-man key. */
   alerts: Record<string, number>;
+  /** Last send Sentry did not take, per dead-man key. */
+  failures: Record<string, number>;
 }
 
 export interface UplinkSnapshot {
@@ -106,8 +121,14 @@ export const STRANGER_WINDOW_MS = 24 * 60 * 60 * 1000;
 const DETACH_REPEAT_MS = 60 * 60 * 1000;
 const STRANGER_SENDERS_MAX = 1_000;
 const NOTICES_MAX = 100;
-/** Sentry events the edge itself may send in a UTC day. */
-export const SENTRY_DAILY_MAX = 20;
+/** How long a call relay that timed out can still be answered and remembered. */
+const LATE_CALL_MEMORY_MS = 15 * 60 * 1000;
+const TELNYX_SIGNATURE_WINDOW_MS = TELNYX_SIGNATURE_WINDOW_S * 1000;
+/**
+ * Sentry events the edge itself may send in a UTC day, per destination, so a
+ * missing or failing synthetic DSN can never spend production's.
+ */
+export const SENTRY_DAILY_MAX: Record<AlertTarget, number> = { synthetic: 20, production: 10 };
 
 /** Redelivery backoff after the nth unacked attempt: 30 s doubling to 15 min. */
 export function retryDelay(attempts: number): number {
@@ -139,7 +160,9 @@ export function parseRigFrame(message: string | ArrayBuffer): RigToEdge | null {
   const f = frame as Record<string, unknown> | null;
   if (!f || typeof f !== "object") return null;
   if (f.t === "heartbeat") {
-    return HEARTBEAT_COMPONENTS.includes(f.component as HeartbeatComponent) && typeof f.at === "string"
+    return HEARTBEAT_COMPONENTS.includes(f.component as HeartbeatComponent) &&
+      typeof f.at === "string" &&
+      Number.isFinite(Date.parse(f.at))
       ? (f as unknown as RigToEdge)
       : null;
   }
@@ -155,6 +178,14 @@ export function parseRigFrame(message: string | ArrayBuffer): RigToEdge | null {
   return null;
 }
 
+/** Whether a queued frame carries a Telnyx signature the rig's API would now refuse as too old. */
+export function signatureLapsed(frame: EdgeToRig, now: number): boolean {
+  if (frame.t !== "webhook") return false;
+  const header = frame.headers["telnyx-timestamp"];
+  if (header === undefined || !/^\d{1,12}$/.test(header)) return false;
+  return now - Number(header) * 1000 > TELNYX_SIGNATURE_WINDOW_MS;
+}
+
 interface Pending {
   resolve: (frame: RigToEdge | null) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -163,6 +194,8 @@ interface Pending {
 export class RigUplink extends DurableObject<Env> {
   private readonly sql: SqlStorage;
   private readonly pending = new Map<string, Pending>();
+  /** Call events relayed and not yet answered, by dedupe key. */
+  private readonly inFlight = new Set<string>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -170,6 +203,7 @@ export class RigUplink extends DurableObject<Env> {
     for (const statement of [
       "CREATE TABLE IF NOT EXISTS queue (id TEXT PRIMARY KEY, frame TEXT NOT NULL, first_at INTEGER NOT NULL, next_at INTEGER NOT NULL, attempts INTEGER NOT NULL)",
       "CREATE TABLE IF NOT EXISTS seen (key TEXT PRIMARY KEY, at INTEGER NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS late_calls (id TEXT PRIMARY KEY, key TEXT NOT NULL, at INTEGER NOT NULL)",
       "CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, n INTEGER NOT NULL)",
       "CREATE TABLE IF NOT EXISTS heartbeats (component TEXT PRIMARY KEY, at INTEGER NOT NULL, reported_at TEXT NOT NULL)",
       "CREATE TABLE IF NOT EXISTS strangers (e164 TEXT PRIMARY KEY, window_start INTEGER NOT NULL, n INTEGER NOT NULL, detach_at INTEGER)",
@@ -225,9 +259,9 @@ export class RigUplink extends DurableObject<Env> {
       return;
     }
     if (this.settle(frame.id, frame)) return;
-    if (frame.t === "webhook-result" && frame.status >= 200 && frame.status < 300) {
-      this.acked(frame.id);
-    }
+    if (frame.t !== "webhook-result") return;
+    if (this.lateCallAnswer(frame.id, frame.status)) return;
+    if (frame.status >= 200 && frame.status < 300) this.acked(frame.id);
   }
 
   async webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): Promise<void> {
@@ -292,31 +326,40 @@ export class RigUplink extends DurableObject<Env> {
   // ---------------------------------------------------------------------------
   // Call events: synchronous, answered with the rig's own status.
 
-  async relayCall(input: CallRelay): Promise<{ status: number; duplicate: boolean }> {
+  /** Relays a call event and waits up to `timeoutMs`, what is left of Telnyx's 10 seconds. */
+  async relayCall(input: CallRelay, timeoutMs: number): Promise<{ status: number; duplicate: boolean }> {
     const key = `event:${input.eventId}`;
     if (this.isSeen(key, Date.now())) {
       this.count("call.duplicate");
       return { status: 200, duplicate: true };
+    }
+    // Telnyx's retry or failover of an event the rig is still handling: 503
+    // brings it back once the first answer has decided whether it is needed.
+    if (this.inFlight.has(key)) {
+      this.count("call.in_flight");
+      return { status: 503, duplicate: false };
     }
     const ws = this.socket();
     if (!ws) {
       this.count("call.rig_offline");
       return { status: 503, duplicate: false };
     }
-    const reply = await this.exchange(
-      ws,
-      {
-        t: "webhook",
-        id: crypto.randomUUID(),
-        kind: input.kind,
-        path: input.path,
-        headers: input.headers,
-        body: input.body,
-        attempt: 1,
-      },
-      CALL_EVENT_RELAY_TIMEOUT_MS,
-    );
+    const id = crypto.randomUUID();
+    this.inFlight.add(key);
+    let reply: RigToEdge | null;
+    try {
+      reply = await this.exchange(
+        ws,
+        { t: "webhook", id, kind: input.kind, path: input.path, headers: input.headers, body: input.body, attempt: 1 },
+        timeoutMs,
+      );
+    } finally {
+      this.inFlight.delete(key);
+    }
     if (!reply || reply.t !== "webhook-result") {
+      // The rig may still answer. A late 2xx means the event was handled, so
+      // Telnyx's retry of it must not be relayed again.
+      this.sql.exec("INSERT OR REPLACE INTO late_calls (id, key, at) VALUES (?, ?, ?)", id, key, Date.now());
       this.count("call.no_answer");
       return { status: 503, duplicate: false };
     }
@@ -324,6 +367,16 @@ export class RigUplink extends DurableObject<Env> {
     if (status >= 200 && status < 300) this.markSeen(key, Date.now());
     this.count("call.relayed");
     return { status, duplicate: false };
+  }
+
+  /** True when `id` was a call relay that had timed out; a 2xx then marks its event seen. */
+  private lateCallAnswer(id: string, status: number): boolean {
+    const row = this.sql.exec<{ key: string }>("SELECT key FROM late_calls WHERE id = ?", id).toArray()[0];
+    if (!row) return false;
+    this.sql.exec("DELETE FROM late_calls WHERE id = ?", id);
+    this.count("call.late_answer");
+    if (status >= 200 && status < 300) this.markSeen(row.key, Date.now());
+    return true;
   }
 
   // ---------------------------------------------------------------------------
@@ -393,6 +446,13 @@ export class RigUplink extends DurableObject<Env> {
         ws.send(JSON.stringify(frame));
       } catch {
         return;
+      }
+      if (signatureLapsed(frame, now)) {
+        // The rig's API refuses this signature from now on, so this was the
+        // last offer; rigd records the text as lost to the delay.
+        this.sql.exec("DELETE FROM queue WHERE id = ?", row.id);
+        this.count("queue.signature_lapsed");
+        continue;
       }
       this.sql.exec(
         "UPDATE queue SET attempts = ?, next_at = ? WHERE id = ?",
@@ -468,10 +528,11 @@ export class RigUplink extends DurableObject<Env> {
     return { status: 200, contentType: reply.content_type, body };
   }
 
-  async rigRpc(method: string, params: unknown): Promise<RpcOutcome> {
+  async rigRpc(method: string, params: unknown, caller: ControlClass): Promise<RpcOutcome> {
     const ws = this.socket();
     if (!ws) return { status: "offline" };
-    const reply = await this.exchange(ws, { t: "rpc", id: crypto.randomUUID(), method, params }, RPC_TIMEOUT_MS);
+    const frame: RpcFrame = { t: "rpc", id: crypto.randomUUID(), method, params, caller };
+    const reply = await this.exchange(ws, frame, RPC_TIMEOUT_MS);
     if (!reply || reply.t !== "rpc-result") return { status: "timeout" };
     return reply.ok ? { status: "ok", result: reply.result } : { status: "error", error: reply.error };
   }
@@ -556,12 +617,18 @@ export class RigUplink extends DurableObject<Env> {
   // ---------------------------------------------------------------------------
   // The dead-man.
 
+  /**
+   * Each beat carries when its component last did its work, and rigd
+   * re-reports a suite that last ran three days ago every minute with that
+   * date. So `at` is judged, never the arrival, and it only moves forward.
+   */
   private heartbeat(component: HeartbeatComponent, reportedAt: string): void {
     const now = Date.now();
+    const at = Math.min(Date.parse(reportedAt), now);
     this.sql.exec(
-      "INSERT OR REPLACE INTO heartbeats (component, at, reported_at) VALUES (?, ?, ?)",
+      "INSERT INTO heartbeats (component, at, reported_at) VALUES (?, ?, ?) ON CONFLICT(component) DO UPDATE SET at = MAX(at, excluded.at), reported_at = excluded.reported_at",
       component,
-      now,
+      at,
       reportedAt.slice(0, 64),
     );
     if (this.meta("armed_at") === null) this.setMeta("armed_at", String(now));
@@ -577,25 +644,40 @@ export class RigUplink extends DurableObject<Env> {
         heartbeats[row.component as HeartbeatComponent] = row.at;
       }
     }
-    const alerts: Record<string, number> = {};
-    for (const row of this.sql.exec<{ key: string; value: string }>(
-      "SELECT key, value FROM meta WHERE key LIKE 'alert:%'",
-    )) {
-      alerts[row.key.slice("alert:".length)] = Number(row.value);
-    }
     const armed = this.meta("armed_at");
-    return { armedAt: armed === null ? null : Number(armed), heartbeats, alerts };
+    return {
+      armedAt: armed === null ? null : Number(armed),
+      heartbeats,
+      alerts: this.metaTimes("alert:"),
+      failures: this.metaTimes("alert-failed:"),
+    };
+  }
+
+  private metaTimes(prefix: string): Record<string, number> {
+    const times: Record<string, number> = {};
+    for (const row of this.sql.exec<{ key: string; value: string }>(
+      "SELECT key, value FROM meta WHERE substr(key, 1, ?) = ?",
+      prefix.length,
+      prefix,
+    )) {
+      times[row.key.slice(prefix.length)] = Number(row.value);
+    }
+    return times;
   }
 
   async noteAlert(key: string, at: number): Promise<void> {
     this.setMeta(`alert:${key}`, String(at));
   }
 
-  /** One of the day's {@link SENTRY_DAILY_MAX} edge-sent events, or false. */
-  async takeSentryBudget(now: number): Promise<boolean> {
-    const name = `sentry.sent.${new Date(now).toISOString().slice(0, 10)}`;
+  async noteAlertFailed(key: string, at: number): Promise<void> {
+    this.setMeta(`alert-failed:${key}`, String(at));
+  }
+
+  /** One of the day's {@link SENTRY_DAILY_MAX} edge-sent events to `target`, or false. */
+  async takeSentryBudget(now: number, target: AlertTarget): Promise<boolean> {
+    const name = `sentry.sent.${new Date(now).toISOString().slice(0, 10)}.${target}`;
     const used = this.number("SELECT COALESCE(MAX(n), 0) AS n FROM counters WHERE name = ?", name);
-    if (used >= SENTRY_DAILY_MAX) return false;
+    if (used >= SENTRY_DAILY_MAX[target]) return false;
     this.count(name);
     return true;
   }
@@ -603,6 +685,7 @@ export class RigUplink extends DurableObject<Env> {
   /** The cron's housekeeping: expire, purge and ping the rig. */
   async tick(now: number): Promise<void> {
     this.sql.exec("DELETE FROM seen WHERE at <= ?", now - SEEN_TTL_MS);
+    this.sql.exec("DELETE FROM late_calls WHERE at <= ?", now - LATE_CALL_MEMORY_MS);
     this.sql.exec("DELETE FROM strangers WHERE window_start <= ?", now - 2 * STRANGER_WINDOW_MS);
     this.sql.exec(
       "DELETE FROM stranger_senders WHERE hash NOT IN (SELECT hash FROM stranger_senders ORDER BY last_at DESC LIMIT ?)",

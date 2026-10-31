@@ -19,9 +19,18 @@ let guard: FakeGuard;
 let env: Env;
 let balance: unknown;
 let events: unknown;
+/** Every request the edge sent past the guard, Sentry included. None reaches the network. */
+let outbound: { url: string; event: Record<string, unknown> | null }[];
 
 beforeEach(async () => {
   await resetEdge();
+  outbound = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const request = new Request(input, init);
+    const lines = (await request.text()).split("\n");
+    outbound.push({ url: request.url, event: lines[2] ? (JSON.parse(lines[2]) as Record<string, unknown>) : null });
+    return new Response("{}", { status: 200 });
+  });
   guard = fakeGuard();
   balance = { data: { balance: "412.00", currency: "USD" } };
   events = { data: [{ name: "Suspicious Outbound Voice Traffic", enabled: true }, { name: "Low Balance", enabled: true }] };
@@ -30,7 +39,10 @@ beforeEach(async () => {
     if (c.path.startsWith("/telnyx/v2/notification_events")) return Response.json(events);
     return undefined;
   };
-  env = await edgeEnv(guard, { SENTRY_PROD_DSN: "https://prodkey@o1.ingest.sentry.io/202" });
+  env = await edgeEnv(guard, {
+    SENTRY_PROD_DSN: "https://prodkey@o1.ingest.sentry.io/202",
+    SENTRY_SYNTHETIC_DSN: "https://synthetickey@o1.ingest.sentry.io/101",
+  });
 });
 
 afterEach(() => {
@@ -47,6 +59,14 @@ function notice(name: string, id = `ntc-${Math.random()}`): Request {
 
 const halts = () => guard.calls.filter((c) => c.path === "/halt").map((c) => JSON.parse(c.body));
 
+/** A notice signed by the account's key now. */
+function signedNotice(name: string, id = `ntc-${Math.random()}`): Promise<Request> {
+  return telnyxDelivery(`/t/n/${NOTIFICATIONS_SECRET}`, { data: { id, event_type: name, payload: {} } });
+}
+
+const toProduction = () => outbound.filter((o) => o.url.includes("/api/202/"));
+const toSynthetic = () => outbound.filter((o) => o.url.includes("/api/101/"));
+
 describe("account notices", () => {
   it("is an empty 404 without the secret", async () => {
     const wrong = new Request(`${ORIGIN}/t/n/not-the-secret`, { method: "POST", body: "{}" });
@@ -54,19 +74,29 @@ describe("account notices", () => {
     expect(guard.calls).toEqual([]);
   });
 
-  it("halts on a corroborated traffic notice, asking as the edge", async () => {
-    expect((await call(notice("Suspicious Outbound Voice Traffic", "ntc-1"), env)).status).toBe(200);
+  it("halts on a signed traffic notice of a type the account has enabled, asking as the edge", async () => {
+    expect((await call(await signedNotice("Suspicious Outbound Voice Traffic", "ntc-1"), env)).status).toBe(200);
     expect(halts()).toEqual([
-      expect.objectContaining({ signal: "Suspicious Outbound Voice Traffic", notice_id: "ntc-1", corroborated_by: "notification_event" }),
+      expect.objectContaining({ signal: "Suspicious Outbound Voice Traffic", notice_id: "ntc-1", corroborated_by: "signature" }),
     ]);
     expect(guard.calls.every((c) => c.headers[HEADER.callerClass] === "edge")).toBe(true);
+    expect(outbound).toEqual([]);
+  });
+
+  it("never halts on an unsigned traffic notice: the event-type list proves no occurrence", async () => {
+    expect((await call(notice("Suspicious Outbound Voice Traffic"), env)).status).toBe(200);
+    expect(halts()).toEqual([]);
+    expect(toProduction()).toEqual([]);
+    expect(toSynthetic().map((o) => o.event?.fingerprint)).toEqual([["synthetic-infra", "telnyx-notice"]]);
   });
 
   it("does not halt on a notice the account does not corroborate", async () => {
     expect((await call(notice("Something We Never Subscribed To"), env)).status).toBe(200);
     expect((await call(notice("Low Balance"), env)).status).toBe(200);
+    expect((await call(await signedNotice("Something We Never Subscribed To"), env)).status).toBe(200);
     expect(halts()).toEqual([]);
-    expect((await counters())["notice.uncorroborated"]).toBe(2);
+    expect((await counters())["notice.uncorroborated"]).toBe(3);
+    expect(toProduction()).toEqual([]);
   });
 
   it("halts on a low balance only when the balance really is low", async () => {
@@ -76,36 +106,45 @@ describe("account notices", () => {
   });
 
   it("corroborates when Telnyx itself refuses the account's reads", async () => {
-    guard.respond = () => new Response(null, { status: 401 });
-    await call(notice("Account Disabled"), env);
+    guard.respond = (c) => (c.path.startsWith("/telnyx/") ? new Response(null, { status: 401 }) : undefined);
+    expect((await call(notice("Account Disabled"), env)).status).toBe(200);
     expect(halts()).toEqual([expect.objectContaining({ corroborated_by: "account_refused" })]);
+    expect(outbound).toEqual([]);
   });
 
   it("does not take a guard refusal as the account refusing", async () => {
     guard.respond = (c) =>
       c.path === "/halt" ? undefined : new Response(null, { status: 403, headers: { [HEADER.refusedBy]: "guard" } });
-    const response = await call(notice("Account Disabled"), env);
+    const response = await call(await signedNotice("Account Disabled"), env);
     expect(response.status).toBe(503);
     expect(halts()).toEqual([]);
   });
 
   it("handles one notice once", async () => {
-    await call(notice("Suspicious Outbound Voice Traffic", "ntc-same"), env);
-    await call(notice("Suspicious Outbound Voice Traffic", "ntc-same"), env);
+    await call(await signedNotice("Suspicious Outbound Voice Traffic", "ntc-same"), env);
+    await call(await signedNotice("Suspicious Outbound Voice Traffic", "ntc-same"), env);
     expect(halts()).toHaveLength(1);
   });
 
+  const haltRefused = (c: { path: string }) => {
+    if (c.path === "/halt") return new Response(null, { status: 500 });
+    if (c.path === "/telnyx/v2/balance") return Response.json(balance);
+    return Response.json(events);
+  };
+
   it("raises the production alert itself when the guard will not take the halt", async () => {
-    const sentry = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
-    guard.respond = (c) => {
-      if (c.path === "/halt") return new Response(null, { status: 500 });
-      if (c.path === "/telnyx/v2/balance") return Response.json(balance);
-      return Response.json(events);
-    };
-    expect((await call(notice("Suspicious Outbound Voice Traffic"), env)).status).toBe(200);
-    expect(sentry).toHaveBeenCalledTimes(1);
-    const body = await new Request(sentry.mock.calls[0][0] as RequestInfo, sentry.mock.calls[0][1]).text();
-    expect(JSON.parse(body.split("\n")[2]).fingerprint).toEqual(["ops", "telnyx-account-signal"]);
+    guard.respond = haltRefused;
+    expect((await call(await signedNotice("Suspicious Outbound Voice Traffic"), env)).status).toBe(200);
+    expect(toProduction()).toHaveLength(1);
+    expect(toProduction()[0].event).toMatchObject({ fingerprint: ["ops", "telnyx-account-signal"] });
+    expect(toProduction()[0].event?.release).toBeUndefined();
+  });
+
+  it("answers 503 so Telnyx retries when neither the halt nor the alert can land", async () => {
+    guard.respond = haltRefused;
+    const noDsn = { ...env, SENTRY_PROD_DSN: undefined };
+    expect((await call(await signedNotice("Suspicious Outbound Voice Traffic"), noDsn)).status).toBe(503);
+    expect(outbound).toEqual([]);
   });
 
   it("verifies a notice that arrives signed", async () => {

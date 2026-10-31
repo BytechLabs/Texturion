@@ -6,6 +6,7 @@ import type { Env } from "./env";
 import { decodeMedia, parseRigFrame, retryDelay } from "./uplink";
 import {
   ORIGIN,
+  ROBOT_WEBHOOK_SECRET,
   TOKENS,
   call,
   connectRig,
@@ -69,6 +70,27 @@ describe("the uplink", () => {
     expect((await counters())["uplink.bad_frame"]).toBe(2);
     rig.close();
   });
+
+  it("judges a heartbeat by when the component last worked, not by when the beat arrived", async () => {
+    const DAY = 86_400_000;
+    const rig = await connectRig(env);
+    const suiteRan = Date.now() - 3 * DAY;
+    // rigd re-reports the suite's last run every minute.
+    rig.send({ t: "heartbeat", component: "suite", at: new Date(suiteRan).toISOString() });
+    rig.send({ t: "heartbeat", component: "suite", at: new Date(suiteRan).toISOString() });
+    rig.send({ t: "heartbeat", component: "triage", at: new Date(Date.now() + DAY).toISOString() });
+    await rig.next(() => false, 150).catch(() => undefined);
+    let view = await uplinkStub().deadman();
+    expect(view.heartbeats.suite).toBe(suiteRan);
+    expect(view.heartbeats.triage).toBeLessThanOrEqual(Date.now());
+
+    // An older report never moves a component back.
+    rig.send({ t: "heartbeat", component: "suite", at: new Date(suiteRan - DAY).toISOString() });
+    await rig.next(() => false, 150).catch(() => undefined);
+    view = await uplinkStub().deadman();
+    expect(view.heartbeats.suite).toBe(suiteRan);
+    rig.close();
+  });
 });
 
 describe("the queue", () => {
@@ -93,6 +115,44 @@ describe("the queue", () => {
     await makeDue();
     await runDurableObjectAlarm(uplinkStub());
     await expect(rig.next((f) => f.t === "webhook", 150)).rejects.toThrow();
+    rig.close();
+  });
+
+  it("does not resend an entry still in its backoff when something else flushes the queue", async () => {
+    const rig = await connectRig(env);
+    await call(await telnyxDelivery("/t/m", messageEvent("message.received", {})), env);
+    const first = await rig.next((f) => f.t === "webhook");
+    // A second delivery and an alarm both flush; the first entry is not due.
+    await call(await telnyxDelivery("/t/m", messageEvent("message.received", {})), env);
+    const second = await rig.next((f) => f.t === "webhook");
+    expect(second.t === "webhook" && first.t === "webhook" && second.id !== first.id).toBe(true);
+    await runDurableObjectAlarm(uplinkStub());
+    await uplinkStub().tick(Date.now());
+    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow();
+    rig.close();
+  });
+
+  it("offers a text once more after its Telnyx signature has lapsed, then drops it", async () => {
+    await call(await telnyxDelivery("/t/m", messageEvent("message.received", {})), env);
+    await runInDurableObject(uplinkStub(), (_instance, state) => {
+      const row = state.storage.sql.exec<{ id: string; frame: string }>("SELECT id, frame FROM queue").one();
+      const frame = JSON.parse(row.frame) as { headers: Record<string, string> };
+      frame.headers["telnyx-timestamp"] = String(Math.floor(Date.now() / 1000) - 6 * 60);
+      state.storage.sql.exec("UPDATE queue SET frame = ? WHERE id = ?", JSON.stringify(frame), row.id);
+    });
+    const rig = await connectRig(env);
+    expect(await rig.next((f) => f.t === "webhook")).toMatchObject({ attempt: 1 });
+    expect((await uplinkStub().snapshot()).queueDepth).toBe(0);
+    expect((await counters())["queue.signature_lapsed"]).toBe(1);
+    rig.close();
+  });
+
+  it("keeps retrying a robot webhook, which carries no Telnyx signature", async () => {
+    const request = new Request(`${ORIGIN}/w/${ROBOT_WEBHOOK_SECRET}/qa-w`, { method: "POST", body: "{}" });
+    await call(request, env);
+    const rig = await connectRig(env);
+    await rig.next((f) => f.t === "webhook");
+    expect((await uplinkStub().snapshot()).queueDepth).toBe(1);
     rig.close();
   });
 
@@ -141,7 +201,7 @@ describe("rpc", () => {
     });
     const pending = call(request, env);
     const frame = await rig.next((f) => f.t === "rpc");
-    expect(frame).toMatchObject({ method: "verdicts.unresolved", params: { limit: 5 } });
+    expect(frame).toMatchObject({ method: "verdicts.unresolved", params: { limit: 5 }, caller: "triage" });
     rig.send({ t: "rpc-result", id: frame.t === "rpc" ? frame.id : "", ok: true, result: { failures: [] } });
     const response = await pending;
     expect(response.status).toBe(200);
@@ -167,7 +227,8 @@ describe("frames", () => {
     expect(parseRigFrame(JSON.stringify({ t: "ack" }))).toBeNull();
     expect(parseRigFrame(JSON.stringify({ t: "webhook-result", id: "a" }))).toBeNull();
     expect(parseRigFrame(JSON.stringify({ t: "rpc-result", id: "a", ok: false }))).toBeNull();
-    expect(parseRigFrame(JSON.stringify({ t: "heartbeat", component: "triage", at: "now" }))).not.toBeNull();
+    expect(parseRigFrame(JSON.stringify({ t: "heartbeat", component: "triage", at: "2026-10-30T00:00:00.000Z" }))).not.toBeNull();
+    expect(parseRigFrame(JSON.stringify({ t: "heartbeat", component: "triage", at: "now" }))).toBeNull();
     expect(parseRigFrame(new ArrayBuffer(4))).toBeNull();
   });
 

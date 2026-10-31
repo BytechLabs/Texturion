@@ -40,7 +40,7 @@ export interface Env {
   /** The secret segment of `/t/n/<secret>`. */
   NOTIFICATIONS_SECRET_SHA256?: string;
 
-  /** `loonext-synthetic`: stale heartbeats. Ingest-only. */
+  /** `loonext-synthetic`: stale heartbeats and notices that could not be corroborated. Ingest-only. */
   SENTRY_SYNTHETIC_DSN?: string;
   /** Production's API project: only "the rig is dark" and account signals. */
   SENTRY_PROD_DSN?: string;

@@ -1,7 +1,8 @@
 import { HEARTBEAT_COMPONENTS, type HeartbeatComponent } from "@loonext/rig-protocol";
 
 import { mailbox, uplink, type Env } from "./env";
-import { sendSentryEvent } from "./sentry";
+import { type EdgeEvent, parseDsn, sendSentryEvent } from "./sentry";
+import type { AlertTarget } from "./uplink";
 
 /**
  * The dead-man, run by the 15-minute cron.
@@ -30,6 +31,11 @@ export const DARK_AFTER_MS = 6 * 60 * 60 * 1000;
 /** A repeated synthetic fingerprint is suppressed this long, as the rig's relay does. */
 const REPEAT_AFTER_MS = 6 * 60 * 60 * 1000;
 const DARK_REPEAT_AFTER_MS = 24 * 60 * 60 * 1000;
+/**
+ * A send Sentry did not take is tried again after this long rather than on
+ * every cron, so a Sentry outage cannot spend the day's budget in an hour.
+ */
+export const RETRY_FAILED_AFTER_MS = 60 * 60 * 1000;
 
 export interface DeadmanReport {
   armed: boolean;
@@ -48,12 +54,21 @@ export async function runDeadman(env: Env, now: number = Date.now()): Promise<De
   const report: DeadmanReport = { armed: view.armedAt !== null, stale: [], dark: false, sent: [] };
   if (view.armedAt === null) return report;
 
-  const due = (key: string, every: number) => now - (view.alerts[key] ?? 0) >= every;
-  const send = async (key: string, dsn: string | undefined, event: Parameters<typeof sendSentryEvent>[1]) => {
-    if (!(await rig.takeSentryBudget(now))) return;
+  const due = (key: string, every: number) =>
+    now - (view.alerts[key] ?? 0) >= every && now - (view.failures[key] ?? 0) >= RETRY_FAILED_AFTER_MS;
+  // A DSN that is not configured costs no budget: it is not a send.
+  const send = async (key: string, target: AlertTarget, dsn: string | undefined, event: EdgeEvent) => {
+    if (!parseDsn(dsn)) {
+      console.warn(`dead-man: no ${target} DSN, so ${key} was not reported`);
+      await rig.bump(`deadman.no_dsn.${target}`);
+      return;
+    }
+    if (!(await rig.takeSentryBudget(now, target))) return;
     if (await sendSentryEvent(dsn, event)) {
       await rig.noteAlert(key, now);
       report.sent.push(key);
+    } else {
+      await rig.noteAlertFailed(key, now);
     }
   };
 
@@ -63,11 +78,11 @@ export async function runDeadman(env: Env, now: number = Date.now()): Promise<De
     if (silent <= STALE_AFTER_MS[component]) continue;
     report.stale.push(component);
     if (!due(component, REPEAT_AFTER_MS)) continue;
-    await send(component, env.SENTRY_SYNTHETIC_DSN, {
+    await send(component, "synthetic", env.SENTRY_SYNTHETIC_DSN, {
       fingerprint: ["synthetic-infra", component],
       level: "warning",
       environment: "synthetic",
-      release: env.GIT_SHA,
+      edgeSha: env.GIT_SHA,
       message: `Rig heartbeat stale: ${component} silent for ${hours(silent)}`,
       tags: { component },
       extra: {
@@ -84,11 +99,11 @@ export async function runDeadman(env: Env, now: number = Date.now()): Promise<De
   if (now - newest > DARK_AFTER_MS) {
     report.dark = true;
     if (due("synthetic-dark", DARK_REPEAT_AFTER_MS)) {
-      await send("synthetic-dark", env.SENTRY_PROD_DSN, {
+      await send("synthetic-dark", "production", env.SENTRY_PROD_DSN, {
         fingerprint: ["ops", "synthetic-dark"],
         level: "error",
         environment: "production",
-        release: env.GIT_SHA,
+        edgeSha: env.GIT_SHA,
         message: `The test rig has been dark for ${hours(now - newest)}`,
         extra: {
           detail: `No rig, suite or triage heartbeat since ${new Date(newest).toISOString()}.`,

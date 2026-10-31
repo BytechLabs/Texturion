@@ -4,20 +4,27 @@ import { secretSegmentMatches } from "./auth";
 import { uplink, type Env } from "./env";
 import { guardCall, requestHalt, type HaltRequest } from "./guard";
 import { boundedText, empty } from "./http";
-import { sendSentryEvent } from "./sentry";
+import { parseDsn, sendSentryEvent } from "./sentry";
 import { verifyTelnyxSignature } from "./telnyx";
 
 /**
  * `/t/n/<secret>`: the Telnyx account's notification channel.
  *
  * A halt stops paid tests for seven days and alerts production, so a notice
- * is never taken on its word, even on the secret path. The edge first asks
- * Telnyx, through the guard, whether the account agrees:
- *   - a balance notice, when the balance really is low;
- *   - any notice, when Telnyx itself refuses the account's reads (a disabled
- *     account answers 401 or 403, with no guard refusal);
- *   - any other notice, when it names a notification event enabled on the
- *     account.
+ * is never taken on its word, even on the secret path. It is corroborated
+ * when:
+ *   - it is a balance notice and the balance, read through the guard, really
+ *     is low;
+ *   - Telnyx itself refuses the account's reads (a disabled account answers
+ *     401 or 403, with no guard refusal);
+ *   - it carries a valid Telnyx signature, which proves Telnyx sent it in
+ *     the last five minutes, and names a notification type enabled on the
+ *     account. That list of types says nothing about whether one occurred,
+ *     so it never corroborates on its own.
+ * An unsigned notice that is none of these cannot be corroborated by any
+ * Telnyx read. It halts nothing and goes to the synthetic project instead,
+ * where an agent can look.
+ *
  * If the guard cannot take the halt, the edge raises the production alert
  * itself, so a real signal is never lost between the two.
  *
@@ -101,7 +108,8 @@ function telnyxRefused(response: Response): boolean {
   return (response.status === 401 || response.status === 403) && !response.headers.has(HEADER.refusedBy);
 }
 
-export async function corroborate(env: Env, notice: Notice): Promise<Corroboration> {
+/** `signed`: the notice carried a Telnyx signature, and it verified. */
+export async function corroborate(env: Env, notice: Notice, signed: boolean): Promise<Corroboration> {
   let balance: Response;
   try {
     balance = await guardCall(env, "GET", "/telnyx/v2/balance");
@@ -118,6 +126,7 @@ export async function corroborate(env: Env, notice: Notice): Promise<Corroborati
       ? { outcome: "corroborated", by: "balance" }
       : { outcome: "uncorroborated" };
   }
+  if (!signed) return { outcome: "uncorroborated" };
 
   let events: Response;
   try {
@@ -133,7 +142,7 @@ export async function corroborate(env: Env, notice: Notice): Promise<Corroborati
     const e = entry as { name?: unknown; enabled?: unknown };
     return typeof e.name === "string" && e.enabled !== false && sameEvent(e.name, notice.name);
   });
-  return listed ? { outcome: "corroborated", by: "notification_event" } : { outcome: "uncorroborated" };
+  return listed ? { outcome: "corroborated", by: "signature" } : { outcome: "uncorroborated" };
 }
 
 export async function handleNotification(env: Env, request: Request, secret: string): Promise<Response> {
@@ -155,11 +164,26 @@ export async function handleNotification(env: Env, request: Request, secret: str
   const rig = uplink(env);
   if (await rig.noticeSeen(notice.key)) return empty(200);
 
-  const verdict = await corroborate(env, notice);
+  const verdict = await corroborate(env, notice, signed);
   // Not recorded as seen: Telnyx's retry gets another chance to corroborate.
   if (verdict.outcome === "unreadable") return empty(503);
   if (verdict.outcome === "uncorroborated") {
     await rig.recordNotice(notice.key, notice.name, "uncorroborated");
+    // Best effort and never retried: this notice halts nothing either way.
+    if (parseDsn(env.SENTRY_SYNTHETIC_DSN) && (await rig.takeSentryBudget(Date.now(), "synthetic"))) {
+      await sendSentryEvent(env.SENTRY_SYNTHETIC_DSN, {
+        fingerprint: ["synthetic-infra", "telnyx-notice"],
+        level: "warning",
+        environment: "synthetic",
+        edgeSha: env.GIT_SHA,
+        message: `Telnyx notice not corroborated: ${notice.name}`,
+        extra: {
+          notice_id: notice.id,
+          signed,
+          detail: "Paid tests were not halted. Check the Telnyx portal's notifications for this account.",
+        },
+      });
+    }
     return empty(200);
   }
 
@@ -174,12 +198,13 @@ export async function handleNotification(env: Env, request: Request, secret: str
     return empty(200);
   }
   const alerted =
-    (await rig.takeSentryBudget(Date.now())) &&
+    parseDsn(env.SENTRY_PROD_DSN) !== null &&
+    (await rig.takeSentryBudget(Date.now(), "production")) &&
     (await sendSentryEvent(env.SENTRY_PROD_DSN, {
       fingerprint: ["ops", "telnyx-account-signal"],
       level: "error",
       environment: "production",
-      release: env.GIT_SHA,
+      edgeSha: env.GIT_SHA,
       message: `Telnyx account signal: ${notice.name}`,
       extra: {
         detail: `Corroborated by ${verdict.by}, but the guard did not take the halt.`,

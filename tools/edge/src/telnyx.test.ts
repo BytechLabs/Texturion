@@ -106,7 +106,9 @@ describe("judge: ownership by resource", () => {
       call_control_id: "ccid-g02",
       from: "sip:gencred@sip.telnyx.com",
     });
-    expect(judge("/t/w", sentinel, PARTITION)).toMatchObject({ action: "relay-call", leg: { via: "webrtc" } });
+    expect(judge("/t/w", sentinel, PARTITION)).toMatchObject({ action: "relay-call", leg: null });
+    const webrtc = event("call.initiated", { connection_id: CONNECTIONS.webrtc, call_control_id: "ccid-w", from: OWNED_A });
+    expect(judge("/t/w", webrtc, PARTITION)).toMatchObject({ action: "relay-call", leg: { via: "webrtc" } });
   });
 
   it("queues a message event on a live nonprod profile and drops any other", () => {
@@ -149,6 +151,7 @@ describe("judge: strangers", () => {
   it("asks for a reject on a stranger's opening event, naming our number", () => {
     expect(judge("/t/v", initiated(STRANGER), PARTITION)).toEqual({
       action: "stranger-call",
+      opens: true,
       reject: { call_control_id: "ccid-s", connection_id: CONNECTIONS.voice, via: "voice" },
       ours: OWNED_B,
       theirs: STRANGER,
@@ -157,7 +160,7 @@ describe("judge: strangers", () => {
 
   it("names no reject on a stranger leg's later events", () => {
     const hangup = event("call.hangup", { connection_id: CONNECTIONS.voice, call_control_id: "ccid-s", direction: "incoming", from: STRANGER });
-    expect(judge("/t/v", hangup, PARTITION)).toMatchObject({ action: "stranger-call", reject: null });
+    expect(judge("/t/v", hangup, PARTITION)).toMatchObject({ action: "stranger-call", opens: false, reject: null });
   });
 
   it("treats a withheld caller, a SIP caller off the WebRTC path and a sip-wrapped stranger as strangers", () => {

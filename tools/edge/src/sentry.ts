@@ -29,12 +29,17 @@ export function parseDsn(dsn: string | undefined): SentryTarget | null {
   };
 }
 
+/**
+ * No `release`: Sentry creates a release for every one an event names, and
+ * production's project tracks regressions by its own deploys. The edge's
+ * commit goes in the `edge_sha` tag instead.
+ */
 export interface EdgeEvent {
   fingerprint: string[];
   message: string;
   level: "warning" | "error";
   environment: string;
-  release?: string;
+  edgeSha?: string;
   tags?: Record<string, string>;
   extra?: Record<string, unknown>;
 }
@@ -57,10 +62,13 @@ export async function sendSentryEvent(dsn: string | undefined, event: EdgeEvent)
     logger: "loonext-rig-edge",
     server_name: "loonext-rig-edge",
     environment: event.environment,
-    ...(event.release ? { release: event.release } : {}),
     message: { formatted: event.message },
     fingerprint: event.fingerprint,
-    tags: { ...event.tags, ...(event.fingerprint[0] === "ops" ? { ops_key: event.fingerprint[1] } : {}) },
+    tags: {
+      ...event.tags,
+      ...(event.edgeSha ? { edge_sha: event.edgeSha } : {}),
+      ...(event.fingerprint[0] === "ops" ? { ops_key: event.fingerprint[1] } : {}),
+    },
     extra: event.extra ?? {},
   };
   const body = [
