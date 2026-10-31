@@ -66,6 +66,11 @@ describe("the rig's checks in the gate", () => {
     expect(indexOf("verify", "node --test")).toBeGreaterThan(indexOf("verify", "pnpm install --frozen-lockfile"));
   });
 
+  it("runs the guard's workerd suite on its own, after the parallel test run", () => {
+    const workerd = indexOf("verify", "pnpm --filter @loonext/telnyx-guard test:workerd");
+    expect(workerd).toBeGreaterThan(indexOf("verify", "pnpm -r test"));
+  });
+
   it("runs the browser lane in a job that installed Chromium first", () => {
     const lane = indexOf("build", "pnpm --filter @loonext/rig-lanes test:browser");
     expect(lane).toBeGreaterThan(-1);

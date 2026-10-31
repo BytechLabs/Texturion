@@ -703,6 +703,12 @@ jobs:
       - name: Rig tooling tests
         run: node --test "tools/rig/test/*.test.mjs"
 
+      # D142: the guard on workerd, kept out of `pnpm -r test`, where a workerd
+      # pool beside every other suite can flake. Without it a pull request
+      # could merge a guard that guard.yml then refuses to deploy.
+      - name: Telnyx guard on workerd
+        run: pnpm --filter @loonext/telnyx-guard test:workerd
+
   build:
     name: Build (next + OpenNext + wrangler)
     # #493: skip the WORK for a release-please pull request.
