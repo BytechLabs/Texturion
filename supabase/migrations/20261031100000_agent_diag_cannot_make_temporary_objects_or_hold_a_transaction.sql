@@ -7,7 +7,9 @@
 -- and create pg_temp objects, which is how a search path is turned against a
 -- function that trusts it. No grant excludes one role, so TEMP comes off
 -- PUBLIC and goes back by name to every role that held it. A role created
--- after this migration starts without TEMP.
+-- after this migration starts without TEMP and gets it only by a grant of
+-- its own; that includes a role the platform adds to production later, which
+-- would be refused a temporary table, loudly, rather than silently.
 -- ---------------------------------------------------------------------------
 do $$
 declare
@@ -52,9 +54,12 @@ alter role agent_diag set transaction_timeout = '60s';
 -- (c) pg_net, where installed (the local image, not production), opens its
 -- functions and its request queue to PUBLIC, which would let agent_diag send
 -- HTTP from the database server. Only the owner can revoke that. On Supabase
--- the owner is supabase_admin, so there this is a notice, and
--- scripts/ops/set-agent-diag-password.mjs is the control: it refuses to give
--- agent_diag a password where it can reach pg_net.
+-- the owner is supabase_admin, so there this is a notice.
+-- scripts/ops/set-agent-diag-password.mjs refuses to give agent_diag a
+-- password where it can reach pg_net, and call-trace.mjs refuses to trace from
+-- a session that can. Neither stops a session that runs neither, so enabling
+-- pg_net on production first needs agent_diag's password withdrawn
+-- (set-agent-diag-password.mjs --withdraw) or PUBLIC revoked by its owner.
 -- ---------------------------------------------------------------------------
 do $$
 declare

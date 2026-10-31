@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,9 +13,10 @@ import { afterEach, describe, expect, it } from "vitest";
  * takes nothing else, the admin login is read and never printed, and a dry
  * run touches nothing.
  *
- * Nothing here connects to a database. The rotation itself was run against a
- * local stack, and the precondition refusals were each proven there by
- * planting their hazard; the SQL is pinned below so that proof stays true.
+ * Nothing here connects to a database. The refusals run in CI instead:
+ * supabase/tests/agent_diag.test.sql (AD-12) carries the production
+ * precondition text and plants each hazard against a migrated database, and
+ * the test below fails if that copy and this script's text differ.
  */
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -43,6 +44,7 @@ const tool = (await import(join(REPO, "scripts", "ops", "set-agent-diag-password
   ) => Target;
   preconditionSql: (options: { production: boolean }) => string;
   rotationSql: (options: { production: boolean; verifier: string }) => string;
+  withdrawSql: () => string;
 };
 
 describe("the verifier", () => {
@@ -109,19 +111,24 @@ describe("the statement", () => {
     expect(tool.preconditionSql({ production: false })).toMatch(/raise warning 'agent_diag can reach pg_net/);
   });
 
-  it("refuses an agent_diag that is not hardened", () => {
-    const sql = tool.preconditionSql({ production: true });
-    for (const refusal of [
-      "there is no agent_diag role",
-      "agent_diag cannot log in",
-      "can still create temporary objects",
-      "has no % setting",
-    ]) {
-      expect(sql).toContain(refusal);
-    }
-    for (const setting of ["statement_timeout", "idle_in_transaction_session_timeout", "transaction_timeout", "default_transaction_read_only"]) {
-      expect(sql).toContain(`'${setting}'`);
-    }
+  it("is the text the SQL suite runs against a migrated database (AD-12)", () => {
+    const suite = readFileSync(join(REPO, "supabase", "tests", "agent_diag.test.sql"), "utf8").split("\r\n").join("\n");
+    const copies = suite.split("$check$");
+    expect(copies).toHaveLength(3);
+    expect(copies[1]).toBe(tool.preconditionSql({ production: true }));
+  });
+
+  it("differs locally only in warning, not refusing, on pg_net", () => {
+    const production = tool.preconditionSql({ production: true }).split("\n");
+    const local = tool.preconditionSql({ production: false }).split("\n");
+    expect(local).toHaveLength(production.length);
+    const changed = local.filter((line, i) => line !== production[i]);
+    expect(changed).toHaveLength(1);
+    expect(changed[0]).toMatch(/^\s+raise warning 'agent_diag can reach pg_net/);
+  });
+
+  it("withdraws by taking the password away and nothing else", () => {
+    expect(tool.withdrawSql()).toBe("alter role agent_diag password null;\n");
   });
 });
 
@@ -223,5 +230,11 @@ describe("run for real", () => {
     const result = spawnSync(process.execPath, [SCRIPT, "--dry-run"], { encoding: "utf8" });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("--target must be production or local");
+  });
+
+  it("refuses two modes at once", { timeout: 60_000 }, () => {
+    const result = spawnSync(process.execPath, [SCRIPT, "--target", "local", "--check", "--withdraw"], { encoding: "utf8" });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("separate runs");
   });
 });

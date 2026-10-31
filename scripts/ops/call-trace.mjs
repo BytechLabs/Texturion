@@ -8,6 +8,7 @@
  *   node scripts/ops/call-trace.mjs ... --json            # the raw trace
  *   node scripts/ops/call-trace.mjs ... --print-sql       # the query; connects to nothing
  *   node scripts/ops/call-trace.mjs --replay trace.json   # format a saved trace
+ *   node scripts/ops/call-trace.mjs --self-check          # is the login still safe
  *
  * For each call session and member: legs, push attempts, ring-beacon stages
  * with device state, and how far the ring got:
@@ -29,11 +30,19 @@
  * one in an issue: the first 16 hex characters of sha256 over the uuid's
  * lowercase text, the same as `ops_diag.ref()`.
  *
- * Runs `psql`: the one on PATH, or without one the client inside the local
- * Supabase database container (`--psql-container <name>` names another). The
- * password reaches it through the environment, never the command line, and
- * no PG* variable this shell already carries is passed on, so nothing can
- * change the login's settings from outside.
+ * EVERY SESSION CHECKS ITSELF FIRST (selfCheckSql): read-only, each timeout
+ * at 60 s or less, no TEMP, no pg_net, and no relation outside ops_diag. A
+ * hazard that appeared after the password was set, such as pg_net enabled
+ * from the dashboard, stops the trace on production and names the way to
+ * withdraw the login. `--self-check` runs only that.
+ *
+ * Runs `psql`: the one on PATH, or without one the client inside a Supabase
+ * database container. A local login runs in the container that publishes its
+ * port, against that server's network address so its password is really
+ * checked; any other login runs in `--psql-container <name>` or the default
+ * one. The password reaches psql through the environment, never the command
+ * line, and no PG* variable this shell already carries is passed on, so
+ * nothing can change the login's settings from outside.
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -330,17 +339,51 @@ export function psqlEnv(connectionEnv, base = process.env) {
   return { ...env, ...connectionEnv };
 }
 
-const LOOPBACK = /^(?:127\.\d+\.\d+\.\d+|localhost|::1|\[::1\])$/;
+export const LOOPBACK = /^(?:127\.\d+\.\d+\.\d+|localhost|::1|\[::1\])$/;
+
+function docker(args) {
+  return spawnSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+}
+
+/**
+ * The container publishing a loopback port, with its server's network address
+ * and port. Not its loopback: the Supabase image trusts every loopback login,
+ * so a wrong password would pass unnoticed.
+ */
+export function containerBehind(port, named) {
+  const listed = docker(["ps", "--filter", `publish=${port}`, "--format", "{{.Names}}"]);
+  if (listed.error || listed.status !== 0) return { error: `docker could not list the container on port ${port}` };
+  const names = listed.stdout.split(/\r?\n/).map((name) => name.trim()).filter(Boolean);
+  if (named && !names.includes(named)) return { error: `${named} does not publish port ${port}` };
+  if (!named && names.length !== 1) {
+    return {
+      error:
+        names.length === 0
+          ? `no running container publishes port ${port}`
+          : `${names.length} containers publish port ${port}; name one with --psql-container`,
+    };
+  }
+  const name = named ?? names[0];
+  const ports = docker(["port", name]);
+  const inner = (ports.stdout ?? "")
+    .split(/\r?\n/)
+    .map((line) => /^(\d+)\/tcp -> .*:(\d+)$/.exec(line.trim()))
+    .find((match) => match && match[2] === String(port));
+  const address = docker(["inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", name]);
+  const ip = (address.stdout ?? "").trim().split(/\s+/).find(Boolean);
+  if (!inner || !ip) return { error: `could not find ${name}'s server address for port ${port}` };
+  return { name, host: ip, port: inner[1] };
+}
 
 /**
  * Run psql with the statement on stdin and the connection in the environment.
- * Without a psql on PATH, the local database container's client runs it, and
+ * Without a psql on PATH, a database container's client runs it, and
  * `docker exec -e NAME` copies each value from this process's environment, so
- * none of them is ever an argument. Inside that container a loopback address
- * is the container itself, so a login for the local stack is pointed at its
- * server's own port.
+ * none of them is ever an argument. A loopback login is run in the container
+ * that publishes its port, against that server; any other login uses the
+ * named container, or the default one, only as a client.
  */
-export function runPsql(sql, connectionEnv, { args = [], container = DEFAULT_PSQL_CONTAINER } = {}) {
+export function runPsql(sql, connectionEnv, { args = [], container } = {}) {
   const psqlArgs = ["-X", "-v", "ON_ERROR_STOP=1", ...args, "-f", "-"];
   const options = (connection) => ({
     input: sql,
@@ -350,39 +393,145 @@ export function runPsql(sql, connectionEnv, { args = [], container = DEFAULT_PSQ
   });
   const local = spawnSync("psql", psqlArgs, options(connectionEnv));
   if (!local.error || local.error.code !== "ENOENT") return { ...local, via: "psql" };
-  const inside = LOOPBACK.test(connectionEnv.PGHOST ?? "")
-    ? { ...connectionEnv, PGHOST: "localhost", PGPORT: "5432" }
-    : connectionEnv;
-  const names = Object.keys(inside).flatMap((name) => ["-e", name]);
-  const docker = spawnSync("docker", ["exec", "-i", ...names, container, "psql", ...psqlArgs], options(inside));
-  return { ...docker, via: `psql in ${container}` };
+
+  let name = container ?? DEFAULT_PSQL_CONTAINER;
+  let inside = connectionEnv;
+  if (LOOPBACK.test(connectionEnv.PGHOST ?? "")) {
+    const behind = containerBehind(connectionEnv.PGPORT ?? "5432", container);
+    if (behind.error) return { error: new Error(behind.error), status: null, stdout: "", stderr: "", via: "docker" };
+    name = behind.name;
+    inside = { ...connectionEnv, PGHOST: behind.host, PGPORT: behind.port };
+  }
+  const names = Object.keys(inside).flatMap((variable) => ["-e", variable]);
+  const result = spawnSync("docker", ["exec", "-i", ...names, name, "psql", ...psqlArgs], options(inside));
+  return { ...result, via: `psql in ${name}` };
 }
 
-function runTrace(sql, connection, container) {
-  const result = runPsql(sql, connection.env, { args: ["-q", "-A", "-t"], container });
+/**
+ * Run as agent_diag before every trace: set-agent-diag-password's hazards,
+ * asked of this very session, so its effective settings count wherever they
+ * were set. Refuses on production, naming the way to withdraw the login;
+ * warns on the local stack, which installs pg_net.
+ */
+export function selfCheckSql({ production }) {
+  return `do $$
+declare
+  v_name     text;
+  v_value    text;
+  v_parts    text[];
+  v_ms       numeric;
+  v_reach    text;
+  v_problems text[] := '{}';
+begin
+  if current_user <> 'agent_diag' then
+    raise exception 'REFUSED: this session is %, not agent_diag', current_user;
+  end if;
+  if pg_catalog.current_setting('transaction_read_only') <> 'on' then
+    v_problems := v_problems || 'its transactions are not read-only'::text;
+  end if;
+  foreach v_name in array array['statement_timeout', 'idle_in_transaction_session_timeout',
+                                'transaction_timeout'] loop
+    v_value := pg_catalog.current_setting(v_name, true);
+    v_parts := pg_catalog.regexp_match(coalesce(v_value, ''), '^([0-9]+)(ms|s|min|h|d)?$');
+    v_ms := v_parts[1]::numeric * case coalesce(v_parts[2], 'ms')
+      when 'ms' then 1 when 's' then 1000 when 'min' then 60000 when 'h' then 3600000 when 'd' then 86400000 end;
+    if v_parts is null or v_ms <= 0 or v_ms > 60000 then
+      v_problems := v_problems || pg_catalog.format('%s is %s', v_name, coalesce(v_value, 'unset'));
+    end if;
+  end loop;
+  if pg_catalog.has_database_privilege(pg_catalog.current_database(), 'TEMP') then
+    v_problems := v_problems || 'it can create temporary objects'::text;
+  end if;
+  if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_net')
+     and pg_catalog.has_schema_privilege('net', 'USAGE')
+     and (exists (select 1 from pg_catalog.pg_proc p
+                   where p.pronamespace = 'net'::regnamespace
+                     and pg_catalog.has_function_privilege(p.oid, 'EXECUTE'))
+          or exists (select 1 from pg_catalog.pg_class c
+                      where c.relnamespace = 'net'::regnamespace and c.relkind = 'r'
+                        and pg_catalog.has_table_privilege(c.oid, 'INSERT'))) then
+    v_problems := v_problems || 'it can reach pg_net, which sends HTTP from the database'::text;
+  end if;
+  select pg_catalog.string_agg(n.nspname || '.' || c.relname, ', ' order by n.nspname, c.relname)
+    into v_reach
+    from pg_catalog.pg_class c
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+   where n.nspname not in ('pg_catalog', 'information_schema', 'ops_diag')
+     and n.nspname !~ '^pg_(toast|temp_)'
+     and c.relkind in ('r', 'p', 'v', 'm', 'f')
+     and (n.nspname || '.' || c.relname) not in ('extensions.pg_stat_statements', 'extensions.pg_stat_statements_info')
+     and not exists (select 1 from pg_catalog.pg_depend d
+                       join pg_catalog.pg_extension e on e.oid = d.refobjid
+                      where d.classid = 'pg_catalog.pg_class'::regclass and d.objid = c.oid
+                        and d.deptype = 'e' and e.extname = 'pg_net')
+     and pg_catalog.has_schema_privilege(n.oid, 'USAGE')
+     and pg_catalog.has_table_privilege(c.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER');
+  if v_reach is not null then
+    v_problems := v_problems || ('it can reach ' || v_reach);
+  end if;
+  if pg_catalog.cardinality(v_problems) > 0 then
+    ${
+      production
+        ? "raise exception 'REFUSED: this agent_diag login is no longer safe: %. Withdraw it with node scripts/ops/set-agent-diag-password.mjs --target production --withdraw', pg_catalog.array_to_string(v_problems, '; ');"
+        : "raise warning 'agent_diag on this local stack: %; refused for production, allowed here', pg_catalog.array_to_string(v_problems, '; ');"
+    }
+  end if;
+end $$;
+`;
+}
+
+/**
+ * What one agent_diag session runs: the self-check, then the statement, so
+ * the check vouches for the very session that reads. Any login that is not
+ * on this machine is held to production's refusal.
+ */
+export function sessionSql(sql, connection) {
+  return `${selfCheckSql({ production: !LOOPBACK.test(connection.env.PGHOST ?? "") })}${sql}\n`;
+}
+
+/** Runs sessionSql, prints the check's warnings, and returns psql's output and whether it warned. */
+function runAsAgentDiag(sql, connection, container) {
+  const result = runPsql(sessionSql(sql, connection), connection.env, {
+    args: ["-q", "-A", "-t"],
+    container,
+  });
   if (result.error) {
     fail(
       `could not run psql (${result.error.code ?? result.error.message}). Install the Postgres ` +
         "client, or start the local Supabase stack so its container's client can be used.",
     );
   }
+  let warned = false;
+  for (const line of (result.stderr ?? "").split(/\r?\n/)) {
+    if (!/WARNING:/.test(line)) continue;
+    warned = true;
+    console.error(`  ! ${line.replace(/^.*?WARNING:\s*/, "")}`);
+  }
   if (result.status !== 0) {
-    // psql's own error names the view or the permission, never row data.
+    // psql's own error names the view, the permission or the hazard, never row data.
     fail(
       `${result.via} exited ${result.status}: ` +
         `${(result.stderr ?? "").trim().split("\n").slice(-3).join(" | ")}`,
     );
   }
-  try {
-    return JSON.parse(result.stdout.trim());
-  } catch {
-    fail("psql returned something that is not the trace document");
-  }
+  return { stdout: result.stdout ?? "", warned };
 }
 
 function main() {
   const args = parseArgs();
+  const container = typeof args["psql-container"] === "string" ? args["psql-container"] : undefined;
   let trace;
+  if (args["self-check"] === true) {
+    const connection = agentDiagConnection(agentDiagUrl());
+    if (connection.error) fail(connection.error);
+    const { warned } = runAsAgentDiag("select 1;", connection, container);
+    console.log(
+      warned
+        ? "call-trace: this local agent_diag login has the hazards above; production would refuse it."
+        : "call-trace: this agent_diag login is read-only, bounded, and reaches only ops_diag.",
+    );
+    return;
+  }
   if (typeof args.replay === "string") {
     trace = JSON.parse(readFileSync(args.replay, "utf8"));
   } else {
@@ -395,9 +544,12 @@ function main() {
     }
     const connection = agentDiagConnection(agentDiagUrl());
     if (connection.error) fail(connection.error);
-    const container =
-      typeof args["psql-container"] === "string" ? args["psql-container"] : DEFAULT_PSQL_CONTAINER;
-    trace = runTrace(sql, connection, container);
+    const { stdout } = runAsAgentDiag(sql, connection, container);
+    try {
+      trace = JSON.parse(stdout.trim().split(/\r?\n/).pop());
+    } catch {
+      fail("psql returned something that is not the trace document");
+    }
   }
   if (args.json) {
     console.log(JSON.stringify(trace, null, 2));

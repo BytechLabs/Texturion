@@ -18,8 +18,16 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-// @ts-expect-error — a plain .mjs with no types, which is what CI executes.
-import { agentDiagConnection, agentDiagUrl, buildTraceSql, psqlEnv, resolveRequest } from "../../../../scripts/ops/call-trace.mjs";
+import {
+  agentDiagConnection,
+  agentDiagUrl,
+  buildTraceSql,
+  psqlEnv,
+  resolveRequest,
+  selfCheckSql,
+  sessionSql,
+  // @ts-expect-error — a plain .mjs with no types, which is what CI executes.
+} from "../../../../scripts/ops/call-trace.mjs";
 
 const REPO = join(import.meta.dirname, "..", "..", "..", "..");
 const SCRIPT = join(REPO, "scripts", "ops", "call-trace.mjs");
@@ -144,6 +152,35 @@ describe("call-trace.mjs", () => {
     expect(refused.status).toBe(1);
     expect(refused.stderr).toContain("must log in as agent_diag");
     expect(refused.stderr).not.toContain("secret");
+  });
+
+  it("checks its own session before every trace, strictly for any login not on this machine", () => {
+    const request = resolveRequest({ "company-hash": COMPANY_REF, since: "48h" });
+    if ("error" in request) throw new Error(request.error);
+    const trace = buildTraceSql(request);
+    const remote = agentDiagConnection("postgresql://agent_diag.abcdefgh:p@pooler.example.invalid:5432/postgres");
+    const local = agentDiagConnection("postgresql://agent_diag:p@127.0.0.1:54322/postgres?sslmode=disable");
+    expect(sessionSql(trace, remote)).toBe(`${selfCheckSql({ production: true })}${trace}\n`);
+    expect(sessionSql(trace, local)).toBe(`${selfCheckSql({ production: false })}${trace}\n`);
+  });
+
+  it("asks the session the hazards set-agent-diag-password refuses, and names the way out", () => {
+    // Each was planted on a local stack and seen to stop the check; this
+    // keeps every one of them asked.
+    const strict = selfCheckSql({ production: true });
+    for (const asked of [
+      "current_user <> 'agent_diag'",
+      "current_setting('transaction_read_only')",
+      "'statement_timeout', 'idle_in_transaction_session_timeout',",
+      "'transaction_timeout'",
+      "has_database_privilege(pg_catalog.current_database(), 'TEMP')",
+      "extname = 'pg_net'",
+      "has_table_privilege(c.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')",
+    ]) {
+      expect(strict).toContain(asked);
+    }
+    expect(strict).toMatch(/raise exception 'REFUSED: this agent_diag login is no longer safe: %\. Withdraw it with node scripts\/ops\/set-agent-diag-password\.mjs --target production --withdraw'/);
+    expect(selfCheckSql({ production: false })).toMatch(/raise warning 'agent_diag on this local stack/);
   });
 
   it("passes on no PG* variable from the shell, so nothing outside can change the login's settings", () => {

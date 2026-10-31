@@ -1,6 +1,7 @@
 -- D142: agent_diag reads the ops_diag views and nothing else, and those views
 -- carry nothing personal. It cannot run another owner's routine, make
--- temporary objects, or keep a transaction open past 60 seconds.
+-- temporary objects, or keep a transaction open past 60 seconds, and
+-- set-agent-diag-password.mjs refuses a database where any of that slips.
 --
 -- This is what makes a prompt-free production login for agents safe
 -- (docs/RIG.md): it cannot read messages, contacts, phone numbers or webhook
@@ -412,14 +413,23 @@ end $$;
 
 -- ===========================================================================
 -- AD-9. No temporary objects. TEMP came off PUBLIC (20261031100000), so
--- agent_diag holds neither TEMP nor CREATE on the database, and every other
--- role that held TEMP through PUBLIC still holds it by name.
+-- agent_diag holds neither TEMP nor CREATE on the database, and a role
+-- created now starts without TEMP. The roles that held TEMP through PUBLIC
+-- when the migration ran are named here, and each one present still holds it
+-- by name. A role a later migration adds is not listed, and gets TEMP only
+-- from a grant of its own.
 -- ===========================================================================
 do $$
 declare
   v_db       text := current_database();
+  v_had      text[] := array[
+    'postgres', 'anon', 'authenticated', 'service_role', 'authenticator',
+    'dashboard_user', 'pgbouncer', 'supabase_auth_admin', 'supabase_storage_admin',
+    'supabase_functions_admin', 'supabase_realtime_admin', 'supabase_replication_admin',
+    'supabase_read_only_user', 'supabase_etl_admin', 'supabase_privileged_role'];
+  v_app      text[] := array['postgres', 'anon', 'authenticated', 'service_role', 'authenticator'];
+  v_present  text[];
   v_without  text;
-  v_roles    int;
 begin
   if has_database_privilege('agent_diag', v_db, 'TEMP') then
     raise exception 'AD-9 FAILED: agent_diag can create temporary objects in %', v_db;
@@ -430,33 +440,41 @@ begin
   if has_database_privilege('public', v_db, 'TEMP') then
     raise exception 'AD-9 FAILED: PUBLIC holds TEMP on %, so every role inherits it', v_db;
   end if;
-  select count(*),
-         string_agg(r.rolname, ', ' order by r.rolname)
-           filter (where not has_database_privilege(r.oid, v_db, 'TEMP'))
-    into v_roles, v_without
-    from pg_roles r
-   where r.rolname <> 'agent_diag'
-     and r.rolname !~ '^pg_'
-     and not r.rolsuper;
-  if v_roles < 5 then
-    raise exception 'AD-9 FAILED: only % roles found to check', v_roles;
+
+  create role ad9_probe_created_later nologin;
+  if has_database_privilege('ad9_probe_created_later', v_db, 'TEMP') then
+    raise exception 'AD-9 FAILED: a role created after 20261031100000 holds TEMP on %', v_db;
   end if;
+  drop role ad9_probe_created_later;
+
+  select array_agg(r.rolname order by r.rolname) into v_present
+    from pg_roles r where r.rolname = any (v_had);
+  if not (v_present @> v_app) then
+    raise exception 'AD-9 FAILED: only % of the app''s roles % exist; the list has gone stale',
+      v_present, v_app;
+  end if;
+  select string_agg(r, ', ' order by r) into v_without
+    from unnest(v_present) r
+   where not has_database_privilege(r::name, v_db, 'TEMP');
   if v_without is not null then
     raise exception 'AD-9 FAILED: revoking TEMP from PUBLIC also took it from %', v_without;
   end if;
-  raise notice 'AD-9 PASSED: agent_diag has no TEMP or CREATE on %, and the other % roles keep TEMP by name',
-    v_db, v_roles;
+  raise notice 'AD-9 PASSED: agent_diag and a new role have no TEMP on %, and the % roles that had it keep it by name',
+    v_db, cardinality(v_present);
 end $$;
 
 -- ===========================================================================
 -- AD-10. The role's own settings bound every statement, every idle
 -- transaction and every transaction to 60 seconds at most, and keep it
--- read-only. A session can change them; this proves an honest client such as
--- call-trace.mjs gets them.
+-- read-only, and no per-database setting for agent_diag overrides them: one
+-- set with ALTER ROLE ... IN DATABASE takes precedence at login. A session
+-- can still change them; this proves an honest client such as call-trace.mjs
+-- gets them, and call-trace checks its own session too.
 -- ===========================================================================
 do $$
 declare
   v_config   text[];
+  v_override text;
   v_name     text;
   v_value    text;
   v_ms       numeric;
@@ -464,6 +482,15 @@ declare
                              'transaction_timeout'];
   v_parts    text[];
 begin
+  select string_agg(coalesce(d.datname, s.setdatabase::text) || ' ' || s.setconfig::text, '; ')
+    into v_override
+    from pg_db_role_setting s
+    left join pg_database d on d.oid = s.setdatabase
+   where s.setrole = 'agent_diag'::regrole and s.setdatabase <> 0;
+  if v_override is not null then
+    raise exception 'AD-10 FAILED: agent_diag has per-database settings, which override its role settings: %',
+      v_override;
+  end if;
   select s.setconfig into v_config
     from pg_db_role_setting s
    where s.setrole = 'agent_diag'::regrole and s.setdatabase = 0;
@@ -525,5 +552,123 @@ begin
   end if;
   raise notice 'AD-11 PASSED: agent_diag can read none of % more personal or secret tables', v_present;
 end $$;
+
+-- ===========================================================================
+-- AD-12. set-agent-diag-password.mjs's refusals hold against a real catalog.
+-- v_check's dollar-quoted text is that script's
+-- preconditionSql({ production: true }), byte for byte;
+-- packages/shared/src/agent-diag-password.test.ts fails if the two differ.
+-- Each case plants one hazard in a subtransaction, runs the check, keeps its
+-- error and rolls the hazard back. The database as migrated has pg_net here,
+-- as the local image does, so production's text refuses it for that alone.
+-- ===========================================================================
+do $test$
+declare
+  v_check  text := $check$do $$
+declare
+  v_db       text := pg_catalog.current_database();
+  v_config   text[];
+  v_override text;
+  v_name     text;
+  v_value    text;
+  v_parts    text[];
+  v_ms       numeric;
+  v_net      boolean := false;
+begin
+  if not exists (select 1 from pg_catalog.pg_roles where rolname = 'agent_diag') then
+    raise exception 'REFUSED: there is no agent_diag role here; apply the migrations first';
+  end if;
+  if not (select rolcanlogin from pg_catalog.pg_roles where rolname = 'agent_diag') then
+    raise exception 'REFUSED: agent_diag cannot log in here, so a password would do nothing';
+  end if;
+  if pg_catalog.has_database_privilege('agent_diag', v_db, 'TEMP') then
+    raise exception 'REFUSED: agent_diag can still create temporary objects; migration 20261031100000 is not live here';
+  end if;
+  select pg_catalog.string_agg(coalesce(d.datname, s.setdatabase::text) || ' {' ||
+           pg_catalog.array_to_string(s.setconfig, ', ') || '}', '; ')
+    into v_override
+    from pg_catalog.pg_db_role_setting s
+    left join pg_catalog.pg_database d on d.oid = s.setdatabase
+   where s.setrole = 'agent_diag'::regrole and s.setdatabase <> 0;
+  if v_override is not null then
+    raise exception 'REFUSED: agent_diag has per-database settings, which override its role settings: %', v_override;
+  end if;
+  select s.setconfig into v_config from pg_catalog.pg_db_role_setting s
+   where s.setrole = 'agent_diag'::regrole and s.setdatabase = 0;
+  if not ('default_transaction_read_only=on' = any (coalesce(v_config, '{}'))) then
+    raise exception 'REFUSED: agent_diag does not default to read-only transactions';
+  end if;
+  foreach v_name in array array['statement_timeout', 'idle_in_transaction_session_timeout',
+                                'transaction_timeout'] loop
+    select pg_catalog.split_part(c, '=', 2) into v_value
+      from pg_catalog.unnest(coalesce(v_config, '{}')) c where pg_catalog.split_part(c, '=', 1) = v_name;
+    if v_value is null then
+      raise exception 'REFUSED: agent_diag has no % setting; migration 20261031100000 is not live here', v_name;
+    end if;
+    v_parts := pg_catalog.regexp_match(v_value, '^([0-9]+)(ms|s|min|h)?$');
+    v_ms := v_parts[1]::numeric * case coalesce(v_parts[2], 'ms')
+      when 'ms' then 1 when 's' then 1000 when 'min' then 60000 when 'h' then 3600000 end;
+    if v_parts is null or v_ms <= 0 or v_ms > 60000 then
+      raise exception 'REFUSED: agent_diag''s % is %, which is off or over 60 s', v_name, v_value;
+    end if;
+  end loop;
+  if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_net') then
+    select pg_catalog.has_schema_privilege('agent_diag', 'net', 'USAGE')
+       and (exists (select 1 from pg_catalog.pg_proc p
+                     where p.pronamespace = 'net'::regnamespace
+                       and pg_catalog.has_function_privilege('agent_diag', p.oid, 'EXECUTE'))
+            or exists (select 1 from pg_catalog.pg_class c
+                        where c.relnamespace = 'net'::regnamespace and c.relkind = 'r'
+                          and pg_catalog.has_table_privilege('agent_diag', c.oid, 'INSERT')))
+      into v_net;
+  end if;
+  if v_net is distinct from false then
+    raise exception 'REFUSED: agent_diag can reach pg_net here, which would let it send HTTP requests from the database; this database must not give it a login';
+  end if;
+  raise notice 'preconditions hold';
+end $$;
+$check$;
+  v_db     text := current_database();
+  v_net    boolean := exists (select 1 from pg_extension where extname = 'pg_net');
+  v_plants text[];
+  v_wants  text[];
+  v_msg    text;
+begin
+  v_plants := array[
+    '',
+    format('grant temporary on database %I to agent_diag', v_db),
+    'alter role agent_diag reset transaction_timeout',
+    'alter role agent_diag set statement_timeout = 0',
+    'alter role agent_diag set idle_in_transaction_session_timeout = ''5min''',
+    'alter role agent_diag set default_transaction_read_only = off',
+    format('alter role agent_diag in database %I set statement_timeout = 0', v_db),
+    'alter role agent_diag nologin'];
+  v_wants := array[
+    case when v_net then 'REFUSED: agent_diag can reach pg_net here' else 'NO REFUSAL' end,
+    'REFUSED: agent_diag can still create temporary objects',
+    'REFUSED: agent_diag has no transaction_timeout setting',
+    'REFUSED: agent_diag''s statement_timeout is 0, which is off or over 60 s',
+    'REFUSED: agent_diag''s idle_in_transaction_session_timeout is 5min, which is off or over 60 s',
+    'REFUSED: agent_diag does not default to read-only transactions',
+    'REFUSED: agent_diag has per-database settings, which override its role settings',
+    'REFUSED: agent_diag cannot log in here'];
+  for i in 1 .. cardinality(v_plants) loop
+    begin
+      if v_plants[i] is distinct from '' then
+        execute v_plants[i];
+      end if;
+      execute v_check;
+      raise exception 'NO REFUSAL';
+    exception when others then
+      v_msg := sqlerrm;
+    end;
+    if position(v_wants[i] in v_msg) is distinct from 1 then
+      raise exception 'AD-12 FAILED: with %, the check said "%", want "%"',
+        coalesce(nullif(v_plants[i], ''), 'the database as migrated'), v_msg, v_wants[i];
+    end if;
+  end loop;
+  raise notice 'AD-12 PASSED: set-agent-diag-password refuses each of % planted hazards for its own reason',
+    cardinality(v_plants) - 1;
+end $test$;
 
 rollback;

@@ -6,6 +6,7 @@
  *   node scripts/ops/set-agent-diag-password.mjs --target production --dry-run
  *   node scripts/ops/set-agent-diag-password.mjs --target production --check
  *   node scripts/ops/set-agent-diag-password.mjs --target production
+ *   node scripts/ops/set-agent-diag-password.mjs --target production --withdraw
  *   node scripts/ops/set-agent-diag-password.mjs --target local [--db-port 54322] [--out <file>]
  *
  * WHAT IT DOES. Generates 256 random bits, computes their SCRAM-SHA-256
@@ -26,13 +27,19 @@
  * login on 127.0.0.1. Nothing it reads is printed.
  *
  * WHAT IT REFUSES. A database where agent_diag is not yet hardened: it must
- * exist, log in, hold no TEMP, and carry the role's timeouts (migration
+ * exist, log in, hold no TEMP, default to read-only, and have each timeout at
+ * 60 s or less, with no per-database setting overriding them (migration
  * 20261031100000). And a production database where agent_diag can reach
  * pg_net, which a migration cannot close on Supabase; on the local stack,
- * which installs pg_net, that is a warning.
+ * which installs pg_net, that is a warning. These run when a password is set
+ * or checked. call-trace.mjs checks the same hazards from inside every
+ * agent_diag session it opens, so one that appears later, such as pg_net
+ * enabled from the dashboard, stops the next trace.
  *
  * --dry-run connects to nothing and writes nothing. --check runs the same
- * refusals read-only and changes nothing.
+ * refusals read-only and changes nothing. --withdraw sets the password to
+ * NULL, so agent_diag cannot log in at all, and deletes the local login file:
+ * what to run when call-trace reports the login is no longer safe.
  *
  * NOT IN CI. ops.yml has no password action: the password is born where it
  * is used, and a runner would add a copy of it, a ciphertext in a public
@@ -46,7 +53,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { agentDiagEnvFile, DEFAULT_PSQL_CONTAINER, runPsql } from "./call-trace.mjs";
+import { agentDiagEnvFile, runPsql } from "./call-trace.mjs";
 import { fail, parseArgs } from "./lib.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -183,15 +190,24 @@ export function resolveTarget(target, { env = process.env, root = REPO_ROOT, dbP
 
 /**
  * The refusals, as one DO block. Each failure raises with the reason, so the
- * last ERROR line psql prints is the whole explanation.
+ * last ERROR line psql prints is the whole explanation. A per-database
+ * setting for agent_diag would override its role settings, so any is refused,
+ * and each role setting's value is checked, not only its presence.
+ * supabase/tests/agent_diag.test.sql (AD-12) runs
+ * the production text against a migrated database with each hazard planted,
+ * and agent-diag-password.test.ts fails if that copy drifts from this one.
  */
 export function preconditionSql({ production }) {
   return `do $$
 declare
-  v_db     text := pg_catalog.current_database();
-  v_config text[];
-  v_name   text;
-  v_net    boolean := false;
+  v_db       text := pg_catalog.current_database();
+  v_config   text[];
+  v_override text;
+  v_name     text;
+  v_value    text;
+  v_parts    text[];
+  v_ms       numeric;
+  v_net      boolean := false;
 begin
   if not exists (select 1 from pg_catalog.pg_roles where rolname = 'agent_diag') then
     raise exception 'REFUSED: there is no agent_diag role here; apply the migrations first';
@@ -202,12 +218,32 @@ begin
   if pg_catalog.has_database_privilege('agent_diag', v_db, 'TEMP') then
     raise exception 'REFUSED: agent_diag can still create temporary objects; migration 20261031100000 is not live here';
   end if;
+  select pg_catalog.string_agg(coalesce(d.datname, s.setdatabase::text) || ' {' ||
+           pg_catalog.array_to_string(s.setconfig, ', ') || '}', '; ')
+    into v_override
+    from pg_catalog.pg_db_role_setting s
+    left join pg_catalog.pg_database d on d.oid = s.setdatabase
+   where s.setrole = 'agent_diag'::regrole and s.setdatabase <> 0;
+  if v_override is not null then
+    raise exception 'REFUSED: agent_diag has per-database settings, which override its role settings: %', v_override;
+  end if;
   select s.setconfig into v_config from pg_catalog.pg_db_role_setting s
    where s.setrole = 'agent_diag'::regrole and s.setdatabase = 0;
+  if not ('default_transaction_read_only=on' = any (coalesce(v_config, '{}'))) then
+    raise exception 'REFUSED: agent_diag does not default to read-only transactions';
+  end if;
   foreach v_name in array array['statement_timeout', 'idle_in_transaction_session_timeout',
-                                'transaction_timeout', 'default_transaction_read_only'] loop
-    if not exists (select 1 from unnest(coalesce(v_config, '{}')) c where split_part(c, '=', 1) = v_name) then
+                                'transaction_timeout'] loop
+    select pg_catalog.split_part(c, '=', 2) into v_value
+      from pg_catalog.unnest(coalesce(v_config, '{}')) c where pg_catalog.split_part(c, '=', 1) = v_name;
+    if v_value is null then
       raise exception 'REFUSED: agent_diag has no % setting; migration 20261031100000 is not live here', v_name;
+    end if;
+    v_parts := pg_catalog.regexp_match(v_value, '^([0-9]+)(ms|s|min|h)?$');
+    v_ms := v_parts[1]::numeric * case coalesce(v_parts[2], 'ms')
+      when 'ms' then 1 when 's' then 1000 when 'min' then 60000 when 'h' then 3600000 end;
+    if v_parts is null or v_ms <= 0 or v_ms > 60000 then
+      raise exception 'REFUSED: agent_diag''s % is %, which is off or over 60 s', v_name, v_value;
     end if;
   end loop;
   if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_net') then
@@ -220,7 +256,7 @@ begin
                           and pg_catalog.has_table_privilege('agent_diag', c.oid, 'INSERT')))
       into v_net;
   end if;
-  if v_net then
+  if v_net is distinct from false then
     ${
       production
         ? "raise exception 'REFUSED: agent_diag can reach pg_net here, which would let it send HTTP requests from the database; this database must not give it a login';"
@@ -230,6 +266,11 @@ begin
   raise notice 'preconditions hold';
 end $$;
 `;
+}
+
+/** Takes the password away, so agent_diag can no longer log in with any. */
+export function withdrawSql() {
+  return "alter role agent_diag password null;\n";
 }
 
 /** The whole statement: refusals, then the verifier, in one transaction. */
@@ -267,7 +308,9 @@ function main() {
   const args = parseArgs();
   const dryRun = args["dry-run"] === true;
   const check = args.check === true;
-  const container = typeof args["psql-container"] === "string" ? args["psql-container"] : DEFAULT_PSQL_CONTAINER;
+  const withdraw = args.withdraw === true;
+  if ([dryRun, check, withdraw].filter(Boolean).length > 1) fail("--dry-run, --check and --withdraw are separate runs");
+  const container = typeof args["psql-container"] === "string" ? args["psql-container"] : undefined;
   const dbPort = typeof args["db-port"] === "string" ? Number(args["db-port"]) : undefined;
   if (dbPort !== undefined && !(Number.isInteger(dbPort) && dbPort > 0 && dbPort < 65536)) {
     fail("--db-port takes a port number");
@@ -285,14 +328,22 @@ function main() {
         : join(home, ".loonext", "agent-diag.local.env"),
   );
 
+  const mode = dryRun
+    ? "dry run: connects to nothing, writes nothing"
+    : check
+      ? "check: read-only, changes nothing"
+      : withdraw
+        ? "WITHDRAW: agent_diag loses its password and cannot log in"
+        : "ROTATE: sets a new password";
   console.log("");
   console.log(`  target : ${target.label}`);
-  console.log(`  login  : agent_diag${target.production ? ".<project ref>" : ""}, written to ${out}`);
-  console.log(`  mode   : ${dryRun ? "dry run: connects to nothing, writes nothing" : check ? "check: read-only, changes nothing" : "ROTATE: sets a new password"}`);
+  console.log(`  login  : agent_diag${target.production ? ".<project ref>" : ""}, ${withdraw ? "deleted from" : "written to"} ${out}`);
+  console.log(`  mode   : ${mode}`);
   console.log("");
 
   if (dryRun) {
-    console.log("  Would: refuse unless agent_diag exists, logs in, holds no TEMP and carries its timeouts;");
+    console.log("  Would: refuse unless agent_diag exists, logs in, holds no TEMP, defaults to read-only and");
+    console.log("  has each timeout at 60 s or less with no per-database override;");
     console.log(`  refuse ${target.production ? "" : "(warn, on the local stack) "}if agent_diag can reach pg_net;`);
     console.log("  send only a SCRAM-SHA-256 verifier of 256 random bits; write the login, readable by you only.\n");
     return;
@@ -308,6 +359,16 @@ function main() {
     }
     if (result.status !== 0) fail(scrub(lastError(result.stderr ?? ""), secrets));
     console.log("  Preconditions hold. Nothing was changed.\n");
+    return;
+  }
+
+  if (withdraw) {
+    const result = runPsql(withdrawSql(), target.admin, { container });
+    if (result.error) fail(`could not run psql (${result.error.code ?? result.error.message})`);
+    if (result.status !== 0) fail(`${scrub(lastError(result.stderr ?? ""), secrets)}\n  The password was not withdrawn.`);
+    rmSync(out, { force: true });
+    console.log(`  agent_diag has no password on ${target.production ? "production" : "the local stack"} and cannot log in.`);
+    console.log(`  ${out} is deleted. Run this script without --withdraw to give it a new one.\n`);
     return;
   }
 
@@ -337,7 +398,11 @@ function main() {
 
   console.log(`  agent_diag has a new password on ${target.production ? "production" : "the local stack"}.`);
   console.log(`  The login is in ${out}${restricted ? ", readable by you only" : "; its permissions could NOT be narrowed, so restrict it by hand"}.`);
-  console.log("  call-trace.mjs reads it from there when AGENT_DIAG_DATABASE_URL is unset.\n");
+  console.log(
+    out === resolve(agentDiagEnvFile(home))
+      ? "  call-trace.mjs reads it from there when AGENT_DIAG_DATABASE_URL is unset.\n"
+      : `  call-trace.mjs reads only ${agentDiagEnvFile(home)}; to use this login, set AGENT_DIAG_DATABASE_URL from it.\n`,
+  );
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
