@@ -447,6 +447,26 @@ jobs:
       - name: Guard rig tooling against real phone numbers
         run: node scripts/check-rig-no-e164.mjs
 
+      # D142: the rig fires every cron in the deployed ref's own config. A cron
+      # nobody classified as run, run-expecting-a-refusal or skip leaves R00 an
+      # unexplained Sentry fingerprint, and a job added to a cron changes what
+      # that cron does in rig mode, so both are compared with tools/rig/crons.json.
+      - name: Guard the rig's cron registry
+        run: node scripts/check-rig-crons.mjs
+
+      # D142: Telnyx counts every leg as a dial, and the rig's default cap is 18
+      # a day and 3 an hour. tools/rig/scenarios.json is docs/RIG.md's scenario
+      # tables as data; this fails a schedule over the cap, a scenario whose
+      # dials differ from its hermetic journey, and any drift from the tables.
+      - name: Guard the rig's scenarios and dial budget
+        run: node scripts/check-rig-scenarios.mjs
+
+      # D142: the rig's UIAutomator drivers find call controls by CallTestTags,
+      # from outside the app, so a renamed tag fails a scenario days later with
+      # "element not found". Checked both ways against tools/rig/test-ids.json.
+      - name: Guard the rig's call test ids
+        run: node scripts/check-rig-test-ids.mjs
+
       # D142: "cannot touch production" is a property of the rig's own
       # configuration. Its units, DNS, Caddy sites, settings template and
       # defaults, the Worker configs the deploy CLI derives, and the edge's and
@@ -668,6 +688,13 @@ jobs:
       - name: Test
         run: pnpm -r test
 
+      # D142: the rig CLI has no package of its own, so `pnpm -r test` never
+      # reaches its node:test suites. They import tools/rig-protocol's
+      # TypeScript through Node's type stripping, on by default from 22.18;
+      # setup-node's `22` is the newest 22.x.
+      - name: Rig tooling tests
+        run: node --test "tools/rig/test/*.test.mjs"
+
   build:
     name: Build (next + OpenNext + wrangler)
     # #493: skip the WORK for a release-please pull request.
@@ -800,6 +827,12 @@ jobs:
       # do not exist yet. This opens the panel and audits that.
       - name: Audit the website widget (a11y + bundle budget)
         run: node scripts/check-widget-a11y.mjs
+
+      # D142: the rig's browser lane runs in a real Chromium, so it lives in the
+      # job that installed one above. The lane pins the root's Playwright, so
+      # that install is the build it drives.
+      - name: Rig browser lane
+        run: pnpm --filter @loonext/rig-lanes test:browser
 
   # ---------------------------------------------------------------------------
   # #320: the AUTHENTICATED half of the theme audit.
@@ -1036,6 +1069,30 @@ jobs:
             echo "A production app host configured the nonprod build type." >&2
             exit 1
           fi
+
+      # D142: only the rig ran the nonprod unit tests, so CallTestTagsTest's
+      # check that only nonprod builds expose test tags ran nowhere. Stand-in
+      # Firebase and CA files take the place of the rig's own, which are
+      # gitignored (apps/android/.gitignore).
+      - name: Unit tests (nonprodDebug)
+        run: |
+          set -euo pipefail
+          for dir in app/src/nonprod app/src/nonprodDebug; do
+            mkdir -p "$dir"
+            jq '(.client[].client_info.android_client_info.package_name) = "com.loonext.android.nonprod"' \
+              app/google-services.json > "$dir/google-services.json"
+          done
+          mkdir -p app/src/nonprod/res/raw
+          printf 'ci placeholder\n' > app/src/nonprod/res/raw/rig_ca.pem
+          ./gradlew :app:testNonprodDebugUnitTest \
+            -PloonextNonprodApiUrl=https://api.rig.internal \
+            -PloonextNonprodAppHost=app.rig.internal \
+            -PloonextNonprodSupabaseUrl=https://db.rig.internal \
+            -PloonextNonprodSupabasePublishableKey=sb_publishable_ci_placeholder \
+            -PloonextNonprodStoreFile=/nonexistent/rig.jks \
+            -PloonextNonprodStorePassword=ci-placeholder \
+            -PloonextNonprodKeyAlias=rig \
+            -PloonextNonprodKeyPassword=ci-placeholder
 
       # Google Play rejects a versionCode that is not strictly greater than the
       # last accepted one, so it cannot stay hardcoded at 1. The git commit count
