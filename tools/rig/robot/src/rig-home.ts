@@ -4,18 +4,19 @@
  * `state/`. rigd reads the same store and publishes into the same state
  * folder, so `rig health` can read what it writes.
  *
- * The layout, the settings and the store are the `rig` CLI's own code
- * (tools/rig/src/layout.mjs and secrets.mjs), imported rather than copied, so
- * the CLI and the daemons cannot disagree about where a file is. This module
- * only types them.
+ * The layout, the settings, the store and the reading of `supabase status`
+ * are the `rig` CLI's own code (tools/rig/src/layout.mjs, secrets.mjs and
+ * supabase.mjs), imported rather than copied, so the CLI and the daemons
+ * cannot disagree about where a file is or which stack is local. This module
+ * types them.
  */
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { rigLayout, rigSettings as cliSettings } from "../../src/layout.mjs";
 import { MissingSecret, secretStore } from "../../src/secrets.mjs";
+import { parseLocalStatus, supabaseCli } from "../../src/supabase.mjs";
 
 export { MissingSecret };
 
@@ -114,42 +115,30 @@ export interface LocalSupabase {
   publishableKey: string;
 }
 
-const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
-
-export function isLoopbackUrl(url: string): boolean {
-  try {
-    const host = new URL(url).hostname;
-    return LOCAL_HOSTS.has(host) || host.endsWith(".localhost");
-  } catch {
-    return false;
-  }
+/**
+ * Read by the CLI's own parser, so the rule for which stack is local (its API
+ * and database URLs) has one copy. Unlike the CLI, rigd requires the
+ * publishable key: the app probe signs in with it.
+ */
+export function parseSupabaseStatus(stdout: string): LocalSupabase {
+  const status = parseLocalStatus(stdout) as { apiUrl: string; secretKey: string; publishableKey?: string } | null;
+  if (!status) throw new Error("rigd: supabase status lacks the URL or keys");
+  if (!status.publishableKey) throw new Error("rigd: supabase status lacks the publishable key");
+  return { apiUrl: status.apiUrl, secretKey: status.secretKey, publishableKey: status.publishableKey };
 }
 
-/** The CLI version CI pins, read from checks.yml as the `rig` CLI reads it. */
-export function pinnedSupabaseCli(repoRoot: string): string {
-  const workflow = readFileSync(join(repoRoot, ".github", "workflows", "checks.yml"), "utf8");
-  const match = /supabase\/setup-cli@\S+[^\n]*\n\s*with:\s*\n\s*version:\s*([0-9]+\.[0-9]+\.[0-9]+)/.exec(workflow);
-  if (!match) throw new Error("rigd: cannot find the Supabase CLI version pinned in checks.yml");
-  return match[1]!;
-}
-
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
-
+/**
+ * The CLI's command and pin, run here rather than through its `run()`, which
+ * has no timeout: a daemon must not hang on a stuck Docker.
+ */
 export function localSupabase(home: RigHome, env: NodeJS.ProcessEnv = process.env): LocalSupabase {
-  const command = env.RIG_SUPABASE_CLI ?? "pnpm";
-  const prefix = env.RIG_SUPABASE_CLI ? [] : ["dlx", `supabase@${pinnedSupabaseCli(REPO_ROOT)}`];
+  const { command, prefix } = supabaseCli(env) as { command: string; prefix: string[] };
   const result = spawnSync(command, [...prefix, "status", "-o", "json", "--workdir", home.supabaseWorkdir], {
     encoding: "utf8",
     timeout: 60_000,
   });
   if (result.status !== 0) throw new Error("rigd: supabase status failed; is the local stack up?");
-  const parsed = JSON.parse(result.stdout.slice(result.stdout.indexOf("{"))) as Record<string, string | undefined>;
-  const apiUrl = parsed.API_URL ?? parsed.api_url;
-  const secretKey = parsed.SECRET_KEY ?? parsed.secret_key ?? parsed.SERVICE_ROLE_KEY;
-  const publishableKey = parsed.PUBLISHABLE_KEY ?? parsed.publishable_key ?? parsed.ANON_KEY;
-  if (!apiUrl || !secretKey || !publishableKey) throw new Error("rigd: supabase status lacks the URL or keys");
-  if (!isLoopbackUrl(apiUrl)) throw new Error("rigd: supabase status describes a remote host; the rig only uses its own");
-  return { apiUrl, secretKey, publishableKey };
+  return parseSupabaseStatus(result.stdout);
 }
 
 /** Writes a state file other tools read, by rename so no reader sees half of it. */

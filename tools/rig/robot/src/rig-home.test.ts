@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { standingBook } from "./numbers.ts";
 import {
-  isLoopbackUrl,
   MissingSecret,
+  parseSupabaseStatus,
   publishState,
   readState,
   rigHome,
@@ -55,10 +55,40 @@ describe("the rig's layout", () => {
     expect(readState(home, "absent.json")).toBeUndefined();
   });
 
-  it("knows a loopback storage URL from a hosted one", () => {
-    expect(isLoopbackUrl("http://127.0.0.1:54321")).toBe(true);
-    expect(isLoopbackUrl("https://db.rig.internal")).toBe(false);
-    expect(isLoopbackUrl("https://example.supabase.co")).toBe(false);
+});
+
+describe("supabase status, read by the rig CLI's own rule", () => {
+  const status = (fields: Record<string, string>) => `Stopped services: []\n${JSON.stringify(fields)}`;
+  const local = {
+    API_URL: "http://127.0.0.1:54321",
+    DB_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+    SECRET_KEY: "sb_secret_local",
+    PUBLISHABLE_KEY: "sb_publishable_local",
+  };
+
+  it("takes the local stack's URL and keys", () => {
+    expect(parseSupabaseStatus(status(local))).toEqual({
+      apiUrl: "http://127.0.0.1:54321",
+      secretKey: "sb_secret_local",
+      publishableKey: "sb_publishable_local",
+    });
+    expect(parseSupabaseStatus(status({ ...local, API_URL: "http://host.docker.internal:54321" })).apiUrl).toBe(
+      "http://host.docker.internal:54321",
+    );
+  });
+
+  it("refuses a hosted API or database, as the CLI does", () => {
+    expect(() => parseSupabaseStatus(status({ ...local, API_URL: "https://example.supabase.co" }))).toThrow(/remote host/);
+    expect(() =>
+      parseSupabaseStatus(status({ ...local, DB_URL: "postgresql://postgres:x@db.example.supabase.co:5432/postgres" })),
+    ).toThrow(/remote host/);
+  });
+
+  it("refuses a status without the keys the app probe signs in with", () => {
+    expect(() => parseSupabaseStatus("not json")).toThrow(/lacks the URL or keys/);
+    const withoutPublishable: Record<string, string> = { ...local };
+    delete withoutPublishable.PUBLISHABLE_KEY;
+    expect(() => parseSupabaseStatus(status(withoutPublishable))).toThrow(/publishable key/);
   });
 });
 
