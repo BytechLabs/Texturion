@@ -118,8 +118,9 @@ Sourced from `docs/marketing/BLUEPRINT.md:979-985` and `docs/marketing/COPY.md:3
 > the only place a real Stripe-hosted Checkout and a real handset exercise the parts a fake
 > cannot (hosted payment UI, live carrier delivery). Run it before flipping to live.
 
-Run against **Stripe test mode** and a **Telnyx sandbox number** before flipping to
-live. Use two real phones (or one phone + the Telnyx test tooling).
+Run against **Stripe test mode** and a **number on the one Telnyx account** before
+flipping to live (Telnyx has no sandbox, [04](./04-telnyx.md) §6). Use two real
+phones (or one phone + the Telnyx test tooling).
 
 1. **Sign up** — create an account at `https://app.loonext.com`. Confirm the signup
    CAPTCHA (Turnstile) appears (it renders only when the build had

@@ -8996,3 +8996,91 @@ any vendor seam set, not only `TELNYX_API_BASE` as first designed:
 send a vendor credential or customer traffic to whatever host it names, and
 production's secret list sets none of them, so the refusal costs nothing until
 the day it is needed.
+
+**Update, 2026-10-31 (the build).** The rig's pieces are built: the edge, the
+guard, the rig CLI and box files, `rigd` with the robot, lanes and triage, the
+cron, scenario and test-id registries, the workstation tools and the two
+production watches. `docs/RIG.md` now describes what was built. Decisions made
+while building them:
+
+- **Run lease.** A dial, transfer or bridge needs a live run lease. The robot
+  names it in the `x-rig-lease` header. The app's own legs cannot know the
+  lease id, so a dial from the `rig-api` caller with no header runs under the
+  single live lease and is refused when none is live. A header that names
+  another lease is refused. One paid scenario at a time is the invariant this
+  rests on. The app is unchanged.
+- **Late texts.** The edge cannot re-sign Telnyx's events, and re-signing them
+  with a key of its own would give it a second key that could forge events
+  into the rig. A queued text is offered while its Telnyx signature is valid
+  (the API's 5-minute window), then once more, then dropped and counted as
+  `queue.signature_lapsed`. `rigd` records `late_delivery` only for a text its
+  own attempt sent. Robot webhooks and mail carry no Telnyx signature and keep
+  the 24-hour retry. No app change: rig mode only adds restrictions.
+- **Account notices are corroborated before a halt.** A balance notice by
+  reading the balance; any notice when Telnyx refuses the account's reads; any
+  other only with a valid Telnyx signature and a type enabled on the account.
+  An unsigned notice that cannot be corroborated halts nothing and goes to the
+  synthetic project.
+- **PW01 runs in production.** It runs inside production's own daily scheduled
+  handler with production's existing Telnyx key, GET only, never through the
+  guard. The guard's read class is filtered to nonprod resources, and a
+  webhook delivery carries its event's payload, so the guard is the wrong place
+  to read it from. `productionWatchRefusal` stops it on the rig and on a laptop
+  before any request.
+- **P01's verdicts.** A push's version comes from its session alone. An unknown
+  version is `unattributed`, and one below the platform's beacon floor is
+  `not_instrumented`; neither is judged or counted in the baseline. A drop is a
+  window rate below `t - 3 * sqrt(t(1 - t)(1/n_window + 1/n_baseline))`, with
+  t the baseline rate less 5 points. Computed exactly from the binomial, it
+  fires by chance on at most 0.28% of windows. Media on answered calls is not
+  measured yet, because nothing records it.
+- **Guard measurements.** The guard holds no production credential, and its
+  reserve and ratios go stale after 36 hours, which refuses every paid dial. So
+  `guard.yml`'s `measurements` routine gets a daily schedule. It computes
+  production's reserve from the `ops_diag` views as `agent_diag` (its login a
+  `guard` environment secret, `AGENT_DIAG_DATABASE_URL`, set once FA13 has
+  run), the ratios from the guard's own detail-record read, and the window
+  monthly. `agent_diag` reads only non-personal views.
+- **`ops.yml` has one action, `set-flag`.** It is a dry run unless `apply` is
+  ticked. It runs from `main` only, and the `production-ops` deployment-branch
+  rule is the real control. It validates its inputs, masks the project's host
+  and ref, and keeps the flag's old note out of the public log. The
+  `agent_diag` password is not set there:
+  `scripts/ops/set-agent-diag-password.mjs` runs on the machine that uses the
+  login and sends the database only a SCRAM verifier. A CI path would add a
+  copy of the password on a runner, a ciphertext in a public repository's
+  artifacts and a key pair to manage, and it would protect nothing while the
+  dispatching agent already holds production's keys. So FA13 is an agent
+  action with no approval. If FA1 is chosen later, a job that runs the same
+  script can be added then.
+- **The cron registry.** `tools/rig/crons.json` classifies every cron in every
+  tracked Worker config, keyed by config and cron, as `run`,
+  `run-expect-refusal` or `skip`. An API cron lists its jobs, which must equal
+  `CRON_JOBS`, so a job added to a cron forces someone to classify it again. A
+  refusal says what Sentry receives: the job's liveness alert when the job lets
+  the error out, or the job's own event when it catches it. No API cron is
+  skipped. The edge's and the guard's crons are skips that list no
+  fingerprint: they fire on Cloudflare, and the API raises its own alert for
+  the same expression, which must stay visible. `rig deploy` refuses without
+  the registry and installs a timer only for the crons it runs.
+- **Standing roles live on Telnyx.** Each standing number is ordered with a
+  customer reference naming its role (`rig-standing-<role>`), so the role
+  survives the guard's store and no number is written into git. Production's
+  ownership-mismatch alert looks for a customer reference naming one of its
+  companies, which these never do. `RIG_OWNED_E164` is the standing numbers
+  less STRANGER-1, so G01 can prove the stranger gate, and a number held for
+  one scenario is never on it.
+- **The budget as encoded.** `docs/RIG.md` 4.2's cadence came to 435.4 dials a
+  month, over the 540 ceiling once the reserves are added.
+  `tools/rig/scenarios.json` keeps that cadence for everything that fits: 358.7
+  a month, 490.5 with reserves. S07, S08, S09, S10 and D01 stay unscheduled,
+  because one run of each is more than the hourly cap of 3, and K01 waits for
+  Phase 4. An edit to `docs/RIG.md` 4.1 to 4.3 updates that file in the same
+  change, and `scripts/check-rig-scenarios.mjs` fails CI when they disagree.
+- **Local sign-in uses the rig's own key.** The pinned Supabase CLI already
+  signs ES256, but with a key built into the CLI and the same on every
+  install. The rig generates its own and keeps it in its secret store.
+- **Still no new vendor account.** Everything built runs inside accounts
+  Loonext already has: Cloudflare, Telnyx, Sentry, Stripe (one sandbox),
+  Firebase, Resend and GitHub. Nothing needs a new account, sub-account, seat,
+  SIM or enrollment.

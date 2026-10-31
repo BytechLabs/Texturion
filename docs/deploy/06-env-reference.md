@@ -236,6 +236,33 @@ enforcement would actually cost.
 
 ---
 
+## C.2 D142: the rig's GitHub environments and the ops scripts
+
+None of these reach `loonext-api` or `loonext-web`. They are listed so this file
+stays the one inventory.
+
+**GitHub environments.** `guard`, `rig-cloud`, `rig` and `production-ops` hold
+the secrets and variables that `guard.yml`, `rig-cloud.yml`, `rig-secrets.yml`
+and `ops.yml` read. `docs/RIG.md` FA9 lists every name in one table, with the
+founder action that supplies each vendor value. Of those, only
+`SENTRY_PROD_DSN` (ingest-only, in `guard` and `rig-cloud`) and the
+`production-ops` pair below reach production's own services.
+
+| Name | Secret? | Where | Read by |
+|------|:------:|-------|---------|
+| `SUPABASE_URL` | yes | environment `production-ops` | `ops.yml`'s `set-flag` job, which runs `scripts/ops/set-flag.mjs` from `main` |
+| `SUPABASE_SECRET_KEY` | yes | environment `production-ops` | the same job |
+| `AGENT_DIAG_DATABASE_URL` | yes | the workstation's `~/.loonext/agent-diag.env`, written by `scripts/ops/set-agent-diag-password.mjs` (`docs/RIG.md` FA13); the same login is planned as a `guard` environment secret for the daily measurements | `scripts/ops/call-trace.mjs`, which refuses any login but `agent_diag` |
+
+**Script switches** (shell environment only, never a deploy setting):
+
+| Name | Read by | Effect |
+|------|---------|--------|
+| `LOONEXT_FA1` | `scripts/ops/audit-agent-reach.mjs` | `1` means FA1 was chosen: any production-write or unclassified credential in reach fails the audit. Unset, it reports and passes. |
+| `SUPABASE_POOLER_HOST` | `scripts/ops/set-agent-diag-password.mjs` | The session pooler host for the production login. Unset uses the one `prod-dump-scale.mjs` uses. |
+
+---
+
 ## D. Not env vars — dashboard-only settings
 
 These are configured in a vendor dashboard and have **no** app env var:

@@ -70,15 +70,19 @@ profile, `inbound.codecs: ["OPUS","G722","G711U"]`. Copy the id → the
 > connection MUST have `sip_uri_calling_preference: "internal"` —
 > `PATCH /v2/credential_connections/{id}` with `{"sip_uri_calling_preference":
 > "internal"}`. Every member browser REGISTERS its telephony credential/JWT on
-> THIS connection, and the ring engine dials `sip:<sip_username>@sip.telnyx.com`
-> from THIS connection (`connection_id = TELNYX_WEBRTC_CONNECTION_ID`,
-> `apps/api/src/messaging/inbound-ring.ts`). A SIP-username INVITE only resolves
-> to a registered client when it enters that client's own connection realm with
-> SIP-URI calling enabled. Set on prod 2026-07-12. WITHOUT it (the create-time
-> default is null/disabled) the ring leg returns `state='failed'` and the
-> browser never rings — the call goes straight to voicemail. Dialing the ring
-> from the number's VOICE connection has the same failure (cross-connection: the
-> registration isn't visible), so the ring MUST originate from this connection.
+> THIS connection, and each ring leg is a SIP-username INVITE to
+> `sip:<sip_username>@sip.telnyx.com`. Set on prod 2026-07-12. WITHOUT it (the
+> create-time default is null/disabled) the ring leg returns `state='failed'`
+> and the browser never rings — the call goes straight to voicemail.
+>
+> **Which connection dials the ring (corrected 2026-10-31, D142).** D43's fix
+> dialed each ring leg from this connection, in `inbound-ring.ts` as it was
+> then. The call-session object that replaced that path dials every leg, ring
+> legs included, from the VOICE connection: `connection_id =
+> TELNYX_VOICE_CONNECTION_ID` in `apps/api/src/calls/runtime.ts`. Keep the
+> setting above all the same. With it, this connection accepts SIP calls from
+> any connection on the account (`docs/RIG.md` §2.2), which is the path a leg
+> from the voice connection takes to a browser registered here.
 
 The Worker does the rest at runtime: when a company enables missed-call text-back
 or sets a forward-to-cell, it PATCHes each active number's voice settings to
@@ -240,16 +244,24 @@ live in this same Telnyx account, in the `loonext-nonprod` billing group
 
 ---
 
-## 6. Sandbox vs production
+## 6. Production, and the nonprod partition beside it (D142)
 
-- Use a **test/sandbox Telnyx setup** while validating: a low-cost number and a
-  separate API key. The messaging-profile creation, number order, and 10DLC calls
-  are the same v2 endpoints.
-- For **production**, switch `TELNYX_API_KEY` to the live-account V2 key and confirm
-  the account is 10DLC-approved. `TELNYX_PUBLIC_KEY` is the live account's webhook
-  public key — copy it fresh from the production account's **Account → Public Key**.
-  The Call-Control application (§1) is also per-account — create it in the live
-  account and swap `TELNYX_VOICE_CONNECTION_ID` accordingly.
+There is no Telnyx sandbox and no second Telnyx account. Production and the
+rig share this one account.
+
+- **Production** uses the account's V2 key as `TELNYX_API_KEY` and its webhook
+  public key as `TELNYX_PUBLIC_KEY` (copy it from **Account → Public Key**).
+  `TELNYX_VOICE_CONNECTION_ID` is the §1 Call-Control application. Confirm the
+  account is 10DLC-approved.
+- **Testing against real Telnyx** happens on the rig, in the nonprod partition,
+  through the guard (`docs/RIG.md` §3.5 and §3.6). The partition has its own
+  Call-Control apps, credential connections, messaging profiles and numbers,
+  and its numbers sit in the `loonext-nonprod` billing group. The rig holds no
+  Telnyx key. It reaches Telnyx only through `loonext-telnyx-guard`, which
+  holds the one extra key and refuses anything outside the partition.
+- **Production numbers never carry a billing group** (§5). The group is the only
+  thing that tells a rig number from a customer's. Never assign one to a
+  production number, and never set `TELNYX_BILLING_GROUP_ID` in production.
 
 ---
 
