@@ -79,6 +79,7 @@ export const navEn = {
   ariaPrimary: "Primary",
   homeAria: "Loonext home",
   openMenu: "Open menu",
+  closeMenu: "Close menu",
   logIn: "Log in",
 } as const;
 
@@ -134,6 +135,7 @@ export const navFr: Translated<typeof navEn> = {
   ariaPrimary: "Principale",
   homeAria: "Accueil Loonext",
   openMenu: "Ouvrir le menu",
+  closeMenu: "Fermer le menu",
   logIn: "Se connecter",
 };
 

@@ -70,16 +70,8 @@ export const arrivalScript = (
 /** The English rows, for tests and any English-only surface. */
 export const ARRIVAL_SCRIPT: readonly ArrivalScriptItem[] = arrivalScript("en");
 
-/**
- * The dock event (P5-SPEC §"Coupling to the real DOM"): the sketch dispatches
- * this (bubbling) CustomEvent with `detail: { scriptIndex }` when a particle
- * docks; the hero inbox listens and prepends the matching row.
- */
-export const HERO_ARRIVAL_EVENT = "loonext:arrival";
-
-/** The dock target marker: the sketch steers particles toward the element
- *  carrying this attribute (the hero inbox card). */
-export const ARRIVAL_DOCK_ATTR = "data-arrival-dock";
-
-/** The inbox shows at most this many rows (P5-SPEC: "cap at 4 rows"). */
-export const INBOX_ROW_CAP = 4;
+export {
+  ARRIVAL_DOCK_ATTR,
+  HERO_ARRIVAL_EVENT,
+  INBOX_ROW_CAP,
+} from "./arrival-constants";

@@ -1,9 +1,5 @@
 "use client";
 
-import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
-import type { MarketingLocale } from "@/i18n/marketing/footer";
-import { avatarInitials } from "@loonext/shared";
-
 /**
  * The hero inbox (P5-SPEC §"Coupling to the real DOM"): REAL conversation-row
  * patterns rendering with the app's own tokens (the app's petrol accents, the
@@ -17,6 +13,10 @@ import { avatarInitials } from "@loonext/shared";
  * prepends the matching row with its unread state, settles it to read after
  * ~4s, caps the list at 4 rows, and drops the oldest.
  *
+ * The rows come from the server <Hero>, already in the page's language:
+ * importing the home catalogue here would ship the whole page in both
+ * languages to the client.
+ *
  * No tab stops: the demo rows are static content, not links (§7).
  */
 
@@ -24,15 +24,16 @@ import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-import {
-  arrivalScript,
-  HERO_ARRIVAL_EVENT,
-  INBOX_ROW_CAP,
-} from "./arrival-script";
+import { HERO_ARRIVAL_EVENT, INBOX_ROW_CAP } from "./arrival-constants";
+import type { ArrivalScriptItem } from "./arrival-script";
 
-/** Initials the way the app's avatar draws them ("Karen M" → "KM"). */
+export interface HeroInboxRow extends ArrivalScriptItem {
+  /** Drawn the way the app's avatar draws them ("Karen M" → "KM"). */
+  initials: string;
+}
+
 interface RowState {
-  /** Index into ARRIVAL_SCRIPT. */
+  /** Index into the scripted rows. */
   idx: number;
   unread: boolean;
   /** Stable render key (arrivals can repeat a script index). */
@@ -42,19 +43,16 @@ interface RowState {
 }
 
 /** The finished state SSR ships: the first four scripted rows, read. */
-const INITIAL_ROWS: RowState[] = arrivalScript("en")
-  .slice(0, INBOX_ROW_CAP)
-  .map((_, idx) => ({ idx, unread: false, key: idx, arrived: false }));
+function finishedRows(count: number): RowState[] {
+  return Array.from({ length: Math.min(count, INBOX_ROW_CAP) }, (_, idx) => ({
+    idx,
+    unread: false,
+    key: idx,
+    arrived: false,
+  }));
+}
 
-function InboxRow({
-  row,
-  locale = "en",
-}: {
-  row: RowState;
-  locale?: MarketingLocale;
-}) {
-  const copy = homeCopy(locale);
-  const item = arrivalScript(locale)[row.idx];
+function InboxRow({ row, item }: { row: RowState; item: HeroInboxRow }) {
   return (
     <div
       className={cn(
@@ -69,7 +67,7 @@ function InboxRow({
         aria-hidden
         className="app-ava-petrol grid size-[36px] shrink-0 place-items-center rounded-xl text-[12.5px] font-semibold"
       >
-        {avatarInitials(item.name)}
+        {item.initials}
       </span>
 
       <span className="min-w-0 flex-1">
@@ -107,13 +105,10 @@ function InboxRow({
   );
 }
 
-export function HeroInbox({
-  locale = "en",
-}: {
-  locale?: MarketingLocale;
-} = {}) {
-  const copy = homeCopy(locale);
-  const [rows, setRows] = useState<RowState[]>(INITIAL_ROWS);
+export function HeroInbox({ script }: { script: readonly HeroInboxRow[] }) {
+  const [rows, setRows] = useState<RowState[]>(() =>
+    finishedRows(script.length),
+  );
   const keyRef = useRef(INBOX_ROW_CAP);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -121,7 +116,7 @@ export function HeroInbox({
     const onArrival = (event: Event) => {
       const detail = (event as CustomEvent<{ scriptIndex?: number }>).detail;
       const idx = detail?.scriptIndex;
-      if (typeof idx !== "number" || !arrivalScript(locale)[idx]) return;
+      if (typeof idx !== "number" || !script[idx]) return;
       const key = keyRef.current++;
       // The animation REPLAYS the finished state (P5-SPEC): when a scripted
       // text re-arrives, its previous row leaves before the new one lands, so
@@ -147,7 +142,7 @@ export function HeroInbox({
       document.removeEventListener(HERO_ARRIVAL_EVENT, onArrival);
       for (const t of timers) clearTimeout(t);
     };
-  }, []);
+  }, [script]);
 
   const unreadCount = rows.filter((r) => r.unread).length;
 
@@ -164,7 +159,7 @@ export function HeroInbox({
       </div>
       <div>
         {rows.map((row) => (
-          <InboxRow key={row.key} row={row} locale={locale} />
+          <InboxRow key={row.key} row={row} item={script[row.idx]} />
         ))}
       </div>
     </div>

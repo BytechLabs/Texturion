@@ -12,6 +12,8 @@
  */
 import type { Translated } from "../translated";
 
+import { boundariesEn, boundariesFr } from "./boundaries";
+
 export const miscEn = {
   /* #228 — the AI disclosure table on /legal/subprocessors.
      Descriptive statements of fact about what leaves the product, which is why
@@ -46,22 +48,8 @@ export const miscEn = {
   retry: "Retry",
   turnOn: "Turn on",
 
-  /* The error boundaries and the 404 (app/error.tsx, app/global-error.tsx).
-     These render OUTSIDE any LocaleProvider today — the provider is mounted
-     inside CompanyProvider, which is exactly what has just failed — so they
-     read English until a provider sits above them. The keys exist so that day
-     is a mount and not a re-extraction. */
-  homeAria: "Loonext home",
-  errorHeading: "Something broke on our side.",
-  errorBodyBefore:
-    "It was nothing you did. Try the page again; if it keeps failing,",
-  errorContactLink: "tell us what you were doing",
-  errorBodyAfter: "and we will look into it.",
-  globalErrorBody:
-    "It was nothing you did. Try again; if it keeps failing, come back in a " +
-    "few minutes.",
-  errorReference: "Reference: {digest}",
-  backToHome: "Back to the home page",
+  /* The error boundaries (sections/boundaries.ts) and the 404. */
+  ...boundariesEn,
   notFoundTitle: "Page not found",
   notFoundHeading: "That page doesn't exist.",
   notFoundBody:
@@ -380,17 +368,7 @@ export const miscFr: Translated<typeof miscEn> = {
   retry: "Réessayer",
   turnOn: "Activer",
 
-  homeAria: "Accueil Loonext",
-  errorHeading: "Une erreur est survenue de notre côté.",
-  errorBodyBefore:
-    "Ce n'est pas de votre faute. Réessayez la page ; si le problème persiste,",
-  errorContactLink: "dites-nous ce que vous faisiez",
-  errorBodyAfter: "et nous allons examiner la situation.",
-  globalErrorBody:
-    "Ce n'est pas de votre faute. Réessayez ; si le problème persiste, " +
-    "revenez dans quelques minutes.",
-  errorReference: "Référence : {digest}",
-  backToHome: "Retour à la page d'accueil",
+  ...boundariesFr,
   notFoundTitle: "Page introuvable",
   notFoundHeading: "Cette page n'existe pas.",
   /* No em-dash and no en-dash, in either language: not-found.test.tsx pins

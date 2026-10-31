@@ -5,7 +5,8 @@ import { useEffect } from "react";
 import Link from "next/link";
 
 import { publicEnv } from "@/env";
-import { useT } from "@/i18n/provider";
+
+import { boundaryCopy as copy, boundaryReference } from "./boundary-copy";
 
 /**
  * Root error boundary: catches any render throw outside the (app) group's own
@@ -123,7 +124,6 @@ export default function RootError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const t = useT();
   useEffect(() => {
     // Console for local debugging; Sentry (when configured) for production.
     console.error("Root boundary error", error);
@@ -132,30 +132,28 @@ export default function RootError({
 
   return (
     <main style={styles.main}>
-      <Link href="/" style={styles.wordmark} aria-label={t("misc.homeAria")}>
+      <Link href="/" style={styles.wordmark} aria-label={copy.homeAria}>
         Lo<span style={styles.wordmarkO}>o</span>next
       </Link>
       <div>
-        <h1 style={styles.heading}>{t("misc.errorHeading")}</h1>
+        <h1 style={styles.heading}>{copy.errorHeading}</h1>
         <p style={styles.body}>
-          {t("misc.errorBodyBefore")}{" "}
+          {copy.errorBodyBefore}{" "}
           <Link href="/contact" style={styles.secondary}>
-            {t("misc.errorContactLink")}
+            {copy.errorContactLink}
           </Link>{" "}
-          {t("misc.errorBodyAfter")}
+          {copy.errorBodyAfter}
         </p>
         {error.digest ? (
-          <p style={styles.digest}>
-            {t("misc.errorReference", { digest: error.digest })}
-          </p>
+          <p style={styles.digest}>{boundaryReference(error.digest)}</p>
         ) : null}
       </div>
       <div style={styles.actions}>
         <button type="button" onClick={reset} style={styles.retry}>
-          {t("common.retry")}
+          {copy.retry}
         </button>
         <Link href="/" style={styles.secondary}>
-          {t("misc.backToHome")}
+          {copy.backToHome}
         </Link>
       </div>
     </main>

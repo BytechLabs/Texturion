@@ -4,13 +4,15 @@ import { Menu } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+// sheet-base, not sheet: the app's sheet imports the whole two-language app
+// catalogue for its close label.
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetTitle,
   SheetTrigger,
-} from "@/components/ui/sheet";
+} from "@/components/ui/sheet-base";
 import { golosText } from "@/lib/app/fonts";
 import { body, display, mono } from "@/lib/marketing/fonts";
 import { cn } from "@/lib/utils";
@@ -125,6 +127,7 @@ export function Nav({ locale = "en" }: { locale?: NavCopyLocale } = {}) {
                     surface over .mkt-scope's ground. */}
                 <SheetContent
                   side="right"
+                  closeLabel={copy.closeMenu}
                   className={cn(
                     "mkt-scope frn-sheet w-full gap-0 p-0 sm:max-w-sm",
                     display.variable,

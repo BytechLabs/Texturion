@@ -1,3 +1,5 @@
+import { avatarInitials } from "@loonext/shared";
+
 import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { CountryOnly } from "@/components/marketing/country";
@@ -12,9 +14,9 @@ import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
 
-import { ARRIVAL_DOCK_ATTR } from "./arrival-script";
+import { ARRIVAL_DOCK_ATTR, arrivalScript } from "./arrival-script";
 import { ArrivalLayer } from "./arrival-layer";
-import { HeroInbox } from "./hero-inbox";
+import { HeroInbox, type HeroInboxRow } from "./hero-inbox";
 
 /**
  * S1 · HERO (COPY-DECK v2, DESIGN-DIRECTION v4, amendment 14). Conversion job:
@@ -48,6 +50,12 @@ import { HeroInbox } from "./hero-inbox";
  */
 export function Hero({ locale = "en" }: { locale?: MarketingLocale } = {}) {
   const copy = homeCopy(locale);
+  // On the server, so the client inbox never imports the two-language home
+  // catalogue.
+  const inboxRows: HeroInboxRow[] = arrivalScript(locale).map((item) => ({
+    ...item,
+    initials: avatarInitials(item.name),
+  }));
   return (
     <section className="relative isolate overflow-hidden bg-[color:var(--fr-ground)] pb-16 pt-14 text-[color:var(--fr-ink)] sm:pt-20 lg:pb-24">
       {/* THE CENTERPIECE: full-bleed live generative art spanning the hero.
@@ -144,7 +152,7 @@ export function Hero({ locale = "en" }: { locale?: MarketingLocale } = {}) {
                 ariaLabel={copy.heroInboxAria}
               >
                 <AppSurface>
-                  <HeroInbox locale={locale} />
+                  <HeroInbox script={inboxRows} />
                 </AppSurface>
               </PanelFrame>
             </div>

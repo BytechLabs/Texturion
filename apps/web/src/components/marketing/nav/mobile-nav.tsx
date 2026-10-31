@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import { CountrySelector } from "@/components/marketing/country";
-import { SheetClose } from "@/components/ui/sheet";
+import { SheetClose } from "@/components/ui/sheet-base";
 import { cn } from "@/lib/utils";
 
 import {

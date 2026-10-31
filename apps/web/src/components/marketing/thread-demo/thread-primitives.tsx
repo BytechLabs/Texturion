@@ -29,7 +29,7 @@ import { avatarInitials } from "@loonext/shared";
 
 import { Check, CheckCheck, ImageIcon, Lock, Play } from "lucide-react";
 
-import { formatCallDuration } from "@/lib/format/call";
+import { formatCallDuration } from "@/lib/format/call-duration";
 import { cn } from "@/lib/utils";
 
 import type {

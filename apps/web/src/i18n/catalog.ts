@@ -52,6 +52,7 @@
 import { apiErrorsEn, apiErrorsFr } from "./sections/apiErrors";
 import { areaCodesEn, areaCodesFr } from "./sections/areaCodes";
 import { appShellEn, appShellFr } from "./sections/appShell";
+import { commonEn, commonFr } from "./sections/common";
 import { contactsEn, contactsFr } from "./sections/contacts";
 import { inboxEn, inboxFr } from "./sections/inbox";
 import { miscEn, miscFr } from "./sections/misc";
@@ -67,33 +68,6 @@ import { shellEn, shellFr } from "./sections/shell";
 import { tasksEn, tasksFr } from "./sections/tasks";
 import { threadEn, threadFr } from "./sections/thread";
 import type { Translated } from "./translated";
-
-/** Words used in more than one place, and nowhere in particular. */
-const commonEn = {
-  cancel: "Cancel",
-  save: "Save",
-  saving: "Saving…",
-  saved: "Saved",
-  delete: "Delete",
-  close: "Close",
-  back: "Back",
-  retry: "Try again",
-  loadFailed: "Couldn't load this. Check your connection and try again.",
-  somethingWentWrong: "Something went wrong. Try again.",
-} as const;
-
-const commonFr: Translated<typeof commonEn> = {
-  cancel: "Annuler",
-  save: "Enregistrer",
-  saving: "Enregistrement…",
-  saved: "Enregistré",
-  delete: "Supprimer",
-  close: "Fermer",
-  back: "Retour",
-  retry: "Réessayer",
-  loadFailed: "Impossible de charger. Vérifiez votre connexion et réessayez.",
-  somethingWentWrong: "Une erreur s'est produite. Réessayez.",
-};
 
 /** Text-to-pay (#224), the first surface extracted. */
 const paymentsEn = {

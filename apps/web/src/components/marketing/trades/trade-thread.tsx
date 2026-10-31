@@ -31,7 +31,7 @@ import { avatarInitials } from "@loonext/shared";
 import { CheckCheck, CircleCheck, ImageIcon, Lock, Play } from "lucide-react";
 
 import { StatusPill } from "@/components/inbox/status-pill";
-import { formatCallDuration } from "@/lib/format/call";
+import { formatCallDuration } from "@/lib/format/call-duration";
 import { cn } from "@/lib/utils";
 
 import type {

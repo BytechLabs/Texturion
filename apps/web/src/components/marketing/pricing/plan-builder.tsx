@@ -26,7 +26,7 @@
  */
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import { fill } from "@/i18n/marketing/home";
+import { fill } from "@/i18n/marketing/fill";
 import { pricingCopy } from "@/i18n/marketing/pricing";
 import { PLAN_PRICE_CENTS } from "@loonext/shared";
 import {

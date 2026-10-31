@@ -19,7 +19,7 @@
  */
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import { fill } from "@/i18n/marketing/home";
+import { fill } from "@/i18n/marketing/fill";
 import { pricingCopy, type PricingCopy } from "@/i18n/marketing/pricing";
 import { type KeyboardEvent } from "react";
 
