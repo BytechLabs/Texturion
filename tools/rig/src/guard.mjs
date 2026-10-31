@@ -2,7 +2,7 @@
  * The guard, reached through the edge with the rig's `rig-api` caller token.
  * Paths come from the shared wire contract, never spelled here.
  */
-import { EDGE_PATHS, GUARD_ROUTES, HEADER } from "../../rig-protocol/src/index.ts";
+import { EDGE_PATHS, GUARD_ROUTES, HEADER, STANDING_ROLES } from "../../rig-protocol/src/index.ts";
 
 /**
  * Standing numbers by role. The partition lists the owned numbers; which one
@@ -10,16 +10,7 @@ import { EDGE_PATHS, GUARD_ROUTES, HEADER } from "../../rig-protocol/src/index.t
  * the store's standing-numbers.json until then. Either way each must be in the
  * live listing, so a stale file cannot name a number the rig no longer owns.
  */
-export const STANDING_ROLES = [
-  "ROBOT-1",
-  "ROBOT-2",
-  "STRANGER-1",
-  "DEV-W1",
-  "DEV-W2",
-  "DEV-A1",
-  "DEV-C1",
-  "DEV-E1",
-];
+export { STANDING_ROLES };
 
 const E164 = /^\+[1-9][0-9]{7,14}$/;
 
