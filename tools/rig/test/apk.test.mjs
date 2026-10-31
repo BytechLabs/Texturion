@@ -125,9 +125,11 @@ test("Gradle's own metadata must agree with the APK", () => {
 });
 
 // A real aapt2-built APK of the production package, where one exists here.
+// CI builds none, so there this is skipped and the fixtures above stand alone.
 const DEBUG_APK =
   process.env.RIG_TEST_APK ?? join(TOOLING_ROOT, "apps", "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk");
-test("a real debug APK reads as the production package and is refused", { skip: !existsSync(DEBUG_APK) }, () => {
+const NO_APK = "no Gradle-built APK here; RIG_TEST_APK names one";
+test("a real debug APK reads as the production package and is refused", { skip: existsSync(DEBUG_APK) ? false : NO_APK }, () => {
   assert.equal(apkPackage(DEBUG_APK), "com.loonext.android");
   assert.notEqual(apkRefusal(DEBUG_APK), null);
 });

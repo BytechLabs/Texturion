@@ -4,8 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { dotenvValue, dummyServiceAccount, generateVapidPair, parseDevVars, relayDsn, renderDevVars, seams } from "../src/dev-vars.mjs";
-import { edgeOrigin, rigEndpoints, standingNumbers } from "../src/guard.mjs";
+import {
+  dotenvValue,
+  dummyServiceAccount,
+  firebaseProjectId,
+  generateVapidPair,
+  parseDevVars,
+  relayDsn,
+  renderDevVars,
+  seams,
+} from "../src/dev-vars.mjs";
+import { edgeOrigin, recordStanding, rigEndpoints, standingNumbers } from "../src/guard.mjs";
 import { TOOLING_ROOT } from "../src/layout.mjs";
 import { secretStore } from "../src/secrets.mjs";
 import { STUB_STANDING, stubPartition } from "./support/stub-guard.mjs";
@@ -51,11 +60,12 @@ function context(store, overrides = {}) {
     deploy: { sha: "a".repeat(40) },
     derived: {
       fcmServiceAccount: '{"project_id":"p"}',
+      stripeSecretKey: "sk_test_rig",
       stripeWebhookSecret: "whsec_rig",
       sentryDsn: "http://k@127.0.0.1:8790/1",
       vapidPublicKey: "pub",
       vapidPrivateKey: "priv",
-      rigOwnedE164: rigEndpoints(partition, standing).join(","),
+      rigOwnedE164: rigEndpoints(standing).join(","),
     },
     ...overrides,
   };
@@ -104,6 +114,17 @@ test("rendering resolves every source and points every seam at the edge", () => 
   });
 });
 
+test("RIG_OWNED_E164 is the standing numbers: a number held for a scenario is left out", () => {
+  withStore(fillStore, (store) => {
+    const partition = stubPartition();
+    const monthly = "+14165550199";
+    const withMonthly = { ...partition, owned_e164: [...partition.owned_e164, monthly].sort() };
+    const endpoints = rigEndpoints(standingNumbers(withMonthly, store));
+    assert.ok(!endpoints.includes(monthly));
+    assert.equal(endpoints.length, STUB_STANDING.length - 1);
+  });
+});
+
 test("RIG_OWNED_E164 leaves STRANGER-1 out", () => {
   withStore(fillStore, (store) => {
     const vars = parseDevVars(renderDevVars(TEMPLATE, context(store)));
@@ -125,13 +146,11 @@ test("a missing required source stops the render and is named", () => {
 });
 
 test("a live Stripe key or a raw Telnyx key is never written", () => {
-  withStore(
-    (store) => {
-      fillStore(store);
-      store.write("stripe-secret-key", "sk_live_abcdef");
-    },
-    (store) => assert.throws(() => renderDevVars(TEMPLATE, context(store)), /live Stripe key into STRIPE_SECRET_KEY/),
-  );
+  withStore(fillStore, (store) => {
+    const live = context(store);
+    live.derived = { ...live.derived, stripeSecretKey: "sk_live_abcdef" };
+    assert.throws(() => renderDevVars(TEMPLATE, live), /live Stripe key into STRIPE_SECRET_KEY/);
+  });
   withStore(
     (store) => {
       fillStore(store);
@@ -181,7 +200,43 @@ test("standing numbers must be in the live listing, on nonprod profiles, every r
     assert.throws(() => standingNumbers(withoutRoles, store), /STRANGER-1 cannot be told apart/);
     store.write("standing-numbers.json", partition.standing);
     assert.equal(standingNumbers(withoutRoles, store).size, 8);
+    assert.throws(
+      () => standingNumbers({ ...partition, standing_e164: partition.standing_e164.slice(1) }, store),
+      /ROBOT-1 is not one of the guard's standing numbers/,
+    );
   });
+});
+
+test("the store's standing-numbers.json is rewritten from the checked partition", () => {
+  withStore(
+    () => {},
+    (store) => {
+      const standing = standingNumbers(stubPartition(), store);
+      assert.equal(recordStanding(store, standing), true);
+      assert.equal(recordStanding(store, standing), false, "an unchanged list is not rewritten");
+      const written = store.readJson("standing-numbers.json");
+      assert.deepEqual(
+        written.map((entry) => entry.role),
+        ["ROBOT-1", "ROBOT-2", "STRANGER-1", "DEV-W1", "DEV-W2", "DEV-A1", "DEV-C1", "DEV-E1"],
+      );
+      assert.deepEqual(Object.keys(written[0]).sort(), ["e164", "messaging_profile_id", "role", "telnyx_phone_number_id"]);
+    },
+  );
+});
+
+test("the Firebase project comes from the nonprod google-services.json unless set", () => {
+  withStore(
+    (store) => store.write("android-nonprod-google-services.json", { project_info: { project_id: "rig-firebase" } }),
+    (store) => {
+      assert.equal(firebaseProjectId(store), "rig-firebase");
+      store.write("firebase-project-id", "override");
+      assert.equal(firebaseProjectId(store), "override");
+    },
+  );
+  withStore(
+    () => {},
+    (store) => assert.throws(() => firebaseProjectId(store), /android-nonprod-google-services\.json is not in the store/),
+  );
 });
 
 test("the edge origin must be bare https, or loopback http for a stub", () => {

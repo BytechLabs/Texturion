@@ -86,10 +86,18 @@ install -m 0644 /etc/loonext-rig/ca/root.crt /usr/local/share/ca-certificates/lo
 update-ca-certificates
 
 step "caddy for *.rig.internal"
+# The access point's address may not exist yet (box/sysctl/60-loonext-rig.conf).
+install -m 0644 "$BOX/sysctl/60-loonext-rig.conf" /etc/sysctl.d/60-loonext-rig.conf
+sysctl -p /etc/sysctl.d/60-loonext-rig.conf
+install -d /etc/systemd/system/caddy.service.d
+install -m 0644 "$BOX/systemd/system/caddy-rig.conf" /etc/systemd/system/caddy.service.d/loonext-rig.conf
 install -m 0644 "$BOX/caddy/Caddyfile" /etc/caddy/Caddyfile
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+systemctl daemon-reload
 systemctl enable caddy
 systemctl restart caddy
+# validate opens no listener; this is where a bind would fail.
+systemctl is-active --quiet caddy
 
 step "name resolution: production and vendor APIs resolve to nothing"
 install -m 0644 "$BOX/dnsmasq/host.conf" /etc/loonext-rig/dnsmasq-host.conf
@@ -143,4 +151,4 @@ AS_RIG
 
 echo
 echo "bootstrap.sh: done. Next, as $RIG_USER: fill $RIG_HOME/secrets (tools/rig/README.md),"
-echo "then: node $RIG_HOME/tooling/tools/rig/bin/rig.mjs deploy --ref main"
+echo "then, with XDG_RUNTIME_DIR=/run/user/\$(id -u) set: node $RIG_HOME/tooling/tools/rig/bin/rig.mjs deploy --ref main"

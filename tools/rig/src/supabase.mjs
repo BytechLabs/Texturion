@@ -39,6 +39,11 @@ export function supabase(args, { workdir, inherit = false, allowFailure = false 
 export function localStatus(workdir) {
   const { stdout, status } = supabase(["status", "-o", "json"], { workdir, allowFailure: true });
   if (status !== 0) return null;
+  return parseLocalStatus(stdout);
+}
+
+/** `supabase status -o json` output, or null when it is not a running stack. */
+export function parseLocalStatus(stdout) {
   const start = stdout.indexOf("{");
   let parsed;
   try {

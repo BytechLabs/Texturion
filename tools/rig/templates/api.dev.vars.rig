@@ -41,8 +41,8 @@ FCM_API_BASE={{seam.fcmApiBase}}
 FCM_OAUTH_TOKEN_URL={{seam.fcmOauthTokenUrl}}
 FCM_SERVICE_ACCOUNT_JSON={{derived.fcmServiceAccount}}
 
-# The Stripe sandbox, never a live key.
-STRIPE_SECRET_KEY={{secret:stripe-secret-key}}
+# The Stripe sandbox: a key that is not sk_test_ or rk_test_ is refused.
+STRIPE_SECRET_KEY={{derived.stripeSecretKey}}
 STRIPE_WEBHOOK_SECRET={{derived.stripeWebhookSecret}}
 STRIPE_STARTER_PRICE_ID={{catalog:STRIPE_STARTER_PRICE_ID}}
 STRIPE_PRO_PRICE_ID={{catalog:STRIPE_PRO_PRICE_ID}}
@@ -72,7 +72,8 @@ SENTRY_DSN={{derived.sentryDsn}}
 VAPID_PUBLIC_KEY={{derived.vapidPublicKey}}
 VAPID_PRIVATE_KEY={{derived.vapidPrivateKey}}
 
-# Generated from the guard's live listing at deploy time, STRANGER-1 left out.
+# The standing numbers in the guard's live listing at deploy time, STRANGER-1
+# left out.
 RIG_OWNED_E164={{derived.rigOwnedE164}}
 # The robot's webhook sink. The app refuses *.internal webhook hosts, so it is
 # the edge, which relays /w/<secret> to the robot.

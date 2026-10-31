@@ -5,11 +5,11 @@ import { forwardAiRun } from "../ai-shim/src/forward.mjs";
 import { bootstrapSql, judgePosture } from "../src/bootstrap-db.mjs";
 import { parseArgs } from "../src/cli.mjs";
 import { webBuildArgs } from "../src/deploy.mjs";
-import { expectedWebhooks, nodeOffsetMinutes, tzMismatches, tzProbeSql } from "../src/health.mjs";
+import { nodeOffsetMinutes, tzMismatches, tzProbeSql } from "../src/health.mjs";
 import { DEFAULT_SETTINGS, rigLayout } from "../src/layout.mjs";
 import { CLOUDFLARE_CREDENTIALS, serveArgs, workerEnv } from "../src/serve.mjs";
-import { pinnedCliVersion, schemaPlan } from "../src/supabase.mjs";
-import { startStubGuard, STUB_TOKEN, stubPartition } from "./support/stub-guard.mjs";
+import { parseLocalStatus, pinnedCliVersion, schemaPlan } from "../src/supabase.mjs";
+import { startStubGuard, STUB_TOKEN } from "./support/stub-guard.mjs";
 
 test("the AI shim posts the inputs to the guard's AI route with the caller token", async () => {
   const guard = await startStubGuard({ aiAnswer: (model, inputs) => ({ model, echoed: inputs }) });
@@ -89,6 +89,9 @@ test("a rig Worker never inherits Cloudflare credentials or a wrangler login", (
   }
   assert.ok(CLOUDFLARE_CREDENTIALS.includes("CLOUDFLARE_API_TOKEN"));
   assert.match(env.XDG_CONFIG_HOME, /state[\\/]wrangler-home$/);
+  // wrangler prefers a legacy ~/.wrangler over XDG_CONFIG_HOME, so home moves too.
+  assert.equal(env.HOME, env.XDG_CONFIG_HOME);
+  assert.equal(env.USERPROFILE, env.XDG_CONFIG_HOME);
   assert.equal(env.NODE_EXTRA_CA_CERTS, "/var/lib/loonext-rig/secrets/rig-ca.crt");
   assert.equal(workerEnv(layout, null).NODE_EXTRA_CA_CERTS, undefined);
 });
@@ -116,15 +119,31 @@ test("a disagreement between Node and Postgres is reported per zone and instant"
   assert.match(tzProbeSql(["America/Toronto"], [new Date("2026-01-15T12:00:00Z")]), /'America\/Toronto', '2026-01-15T12:00:00\.000Z'::timestamptz/);
 });
 
-test("the nonprod resources must name the edge's own paths", () => {
-  const partition = stubPartition();
-  const standing = new Map(partition.standing.map((entry) => [entry.role, entry]));
-  const expected = expectedWebhooks("https://e.invalid", partition, standing);
-  const byWhat = Object.fromEntries(expected.map((entry) => [entry.what, entry]));
-  assert.equal(byWhat["nonprod-voice"].fields.webhook_event_url, "https://e.invalid/t/v");
-  assert.equal(byWhat["nonprod-voice"].fields.webhook_event_failover_url, "https://e.invalid/t/v2");
-  assert.equal(byWhat["nonprod-robot"].fields.webhook_event_url, "https://e.invalid/t/r");
-  assert.equal(byWhat["nonprod-webrtc"].fields.webhook_event_url, "https://e.invalid/t/w");
-  assert.equal(byWhat["messaging profile nonprod-robot"].fields.webhook_url, "https://e.invalid/t/r");
-  assert.equal(expected.filter((entry) => entry.fields.webhook_url === "https://e.invalid/t/m").length, 4);
+const STATUS = {
+  API_URL: "http://127.0.0.1:54321",
+  DB_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+  SECRET_KEY: "sb_secret_local",
+  PUBLISHABLE_KEY: "sb_publishable_local",
+};
+
+test("supabase status is read only when it describes this machine", () => {
+  const banner = `Stopped services: [imgproxy]\n${JSON.stringify(STATUS)}`;
+  assert.deepEqual(parseLocalStatus(banner), {
+    apiUrl: STATUS.API_URL,
+    secretKey: STATUS.SECRET_KEY,
+    publishableKey: STATUS.PUBLISHABLE_KEY,
+    dbUrl: STATUS.DB_URL,
+  });
+  assert.equal(parseLocalStatus("not json"), null);
+  assert.equal(parseLocalStatus(JSON.stringify({ API_URL: STATUS.API_URL })), null, "no key means no stack");
+});
+
+test("a status naming a hosted project is refused, so seed and bootstrap never write there", () => {
+  for (const remote of [
+    { ...STATUS, API_URL: "https://project.supabase.co" },
+    { ...STATUS, DB_URL: "postgresql://postgres:pw@db.project.supabase.co:5432/postgres" },
+    { ...STATUS, DB_URL: "postgres://postgres:pw@aws-0-region.pooler.supabase.com:6543/postgres" },
+  ]) {
+    assert.throws(() => parseLocalStatus(JSON.stringify(remote)), /describes a remote host/);
+  }
 });

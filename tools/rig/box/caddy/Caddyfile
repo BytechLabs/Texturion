@@ -20,6 +20,8 @@
 }
 
 (rig_site) {
+	# 10.77.0.1 is the access point's, bound before it exists through
+	# net.ipv4.ip_nonlocal_bind (box/sysctl/60-loonext-rig.conf).
 	bind 127.0.0.1 10.77.0.1
 	tls {
 		issuer internal {

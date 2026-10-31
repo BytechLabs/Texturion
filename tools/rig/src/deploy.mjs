@@ -1,10 +1,12 @@
 /**
  * `rig deploy --ref <tag|branch|sha>`:
  *   1. a git worktree of the ref, with its dependencies installed;
- *   2. the local database migrated, or reset and reseeded when the ref's
- *      schema cannot be reached by migrating;
- *   3. the configuration derived from the ref's own files;
- *   4. the services restarted, and the SHA recorded for every verdict.
+ *   2. the configuration derived from the ref's own files, where every
+ *      refusal happens, before anything that runs is changed;
+ *   3. the local database migrated, or reset and reseeded when the ref's
+ *      schema cannot be reached by migrating, with the services stopped
+ *      first when the schema changes;
+ *   4. the SHA recorded for every verdict, and the services restarted.
  *
  * `--worktree <path>` deploys a checkout in place instead, for a branch an
  * agent is working on; nothing is fetched, created or installed.
@@ -25,10 +27,10 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { bootstrapDb } from "./bootstrap-db.mjs";
-import { cronUnits, cronsToSchedule, readCronRegistry } from "./cron.mjs";
-import { dummyServiceAccount, generateVapidPair, relayDsn, renderDevVars, seams } from "./dev-vars.mjs";
-import { run } from "./exec.mjs";
-import { edgeOrigin, fetchPartition, rigEndpoints, standingNumbers } from "./guard.mjs";
+import { cronTimers, cronUnits, cronsToSchedule, readCronRegistry } from "./cron.mjs";
+import { dummyServiceAccount, firebaseProjectId, generateVapidPair, relayDsn, renderDevVars, seams } from "./dev-vars.mjs";
+import { run, systemctlUser } from "./exec.mjs";
+import { edgeOrigin, fetchPartition, recordStanding, rigEndpoints, standingNumbers } from "./guard.mjs";
 import { TOOLING_ROOT } from "./layout.mjs";
 import { parseJsonc } from "./jsonc.mjs";
 import {
@@ -37,6 +39,7 @@ import {
   generateSigningKeys,
   projectIdOf,
 } from "./supabase-config.mjs";
+import { ensureStripeCatalog, requiredCatalogKeys, stripeSandboxKey, stripeWebhookSecret } from "./stripe.mjs";
 import { appliedMigrationVersions, localStatus, psql, refMigrationVersions, schemaPlan, supabase } from "./supabase.mjs";
 import { aiShimConfig, deriveRigConfig, renderRigConfig } from "./wrangler-config.mjs";
 import { seed } from "../../../scripts/rig/seed.mjs";
@@ -119,8 +122,11 @@ export function webBuildArgs(webPackageJson) {
   return ["exec", "opennextjs-cloudflare", "build", ...(major > 0 && major < 16 ? ["--dangerouslyUseUnsupportedNextVersion"] : [])];
 }
 
+
+/** The OpenNext build. Its config is derived first, so a refusal never waits for the build. */
 function buildWeb({ root, sha, settings, status, log }) {
   const web = join(root, "apps", "web");
+  const derived = deriveRigConfig(parseJsonc(readFileSync(join(web, "wrangler.jsonc"), "utf8")), { port: settings.webPort });
   log("web: OpenNext build");
   run("pnpm", webBuildArgs(JSON.parse(readFileSync(join(web, "package.json"), "utf8"))), {
     cwd: web,
@@ -136,35 +142,50 @@ function buildWeb({ root, sha, settings, status, log }) {
       NEXT_PUBLIC_BLOG_ORIGIN: "",
     },
   });
-  const derived = deriveRigConfig(parseJsonc(readFileSync(join(web, "wrangler.jsonc"), "utf8")), { port: settings.webPort });
-  writeFileSync(join(web, "wrangler.rig.jsonc"), renderRigConfig(derived, { source: "apps/web/wrangler.jsonc", sha }));
+  return { path: join(web, "wrangler.rig.jsonc"), content: renderRigConfig(derived, { source: "apps/web/wrangler.jsonc", sha }) };
 }
 
 /**
- * The ref's crons as user timers. Stale ones are removed first, so a cron a
- * release dropped stops firing.
+ * `systemctl --user` must answer before anything changes, or the deploy
+ * would stop half done at the restart.
  */
-function writeCronTimers({ root, nodeBin, log }) {
+function requireUserManager() {
+  try {
+    systemctlUser(["show-environment"]);
+  } catch {
+    throw new Error(
+      "rig deploy: systemctl --user cannot reach the rig account's user manager; " +
+        "set XDG_RUNTIME_DIR=/run/user/$(id -u), or pass --no-restart",
+    );
+  }
+}
+
+/**
+ * The ref's crons as user timers. The new units are written before the stale
+ * ones are removed, so a failure part way leaves timers that still fire.
+ */
+function installCronTimers({ timers, nodeBin }) {
   const unitDir = join(homedir(), ".config", "systemd", "user");
   mkdirSync(unitDir, { recursive: true });
-  for (const file of readdirSync(unitDir)) {
-    if (file.startsWith("loonext-rig-cron-")) {
-      run("systemctl", ["--user", "disable", "--now", file], { allowFailure: true });
-      rmSync(join(unitDir, file), { force: true });
+  const keep = new Set();
+  for (const { cron, slug } of timers) {
+    const units = cronUnits({ cron, slug, node: nodeBin, rigBin: join(TOOLING_ROOT, "tools", "rig", "bin", "rig.mjs") });
+    for (const [kind, text] of [["service", units.service], ["timer", units.timer]]) {
+      const file = `loonext-rig-cron-${slug}.${kind}`;
+      writeFileSync(join(unitDir, file), text);
+      keep.add(file);
     }
   }
-  const crons = parseJsonc(readFileSync(join(root, "apps", "api", "wrangler.jsonc"), "utf8")).triggers?.crons ?? [];
-  const { schedule, unclassified } = cronsToSchedule(crons, readCronRegistry() ?? []);
-  if (unclassified.length > 0) log(`crons: no timer for ${unclassified.length} cron(s) tools/rig/crons.json does not classify: ${unclassified.join(" | ")}`);
-  schedule.forEach((cron, index) => {
-    const slug = `c${String(index).padStart(2, "0")}`;
-    const units = cronUnits({ cron, slug, node: nodeBin, rigBin: join(TOOLING_ROOT, "tools", "rig", "bin", "rig.mjs") });
-    writeFileSync(join(unitDir, `loonext-rig-cron-${slug}.service`), units.service);
-    writeFileSync(join(unitDir, `loonext-rig-cron-${slug}.timer`), units.timer);
-  });
-  run("systemctl", ["--user", "daemon-reload"]);
-  schedule.forEach((_, index) => run("systemctl", ["--user", "enable", "--now", `loonext-rig-cron-c${String(index).padStart(2, "0")}.timer`]));
-  log(`crons: ${schedule.length} timer(s)`);
+  for (const file of readdirSync(unitDir)) {
+    if (!file.startsWith("loonext-rig-cron-") || keep.has(file)) continue;
+    if (file.endsWith(".timer")) systemctlUser(["disable", "--now", file], { allowFailure: true });
+    rmSync(join(unitDir, file), { force: true });
+  }
+  systemctlUser(["daemon-reload"]);
+  if (timers.length === 0) return;
+  const names = timers.map((entry) => entry.timer);
+  systemctlUser(["enable", ...names]);
+  systemctlUser(["restart", ...names]);
 }
 
 /** Whether every tenant in the store has its company row, whoever reset the database last. */
@@ -196,9 +217,78 @@ function pruneWorktrees(layout, keep, active) {
 }
 
 /**
+ * Every derived file's content. Every refusal (an untaught config key, a live
+ * or missing secret, a missing or unreadable cron registry) happens here,
+ * before the database or a service changes.
+ */
+function deriveAll({ root, sha, layout, settings, store, status, partition, endpoints, edge, timersWanted, log }) {
+  const apiDir = join(root, "apps", "api");
+  const apiConfig = parseJsonc(readFileSync(join(apiDir, "wrangler.jsonc"), "utf8"));
+  const crons = apiConfig.triggers?.crons ?? [];
+  const cronPlan = timersWanted ? cronsToSchedule(crons, readCronRegistry()) : null;
+  if (cronPlan && cronPlan.unclassified.length > 0) {
+    log(`crons: no timer for ${cronPlan.unclassified.length} cron(s) tools/rig/crons.json does not classify (rig health fails on them): ${cronPlan.unclassified.join(" | ")}`);
+  }
+
+  const stripeSecretKey = stripeSandboxKey(store);
+  const template = readFileSync(join(TOOLING_ROOT, "tools", "rig", "templates", "api.dev.vars.rig"), "utf8");
+  const vapid = store.ensureJson("vapid.json", generateVapidPair);
+  const devVars = renderDevVars(template, {
+    store,
+    catalog: ensureStripeCatalog({ store, required: requiredCatalogKeys(template), log }),
+    partition,
+    edge,
+    rig: settings,
+    supabase: status,
+    deploy: { sha },
+    derived: {
+      fcmServiceAccount: dummyServiceAccount(firebaseProjectId(store)),
+      stripeSecretKey,
+      stripeWebhookSecret: stripeWebhookSecret(store),
+      sentryDsn: relayDsn(store.read("sentry-dsn-rig"), settings.sentryRelayOrigin),
+      vapidPublicKey: vapid.publicKey,
+      vapidPrivateKey: vapid.privateKey,
+      rigOwnedE164: endpoints.join(","),
+    },
+  });
+
+  const files = [
+    {
+      path: join(apiDir, "wrangler.rig.jsonc"),
+      content: renderRigConfig(deriveRigConfig(apiConfig, { port: settings.apiPort, aiShim: true }), { source: "apps/api/wrangler.jsonc", sha }),
+    },
+    { path: join(apiDir, ".dev.vars.rig"), content: devVars, mode: 0o600 },
+    {
+      path: join(layout.aiShimDir, "wrangler.jsonc"),
+      content: `${JSON.stringify(
+        aiShimConfig({
+          main: join(TOOLING_ROOT, "tools", "rig", "ai-shim", "src", "index.mjs").replace(/\\/g, "/"),
+          compatibilityDate: apiConfig.compatibility_date,
+          guardAiUrl: seams(edge).guardAiUrl,
+        }),
+        null,
+        2,
+      )}\n`,
+    },
+    { path: join(layout.aiShimDir, ".dev.vars.rig"), content: `GUARD_TOKEN=${store.read("guard-token-rig-api")}\n`, mode: 0o600 },
+  ];
+  return { files, cronPlan };
+}
+
+function writeDerived(files) {
+  for (const { path, content, mode } of files) {
+    mkdirSync(join(path, ".."), { recursive: true });
+    writeFileSync(path, content, mode === undefined ? undefined : { mode });
+  }
+}
+
+/**
  * @param {{ layout, settings, store, ref?: string, worktree?: string, options: object, log: (line: string) => void }} args
  */
 export async function deploy({ layout, settings, store, ref, worktree, options, log }) {
+  const restart = settings.systemd && !options.noRestart;
+  if (restart) requireUserManager();
+
   let root;
   let sha;
   if (worktree) {
@@ -219,10 +309,11 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
     }
   }
   log(`deploy: ${ref ?? root} at ${sha}`);
+  const previous = existsSync(join(layout.state, "deployed.json")) ? JSON.parse(readFileSync(join(layout.state, "deployed.json"), "utf8")) : null;
 
   const partition = await fetchPartition(store);
   const standing = standingNumbers(partition, store);
-  const endpoints = rigEndpoints(partition, standing);
+  const endpoints = rigEndpoints(standing);
   const edge = edgeOrigin(store);
 
   const committedConfig = readFileSync(join(root, "supabase", "config.toml"), "utf8");
@@ -236,11 +327,35 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   const workdir = layout.supabaseWorkdir;
   buildSupabaseWorkdir({ refRoot: root, workdir, configText, signingKeys });
   await ensureStack({ workdir, configHash: hash(configText, signingKeys[0].kid), kid: signingKeys[0].kid, state: layout.state, log });
+  const status = localStatus(workdir);
+  if (status === null) throw new Error("rig deploy: the stack is not answering after start");
+
+  const { files, cronPlan } = deriveAll({
+    root,
+    sha,
+    layout,
+    settings,
+    store,
+    status,
+    partition,
+    endpoints,
+    edge,
+    timersWanted: restart,
+    log,
+  });
+  if (!options.skipWeb) files.push(buildWeb({ root, sha, settings, status, log }));
+  log("config: wrangler.rig.jsonc, .dev.vars.rig and the AI shim derived");
 
   const plan = options.reset
     ? { action: "reset", reason: "--reset" }
     : schemaPlan(appliedMigrationVersions(projectId), refMigrationVersions(root));
   log(`schema: ${plan.action} (${plan.reason})`);
+  if (restart && plan.action !== "none") {
+    // Nothing keeps running against a schema it was not built for, even if
+    // the migration fails half way.
+    systemctlUser(["stop", ...SERVICE_UNITS, "loonext-rig-cron-*.timer"]);
+    log("services stopped for the schema change");
+  }
   if (plan.action === "migrate") {
     try {
       supabase(["migration", "up", "--local"], { workdir, inherit: true });
@@ -253,61 +368,24 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   }
   if (plan.action === "reset") supabase(["db", "reset", "--local"], { workdir, inherit: true });
 
-  const status = localStatus(workdir);
-  if (status === null) throw new Error("rig deploy: the stack is not answering after start");
   await bootstrapDb({ projectId, status, endpoints, preSeam: options.preSeam === true, log });
   if (plan.action === "reset" || options.reseed || !tenantsPresent(projectId, store)) {
     await seed({ workdir, store, partition, log });
   }
+  if (recordStanding(store, standing)) log("store: standing-numbers.json rewritten from the partition");
 
-  const apiDir = join(root, "apps", "api");
-  const apiConfig = parseJsonc(readFileSync(join(apiDir, "wrangler.jsonc"), "utf8"));
-  writeFileSync(
-    join(apiDir, "wrangler.rig.jsonc"),
-    renderRigConfig(deriveRigConfig(apiConfig, { port: settings.apiPort, aiShim: true }), { source: "apps/api/wrangler.jsonc", sha }),
-  );
-  const vapid = store.ensureJson("vapid.json", generateVapidPair);
-  const stripeWebhookSecret =
-    store.readOptional("stripe-webhook-secret") ??
-    run("stripe", ["listen", "--print-secret"], { env: { STRIPE_API_KEY: store.read("stripe-secret-key") } }).stdout.trim();
-  const devVars = renderDevVars(readFileSync(join(TOOLING_ROOT, "tools", "rig", "templates", "api.dev.vars.rig"), "utf8"), {
-    store,
-    catalog: store.readJson("stripe-catalog.json"),
-    partition,
-    edge,
-    rig: settings,
-    supabase: status,
-    deploy: { sha },
-    derived: {
-      fcmServiceAccount: dummyServiceAccount(store.read("firebase-project-id")),
-      stripeWebhookSecret,
-      sentryDsn: relayDsn(store.read("sentry-dsn-rig"), settings.sentryRelayOrigin),
-      vapidPublicKey: vapid.publicKey,
-      vapidPrivateKey: vapid.privateKey,
-      rigOwnedE164: endpoints.join(","),
-    },
-  });
-  writeFileSync(join(apiDir, ".dev.vars.rig"), devVars, { mode: 0o600 });
-
-  mkdirSync(layout.aiShimDir, { recursive: true });
-  writeFileSync(
-    join(layout.aiShimDir, "wrangler.jsonc"),
-    `${JSON.stringify(
-      aiShimConfig({
-        main: join(TOOLING_ROOT, "tools", "rig", "ai-shim", "src", "index.mjs").replace(/\\/g, "/"),
-        compatibilityDate: apiConfig.compatibility_date,
-        guardAiUrl: seams(edge).guardAiUrl,
-      }),
-      null,
-      2,
-    )}\n`,
-  );
-  writeFileSync(join(layout.aiShimDir, ".dev.vars.rig"), `GUARD_TOKEN=${store.read("guard-token-rig-api")}\n`, { mode: 0o600 });
-  log("config: wrangler.rig.jsonc, .dev.vars.rig and the AI shim derived");
-
-  if (!options.skipWeb) buildWeb({ root, sha, settings, status, log });
-
-  const record = { sha, ref: ref ?? null, worktree: root, at: new Date().toISOString(), schema: plan.action };
+  writeDerived(files);
+  const timers = restart ? cronTimers(cronPlan.schedule) : (previous?.timers ?? []);
+  const record = {
+    sha,
+    ref: ref ?? null,
+    worktree: root,
+    at: new Date().toISOString(),
+    schema: plan.action,
+    timers: timers.map(({ cron, timer }) => ({ cron, timer })),
+  };
+  // Written before the restart, because the units start whatever it names;
+  // `rig health` compares it with state/serving-<service>.json.
   mkdirSync(layout.state, { recursive: true });
   writeFileSync(join(layout.state, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`);
   const historyPath = join(layout.state, "history.json");
@@ -315,10 +393,13 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   writeFileSync(historyPath, `${JSON.stringify([...history, record].slice(-50), null, 2)}\n`);
   pointCurrent(layout, root);
 
-  if (settings.systemd && !options.noRestart) {
-    writeCronTimers({ root, nodeBin: process.execPath, log });
-    run("systemctl", ["--user", "restart", ...SERVICE_UNITS], { inherit: true });
+  if (restart) {
+    installCronTimers({ timers, nodeBin: process.execPath });
+    log(`crons: ${timers.length} timer(s)`);
+    systemctlUser(["restart", ...SERVICE_UNITS], { inherit: true });
     log(`services restarted: ${SERVICE_UNITS.join(", ")}`);
+  } else if (settings.systemd) {
+    log(`--no-restart: the services and timers still run ${previous?.sha ?? "what they ran"} until restarted, and rig health fails until then`);
   }
   if (!worktree) pruneWorktrees(layout, settings.keepWorktrees, root);
   log(`deployed ${sha}`);

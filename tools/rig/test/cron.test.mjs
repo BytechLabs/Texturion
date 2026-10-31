@@ -3,7 +3,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { cronToOnCalendar, cronsToSchedule, cronUnits, fireCron, scheduledMinute, scheduledUrl } from "../src/cron.mjs";
+import {
+  cronTimers,
+  cronToOnCalendar,
+  cronsToSchedule,
+  cronUnits,
+  fireCron,
+  readCronRegistry,
+  scheduledMinute,
+  scheduledUrl,
+} from "../src/cron.mjs";
 import { parseJsonc } from "../src/jsonc.mjs";
 import { TOOLING_ROOT } from "../src/layout.mjs";
 
@@ -64,9 +73,37 @@ test("only classified crons get a timer, and a skip gets none", () => {
     { cron: "* * * * *", class: "run" },
     { cron: "0 13 * * *", class: "run-expect-refusal" },
   ];
-  assert.deepEqual(cronsToSchedule(crons, registry), { schedule: ["* * * * *", "0 13 * * *"], unclassified: ["10 13 * * *"] });
-  assert.deepEqual(cronsToSchedule(crons, { "10 13 * * *": "skip" }).schedule, []);
-  assert.deepEqual(cronsToSchedule(crons, null).unclassified, crons);
+  assert.deepEqual(cronsToSchedule(crons, registry), {
+    schedule: ["* * * * *", "0 13 * * *"],
+    unclassified: ["10 13 * * *"],
+    skipped: [],
+  });
+  const withSkip = { crons: [...registry, { config: "apps/api/wrangler.jsonc", cron: "10 13 * * *", class: "skip" }] };
+  assert.deepEqual(cronsToSchedule(crons, withSkip).skipped, ["10 13 * * *"]);
+  assert.deepEqual(cronsToSchedule(crons, withSkip).unclassified, []);
+});
+
+test("a missing or unreadable registry is refused, never read as no crons", () => {
+  const crons = ["* * * * *"];
+  assert.throws(() => cronsToSchedule(crons, null), /crons\.json is missing/);
+  assert.throws(() => cronsToSchedule(crons, { "* * * * *": "run" }), /no list of crons/);
+  assert.throws(() => cronsToSchedule(crons, { crons: [{ expr: "* * * * *", kind: "run" }] }), /no cron or no class/);
+  assert.throws(
+    () => cronsToSchedule(crons, { crons: [{ config: "apps/web/wrangler.jsonc", cron: "* * * * *", class: "run" }] }),
+    /classifies none of apps\/api\/wrangler\.jsonc's crons/,
+  );
+});
+
+test("the registry on main classifies every cron the API declares", { skip: readCronRegistry() === null ? "tools/rig/crons.json is not on this branch" : false }, () => {
+  const { crons } = parseJsonc(readFileSync(join(TOOLING_ROOT, "apps", "api", "wrangler.jsonc"), "utf8")).triggers;
+  assert.deepEqual(cronsToSchedule(crons, readCronRegistry()).unclassified, []);
+});
+
+test("each scheduled cron gets its own timer unit", () => {
+  assert.deepEqual(cronTimers(["* * * * *", "0 13 * * *"]), [
+    { cron: "* * * * *", slug: "c00", timer: "loonext-rig-cron-c00.timer" },
+    { cron: "0 13 * * *", slug: "c01", timer: "loonext-rig-cron-c01.timer" },
+  ]);
 });
 
 test("a timer unit quotes the cron and fires the rig CLI", () => {

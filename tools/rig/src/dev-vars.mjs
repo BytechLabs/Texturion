@@ -51,6 +51,21 @@ export function dummyServiceAccount(projectId) {
 }
 
 /**
+ * The nonprod Firebase project: firebase-project-id when the store has one,
+ * otherwise the project of the nonprod app's google-services.json, which the
+ * secret bundle delivers.
+ */
+export function firebaseProjectId(store) {
+  const explicit = store.readOptional("firebase-project-id");
+  if (explicit) return explicit;
+  const id = store.readJson("android-nonprod-google-services.json").project_info?.project_id;
+  if (typeof id !== "string" || id === "") {
+    throw new Error("rig: android-nonprod-google-services.json names no project_info.project_id");
+  }
+  return id;
+}
+
+/**
  * The rig's Sentry DSN pointed at rigd's relay, which forwards within the
  * caps. Key and project stay; the host becomes the relay.
  */

@@ -60,6 +60,19 @@ export function run(command, args = [], { cwd, env, input, inherit = false, allo
   return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
+/**
+ * `systemctl --user` as the rig account. `sudo -iu rig` leaves
+ * XDG_RUNTIME_DIR unset, and without it systemctl cannot reach the user
+ * manager, which for a lingering account is always at /run/user/<uid>.
+ */
+export function systemctlUser(args, options = {}) {
+  const env = { ...options.env };
+  if (!process.env.XDG_RUNTIME_DIR && typeof process.getuid === "function") {
+    env.XDG_RUNTIME_DIR = `/run/user/${process.getuid()}`;
+  }
+  return run("systemctl", ["--user", ...args], { ...options, env });
+}
+
 /** A long-running child, its output on the rig's own. */
 export function start(command, args = [], { cwd, env, logFile } = {}) {
   const { file, argv, shell } = spawnArgs(command, args);

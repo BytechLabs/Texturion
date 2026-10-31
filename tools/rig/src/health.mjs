@@ -3,15 +3,18 @@
  * Each check passes or fails with a reason; a check that
  * cannot measure fails too, because "unknown" is not a pass. The result is
  * also written to state/health.json, with the guard's room, for rigd to
- * publish.
+ * publish, and it is written even when nothing could be measured.
  */
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { run } from "./exec.mjs";
+import { cronsToSchedule, readCronRegistry } from "./cron.mjs";
+import { run, systemctlUser } from "./exec.mjs";
 import { parseDevVars } from "./dev-vars.mjs";
-import { EDGE_PATHS, GUARD_ROUTES } from "../../rig-protocol/src/index.ts";
-import { edgeOrigin, guardGet } from "./guard.mjs";
+import { GUARD_ROUTES } from "../../rig-protocol/src/index.ts";
+import { guardGet } from "./guard.mjs";
+import { parseJsonc } from "./jsonc.mjs";
+import { stripeSandboxKey } from "./stripe.mjs";
 import { psql } from "./supabase.mjs";
 
 /** Zones the tenants and the hermetic tests use, at instants either side of rule changes. */
@@ -67,69 +70,66 @@ export function tzMismatches(postgresRows) {
   return mismatches;
 }
 
-/** The webhook paths each nonprod resource must name on the edge. */
-export function expectedWebhooks(edge, partition, standing) {
-  const robotProfile = standing.get("ROBOT-1")?.messaging_profile_id ?? null;
-  return [
-    {
-      what: "nonprod-voice",
-      path: `/v2/call_control_applications/${partition.connection_ids.voice}`,
-      fields: { webhook_event_url: `${edge}${EDGE_PATHS.telnyxVoice}`, webhook_event_failover_url: `${edge}${EDGE_PATHS.telnyxVoiceFailover}` },
-    },
-    {
-      what: "nonprod-robot",
-      path: `/v2/call_control_applications/${partition.connection_ids.robot}`,
-      fields: { webhook_event_url: `${edge}${EDGE_PATHS.telnyxRobot}` },
-    },
-    {
-      what: "nonprod-webrtc",
-      path: `/v2/credential_connections/${partition.connection_ids.webrtc}`,
-      fields: { webhook_event_url: `${edge}${EDGE_PATHS.telnyxWebrtc}` },
-    },
-    ...partition.messaging_profile_ids.map((id) => ({
-      what: `messaging profile ${id === robotProfile ? "nonprod-robot" : "of a tenant"}`,
-      path: `/v2/messaging_profiles/${id}`,
-      fields: { webhook_url: `${edge}${id === robotProfile ? EDGE_PATHS.telnyxRobot : EDGE_PATHS.telnyxMessaging}` },
-    })),
-  ];
-}
+/**
+ * The guard re-runs its start-up checks when they are six hours old, on the
+ * next request that needs them; a result much older means they stopped
+ * running.
+ */
+export const GUARD_SAFETY_MAX_AGE_MS = 6 * 3_600_000 + 15 * 60_000;
 
 function readJsonFile(path) {
   return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null;
 }
 
 function fresh(at, maxAgeMs, now = Date.now()) {
-  const time = Date.parse(at ?? "");
+  const time = typeof at === "number" ? at : Date.parse(at ?? "");
   return Number.isFinite(time) && now - time <= maxAgeMs;
 }
 
+const short = (sha) => (typeof sha === "string" ? sha.slice(0, 12) : String(sha));
+
 /**
- * @param {{ layout, settings, store, status, projectId, deployed, partition, standing, fetch?: typeof fetch }} context
+ * @param {{ layout, settings, store, status, projectId, deployed, fetch?: typeof fetch, systemctl?: typeof systemctlUser, cronRegistry?: object }} context
  */
 export function healthChecks(context) {
   const fetchImpl = context.fetch ?? fetch;
-  const api = `http://127.0.0.1:${context.settings.apiPort}`;
+  const systemctl = context.systemctl ?? systemctlUser;
+  const api = () => `http://127.0.0.1:${context.settings.apiPort}`;
   const devVars = () => {
     const path = join(context.deployed.worktree, "apps", "api", ".dev.vars.rig");
     if (!existsSync(path)) throw new Error("the deployed worktree has no .dev.vars.rig");
     return parseDevVars(readFileSync(path, "utf8"));
   };
+  let guardHealth;
+  const guard = () => (guardHealth ??= guardGet(context.store, GUARD_ROUTES.health, fetchImpl));
+  /** Null when `rig serve <service>` serves the deployed SHA. */
+  const servesDeployed = (service) => {
+    const serving = readJsonFile(join(context.layout.state, `serving-${service}.json`));
+    context.published.serving[service] = serving?.sha ?? null;
+    if (serving === null) return `rig serve ${service} has not recorded what it serves`;
+    if (serving.sha !== context.deployed.sha) {
+      return `the ${service} serves ${short(serving.sha)}, but deployed.json names ${short(context.deployed.sha)}`;
+    }
+    return null;
+  };
 
   return {
     async api() {
-      const response = await fetchImpl(`${api}/health`);
+      const response = await fetchImpl(`${api()}/health`);
       const body = await response.json().catch(() => null);
+      // In rig mode the API answers everything, /health included, with 503
+      // until its database reports rig posture.
+      if (response.status === 503 && body?.error?.code === "service_unavailable") {
+        return `the API is not serving: ${body.error.message}`;
+      }
       if (response.status !== 200 || body?.ok !== true) return `the API answered ${response.status}`;
-      // A healthy API with an unready database still answers /health; /v1 is
-      // where the posture refusal shows.
-      const probe = await fetchImpl(`${api}/v1/me`);
-      if (probe.status === 503) return "the API refuses /v1: its database is not in rig posture";
-      return null;
+      return servesDeployed("api");
     },
 
     async web() {
       const response = await fetchImpl(`http://127.0.0.1:${context.settings.webPort}/login`, { redirect: "manual" });
-      return response.status < 500 ? null : `the web app answered ${response.status}`;
+      if (response.status >= 500) return `the web app answered ${response.status}`;
+      return servesDeployed("web");
     },
 
     async database() {
@@ -159,12 +159,12 @@ export function healthChecks(context) {
       const { access_token: token } = await session.json();
       const alg = JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString()).alg;
       if (alg !== "ES256") return `local auth signs ${alg}, and the API accepts ES256 only`;
-      const me = await fetchImpl(`${api}/v1/me`, { headers: { authorization: `Bearer ${token}` } });
+      const me = await fetchImpl(`${api()}/v1/me`, { headers: { authorization: `Bearer ${token}` } });
       return me.status === 200 ? null : `GET /v1/me answered ${me.status}`;
     },
 
     async guard() {
-      const body = await guardGet(context.store, GUARD_ROUTES.health, fetchImpl);
+      const body = await guard();
       if (body?.ok !== true) return "the guard does not report ok";
       if (body.balance_above_floor === false) return "the Telnyx balance is below the floor";
       if (body.balance_above_floor !== true) return "the guard does not report the balance floor";
@@ -179,31 +179,48 @@ export function healthChecks(context) {
       return fresh(state.at, 120_000) ? null : "rigd's uplink report is stale";
     },
 
+    /**
+     * "The nonprod apps point at the edge" is one of the guard's own start-up
+     * checks, run against the live resources with the key only it holds;
+     * the rig-api caller may not read those resources itself.
+     */
     async nonprodApps() {
-      const edge = edgeOrigin(context.store);
-      const wrong = [];
-      for (const expected of expectedWebhooks(edge, context.partition, context.standing)) {
-        const body = await guardGet(context.store, `${GUARD_ROUTES.telnyx}${expected.path}`, fetchImpl);
-        for (const [field, url] of Object.entries(expected.fields)) {
-          if (body?.data?.[field] !== url) wrong.push(`${expected.what} ${field}`);
-        }
+      const safety = (await guard())?.telnyx?.safety;
+      if (!safety || typeof safety.state !== "string") return "the guard's /health does not report its start-up checks";
+      if (safety.state !== "ok") {
+        return `the guard's start-up checks say ${safety.state}: ${(safety.reasons ?? []).join(", ") || "no reason given"}`;
       }
-      return wrong.length === 0 ? null : `not pointed at the edge: ${wrong.join(", ")}`;
+      return fresh(safety.checked_at, GUARD_SAFETY_MAX_AGE_MS) ? null : "the guard's start-up checks have not run for over six hours";
     },
 
     async stripeListener() {
       if (context.settings.systemd) {
-        const active = run("systemctl", ["--user", "is-active", "loonext-rig-stripe-listen.service"], { allowFailure: true });
+        const active = systemctl(["is-active", "loonext-rig-stripe-listen.service"], { allowFailure: true });
         if (active.stdout.trim() !== "active") return "the stripe listen service is not active";
       }
       const printed = run("stripe", ["listen", "--print-secret"], {
-        env: { STRIPE_API_KEY: context.store.read("stripe-secret-key") },
+        env: { STRIPE_API_KEY: stripeSandboxKey(context.store) },
         allowFailure: true,
       });
       if (printed.status !== 0) return "stripe listen --print-secret failed";
       return printed.stdout.trim() === devVars().STRIPE_WEBHOOK_SECRET
         ? null
         : "the listener's signing secret differs from the API's STRIPE_WEBHOOK_SECRET";
+    },
+
+    async crons() {
+      const config = parseJsonc(readFileSync(join(context.deployed.worktree, "apps", "api", "wrangler.jsonc"), "utf8"));
+      const { schedule, unclassified } = cronsToSchedule(config.triggers?.crons ?? [], context.cronRegistry ?? readCronRegistry());
+      if (unclassified.length > 0) {
+        return `${unclassified.length} cron(s) tools/rig/crons.json does not classify have no timer: ${unclassified.join(" | ")}`;
+      }
+      if (!context.settings.systemd) return null;
+      const installed = new Map((context.deployed.timers ?? []).map((entry) => [entry.cron, entry.timer]));
+      const idle = schedule.filter((cron) => {
+        const timer = installed.get(cron);
+        return !timer || systemctl(["is-active", timer], { allowFailure: true }).stdout.trim() !== "active";
+      });
+      return idle.length === 0 ? null : `no active timer for ${idle.length} cron(s): ${idle.join(" | ")}`;
     },
 
     async tz() {
@@ -225,21 +242,30 @@ export function healthChecks(context) {
   };
 }
 
+/**
+ * Runs the checks and writes state/health.json. With `context.unavailable`
+ * set (no deploy, the stack down, a broken rig.json), every check fails with
+ * that reason and the report is still written, so a down rig never reads as
+ * its last green report.
+ */
 export async function runHealth(context, only) {
-  context.published = {};
+  context.published = { serving: {} };
   const checks = healthChecks(context);
   const results = [];
   for (const [name, check] of Object.entries(checks)) {
     if (only && !only.includes(name)) continue;
     let reason;
-    try {
-      reason = await check();
-    } catch (error) {
-      reason = error instanceof Error ? error.message : String(error);
+    if (context.unavailable) reason = context.unavailable;
+    else {
+      try {
+        reason = await check();
+      } catch (error) {
+        reason = error instanceof Error ? error.message : String(error);
+      }
     }
     results.push({ name, pass: reason === null, ...(reason === null ? {} : { reason }) });
   }
-  const report = { at: new Date().toISOString(), sha: context.deployed.sha, results, ...context.published };
+  const report = { at: new Date().toISOString(), sha: context.deployed?.sha ?? null, results, ...context.published };
   mkdirSync(context.layout.state, { recursive: true });
   writeFileSync(join(context.layout.state, "health.json"), `${JSON.stringify(report, null, 2)}\n`);
   return report;

@@ -69,6 +69,7 @@ export function standingNumbers(partition, store) {
   }
   const list = typeof entries === "string" ? JSON.parse(entries) : entries;
   const owned = new Set(partition.owned_e164 ?? []);
+  const standingE164 = Array.isArray(partition.standing_e164) ? new Set(partition.standing_e164) : null;
   const profiles = new Set(partition.messaging_profile_ids ?? []);
   const byRole = new Map();
   for (const entry of list) {
@@ -76,6 +77,9 @@ export function standingNumbers(partition, store) {
     if (byRole.has(entry.role)) throw new Error(`rig: standing role ${entry.role} is listed twice`);
     if (!E164.test(entry.e164 ?? "")) throw new Error(`rig: ${entry.role} is not E.164`);
     if (!owned.has(entry.e164)) throw new Error(`rig: ${entry.role} is not in the guard's live listing`);
+    if (standingE164 !== null && !standingE164.has(entry.e164)) {
+      throw new Error(`rig: ${entry.role} is not one of the guard's standing numbers`);
+    }
     const profile = entry.messaging_profile_id ?? null;
     if (profile !== null && !profiles.has(profile)) {
       throw new Error(`rig: ${entry.role}'s messaging profile is not a nonprod profile`);
@@ -89,16 +93,31 @@ export function standingNumbers(partition, store) {
   }
   const missing = STANDING_ROLES.filter((role) => !byRole.has(role));
   if (missing.length > 0) throw new Error(`rig: no number for ${missing.join(", ")}`);
-  return byRole;
+  return new Map(STANDING_ROLES.map((role) => [role, byRole.get(role)]));
 }
 
 /**
- * RIG_OWNED_E164 and loonext.rig_endpoints: every owned number except
- * STRANGER-1, which G01 uses to prove the app turns strangers away.
+ * The store's standing-numbers.json, which rigd and the robot read by role,
+ * rewritten from numbers standingNumbers has just checked. Returns whether
+ * it changed.
  */
-export function rigEndpoints(partition, standing) {
-  const stranger = standing.get("STRANGER-1").e164;
-  const endpoints = [...new Set(partition.owned_e164)].filter((e164) => e164 !== stranger).sort();
-  for (const e164 of endpoints) if (!E164.test(e164)) throw new Error("rig: the partition lists a number that is not E.164");
-  return endpoints;
+export function recordStanding(store, standing) {
+  const text = JSON.stringify([...standing.values()], null, 2);
+  if (store.readOptional("standing-numbers.json") === text) return false;
+  store.write("standing-numbers.json", text);
+  return true;
+}
+
+/**
+ * RIG_OWNED_E164 and loonext.rig_endpoints: the standing numbers except
+ * STRANGER-1, which G01 uses to prove the app turns strangers away. A number
+ * held only for a while, like S28's monthly one, is left out: both lists are
+ * fixed until the next deploy, and that number may belong to someone else by
+ * then.
+ */
+export function rigEndpoints(standing) {
+  return [...standing.values()]
+    .filter((entry) => entry.role !== "STRANGER-1")
+    .map((entry) => entry.e164)
+    .sort();
 }

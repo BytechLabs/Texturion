@@ -100,27 +100,57 @@ export function cronToOnCalendar(cron) {
   return `${weekday}${date} ${time} UTC`;
 }
 
+export const API_CONFIG = "apps/api/wrangler.jsonc";
+
 /**
- * Which of a ref's crons get a timer. The registry (tools/rig/crons.json)
- * says skip for some; a cron it does not name gets no timer either, because
- * an unclassified cron is exactly what R00 must not run blind.
+ * The class tools/rig/crons.json gives each of one config's crons. The file is
+ * `{ crons: [{ config, cron, class }] }` (a bare list is read too). A missing
+ * file, or one this cannot read, is refused: either would otherwise leave
+ * every cron without a timer while the deploy succeeds.
+ */
+export function registryClasses(registry, config = API_CONFIG) {
+  if (registry === null || registry === undefined) {
+    throw new Error("rig: tools/rig/crons.json is missing, so no cron would get a timer");
+  }
+  const entries = Array.isArray(registry) ? registry : registry.crons;
+  if (!Array.isArray(entries)) throw new Error("rig: tools/rig/crons.json has no list of crons");
+  const classOf = new Map();
+  for (const entry of entries) {
+    if (entry?.config !== undefined && entry.config !== config) continue;
+    if (typeof entry?.cron !== "string" || typeof entry.class !== "string") {
+      throw new Error("rig: a tools/rig/crons.json entry has no cron or no class");
+    }
+    classOf.set(entry.cron.trim(), entry.class);
+  }
+  if (classOf.size === 0) throw new Error(`rig: tools/rig/crons.json classifies none of ${config}'s crons`);
+  return classOf;
+}
+
+/**
+ * Which of a ref's crons get a timer. A skip gets none; nor does a cron the
+ * registry does not name, because an unclassified cron is exactly what R00
+ * must not run blind. `rig health` fails while any is unclassified.
  */
 export function cronsToSchedule(crons, registry) {
-  const classOf = new Map();
-  const entries = Array.isArray(registry) ? registry : (registry?.crons ?? Object.entries(registry ?? {}).map(([cron, value]) => ({ cron, ...(typeof value === "string" ? { class: value } : value) })));
-  for (const entry of entries) {
-    const expr = entry.cron ?? entry.expr ?? entry.schedule;
-    const kind = entry.class ?? entry.classification ?? entry.kind;
-    if (typeof expr === "string" && typeof kind === "string") classOf.set(expr.trim(), kind);
-  }
+  const classOf = registryClasses(registry);
   const schedule = [];
   const unclassified = [];
+  const skipped = [];
   for (const cron of crons) {
     const kind = classOf.get(cron.trim());
     if (kind === undefined) unclassified.push(cron);
-    else if (!/^skip/.test(kind)) schedule.push(cron);
+    else if (/^skip/.test(kind)) skipped.push(cron);
+    else schedule.push(cron);
   }
-  return { schedule, unclassified };
+  return { schedule, unclassified, skipped };
+}
+
+/** The timer unit each scheduled cron gets, in a stable order. */
+export function cronTimers(schedule) {
+  return schedule.map((cron, index) => {
+    const slug = `c${String(index).padStart(2, "0")}`;
+    return { cron, slug, timer: `loonext-rig-cron-${slug}.timer` };
+  });
 }
 
 export function readCronRegistry(root = TOOLING_ROOT) {

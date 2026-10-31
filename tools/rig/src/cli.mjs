@@ -9,7 +9,7 @@ import { buildNonprodApk } from "./apk.mjs";
 import { bootstrapDb } from "./bootstrap-db.mjs";
 import { fireCron, scheduledMinute } from "./cron.mjs";
 import { deploy, resolveSha, STACK_EXCLUDES } from "./deploy.mjs";
-import { fetchPartition, rigEndpoints, standingNumbers } from "./guard.mjs";
+import { fetchPartition, recordStanding, rigEndpoints, standingNumbers } from "./guard.mjs";
 import { runHealth } from "./health.mjs";
 import { rigLayout, rigSettings, TOOLING_ROOT } from "./layout.mjs";
 import { secretStore } from "./secrets.mjs";
@@ -21,7 +21,7 @@ import { seed } from "../../../scripts/rig/seed.mjs";
 
 export const USAGE = `rig <command>
 
-  deploy --ref <tag|branch|sha>   worktree, install, migrate or reset+reseed, derive, restart
+  deploy --ref <tag|branch|sha>   worktree, install, derive, migrate or reset+reseed, restart
          --worktree <path>        deploy a checkout in place instead of a ref
          [--reset] [--reseed] [--pre-seam] [--skip-install] [--skip-web]
          [--no-restart] [--offline]
@@ -86,7 +86,25 @@ function requireStatus(layout) {
 
 async function endpointsFromGuard(store) {
   const partition = await fetchPartition(store);
-  return { partition, endpoints: rigEndpoints(partition, standingNumbers(partition, store)) };
+  const standing = standingNumbers(partition, store);
+  recordStanding(store, standing);
+  return { partition, endpoints: rigEndpoints(standing) };
+}
+
+/** Everything the checks need; when any of it is missing, every check reports why. */
+function healthContext(env) {
+  const layout = rigLayout(env);
+  const context = { layout, deployed: null };
+  try {
+    context.settings = rigSettings(layout);
+    context.store = secretStore(layout.secrets);
+    context.deployed = deployed(layout);
+    context.status = requireStatus(layout);
+    context.projectId = projectIdFor(layout);
+  } catch (error) {
+    context.unavailable = error instanceof Error ? error.message : String(error);
+  }
+  return context;
 }
 
 /**
@@ -99,6 +117,17 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
     log(USAGE);
     return command ? 0 : 2;
   }
+
+  if (command === "health") {
+    const report = await runHealth(healthContext(env), typeof flags.only === "string" ? flags.only.split(",") : undefined);
+    if (flags.json) log(JSON.stringify(report, null, 2));
+    else {
+      for (const result of report.results) log(`${result.pass ? "PASS" : "FAIL"}  ${result.name}${result.reason ? `  ${result.reason}` : ""}`);
+      if (report.room !== undefined) log(`room: ${report.room}`);
+    }
+    return report.results.every((result) => result.pass) ? 0 : 1;
+  }
+
   const layout = rigLayout(env);
   const settings = rigSettings(layout);
   const store = secretStore(layout.secrets);
@@ -154,38 +183,6 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
       }
       if (result.status >= 400 && result.body) log(result.body.slice(0, 2_000));
       return result.status < 400 ? 0 : 1;
-    }
-
-    case "health": {
-      const current = deployed(layout);
-      // An unreachable guard or a partition without roles fails the checks
-      // that need them, not the whole run.
-      const partition = await fetchPartition(store).catch(() => null);
-      let standing = new Map();
-      try {
-        if (partition) standing = standingNumbers(partition, store);
-      } catch {
-        // nonprodApps reports it
-      }
-      const report = await runHealth(
-        {
-          layout,
-          settings,
-          store,
-          status: requireStatus(layout),
-          projectId: projectIdFor(layout),
-          deployed: current,
-          partition,
-          standing,
-        },
-        typeof flags.only === "string" ? flags.only.split(",") : undefined,
-      );
-      if (flags.json) log(JSON.stringify(report, null, 2));
-      else {
-        for (const result of report.results) log(`${result.pass ? "PASS" : "FAIL"}  ${result.name}${result.reason ? `  ${result.reason}` : ""}`);
-        if (report.room !== undefined) log(`room: ${report.room}`);
-      }
-      return report.results.every((result) => result.pass) ? 0 : 1;
     }
 
     case "apk": {

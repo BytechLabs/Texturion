@@ -65,7 +65,12 @@ export function startStubGuard({ port = 0, aiAnswer = () => ({ response: "stub" 
     const route = url.pathname.startsWith(EDGE_PATHS.guardPrefix) ? url.pathname.slice(EDGE_PATHS.guardPrefix.length) : null;
     if (route === GUARD_ROUTES.partition && request.method === "GET") return send(200, stubPartition());
     if (route === GUARD_ROUTES.health && request.method === "GET") {
-      return send(200, { ok: true, balance_above_floor: true, room: 4 });
+      return send(200, {
+        ok: true,
+        balance_above_floor: true,
+        room: 4,
+        telnyx: { key: "present", safety: { state: "ok", reasons: [], checked_at: Date.now() } },
+      });
     }
     if (route?.startsWith(`${GUARD_ROUTES.ai}/run/`) && request.method === "POST") {
       const model = route.slice(`${GUARD_ROUTES.ai}/run/`.length);

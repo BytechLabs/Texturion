@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 
 import { TENANTS, memberEmail } from "./tenants.mjs";
 import { localSupabaseUrl } from "../local-supabase.mjs";
-import { fetchPartition, standingNumbers } from "../../tools/rig/src/guard.mjs";
+import { fetchPartition, recordStanding, standingNumbers } from "../../tools/rig/src/guard.mjs";
 import { rigLayout } from "../../tools/rig/src/layout.mjs";
 import { secretStore } from "../../tools/rig/src/secrets.mjs";
 import { projectIdOf } from "../../tools/rig/src/supabase-config.mjs";
@@ -251,6 +251,8 @@ export async function seed({ workdir, store, partition, log = console.log }) {
 
   const live = partition ?? (await fetchPartition(store));
   const standing = standingNumbers(live, store);
+  // rigd and the robot find the numbers by role in this file.
+  recordStanding(store, standing);
   const ids = store.ensureJson("tenants.json", () => generateTenantIds());
   for (const tenant of TENANTS) {
     if (!ids[tenant.key]) throw new Error(`rig seed: tenants.json has no entry for ${tenant.key}`);
