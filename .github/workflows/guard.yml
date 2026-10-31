@@ -1,0 +1,177 @@
+name: Guard
+
+# D142, docs/RIG.md: `loonext-telnyx-guard` deploys from main, and
+# only after its policy tests pass. Per the 2026-10-30 amendment there is no
+# approval step: while agents act under the founder's GitHub identity a
+# reviewer gate cannot stop one, so the guard's protection is its own code and
+# the tests below are the gate.
+#
+# It runs when the guard, the wire contract it shares with the edge and the rig,
+# or the app's Telnyx endpoint registry changes. The registry is in the list
+# because the guard's policy is generated from it: a merged endpoint change is
+# enforced only once this has deployed it.
+#
+# BEFORE THE FOUNDER CREATES THE TOKEN (FA4) the deploy job says so and stops,
+# green. A red main for a credential nobody has made yet would be a standing red,
+# and a standing red hides the next real one.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/guard/**"
+      - "tools/rig-protocol/**"
+      - "apps/api/src/telnyx/endpoints.ts"
+  workflow_dispatch:
+    inputs:
+      setup:
+        description: "Also run the setup routine (create or converge the Telnyx partition) after deploying"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Deploys never overlap or cancel each other: a half-applied deploy is worse
+# than a queued one.
+concurrency:
+  group: guard-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Guard policy tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: |
+          pnpm --filter @loonext/rig-protocol typecheck
+          pnpm --filter @loonext/telnyx-guard typecheck
+
+      - name: Lint
+        run: pnpm --filter @loonext/telnyx-guard lint
+
+      - name: Policy tests
+        run: pnpm --filter @loonext/telnyx-guard test
+
+      # The registry the policy is generated from must still equal the app's
+      # calls, both ways, or the policy is enforcing a list nobody calls.
+      - name: Telnyx endpoint registry
+        run: node scripts/check-telnyx-endpoints.mjs
+
+      - name: No real phone numbers in the rig's tooling
+        run: node scripts/check-rig-no-e164.mjs
+
+  deploy:
+    name: Deploy loonext-telnyx-guard
+    needs: test
+    runs-on: ubuntu-latest
+    environment: guard
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Is the guard-deploy token there yet?
+        id: token
+        run: |
+          if [ -z "${CLOUDFLARE_API_TOKEN}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID}" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Guard not deployed::The guard environment has no CF_API_TOKEN secret or CLOUDFLARE_ACCOUNT_ID variable yet (FA4). The policy tests passed; nothing was deployed."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.token.outputs.ready == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - if: steps.token.outputs.ready == 'true'
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - if: steps.token.outputs.ready == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        if: steps.token.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # The values that are not in git but live in the `guard` environment.
+      # Only the ones present are written, so an unset one never blanks what
+      # the Worker already holds. The vendor keys (FA3, FA6, FA8) are pasted
+      # into the Worker directly and never pass through here.
+      - name: Sync configuration from the environment
+        if: steps.token.outputs.ready == 'true'
+        env:
+          SENTRY_PROD_DSN: ${{ secrets.SENTRY_PROD_DSN }}
+          EDGE_ORIGIN: ${{ vars.EDGE_ORIGIN }}
+          ROBOT_MAILBOX: ${{ secrets.ROBOT_MAILBOX }}
+          NOTIFICATION_PATH_SECRET: ${{ secrets.NOTIFICATION_PATH_SECRET }}
+        run: |
+          umask 077
+          file="$(mktemp)"
+          jq -n \
+            --arg SENTRY_PROD_DSN "$SENTRY_PROD_DSN" \
+            --arg EDGE_ORIGIN "$EDGE_ORIGIN" \
+            --arg ROBOT_MAILBOX "$ROBOT_MAILBOX" \
+            --arg NOTIFICATION_PATH_SECRET "$NOTIFICATION_PATH_SECRET" \
+            '$ARGS.named | with_entries(select(.value != ""))' > "$file"
+          if [ "$(jq 'length' "$file")" -gt 0 ]; then
+            pnpm --filter @loonext/telnyx-guard exec wrangler secret bulk "$file"
+          else
+            echo "::notice title=No guard configuration to sync::None of SENTRY_PROD_DSN, EDGE_ORIGIN, ROBOT_MAILBOX or NOTIFICATION_PATH_SECRET is set in the guard environment."
+          fi
+          rm -f "$file"
+
+      # The message names the commit, so the hourly attestation can tell a
+      # deployment from this workflow (a main commit) from any other, reading
+      # the live deployment with guard-attest-read. Version ids stay out of
+      # this public log.
+      - name: Deploy
+        if: steps.token.outputs.ready == 'true'
+        run: pnpm --filter @loonext/telnyx-guard exec wrangler deploy --message "guard.yml ${GITHUB_SHA}"
+
+      # Through the edge with the admin token, once both exist: the guard has
+      # no URL of its own. A failed start-up check fails this run on purpose.
+      # The guard is up but refusing everything, and that should be loud.
+      - name: Start-up checks, or the setup routine when asked
+        if: steps.token.outputs.ready == 'true'
+        env:
+          EDGE_ORIGIN: ${{ vars.EDGE_ORIGIN }}
+          GUARD_ADMIN_TOKEN: ${{ secrets.GUARD_ADMIN_TOKEN }}
+          RUN_SETUP: ${{ github.event_name == 'workflow_dispatch' && inputs.setup }}
+        run: |
+          if [ -z "$EDGE_ORIGIN" ] || [ -z "$GUARD_ADMIN_TOKEN" ]; then
+            echo "::notice title=Guard checks skipped::EDGE_ORIGIN or GUARD_ADMIN_TOKEN is not set in the guard environment yet, so the guard cannot be reached."
+            exit 0
+          fi
+          route="check"
+          if [ "$RUN_SETUP" = "true" ]; then route="setup"; fi
+          status="$(curl -sS -o result.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${GUARD_ADMIN_TOKEN}" \
+            "${EDGE_ORIGIN}/g/admin/${route}")"
+          # Reason codes and resource names only; the guard returns no ids here.
+          jq '{state: (.safety.state // .state), reasons: (.safety.reasons // .reasons), steps: .steps, rule: .rule}' result.json
+          state="$(jq -r '.safety.state // .state // empty' result.json)"
+          rule="$(jq -r '.rule // empty' result.json)"
+          rm -f result.json
+          if [ "$rule" = "telnyx.key_missing" ]; then
+            echo "::notice title=Guard has no Telnyx key yet::TELNYX_API_KEY is not set on the Worker (FA3); every Telnyx route fails closed until it is."
+            exit 0
+          fi
+          case "$status" in
+            2*) ;;
+            *) echo "::error title=Guard ${route} failed::HTTP ${status}"; exit 1 ;;
+          esac
+          if [ "$state" = "unsafe" ]; then
+            echo "::error title=Guard refuses to serve::The start-up checks found the partition unsafe; see the reasons above."
+            exit 1
+          fi
