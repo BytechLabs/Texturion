@@ -182,6 +182,8 @@ const SUITES = [
   "push_evidence",
   // D142: agent_diag reads the non-personal views and nothing else.
   "agent_diag",
+  // D142 P01: ring success counts, verdicts and grants.
+  "ring_success",
 ];
 
 const args = process.argv.slice(2);
