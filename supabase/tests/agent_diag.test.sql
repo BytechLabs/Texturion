@@ -1,5 +1,6 @@
 -- D142: agent_diag reads the ops_diag views and nothing else, and those views
--- carry nothing personal.
+-- carry nothing personal. It cannot run another owner's routine, make
+-- temporary objects, or keep a transaction open past 60 seconds.
 --
 -- This is what makes a prompt-free production login for agents safe
 -- (docs/RIG.md): it cannot read messages, contacts, phone numbers or webhook
@@ -371,6 +372,158 @@ begin
   end if;
   raise notice 'AD-7 PASSED: agent_diag reads its evidence and none of the % planted values',
     cardinality(v_plants);
+end $$;
+
+-- ===========================================================================
+-- AD-8. The only SECURITY DEFINER routine agent_diag can execute is the one
+-- its views call: each other one runs with its owner's rights, a way around
+-- AD-2. Asked of EXECUTE alone, so a schema opened later is already covered.
+-- Trigger functions are left out because no query can call one directly.
+-- ===========================================================================
+do $$
+declare
+  v_allowed  regprocedure[] := array['ops_diag.ring_audience_sizes_now()'::regprocedure];
+  v_checked  int;
+  v_extra    text;
+begin
+  select count(*),
+         string_agg(p.oid::regprocedure::text, ', ' order by p.oid::regprocedure::text)
+           filter (where has_function_privilege('agent_diag', p.oid, 'EXECUTE')
+                     and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
+                     and not (p.oid::regprocedure = any (v_allowed)))
+    into v_checked, v_extra
+    from pg_proc p
+   where p.prosecdef;
+  if v_checked < 100 then
+    raise exception 'AD-8 FAILED: only % SECURITY DEFINER routines found to check; the catalog '
+      'query has stopped matching, so a pass would mean nothing', v_checked;
+  end if;
+  if v_extra is not null then
+    raise exception 'AD-8 FAILED: agent_diag can execute SECURITY DEFINER routine(s) outside its allowlist: %',
+      v_extra;
+  end if;
+  if not has_function_privilege('agent_diag', v_allowed[1], 'EXECUTE') then
+    raise exception 'AD-8 FAILED: the allowlist names % and agent_diag cannot execute it; '
+      'the list has gone stale', v_allowed[1];
+  end if;
+  raise notice 'AD-8 PASSED: of % SECURITY DEFINER routines, agent_diag can execute only %',
+    v_checked, array_to_string(v_allowed, ', ');
+end $$;
+
+-- ===========================================================================
+-- AD-9. No temporary objects. TEMP came off PUBLIC (20261031100000), so
+-- agent_diag holds neither TEMP nor CREATE on the database, and every other
+-- role that held TEMP through PUBLIC still holds it by name.
+-- ===========================================================================
+do $$
+declare
+  v_db       text := current_database();
+  v_without  text;
+  v_roles    int;
+begin
+  if has_database_privilege('agent_diag', v_db, 'TEMP') then
+    raise exception 'AD-9 FAILED: agent_diag can create temporary objects in %', v_db;
+  end if;
+  if has_database_privilege('agent_diag', v_db, 'CREATE') then
+    raise exception 'AD-9 FAILED: agent_diag can create schemas in %', v_db;
+  end if;
+  if has_database_privilege('public', v_db, 'TEMP') then
+    raise exception 'AD-9 FAILED: PUBLIC holds TEMP on %, so every role inherits it', v_db;
+  end if;
+  select count(*),
+         string_agg(r.rolname, ', ' order by r.rolname)
+           filter (where not has_database_privilege(r.oid, v_db, 'TEMP'))
+    into v_roles, v_without
+    from pg_roles r
+   where r.rolname <> 'agent_diag'
+     and r.rolname !~ '^pg_'
+     and not r.rolsuper;
+  if v_roles < 5 then
+    raise exception 'AD-9 FAILED: only % roles found to check', v_roles;
+  end if;
+  if v_without is not null then
+    raise exception 'AD-9 FAILED: revoking TEMP from PUBLIC also took it from %', v_without;
+  end if;
+  raise notice 'AD-9 PASSED: agent_diag has no TEMP or CREATE on %, and the other % roles keep TEMP by name',
+    v_db, v_roles;
+end $$;
+
+-- ===========================================================================
+-- AD-10. The role's own settings bound every statement, every idle
+-- transaction and every transaction to 60 seconds at most, and keep it
+-- read-only. A session can change them; this proves an honest client such as
+-- call-trace.mjs gets them.
+-- ===========================================================================
+do $$
+declare
+  v_config   text[];
+  v_name     text;
+  v_value    text;
+  v_ms       numeric;
+  v_limits   text[] := array['statement_timeout', 'idle_in_transaction_session_timeout',
+                             'transaction_timeout'];
+  v_parts    text[];
+begin
+  select s.setconfig into v_config
+    from pg_db_role_setting s
+   where s.setrole = 'agent_diag'::regrole and s.setdatabase = 0;
+  if v_config is null then
+    raise exception 'AD-10 FAILED: agent_diag has no role-level settings at all';
+  end if;
+  if not ('default_transaction_read_only=on' = any (v_config)) then
+    raise exception 'AD-10 FAILED: agent_diag does not default to read-only transactions (%)', v_config;
+  end if;
+  foreach v_name in array v_limits loop
+    select split_part(c, '=', 2) into v_value
+      from unnest(v_config) c where split_part(c, '=', 1) = v_name;
+    if v_value is null then
+      raise exception 'AD-10 FAILED: agent_diag has no % (%)', v_name, v_config;
+    end if;
+    v_parts := regexp_match(v_value, '^([0-9]+)(ms|s|min|h)?$');
+    if v_parts is null then
+      raise exception 'AD-10 FAILED: cannot read %=% as a duration', v_name, v_value;
+    end if;
+    v_ms := v_parts[1]::numeric * case coalesce(v_parts[2], 'ms')
+      when 'ms' then 1 when 's' then 1000 when 'min' then 60000 when 'h' then 3600000 end;
+    if v_ms <= 0 or v_ms > 60000 then
+      raise exception 'AD-10 FAILED: agent_diag''s % is %, which is off or over 60 s', v_name, v_value;
+    end if;
+  end loop;
+  raise notice 'AD-10 PASSED: agent_diag defaults to read-only, with % each at 60 s or less',
+    array_to_string(v_limits, ', ');
+end $$;
+
+-- ===========================================================================
+-- AD-11. AD-3, widened to more personal or secret tables, and asked whether
+-- or not agent_diag can use their schema, which AD-2 requires. All but one
+-- must exist, so a rename cannot quietly empty the list.
+-- ===========================================================================
+do $$
+declare
+  v_table    text;
+  v_tables   text[] := array[
+    'public.audit_log', 'public.opt_outs', 'storage.objects', 'auth.identities',
+    'auth.sessions', 'vault.secrets', 'vault.decrypted_secrets'];
+  v_present  int := 0;
+  v_read     text[] := array[]::text[];
+begin
+  foreach v_table in array v_tables loop
+    if to_regclass(v_table) is null then
+      continue;
+    end if;
+    v_present := v_present + 1;
+    if has_any_column_privilege('agent_diag', v_table::regclass, 'SELECT') then
+      v_read := v_read || v_table;
+    end if;
+  end loop;
+  if v_present < cardinality(v_tables) - 1 then
+    raise exception 'AD-11 FAILED: only % of the % tables exist; the list has gone stale',
+      v_present, cardinality(v_tables);
+  end if;
+  if cardinality(v_read) is distinct from 0 then
+    raise exception 'AD-11 FAILED: agent_diag can read %', array_to_string(v_read, ', ');
+  end if;
+  raise notice 'AD-11 PASSED: agent_diag can read none of % more personal or secret tables', v_present;
 end $$;
 
 rollback;
