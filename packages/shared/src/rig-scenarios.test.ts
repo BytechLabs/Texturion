@@ -295,3 +295,26 @@ describe("fields", () => {
     expect(problems(registry)).toMatch(/S22: a scenario with no dials holds no legs and needs no room/);
   });
 });
+
+/** Each step of the checks.yml job that runs the rig's other guards, as its name and command. */
+function ciGuardSteps(): { name: string; run: string }[] {
+  const lines = readFileSync(join(REPO, ".github", "workflows", "checks.yml"), "utf8").split(/\r?\n/);
+  const jobs = lines.indexOf("jobs:");
+  const starts = lines.flatMap((line, i) => (i > jobs && /^ {2}[\w-]+:\s*$/.test(line) ? [i] : []));
+  const anchor = lines.findIndex((line) => /^\s*run: node scripts\/check-rig-no-e164\.mjs\s*$/.test(line));
+  if (jobs === -1 || anchor === -1) return [];
+  const start = starts.filter((i) => i < anchor).at(-1) ?? jobs;
+  const end = starts.find((i) => i > anchor) ?? lines.length;
+  const unquote = (text: string) => text.replace(/^(["'])(.*)\1$/, "$2");
+  const steps: { name: string; run: string }[] = [];
+  for (let i = start; i < end - 1; i += 1) {
+    const name = /^\s*- name: (.+?)\s*$/.exec(lines[i] ?? "")?.[1];
+    const command = /^\s*run: (.+?)\s*$/.exec(lines[i + 1] ?? "")?.[1];
+    if (name !== undefined && command !== undefined) steps.push({ name: unquote(name), run: unquote(command) });
+  }
+  return steps;
+}
+
+it("runs in the CI guard job", () => {
+  expect(ciGuardSteps()).toContainEqual({ name: "Guard the rig's scenarios and dial budget", run: "node scripts/check-rig-scenarios.mjs" });
+});
