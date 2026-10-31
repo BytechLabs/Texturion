@@ -1,0 +1,64 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "loonext-rig-edge",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // D142: the rig's only public door. workers.dev is on the Public Suffix
+  // List, so the edge is cross-site to loonext.com and can never see or set
+  // production's cookie. No routes; src/http.ts refuses any loonext.com host
+  // if one is ever added in the dashboard. Preview URLs stay off: a superseded
+  // build answering at a second address is a second edge nobody watches.
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [],
+
+  "observability": {
+    "enabled": false,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    }
+  },
+
+  // The dead-man, the mailbox heartbeat and the uplink ping (src/deadman.ts).
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+
+  // The guard has no public URL: this binding is its only way in, which is why
+  // it can trust the caller-class header the edge writes.
+  "services": [{ "binding": "GUARD", "service": "loonext-telnyx-guard" }],
+
+  // The mailbox is its own object so a storage fault in the uplink cannot stop
+  // mail being stored, and the reverse.
+  "durable_objects": {
+    "bindings": [
+      { "name": "UPLINK", "class_name": "RigUplink" },
+      { "name": "MAILBOX", "class_name": "RobotMailbox" }
+    ]
+  },
+  "migrations": [{ "tag": "edge-v1", "new_sqlite_classes": ["RigUplink", "RobotMailbox"] }],
+
+  "unsafe": {
+    "bindings": [
+      {
+        // Per client IP. Counters are shared per namespace id across the whole
+        // account, so the rig's cloud Workers use 3001-3009 only; production
+        // owns 1001-1013 and 2001.
+        "name": "EDGE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "3001",
+        "simple": { "limit": 600, "period": 60 }
+      }
+    ]
+  },
+
+  // TELNYX_PUBLIC_KEY and ROBOT_MAIL_ADDRESS come from rig-cloud.yml as --var,
+  // so neither is in git. Credentials are Worker secrets, listed in src/env.ts.
+  "vars": {}
+}
