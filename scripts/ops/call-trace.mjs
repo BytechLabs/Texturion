@@ -20,20 +20,26 @@
  * READS ONLY `ops_diag`, AS `agent_diag`. Those views carry hashes, codes,
  * timings and versions and nothing personal, and the login can read nothing
  * else (supabase/tests/agent_diag.test.sql). The connection string comes from
- * AGENT_DIAG_DATABASE_URL, never from a flag, and a URL for any other login is
- * refused: this script must not become the way someone reads production with
- * a stronger key.
+ * AGENT_DIAG_DATABASE_URL, or failing that from the same name in
+ * ~/.loonext/agent-diag.env (which set-agent-diag-password.mjs writes), never
+ * from a flag, and a URL for any other login is refused: this script must not
+ * become the way someone reads production with a stronger key.
  *
  * `--company-id` hashes the id here and sends only the hash. The hash is the
  * one in an issue: the first 16 hex characters of sha256 over the uuid's
  * lowercase text, the same as `ops_diag.ref()`.
  *
- * Needs `psql` on PATH. The password reaches it through the environment, not
- * the command line.
+ * Runs `psql`: the one on PATH, or without one the client inside the local
+ * Supabase database container (`--psql-container <name>` names another). The
+ * password reaches it through the environment, never the command line, and
+ * no PG* variable this shell already carries is passed on, so nothing can
+ * change the login's settings from outside.
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { fail, parseArgs } from "./lib.mjs";
@@ -252,6 +258,28 @@ export function formatTrace(trace) {
   return lines;
 }
 
+/** Where set-agent-diag-password.mjs leaves the login, under a home directory. */
+export function agentDiagEnvFile(home = homedir()) {
+  return join(home, ".loonext", "agent-diag.env");
+}
+
+/**
+ * AGENT_DIAG_DATABASE_URL from the environment, else from the env file. Only
+ * that one name is read from the file, so nothing else in it reaches psql.
+ */
+export function agentDiagUrl({ env = process.env, home = homedir() } = {}) {
+  if (env.AGENT_DIAG_DATABASE_URL) return env.AGENT_DIAG_DATABASE_URL;
+  const file = agentDiagEnvFile(home);
+  if (!existsSync(file)) return undefined;
+  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+    const match = /^\s*(?:export\s+)?AGENT_DIAG_DATABASE_URL\s*=\s*(.*?)\s*$/.exec(line);
+    if (match) return match[1].replace(/^(["'])(.*)\1$/, "$2") || undefined;
+  }
+  return undefined;
+}
+
+const AGENT_DIAG_LOGIN = /^agent_diag(?:\.[a-z0-9]{1,40})?$/;
+
 /**
  * Connection settings for psql, from AGENT_DIAG_DATABASE_URL. The pooler names
  * a login `agent_diag.<project>`, so either spelling is the right login and
@@ -259,7 +287,11 @@ export function formatTrace(trace) {
  */
 export function agentDiagConnection(raw) {
   if (!raw) {
-    return { error: "AGENT_DIAG_DATABASE_URL is not set. It is the agent_diag login, never a flag." };
+    return {
+      error:
+        "AGENT_DIAG_DATABASE_URL is not set, and ~/.loonext/agent-diag.env does not carry it. " +
+        "It is the agent_diag login, never a flag; set-agent-diag-password.mjs writes the file.",
+    };
   }
   let url;
   try {
@@ -271,7 +303,7 @@ export function agentDiagConnection(raw) {
     return { error: "AGENT_DIAG_DATABASE_URL must be a postgres:// URL" };
   }
   const user = decodeURIComponent(url.username);
-  if (user !== "agent_diag" && !user.startsWith("agent_diag.")) {
+  if (!AGENT_DIAG_LOGIN.test(user)) {
     return { error: "AGENT_DIAG_DATABASE_URL must log in as agent_diag; refusing any other login" };
   }
   return {
@@ -287,23 +319,59 @@ export function agentDiagConnection(raw) {
   };
 }
 
-function runTrace(sql, connection) {
-  const result = spawnSync(
-    "psql",
-    ["-X", "-q", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-f", "-"],
-    {
-      input: sql,
-      encoding: "utf8",
-      env: { ...process.env, ...connection.env },
-      maxBuffer: 64 * 1024 * 1024,
-    },
-  );
+export const DEFAULT_PSQL_CONTAINER = "supabase_db_Loonext";
+
+/** This process's environment without any PG* variable, plus the connection's own. */
+export function psqlEnv(connectionEnv, base = process.env) {
+  const env = {};
+  for (const [name, value] of Object.entries(base)) {
+    if (!/^PG[A-Z]/.test(name)) env[name] = value;
+  }
+  return { ...env, ...connectionEnv };
+}
+
+const LOOPBACK = /^(?:127\.\d+\.\d+\.\d+|localhost|::1|\[::1\])$/;
+
+/**
+ * Run psql with the statement on stdin and the connection in the environment.
+ * Without a psql on PATH, the local database container's client runs it, and
+ * `docker exec -e NAME` copies each value from this process's environment, so
+ * none of them is ever an argument. Inside that container a loopback address
+ * is the container itself, so a login for the local stack is pointed at its
+ * server's own port.
+ */
+export function runPsql(sql, connectionEnv, { args = [], container = DEFAULT_PSQL_CONTAINER } = {}) {
+  const psqlArgs = ["-X", "-v", "ON_ERROR_STOP=1", ...args, "-f", "-"];
+  const options = (connection) => ({
+    input: sql,
+    encoding: "utf8",
+    env: psqlEnv(connection),
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const local = spawnSync("psql", psqlArgs, options(connectionEnv));
+  if (!local.error || local.error.code !== "ENOENT") return { ...local, via: "psql" };
+  const inside = LOOPBACK.test(connectionEnv.PGHOST ?? "")
+    ? { ...connectionEnv, PGHOST: "localhost", PGPORT: "5432" }
+    : connectionEnv;
+  const names = Object.keys(inside).flatMap((name) => ["-e", name]);
+  const docker = spawnSync("docker", ["exec", "-i", ...names, container, "psql", ...psqlArgs], options(inside));
+  return { ...docker, via: `psql in ${container}` };
+}
+
+function runTrace(sql, connection, container) {
+  const result = runPsql(sql, connection.env, { args: ["-q", "-A", "-t"], container });
   if (result.error) {
-    fail(`could not run psql (${result.error.code ?? result.error.message}). Install the Postgres client.`);
+    fail(
+      `could not run psql (${result.error.code ?? result.error.message}). Install the Postgres ` +
+        "client, or start the local Supabase stack so its container's client can be used.",
+    );
   }
   if (result.status !== 0) {
     // psql's own error names the view or the permission, never row data.
-    fail(`psql exited ${result.status}: ${(result.stderr ?? "").trim().split("\n").slice(-3).join(" | ")}`);
+    fail(
+      `${result.via} exited ${result.status}: ` +
+        `${(result.stderr ?? "").trim().split("\n").slice(-3).join(" | ")}`,
+    );
   }
   try {
     return JSON.parse(result.stdout.trim());
@@ -325,9 +393,11 @@ function main() {
       console.log(sql);
       return;
     }
-    const connection = agentDiagConnection(process.env.AGENT_DIAG_DATABASE_URL);
+    const connection = agentDiagConnection(agentDiagUrl());
     if (connection.error) fail(connection.error);
-    trace = runTrace(sql, connection);
+    const container =
+      typeof args["psql-container"] === "string" ? args["psql-container"] : DEFAULT_PSQL_CONTAINER;
+    trace = runTrace(sql, connection, container);
   }
   if (args.json) {
     console.log(JSON.stringify(trace, null, 2));

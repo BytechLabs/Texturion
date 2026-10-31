@@ -3,7 +3,8 @@
  *
  * Three promises are checked, because each is what makes it safe to hand to
  * an agent with no approval step: it reads only `ops_diag`, it logs in only as
- * `agent_diag` and takes the credential only from the environment, and its
+ * `agent_diag` and takes the credential only from the environment or the
+ * file set-agent-diag-password.mjs writes, and its
  * workspace hash is the one `ops_diag.ref()` computes (pinned to the same
  * vector as supabase/tests/agent_diag.test.sql AD-6).
  *
@@ -11,14 +12,14 @@
  * two modes that never do, and the refusals all happen before a connection.
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 // @ts-expect-error — a plain .mjs with no types, which is what CI executes.
-import { buildTraceSql, resolveRequest } from "../../../../scripts/ops/call-trace.mjs";
+import { agentDiagConnection, agentDiagUrl, buildTraceSql, psqlEnv, resolveRequest } from "../../../../scripts/ops/call-trace.mjs";
 
 const REPO = join(import.meta.dirname, "..", "..", "..", "..");
 const SCRIPT = join(REPO, "scripts", "ops", "call-trace.mjs");
@@ -27,20 +28,29 @@ const SCRIPT = join(REPO, "scripts", "ops", "call-trace.mjs");
 const COMPANY_ID = "d1a90000-0000-4000-8000-000000000001";
 const COMPANY_REF = "36e0f2739806ec8a";
 
+let scratch: string | null = null;
+let home: string | null = null;
+afterEach(() => {
+  for (const dir of [scratch, home]) if (dir) rmSync(dir, { recursive: true, force: true });
+  scratch = null;
+  home = null;
+});
+
+/** A home directory of the test's own, so a real ~/.loonext/agent-diag.env is never read. */
+function emptyHome() {
+  home = mkdtempSync(join(tmpdir(), "call-trace-home-"));
+  return home;
+}
+
 function run(args: string[], env: Record<string, string | undefined> = {}) {
+  const dir = home ?? emptyHome();
   const result = spawnSync(process.execPath, [SCRIPT, ...args], {
     cwd: REPO,
     encoding: "utf8",
-    env: { ...process.env, AGENT_DIAG_DATABASE_URL: undefined, ...env },
+    env: { ...process.env, AGENT_DIAG_DATABASE_URL: undefined, HOME: dir, USERPROFILE: dir, ...env },
   });
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
-
-let scratch: string | null = null;
-afterEach(() => {
-  if (scratch) rmSync(scratch, { recursive: true, force: true });
-  scratch = null;
-});
 
 describe("call-trace.mjs", () => {
   it("hashes a workspace id exactly as ops_diag.ref() does, and sends only the hash", () => {
@@ -90,6 +100,58 @@ describe("call-trace.mjs", () => {
     expect(refused.status).toBe(1);
     expect(refused.stderr).toContain("must log in as agent_diag");
     expect(refused.stderr).not.toContain("secret");
+  });
+
+  it.each(["agent_diagx", "agent_diag.ref.extra", "agent_diag.REF", "agent_diag_admin", "xagent_diag"])(
+    "refuses a login that only looks like agent_diag: %s",
+    (user) => {
+      const refused = agentDiagConnection(`postgres://${user}:secret@pooler.example.invalid:5432/postgres`);
+      expect(refused.error).toMatch(/must log in as agent_diag/);
+    },
+  );
+
+  it("accepts agent_diag and the pooler's agent_diag.<project> spelling", () => {
+    for (const user of ["agent_diag", "agent_diag.abcdefghijklmnopqrst"]) {
+      const accepted = agentDiagConnection(`postgresql://${user}:secret@pooler.example.invalid:5432/postgres`);
+      expect(accepted.error).toBeUndefined();
+      expect(accepted.env.PGUSER).toBe(user);
+      expect(accepted.env.PGSSLMODE).toBe("require");
+    }
+  });
+
+  it("reads the login from ~/.loonext/agent-diag.env when the environment has none", () => {
+    const dir = emptyHome();
+    expect(agentDiagUrl({ env: {}, home: dir })).toBeUndefined();
+    mkdirSync(join(dir, ".loonext"));
+    writeFileSync(
+      join(dir, ".loonext", "agent-diag.env"),
+      "# Written by set-agent-diag-password.mjs\r\nOTHER=1\r\nAGENT_DIAG_DATABASE_URL=postgresql://agent_diag:from-file@h.invalid/postgres\r\n",
+    );
+    expect(agentDiagUrl({ env: {}, home: dir })).toBe("postgresql://agent_diag:from-file@h.invalid/postgres");
+    expect(agentDiagUrl({ env: { AGENT_DIAG_DATABASE_URL: "postgresql://agent_diag:from-env@h.invalid/postgres" }, home: dir })).toBe(
+      "postgresql://agent_diag:from-env@h.invalid/postgres",
+    );
+  });
+
+  it("holds the file's login to agent_diag too, before connecting", () => {
+    const dir = emptyHome();
+    mkdirSync(join(dir, ".loonext"));
+    writeFileSync(
+      join(dir, ".loonext", "agent-diag.env"),
+      "AGENT_DIAG_DATABASE_URL=postgres://postgres:secret@db.example.invalid:5432/postgres\n",
+    );
+    const refused = run(["--company-hash", COMPANY_REF]);
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toContain("must log in as agent_diag");
+    expect(refused.stderr).not.toContain("secret");
+  });
+
+  it("passes on no PG* variable from the shell, so nothing outside can change the login's settings", () => {
+    const env = psqlEnv(
+      { PGHOST: "h.invalid", PGUSER: "agent_diag", PGPASSWORD: "p" },
+      { PATH: "/bin", PGOPTIONS: "-c statement_timeout=0", PGSERVICEFILE: "/tmp/x", PGPASSWORD: "stale" },
+    );
+    expect(env).toEqual({ PATH: "/bin", PGHOST: "h.invalid", PGUSER: "agent_diag", PGPASSWORD: "p" });
   });
 
   it.each([
