@@ -9039,9 +9039,14 @@ while building them:
   every paid dial. So `guard.yml`'s `measurements` routine gets a daily
   schedule. It computes production's reserve from the `ops_diag` views as
   `agent_diag` (its login a `guard` environment secret,
-  `AGENT_DIAG_DATABASE_URL`, copied in once FA13 has run), the ratios from the
-  guard's own detail-record read, and the window monthly. `agent_diag` reads
-  only non-personal views. That run is the one CI job that receives the login,
+  `AGENT_DIAG_DATABASE_URL`, copied in once FA13 has run), and the window once
+  the guard's is 28 days old. The ratios were to come from the guard's own
+  detail-record read, which is not built: the repo's Telnyx spec has no
+  call-control detail record, and nothing yet says which records Telnyx counts
+  as abandoned or short (FA0 asks about cancelled ring legs). Until it is
+  built, an agent files the ratios by dispatch, and without them paid dials are
+  refused (`admission.ratios_unknown`). `agent_diag` reads only non-personal
+  views. That run is the one CI job that receives the login,
   so an agent replaces the copy after every rotation and deletes it after a
   withdrawal.
 - **`ops.yml` has one action, `set-flag`.** It is a dry run unless `apply` is

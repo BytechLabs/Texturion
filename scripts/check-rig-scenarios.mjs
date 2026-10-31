@@ -184,6 +184,36 @@ export function budgetFromDoc(markdown, s41) {
 }
 
 /**
+ * The totals 4.1 states in prose: the encoded schedule's dials a month with
+ * and without the reserves, 4.2's at its written cadence, and the cycle's
+ * busiest hour and day. They are arithmetic on the registry, so a cadence
+ * edit that forgets them is caught here rather than left stale.
+ */
+export function statedTotals(markdown) {
+  const text41 = (sectionLines(markdown, "4.1") ?? []).join("\n");
+  const scheduled = /([\d.]+) scheduled dials a month, ([\d.]+) with both reserves/.exec(text41);
+  const written = /would need ([\d.]+) dials a month \(([\d.]+) with reserves\)/.exec(text41);
+  const cycle = /Over its (\d+)-day cycle the busiest hour holds (\d+) dials and the busiest day (\d+)/.exec(text41);
+  const missing = [];
+  if (scheduled === null) missing.push('"N scheduled dials a month, N with both reserves"');
+  if (written === null) missing.push('"would need N dials a month (N with reserves)"');
+  if (cycle === null) missing.push('"Over its N-day cycle the busiest hour holds N dials and the busiest day N"');
+  if (missing.length > 0) return { stated: null, problems: [`${DOC_FILE} 4.1: cannot read ${missing.join(", ")}`] };
+  return {
+    stated: {
+      scheduledDials: Number(scheduled[1]),
+      scheduledTotal: Number(scheduled[2]),
+      writtenDials: Number(written[1]),
+      writtenTotal: Number(written[2]),
+      cycle: Number(cycle[1]),
+      busiestHour: Number(cycle[2]),
+      busiestDay: Number(cycle[3]),
+    },
+    problems: [],
+  };
+}
+
+/**
  * The runs 4.2's row implies beyond the first: named variants at their own
  * period, or a stated number of runs at the row's period. Null when the row
  * implies one run.
@@ -622,6 +652,16 @@ export function judge({ registry, markdown, journeys }) {
 
   // The budget.
   const totals = budget(registry);
+  const { stated, problems: statedProblems } = statedTotals(markdown);
+  problems.push(...statedProblems);
+  if (stated !== null) {
+    for (const [key, value] of Object.entries(stated)) {
+      const actual = Number.isInteger(value) && Number.isInteger(totals[key]) ? totals[key] : Number(totals[key].toFixed(1));
+      if (actual !== value) {
+        problems.push(`${DOC_FILE} 4.1 states ${key} ${value}, but ${REGISTRY_FILE} works out to ${actual}. Update the prose`);
+      }
+    }
+  }
   if (totals.scheduledTotal > totals.ceiling) {
     problems.push(
       `the schedule needs ${totals.scheduledTotal.toFixed(1)} dials a month with reserves and the cap allows ` +

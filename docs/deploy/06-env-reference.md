@@ -254,7 +254,7 @@ database login that sees only the non-personal `ops_diag` views), and the
 |------|:------:|-------|---------|
 | `SUPABASE_URL` | yes | environment `production-ops` | `ops.yml`'s `set-flag` job, which runs `scripts/ops/set-flag.mjs` from `main` |
 | `SUPABASE_SECRET_KEY` | yes | environment `production-ops` | the same job |
-| `AGENT_DIAG_DATABASE_URL` | yes | the workstation's `~/.loonext/agent-diag.env`, written by `scripts/ops/set-agent-diag-password.mjs` (`docs/RIG.md` FA13). An agent copies the same login into environment `guard`, and replaces or deletes that copy whenever the script rotates or withdraws it | `scripts/ops/call-trace.mjs`, which refuses any login but `agent_diag`; and `guard.yml`'s daily measurements run, once that schedule lands (`docs/RIG.md` §3.5) |
+| `AGENT_DIAG_DATABASE_URL` | yes | the workstation's `~/.loonext/agent-diag.env`, written by `scripts/ops/set-agent-diag-password.mjs` (`docs/RIG.md` FA13). An agent copies the same login into environment `guard`, and replaces or deletes that copy whenever the script rotates or withdraws it | `scripts/ops/call-trace.mjs`, which refuses any login but `agent_diag`; and `guard.yml`'s daily measurements run (`docs/RIG.md` §3.5) |
 
 **Script switches** (shell environment only, never a deploy setting):
 

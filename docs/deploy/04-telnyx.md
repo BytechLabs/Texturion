@@ -64,7 +64,7 @@ credentials), `webhook_event_url` = the SAME `/webhooks/telnyx` endpoint,
 `webhook_api_version: "2"`, `outbound.outbound_voice_profile_id` = the §1
 profile, `inbound.codecs: ["OPUS","G722","G711U"]`. Copy the id → the
 `TELNYX_WEBRTC_CONNECTION_ID` Worker secret. Done for prod on 2026-07-11
-(connection `3002012715179836808`, "loonext-webrtc").
+(connection "loonext-webrtc").
 
 > **REQUIRED for INBOUND ringing (#135, learned the hard way in prod):** this
 > connection MUST have `sip_uri_calling_preference: "internal"` —

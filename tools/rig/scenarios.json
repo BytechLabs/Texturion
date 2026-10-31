@@ -83,7 +83,7 @@
       "dials": 0,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 0,
-      "min_room": 3,
+      "min_room": 2,
       "note": "STRANGER-1's call is rejected before any ring leg, so its one dial is the far end's."
     },
     {
@@ -100,7 +100,7 @@
       "dials": 1,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 1,
-      "min_room": 3,
+      "min_room": 2,
       "note": "The SDK places the sentinel call itself, outside the guard; budgeted as one dial for both attempts, as 4.2 does."
     },
     {
@@ -125,7 +125,7 @@
       "lane": "production-watch",
       "far_end": "Production's own settings",
       "cadence": "Daily (0)",
-      "runs_on": "workstation",
+      "runs_on": "production",
       "runs": [
         { "every": "1d" }
       ],
@@ -916,7 +916,7 @@
       "dials": 0,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 0,
-      "min_room": 3,
+      "min_room": 2,
       "note": "Optional, Phase 4, and only once Telnyx agrees (2.3)."
     }
   ]

@@ -394,7 +394,7 @@ Phone numbers are cut to their last four digits, and message bodies and recordin
 - **Window.** Paid dials run only in the six consecutive UTC hours with the fewest production calls over the past 28 days, rechecked monthly. Until there is data, the window is 04:00-10:00 UTC; it is safe because the room already reserves production's ring.
 - **Ratios.** The guard keeps the whole account's abandoned share at or below 15% and short-call share at or below 10%, using counts from detail records.
 - **Money.** Telnyx-enforced daily limits; the $35/month all-in cap, with a daily allowance after reserving next month's rental; tiers: green, amber (core only), red (only hang-ups allowed). Below the balance floor, all test spend is refused. At the cap, every non-robot number is detached, so stranger inbound stops too.
-- **Measurements.** Production's reserve, ratios and window are filed through `guard.yml`'s `measurements` routine, because the guard Worker has no login to production's database. A daily scheduled run computes the reserve from the `ops_diag` views as `agent_diag`, whose login is the `guard` environment secret `AGENT_DIAG_DATABASE_URL` (copied in once FA13 has run, and again after each rotation). It takes the ratios from the guard's own detail-record read, and the window monthly. The reserve and the ratios go stale after 36 hours and the window after 35 days. A stale reserve or ratio refuses every paid dial rather than guess, and a stale window falls back to 04:00 UTC. Until the schedule is in `guard.yml`, an agent dispatches the routine with the values by hand.
+- **Measurements.** Production's reserve, ratios and window are filed through `guard.yml`'s `measurements` routine, because the guard Worker has no login to production's database. A daily scheduled run (`measure`, 03:23 UTC) computes the reserve from the `ops_diag` views as `agent_diag`, whose login is the `guard` environment secret `AGENT_DIAG_DATABASE_URL` (copied in once FA13 has run, and again after each rotation). It refiles the window once the guard's is 28 days old. Without the login it posts a notice and files nothing. The ratios are not read yet: the repo's Telnyx spec has no call-control detail record, and nothing yet says which records Telnyx counts as abandoned or short. Until the guard can count them, an agent dispatches `measurements` with `calls`, `abandoned` and `short`. The reserve and the ratios go stale after 36 hours and the window after 35 days. A stale reserve or ratio refuses every paid dial (`admission.ratios_unknown` for the ratios) rather than guess, and a stale window falls back to 04:00 UTC.
 
 **Run lease.** One paid scenario runs at a time across the system. Scenarios register undo actions with `rigd`, the rig's service daemon. If the lease is not released within 15 minutes, `rigd` runs the undo itself.
 
@@ -679,7 +679,7 @@ Payloads, passwords and query strings are never logged or alerted. This catches 
 |---|---|---|
 | 4 or more | Everything | Nothing |
 | 3 | Everything except D01 and S10 | Ringing every surface at once; X-to-Y calls in one workspace |
-| 2 | Single-surface calls only (S01, S02, S04-S06, S11-S17, S24, S28, D07, D08), plus D02p, which needs no dial | Every paid Android wake test (D02-D04, D09-D12, E01), transfers and consults |
+| 2 | One-leg probes and single-surface calls only (G01, G02, K01, S01, S02, S04-S06, S11-S17, S24, S28, D07, D08), plus D02p, which needs no dial | Every paid Android wake test (D02-D04, D09-D12, E01), transfers and consults |
 | 1 or less | No paid calls. Texts, D02p, hermetic and local tests continue. | All paid call lanes |
 
 R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the limit if the room is under 4. A room under 3 would also mean production cannot ring a three-person crew, which is itself a production finding.
@@ -1200,7 +1200,7 @@ Each `TOKEN_SHA256_*` and `*_SECRET_SHA256` is the lowercase hex SHA-256 of a va
 - `TOKEN_SHA256_DIAG` hashes the workstation agents' `diag` token, and `TOKEN_SHA256_TRIAGE` the triage token in FA10;
 - `ROBOT_WEBHOOK_SECRET_SHA256` hashes `ROBOT_WEBHOOK_SECRET`, and `NOTIFICATIONS_SECRET_SHA256` hashes the guard's `NOTIFICATION_PATH_SECRET`.
 
-`ROBOT_WEBHOOK_SECRET` is not delivered yet. The seal step of `rig-secrets.yml` has no `BUNDLE__ROBOT_WEBHOOK_SECRET` line, so the rig's store has no `robot-webhook-secret`, and S04 and S20 cannot create the robot's webhook endpoint until that line is added.
+`rig-secrets.yml`'s seal step delivers `ROBOT_WEBHOOK_SECRET` as `BUNDLE__ROBOT_WEBHOOK_SECRET`, which the rig's store keeps as `robot-webhook-secret`. Until the `rig` environment has that secret, S04 and S20 cannot create the robot's webhook endpoint.
 
 A secret an environment lacks falls back to a repository secret of the same name, and those are production's. `rig-secrets.yml` therefore refuses any value shaped like a production credential.
 
