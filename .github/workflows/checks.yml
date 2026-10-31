@@ -447,6 +447,22 @@ jobs:
       - name: Guard rig tooling against real phone numbers
         run: node scripts/check-rig-no-e164.mjs
 
+      # D142: "cannot touch production" is a property of the rig's own
+      # configuration. Its units, DNS, Caddy sites, settings template and
+      # defaults, the Worker configs the deploy CLI derives, and the edge's and
+      # guard's wrangler configs may name only *.rig.internal, loopback, the
+      # access point and the edge's workers.dev name. The guard keeps no
+      # public door at all.
+      - name: Guard the rig's hosts
+        run: node scripts/check-rig-hosts.mjs
+
+      # D142: Cloudflare keeps one counter per rate-limit namespace id across
+      # the account the rig shares with production. The edge and the guard use
+      # 3001-3009 and never a production id; the rig's local Workers keep
+      # production's ids only because wrangler dev emulates them on loopback.
+      - name: Guard the rig's rate-limit band
+        run: node scripts/check-rig-ratelimit-band.mjs
+
       # D142: the rig's nonprod Android build is pointed at the rig by build
       # configuration. A production host written anywhere else is a captcha, a
       # passkey ceremony or a deep link the nonprod build still sends to
