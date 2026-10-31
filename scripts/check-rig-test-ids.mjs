@@ -30,17 +30,72 @@ export const SCHEMA = "loonext.rig-test-ids.v1";
 
 const TEST_FILE = /(?:\.test\.[a-z]+$|\/tests?\/|Tests\/|\.spec\.[a-z]+$)/;
 
+/** Kotlin source with comments blanked, outside string literals. */
+export function stripKotlinComments(text) {
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (inString) {
+      out += c;
+      if (c === "\\") {
+        out += next ?? "";
+        i += 1;
+      } else if (c === '"' || c === "\n") {
+        inString = false;
+      }
+    } else if (c === '"') {
+      inString = true;
+      out += c;
+    } else if (c === "/" && next === "/") {
+      while (i < text.length && text[i] !== "\n") i += 1;
+      out += "\n";
+    } else if (c === "/" && next === "*") {
+      const end = text.indexOf("*/", i + 2);
+      const stop = end === -1 ? text.length : end + 2;
+      out += text.slice(i, stop).replace(/[^\n]/g, " ");
+      i = stop - 1;
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+
+const KOTLIN_VAL = /^[ \t]*(?:(?:private|internal|public|protected)\s+)?(const\s+)?val\s+(\w+)\s*(?::\s*([^=\n]+?))?\s*=\s*(.*)$/gm;
+const KOTLIN_COLLECTION = /^(?:listOf|setOf|arrayOf|listOfNotNull)\(/;
+
 /** How each kind of id is written in source, and which files can hold one. */
 export const KINDS = {
   "compose-test-tag": {
     files: /\.kt$/,
+    // One form only, `const val NAME = "literal"`: CallTestTagsTest reads tags
+    // in no other. The tag list (`listOf(...)`) is not a tag.
     extract(text) {
       const ids = [];
       const problems = [];
-      for (const match of text.matchAll(/\bconst val (\w+)\s*=\s*("(?:[^"\\]|\\.)*"|[^\n]+)/g)) {
-        const literal = /^"([^"\\$]*)"$/.exec(match[2].trim());
-        if (literal) ids.push({ id: literal[1], constant: match[1] });
-        else problems.push(`${match[1]} is not a plain string literal, so its value cannot be checked`);
+      const source = stripKotlinComments(text);
+      const read = new Set();
+      for (const match of source.matchAll(KOTLIN_VAL)) {
+        const [, isConst, name, type, rawValue] = match;
+        read.add(name);
+        const value = rawValue.trim();
+        if (KOTLIN_COLLECTION.test(value)) continue;
+        const literal = /^"([^"\\$]*)"$/.exec(value);
+        if (isConst && type === undefined && literal) {
+          ids.push({ id: literal[1], constant: name });
+        } else if (isConst && type === undefined) {
+          problems.push(`${name} is not a plain string literal, so its value cannot be checked`);
+        } else {
+          problems.push(
+            `${name} is not written \`const val ${name} = "..."\`, the one form this check and ` +
+              `CallTestTagsTest read as a tag`,
+          );
+        }
+      }
+      for (const match of source.matchAll(/\bval\s+(\w+)/g)) {
+        if (!read.has(match[1])) problems.push(`${match[1]} is a val this check cannot read; declare it on one line`);
       }
       return { ids, problems };
     },

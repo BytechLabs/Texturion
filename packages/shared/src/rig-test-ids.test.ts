@@ -27,12 +27,23 @@ const android = () => structuredClone(registry.platforms.find((p) => p.platform 
 const problems = (platform: Platform, files: File[]) => guard.judgePlatform(platform, files).problems.join("\n");
 
 describe("what counts as an id", () => {
-  it("reads a Kotlin const val and its constant, not other vals", () => {
+  it("reads a Kotlin const val and its constant, and passes over the tag list", () => {
     const found = guard.KINDS["compose-test-tag"].extract(
-      `object T {\n  const val A = "call_a"\n  val ALL = listOf(A)\n  const val B = PREFIX + "b"\n}`,
+      `object T {\n  // const val OLD = "call_old"\n  const val A = "call_a"\n  val ALL: List<String> = listOf(A)\n  const val B = PREFIX + "b"\n}`,
     );
     expect(found.ids).toEqual([{ id: "call_a", constant: "A" }]);
     expect(found.problems.join("\n")).toMatch(/B is not a plain string literal/);
+    expect(found.problems).toHaveLength(1);
+  });
+
+  it("fails a tag written any way but `const val NAME = \"...\"`, which CallTestTagsTest would not see", () => {
+    for (const line of ['const val SPEAKER: String = "call_speaker"', 'val SPEAKER = "call_speaker"', 'val SPEAKER: String = "call_speaker"']) {
+      const found = guard.KINDS["compose-test-tag"].extract(`object T {\n  ${line}\n}`);
+      expect(found.ids).toEqual([]);
+      expect(found.problems.join("\n")).toMatch(/SPEAKER is not written `const val SPEAKER = "\.\.\."`/);
+    }
+    const lazy = guard.KINDS["compose-test-tag"].extract(`object T {\n  val SPEAKER by lazy { "call_speaker" }\n}`);
+    expect(lazy.problems.join("\n")).toMatch(/SPEAKER is a val this check cannot read/);
   });
 
   it("reads a literal data-testid in any quoting, and refuses a computed one", () => {
@@ -63,6 +74,14 @@ describe("the Android contract", () => {
   it("fails a tag added to CallTestTags that the registry does not list", () => {
     const added = { file: TAGS_FILE, text: tags.text.replace("object CallTestTags {", 'object CallTestTags {\n    const val SPEAKER = "call_speaker"') };
     expect(problems(android(), [added])).toMatch(/declares "call_speaker" \(SPEAKER\) and tools\/rig\/test-ids\.json does not list it/);
+  });
+
+  it("fails a tag added to CallTestTags with a type annotation, rather than missing it", () => {
+    const typed = {
+      file: TAGS_FILE,
+      text: tags.text.replace("object CallTestTags {", 'object CallTestTags {\n    const val SPEAKER: String = "call_speaker"'),
+    };
+    expect(problems(android(), [typed])).toMatch(/SPEAKER is not written `const val SPEAKER = "\.\.\."`/);
   });
 
   it("fails a renamed tag value, from both sides", () => {
