@@ -56,7 +56,7 @@ const MATCH = {
 function world(entry: Entry, jobs: string[] = ["job:a"]) {
   return {
     registry: { schema: "loonext.rig-crons.v1", refusal_match: MATCH, crons: [entry] },
-    configs: { [API]: ["0 13 * * *"] },
+    configs: { [API]: ["0 13 * * *"] } as Record<string, string[]>,
     jobs: { [API]: new Map([["0 13 * * *", jobs]]) },
     families: ["10dlc", "porting_orders"] as string[] | null,
     sources: { "apps/api/src/a.ts": "export async function catchesIt(env: Env) {}\n" } as Record<string, string | null>,
