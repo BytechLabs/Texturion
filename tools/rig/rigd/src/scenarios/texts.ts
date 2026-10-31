@@ -3,14 +3,27 @@
  * S24 and S25. Every body carries the attempt's nonce, so a check never
  * matches a text from another run.
  */
-import { fail, infra, pass, poll, type ScenarioRunner } from "./context.ts";
+import { fail, infra, pass, poll, type ScenarioContext, type ScenarioResult, type ScenarioRunner } from "./context.ts";
 
-const TORONTO = "America/Toronto";
+/** Every rig number has an Ontario area code, so the destination's clock is Toronto's. */
+const DESTINATION_ZONE = "America/Toronto";
+
+/** The robot's sink must be a webhook endpoint of the workspace before its events can arrive there. */
+async function robotWebhook(ctx: ScenarioContext, member: string, events: string[]): Promise<ScenarioResult | undefined> {
+  try {
+    await ctx.app.ensureRobotWebhook({ member, events });
+    return undefined;
+  } catch (error) {
+    return infra("webhook-endpoint", `the robot's webhook endpoint could not be set up: ${(error as Error).message}`);
+  }
+}
 
 /** Outbound text: exact body within 30 s, sent then delivered, usage row, meter, `message.sent` webhook. */
 export const S20: ScenarioRunner = {
   id: "S20",
   async run(ctx) {
+    const unset = await robotWebhook(ctx, "qa-w-owner", ["message.sent"]);
+    if (unset) return unset;
     const since = ctx.now();
     const body = `Rig S20 outbound ${ctx.nonce}`;
     const sent = await ctx.app.sendText({ member: "qa-w-owner", fromRole: "DEV-W1", toRole: "ROBOT-1", body });
@@ -62,6 +75,15 @@ export const S21: ScenarioRunner = {
   id: "S21",
   async run(ctx) {
     const page = await ctx.browser.open("qa-w-owner", "qa-w-owner", "/inbox");
+    // A push attempt needs somewhere to push to; the owner's browser
+    // subscribes through the app's own control when nothing else has.
+    if ((await ctx.app.pushTargets({ member: "qa-w-owner" })) === 0) {
+      if (!(await page.enablePush())) {
+        return infra("push-target", "qa-w-owner has no push subscription or device token, and the browser could not subscribe");
+      }
+      const saved = await poll(ctx, async () => (await ctx.app.pushTargets({ member: "qa-w-owner" })) > 0, 10_000);
+      if (!saved) return fail("push_subscription_not_saved", "the page subscribed to push but the API kept no subscription");
+    }
     const since = ctx.now();
     const body = `Rig S21 inbound ${ctx.nonce}`;
     await ctx.robot.sms({ from_role: "ROBOT-1", to_role: "DEV-W1", text: body, scenario: ctx.scenario });
@@ -194,20 +216,21 @@ export const S24: ScenarioRunner = {
     return pass();
   },
 
-  /** After the undo has run: a STOP left in place is the one critical failure here. */
+  /** After the undo has run, whatever the run came to: a STOP left in place is critical. */
   async afterRelease(ctx) {
     const lifted = await poll(ctx, async () => {
       const current = await ctx.app.optOut({ tenant: "QA-E", role: "ROBOT-2" });
       return !current?.active;
     }, 60_000, 2_000);
-    return lifted ? undefined : fail("stop_left_in_place", "ROBOT-2 is still opted out of DEV-E1 after cleanup");
+    return lifted ? undefined : fail("stop_left_in_place", "ROBOT-2 is still opted out of DEV-E1 after cleanup", { critical: true });
   },
 };
 
 /**
  * Automated texts and quiet hours: by day they arrive, at night they are held
- * (the destination's clock, Ontario). The timer runs it twice a week, twelve
- * hours apart, so both halves are exercised.
+ * (the destination's clock, Ontario). The registry runs it twice a week, a
+ * daytime run and a night run, so both halves are exercised. Not in RUNNERS
+ * until the app probe can arm the automations.
  */
 export const S25: ScenarioRunner = {
   id: "S25",
@@ -240,8 +263,12 @@ export const S25: ScenarioRunner = {
   },
 };
 
-/** Quiet hours are 21:00 to 08:00 on the destination's clock. */
+/** D4, as apps/api/src/messaging/destination-clock.ts holds them: 20:00 is quiet, 08:00 is not. */
+export const QUIET_HOURS_START = 20;
+export const QUIET_HOURS_END = 8;
+
+/** Whether the destination's clock is in quiet hours. */
 export function isQuietHour(at: number): boolean {
-  const hour = Number(new Intl.DateTimeFormat("en-CA", { timeZone: TORONTO, hour: "numeric", hourCycle: "h23" }).format(at));
-  return hour >= 21 || hour < 8;
+  const hour = Number(new Intl.DateTimeFormat("en-CA", { timeZone: DESTINATION_ZONE, hour: "numeric", hourCycle: "h23" }).format(at));
+  return hour >= QUIET_HOURS_START || hour < QUIET_HOURS_END;
 }

@@ -1,26 +1,35 @@
 /**
  * The long-running half of rigd: the uplink, the lease watchdog, the Sentry
- * relay's listener, secret delivery, the rpc commands and the dead-man's
- * heartbeats. Scenario runs are separate processes (timers and `triage.rerun`
- * start them), so a run that crashes takes nothing else down.
+ * relay's listener, secret delivery, the rpc commands, the dead-man's
+ * heartbeats and the scenario timers. Scenario runs are separate processes
+ * (timers and `triage.rerun` start them), each in its own systemd unit, so a
+ * run that crashes takes nothing else down and a restart of rigd takes no
+ * run with it.
  *
  * What it publishes for `rig health` (tools/rig/src/health.mjs):
  *   state/uplink.json        { connected, at }, at least every minute
- *   state/sentry-relay.json  { at, unexplained_24h, ... }, every five minutes
+ *   state/sentry-relay.json  { at, unexplained_24h, defects_24h, ... }, every five minutes
  */
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { triageMethods } from "@loonext/rig-triage";
+import { triageMethods, type StartedRun } from "@loonext/rig-triage";
 import type { RigdConfig } from "./config.ts";
+import { cronExplainer, type CronExplainer } from "./cron-events.ts";
 import { webhookForwarder } from "./forward.ts";
+import { installSchedule, userUnitDir } from "./install.ts";
+import { loadRegistry } from "./registry.ts";
+import { telnyxPublicKey } from "./late.ts";
 import { LeaseWatchdog } from "./lease.ts";
 import { Mailbox } from "./mail.ts";
 import { mediaRelay } from "./media.ts";
-import { localSupabase, publishState, robotLocalToken } from "@loonext/rig-robot";
+import { isRobotRole, localSupabase, publishState, robotLocalToken } from "@loonext/rig-robot";
 import { objectParams, RpcRouter } from "./rpc.ts";
+import { newRunId } from "./runner.ts";
+import { buildSchedule, parseInstance } from "./schedule.ts";
+import { NOT_RUNNABLE_YET, RUNNERS } from "./scenarios/index.ts";
 import { BUNDLE_KEY_SECRET, deliverSecrets } from "./secrets.ts";
 import { infraFingerprint, parseDsn, type Dsn } from "./sentry-relay.ts";
 import { Uplink } from "./uplink.ts";
@@ -30,6 +39,7 @@ const CLI = fileURLToPath(new URL("./cli.ts", import.meta.url));
 const HEARTBEAT_MS = 60_000;
 const RELAY_REPORT_MS = 5 * 60_000;
 const SECRET_REFRESH_MS = 6 * 60 * 60_000;
+const SCHEDULE_REFRESH_MS = 60 * 60_000;
 const ENVELOPE_MAX_BYTES = 1024 * 1024;
 
 export interface Daemon {
@@ -40,28 +50,62 @@ export interface Daemon {
   stop(): void;
 }
 
-/** Starts a scenario run in its own process and returns at once; its verdicts land in the store. */
-export function startRun(scenario: string): { started: true; scenario: string; pid?: number } {
-  if (!/^[A-Z]{1,3}\d{2,3}[a-z]?$/.test(scenario)) throw new Error("not a scenario id");
-  const child = spawn(process.execPath, [CLI, "run", scenario], { detached: true, stdio: "ignore" });
-  child.unref();
-  return { started: true, scenario, pid: child.pid };
+export interface RunStarter {
+  (scenario: string): StartedRun;
 }
 
-export function buildRouter(rig: Rig, lastTriage: { at?: number }, run = startRun): RpcRouter {
+/**
+ * Starts a scenario run in its own process and returns at once; its verdicts
+ * land in the store under the run id it returns. Under systemd the run gets a
+ * transient unit of its own, so it outlives a restart of rigd and logs to the
+ * journal; elsewhere it is a detached child that logs to state/rigd/runs.
+ */
+export function runStarter(config: Pick<RigdConfig, "home" | "systemd">, launch = spawn): RunStarter {
+  return (scenario) => {
+    const { id } = parseInstance(scenario);
+    const runId = newRunId(id, Date.now());
+    const args = [CLI, "run", scenario, "--run-id", runId];
+    if (config.systemd) {
+      const path = [...new Set([dirname(process.execPath), "/usr/local/bin", "/usr/bin", "/bin"])].join(":");
+      launch(
+        "systemd-run",
+        [
+          "--user",
+          `--unit=loonext-rig-rerun-${runId}`,
+          "--collect",
+          "--quiet",
+          "--service-type=exec",
+          `--setenv=RIG_HOME=${config.home.home}`,
+          `--setenv=PATH=${path}`,
+          process.execPath,
+          ...args,
+        ],
+        { stdio: "ignore" },
+      ).unref();
+    } else {
+      const logs = join(config.home.state, "rigd", "runs");
+      mkdirSync(logs, { recursive: true });
+      const out = openSync(join(logs, `${runId}.log`), "a");
+      launch(process.execPath, args, { detached: true, stdio: ["ignore", out, out] }).unref();
+    }
+    return { started: true, scenario: id, run_id: runId };
+  };
+}
+
+export function buildRouter(rig: Rig, lastTriage: { at?: number }, run: RunStarter = runStarter(rig.config)): RpcRouter {
   const router = new RpcRouter();
   router.register(
     "rig.status",
     () => ({
       unresolved: rig.verdicts.unresolved().length,
-      registry: [...rig.registry().keys()],
+      registry: [...rig.registry().byId.keys()],
       late_deliveries_24h: rig.late.since(Date.now() - 86_400_000).length,
     }),
     ["triage", "rig"],
   );
   router.register("scenario.run", (params) => {
     const { scenario } = objectParams(params);
-    if (typeof scenario !== "string" || !rig.registry().has(scenario)) throw new Error("scenario.run takes a registered { scenario }");
+    if (typeof scenario !== "string" || !rig.registry().byId.has(scenario)) throw new Error("scenario.run takes a registered { scenario }");
     return run(scenario);
   });
   const { store } = rig.config;
@@ -78,26 +122,25 @@ export function buildRouter(rig: Rig, lastTriage: { at?: number }, run = startRu
   return router;
 }
 
-/** Fingerprints the cron registry expects (a cron run that is refused by design). */
-export function explainedFingerprints(registryText: string | undefined): Set<string> {
-  const explained = new Set<string>();
-  if (!registryText) return explained;
-  const parsed: unknown = JSON.parse(registryText);
-  const entries: unknown[] = Array.isArray(parsed)
-    ? parsed
-    : Array.isArray((parsed as { crons?: unknown })?.crons)
-      ? (parsed as { crons: unknown[] }).crons
-      : Object.values((parsed as Record<string, unknown>) ?? {});
-  for (const entry of entries) {
-    const record = (entry ?? {}) as { fingerprint?: unknown; fingerprints?: unknown };
-    const list = Array.isArray(record.fingerprints) ? record.fingerprints : record.fingerprint ? [record.fingerprint] : [];
-    for (const fingerprint of list) {
-      if (Array.isArray(fingerprint) && fingerprint.every((part) => typeof part === "string")) {
-        explained.add(JSON.stringify(fingerprint));
-      }
-    }
+/**
+ * Writes the timers for the registry and the window in force, and starts
+ * them. The registry is read afresh, so a deploy that changes it is timed
+ * within the hour without a restart of rigd.
+ */
+export async function refreshSchedule(rig: Rig, log: (line: string) => void): Promise<void> {
+  const window = await rig.windows().current();
+  const schedule = buildSchedule(loadRegistry(rig.config.registryPath), {
+    window,
+    runnable: new Set(Object.keys(RUNNERS)),
+    notRunnable: NOT_RUNNABLE_YET,
+    node: process.execPath,
+    cli: CLI,
+    home: rig.config.home.home,
+  });
+  const result = installSchedule(schedule, { unitDir: userUnitDir(rig.config.env) });
+  if (result.written.length || result.removed.length) {
+    log(`timers: ${result.written.length} written, ${result.removed.length} removed (window ${window.startHour}:00 UTC)`);
   }
-  return explained;
 }
 
 export function startDaemon(config: RigdConfig): Daemon {
@@ -117,9 +160,20 @@ export function startDaemon(config: RigdConfig): Daemon {
         apiBase: config.localApiBase,
         robotBase: config.robotBase,
         robotToken: robotLocalToken(store),
+        robotNumber: (e164) => {
+          try {
+            return isRobotRole(rig.numbers().role(e164));
+          } catch {
+            return false;
+          }
+        },
+        telnyxKey: () => {
+          const key = store.readOptional("telnyx-public-key");
+          return key ? telnyxPublicKey(key) : undefined;
+        },
         onLate: (entry) => {
           rig.late.record(entry);
-          log(`a text reached the API ${entry.age_s} s after Telnyx signed it; counted as a late delivery and acked`);
+          log(`a genuine text reached the API ${entry.age_s} s after Telnyx signed it; recorded as a late delivery`);
         },
       }),
       media: mediaRelay({ supabaseUrl: () => (supabaseUrl ??= localSupabase(home, config.env).apiUrl) }),
@@ -181,16 +235,40 @@ export function startDaemon(config: RigdConfig): Daemon {
     relayServer = sentryListener(rig, parseDsn(rigDsn));
     relayServer.listen(config.relayPort, "127.0.0.1");
     const cronRegistry = join(config.registryPath, "..", "crons.json");
-    const report = () =>
-      publishState(
-        home,
-        "sentry-relay.json",
-        relay.report(explainedFingerprints(existsSync(cronRegistry) ? readFileSync(cronRegistry, "utf8") : undefined)),
-      );
+    let unread = 0;
+    const report = () => {
+      // Read each time: a deploy may change what the crons expect.
+      let explainer: CronExplainer | undefined;
+      try {
+        explainer = cronExplainer(existsSync(cronRegistry) ? readFileSync(cronRegistry, "utf8") : undefined);
+        if (explainer.unread.length !== unread) log(`crons.json: ${explainer.unread.length} match(es) rigd cannot read; they explain nothing`);
+        unread = explainer.unread.length;
+      } catch (error) {
+        log(`crons.json unreadable, so nothing is explained: ${error instanceof Error ? error.message : "error"}`);
+      }
+      publishState(home, "sentry-relay.json", relay.report((event) => explainer?.explain(event)));
+    };
     report();
     every(RELAY_REPORT_MS, report);
   } else {
     log("no sentry-dsn-synthetic or sentry-dsn-rig in the store; the Sentry relay is off");
+  }
+  if (rig.relay) {
+    const relay = rig.relay;
+    every(RELAY_REPORT_MS, () =>
+      void relay.flushPending().then(({ sent, left }) => {
+        if (sent || left) log(`Sentry: ${sent} held envelope(s) sent, ${left} still held`);
+      }),
+    );
+  }
+
+  if (config.systemd) {
+    const schedule = () =>
+      refreshSchedule(rig, log).catch((error: unknown) =>
+        log(`timers not refreshed: ${error instanceof Error ? error.message : "error"}`),
+      );
+    void schedule();
+    every(SCHEDULE_REFRESH_MS, () => void schedule());
   }
 
   return {

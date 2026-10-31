@@ -19,11 +19,12 @@ import {
   SURFACES,
   type NumberBook,
 } from "@loonext/rig-robot";
-import { AppProbe, type TenantsFile } from "./app-probe.ts";
+import { AppProbe, splitMember, type TenantsFile } from "./app-probe.ts";
 import { readDeployedSha, readRoom, type RigdConfig } from "./config.ts";
+import { WindowSource } from "./guard-window.ts";
 import { LateDeliveries } from "./late.ts";
 import { LeaseClient, type UndoHandlers } from "./lease.ts";
-import { loadRegistry, type RegisteredScenario } from "./registry.ts";
+import { loadRegistry, type Registry } from "./registry.ts";
 import { localSupabase, robotLocalToken } from "@loonext/rig-robot";
 import type { RunnerDeps } from "./runner.ts";
 import { RUNNERS } from "./scenarios/index.ts";
@@ -42,7 +43,9 @@ export interface Rig {
   relay?: SentryRelay;
   syntheticDsn?: Dsn;
   marginsFile: string;
-  registry(): ReadonlyMap<string, RegisteredScenario>;
+  registry(): Registry;
+  /** The dial window in force: the guard's measured one, else the registry's. */
+  windows(): WindowSource;
   numbers(): NumberBook;
   app(): AppProbe;
   browser(): BrowserApi;
@@ -68,10 +71,11 @@ export function buildRig(config: RigdConfig): Rig {
     return () => (value ??= make());
   };
   const numbers = once(() => standingBook(store.readJson<unknown>("standing-numbers.json")));
+  const tenants = once(() => store.readJson<TenantsFile>("tenants.json"));
   const app = once(() => {
     const supabase = localSupabase(config.home, config.env);
     return new AppProbe({
-      tenants: store.readJson<TenantsFile>("tenants.json"),
+      tenants: tenants(),
       numbers: numbers(),
       apiBase: config.localApiBase,
       supabaseUrl: supabase.apiUrl,
@@ -79,6 +83,7 @@ export function buildRig(config: RigdConfig): Rig {
       anonKey: supabase.publishableKey,
       edgeOrigin: config.edgeOrigin,
       guardToken: store.read("guard-token-rig-api"),
+      robotWebhookSecret: () => store.readOptional("robot-webhook-secret"),
     });
   });
 
@@ -117,6 +122,10 @@ export function buildRig(config: RigdConfig): Rig {
       fakeMicDir,
       numbers: numbers(),
       headless: config.env.RIG_HEADLESS !== "0",
+      credentials: (member) => {
+        const { tenant, member: name } = splitMember(member);
+        return tenants()[tenant]?.members[name];
+      },
     });
     return {
       async open(member, surface, path) {
@@ -127,6 +136,7 @@ export function buildRig(config: RigdConfig): Rig {
           hangUp: () => page.hangUp(),
           dial: (role) => page.dial(role),
           waitForText: (text, ms) => page.waitForText(text, ms),
+          enablePush: () => page.enablePush(),
           hear: (options) => page.hear({ margins: loadMargins(marginsFile), ...options }),
           mark: (name) => page.mark(name),
         };
@@ -135,7 +145,17 @@ export function buildRig(config: RigdConfig): Rig {
     };
   });
 
-  const registry = once(() => new Map(loadRegistry(config.registryPath).map((entry) => [entry.id, entry])));
+  const registry = once(() => loadRegistry(config.registryPath));
+  const windows = once(
+    () =>
+      new WindowSource({
+        edgeOrigin: config.edgeOrigin,
+        token: store.read("guard-token-robot"),
+        stateFile: join(dir, "guard-window.json"),
+        registry: registry().budget.window,
+        override: config.windowOverride,
+      }),
+  );
   return {
     config,
     dir,
@@ -147,6 +167,7 @@ export function buildRig(config: RigdConfig): Rig {
     syntheticDsn,
     marginsFile,
     registry,
+    windows,
     numbers,
     app,
     browser,
@@ -161,11 +182,11 @@ export function buildRig(config: RigdConfig): Rig {
       syntheticDsn,
       sha: () => readDeployedSha(config),
       room: () => readRoom(config),
-      window: config.window,
-      caps: config.caps,
+      dialWindow: () => windows().current(),
+      caps: config.capsOverride ?? registry().budget,
       clock: systemClock,
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-      lateDeliveries: (since) => late.since(since).length,
+      lateDeliveries: (query) => late.matching(query).length,
       ran: (at) => markSuiteRan(config, at),
       log: (line) => console.log(line),
     }),

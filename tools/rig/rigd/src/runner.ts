@@ -3,16 +3,28 @@
  *
  * Before anything is spent: the scenario must be due, the room must hold it,
  * a paid one must start inside the dial window with time to finish there, and
- * the day's and the hour's dials must have room for it. Then the run holds
- * the lease, a failing attempt is tried once more, every attempt's verdict is
- * recorded with the SHA, and only a second failure becomes a Sentry event.
+ * the day's and the clock hour's dials must have room for it. Then the run
+ * holds the lease, a failing attempt is tried once more, every attempt's
+ * verdict is recorded with the SHA, and only a second failure becomes a Sentry
+ * event. A failure the doc calls critical is reported at once and not retried.
  */
 import { randomBytes } from "node:crypto";
 import { LEASE_MAX_MS } from "@loonext/rig-protocol";
 import { GuardRefusedError, type Clock } from "@loonext/rig-robot";
-import { blockedByRoom, inWindow, type DialCaps, type DialWindow } from "./budget.ts";
+import {
+  blockedByRoom,
+  clockHourStart,
+  inWindow,
+  plannedRuns,
+  slotDueOn,
+  utcDayStart,
+  windowDay,
+  type DialCaps,
+  type DialWindow,
+} from "./budget.ts";
+import { textHash } from "./late.ts";
 import { LeaseBusyError, LeaseReapedError, type Lease, type LeaseClient, type ReleaseResult } from "./lease.ts";
-import { dialsPerRun, type RegisteredScenario } from "./registry.ts";
+import { dialsPerRun, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
 import type { ScenarioContext, ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
 import { infraFingerprint, syntheticFingerprint, type Dsn, type RelayDecision, type SentryRelay } from "./sentry-relay.ts";
 import type { Outcome, Verdict, VerdictStore } from "./verdicts.ts";
@@ -23,11 +35,14 @@ const WINDOW_TAIL_MS = 15 * 60 * 1000;
 const DUE_SLACK_MS = 2 * 60 * 60 * 1000;
 /** An attempt stops itself before the watchdog would reap its lease. */
 const ATTEMPT_LIMIT_MS = LEASE_MAX_MS - 60 * 1000;
-/** The longest a retry waits for the hourly cap; the run's unit allows for it. */
-const MAX_RETRY_WAIT_MS = 65 * 60 * 1000;
+/** Two paid runs in one hour start minutes apart; the second waits this long for the first's lease. */
+const LEASE_WAIT_MS = 20 * 60 * 1000;
+const LEASE_POLL_MS = 30 * 1000;
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
 
 export interface RunnerDeps {
-  registry: ReadonlyMap<string, RegisteredScenario>;
+  registry: Registry;
   runners: Readonly<Record<string, ScenarioRunner>>;
   verdicts: VerdictStore;
   leases: Pick<LeaseClient, "acquire">;
@@ -40,12 +55,16 @@ export interface RunnerDeps {
   /** The deployed SHA: `rig deploy` writes it. */
   sha(): string;
   room(): number;
-  window: DialWindow;
+  /** The window the guard admits dials in: its measured one, else the registry's. */
+  dialWindow(): Promise<DialWindow>;
   caps: DialCaps;
   clock: Clock;
   sleep(ms: number): Promise<void>;
-  /** Texts that reached the API after their signature aged out, since a time (late.ts). */
-  lateDeliveries?(since: number): number;
+  /**
+   * Texts this attempt sent that reached the API only after Telnyx's
+   * signature had aged out (late.ts), matched by body.
+   */
+  lateDeliveries?(query: { since: number; texts: ReadonlySet<string> }): number;
   /** Marks the suite heartbeat for the dead-man. */
   ran?(at: number): void;
   log?(line: string): void;
@@ -54,6 +73,10 @@ export interface RunnerDeps {
 export interface RunOptions {
   /** Started by a timer: honour the cadence. A manual or triage run is always due. */
   scheduled?: boolean;
+  /** Which of the scenario's registry runs the timer belongs to, from 0. */
+  slot?: number;
+  /** Chosen by the caller, so `triage.rerun` can name the run before it finishes. */
+  runId?: string;
 }
 
 export interface RunSummary {
@@ -65,18 +88,28 @@ export interface RunSummary {
   detail?: string;
 }
 
+const RUN_ID = /^[A-Za-z0-9_-]{1,80}$/;
+
+export function newRunId(scenario: string, at: number): string {
+  return `${scenario}-${new Date(at).toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${randomBytes(3).toString("hex")}`;
+}
+
 export async function runScenario(deps: RunnerDeps, id: string, options: RunOptions = {}): Promise<RunSummary> {
-  const entry = deps.registry.get(id);
+  const entry = deps.registry.byId.get(id);
   if (!entry) throw new Error(`${id} is not in the scenario registry`);
   const runner = deps.runners[id];
   if (!runner) throw new Error(`rigd has no runner for ${id}`);
+  const slot = entry.runs[options.slot ?? 0];
+  if (!slot) throw new Error(`${id} has no run ${options.slot} in the registry`);
+  if (options.runId !== undefined && !RUN_ID.test(options.runId)) throw new Error("a run id is letters, digits, - and _");
+  const window = await deps.dialWindow();
   const now = deps.clock.now();
-  if (options.scheduled && !isDue(deps, entry, now)) return { scenario: id, status: "not_due", verdicts: [] };
+  if (options.scheduled && !isDue(deps, entry, slot, now, window)) return { scenario: id, status: "not_due", verdicts: [] };
 
   const sha = deps.sha();
-  const runId = `${id}-${new Date(now).toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${randomBytes(3).toString("hex")}`;
+  const runId = options.runId ?? newRunId(id, now);
   const verdicts: Verdict[] = [];
-  const record = (attempt: number, startedAt: number, result: { outcome: Outcome; failure_class?: string; component?: string; detail?: string }, dials: number) => {
+  const record = (attempt: number, startedAt: number, result: AttemptOutcome | Gate, dials: number) => {
     const verdict = deps.verdicts.record({
       run_id: runId,
       scenario: id,
@@ -90,6 +123,8 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
       finished_at: new Date(deps.clock.now()).toISOString(),
       dials,
       scheduled: Boolean(options.scheduled),
+      ...(options.slot ? { slot: options.slot } : {}),
+      ...(result.critical ? { critical: true } : {}),
     });
     verdicts.push(verdict);
     return verdict;
@@ -97,74 +132,140 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     if (attempt === 2) {
-      // Three dials an hour leave no room to retry a two-dial run at once; it
-      // waits for the hour to roll over, if the window is still open then.
-      const wait = retryWait(deps, entry, deps.clock.now());
+      const at = retryAt(deps, entry, slot, deps.clock.now(), window);
+      if (at === undefined) {
+        record(attempt, deps.clock.now(), {
+          outcome: "skipped",
+          detail: "no hour left in this window has room for the retry; the next run's first attempt decides",
+        }, 0);
+        break;
+      }
+      const wait = at - deps.clock.now();
       if (wait > 0) {
-        deps.log?.(`${id}: waiting ${Math.round(wait / 60_000)} min for the hourly dial cap before the retry`);
+        deps.log?.(`${id}: waiting ${Math.round(wait / 60_000)} min for an hour with room before the retry`);
         await deps.sleep(wait);
       }
     }
     const startedAt = deps.clock.now();
-    const gate = admission(deps, entry, startedAt);
+    const gate = admission(deps, entry, startedAt, window);
     if (gate) {
       record(attempt, startedAt, gate, 0);
-      return finish(deps, entry, runId, verdicts);
+      break;
     }
-    const outcome = await attemptOnce(deps, entry, runner, runId, attempt, sha);
+    const outcome = await attemptOnce(deps, entry, runner, runId, attempt, sha, window);
     record(attempt, startedAt, outcome, outcome.spent ? dialsPerRun(entry) : 0);
-    if (!(outcome.outcome === "fail" || outcome.outcome === "infra")) break;
+    if (outcome.critical) break;
+    if (!RETRIED.has(outcome.outcome)) break;
     if (attempt === 1) deps.log?.(`${id}: attempt 1 ${outcome.outcome} (${outcome.detail ?? ""}); retrying once`);
   }
   return finish(deps, entry, runId, verdicts);
 }
 
-function isDue(deps: RunnerDeps, entry: RegisteredScenario, now: number): boolean {
-  const { cadence } = entry;
-  if (cadence.kind !== "days" || cadence.everyDays <= 1) return true;
-  const last = deps.verdicts.lastRanAt(entry.id);
-  return last === undefined || now - last >= cadence.everyDays * 86_400_000 - DUE_SLACK_MS;
+const RETRIED: ReadonlySet<Outcome> = new Set(["fail", "infra", "late_delivery"]);
+
+function isDue(deps: RunnerDeps, entry: RegisteredScenario, slot: RunSlot, now: number, window: DialWindow): boolean {
+  if (slot.everyMinutes < 24 * 60) return true;
+  if (dialsPerRun(entry) > 0) {
+    // A paid run keeps the registry's day, so the hours it shares stay within the cap.
+    const day = windowDay(now, window);
+    if (!slotDueOn(slot, day)) return false;
+    const opened = day * DAY_MS + window.startHour * HOUR_MS;
+    return !deps.verdicts.ranBetween(opened, opened + DAY_MS).has(`${entry.id}#${slot.index}`);
+  }
+  const last = deps.verdicts.lastRanAt(entry.id, slot.index);
+  return last === undefined || now - last >= slot.everyMinutes * 60_000 - DUE_SLACK_MS;
+}
+
+interface Gate {
+  outcome: Outcome;
+  detail: string;
+  failure_class?: undefined;
+  component?: undefined;
+  critical?: undefined;
 }
 
 /** Why a run may not start now, or undefined when it may. */
-function admission(deps: RunnerDeps, entry: RegisteredScenario, now: number) {
+function admission(deps: RunnerDeps, entry: RegisteredScenario, now: number, window: DialWindow): Gate | undefined {
   const dials = dialsPerRun(entry);
   if (blockedByRoom(entry, deps.room())) {
-    return { outcome: "not_runnable" as const, detail: `room ${deps.room()} is under ${Math.max(2, entry.room_min)}` };
+    return { outcome: "not_runnable", detail: `room ${deps.room()} is under ${Math.max(2, entry.room_min)}` };
   }
   if (dials === 0) return undefined;
-  if (!entry.paid) return { outcome: "not_runnable" as const, detail: "dials without paid: the registry is wrong" };
-  if (!inWindow(deps.window, now) || !inWindow(deps.window, now + WINDOW_TAIL_MS)) {
-    return { outcome: "skipped" as const, detail: "outside the dial window" };
+  if (!inWindow(window, now) || !inWindow(window, now + WINDOW_TAIL_MS)) {
+    return { outcome: "skipped", detail: `outside the dial window (${String(window.startHour).padStart(2, "0")}:00 UTC for ${window.hours} h)` };
   }
-  if (deps.verdicts.dialsSince(now - 86_400_000) + dials > deps.caps.daily) {
-    return { outcome: "skipped" as const, detail: `the daily cap of ${deps.caps.daily} dials is spent` };
+  const day = utcDayStart(now);
+  if (deps.verdicts.dialsBetween(day, day + DAY_MS) + dials > deps.caps.daily) {
+    return { outcome: "skipped", detail: `the daily cap of ${deps.caps.daily} dials is spent` };
   }
-  if (deps.verdicts.dialsSince(now - 3_600_000) + dials > deps.caps.hourly) {
-    return { outcome: "skipped" as const, detail: `the hourly cap of ${deps.caps.hourly} dials is spent` };
+  const hour = clockHourStart(now);
+  if (deps.verdicts.dialsBetween(hour, hour + HOUR_MS) + dials > deps.caps.hourly) {
+    return { outcome: "skipped", detail: `the hourly cap of ${deps.caps.hourly} dials is spent` };
   }
   return undefined;
 }
 
-/** How long until the hourly cap admits the retry, or 0 when waiting would not help. */
-function retryWait(deps: RunnerDeps, entry: RegisteredScenario, now: number): number {
+/**
+ * When the retry may start: now, or the first clock hour left in the window
+ * whose cap holds it beside the runs the registry still has planned there.
+ * Undefined when no hour today does.
+ */
+function retryAt(deps: RunnerDeps, entry: RegisteredScenario, slot: RunSlot, now: number, window: DialWindow): number | undefined {
   const dials = dialsPerRun(entry);
-  if (dials === 0 || deps.verdicts.dialsSince(now - 3_600_000) + dials <= deps.caps.hourly) return 0;
-  const recent = deps.verdicts
-    .all()
-    .map((v) => ({ at: Date.parse(v.started_at), dials: v.dials }))
-    .filter((v) => v.dials > 0 && v.at >= now - 3_600_000)
-    .sort((a, b) => a.at - b.at);
-  for (const { at } of recent) {
-    const when = at + 3_600_000 + 1_000;
-    if (when - now > MAX_RETRY_WAIT_MS) return 0;
-    if (!inWindow(deps.window, when) || !inWindow(deps.window, when + WINDOW_TAIL_MS)) return 0;
-    if (deps.verdicts.dialsSince(when - 3_600_000) + dials <= deps.caps.hourly) return when - now;
+  if (dials === 0) return now;
+  const day = windowDay(now, window);
+  const opened = day * DAY_MS + window.startHour * HOUR_MS;
+  const started = deps.verdicts.ranBetween(opened, opened + DAY_MS);
+  const remaining = plannedRuns(deps.registry, day, window, new Set(Object.keys(deps.runners))).filter(
+    (run) => !(run.scenario === entry.id && run.slot === slot.index) && !started.has(`${run.scenario}#${run.slot}`),
+  );
+  const today = utcDayStart(now);
+  const dayRoom = deps.caps.daily - deps.verdicts.dialsBetween(today, today + DAY_MS) - remaining.reduce((sum, run) => sum + run.dials, 0);
+  if (dayRoom < dials) return undefined;
+  for (let k = 0; k < 24; k++) {
+    const hour = clockHourStart(now) + k * HOUR_MS;
+    const at = k === 0 ? now : hour + 60_000;
+    if (!inWindow(window, at)) break;
+    if (!inWindow(window, at + WINDOW_TAIL_MS)) break;
+    const planned = remaining.filter((run) => run.hour === new Date(hour).getUTCHours()).reduce((sum, run) => sum + run.dials, 0);
+    if (deps.verdicts.dialsBetween(hour, hour + HOUR_MS) + planned + dials <= deps.caps.hourly) return at;
   }
-  return 0;
+  return undefined;
 }
 
-type AttemptOutcome ={ outcome: Outcome; failure_class?: string; component?: string; detail?: string; spent: boolean };
+type AttemptOutcome = {
+  outcome: Outcome;
+  failure_class?: string;
+  component?: string;
+  detail?: string;
+  critical?: boolean;
+  spent: boolean;
+};
+
+async function acquireLease(deps: RunnerDeps, entry: RegisteredScenario, window: DialWindow): Promise<Lease | AttemptOutcome> {
+  const paid = dialsPerRun(entry) > 0;
+  const started = deps.clock.now();
+  for (;;) {
+    try {
+      return paid ? await deps.leases.acquire(entry.id) : await deps.localLease(entry.id);
+    } catch (error) {
+      if (error instanceof LeaseBusyError) {
+        const next = deps.clock.now() + LEASE_POLL_MS;
+        if (next - started <= LEASE_WAIT_MS && inWindow(window, next + WINDOW_TAIL_MS)) {
+          await deps.sleep(LEASE_POLL_MS);
+          continue;
+        }
+        return { outcome: "skipped", detail: `another scenario held the lease for ${Math.round((deps.clock.now() - started) / 60_000)} min`, spent: false };
+      }
+      // Only a busy lease is a reason to skip. Any other refusal, a rejected
+      // token or a guard that does not answer is the rig's fault to report.
+      if (error instanceof GuardRefusedError) {
+        return { outcome: "infra", component: "guard", detail: `the guard refused the lease: ${error.rule}`, spent: false };
+      }
+      return { outcome: "infra", component: "lease", detail: (error as Error).message, spent: false };
+    }
+  }
+}
 
 async function attemptOnce(
   deps: RunnerDeps,
@@ -173,20 +274,18 @@ async function attemptOnce(
   runId: string,
   attempt: number,
   sha: string,
+  window: DialWindow,
 ): Promise<AttemptOutcome> {
   const paid = dialsPerRun(entry) > 0;
+  const acquired = await acquireLease(deps, entry, window);
+  if (!("id" in acquired)) return acquired;
+  const lease = acquired;
   const attemptStartedAt = deps.clock.now();
-  let lease: Lease;
-  try {
-    lease = paid ? await deps.leases.acquire(entry.id) : await deps.localLease(entry.id);
-  } catch (error) {
-    if (error instanceof LeaseBusyError) return { outcome: "skipped", detail: "another scenario holds the lease", spent: false };
-    if (error instanceof GuardRefusedError) return { outcome: "skipped", detail: `the guard refused the lease: ${error.rule}`, spent: false };
-    return { outcome: "infra", component: "lease", detail: (error as Error).message, spent: false };
-  }
 
   const evidence: Record<string, unknown> = { sha, lane: entry.lane };
-  const base = {
+  const texts = new Set<string>();
+  const lanes = deps.lanes({ scenario: entry.id, runId, attempt });
+  const ctx: ScenarioContext = {
     scenario: entry.id,
     runId,
     attempt,
@@ -195,8 +294,10 @@ async function attemptOnce(
     sleep: deps.sleep,
     nonce: `${runId}-${attempt}`.slice(-24),
     evidence,
+    browser: lanes.browser,
+    robot: noting(lanes.robot, "sms", (message: { text: string }) => texts.add(textHash(message.text))),
+    app: noting(lanes.app, "sendText", (args: { body: string }) => texts.add(textHash(args.body))),
   };
-  const ctx: ScenarioContext = { ...base, ...deps.lanes({ scenario: entry.id, runId, attempt }) };
 
   let result: ScenarioResult;
   try {
@@ -225,22 +326,30 @@ async function attemptOnce(
       detail: `undo failed: ${released.failed.map((f) => `${f.kind} (${f.error})`).join(", ")}`,
     };
   }
-  if (runner.afterRelease && result.outcome === "pass") {
+  // The after-release check reads what the undos left behind, so it runs
+  // whatever the attempt came to: a run that failed half way is the one most
+  // likely to have left a change in place.
+  if (runner.afterRelease) {
     try {
-      result = (await runner.afterRelease(ctx)) ?? result;
+      const after = await runner.afterRelease(ctx);
+      if (after && after.outcome !== "pass") result = after;
     } catch (error) {
-      result = attemptError(error);
+      evidence.after_release_error = error instanceof Error ? error.message : String(error);
+      if (result.outcome === "pass") result = attemptError(error);
     }
   }
-  // A failure while texts were arriving too late to verify measures the outage, not the product.
-  const failureClass = result.outcome === "fail" ? result.failure_class : undefined;
-  const late = failureClass ? (deps.lateDeliveries?.(attemptStartedAt) ?? 0) : 0;
+
+  const critical = result.outcome === "fail" && result.critical === true;
+  const failureClass = result.outcome === "fail" && !critical ? result.failure_class : undefined;
+  // A failure while this attempt's own texts reached the API too late to
+  // verify measures the delay, not the product; it is retried, not reported.
+  const late = failureClass && texts.size > 0 ? (deps.lateDeliveries?.({ since: attemptStartedAt, texts }) ?? 0) : 0;
   if (late > 0) {
     evidence.late_deliveries = late;
     deps.verdicts.saveEvidence(runId, attempt, evidence);
     return {
       outcome: "late_delivery",
-      detail: `${late} text(s) reached the API after Telnyx's signature window; ${failureClass} not counted`,
+      detail: `${late} of this attempt's text(s) reached the API after Telnyx's signature window; ${failureClass} not counted`,
       spent: paid,
     };
   }
@@ -248,11 +357,27 @@ async function attemptOnce(
   const { outcome } = result;
   return {
     outcome,
-    failure_class: outcome === "fail" ? result.failure_class : undefined,
-    component: outcome === "infra" ? result.component : undefined,
+    failure_class: result.outcome === "fail" ? result.failure_class : undefined,
+    component: result.outcome === "infra" ? result.component : undefined,
     detail: "detail" in result ? result.detail : undefined,
+    ...(critical ? { critical: true } : {}),
     spent: paid,
   };
+}
+
+/** The same object, with one method also telling `note` what it was called with. */
+function noting<T extends object, A>(target: T, method: string, note: (arg: A) => void): T {
+  return new Proxy(target, {
+    get(object, property) {
+      const value: unknown = Reflect.get(object, property);
+      if (typeof value !== "function") return value;
+      if (property !== method) return value.bind(object);
+      return (arg: A, ...rest: unknown[]) => {
+        note(arg);
+        return (value as (...args: unknown[]) => unknown).call(object, arg, ...rest);
+      };
+    },
+  });
 }
 
 function attemptError(error: unknown): ScenarioResult {
@@ -271,28 +396,41 @@ function withLimit<T>(promise: Promise<T>, ms: number, deps: RunnerDeps): Promis
   return Promise.race([promise, limit]).finally(() => cancel?.());
 }
 
+const DECISIVE: ReadonlySet<Outcome> = new Set(["pass", "fail", "infra"]);
+/** Outcomes where an attempt actually ran, which is what the suite heartbeat means. */
+const RAN: ReadonlySet<Outcome> = new Set(["pass", "fail", "infra", "preempted", "late_delivery"]);
+
 async function finish(deps: RunnerDeps, entry: RegisteredScenario, runId: string, verdicts: Verdict[]): Promise<RunSummary> {
   const last = verdicts.at(-1)!;
-  deps.ran?.(deps.clock.now());
+  if (verdicts.some((v) => RAN.has(v.outcome))) deps.ran?.(deps.clock.now());
   const summary: RunSummary = { scenario: entry.id, run_id: runId, status: last.outcome, verdicts, detail: last.detail };
+  // The event describes this run's last attempt that actually judged
+  // something, never a later "skipped" from the window or the cap.
+  const judged = verdicts.filter((v) => DECISIVE.has(v.outcome)).at(-1);
+  if (!judged || judged.outcome === "pass" || !deps.relay || !deps.syntheticDsn) return summary;
+
+  const critical = verdicts.find((v) => v.critical);
   // Retried once before it is reported: the scenario's last two decisive
   // attempts both failed, and the newer is this run's. A retry the window or
   // the cap stopped is finished by the next run's first attempt.
-  const decisive = deps.verdicts.all().filter((v) => v.scenario === entry.id && ["pass", "fail", "infra"].includes(v.outcome));
+  const decisive = deps.verdicts.all().filter((v) => v.scenario === entry.id && DECISIVE.has(v.outcome));
   const lastTwo = decisive.slice(-2);
-  const failedTwice =
-    lastTwo.length === 2 && lastTwo.every((v) => v.outcome === "fail" || v.outcome === "infra") && lastTwo[1]!.run_id === runId;
-  if (failedTwice && deps.relay && deps.syntheticDsn) {
-    const fingerprint =
-      last.outcome === "infra" ? infraFingerprint(last.component ?? "unknown") : syntheticFingerprint(entry.id, last.failure_class ?? "unknown");
-    summary.report = await deps.relay.send(deps.syntheticDsn, {
-      fingerprint,
-      message: `${entry.id} ${last.outcome === "infra" ? `infrastructure: ${last.component}` : `failed: ${last.failure_class}`}`,
-      runId,
-      release: last.sha,
-      tags: { scenario: entry.id, lane: entry.lane, sha: last.sha },
-      extra: { detail: last.detail, run_id: runId },
-    });
-  }
+  const failedTwice = lastTwo.length === 2 && lastTwo.every((v) => v.outcome !== "pass") && lastTwo[1]!.run_id === runId;
+  if (!critical && !failedTwice) return summary;
+
+  const reported = critical ?? judged;
+  const fingerprint =
+    reported.outcome === "infra"
+      ? infraFingerprint(reported.component ?? "unknown")
+      : syntheticFingerprint(entry.id, reported.failure_class ?? "unknown");
+  summary.report = await deps.relay.send(deps.syntheticDsn, {
+    fingerprint,
+    message: `${entry.id} ${reported.outcome === "infra" ? `infrastructure: ${reported.component}` : `failed: ${reported.failure_class}`}${critical ? " (critical)" : ""}`,
+    level: critical ? "fatal" : "error",
+    runId,
+    release: reported.sha,
+    tags: { scenario: entry.id, lane: entry.lane, sha: reported.sha, ...(critical ? { critical: "true" } : {}) },
+    extra: { detail: reported.detail, run_id: runId },
+  });
   return summary;
 }

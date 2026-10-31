@@ -16,7 +16,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { EDGE_PATHS, GUARD_ROUTES, LEASE_MAX_MS, type GuardRefusal, type LeaseGrant } from "@loonext/rig-protocol";
+import { EDGE_PATHS, GUARD_ROUTES, HEADER, LEASE_MAX_MS, type GuardRefusal, type LeaseGrant } from "@loonext/rig-protocol";
 import { GuardRefusedError, systemClock, type Clock } from "@loonext/rig-robot";
 
 export interface UndoAction {
@@ -97,9 +97,15 @@ export class LeaseClient {
       body: JSON.stringify({ scenario }),
       signal: AbortSignal.timeout(10_000),
     });
-    if (response.status === 409) throw new LeaseBusyError();
     const body = (await response.json().catch(() => undefined)) as Partial<LeaseGrant & GuardRefusal> | undefined;
-    if (!response.ok) throw new GuardRefusedError(response.status, body?.rule ?? `lease_${response.status}`);
+    if (!response.ok) {
+      const rule = refusalRule(response, body);
+      if (rule === "lease.busy" || response.status === 409) throw new LeaseBusyError();
+      // Only the guard's own refusal carries its header; a 401 from the edge,
+      // a 404 or a 5xx is the rig failing, not a policy saying no.
+      if (rule) throw new GuardRefusedError(response.status, rule);
+      throw new Error(`lease: acquiring returned ${response.status}`);
+    }
     if (!body?.lease_id || !body.expires_at) throw new Error("lease: the guard returned no lease id");
     const entry: JournalEntry = {
       lease_id: body.lease_id,
@@ -131,7 +137,11 @@ export class LeaseClient {
     return new Lease(this, entry);
   }
 
-  /** DELETE at the guard. A lease the guard already expired is released. */
+  /**
+   * DELETE at the guard. A lease the guard no longer holds is released: it
+   * answers `lease.not_found` when the lease expired, was replaced by a newer
+   * one, or this DELETE already went through before a crash.
+   */
   async deleteAtGuard(leaseId: string): Promise<void> {
     if (leaseId.startsWith(LOCAL_PREFIX)) return;
     const response = await this.#fetch(this.#url(leaseId), {
@@ -139,7 +149,10 @@ export class LeaseClient {
       headers: { authorization: `Bearer ${this.#o.token}` },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!response.ok && response.status !== 404) throw new Error(`lease: release returned ${response.status}`);
+    if (response.ok || response.status === 404) return;
+    const body = (await response.json().catch(() => undefined)) as Partial<GuardRefusal> | undefined;
+    if (refusalRule(response, body) === "lease.not_found") return;
+    throw new Error(`lease: release returned ${response.status}`);
   }
 
   /** Runs a journal's undos newest first; one failing does not stop the rest. */
@@ -299,6 +312,13 @@ export class LeaseWatchdog {
   stop(): void {
     this.#cancel?.();
   }
+}
+
+/** The rule of a guard refusal, read only when the guard's header says it is one. */
+function refusalRule(response: Response, body: Partial<GuardRefusal> | undefined): string | undefined {
+  const header = response.headers.get(HEADER.refusedBy);
+  if (!header) return undefined;
+  return typeof body?.rule === "string" ? body.rule : header;
 }
 
 function writeAtomic(path: string, value: unknown): void {

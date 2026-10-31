@@ -15,7 +15,9 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-function setup(options: { acquireStatus?: number; handlers?: UndoHandlers } = {}) {
+const refusal = (rule: string, status = 403) => json({ error: "guard_refused", rule }, status, { [HEADER.refusedBy]: rule });
+
+function setup(options: { acquire?: () => Response; release?: () => Response; handlers?: UndoHandlers } = {}) {
   const stateDir = mkdtempSync(join(tmpdir(), "rig-lease-"));
   dirs.push(stateDir);
   const undone: string[] = [];
@@ -29,12 +31,8 @@ function setup(options: { acquireStatus?: number; handlers?: UndoHandlers } = {}
   };
   const { fetch, requests } = fakeFetch({
     [`POST ${LEASE_URL}`]: () =>
-      options.acquireStatus === 409
-        ? json({ error: "busy" }, 409)
-        : options.acquireStatus
-          ? json({ error: "guard_refused", rule: "budget.red" }, options.acquireStatus, { [HEADER.refusedBy]: "guard" })
-          : json({ lease_id: "lease-abc", scenario: "S02", expires_at: "2026-10-31T05:15:00.000Z" }, 201),
-    [`DELETE ${LEASE_URL}/`]: () => new Response(null, { status: 204 }),
+      options.acquire?.() ?? json({ lease_id: "lease-abc", scenario: "S02", expires_at: "2026-10-31T05:15:00.000Z" }, 201),
+    [`DELETE ${LEASE_URL}/`]: () => options.release?.() ?? new Response(null, { status: 204 }),
   });
   const clock = new ManualClock();
   const client = new LeaseClient({ edgeOrigin: EDGE, token: "robot-token", stateDir, handlers, fetch, clock });
@@ -50,11 +48,19 @@ describe("the run lease", () => {
     expect(requests[0]!.headers.authorization).toBe("Bearer robot-token");
   });
 
-  it("names a busy lease and a guard refusal apart", async () => {
-    await expect(setup({ acquireStatus: 409 }).client.acquire("S02")).rejects.toBeInstanceOf(LeaseBusyError);
-    const refused = setup({ acquireStatus: 429 }).client.acquire("S02");
+  it("names a busy lease, a guard refusal and a broken rig apart", async () => {
+    await expect(setup({ acquire: () => refusal("lease.busy") }).client.acquire("S02")).rejects.toBeInstanceOf(LeaseBusyError);
+    await expect(setup({ acquire: () => json({ error: "busy" }, 409) }).client.acquire("S02")).rejects.toBeInstanceOf(LeaseBusyError);
+    const refused = setup({ acquire: () => refusal("class.not_allowed") }).client.acquire("S02");
     await expect(refused).rejects.toBeInstanceOf(GuardRefusedError);
-    await expect(refused).rejects.toMatchObject({ rule: "budget.red" });
+    await expect(refused).rejects.toMatchObject({ rule: "class.not_allowed" });
+    // No refused-by header: the edge turned the token away, the route is
+    // missing or the guard is down. None of those is the guard saying no.
+    for (const status of [401, 404, 502, 503]) {
+      const failed = setup({ acquire: () => json({ error: "x" }, status) }).client.acquire("S02");
+      await expect(failed).rejects.not.toBeInstanceOf(GuardRefusedError);
+      await expect(failed).rejects.toThrow(new RegExp(`acquiring returned ${status}`));
+    }
   });
 
   it("runs the undos newest first on release, then releases at the guard and forgets the journal", async () => {
@@ -100,6 +106,26 @@ describe("the run lease", () => {
     await lease.release();
     expect(undone).toEqual(["sms START"]);
     expect(requests).toEqual([]);
+  });
+});
+
+describe("releasing at the guard", () => {
+  it("forgets a lease the guard no longer holds, so its undos run once", async () => {
+    const { client, undone, clock } = setup({ release: () => refusal("lease.not_found") });
+    const lease = await client.acquire("S24");
+    lease.registerUndo({ kind: "robot.sms", params: { text: "START" } });
+    expect(await lease.release()).toMatchObject({ reaped: false, undone: 1, failed: [] });
+    expect(readdirSync(client.dir)).toEqual([]);
+    clock.advance(3 * LEASE_MAX_MS);
+    expect(await new LeaseWatchdog({ client, clock }).sweep()).toEqual([]);
+    expect(undone).toEqual(["sms START"]);
+  });
+
+  it("keeps the journal for the watchdog when the guard cannot be told", async () => {
+    const { client } = setup({ release: () => json({ error: "guard_error" }, 502) });
+    const lease = await client.acquire("S24");
+    await expect(lease.release()).rejects.toThrow(/release returned 502/);
+    expect(readdirSync(client.dir)).toEqual(["lease-abc.releasing.json"]);
   });
 });
 

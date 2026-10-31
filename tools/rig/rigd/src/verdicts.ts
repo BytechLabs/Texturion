@@ -8,9 +8,10 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join } from "node:path";
 
 /**
- * `late_delivery`: the run failed because a text reached the API after its
- * Telnyx signature had aged out in the edge's queue (late.ts). It is counted,
- * not reported, because it measures an outage, not the product.
+ * `late_delivery`: the attempt failed while one of its own texts reached the
+ * API only after its genuine Telnyx signature had aged out in the edge's
+ * queue (late.ts). It is retried, not reported: it measures the delay, not
+ * the product.
  */
 export const OUTCOMES = ["pass", "fail", "infra", "preempted", "skipped", "not_runnable", "late_delivery"] as const;
 export type Outcome = (typeof OUTCOMES)[number];
@@ -37,7 +38,10 @@ export interface Verdict {
   finished_at: string;
   dials: number;
   scheduled: boolean;
-  reported?: boolean;
+  /** Which of the scenario's registry runs a timer started, from 0. */
+  slot?: number;
+  /** A failure the doc calls critical: reported at once, never retried. */
+  critical?: boolean;
 }
 
 export interface UnresolvedFailure {
@@ -92,10 +96,10 @@ export class VerdictStore {
     return matching.at(-1);
   }
 
-  /** When a scenario last actually ran, for cadences longer than its timer. */
-  lastRanAt(scenario: string): number | undefined {
+  /** When a scenario (or one of its registry runs) last actually ran, for cadences longer than its timer. */
+  lastRanAt(scenario: string, slot?: number): number | undefined {
     const last = this.all()
-      .filter((v) => v.scenario === scenario && SPENT.has(v.outcome))
+      .filter((v) => v.scenario === scenario && SPENT.has(v.outcome) && (slot === undefined || (v.slot ?? 0) === slot))
       .at(-1);
     return last ? Date.parse(last.started_at) : undefined;
   }
@@ -128,11 +132,21 @@ export class VerdictStore {
     return out.sort((a, b) => a.since.localeCompare(b.since));
   }
 
-  /** Dials spent by attempts that started at or after `since`. */
-  dialsSince(since: number): number {
+  /** Dials spent by attempts that started in [from, to). */
+  dialsBetween(from: number, to = Number.POSITIVE_INFINITY): number {
     return this.all()
-      .filter((v) => SPENT.has(v.outcome) && Date.parse(v.started_at) >= since)
+      .filter((v) => SPENT.has(v.outcome) && Date.parse(v.started_at) >= from && Date.parse(v.started_at) < to)
       .reduce((sum, v) => sum + v.dials, 0);
+  }
+
+  /** Scenario runs (scenario and slot) that spent anything in [from, to). */
+  ranBetween(from: number, to: number): Set<string> {
+    const ran = new Set<string>();
+    for (const v of this.all()) {
+      const at = Date.parse(v.started_at);
+      if (SPENT.has(v.outcome) && at >= from && at < to) ran.add(`${v.scenario}#${v.slot ?? 0}`);
+    }
+    return ran;
   }
 
   saveEvidence(runId: string, attempt: number, evidence: unknown): void {

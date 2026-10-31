@@ -3,8 +3,8 @@
  * rigd's commands, run under Node by type stripping on the rig:
  *
  *   node tools/rig/rigd/src/cli.ts daemon
- *   node tools/rig/rigd/src/cli.ts run <scenario> [--scheduled]
- *   node tools/rig/rigd/src/cli.ts schedule --out <dir> [--node <path>]
+ *   node tools/rig/rigd/src/cli.ts run <scenario>[-<run>] [--scheduled] [--run-id <id>]
+ *   node tools/rig/rigd/src/cli.ts schedule --install | --out <dir> [--node <path>]
  *   node tools/rig/rigd/src/cli.ts secrets
  *   node tools/rig/rigd/src/cli.ts budget
  *   node tools/rig/rigd/src/cli.ts verdicts [--unresolved]
@@ -19,13 +19,14 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { analyzeFrames, calibrate, decodeWav, isSurface, loadMargins, saveMargins, SURFACES, SURFACE_HZ } from "@loonext/rig-robot";
 import { dialBudget } from "./budget.ts";
-import { loadConfig, readRoom } from "./config.ts";
+import { loadConfig } from "./config.ts";
 import { deliverSecrets } from "./secrets.ts";
 import { startDaemon } from "./daemon.ts";
+import { installSchedule, userUnitDir } from "./install.ts";
 import { loadRegistry } from "./registry.ts";
 import { runScenario } from "./runner.ts";
-import { RUNNERS } from "./scenarios/index.ts";
-import { buildSchedule } from "./schedule.ts";
+import { NOT_RUNNABLE_YET, RUNNERS } from "./scenarios/index.ts";
+import { buildSchedule, parseInstance } from "./schedule.ts";
 import { VerdictStore } from "./verdicts.ts";
 import { buildRig, marginsFileOf, rigdDir } from "./wiring.ts";
 
@@ -39,6 +40,8 @@ async function main(argv: string[]): Promise<number> {
     options: {
       scheduled: { type: "boolean" },
       unresolved: { type: "boolean" },
+      install: { type: "boolean" },
+      "run-id": { type: "string" },
       out: { type: "string" },
       node: { type: "string" },
       surface: { type: "string" },
@@ -60,32 +63,37 @@ async function main(argv: string[]): Promise<number> {
       return new Promise<number>(() => undefined);
     }
     case "run": {
-      const id = positionals[0];
-      if (!id) throw new Error("run <scenario>");
+      if (!positionals[0]) throw new Error("run <scenario>[-<run>]");
+      const { id, slot } = parseInstance(positionals[0]);
       const rig = buildRig(loadConfig());
-      print(await runScenario(rig.runnerDeps(), id, { scheduled: values.scheduled }));
+      print(await runScenario(rig.runnerDeps(), id, { scheduled: values.scheduled, slot, runId: values["run-id"] }));
       return 0;
     }
     case "schedule": {
-      if (!values.out) throw new Error("schedule --out <dir>");
-      const config = loadConfig();
-      const schedule = buildSchedule(loadRegistry(config.registryPath), {
-        window: config.window,
-        room: readRoom(config),
-        caps: config.caps,
+      if (!values.out && !values.install) throw new Error("schedule --install | --out <dir>");
+      const rig = buildRig(loadConfig());
+      const schedule = buildSchedule(rig.registry(), {
+        window: await rig.windows().current(),
         runnable: new Set(Object.keys(RUNNERS)),
+        notRunnable: NOT_RUNNABLE_YET,
         node: values.node ?? process.execPath,
         cli: CLI,
-        home: config.home.home,
+        home: rig.config.home.home,
       });
-      mkdirSync(values.out, { recursive: true });
-      for (const unit of schedule.units) writeFileSync(join(values.out, unit.name), unit.content);
+      if (values.install) {
+        if (!rig.config.systemd) throw new Error("schedule --install: rig.json has systemd off");
+        print({ ...installSchedule(schedule, { unitDir: userUnitDir() }), timed: schedule.timed, not_timed: schedule.notTimed });
+        return 0;
+      }
+      mkdirSync(values.out!, { recursive: true });
+      for (const unit of schedule.units) writeFileSync(join(values.out!, unit.name), unit.content);
       print({ timed: schedule.timed, not_timed: schedule.notTimed });
       return 0;
     }
     case "budget": {
       const config = loadConfig();
-      print(dialBudget(loadRegistry(config.registryPath), config.caps));
+      const registry = loadRegistry(config.registryPath);
+      print(dialBudget(registry, config.capsOverride ?? registry.budget));
       return 0;
     }
     case "verdicts": {
@@ -111,7 +119,7 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     default:
-      console.error("usage: cli.ts daemon | run <scenario> [--scheduled] | schedule --out <dir> | budget | verdicts | secrets | calibrate");
+      console.error("usage: cli.ts daemon | run <scenario> [--scheduled] [--run-id <id>] | schedule --install | --out <dir> | budget | verdicts | secrets | calibrate");
       return 2;
   }
 }

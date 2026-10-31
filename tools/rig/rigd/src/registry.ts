@@ -1,177 +1,228 @@
 /**
- * tools/rig/scenarios.json, the scenario registry, read and checked before
- * anything is scheduled. A registry that does not have the expected shape stops
- * rigd with every problem listed: a scheduler that guessed would dial at the
- * wrong time.
+ * tools/rig/scenarios.json, the scenario registry (`loonext.rig-scenarios.v1`,
+ * checked against the design doc by scripts/check-rig-scenarios.mjs), read
+ * and checked again before anything is scheduled. A registry that does not
+ * have the expected shape stops rigd with every problem listed: a scheduler
+ * that guessed would dial at the wrong time.
  *
- * Each entry is `{ id, frequency, dials, lane, room_min, paid }`, plus an
- * optional `far_end_legs`: a run's dials are its dials plus its far-end
- * legs. Other keys are allowed and ignored.
+ * What rigd reads from it:
+ *   budget        the caps, reserves and dial window
+ *   scenarios[]   id, lane, runs_on, scheduled, dials, far_end_legs, min_room
+ *                 and runs: [{ every, offset_days?, hour_utc?, label? }]
+ *
+ * A run with dials sits on a day of its period and an hour of the window: it
+ * is due on the days where (day % every) == offset_days, counting days from
+ * the Unix epoch, which is the same layout the check proves fits 3 dials an
+ * hour. Other keys are allowed and ignored.
  */
 import { readFileSync } from "node:fs";
+import type { DialCaps, DialWindow } from "./budget.ts";
 
-export interface ScenarioEntry {
-  id: string;
-  frequency: string;
-  dials: number;
-  lane: string;
-  room_min: number;
-  paid: boolean;
-  far_end_legs?: number;
+export const REGISTRY_SCHEMA = "loonext.rig-scenarios.v1";
+export const RUNS_ON = ["rig", "ci", "production", "workstation"] as const;
+export type RunsOn = (typeof RUNS_ON)[number];
+
+export interface RunSlot {
+  /** The run's place in the entry's `runs`, from 0. */
+  index: number;
+  label?: string;
+  every: string;
+  /** Minutes between runs; 0 for `push`. */
+  everyMinutes: number;
+  offsetDays?: number;
+  hourUtc?: number;
 }
 
-export type Cadence =
-  /** Every `everyMinutes`, on the clock: 15 min, hourly, 4 times a day. */
-  | { kind: "interval"; everyMinutes: number }
-  /** Once a day or less: every `everyDays` days. Monthly is 30. */
-  | { kind: "days"; everyDays: number }
-  /** `times` runs a week on fixed weekdays. */
-  | { kind: "per-week"; times: number }
-  /** Not run by the rig's timers: on every push, or in production. */
-  | { kind: "unscheduled"; reason: string };
+export interface RegisteredScenario {
+  id: string;
+  lane: string;
+  runsOn: RunsOn;
+  /** False when the doc's cadence is not in force under the current cap. */
+  scheduled: boolean;
+  unscheduledBecause?: string;
+  /** Legs Loonext creates. */
+  dials: number;
+  /** Legs the far end creates; on the rig, the robot's. */
+  far_end_legs: number;
+  room_min: number;
+  /** Any leg at all: every dial is paid and runs only inside the window. */
+  paid: boolean;
+  runs: RunSlot[];
+}
 
-export interface RegisteredScenario extends ScenarioEntry {
-  cadence: Cadence;
+export interface RegistryBudget extends DialCaps {
+  daysPerMonth: number;
+  retryReserve: number;
+  reproReserveDials: number;
+  window: DialWindow;
+}
+
+export interface Registry {
+  budget: RegistryBudget;
+  scenarios: RegisteredScenario[];
+  byId: ReadonlyMap<string, RegisteredScenario>;
 }
 
 const DAY_MINUTES = 24 * 60;
+const UNIT_MINUTES: Record<string, number> = { m: 1, h: 60, d: DAY_MINUTES };
 
-const KEYWORDS: Record<string, Cadence> = {
-  hourly: { kind: "interval", everyMinutes: 60 },
-  daily: { kind: "days", everyDays: 1 },
-  weekly: { kind: "days", everyDays: 7 },
-  fortnightly: { kind: "days", everyDays: 14 },
-  biweekly: { kind: "days", everyDays: 14 },
-  monthly: { kind: "days", everyDays: 30 },
-  push: { kind: "unscheduled", reason: "runs on every push, in CI" },
-  "every-push": { kind: "unscheduled", reason: "runs on every push, in CI" },
-  production: { kind: "unscheduled", reason: "runs in production, not on the rig" },
-  "hourly-production": { kind: "unscheduled", reason: "runs in production, not on the rig" },
-  "daily-production": { kind: "unscheduled", reason: "runs in production, not on the rig" },
-};
-
-export const FREQUENCY_FORMS =
-  "15m, 30m, 1h, 6h, 1d, 3d, 2w, 4/day, 2/week, every-3-days, hourly, daily, weekly, fortnightly, monthly, push, production";
-
-export function parseFrequency(text: string): Cadence {
-  const value = text.trim().toLowerCase();
-  const keyword = KEYWORDS[value];
-  if (keyword) return keyword;
-  const unit = /^(?:every[\s-]+)?(\d+)[\s-]*(m|min|mins|minutes?|h|hours?|d|days?|w|weeks?)$/.exec(value);
-  if (unit) {
-    const n = Number(unit[1]);
-    const u = unit[2]!;
-    if (n < 1) throw new Error(`frequency "${text}" must be at least 1`);
-    if (u.startsWith("m")) return interval(n, text);
-    if (u.startsWith("h")) return n % 24 === 0 ? { kind: "days", everyDays: n / 24 } : interval(n * 60, text);
-    if (u.startsWith("d")) return { kind: "days", everyDays: n };
-    return { kind: "days", everyDays: 7 * n };
-  }
-  const perDay = /^(\d+)\s*(?:\/|x|times?\s+(?:a|per)\s+)\s*day$/.exec(value);
-  if (perDay) {
-    const n = Number(perDay[1]);
-    if (n < 1 || DAY_MINUTES % n !== 0) throw new Error(`frequency "${text}": ${n} runs do not divide a day evenly`);
-    return n === 1 ? { kind: "days", everyDays: 1 } : interval(DAY_MINUTES / n, text);
-  }
-  const perWeek = /^(\d+)\s*(?:\/|x|times?\s+(?:a|per)\s+)\s*week$/.exec(value);
-  if (perWeek) {
-    const n = Number(perWeek[1]);
-    if (n < 1 || n > 7) throw new Error(`frequency "${text}": a week holds 1 to 7 runs`);
-    return n === 1 ? { kind: "days", everyDays: 7 } : { kind: "per-week", times: n };
-  }
-  throw new Error(`frequency "${text}" is not one the scheduler reads; use one of: ${FREQUENCY_FORMS}`);
+/** Minutes between runs for `15m`, `6h`, `3d`; 0 for `push`; undefined for anything else. */
+export function periodMinutes(every: unknown): number | undefined {
+  if (every === "push") return 0;
+  const match = /^([1-9]\d*)([mhd])$/.exec(typeof every === "string" ? every : "");
+  return match ? Number(match[1]) * UNIT_MINUTES[match[2]!]! : undefined;
 }
 
-/** A sub-daily cadence must land on the clock the same way every day. */
-function interval(minutes: number, text: string): Cadence {
-  if (minutes >= DAY_MINUTES) {
-    if (minutes % DAY_MINUTES) throw new Error(`frequency "${text}" is not a whole number of days`);
-    return { kind: "days", everyDays: minutes / DAY_MINUTES };
-  }
-  if (DAY_MINUTES % minutes !== 0 || (minutes < 60 && 60 % minutes !== 0) || (minutes > 60 && minutes % 60 !== 0)) {
-    throw new Error(`frequency "${text}" does not divide the day evenly; use one of: ${FREQUENCY_FORMS}`);
-  }
-  return { kind: "interval", everyMinutes: minutes };
+/** Runs a month of one slot, over the registry's month. */
+export function runsPerMonth(slot: RunSlot, daysPerMonth: number): number {
+  return slot.everyMinutes === 0 ? 0 : (daysPerMonth * DAY_MINUTES) / slot.everyMinutes;
 }
 
-export function runsPerMonth(cadence: Cadence): number {
-  switch (cadence.kind) {
-    case "interval":
-      return (30 * DAY_MINUTES) / cadence.everyMinutes;
-    case "days":
-      return 30 / cadence.everyDays;
-    case "per-week":
-      return (cadence.times * 30) / 7;
-    case "unscheduled":
-      return 0;
-  }
+/** Whether the rig's timers start this scenario. */
+export function timedOnRig(entry: RegisteredScenario): boolean {
+  return entry.runsOn === "rig" && entry.scheduled && entry.runs.some((run) => run.everyMinutes > 0);
+}
+
+/** Why the rig's timers leave a scenario alone, or undefined when they start it. */
+export function notOnRigBecause(entry: RegisteredScenario): string | undefined {
+  if (entry.runsOn !== "rig") return `runs on ${entry.runsOn}, not on the rig`;
+  if (!entry.scheduled) return `unscheduled: ${entry.unscheduledBecause ?? "the registry says so"}`;
+  if (!entry.runs.some((run) => run.everyMinutes > 0)) return "runs on every push, in CI";
+  return undefined;
 }
 
 const ID = /^[A-Z]{1,3}\d{2,3}[a-z]?$/;
-const REQUIRED = ["id", "frequency", "dials", "lane", "room_min", "paid"] as const;
 
 /** Every problem at once, so one fix-up round is enough. */
-export function validateRegistry(value: unknown, source = "scenarios.json"): RegisteredScenario[] {
-  if (!Array.isArray(value)) throw new Error(`${source}: the registry must be a JSON array of scenarios`);
+export function validateRegistry(value: unknown, source = "scenarios.json"): Registry {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${source}: the registry must be a ${REGISTRY_SCHEMA} object with budget and scenarios`);
+  }
+  const root = value as Record<string, unknown>;
   const problems: string[] = [];
+  if (root.schema !== REGISTRY_SCHEMA) problems.push(`schema must be "${REGISTRY_SCHEMA}", not ${JSON.stringify(root.schema)}`);
+  const budget = readBudget(root.budget, problems);
+  if (!Array.isArray(root.scenarios)) problems.push("scenarios must be an array");
+
   const seen = new Set<string>();
-  const out: RegisteredScenario[] = [];
-  value.forEach((raw, index) => {
-    const where = `${source}[${index}]`;
-    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
-      problems.push(`${where}: not an object`);
-      return;
-    }
-    const entry = raw as Record<string, unknown>;
-    const missing = REQUIRED.filter((key) => !(key in entry));
-    if (missing.length) {
-      problems.push(`${where}: missing ${missing.join(", ")}`);
-      return;
-    }
-    const id = entry.id;
-    const label = typeof id === "string" ? `${where} (${id})` : where;
-    const bad = (key: string, wanted: string) => problems.push(`${label}: ${key} must be ${wanted}`);
-    if (typeof id !== "string" || !ID.test(id)) bad("id", "a scenario id like S02 or D02p");
-    else if (seen.has(id)) problems.push(`${label}: id repeats an earlier entry`);
-    else seen.add(id);
-    if (typeof entry.frequency !== "string") bad("frequency", "a string");
-    if (!isCount(entry.dials)) bad("dials", "a whole number of dials, 0 or more");
-    if (typeof entry.lane !== "string" || entry.lane.trim() === "") bad("lane", "a non-empty string");
-    if (!isCount(entry.room_min)) bad("room_min", "a whole number, 0 or more");
-    if (typeof entry.paid !== "boolean") bad("paid", "true or false");
-    if (entry.far_end_legs !== undefined && !isCount(entry.far_end_legs)) bad("far_end_legs", "a whole number, 0 or more");
-    // A dial outside the window is the failure the window exists to prevent.
-    if (isCount(entry.dials) && entry.dials > 0 && entry.paid === false) {
-      problems.push(`${label}: dials ${entry.dials} but paid is false; every dial is paid and runs only in the window`);
-    }
-    let cadence: Cadence | undefined;
-    if (typeof entry.frequency === "string") {
-      try {
-        cadence = parseFrequency(entry.frequency);
-      } catch (error) {
-        problems.push(`${label}: ${(error as Error).message}`);
-      }
-    }
-    if (cadence && problems.length === 0) {
-      out.push({
-        id: id as string,
-        frequency: entry.frequency as string,
-        dials: entry.dials as number,
-        lane: entry.lane as string,
-        room_min: entry.room_min as number,
-        paid: entry.paid as boolean,
-        ...(entry.far_end_legs === undefined ? {} : { far_end_legs: entry.far_end_legs as number }),
-        cadence,
-      });
-    }
+  const scenarios: RegisteredScenario[] = [];
+  (Array.isArray(root.scenarios) ? root.scenarios : []).forEach((raw, index) => {
+    const entry = readScenario(raw, `scenarios[${index}]`, budget, problems);
+    if (!entry) return;
+    if (seen.has(entry.id)) problems.push(`scenarios[${index}] (${entry.id}): id repeats an earlier entry`);
+    seen.add(entry.id);
+    scenarios.push(entry);
   });
-  if (problems.length) {
+  if (problems.length || !budget) {
     throw new Error(`${source} does not have the shape rigd schedules from:\n  - ${problems.join("\n  - ")}`);
   }
-  return out;
+  return { budget, scenarios, byId: new Map(scenarios.map((entry) => [entry.id, entry])) };
 }
 
-export function loadRegistry(path: string): RegisteredScenario[] {
+function readBudget(raw: unknown, problems: string[]): RegistryBudget | undefined {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    problems.push("budget must be an object");
+    return undefined;
+  }
+  const b = raw as Record<string, unknown>;
+  const before = problems.length;
+  for (const key of ["daily_cap", "hourly_cap", "days_per_month", "repro_reserve_dials"]) {
+    if (!isCount(b[key]) || b[key] === 0) problems.push(`budget.${key} must be a whole number above 0`);
+  }
+  if (typeof b.retry_reserve !== "number" || b.retry_reserve < 0 || b.retry_reserve >= 1) {
+    problems.push("budget.retry_reserve must be a share from 0 to under 1");
+  }
+  const window = b.window_utc;
+  const validWindow =
+    Array.isArray(window) &&
+    window.length === 2 &&
+    window.every((hour) => isCount(hour) && hour <= 24) &&
+    window[0] < 24 &&
+    window[0] !== window[1] % 24;
+  if (!validWindow) problems.push("budget.window_utc must be [start, end] in whole UTC hours");
+  if (problems.length > before) return undefined;
+  const [start, end] = window as [number, number];
+  return {
+    daily: b.daily_cap as number,
+    hourly: b.hourly_cap as number,
+    daysPerMonth: b.days_per_month as number,
+    retryReserve: b.retry_reserve as number,
+    reproReserveDials: b.repro_reserve_dials as number,
+    window: { startHour: start, hours: (end - start + 24) % 24 },
+  };
+}
+
+function readScenario(raw: unknown, where: string, budget: RegistryBudget | undefined, problems: string[]): RegisteredScenario | undefined {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    problems.push(`${where}: not an object`);
+    return undefined;
+  }
+  const entry = raw as Record<string, unknown>;
+  const label = typeof entry.id === "string" ? `${where} (${entry.id})` : where;
+  const before = problems.length;
+  const bad = (key: string, wanted: string) => problems.push(`${label}: ${key} must be ${wanted}`);
+  if (typeof entry.id !== "string" || !ID.test(entry.id)) bad("id", "a scenario id like S02 or D02p");
+  if (typeof entry.lane !== "string" || entry.lane.trim() === "") bad("lane", "a non-empty string");
+  if (!(RUNS_ON as readonly unknown[]).includes(entry.runs_on)) bad("runs_on", RUNS_ON.join(", "));
+  if (typeof entry.scheduled !== "boolean") bad("scheduled", "true or false");
+  for (const key of ["dials", "far_end_legs", "min_room"]) {
+    if (!isCount(entry[key])) bad(key, "a whole number, 0 or more");
+  }
+  if (!Array.isArray(entry.runs) || entry.runs.length === 0) bad("runs", "a list of at least one run");
+  if (problems.length > before) return undefined;
+
+  const paid = (entry.dials as number) + (entry.far_end_legs as number) > 0;
+  const placed = paid && entry.scheduled === true && entry.runs_on === "rig";
+  const runs: RunSlot[] = [];
+  (entry.runs as unknown[]).forEach((rawRun, index) => {
+    const at = `${label} runs[${index}]`;
+    const run = (rawRun ?? {}) as Record<string, unknown>;
+    const everyMinutes = periodMinutes(run.every);
+    if (everyMinutes === undefined) {
+      problems.push(`${at}: every ${JSON.stringify(run.every)} is not a period like 15m, 6h, 3d or push`);
+      return;
+    }
+    if (run.label !== undefined && typeof run.label !== "string") problems.push(`${at}: label must be a string`);
+    if (run.offset_days !== undefined && !isCount(run.offset_days)) problems.push(`${at}: offset_days must be a whole number`);
+    if (run.hour_utc !== undefined && (!isCount(run.hour_utc) || run.hour_utc > 23)) problems.push(`${at}: hour_utc must be 0 to 23`);
+    if (placed) {
+      // A dial outside the window is the failure the window exists to prevent,
+      // so a paid run must say which day of its period and which hour it takes.
+      if (everyMinutes === 0 || everyMinutes % DAY_MINUTES !== 0) {
+        problems.push(`${at}: a run with dials must recur in whole days, not ${String(run.every)}`);
+      } else {
+        const every = everyMinutes / DAY_MINUTES;
+        if (!isCount(run.offset_days) || run.offset_days >= every) problems.push(`${at}: offset_days must be 0 to ${every - 1}`);
+        if (!isCount(run.hour_utc) || (budget && !windowHasHour(budget.window, run.hour_utc))) {
+          problems.push(`${at}: hour_utc must be an hour inside the dial window`);
+        }
+      }
+    }
+    runs.push({
+      index,
+      every: run.every as string,
+      everyMinutes,
+      ...(typeof run.label === "string" ? { label: run.label } : {}),
+      ...(isCount(run.offset_days) ? { offsetDays: run.offset_days } : {}),
+      ...(isCount(run.hour_utc) ? { hourUtc: run.hour_utc } : {}),
+    });
+  });
+  if (problems.length > before) return undefined;
+  return {
+    id: entry.id as string,
+    lane: entry.lane as string,
+    runsOn: entry.runs_on as RunsOn,
+    scheduled: entry.scheduled as boolean,
+    ...(typeof entry.unscheduled_because === "string" ? { unscheduledBecause: entry.unscheduled_because } : {}),
+    dials: entry.dials as number,
+    far_end_legs: entry.far_end_legs as number,
+    room_min: entry.min_room as number,
+    paid,
+    runs,
+  };
+}
+
+export function loadRegistry(path: string): Registry {
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
@@ -181,9 +232,13 @@ export function loadRegistry(path: string): RegisteredScenario[] {
   return validateRegistry(parsed, path);
 }
 
-/** Dials one run spends at Telnyx. */
-export function dialsPerRun(entry: ScenarioEntry): number {
-  return entry.dials + (entry.far_end_legs ?? 0);
+/** Dials one run spends at Telnyx: Loonext's legs and the far end's. */
+export function dialsPerRun(entry: Pick<RegisteredScenario, "dials" | "far_end_legs">): number {
+  return entry.dials + entry.far_end_legs;
+}
+
+function windowHasHour(window: DialWindow, hour: number): boolean {
+  return (hour - window.startHour + 24) % 24 < window.hours;
 }
 
 function isCount(value: unknown): value is number {

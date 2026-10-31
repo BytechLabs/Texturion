@@ -22,7 +22,7 @@ function textWorld(scenario: string) {
   robot.onSms = (message) => {
     const tenant = TENANT_OF_NUMBER[message.to_role];
     if (tenant) app.thread(tenant, message.text, "inbound");
-    app.pushes.push({ tenant: tenant ?? "", purpose: "alert", platform: "web", response_class: "accepted", created_at: "" });
+    app.pushes.push({ tenant: tenant ?? "", purpose: "alert", platform: "web", response_class: "accepted", attempted_at: "" });
   };
   return world;
 }
@@ -63,6 +63,17 @@ describe("S20, outbound text", () => {
     refused.app.onSend = () => ({ ok: false, status: 402, code: "plan_required" });
     expect(await S20.run(refused.ctx)).toMatchObject({ failure_class: "send_refused" });
   });
+
+  it("points the workspace's webhooks at the robot's sink first, and blames the rig when it cannot", async () => {
+    const world = textWorld("S20");
+    expect((await S20.run(world.ctx)).outcome).toBe("pass");
+    expect(world.app.webhooks.get("qa-w-owner")).toEqual(["message.sent"]);
+
+    const unnamed = textWorld("S20");
+    unnamed.app.webhookRefusal = "the store has no robot-webhook-secret";
+    expect(await S20.run(unnamed.ctx)).toMatchObject({ outcome: "infra", component: "webhook-endpoint" });
+    expect(unnamed.app.sends).toEqual([]);
+  });
 });
 
 describe("S21, inbound text", () => {
@@ -83,6 +94,26 @@ describe("S21, inbound text", () => {
     const stale = textWorld("S21");
     stale.browser.script.showsText = false;
     expect(await S21.run(stale.ctx)).toMatchObject({ failure_class: "no_realtime_update" });
+  });
+
+  it("subscribes the owner's browser when the owner has nowhere to push to", async () => {
+    const fresh = textWorld("S21");
+    fresh.app.targets.clear();
+    fresh.browser.script.canPush = true;
+    fresh.browser.script.onPush = (member) => fresh.app.targets.set(member, 1);
+    expect((await S21.run(fresh.ctx)).outcome).toBe("pass");
+    expect(fresh.browser.actions).toContain("qa-w-owner enable push");
+
+    const unsaved = textWorld("S21");
+    unsaved.app.targets.clear();
+    unsaved.browser.script.canPush = true;
+    expect(await S21.run(unsaved.ctx)).toMatchObject({ failure_class: "push_subscription_not_saved" });
+
+    const unable = textWorld("S21");
+    unable.app.targets.clear();
+    unable.browser.script.canPush = false;
+    expect(await S21.run(unable.ctx)).toMatchObject({ outcome: "infra", component: "push-target" });
+    expect(unable.robot.sent).toEqual([]);
   });
 });
 
@@ -158,17 +189,24 @@ describe("S24, STOP and friends", () => {
   it("calls a STOP left in place after cleanup critical", async () => {
     const world = stopWorld();
     world.app.optOuts.set(world.key, { active: true, source: "keyword" });
-    expect(await S24.afterRelease!(world.ctx)).toMatchObject({ failure_class: "stop_left_in_place" });
+    expect(await S24.afterRelease!(world.ctx)).toMatchObject({ failure_class: "stop_left_in_place", critical: true });
     world.app.optOuts.set(world.key, { active: false, source: "keyword" });
     expect(await S24.afterRelease!(world.ctx)).toBeUndefined();
   });
 });
 
 describe("S25, automated texts and quiet hours", () => {
-  it("reads quiet hours on the destination's clock", () => {
+  it("reads quiet hours on the destination's clock, from 20:00 to 08:00 as the app does", () => {
     expect(isQuietHour(Date.UTC(2026, 9, 31, 15))).toBe(false);
     expect(isQuietHour(Date.UTC(2026, 10, 1, 3))).toBe(true);
     expect(isQuietHour(Date.UTC(2026, 9, 31, 12, 30))).toBe(false);
+    // Winter, UTC-5: 20:00 is quiet, 19:59 is not; 07:59 is quiet, 08:00 is not.
+    expect(isQuietHour(Date.UTC(2026, 11, 3, 1, 0))).toBe(true);
+    expect(isQuietHour(Date.UTC(2026, 11, 3, 0, 59))).toBe(false);
+    expect(isQuietHour(Date.UTC(2026, 11, 3, 12, 59))).toBe(true);
+    expect(isQuietHour(Date.UTC(2026, 11, 3, 13, 0))).toBe(false);
+    // Summer, UTC-4: 20:30 local.
+    expect(isQuietHour(Date.UTC(2026, 6, 2, 0, 30))).toBe(true);
   });
 
   it("passes by day when every automation arrives, and at night when every one is held", async () => {
@@ -218,9 +256,14 @@ describe("S01, the browser calls ROBOT-1", () => {
     quiet.browser.script.energyBeforeAnswer = 0;
     expect(await S01.run(quiet.ctx)).toMatchObject({ failure_class: "no_ringback" });
 
-    const token = fakeContext("S01");
-    token.app.authorizationsLeft = 1;
-    expect(await S01.run(token.ctx)).toMatchObject({ failure_class: "token_not_consumed" });
+    const left = fakeContext("S01");
+    left.app.tokenUse = { calls: 1, left: 1 };
+    expect(await S01.run(left.ctx)).toMatchObject({ failure_class: "token_not_used_once" });
+
+    // No token was ever minted: nothing is left over, and no consumed token made the row.
+    const unauthorized = fakeContext("S01");
+    unauthorized.app.tokenUse = { calls: 0, left: 0 };
+    expect(await S01.run(unauthorized.ctx)).toMatchObject({ failure_class: "token_not_used_once" });
 
     const deaf = fakeContext("S01");
     deaf.browser.script.heard = null;
@@ -325,6 +368,16 @@ describe("S04, voicemail", () => {
     const silent = s04World();
     silent.robot.inboxItems = [];
     expect(await S04.run(silent.ctx)).toMatchObject({ failure_class: "no_text_back" });
+  });
+
+  it("subscribes the robot's sink to voicemail.received before dialing, or blames the rig", async () => {
+    const world = s04World();
+    expect((await S04.run(world.ctx)).outcome).toBe("pass");
+    expect(world.app.webhooks.get("qa-w-owner")).toEqual(["voicemail.received"]);
+    const unnamed = s04World();
+    unnamed.app.webhookRefusal = "the store has no robot-webhook-secret";
+    expect(await S04.run(unnamed.ctx)).toMatchObject({ outcome: "infra", component: "webhook-endpoint" });
+    expect(unnamed.robot.plans).toEqual([]);
   });
 });
 

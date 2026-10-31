@@ -1,17 +1,16 @@
 /**
- * The dial budget, room and window.
+ * The dial budget, room and window, all from the registry's `budget`.
  *
- * Rule: scheduled dials times their frequency, plus a 20% retry reserve, plus
- * a 60-dial monthly repro reserve, must fit the daily cap times 30. Until
- * Telnyx states the limits in writing the cap is 18 dials a day and 3 an hour.
- * The guard enforces all of this too; rigd checks first so a run it would
- * refuse is never started.
+ * Rule: scheduled dials times their runs a month, plus the
+ * retry reserve, plus the monthly repro reserve, must fit the daily cap times
+ * the month's days. The guard enforces the caps too; rigd checks first so a
+ * run it would refuse is never started.
+ *
+ * Hours and days are counted the way the guard counts them: a clock hour and
+ * a UTC day, not a sliding 60 minutes, so the registry's hour-by-hour layout
+ * means the same thing to the scheduler, the runner and the guard.
  */
-import { dialsPerRun, runsPerMonth, type RegisteredScenario } from "./registry.ts";
-
-export const DEFAULT_DIAL_CAPS = { daily: 18, hourly: 3 } as const;
-export const RETRY_RESERVE = 0.2;
-export const REPRO_RESERVE_DIALS = 60;
+import { dialsPerRun, runsPerMonth, timedOnRig, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
 
 export interface DialCaps {
   daily: number;
@@ -28,21 +27,22 @@ export interface BudgetReport {
   byScenario: { id: string; runs: number; dials: number }[];
 }
 
-export function dialBudget(entries: readonly RegisteredScenario[], caps: DialCaps = DEFAULT_DIAL_CAPS): BudgetReport {
-  const byScenario = entries
-    .filter((entry) => entry.cadence.kind !== "unscheduled" && dialsPerRun(entry) > 0)
+export function dialBudget(registry: Registry, caps: DialCaps = registry.budget): BudgetReport {
+  const { budget } = registry;
+  const byScenario = registry.scenarios
+    .filter((entry) => entry.scheduled && dialsPerRun(entry) > 0)
     .map((entry) => {
-      const runs = runsPerMonth(entry.cadence);
+      const runs = entry.runs.reduce((sum, slot) => sum + runsPerMonth(slot, budget.daysPerMonth), 0);
       return { id: entry.id, runs: round2(runs), dials: round2(runs * dialsPerRun(entry)) };
     });
   const scheduledDials = round2(byScenario.reduce((sum, s) => sum + s.dials, 0));
-  const retryReserve = round2(scheduledDials * RETRY_RESERVE);
-  const total = round2(scheduledDials + retryReserve + REPRO_RESERVE_DIALS);
-  const monthlyCap = caps.daily * 30;
+  const retryReserve = round2(scheduledDials * budget.retryReserve);
+  const total = round2(scheduledDials + retryReserve + budget.reproReserveDials);
+  const monthlyCap = caps.daily * budget.daysPerMonth;
   return {
     scheduledDials,
     retryReserve,
-    reproReserve: REPRO_RESERVE_DIALS,
+    reproReserve: budget.reproReserveDials,
     total,
     monthlyCap,
     fits: total <= monthlyCap,
@@ -59,16 +59,14 @@ export function blockedByRoom(entry: RegisteredScenario, room: number): boolean 
   return room <= 1 || entry.room_min > room;
 }
 
-/** The six quietest UTC hours, measured monthly; 04:00-10:00 until there is data. */
+/** The quietest UTC hours, measured monthly by the guard; the registry's until there is data. */
 export interface DialWindow {
   startHour: number;
   hours: number;
 }
 
-export const DEFAULT_WINDOW: DialWindow = { startHour: 4, hours: 6 };
-
-export function parseWindow(text: string | undefined): DialWindow {
-  if (!text) return DEFAULT_WINDOW;
+/** `HH-HH` in UTC, e.g. 04-10. */
+export function parseWindow(text: string): DialWindow {
   const match = /^(\d{1,2})-(\d{1,2})$/.exec(text.trim());
   if (!match) throw new Error(`dial window "${text}" must be HH-HH in UTC, e.g. 04-10`);
   const start = Number(match[1]);
@@ -83,6 +81,61 @@ export function windowHours(window: DialWindow): number[] {
 
 export function inWindow(window: DialWindow, at: number): boolean {
   return windowHours(window).includes(new Date(at).getUTCHours());
+}
+
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+
+export function clockHourStart(at: number): number {
+  return Math.floor(at / HOUR_MS) * HOUR_MS;
+}
+
+export function utcDayStart(at: number): number {
+  return Math.floor(at / DAY_MS) * DAY_MS;
+}
+
+/**
+ * The day a paid run belongs to: the one whose window opening is the latest at
+ * or before `at`. With a window from 04:00 this is the UTC day; with one that
+ * crosses midnight, its small hours stay on the evening's day.
+ */
+export function windowDay(at: number, window: DialWindow): number {
+  return Math.floor((at - window.startHour * HOUR_MS) / DAY_MS);
+}
+
+/**
+ * The UTC hour a paid slot fires at: its place in the registry's window,
+ * moved with the window when the guard has measured a different one.
+ */
+export function slotHour(slot: RunSlot, registryWindow: DialWindow, window: DialWindow): number {
+  return ((slot.hourUtc ?? registryWindow.startHour) - registryWindow.startHour + window.startHour + 24) % 24;
+}
+
+/** Whether a paid slot is laid out on this window day. */
+export function slotDueOn(slot: RunSlot, day: number): boolean {
+  const every = slot.everyMinutes / (24 * 60);
+  return Number.isInteger(every) && every >= 1 && ((day % every) + every) % every === (slot.offsetDays ?? 0);
+}
+
+export interface PlannedRun {
+  scenario: string;
+  slot: number;
+  hour: number;
+  dials: number;
+}
+
+/** The paid runs the registry lays out on one window day, hour by hour. */
+export function plannedRuns(registry: Registry, day: number, window: DialWindow, runnable?: ReadonlySet<string>): PlannedRun[] {
+  const planned: PlannedRun[] = [];
+  for (const entry of registry.scenarios) {
+    if (!timedOnRig(entry) || dialsPerRun(entry) === 0) continue;
+    if (runnable && !runnable.has(entry.id)) continue;
+    for (const slot of entry.runs) {
+      if (!slotDueOn(slot, day)) continue;
+      planned.push({ scenario: entry.id, slot: slot.index, hour: slotHour(slot, registry.budget.window, window), dials: dialsPerRun(entry) });
+    }
+  }
+  return planned;
 }
 
 function round2(value: number): number {

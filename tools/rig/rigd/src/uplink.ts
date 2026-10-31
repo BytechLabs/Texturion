@@ -29,7 +29,10 @@ export type MediaResult = Omit<Extract<RigToEdge, { t: "media-result" }>, "t" | 
 export interface WebhookResult {
   status: number;
   body?: string;
-  /** Refused only because Telnyx's signature aged out in the queue: counted, then acked. */
+  /**
+   * Refused only because Telnyx's genuine signature aged out in the queue:
+   * recorded, never acked. The edge offers such a text once and drops it.
+   */
   late?: boolean;
 }
 
@@ -228,7 +231,7 @@ export class Uplink {
 
   async #webhookAck(frame: WebhookFrame): Promise<boolean> {
     const result = await this.#o.handlers.webhook(frame);
-    return (result.status >= 200 && result.status < 300) || result.late === true;
+    return result.status >= 200 && result.status < 300;
   }
 
   async #queued(id: string, handle: () => Promise<boolean>): Promise<void> {

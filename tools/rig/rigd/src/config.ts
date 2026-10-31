@@ -14,11 +14,17 @@
  *   rig-app-id, rig-app-key  the GitHub App (RIG_APP_KEY)
  *   standing-numbers.json    numbers by role (the CLI's)
  *   tenants.json             tenants and members (the seed's)
+ *   telnyx-public-key        the account's webhook key, the API's TELNYX_PUBLIC_KEY (the CLI's)
+ *   robot-webhook-secret     the secret segment of the robot's sink at the edge, /w/<secret>
  *   robot-local-token        robotd's loopback token, made here on first use
+ *
+ * The caps and the dial window are the registry's (registry.ts), the window
+ * as the guard measures it (guard-window.ts). RIG_DIAL_CAPS and
+ * RIG_DIAL_WINDOW override them, for a rig that must dial less.
  */
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_DIAL_CAPS, parseWindow, type DialCaps, type DialWindow } from "./budget.ts";
+import { parseWindow, type DialCaps, type DialWindow } from "./budget.ts";
 import { readState, rigHome, rigSettings, SecretFiles, type RigHome, type RigSettings } from "@loonext/rig-robot";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -33,8 +39,10 @@ export interface RigdConfig {
   localApiBase: string;
   robotBase: string;
   relayPort: number;
-  window: DialWindow;
-  caps: DialCaps;
+  windowOverride?: DialWindow;
+  capsOverride?: DialCaps;
+  /** Whether the rig's user manager runs rigd's units (rig.json `systemd`). */
+  systemd: boolean;
   repo: string;
   env: NodeJS.ProcessEnv;
 }
@@ -52,8 +60,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RigdConfig {
     localApiBase: `http://127.0.0.1:${settings.apiPort}`,
     robotBase: env.RIG_ROBOT_BASE ?? "http://127.0.0.1:7311",
     relayPort: Number(new URL(settings.sentryRelayOrigin).port || 8790),
-    window: parseWindow(env.RIG_DIAL_WINDOW),
-    caps: parseCaps(env.RIG_DIAL_CAPS),
+    ...(env.RIG_DIAL_WINDOW ? { windowOverride: parseWindow(env.RIG_DIAL_WINDOW) } : {}),
+    ...(env.RIG_DIAL_CAPS ? { capsOverride: parseCaps(env.RIG_DIAL_CAPS) } : {}),
+    systemd: settings.systemd,
     repo: env.RIG_REPO ?? "BytechLabs/Texturion",
     env,
   };
@@ -69,9 +78,8 @@ export function edgeOriginOf(value: string): string {
   return url.origin;
 }
 
-/** `daily/hourly`, e.g. 18/3, the default until Telnyx states the limits in writing. */
-export function parseCaps(text: string | undefined): DialCaps {
-  if (!text) return { ...DEFAULT_DIAL_CAPS };
+/** `daily/hourly`, e.g. 18/3. */
+export function parseCaps(text: string): DialCaps {
   const match = /^(\d+)\/(\d+)$/.exec(text.trim());
   if (!match) throw new Error(`RIG_DIAL_CAPS "${text}" must be daily/hourly, e.g. 18/3`);
   return { daily: Number(match[1]), hourly: Number(match[2]) };

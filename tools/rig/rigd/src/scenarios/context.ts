@@ -12,7 +12,7 @@ import type { UndoAction } from "../lease.ts";
 
 export type ScenarioResult =
   | { outcome: "pass"; detail?: string }
-  | { outcome: "fail"; failure_class: string; detail: string }
+  | { outcome: "fail"; failure_class: string; detail: string; critical?: boolean }
   | { outcome: "infra"; component: string; detail: string }
   | { outcome: "preempted"; detail: string };
 
@@ -28,6 +28,8 @@ export interface MemberPageApi {
   /** Opens the dialer, enters the role's number and presses Call. */
   dial(role: string): Promise<void>;
   waitForText(text: string, timeoutMs: number): Promise<boolean>;
+  /** Turns on this browser's push the way a member does; false when the browser cannot subscribe. */
+  enablePush(): Promise<boolean>;
   hear(options?: HearOptions): Promise<PageHearing>;
   mark(name: string): Promise<void>;
 }
@@ -75,8 +77,10 @@ export interface AppApi {
   messages(args: { tenant: string; body: string; since: number }): Promise<MessageRow[]>;
   usageFor(messageId: string): Promise<{ type: string; quantity: number; stripe_reported_at: string | null }[]>;
   pushAttempts(args: { tenant: string; since: number; purpose?: "ring" | "call_end" | "alert" }): Promise<
-    { purpose: string; platform: string; response_class: string; created_at: string }[]
+    { purpose: string; platform: string; response_class: string; attempted_at: string }[]
   >;
+  /** A member's push subscriptions and device tokens: the places a push can go. */
+  pushTargets(args: { member: string }): Promise<number>;
   /** The tenant's opt-out row for a role's number, or null when there has never been one. */
   optOut(args: { tenant: string; role: string }): Promise<{ active: boolean; source: string } | null>;
   /** When a plain-English opt-out was flagged on the thread with that number. */
@@ -86,8 +90,17 @@ export interface AppApi {
   meteredSeconds(args: { tenant: string; callSessionId: string }): Promise<number>;
   /** Voice seconds metered for the tenant since a time, every leg. */
   voiceSecondsSince(args: { tenant: string; since: number }): Promise<number>;
-  /** Single-use outbound call tokens minted since a time and not yet consumed. */
-  outboundAuthorizationsLeft(args: { tenant: string; since: number }): Promise<number>;
+  /**
+   * D43's single-use tokens for calls to a role since a time: `calls` is the
+   * outbound call rows, each of which only a consumed token creates, and
+   * `left` the tokens minted and never consumed.
+   */
+  outboundTokenUse(args: { tenant: string; toRole: string; since: number }): Promise<{ calls: number; left: number }>;
+  /**
+   * Makes sure the member's workspace delivers these webhook events to the
+   * robot's sink at the edge. Throws when the rig cannot name that sink.
+   */
+  ensureRobotWebhook(args: { member: string; events: string[] }): Promise<void>;
   /** Telnyx recordings still held for a call session, read through the guard. */
   telnyxRecordings(callSessionId: string): Promise<number>;
   /** Fires one of the API's crons at an instant, as the rig's timers do. */
@@ -121,7 +134,12 @@ export interface ScenarioRunner {
 }
 
 export const pass = (detail?: string): ScenarioResult => ({ outcome: "pass", detail });
-export const fail = (failure_class: string, detail: string): ScenarioResult => ({ outcome: "fail", failure_class, detail });
+export const fail = (failure_class: string, detail: string, options: { critical?: boolean } = {}): ScenarioResult => ({
+  outcome: "fail",
+  failure_class,
+  detail,
+  ...(options.critical ? { critical: true } : {}),
+});
 export const infra = (component: string, detail: string): ScenarioResult => ({ outcome: "infra", component, detail });
 
 /** Polls until `probe` returns something, or undefined at the deadline. */

@@ -113,11 +113,11 @@ describe("the uplink", () => {
     expect(socket.sent.some((f) => (f as { t: string }).t === "ack")).toBe(false);
   });
 
-  it("acks a text the API refused only because its signature aged out, so the edge stops", async () => {
+  it("acks only a 2xx, even for a text whose signature aged out: the edge drops that one itself", async () => {
     const { socket } = setup({ webhook: async () => ({ status: 400, late: true }) });
     socket.receive(webhook("message", "late-1"));
     await flush();
-    expect(socket.sent.at(-1)).toEqual({ t: "ack", id: "late-1" });
+    expect(socket.sent.some((f) => (f as { t: string }).t === "ack")).toBe(false);
   });
 
   it("answers an rpc with an error before the edge's 60 s timeout", async () => {

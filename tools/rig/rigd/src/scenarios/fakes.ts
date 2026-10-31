@@ -44,6 +44,7 @@ export class FakeRobot implements RobotApi {
           echo: null,
           surfaces: {},
           silent_frames: 0,
+          announcement_ms: 0,
           pass: true,
           expected: plan.expect,
           channel: 0,
@@ -111,13 +112,20 @@ export class FakeApp implements AppApi {
   readonly sends: { member: string; fromRole: string; toRole: string; body: string }[] = [];
   rows: (MessageRow & { tenant: string })[] = [];
   usage = new Map<string, { type: string; quantity: number; stripe_reported_at: string | null }[]>();
-  pushes: { tenant: string; purpose: string; platform: string; response_class: string; created_at: string }[] = [];
+  pushes: { tenant: string; purpose: string; platform: string; response_class: string; attempted_at: string }[] = [];
+  /** Push subscriptions and device tokens by member. */
+  targets = new Map<string, number>([["qa-w-owner", 1]]);
+  /** Webhook endpoints by member: the events each delivers to the robot's sink. */
+  webhooks = new Map<string, string[]>();
+  /** Set to make ensureRobotWebhook fail the way a rig without the sink's secret does. */
+  webhookRefusal: string | undefined;
   optOuts = new Map<string, { active: boolean; source: string }>();
   hints = new Map<string, string>();
   callRows: (CallRow & { tenant: string })[] = [];
   metered = 25;
   voiceSeconds = 25;
-  authorizationsLeft = 0;
+  /** Outbound call rows a consumed token created, and tokens left unused. */
+  tokenUse = { calls: 1, left: 0 };
   recordingsLeft = 0;
   automations: AutomatedText[] = [];
   /** What a send does: the default is a delivered text that reaches the robot. */
@@ -156,6 +164,13 @@ export class FakeApp implements AppApi {
   async pushAttempts(args: { tenant: string }) {
     return this.pushes.filter((p) => p.tenant === args.tenant);
   }
+  async pushTargets(args: { member: string }) {
+    return this.targets.get(args.member) ?? 0;
+  }
+  async ensureRobotWebhook(args: { member: string; events: string[] }) {
+    if (this.webhookRefusal) throw new Error(this.webhookRefusal);
+    this.webhooks.set(args.member, [...new Set([...(this.webhooks.get(args.member) ?? []), ...args.events])]);
+  }
   async optOut(args: { tenant: string; role: string }) {
     return this.optOuts.get(`${args.tenant}/${args.role}`) ?? null;
   }
@@ -171,8 +186,8 @@ export class FakeApp implements AppApi {
   async voiceSecondsSince() {
     return this.voiceSeconds;
   }
-  async outboundAuthorizationsLeft() {
-    return this.authorizationsLeft;
+  async outboundTokenUse() {
+    return this.tokenUse;
   }
   async telnyxRecordings() {
     return this.recordingsLeft;
@@ -191,6 +206,9 @@ export interface FakePageScript {
   heard?: Surface | null;
   energyBeforeAnswer?: number;
   showsText?: boolean;
+  /** Whether the browser can subscribe to push; called back when it does. */
+  canPush?: boolean;
+  onPush?: (member: string) => void;
 }
 
 export class FakeBrowser implements BrowserApi {
@@ -219,6 +237,12 @@ export class FakeBrowser implements BrowserApi {
       async waitForText() {
         return script.showsText ?? true;
       },
+      async enablePush() {
+        actions.push(`${member} enable push`);
+        if (!script.canPush) return false;
+        script.onPush?.(member);
+        return true;
+      },
       async hear(): Promise<PageHearing> {
         const heard = script.heard ?? null;
         return {
@@ -228,7 +252,7 @@ export class FakeBrowser implements BrowserApi {
             heard: heard ? [heard] : [],
             echo: null,
             scores: {},
-            window: { startMs: 2000, endMs: 12000, silentFrames: 0 },
+            window: { startMs: 2000, endMs: 12000, silentFrames: 0, announcementMs: 0 },
             frameMs: 20,
           },
           capture: { sampleRate: 16000, startedAt: 0, marks: [], stats: [], remoteStreams: 1 },

@@ -47,6 +47,11 @@ export interface AppProbeOptions {
   edgeOrigin: string;
   /** A guard caller token, for the read-class recordings listing. */
   guardToken: string;
+  /**
+   * The secret path segment of the robot's sink at the edge (`/w/<secret>`),
+   * the store's `robot-webhook-secret`; without it no webhook can reach the robot.
+   */
+  robotWebhookSecret?: () => string | undefined;
   fetch?: typeof fetch;
   now?: () => number;
 }
@@ -103,12 +108,21 @@ export class AppProbe implements AppApi {
   }
 
   pushAttempts(args: { tenant: string; since: number; purpose?: "ring" | "call_end" | "alert" }) {
-    return this.#rest<{ purpose: string; platform: string; response_class: string; created_at: string }[]>("push_attempts", {
+    return this.#rest<{ purpose: string; platform: string; response_class: string; attempted_at: string }[]>("push_attempts", {
       company_id: `eq.${this.#tenant(args.tenant).company_id}`,
-      created_at: `gte.${iso(args.since)}`,
+      attempted_at: `gte.${iso(args.since)}`,
       ...(args.purpose ? { purpose: `eq.${args.purpose}` } : {}),
-      select: "purpose,platform,response_class,created_at",
+      select: "purpose,platform,response_class,attempted_at",
     });
+  }
+
+  async pushTargets(args: { member: string }): Promise<number> {
+    const userId = subjectOf(await this.#session(args.member));
+    const [subscriptions, tokens] = await Promise.all([
+      this.#rest<{ id: string }[]>("push_subscriptions", { user_id: `eq.${userId}`, select: "id" }),
+      this.#rest<{ id: string }[]>("device_push_tokens", { user_id: `eq.${userId}`, select: "id" }),
+    ]);
+    return subscriptions.length + tokens.length;
   }
 
   async optOut(args: { tenant: string; role: string }) {
@@ -167,13 +181,48 @@ export class AppProbe implements AppApi {
     return rows.reduce((sum, row) => sum + row.billable_seconds, 0);
   }
 
-  async outboundAuthorizationsLeft(args: { tenant: string; since: number }): Promise<number> {
-    const rows = await this.#rest<{ nonce: string }[]>("outbound_call_authorizations", {
-      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
-      created_at: `gte.${iso(args.since)}`,
-      select: "nonce",
-    });
-    return rows.length;
+  async outboundTokenUse(args: { tenant: string; toRole: string; since: number }): Promise<{ calls: number; left: number }> {
+    const companyId = this.#tenant(args.tenant).company_id;
+    const to = this.#number(args.toRole);
+    // api_authorize_outbound_call deletes the token it consumes and inserts the
+    // call's row in the same step; nothing else inserts an outbound row.
+    const [calls, left] = await Promise.all([
+      this.#rest<{ call_session_id: string }[]>("calls", {
+        company_id: `eq.${companyId}`,
+        direction: "eq.outbound",
+        caller_e164: `eq.${to}`,
+        created_at: `gte.${iso(args.since)}`,
+        select: "call_session_id",
+      }),
+      this.#rest<{ nonce: string }[]>("outbound_call_authorizations", {
+        company_id: `eq.${companyId}`,
+        customer_e164: `eq.${to}`,
+        created_at: `gte.${iso(args.since)}`,
+        select: "nonce",
+      }),
+    ]);
+    return { calls: calls.length, left: left.length };
+  }
+
+  /** Creates the endpoint, or turns it back on with every event asked for; never removes one. */
+  async ensureRobotWebhook(args: { member: string; events: string[] }): Promise<void> {
+    const secret = this.#o.robotWebhookSecret?.();
+    if (!secret) throw new Error("the store has no robot-webhook-secret, so the robot's sink at the edge has no address");
+    const { tenant: tenantKey } = splitMember(args.member);
+    const url = `${this.#o.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.robotWebhookPrefix}${secret}/${tenantKey}`;
+    const listed = await this.#api<{ endpoints?: { id: string; url: string; events: string[]; active: boolean }[] }>(
+      args.member,
+      "GET",
+      "/v1/webhooks",
+    );
+    const existing = (listed.endpoints ?? []).find((endpoint) => endpoint.url === url);
+    if (!existing) {
+      await this.#api(args.member, "POST", "/v1/webhooks", { url, events: args.events, description: "Loonext rig robot sink" });
+      return;
+    }
+    const events = [...new Set([...existing.events, ...args.events])];
+    if (existing.active && events.length === existing.events.length) return;
+    await this.#api(args.member, "PATCH", `/v1/webhooks/${encodeURIComponent(existing.id)}`, { events, active: true });
   }
 
   async telnyxRecordings(callSessionId: string): Promise<number> {
@@ -227,6 +276,24 @@ export class AppProbe implements AppApi {
     return token;
   }
 
+  /** The local API as a member of the member's tenant. */
+  async #api<T>(memberKey: string, method: string, path: string, body?: unknown): Promise<T> {
+    const tenant = this.#tenant(splitMember(memberKey).tenant);
+    const response = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}${path}`, {
+      method,
+      headers: {
+        authorization: `Bearer ${await this.#session(memberKey)}`,
+        "x-company-id": tenant.company_id,
+        ...(body === undefined ? {} : { "content-type": "application/json", "idempotency-key": randomUUID() }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const json = (await response.json().catch(() => ({}))) as T & { error?: { code?: string } };
+    if (!response.ok) throw new Error(`${method} ${path.split("/").slice(0, 3).join("/")} returned ${response.status}${json.error?.code ? ` ${json.error.code}` : ""}`);
+    return json;
+  }
+
   async #rest<T>(table: string, query: Record<string, string>): Promise<T> {
     const search = new URLSearchParams(query);
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/rest/v1/${table}?${search}`, {
@@ -260,4 +327,12 @@ export class AppProbe implements AppApi {
 
 function iso(ms: number): string {
   return new Date(ms).toISOString();
+}
+
+/** The user id in a Supabase access token. */
+export function subjectOf(token: string): string {
+  const payload = token.split(".")[1];
+  const sub = payload ? (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub?: unknown }).sub : undefined;
+  if (typeof sub !== "string" || !/^[0-9a-f-]{36}$/.test(sub)) throw new Error("app probe: the session names no user");
+  return sub;
 }

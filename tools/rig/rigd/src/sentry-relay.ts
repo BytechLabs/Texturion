@@ -7,7 +7,9 @@
  *
  * It sends envelopes by DSN only; no Sentry API token exists on the rig. The
  * counters live in one file under a lock, because scenario runs are separate
- * processes and each may report.
+ * processes and each may report. An envelope Sentry did not take is kept
+ * there too, and the daemon sends it again until it goes or is a day old:
+ * the fingerprint it holds stays suppressed meanwhile, so it must not be lost.
  */
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync, renameSync } from "node:fs";
@@ -66,7 +68,32 @@ type Refusal = "suppressed" | "daily_cap" | "monthly_cap" | "run_cap";
 
 export type RelayDecision =
   | { sent: true; eventId: string }
-  | { sent: false; reason: Refusal | "send_failed" | "empty" };
+  | { sent: false; reason: Refusal | "empty" }
+  /** Admitted, but Sentry did not take it yet: it waits in the relay's state for the next flush. */
+  | { sent: false; reason: "send_failed"; pending: true };
+
+/** What the relay keeps of an API event, for the cron registry to explain it (cron-events.ts). */
+export interface SeenEvent {
+  at: number;
+  level?: string;
+  message?: string;
+  fingerprint?: string[];
+  tags?: Record<string, string>;
+  /** Every exception in the event, a linked error's included. */
+  exceptions?: { type: string; value: string }[];
+}
+
+/** Why an API event is no surprise, or undefined when nothing explains it. */
+export type Explanation = { kind: "expected" } | { kind: "defect"; means: string };
+
+interface PendingEnvelope {
+  url: string;
+  publicKey: string;
+  envelope: string;
+  at: number;
+}
+
+const PENDING_MAX = 50;
 
 interface RelayState {
   day: string;
@@ -77,14 +104,19 @@ interface RelayState {
   alertedMonth?: string;
   fingerprints: Record<string, number>;
   runs: Record<string, { count: number; at: number }>;
-  /** The local API's event keys, last seen at, for R00's "unexplained in 24 hours". */
-  apiSeen?: Record<string, number>;
+  /** The local API's events by key, as last seen, for R00's "unexplained in 24 hours". */
+  apiSeen?: Record<string, number | SeenEvent>;
+  pending?: PendingEnvelope[];
 }
 
 /** What `rig health` reads from `state/sentry-relay.json`. */
 export interface RelayReport {
   at: string;
   unexplained_24h: string[];
+  /** Events the cron registry names as a defect of the rig's seed or setup, with its cause. */
+  defects_24h: { key: string; means: string }[];
+  /** Envelopes Sentry has not taken yet. */
+  pending: number;
   day_count: number;
   month_count: number;
   daily_cap: number;
@@ -94,7 +126,7 @@ export interface RelayReport {
 export interface SyntheticEvent {
   fingerprint: Fingerprint;
   message: string;
-  level?: "error" | "warning" | "info";
+  level?: "fatal" | "error" | "warning" | "info";
   runId?: string;
   tags?: Record<string, string>;
   extra?: Record<string, unknown>;
@@ -132,7 +164,7 @@ export class SentryRelay {
   async send(dsn: Dsn, event: SyntheticEvent): Promise<RelayDecision> {
     const { keys, refused } = await this.#admit([JSON.stringify(event.fingerprint)], event.runId);
     if (keys.length === 0) return { sent: false, reason: refused ?? "suppressed" };
-    return this.#post(dsn, buildEnvelope(dsn, event, this.#clock.now()));
+    return this.#deliver(dsn, buildEnvelope(dsn, event, this.#clock.now()));
   }
 
   /**
@@ -145,32 +177,62 @@ export class SentryRelay {
       .filter((item) => item.type === "event")
       .map((item) => ({ payload: item.payload, key: eventKey(item.payload) }));
     if (events.length === 0) return { sent: false, reason: "empty" };
+    const now = this.#clock.now();
     const { keys, refused } = await this.#admit(
       events.map((event) => event.key),
       undefined,
-      true,
+      events.map((event) => seenEvent(event.payload, now)),
     );
     const once = new Set<string>();
     const kept = events.filter((event) => keys.includes(event.key) && !once.has(event.key) && once.add(event.key));
     if (kept.length === 0) return { sent: false, reason: refused ?? "suppressed" };
     const lines = [rewriteDsn(header, dsn), ...kept.flatMap((event) => [JSON.stringify({ type: "event" }), event.payload])];
-    return this.#post(dsn, `${lines.join("\n")}\n`);
+    return this.#deliver(dsn, `${lines.join("\n")}\n`);
+  }
+
+  /** Sends the envelopes Sentry did not take, dropping any a day old. */
+  async flushPending(): Promise<{ sent: number; left: number }> {
+    const now = this.#clock.now();
+    const due = await this.#locked((state) => {
+      const pending = (state.pending ?? []).filter((item) => now - item.at < DAY_MS);
+      state.pending = [];
+      return pending;
+    });
+    const failed: PendingEnvelope[] = [];
+    for (const item of due) {
+      const decision = await this.#post({ envelopeUrl: item.url, publicKey: item.publicKey }, item.envelope);
+      if (!decision.sent) failed.push(item);
+    }
+    if (failed.length) {
+      await this.#locked((state) => {
+        state.pending = [...failed, ...(state.pending ?? [])].slice(-PENDING_MAX);
+      });
+    }
+    return { sent: due.length - failed.length, left: failed.length };
   }
 
   /**
-   * The local API's fingerprints from the last day that nothing explains:
-   * `explained` holds the keys the cron registry expects (refusals by design).
+   * The local API's events from the last day that nothing explains. `explain`
+   * is the cron registry's reading of an event (cron-events.ts); without one,
+   * nothing is explained.
    */
-  report(explained: ReadonlySet<string>): RelayReport {
+  report(explain: (event: SeenEvent) => Explanation | undefined = () => undefined): RelayReport {
     const state = this.#read();
     const now = this.#clock.now();
-    const unexplained = Object.entries(state.apiSeen ?? {})
-      .filter(([key, at]) => now - at < DAY_MS && !explained.has(key))
-      .map(([key]) => key)
-      .sort();
+    const unexplained: string[] = [];
+    const defects: { key: string; means: string }[] = [];
+    for (const [key, value] of Object.entries(state.apiSeen ?? {})) {
+      const seen: SeenEvent = typeof value === "number" ? { at: value } : value;
+      if (now - seen.at >= DAY_MS) continue;
+      const explanation = explain(seen);
+      if (explanation?.kind === "defect") defects.push({ key, means: explanation.means });
+      else if (!explanation) unexplained.push(key);
+    }
     return {
       at: new Date(now).toISOString(),
-      unexplained_24h: unexplained,
+      unexplained_24h: unexplained.sort(),
+      defects_24h: defects.sort((a, b) => a.key.localeCompare(b.key)),
+      pending: state.pending?.length ?? 0,
       day_count: state.day === new Date(now).toISOString().slice(0, 10) ? state.dayCount : 0,
       month_count: state.month === new Date(now).toISOString().slice(0, 7) ? state.monthCount : 0,
       daily_cap: this.#limits.daily,
@@ -179,7 +241,7 @@ export class SentryRelay {
   }
 
   /** Counts what it admits and why it refused the rest. Sends the 70% alert when crossed. */
-  async #admit(keys: string[], runId?: string, trackApi = false): Promise<{ keys: string[]; refused?: Refusal }> {
+  async #admit(keys: string[], runId?: string, seen?: SeenEvent[]): Promise<{ keys: string[]; refused?: Refusal }> {
     let alert: string | undefined;
     let refused: Refusal | undefined;
     const admitted = await this.#locked((state) => {
@@ -193,8 +255,12 @@ export class SentryRelay {
       }
       for (const [id, run] of Object.entries(state.runs)) if (now - run.at > 2 * 86_400_000) delete state.runs[id];
       state.apiSeen ??= {};
-      for (const [key, at] of Object.entries(state.apiSeen)) if (now - at >= DAY_MS) delete state.apiSeen[key];
-      if (trackApi) for (const key of keys) state.apiSeen[key] = now;
+      for (const [key, value] of Object.entries(state.apiSeen)) {
+        if (now - (typeof value === "number" ? value : value.at) >= DAY_MS) delete state.apiSeen[key];
+      }
+      seen?.forEach((event, i) => {
+        state.apiSeen![keys[i]!] = event;
+      });
 
       const out: string[] = [];
       for (const key of keys) {
@@ -226,7 +292,7 @@ export class SentryRelay {
       return out;
     });
     if (alert) {
-      await this.#post(
+      await this.#deliver(
         this.#o.alertDsn,
         buildEnvelope(this.#o.alertDsn, { fingerprint: infraFingerprint("sentry-relay"), message: alert, level: "warning" }, this.#clock.now()),
       );
@@ -234,7 +300,18 @@ export class SentryRelay {
     return { keys: admitted, refused };
   }
 
-  async #post(dsn: Dsn, envelope: string): Promise<RelayDecision> {
+  /** Posts, and keeps the envelope for the next flush when Sentry does not take it. */
+  async #deliver(dsn: Dsn, envelope: string): Promise<RelayDecision> {
+    const decision = await this.#post(dsn, envelope);
+    if (decision.sent) return decision;
+    const item: PendingEnvelope = { url: dsn.envelopeUrl, publicKey: dsn.publicKey, envelope, at: this.#clock.now() };
+    await this.#locked((state) => {
+      state.pending = [...(state.pending ?? []), item].slice(-PENDING_MAX);
+    });
+    return { sent: false, reason: "send_failed", pending: true };
+  }
+
+  async #post(dsn: Pick<Dsn, "envelopeUrl" | "publicKey">, envelope: string): Promise<{ sent: true; eventId: string } | { sent: false }> {
     const eventId = (safeJson(envelope.split("\n")[0] ?? "") as { event_id?: string } | undefined)?.event_id ?? "";
     try {
       const response = await this.#fetch(dsn.envelopeUrl, {
@@ -247,9 +324,9 @@ export class SentryRelay {
         signal: AbortSignal.timeout(10_000),
       });
       await response.body?.cancel();
-      return response.ok ? { sent: true, eventId } : { sent: false, reason: "send_failed" };
+      return response.ok ? { sent: true, eventId } : { sent: false };
     } catch {
-      return { sent: false, reason: "send_failed" };
+      return { sent: false };
     }
   }
 
@@ -309,6 +386,44 @@ function buildEnvelope(dsn: Dsn, event: SyntheticEvent, now: number): string {
     extra: event.extra,
   };
   return `${JSON.stringify({ event_id: eventId, sent_at: sentAt, dsn: dsn.raw })}\n${JSON.stringify({ type: "event" })}\n${JSON.stringify(payload)}\n`;
+}
+
+const clip = (text: string, max: number) => (text.length > max ? text.slice(0, max) : text);
+
+/** The parts of an SDK event the cron registry matches on, clipped short. */
+export function seenEvent(payload: string, at: number): SeenEvent {
+  const event = (safeJson(payload) ?? {}) as {
+    level?: unknown;
+    message?: unknown;
+    logentry?: { formatted?: unknown; message?: unknown };
+    fingerprint?: unknown;
+    tags?: unknown;
+    exception?: { values?: { type?: unknown; value?: unknown }[] };
+  };
+  const seen: SeenEvent = { at };
+  if (typeof event.level === "string") seen.level = event.level;
+  const message =
+    typeof event.message === "string"
+      ? event.message
+      : [(event.message as { formatted?: unknown } | undefined)?.formatted, event.logentry?.formatted, event.logentry?.message].find(
+          (candidate): candidate is string => typeof candidate === "string",
+        );
+  if (message !== undefined) seen.message = clip(message, 500);
+  if (Array.isArray(event.fingerprint) && event.fingerprint.every((part) => typeof part === "string")) {
+    seen.fingerprint = event.fingerprint as string[];
+  }
+  // Tags arrive as an object, or as [key, value] pairs from some SDKs.
+  const pairs = Array.isArray(event.tags)
+    ? (event.tags as unknown[]).filter((pair): pair is [string, unknown] => Array.isArray(pair) && typeof pair[0] === "string")
+    : Object.entries((event.tags ?? {}) as Record<string, unknown>);
+  const tags = Object.fromEntries(pairs.slice(0, 30).map(([key, value]) => [key, clip(String(value), 200)]));
+  if (Object.keys(tags).length) seen.tags = tags;
+  const exceptions = (event.exception?.values ?? []).slice(0, 20).map((value) => ({
+    type: typeof value?.type === "string" ? value.type : "",
+    value: typeof value?.value === "string" ? clip(value.value, 500) : "",
+  }));
+  if (exceptions.length) seen.exceptions = exceptions;
+  return seen;
 }
 
 /** The suppression key of an SDK event: its own fingerprint, else its first exception or message. */

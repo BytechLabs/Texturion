@@ -27,6 +27,8 @@ describe("storageUrlFor", () => {
     ["a public object path", "/m/object/public/mms-media/c/p.jpg", 404],
     ["an authenticated path", "/m/object/authenticated/mms-media/c/p.jpg?token=t", 404],
     ["no token", "/m/object/sign/mms-media/c/p.jpg", 403],
+    ["an empty token", "/m/object/sign/mms-media/c/p.jpg?token=", 403],
+    ["an empty token beside the download flag", "/object/sign/mms-media/c/p.jpg?token=&download=p.jpg", 403],
     ["an extra parameter", "/m/object/sign/mms-media/c/p.jpg?token=t&cache=1", 403],
     ["two tokens", "/object/sign/mms-media/c/p.jpg?token=t&token=u", 403],
     ["a climb out of the bucket", "/m/object/sign/mms-media/../voicemails/v.wav?token=t", 400],

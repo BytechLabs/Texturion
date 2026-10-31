@@ -85,8 +85,15 @@ export const S01: ScenarioRunner = {
       return fail("member_did_not_hear_robot", `the page heard ${hearing.detection.heard.join(", ") || hearing.detection.verdict}`);
     }
     if (!(hearing.energyBeforeAnswer && hearing.energyBeforeAnswer > 0)) return fail("no_ringback", "no audio energy reached the page before answer");
-    if ((await ctx.app.outboundAuthorizationsLeft({ tenant: "QA-W", since })) !== 0) {
-      return fail("token_not_consumed", "the call's one-time token was not used exactly once");
+    // A consumed token is deleted, so "none left" alone would also pass a call
+    // placed with no token at all; only a consumed one creates the call's row.
+    const tokens = await ctx.app.outboundTokenUse({ tenant: "QA-W", toRole: "ROBOT-1", since });
+    ctx.evidence.tokens = tokens;
+    if (tokens.calls !== 1 || tokens.left !== 0) {
+      return fail(
+        "token_not_used_once",
+        `the call made ${tokens.calls} outbound call row(s) from a consumed token and left ${tokens.left} token(s) unused`,
+      );
     }
     const metered = await poll(ctx, async () => {
       const seconds = await ctx.app.voiceSecondsSince({ tenant: "QA-W", since });
@@ -154,6 +161,11 @@ export const S02: ScenarioRunner = {
 export const S04: ScenarioRunner = {
   id: "S04",
   async run(ctx) {
+    try {
+      await ctx.app.ensureRobotWebhook({ member: "qa-w-owner", events: ["voicemail.received"] });
+    } catch (error) {
+      return infra("webhook-endpoint", `the robot's webhook endpoint could not be set up: ${(error as Error).message}`);
+    }
     const since = ctx.now();
     // Open, so the owner's page is a surface that rings and is left unanswered.
     await ctx.browser.open("qa-w-owner", "qa-w-owner", "/");
