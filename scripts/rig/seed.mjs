@@ -198,6 +198,48 @@ values (${lit(companyId)}, ${lit(numberId)}, 'user', ${lit(users[member.key])}, 
   return statements.join("\n");
 }
 
+/**
+ * One query counting what the seed writes and the database lacks: a company,
+ * a member's membership, or a number's row as the partition has it now, in
+ * any status but 'released' (what the 15-minute number sweep counts as
+ * known). Null when the store does not name every tenant and member yet,
+ * which only the seed completes.
+ *
+ * @param {{ tenants?, ids, standing: Map }} input
+ */
+export function seedGapsSql({ tenants = TENANTS, ids, standing }) {
+  const companies = [];
+  const members = [];
+  const numbers = [];
+  for (const tenant of tenants) {
+    const companyId = ids?.[tenant.key]?.company_id;
+    if (!UUID.test(companyId ?? "")) return null;
+    companies.push(`(${lit(companyId)}::uuid)`);
+    for (const member of tenant.members) {
+      const email = ids[tenant.key].members?.[member.key]?.email;
+      if (typeof email !== "string") return null;
+      members.push(`(${lit(companyId)}::uuid, ${lit(email)})`);
+    }
+    for (const number of tenant.numbers) {
+      const live = standing.get(number.role);
+      if (!live) throw new Error(`rig seed: the partition has no number for ${number.role}`);
+      numbers.push(`(${lit(stableUuid(companyId, number.role))}::uuid, ${lit(live.e164)}, ${lit(live.telnyx_phone_number_id)}::text)`);
+    }
+  }
+  return `select
+  (select count(*) from (values ${companies.join(", ")}) as want(id)
+    where not exists (select 1 from public.companies c where c.id = want.id and c.deleted_at is null))
+  + (select count(*) from (values ${members.join(", ")}) as want(company_id, email)
+    where not exists (
+      select 1 from public.company_members m join auth.users u on u.id = m.user_id
+      where m.company_id = want.company_id and u.email = want.email and m.deactivated_at is null))
+  + (select count(*) from (values ${numbers.join(", ")}) as want(id, e164, telnyx_id)
+    where not exists (
+      select 1 from public.phone_numbers p
+      where p.id = want.id and p.status <> 'released' and p.number_e164 = want.e164
+        and p.telnyx_phone_number_id is not distinct from want.telnyx_id));`;
+}
+
 /** RFC 6238 code for a base32 secret: SHA-1, six digits, 30-second steps. */
 export function totpCode(secret, now = Date.now()) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";

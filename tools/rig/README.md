@@ -124,7 +124,10 @@ Everything that can refuse (an untaught config key, a missing or live
 secret, the cron registry, a rigd that cannot build its schedule from this
 checkout) is checked before the database or a service changes. When the
 schema changes, the services, the cron timers and rigd's scenario timers are
-stopped first, so a failed migration leaves nothing running against it.
+stopped first, so a failed migration leaves nothing running against it. A
+seed runs on a reset, on `--reseed`, and whenever the database lacks a
+company, membership or number row the seed writes, as the partition has it
+now.
 `state/deployed.json` names what the units start; each `rig serve` writes
 `state/serving-<service>.json` with the SHA it actually serves, and
 `rig health` fails while the two differ.

@@ -44,8 +44,7 @@ import {
 import { ensureStripeCatalog, requiredCatalogKeys, stripeSandboxKey, stripeWebhookSecret } from "./stripe.mjs";
 import { appliedMigrationVersions, localStatus, psql, refMigrationVersions, schemaPlan, supabase } from "./supabase.mjs";
 import { aiShimConfig, deriveRigConfig, renderRigConfig } from "./wrangler-config.mjs";
-import { seed } from "../../../scripts/rig/seed.mjs";
-import { TENANTS } from "../../../scripts/rig/tenants.mjs";
+import { seed, seedGapsSql } from "../../../scripts/rig/seed.mjs";
 
 /** The CLI's own address for its stack; anything else is set as the issuer. */
 const CLI_API_URL = "http://127.0.0.1:54321";
@@ -264,17 +263,14 @@ export function activate({
 }
 
 /**
- * Whether every tenant the seed writes has its company row, whoever reset the
- * database last. A tenant the store does not name yet counts as missing, so
- * the seed runs and its numbers get the rows the number sweep needs.
+ * Whether the database holds every row the seed writes, as TENANTS and the
+ * partition say now, whoever reset it last. A number the 15-minute sweep
+ * cannot find is flagged on every run until the seed runs.
  */
-function tenantsPresent(projectId, store) {
+function seedIsCurrent(projectId, store, standing) {
   if (!store.has("tenants.json")) return false;
-  const stored = store.readJson("tenants.json");
-  const ids = TENANTS.map((tenant) => stored[tenant.key]?.company_id);
-  if (ids.some((id) => !/^[0-9a-f-]{36}$/.test(id ?? ""))) return false;
-  const found = psql(projectId, `select count(*) from public.companies where id in (${ids.map((id) => `'${id}'`).join(", ")});`);
-  return Number(found.trim()) === ids.length;
+  const sql = seedGapsSql({ ids: store.readJson("tenants.json"), standing });
+  return sql !== null && Number(psql(projectId, sql).trim()) === 0;
 }
 
 function pointCurrent(layout, root) {
@@ -452,7 +448,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   if (plan.action === "reset") supabase(["db", "reset", "--local"], { workdir, inherit: true });
 
   await bootstrapDb({ projectId, status, endpoints, preSeam: options.preSeam === true, log });
-  if (plan.action === "reset" || options.reseed || !tenantsPresent(projectId, store)) {
+  if (plan.action === "reset" || options.reseed || !seedIsCurrent(projectId, store, standing)) {
     await seed({ workdir, store, partition, log });
   }
   if (recordStanding(store, standing)) log("store: standing-numbers.json rewritten from the partition");

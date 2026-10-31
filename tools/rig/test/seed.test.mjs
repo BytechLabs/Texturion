@@ -4,7 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { checkTenantIds, completeTenantIds, generateTenantIds, seedSql, stableUuid, totpCode } from "../../../scripts/rig/seed.mjs";
+import {
+  checkTenantIds,
+  completeTenantIds,
+  generateTenantIds,
+  seedGapsSql,
+  seedSql,
+  stableUuid,
+  totpCode,
+} from "../../../scripts/rig/seed.mjs";
 import { TENANTS } from "../../../scripts/rig/tenants.mjs";
 import { STANDING_ROLES, standingNumbers } from "../src/guard.mjs";
 import { secretStore } from "../src/secrets.mjs";
@@ -134,6 +142,38 @@ test("every standing number gets the live row the 15-minute number sweep knows i
   }
 });
 
+test("deploy's seed check asks for every company, membership and number row as the partition has it now", () => {
+  const { standing, ids } = fixture();
+  const sql = seedGapsSql({ ids, standing });
+  for (const tenant of TENANTS) {
+    const companyId = ids[tenant.key].company_id;
+    assert.ok(sql.includes(`('${companyId}'::uuid)`), `${tenant.name}'s company`);
+    for (const member of tenant.members) {
+      const email = ids[tenant.key].members[member.key].email;
+      assert.ok(sql.includes(`('${companyId}'::uuid, '${email}')`), `${tenant.name} ${member.key}`);
+    }
+  }
+  for (const role of STANDING_ROLES) {
+    const tenant = TENANTS.find((candidate) => candidate.numbers.some((number) => number.role === role));
+    const { e164, telnyx_phone_number_id: telnyxId } = standing.get(role);
+    const row = `('${stableUuid(ids[tenant.key].company_id, role)}'::uuid, '${e164}', '${telnyxId}'::text)`;
+    assert.ok(sql.includes(row), `${role} by its row id, number and Telnyx id`);
+  }
+  // The number sweep still knows a suspended row; only a released one is gone.
+  assert.match(sql, /p\.status <> 'released'/);
+});
+
+test("a store that does not name every tenant and member always seeds", () => {
+  const { standing, ids } = fixture();
+  assert.notEqual(seedGapsSql({ ids, standing }), null);
+  const older = structuredClone(ids);
+  delete older.robot;
+  assert.equal(seedGapsSql({ ids: older, standing }), null);
+  const fewer = structuredClone(ids);
+  delete fewer["qa-w"].members["mfa-member"];
+  assert.equal(seedGapsSql({ ids: fewer, standing }), null);
+});
+
 test("a tenant split across messaging profiles is refused", () => {
   const { standing, ids, userIds } = fixture();
   standing.set("DEV-W2", { ...standing.get("DEV-W2"), messaging_profile_id: "stub-profile-qa-a" });
@@ -150,6 +190,9 @@ test("stable UUIDs are stable, distinct and version 4 shaped", () => {
   assert.equal(stableUuid("a", "b"), stableUuid("a", "b"));
   assert.notEqual(stableUuid("a", "b"), stableUuid("a", "c"));
   assert.match(stableUuid("x"), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  // rigd's app probe derives the same ids with its own copy, and its contract
+  // test pins this vector too (tools/rig/rigd/src/contracts.test.ts).
+  assert.equal(stableUuid("00000000-0000-4000-8000-000000000001", "DEV-W1"), "7de34ea1-d188-4bcf-ad8e-be2efe86bdfe");
 });
 
 test("TOTP matches RFC 6238's SHA-1 vectors", () => {
