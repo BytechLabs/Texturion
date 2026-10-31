@@ -14,9 +14,17 @@ export interface UnresolvedLike {
   fingerprint: string[];
 }
 
+/** A re-run that has started: its verdicts land under `run_id`, which `triage.evidence` reads. */
+export interface StartedRun {
+  started: true;
+  scenario: string;
+  run_id: string;
+}
+
 export interface TriageDeps {
   unresolved(): UnresolvedLike[];
-  run(scenario: string): Promise<unknown>;
+  /** Starts the run and returns at once: a run outlasts the edge's 60 s rpc wait. */
+  run(scenario: string): Promise<StartedRun>;
   evidence(runId: string): { verdicts: unknown[]; evidence: unknown[] };
   /** Read when an issue is filed, so a rig without the App key still triages. */
   app(): AppCredentials;

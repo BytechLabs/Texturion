@@ -2,9 +2,11 @@
  * The Playwright browser lane: one Chromium profile per member, each with its
  * own code on the fake microphone and the in-page judge installed.
  *
- * The UI steps find controls by role and English name, the way a member does
- * ("Answer", "Hang up", "Call"). The web app has no test-id contract for calls
- * yet; `SELECTORS` is the one place to change when it lands.
+ * A profile signs its member in on the app's own login page the first time
+ * the app sends it there, and keeps the session for later runs. The UI steps
+ * find controls by role and English name, the way a member does ("Answer",
+ * "Hang up", "Call"). The web app has no test-id contract for calls yet;
+ * `SELECTORS` is the one place to change when it lands.
  */
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -32,7 +34,24 @@ export const SELECTORS = {
   dialerTitle: { role: "dialog", name: "Dial a number" },
   call: { role: "button", name: "Call" },
   incoming: { text: /Incoming call/ },
+  /** apps/web/src/app/(auth)/login, as scripts/dev-shot.mjs signs in. */
+  loginEmail: 'input[type="email"]',
+  loginPassword: 'input[type="password"]',
+  loginSubmit: 'form button[type="submit"]',
+  /** The push card on /settings/notifications (components/notifications/permission-card.tsx). */
+  pushCard: "Push on this device",
+  pushTurnOn: { role: "button", name: "Turn on" },
+  pushTurnOff: { role: "button", name: "Turn off" },
 } as const;
+
+export const LOGIN_PATH = "/login";
+const SIGN_IN_TIMEOUT_MS = 30_000;
+const PUSH_TIMEOUT_MS = 15_000;
+
+export interface MemberCredentials {
+  email: string;
+  password: string;
+}
 
 export interface BrowserLaneOptions {
   /** e.g. https://app.rig.internal */
@@ -41,6 +60,8 @@ export interface BrowserLaneOptions {
   /** Where writeFakeMicWavs put the surface WAVs. */
   fakeMicDir: string;
   numbers: NumberBook;
+  /** The member's sign-in: the seed's tenants.json, by member key. */
+  credentials?: (member: string) => MemberCredentials | undefined;
   headless?: boolean;
   browserType?: BrowserType;
   executablePath?: string;
@@ -71,8 +92,18 @@ export class BrowserLane {
     });
     await context.addInitScript(installPageJudge, JUDGE_CONFIG);
     const page = context.pages()[0] ?? (await context.newPage());
-    await page.goto(new URL(path, this.#o.appOrigin).toString());
-    const opened = new MemberPage(member, surface, context, page, this.#o.numbers);
+    const target = new URL(path, this.#o.appOrigin).toString();
+    try {
+      await page.goto(target);
+      if (onLoginPage(page.url())) {
+        await signIn(page, member, this.#o.credentials?.(member));
+        if (new URL(page.url()).pathname !== new URL(target).pathname) await page.goto(target);
+      }
+    } catch (error) {
+      await context.close().catch(() => undefined);
+      throw error;
+    }
+    const opened = new MemberPage(member, surface, context, page, this.#o.numbers, this.#o.appOrigin);
     this.#open.set(member, opened);
     return opened;
   }
@@ -80,6 +111,32 @@ export class BrowserLane {
   async closeAll(): Promise<void> {
     await Promise.allSettled([...this.#open.values()].map((page) => page.close()));
     this.#open.clear();
+  }
+}
+
+export function onLoginPage(url: string): boolean {
+  const { pathname } = new URL(url);
+  return pathname === LOGIN_PATH || pathname.startsWith(`${LOGIN_PATH}/`);
+}
+
+/**
+ * Signs a member in as a person does: the email, the password, and the
+ * submit button once the app enables it (on the rig, Turnstile's always-pass
+ * test key enables it after a moment).
+ */
+export async function signIn(page: Page, member: string, credentials: MemberCredentials | undefined): Promise<void> {
+  if (!credentials) throw new Error(`browser lane: the app asks ${member} to sign in, and the rig has no sign-in for them`);
+  await page.locator(SELECTORS.loginEmail).fill(credentials.email);
+  await page.locator(SELECTORS.loginPassword).fill(credentials.password);
+  const submit = page.locator(SELECTORS.loginSubmit);
+  await submit.and(page.locator(":enabled")).waitFor({ timeout: SIGN_IN_TIMEOUT_MS });
+  await submit.click();
+  try {
+    await page.waitForURL((url) => !onLoginPage(url.toString()), { timeout: SIGN_IN_TIMEOUT_MS });
+  } catch {
+    // The page's own alert says why, and never holds the password.
+    const alert = await page.getByRole("alert").first().textContent({ timeout: 1_000 }).catch(() => null);
+    throw new Error(`browser lane: ${member} could not sign in${alert ? ` (${alert.trim()})` : ""}`);
   }
 }
 
@@ -105,13 +162,37 @@ export class MemberPage {
   readonly context: BrowserContext;
   readonly page: Page;
   readonly #numbers: NumberBook;
+  readonly #origin: string;
 
-  constructor(member: string, surface: Surface, context: BrowserContext, page: Page, numbers: NumberBook) {
+  constructor(member: string, surface: Surface, context: BrowserContext, page: Page, numbers: NumberBook, origin: string) {
     this.member = member;
     this.surface = surface;
     this.context = context;
     this.page = page;
     this.#numbers = numbers;
+    this.#origin = origin;
+  }
+
+  /**
+   * Turns on push for this browser from the app's settings, in a second tab
+   * so the member's page keeps its place. False when the card never offers it
+   * or never says it is on: a Chromium with no push service cannot subscribe.
+   */
+  async enablePush(): Promise<boolean> {
+    const tab = await this.context.newPage();
+    try {
+      await tab.goto(new URL("/settings/notifications", this.#origin).toString());
+      const card = tab.locator("div").filter({ hasText: SELECTORS.pushCard }).filter({ has: tab.getByRole("button") }).last();
+      const off = card.getByRole(SELECTORS.pushTurnOff.role, { name: SELECTORS.pushTurnOff.name, exact: true });
+      if (await off.isVisible()) return true;
+      await card.getByRole(SELECTORS.pushTurnOn.role, { name: SELECTORS.pushTurnOn.name, exact: true }).click({ timeout: PUSH_TIMEOUT_MS });
+      await off.waitFor({ timeout: PUSH_TIMEOUT_MS });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      await tab.close().catch(() => undefined);
+    }
   }
 
   mark(name: string): Promise<void> {

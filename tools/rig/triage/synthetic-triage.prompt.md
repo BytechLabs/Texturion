@@ -17,7 +17,7 @@ The answer is `{"ok":true,"result":...}` or `{"ok":false,"error":"..."}`. There 
 |---|---|---|
 | `triage.unresolved` | `{}` | Scenarios whose latest decisive verdict is a failure: `scenario`, `outcome` (`fail` or `infra`), `fingerprint`, `since`, `failing_attempts`, `last` (the newest verdict, with its SHA) |
 | `triage.evidence` | `{"run_id": "..."}` | That run's verdicts and evidence: call ids, RTP statistics, code verdicts, and per-frame numbers on a failure |
-| `triage.rerun` | `{"scenario": "S02"}` | A fresh run of an unresolved scenario, gated like any run: it may come back `skipped` (outside the dial window, lease busy, dial cap) or `not_runnable` (room) |
+| `triage.rerun` | `{"scenario": "S02"}` | Starts a fresh run of an unresolved scenario and returns at once with `{started, scenario, run_id}`. The run is gated like any other, so its verdicts may read `skipped` (outside the dial window, lease busy, dial cap) or `not_runnable` (room) |
 | `triage.issue` | `{"fingerprint": [...], "title": "...", "body": "..."}` | Opens the one issue for that fingerprint, labelled `synthetic`, or comments on it, reopening it if it was closed |
 
 You hold no GitHub token and need none: the rig files the issue through its own App.
@@ -27,11 +27,11 @@ You hold no GitHub token and need none: the rig files the issue through its own 
 1. Call `triage.unresolved` first, always; it is also your heartbeat. If it is empty, stop: there is nothing to triage.
 2. For each entry, oldest `since` first, at most five per pass:
    1. Read `triage.evidence` for `last.run_id`.
-   2. Re-run with `triage.rerun` only when the evidence does not already explain the failure, and only for a scenario whose `last.dials` is 0 or whose re-run would land inside the dial window (04:00-10:00 UTC unless the evidence says otherwise). Paid dials are capped at 18 a day for the whole rig; a re-run spends them.
+   2. Re-run with `triage.rerun` only when the evidence does not already explain the failure, and only for a scenario whose `last.dials` is 0 or whose re-run would land inside the dial window (04:00-10:00 UTC unless the evidence says otherwise). Paid dials are capped at 18 a day for the whole rig; a re-run spends them. A run takes minutes: a text scenario two to five, a call scenario up to half an hour, longer when its retry waits for an hour with room. Read `triage.evidence` with the returned `run_id` once you have worked through the other entries; if it holds no verdict yet, the re-run is still going, so say it was started, not what it found. The next pass sees how it ended: once it has finished, `triage.unresolved` lists the scenario with the re-run as `last`, or no longer lists it because it passed.
    3. Decide what it is: a product regression, a rig fault (`synthetic-infra`), or flakiness that a re-run cleared. A re-run that passes clears it; say so in the issue only if an issue already exists for that fingerprint.
    4. Call `triage.issue` once for the fingerprint, with:
       - a title naming the symptom as a crew would see it, for example `S02: the browser never hears the robot's code`;
-      - a body with: the scenario and fingerprint; the SHA from `last.sha`; first failed (`since`) and attempts failing; what the evidence shows, as numbers (cycles, contrast, missing bursts, RTP packet and skip counts, timings); the re-run's result; your reading of the cause and where in the code to look first.
+      - a body with: the scenario and fingerprint; the SHA from `last.sha`; first failed (`since`) and attempts failing; what the evidence shows, as numbers (cycles, contrast, missing bursts, RTP packet and skip counts, timings); the re-run's `run_id` and its result, or that it is still running; your reading of the cause and where in the code to look first.
 
 ## Rules
 

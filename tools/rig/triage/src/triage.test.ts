@@ -121,7 +121,7 @@ describe("the triage rpc methods", () => {
       unresolved: () => unresolved,
       run: async (scenario) => {
         runs.push(scenario);
-        return { started: true };
+        return { started: true, scenario, run_id: `${scenario}-20261031050000-abc123` };
       },
       evidence: (runId) => ({ verdicts: [{ run_id: runId }], evidence: [] }),
       app: () => APP,
@@ -140,7 +140,7 @@ describe("the triage rpc methods", () => {
   it("re-runs and files only what the rig itself reports as unresolved", async () => {
     const { handlers, runs, calls } = methods();
     await expect(handlers["triage.rerun"]!({ scenario: "S01" })).rejects.toThrow(/no unresolved failure/);
-    expect(await handlers["triage.rerun"]!({ scenario: "S02" })).toEqual({ started: true });
+    expect(await handlers["triage.rerun"]!({ scenario: "S02" })).toEqual({ started: true, scenario: "S02", run_id: "S02-20261031050000-abc123" });
     expect(runs).toEqual(["S02"]);
     await expect(
       handlers["triage.issue"]!({ fingerprint: ["synthetic", "S01", "x"], title: "t", body: "b" }),

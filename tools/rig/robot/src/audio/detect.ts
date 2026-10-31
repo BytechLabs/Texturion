@@ -8,6 +8,10 @@
  * a real share of the frame's power, and its bursts stand above its gaps by the
  * surface's margin. Each cycle may also slip two frames from the call's phase,
  * because a jitter buffer stretches time as it goes.
+ *
+ * The window is 2-12 s after answer, unless the call opens with Telnyx's
+ * automated-call announcement: then it starts once the announcement ends, and
+ * keeps its length.
  */
 import { analyzeFrames, type FrameTable } from "./frames.ts";
 import { PATTERN, SLOT_MS, SURFACES, SURFACE_HZ, type Surface } from "./surfaces.ts";
@@ -24,6 +28,23 @@ export const WINDOW_END_MS = 12_000;
 export const ECHO_MIN_CYCLES = 2;
 const SLIP_FRAMES = 2;
 
+/**
+ * The announcement: sound that is no surface's code, starting within a second
+ * of answer and lasting 1.5 to 10 s, words apart by less than half a second.
+ * A frame is speech when it is louder than -40 dB and no surface's tone holds
+ * -8 dB of it; three code frames in a row end it. Sound that runs on longer
+ * is the line's noise or hum, not an announcement, and moves nothing.
+ */
+const ANNOUNCEMENT_LEVEL_DB = -40;
+const ANNOUNCEMENT_TONE_DB = -8;
+const ANNOUNCEMENT_START_MS = 1_000;
+const ANNOUNCEMENT_MIN_MS = 1_500;
+const ANNOUNCEMENT_MAX_MS = 10_000;
+const ANNOUNCEMENT_GAP_MS = 500;
+const ANNOUNCEMENT_CODE_FRAMES = 3;
+/** The window opens this long after the announcement, past its tail. */
+const ANNOUNCEMENT_SETTLE_MS = 300;
+
 export type Margins = Partial<Record<Surface, number>>;
 
 export interface DetectOptions {
@@ -37,6 +58,8 @@ export interface DetectOptions {
   own?: Surface;
   surfaces?: readonly Surface[];
   minCycles?: number;
+  /** False to judge from 2 s after answer even when the call opens with an announcement. */
+  announcement?: boolean;
 }
 
 export interface CycleScore {
@@ -76,7 +99,8 @@ export interface Detection {
   heard: Surface[];
   echo: { surface: Surface; cycles: number; meanContrastDb: number } | null;
   scores: Partial<Record<Surface, SurfaceScore>>;
-  window: { startMs: number; endMs: number; silentFrames: number };
+  /** `announcementMs`: how long the opening announcement ran, 0 when there was none. */
+  window: { startMs: number; endMs: number; silentFrames: number; announcementMs: number };
   frameMs: number;
 }
 
@@ -93,8 +117,11 @@ export function detectInSamples(
 export function detectCodes(table: FrameTable, options: DetectOptions = {}): Detection {
   const { frameMs } = table;
   const answer = options.answerOffsetMs ?? 0;
-  const startMs = answer + (options.windowStartMs ?? WINDOW_START_MS);
-  const endMs = answer + (options.windowEndMs ?? WINDOW_END_MS);
+  const windowStart = options.windowStartMs ?? WINDOW_START_MS;
+  const windowLength = (options.windowEndMs ?? WINDOW_END_MS) - windowStart;
+  const announcement = options.announcement === false ? undefined : findAnnouncement(table, answer);
+  const startMs = Math.max(answer + windowStart, announcement ? announcement.endMs + ANNOUNCEMENT_SETTLE_MS : 0);
+  const endMs = startMs + windowLength;
   const frames = table.level.length;
   const w0 = Math.max(0, Math.round(startMs / frameMs));
   const w1 = Math.min(frames, Math.round(endMs / frameMs));
@@ -132,9 +159,45 @@ export function detectCodes(table: FrameTable, options: DetectOptions = {}): Det
     heard,
     echo,
     scores,
-    window: { startMs, endMs, silentFrames },
+    window: { startMs, endMs, silentFrames, announcementMs: announcement ? announcement.endMs - announcement.startMs : 0 },
     frameMs,
   };
+}
+
+/** Telnyx's automated-call announcement, when the call opened with one: where it ran, from the start of the audio. */
+export function findAnnouncement(table: FrameTable, answerMs: number): { startMs: number; endMs: number } | undefined {
+  const { frameMs, level, share } = table;
+  const frames = level.length;
+  const coded = (k: number) => share.some((band) => band[k]! >= ANNOUNCEMENT_TONE_DB);
+  const spoken = (k: number) => level[k]! >= ANNOUNCEMENT_LEVEL_DB && !coded(k);
+  const from = Math.max(0, Math.round(answerMs / frameMs));
+  let first = -1;
+  for (let k = from; k < Math.min(frames, from + ANNOUNCEMENT_START_MS / frameMs); k++) {
+    if (spoken(k)) {
+      first = k;
+      break;
+    }
+  }
+  if (first < 0) return undefined;
+  let last = first;
+  let gap = 0;
+  let code = 0;
+  let ended = false;
+  for (let k = first; k < frames; k++) {
+    code = coded(k) ? code + 1 : 0;
+    if (code >= ANNOUNCEMENT_CODE_FRAMES || (!spoken(k) && (gap + 1) * frameMs > ANNOUNCEMENT_GAP_MS)) {
+      ended = true;
+      break;
+    }
+    if (spoken(k)) {
+      last = k;
+      gap = 0;
+    } else gap++;
+  }
+  const startMs = first * frameMs;
+  const endMs = (last + 1) * frameMs;
+  const length = endMs - startMs;
+  return ended && length >= ANNOUNCEMENT_MIN_MS && length <= ANNOUNCEMENT_MAX_MS ? { startMs, endMs } : undefined;
 }
 
 /**

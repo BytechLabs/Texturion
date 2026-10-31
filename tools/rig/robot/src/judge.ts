@@ -40,6 +40,8 @@ export interface RecordingJudgement {
   echo: Detection["echo"];
   surfaces: Partial<Record<Surface, SurfaceSummary>>;
   silent_frames: number;
+  /** How long Telnyx's opening announcement ran, which the window waited out; 0 for none. */
+  announcement_ms: number;
   /** Undefined when nothing was expected. */
   pass?: boolean;
   expected?: Surface | null;
@@ -94,6 +96,7 @@ export function judgeRecording(wav: Uint8Array, options: JudgeOptions = {}): Rec
     echo: detection.echo,
     surfaces,
     silent_frames: detection.window.silentFrames,
+    announcement_ms: detection.window.announcementMs,
     pass,
     expected: options.expect,
     channel,

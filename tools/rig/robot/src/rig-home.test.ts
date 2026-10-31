@@ -38,9 +38,14 @@ describe("the rig's layout", () => {
 
   it("reads rig.json's settings with the CLI's defaults", () => {
     const home = rigHome({ RIG_HOME: temp() });
-    expect(rigSettings(home)).toEqual({ appOrigin: "https://app.rig.internal", apiPort: 8787, sentryRelayOrigin: "http://127.0.0.1:8790" });
+    expect(rigSettings(home)).toEqual({
+      appOrigin: "https://app.rig.internal",
+      apiPort: 8787,
+      sentryRelayOrigin: "http://127.0.0.1:8790",
+      systemd: true,
+    });
     writeFileSync(home.settingsFile, JSON.stringify({ apiPort: 9000, systemd: false }));
-    expect(rigSettings(home).apiPort).toBe(9000);
+    expect(rigSettings(home)).toMatchObject({ apiPort: 9000, systemd: false });
   });
 
   it("publishes state by rename and reads it back", () => {

@@ -37,12 +37,15 @@ export interface RigSettings {
   appOrigin: string;
   apiPort: number;
   sentryRelayOrigin: string;
+  /** Off on a workstation running a spike: no user manager runs the units. */
+  systemd: boolean;
 }
 
 const SETTING_DEFAULTS: RigSettings = {
   appOrigin: "https://app.rig.internal",
   apiPort: 8787,
   sentryRelayOrigin: "http://127.0.0.1:8790",
+  systemd: true,
 };
 
 export function rigSettings(home: RigHome): RigSettings {
@@ -53,6 +56,7 @@ export function rigSettings(home: RigHome): RigSettings {
     apiPort: typeof parsed.apiPort === "number" ? parsed.apiPort : SETTING_DEFAULTS.apiPort,
     sentryRelayOrigin:
       typeof parsed.sentryRelayOrigin === "string" ? parsed.sentryRelayOrigin : SETTING_DEFAULTS.sentryRelayOrigin,
+    systemd: typeof parsed.systemd === "boolean" ? parsed.systemd : SETTING_DEFAULTS.systemd,
   };
 }
 
