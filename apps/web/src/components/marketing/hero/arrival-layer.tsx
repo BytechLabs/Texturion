@@ -26,54 +26,9 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 import { ArrivalStatic } from "./arrival-static";
+import { afterLcpAndLoad } from "./boot-gate";
 
 const ArrivalField = dynamic(() => import("./arrival-field"), { ssr: false });
-
-/**
- * The LCP entry alone fires while the page is still arriving, so on a phone
- * the p5 download shared one slow connection with the display face and the
- * hydration chunks. After `load` nothing the page requested is in flight.
- */
-function afterLcpAndLoad(cb: () => void): () => void {
-  let painted = false;
-  let loaded = document.readyState === "complete";
-  let done = false;
-  let fallback: number | undefined;
-  let po: PerformanceObserver | undefined;
-  const fire = () => {
-    if (done || !painted || !loaded) return;
-    done = true;
-    cb();
-  };
-  try {
-    po = new PerformanceObserver(() => {
-      po?.disconnect();
-      painted = true;
-      fire();
-    });
-    po.observe({ type: "largest-contentful-paint", buffered: true });
-  } catch {
-    // Entry type unsupported: the load event alone releases the boot.
-    painted = true;
-  }
-  const onLoad = () => {
-    loaded = true;
-    // No LCP entry ever lands on a page restored from the bfcache.
-    fallback = window.setTimeout(() => {
-      painted = true;
-      fire();
-    }, 1500);
-    fire();
-  };
-  if (loaded) onLoad();
-  else window.addEventListener("load", onLoad, { once: true });
-  return () => {
-    done = true;
-    po?.disconnect();
-    window.removeEventListener("load", onLoad);
-    if (fallback !== undefined) window.clearTimeout(fallback);
-  };
-}
 
 export function ArrivalLayer() {
   const hostRef = useRef<HTMLDivElement>(null);

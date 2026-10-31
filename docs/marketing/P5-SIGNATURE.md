@@ -19,7 +19,7 @@ onLCP(() => onWindowLoad(() => requestIdleCallback(() => {
   io = new IntersectionObserver(boot, { rootMargin: '200px' })  // hero container
 })))
 ```
-The window-load wait (#640) keeps the p5 download off the connection while the page's own fonts and hydration chunks are still arriving. On a page where no LCP entry lands (bfcache restore) or the entry type is unsupported, load alone releases the boot.
+The window-load wait (#640) keeps the p5 download off the connection while the page's own fonts and hydration chunks are still arriving. In a browser that does not report LCP entries, load alone releases the boot. The gate (`hero/boot-gate.ts`) asks `PerformanceObserver.supportedEntryTypes`, because `observe()` with an unknown entry type only logs a warning: it does not throw. Where the browser reports LCP but no entry lands (a bfcache restore), the boot follows 1.5 s after load.
 The hero H1 text node must remain the LCP. (Measured 2026-10-31, `lighthouse-2026-10-31.md`: on Lighthouse's 412px mobile viewport the sub-head paragraph is the LCP element, both before and after #640, because it has the larger area. Both are server-rendered text, so neither waits on p5.) The canvas mounts into a pre-sized, absolutely positioned layer (`inset:0` of the hero grid's right column zone, `pointer-events:none`), so CLS from this feature is 0.00. The static SVG crossfades out (200ms) only after the first p5 frame has rendered.
 
 ## Canvas sizing
