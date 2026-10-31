@@ -87,7 +87,7 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `TELNYX_API_BASE` | no — **local/e2e and rig only** | Points the Telnyx client at a stub (e2e) or at the guard behind the rig's edge (`docs/RIG.md`). A base path is kept. **Absent in production**, and a production Worker (`DEPLOY_ENV=production`) refuses to start with it set, so a stub can never carry customers' calls and texts. | *(unset)* |
 | `TELNYX_BILLING_GROUP_ID` | no — **OPTIONAL, unset in production** | D142 number partition (`apps/api/src/telnyx/ownership.ts`). Production and the rig share one Telnyx account, so the reconcile sweep, orphan adoption and the purchased-number release act only on numbers this environment owns. (Hosted-messaging releases, port orders and the voice-enablement PATCH have no partition check of their own; the rig's guard refuses porting and hosted SMS, `docs/RIG.md`.) **Unset** (production): it owns only numbers with **no** billing group, and orders carry none. **Set** (the rig only): it owns only numbers in this billing group, and every number order carries it. Never set it in production — the Worker would stop recognising every customer number. See [04](./04-telnyx.md) §5. | *(unset)* |
 | `DEPLOY_ENV` | no — **stamped by `ship.yml`, never set by hand** | D142: which deployment this Worker is, `local`, `rig` or `production`; any other value fails validation. `ship.yml` stamps `production` beside `GIT_SHA` (`wrangler deploy --var DEPLOY_ENV:production`). **Unset means `local`**, which is what `wrangler dev`, CI and the e2e harness run as. It names Sentry's environment (`production`, `rig`, `development`), and production then refuses to start with any vendor seam set (`TELNYX_API_BASE`, `TELNYX_WEBHOOK_URL`, `TELNYX_MEDIA_PUBLIC_BASE`, `STRIPE_API_BASE`, `RESEND_API_BASE`, `FCM_API_BASE`, `FCM_OAUTH_TOKEN_URL`) or with its database on the rig or on loopback. Unset (`local`) refuses to start with anything only the rig sets (`RIG_OWNED_E164`, `RIG_ROBOT_WEBHOOK_ORIGIN`, or a `*.rig.internal` `SUPABASE_URL`, `SUPABASE_JWKS_URL` or `APP_ORIGIN`), so a rig configuration missing this line cannot boot with the rig's gates off. Only `apps/api/src/environments/` reads it (`scripts/check-deploy-env-branches.mjs`), and `rig` only ever adds restrictions. | `production` |
-| `RIG_OWNED_E164` | no — **rig only** | D142: the partition's numbers, comma- or space-separated E.164, generated on the rig from the guard's live listing and **never committed**. In rig mode the app texts, dials and accepts calls and texts from these numbers and member SIP credentials only; unset refuses every number. Production ignores it; a Worker without `DEPLOY_ENV` refuses to start with it set. | *(unset)* |
+| `RIG_OWNED_E164` | no — **rig only** | D142: the standing numbers in the guard's live listing less STRANGER-1, comma- or space-separated E.164, written by `rig deploy` and **never committed**. STRANGER-1 stays off so G01 can prove the stranger gate, and a number held for one scenario, such as S28's, is never on it. In rig mode the app texts, dials and accepts calls and texts from these numbers and member SIP credentials only; unset refuses every number. Production ignores it; a Worker without `DEPLOY_ENV` refuses to start with it set. | *(unset)* |
 | `RIG_ROBOT_WEBHOOK_ORIGIN` | no — **rig only** | D142: the robot's webhook sink. In rig mode a workspace's outbound webhooks are delivered to this origin and nowhere else; unset delivers none. Production ignores it; a Worker without `DEPLOY_ENV` refuses to start with it set. | *(unset)* |
 | `TELNYX_WEBHOOK_URL` | no — **rig only** | D142 seam: replaces `${API_ORIGIN}/webhooks/telnyx` in every webhook field the Worker hands Telnyx (messaging profiles, 10DLC payloads). The rig sets the edge's messaging path. **Unset in production**, where the URL is built from `API_ORIGIN` as before, and refused there at start-up. | *(unset)* |
 | `TELNYX_MEDIA_PUBLIC_BASE` | no — **rig only** | D142 seam: replaces the Supabase storage prefix of a signed URL Telnyx must fetch (MMS media, recorded greetings), because the rig's storage is not on the internet. The rig sets the edge's media path. **Unset in production**, where Telnyx fetches the signed URL directly, and refused there at start-up. | *(unset)* |
@@ -244,21 +244,23 @@ stays the one inventory.
 **GitHub environments.** `guard`, `rig-cloud`, `rig` and `production-ops` hold
 the secrets and variables that `guard.yml`, `rig-cloud.yml`, `rig-secrets.yml`
 and `ops.yml` read. `docs/RIG.md` FA9 lists every name in one table, with the
-founder action that supplies each vendor value. Of those, only
-`SENTRY_PROD_DSN` (ingest-only, in `guard` and `rig-cloud`) and the
-`production-ops` pair below reach production's own services.
+founder action that supplies each vendor value. Three of them reach
+production's own services: `SENTRY_PROD_DSN` (ingest-only, in `guard` and
+`rig-cloud`), `AGENT_DIAG_DATABASE_URL` in `guard` (a read-only production
+database login that sees only the non-personal `ops_diag` views), and the
+`production-ops` pair below.
 
 | Name | Secret? | Where | Read by |
 |------|:------:|-------|---------|
 | `SUPABASE_URL` | yes | environment `production-ops` | `ops.yml`'s `set-flag` job, which runs `scripts/ops/set-flag.mjs` from `main` |
 | `SUPABASE_SECRET_KEY` | yes | environment `production-ops` | the same job |
-| `AGENT_DIAG_DATABASE_URL` | yes | the workstation's `~/.loonext/agent-diag.env`, written by `scripts/ops/set-agent-diag-password.mjs` (`docs/RIG.md` FA13); the same login is planned as a `guard` environment secret for the daily measurements | `scripts/ops/call-trace.mjs`, which refuses any login but `agent_diag` |
+| `AGENT_DIAG_DATABASE_URL` | yes | the workstation's `~/.loonext/agent-diag.env`, written by `scripts/ops/set-agent-diag-password.mjs` (`docs/RIG.md` FA13). An agent copies the same login into environment `guard`, and replaces or deletes that copy whenever the script rotates or withdraws it | `scripts/ops/call-trace.mjs`, which refuses any login but `agent_diag`; and `guard.yml`'s daily measurements run, once that schedule lands (`docs/RIG.md` §3.5) |
 
 **Script switches** (shell environment only, never a deploy setting):
 
 | Name | Read by | Effect |
 |------|---------|--------|
-| `LOONEXT_FA1` | `scripts/ops/audit-agent-reach.mjs` | `1` means FA1 was chosen: any production-write or unclassified credential in reach fails the audit. Unset, it reports and passes. |
+| `LOONEXT_FA1` | `scripts/ops/audit-agent-reach.mjs` | `1` means FA1 was chosen, as does `"fa1": true` in `~/.loonext/hardening.json`. With FA1 chosen, any production-write or unclassified credential in reach fails the audit. Without it, the audit reports and passes. Either way a run that read nothing fails, and `--report` always exits 0. |
 | `SUPABASE_POOLER_HOST` | `scripts/ops/set-agent-diag-password.mjs` | The session pooler host for the production login. Unset uses the one `prod-dump-scale.mjs` uses. |
 
 ---

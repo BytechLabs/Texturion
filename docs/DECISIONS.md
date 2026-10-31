@@ -9034,23 +9034,26 @@ while building them:
   t the baseline rate less 5 points. Computed exactly from the binomial, it
   fires by chance on at most 0.28% of windows. Media on answered calls is not
   measured yet, because nothing records it.
-- **Guard measurements.** The guard holds no production credential, and its
-  reserve and ratios go stale after 36 hours, which refuses every paid dial. So
-  `guard.yml`'s `measurements` routine gets a daily schedule. It computes
-  production's reserve from the `ops_diag` views as `agent_diag` (its login a
-  `guard` environment secret, `AGENT_DIAG_DATABASE_URL`, set once FA13 has
-  run), the ratios from the guard's own detail-record read, and the window
-  monthly. `agent_diag` reads only non-personal views.
+- **Guard measurements.** The guard Worker has no login to production's
+  database, and its reserve and ratios go stale after 36 hours, which refuses
+  every paid dial. So `guard.yml`'s `measurements` routine gets a daily
+  schedule. It computes production's reserve from the `ops_diag` views as
+  `agent_diag` (its login a `guard` environment secret,
+  `AGENT_DIAG_DATABASE_URL`, copied in once FA13 has run), the ratios from the
+  guard's own detail-record read, and the window monthly. `agent_diag` reads
+  only non-personal views. That run is the one CI job that receives the login,
+  so an agent replaces the copy after every rotation and deletes it after a
+  withdrawal.
 - **`ops.yml` has one action, `set-flag`.** It is a dry run unless `apply` is
   ticked. It runs from `main` only, and the `production-ops` deployment-branch
   rule is the real control. It validates its inputs, masks the project's host
   and ref, and keeps the flag's old note out of the public log. The
   `agent_diag` password is not set there:
   `scripts/ops/set-agent-diag-password.mjs` runs on the machine that uses the
-  login and sends the database only a SCRAM verifier. A CI path would add a
-  copy of the password on a runner, a ciphertext in a public repository's
-  artifacts and a key pair to manage, and it would protect nothing while the
-  dispatching agent already holds production's keys. So FA13 is an agent
+  login and sends the database only a SCRAM verifier. A CI path to set it
+  would create the password on a runner, leave a ciphertext in a public
+  repository's artifacts and add a key pair to manage, and it would protect
+  nothing while the dispatching agent already holds production's keys. So FA13 is an agent
   action with no approval. If FA1 is chosen later, a job that runs the same
   script can be added then.
 - **The cron registry.** `tools/rig/crons.json` classifies every cron in every

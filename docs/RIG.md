@@ -54,7 +54,7 @@ Two independent reviews scored three no-new-account designs, and both chose this
 - read your Windows credential store;
 - read production keys in `~/.claude/settings.json` and in commented lines of `apps/api/.dev.vars`. Checked by key name on 2026-10-30: the commented lines include the production Telnyx key, the live Stripe key, the Supabase secret key, database password and access token, and the production VAPID pair.
 
-Any one of those bypasses the approval gates below, which is why the amendment does not rely on them.
+Any one of those would bypass an approval gate, which is why the amendment does not rely on one.
 
 **One time only (about 4 hours in all; click paths in section 10).**
 - one Telnyx key;
@@ -112,7 +112,7 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 
 | Shared thing | Risk to production | What contains it |
 |---|---|---|
-| **Your workstation identity.** Agents run as you. | An agent drives your Chrome to approve a guard deploy or read a console; reads your credential store; or reads production keys from settings or env files. Any of these bypasses every control below. | Agents run only under a separate Windows user, which has no console sessions, no Claude in Chrome and no production keys (FA1). Its GitHub token cannot approve deployments (FA2). Production write keys live only in GitHub environments and your password manager. A weekly reach audit and a secret scanner prove this stays true (section 3.1). |
+| **Your workstation identity.** Agents run as you. | An agent drives your Chrome into a vendor console; reads your credential store; or reads production keys from settings or env files. Any of these bypasses every control below. | Accepted under the amendment (section 12, risk 4). The reach audit lists every credential an agent session can reach, and the secret scanner stops a push while any file git would stage holds a live key (section 3.1). FA1 and FA2 stay optional: with them, agents run only under a separate Windows user with no console sessions, no Claude in Chrome and no production keys, and its GitHub token cannot approve deployments. |
 | **Telnyx concurrent call limit.** It is account-wide: default 2, 10 after Level 2 (support.telnyx.com/en/articles/1130717, fetched 2026-10-30). At the Paid level it is 5 concurrent, 10 outbound an hour and 100 a day (developers.telnyx.com account levels, Paid, checked 2026-10-29). | A test call holds outbound legs (robot dial, ring legs, ring-me) while a customer calls in. The customer's ring legs are refused, and the customer reaches nobody. | The guard sets nonprod concurrency to **room = account limit minus production reserve**. The reserve is production's largest ring audience plus 1, read daily from production counts. Scenarios that need more legs than the room are not scheduled and are named (section 4.1). During a run, the guard also polls production's active calls every 2 seconds and hangs up every test leg on the first production call (verify the active-calls API). The dial window is the six quietest hours in production's own call history, rechecked monthly. Paid lanes stay off until FA0 returns the real limit. |
 | **Telnyx surcharges and fraud profile, both computed on account totals.** Surcharges apply to short calls above 15% and to abandoned calls above 20%, at $0.005 each (support.telnyx.com/en/articles/1130707 and /12805746, checked 2026-10-29). | With one production number, test traffic will probably be most of the account's calls. The account's ratios and fraud profile therefore become the rig's. | The guard keeps the **whole account's** ratios (production plus rig, counts from detail records) at or below 15% abandoned and 10% short. Ring audiences are shrunk to one surface wherever the scenario does not test multi-ring, so cancelled legs are rare. FA0 tells Telnyx this traffic will be the majority, and asks whether cancelled ring legs count. If they count and the projection goes above 15%, multi-ring scenarios run monthly. The dollar effect is cents; the profile effect is what matters. |
 | **Telnyx fraud holds.** Their scope is not disclosed (support.telnyx.com/en/articles/3610162 and /7915224, checked 2026-10-30). | A hold triggered by test calls also stops production calling. | Traffic is on-net only, with about 13 dials a day on average and calls of 20-50 seconds, inside the quiet window. A written notice goes to Telnyx (FA0). Any suspicious-traffic or account notice halts paid tests for 7 days and raises a production alert. **Residual, accepted: the largest risk in this design.** |
@@ -128,7 +128,7 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | **Firebase project.** One FCM credential reaches every app in the project. | A leaked key could push to production iOS or Android devices. | The key is held only in the guard. The guard sends Android-only messages to the nonprod package: it moves any top-level notification into the Android block, drops the iOS and web blocks, and forces the package name. The rig never holds a production device token. |
 | **Sentry org quota.** | Test events crowd out production's errors. | Separate projects. A relay on the rig caps rig plus synthetic events at 100 a day and 3,000 a month, and alerts at 70%. Spike protection is on. |
 | **Resend domain reputation and quota.** | A bounce from a failed robot mailbox, or a complaint, pauses sending for the whole team, which stops production password resets. | Default recipients are Resend's test addresses, which do not affect reputation (resend.com/docs, send-test-emails, checked 2026-10-30). The robot mailbox is used only by the weekly S34 test, and only while the edge's mail heartbeat is fresh. The edge's mail handler never rejects. Sending to the mailbox halts the first time a sent mail fails to arrive within 10 minutes. At most 10 emails a day. |
-| **GitHub approval gate.** | Agents approve their own guard or ops run. | FA1 and FA2. Approvals come only from your phone or your own Windows user's browser. |
+| **GitHub approval gate.** | Agents approve their own guard or ops run. | Under the amendment there is no gate to approve: guard and ops runs need no approval. Both environments take deployments from `main` only, so what runs is merged code (FA9). |
 | **Claude plan limits.** | Rig sessions compete with your other sessions. | Triage runs only when there are failures to triage. |
 
 ### 2.3 What was lost against the separate-accounts design
@@ -146,7 +146,7 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | Calendar test accounts | **Accepted** as defect X22. A Google partial path that needs no new account is offered in Phase 4. |
 | A separate path to Telnyx's Verified level | **Accepted.** The shared account's level governs both production and the rig. |
 | Separate Supabase, Resend, Sentry and Firebase tenancy | **Supabase:** replaced by the local stack, which is better isolated but less faithful. **Sentry and Resend:** mitigated with caps. **Firebase:** mitigated by package pinning. |
-| Agents with production write keys in their shell | **Changed on purpose.** Production writes now wait for one tap each in the GitHub app. |
+| Agents with production write keys in their shell | **Not changed** (the amendment). Agents keep the production keys they hold today, and production writes need no tap. FA1 and FA2 would remove them (section 12, risk 4). |
 
 **Gained in exchange:**
 - no public Loonext test page anywhere;
@@ -185,11 +185,11 @@ They live in your password manager and in two GitHub environments:
 - `agent-logs-read`, read-only Workers logs for `loonext-api` and `loonext-web`;
 - the guard's redacted `diag` class.
 
-**Its GitHub login** is a fine-grained token without Administration, Deployments, Environments, Secrets or Variables permission (FA2). It therefore cannot approve a deployment or loosen a gate. You approve guard and ops runs from the GitHub mobile app.
+**Its GitHub login** is a fine-grained token without Administration, Deployments, Environments, Secrets or Variables permission (FA2). It therefore cannot approve a deployment or loosen a gate. Under the amendment, guard and ops runs need no approval, so nothing waits on you.
 
 **Two checks keep this true:**
-- `scripts/check-local-secrets.mjs` refuses if any file git would stage matches a live-secret shape: `sk_live_`, `rk_live_`, a Telnyx v2 key, `sb_secret_`, or a pooler URL with a password. It reads each file as written, with its escapes undone, and as UTF-16, and prints only the file and the shape. `--all` adds the gitignored files. It is meant to run at every agent session start and before every push. Neither hook is installed yet: a session-start hook is persistent agent configuration, which waits for your yes.
-- `scripts/ops/audit-agent-reach.mjs` lists every credential an agent session can reach, by name and never by value: environment variables, the Claude settings files, every env file in its clones (commented lines included) and `~/.loonext/`. It places each as production-write, production-read, nonprod or none. Without FA1 it reports and passes. With FA1 chosen (`LOONEXT_FA1=1`), any production-write or unclassified credential fails it. It does not read the Windows credential store, browser sessions or a GitHub token's scopes yet, and says so on every run. Still planned: a weekly run from the agent user, probes of GitHub endpoints that need Administration, Environments or Secrets permission (each must answer 403), and `['ops','agent-reach']` in production Sentry on any finding.
+- `scripts/check-local-secrets.mjs` refuses if any file git would stage matches a live-secret shape: `sk_live_`, `rk_live_`, a Telnyx v2 key, `sb_secret_`, or a pooler URL with a password. It reads each file as written, with its escapes undone, and as UTF-16, and prints only the file and the shape. `--all` adds the gitignored files. It runs before every push, from the `pre-push` hook in `.githooks` that the root `prepare` script enables, and again in CI's checks, because a hook can be skipped. It is also meant to run at every agent session start. That hook is not installed: it is persistent agent configuration, which waits for your yes.
+- `scripts/ops/audit-agent-reach.mjs` lists every credential an agent session can reach, by name and never by value: environment variables, the Claude settings files, every env file in its clones (commented lines included) and `~/.loonext/`. It places each as production-write, production-read, nonprod or none. Without FA1 it reports and passes. With FA1 chosen (`LOONEXT_FA1=1`, or `"fa1": true` in `~/.loonext/hardening.json`), any production-write or unclassified credential fails it. A run that read nothing fails either way. It does not read the Windows credential store, browser sessions or a GitHub token's scopes yet, and says so on every run. Still planned: a weekly run from the agent user, probes of GitHub endpoints that need Administration, Environments or Secrets permission (each must answer 403), and `['ops','agent-reach']` in production Sentry on any finding.
 
 **Local defaults.** In the agent user's clone, `apps/api/.dev.vars` carries a fake Telnyx key, with `TELNYX_API_BASE` pointing at the e2e fake. Plain `wrangler dev` on the workstation therefore cannot reach real Telnyx.
 
@@ -394,7 +394,7 @@ Phone numbers are cut to their last four digits, and message bodies and recordin
 - **Window.** Paid dials run only in the six consecutive UTC hours with the fewest production calls over the past 28 days, rechecked monthly. Until there is data, the window is 04:00-10:00 UTC; it is safe because the room already reserves production's ring.
 - **Ratios.** The guard keeps the whole account's abandoned share at or below 15% and short-call share at or below 10%, using counts from detail records.
 - **Money.** Telnyx-enforced daily limits; the $35/month all-in cap, with a daily allowance after reserving next month's rental; tiers: green, amber (core only), red (only hang-ups allowed). Below the balance floor, all test spend is refused. At the cap, every non-robot number is detached, so stranger inbound stops too.
-- **Measurements.** Production's reserve, ratios and window are filed through `guard.yml`'s `measurements` routine, because the guard holds no production credential. A daily scheduled run computes the reserve from the `ops_diag` views as `agent_diag`, whose login is the `guard` environment secret `AGENT_DIAG_DATABASE_URL` (set once FA13 has run). It takes the ratios from the guard's own detail-record read, and the window monthly. The reserve and the ratios go stale after 36 hours and the window after 35 days. A stale reserve or ratio refuses every paid dial rather than guess, and a stale window falls back to 04:00 UTC. Until the schedule is in `guard.yml`, an agent dispatches the routine with the values by hand.
+- **Measurements.** Production's reserve, ratios and window are filed through `guard.yml`'s `measurements` routine, because the guard Worker has no login to production's database. A daily scheduled run computes the reserve from the `ops_diag` views as `agent_diag`, whose login is the `guard` environment secret `AGENT_DIAG_DATABASE_URL` (copied in once FA13 has run, and again after each rotation). It takes the ratios from the guard's own detail-record read, and the window monthly. The reserve and the ratios go stale after 36 hours and the window after 35 days. A stale reserve or ratio refuses every paid dial rather than guess, and a stale window falls back to 04:00 UTC. Until the schedule is in `guard.yml`, an agent dispatches the routine with the values by hand.
 
 **Run lease.** One paid scenario runs at a time across the system. Scenarios register undo actions with `rigd`, the rig's service daemon. If the lease is not released within 15 minutes, `rigd` runs the undo itself.
 
@@ -671,7 +671,7 @@ Payloads, passwords and query strings are never logged or alerted. This catches 
 - S07, S08, S10 and D01 need 4 dials in one run, and S09 needs 5, against 3 an hour. They stay unscheduled until Telnyx's answer raises the hourly cap. S09 also needs two robot calls at once, and `nonprod-robot-ovp` allows one.
 - K01 waits for Phase 4.
 
-**Editing this section, 4.2 or 4.3.** A change to 4.1, 4.2 or 4.3 updates `tools/rig/scenarios.json` in the same change. `scripts/check-rig-scenarios.mjs` fails CI when the two disagree: names, far ends, cadences, dials, room, the cap and the reserves.
+**Editing this section, 4.2 or 4.3.** A change to 4.1, 4.2 or 4.3 updates `tools/rig/scenarios.json` in the same change. `scripts/check-rig-scenarios.mjs` fails CI when the two disagree: names, far ends, cadences, dials, room, the cap and the reserves. It does not read the totals above, so copy them from its output, which prints each one.
 
 **Room** = the account's concurrent limit minus production's reserve (section 3.5). It decides which call scenarios may run at all.
 
@@ -817,11 +817,10 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
 
 ## 6. Isolation guarantees and the mechanism behind each
 
-1. **Agents cannot reach production write power or approve the gates.**
-   - They run only in a separate Windows user, with no console sessions, no Claude in Chrome and no production keys.
-   - Their GitHub token lacks Deployments, Administration, Environments, Secrets and Variables.
-   - Approvals come only from your phone or your own Windows user.
-   - Proved weekly by the reach audit, and on the first guard deploy by the rejected-review probe.
+1. **Agents and the gates (amended).** Under the amendment, agents keep the production access they have today, and guard and ops runs need no approval, so there is no gate for an agent to approve (section 12, risk 4). What still holds:
+   - guard and ops runs take only `main`, through each environment's deployment-branch rule (FA9);
+   - the reach audit lists every credential an agent session can reach. Its weekly run and its GitHub probes are still planned (section 3.1);
+   - with FA1 and FA2, which stay optional, agents would run in a separate Windows user with no console sessions, no Claude in Chrome and no production keys, under a GitHub token that lacks Deployments, Administration, Environments, Secrets and Variables.
 2. **No real person is called or texted.**
    - The guard holds the only usable Telnyx key. It requires an owned `from` and an owned `to` (live by billing group) or a SIP username on the rig's own connection.
    - The app's destination gate covers every send and dial site, with a census test that fails on a skipped site or on zero sites.
@@ -866,7 +865,7 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
     - the balance floor.
 
     Inbound is bounded by stranger rejection and auto-detach. If the guard is down, the rig can do no telephony.
-11. **The dangerous keys sit in one place, behind you.**
+11. **The dangerous keys sit in one place.**
     - The Telnyx, Resend and FCM keys live only in the guard, which has no public URL.
     - It deploys only from `main`, after its policy tests pass.
     - Version attestation runs hourly and the key inventory weekly.
@@ -923,7 +922,7 @@ If either is higher, the guard sheds tests to stay under the cap.
 | Cost center | Monthly (expected) | One-time | Hard cap, and who enforces it | Alert before the cap | Source, date |
 |---|---|---|---|---|---|
 | Telnyx numbers: 8 standing at $1.00 + $0.10 SMS; caller-name lookup on one ($0.40); one monthly S28 number (about $2.10) | $11.30 | $8 | At most 10 numbers held and one extra order per 25 days (guard) | none (fixed) | telnyx.com/pricing/numbers and telnyx.com/pricing.md, 2026-10-29 |
-| Telnyx usage: about 360 scheduled dials (358.7 encoded, section 4.1), about 300 texts, recordings, beep detection, a few transfers | about $9 | none | $35/month all-in, rentals included (guard ledger, then drop). Telnyx daily limits of $0.78/day, about $35.50 a month with rentals. Balance floor. Stranger inbound bounded by reject and detach. | Tier-change and projected-overrun alerts in `loonext-synthetic`. A production alert below $150. | Rates above, 2026-10-29; surcharges at support.telnyx.com/en/articles/1130707 and /12805746, 2026-10-29 |
+| Telnyx usage: the scheduled dials in section 4.1, about 300 texts, recordings, beep detection, a few transfers | about $9 | none | $35/month all-in, rentals included (guard ledger, then drop). Telnyx daily limits of $0.78/day, about $35.50 a month with rentals. Balance floor. Stranger inbound bounded by reject and detach. | Tier-change and projected-overrun alerts in `loonext-synthetic`. A production alert below $150. | Rates above, 2026-10-29; surcharges at support.telnyx.com/en/articles/1130707 and /12805746, 2026-10-29 |
 | Cloudflare: 2 Workers and their Durable Objects on the existing Workers Paid plan; Workers AI through the guard | about $0.50 | none | AI capped at 2,000 neurons a day (guard), so at most about $0.66 a month even if the shared free tier is used up. Requests stay within the included 10M. | The 3 existing billing alerts | developers.cloudflare.com/workers/platform/pricing (updated 2026-10-02) and /workers-ai/platform/pricing (updated 2026-10-20), fetched 2026-10-29 |
 | Supabase | $0 | none | Local stack only | none | none |
 | Stripe sandbox, FCM, Resend, Sentry, GitHub Actions, Claude | $0 | none | Resend at most 10 a day; Sentry at most 100 a day and 3,000 a month; triage only when failures exist | Resend at 7 a day; Sentry at 70% | docs.stripe.com/sandboxes and firebase.google.com/pricing, 2026-10-29; resend.com/pricing, 2026-10-30 |
@@ -1175,7 +1174,7 @@ Agents can still merge as before, because merging is Contents and Pull requests.
    - Put the key into environment `rig` as `RIG_APP_KEY`, and the App id as a variable.
 2. Texturion > Settings > Environments > New environment, five times:
    - **`guard`:** Deployment branches: `main` only. No required reviewers: under the amendment the guard's tests are its gate, and agents act under your GitHub identity, so a reviewer could not stop one anyway.
-   - **`production-ops`:** Deployment branches: `main` only. That rule is the real control for `ops.yml`, because a dispatch from another branch runs that branch's copy of the file. No required reviewers, per the amendment.
+   - **`production-ops`:** Deployment branches: `main` only. That rule is the real control for `ops.yml`, because a dispatch from another branch runs that branch's copy of the file. No required reviewers, per the amendment. Add secrets `SUPABASE_URL` and `SUPABASE_SECRET_KEY`, production's values, from your password manager. Without them, `ops.yml` fails and changes nothing.
    - **`rig-cloud`** and **`rig`:** `main` only.
    - **`production`:** `main` and the release tag pattern the agent gives you, plus the secrets the agent lists.
 3. Settings > Rules > Rulesets > New branch ruleset. Target: default branch. Rule: Restrict updates. Bypass: Repository admin. The rig App is not an admin, so it can never write to `main`.
@@ -1185,7 +1184,7 @@ Agents can still merge as before, because merging is Contents and Pull requests.
    3. It proves `production-deploy` by redeploying the current release.
    4. After two green releases, delete the repo-level copies under Settings > Secrets and variables > Actions, and only those copies.
 
-**What each GitHub environment holds.** An agent generates every token and secret path below (256 random bits each) and sets it. You paste only the vendor values your founder actions name.
+**What each GitHub environment holds.** An agent sets everything below except the vendor values your founder actions name, `production-ops`' pair included (step 2). Each token and secret path it generates is 256 random bits.
 
 | Environment | Secrets | Variables | Read by |
 |---|---|---|---|
@@ -1200,6 +1199,8 @@ Each `TOKEN_SHA256_*` and `*_SECRET_SHA256` is the lowercase hex SHA-256 of a va
 - `TOKEN_SHA256_ADMIN` hashes the `guard` environment's `GUARD_ADMIN_TOKEN`;
 - `TOKEN_SHA256_DIAG` hashes the workstation agents' `diag` token, and `TOKEN_SHA256_TRIAGE` the triage token in FA10;
 - `ROBOT_WEBHOOK_SECRET_SHA256` hashes `ROBOT_WEBHOOK_SECRET`, and `NOTIFICATIONS_SECRET_SHA256` hashes the guard's `NOTIFICATION_PATH_SECRET`.
+
+`ROBOT_WEBHOOK_SECRET` is not delivered yet. The seal step of `rig-secrets.yml` has no `BUNDLE__ROBOT_WEBHOOK_SECRET` line, so the rig's store has no `robot-webhook-secret`, and S04 and S20 cannot create the robot's webhook endpoint until that line is added.
 
 A secret an environment lacks falls back to a repository secret of the same name, and those are production's. `rig-secrets.yml` therefore refuses any value shaped like a production credential.
 
@@ -1231,9 +1232,10 @@ node scripts/ops/call-trace.mjs --self-check
 ```
 
 - `--dry-run` connects to nothing. `--check` is read-only, and refuses until the migration is live.
-- The script generates the password, sends the database only its SCRAM-SHA-256 verifier, and writes the login to `~/.loonext/agent-diag.env`, readable by that user only. Nobody sees the password, and no CI run carries it. Running it again rotates it.
+- The script generates the password, sends the database only its SCRAM-SHA-256 verifier, and writes the login to `~/.loonext/agent-diag.env`, readable by that user only. Nobody sees the password, and no CI job creates or sets it. Running it again rotates it.
 - If `call-trace` ever refuses the login as unsafe, withdraw it: `node scripts/ops/set-agent-diag-password.mjs --target production --withdraw`.
-- An agent then puts the same login into environment `guard` as `AGENT_DIAG_DATABASE_URL`, for the daily measurements run (section 3.5).
+- An agent then copies the same login into environment `guard` as `AGENT_DIAG_DATABASE_URL`, for the daily measurements run (section 3.5), without printing it: `gh secret set --env guard -f ~/.loonext/agent-diag.env`. That run is the one CI job that receives the login.
+- After every rotation the agent runs that command again. After a withdrawal it deletes the copy: `gh secret delete AGENT_DIAG_DATABASE_URL --env guard`. A stale copy fails the measurements run, and once the reserve is 36 hours old every paid dial is refused.
 
 **FA14. Guard deployments (an agent action, per the amendment).** `guard.yml` deploys from `main` after its policy tests pass, with no approval. An agent dispatches its admin routines (check, setup, order-standing, key-inventory, accept-key-inventory, reattach, measurements) from `main`, including once when Telnyx's answer lets the cadence rise.
 
@@ -1290,7 +1292,7 @@ node scripts/ops/call-trace.mjs --self-check
     - Production's voice profile and messaging profiles have no Telnyx-side spend limits; auto-recharge is off and the credit limit is 0.
     - The account's two mobile push credentials (iOS and Android) are attached to no connection, so iOS closed-app wake cannot work today.
     - If the account is at the Paid level, Telnyx prepends its automated-call announcement to production's own greetings and dials, and caps customers at 5 concurrent calls and 100 a day.
-    - `docs/deploy/04-telnyx.md` said ring legs come from the WebRTC connection; the code dials every leg from the voice connection. Corrected there on 2026-10-31.
+    - `docs/deploy/04-telnyx.md` said ring legs come from the WebRTC connection, as D43's live fix made them. The code now dials every leg from the voice connection (`apps/api/src/calls/runtime.ts`), and D43 found that a ring dialed from the voice connection fails. 04-telnyx.md now says what the code does and keeps the question open. **Verify** on production's next inbound call that a browser rings.
 
 ---
 
@@ -1323,19 +1325,19 @@ node scripts/ops/call-trace.mjs --self-check
 
 | Gap | Closed by |
 |---|---|
-| Blocker: agents run as you and can drive your Chrome and credential store | Separate Windows user, the reach audit, approvals only from your phone or your own user (3.1, FA1, FA2) |
-| Blocker: production keys in commented lines of `apps/api/.dev.vars` | Removed with the old checkout. Agents get local-only env files with fakes. `check-local-secrets` runs at session start and before push (3.1, FA1). |
+| Blocker: agents run as you and can drive your Chrome and credential store | Accepted under the amendment (12, risk 4). The reach audit lists what an agent can reach. A separate Windows user and a token that cannot approve stay available as FA1 and FA2 (3.1). |
+| Blocker: production keys in commented lines of `apps/api/.dev.vars` | Removed only if you choose FA1, which also gives agents local-only env files with fakes. Either way, `check-local-secrets` stops a push while any file git would stage holds a live key, and CI checks again. Its session-start hook waits for your yes (3.1). |
 | Blocker: test calls can starve a customer's call | Room formula, live-leg count, preemption, measured window; paid lanes gated on FA0 (3.5, 4.1) |
 | Test traffic is the majority, so surcharge and fraud reasoning was inverted | Account-level ratio control, single-surface audiences, disclosure in FA0 (2.2, 3.5) |
-| Dials undercounted | Counts derived from the journeys; CI budget check with retry and repro reserves; the cadence encoded at 358.7 a month, with the runs the hourly cap cannot hold named (4.1, 4.2) |
+| Dials undercounted | Counts derived from the journeys; CI budget check with retry and repro reserves; the cadence encoded in `tools/rig/scenarios.json`, with the runs the hourly cap cannot hold named (4.1, 4.2) |
 | P01 has no sample | Reports n; "insufficient sample" is never a pass; repro issues stay open until evidence exists (3.11, 9) |
 | Wired fallback breaks adb | Bluetooth is a purchase gate; the fallback is a second phone with a jack (3.9) |
 | FCM token seam missing | `FCM_OAUTH_TOKEN_URL`, a guard-token bearer in rig mode, a dummy key, and a test (3.3, 3.7) |
 | iOS lane would talk to production | iOS Simulator lane and TCP relay dropped (2.3, 11) |
 | Old web refs cannot build | Rig-only unsupported-Next flag; pre-seam mode; wider DNS block (3.2, 3.3) |
 | Local sign-in would 401 | Bootstrap ES256 key, derived config, R00 check (3.3) |
-| Guard approvals make you an operator | Class-based policy, registry check in the same PR, a target of at most one approval a month (3.5) |
-| Removing your keys blinds agents | Prompt-free read tier: `agent-read`, `agent_diag`, `agent-logs-read`, guard `diag`. Writes go through approved `ops.yml` (3.1). |
+| Guard approvals make you an operator | Class-based policy and the registry check in the same PR. Under the amendment guard deploys need no approval at all (3.5, FA14). |
+| Removing your keys blinds agents | Prompt-free read tier: `agent-read`, `agent_diag`, `agent-logs-read`, guard `diag`. Under the amendment agents keep their keys, and `ops.yml` changes a flag from `main` with no approval (3.1). |
 | Rig cron noise | Cron registry, CI check, zero unexplained fingerprints (3.3) |
 | Robot mailbox could bounce production's domain | The mail handler never rejects; heartbeat gate; mailbox only in S34; halt on a missed delivery (3.4, 3.5) |
 | Untrusted texts could reach production code | The edge never relays stranger content; rig PRs are never auto-merged (3.4, 3.10) |

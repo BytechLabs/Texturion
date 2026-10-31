@@ -75,14 +75,16 @@ profile, `inbound.codecs: ["OPUS","G722","G711U"]`. Copy the id → the
 > create-time default is null/disabled) the ring leg returns `state='failed'`
 > and the browser never rings — the call goes straight to voicemail.
 >
-> **Which connection dials the ring (corrected 2026-10-31, D142).** D43's fix
-> dialed each ring leg from this connection, in `inbound-ring.ts` as it was
-> then. The call-session object that replaced that path dials every leg, ring
-> legs included, from the VOICE connection: `connection_id =
-> TELNYX_VOICE_CONNECTION_ID` in `apps/api/src/calls/runtime.ts`. Keep the
-> setting above all the same. With it, this connection accepts SIP calls from
-> any connection on the account (`docs/RIG.md` §2.2), which is the path a leg
-> from the voice connection takes to a browser registered here.
+> **Which connection dials the ring (corrected 2026-10-31, D142; open).** D43's
+> live fix dialed each ring leg from this connection, in `inbound-ring.ts` as it
+> was then, because a ring dialed from the VOICE connection came back
+> `state='failed'`. The call-session object that replaced that path dials every
+> leg, ring legs included, from the VOICE connection: `connection_id =
+> TELNYX_VOICE_CONNECTION_ID` in `apps/api/src/calls/runtime.ts`. The two
+> disagree, and this file does not settle which is right. Keep the setting above
+> all the same. Verify on production's next inbound call that a browser rings;
+> if its leg fails, the ring has to dial from this connection again
+> (`docs/RIG.md` §12, risk 14).
 
 The Worker does the rest at runtime: when a company enables missed-call text-back
 or sets a forward-to-cell, it PATCHes each active number's voice settings to
