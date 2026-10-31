@@ -6,7 +6,7 @@ import type { Env } from "./env";
 import worker from "./index";
 import { mailStatus } from "./mailbox";
 import { SENTRY_DAILY_MAX } from "./uplink";
-import { edgeEnv, fakeGuard, resetEdge, uplinkStub } from "./test/support";
+import { counters, edgeEnv, fakeGuard, resetEdge, uplinkStub } from "./test/support";
 
 const SYNTHETIC_DSN = "https://synthetickey@o1.ingest.sentry.io/101";
 const PROD_DSN = "https://prodkey@o1.ingest.sentry.io/202";
@@ -122,6 +122,13 @@ describe("the dead-man", () => {
     expect(sent).toHaveLength(SENTRY_DAILY_MAX.synthetic);
   });
 
+  it("keeps production's budget apart from the synthetic one", async () => {
+    const rig = uplinkStub();
+    for (let i = 0; i < SENTRY_DAILY_MAX.synthetic; i++) expect(await rig.takeSentryBudget(NOW, "synthetic")).toBe(true);
+    expect(await rig.takeSentryBudget(NOW, "synthetic")).toBe(false);
+    expect(await rig.takeSentryBudget(NOW, "production")).toBe(true);
+  });
+
   it("names no release on what it sends, so production's release history stays its own", async () => {
     const silent = DARK_AFTER_MS + MINUTE;
     await heard({ rig: silent, suite: silent, triage: silent }, 7 * 24 * 60 * MINUTE);
@@ -144,6 +151,8 @@ describe("the dead-man", () => {
     await goDark({ ...env, SENTRY_SYNTHETIC_DSN: undefined });
     expect(darkAlerts()).toHaveLength(1);
     expect(sent.filter((s) => s.url.includes("/api/101/"))).toEqual([]);
+    const spent = Object.keys(await counters()).filter((name) => /^sentry\.sent\..*\.synthetic$/.test(name));
+    expect(spent).toEqual([]);
   });
 
   it("still tells production the rig is dark while the synthetic project refuses every event", async () => {
