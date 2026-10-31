@@ -4,10 +4,11 @@
  *
  * "Cannot touch production" holds only while every address the rig is
  * configured with is its own: the *.rig.internal names Caddy serves on a
- * private network, loopback, the access point's 10.77.0.0/24, and the edge on
- * workers.dev (docs/RIG.md). A production host in a unit, the settings
- * template or a derived Worker config is a rig that reaches production while
- * every verdict it records says rig.
+ * private network, loopback, the edge on workers.dev (docs/RIG.md), and the
+ * access point's 10.77.0.0/24, the subnet tools/rig/box/dnsmasq/ap.conf hands
+ * the phones. A production host in a unit, the settings template or a derived
+ * config is a rig that reaches production while every verdict it records says
+ * rig.
  *
  * What it reads, and what counts as naming a host in each:
  *   - the box's configs (tools/rig/box): every name and address outside a
@@ -15,13 +16,20 @@
  *     which names production only to refuse it. Installers (*.sh) are left
  *     out: they fetch Node, Docker and the Stripe CLI from their publishers;
  *   - the API's settings template (tools/rig/templates): literal values. A
- *     {{placeholder}} is filled from the settings below or from the edge;
+ *     {{placeholder}} is filled from the settings below or from the edge, so a
+ *     host that is only a placeholder is not judged, while the literal part of
+ *     one beside a placeholder (`{{ref}}.supabase.co`, `{{key}}@sentry.io`) is;
  *   - the deploy CLI's settings defaults (tools/rig/src/layout.mjs);
  *   - every JSON and JSONC file under tools/rig, tools/edge and tools/guard:
- *     string values that are a URL or a bare host name, so prose is not read;
- *   - the configs the deploy CLI derives from apps/api and apps/web, by running
- *     its derivation, and once more fed production routes, which must not
- *     survive it;
+ *     every URL in a string value, and a value that is a host and nothing
+ *     else (with a port, a path or a leading `*.`), so prose naming a domain
+ *     is not read;
+ *   - the configs the deploy CLI derives, by running its derivations: the
+ *     Worker configs from apps/api and apps/web, once more fed production
+ *     routes, which must not survive it, and the Supabase config.toml from
+ *     supabase/config.toml, once more fed production auth URLs, which must
+ *     not survive it either. Every other line of that config reaches the rig
+ *     verbatim, so its string values are read too;
  *   - the edge's and the guard's wrangler configs: no routes, and the guard
  *     with workers_dev and preview_urls false, since the edge's service
  *     binding is its only way in.
@@ -53,6 +61,20 @@ const PRODUCTION_WIRING = {
 };
 const WIRING_KEYS = Object.keys(PRODUCTION_WIRING);
 
+/** What the Supabase derivation must replace in [auth]: production's own auth URLs. */
+const PRODUCTION_AUTH = {
+  site_url: '"https://app.loonext.com"',
+  additional_redirect_urls: '["https://app.loonext.com/**"]',
+  external_url: '"https://auth.loonext.com/auth/v1"',
+  jwt_issuer: '"https://auth.loonext.com/auth/v1"',
+};
+
+/**
+ * What a run of {{placeholders}} becomes before the template is read: one
+ * plain label, so a URL or a name around it stays whole.
+ */
+const STAND_IN = "rig-template-placeholder";
+
 /**
  * Last labels read as a host name. A token like `root.crt`,
  * `loonext-rig-api.service` or `rig.mjs` ends in a file extension, not a
@@ -80,15 +102,36 @@ export function isRigHost(raw) {
   return EDGE_HOST.test(host);
 }
 
-const URL_HOST = /\b[a-z][a-z0-9+.-]*:\/\/(\[[0-9a-f:]+\]|[^\s/:?#"'`<>{}()|,;\\]+)/gi;
+const URL_AUTHORITY = /\b[a-z][a-z0-9+.-]*:\/\/([^\s/?#"'`<>{}()|,;\\]*)/gi;
 const LABELS = String.raw`(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+`;
 const LAST_LABEL = String.raw`[a-z][a-z0-9-]*[a-z0-9]`;
 const BARE_NAME = new RegExp(String.raw`(?<![\w.@-])(${LABELS}(${LAST_LABEL}))(?![\w-]|\.[a-z0-9])`, "gi");
-const WHOLE_NAME = new RegExp(`^${LABELS}${LAST_LABEL}$`, "i");
 const IPV4 = /(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?![\d.])/g;
+
+/**
+ * A value that is a host and nothing else, in the shapes a route pattern
+ * (`*.host/*`), an SMTP host (`host:465`) or a proxy target takes.
+ */
+const HOST_VALUE = new RegExp(
+  String.raw`^(?:\/\/)?(?:\*\.?)?(\[[0-9a-f:]+\]|\d{1,3}(?:\.\d{1,3}){3}|${LABELS}(${LAST_LABEL}))\.?(?::\d+)?(?:[/?#]\S*)?$`,
+  "i",
+);
 
 /** A dotted quad that is a netmask (dhcp-range), not an address. */
 const isNetmask = (quad) => quad.startsWith("255.");
+
+/** An address block such as config.toml's `allowed_cidrs`: who may connect in, not a host anything reaches. */
+const CIDR = /^(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-f:]+)\/\d{1,3}$/i;
+
+/** The host in a URL's authority: after any userinfo, before any port. */
+function authorityHost(authority) {
+  const host = authority.slice(authority.lastIndexOf("@") + 1);
+  if (host.startsWith("[")) {
+    const end = host.indexOf("]");
+    return end === -1 ? host : host.slice(0, end + 1);
+  }
+  return host.split(":")[0];
+}
 
 /**
  * Every host a line of text names: URL hosts, bare names under a known
@@ -97,8 +140,9 @@ const isNetmask = (quad) => quad.startsWith("255.");
 export function hostsInText(text) {
   const found = [];
   const taken = [];
-  for (const match of text.matchAll(URL_HOST)) {
-    found.push(match[1]);
+  for (const match of text.matchAll(URL_AUTHORITY)) {
+    const host = authorityHost(match[1]);
+    if (host !== "") found.push(host);
     taken.push([match.index, match.index + match[0].length]);
   }
   const outsideUrls = (index) => !taken.some(([start, end]) => index >= start && index < end);
@@ -157,13 +201,16 @@ export function boxFindings(path, text) {
   return findings;
 }
 
-/** The API's settings template: literal values, placeholders aside. */
+/** The API's settings template: literal values, and the literal part of a host built around a placeholder. */
 export function templateFindings(path, text) {
   const findings = newFindings();
   text.split(/\r?\n/).forEach((raw, index) => {
     const line = raw.trim();
     if (line === "" || line.startsWith("#")) return;
-    judgeHosts(`${path}:${index + 1}`, hostsInText(line.replace(/\{\{[^}]*\}\}/g, " ")), findings);
+    const hosts = hostsInText(line.replace(/(?:\{\{[^}]*\}\})+/g, STAND_IN))
+      .filter((host) => host !== STAND_IN)
+      .map((host) => host.split(STAND_IN).join("{{...}}"));
+    judgeHosts(`${path}:${index + 1}`, hosts, findings);
   });
   return findings;
 }
@@ -178,20 +225,25 @@ function* strings(value, at = "") {
 }
 
 /**
- * The hosts a parsed JSON value names: string values that are a URL, or that
- * are a host name and nothing else. Prose that mentions a domain is not read.
+ * The hosts one configured string names: every URL in it, or the string
+ * itself when it is a host and nothing else. Prose that mentions a domain
+ * without a scheme is not read.
  */
+export function hostsInString(text) {
+  const trimmed = text.trim();
+  const urls = [...trimmed.matchAll(URL_AUTHORITY)].map((match) => authorityHost(match[1])).filter(Boolean);
+  if (urls.length > 0) return urls;
+  if (CIDR.test(trimmed)) return [];
+  const whole = HOST_VALUE.exec(trimmed);
+  if (!whole || (whole[2] !== undefined && !TLDS.has(whole[2].toLowerCase()))) return [];
+  return [whole[1]];
+}
+
+/** The hosts a parsed JSON value names, by where each string sits in it. */
 export function hostsInValue(value) {
   const found = [];
   for (const { at, value: text } of strings(value)) {
-    const trimmed = text.trim();
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
-      for (const host of hostsInText(trimmed.split(/\s/)[0])) found.push({ at, host });
-      continue;
-    }
-    const name = WHOLE_NAME.exec(trimmed);
-    if (name && TLDS.has(trimmed.split(".").pop().toLowerCase())) found.push({ at, host: trimmed });
-    else if (/^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?$/.test(trimmed)) found.push({ at, host: trimmed.split(":")[0] });
+    for (const host of hostsInString(text)) found.push({ at, host });
   }
   return found;
 }
@@ -199,6 +251,25 @@ export function hostsInValue(value) {
 export function jsonFindings(path, value) {
   const findings = newFindings();
   for (const { at, host } of hostsInValue(value)) judgeHosts(`${path} ${at}`, [host], findings);
+  return findings;
+}
+
+/** The string values on one line of TOML, up to a comment. */
+export function tomlStrings(line) {
+  const values = [];
+  for (const match of line.matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'|#/g)) {
+    if (match[0] === "#") break;
+    values.push(match[1] ?? match[2]);
+  }
+  return values;
+}
+
+/** A derived config.toml: every host its string values name. */
+export function tomlFindings(where, text) {
+  const findings = newFindings();
+  text.split(/\r?\n/).forEach((line, index) => {
+    for (const value of tomlStrings(line)) judgeHosts(`${where}:${index + 1}`, hostsInString(value), findings);
+  });
   return findings;
 }
 
@@ -268,6 +339,7 @@ async function main() {
   const { parseJsonc } = await rigModule("tools/rig/src/jsonc.mjs");
   const { DEFAULT_SETTINGS } = await rigModule("tools/rig/src/layout.mjs");
   const { deriveRigConfig } = await rigModule("tools/rig/src/wrangler-config.mjs");
+  const { deriveSupabaseConfig, setTomlKey } = await rigModule("tools/rig/src/supabase-config.mjs");
 
   const surfaces = {};
   const coverage = [];
@@ -323,8 +395,39 @@ async function main() {
     }
   }
 
-  for (const name of ["box", "template", "settings", "json", "wrangler", "derived"]) {
+  // `rig deploy` passes supabaseUrl only when it is not the CLI's own address,
+  // so both shapes are derived; the production probe needs it to be replaced.
+  const supabaseSource = "supabase/config.toml";
+  const committed = read(supabaseSource);
+  const auth = { appOrigin: DEFAULT_SETTINGS.appOrigin, totp: true };
+  const withRigUrl = { ...auth, supabaseUrl: DEFAULT_SETTINGS.supabaseUrl };
+  const withProductionAuth = Object.entries(PRODUCTION_AUTH).reduce(
+    (text, [key, value]) => setTomlKey(text, "auth", key, value),
+    committed,
+  );
+  surface("supabase").files += 1;
+  try {
+    for (const [label, text, options] of [
+      ["", committed, withRigUrl],
+      [" on the CLI's own address", committed, auth],
+      [" with production auth URLs", withProductionAuth, withRigUrl],
+    ]) {
+      merge(
+        surface("supabase"),
+        tomlFindings(`${supabaseSource} (derived config.toml${label})`, deriveSupabaseConfig(text, options)),
+      );
+    }
+  } catch (cause) {
+    surface("supabase").problems.push(
+      `${supabaseSource}  the deploy CLI refuses to derive it: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+  }
+
+  for (const name of ["box", "template", "settings", "json", "wrangler", "derived", "supabase"]) {
     if (!surfaces[name] || surfaces[name].files === 0) coverage.push(`found no ${name} files to read`);
+  }
+  if (surfaces.supabase.problems.length === 0 && surfaces.supabase.judged === 0) {
+    coverage.push("read no host in the derived config.toml, which always names the rig's site_url");
   }
   const total = Object.values(surfaces).reduce((sum, entry) => sum + entry.judged, 0);
   if (total === 0) coverage.push("judged no host at all, so a pass would mean nothing");
@@ -340,8 +443,9 @@ async function main() {
     console.error("check-rig-hosts: the rig's configuration names something that is not the rig.\n");
     for (const problem of problems) console.error(`  ${problem}`);
     console.error(
-      "\nThe rig may name *.rig.internal, loopback, its access point (10.77.0.0/24) " +
-        `and its edge (${EDGE_NAME}.<account>.workers.dev), nothing else (docs/RIG.md 3.2-3.4, D142).\n`,
+      "\nThe rig may name *.rig.internal, loopback and its edge " +
+        `(${EDGE_NAME}.<account>.workers.dev) (docs/RIG.md 3.2-3.4, D142), and the access point's ` +
+        "10.77.0.0/24 (tools/rig/box/dnsmasq/ap.conf), nothing else.\n",
     );
     process.exit(1);
   }

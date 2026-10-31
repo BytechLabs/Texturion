@@ -17,12 +17,19 @@ const guard = (await import(join(REPO, "scripts", "check-rig-hosts.mjs"))) as {
   isLoopback: (host: string) => boolean;
   hostsInText: (text: string) => string[];
   hostsInValue: (value: unknown) => { at: string; host: string }[];
+  hostsInString: (text: string) => string[];
+  tomlStrings: (line: string) => string[];
+  tomlFindings: (where: string, text: string) => Findings;
   dnsmasqRefusal: (line: string) => string[] | null;
   boxFindings: (path: string, text: string) => Findings;
   templateFindings: (path: string, text: string) => Findings;
   jsonFindings: (path: string, value: unknown) => Findings;
   wranglerFindings: (path: string, config: Record<string, unknown>) => Findings;
   derivedFindings: (source: string, derived: Record<string, unknown>) => Findings;
+};
+
+const supabase = (await import(join(REPO, "tools", "rig", "src", "supabase-config.mjs"))) as {
+  deriveSupabaseConfig: (text: string, options: Record<string, unknown>) => string;
 };
 
 describe("the rig's own hosts", () => {
@@ -76,6 +83,32 @@ describe("what it reads as a host", () => {
     expect(guard.hostsInText("ROBOT=delivered@resend.dev")).toEqual([]);
     expect(guard.hostsInText("dhcp-range=10.77.0.10,10.77.0.50,255.255.255.0,12h")).toEqual(["10.77.0.10", "10.77.0.50"]);
   });
+
+  it("reads a URL's host past its userinfo and port", () => {
+    expect(guard.hostsInText("https://user:pass@api.loonext.com:443/x")).toEqual(["api.loonext.com"]);
+    expect(guard.hostsInText("https://key@o123.ingest.us.sentry.io/45")).toEqual(["o123.ingest.us.sentry.io"]);
+    expect(guard.hostsInText("file:///etc/loonext-rig/rig.json")).toEqual([]);
+  });
+
+  it.each([
+    ["api.loonext.com:443", "api.loonext.com"],
+    ["api.loonext.com/*", "api.loonext.com"],
+    ["*.loonext.com/*", "loonext.com"],
+    ["//api.loonext.com/x", "api.loonext.com"],
+    ["api.loonext.com.", "api.loonext.com"],
+    ["smtp.resend.com:465", "smtp.resend.com"],
+    ["stripe listen --forward-to https://api.loonext.com/webhooks/stripe", "api.loonext.com"],
+    ["[::1]:8787", "[::1]"],
+  ])("reads the host a value %s names", (value, host) => {
+    expect(guard.hostsInString(value)).toEqual([host]);
+  });
+
+  it.each([["0.0.0.0/0"], ["::/0"], ["src/index.ts"], ["next.config.ts"], ["1.2.3"], ["notifications@loonext.com"]])(
+    "reads no host in %s",
+    (value) => {
+      expect(guard.hostsInString(value)).toEqual([]);
+    },
+  );
 
   it("reads JSON values that are a URL or a host, not prose naming one", () => {
     expect(
@@ -135,6 +168,59 @@ describe("the settings template", () => {
     expect(guard.templateFindings("t", text)).toEqual({ judged: 0, refused: 0, problems: [] });
     expect(guard.templateFindings("t", "APP_ORIGIN=https://app.loonext.com").problems).toEqual([
       "t:1  names app.loonext.com, which is not the rig's",
+    ]);
+  });
+
+  it("judges the literal part of a host built around a placeholder", () => {
+    expect(guard.templateFindings("t", "SENTRY_DSN=https://{{secret:sentry-key}}@o123.ingest.us.sentry.io/45").problems).toEqual([
+      "t:1  names o123.ingest.us.sentry.io, which is not the rig's",
+    ]);
+    expect(guard.templateFindings("t", "SUPABASE_URL=https://{{secret:project-ref}}.supabase.co").problems).toEqual([
+      "t:1  names {{...}}.supabase.co, which is not the rig's",
+    ]);
+    expect(guard.templateFindings("t", "WEB=https://{{rig.name}}.rig.internal/x").problems).toEqual([]);
+  });
+
+  it("does not judge a host that is only placeholders", () => {
+    const text = "A=https://{{a}}{{b}}/x\nB={{edge}}\nC={{rig.supabaseUrl}}/auth/v1/.well-known/jwks.json";
+    expect(guard.templateFindings("t", text)).toEqual({ judged: 0, refused: 0, problems: [] });
+  });
+});
+
+describe("the Supabase config the deploy CLI derives", () => {
+  const toml = [
+    "[auth]",
+    'site_url = "https://app.loonext.com"',
+    'additional_redirect_urls = ["https://app.loonext.com/**"]',
+    "",
+    "[auth.email.smtp]",
+    "enabled = false",
+    "",
+    "[auth.mfa.totp]",
+    "enroll_enabled = false",
+    "verify_enabled = false",
+  ].join("\n");
+  const derive = (text: string) =>
+    supabase.deriveSupabaseConfig(text, { supabaseUrl: "https://db.rig.internal", appOrigin: "https://app.rig.internal", totp: true });
+
+  it("reads string values and leaves comments alone", () => {
+    expect(guard.tomlStrings(`urls = ["https://a.rig.internal", 'b # c'] # "https://x.loonext.com"`)).toEqual([
+      "https://a.rig.internal",
+      "b # c",
+    ]);
+    expect(guard.tomlStrings('# site_url = "https://app.loonext.com"')).toEqual([]);
+  });
+
+  it("passes production's auth URLs once the derivation has replaced them", () => {
+    const findings = guard.tomlFindings("s", derive(toml));
+    expect(findings.problems).toEqual([]);
+    expect(findings.judged).toBeGreaterThan(0);
+  });
+
+  it("fails a host the derivation keeps verbatim", () => {
+    const smtp = toml.replace("enabled = false", 'enabled = true\nhost = "smtp.resend.com"');
+    expect(guard.tomlFindings("s", derive(smtp)).problems).toEqual([
+      expect.stringMatching(/^s:\d+ {2}names smtp\.resend\.com, which is not the rig's$/),
     ]);
   });
 });
