@@ -260,6 +260,13 @@ describe("D31 golden path 3: cancel → grace → release", () => {
     );
     expect(graceEmail).toBeTruthy();
     expect(graceEmail?.subject).toMatch(/canceled/i);
+    // Through RESEND_API_BASE, as the Worker sends it: its key, its sender,
+    // and both parts of the body.
+    expect(graceEmail?.authorization).toBe("Bearer re_e2e");
+    expect(graceEmail?.from).toBe(h.env.RESEND_FROM);
+    expect(graceEmail?.html).toMatch(/<\w+/);
+    expect(graceEmail?.text.length).toBeGreaterThan(0);
+    expect(h.resend.refused).toEqual([]);
   });
 
   it("resubscribe-within-grace: a fresh paid checkout flips back to active and un-suspends, NO re-order", async () => {

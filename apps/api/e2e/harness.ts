@@ -1,7 +1,7 @@
 /**
  * D31 launch-pass harness — orchestration.
  *
- * Boots the three fake vendor servers (Telnyx, Stripe, JWKS), resolves the
+ * Boots the four fake vendor servers (Telnyx, Stripe, Resend, JWKS), resolves the
  * REAL local Supabase from `supabase status`, and wires the REAL loonext-api
  * Worker (`app.fetch`) at them. Provides:
  *   - buildEnv()      → the Bindings object the Worker validates (env.ts)
@@ -31,6 +31,7 @@ import { expectedIssuer } from "../src/auth/jwt";
 import { generateVapidPair } from "../src/test/vapid-keys";
 import { createCallSessions, type CallSessionsDouble } from "./call-sessions";
 import { startFakeJwks, type JwksAuth } from "./fake-jwks";
+import { startFakeResend, type FakeResend, type SentEmail } from "./fake-resend";
 import { startFakeStripe, type FakeStripe } from "./fake-stripe";
 import { startFakeTelnyx, type FakeTelnyx } from "./fake-telnyx";
 
@@ -78,11 +79,7 @@ export interface CallResult {
   text: string;
 }
 
-export interface SentEmail {
-  to: string[];
-  subject: string;
-  from: string;
-}
+export type { SentEmail } from "./fake-resend";
 
 export interface Harness {
   env: Record<string, unknown>;
@@ -90,15 +87,14 @@ export interface Harness {
   db: SupabaseClient;
   telnyx: FakeTelnyx;
   stripe: FakeStripe;
+  resend: FakeResend;
   jwks: JwksAuth;
   /** What `env.CALL_SESSIONS` is: one real CallSessionDO per session id. */
   sessions: CallSessionsDouble;
   /**
-   * Emails the Worker sent. Resend has NO env base seam (its endpoint is
-   * hardcoded), so the harness intercepts ONLY `api.resend.com` at the fetch
-   * edge and passes every other host through to the real network — Supabase
-   * still hits real 54321, Telnyx/Stripe still hit their fake origins, JWKS
-   * still hits the fake server. This is a narrow capture, not a global stub.
+   * Emails the Worker sent, as the fake Resend received them (the same array
+   * as `resend.emails`). Reached through `RESEND_API_BASE`, so fetch is
+   * never patched.
    */
   emails: SentEmail[];
   /** Unique per-run prefix for ids/emails so reruns are idempotent. */
@@ -168,9 +164,10 @@ async function signTelnyx(
 }
 
 export async function startHarness(): Promise<Harness> {
-  const [telnyx, stripe, jwks] = await Promise.all([
+  const [telnyx, stripe, resend, jwks] = await Promise.all([
     startFakeTelnyx(),
     startFakeStripe(),
+    startFakeResend(),
     startFakeJwks(),
   ]);
 
@@ -178,33 +175,6 @@ export async function startHarness(): Promise<Harness> {
   const runId = `e2e_${Date.now().toString(36)}_${Math.random()
     .toString(36)
     .slice(2, 8)}`;
-
-  // Narrow Resend capture: intercept ONLY api.resend.com (no env seam exists),
-  // pass everything else through to the real fetch. Installed once per harness.
-  const emails: SentEmail[] = [];
-  const realFetch = globalThis.fetch.bind(globalThis);
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url =
-      typeof input === "string"
-        ? input
-        : input instanceof URL
-          ? input.href
-          : input.url;
-    if (url.startsWith("https://api.resend.com/")) {
-      const req = new Request(input as RequestInfo | URL, init);
-      const parsed = (await req
-        .clone()
-        .json()
-        .catch(() => ({}))) as Partial<SentEmail>;
-      emails.push({
-        to: parsed.to ?? [],
-        subject: parsed.subject ?? "",
-        from: parsed.from ?? "",
-      });
-      return Response.json({ id: `email_${emails.length}` });
-    }
-    return realFetch(input as RequestInfo | URL, init);
-  }) as typeof fetch;
 
   // The full Bindings object the Worker validates (env.ts). Non-vendor secrets
   // are the completeEnv()-style literals; vendor bases point at the fakes.
@@ -235,6 +205,7 @@ export async function startHarness(): Promise<Harness> {
     STRIPE_SMS_METER_EVENT_NAME: "sms_segments",
     TELNYX_API_BASE: telnyx.origin,
     STRIPE_API_BASE: stripe.origin,
+    RESEND_API_BASE: resend.origin,
   };
   const sessions = createCallSessions(env);
   env.CALL_SESSIONS = sessions.namespace;
@@ -367,9 +338,10 @@ export async function startHarness(): Promise<Harness> {
     db,
     telnyx,
     stripe,
+    resend,
     jwks,
     sessions,
-    emails,
+    emails: resend.emails,
     runId,
     token: (sub: string) => jwks.token({ sub, issuer }),
     seedUserSql: (id, email, displayName = "E2E User") =>
@@ -392,8 +364,12 @@ export async function startHarness(): Promise<Harness> {
     injectStripe,
     sql,
     close: async () => {
-      globalThis.fetch = realFetch;
-      await Promise.allSettled([telnyx.close(), stripe.close(), jwks.close()]);
+      await Promise.allSettled([
+        telnyx.close(),
+        stripe.close(),
+        resend.close(),
+        jwks.close(),
+      ]);
     },
   };
 }
