@@ -7,12 +7,16 @@
  * nothing short of a sufficient sample alerts, a new drop alerts at once, and
  * a drop that persists is repeated only every six hours.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { completeEnv, stubFetch } from "../test/support";
 import { opsCaptures, resetSentryCaptures } from "../test/sentry-mock";
 import {
   RING_SUCCESS_PREFIX,
+  RING_SUCCESS_VERDICTS,
   runRingSuccessWatch,
   type RingSuccessRow,
 } from "./ring-success";
@@ -81,7 +85,10 @@ describe("the ring-success watch", () => {
     const rows = [
       row({}),
       row({ platform: "ios", app_version: "2.0.1", attempts: 29, rang_in_time: 0, ring_rate: 0, threshold: null, verdict: "insufficient_sample" }),
-      row({ platform: "web", app_version: "unknown", baseline_attempts: 0, baseline_rate: null, threshold: null, verdict: "no_baseline" }),
+      row({ platform: "web", app_version: "0.18.2", baseline_attempts: 0, baseline_rate: null, threshold: null, verdict: "no_baseline" }),
+      // A pre-beacon build misses every ring by construction; never an alert.
+      row({ app_version: "1.30.0", rang_in_time: 0, ring_rate: 0, threshold: null, verdict: "not_instrumented" }),
+      row({ app_version: "unknown", attempts: 7, rang_in_time: 2, ring_rate: 0.2857, threshold: null, verdict: "unattributed" }),
     ];
     const asked = database(now, rows, []);
 
@@ -100,6 +107,8 @@ describe("the ring-success watch", () => {
       ["android", 40, "pass"],
       ["ios", 29, "insufficient_sample"],
       ["web", 40, "no_baseline"],
+      ["android", 40, "not_instrumented"],
+      ["android", 7, "unattributed"],
     ]);
     expect(parsed.media_on_answered).toMatch(/^not_measured/);
   });
@@ -142,6 +151,20 @@ describe("the ring-success watch", () => {
     expect(report.alerted).toEqual(["android"]);
     const detail = String(opsCaptures("ring-success-android")[0].extra.detail);
     expect(detail.split("\n")).toHaveLength(2);
+  });
+
+  it("knows exactly the verdicts the SQL function can return", () => {
+    const migration = readFileSync(
+      join(import.meta.dirname, "..", "..", "..", "..", "supabase", "migrations",
+        "20261031110000_ring_success_is_counted_not_named.sql"),
+      "utf8",
+    );
+    // The last CASE before the final FROM is the verdict.
+    const verdictCase = migration.match(/\bcase\b((?:(?!\bcase\b)[\s\S])*?)\bend\s+from thresholds t\b/);
+    expect(verdictCase, "the verdict CASE in api_ring_success").not.toBeNull();
+    const words = [...verdictCase![1].matchAll(/\b(?:then|else) '([a-z_]+)'/g)].map((m) => m[1]);
+    expect(words.length).toBeGreaterThan(0);
+    expect([...new Set(words)].sort()).toEqual([...RING_SUCCESS_VERDICTS].sort());
   });
 
   it("refuses a verdict it does not know rather than guessing", async () => {

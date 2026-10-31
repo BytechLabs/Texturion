@@ -12,12 +12,16 @@ import { opsAlert } from "./ops-alert";
  * the last 24 hours, against the platform's prior week. The verdict rule lives
  * there rather than here, so every reader gets one answer. Below 30 attempts a
  * row is "insufficient_sample", never a pass; with one production number that
- * is what most rows will say for a long while.
+ * is what most rows will say for a long while. A build from before ring
+ * beacons ("not_instrumented") and a push of unknown version ("unattributed")
+ * are counted and logged but never judged, so neither can alert.
  *
  * Only counts leave the database: platforms, versions, attempts and rates.
  */
 
 export const RING_SUCCESS_VERDICTS = [
+  "unattributed",
+  "not_instrumented",
   "insufficient_sample",
   "no_baseline",
   "pass",
