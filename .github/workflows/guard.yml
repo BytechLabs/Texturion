@@ -11,9 +11,18 @@ name: Guard
 # because the guard's policy is generated from it: a merged endpoint change is
 # enforced only once this has deployed it.
 #
-# BEFORE THE FOUNDER CREATES THE TOKEN (FA4) the deploy job says so and stops,
+# It is also the admin class's only caller, because the admin token lives in
+# the `guard` environment alone (docs/RIG.md). A dispatch runs one admin
+# routine through the edge (tools/guard/scripts/admin-routine.ts) after the
+# deploy, or on its own with `deploy` off. A push runs the start-up checks.
+#
+# BEFORE THE FOUNDER CREATES THE TOKEN (FA4) the deploy says so and stops,
 # green. A red main for a credential nobody has made yet would be a standing red,
 # and a standing red hides the next real one.
+#
+# Every value from the environment is a secret, the account id and the edge's
+# origin included: Actions prints a step's env in its log, masking secrets
+# only, and this repository's logs are public.
 on:
   push:
     branches: [main]
@@ -23,10 +32,46 @@ on:
       - "apps/api/src/telnyx/endpoints.ts"
   workflow_dispatch:
     inputs:
-      setup:
-        description: "Also run the setup routine (create or converge the Telnyx partition) after deploying"
+      routine:
+        description: "Admin routine to run on the guard (tools/guard/scripts/admin-routine.ts)"
+        type: choice
+        default: check
+        options:
+          - check
+          - setup
+          - order-standing
+          - key-inventory
+          - accept-key-inventory
+          - reattach
+          - measurements
+      deploy:
+        description: "Deploy the guard from main before the routine"
         type: boolean
-        default: false
+        default: true
+      reserve_legs:
+        description: "measurements: production's largest ring audience plus one"
+        type: string
+        required: false
+      calls:
+        description: "measurements: the account's calls in the ratio window"
+        type: string
+        required: false
+      abandoned:
+        description: "measurements: of those, abandoned"
+        type: string
+        required: false
+      short:
+        description: "measurements: of those, short"
+        type: string
+        required: false
+      window_start_hour:
+        description: "measurements: the first UTC hour of the six with the fewest production calls"
+        type: string
+        required: false
+      usage_usd:
+        description: "measurements: this month's actual Telnyx usage for the partition, in dollars, from detail records"
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -43,6 +88,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -63,6 +110,13 @@ jobs:
       - name: Policy tests
         run: pnpm --filter @loonext/telnyx-guard test
 
+      # The real Worker entry, Durable Object, storage and alarm on workerd.
+      # Kept out of `test`, and so out of the PR gate's `pnpm -r test`, where
+      # a workerd pool under load can flake a required check; here it gates
+      # the deploy.
+      - name: Policy tests on workerd
+        run: pnpm --filter @loonext/telnyx-guard test:workerd
+
       # The registry the policy is generated from must still equal the app's
       # calls, both ways, or the policy is enforcing a list nobody calls.
       - name: Telnyx endpoint registry
@@ -74,34 +128,40 @@ jobs:
   deploy:
     name: Deploy loonext-telnyx-guard
     needs: test
+    # A dispatch from any other branch is tested and stops here: the guard
+    # deploys, and its admin routines run, from main only.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: guard
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - name: Is the guard-deploy token there yet?
+      - name: Deploy now?
         id: token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WANTED: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy }}
         run: |
-          if [ -z "${CLOUDFLARE_API_TOKEN}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID}" ]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Guard not deployed::The guard environment has no CF_API_TOKEN secret or CLOUDFLARE_ACCOUNT_ID variable yet (FA4). The policy tests passed; nothing was deployed."
+          if [ "$WANTED" != "true" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Guard not deployed::This dispatch asked for its routine only."
+          elif [ -z "${CLOUDFLARE_API_TOKEN}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID}" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Guard not deployed::The guard environment has no CF_API_TOKEN or CLOUDFLARE_ACCOUNT_ID secret yet (FA4). The policy tests passed; nothing was deployed."
           else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - if: steps.token.outputs.ready == 'true'
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - if: steps.token.outputs.ready == 'true'
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
-      - if: steps.token.outputs.ready == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install
-        if: steps.token.outputs.ready == 'true'
+        if: steps.token.outputs.deploy == 'true'
         run: pnpm install --frozen-lockfile
 
       # The values that are not in git but live in the `guard` environment
@@ -112,19 +172,32 @@ jobs:
       # through here.
       #
       # The message names the commit, so the hourly attestation can tell a
-      # deployment from this workflow (a main commit) from any other, reading
-      # the live deployment with guard-attest-read. Version ids stay out of
-      # this public log.
+      # deployment from this workflow (a main commit) from any other by reading
+      # the live deployment with guard-attest-read. wrangler prints the new
+      # version id in this public log; the attestation does not rest on it
+      # being secret.
+      #
+      # The guard binds the edge's EdgeForGuard and the edge binds the guard.
+      # FA4 creates both Workers before either token exists, so each target is
+      # there on the first deploy. If Cloudflare still cannot resolve the
+      # binding (the edge not deployed, or deleted), the guard deploys without
+      # it rather than not at all: robot-mailbox sends then fail closed until a
+      # dispatch redeploys it with the binding.
       - name: Deploy
-        if: steps.token.outputs.ready == 'true'
+        if: steps.token.outputs.deploy == 'true'
+        shell: bash
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           SENTRY_PROD_DSN: ${{ secrets.SENTRY_PROD_DSN }}
-          EDGE_ORIGIN: ${{ vars.EDGE_ORIGIN }}
+          EDGE_ORIGIN: ${{ secrets.EDGE_ORIGIN }}
           ROBOT_MAILBOX: ${{ secrets.ROBOT_MAILBOX }}
           NOTIFICATION_PATH_SECRET: ${{ secrets.NOTIFICATION_PATH_SECRET }}
         run: |
           umask 077
           file="$(mktemp --suffix=.json)"
+          log="$(mktemp)"
+          trap 'rm -f "$file" "$log"' EXIT
           jq -n \
             --arg SENTRY_PROD_DSN "$SENTRY_PROD_DSN" \
             --arg EDGE_ORIGIN "$EDGE_ORIGIN" \
@@ -134,44 +207,29 @@ jobs:
           if [ "$(jq 'length' "$file")" -eq 0 ]; then
             echo "::notice title=No guard configuration to send::None of SENTRY_PROD_DSN, EDGE_ORIGIN, ROBOT_MAILBOX or NOTIFICATION_PATH_SECRET is set in the guard environment."
           fi
-          pnpm --filter @loonext/telnyx-guard exec wrangler deploy \
-            --message "guard.yml ${GITHUB_SHA}" \
-            --secrets-file "$file"
-          rm -f "$file"
+          deploy() {
+            pnpm --filter @loonext/telnyx-guard exec wrangler deploy \
+              --message "guard.yml ${GITHUB_SHA}" \
+              --secrets-file "$file" "$@"
+          }
+          if deploy 2>&1 | tee "$log"; then exit 0; fi
+          if ! grep -qi "service binding" "$log"; then exit 1; fi
+          node --experimental-strip-types tools/guard/scripts/without-edge-binding.ts
+          deploy --config wrangler.no-edge.jsonc
+          echo "::warning title=Guard deployed without the EDGE binding::Cloudflare could not resolve loonext-rig-edge's EdgeForGuard, so robot-mailbox sends fail closed. Dispatch this workflow once the edge is deployed."
 
-      # Through the edge with the admin token, once both exist: the guard has
-      # no URL of its own. A failed start-up check fails this run on purpose.
-      # The guard is up but refusing everything, and that should be loud.
-      - name: Start-up checks, or the setup routine when asked
-        if: steps.token.outputs.ready == 'true'
+      # Through the edge with the admin token: the guard has no URL of its own.
+      # A failed start-up check fails this run on purpose. The guard is up but
+      # refusing everything, and that should be loud.
+      - name: Admin routine
         env:
-          EDGE_ORIGIN: ${{ vars.EDGE_ORIGIN }}
+          EDGE_ORIGIN: ${{ secrets.EDGE_ORIGIN }}
           GUARD_ADMIN_TOKEN: ${{ secrets.GUARD_ADMIN_TOKEN }}
-          RUN_SETUP: ${{ github.event_name == 'workflow_dispatch' && inputs.setup }}
-        run: |
-          if [ -z "$EDGE_ORIGIN" ] || [ -z "$GUARD_ADMIN_TOKEN" ]; then
-            echo "::notice title=Guard checks skipped::EDGE_ORIGIN or GUARD_ADMIN_TOKEN is not set in the guard environment yet, so the guard cannot be reached."
-            exit 0
-          fi
-          route="check"
-          if [ "$RUN_SETUP" = "true" ]; then route="setup"; fi
-          status="$(curl -sS -o result.json -w '%{http_code}' -X POST \
-            -H "Authorization: Bearer ${GUARD_ADMIN_TOKEN}" \
-            "${EDGE_ORIGIN}/g/admin/${route}")"
-          # Reason codes and resource names only; the guard returns no ids here.
-          jq '{state: (.safety.state // .state), reasons: (.safety.reasons // .reasons), steps: .steps, rule: .rule}' result.json
-          state="$(jq -r '.safety.state // .state // empty' result.json)"
-          rule="$(jq -r '.rule // empty' result.json)"
-          rm -f result.json
-          if [ "$rule" = "telnyx.key_missing" ]; then
-            echo "::notice title=Guard has no Telnyx key yet::TELNYX_API_KEY is not set on the Worker (FA3); every Telnyx route fails closed until it is."
-            exit 0
-          fi
-          case "$status" in
-            2*) ;;
-            *) echo "::error title=Guard ${route} failed::HTTP ${status}"; exit 1 ;;
-          esac
-          if [ "$state" = "unsafe" ]; then
-            echo "::error title=Guard refuses to serve::The start-up checks found the partition unsafe; see the reasons above."
-            exit 1
-          fi
+          ROUTINE: ${{ inputs.routine || 'check' }}
+          RESERVE_LEGS: ${{ inputs.reserve_legs }}
+          CALLS: ${{ inputs.calls }}
+          ABANDONED: ${{ inputs.abandoned }}
+          SHORT: ${{ inputs.short }}
+          WINDOW_START_HOUR: ${{ inputs.window_start_hour }}
+          USAGE_USD: ${{ inputs.usage_usd }}
+        run: node --experimental-strip-types tools/guard/scripts/admin-routine.ts
