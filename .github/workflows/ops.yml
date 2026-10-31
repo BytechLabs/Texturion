@@ -142,12 +142,9 @@ jobs:
               ;;
           esac
 
-      # No install: set-flag.mjs uses fetch and nothing else.
-      #
-      # The current note was written for the table, not this public log: the
-      # "Flag now" row prints only up to it, and nothing more until the LAST
-      # "Flag after" header, since a note can hold a line that looks like one.
-      # shell: bash adds pipefail, so set-flag's failure still fails the step.
+      # No install: set-flag.mjs uses fetch and nothing else. Under GitHub
+      # Actions it never selects a flag's stored note or when it last changed,
+      # which were written for the table, not this public log.
       - name: Set the flag
         shell: bash
         env:
@@ -158,21 +155,7 @@ jobs:
           FLAG_NOTE: ${{ inputs.note }}
           FLAG_APPLY: ${{ inputs.apply }}
         run: |
-          set -- --key "$FLAG_KEY" "--$FLAG_STATE"
+          set -- --key "$FLAG_KEY" "--$FLAG_STATE" --withhold-notes
           if [ -n "$FLAG_NOTE" ]; then set -- "$@" --note "$FLAG_NOTE"; fi
           if [ "$FLAG_APPLY" = "true" ]; then set -- "$@" --apply; fi
-          node scripts/ops/set-flag.mjs "$@" | awk '
-            { line[NR] = $0 }
-            /^  Flag now \(/ { if (!now) now = NR }
-            /^  Flag after \(/ { after = NR }
-            END {
-              last = (now && after > now) ? after - 1 : NR
-              for (i = 1; i <= NR; i++) {
-                if (!now || i <= now || i > last) { print line[i]; continue }
-                if (i == now + 1) {
-                  at = index(line[i], "  note=")
-                  print (at > 0 ? substr(line[i], 1, at - 1) "  note=(withheld from this public log)" : line[i])
-                  print ""
-                }
-              }
-            }'
+          node scripts/ops/set-flag.mjs "$@"

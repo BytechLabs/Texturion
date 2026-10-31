@@ -15,6 +15,7 @@ on:
     workflows:
       - Security
       - Backup posture
+      - Guard
     types: [completed]
 
 # workflow_run always runs this file as it is on the default branch, with this
