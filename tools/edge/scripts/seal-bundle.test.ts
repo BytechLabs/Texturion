@@ -4,12 +4,15 @@ import { edgeSecrets } from "./edge-secrets.mjs";
 import {
   bundleParts,
   collectSecrets,
+  decodeOutput,
+  encodeOutput,
   fromBase64Url,
   generateRecipient,
   importRecipientKey,
   MAX_PARTS,
   openBundle,
   productionShaped,
+  runnerMasks,
   sealBundle,
   toBase64Url,
 } from "./seal-bundle.mjs";
@@ -73,6 +76,33 @@ describe("the sealed bundle", () => {
     expect(JSON.parse(joined)).toEqual(bundle);
     const huge = await sealBundle(recipient.publicKey, { secrets: { BIG: "x".repeat(4000 * MAX_PARTS) } });
     expect(() => bundleParts(huge)).toThrow(/parts/);
+  });
+});
+
+describe("the hand-off between the workflow's two jobs", () => {
+  /** A pretty-printed JSON secret, as google-services.json is pasted in. */
+  const pretty = JSON.stringify({ project_info: { project_number: "000000000000" }, client: [{ x: 1 }] }, null, 2);
+
+  it("masks what the runner masks: every trimmed line of a secret, and their base64", () => {
+    const masks = runnerMasks([pretty]);
+    expect(masks).toEqual(expect.arrayContaining(["{", "}", "},", "]", btoa("{")]));
+  });
+
+  it("carries the bundle as hex that holds none of the masks, and reads it back exactly", async () => {
+    const recipient = await generateRecipient();
+    const bulk = bundleParts(await sealBundle(recipient.publicKey, { secrets: { GOOGLE_SERVICES_JSON: pretty } }));
+    const output = encodeOutput(bulk);
+    expect(output).toMatch(/^[0-9a-f]+$/);
+    // The JSON itself would be withheld by the runner.
+    expect(runnerMasks([pretty]).some((mask) => JSON.stringify(bulk).includes(mask))).toBe(true);
+    expect(runnerMasks([pretty]).some((mask) => output.includes(mask))).toBe(false);
+    expect(decodeOutput(output)).toEqual(bulk);
+  });
+
+  it("refuses anything but a hex bundle", () => {
+    expect(() => decodeOutput("")).toThrow(/not hex/);
+    expect(() => decodeOutput('{"RIG_SECRET_BUNDLE_PARTS":"1"}')).toThrow(/not hex/);
+    expect(() => decodeOutput(encodeOutput({ other: 1 }))).toThrow(/not a bundle/);
   });
 });
 

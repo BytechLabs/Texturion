@@ -44,7 +44,19 @@
  *
  * Output: the JSON object `wrangler secret bulk` takes, the bundle split into
  * RIG_SECRET_BUNDLE_1..n with RIG_SECRET_BUNDLE_PARTS = n, because a Worker
- * secret holds at most 5 KB.
+ * secret holds at most 5 KB. It goes to stdout as lowercase hex, and
+ * `--decode` turns the hex in $BULK back into that JSON:
+ *
+ *   node tools/edge/scripts/seal-bundle.mjs --decode   # in rig-secrets.yml's store job
+ *
+ * WHY HEX. The bundle crosses from the `seal` job to the `store` job as a job
+ * output, and the runner silently drops any output that contains a string it
+ * masks. It masks every secret the job read, each trimmed line of one, and
+ * their base64 forms (actions/runner Worker.cs and ValueEncoders.cs), so a
+ * pretty-printed JSON secret such as google-services.json makes `{`, `}` and
+ * `],` masks, and any JSON output would be dropped. Hex holds no punctuation,
+ * and before printing the sealer checks the hex against every one of those
+ * masks, sealing again with fresh randomness on the rare collision.
  */
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
@@ -219,7 +231,58 @@ export function bundleParts(bundle) {
   return bulk;
 }
 
+function toBase64(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+/**
+ * What the runner masks for these secret values: each value and each trimmed
+ * line of it, plus the base64 of each, also shifted by one and two bytes.
+ */
+export function runnerMasks(values) {
+  const masks = new Set();
+  for (const value of values) {
+    const trimmed = value.trim();
+    for (const piece of [trimmed, ...trimmed.split(/[\r\n]+/).map((line) => line.trim())]) {
+      if (piece === "") continue;
+      masks.add(piece);
+      const bytes = encoder.encode(piece);
+      masks.add(toBase64(bytes));
+      for (const shift of [1, 2]) if (bytes.length > shift) masks.add(toBase64(bytes.subarray(shift)));
+    }
+  }
+  return [...masks];
+}
+
+/** The bulk JSON as lowercase hex, for a job output. */
+export function encodeOutput(bulk) {
+  return [...encoder.encode(JSON.stringify(bulk))].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** The bulk JSON back from {@link encodeOutput}'s hex. Throws on anything else. */
+export function decodeOutput(hex) {
+  if (typeof hex !== "string" || hex === "" || hex.length % 2 !== 0 || !/^[0-9a-f]+$/.test(hex)) {
+    throw new Error("the sealed output is not hex");
+  }
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  const bulk = JSON.parse(decoder.decode(bytes));
+  if (!bulk || typeof bulk !== "object" || typeof bulk.RIG_SECRET_BUNDLE_PARTS !== "string") {
+    throw new Error("the sealed output is not a bundle");
+  }
+  return bulk;
+}
+
+/** How many fresh seals to try before giving up on a mask that keeps colliding. */
+const SEAL_ATTEMPTS = 20;
+
 async function main() {
+  if (process.argv.includes("--decode")) {
+    process.stdout.write(JSON.stringify(decodeOutput(process.env.BULK ?? "")));
+    return;
+  }
   const publicKey = process.env.RIG_BUNDLE_PUBLIC_KEY ?? "";
   if (!publicKey) {
     console.error("seal-bundle: RIG_BUNDLE_PUBLIC_KEY is not set in the rig environment's variables.");
@@ -236,24 +299,36 @@ async function main() {
     console.error("seal-bundle: no BUNDLE__ secret has a value; nothing to seal.");
     process.exit(1);
   }
-  const bundle = await sealBundle(publicKey, {
-    v: BUNDLE_VERSION,
-    sealed_at: new Date().toISOString(),
-    source: {
-      repository: process.env.GITHUB_REPOSITORY ?? null,
-      run_id: process.env.GITHUB_RUN_ID ?? null,
-      sha: process.env.GITHUB_SHA ?? null,
-    },
-    absent,
-    secrets,
-  });
-  const bulk = bundleParts(bundle);
+  const masks = runnerMasks(Object.values(secrets));
+  for (let attempt = 1; attempt <= SEAL_ATTEMPTS; attempt++) {
+    const bundle = await sealBundle(publicKey, {
+      v: BUNDLE_VERSION,
+      sealed_at: new Date().toISOString(),
+      source: {
+        repository: process.env.GITHUB_REPOSITORY ?? null,
+        run_id: process.env.GITHUB_RUN_ID ?? null,
+        sha: process.env.GITHUB_SHA ?? null,
+      },
+      absent,
+      secrets,
+    });
+    const bulk = bundleParts(bundle);
+    const output = encodeOutput(bulk);
+    if (masks.some((mask) => output.includes(mask))) continue;
+    console.error(
+      `seal-bundle: sealed ${names.length} secret(s) (${names.join(", ")}) into ` +
+        `${bulk.RIG_SECRET_BUNDLE_PARTS} part(s)` +
+        (absent.length > 0 ? `; empty: ${absent.join(", ")}` : ""),
+    );
+    process.stdout.write(output);
+    return;
+  }
+  const colliding = names.filter((name) => runnerMasks([secrets[name]]).some((mask) => /^[0-9a-f]+$/.test(mask)));
   console.error(
-    `seal-bundle: sealed ${names.length} secret(s) (${names.join(", ")}) into ` +
-      `${bulk.RIG_SECRET_BUNDLE_PARTS} part(s)` +
-      (absent.length > 0 ? `; empty: ${absent.join(", ")}` : ""),
+    `seal-bundle: every seal contained a string the runner masks, so the job output would be dropped. ` +
+      `A secret with a short hex-only line is the likely cause: ${colliding.join(", ") || "unknown"}`,
   );
-  process.stdout.write(JSON.stringify(bulk));
+  process.exit(1);
 }
 
 if (typeof process !== "undefined" && process.argv?.[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
