@@ -127,16 +127,18 @@ export function callBudgetSummaryRow(
 const summarizedLayers = new Set<CallBudgetLayer>();
 
 /**
- * Append one journey's row to the job summary, starting the layer's table on
- * its first row. Does nothing outside Actions, where GITHUB_STEP_SUMMARY is
- * unset. Every journey of a layer runs in one test file, and so in one
- * process, so each layer gets one table.
+ * Append one journey's row to the summary file at `summaryPath`, starting the
+ * layer's table on its first row. Does nothing without a path, which is the
+ * case outside Actions. Every journey of a layer runs in one test file, and so
+ * in one process, so each layer gets one table.
+ *
+ * No default path: `undefined` means no summary, never the job's real one.
  */
 export function appendCallBudgetSummary(
   journey: string,
   layer: CallBudgetLayer,
   budget: JourneyBudget,
-  summaryPath: string | undefined = process.env.GITHUB_STEP_SUMMARY,
+  summaryPath: string | undefined,
 ): boolean {
   if (summaryPath === undefined || summaryPath === "") return false;
   const committed = committedBudgets()[journey];
@@ -161,7 +163,7 @@ export function emitCallBudget(
   layer: CallBudgetLayer,
   budget: JourneyBudget,
 ): void {
-  appendCallBudgetSummary(journey, layer, budget);
+  appendCallBudgetSummary(journey, layer, budget, process.env.GITHUB_STEP_SUMMARY);
   process.stdout.write(
     `${CALL_BUDGET_PREFIX}${JSON.stringify({
       schema: "loonext.call-budget.v1",

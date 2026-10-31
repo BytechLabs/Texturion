@@ -2,11 +2,11 @@
  * The call-journey budget on the Actions job summary: one table per layer,
  * one row per journey, and a moved number visible beside the committed one.
  */
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   appendCallBudgetSummary,
@@ -25,13 +25,17 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   rmSync(scratch, { recursive: true, force: true });
 });
 
 describe("the call budget job summary", () => {
-  it("writes nothing outside Actions", () => {
+  it("writes nothing without a path, even inside Actions", () => {
+    // Actions sets this in every step, including the one running this test.
+    vi.stubEnv("GITHUB_STEP_SUMMARY", summary);
     expect(appendCallBudgetSummary("voicemail", "e2e", committedBudget("voicemail"), undefined)).toBe(false);
     expect(appendCallBudgetSummary("voicemail", "e2e", committedBudget("voicemail"), "")).toBe(false);
+    expect(existsSync(summary)).toBe(false);
   });
 
   it("starts one table per layer and adds a row per journey", () => {
