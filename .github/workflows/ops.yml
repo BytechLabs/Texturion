@@ -23,8 +23,9 @@ name: Ops
 # --target production and hand the login back encrypted.
 #
 # THE LOG IS PUBLIC. The project's host and ref are masked before anything
-# prints them, inputs reach the shell as environment variables and never as
-# interpolated script, and a note should say why without naming anyone.
+# prints them, the flag's existing note is withheld, inputs reach the shell as
+# environment variables and never as interpolated script, and a new note
+# should say why without naming anyone.
 #
 # MAIN ONLY. The production-ops environment's deployment-branch rule is the
 # control: a dispatch from another branch runs that branch's copy of this
@@ -101,8 +102,54 @@ jobs:
           echo "::add-mask::$host"
           echo "::add-mask::${host%%.*}"
 
+      # set-flag.mjs reads any argument starting with "--" as its own flag, so
+      # a key or note of "--apply" or "--list" would write with apply unticked
+      # or print every workspace's override.
+      - name: Check the inputs
+        env:
+          FLAG_KEY: ${{ inputs.key }}
+          FLAG_STATE: ${{ inputs.state }}
+          FLAG_NOTE: ${{ inputs.note }}
+        run: |
+          case "$FLAG_KEY" in
+            [a-z]*) ;;
+            *)
+              echo "key starts with a lowercase letter" >&2
+              exit 1
+              ;;
+          esac
+          case "$FLAG_KEY" in
+            *[!a-z0-9:_-]*)
+              echo "key takes lowercase letters, digits, ':', '_' and '-' only" >&2
+              exit 1
+              ;;
+          esac
+          if ! grep -qF "  \"$FLAG_KEY\": {" apps/api/src/flags/registry.ts; then
+            echo "key is not one apps/api/src/flags/registry.ts declares" >&2
+            exit 1
+          fi
+          case "$FLAG_STATE" in
+            on | off) ;;
+            *)
+              echo "state is on or off" >&2
+              exit 1
+              ;;
+          esac
+          case "$FLAG_NOTE" in
+            -*)
+              echo "note must not start with '-', which set-flag.mjs would read as a flag" >&2
+              exit 1
+              ;;
+          esac
+
       # No install: set-flag.mjs uses fetch and nothing else.
+      #
+      # The current note was written for the table, not this public log: the
+      # "Flag now" row prints only up to it, and nothing more until the LAST
+      # "Flag after" header, since a note can hold a line that looks like one.
+      # shell: bash adds pipefail, so set-flag's failure still fails the step.
       - name: Set the flag
+        shell: bash
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -111,20 +158,21 @@ jobs:
           FLAG_NOTE: ${{ inputs.note }}
           FLAG_APPLY: ${{ inputs.apply }}
         run: |
-          case "$FLAG_KEY" in
-            "" | *[!a-z0-9:_-]*)
-              echo "key takes lowercase letters, digits, ':', '_' and '-' only" >&2
-              exit 1
-              ;;
-          esac
-          case "$FLAG_STATE" in
-            on | off) ;;
-            *)
-              echo "state is on or off" >&2
-              exit 1
-              ;;
-          esac
           set -- --key "$FLAG_KEY" "--$FLAG_STATE"
           if [ -n "$FLAG_NOTE" ]; then set -- "$@" --note "$FLAG_NOTE"; fi
           if [ "$FLAG_APPLY" = "true" ]; then set -- "$@" --apply; fi
-          node scripts/ops/set-flag.mjs "$@"
+          node scripts/ops/set-flag.mjs "$@" | awk '
+            { line[NR] = $0 }
+            /^  Flag now \(/ { if (!now) now = NR }
+            /^  Flag after \(/ { after = NR }
+            END {
+              last = (now && after > now) ? after - 1 : NR
+              for (i = 1; i <= NR; i++) {
+                if (!now || i <= now || i > last) { print line[i]; continue }
+                if (i == now + 1) {
+                  at = index(line[i], "  note=")
+                  print (at > 0 ? substr(line[i], 1, at - 1) "  note=(withheld from this public log)" : line[i])
+                  print ""
+                }
+              }
+            }'
