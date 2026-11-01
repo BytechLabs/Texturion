@@ -57,9 +57,14 @@ const OUTBOUND_LEGS_SQL = `(select l.created_at as at
        from ops_diag.call_sessions c
       where c.direction = 'outbound' and c.started_at >= now() - interval '${WINDOW_HISTORY_DAYS} days')`;
 
-const peakLegsIn = (unit: "hour" | "day") => `(select coalesce(max(p.legs), 0)::int
-     from (select count(*) as legs from ${OUTBOUND_LEGS_SQL} o
-            group by date_trunc('${unit}', o.at at time zone 'UTC')) p)`;
+/**
+ * The most legs in any hour or day ending at a leg, not in one UTC bucket: a
+ * burst across a bucket's edge would count about half there, and Telnyx's
+ * hour and day may be rolling.
+ */
+const peakLegsIn = (span: "1 hour" | "1 day") => `(select coalesce(max(p.legs), 0)::int
+     from (select count(*) over (order by o.at range between interval '${span}' preceding and current row) as legs
+             from ${OUTBOUND_LEGS_SQL} o) p)`;
 
 export const PRODUCTION_SQL = `select json_build_object(
   'numbers', (select count(*)::int from ops_diag.ring_audience_sizes),
@@ -72,8 +77,8 @@ export const PRODUCTION_SQL = `select json_build_object(
                                  where v.hour >= now() - interval '${WINDOW_HISTORY_DAYS} days'
                                  group by 1) c on c.h = g.h),
   'peak_concurrent_calls', ${PEAK_CONCURRENT_SQL},
-  'peak_hour_dials', ${peakLegsIn("hour")},
-  'peak_day_dials', ${peakLegsIn("day")}
+  'peak_hour_dials', ${peakLegsIn("1 hour")},
+  'peak_day_dials', ${peakLegsIn("1 day")}
 );`;
 
 export interface ProductionRead {
@@ -84,7 +89,7 @@ export interface ProductionRead {
   hourly_calls: number[];
   /** The most answered production calls up at once over the history. */
   peak_concurrent_calls: number;
-  /** The most outbound legs production opened in one UTC hour, and in one UTC day. */
+  /** The most outbound legs production opened in any 60 minutes, and in any 24 hours. */
   peak_hour_dials: number;
   peak_day_dials: number;
 }

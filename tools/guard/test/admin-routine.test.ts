@@ -292,7 +292,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
     }
   });
 
-  it("count overlapping answered calls with a sweep, and every outbound leg by UTC hour and day", () => {
+  it("count overlapping answered calls with a sweep, and every outbound leg over a rolling hour and day", () => {
     expect(PRODUCTION_SQL).toContain("'peak_concurrent_calls'");
     expect(PRODUCTION_SQL).toMatch(/c\.answered_at as at, 1 as delta/);
     expect(PRODUCTION_SQL).toMatch(/select c\.ended_at, -1/);
@@ -301,8 +301,9 @@ describe("the daily measurements, read from production as agent_diag", () => {
     expect(PRODUCTION_SQL).toContain("order by e.at, e.delta");
     expect(PRODUCTION_SQL).toMatch(/from ops_diag\.call_legs l/);
     expect(PRODUCTION_SQL).toMatch(/c\.direction = 'outbound'/);
-    expect(PRODUCTION_SQL).toContain("date_trunc('hour', o.at at time zone 'UTC')");
-    expect(PRODUCTION_SQL).toContain("date_trunc('day', o.at at time zone 'UTC')");
+    expect(PRODUCTION_SQL).toContain("count(*) over (order by o.at range between interval '1 hour' preceding and current row)");
+    expect(PRODUCTION_SQL).toContain("count(*) over (order by o.at range between interval '1 day' preceding and current row)");
+    expect(PRODUCTION_SQL).not.toContain("date_trunc");
   });
 
   it("file the call peaks from the read alone: no typed input reaches them", async () => {
