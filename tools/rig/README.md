@@ -60,11 +60,15 @@ node $RIG_HOME/tooling/tools/rig/bin/rig.mjs deploy --ref main
 node $RIG_HOME/tooling/tools/rig/bin/rig.mjs health
 ```
 
-The Android SDK in the VM is only for `rig apk`, which builds the nonprod APK;
-the emulators run from the Windows SDK. Each SDK's first licence acceptance
-is the founder's (FA15), because it is an agreement: an agent installs the
-command-line tools under `~/android-sdk` and sets `ANDROID_HOME` in
-`~/.profile`, and the founder runs `sdkmanager --licenses`.
+The JDK and Android SDK in the VM are only for `rig apk`, which builds the
+nonprod APK; the emulators run from the Windows SDK. `bootstrap.sh` runs
+`box/android-toolchain.sh`, which installs the Temurin JDK under `~/jdk` and
+the command-line tools and packages under `~/android-sdk`, each at the
+version and checksum pinned in `box/android-toolchain.json` (moving a pin
+means a new licence, FA15). The packages wait for the licences, because
+accepting them is the founder's agreement: once it is given, run
+`bash tools/rig/box/android-toolchain.sh --accept-licences`. `rig apk` finds
+`~/jdk` and `~/android-sdk` itself when its environment names neither.
 
 ## The secret store
 

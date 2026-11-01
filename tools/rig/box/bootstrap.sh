@@ -41,7 +41,7 @@ step "clock and packages"
 timedatectl set-timezone UTC
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  ca-certificates curl git gnupg openssl jq xz-utils \
+  ca-certificates curl git gnupg openssl jq unzip xz-utils \
   docker.io caddy dnsmasq nftables openssh-server unattended-upgrades
 
 step "firewall and sshd: only the workstation opens connections in"
@@ -183,6 +183,9 @@ fi
 git -C "$home/tooling" fetch --tags --prune origin
 git -C "$home/tooling" checkout --detach origin/main
 (cd "$home/tooling" && pnpm install --frozen-lockfile)
+# The JDK and Android SDK for `rig apk`. The SDK packages wait for FA15's
+# licence acceptance (android-toolchain.sh --accept-licences).
+bash "$home/tooling/tools/rig/box/android-toolchain.sh"
 units="$home/tooling/tools/rig/box/systemd/user"
 mkdir -p "$HOME/.config/systemd/user"
 cp "$units"/*.service "$units"/*.timer "$HOME/.config/systemd/user/"

@@ -21,6 +21,7 @@ import {
   nonprodGradleEnv,
   placeApk,
   PREVIOUS_APK,
+  toolchainEnv,
 } from "../src/apk.mjs";
 import { run } from "../src/exec.mjs";
 import { DEFAULT_SETTINGS, TOOLING_ROOT } from "../src/layout.mjs";
@@ -216,6 +217,16 @@ test("keytool is the JDK's that JAVA_HOME names, else the one on the PATH", () =
   const jdk = join(tmpdir(), "jdk-21");
   assert.equal(keytoolCommand({ JAVA_HOME: jdk }), join(jdk, "bin", process.platform === "win32" ? "keytool.exe" : "keytool"));
   assert.equal(keytoolCommand({}), "keytool");
+});
+
+test("the toolchain is found under the rig account's home unless the environment names one", () => {
+  const exists = (path) => [join("/home/rig", "jdk"), join("/home/rig", "android-sdk")].includes(path);
+  assert.deepEqual(toolchainEnv({ env: {}, home: "/home/rig", exists }), {
+    JAVA_HOME: join("/home/rig", "jdk"),
+    ANDROID_HOME: join("/home/rig", "android-sdk"),
+  });
+  assert.deepEqual(toolchainEnv({ env: { JAVA_HOME: "/opt/jdk", ANDROID_HOME: "/opt/sdk" }, home: "/home/rig", exists }), {});
+  assert.deepEqual(toolchainEnv({ env: {}, home: "/home/rig", exists: () => false }), {});
 });
 
 test("a store that cannot take the passwords keeps no keystore either", () => {

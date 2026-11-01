@@ -23,6 +23,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { inflateRawSync } from "node:zlib";
 
@@ -178,8 +179,21 @@ const CURRENT_RECORD = "current.json";
 /** keytool reads the password from here, so it is on no command line. */
 const PASSWORD_VARIABLE = "RIG_NONPROD_KEYSTORE_PASSWORD";
 
+/**
+ * Where tools/rig/box/android-toolchain.sh installs the JDK and the SDK, under
+ * the rig account's home. A systemd unit or a plain ssh command has no login
+ * profile, so the build looks here when its environment names neither.
+ */
+export function toolchainEnv({ env = process.env, home = homedir(), exists = existsSync } = {}) {
+  const found = {};
+  for (const [variable, dir] of [["JAVA_HOME", "jdk"], ["ANDROID_HOME", "android-sdk"]]) {
+    if (!env[variable] && exists(join(home, dir))) found[variable] = join(home, dir);
+  }
+  return found;
+}
+
 /** The box's JDK, the one Gradle builds with: JAVA_HOME's, else whichever is on the PATH. */
-export function keytoolCommand(env = process.env) {
+export function keytoolCommand(env = { ...process.env, ...toolchainEnv() }) {
   return env.JAVA_HOME ? join(env.JAVA_HOME, "bin", process.platform === "win32" ? "keytool.exe" : "keytool") : "keytool";
 }
 
@@ -321,7 +335,7 @@ export function buildNonprodApk({ root, settings, store, publishableKey, variant
   run(gradlew, [`:app:${task}`, "--no-daemon", "--console=plain"], {
     cwd: android,
     inherit: true,
-    env: nonprodGradleEnv({ settings, publishableKey, keystorePath, keystore }),
+    env: { ...toolchainEnv(), ...nonprodGradleEnv({ settings, publishableKey, keystorePath, keystore }) },
   });
 
   const outputs = join(android, "app", "build", "outputs", "apk", variant);
