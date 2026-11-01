@@ -6,11 +6,15 @@
  *
  * Expected:
  *   - a refusal's `fingerprints` (a job that fails, then its liveness alert);
+ *   - a skip's `fingerprints` (the liveness keys a cron the rig never fires
+ *     raises);
  *   - an `expected_events` or `follow_on_events` match;
  *   - a captured refusal: a TelnyxApiError event whose message carries
  *     `refusal_match.message_contains` and one of that refusal's paths;
- *   - a cron's AggregateError whose every inner exception is a job-fails
- *     refusal listed for that cron.
+ *   - a cron's failure (its AggregateError outermost, which Sentry lists
+ *     last) whose every exception but the AggregateErrors is a job-fails
+ *     refusal listed for that cron, provided Sentry read inside every
+ *     AggregateError in it.
  * Defects: a `defects` match, reported with its `means`, never suppressed.
  *
  * A `match` is the registry's short English, read clause by clause:
@@ -23,6 +27,16 @@
 import type { Explanation, SeenEvent } from "./sentry-relay.ts";
 
 export const CRONS_SCHEMA = "loonext.rig-crons.v1";
+
+/**
+ * Sentry's linked-errors walk (@sentry/core aggregate-errors.js, default
+ * limit 5, which the API keeps) puts each exception it finds in front of the
+ * last, so the outermost comes last, and stops reading inside exceptions once
+ * six are listed while still listing the siblings it is looping over. Of n
+ * exceptions, the first n - 5 are unread inside: an AggregateError there may
+ * hold a failure that never reached Sentry.
+ */
+const SENTRY_WALKED = 5;
 
 type Clause =
   | { kind: "fingerprint"; parts: string[] }
@@ -144,8 +158,20 @@ export function cronExplainer(registryText: string | undefined): CronExplainer {
     return parsed;
   };
 
+  const expectFingerprints = (list: unknown) => {
+    for (const fingerprint of Array.isArray(list) ? list : []) {
+      if (Array.isArray(fingerprint) && fingerprint.every((part) => typeof part === "string")) {
+        expected.push(matcher([{ kind: "fingerprint", parts: fingerprint as string[] }]));
+      }
+    }
+  };
+
   for (const raw of registry.crons as Record<string, unknown>[]) {
     const cron = typeof raw?.cron === "string" ? raw.cron : "";
+    // A skipped API cron never runs here, so its liveness keys alert.
+    // scripts/check-rig-crons.mjs refuses fingerprints on any other Worker's
+    // skip, where they could only hide what the API itself raises.
+    if (raw?.class === "skip") expectFingerprints(raw.fingerprints);
     for (const event of asList(raw?.expected_events)) {
       const match = read(event.match);
       if (match) expected.push(match);
@@ -156,11 +182,7 @@ export function cronExplainer(registryText: string | undefined): CronExplainer {
     }
     for (const refusal of asList(raw?.refusals) as (Partial<Refusal> & Record<string, unknown>)[]) {
       const paths = Array.isArray(refusal.telnyx_paths) ? refusal.telnyx_paths.filter((p): p is string => typeof p === "string") : [];
-      for (const fingerprint of Array.isArray(refusal.fingerprints) ? refusal.fingerprints : []) {
-        if (Array.isArray(fingerprint) && fingerprint.every((part) => typeof part === "string")) {
-          expected.push(matcher([{ kind: "fingerprint", parts: fingerprint as string[] }]));
-        }
-      }
+      expectFingerprints(refusal.fingerprints);
       for (const followOn of asList(refusal.follow_on_events)) {
         const match = read(followOn.match);
         if (match) expected.push(match);
@@ -184,12 +206,23 @@ export function cronExplainer(registryText: string | undefined): CronExplainer {
       if (expected.some((match) => match(event))) return { kind: "expected" };
       const exceptions = event.exceptions ?? [];
       if (exceptions.length === 1 && captured.some((paths) => isRefusal(exceptions[0]!, paths))) return { kind: "expected" };
-      const aggregate = exceptions.find((exception) => exception.type === "AggregateError");
-      if (aggregate) {
-        const cron = /^cron "([^"]+)"/.exec(aggregate.value)?.[1];
-        const paths = cron === undefined ? undefined : jobFails.get(cron);
-        const inner = exceptions.filter((exception) => exception !== aggregate);
-        if (paths && inner.length > 0 && inner.every((exception) => isRefusal(exception, paths))) return { kind: "expected" };
+      const root = exceptions.at(-1);
+      const cron = root?.type === "AggregateError" ? /^cron "([^"]+)"/.exec(root.value)?.[1] : undefined;
+      const paths = cron === undefined ? undefined : jobFails.get(cron);
+      if (paths) {
+        // A job that collects its failures (poll-registrations, poll-port-requests,
+        // grace-and-release) adds an AggregateError of its own between the cron's
+        // and the refusal, so every exception that is not an AggregateError is a
+        // failure the cron reported.
+        const leaves = exceptions.filter((exception) => exception.type !== "AggregateError");
+        const unwalked = exceptions.slice(0, Math.max(0, exceptions.length - SENTRY_WALKED));
+        if (
+          leaves.length > 0 &&
+          leaves.every((exception) => isRefusal(exception, paths)) &&
+          !unwalked.some((exception) => exception.type === "AggregateError")
+        ) {
+          return { kind: "expected" };
+        }
       }
       return undefined;
     },
