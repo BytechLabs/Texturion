@@ -13,7 +13,7 @@
  *   state/guard-attest.json  { at, outcome, ... }, every hour (guard-attest.ts)
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, readFileSync, unwatchFile, watchFile } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,7 +25,7 @@ import { DEPLOY_HOLD_FILE, readDeployHold } from "../../src/deploy-hold.mjs";
 import { installSchedule, userUnitDir, type Systemctl } from "./install.ts";
 import { loadRegistry } from "./registry.ts";
 import { telnyxPublicKey } from "./late.ts";
-import { LeaseWatchdog } from "./lease.ts";
+import { LeaseWatchdog, type LeaseClient } from "./lease.ts";
 import { Mailbox } from "./mail.ts";
 import { mediaRelay } from "./media.ts";
 import { isRobotRole, localSupabase, publishState, robotLocalToken } from "@loonext/rig-robot";
@@ -44,6 +44,7 @@ import { buildRig, suiteMarker, type Rig } from "./wiring.ts";
 const CLI = fileURLToPath(new URL("./cli.ts", import.meta.url));
 const HEARTBEAT_MS = 60_000;
 const RELAY_REPORT_MS = 5 * 60_000;
+const VERDICT_POLL_MS = 10_000;
 const SECRET_REFRESH_MS = 6 * 60 * 60_000;
 const SCHEDULE_REFRESH_MS = 60 * 60_000;
 const ATTEST_MS = 60 * 60_000;
@@ -191,12 +192,24 @@ export function forwardTargets(rig: Pick<Rig, "config" | "numbers" | "faults" | 
   };
 }
 
-/** How the relay's report explains a local API event: the cron registry first, then a G01 attempt's refusals. */
+/**
+ * How the relay's report explains a local API event: the cron registry first,
+ * then a G01 attempt's refusals. An attempt still holding its lease counts from
+ * when it took it, so its refusals are expected before its verdict is written.
+ */
 export function relayExplain(
   explainer: CronExplainer | undefined,
   verdicts: Pick<VerdictStore, "all">,
+  leases: Pick<LeaseClient, "open">,
+  now: number,
 ): (event: SeenEvent) => Explanation | undefined {
-  const g01 = verdicts.all().filter((v) => v.scenario === "G01");
+  const g01 = [
+    ...verdicts.all().filter((v) => v.scenario === "G01"),
+    ...leases
+      .open()
+      .filter((entry) => entry.scenario === "G01")
+      .map((entry) => ({ started_at: new Date(entry.acquired_at).toISOString(), finished_at: new Date(now).toISOString() })),
+  ];
   return (event) => explainer?.explain(event) ?? (g01Refusal(event, g01) ? { kind: "expected" } : undefined);
 }
 
@@ -284,10 +297,12 @@ export function startDaemon(config: RigdConfig): Daemon {
       } catch (error) {
         log(`crons.json unreadable, so nothing is explained: ${error instanceof Error ? error.message : "error"}`);
       }
-      publishState(home, "sentry-relay.json", relay.report(relayExplain(explainer, rig.verdicts)));
+      publishState(home, "sentry-relay.json", relay.report(relayExplain(explainer, rig.verdicts, rig.leases, Date.now())));
     };
     report();
     every(RELAY_REPORT_MS, report);
+    // A G01 attempt's lease is gone a moment before its verdict lands; report again once it does.
+    watchFile(rig.verdicts.file, { interval: VERDICT_POLL_MS }, report).unref();
   } else {
     log("no sentry-dsn-synthetic or sentry-dsn-rig in the store; the Sentry relay is off");
   }
@@ -340,6 +355,7 @@ export function startDaemon(config: RigdConfig): Daemon {
       uplink.stop();
       watchdog.stop();
       relayServer?.close();
+      unwatchFile(rig.verdicts.file);
       publishState(home, "uplink.json", { connected: false, at: new Date().toISOString() });
     },
   };

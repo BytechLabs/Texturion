@@ -90,6 +90,18 @@ export class LeaseClient {
     return this.#dir;
   }
 
+  /** The journals of leases still held: taken, and neither released nor reaped. */
+  open(): JournalEntry[] {
+    return readdirSync(this.#dir).flatMap((name) => {
+      if (!/^[^.]+\.json$/.test(name)) return [];
+      try {
+        return [JSON.parse(readFileSync(join(this.#dir, name), "utf8")) as JournalEntry];
+      } catch {
+        return [];
+      }
+    });
+  }
+
   async acquire(scenario: string): Promise<Lease> {
     const response = await this.#fetch(this.#url(), {
       method: "POST",

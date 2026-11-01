@@ -107,6 +107,14 @@ describe("the run lease", () => {
     expect(undone).toEqual(["sms START"]);
     expect(requests).toEqual([]);
   });
+
+  it("lists the leases still held, and none once released", async () => {
+    const { client } = setup();
+    const lease = client.acquireLocal("G01");
+    expect(client.open().map((entry) => entry.scenario)).toEqual(["G01"]);
+    await lease.release();
+    expect(client.open()).toEqual([]);
+  });
 });
 
 describe("releasing at the guard", () => {

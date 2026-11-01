@@ -63,6 +63,10 @@ export class VerdictStore {
     this.#evidenceDir = join(dir, "evidence");
   }
 
+  get file(): string {
+    return this.#file;
+  }
+
   record(verdict: Verdict): Verdict {
     if (!SHA.test(verdict.sha)) throw new Error(`verdicts: "${verdict.sha}" is not a git SHA; every verdict names the code it judged`);
     if (!(OUTCOMES as readonly string[]).includes(verdict.outcome)) throw new Error(`verdicts: unknown outcome ${verdict.outcome}`);
