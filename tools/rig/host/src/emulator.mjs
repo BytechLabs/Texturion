@@ -242,8 +242,9 @@ export function createDevices({
   );
 
   const bootCompleted = async (device) => {
-    const result = await exec(adb, bootCompletedArgs(adbPort, serialOf(device)), { env: adbEnv(adbPort, env) });
-    return result.code === 0 && result.stdout.trim() === "1";
+    // A missing adb rejects; that is not booted, and must not crash hostd.
+    const result = await exec(adb, bootCompletedArgs(adbPort, serialOf(device)), { env: adbEnv(adbPort, env) }).catch(() => null);
+    return result?.code === 0 && result.stdout.trim() === "1";
   };
 
   const settle = (entry) => {

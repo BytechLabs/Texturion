@@ -31,7 +31,7 @@ test("the VM's host key is the one the host pinned, and no other is generated", 
   assert.equal(JSON.parse(valueOf("ed25519_private")), HOST_PRIVATE.replace(/\r\n/g, "\n"));
   assert.equal(JSON.parse(valueOf("ed25519_public")), HOST_PUBLIC);
   assert.ok(lines.includes("ssh_deletekeys: true"));
-  assert.ok(lines.includes("ssh_genkeytypes: []"));
+  assert.ok(lines.includes("ssh_genkeytypes: [ed25519]"));
 });
 
 test("the state disk is formatted once and mounted at the secrets directory", () => {
@@ -78,4 +78,9 @@ test("meta-data gives the VM its static address on VMnet8, the gateway as DNS, a
 test("guestinfo carries both documents gzip+base64", () => {
   assert.equal(gunzipSync(Buffer.from(encode(user), "base64")).toString("utf8"), user);
   assert.match(encode(user), /^[A-Za-z0-9+/]+=*$/);
+});
+
+test("the hostname is in /etc/hosts, since dnsmasq answers no local names", () => {
+  assert.ok(lines.includes("hostname: loonext-rig"));
+  assert.ok(lines.includes("manage_etc_hosts: localhost"));
 });

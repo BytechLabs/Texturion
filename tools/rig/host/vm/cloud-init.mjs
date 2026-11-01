@@ -31,6 +31,8 @@ export function userData({ clientPublicKey, hostPrivateKey, hostPublicKey, ref }
   const lines = [
     "#cloud-config",
     "hostname: loonext-rig",
+    // dnsmasq answers no local names, so sudo resolves the hostname from here.
+    "manage_etc_hosts: localhost",
     "users:",
     "  - name: rig",
     "    lock_passwd: true",
@@ -43,7 +45,8 @@ export function userData({ clientPublicKey, hostPrivateKey, hostPublicKey, ref }
     "ssh_pwauth: false",
     "disable_root: true",
     "ssh_deletekeys: true",
-    "ssh_genkeytypes: []",
+    // Schema-valid (an empty list is not); a supplied key is never regenerated.
+    "ssh_genkeytypes: [ed25519]",
     "ssh_keys:",
     `  ed25519_private: ${q(hostPrivateKey.replace(/\r\n/g, "\n"))}`,
     `  ed25519_public: ${q(hostPublicKey.trim())}`,

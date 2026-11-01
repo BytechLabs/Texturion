@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { checksumFor, scrubUserdata, setIniKeys, signedBy, UBUNTU_IMAGE_SIGNER } from "../vm/create.mjs";
+import { checksumFor, msysPath, scrubUserdata, setIniKeys, signedBy, UBUNTU_IMAGE_SIGNER } from "../vm/create.mjs";
 import { MARKER } from "../src/vmrun.mjs";
 import { MARKER_LINE, parseVmx, vmxText, withoutUserdata } from "../vm/vmx.mjs";
 
@@ -20,6 +20,14 @@ test("the hardware: 8 vCPUs, 24 GB, pvscsi, hardware version 21, Ubuntu", () => 
   assert.equal(vmx.memsize, "24576");
   assert.equal(vmx["scsi0.virtualDev"], "pvscsi");
   assert.equal(vmx["scsi0:0.fileName"], "loonext-rig.vmdk");
+});
+
+test("PCIe root ports, so the pvscsi and vmxnet3 cards get a slot", () => {
+  assert.equal(vmx["pciBridge0.present"], "TRUE");
+  for (const n of [4, 5, 6, 7]) {
+    assert.equal(vmx[`pciBridge${n}.virtualDev`], "pcieRootPort");
+    assert.equal(vmx[`pciBridge${n}.functions`], "8");
+  }
 });
 
 test("the state disk sits outside every snapshot", () => {
@@ -105,4 +113,10 @@ test("user-data leaves the .vmx and every log that quotes it, whole or cut short
   assert.match(readFileSync(join(dir, "vmware.log"), "utf8"), /guestinfo\.userdata = "\[user-data removed\]"/);
   assert.match(readFileSync(vmxPath, "utf8"), /guestinfo\.metadata/);
   assert.deepEqual(scrubUserdata(dir, vmxPath, userdata), [], "a second pass finds nothing");
+});
+
+test("gpg's home is given in the /f/... form Git's gpg reads as absolute", () => {
+  assert.equal(msysPath(String.raw`F:\loonext-rig\dl\gnupg`), "/f/loonext-rig/dl/gnupg");
+  assert.equal(msysPath("c:/x"), "/c/x");
+  assert.equal(msysPath("/f/already"), "/f/already");
 });

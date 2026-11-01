@@ -39,6 +39,7 @@ export const CMDLINE_TOOLS = {
   sha256: "90ae805d20434428bffcb699c290860f19bb5f66a67e6b330067e3de801fb04a",
 };
 const GPG = "C:\\Program Files\\Git\\usr\\bin\\gpg.exe";
+const GPGCONF = "C:\\Program Files\\Git\\usr\\bin\\gpgconf.exe";
 const TAR = "C:\\Windows\\System32\\tar.exe";
 const VDISK = join(VMWARE_DIR, "vmware-vdiskmanager.exe");
 const VMCLI = join(VMWARE_DIR, "vmcli.exe");
@@ -152,13 +153,28 @@ async function sha256File(path) {
 const slashed = (path) => path.replace(/\\/g, "/");
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
+/**
+ * Git's gpg is an MSYS program: it reads a drive path in an argument, but
+ * takes GNUPGHOME as relative unless it is in /f/... form.
+ */
+export function msysPath(path) {
+  const drive = /^([A-Za-z]):[\\/]?(.*)$/.exec(path);
+  return drive ? `/${drive[1].toLowerCase()}/${slashed(drive[2])}` : slashed(path);
+}
+
 async function verifyImage(dl) {
   const gnupg = join(dl, "gnupg");
   rmSync(gnupg, { recursive: true, force: true });
   mkdirSync(gnupg, { recursive: true });
-  const env = { ...process.env, GNUPGHOME: slashed(gnupg) };
-  await must(GPG, ["--batch", "--keyserver", KEYSERVER, "--recv-keys", UBUNTU_IMAGE_SIGNER], { env });
-  const verify = await run(GPG, ["--batch", "--status-fd", "1", "--verify", slashed(join(dl, "SHA256SUMS.gpg")), slashed(join(dl, "SHA256SUMS"))], { env, quiet: true });
+  const env = { ...process.env, GNUPGHOME: msysPath(gnupg) };
+  let verify;
+  try {
+    await must(GPG, ["--batch", "--keyserver", KEYSERVER, "--recv-keys", UBUNTU_IMAGE_SIGNER], { env });
+    verify = await run(GPG, ["--batch", "--status-fd", "1", "--verify", slashed(join(dl, "SHA256SUMS.gpg")), slashed(join(dl, "SHA256SUMS"))], { env, quiet: true });
+  } finally {
+    // recv-keys leaves dirmngr and gpg-agent running in the download folder.
+    await run(GPGCONF, ["--kill", "all"], { env, quiet: true }).catch(() => {});
+  }
   if (verify.code !== 0 || !signedBy(verify.stdout, UBUNTU_IMAGE_SIGNER)) {
     throw new Error(`SHA256SUMS is not signed by ${UBUNTU_IMAGE_SIGNER}`);
   }
@@ -174,6 +190,20 @@ function assertVmnet8(contract) {
   if (!addresses.includes(contract.vm.host)) {
     throw new Error(`no host adapter has ${contract.vm.host}; VMnet8's NAT subnet is not the contract's 192.168.70.0/24`);
   }
+}
+
+/**
+ * Polls without -wait: on the first boot `getGuestIPAddress -wait` fails with
+ * "not powered on", and the guest's tools may never report an address. SSH
+ * is what proves the VM is up.
+ */
+async function runningUntil(vm, { tries = 90 } = {}) {
+  for (let attempt = 0; attempt < tries; attempt += 1) {
+    const status = await vm.status();
+    if (status.state === "running") return status.address ?? "not reported by the guest's tools";
+    await sleep(10_000);
+  }
+  throw new Error("the VM never reported that it is running");
 }
 
 async function sshUntil(contract, paths, command, { tries = 90 } = {}) {
@@ -233,7 +263,7 @@ async function createVm({ contract, root, paths, ref }) {
     await vm.start();
 
     step(9, "wait for the address, then for cloud-init and bootstrap.sh");
-    console.log(`guest address: ${await vm.guestIp()}`);
+    console.log(`guest address: ${await runningUntil(vm)}`);
     const status = await sshUntil(contract, paths, "cloud-init status --wait --long");
     console.log(status.stdout);
     const cloudId = (await sshUntil(contract, paths, "cloud-id")).stdout.trim();
@@ -256,12 +286,14 @@ async function installSdk({ contract, sdk, paths }) {
     await download(CMDLINE_TOOLS.url, zip);
     const actual = await sha256File(zip);
     if (actual !== CMDLINE_TOOLS.sha256) throw new Error(`the command-line tools are ${actual}, Google publishes ${CMDLINE_TOOLS.sha256}`);
-    const unpack = join(paths.dl, "cmdline-tools-unpack");
+    // On the SDK's own drive: the rename below cannot cross drives.
+    const unpack = join(sdk, "cmdline-tools-unpack");
     rmSync(unpack, { recursive: true, force: true });
     mkdirSync(unpack, { recursive: true });
     await must(TAR, ["-xf", zip, "-C", unpack]);
     mkdirSync(join(sdk, "cmdline-tools"), { recursive: true });
     renameSync(join(unpack, "cmdline-tools"), join(sdk, "cmdline-tools", "latest"));
+    rmSync(unpack, { recursive: true, force: true });
   }
   if (!existsSync(join(sdk, "licenses", "android-sdk-license"))) {
     console.log(

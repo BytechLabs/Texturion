@@ -155,7 +155,7 @@ test("the console token is read from the rig's emulator home first", () => {
 /** createDevices with every side effect faked. */
 const QEMU = { image: "qemu-system-x86_64", startedMs: 500 };
 
-function fakeDevices({ bootAfter = 2, alive = new Set(), discover = () => null, processes = new Map(), removed = [] } = {}) {
+function fakeDevices({ bootAfter = 2, alive = new Set(), discover = () => null, processes = new Map(), removed = [], noSdk = false } = {}) {
   let clock = 0;
   const spawned = [];
   const killed = [];
@@ -168,9 +168,11 @@ function fakeDevices({ bootAfter = 2, alive = new Set(), discover = () => null, 
       const child = Object.assign(new EventEmitter(), { pid: 9000 + spawned.length });
       alive.add(child.pid);
       spawned.push({ file, args, options, child });
+      if (noSdk) queueMicrotask(() => child.emit("error", Object.assign(new Error("spawn"), { code: "ENOENT" })));
       return child;
     },
     exec: async (_file, args) => {
+      if (noSdk) throw Object.assign(new Error("spawn adb.exe ENOENT"), { code: "ENOENT" });
       const serial = args[args.indexOf("-s") + 1];
       const count = (polls.get(serial) ?? 0) + 1;
       polls.set(serial, count);
@@ -209,6 +211,11 @@ test("a boot answers once sys.boot_completed is 1, through the rig's adb server"
 test("a boot that never completes answers 504 after five minutes", async () => {
   const { devices } = fakeDevices({ bootAfter: Number.POSITIVE_INFINITY });
   assert.deepEqual(await devices.boot("emulator-34"), { status: 504, body: { error: "boot.timeout" } });
+});
+
+test("with no SDK installed, a boot answers 502 instead of throwing", async () => {
+  const { devices } = fakeDevices({ noSdk: true });
+  assert.deepEqual(await devices.boot("pixel"), { status: 502, body: { error: "emulator.exited" } });
 });
 
 test("max_booted devices at once, and a 409 past it", async () => {

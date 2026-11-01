@@ -59,6 +59,8 @@ systemctl enable nftables.service
 systemctl restart nftables.service
 nft list table inet loonext_rig >/dev/null
 install -m 0644 "$BOX/ssh/sshd-loonext-rig.conf" /etc/ssh/sshd_config.d/40-loonext-rig.conf
+# ssh is socket-activated, so on first boot nothing has made this yet.
+install -d -m 0755 /run/sshd
 sshd -t
 systemctl try-reload-or-restart ssh.service
 

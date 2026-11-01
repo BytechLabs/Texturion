@@ -61,6 +61,8 @@ export function parseStatus({ code, stdout, stderr }) {
   const out = `${stdout ?? ""}${stderr ?? ""}`.trim();
   if (code === 0 && /^\d{1,3}(\.\d{1,3}){3}$/.test(out)) return { state: "running", address: out };
   if (/not powered on/i.test(out)) return { state: "off", address: null };
+  // Powered on: on the rig VM, VIX never gets an address from open-vm-tools.
+  if (/tools are not running/i.test(out)) return { state: "running", address: null, detail: "the guest's tools report no address" };
   return { state: "unknown", address: null, detail: out.split(/\r?\n/).pop() ?? "" };
 }
 

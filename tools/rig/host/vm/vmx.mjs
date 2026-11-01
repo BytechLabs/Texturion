@@ -15,6 +15,14 @@ const FIXED = [
   ["guestOS", "ubuntu-64"],
   ["numvcpus", "8"],
   ["memsize", "24576"],
+  // Without PCIe root ports the pvscsi and vmxnet3 cards get no slot and
+  // power-on fails ("No PCIe slot available for SCSI0").
+  ["pciBridge0.present", "TRUE"],
+  ...[4, 5, 6, 7].flatMap((n) => [
+    [`pciBridge${n}.present`, "TRUE"],
+    [`pciBridge${n}.virtualDev`, "pcieRootPort"],
+    [`pciBridge${n}.functions`, "8"],
+  ]),
   ["scsi0.present", "TRUE"],
   ["scsi0.virtualDev", "pvscsi"],
   ["scsi0:0.present", "TRUE"],

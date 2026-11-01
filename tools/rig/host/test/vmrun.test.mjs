@@ -88,6 +88,9 @@ test("status comes from getGuestIPAddress without -wait", async () => {
   assert.deepEqual(parseStatus({ code: 0, stdout: "192.168.70.10\r\n" }), { state: "running", address: "192.168.70.10" });
   assert.deepEqual(parseStatus({ code: 255, stdout: "Error: The virtual machine is not powered on: F:\\x.vmx\n" }), { state: "off", address: null });
   assert.equal(parseStatus({ code: 255, stdout: "Error: something else" }).state, "unknown");
+  const toolsDown = parseStatus({ code: 255, stdout: "Error: The VMware Tools are not running in the virtual machine: F:\\x.vmx\n" });
+  assert.equal(toolsDown.state, "running");
+  assert.equal(toolsDown.address, null);
   const { root, vmx } = rigRoot();
   const calls = [];
   await vmControls({ vmx, root, exec: async (file, args) => (calls.push(args), { code: 0, stdout: "192.168.70.10" }) }).status();
