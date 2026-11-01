@@ -238,9 +238,12 @@ androidComponents {
             // all: no tasks, and no Firebase lookup for a package this checkout
             // has no config for.
             variantBuilder.enable = nonprodProperties != null
-            // AGP 9 creates unit tests for the tested build type (debug) only,
-            // and the rig runs them against both nonprod builds.
-            variantBuilder.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+            // AGP 9 creates unit tests for the tested build type (debug) only.
+            // nonprodDebug runs them as debug's twin; nonprod, like release,
+            // has no unit tests, because it lacks the activity Compose tests launch.
+            if (buildType == "nonprodDebug") {
+                variantBuilder.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+            }
         }
     }
 }
@@ -310,12 +313,10 @@ dependencies {
     // The empty, exported activity `createAndroidComposeRule` launches lives in
     // this artifact's manifest.
     debugImplementation(libs.compose.ui.test.manifest)
-    // The nonprod builds take it from their unit-test configurations, keeping it
-    // out of the APK the rig installs as release's twin. That suffices because
-    // Robolectric loads the unit test's own merged manifest, which takes in
-    // every manifest on the unit-test runtime classpath.
-    "testNonprodImplementation"(libs.compose.ui.test.manifest)
-    "testNonprodDebugImplementation"(libs.compose.ui.test.manifest)
+    // Robolectric resolves that activity from the app's merged manifest, so a
+    // unit-test configuration cannot supply it. nonprodDebug, the twin that runs
+    // the unit tests, carries it as debug does; nonprod, release's twin, does not.
+    "nonprodDebugImplementation"(libs.compose.ui.test.manifest)
 }
 
 // ---------------------------------------------------------------------------

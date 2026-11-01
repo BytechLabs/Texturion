@@ -56,8 +56,8 @@ class CallTestTagsTest {
 
     @Test
     fun `only the nonprod builds expose test tags`() {
-        // CI runs the debug variant, which shares production's defaults; the rig's
-        // `./gradlew test` also runs the nonprod variants, which must expose them.
+        // The debug variant shares production's defaults; nonprodDebug, which CI
+        // and the rig's `./gradlew test` also run, must expose them.
         val nonprod = BuildConfig.BUILD_TYPE.startsWith("nonprod")
         assertEquals(nonprod, BuildConfig.TEST_TAGS_AS_RESOURCE_IDS)
     }

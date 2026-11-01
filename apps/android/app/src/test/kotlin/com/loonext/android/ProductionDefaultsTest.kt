@@ -19,8 +19,8 @@ import org.junit.Test
  */
 class ProductionDefaultsTest {
 
-    // On the rig `./gradlew test` also runs the nonprod variants, whose values
-    // are the rig's on purpose.
+    // On the rig `./gradlew test` also runs nonprodDebug, whose values are the
+    // rig's on purpose.
     @Before
     fun storeBuildsOnly() {
         assumeFalse(BuildConfig.BUILD_TYPE.startsWith("nonprod"))
