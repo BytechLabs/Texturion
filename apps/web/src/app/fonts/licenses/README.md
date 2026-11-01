@@ -31,6 +31,12 @@ included. Do not hand-edit them.
 Subsetting is a modification the OFL permits, and it does not change the
 obligation — the license still ships, which is why the row above is unchanged.
 
+`BricolageGrotesque.woff2`, `HankenGrotesk.woff2` and `SplineSansMono.woff2`
+are Google Fonts' latin-subset files with their variation axes narrowed to the
+values the marketing CSS renders, made by `scripts/instance-marketing-fonts.mjs`
+from the untouched Google files in `scripts/fonts-src/marketing/` (#640). That
+is a modification of the same kind, under the same licenses.
+
 ## Not shipped
 
 `scripts/fonts-src/display-candidates/` and `mono-candidates/` hold Basteleur and

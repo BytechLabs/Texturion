@@ -20,6 +20,11 @@ import localFont from "next/font/local";
  * the same Google CSS the plugin was reading, with the `unicode-range` Google
  * publishes for that subset declared below so a browser skips the download for
  * text it cannot cover.
+ *
+ * #640: what ships is those files with their variation axes narrowed to the
+ * values the CSS renders, which draws the same pixels from 90 KiB instead of
+ * 198 KiB. The Google files are the sources, in scripts/fonts-src/marketing/,
+ * and scripts/instance-marketing-fonts.mjs rebuilds these from them.
  */
 
 /**
@@ -63,8 +68,9 @@ import localFont from "next/font/local";
 
 export const display = localFont({
   src: "../../app/fonts/BricolageGrotesque.woff2",
-  // The variable file carries opsz, wdth AND wght — the direction asks for the
-  // opsz and wdth axes, so a static instance would not do.
+  // The source carries opsz, wdth and wght. The shipped file keeps opsz whole
+  // and pins wght at 800 and wdth at 100, the only values the CSS asks for, so
+  // a weight below 800 draws at 800 until the script keeps a wider range.
   weight: "200 800",
   variable: "--font-display",
   display: "optional",
