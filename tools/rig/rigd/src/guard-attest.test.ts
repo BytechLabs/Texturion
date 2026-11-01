@@ -113,14 +113,28 @@ function storeWith(omit: string[] = []): SecretFiles {
   return store;
 }
 
+interface DeployStep {
+  status: "completed" | "in_progress";
+  conclusion: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
 interface RunSpec {
   id: number;
   sha: string;
   event: "push" | "workflow_dispatch" | "schedule";
   created_at: string;
   /** The Deploy step, or null when the job skipped it. */
-  deploy: { status: "completed" | "in_progress"; conclusion: string | null; started_at: string; completed_at: string | null } | null;
+  deploy: DeployStep | null;
+  /** The Deploy step of each attempt after the first, for a run that was re-run. */
+  reruns?: (DeployStep | null)[];
+  /** GitHub's last update of the run; by default when its last Deploy step ended. */
+  updated_at?: string;
 }
+
+const attemptsOf = (run: RunSpec) => [run.deploy, ...(run.reruns ?? [])];
+const runningNow = (run: RunSpec) => attemptsOf(run).some((step) => step?.status === "in_progress");
 
 /**
  * The live deployment and those it replaced, newest first, as Cloudflare
@@ -147,22 +161,37 @@ function serve(live: Record<string, unknown> | null, runs: RunSpec[], replaced: 
       const listed = runs
         .filter((run) => run.event === event)
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-        .map((run) => ({ id: run.id, head_sha: run.sha, head_branch: "main", event: run.event, created_at: run.created_at }));
+        .map((run) => ({
+          id: run.id,
+          head_sha: run.sha,
+          head_branch: "main",
+          event: run.event,
+          created_at: run.created_at,
+          status: runningNow(run) ? "in_progress" : "completed",
+          // A running run's last update can be long before its Deploy step started.
+          updated_at:
+            run.updated_at ??
+            (runningNow(run) ? run.created_at : attemptsOf(run).reduce((last, step) => (step?.completed_at && step.completed_at > last ? step.completed_at : last), run.created_at)),
+        }));
       return { status: 200, body: { total_count: listed.length, workflow_runs: listed } };
     }
     const jobs = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/(\d+)\/jobs$/.exec(url.pathname);
     if (jobs) {
       const run = runs.find((candidate) => candidate.id === Number(jobs[1]));
       if (!run) return undefined;
-      const steps = [
-        { name: "Deploy now?", status: "completed", conclusion: "success", started_at: run.created_at, completed_at: run.created_at },
-        run.deploy
-          ? { name: DEPLOY_STEP, ...run.deploy }
-          : { name: DEPLOY_STEP, status: "completed", conclusion: "skipped", started_at: run.created_at, completed_at: run.created_at },
-      ];
+      const deployJobs = attemptsOf(run).map((deploy, attempt) => ({
+        name: DEPLOY_JOB,
+        run_attempt: attempt + 1,
+        steps: [
+          { name: "Deploy now?", status: "completed", conclusion: "success", started_at: run.created_at, completed_at: run.created_at },
+          deploy
+            ? { name: DEPLOY_STEP, ...deploy }
+            : { name: DEPLOY_STEP, status: "completed", conclusion: "skipped", started_at: run.created_at, completed_at: run.created_at },
+        ],
+      }));
       return {
         status: 200,
-        body: { jobs: [{ name: "Guard policy tests", steps: [] }, { name: DEPLOY_JOB, steps }] },
+        body: { jobs: [{ name: "Guard policy tests", steps: [] }, ...deployJobs] },
       };
     }
     return undefined;
@@ -238,6 +267,70 @@ describe("the guard's version attestation", () => {
     expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_OTHER, run_id: 103 });
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z"), [...HISTORY, running, failed]);
     expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_OLD, run_id: 101 });
+  });
+
+  it("counts a Deploy step cancelled part way, and never one the job skipped", async () => {
+    const cancelled: RunSpec = {
+      id: 103,
+      sha: SHA_NEW,
+      event: "push",
+      created_at: "2026-10-31T10:00:00.000Z",
+      deploy: { status: "completed", conclusion: "cancelled", started_at: "2026-10-31T10:01:00Z", completed_at: "2026-10-31T10:01:40Z" },
+    };
+    serve(deployed(SHA_NEW, "2026-10-31T10:01:30.000Z"), [...HISTORY, cancelled]);
+    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_NEW, run_id: 103 });
+
+    // Its policy tests failed, so the job skipped the step: nothing deployed it.
+    const skipped: RunSpec = { id: 105, sha: SHA_OTHER, event: "push", created_at: "2026-10-31T11:00:00.000Z", deploy: null };
+    serve(deployed(SHA_OTHER, "2026-10-31T11:00:30.000Z"), [...HISTORY, skipped]);
+    expect(await attest()).toMatchObject({ outcome: "mismatch", expected: [SHA_OLD] });
+  });
+
+  it("orders a re-run by when its Deploy step ran, so re-running an older run rolls back", async () => {
+    const newer: RunSpec = {
+      id: 103,
+      sha: SHA_NEW,
+      event: "push",
+      created_at: "2026-10-31T10:00:00.000Z",
+      deploy: { status: "completed", conclusion: "success", started_at: "2026-10-31T10:01:00Z", completed_at: "2026-10-31T10:02:00Z" },
+    };
+    const rollback: RunSpec = {
+      ...HISTORY[0]!,
+      reruns: [{ status: "completed", conclusion: "success", started_at: "2026-10-31T11:00:00Z", completed_at: "2026-10-31T11:01:30Z" }],
+    };
+    serve(deployed(SHA_OLD, "2026-10-31T11:01:00.000Z"), [rollback, HISTORY[1]!, newer]);
+    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_OLD, run_id: 101 });
+    // What run 103 deployed before the rollback is not the last deployment from main any more.
+    serve(deployed(SHA_NEW, "2026-10-31T10:01:40.000Z"), [rollback, HISTORY[1]!, newer]);
+    expect(await attest()).toMatchObject({ outcome: "mismatch", expected: [SHA_OLD] });
+
+    // A re-run whose Deploy step was skipped rolled nothing back.
+    const retested: RunSpec = { ...HISTORY[0]!, reruns: [null], updated_at: "2026-10-31T11:01:00Z" };
+    serve(deployed(SHA_NEW, "2026-10-31T10:01:40.000Z"), [retested, HISTORY[1]!, newer]);
+    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_NEW, run_id: 103 });
+    serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z"), [retested, HISTORY[1]!, newer]);
+    expect(await attest()).toMatchObject({ outcome: "mismatch", expected: [SHA_NEW] });
+
+    // A re-run still deploying is read whenever GitHub last updated its run.
+    const deploying: RunSpec = {
+      ...HISTORY[0]!,
+      reruns: [{ status: "in_progress", conclusion: null, started_at: "2026-10-31T11:56:00Z", completed_at: null }],
+    };
+    serve(deployed(SHA_OLD, "2026-10-31T11:57:00.000Z"), [deploying, HISTORY[1]!, newer]);
+    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_OLD, run_id: 101 });
+  });
+
+  it("allows two minutes either side of the Deploy step for the two clocks, and no more", async () => {
+    // Run 101's Deploy step ran from 09:00:00 to 09:01:30, by GitHub's clock.
+    for (const [at, outcome] of [
+      ["08:58:30", "match"],
+      ["08:57:30", "mismatch"],
+      ["09:03:00", "match"],
+      ["09:04:00", "mismatch"],
+    ] as const) {
+      serve(deployed(SHA_OLD, `2026-10-31T${at}.000Z`), HISTORY);
+      expect((await attest()).outcome, at).toBe(outcome);
+    }
   });
 
   it("is a mismatch for a commit guard.yml did not deploy, a deployment made outside its step, another message, or a split", async () => {

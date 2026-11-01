@@ -11,10 +11,12 @@
  *
  * GitHub's side is guard.yml's own run history, read with a token of the
  * rig's App limited to reading Actions. "The last deployment from main" is
- * every run of guard.yml on main, newest first, whose Deploy step ran, down
- * to the newest one whose Deploy step succeeded: a step that failed may have
- * deployed before it failed, and one still running may be deploying now. A
- * scheduled run never deploys, so only pushes and dispatches are read.
+ * every Deploy step of guard.yml on main that ran, newest first, down to the
+ * newest one that succeeded: a step that failed or was cancelled may have
+ * deployed before it stopped, and one still running may be deploying now.
+ * Steps are ordered by when they started, not by their run, because
+ * re-running an older run (a rollback) keeps that run's id and creation
+ * time. A scheduled run never deploys, so only pushes and dispatches are read.
  *
  * The live deployment matches when it serves one version, its message names
  * one of those runs' commit, and Cloudflare made it while that run's Deploy
@@ -189,7 +191,8 @@ interface Run {
   id: number;
   head_sha: string;
   head_branch: string;
-  created_at: string;
+  status: string;
+  updated_at: string;
 }
 
 interface Step {
@@ -223,15 +226,19 @@ async function mainDeploys(doFetch: typeof fetch, app: { appId: string; privateK
     );
     runs.push(...(page.workflow_runs ?? []).filter((run) => run.head_branch === "main"));
   }
-  runs.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
+  runs.sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at) || b.id - a.id);
 
   const deploys: MainDeploy[] = [];
+  let newestSuccess = -Infinity;
   for (const run of runs) {
+    // No step of a finished run started after the run's last update, so one
+    // last updated before the newest successful Deploy has nothing to add.
+    if (run.status === "completed" && Date.parse(run.updated_at) < newestSuccess) continue;
+    // filter=all lists every attempt's jobs, a re-run's among them.
     const { jobs } = await get<{ jobs?: { name: string; steps?: Step[] }[] }>(`/actions/runs/${run.id}/jobs?filter=all&per_page=100`);
     const steps = (jobs ?? [])
       .filter((job) => job.name === DEPLOY_JOB)
-      .flatMap((job) => (job.steps ?? []).filter((step) => step.name === DEPLOY_STEP && step.started_at !== null))
-      .filter((step) => step.status === "in_progress" || step.conclusion === "success" || step.conclusion === "failure");
+      .flatMap((job) => (job.steps ?? []).filter((step) => step.name === DEPLOY_STEP && step.started_at !== null && step.conclusion !== "skipped"));
     for (const step of steps) {
       deploys.push({
         sha: run.head_sha,
@@ -240,12 +247,15 @@ async function mainDeploys(doFetch: typeof fetch, app: { appId: string; privateK
         completed_at: step.status === "in_progress" ? null : step.completed_at,
         conclusion: step.conclusion,
       });
+      if (step.conclusion === "success") newestSuccess = Math.max(newestSuccess, Date.parse(step.started_at!));
     }
-    if (steps.some((step) => step.conclusion === "success")) return deploys;
   }
-  throw new Unreadable(
-    `no Deploy step of ${GUARD_WORKFLOW} on main succeeded in its newest ${RUNS_READ} pushes and ${RUNS_READ} dispatches`,
-  );
+  if (newestSuccess === -Infinity) {
+    throw new Unreadable(`no Deploy step of ${GUARD_WORKFLOW} on main succeeded in its newest ${RUNS_READ} pushes and ${RUNS_READ} dispatches`);
+  }
+  return deploys
+    .filter((deploy) => Date.parse(deploy.started_at) >= newestSuccess)
+    .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
 }
 
 export interface AttestReporting {
