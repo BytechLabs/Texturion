@@ -31,12 +31,22 @@ import {
 import { balanceAboveFloor, balanceFloor, readBalance } from "./state/balance";
 import { readTier } from "./state/ledger";
 import { candidateLiveLegs, markEnded, pruneLegs, registerLeg } from "./state/legs";
-import { acquireLease, liveLease, markPreempted, releaseLease, toGrant } from "./state/lease";
+import {
+  acquireLease,
+  activityKey,
+  leaseActivity,
+  liveLease,
+  markPreempted,
+  noteActivity,
+  releaseLease,
+  toGrant,
+} from "./state/lease";
 import { mailHalted, mailSummary, readMailStatus } from "./state/mail";
 import { recordSignal, signalSummary } from "./state/signals";
 import { detachFlooded, enforceCap } from "./telnyx/detach";
 import { orderingBlockers, verifyFirstOrder } from "./telnyx/ordering";
 import { loadPartition, toWire, type PartitionView } from "./telnyx/partition";
+import { matchEndpoint } from "./telnyx/registry";
 import { handleTelnyx } from "./telnyx/route";
 import { aiNeuronsToday, handleAi } from "./vendors/ai";
 import { handleDiag } from "./vendors/diag";
@@ -100,7 +110,7 @@ export class Guard {
       case GUARD_ROUTES.version:
         return json({ version_id: ctx.versionId });
       case GUARD_ROUTES.telnyx:
-        return handleTelnyx(ctx, request, caller, url);
+        return this.telnyx(request, caller, url);
       case GUARD_ROUTES.diag:
         return handleDiag(ctx, request, url, rest);
       case GUARD_ROUTES.admin:
@@ -137,11 +147,34 @@ export class Guard {
     }
   }
 
+  /**
+   * Every Telnyx request, refused or forwarded, is counted against the live
+   * lease, so a scenario can prove what its run did and did not ask for.
+   */
+  private async telnyx(request: Request, caller: GuardCaller, url: URL): Promise<Response> {
+    const { ctx } = this;
+    const method = request.method.toUpperCase();
+    const path = url.pathname.slice(GUARD_ROUTES.telnyx.length);
+    const endpoint = matchEndpoint(method, path)?.entry.key ?? `${method} unregistered`;
+    try {
+      const response = await handleTelnyx(ctx, request, caller, url);
+      await noteActivity(ctx, activityKey(caller, endpoint, response.status));
+      return response;
+    } catch (cause) {
+      await noteActivity(ctx, activityKey(caller, endpoint, cause instanceof Refusal ? cause.rule : "error"));
+      throw cause;
+    }
+  }
+
   private async lease(request: Request, caller: GuardCaller, rest: string): Promise<Response> {
     const { ctx } = this;
     if (request.method === "GET" && rest === "") {
       const lease = await liveLease(ctx);
       return json(lease ? toGrant(lease) : null);
+    }
+    const activity = /^\/([^/]+)\/activity$/.exec(rest);
+    if (request.method === "GET" && activity) {
+      return json(await leaseActivity(ctx, decodeURIComponent(activity[1]!)));
     }
     if (request.method === "POST" && rest === "") {
       const body = await bodyOf(request);

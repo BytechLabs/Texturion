@@ -119,7 +119,7 @@ export const GUARD_ROUTES = {
   halt: "/halt",
   /** GET {@link Partition}: owned numbers, nonprod profile and connection ids, standing roles. */
   partition: "/partition",
-  /** POST acquires, DELETE /lease/<id> releases. */
+  /** POST acquires, DELETE /lease/<id> releases, GET /lease/<id>/activity reads {@link LeaseActivity}. */
   lease: "/lease",
   /** GET {@link GuardHealth}. */
   health: "/health",
@@ -179,6 +179,17 @@ export interface LeaseGrant {
   lease_id: string;
   scenario: string;
   expires_at: string;
+}
+
+/**
+ * The guard's log of one lease: every Telnyx request that reached it while the
+ * lease was live, counted by `<caller> <METHOD> <registry path> <outcome>`,
+ * where the outcome is the answer's status or the refusal's rule. It is how a
+ * scenario proves a request never reached the guard, or reached it once.
+ */
+export interface LeaseActivity extends LeaseGrant {
+  live: boolean;
+  activity: Record<string, number>;
 }
 
 export interface Partition {

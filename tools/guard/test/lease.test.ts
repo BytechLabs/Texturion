@@ -213,3 +213,36 @@ describe("account signals", () => {
     ).toBe("class.not_allowed");
   });
 });
+
+describe("the lease's activity record", () => {
+  const DIAL = { connection_id: "conn-robot", from: N.robot1, to: N.devW1, timeout_secs: 30 };
+  const activityOf = async (h: Awaited<ReturnType<typeof ready>>, id: string) =>
+    (await (await h.call(`/lease/${id}/activity`, { caller: "robot" })).json()) as {
+      live: boolean;
+      activity: Record<string, number>;
+    };
+
+  it("counts each Telnyx request by caller, endpoint and outcome, refusals included", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    expect(await activityOf(h, id)).toMatchObject({ live: true, activity: {} });
+    await h.call("/telnyx/v2/calls", { caller: "robot", body: DIAL, headers: { [HEADER.lease]: id } });
+    await h.call("/telnyx/v2/calls", { caller: "robot", body: { ...DIAL, to: N.notOwned }, headers: { [HEADER.lease]: id } });
+    await h.call("/telnyx/v2/calls", { caller: "robot", body: { ...DIAL, to: N.notOwned }, headers: { [HEADER.lease]: id } });
+    expect((await activityOf(h, id)).activity).toEqual({
+      "robot POST /v2/calls 200": 1,
+      "robot POST /v2/calls dial.to_not_owned": 2,
+    });
+  });
+
+  it("is kept after release, counts nothing while no lease is live, and names only the last lease", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    await h.call("/telnyx/v2/calls", { caller: "robot", body: DIAL, headers: { [HEADER.lease]: id } });
+    await h.call(`/lease/${id}`, { caller: "robot", method: "DELETE" });
+    await h.call("/telnyx/v2/calls", { caller: "robot", body: DIAL, headers: { [HEADER.lease]: id } });
+    expect(await activityOf(h, id)).toMatchObject({ live: false, activity: { "robot POST /v2/calls 200": 1 } });
+    await lease(h, "S04");
+    expect(await ruleOf(await h.call(`/lease/${id}/activity`, { caller: "robot" }))).toBe("lease.not_found");
+  });
+});
