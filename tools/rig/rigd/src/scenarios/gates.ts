@@ -861,7 +861,7 @@ export const S17: ScenarioRunner = {
     ctx.evidence.deliveries = log.seen.length;
     if (!faulted) {
       return log.seen.length > 0
-        ? infra("rig", "no delivery since the fault was armed shows a 503: the daemon does not hand the armed fault to the webhook forwarder")
+        ? infra("rig", "no delivery since the fault was armed shows a 503: the webhook forwarder answered no call event with the armed fault")
         : infra("guard", "Telnyx's delivery log showed nothing since the dial");
     }
     ctx.evidence.delivery = { id: faulted.id, status: faulted.status, event_type: faulted.event_type, attempts: faulted.attempts.map((a) => a.http_status) };

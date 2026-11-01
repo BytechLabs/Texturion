@@ -191,6 +191,7 @@ export function startDaemon(config: RigdConfig): Daemon {
           const key = store.readOptional("telnyx-public-key");
           return key ? telnyxPublicKey(key) : undefined;
         },
+        takeFault: () => rig.faults.take(),
         onLate: (entry) => {
           rig.late.record(entry);
           log(`a genuine text reached the API ${entry.age_s} s after Telnyx signed it; recorded as a late delivery`);
