@@ -162,6 +162,16 @@ browser bundle).
 > Unset (dev/CI/previews) = GTM off and no banner. the `backend` job in `ship.yml` carries this
 > var as a repo secret (set 2026-07-10), so production builds ship with it.
 >
+> Since #640, gtm.js downloads once the page has settled or at the visitor's
+> first tap, click or key press, except on a landing URL with a campaign or ad
+> click-id parameter (`utm_*`, `gclid`, `gbraid`, `wbraid`, `fbclid`, …), where
+> it loads at once. A visitor who follows a link before gtm.js runs on any
+> other landing is already on the next page when the tags fire, and a tag reads
+> that page's URL. A GA4 or Ads tag that must report the landing page has to
+> take `page_location` from the `landing_page_location` dataLayer key (and
+> `page_referrer` from `landing_page_referrer`), which the `gtm.js` event
+> carries. The container had no tags on 2026-11-01.
+>
 > `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`apps/web/src/env.ts:10`): when set,
 > signup/login/reset-password render Cloudflare Turnstile and pass the
 > `captchaToken` to Supabase Auth; when unset the pages behave as before. It is

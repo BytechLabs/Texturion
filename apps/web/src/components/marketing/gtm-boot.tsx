@@ -12,10 +12,13 @@ type Release = (() => void) | "go" | "done" | undefined;
  * Releases the gtm.js download once the page has settled (#640). The loader
  * script in google-tag-manager.tsx has already seeded the consent default.
  *
- * Nothing is released after the marketing shell unmounts: a visitor who
- * reaches the app before the page settles must not get the container there
- * (#577). The loader marks itself "done" once it has run, so a remounted
- * shell does not load the container a second time.
+ * Nothing is released after the marketing shell unmounts (#577). The tap or
+ * key press that leaves for the app is itself a release, though, so on a
+ * single-host deploy gtm.js can still load as the document moves to the app,
+ * as it did before #640. In production the app is another host, and that
+ * full navigation leaves the container behind. The loader marks itself
+ * "done" once it has run, so a remounted shell does not load the container a
+ * second time.
  */
 export function GtmBoot() {
   useEffect(() => {

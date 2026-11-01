@@ -166,7 +166,7 @@ describe("gtm.js waits for the page to settle (#640)", () => {
     const html = await render();
     const code = html.slice(html.indexOf(">") + 1, html.lastIndexOf("</script>"));
     const inserted: { src?: string }[] = [];
-    w.location ??= { href: "https://loonext.com/?utm_source=x&gclid=abc" };
+    w.location ??= { href: "https://loonext.com/pricing?ref=nav" };
     const d = {
       cookie: "",
       referrer: "https://www.google.com/",
@@ -216,8 +216,25 @@ describe("gtm.js waits for the page to settle (#640)", () => {
     const { dataLayer } = await runLoader();
     expect(dataLayer[1]).toMatchObject({
       event: "gtm.js",
-      landing_page_location: "https://loonext.com/?utm_source=x&gclid=abc",
+      landing_page_location: "https://loonext.com/pricing?ref=nav",
       landing_page_referrer: "https://www.google.com/",
     });
+  });
+
+  it.each(["?gclid=abc", "?utm_source=google&utm_medium=cpc", "?x=1&fbclid=f", "?wbraid=w"])(
+    "downloads at once, without a release, on a landing URL with %s",
+    async (search) => {
+      const { w, inserted, dataLayer } = await runLoader({
+        location: { href: `https://loonext.com/${search}` },
+      });
+      expect(inserted).toHaveLength(1);
+      expect(w.__loonextGtm).toBe("done");
+      expect(dataLayer[1]).toMatchObject({ event: "gtm.js" });
+    },
+  );
+
+  it("waits on a landing URL whose campaign parameter is empty", async () => {
+    const { inserted } = await runLoader({ location: { href: "https://loonext.com/?gclid=" } });
+    expect(inserted).toEqual([]);
   });
 });

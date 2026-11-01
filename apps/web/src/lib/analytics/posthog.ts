@@ -24,6 +24,7 @@
 import type { PostHog } from "posthog-js";
 
 import { clientEnv } from "@/public-env";
+import { CAMPAIGN_PARAMS } from "@/lib/analytics/campaign-params";
 import { readCompanyCookie } from "@/lib/company/cookie";
 import { scrubUnknown } from "@/lib/observability/scrub";
 import { whenTelemetryMayLoad } from "@/lib/perf/telemetry-gate";
@@ -31,36 +32,8 @@ import { whenTelemetryMayLoad } from "@/lib/perf/telemetry-gate";
 /** PostHog Cloud (US) — same instance the API Worker captures to. */
 export const POSTHOG_HOST = "https://us.i.posthog.com";
 
-/**
- * The campaign and ad click-id parameters posthog-js reads from the page URL
- * (its CAMPAIGN_PARAMS list).
- */
-const CAMPAIGN_PARAMS = [
-  "utm_source",
-  "utm_medium",
-  "utm_campaign",
-  "utm_content",
-  "utm_term",
-  "gad_source",
-  "mc_cid",
-  "gclid",
-  "gclsrc",
-  "dclid",
-  "gbraid",
-  "wbraid",
-  "fbclid",
-  "msclkid",
-  "twclid",
-  "li_fat_id",
-  "igshid",
-  "ttclid",
-  "rdt_cid",
-  "epik",
-  "qclid",
-  "sccid",
-  "irclid",
-  "_kx",
-] as const;
+/** The SDK cuts the URL and referrer it keeps for first touch at 1000 characters. */
+const MAX_URL = 1000;
 
 /**
  * `sanitize_properties` hook (pure, runs on EVERY captured event), delegating
@@ -102,6 +75,7 @@ export function initPostHog(): Promise<PostHog | null> {
 function loadPostHog(key: string): Promise<PostHog | null> {
   // Read now: a client navigation before the SDK starts replaces it.
   const landing = typeof window === "undefined" ? undefined : window.location.href;
+  const referrer = typeof document === "undefined" ? "" : document.referrer;
   return whenTelemetryMayLoad()
     .then(() => import("posthog-js"))
     .then(({ default: posthog }) => {
@@ -126,13 +100,15 @@ function loadPostHog(key: string): Promise<PostHog | null> {
         sanitize_properties: (properties) => sanitizeEventProperties(properties),
         // Runs inside init, before the SDK's own first pageview.
         loaded: (client) => {
+          const moved = landing !== undefined && window.location.href !== landing;
+          if (moved) keepLandingAttribution(client, landing, referrer);
           // Join client events to the server-side funnel: the API Worker
           // captures with distinct_id = company_id, so the signed-in client
           // identifies as the same UUID (from the persisted workspace cookie,
           // G12).
           const companyId = readCompanyCookie();
           if (companyId) client.identify(companyId);
-          if (landing) recordLandingPage(client, landing);
+          if (moved) recordLandingPageview(client, landing);
         },
       });
       return posthog;
@@ -143,17 +119,41 @@ function loadPostHog(key: string): Promise<PostHog | null> {
     });
 }
 
+type LandingClient = Pick<
+  PostHog,
+  "capture" | "register_for_session" | "get_session_id" | "persistence"
+>;
+
 /**
- * Runs before the SDK's own first pageview, which reads the URL the visitor
- * is on now. When a client navigation moved them on before the SDK started,
- * capture the landing page first and keep its campaign parameters for the
- * session, which is what the SDK records when it starts on the landing page.
+ * Runs before the SDK's first event when a client navigation moved the
+ * visitor on before the SDK started. The SDK reads the first touch
+ * (`$initial_*`) and the session entry (`$session_entry_*`) from the page it
+ * starts on, so both are set to the landing page, and the landing page's
+ * campaign parameters are kept for the session. A first touch or session from
+ * an earlier visit is left as it was.
  */
-export function recordLandingPage(
-  posthog: Pick<PostHog, "capture" | "register_for_session">,
+function keepLandingAttribution(
+  posthog: LandingClient,
   landing: string,
+  referrer: string,
 ): void {
-  if (window.location.href === landing) return;
+  const entry = {
+    r: (referrer || "$direct").slice(0, MAX_URL),
+    u: landing.slice(0, MAX_URL),
+  };
+  posthog.persistence?.register_once({ $initial_person_info: entry }, undefined);
+
+  // Reading the session id starts the session, and a new session takes its
+  // entry URL from the page the visitor is on now.
+  const before: unknown = posthog.persistence?.props.$client_session_props;
+  const sessionId = posthog.get_session_id();
+  const session = posthog.persistence?.props.$client_session_props as
+    | { sessionId?: string }
+    | undefined;
+  if (session && session !== before && session.sessionId === sessionId) {
+    posthog.persistence?.register({ $client_session_props: { sessionId, props: entry } });
+  }
+
   const url = new URL(landing);
   const campaign: Record<string, string> = {};
   for (const name of CAMPAIGN_PARAMS) {
@@ -161,6 +161,17 @@ export function recordLandingPage(
     if (value) campaign[name] = value;
   }
   if (Object.keys(campaign).length > 0) posthog.register_for_session(campaign);
+}
+
+/**
+ * Captures the landing page ahead of the SDK's own first pageview, which is
+ * for the page the visitor is on now. A move that kept the path (an in-page
+ * anchor, a query change) is the same page to the SDK, so nothing is added.
+ */
+function recordLandingPageview(posthog: LandingClient, landing: string): void {
+  const url = new URL(landing);
+  const now = new URL(window.location.href);
+  if (url.origin === now.origin && url.pathname === now.pathname) return;
   posthog.capture("$pageview", {
     $current_url: landing,
     $host: url.host,

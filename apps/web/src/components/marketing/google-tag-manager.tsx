@@ -7,6 +7,8 @@ import {
   consentSignals,
 } from "@/components/marketing/consent/consent";
 
+import { CAMPAIGN_PARAMS } from "@/lib/analytics/campaign-params";
+
 import { GtmBoot } from "./gtm-boot";
 import { GTM_RELEASE } from "./gtm-release";
 
@@ -43,10 +45,12 @@ import { GTM_RELEASE } from "./gtm-release";
  * default. The download runs once per document: the marketing shell mounts
  * again on every EN/FR switch and on a return from the app.
  *
- * A visitor can follow a link before gtm.js runs, and tags then read the new
- * page's URL. The `gtm.js` event carries the URL and referrer the visitor
- * landed with, as `landing_page_location` and `landing_page_referrer`, for a
- * tag that needs the landing page or its click ids.
+ * A landing URL with a campaign or ad click-id parameter loads gtm.js at
+ * once: a visitor who followed a link before it ran would leave the tags
+ * reading the next page's URL, without the click id. Lighthouse scores the
+ * pages without such parameters. For any other early move, the `gtm.js` event
+ * carries the URL and referrer the visitor landed with, as
+ * `landing_page_location` and `landing_page_referrer`.
  */
 export function GoogleTagManager() {
   const id = publicEnv.NEXT_PUBLIC_GTM_ID;
@@ -57,6 +61,7 @@ export function GoogleTagManager() {
   // choice means — consentSignals() is the single source of truth.
   const granted = JSON.stringify(consentSignals("granted"));
   const denied = JSON.stringify(consentSignals("denied"));
+  const campaign = JSON.stringify(CAMPAIGN_PARAMS);
 
   return (
     <>
@@ -71,7 +76,8 @@ landing_page_referrer:d.referrer});var load=function(){if(w.${GTM_RELEASE}==='do
 w.${GTM_RELEASE}='done';var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);};
-if(w.${GTM_RELEASE}==='go')load();else w.${GTM_RELEASE}=load;
+var q=new URL(w.location.href).searchParams,c=${campaign}.some(function(n){return q.get(n);});
+if(c||w.${GTM_RELEASE}==='go')load();else w.${GTM_RELEASE}=load;
 })(window,document,'script','dataLayer','${id}');`}
       </Script>
       <GtmBoot />

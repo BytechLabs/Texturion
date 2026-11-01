@@ -13,7 +13,12 @@ const { client, initSpy, identifySpy, captureSpy, registerSpy, settle } = vi.hoi
   const identifySpy = vi.fn();
   const captureSpy = vi.fn();
   const registerSpy = vi.fn();
-  const client = { identify: identifySpy, capture: captureSpy, register_for_session: registerSpy };
+  const client = {
+    identify: identifySpy,
+    capture: captureSpy,
+    register_for_session: registerSpy,
+    get_session_id: () => "session",
+  };
   // Like the SDK, init calls `loaded` before it returns.
   const initSpy = vi.fn();
   initSpy.mockImplementation((_key, config) => config.loaded?.(client));
@@ -207,6 +212,31 @@ describe("the SDK waits for the page to settle (#640)", () => {
     expect(registerSpy.mock.invocationCallOrder[0]).toBeLessThan(
       captureSpy.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it("adds no pageview for an in-page anchor, which the SDK does not count as a new page", async () => {
+    const navigate = stubLocation("https://loonext.com/legal/privacy?utm_source=google");
+    let open = () => {};
+    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    const { initPostHog } = await importPostHog(POSTHOG_KEY);
+    const ready = initPostHog();
+    navigate("https://loonext.com/legal/privacy?utm_source=google#scope");
+    open();
+    await ready;
+    expect(captureSpy).not.toHaveBeenCalled();
+  });
+
+  it("adds no pageview for a query change on the same path, but keeps the campaign", async () => {
+    const navigate = stubLocation("https://loonext.com/?utm_source=google");
+    let open = () => {};
+    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    const { initPostHog } = await importPostHog(POSTHOG_KEY);
+    const ready = initPostHog();
+    navigate("https://loonext.com/?plan=crew");
+    open();
+    await ready;
+    expect(captureSpy).not.toHaveBeenCalled();
+    expect(registerSpy).toHaveBeenCalledExactlyOnceWith({ utm_source: "google" });
   });
 
   it("leaves the first pageview to the SDK when the visitor is still on the landing page", async () => {
