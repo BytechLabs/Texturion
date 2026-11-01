@@ -1190,7 +1190,7 @@ Agents can still merge as before, because merging is Contents and Pull requests.
 |---|---|---|---|
 | `guard` | `CF_API_TOKEN` (`guard-deploy`, FA4), `CLOUDFLARE_ACCOUNT_ID`, `EDGE_ORIGIN`, `SENTRY_PROD_DSN` (FA7), `ROBOT_MAILBOX`, `NOTIFICATION_PATH_SECRET`, `GUARD_ADMIN_TOKEN`, and `AGENT_DIAG_DATABASE_URL` once FA13 has run | None. The account id and the edge's origin are secrets too, because Actions prints a step's environment in its public log and masks only secrets. | `guard.yml` |
 | `rig-cloud` | `CF_API_TOKEN` (`rig-deploy`, FA4), `TOKEN_SHA256_RIG_API`, `TOKEN_SHA256_ROBOT`, `TOKEN_SHA256_DIAG`, `TOKEN_SHA256_ADMIN`, `TOKEN_SHA256_RIG`, `TOKEN_SHA256_TRIAGE`, `ROBOT_WEBHOOK_SECRET_SHA256`, `NOTIFICATIONS_SECRET_SHA256`, `SENTRY_SYNTHETIC_DSN` and `SENTRY_PROD_DSN` (FA7) | `CLOUDFLARE_ACCOUNT_ID`, `TELNYX_PUBLIC_KEY` (the account's webhook key), `ROBOT_MAIL_ADDRESS` | `rig-cloud.yml`, and the store job of `rig-secrets.yml` |
-| `rig` | `STRIPE_SECRET_KEY` (FA5), `ANDROID_NONPROD_GOOGLE_SERVICES_JSON` (FA6), `SENTRY_RIG_DSN` and `SENTRY_SYNTHETIC_DSN` (FA7), `RIG_APP_KEY` (FA9), `CF_GUARD_ATTEST_TOKEN` (FA4), `RIG_TOKEN_UPLINK`, `RIG_TOKEN_RIG_API`, `RIG_TOKEN_ROBOT`, `ROBOT_WEBHOOK_SECRET` | `RIG_BUNDLE_PUBLIC_KEY`, `RIG_APP_ID` (FA9), `TELNYX_PUBLIC_KEY` (the same value as in `rig-cloud`), `RESEND_FROM` | The seal job of `rig-secrets.yml`, which delivers them to the rig's secret store |
+| `rig` | `STRIPE_SECRET_KEY` (FA5), `ANDROID_NONPROD_GOOGLE_SERVICES_JSON` (FA6), `SENTRY_RIG_DSN` and `SENTRY_SYNTHETIC_DSN` (FA7), `RIG_APP_KEY` (FA9), `CF_GUARD_ATTEST_TOKEN` (FA4), `CLOUDFLARE_ACCOUNT_ID` (the same value as in `guard`, for rigd's attestation), `RIG_TOKEN_UPLINK`, `RIG_TOKEN_RIG_API`, `RIG_TOKEN_ROBOT`, `ROBOT_WEBHOOK_SECRET` | `RIG_BUNDLE_PUBLIC_KEY`, `RIG_APP_ID` (FA9), `TELNYX_PUBLIC_KEY` (the same value as in `rig-cloud`), `RESEND_FROM` | The seal job of `rig-secrets.yml`, which delivers them to the rig's secret store |
 | `production-ops` | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | None | `ops.yml` |
 | `production` | What `ship.yml` and `backup-posture.yml` read as repository secrets today, once step 4 moves them | Likewise, once moved | `ship.yml`, `backup-posture.yml` |
 
@@ -1201,6 +1201,8 @@ Each `TOKEN_SHA256_*` and `*_SECRET_SHA256` is the lowercase hex SHA-256 of a va
 - `ROBOT_WEBHOOK_SECRET_SHA256` hashes `ROBOT_WEBHOOK_SECRET`, and `NOTIFICATIONS_SECRET_SHA256` hashes the guard's `NOTIFICATION_PATH_SECRET`.
 
 `rig-secrets.yml`'s seal step delivers `ROBOT_WEBHOOK_SECRET` as `BUNDLE__ROBOT_WEBHOOK_SECRET`, which the rig's store keeps as `robot-webhook-secret`. Until the `rig` environment has that secret, S04 and S20 cannot create the robot's webhook endpoint.
+
+`rig-secrets.yml` also delivers `CLOUDFLARE_ACCOUNT_ID`, as `cloudflare-account-id`, which the guard attestation needs to read the guard's deployments. It is a secret, as in `guard`. Until the `rig` environment has its own copy, it falls back to the repository secret of that name, which names the same account. Step 4 deletes that copy, so an agent sets the `rig` one before then.
 
 A secret an environment lacks falls back to a repository secret of the same name, and those are production's. `rig-secrets.yml` therefore refuses any value shaped like a production credential.
 
