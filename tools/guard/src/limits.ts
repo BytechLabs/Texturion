@@ -65,15 +65,15 @@ export const AMBER_SHARE = 0.8;
 /**
  * Conservative per-action charges in USD, from the rate sheet checked
  * 2026-10-29. A dial is a 60-second-billed leg plus the Voice API fee,
- * rounded up to cover recording and beep detection. A text part is billed on
- * both ends, because both ends are ours, plus the unconfirmed Canadian
- * carrier fee. A number costs its one-time fee when ordered and a rental for
+ * rounded up to cover recording and beep detection. A text part is $0.0025
+ * on both ends, because both ends are ours, plus the Canadian carrier fee on
+ * both ends at its highest published $0.008845, rounded up. A number costs its one-time fee when ordered and a rental for
  * every month it is held at any point.
  */
 export const COST_USD = {
   dial: 0.03,
   transfer: 0.13,
-  textPart: 0.0226,
+  textPart: 0.0227,
   numberUpfront: 1.0,
   numberRental: 1.1,
   callerNameLookup: 0.4,

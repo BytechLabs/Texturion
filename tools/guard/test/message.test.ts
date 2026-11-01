@@ -106,7 +106,7 @@ describe("text cost", () => {
   });
 
   it("prices an MMS above a text", () => {
-    expect(messageCostUsd({ text: "hi" })).toBeCloseTo(0.0226);
-    expect(messageCostUsd({ text: "hi", media_urls: ["https://x.example/a.png"] })).toBeGreaterThan(0.0226 * 3);
+    expect(messageCostUsd({ text: "hi" })).toBeCloseTo(2 * 0.0025 + 2 * 0.008845, 4);
+    expect(messageCostUsd({ text: "hi", media_urls: ["https://x.example/a.png"] })).toBeGreaterThan(0.0227 * 3);
   });
 });
