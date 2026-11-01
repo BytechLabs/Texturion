@@ -202,3 +202,26 @@ test("TOTP matches RFC 6238's SHA-1 vectors", () => {
   assert.equal(totpCode(rfcSeed, 1_111_111_109_000), "081804");
   assert.equal(totpCode(rfcSeed, 2_000_000_000_000), "279037");
 });
+
+test("the grace workspace holds no standing number, buys beside its anchor, and a reseed lifts a cancellation", () => {
+  const { standing, ids, userIds } = fixture();
+  const grace = TENANTS.find((tenant) => tenant.key === "qa-g");
+  assert.ok(grace, "QA-G is a tenant");
+  assert.deepEqual(grace.numbers, []);
+  const anchor = standing.get(grace.anchor);
+  const sql = seedSql({ ids, userIds, standing, voiceConnectionId: "stub-voice" });
+  const values = sql.slice(sql.indexOf(`('${ids["qa-g"].company_id}', 'QA-G'`)).split("on conflict")[0];
+  assert.ok(values.startsWith(`('${ids["qa-g"].company_id}', 'QA-G', '${userIds["qa-g"].owner}', 'CA', '${anchor.e164.slice(2, 5)}',`));
+  assert.ok(values.includes(`'${anchor.messaging_profile_id}', false)`), "QA-G shares its anchor's messaging profile");
+  assert.ok(!sql.includes(`, '${ids["qa-g"].company_id}', 'active', 'rig-seed-`), "no phone_numbers row is seeded into QA-G");
+  assert.match(sql, /subscription_status = excluded\.subscription_status,\s+canceled_at = null,/);
+  const gaps = seedGapsSql({ ids, standing });
+  assert.ok(gaps.includes(`('${ids["qa-g"].company_id}'::uuid)`));
+  assert.ok(gaps.includes(`('${ids["qa-g"].company_id}'::uuid, '${ids["qa-g"].members.owner.email}')`));
+});
+
+test("a tenant with no standing number and no anchor in the partition is refused", () => {
+  const { standing, ids, userIds } = fixture();
+  const tenants = TENANTS.map((tenant) => (tenant.key === "qa-g" ? { ...tenant, anchor: "DEV-Z9" } : tenant));
+  assert.throws(() => seedSql({ tenants, ids, userIds, standing, voiceConnectionId: "v" }), /QA-G has no standing number and names no anchor/);
+});

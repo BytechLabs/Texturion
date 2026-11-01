@@ -9,7 +9,7 @@
  * that is this machine (scripts/local-supabase.mjs), and through that stack's
  * own container. No environment variable can point it anywhere else.
  *
- * WHAT IT WRITES. QA-W, QA-A, QA-C, QA-E and the robot's workspace, each with
+ * WHAT IT WRITES. QA-W, QA-A, QA-C, QA-E, QA-G and the robot's workspace, each with
  * a fixed company id that is random, generated on the first run and kept in
  * the rig's secret store (tenants.json), never the dev seed's. The standing
  * numbers and their messaging profiles are re-attached from the guard's live
@@ -126,7 +126,8 @@ export function seedSql({ tenants = TENANTS, ids, userIds, standing, voiceConnec
     if (profiles.length > 1) {
       throw new Error(`rig seed: ${tenant.name}'s numbers are on different messaging profiles`);
     }
-    const first = numbers[0];
+    const first = numbers[0] ?? anchorOf(tenant, standing);
+    if (profiles.length === 0) profiles.push(first.messaging_profile_id);
 
     statements.push(`
 insert into public.companies
@@ -141,6 +142,7 @@ on conflict (id) do update set
   name = excluded.name,
   owner_user_id = excluded.owner_user_id,
   subscription_status = excluded.subscription_status,
+  canceled_at = null,
   telnyx_messaging_profile_id = excluded.telnyx_messaging_profile_id,
   caller_id_lookup = excluded.caller_id_lookup,
   deleted_at = null;`);
@@ -196,6 +198,13 @@ values (${lit(companyId)}, ${lit(numberId)}, 'user', ${lit(users[member.key])}, 
   }
   statements.push("commit;");
   return statements.join("\n");
+}
+
+/** The standing number a tenant without one buys beside: its area code and messaging profile. */
+function anchorOf(tenant, standing) {
+  const anchor = tenant.anchor ? standing.get(tenant.anchor) : undefined;
+  if (!anchor) throw new Error(`rig seed: ${tenant.name} has no standing number and names no anchor the partition has`);
+  return anchor;
 }
 
 /**
@@ -366,7 +375,8 @@ export async function seed({ workdir, store, partition, log = console.log }) {
   }
 
   for (const tenant of TENANTS) {
-    log(`seeded ${tenant.name}: ${tenant.members.length} member(s), ${tenant.numbers.map((n) => n.role).join(", ")}`);
+    const numbers = tenant.numbers.map((n) => n.role).join(", ") || "no standing number";
+    log(`seeded ${tenant.name}: ${tenant.members.length} member(s), ${numbers}`);
   }
 }
 

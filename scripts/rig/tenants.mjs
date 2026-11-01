@@ -7,6 +7,10 @@
  * run lease, and the lease's undo removes them; the seed puts them back here.
  * Owners always ring where they have a surface (#106 never restricts an
  * owner), so an owner with none, like QA-A's, rings nothing.
+ *
+ * A tenant with no standing number names `anchor`, a standing role whose
+ * area code it buys in and whose messaging profile it shares, so a number it
+ * buys lands in the partition without the app creating a profile.
  */
 
 export const TENANTS = [
@@ -42,12 +46,24 @@ export const TENANTS = [
   {
     key: "qa-c",
     name: "QA-C",
-    // The monthly S28 number is bought through the app at run time.
     members: [
       { key: "owner", role: "owner", displayName: "QA-C Owner", surfaces: ["chromium"] },
       { key: "signout-member", role: "member", displayName: "QA-C Sign-out Member", surfaces: ["chromium"] },
     ],
     numbers: [{ role: "DEV-C1", rings: ["owner"] }],
+    callerIdLookup: false,
+  },
+  {
+    key: "qa-g",
+    name: "QA-G",
+    // The grace workspace. S28 buys the monthly number into it through the
+    // app and S29 runs it through cancellation, grace and release the next
+    // day. Grace releases every number a workspace holds, so it holds no
+    // standing number: a standing one here would be released, or refused by
+    // the guard, which stops grace before it deactivates anything.
+    members: [{ key: "owner", role: "owner", displayName: "QA-G Owner", surfaces: ["chromium"] }],
+    numbers: [],
+    anchor: "DEV-C1",
     callerIdLookup: false,
   },
   {

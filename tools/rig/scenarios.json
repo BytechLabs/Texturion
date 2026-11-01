@@ -4,7 +4,7 @@
     "The machine copy of docs/RIG.md 4.2. name, far_end and cadence are the table's own text, and scripts/check-rig-scenarios.mjs fails when they differ, when the dials in a cadence's brackets differ from dials + far_end_legs, or when min_room differs from what 4.1's room table implies.",
     "dials: legs Loonext creates. far_end_legs: legs the far end creates, on the rig the robot's. A run's rig dials are their sum, as in apps/api/e2e/call-journey-budget.json. peak_concurrent_outbound_legs counts Loonext's legs only; the robot holds its own.",
     "Scenarios that name a journey carry the journey's measured values. Every other split between dials and far_end_legs, and every other peak, is a planning estimate that keeps 4.2's total for the run.",
-    "runs: when the rig starts the scenario. A run with dials sits on a day of its period (offset_days, counted from the cycle's day 0) and an hour inside the dial window (hour_utc). A scenario with no dials runs at any hour, so its runs carry only a period. Runs after the first are the ones 4.2's row names, labelled as it names them: its variants at the period it gives them, or its stated number of runs. Each is budgeted at the scenario's dials.",
+    "runs: when the rig starts the scenario. A run with dials sits on a day of its period (offset_days, counted from the cycle's day 0) and an hour inside the dial window (hour_utc). A scenario with no dials runs at any hour, so its runs carry only a period, and an offset_days when it must fall on one day of its period: S29 runs the day after S28. Runs after the first are the ones 4.2's row names, labelled as it names them: its variants at the period it gives them, or its stated number of runs. Each is budgeted at the scenario's dials.",
     "scheduled: false means the cadence is not in force under the current cap. hourly-cap: one run has more rig dials than the hourly cap, so no hour can hold it. phase-4: an optional lane that waits on Phase 4.",
     "4.2 as written does not fit the default cap: S07, S08, S10 and D01 need 4 dials in one run and S09 needs 5, against 3 an hour. The schedule here is 4.2's cadence for everything that fits, laid out one hour per period: 04:00 daily wake (D02), 05:00 the daily G01 with S02 every other day, 06:00 the every-3-days runs, 07:00 weekly, 08:00 fortnightly, 09:00 monthly."
   ],
@@ -571,7 +571,8 @@
       "dials": 1,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 1,
-      "min_room": 2
+      "min_room": 2,
+      "note": "S28 buys the month's number into the grace workspace, QA-G (scripts/rig/tenants.mjs), which holds no standing number, binds it and has ROBOT-1 ring it, and does not release it. A passing S28 leaves the number to S29 in rigd's hand-off record (state/rigd/handoff). Its undo releases the number through the guard only when S28 itself did not pass. The guard's one order per 25 days means a retry after a failed attempt cannot buy again."
     },
     {
       "id": "S29",
@@ -581,14 +582,14 @@
       "cadence": "Monthly (0)",
       "runs_on": "rig",
       "runs": [
-        { "every": "30d" }
+        { "every": "30d", "offset_days": 2 }
       ],
       "scheduled": true,
       "dials": 0,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 0,
       "min_room": 0,
-      "note": "The workspace S29 backdates must hold no standing number. Grace releases every number the workspace holds, and the guard refuses a DELETE on a standing one, so the job fails before it deactivates the campaign and S29 cannot pass (tools/rig/crons.json, the 0 14 cron's defect). QA-C holds DEV-C1, so it cannot be S29's workspace as it stands."
+      "note": "S29 runs the day after S28 and takes over the number S28 handed off. Under its lease it backdates QA-G's canceled_at and fires the grace cron, so grace's releaseCompanyNumbers releases that number (a 404 at Telnyx, read through the guard) and the workspace moves through grace; its undo releases the number through the guard if grace did not, and puts the workspace back. QA-G holds no standing number: grace releases every number a workspace holds, and the guard refuses a DELETE on a standing one, which fails the job before it deactivates the campaign (tools/rig/crons.json, the 0 14 cron's defect). With no number handed off, S29 still runs grace and does not pass the release half."
     },
     {
       "id": "S31",
