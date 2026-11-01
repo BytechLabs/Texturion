@@ -1,14 +1,16 @@
 /**
  * The long-running half of rigd: the uplink, the lease watchdog, the Sentry
  * relay's listener, secret delivery, the rpc commands, the dead-man's
- * heartbeats and the scenario timers. Scenario runs are separate processes
- * (timers and `triage.rerun` start them), each in its own systemd unit, so a
- * run that crashes takes nothing else down and a restart of rigd takes no
- * run with it.
+ * heartbeats, the guard's version attestation and the scenario timers.
+ * Scenario runs are separate processes (timers and `triage.rerun` start
+ * them), each in its own systemd unit, so a run that crashes takes nothing
+ * else down and a restart of rigd takes no run with it.
  *
- * What it publishes for `rig health` (tools/rig/src/health.mjs):
+ * What it publishes in state/ (`rig health` reads the first two,
+ * tools/rig/src/health.mjs):
  *   state/uplink.json        { connected, at }, at least every minute
  *   state/sentry-relay.json  { at, unexplained_24h, defects_24h, ... }, every five minutes
+ *   state/guard-attest.json  { at, outcome, ... }, every hour (guard-attest.ts)
  */
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
@@ -31,7 +33,8 @@ import { objectParams, RpcRouter } from "./rpc.ts";
 import { newRunId } from "./runner.ts";
 import { buildSchedule, parseInstance } from "./schedule.ts";
 import { NOT_RUNNABLE_YET, RUNNERS } from "./scenarios/index.ts";
-import { BUNDLE_KEY_SECRET, deliverSecrets } from "./secrets.ts";
+import { attestGuard, reportAttestation } from "./guard-attest.ts";
+import { BUNDLE_KEY_SECRET, CONTROL_TOKEN_SECRET, deliverSecrets } from "./secrets.ts";
 import { infraFingerprint, parseDsn, type Dsn } from "./sentry-relay.ts";
 import { Uplink } from "./uplink.ts";
 import { buildRig, suiteMarker, type Rig } from "./wiring.ts";
@@ -41,6 +44,7 @@ const HEARTBEAT_MS = 60_000;
 const RELAY_REPORT_MS = 5 * 60_000;
 const SECRET_REFRESH_MS = 6 * 60 * 60_000;
 const SCHEDULE_REFRESH_MS = 60 * 60_000;
+const ATTEST_MS = 60 * 60_000;
 const ENVELOPE_MAX_BYTES = 1024 * 1024;
 
 export interface Daemon {
@@ -272,6 +276,27 @@ export function startDaemon(config: RigdConfig): Daemon {
       }),
     );
   }
+
+  let attested: string | undefined;
+  const attest = () =>
+    attestGuard({ store, repo: config.repo })
+      .then((result) => {
+        publishState(home, "guard-attest.json", { at: new Date().toISOString(), ...result });
+        if (result.outcome === "match" && attested !== "match") log(`guard attestation: the live guard is guard.yml's ${result.sha.slice(0, 12)} from main`);
+        attested = result.outcome;
+        return reportAttestation(result, {
+          edgeOrigin: config.edgeOrigin,
+          controlToken: store.readOptional(CONTROL_TOKEN_SECRET),
+          infra:
+            rig.relay && rig.syntheticDsn
+              ? (message) => rig.relay!.send(rig.syntheticDsn!, { fingerprint: infraFingerprint("guard-attest"), message, level: "warning" })
+              : undefined,
+          log,
+        });
+      })
+      .catch((error: unknown) => log(`guard attestation failed: ${error instanceof Error ? error.message : "error"}`));
+  void attest();
+  every(ATTEST_MS, () => void attest());
 
   if (config.systemd) {
     const schedule = () =>

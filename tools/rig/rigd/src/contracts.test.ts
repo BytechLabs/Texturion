@@ -103,9 +103,7 @@ describe("secret delivery", () => {
 describe("rig-secrets.yml's bundle", () => {
   const REPO = fileURLToPath(new URL("../../../../", import.meta.url));
   /** Delivered before anything reads it. Each must still have no reader, so the entry goes when one lands. */
-  const AHEAD_OF_READER: Record<string, string> = {
-    "cf-guard-attest-token": "rigd's hourly guard attestation (docs/RIG.md 3.5) is not built",
-  };
+  const AHEAD_OF_READER: Record<string, string> = {};
   const SOURCES = ["tools/rig/src", "tools/rig/templates", "tools/rig/rigd/src", "tools/rig/robot/src", "tools/rig/lanes/src", "tools/rig/triage/src", "scripts/rig"];
 
   function bundleFiles(): string[] {
