@@ -15,7 +15,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { adbBinary, adbEnv, devicesArgs, isListening, parseDevices, startServerArgs } from "./src/adb.mjs";
+import { adbBinary, adbEnv, devicesArgs, foreignSerials, isListening, parseDevices, startServerArgs } from "./src/adb.mjs";
 import { loadContract, loadHostConfig, serialOf } from "./src/config.mjs";
 import { consoleTokenPaths, createDevices, discoveryDirs, emulatorBinary, findDiscovery } from "./src/emulator.mjs";
 import { healthReport, readHostFacts } from "./src/host-facts.mjs";
@@ -198,8 +198,10 @@ async function doctor({ contract, root, sdk, paths }) {
   check(adbUp, `adb server on 127.0.0.1:${adbPort}`);
   check(await isListening(contract.hostd.port), `hostd on 127.0.0.1:${contract.hostd.port}`);
   if (adbUp) {
-    const listed = parseDevices((await run(adbBinary(sdk), devicesArgs(adbPort), { env: adbEnv(adbPort) })).stdout);
-    note(`adb -P ${adbPort} devices: ${listed.join(", ") || "none"} (VM3: emulators register with the rig's server)`);
+    const { stdout } = await run(adbBinary(sdk), devicesArgs(adbPort), { env: adbEnv(adbPort) });
+    note(`adb -P ${adbPort} devices: ${parseDevices(stdout).join(", ") || "none"} (VM3: emulators register with the rig's server)`);
+    const foreign = foreignSerials(stdout, contract.devices.map(serialOf));
+    check(foreign.length === 0, `adb -P ${adbPort} lists no device outside the contract${foreign.length ? `: ${foreign.length} found` : ""}`);
   }
 
   for (const path of consoleTokenPaths(paths)) note(`console token ${existsSync(path) ? "found" : "absent"} at ${path}`);

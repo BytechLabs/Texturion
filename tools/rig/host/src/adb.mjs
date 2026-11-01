@@ -41,6 +41,18 @@ export function parseDevices(stdout) {
     .filter(Boolean);
 }
 
+/**
+ * Serials `adb devices` lists in any state that are not the contract's: a USB
+ * device or another emulator the rig's server picked up, which the VM could
+ * then reach through it.
+ */
+export function foreignSerials(stdout, allowed) {
+  return stdout
+    .split(/\r?\n/)
+    .map((line) => /^(\S+)\t\S/.exec(line)?.[1])
+    .filter((serial) => serial && !allowed.includes(serial));
+}
+
 export function isListening(port, host = "127.0.0.1", timeoutMs = 1000) {
   return new Promise((done) => {
     const socket = connect({ port, host });

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { adbEnv, bootCompletedArgs, devicesArgs, parseDevices, startServerArgs } from "../src/adb.mjs";
+import { adbEnv, bootCompletedArgs, devicesArgs, foreignSerials, parseDevices, startServerArgs } from "../src/adb.mjs";
 import { deviceByName, loadContract, rigPaths } from "../src/config.mjs";
 import {
   AUDIO_FLAG,
@@ -76,6 +76,12 @@ test("adb talks to the rig's 5137 server and never to the agents' 5037", () => {
   assert.throws(() => bootCompletedArgs(5137, "R5CT1234"), /emulator serial/);
   assert.equal(adbEnv(5137, { ANDROID_ADB_SERVER_ADDRESS: "0.0.0.0" }).ANDROID_ADB_SERVER_ADDRESS, undefined);
   assert.deepEqual(parseDevices("List of devices attached\nemulator-5560\tdevice\nemulator-5554\toffline\n\n"), ["emulator-5560"]);
+});
+
+test("a device the rig's adb server lists outside the contract is named, in any state", () => {
+  const listed = "* daemon started successfully\r\nList of devices attached\r\nemulator-5560\tdevice\r\nR5CT1234\tunauthorized\r\nemulator-5584\toffline\r\n\r\n";
+  assert.deepEqual(foreignSerials(listed, ["emulator-5560", "emulator-5554"]), ["R5CT1234", "emulator-5584"]);
+  assert.deepEqual(foreignSerials("List of devices attached\n\n", ["emulator-5560"]), []);
 });
 
 function discoveryDir() {
