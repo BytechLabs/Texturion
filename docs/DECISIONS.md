@@ -9250,11 +9250,15 @@ with its reason:
 - **The read-back finds the number by its E.164 and the group; all eight
   roles are ordered.** The order line's id is not the number's
   `/v2/phone_numbers` id, so the first standing order stopped ordering as
-  `number_unreadable`. Once the order is complete the guard now lists
-  `/v2/phone_numbers` by the exact E.164 and the partition's group, requires
-  exactly one result with the expected billing group, messaging profile and
-  connection, and records that id. Anything else stops ordering and alerts,
-  and nothing is released. All eight standing roles are ordered at once, with
+  `number_unreadable`. Once the order is complete the guard now lists the
+  partition's group and matches the exact E.164 itself (Telnyx's spec says
+  `filter[phone_number]` returns nothing for the `+`), requires exactly one
+  match with the expected billing group, messaging profile and connection,
+  and records that id. A number not listed yet waits 30 minutes before
+  ordering stops as `number_missing`; one listed with no group stops it at
+  once. Anything else stops ordering and alerts, and nothing is released. A
+  standing role is held before its order is sent, so an answer that is not a
+  refusal never leads to a second order for it. All eight standing roles are ordered at once, with
   no voice connection while paid dials are refused, and the `resume-ordering`
   routine lifts a `number_unreadable` stop, records who and why, and adopts
   the number already held. This supersedes the text-lane-only ordering and

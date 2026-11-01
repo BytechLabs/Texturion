@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { charge, readTier } from "../src/state/ledger";
 import { ORDER_KEYS } from "../src/telnyx/ordering";
 import { EDGE, lease, N, ready, ruleOf, type Harness } from "./support";
 
@@ -111,6 +112,38 @@ describe("number orders", () => {
     await h.store.delete("partition:owned");
     await lease(h, "S28", "rig-api");
     expect(await ruleOf(await order(h))).toBe("provisioning.numbers_held");
+  });
+
+  it("counts a standing number Telnyx has not listed yet toward the ten", async () => {
+    const h = await ready();
+    for (let i = 0; i < 2; i++) {
+      h.telnyx.numbers.push({ id: `num-extra-${i}`, phone_number: `+1416555017${i}`, billing_group_id: "bg-nonprod", connection_id: "conn-voice", messaging_profile_id: "prof-qa-c", tags: [] });
+    }
+    await h.store.delete("partition:owned");
+    await lease(h, "S28", "rig-api");
+    await h.store.put("partition:standing", { "DEV-E1": { role: "DEV-E1", phone_number: "+14165550179" } });
+    expect(await ruleOf(await order(h))).toBe("provisioning.numbers_held");
+    expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
+  });
+
+  it("refuses an order whose rental and reserve would take the month past its budget", async () => {
+    const h = await ready();
+    await lease(h, "S28", "rig-api");
+    await h.call("/partition", { caller: "rig-api" });
+    const before = await readTier(h.ctx);
+    await charge(h.ctx, before.usage_budget_usd - before.month_to_date_usd - 0.5);
+    expect((await readTier(h.ctx)).tier).not.toBe("red");
+    expect(await ruleOf(await order(h))).toBe("budget.tier_red");
+    expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
+  });
+
+  it("orders while the month stays in budget with the number counted", async () => {
+    const h = await ready();
+    await lease(h, "S28", "rig-api");
+    await h.call("/partition", { caller: "rig-api" });
+    const before = await readTier(h.ctx);
+    await charge(h.ctx, before.usage_budget_usd - before.month_to_date_usd - 5);
+    expect((await order(h)).status).toBe(200);
   });
 
   it("stops ordering, deleting nothing, when the group did not stick", async () => {

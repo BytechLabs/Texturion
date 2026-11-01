@@ -54,6 +54,8 @@ export const CREDENTIALS_PER_DAY = 50;
 export const SEARCH_INTERVAL_MS = 10 * 1000;
 export const ORDER_INTERVAL_MS = 25 * DAY;
 export const MAX_NUMBERS_HELD = 10;
+/** How long a complete first order's number may stay unlisted before ordering stops: Telnyx can list a new number late. */
+export const NUMBER_LISTING_GRACE_MS = 30 * MINUTE;
 
 /** All-in, rentals included. */
 export const MONTHLY_CAP_USD = 35;

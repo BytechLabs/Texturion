@@ -130,6 +130,19 @@ export function tierOf(ledger: MonthLedger, todayUsd: number, now: number): Tier
   };
 }
 
+/** The tier once `held` numbers are held and one more one-time fee is paid: what an order would leave. */
+export async function tierWithNumber(ctx: Ctx, held: number, callerNameNumbers: number): Promise<TierReading> {
+  const ledger = await monthLedger(ctx);
+  const today = (await ctx.store.get<number>(dayKey(dayOf(ctx.now())))) ?? 0;
+  const after: MonthLedger = {
+    ...ledger,
+    peak_numbers: Math.max(ledger.peak_numbers, held),
+    caller_name_numbers: Math.max(ledger.caller_name_numbers, callerNameNumbers),
+    one_time_usd: usd(ledger.one_time_usd + COST_USD.numberUpfront),
+  };
+  return tierOf(after, today, ctx.now());
+}
+
 export async function readTier(ctx: Ctx): Promise<TierReading> {
   const ledger = await monthLedger(ctx);
   const today = (await ctx.store.get<number>(dayKey(dayOf(ctx.now())))) ?? 0;

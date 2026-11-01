@@ -1,5 +1,6 @@
 import type { Ctx } from "../context";
 import {
+  NUMBER_LISTING_GRACE_MS,
   PARTITION_CAPABILITY,
   PRODUCTION_API_ORIGIN,
   PRODUCTION_HEALTH_CACHE_MS,
@@ -14,10 +15,10 @@ import { invalidateOwned, KEYS, type PartitionRecord, type StandingNumber } from
  * and can DELETE, and it acts only on numbers with no billing group once
  * Phase 0a ships. So nothing is ordered until production's /health says the
  * rule is live. The first order is then read back: once Telnyx reports the
- * order complete, the number is found in /v2/phone_numbers by its exact
- * E.164 and the partition's group, and its group, profile and connection are
- * checked. The order line's own id is never used: Telnyx does not say it is
- * the number's id. Anything the read-back cannot pin to one number stops
+ * order complete, the number is found in the partition's group listing by
+ * its exact E.164, and its group, profile and connection are checked. The
+ * order line's own id is never used: Telnyx does not say it is the number's
+ * id. Anything the read-back cannot pin to one number stops
  * ordering without deleting anything.
  */
 interface ProductionHealth {
@@ -61,7 +62,14 @@ export const ORDER_KEYS = {
   stopped: "orders:stopped",
   last: "orders:last",
   resumes: "orders:resumes",
+  unlisted: "orders:first-unlisted",
 } as const;
+
+/** When a complete first order's number was first found missing from the group. */
+interface Unlisted {
+  phone_number: string;
+  since: number;
+}
 
 type Item = Record<string, unknown>;
 
@@ -123,14 +131,31 @@ function retryable(status: number): boolean {
   return status === 0 || status === 429 || status >= 500;
 }
 
-async function read(ctx: Ctx, path: string): Promise<{ status: number; data: Item | null; items: Item[] | null }> {
+async function read(ctx: Ctx, path: string): Promise<{ status: number; data: Item | null; items: Item[] | null; pages: number }> {
   const reply = await ctx.telnyx!.send("GET", path).catch(() => ({ status: 0, body: undefined }));
-  const data = (reply.body as { data?: unknown } | undefined)?.data;
+  const body = reply.body as { data?: unknown; meta?: { total_pages?: unknown } } | undefined;
+  const data = body?.data;
+  const pages = body?.meta?.total_pages;
   return {
     status: reply.status,
     data: data && typeof data === "object" && !Array.isArray(data) ? (data as Item) : null,
     items: Array.isArray(data) ? (data as Item[]) : null,
+    pages: typeof pages === "number" ? pages : 1,
   };
+}
+
+/**
+ * Whether the ordered E.164 is listed with no billing group, in production's
+ * partition. It only says why a number is missing from the group, so a
+ * listing it cannot read counts as not seen.
+ */
+async function listedWithoutGroup(ctx: Ctx, phoneNumber: string): Promise<boolean> {
+  try {
+    const items = await ctx.telnyx!.listAll<Item>("/v2/phone_numbers", { "filter[billing_group_id]": "null" });
+    return items.some((item) => item.phone_number === phoneNumber && !item.billing_group_id);
+  } catch {
+    return false;
+  }
 }
 
 /** Stops ordering for good, and says why in production's Sentry. Deletes nothing. */
@@ -181,7 +206,11 @@ export async function verifyFirstOrder(ctx: Ctx): Promise<FirstOrder["state"] | 
   }
   if (order.data.status === "pending") return "pending";
   if (order.data.status === "failure") {
-    // An order that failed bought nothing; the next one is the first again.
+    // An order that failed bought nothing: the next one is the first again,
+    // and the standing role it was for is ordered again.
+    const standing = (await ctx.store.get<Record<string, StandingNumber>>(KEYS.standing)) ?? {};
+    const kept = Object.fromEntries(Object.entries(standing).filter(([, entry]) => entry.phone_number !== first.phone_number));
+    await ctx.store.put(KEYS.standing, kept);
     await ctx.store.delete(ORDER_KEYS.first);
     return "pending";
   }
@@ -194,26 +223,28 @@ export async function verifyFirstOrder(ctx: Ctx): Promise<FirstOrder["state"] | 
     return stop(ctx, "order_ambiguous", `The complete order lists ${lines.length} number(s), not exactly the one ordered. Nothing was released.`);
   }
 
+  // Telnyx's spec says filter[phone_number] returns nothing for a
+  // non-numerical character, and an E.164 starts with "+". So the group is
+  // listed, as every partition read is, and the E.164 is matched here.
   const query = new URLSearchParams({
-    "filter[phone_number]": first.phone_number,
     "filter[billing_group_id]": record.billing_group_id,
+    "page[size]": "250",
+    "page[number]": "1",
   });
   const found = await read(ctx, `/v2/phone_numbers?${query.toString()}`);
   if (retryable(found.status)) return "pending";
-  if (found.status !== 200 || !found.items) {
-    return stop(ctx, "number_unreadable", `Listing the ordered number answered ${found.status}. Nothing was released.`);
+  if (found.status !== 200 || !found.items || found.pages > 1) {
+    return stop(ctx, "number_unreadable", `Listing the partition's group answered ${found.status}. Nothing was released.`);
   }
-  if (found.items.length !== 1) {
-    return stop(
-      ctx,
-      found.items.length === 0 ? "number_missing" : "number_ambiguous",
-      `Listing the ordered number by its E.164 and the partition's group found ${found.items.length}, not one. Nothing was released.`,
-    );
+  const matches = found.items.filter((item) => item.phone_number === first.phone_number);
+  if (matches.length > 1) {
+    return stop(ctx, "number_ambiguous", `The listing holds ${matches.length} numbers with the ordered E.164, not one. Nothing was released.`);
   }
-  const [number] = found.items;
+  if (matches.length === 0) return unlisted(ctx, first);
+  const [number] = matches;
   const numberId = typeof number.id === "string" && number.id ? number.id : null;
-  if (!numberId || number.phone_number !== first.phone_number) {
-    return stop(ctx, "number_ambiguous", "The one listed number is not the one ordered. Nothing was released.");
+  if (!numberId) {
+    return stop(ctx, "number_ambiguous", "The ordered number is listed with no id. Nothing was released.");
   }
   if (number.billing_group_id !== record.billing_group_id) {
     return stop(
@@ -232,7 +263,35 @@ export async function verifyFirstOrder(ctx: Ctx): Promise<FirstOrder["state"] | 
   }
 
   await ctx.store.put(ORDER_KEYS.first, { ...first, state: "verified", number_id: numberId } satisfies FirstOrder);
+  await ctx.store.delete(ORDER_KEYS.unlisted);
   return "verified";
+}
+
+/**
+ * A complete order whose number the group does not list. Telnyx can list a
+ * new number late, so this waits up to {@link NUMBER_LISTING_GRACE_MS} from
+ * the first miss before stopping, unless the number is listed with no group.
+ */
+async function unlisted(ctx: Ctx, first: FirstOrder): Promise<"pending" | "failed"> {
+  if (await listedWithoutGroup(ctx, first.phone_number)) {
+    return stop(
+      ctx,
+      "group_not_kept",
+      "The ordered number is listed with no billing group, where production's sweep treats it as its own. " +
+        "Nothing was released; regroup or release it by hand.",
+    );
+  }
+  const seen = await ctx.store.get<Unlisted>(ORDER_KEYS.unlisted);
+  if (!seen || seen.phone_number !== first.phone_number) {
+    await ctx.store.put(ORDER_KEYS.unlisted, { phone_number: first.phone_number, since: ctx.now() } satisfies Unlisted);
+    return "pending";
+  }
+  if (ctx.now() - seen.since < NUMBER_LISTING_GRACE_MS) return "pending";
+  return stop(
+    ctx,
+    "number_missing",
+    `The complete order's number has not been listed in the partition's group for ${Math.round((ctx.now() - seen.since) / 60_000)} minutes. Nothing was released.`,
+  );
 }
 
 /**

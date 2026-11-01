@@ -49,8 +49,12 @@ export class FakeTelnyx {
   dropGroupOnOrder = false;
   /** When true, list filters are ignored, as a misbehaving API would. */
   ignoreFilters = false;
+  /** Numbers Telnyx has not listed yet, by E.164: absent from every phone-number listing. */
+  unlisted = new Set<string>();
   /** The status a new number order reports. */
   orderStatus: "pending" | "success" | "failure" = "success";
+  /** When set, the next order is placed and then answered with this status, as a 5xx after the purchase. */
+  orderAnswerAfterPlacing: number | null = null;
   /** An order line carries an id of its own, which is not the number's /v2/phone_numbers id (set false to make them the same). */
   orderLineIds = true;
   /**
@@ -101,6 +105,8 @@ export class FakeTelnyx {
     for (const [key, value] of query) {
       const field = /^filter\[([a-z_]+)\](?:\[eq\])?$/.exec(key)?.[1];
       if (!field || field === "created_after") continue;
+      // The spec: "Non-numerical characters will result in no values being returned."
+      if (field === "phone_number" && /\D/.test(value)) return [];
       out = out.filter((item) => {
         const actual = item[field];
         if (value === "null") return actual === null || actual === undefined || actual === "";
@@ -123,7 +129,8 @@ export class FakeTelnyx {
     if (resource === "phone_numbers") return this.phoneNumbers(method, url, id, sub, body);
     if (resource === "number_orders") return this.orders(method, id, body);
     if (resource === "available_phone_numbers") {
-      return list(this.available.slice(0, 1).map((phone_number) => ({ phone_number })));
+      const limit = Number(url.searchParams.get("filter[limit]") ?? 1);
+      return list(this.available.slice(0, limit).map((phone_number) => ({ phone_number })));
     }
     if (resource === "calls") return this.callsRoute(method, id, sub, action, body);
     if (resource === "messages" && method === "POST") {
@@ -193,7 +200,10 @@ export class FakeTelnyx {
   }
 
   private phoneNumbers(method: string, url: URL, id: string, sub: string, body: Item | undefined): Response {
-    if (method === "GET" && !id) return list(this.filtered(this.numbers, url.searchParams));
+    if (method === "GET" && !id) {
+      const listed = this.numbers.filter((item) => !this.unlisted.has(String(item.phone_number)));
+      return list(this.filtered(listed, url.searchParams));
+    }
     const number = this.numbers.find((item) => item.id === id);
     if (!number) return reply({ errors: [{ detail: "not found" }] }, 404);
     if (method === "GET" && sub === "voice") {
@@ -233,7 +243,9 @@ export class FakeTelnyx {
         tags: [],
       });
       this.available = this.available.filter((item) => item !== phone);
-      return reply({ data: order });
+      const status = this.orderAnswerAfterPlacing;
+      this.orderAnswerAfterPlacing = null;
+      return status === null ? reply({ data: order }) : reply({ errors: [{ code: String(status) }] }, status);
     }
     const order = this.numberOrders.find((item) => item.id === id);
     return order ? reply({ data: order }) : reply({ errors: [] }, 404);

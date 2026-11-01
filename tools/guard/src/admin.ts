@@ -16,9 +16,12 @@ import {
 import { LIMIT_KEYS, type HistoryRecord } from "./state/concurrency";
 import { charge, noteHeld, reconcile } from "./state/ledger";
 import { resumeMail } from "./state/mail";
+import { TelnyxError } from "./telnyx/client";
 import { clearDetached, detachedNumbers, standingBinding } from "./telnyx/detach";
+import { isDefiniteFailure, isOk } from "./telnyx/forward";
 import { noteOrder, requireOrdering, resumeOrdering, verifyFirstOrder } from "./telnyx/ordering";
 import {
+  heldCount,
   invalidateOwned,
   KEYS,
   loadPartition,
@@ -62,6 +65,9 @@ function measuredAt(ctx: Ctx, value: unknown): number {
   if (!Number.isFinite(at)) throw new Refusal("request.body_invalid");
   return Math.min(at, ctx.now());
 }
+
+/** Numbers one search asks for, so a number held for another role can be passed over. */
+const SEARCH_OFFERS = 5;
 
 async function standingMap(ctx: Ctx): Promise<Record<string, StandingNumber>> {
   return (await ctx.store.get<Record<string, StandingNumber>>(KEYS.standing)) ?? {};
@@ -124,9 +130,12 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
       return number?.connection_id === null && !boundIds.has(number.id) && Boolean(standingBinding(view, entry.role)?.connection_id);
     })
     .map((entry) => entry.role);
+  const unlisted = Object.values(standing)
+    .filter((entry) => !view.byE164.has(entry.phone_number))
+    .map((entry) => entry.role);
   const missing = SPEC.numbers.standing.filter((item) => !standing[item.role]);
-  if (missing.length === 0) return json({ ordered: null, remaining: [], voice_deferred: unbound, tagged, bound });
-  if (view.numbers.length >= MAX_NUMBERS_HELD) throw new Refusal("provisioning.numbers_held");
+  if (missing.length === 0) return json({ ordered: null, remaining: [], voice_deferred: unbound, unlisted, tagged, bound });
+  if (heldCount(view) >= MAX_NUMBERS_HELD) throw new Refusal("provisioning.numbers_held");
 
   const role = missing[0];
   const binding = standingBinding(view, role.role);
@@ -143,11 +152,14 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
     "filter[country_code]": SPEC.numbers.country,
     "filter[national_destination_code]": areaCode,
     "filter[phone_number_type]": "local",
-    "filter[limit]": "1",
+    "filter[limit]": String(SEARCH_OFFERS),
   });
   const reply = await telnyx.send("GET", `/v2/available_phone_numbers?${query.toString()}`);
-  const found = (reply.body as { data?: { phone_number?: unknown }[] } | undefined)?.data?.[0]?.phone_number;
-  if (reply.status !== 200 || typeof found !== "string") {
+  // A role held after an unconfirmed order may name a number Telnyx still offers: it is never ordered for a second role.
+  const taken = new Set([...view.byE164.keys(), ...Object.values(standing).map((entry) => entry.phone_number)]);
+  const offered = (reply.body as { data?: { phone_number?: unknown }[] } | undefined)?.data ?? [];
+  const found = offered.map((item) => item.phone_number).find((phone): phone is string => typeof phone === "string" && !taken.has(phone));
+  if (reply.status !== 200 || !found) {
     await ctx.store.put("standing:area-index", index + 1);
     return json({ ordered: null, searched: areaCode, remaining: missing.map((item) => item.role), tagged, bound });
   }
@@ -163,10 +175,30 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
     },
     { voice: paidOpen },
   );
-  const order = await telnyx.call<{ data?: { id?: unknown } }>("POST", "/v2/number_orders", checked.body);
+
+  // The role is held before the order is sent, so neither a second caller
+  // nor a retry after an answer that is not a refusal orders it again.
+  const current = await standingMap(ctx);
+  if (current[role.role] || Object.values(current).some((entry) => entry.phone_number === found)) {
+    return json({ ordered: null, remaining: missing.map((item) => item.role), tagged, bound });
+  }
+  if (heldCount(view, Object.values(current)) >= MAX_NUMBERS_HELD) throw new Refusal("provisioning.numbers_held");
+  await ctx.store.put(KEYS.standing, { ...current, [role.role]: { role: role.role, phone_number: found } });
+  const placed = await telnyx
+    .send("POST", "/v2/number_orders", checked.body)
+    .catch(() => ({ status: 0, body: undefined, text: "" }));
+  if (isDefiniteFailure(placed)) {
+    const kept = Object.entries(await standingMap(ctx)).filter(([held]) => held !== role.role);
+    await ctx.store.put(KEYS.standing, Object.fromEntries(kept));
+    throw new TelnyxError("POST", "/v2/number_orders", placed.status);
+  }
   await charge(ctx, COST_USD.numberUpfront, "one_time");
-  await noteHeld(ctx, view.numbers.length + 1, callerNameNumbers());
-  await ctx.store.put(KEYS.standing, { ...standing, [role.role]: { role: role.role, phone_number: found } });
+  await noteHeld(ctx, heldCount(view, Object.values(current)) + 1, callerNameNumbers());
+  if (!isOk(placed)) {
+    // Telnyx may have bought it: the role stays held, and a person checks the partition.
+    return json({ error: "order_unconfirmed", role: role.role, status: placed.status }, 502);
+  }
+  const order = placed.body as { data?: { id?: unknown } } | undefined;
   await noteOrder(ctx, typeof order?.data?.id === "string" ? order.data.id : null, found, {
     messaging_profile_id: binding.messaging_profile_id,
     connection_id: paidOpen ? binding.connection_id : null,
@@ -175,6 +207,7 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
     ordered: role.role,
     remaining: missing.slice(1).map((item) => item.role),
     voice_deferred: paidOpen ? unbound : [...unbound, role.role],
+    unlisted,
     tagged,
     bound,
   });

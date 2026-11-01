@@ -100,6 +100,14 @@ export function isStanding(view: PartitionView, number: OwnedNumber): boolean {
   return standingRole(view, number) !== null || number.tags.includes(STANDING_TAG);
 }
 
+/**
+ * The numbers held: the group's listing and every standing role's number,
+ * since an order just placed may not be listed yet.
+ */
+export function heldCount(view: PartitionView, standing: Iterable<StandingNumber> = view.standing.values()): number {
+  return new Set([...view.numbers.map((number) => number.phone_number), ...[...standing].map((entry) => entry.phone_number)]).size;
+}
+
 function ids(values: readonly (string | null)[]): Set<string> {
   return new Set(values.filter((value): value is string => typeof value === "string" && value !== ""));
 }

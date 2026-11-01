@@ -12,13 +12,13 @@ import { paidState } from "../state/admission";
 import { requireAboveFloor } from "../state/balance";
 import { dayOf, giveBack, tryTake } from "../state/counters";
 import { liveLease } from "../state/lease";
-import { charge, noteHeld, readTier } from "../state/ledger";
+import { charge, noteHeld, readTier, tierWithNumber } from "../state/ledger";
 import { requirePaidLanesOpen } from "../state/signals";
 import type { Ctx } from "../context";
 import { forward, isDefiniteFailure, isOk, relay, type Handler, type TelnyxRequest } from "./forward";
 import { onEdge } from "./hazards";
 import { noteOrder, ORDER_KEYS, requireOrdering, verifyFirstOrder } from "./ordering";
-import { invalidateOwned, isStanding, KEYS, type OwnedNumber } from "./partition";
+import { heldCount, invalidateOwned, isStanding, KEYS, type OwnedNumber } from "./partition";
 import {
   CREDENTIAL_PREFIX,
   connectionOfResource,
@@ -66,12 +66,15 @@ export async function checkOrderBody(
   body: Item,
   { voice = true }: { voice?: boolean } = {},
 ): Promise<{ body: Item; phoneNumber: string }> {
-  const { view } = request;
+  const { ctx, view } = request;
   const numbers = body.phone_numbers;
   if (!Array.isArray(numbers) || numbers.length !== 1 || !isE164((numbers[0] as Item | undefined)?.phone_number)) {
     throw new Refusal("provisioning.order_one_number");
   }
-  if (view.numbers.length + 1 > MAX_NUMBERS_HELD) throw new Refusal("provisioning.numbers_held");
+  const held = heldCount(view) + 1;
+  if (held > MAX_NUMBERS_HELD) throw new Refusal("provisioning.numbers_held");
+  // A number's rental and its reserve for next month come off the cap at once, so the order must leave the month in budget.
+  if ((await tierWithNumber(ctx, held, callerNameNumbers())).tier === "red") throw new Refusal("budget.tier_red");
   if (body.billing_group_id !== view.record.billing_group_id) throw new Refusal("provisioning.order_group");
   if (typeof body.messaging_profile_id !== "string" || !view.messagingProfiles.has(body.messaging_profile_id)) {
     throw new Refusal("provisioning.order_profile");
@@ -119,7 +122,7 @@ const order: Handler = async (request) => {
     return relay(reply);
   }
   await charge(ctx, COST_USD.numberUpfront, "one_time");
-  await noteHeld(ctx, view.numbers.length + 1, callerNameNumbers());
+  await noteHeld(ctx, heldCount(view) + 1, callerNameNumbers());
   if (isOk(reply)) {
     const id = (reply.body as { data?: { id?: unknown } } | undefined)?.data?.id;
     const profile = checked.body.messaging_profile_id as string;

@@ -146,10 +146,28 @@ async function orderStanding(post: Post, wait: (ms: number) => Promise<void>): P
       await wait(SEARCH_PAUSE_MS);
       continue;
     }
+    const unconfirmed = answer.body as { error?: unknown; role?: unknown; status?: unknown } | null;
+    if (unconfirmed?.error === "order_unconfirmed") {
+      const role = typeof unconfirmed.role === "string" ? unconfirmed.role : "unknown";
+      const status = typeof unconfirmed.status === "number" ? unconfirmed.status : "no answer";
+      lines.push(
+        `::error title=Order unconfirmed::Telnyx answered ${status} to ${role}'s order, which may have bought a number. ` +
+          "The role stays held and is not ordered again; check the partition's numbers before dispatching again.",
+      );
+      return { ok: false, lines };
+    }
     if (!ok(answer)) return { ok: false, lines: [...lines, ...failed("Standing order stopped", answer).lines] };
-    const body = answer.body as { ordered?: unknown; searched?: unknown; remaining?: unknown; voice_deferred?: unknown; tagged?: unknown };
+    const body = answer.body as {
+      ordered?: unknown;
+      searched?: unknown;
+      remaining?: unknown;
+      voice_deferred?: unknown;
+      unlisted?: unknown;
+      tagged?: unknown;
+    };
     const remaining = strings(body.remaining);
     const deferred = strings(body.voice_deferred);
+    const unlisted = strings(body.unlisted);
     if (typeof body.ordered === "string") lines.push(`ordered ${body.ordered}`);
     else if (typeof body.searched === "string") lines.push(`no number free in area code ${body.searched}`);
     if (typeof body.tagged === "number" && body.tagged > 0) lines.push(`tagged ${body.tagged} standing number(s)`);
@@ -157,6 +175,9 @@ async function orderStanding(post: Post, wait: (ms: number) => Promise<void>): P
       const done = deferred.length
         ? `every standing role is held; no voice connection until paid dials open: ${deferred.join(", ")}`
         : "every standing role is held";
+      if (unlisted.length) {
+        lines.push(`::warning title=Standing numbers not listed::Held but not yet in the partition's group listing: ${unlisted.join(", ")}`);
+      }
       return { ok: true, lines: [...lines, done] };
     }
     lines.push(`still to order: ${remaining.join(", ")}`);

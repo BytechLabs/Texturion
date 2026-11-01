@@ -52,6 +52,7 @@ on:
           - check
           - setup
           - order-standing
+          - resume-ordering
           - key-inventory
           - accept-key-inventory
           - reattach
@@ -84,6 +85,10 @@ on:
         required: false
       usage_usd:
         description: "measurements: this month's actual Telnyx usage for the partition, in dollars, from detail records"
+        type: string
+        required: false
+      resume_reason:
+        description: "resume-ordering: why ordering may resume (8 to 200 characters, no phone numbers or ids); the dispatcher's login is recorded with it"
         type: string
         required: false
 
@@ -243,6 +248,9 @@ jobs:
           EDGE_ORIGIN: ${{ secrets.EDGE_ORIGIN }}
           GUARD_ADMIN_TOKEN: ${{ secrets.GUARD_ADMIN_TOKEN }}
           ROUTINE: ${{ inputs.routine || 'check' }}
+          # Who started this attempt, a re-run included: the guard records it beside the reason.
+          RESUME_BY: ${{ github.triggering_actor }}
+          RESUME_REASON: ${{ inputs.resume_reason }}
         run: node --experimental-strip-types tools/guard/scripts/admin-routine.ts
 
   measure:

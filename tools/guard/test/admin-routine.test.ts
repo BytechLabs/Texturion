@@ -1,7 +1,9 @@
+import { readFileSync } from "node:fs";
+
 import { EDGE_PATHS, HEADER, type GuardHealth } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
-import { edgeHealth, edgePost, healthLines, measurementPosts, measureProduction, runRoutine, type Post } from "../scripts/admin-routine";
+import { edgeHealth, edgePost, HEALTH_ROUTINE, healthLines, measurementPosts, measureProduction, ROUTINES, runRoutine, type Post } from "../scripts/admin-routine";
 import {
   parseRead,
   planFiling,
@@ -146,6 +148,23 @@ describe("guard.yml's admin routines", () => {
     const outcome = await runRoutine("order-standing", throughEdge(h), {}, noWait);
     expect(outcome.ok).toBe(false);
     expect(outcome.lines.at(-1)).toContain("provisioning.ordering_off");
+  });
+
+  it("stop, red, after an order Telnyx did not confirm, then warn that its role's number is not listed", async () => {
+    const h = harness();
+    await fileMeasurements(h);
+    h.telnyx.available = EIGHT;
+    expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
+    h.telnyx.failNext = { method: "POST", path: "/v2/number_orders", status: 500 };
+    const stopped = await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms));
+    expect(stopped.ok).toBe(false);
+    expect(stopped.lines.at(-1)).toMatch(/^::error title=Order unconfirmed::Telnyx answered 500 to ROBOT-1's order/);
+
+    const done = await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms));
+    expect(done.ok).toBe(true);
+    expect(done.lines).toContain("::warning title=Standing numbers not listed::Held but not yet in the partition's group listing: ROBOT-1");
+    expect(h.telnyx.requests("POST", "/v2/number_orders")).toHaveLength(8);
+    assertPublicSafe([...stopped.lines, ...done.lines]);
   });
 
   it("resume ordering: name who and why to the guard, and print only states", async () => {
@@ -557,5 +576,20 @@ describe("the daily measurements, read from production as agent_diag", () => {
       lines: ["::error title=Production not read::psql exited 2"],
     }));
     expect(outcome).toEqual({ ok: false, lines: ["::error title=Production not read::psql exited 2"] });
+  });
+});
+
+describe("guard.yml", () => {
+  const workflow = readFileSync(new URL("../../../.github/workflows/guard.yml", import.meta.url), "utf8");
+
+  it("offers every admin routine the script runs", () => {
+    const options = /options:\r?\n((?:\s+- [a-z-]+\r?\n)+)/.exec(workflow)?.[1] ?? "";
+    expect(options.split(/\r?\n/).map((line) => line.trim().replace(/^- /, "")).filter(Boolean)).toEqual([...ROUTINES, HEALTH_ROUTINE]);
+  });
+
+  it("hands resume-ordering the login that started the attempt and the reason given", () => {
+    expect(workflow).toMatch(/\n {6}resume_reason:\r?\n/);
+    expect(workflow).toContain("RESUME_BY: ${{ github.triggering_actor }}");
+    expect(workflow).toContain("RESUME_REASON: ${{ inputs.resume_reason }}");
   });
 });
