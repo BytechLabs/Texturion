@@ -92,6 +92,44 @@ test("a rigd install that fails fails the deploy, after the services restarted, 
   withUnitDir((unitDir, state) => {
     holdForDeploy(state, { sha: "abc123", ref: "main" });
     const calls = [];
+    const activation = (runner) => ({
+      timers: [],
+      sha: "abc123",
+      state,
+      nodeBin: NODE,
+      log: () => {},
+      unitDir,
+      systemctl: (args) => {
+        calls.push(args.join(" "));
+        return { status: 0, stdout: "", stderr: "" };
+      },
+      runner,
+    });
+    const failing = () => {
+      throw new CommandFailed("node", 1, "systemctl --user enable failed");
+    };
+    let message = "";
+    assert.throws(
+      () => activate(activation(failing)),
+      (error) => {
+        message = error.message;
+        return /abc123 is deployed and its services restarted, but rigd's schedule install failed.*exited with 1: systemctl --user enable failed/.test(message);
+      },
+    );
+    assert.equal(calls.at(-1), `restart ${SERVICE_UNITS.join(" ")}`);
+    assert.equal(readDeployHold(state)?.sha, "abc123");
+
+    // The way out it names is one that removes the hold: rigd's own install never does.
+    assert.match(message, /run the same rig deploy again/);
+    assert.ok(!message.includes("schedule --install"), message);
+    assert.ok(message.includes(deployHoldPath(state)), message);
+    activate(activation(() => ({ status: 0, stdout: "{}", stderr: "" })));
+    assert.equal(readDeployHold(state), null);
+  });
+});
+
+test("without a hold, a failed rigd install names rigd's own install as the way out", () => {
+  withUnitDir((unitDir, state) => {
     assert.throws(
       () =>
         activate({
@@ -101,18 +139,13 @@ test("a rigd install that fails fails the deploy, after the services restarted, 
           nodeBin: NODE,
           log: () => {},
           unitDir,
-          systemctl: (args) => {
-            calls.push(args.join(" "));
-            return { status: 0, stdout: "", stderr: "" };
-          },
-          runner: (command) => {
-            throw new CommandFailed(command, 1, "systemctl --user enable failed");
+          systemctl: () => ({ status: 0, stdout: "", stderr: "" }),
+          runner: () => {
+            throw new CommandFailed("node", 1, "systemctl --user enable failed");
           },
         }),
-      /abc123 is deployed and its services restarted, but rigd's schedule install failed.*exited with 1: systemctl --user enable failed/,
+      /stay as the last install left them until rigd's hourly refresh or "node tools\/rig\/rigd\/src\/cli\.ts schedule --install" succeeds/,
     );
-    assert.equal(calls.at(-1), `restart ${SERVICE_UNITS.join(" ")}`);
-    assert.equal(readDeployHold(state)?.sha, "abc123");
   });
 });
 

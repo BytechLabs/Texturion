@@ -31,7 +31,7 @@ import { join, resolve } from "node:path";
 
 import { bootstrapDb } from "./bootstrap-db.mjs";
 import { cronTimers, cronUnits, cronsToSchedule, readCronRegistry } from "./cron.mjs";
-import { holdForDeploy, readDeployHold, releaseDeployHold } from "./deploy-hold.mjs";
+import { deployHoldPath, holdForDeploy, readDeployHold, releaseDeployHold } from "./deploy-hold.mjs";
 import { dummyServiceAccount, firebaseProjectId, generateVapidPair, relayDsn, renderDevVars, seams } from "./dev-vars.mjs";
 import { run, systemctlUser, userManagerEnv } from "./exec.mjs";
 import { edgeOrigin, fetchPartition, recordStanding, rigEndpoints, standingNumbers } from "./guard.mjs";
@@ -258,11 +258,15 @@ export function activate({
   try {
     ({ stdout } = runner(command, args, { env: userManagerEnv() }));
   } catch (error) {
-    throw new Error(
-      `rig deploy: ${sha} is deployed and its services restarted, but rigd's schedule install failed, so ` +
-        `its scenario timers stay as the last install left them (stopped, after a schema change) until ` +
-        `"node tools/rig/rigd/src/cli.ts schedule --install" succeeds: ${error.message}`,
-    );
+    // rigd's own install starts the timers but cannot release the hold, so
+    // under one only a deploy that finishes brings them back for good.
+    const recovery =
+      readDeployHold(state) === null
+        ? `its scenario timers stay as the last install left them until rigd's hourly refresh or ` +
+          `"node tools/rig/rigd/src/cli.ts schedule --install" succeeds`
+        : `its scenario timers stay stopped for the schema change, and rigd starts none while ` +
+          `${deployHoldPath(state)} is there; run the same rig deploy again once rigd's install can succeed`;
+    throw new Error(`rig deploy: ${sha} is deployed and its services restarted, but rigd's schedule install failed, so ${recovery}: ${error.message}`);
   }
   let installed = null;
   try {
