@@ -34,6 +34,11 @@ export function parseAcSleepMinutes(stdout) {
   return match ? Math.round(Number.parseInt(match[1], 16) / 60) : null;
 }
 
+/** True unless a running emulator's session is audible or could not be read: muted, or no session yet, is silent. */
+export function audioSilenced(devices) {
+  return devices.every((device) => device.state === "off" || ["muted", "waiting"].includes(device.audio?.state));
+}
+
 /** The body of GET /v1/health, which the VM's hostd client reads. */
 export function healthReport({ facts, adbUp, tunnel, devices }) {
   return {
@@ -43,6 +48,7 @@ export function healthReport({ facts, adbUp, tunnel, devices }) {
     tunnel: { ...tunnel },
     // Unread host facts are reported as a pending reboot, the more cautious reading.
     reboot_pending: facts.host ? facts.host.pending_reboot : true,
+    audio_silenced: audioSilenced(devices),
     devices,
     host: facts.host,
   };

@@ -190,7 +190,7 @@ rig's marker line.
 hostd serve                                    the supervisor: VM, emulators, adb, tunnel, the token API
 hostd vm status|start|stop|revert <snapshot>   the rig's own VM; revert restarts it
 hostd devices list|boot <name> [--cold] [--wipe]|kill <name> [--hard]
-hostd doctor                                   the VM, keys, SDK, AVDs, WHPX and the host's power facts
+hostd doctor                                   the VM, keys, SDK, AVDs, WHPX, the host's power facts and each emulator's audio mute
 hostd install-startup --yes                    a Startup-folder entry that runs serve at logon
 ```
 

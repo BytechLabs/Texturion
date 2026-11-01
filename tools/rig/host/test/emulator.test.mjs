@@ -202,7 +202,7 @@ test("a boot answers once sys.boot_completed is 1, through the rig's adb server"
   assert.equal(spawned.length, 1);
   assert.deepEqual(spawned[0].args, emulatorArgs(pixel, { dnsServer: DNS }));
   assert.equal(spawned[0].options.env.ANDROID_ADB_SERVER_PORT, "5137");
-  assert.deepEqual(devices.list().find((device) => device.name === "pixel"), { name: "pixel", serial: "emulator-5560", state: "booted", pid: 9000 });
+  assert.deepEqual(devices.list().find((device) => device.name === "pixel"), { name: "pixel", serial: "emulator-5560", state: "booted", pid: 9000, audio: null });
   assert.deepEqual(await devices.boot("pixel"), { status: 200, body: { state: "booted" } }, "booting a booted device is a no-op");
   assert.equal(spawned.length, 1);
   assert.equal((await devices.boot("pixel", { wipe: true })).status, 409, "a wipe needs the device off");

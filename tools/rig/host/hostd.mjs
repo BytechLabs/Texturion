@@ -17,7 +17,8 @@ import { fileURLToPath } from "node:url";
 
 import { adbBinary, adbEnv, devicesArgs, foreignSerials, isListening, parseDevices, startServerArgs } from "./src/adb.mjs";
 import { loadContract, loadHostConfig, serialOf } from "./src/config.mjs";
-import { consoleTokenPaths, createDevices, discoveryDirs, emulatorBinary, findDiscovery } from "./src/emulator.mjs";
+import { AUDIO_SCRIPT, createAudioMuter, persistentHelper } from "./src/audio-mute.mjs";
+import { EMULATOR_IMAGE, consoleTokenPaths, createDevices, discoveryDirs, emulatorBinary, findDiscovery, readProcessInfo } from "./src/emulator.mjs";
 import { healthReport, readHostFacts } from "./src/host-facts.mjs";
 import { createHostdServer, listen } from "./src/server.mjs";
 import { installStartup } from "./src/startup.mjs";
@@ -94,7 +95,8 @@ async function serve({ contract, root, sdk, paths }) {
   const started = await run(adbBinary(sdk), startServerArgs(adbPort), { env: adbEnv(adbPort) }).catch((cause) => ({ code: -1, stderr: cause.message }));
   log(`adb: start-server on ${adbPort} (${started.code})`);
 
-  const devices = createDevices({ contract, paths, sdk, spawn, exec: run, log });
+  const audioMuter = createAudioMuter({ helper: persistentHelper({ spawn, log }), log });
+  const devices = createDevices({ contract, paths, sdk, spawn, exec: run, log, audioMuter });
   await devices.adopt();
 
   const tunnel = createTunnel({ contract, paths, spawn, run, log });
@@ -120,6 +122,7 @@ async function serve({ contract, root, sdk, paths }) {
   const stop = () => {
     log("hostd: stopping; emulators keep running and are adopted on the next start");
     clearInterval(timer);
+    devices.close().then(() => audioMuter.close());
     tunnel.stop();
     server.close(() => process.exit(0));
   };
@@ -156,7 +159,7 @@ async function devicesCommand(context, argv) {
   const [action, name] = positional;
   if (action === "list") {
     const { body } = await callHostd(context, "GET", "/v1/health");
-    for (const device of body.devices ?? []) console.log(`${device.name}\t${device.serial}\t${device.state}\t${device.pid ?? ""}`);
+    for (const device of body.devices ?? []) console.log(`${device.name}\t${device.serial}\t${device.state}\t${device.pid ?? ""}\t${device.audio?.state ?? ""}`);
     return;
   }
   if ((action === "boot" || action === "kill") && name) {
@@ -209,6 +212,19 @@ async function doctor({ contract, root, sdk, paths }) {
   for (const device of contract.devices) {
     const found = findDiscovery(device, discoveryDirs(paths));
     if (found) note(`${device.name} (${serialOf(device)}) advertises in ${found.path}, pid ${found.pid}, gRPC token ${found.grpcToken ? "present" : "absent"}`);
+  }
+
+  // Read-only: the sessions are read back, never muted here.
+  check(existsSync(AUDIO_SCRIPT), `${AUDIO_SCRIPT} (the audio mute helper)`);
+  const muter = createAudioMuter({ exec: run });
+  for (const device of contract.devices) {
+    const found = findDiscovery(device, discoveryDirs(paths));
+    const info = found ? await readProcessInfo(run, found.pid) : null;
+    if (!found || !info || !EMULATOR_IMAGE.test(info.image)) continue;
+    const result = await muter.sweep([found.pid], { mute: false }).catch((cause) => ({ state: "error", error: cause.message }));
+    if (result.state === "error") check(false, `${device.name} audio session unreadable: ${result.error}`);
+    else if (result.state === "waiting") note(`${device.name} has no Windows audio session yet, so it cannot be heard`);
+    else check(result.state === "muted", `${device.name} audio ${result.state}: ${result.muted}/${result.sessions} Windows sessions muted`);
   }
   console.log(lines.join("\n"));
   if (lines.some((line) => line.startsWith("FAIL"))) process.exitCode = 1;

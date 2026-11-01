@@ -230,6 +230,8 @@ export function createDevices({
   removeFile = unlinkSync,
   consoleToken = () => readConsoleToken(paths, env),
   sendConsole = consoleCommand,
+  // Mutes each running emulator's Windows audio session; null leaves them audible.
+  audioMuter = null,
   log = () => {},
   bootTimeoutMs = BOOT_TIMEOUT_MS,
   killTimeoutMs = KILL_TIMEOUT_MS,
@@ -238,7 +240,10 @@ export function createDevices({
   const adb = adbBinary(sdk);
   const adbPort = contract.adb.server_port;
   const entries = new Map(
-    contract.devices.map((device) => [device.name, { device, state: "off", launcher: null, pid: null, emulator: null, booting: null }]),
+    contract.devices.map((device) => [
+      device.name,
+      { device, state: "off", launcher: null, pid: null, emulator: null, booting: null, audio: null, muting: null },
+    ]),
   );
 
   const bootCompleted = async (device) => {
@@ -252,6 +257,32 @@ export function createDevices({
     entry.launcher = null;
     entry.pid = null;
     entry.emulator = null;
+  };
+
+  /** The pids whose audio sessions are muted: the launcher hostd spawned and the verified emulator. */
+  const audioRoots = (entry) => {
+    if (entry.state === "off") return null;
+    return [entry.launcher?.pid, entry.emulator?.pid].filter((pid) => Number.isInteger(pid));
+  };
+
+  /** One watcher per running emulator; it ends when the emulator is gone. */
+  const muteAudio = (entry) => {
+    if (!audioMuter || entry.muting) return;
+    entry.audio = { state: "waiting", sessions: 0, muted: 0 };
+    entry.muting = audioMuter.watch({
+      key: entry.device.name,
+      roots: () => audioRoots(entry),
+      onResult: (result) => {
+        if (entry.audio?.state !== result.state) {
+          log(`device ${entry.device.name} audio ${result.state}${result.error ? `: ${result.error}` : ` (${result.muted}/${result.sessions} sessions muted)`}`);
+        }
+        entry.audio = result;
+      },
+      onEnd: () => {
+        entry.muting = null;
+        entry.audio = null;
+      },
+    });
   };
 
   const isEmulator = (info) => info !== null && EMULATOR_IMAGE.test(info.image);
@@ -335,6 +366,7 @@ export function createDevices({
     entry.launcher = child;
     entry.pid = child.pid ?? null;
     entry.emulator = null;
+    muteAudio(entry);
     child.once("exit", (code) => {
       if (entry.launcher !== child) return;
       log(`device ${name} emulator exited (${code})`);
@@ -422,6 +454,7 @@ export function createDevices({
       entry.pid = identified.pid;
       entry.state = (await bootCompleted(entry.device)) ? "booted" : "booting";
       log(`device ${entry.device.name} adopted (${entry.state})`);
+      muteAudio(entry);
     }
   }
 
@@ -429,8 +462,19 @@ export function createDevices({
     for (const entry of entries.values()) {
       if (entry.state !== "off" && !entry.launcher && entry.pid && !isAlive(entry.pid)) settle(entry);
     }
-    return [...entries.values()].map(({ device, state, pid }) => ({ name: device.name, serial: serialOf(device), state, pid }));
+    return [...entries.values()].map(({ device, state, pid, audio }) => ({
+      name: device.name,
+      serial: serialOf(device),
+      state,
+      pid,
+      audio: state === "off" ? null : audio,
+    }));
   }
 
-  return { boot, kill, tokens, adopt, list, has: (name) => deviceByName(contract, name) !== null };
+  /** Stops the audio watchers; the emulators keep running. */
+  async function close() {
+    await Promise.all([...entries.values()].map((entry) => entry.muting?.stop()));
+  }
+
+  return { boot, kill, tokens, adopt, list, close, has: (name) => deviceByName(contract, name) !== null };
 }
