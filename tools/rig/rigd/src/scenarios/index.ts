@@ -1,4 +1,5 @@
 import { S22, S27, S28, S29, S31, S32, S33, S34, S35 } from "./account.ts";
+import { D02, D02p, D03, D04, D10, D11, D12, E01 } from "./android-wake.ts";
 import { S03, S05, S06, S07, S09, S10, S11 } from "./browser-calls.ts";
 import { S01, S02, S04 } from "./calls.ts";
 import type { ScenarioRunner } from "./context.ts";
@@ -11,6 +12,7 @@ export { S20, S21, S23, S24, S25, isQuietHour, QUIET_HOURS_START, QUIET_HOURS_EN
 export { S03, S05, S06, S07, S08, S09, S10, S11 } from "./browser-calls.ts";
 export { G01, S12, S13, S14, S15, S16, S17, S26 } from "./gates.ts";
 export { S22, S27, S28, S29, S31, S32, S33, S34, S35 } from "./account.ts";
+export { D02, D02p, D03, D04, D10, D11, D12, E01 } from "./android-wake.ts";
 
 /** Every scenario rigd can run; the scheduler times only these. */
 export const RUNNERS: Readonly<Record<string, ScenarioRunner>> = Object.fromEntries(
@@ -45,6 +47,14 @@ export const RUNNERS: Readonly<Record<string, ScenarioRunner>> = Object.fromEntr
     S33,
     S34,
     S35,
+    D02,
+    D02p,
+    D03,
+    D04,
+    D10,
+    D11,
+    D12,
+    E01,
   ].map((runner) => [runner.id, runner]),
 );
 
