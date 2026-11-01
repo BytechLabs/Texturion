@@ -504,8 +504,12 @@ const RECORDING = [
   "Audio event log: recording activity received by AudioService",
   "",
   "RecordActivityMonitor dump time: 3:00:04 PM",
+  "riid 135; active? true",
   "  session:57 -- source client=VOICE_COMMUNICATION -- uid:10123 -- silenced:false",
   "",
+  "",
+  "Events log: recording activity received by AudioService",
+  "11-01 15:00:01:290 rec update riid:119 uid:10123 session:57 src:VOICE_COMMUNICATION not silenced pack:com.example",
 ].join("\n");
 const PROVEN = JSON.stringify({ date: "2026-11-01", flags: ["-no-audio", "-grpc-use-token"] });
 
@@ -676,6 +680,7 @@ describe("the emulator's gRPC audio", () => {
   it("reads an active recording from dumpsys audio, and lays packets on their timestamps", () => {
     expect(recordingActive(RECORDING)).toBe(true);
     expect(recordingActive(RECORDING.replace("silenced:false", "silenced:true"))).toBe(false);
+    expect(recordingActive(RECORDING.replace("active? true", "active? false"))).toBe(false);
     expect(recordingActive("Audio event log\n  session:57 -- source client=MIC\n")).toBe(false);
     expect([...pcmFromS16(Buffer.from([0x00, 0x40, 0x00, 0xc0]))]).toEqual([0.5, -0.5]);
     const packet = (timestamp: number) => ({ timestamp, samples: new Float32Array(960).fill(0.5) });

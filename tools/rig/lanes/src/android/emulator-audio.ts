@@ -94,16 +94,22 @@ export function readAudioProof(text: string | undefined): AudioProof | undefined
 
 /**
  * Whether `dumpsys audio`'s RecordActivityMonitor lists a recording that is
- * not silenced. The shape is AOSP's AudioRecordingConfiguration dump; EA1
- * checks it against a real guest.
+ * active and not silenced. Each recording is an unindented "riid N; active? B"
+ * line and then its indented "session:" line (an API 36 guest, EA1).
  */
 export function recordingActive(dump: string): boolean {
   const lines = dump.replace(/\r\n/g, "\n").split("\n");
   const start = lines.findIndex((line) => line.includes("RecordActivityMonitor dump time"));
   if (start === -1) return false;
+  let active = true;
   for (const line of lines.slice(start + 1)) {
+    const riid = /^riid\s+\d+;\s*active\?\s*(true|false)\b/.exec(line);
+    if (riid) {
+      active = riid[1] === "true";
+      continue;
+    }
     if (line.trim() !== "" && !/^\s/.test(line)) break;
-    if (/^\s*session:\s*\d+\b/.test(line) && !/silenced:\s*true/.test(line)) return true;
+    if (active && /^\s*session:\s*\d+\b/.test(line) && !/silenced:\s*true/.test(line)) return true;
   }
   return false;
 }

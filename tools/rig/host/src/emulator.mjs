@@ -10,9 +10,9 @@ import { bootCompletedArgs, adbBinary, adbEnv } from "./adb.mjs";
 import { deviceByName, serialOf } from "./config.mjs";
 
 /**
- * The emulator's audio flag, decided by spike EA1: null (the default audio
- * backend, which gRPC injectAudio and streamAudio use) or "-no-audio" if EA1
- * proves the gRPC audio still flows without a host backend.
+ * The emulator's audio flag, decided by spike EA1: null, the default audio
+ * backend, which gRPC injectAudio and streamAudio passed with. "-no-audio"
+ * failed: injectAudio answers "There can be only one microphone active".
  * -allow-host-audio is never allowed: it feeds the workstation's real
  * microphone into the device.
  */
