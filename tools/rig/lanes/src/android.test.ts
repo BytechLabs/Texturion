@@ -225,6 +225,23 @@ describe("the box's side of the Pixel lane", () => {
     expect(() => new AccessPointShaper({ iface: "wlan1; reboot", exec })).toThrow(/interface/);
   });
 
+  it("clears a rule only when none is left, whatever tc said", async () => {
+    const shown = (qdisc: string) => {
+      const calls: string[] = [];
+      const exec: Exec = async (file, args) => {
+        const line = [file, ...args].join(" ");
+        calls.push(line);
+        if (line.includes("qdisc del")) throw new Error("sudo: a password is required");
+        return qdisc;
+      };
+      return { shaper: new AccessPointShaper({ iface: "wlan1", exec }), calls };
+    };
+    const nothingLeft = shown("qdisc fq_codel 0: root refcnt 2 limit 10240p");
+    await nothingLeft.shaper.impair(null);
+    expect(nothingLeft.calls).toEqual(["sudo -n tc qdisc del dev wlan1 root", "tc qdisc show dev wlan1"]);
+    await expect(shown("qdisc netem 8001: root refcnt 2 limit 1000 loss 100%").shaper.impair(null)).rejects.toThrow(/password/);
+  });
+
   it("power-cycles the Pixel's hub port through sudo", async () => {
     const { exec, calls } = fakeExec();
     await new UsbHub({ location: "1-1.4", port: 2, exec }).powerCycle();

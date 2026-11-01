@@ -107,8 +107,18 @@ export class AccessPointShaper {
 
   async impair(impairment: NetworkImpairment | null): Promise<void> {
     if (impairment) await this.#exec("sudo", netemArgs(this.#iface, impairment));
-    else await this.#exec("sudo", ["-n", "tc", "qdisc", "del", "dev", this.#iface, "root"]).catch(() => "");
+    else await this.#clear();
     this.#current = impairment;
+  }
+
+  /** tc fails to delete a root qdisc that is not there, so a failed delete counts only while netem is still in force. */
+  async #clear(): Promise<void> {
+    try {
+      await this.#exec("sudo", ["-n", "tc", "qdisc", "del", "dev", this.#iface, "root"]);
+    } catch (error) {
+      const left = await this.#exec("tc", ["qdisc", "show", "dev", this.#iface]);
+      if (/\bnetem\b/.test(left)) throw error;
+    }
   }
 
   /** Every packet lost for that long, then back to what was in force: the phone stays associated. */
