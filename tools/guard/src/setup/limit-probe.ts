@@ -56,14 +56,28 @@ export async function limitProbeDue(ctx: Ctx): Promise<boolean> {
   return now - validation.measured_at >= LIMIT_PROBE_INTERVAL_MS;
 }
 
-/** The probe profile's id, found by its exact name, and never one the partition dials on. */
+/**
+ * The probe profile's id, found by its exact name in the partition's billing
+ * group, and never one the partition dials on or any connection names. The
+ * connections are listed again here, since the stored safety check can be
+ * hours old and the first write is 9999.
+ */
 async function probeProfileId(ctx: Ctx, spec: TelnyxSpec): Promise<string | null> {
-  const profiles = await ctx.telnyx!.listAll<Item>("/v2/outbound_voice_profiles");
+  const telnyx = ctx.telnyx!;
+  const record = await ctx.store.get<PartitionRecord>(KEYS.record);
+  if (!record) return null;
+  const profiles = await telnyx.listAll<Item>("/v2/outbound_voice_profiles");
   const found = profiles.filter((item) => item.name === spec.limit_probe.name);
   if (found.length !== 1 || typeof found[0].id !== "string" || !found[0].id) return null;
-  const record = await ctx.store.get<PartitionRecord>(KEYS.record);
-  const dialing = Object.values(record?.outbound_voice_profiles ?? {});
-  return dialing.includes(found[0].id) ? null : found[0].id;
+  const id = found[0].id;
+  if (found[0].billing_group_id !== record.billing_group_id) return null;
+  if (Object.values(record.outbound_voice_profiles ?? {}).includes(id)) return null;
+  const connections = [
+    ...(await telnyx.listAll<Item>("/v2/call_control_applications")),
+    ...(await telnyx.listAll<Item>("/v2/credential_connections")),
+  ];
+  const named = connections.some((item) => (item.outbound as Item | undefined)?.outbound_voice_profile_id === id);
+  return named ? null : id;
 }
 
 export async function runLimitProbe(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<ValidationRecord> {

@@ -128,6 +128,29 @@ describe("the validation check", () => {
     expect(used.telnyx.requests("PATCH")).toEqual([]);
   });
 
+  it("writes nothing to a profile outside the partition's group, or one a connection took since the last check", async () => {
+    const elsewhere = await ready({ validated: null });
+    const found = profile(elsewhere, "ovp-probe");
+    if (found) found.billing_group_id = "bg-production";
+    expect(await runLimitProbe(elsewhere.ctx)).toMatchObject({ result: "inconclusive", writes: 0 });
+    expect(elsewhere.telnyx.requests("PATCH")).toEqual([]);
+
+    const taken = await ready({ validated: null });
+    const app = taken.telnyx.lists.call_control_applications.find((item) => item.id === "conn-prod-voice");
+    if (app) app.outbound = { outbound_voice_profile_id: "ovp-probe" };
+    expect(await runLimitProbe(taken.ctx)).toMatchObject({ result: "inconclusive", writes: 0 });
+    expect(taken.telnyx.requests("PATCH")).toEqual([]);
+  });
+
+  it("calls a run in which Telnyx refuses even 1 inconclusive, keeps the earlier result and still resets", async () => {
+    const h = await ready({ validated: 6 });
+    h.telnyx.profileLimit = { mode: "refuse-above", limit: 0 };
+    expect(await runLimitProbe(h.ctx)).toMatchObject({ result: "inconclusive", value: null });
+    expect(writes(h).map((item) => item.value)).toEqual(expect.arrayContaining([9999, 1]));
+    expect(writes(h).at(-1)?.value).toBe(1);
+    expect(await h.store.get<ValidationRecord>(LIMIT_KEYS.validation)).toMatchObject({ result: "exact", value: 6 });
+  });
+
   it("never lets an inconclusive run replace a conclusive result", async () => {
     const h = await ready({ validated: 6 });
     h.telnyx.profileLimit = { mode: "error", limit: 0 };
