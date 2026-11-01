@@ -36,7 +36,7 @@ import {
 import { mailHalted, mailSummary, readMailStatus } from "./state/mail";
 import { recordSignal, signalSummary } from "./state/signals";
 import { detachFlooded, enforceCap } from "./telnyx/detach";
-import { orderingBlockers, verifyFirstOrder } from "./telnyx/ordering";
+import { orderingBlockers, stoppedReason, verifyFirstOrder } from "./telnyx/ordering";
 import { loadPartition, toWire, type PartitionView } from "./telnyx/partition";
 import { matchEndpoint } from "./telnyx/registry";
 import { handleTelnyx } from "./telnyx/route";
@@ -363,9 +363,10 @@ export class Guard {
     };
   }
 
-  private async ordering(): Promise<{ enabled: boolean; blockers: string[] }> {
+  private async ordering(): Promise<{ enabled: boolean; blockers: string[]; stopped_reason?: string }> {
     const blockers = await orderingBlockers(this.ctx);
-    return { enabled: blockers.length === 0, blockers };
+    const reason = await stoppedReason(this.ctx);
+    return { enabled: blockers.length === 0, blockers, ...(reason ? { stopped_reason: reason } : {}) };
   }
 
   async cron(expression: string): Promise<void> {

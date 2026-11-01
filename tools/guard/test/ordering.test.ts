@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CRONS } from "../src/guard";
-import { ORDER_KEYS, orderingBlockers, verifyFirstOrder, type FirstOrder } from "../src/telnyx/ordering";
+import { ORDER_KEYS, orderingBlockers, stoppedReason, verifyFirstOrder, type FirstOrder } from "../src/telnyx/ordering";
 import { lease, ready, type Harness } from "./support";
 
 const ORDERED = "+14165550150";
@@ -62,6 +62,7 @@ describe("the first order's read-back", () => {
     expect(deletes(h)).toEqual([]);
     expect(ordered(h)).toBeDefined();
     expect(await h.store.get(ORDER_KEYS.stopped)).toMatchObject({ reason: "number_unreadable" });
+    expect(await stoppedReason(h.ctx)).toBe("number_unreadable");
     expect(stopAlerts(h)).toHaveLength(1);
     expect(await orderingBlockers(h.ctx)).toContain("stopped_after_group_check");
   });

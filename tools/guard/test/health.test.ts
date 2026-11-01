@@ -7,7 +7,7 @@ import { harness, lease, N, ready, ruleOf, type Harness } from "./support";
 
 /** The protocol's fields, and the guard-only detail these cases read. */
 type Health = GuardHealth & {
-  ordering: { enabled: boolean; blockers: string[] };
+  ordering: { enabled: boolean; blockers: string[]; stopped_reason?: string };
   money: Record<string, unknown>;
   lease: Record<string, unknown> | null;
 };
@@ -116,6 +116,16 @@ describe("/health", () => {
     h.production.capabilities = [];
     const health = await healthOf(h, "robot");
     expect(health.ordering.blockers).toEqual(["production_lacks_partition_rule"]);
+  });
+});
+
+describe("/health after ordering stopped", () => {
+  it("names the reason code the read-back stopped for", async () => {
+    const h = await ready();
+    await h.store.put("orders:stopped", { at: h.clock.now, reason: "number_unreadable" });
+    const health = await healthOf(h, "robot");
+    expect(health.ordering.blockers).toEqual(["stopped_after_group_check"]);
+    expect(health.ordering.stopped_reason).toBe("number_unreadable");
   });
 });
 

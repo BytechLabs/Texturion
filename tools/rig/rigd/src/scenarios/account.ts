@@ -366,6 +366,11 @@ async function groupCheck(ctx: ScenarioContext, telnyxId: string, standingBefore
   }
   ctx.evidence.ordering_blockers = blockers;
   if (blockers.includes("stopped_after_group_check")) {
+    const reason = (await ctx.guard.health()).ordering?.stopped_reason ?? null;
+    ctx.evidence.ordering_stopped_reason = reason;
+    if (reason !== null && reason !== "group_not_kept") {
+      return fail("ordering_stopped", `the guard stopped ordering after its read-back (${reason}); the group was not judged`, { critical: true });
+    }
     return fail("order_left_group", "the guard read the order back outside the partition's billing group and stopped ordering", { critical: true });
   }
   const status = await ctx.guard.numberStatus(telnyxId);

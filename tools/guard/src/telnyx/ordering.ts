@@ -64,6 +64,11 @@ export async function orderingBlockers(ctx: Ctx): Promise<string[]> {
   return reasons;
 }
 
+/** The reason code ordering was stopped for good, when it was: a code only, never an id or a number. */
+export async function stoppedReason(ctx: Ctx): Promise<string | null> {
+  return (await ctx.store.get<{ reason?: string }>(ORDER_KEYS.stopped))?.reason ?? null;
+}
+
 export async function requireOrdering(ctx: Ctx): Promise<void> {
   if ((await orderingBlockers(ctx)).length > 0) throw new Refusal("provisioning.ordering_off");
 }

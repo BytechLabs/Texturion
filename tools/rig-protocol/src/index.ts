@@ -333,7 +333,7 @@ export interface GuardHealth {
     in_window: boolean;
   };
   /** Whether the guard would order a number now; `blockers` are its reasons when not. */
-  ordering?: { enabled: boolean; blockers: string[] };
+  ordering?: { enabled: boolean; blockers: string[]; stopped_reason?: string };
   /** The robot mailbox: the edge's heartbeat, a halt after a lost mail, and sends not seen arriving yet. */
   mail?: { heartbeat_fresh: boolean; halted: boolean; pending: number };
   /** Neurons spent on the guard's AI day so far, UTC. */
