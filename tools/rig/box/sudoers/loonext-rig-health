@@ -1,0 +1,2 @@
+# rig health reads the firewall table, and may do nothing else as root through this file.
+rig ALL=(root) NOPASSWD: /usr/sbin/nft list table inet loonext_rig

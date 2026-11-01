@@ -1,0 +1,15 @@
+# DNS for the emulators on the Windows host (tools/rig/box/dnsmasq/emulators.conf).
+# The VM's static address is configured before network-online, so the bind
+# needs no nonlocal-bind setting.
+[Unit]
+Description=Loonext rig: emulator DNS (dnsmasq)
+After=network-online.target systemd-resolved.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/loonext-rig/dnsmasq-emulators.conf --pid-file=/run/loonext-rig-dns-emulators.pid
+Restart=always
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target

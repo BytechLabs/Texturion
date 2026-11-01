@@ -5,15 +5,20 @@
  * "Cannot touch production" holds only while every address the rig is
  * configured with is its own: the *.rig.internal names Caddy serves on a
  * private network, loopback, the edge on workers.dev (docs/RIG.md), and the
- * access point's 10.77.0.0/24, the subnet tools/rig/box/dnsmasq/ap.conf hands
- * the phones. A production host in a unit, the settings template or a derived
+ * two VMnet8 addresses of the rig's VM (tools/rig/host/contract.json): the
+ * VM's own 192.168.70.10, where the emulators reach Caddy and dnsmasq, and the
+ * workstation's 192.168.70.1, the only peer the VM's firewall admits. The NAT
+ * gateway, 192.168.70.2, passes only where it is named as the gateway: the
+ * contract's vm.gateway and the firewall's `define gateway`. A production
+ * host in a unit, the settings template or a derived
  * config is a rig that reaches production while every verdict it records says
  * rig.
  *
  * What it reads, and what counts as naming a host in each:
  *   - the box's configs (tools/rig/box): every name and address outside a
  *     comment, except a dnsmasq line that makes a name resolve to nothing,
- *     which names production only to refuse it. Installers (*.sh) are left
+ *     which names production only to refuse it, and an address block in the
+ *     firewall (`10.0.0.0/8`), which names a range, not a host. Installers (*.sh) are left
  *     out: they fetch Node, Docker and the Stripe CLI from their publishers;
  *   - the API's settings template (tools/rig/templates): literal values. A
  *     {{placeholder}} is filled from the settings below or from the edge, so a
@@ -46,6 +51,10 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const EDGE_NAME = "loonext-rig-edge";
 const GUARD_NAME = "loonext-telnyx-guard";
 const EDGE_HOST = /^loonext-rig-edge\.[a-z0-9-]+\.workers\.dev$/;
+/** The VM's own address and the workstation's, on VMnet8. */
+const VM_ADDRESSES = new Set(["192.168.70.10", "192.168.70.1"]);
+export const GATEWAY = "192.168.70.2";
+const CONTRACT = "tools/rig/host/contract.json";
 
 /** The deploy CLI's derivation inputs, as `rig deploy` passes them. */
 const DERIVED = [
@@ -98,7 +107,7 @@ export function isRigHost(raw) {
   const host = normalise(raw);
   if (host === "rig.internal" || host.endsWith(".rig.internal")) return true;
   if (isLoopback(host)) return true;
-  if (/^10\.77\.0\.\d{1,3}$/.test(host)) return true;
+  if (VM_ADDRESSES.has(host)) return true;
   return EDGE_HOST.test(host);
 }
 
@@ -182,12 +191,17 @@ function newFindings() {
   return { judged: 0, refused: 0, problems: [] };
 }
 
-/** A box config (Caddyfile, dnsmasq, systemd, sysctl, apt). */
+/** An IPv4 block (`10.0.0.0/8`) in a firewall line: a range, not a host. */
+const IPV4_BLOCK = /(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}(?![\d.])/g;
+
+/** A box config (Caddyfile, dnsmasq, nftables, sshd, systemd, apt). */
 export function boxFindings(path, text) {
   const findings = newFindings();
   const dnsmasq = /\/dnsmasq\//.test(path);
+  const nft = path.endsWith(".nft");
   text.split(/\r?\n/).forEach((raw, index) => {
-    const line = raw.trim();
+    let line = raw.trim();
+    const where = `${path}:${index + 1}`;
     if (line === "" || line.startsWith("#") || line.startsWith("//")) return;
     if (dnsmasq) {
       const refused = dnsmasqRefusal(line);
@@ -196,7 +210,16 @@ export function boxFindings(path, text) {
         return;
       }
     }
-    judgeHosts(`${path}:${index + 1}`, hostsInText(line), findings);
+    if (nft) {
+      const gateway = /^define\s+gateway\s*=\s*(\S+)$/.exec(line);
+      if (gateway) {
+        findings.judged += 1;
+        if (gateway[1] !== GATEWAY) findings.problems.push(`${where}  defines the gateway as ${gateway[1]}, not VMnet8's ${GATEWAY}`);
+        return;
+      }
+      line = line.replace(IPV4_BLOCK, " ");
+    }
+    judgeHosts(where, hostsInText(line), findings);
   });
   return findings;
 }
@@ -250,7 +273,13 @@ export function hostsInValue(value) {
 
 export function jsonFindings(path, value) {
   const findings = newFindings();
-  for (const { at, host } of hostsInValue(value)) judgeHosts(`${path} ${at}`, [host], findings);
+  for (const { at, host } of hostsInValue(value)) {
+    if (path === CONTRACT && at === "vm.gateway" && host === GATEWAY) {
+      findings.judged += 1;
+      continue;
+    }
+    judgeHosts(`${path} ${at}`, [host], findings);
+  }
   return findings;
 }
 
@@ -444,8 +473,8 @@ async function main() {
     for (const problem of problems) console.error(`  ${problem}`);
     console.error(
       "\nThe rig may name *.rig.internal, loopback and its edge " +
-        `(${EDGE_NAME}.<account>.workers.dev) (docs/RIG.md 3.2-3.4, D142), and the access point's ` +
-        "10.77.0.0/24 (tools/rig/box/dnsmasq/ap.conf), nothing else.\n",
+        `(${EDGE_NAME}.<account>.workers.dev) (docs/RIG.md 3.2-3.4, D142), the VM's 192.168.70.10 and ` +
+        `the workstation's 192.168.70.1 (${CONTRACT}), and ${GATEWAY} only as the gateway; nothing else.\n`,
     );
     process.exit(1);
   }

@@ -66,6 +66,12 @@ describe("the rig's checks in the gate", () => {
     expect(indexOf("verify", "node --test")).toBeGreaterThan(indexOf("verify", "pnpm install --frozen-lockfile"));
   });
 
+  it("runs hostd's node:test suites after the install, beside the rig CLI's", () => {
+    const step = indexOf("verify", 'node --test "tools/rig/host/test/*.test.mjs"');
+    expect(step).toBeGreaterThan(indexOf("verify", "pnpm install --frozen-lockfile"));
+    expect(step).toBe(indexOf("verify", 'node --test "tools/rig/test/*.test.mjs"') + 1);
+  });
+
   it("runs the guard's workerd suite on its own, after the parallel test run", () => {
     const workerd = indexOf("verify", "pnpm --filter @loonext/telnyx-guard test:workerd");
     expect(workerd).toBeGreaterThan(indexOf("verify", "pnpm -r test"));

@@ -41,7 +41,8 @@ describe("the rig's own hosts", () => {
     "localhost",
     "::1",
     "[::1]",
-    "10.77.0.1",
+    "192.168.70.10",
+    "192.168.70.1",
     "loonext-rig-edge.acct.workers.dev",
   ])("passes %s", (host) => {
     expect(guard.isRigHost(host)).toBe(true);
@@ -56,13 +57,19 @@ describe("the rig's own hosts", () => {
     "evilrig.internal",
     "10.0.0.1",
     "0.0.0.0",
+    // The retired access point's subnet.
+    "10.77.0.1",
+    "192.168.70.11",
+    "192.168.70.100",
+    "192.168.70.2",
+    "192.168.7.10",
   ])("fails %s", (host) => {
     expect(guard.isRigHost(host)).toBe(false);
   });
 
   it("calls only loopback loopback", () => {
     expect(guard.isLoopback("127.0.0.1")).toBe(true);
-    expect(guard.isLoopback("10.77.0.1")).toBe(false);
+    expect(guard.isLoopback("192.168.70.10")).toBe(false);
   });
 });
 
@@ -74,14 +81,14 @@ describe("what it reads as a host", () => {
 
   it("reads a bare name under a domain, and an address", () => {
     expect(guard.hostsInText("reverse_proxy api.loonext.com:443")).toEqual(["api.loonext.com"]);
-    expect(guard.hostsInText("bind 127.0.0.1 10.77.0.1")).toEqual(["127.0.0.1", "10.77.0.1"]);
+    expect(guard.hostsInText("bind 127.0.0.1 192.168.70.10")).toEqual(["127.0.0.1", "192.168.70.10"]);
   });
 
   it("leaves file names, mailboxes and netmasks alone", () => {
     expect(guard.hostsInText("cert /etc/loonext-rig/ca/root.crt")).toEqual([]);
     expect(guard.hostsInText("Requires=loonext-rig-stack.service rig.mjs")).toEqual([]);
     expect(guard.hostsInText("ROBOT=delivered@resend.dev")).toEqual([]);
-    expect(guard.hostsInText("dhcp-range=10.77.0.10,10.77.0.50,255.255.255.0,12h")).toEqual(["10.77.0.10", "10.77.0.50"]);
+    expect(guard.hostsInText("dhcp-range=192.168.70.20,192.168.70.50,255.255.255.0,12h")).toEqual(["192.168.70.20", "192.168.70.50"]);
   });
 
   it("reads a URL's host past its userinfo and port", () => {
@@ -127,6 +134,24 @@ describe("what it reads as a host", () => {
   });
 });
 
+describe("the host contract", () => {
+  const contract = { vm: { address: "192.168.70.10", host: "192.168.70.1", gateway: "192.168.70.2", user: "rig" } };
+
+  it("passes the VM's address, the workstation's and the gateway named as the gateway", () => {
+    expect(guard.jsonFindings("tools/rig/host/contract.json", contract)).toEqual({ judged: 3, refused: 0, problems: [] });
+  });
+
+  it("fails the gateway anywhere else, and any other VMnet8 address", () => {
+    expect(guard.jsonFindings("tools/rig/host/contract.json", { vm: { dns: "192.168.70.2" } }).problems).toEqual([
+      "tools/rig/host/contract.json vm.dns  names 192.168.70.2, which is not the rig's",
+    ]);
+    expect(guard.jsonFindings("tools/rig/other.json", { vm: { gateway: "192.168.70.2" } }).problems).toHaveLength(1);
+    expect(guard.jsonFindings("tools/rig/host/contract.json", { vm: { ...contract.vm, address: "192.168.70.11" } }).problems).toEqual([
+      "tools/rig/host/contract.json vm.address  names 192.168.70.11, which is not the rig's",
+    ]);
+  });
+});
+
 describe("the box's configs", () => {
   it("reads a dnsmasq line that resolves a name to nothing as a refusal", () => {
     expect(guard.dnsmasqRefusal("local=/loonext.com/")).toEqual(["loonext.com"]);
@@ -155,6 +180,37 @@ describe("the box's configs", () => {
     expect(guard.boxFindings("tools/rig/box/caddy/Caddyfile", caddy).problems).toEqual([
       "tools/rig/box/caddy/Caddyfile:2  names api.loonext.com, which is not the rig's",
     ]);
+  });
+
+  it("fails a Caddy bind or a DNS answer on the retired access point", () => {
+    expect(guard.boxFindings("tools/rig/box/caddy/Caddyfile", "\tbind 127.0.0.1 10.77.0.1").problems).toEqual([
+      "tools/rig/box/caddy/Caddyfile:1  names 10.77.0.1, which is not the rig's",
+    ]);
+    expect(guard.boxFindings("tools/rig/box/dnsmasq/emulators.conf", "address=/rig.internal/192.168.70.11").problems).toEqual([
+      "tools/rig/box/dnsmasq/emulators.conf:1  names 192.168.70.11, which is not the rig's",
+    ]);
+  });
+
+  it("reads a firewall's address blocks as ranges, and its hosts as hosts", () => {
+    const nft = [
+      "define host = 192.168.70.1",
+      "define gateway = 192.168.70.2",
+      "elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10 }",
+      "ip saddr $host tcp dport { 22, 53, 443 } accept",
+    ].join("\n");
+    expect(guard.boxFindings("tools/rig/box/nftables/loonext-rig.nft", nft)).toEqual({ judged: 2, refused: 0, problems: [] });
+    expect(guard.boxFindings("tools/rig/box/nftables/loonext-rig.nft", "ip daddr 10.0.0.5 accept").problems).toEqual([
+      "tools/rig/box/nftables/loonext-rig.nft:1  names 10.0.0.5, which is not the rig's",
+    ]);
+    expect(guard.boxFindings("tools/rig/box/caddy/Caddyfile", "bind 10.0.0.0/8").problems).toHaveLength(1);
+  });
+
+  it("passes the NAT gateway only where the firewall defines it as the gateway", () => {
+    expect(guard.boxFindings("tools/rig/box/nftables/loonext-rig.nft", "define gateway = 192.168.70.3").problems).toEqual([
+      "tools/rig/box/nftables/loonext-rig.nft:1  defines the gateway as 192.168.70.3, not VMnet8's 192.168.70.2",
+    ]);
+    expect(guard.boxFindings("tools/rig/box/nftables/loonext-rig.nft", "define upstream = 192.168.70.2").problems).toHaveLength(1);
+    expect(guard.boxFindings("tools/rig/box/caddy/Caddyfile", "reverse_proxy 192.168.70.2:443").problems).toHaveLength(1);
   });
 
   it("does not read a dnsmasq-shaped line outside dnsmasq as a refusal", () => {
@@ -269,8 +325,8 @@ describe("the configs the deploy CLI derives", () => {
   });
 
   it("fails wrangler dev listening anywhere but loopback", () => {
-    expect(guard.derivedFindings("s", derived({ dev: { ip: "10.77.0.1" } })).problems).toEqual([
-      's (derived wrangler.rig.jsonc)  serves on "10.77.0.1"; wrangler dev must listen on loopback',
+    expect(guard.derivedFindings("s", derived({ dev: { ip: "192.168.70.10" } })).problems).toEqual([
+      's (derived wrangler.rig.jsonc)  serves on "192.168.70.10"; wrangler dev must listen on loopback',
     ]);
   });
 });

@@ -1,0 +1,70 @@
+#!/usr/sbin/nft -f
+# /etc/loonext-rig/nftables.nft, included from /etc/nftables.conf by
+# tools/rig/box/bootstrap.sh.
+#
+# The VM shares the workstation's NAT (VMnet8). The workstation, at
+# 192.168.70.1, is the only peer that may open a connection in: SSH for the
+# tunnel and the host's agents, and HTTPS and DNS for the emulators running
+# on it. Out through the uplink, the VM opens nothing on a private network
+# but the NAT gateway, so neither the home LAN nor the workstation's other
+# adapters are reachable from the rig. Loopback and the docker bridges are
+# left alone, so the local Supabase stack works as on any host.
+#
+# Its own table, replaced whole on every load, so docker's tables are never
+# flushed. tools/rig's Android health check reads this table name.
+
+define host = 192.168.70.1
+define gateway = 192.168.70.2
+
+table inet loonext_rig
+delete table inet loonext_rig
+
+table inet loonext_rig {
+	set private4 {
+		type ipv4_addr
+		flags interval
+		elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10 }
+	}
+
+	set private6 {
+		type ipv6_addr
+		flags interval
+		elements = { fc00::/7, fe80::/10 }
+	}
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+		iif "lo" accept
+		iifname "docker0" accept
+		iifname "br-*" accept
+		ct state established,related accept
+		ct state invalid drop
+		meta l4proto { icmp, ipv6-icmp } accept
+		ip saddr $host tcp dport { 22, 53, 443 } accept
+		ip saddr $host udp dport 53 accept
+	}
+
+	chain output {
+		type filter hook output priority filter; policy accept;
+		oif "lo" accept
+		oifname "docker0" accept
+		oifname "br-*" accept
+		oifname "veth*" accept
+		ct state != new accept
+		# neighbour discovery answers link-local addresses
+		meta l4proto ipv6-icmp accept
+		ip daddr $gateway accept
+		ip daddr @private4 drop
+		ip6 daddr @private6 drop
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy accept;
+		oifname "docker0" accept
+		oifname "br-*" accept
+		ct state != new accept
+		ip daddr $gateway accept
+		ip daddr @private4 drop
+		ip6 daddr @private6 drop
+	}
+}

@@ -5,6 +5,9 @@
 // (bootstrap.sh), and the window before there is data is 04:00-10:00 UTC, so
 // upgrades run at 01:00 (apt timer override beside this file) and the reboot
 // at 02:00. If the measured window ever covers these hours, move both.
+//
+// The reboot is the VM's alone; the emulators on the workstation keep
+// running, and hostd's tunnel reconnects once the VM's sshd is back.
 
 Unattended-Upgrade::Allowed-Origins {
 	"${distro_id}:${distro_codename}";

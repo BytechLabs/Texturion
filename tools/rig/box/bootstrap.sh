@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Turns a fresh Ubuntu 24.04 install into the rig box (docs/RIG.md).
+# Turns a fresh Ubuntu 24.04 cloud image in the loonext-rig VM into the rig
+# (docs/RIG.md). cloud-init runs it on the VM's first boot
+# (tools/rig/host/vm/cloud-init.mjs).
 #
 #   sudo bash tools/rig/box/bootstrap.sh
 #
@@ -10,6 +12,17 @@ set -euo pipefail
 
 if [[ $EUID -ne 0 ]]; then
   echo "bootstrap.sh: run with sudo" >&2
+  exit 1
+fi
+
+# Only inside the rig's own VMware VM, and only with shared folders off: the
+# workstation's drives hold production keys.
+if [[ "$(systemd-detect-virt 2>/dev/null || true)" != vmware ]]; then
+  echo "bootstrap.sh: this is not the loonext-rig VMware VM" >&2
+  exit 1
+fi
+if [[ -e /mnt/hgfs ]]; then
+  echo "bootstrap.sh: /mnt/hgfs exists; the VM must have no shared folders" >&2
   exit 1
 fi
 
@@ -29,7 +42,25 @@ timedatectl set-timezone UTC
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   ca-certificates curl git gnupg openssl jq xz-utils \
-  docker.io caddy dnsmasq unattended-upgrades
+  docker.io caddy dnsmasq nftables openssh-server unattended-upgrades
+
+step "firewall and sshd: only the workstation opens connections in"
+install -d -m 0755 /etc/loonext-rig
+install -m 0644 "$BOX/nftables/loonext-rig.nft" /etc/loonext-rig/nftables.nft
+# No `flush ruleset`, unlike the stock file: docker keeps its tables.
+printf '#!/usr/sbin/nft -f\ninclude "/etc/loonext-rig/nftables.nft"\n' > /etc/nftables.conf
+nft -c -f /etc/nftables.conf
+# The stock unit flushes the whole ruleset on stop, docker's tables with it.
+install -d /etc/systemd/system/nftables.service.d
+printf '[Service]\nExecStop=\nExecStop=/usr/sbin/nft delete table inet loonext_rig\n' \
+  > /etc/systemd/system/nftables.service.d/loonext-rig.conf
+systemctl daemon-reload
+systemctl enable nftables.service
+systemctl restart nftables.service
+nft list table inet loonext_rig >/dev/null
+install -m 0644 "$BOX/ssh/sshd-loonext-rig.conf" /etc/ssh/sshd_config.d/40-loonext-rig.conf
+sshd -t
+systemctl try-reload-or-restart ssh.service
 
 step "node $NODE_VERSION and pnpm $PNPM_VERSION"
 if [[ "$(/usr/local/bin/node --version 2>/dev/null)" != "v$NODE_VERSION" ]]; then
@@ -60,8 +91,21 @@ fi
 usermod -aG docker "$RIG_USER"
 # Its user services run with nobody logged in, and survive reboots.
 loginctl enable-linger "$RIG_USER"
+# rig health lists the firewall table with sudo -n, whatever other sudo the account has.
+visudo -cf "$BOX/sudoers/loonext-rig-health"
+install -m 0440 "$BOX/sudoers/loonext-rig-health" /etc/sudoers.d/loonext-rig-health
 install -d -o "$RIG_USER" -g "$RIG_USER" -m 0750 "$RIG_HOME" "$RIG_HOME/state" "$RIG_HOME/work"
 install -d -o "$RIG_USER" -g "$RIG_USER" -m 0700 "$RIG_HOME/secrets"
+# The secrets live on the VM's independent-persistent disk, outside every
+# snapshot, so a revert never rolls them back.
+if ! findmnt --mountpoint "$RIG_HOME/secrets" >/dev/null; then
+  echo "bootstrap.sh: $RIG_HOME/secrets is not the state disk's mountpoint" >&2
+  exit 1
+fi
+if [[ "$(stat -c %a "$RIG_HOME/secrets")" != 700 ]]; then
+  echo "bootstrap.sh: $RIG_HOME/secrets is not 0700" >&2
+  exit 1
+fi
 
 step "the rig's certificate authority (once; never leaves the box but for its certificate)"
 install -d -m 0750 -o root -g caddy /etc/loonext-rig/ca
@@ -86,9 +130,6 @@ install -m 0644 /etc/loonext-rig/ca/root.crt /usr/local/share/ca-certificates/lo
 update-ca-certificates
 
 step "caddy for *.rig.internal"
-# The access point's address may not exist yet (box/sysctl/60-loonext-rig.conf).
-install -m 0644 "$BOX/sysctl/60-loonext-rig.conf" /etc/sysctl.d/60-loonext-rig.conf
-sysctl -p /etc/sysctl.d/60-loonext-rig.conf
 install -d /etc/systemd/system/caddy.service.d
 install -m 0644 "$BOX/systemd/system/caddy-rig.conf" /etc/systemd/system/caddy.service.d/loonext-rig.conf
 install -m 0644 "$BOX/caddy/Caddyfile" /etc/caddy/Caddyfile
@@ -101,16 +142,16 @@ systemctl is-active --quiet caddy
 
 step "name resolution: production and vendor APIs resolve to nothing"
 install -m 0644 "$BOX/dnsmasq/host.conf" /etc/loonext-rig/dnsmasq-host.conf
-install -m 0644 "$BOX/dnsmasq/ap.conf" /etc/loonext-rig/dnsmasq-ap.conf
+install -m 0644 "$BOX/dnsmasq/emulators.conf" /etc/loonext-rig/dnsmasq-emulators.conf
 install -d /etc/systemd/resolved.conf.d
 install -m 0644 "$BOX/systemd/system/resolved-rig.conf" /etc/systemd/resolved.conf.d/loonext-rig.conf
 install -m 0644 "$BOX/systemd/system/loonext-rig-dns-host.service" /etc/systemd/system/
-install -m 0644 "$BOX/systemd/system/loonext-rig-dns-ap.service" /etc/systemd/system/
+install -m 0644 "$BOX/systemd/system/loonext-rig-dns-emulators.service" /etc/systemd/system/
 systemctl disable --now dnsmasq.service || true
 systemctl restart systemd-resolved
 systemctl daemon-reload
 systemctl enable --now loonext-rig-dns-host.service
-systemctl enable loonext-rig-dns-ap.service
+systemctl enable --now loonext-rig-dns-emulators.service
 rm -f /etc/resolv.conf
 printf 'nameserver 127.0.0.1\noptions edns0 trust-ad\n' > /etc/resolv.conf
 for blocked in api.loonext.com api.telnyx.com fcm.googleapis.com; do

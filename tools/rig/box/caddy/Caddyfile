@@ -1,8 +1,10 @@
 # /etc/caddy/Caddyfile on the rig.
 #
-# The three rig names, served only on loopback and on the phone's access
-# point, never on the uplink. Certificates come from the rig's own authority,
-# generated on the box by tools/rig/box/bootstrap.sh and never committed; it is
+# The three rig names, served only on loopback and on the VM's own VMnet8
+# address, where the emulators on the workstation reach them; the VM's
+# nftables admits 443 there from the workstation alone. Certificates come
+# from the rig's own authority, generated in the VM by
+# tools/rig/box/bootstrap.sh and never committed; it is
 # name-constrained to rig.internal, so even a stolen key vouches for nothing
 # real. Caddy issues and renews the leaf certificates from it.
 {
@@ -20,9 +22,8 @@
 }
 
 (rig_site) {
-	# 10.77.0.1 is the access point's, bound before it exists through
-	# net.ipv4.ip_nonlocal_bind (box/sysctl/60-loonext-rig.conf).
-	bind 127.0.0.1 10.77.0.1
+	# 192.168.70.10 is static (cloud-init), so it exists before Caddy starts.
+	bind 127.0.0.1 192.168.70.10
 	tls {
 		issuer internal {
 			ca rig
