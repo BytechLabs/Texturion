@@ -102,6 +102,8 @@ const body = Hanken_Grotesk({ subsets: ["latin"], variable: "--font-body" });
 const mono = Spline_Sans_Mono({ subsets: ["latin"], variable: "--font-mono", weight: ["400", "500"] });
 ```
 
+As shipped (#612, #640): the three faces are self-hosted from `apps/web/src/app/fonts/`. `apps/web/scripts/instance-marketing-fonts.mjs` builds them from Google's latin files with the axis values this section never uses removed: Bricolage keeps opsz 12 to 96 with wght and wdth fixed at 800 and 100, Hanken keeps wght 400 to 900, and Spline keeps wght 400 to 700. The pages draw the same pixels. A display weight other than 800, or any width, needs the script re-run with a wider range first; `font-axes.test.ts` fails until it is.
+
 | Role | Face | Spec |
 |---|---|---|
 | H1 | Bricolage Grotesque 800 | `clamp(2.5rem, 6.5vw, 5.25rem)`, line-height 1.02, letter-spacing -0.02em above 48px, optical size at max |

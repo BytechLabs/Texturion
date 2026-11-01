@@ -31,10 +31,11 @@ import localFont from "next/font/local";
  * The MARKETING v4 type trio (docs/marketing/DESIGN-DIRECTION.md §3,
  * "FIRST RESPONSE"), the same three faces the direction specifies:
  *
- *   Display  Bricolage Grotesque (variable, with the opsz + wdth axes): the
- *            big plainspoken grotesque. 800 is the only display weight
- *            (H1, H2, the wordmark).
- *   Body     Hanken Grotesk (variable): body 400, emphasis 500, UI labels
+ *   Display  Bricolage Grotesque: the big plainspoken grotesque. 800 is
+ *            the only display weight (H1, H2, the wordmark). The shipped
+ *            file varies on opsz only, with wght and wdth fixed at 800 and
+ *            100.
+ *   Body     Hanken Grotesk (variable, 400-900): body 400, emphasis 500, UI labels
  *            600, H3/card titles 700.
  *   Mono     Spline Sans Mono 400/500: every countable truth (the mono law):
  *            prices, counts, timestamps, phone numbers, datelines, eyebrows.
@@ -70,7 +71,8 @@ export const display = localFont({
   src: "../../app/fonts/BricolageGrotesque.woff2",
   // The source carries opsz, wdth and wght. The shipped file keeps opsz whole
   // and pins wght at 800 and wdth at 100, the only values the CSS asks for, so
-  // a weight below 800 draws at 800 until the script keeps a wider range.
+  // a weight below 800 draws at 800 until the script keeps a wider range. The
+  // descriptor keeps the source's range on purpose.
   weight: "200 800",
   variable: "--font-display",
   display: "optional",
@@ -85,6 +87,8 @@ export const display = localFont({
 
 export const body = localFont({
   src: "../../app/fonts/HankenGrotesk.woff2",
+  // The shipped file is variable across 400-900; the descriptor keeps the
+  // source's range on purpose.
   weight: "100 900",
   variable: "--font-body",
   display: "optional",
@@ -99,8 +103,8 @@ export const body = localFont({
 
 export const mono = localFont({
   src: "../../app/fonts/SplineSansMono.woff2",
-  // 400 and 500 are the two the mono law uses; the file is variable across
-  // 300-700, so the range is declared rather than the pair.
+  // 400 and 500 are the two the mono law uses. The shipped file is variable
+  // across 400-700; the descriptor keeps the source's 300-700 on purpose.
   weight: "300 700",
   variable: "--font-mono",
   display: "optional",

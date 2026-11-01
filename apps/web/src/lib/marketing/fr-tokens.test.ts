@@ -186,11 +186,10 @@ describe("fonts.ts — the v4 trio, self-hosted (§3)", () => {
   });
 
   it("keeps the weight RANGES that make these variable faces", () => {
-    // A static instance would drop the axes the direction asks for — Bricolage
-    // is specified "with the opsz + wdth axes", which only the variable file
-    // carries. A range rather than a fixed weight is what says the file is
-    // variable, and a future edit narrowing it to `weight: "800"` would
-    // silently ship a different typeface.
+    // The descriptors keep the source files' ranges. The shipped files are
+    // narrower: scripts/instance-marketing-fonts.mjs fixes Bricolage's wght
+    // and wdth at 800 and 100 and keeps its opsz axis, and font-axes.test.ts
+    // reads each file's axes and the CSS that has to stay inside them (#640).
     expect(fonts).toMatch(/weight:\s*"200 800"/);
     expect(fonts).toMatch(/weight:\s*"100 900"/);
     expect(fonts).toMatch(/weight:\s*"300 700"/);
