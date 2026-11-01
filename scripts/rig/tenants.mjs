@@ -8,9 +8,11 @@
  * Owners always ring where they have a surface (#106 never restricts an
  * owner), so an owner with none, like QA-A's, rings nothing.
  *
- * A tenant with no standing number names `anchor`, a standing role whose
- * area code it buys in and whose messaging profile it shares, so a number it
- * buys lands in the partition without the app creating a profile.
+ * A tenant with no standing number names `messagingProfile`, the guard's own
+ * profile for it (a key in telnyx-spec.json), and `anchor`, a standing role
+ * whose area code it buys in. The profile is the tenant's alone, because a
+ * company's messaging profile is unique, so a number it buys lands in the
+ * partition without the app creating a profile.
  */
 
 export const TENANTS = [
@@ -65,6 +67,7 @@ export const TENANTS = [
     // the guard, which stops grace before it deactivates anything.
     members: [{ key: "owner", role: "owner", displayName: "QA-G Owner", surfaces: ["chromium"] }],
     numbers: [],
+    messagingProfile: "qa-g",
     anchor: "DEV-C1",
     callerIdLookup: false,
   },

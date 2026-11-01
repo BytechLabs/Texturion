@@ -225,7 +225,7 @@ describe("messaging profiles", () => {
     for (const [body, rule] of cases) expect(await ruleOf(await create(h, body)), JSON.stringify(body)).toBe(rule);
   });
 
-  it("holds at most six nonprod profiles, and counts the new one as nonprod", async () => {
+  it("holds at most seven nonprod profiles, and counts the new one as nonprod", async () => {
     const h = await ready();
     const first = await create(h, {});
     expect(first.status).toBe(201);

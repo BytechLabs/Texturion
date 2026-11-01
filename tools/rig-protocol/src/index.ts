@@ -204,6 +204,8 @@ export interface Partition {
   standing_e164: string[];
   connection_ids: { voice: string; robot: string; webrtc: string; sentinel: string };
   messaging_profile_ids: string[];
+  /** The spec's profiles by key (robot, qa-w, ...), so a tenant with no number can find its own. */
+  messaging_profiles?: Record<string, string>;
   fetched_at: string;
   /** The standing numbers by role, in {@link STANDING_ROLES} order. The guard always sends it. */
   standing?: StandingEntry[];

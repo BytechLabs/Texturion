@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -16,7 +16,7 @@ import {
 import { TENANTS } from "../../../scripts/rig/tenants.mjs";
 import { STANDING_ROLES, standingNumbers } from "../src/guard.mjs";
 import { secretStore } from "../src/secrets.mjs";
-import { stubPartition } from "./support/stub-guard.mjs";
+import { STUB_PROFILES, stubPartition } from "./support/stub-guard.mjs";
 
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "rig-seed-"));
@@ -89,7 +89,7 @@ test("a store made before a tenant or member existed gains them and keeps every 
 
 test("each number's audience at rest is everyone at note level plus the listed members", () => {
   const { standing, ids, userIds } = fixture();
-  const sql = seedSql({ ids, userIds, standing, voiceConnectionId: "stub-voice" });
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice" });
   const qaW = TENANTS.find((tenant) => tenant.key === "qa-w");
   const devW1 = stableUuid(ids["qa-w"].company_id, "DEV-W1");
   const devW2 = stableUuid(ids["qa-w"].company_id, "DEV-W2");
@@ -112,7 +112,7 @@ test("each number's audience at rest is everyone at note level plus the listed m
 
 test("numbers carry the guard's ids and profiles, and only tenants' numbers get the voice app", () => {
   const { standing, ids, userIds } = fixture();
-  const sql = seedSql({ ids, userIds, standing, voiceConnectionId: "stub-voice" });
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice" });
   assert.match(sql, /'stub-profile-qa-w', false\)/);
   assert.match(sql, /'DEV-W1',\s+'stub-voice', true\)/);
   assert.match(sql, /'ROBOT-1',\s+null, false\)/);
@@ -126,7 +126,7 @@ test("every standing number gets the live row the 15-minute number sweep knows i
   // run, every group number that no row outside 'released' claims by Telnyx
   // id or E.164. The robot's three numbers are in the rig's group too.
   const { standing, ids, userIds } = fixture();
-  const sql = seedSql({ ids, userIds, standing, voiceConnectionId: "stub-voice" });
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice" });
   const rows = [...sql.matchAll(/insert into public\.phone_numbers[\s\S]*?values\s*\(([\s\S]*?)\)\s*on conflict \(id\) do update set([\s\S]*?);/g)];
   assert.equal(rows.length, STANDING_ROLES.length);
   for (const role of STANDING_ROLES) {
@@ -177,13 +177,13 @@ test("a store that does not name every tenant and member always seeds", () => {
 test("a tenant split across messaging profiles is refused", () => {
   const { standing, ids, userIds } = fixture();
   standing.set("DEV-W2", { ...standing.get("DEV-W2"), messaging_profile_id: "stub-profile-qa-a" });
-  assert.throws(() => seedSql({ ids, userIds, standing, voiceConnectionId: "v" }), /different messaging profiles/);
+  assert.throws(() => seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "v" }), /different messaging profiles/);
 });
 
 test("a ring audience naming a stranger to the tenant is refused", () => {
   const { standing, ids, userIds } = fixture();
   const tenants = [{ ...TENANTS[0], numbers: [{ role: "DEV-W1", rings: ["nobody"] }] }];
-  assert.throws(() => seedSql({ tenants, ids, userIds, standing, voiceConnectionId: "v" }), /rings nobody/);
+  assert.throws(() => seedSql({ tenants, ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "v" }), /rings nobody/);
 });
 
 test("stable UUIDs are stable, distinct and version 4 shaped", () => {
@@ -203,16 +203,18 @@ test("TOTP matches RFC 6238's SHA-1 vectors", () => {
   assert.equal(totpCode(rfcSeed, 2_000_000_000_000), "279037");
 });
 
-test("the grace workspace holds no standing number, buys beside its anchor, and a reseed lifts a cancellation", () => {
+test("the grace workspace holds no standing number, has its own messaging profile, and a reseed lifts a cancellation", () => {
   const { standing, ids, userIds } = fixture();
   const grace = TENANTS.find((tenant) => tenant.key === "qa-g");
   assert.ok(grace, "QA-G is a tenant");
   assert.deepEqual(grace.numbers, []);
   const anchor = standing.get(grace.anchor);
-  const sql = seedSql({ ids, userIds, standing, voiceConnectionId: "stub-voice" });
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice" });
   const values = sql.slice(sql.indexOf(`('${ids["qa-g"].company_id}', 'QA-G'`)).split("on conflict")[0];
   assert.ok(values.startsWith(`('${ids["qa-g"].company_id}', 'QA-G', '${userIds["qa-g"].owner}', 'CA', '${anchor.e164.slice(2, 5)}',`));
-  assert.ok(values.includes(`'${anchor.messaging_profile_id}', false)`), "QA-G shares its anchor's messaging profile");
+  assert.equal(grace.messagingProfile, "qa-g");
+  assert.ok(values.includes(`'${STUB_PROFILES["qa-g"]}', false)`), "QA-G is on its own messaging profile");
+  assert.notEqual(STUB_PROFILES["qa-g"], anchor.messaging_profile_id);
   assert.ok(!sql.includes(`, '${ids["qa-g"].company_id}', 'active', 'rig-seed-`), "no phone_numbers row is seeded into QA-G");
   assert.match(sql, /subscription_status = excluded\.subscription_status,\s+canceled_at = null,/);
   const gaps = seedGapsSql({ ids, standing });
@@ -223,5 +225,35 @@ test("the grace workspace holds no standing number, buys beside its anchor, and 
 test("a tenant with no standing number and no anchor in the partition is refused", () => {
   const { standing, ids, userIds } = fixture();
   const tenants = TENANTS.map((tenant) => (tenant.key === "qa-g" ? { ...tenant, anchor: "DEV-Z9" } : tenant));
-  assert.throws(() => seedSql({ tenants, ids, userIds, standing, voiceConnectionId: "v" }), /QA-G has no standing number and names no anchor/);
+  const profiles = STUB_PROFILES;
+  assert.throws(() => seedSql({ tenants, ids, userIds, standing, profiles, voiceConnectionId: "v" }), /QA-G has no standing number and names no anchor/);
+});
+
+test("no two tenants are seeded onto one messaging profile, since a company's profile is unique", () => {
+  const { standing, ids, userIds } = fixture();
+  const profiles = (sql) => [...sql.matchAll(/'(stub-profile-[a-z-]+)', (?:true|false)\)/g)].map((match) => match[1]);
+  const seeded = profiles(seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "v" }));
+  assert.equal(seeded.length, TENANTS.length);
+  assert.equal(new Set(seeded).size, seeded.length, "every company has a profile of its own");
+
+  // QA-G on DEV-C1's profile, which the unique column refuses.
+  const shared = { ...STUB_PROFILES, "qa-g": standing.get("DEV-C1").messaging_profile_id };
+  assert.throws(() => seedSql({ ids, userIds, standing, profiles: shared, voiceConnectionId: "v" }), /QA-G and QA-C share a messaging profile/);
+});
+
+test("every tenant's messaging profile is a distinct profile the guard's spec creates", () => {
+  const spec = JSON.parse(readFileSync(new URL("../../guard/telnyx-spec.json", import.meta.url), "utf8"));
+  const specKeys = spec.messaging_profiles.profiles.map((profile) => profile.key);
+  const keyOfRole = new Map(spec.numbers.standing.map((entry) => [entry.role, entry.messaging_profile]));
+  const keys = TENANTS.map((tenant) => tenant.messagingProfile ?? keyOfRole.get(tenant.numbers[0]?.role));
+  assert.ok(keys.every((key) => specKeys.includes(key)), `every tenant's profile is in the spec: ${keys}`);
+  assert.equal(new Set(keys).size, keys.length, "no two tenants share a profile");
+  assert.ok(specKeys.includes("qa-g"), "the spec creates QA-G's profile");
+});
+
+test("the grace workspace is refused when the guard sends no profile for it", () => {
+  const { standing, ids, userIds } = fixture();
+  const { "qa-g": _, ...without } = STUB_PROFILES;
+  assert.throws(() => seedSql({ ids, userIds, standing, profiles: without, voiceConnectionId: "v" }), /no messaging profile for QA-G/);
+  assert.throws(() => seedSql({ ids, userIds, standing, voiceConnectionId: "v" }), /no messaging profile for QA-G/);
 });

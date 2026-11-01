@@ -43,7 +43,7 @@ describe("the setup routine", () => {
       "nonprod-webrtc",
       "nonprod-sentinel",
     ]);
-    expect(h.telnyx.lists.messaging_profiles).toHaveLength(5);
+    expect(h.telnyx.lists.messaging_profiles).toHaveLength(6);
     expect(h.telnyx.lists.telephony_credentials).toHaveLength(1);
     expect(h.telnyx.lists.notification_settings).toHaveLength(SPEC.notifications.event_conditions.length);
     expect(h.telnyx.lists.notification_channels[0]?.channel_destination).toBe(`${EDGE}/t/n/notice-path`);
@@ -85,11 +85,12 @@ describe("the setup routine", () => {
       "nonprod-qa-a": [`${EDGE}/t/m`, `${EDGE}/t/m`],
       "nonprod-qa-c": [`${EDGE}/t/m`, `${EDGE}/t/m`],
       "nonprod-qa-e": [`${EDGE}/t/m`, `${EDGE}/t/m`],
+      "nonprod-qa-g": [`${EDGE}/t/m`, `${EDGE}/t/m`],
     });
 
     const total = h.telnyx.lists.messaging_profiles.reduce((sum, item) => sum + Number(item.daily_spend_limit), 0);
-    // $0.40 + $0.20 + $0.06 + 4 x $0.03: the vendor-enforced $0.78 a day (docs/RIG.md).
-    expect(total + 0.4 + 0.2).toBeCloseTo(0.78);
+    // $0.40 + $0.20 + $0.06 + 5 x $0.03: the vendor-enforced $0.81 a day (docs/RIG.md).
+    expect(total + 0.4 + 0.2).toBeCloseTo(0.81);
   });
 
   it("makes the limit-probe profile attached to nothing, spending nothing, at a limit of 1", async () => {
@@ -216,7 +217,7 @@ describe("the committed spec", () => {
       "DEV-C1",
       "DEV-E1",
     ]);
-    expect(SPEC.messaging_profiles.max_profiles).toBe(6);
+    expect(SPEC.messaging_profiles.max_profiles).toBe(7);
     const keys = new Set(SPEC.messaging_profiles.profiles.map((item) => item.key));
     for (const item of SPEC.numbers.standing) expect(keys.has(item.messaging_profile), item.role).toBe(true);
   });
@@ -235,7 +236,7 @@ describe("the committed spec", () => {
       ...SPEC.credential_connections.map((item) => item.webhook),
       ...SPEC.messaging_profiles.profiles.map((item) => item.webhook),
     ];
-    expect(named.length).toBe(10);
+    expect(named.length).toBe(11);
     for (const path of named) {
       expect(WEBHOOK_PATHS, path).toContain(path);
       expect(edgeUrl(EDGE, path)).toBe(`${EDGE}${EDGE_PATHS[path]}`);

@@ -208,6 +208,7 @@ export function toWire(view: PartitionView): Partition & { standing: StandingEnt
       sentinel: connections.sentinel ?? "",
     },
     messaging_profile_ids: [...view.messagingProfiles].sort(),
+    messaging_profiles: { ...view.record.messaging_profiles },
     fetched_at: new Date(view.fetchedAt).toISOString(),
     standing: view.numbers
       .map((number) => ({ number, role: standingRole(view, number) }))

@@ -221,6 +221,7 @@ export function seedAccount(telnyx: FakeTelnyx): void {
     { id: "prof-qa-a", name: "nonprod-qa-a", webhook_url: edge("/t/m") },
     { id: "prof-qa-c", name: "nonprod-qa-c", webhook_url: edge("/t/m") },
     { id: "prof-qa-e", name: "nonprod-qa-e", webhook_url: edge("/t/m") },
+    { id: "prof-qa-g", name: "nonprod-qa-g", webhook_url: edge("/t/m") },
     { id: "prof-prod", name: "production-company", webhook_url: PROD_WEBHOOK },
   );
   telnyx.lists.telephony_credentials.push(

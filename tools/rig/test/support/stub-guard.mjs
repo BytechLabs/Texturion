@@ -25,6 +25,16 @@ const PROFILE_OF = {
   "DEV-E1": "stub-profile-qa-e",
 };
 
+/** The spec's profiles by key, as the partition sends them. QA-G's holds no number. */
+export const STUB_PROFILES = {
+  robot: "stub-profile-robot",
+  "qa-w": "stub-profile-qa-w",
+  "qa-a": "stub-profile-qa-a",
+  "qa-c": "stub-profile-qa-c",
+  "qa-e": "stub-profile-qa-e",
+  "qa-g": "stub-profile-qa-g",
+};
+
 export const STUB_STANDING = ROLES.map((role, index) => ({
   role,
   e164: `+1416555010${index}`,
@@ -38,7 +48,8 @@ export function stubPartition() {
     owned_e164: STUB_STANDING.map((entry) => entry.e164),
     standing_e164: STUB_STANDING.map((entry) => entry.e164),
     connection_ids: { voice: "stub-voice", robot: "stub-robot", webrtc: "stub-webrtc", sentinel: "stub-sentinel" },
-    messaging_profile_ids: [...new Set(Object.values(PROFILE_OF))],
+    messaging_profile_ids: Object.values(STUB_PROFILES),
+    messaging_profiles: STUB_PROFILES,
     standing: STUB_STANDING,
     fetched_at: new Date().toISOString(),
   };

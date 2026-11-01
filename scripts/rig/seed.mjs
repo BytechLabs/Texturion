@@ -111,11 +111,13 @@ function npaOf(e164) {
 /**
  * One transaction for every tenant.
  *
- * @param {{ tenants, ids, userIds: Record<string, Record<string, string>>, standing: Map, voiceConnectionId: string }} input
+ * @param {{ tenants, ids, userIds: Record<string, Record<string, string>>, standing: Map, profiles?: Record<string, string>, voiceConnectionId: string }} input
  *   userIds: tenant key -> member key -> auth user id
+ *   profiles: the partition's messaging profile ids by spec key
  */
-export function seedSql({ tenants = TENANTS, ids, userIds, standing, voiceConnectionId }) {
+export function seedSql({ tenants = TENANTS, ids, userIds, standing, profiles: profileIds = {}, voiceConnectionId }) {
   const statements = ["begin;"];
+  const profileOwner = new Map();
   for (const tenant of tenants) {
     const companyId = ids[tenant.key]?.company_id;
     if (!UUID.test(companyId ?? "")) throw new Error(`rig seed: tenants.json has no company id for ${tenant.key}`);
@@ -127,7 +129,11 @@ export function seedSql({ tenants = TENANTS, ids, userIds, standing, voiceConnec
       throw new Error(`rig seed: ${tenant.name}'s numbers are on different messaging profiles`);
     }
     const first = numbers[0] ?? anchorOf(tenant, standing);
-    if (profiles.length === 0) profiles.push(first.messaging_profile_id);
+    if (profiles.length === 0) profiles.push(ownProfileOf(tenant, profileIds));
+    // companies.telnyx_messaging_profile_id is unique, so two tenants cannot share one.
+    const taken = profileOwner.get(profiles[0]);
+    if (taken) throw new Error(`rig seed: ${tenant.name} and ${taken} share a messaging profile, which a company's row cannot`);
+    profileOwner.set(profiles[0], tenant.name);
 
     statements.push(`
 insert into public.companies
@@ -200,7 +206,14 @@ values (${lit(companyId)}, ${lit(numberId)}, 'user', ${lit(users[member.key])}, 
   return statements.join("\n");
 }
 
-/** The standing number a tenant without one buys beside: its area code and messaging profile. */
+/** The messaging profile the guard made for a tenant that holds no standing number. */
+function ownProfileOf(tenant, profileIds) {
+  const id = tenant.messagingProfile ? profileIds[tenant.messagingProfile] : undefined;
+  if (!id) throw new Error(`rig seed: the partition has no messaging profile for ${tenant.name}`);
+  return id;
+}
+
+/** The standing number a tenant without one buys beside: its area code. */
 function anchorOf(tenant, standing) {
   const anchor = tenant.anchor ? standing.get(tenant.anchor) : undefined;
   if (!anchor) throw new Error(`rig seed: ${tenant.name} has no standing number and names no anchor the partition has`);
@@ -360,7 +373,7 @@ export async function seed({ workdir, store, partition, log = console.log }) {
     }
   }
 
-  psql(projectId, seedSql({ ids, userIds, standing, voiceConnectionId: live.connection_ids.voice }));
+  psql(projectId, seedSql({ ids, userIds, standing, profiles: live.messaging_profiles, voiceConnectionId: live.connection_ids.voice }));
 
   if (totpEnabled(workdir)) {
     let changed = false;
