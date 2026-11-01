@@ -19,6 +19,8 @@ export interface LeaseRecord extends LeaseGrant {
   preempted_at?: number;
   /** What reached the Telnyx route while the lease was live, by {@link activityKey}. */
   activity?: Record<string, number>;
+  /** Taken by a run that dials nothing, such as S34 for its mail: no dial runs under it. */
+  no_dials?: true;
 }
 
 const KEY = "lease";
@@ -32,7 +34,7 @@ export async function liveLease(ctx: Ctx): Promise<LeaseRecord | null> {
   return lease;
 }
 
-export async function acquireLease(ctx: Ctx, scenario: unknown, holder: GuardCaller): Promise<LeaseRecord> {
+export async function acquireLease(ctx: Ctx, scenario: unknown, holder: GuardCaller, options: { noDials?: boolean } = {}): Promise<LeaseRecord> {
   if (typeof scenario !== "string" || !SCENARIO.test(scenario)) throw new Refusal("lease.scenario_invalid");
   if (await liveLease(ctx)) throw new Refusal("lease.busy");
   const now = ctx.now();
@@ -43,6 +45,7 @@ export async function acquireLease(ctx: Ctx, scenario: unknown, holder: GuardCal
     holder,
     acquired_at: now,
     expires_ms: now + LEASE_MAX_MS,
+    ...(options.noDials ? { no_dials: true as const } : {}),
   };
   await ctx.store.put(KEY, lease);
   return lease;
@@ -65,13 +68,13 @@ export async function markPreempted(ctx: Ctx, leaseId: string): Promise<void> {
  * The live lease a dial, transfer or bridge runs under. Test code names it in
  * the lease header. The app under test cannot, since nothing in it knows the
  * lease, so a `rig-api` request without the header runs under whatever lease
- * is live, and there must be one. A header naming another lease is refused
- * for every caller.
+ * is live, and there must be one that admits dials. A header naming another
+ * lease is refused for every caller.
  */
 export async function requireDialLease(ctx: Ctx, header: string | null, caller: GuardCaller): Promise<LeaseRecord> {
   if (!header && caller !== "rig-api") throw new Refusal("dial.lease_missing");
   const lease = await liveLease(ctx);
-  if (!lease || (header && lease.lease_id !== header)) throw new Refusal("dial.lease_not_live");
+  if (!lease || lease.no_dials || (header && lease.lease_id !== header)) throw new Refusal("dial.lease_not_live");
   return lease;
 }
 

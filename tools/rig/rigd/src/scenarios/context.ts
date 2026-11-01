@@ -632,7 +632,7 @@ export interface ScenarioRunner {
   /**
    * Holds the guard's lease though the scenario dials nothing, because the
    * guard allows what it does only under a live lease named for it: S34's
-   * mail to the robot mailbox.
+   * mail to the robot mailbox. The lease admits no dial, the app's included.
    */
   guardLease?: boolean;
   /**

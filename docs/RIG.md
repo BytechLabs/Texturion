@@ -405,7 +405,7 @@ Phone numbers are cut to their last four digits, and message bodies and recordin
 
 The guard counts every Telnyx request that reaches it while a lease is live, refusals included, on that lease's record by caller, endpoint and outcome. `GET /g/lease/<id>/activity` reads the record back until the next lease is acquired. It names endpoints and rule names, never ids or numbers. G01 reads it to prove the app's refused send and dial never reached the guard. S09, S12 and S14 read it to prove a refused dial or send made no request, and S28 to prove one search and one order. A run under a local lease has no record. While no lease is live, the guard refuses every app dial, which is what keeps D02p at zero dials.
 
-A run with no dials holds a local lease, except S34, which holds the guard's: the guard mails the robot mailbox only under a live S34 lease. When another scenario holds the lease, S34 waits for it as a paid run does, at any hour.
+A run with no dials holds a local lease, except S34, which holds the guard's: the guard mails the robot mailbox only under a live S34 lease. S34 asks for it with `dials: false`, and the guard admits no dial under such a lease, the app's included, so S34 never makes a dial the app reaches for admissible. When another scenario holds the lease, S34 waits for it as a paid run does, at any hour.
 
 A run that prepares before its lease (D03) holds its lane for the whole attempt, in a file under `state/rigd/holds`. Another run on that lane waits for it as it would for a busy lease, then is skipped. A hold lapses by itself, so a run that died cannot keep the lane. If no run follows a finished prepare (no lease, or the window closed), the runner puts back what the prepare changed.
 

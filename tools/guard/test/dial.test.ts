@@ -59,6 +59,19 @@ describe("dial", () => {
     expect(await ruleOf(await dial(h, null))).toBe("dial.lease_missing");
   });
 
+  it("admits no dial under a lease taken for a run that dials nothing", async () => {
+    const h = await ready();
+    const response = await h.call("/lease", { caller: "rig-api", body: { scenario: "S34", dials: false } });
+    const id = ((await response.json()) as { lease_id: string }).lease_id;
+    const appDial = h.call("/telnyx/v2/calls", {
+      caller: "rig-api",
+      body: { ...DIAL, connection_id: "conn-voice", from: N.devW1, to: "sip:gencredowner@sip.telnyx.com" },
+    });
+    expect(await ruleOf(await appDial)).toBe("dial.lease_not_live");
+    expect(await ruleOf(await dial(h, id))).toBe("dial.lease_not_live");
+    expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
+  });
+
   it("refuses a released lease", async () => {
     const h = await ready();
     const id = await lease(h);

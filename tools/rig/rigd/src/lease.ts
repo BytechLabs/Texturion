@@ -113,11 +113,12 @@ export class LeaseClient {
     return results;
   }
 
-  async acquire(scenario: string): Promise<Lease> {
+  /** `dials: false` for a run that holds the lease only for what the guard allows under it, so no dial is admitted. */
+  async acquire(scenario: string, options: { dials?: false } = {}): Promise<Lease> {
     const response = await this.#fetch(this.#url(), {
       method: "POST",
       headers: { authorization: `Bearer ${this.#o.token}`, "content-type": "application/json" },
-      body: JSON.stringify({ scenario }),
+      body: JSON.stringify({ scenario, ...options }),
       signal: AbortSignal.timeout(10_000),
     });
     const body = (await response.json().catch(() => undefined)) as Partial<LeaseGrant & GuardRefusal> | undefined;

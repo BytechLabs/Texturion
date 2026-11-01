@@ -291,7 +291,8 @@ describe("runScenario", () => {
     const summary = await runScenario(deps, "S20");
     expect(summary.status).toBe("pass");
     expect(summary.verdicts[0]).toMatchObject({ dials: 0 });
-    expect(requests.filter((r) => r.method === "POST" && r.url === `${EDGE}/g/lease`)).toHaveLength(1);
+    const asked = requests.filter((r) => r.method === "POST" && r.url === `${EDGE}/g/lease`);
+    expect(asked.map((r) => JSON.parse(r.body!))).toEqual([{ scenario: "S20", dials: false }]);
     expect(leases[0]).toMatch(/^lease-/);
 
     let calls = 0;

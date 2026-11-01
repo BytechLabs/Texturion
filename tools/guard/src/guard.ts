@@ -178,7 +178,7 @@ export class Guard {
     }
     if (request.method === "POST" && rest === "") {
       const body = await bodyOf(request);
-      const lease = await acquireLease(ctx, body.scenario, caller);
+      const lease = await acquireLease(ctx, body.scenario, caller, { noDials: body.dials === false });
       await ctx.setAlarm(ctx.now() + PREEMPT_POLL_MS);
       return json(toGrant(lease), 201);
     }

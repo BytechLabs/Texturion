@@ -291,7 +291,8 @@ async function acquireLease(
       return { outcome: "skipped", detail: `${holder.scenario} held the ${entry.lane} lane for ${waited()} min while it prepared`, spent: false };
     }
     try {
-      return atGuard ? await deps.leases.acquire(entry.id) : await deps.localLease(entry.id);
+      if (!atGuard) return await deps.localLease(entry.id);
+      return await deps.leases.acquire(entry.id, paid ? {} : { dials: false });
     } catch (error) {
       if (error instanceof LeaseBusyError) {
         const next = deps.clock.now() + LEASE_POLL_MS;
