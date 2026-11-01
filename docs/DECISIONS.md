@@ -9155,16 +9155,19 @@ with its reason:
     answers it.
   - Q2, charges: no per-dial fee is published. A transfer is $0.10 a call
     ("Call transfer $0.10 per invocation"), and the guard keeps $0.13, which
-    adds one leg. `call_cost_in_webhooks` is turned on, so the rig measures
-    what calls actually cost.
+    adds one leg. `call_cost_in_webhooks` is turned on, so the rig records
+    what calls actually cost in its own database. The guard's ledger is not
+    yet checked against that record; it charges the estimates, raised only by
+    the month's usage an agent files from detail records.
   - Q3, on-net calls and Canadian fees: an on-net call is assumed billed at
     full off-net rates on both legs, and the Canadian carrier fee is assumed
     on both ends, at the highest published $0.008845 a part (Rogers and Fido).
   - Q4, abandoned calls: cancelled ring legs are assumed to count toward the
     abandoned surcharge. The short-call surcharge is corrected to $0.01 a
     call.
-  - Q5, fraud-hold scope: assumed account-wide, and liftable only by emailing
-    support, which the first decision rules out.
+  - Q5, fraud-hold scope: assumed account-wide. The rig never contacts
+    Telnyx and treats a hold as permanent. Lifting a hold on production is a
+    founder act outside the rig, which the first decision does not forbid.
   - Q6, ordering: measured by the first-order read-back.
   - Q7, active calls: measured by admission's per-connection
     `GET /v2/connections/{id}/active_calls`. An unknown answer refuses.
@@ -9216,8 +9219,10 @@ with its reason:
   levels, checked 2026-10-29). It refuses when the rig's dials plus
   production's measured peak hour or day would exceed them, and when that
   measurement is stale. Its own 18 a day and 3 an hour stay as ceilings. Why:
-  no API says which level the account is on, and Paid is the lowest level
-  with published limits. The 25% clause was the route for raising the cap; at
+  no API says which level the account is on, and Paid is the lowest it can
+  be: the Pretrial and Trial levels dial only the account's verified number,
+  and production dials customers (developers.telnyx.com account levels,
+  checked 2026-10-29). The 25% clause was the route for raising the cap; at
   Paid it gives 2.5 an hour, below 3, so the cap is final, and S07-S10 and
   D01 stay unscheduled with no promised rise.
 - **Ordering** waits only on production's `/health` listing
