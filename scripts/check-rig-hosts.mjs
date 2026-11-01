@@ -18,8 +18,9 @@
  *   - the box's configs (tools/rig/box): every name and address outside a
  *     comment, except a dnsmasq line that makes a name resolve to nothing,
  *     which names production only to refuse it, and an address block in the
- *     firewall (`10.0.0.0/8`), which names a range, not a host. Installers (*.sh) are left
- *     out: they fetch Node, Docker and the Stripe CLI from their publishers;
+ *     firewall (`10.0.0.0/8`), which names a range, not a host. Installers (*.sh) and the
+ *     pins they read (INSTALLER_PINS) are left out: they fetch Node, Docker, the Stripe CLI,
+ *     the JDK and the Android SDK from their publishers;
  *   - the API's settings template (tools/rig/templates): literal values. A
  *     {{placeholder}} is filled from the settings below or from the edge, so a
  *     host that is only a placeholder is not judged, while the literal part of
@@ -57,6 +58,8 @@ export const GATEWAY = "192.168.70.2";
 const CONTRACT = "tools/rig/host/contract.json";
 
 /** The deploy CLI's derivation inputs, as `rig deploy` passes them. */
+const INSTALLER_PINS = new Set(["tools/rig/box/android-toolchain.json"]);
+
 const DERIVED = [
   { source: "apps/api/wrangler.jsonc", options: { port: 8787, aiShim: true } },
   { source: "apps/web/wrangler.jsonc", options: { port: 8788 } },
@@ -374,7 +377,7 @@ async function main() {
   const coverage = [];
   const surface = (name) => (surfaces[name] ??= { files: 0, ...newFindings() });
 
-  for (const path of trackedFiles("tools/rig/box").filter((file) => !file.endsWith(".sh"))) {
+  for (const path of trackedFiles("tools/rig/box").filter((file) => !file.endsWith(".sh") && !INSTALLER_PINS.has(file))) {
     surface("box").files += 1;
     merge(surface("box"), boxFindings(path, read(path)));
   }
@@ -391,7 +394,7 @@ async function main() {
     "tools/rig/*.json", "tools/rig/*.jsonc", "tools/edge/*.json", "tools/edge/*.jsonc",
     "tools/guard/*.json", "tools/guard/*.jsonc",
   );
-  for (const path of jsonFiles) {
+  for (const path of jsonFiles.filter((file) => !INSTALLER_PINS.has(file))) {
     surface("json").files += 1;
     merge(surface("json"), jsonFindings(path, parseJsonc(read(path))));
   }
