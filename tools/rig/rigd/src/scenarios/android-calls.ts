@@ -191,6 +191,7 @@ async function healthFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
     return [infra("rig-health", (error as Error).message)];
   }
   ctx.evidence.room = report.room ?? null;
+  if (typeof report.room === "number") ctx.evidence.blocked_by_room = ctx.blockedAt(report.room);
   ctx.evidence.health = report.results.map((r) => ({ name: r.name, pass: r.pass }));
   return report.results
     .filter((r) => !r.pass)
@@ -237,7 +238,10 @@ async function pixelFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
     play_services_version: state.play_services_version,
   };
   ctx.evidence.pixel = evidence;
-  if (state.locked === null) found.push(infra("pixel", "the Pixel's lock state could not be read"));
+  // A run that holds the Pixel while it prepares has put it out of rest on purpose.
+  const holder = ctx.laneHeldBy("device");
+  if (holder) evidence.held_by = holder;
+  else if (state.locked === null) found.push(infra("pixel", "the Pixel's lock state could not be read"));
   else if (state.locked) found.push(fail("pixel_locked", "the Pixel is locked, and at rest it is not"));
   if (state.bluetooth_bonded === null) found.push(infra("pixel", "the Pixel's Bluetooth bonds could not be read"));
   else if (state.bluetooth_bonded < 1) found.push(fail("pixel_not_paired", "the Pixel has no Bluetooth bond, so the rig's hands-free unit is gone"));
@@ -270,7 +274,7 @@ async function emulatorFindings(ctx: ScenarioContext): Promise<ScenarioResult[]>
   return EMULATOR_APIS.filter((api) => !reachable[api]).map((api) => infra(`emulator-${api}`, `adb does not see the API ${api} emulator booted`));
 }
 
-/** R00: `rig health`, the guard, the Pixel and the emulators, and the room published. */
+/** R00: `rig health`, the guard, the Pixel and the emulators, and the room published with the scenarios it blocks. */
 export const R00: ScenarioRunner = {
   id: "R00",
   async run(ctx) {

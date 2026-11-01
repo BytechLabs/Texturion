@@ -31,7 +31,7 @@ import { GuardClient } from "./guard-client.ts";
 import { Mailbox } from "./mail.ts";
 import { MailClient } from "./mail-client.ts";
 import { rigDevices, RigOps } from "./rig-ops.ts";
-import { FaultFile, HandoffFile } from "./state-files.ts";
+import { FaultFile, HandoffFile, LaneHoldFile } from "./state-files.ts";
 import { deleteStripeObject, STRIPE_DELETE_UNDO, StripeSandbox } from "./stripe-sandbox.ts";
 import type { RunnerDeps } from "./runner.ts";
 import { RUNNERS } from "./scenarios/index.ts";
@@ -118,6 +118,7 @@ export function buildRig(config: RigdConfig): Rig {
   );
   const handoff = new HandoffFile(join(dir, "handoff"));
   const faults = new FaultFile(join(dir, "faults"));
+  const holds = new LaneHoldFile(join(dir, "holds"));
   const transcriber = once(() => {
     const binary = config.env.RIG_WHISPER_BIN;
     const model = config.env.RIG_WHISPER_MODEL;
@@ -282,6 +283,7 @@ export function buildRig(config: RigdConfig): Rig {
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       lateDeliveries: (query) => late.matching(query).length,
       ran: (at) => markSuiteRan(config, at),
+      holds,
       log: (line) => console.log(line),
     }),
   };

@@ -11,6 +11,7 @@ import { runScenario, type RunnerDeps } from "./runner.ts";
 import type { ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
 import { fakeLanes, FakeTime } from "./scenarios/fakes.ts";
 import { parseDsn, SentryRelay } from "./sentry-relay.ts";
+import { LaneHoldFile } from "./state-files.ts";
 import { fakeFetch, json } from "./test-support.ts";
 import { registryOf, scenario } from "./test-registry.ts";
 import { VerdictStore } from "./verdicts.ts";
@@ -402,6 +403,92 @@ describe("runScenario", () => {
     };
     expect((await runScenario(ready.deps, "S02")).status).toBe("pass");
     expect(leased).toMatch(/^lease-/);
+  });
+
+  it("holds a preparing run's lane, so no other run uses that device under it, and frees it when the attempt ends", async () => {
+    const { deps, clock } = setup([]);
+    const dir = mkdtempSync(join(tmpdir(), "rig-holds-"));
+    dirs.push(dir);
+    deps.holds = new LaneHoldFile(dir);
+    deps.caps = { daily: 100, hourly: 100 };
+    const during: { s04: unknown; ownView: string | undefined }[] = [];
+    let ran = 0;
+    deps.runners = {
+      ...deps.runners,
+      S04: { id: "S04", run: async () => (ran++, { outcome: "pass" }) },
+      S02: {
+        id: "S02",
+        async prepare(ctx) {
+          const s04 = await runScenario(deps, "S04");
+          during.push({ s04: { status: s04.status, detail: s04.detail }, ownView: ctx.laneHeldBy("browser") });
+          clock.advance(60 * 60_000);
+          return undefined;
+        },
+        run: async () => ({ outcome: "pass" }),
+      },
+    };
+    expect((await runScenario(deps, "S02")).status).toBe("pass");
+    // The holder sees no hold on its own lane.
+    expect(during[0]).toEqual({ s04: { status: "skipped", detail: "S02 held the browser lane for 20 min while it prepared" }, ownView: undefined });
+    expect(ran).toBe(0);
+    expect(deps.holds.holder("browser", clock.now())).toBeUndefined();
+    expect((await runScenario(deps, "S04")).status).toBe("pass");
+    expect(ran).toBe(1);
+
+    // A run that is waiting starts once the hold is gone, and a hold a dead run left lapses by itself.
+    deps.holds.claim("browser", { scenario: "S02", run_id: "S02-dead" }, clock.now() + 5 * 60_000);
+    const started = clock.now();
+    expect((await runScenario(deps, "S04")).status).toBe("pass");
+    expect(clock.now() - started).toBeGreaterThanOrEqual(5 * 60_000);
+    expect(ran).toBe(2);
+  });
+
+  it("puts back what a finished prepare changed when its run never starts, and only then", async () => {
+    const abandoned: string[] = [];
+    const preparing = (prepared: ScenarioResult | undefined): ScenarioRunner => ({
+      id: "S02",
+      prepare: async () => prepared,
+      abandon: async (ctx) => void abandoned.push(ctx.runId),
+      run: async () => ({ outcome: "pass" }),
+    });
+
+    const busy = setup([], { acquire: () => json({ error: "guard_refused", rule: "lease.busy" }, 403, { [HEADER.refusedBy]: "lease.busy" }) });
+    busy.deps.runners = { ...busy.deps.runners, S02: preparing(undefined) };
+    expect((await runScenario(busy.deps, "S02")).status).toBe("skipped");
+    expect(abandoned).toHaveLength(1);
+
+    const refused = setup([], { acquire: () => json({ error: "guard_refused", rule: "class.not_allowed" }, 403, { [HEADER.refusedBy]: "class.not_allowed" }) });
+    refused.deps.runners = { ...refused.deps.runners, S02: preparing(undefined) };
+    expect((await runScenario(refused.deps, "S02")).verdicts.map((v) => v.outcome)).toEqual(["infra", "infra"]);
+    expect(abandoned).toHaveLength(3);
+
+    const closing = setup([], { at: Date.UTC(2026, 10, 1, 9, 0) });
+    closing.deps.runners = {
+      ...closing.deps.runners,
+      S02: { ...preparing(undefined), prepare: async () => void closing.clock.advance(50 * 60_000) },
+    };
+    expect(await runScenario(closing.deps, "S02")).toMatchObject({ status: "skipped", detail: "the dial window closed while the run prepared" });
+    expect(abandoned).toHaveLength(4);
+
+    // A prepare that failed put its own change back; a run that started has its lease's undos.
+    const failed = setup([]);
+    failed.deps.runners = { ...failed.deps.runners, S02: preparing({ outcome: "infra", component: "pixel", detail: "never reached deep idle" }) };
+    await runScenario(failed.deps, "S02");
+    const started = setup([]);
+    started.deps.runners = { ...started.deps.runners, S02: preparing(undefined) };
+    expect((await runScenario(started.deps, "S02")).status).toBe("pass");
+    expect(abandoned).toHaveLength(4);
+  });
+
+  it("tells a runner which timed scenarios a room would block, as its own admission blocks them", async () => {
+    const { deps } = setup([]);
+    const blocked: Record<number, string[]> = {};
+    deps.runners = {
+      ...deps.runners,
+      S20: { id: "S20", run: async (ctx) => (Object.assign(blocked, { 1: ctx.blockedAt(1), 4: ctx.blockedAt(4) }), { outcome: "pass" }) },
+    };
+    await runScenario(deps, "S20");
+    expect(blocked).toEqual({ 1: ["S02", "S04"], 4: [] });
   });
 
   it("runs a daily text check once its day is nearly up", async () => {

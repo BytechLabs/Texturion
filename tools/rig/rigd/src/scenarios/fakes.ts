@@ -1009,6 +1009,8 @@ export function fakeContext(scenario: string) {
     lease: { id: "lease-test", registerUndo: (action) => undo.push(action) },
     ...lanes,
     history,
+    laneHeldBy: () => undefined,
+    blockedAt: () => [],
     now: () => time.now,
     sleep: time.sleep,
     nonce: "n0nce",

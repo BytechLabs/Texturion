@@ -24,7 +24,7 @@ import {
 } from "./budget.ts";
 import { textHash } from "./late.ts";
 import { LeaseBusyError, LeaseReapedError, type Lease, type LeaseClient, type ReleaseResult } from "./lease.ts";
-import { dialsPerRun, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
+import { dialsPerRun, timedOnRig, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
 import type { LeaseHandle, ScenarioContext, ScenarioHistoryApi, ScenarioLanes, ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
 import { infraFingerprint, syntheticFingerprint, type Dsn, type RelayDecision, type SentryRelay } from "./sentry-relay.ts";
 import type { Outcome, Verdict, VerdictStore } from "./verdicts.ts";
@@ -69,7 +69,20 @@ export interface RunnerDeps {
   lateDeliveries?(query: { since: number; texts: ReadonlySet<string> }): number;
   /** Marks the suite heartbeat for the dead-man. */
   ran?(at: number): void;
+  /** Lanes a run holds outside any lease, while it prepares. */
+  holds?: LaneHolds;
   log?(line: string): void;
+}
+
+/**
+ * A run that prepares before its lease (D03 idles the Pixel for up to two
+ * hours) holds its lane for the whole attempt, so no other run uses that
+ * device under it. A hold lapses by itself, so a run that died cannot keep it.
+ */
+export interface LaneHolds {
+  holder(lane: string, now: number): { scenario: string; run_id: string } | undefined;
+  claim(lane: string, holder: { scenario: string; run_id: string }, until: number): void;
+  release(lane: string, runId: string): void;
 }
 
 export interface RunOptions {
@@ -249,11 +262,28 @@ type AttemptOutcome = {
   spent: boolean;
 };
 
-async function acquireLease(deps: RunnerDeps, entry: RegisteredScenario, runner: ScenarioRunner, window: DialWindow): Promise<Lease | AttemptOutcome> {
+/** A lane another run holds is waited for as a busy lease is. */
+async function acquireLease(
+  deps: RunnerDeps,
+  entry: RegisteredScenario,
+  runner: ScenarioRunner,
+  runId: string,
+  window: DialWindow,
+): Promise<Lease | AttemptOutcome> {
   const paid = dialsPerRun(entry) > 0;
   const atGuard = paid || runner.guardLease === true;
   const started = deps.clock.now();
+  const waited = () => Math.round((deps.clock.now() - started) / 60_000);
   for (;;) {
+    const holder = deps.holds?.holder(entry.lane, deps.clock.now());
+    if (holder && holder.run_id !== runId) {
+      const next = deps.clock.now() + LEASE_POLL_MS;
+      if (next - started <= LEASE_WAIT_MS && (!paid || inWindow(window, next + WINDOW_TAIL_MS))) {
+        await deps.sleep(LEASE_POLL_MS);
+        continue;
+      }
+      return { outcome: "skipped", detail: `${holder.scenario} held the ${entry.lane} lane for ${waited()} min while it prepared`, spent: false };
+    }
     try {
       return atGuard ? await deps.leases.acquire(entry.id) : await deps.localLease(entry.id);
     } catch (error) {
@@ -264,7 +294,7 @@ async function acquireLease(deps: RunnerDeps, entry: RegisteredScenario, runner:
           await deps.sleep(LEASE_POLL_MS);
           continue;
         }
-        return { outcome: "skipped", detail: `another scenario held the lease for ${Math.round((deps.clock.now() - started) / 60_000)} min`, spent: false };
+        return { outcome: "skipped", detail: `another scenario held the lease for ${waited()} min`, spent: false };
       }
       // Only a busy lease is a reason to skip. Any other refusal, a rejected
       // token or a guard that does not answer is the rig's fault to report.
@@ -277,6 +307,25 @@ async function acquireLease(deps: RunnerDeps, entry: RegisteredScenario, runner:
 }
 
 async function attemptOnce(
+  deps: RunnerDeps,
+  entry: RegisteredScenario,
+  runner: ScenarioRunner,
+  runId: string,
+  attempt: number,
+  sha: string,
+  window: DialWindow,
+  slot: RunSlot,
+): Promise<AttemptOutcome> {
+  const holds = runner.prepare ? deps.holds : undefined;
+  holds?.claim(entry.lane, { scenario: entry.id, run_id: runId }, deps.clock.now() + PREPARE_LIMIT_MS + ATTEMPT_LIMIT_MS);
+  try {
+    return await attemptHeld(deps, entry, runner, runId, attempt, sha, window, slot);
+  } finally {
+    holds?.release(entry.lane, runId);
+  }
+}
+
+async function attemptHeld(
   deps: RunnerDeps,
   entry: RegisteredScenario,
   runner: ScenarioRunner,
@@ -300,15 +349,30 @@ async function attemptOnce(
     nonce: `${runId}-${attempt}`.slice(-24),
     evidence,
     history: historyOf(deps, entry.id),
+    laneHeldBy(lane: string) {
+      const holder = deps.holds?.holder(lane, deps.clock.now());
+      return holder && holder.run_id !== runId ? holder.scenario : undefined;
+    },
+    blockedAt(room: number) {
+      return deps.registry.scenarios.filter((scenario) => timedOnRig(scenario) && blockedByRoom(scenario, room)).map((scenario) => scenario.id);
+    },
   };
 
+  const unleased: LeaseHandle = {
+    id: "",
+    registerUndo() {
+      throw new Error("prepare runs before the lease; register undos in run");
+    },
+  };
+  // No lease holds an undo for what a finished prepare changed, so the runner puts it back when no run follows.
+  const abandon = async () => {
+    try {
+      await runner.abandon?.({ ...base, ...lanes, lease: unleased });
+    } catch (error) {
+      evidence.abandon_error = error instanceof Error ? error.message : String(error);
+    }
+  };
   if (runner.prepare) {
-    const unleased: LeaseHandle = {
-      id: "",
-      registerUndo() {
-        throw new Error("prepare runs before the lease; register undos in run");
-      },
-    };
     let prepared: ScenarioResult | undefined;
     try {
       prepared = await withLimit(runner.prepare({ ...base, ...lanes, lease: unleased }), PREPARE_LIMIT_MS, deps);
@@ -320,12 +384,20 @@ async function attemptOnce(
       return { ...outcomeOf(prepared), spent: false };
     }
     if (paid && !inWindow(window, deps.clock.now() + WINDOW_TAIL_MS)) {
+      await abandon();
+      deps.verdicts.saveEvidence(runId, attempt, evidence);
       return { outcome: "skipped", detail: "the dial window closed while the run prepared", spent: false };
     }
   }
 
-  const acquired = await acquireLease(deps, entry, runner, window);
-  if (!("id" in acquired)) return acquired;
+  const acquired = await acquireLease(deps, entry, runner, runId, window);
+  if (!("id" in acquired)) {
+    if (runner.prepare) {
+      await abandon();
+      deps.verdicts.saveEvidence(runId, attempt, evidence);
+    }
+    return acquired;
+  }
   const lease = acquired;
   const attemptStartedAt = deps.clock.now();
 

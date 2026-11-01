@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CallPlan } from "@loonext/rig-robot";
 import { describe, expect, it } from "vitest";
+import { plannedRuns } from "../budget.ts";
+import { loadRegistry } from "../registry.ts";
 import {
   BEACON_AFTER,
   CALL_STAGES,
@@ -16,6 +18,7 @@ import {
   D12,
   E01,
   EMULATOR_APIS,
+  EMULATOR_HEARING_NOT_JUDGED,
   RING_BEACON_STAGES,
   d04VariantOn,
   d04Verdict,
@@ -28,6 +31,7 @@ import { fakeContext } from "./fakes.ts";
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
 const DAY_MS = 86_400_000;
 const PASSED = { outcome: "pass", detail: undefined };
+const E01_PASSED = { outcome: "pass", detail: EMULATOR_HEARING_NOT_JUDGED };
 
 const LANES: Record<string, { tenant: string; member: string }> = {
   "DEV-A1": { tenant: "QA-A", member: "qa-a-technician" },
@@ -366,6 +370,73 @@ function idlesAfter(world: ReturnType<typeof wakeWorld>, ms: number | undefined)
   pixel.state = async () => ({ ...(await state()), doze: time.now >= idleAt ? "IDLE" : "IDLE_PENDING" });
 }
 
+describe("the ring push and the beacons a call wake judges", () => {
+  it("takes only an accepted Android ring push that names a session, and only the session it was asked for", async () => {
+    const web = wakeWorld("D02");
+    const pushed = web.app.pushAttempts;
+    web.app.pushAttempts = async (args) => (await pushed(args)).map((a) => ({ ...a, platform: "web" }));
+    expect(await D02.run(web.ctx)).toMatchObject({ failure_class: "no_push_attempt" });
+
+    const sessionless = wakeWorld("D02");
+    sessionless.script.push = { response_class: "accepted", priority: "high" };
+    const read = sessionless.app.pushAttempts;
+    sessionless.app.pushAttempts = async (args) => (await read(args)).map((a) => ({ ...a, call_session_id: null }));
+    expect(await D02.run(sessionless.ctx)).toMatchObject({ failure_class: "push_without_session" });
+
+    // D02p asks for its synthetic session's push; another session's does not count.
+    const other = wakeWorld("D02p");
+    const attempts = other.app.pushAttempts;
+    other.app.pushAttempts = async (args) => (await attempts(args)).map((a) => ({ ...a, call_session_id: "call-9" }));
+    expect(await D02p.run(other.ctx)).toMatchObject({ failure_class: "no_push_attempt" });
+  });
+
+  it("reads the beacons of the lane's member and the call's session only, from a device clock running behind", async () => {
+    // Another session's answered beacon cannot stand in for this call's missing one.
+    const stray = wakeWorld("D02");
+    stray.script.callStages = ["push_received", "os_reported", "ringing_shown", "ring_me_sent"];
+    stray.app.beacons.push({ tenant: "QA-A", member: "qa-a-technician", stage: "answered", platform: "android", occurred_at: new Date(stray.time.now + 3_000).toISOString(), call_session_id: "synthetic-1" });
+    expect(await D02.run(stray.ctx)).toMatchObject({ failure_class: "answer_not_reported" });
+
+    // Nor can another member's beacon for the same session.
+    const member = wakeWorld("D02");
+    member.script.callStages = ["push_received", "os_reported", "ringing_shown", "ring_me_sent"];
+    member.app.beacons.push({ tenant: "QA-A", member: "qa-a-dispatcher", stage: "answered", platform: "android", occurred_at: new Date(member.time.now + 3_000).toISOString(), call_session_id: "call-1" });
+    expect(await D02.run(member.ctx)).toMatchObject({ failure_class: "answer_not_reported" });
+
+    // A Pixel whose clock is two minutes behind reports its stages before the rig's dial.
+    const behind = wakeWorld("D02");
+    const dial = behind.robot.dial;
+    behind.robot.dial = async (plan) => {
+      const record = await dial(plan);
+      for (const b of behind.app.beacons) b.occurred_at = new Date(Date.parse(b.occurred_at) - 2 * 60_000).toISOString();
+      return record;
+    };
+    expect(await D02.run(behind.ctx)).toEqual(PASSED);
+  });
+
+  it("orders stages by each one's first beacon, so a repeated push does not reorder the ring", async () => {
+    const at = (stage: string, ms: number) => ({
+      stage,
+      platform: "android",
+      occurred_at: new Date(Date.UTC(2026, 9, 31, 15) + ms).toISOString(),
+      call_session_id: "s",
+      app_version: null,
+      device_idle: null,
+      screen_locked: null,
+      standby_bucket: null,
+    });
+    const repeated = [at("push_received", 0), at("os_reported", 100), at("ringing_shown", 200), at("push_received", 300)];
+    expect(judgeBeacons(repeated, ["push_received", "os_reported", "ringing_shown"])).toBeUndefined();
+  });
+
+  it("blames the robot when it could not delete Telnyx's copy of the wake's recording", async () => {
+    const world = wakeWorld("D02");
+    const outcome = world.robot.outcome;
+    world.robot.outcome = (plan) => ({ ...outcome(plan), recording_deleted: false });
+    expect(await D02.run(world.ctx)).toMatchObject({ outcome: "infra", component: "robot", detail: expect.stringContaining("delete") });
+  });
+});
+
 describe("D03, natural Doze", () => {
   it("waits before the lease for the deep idle the Pixel reaches by itself, then runs D02 without forcing Doze", async () => {
     const world = wakeWorld("D03");
@@ -400,9 +471,36 @@ describe("D03, natural Doze", () => {
     expect(unpaired.pixel.actions).toEqual([]);
   });
 
+  // A run due after the prepare, while D03 dials, waits for its hold as it would for the lease.
+  it("is planned so that no other paid Pixel run is due while it prepares, from 07:00 for up to two hours", () => {
+    const registry = loadRegistry(join(REPO, "tools", "rig", "scenarios.json"));
+    const device = new Set(registry.scenarios.filter((s) => s.lane === "device").map((s) => s.id));
+    let d03Days = 0;
+    for (let day = 0; day < 420; day++) {
+      const planned = plannedRuns(registry, day, registry.budget.window);
+      const d03 = planned.find((run) => run.scenario === "D03");
+      if (!d03) continue;
+      d03Days++;
+      const during = planned.filter((run) => run.scenario !== "D03" && device.has(run.scenario) && run.hour >= d03.hour && run.hour <= d03.hour + 1);
+      expect(during, `day ${day}`).toEqual([]);
+    }
+    expect(d03Days).toBe(60);
+  });
+
+  it("puts the battery back and unlocks the Pixel when no run follows a prepare that reached deep idle", async () => {
+    const world = wakeWorld("D03");
+    idlesAfter(world, 0);
+    expect(await D03.prepare!({ ...world.ctx, lease: UNLEASED })).toBeUndefined();
+    world.pixel.deviceState.locked = true;
+    await D03.abandon!({ ...world.ctx, lease: UNLEASED });
+    expect(world.pixel.actions).toEqual(["idle naturally", "exit doze", "unlock"]);
+    expect(world.undo).toEqual([]);
+  });
+
   it("resets the Pixel even when it left deep idle before the dial", async () => {
     const world = wakeWorld("D03");
-    expect(await D03.run(world.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    expect(await D03.run(world.ctx)).toEqual({ outcome: "infra", component: "pixel", detail: "the Pixel left deep idle between reaching it and the dial" });
+    expect(world.pixel.actions).toEqual([]);
     expect(world.undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
     expect(world.robot.plans).toEqual([]);
   });
@@ -650,7 +748,8 @@ function recoveryWorld() {
   let greenAfter = 0;
   world.rig.health = async () => {
     polls.push(world.time.now);
-    return { ...world.rig.report, results: polls.length > greenAfter ? [{ name: "api", pass: true }] : [{ name: "emulators", pass: false }] };
+    // tools/rig/src/health.mjs's own check names: none of them is a device.
+    return { ...world.rig.report, results: polls.length > greenAfter ? [{ name: "api", pass: true }] : [{ name: "uplink", pass: false }] };
   };
   return { ...world, polls, greenAfter: (n: number) => (greenAfter = n) };
 }
@@ -683,6 +782,47 @@ describe("D11, unattended recovery", () => {
     expect(world.simulated).toEqual([]);
   });
 
+  it("judges the emulators, the Pixel's bond and its hands-free link, which rig health does not check", async () => {
+    const dead = recoveryWorld();
+    dead.devices.bootEmulator = async (api) => {
+      if (api !== 35) return;
+      dead.devices.emulators.get(35)!.reachableNow = false;
+      throw new Error("the API 35 emulator did not finish booting");
+    };
+    const deadResult = await D11.run(dead.ctx);
+    expect(deadResult).toMatchObject({ failure_class: "health_not_green_in_10min" });
+    expect((deadResult as { detail: string }).detail).toContain("emulator-35");
+    expect((deadResult as { detail: string }).detail).toContain("boot emulator-35: the API 35 emulator did not finish booting");
+    expect(dead.simulated).toEqual([]);
+
+    const unbonded = recoveryWorld();
+    unbonded.pixel.reboot = async () => {
+      unbonded.pixel.deviceState.bluetooth_bonded = 0;
+    };
+    expect(await D11.run(unbonded.ctx)).toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel-bluetooth-bond") });
+
+    const unlinked = recoveryWorld();
+    unlinked.devices.powerCycle = async () => {
+      unlinked.audio.connectedNow = false;
+    };
+    expect(await D11.run(unlinked.ctx)).toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel-audio") });
+
+    // A link already down would make its recovery mean nothing, so nothing is disrupted.
+    const downBefore = recoveryWorld();
+    downBefore.audio.connectedNow = false;
+    expect(await D11.run(downBefore.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+    expect(downBefore.devices.actions).toEqual([]);
+  });
+
+  it("waits for an emulator that comes back late, inside the 10 minutes", async () => {
+    const late = recoveryWorld();
+    const started = late.time.now;
+    const emulator = late.devices.emulators.get(36)!;
+    emulator.reachable = async () => late.time.now - started >= 4 * 60_000;
+    expect(await D11.run(late.ctx)).toEqual(PASSED);
+    expect(late.polls.length).toBeGreaterThan(1);
+  });
+
   it("keeps polling past a health run that threw, and records restarts that failed", async () => {
     const world = recoveryWorld();
     let calls = 0;
@@ -704,7 +844,8 @@ describe("D11, unattended recovery", () => {
     const lost = recoveryWorld();
     let seen = 0;
     lost.pixel.reachable = async () => ++seen <= 2;
-    expect(await D11.run(lost.ctx)).toMatchObject({ failure_class: "pixel_not_recovered" });
+    expect(await D11.run(lost.ctx)).toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel") });
+    expect(lost.simulated).toEqual([]);
 
     const locked = recoveryWorld();
     locked.pixel.reboot = async () => {
@@ -763,7 +904,7 @@ describe("E01, emulator wake", () => {
 
   it("wakes the day's emulator as D02 does, and records the robot hearing its code", async () => {
     const { ctx, device, robot, undo, api } = e01World("wake");
-    expect(await E01.run(ctx)).toEqual(PASSED);
+    expect(await E01.run(ctx)).toEqual(E01_PASSED);
     expect(undo).toEqual([{ kind: "device.reset", params: { device: `emulator-${api}` } }]);
     expect(device.actions).toEqual(["kill", "force doze", "lock", "tap call_answer"]);
     expect(robot.plans).toHaveLength(1);
@@ -778,7 +919,7 @@ describe("E01, emulator wake", () => {
       down.devices.actions.push(`boot ${api}`);
       down.device.reachableNow = true;
     };
-    expect(await E01.run(down.ctx)).toEqual(PASSED);
+    expect(await E01.run(down.ctx)).toEqual(E01_PASSED);
     expect(down.devices.actions).toEqual(["boot 35"]);
 
     const dead = e01World("wake");
@@ -803,6 +944,7 @@ describe("E01, emulator wake", () => {
     const result = await E01.run(forgiven.ctx);
     expect(result).toMatchObject({ outcome: "pass" });
     expect((result as { detail: string }).detail).toContain("API 34");
+    expect((result as { detail: string }).detail).toContain(EMULATOR_HEARING_NOT_JUDGED);
     expect(asked).toEqual([forgiven.time.now - 7 * DAY_MS]);
     expect(forgiven.ctx.evidence.audio).toEqual({ api: 35, heard: false });
 

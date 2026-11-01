@@ -729,7 +729,7 @@
       "cadence": "Weekly (3)",
       "runs_on": "rig",
       "runs": [
-        { "every": "7d", "offset_days": 1, "hour_utc": 7 }
+        { "every": "7d", "offset_days": 6, "hour_utc": 7 }
       ],
       "scheduled": true,
       "dials": 2,

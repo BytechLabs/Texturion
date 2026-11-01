@@ -14,11 +14,29 @@ function healthWorld() {
 describe("R00, rig health", () => {
   it("passes when every check does, publishes the room and boots no emulator", async () => {
     const { ctx, devices } = healthWorld();
+    const asked: number[] = [];
+    ctx.blockedAt = (room) => (asked.push(room), room < 4 ? ["D01"] : []);
     expect(await R00.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
     expect(ctx.evidence.room).toBe(4);
+    expect(ctx.evidence.blocked_by_room).toEqual([]);
+    expect(asked).toEqual([4]);
     expect(ctx.evidence.emulators).toEqual({ 34: true, 35: true, 36: true });
     expect(ctx.evidence.pixel).toMatchObject({ locked: false, bluetooth_bonded: 1, audio_connected: true, play_services_minimum: 12_451_000 });
     expect(devices.actions).toEqual([]);
+  });
+
+  it("publishes the scenarios the room blocks beside the room, and nothing when health reports no room", async () => {
+    const tight = healthWorld();
+    tight.rig.report.room = 2;
+    tight.ctx.blockedAt = (room) => (room < 3 ? ["D01", "S10"] : []);
+    await R00.run(tight.ctx);
+    expect(tight.ctx.evidence).toMatchObject({ room: 2, blocked_by_room: ["D01", "S10"] });
+
+    const unknown = healthWorld();
+    unknown.rig.report.room = null;
+    await R00.run(unknown.ctx);
+    expect(unknown.ctx.evidence.room).toBeNull();
+    expect(unknown.ctx.evidence).not.toHaveProperty("blocked_by_room");
   });
 
   it("fails each health check that failed, by name", async () => {
@@ -95,6 +113,19 @@ describe("R00, rig health", () => {
     locked.devices.pixelDevice.deviceState.locked = true;
     expect(await R00.run(locked.ctx)).toMatchObject({ failure_class: "pixel_locked" });
 
+    const unreadable = healthWorld();
+    unreadable.devices.pixelDevice.deviceState.locked = null;
+    expect(await R00.run(unreadable.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+
+    // D03 holds the Pixel screen-off while it waits for deep idle; that is not the Pixel at rest.
+    const held = healthWorld();
+    held.devices.pixelDevice.deviceState.locked = true;
+    held.ctx.laneHeldBy = (lane) => (lane === "device" ? "D03" : undefined);
+    expect(await R00.run(held.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    expect(held.ctx.evidence.pixel).toMatchObject({ held_by: "D03" });
+    held.devices.pixelDevice.deviceState.bluetooth_bonded = 0;
+    expect(await R00.run(held.ctx)).toMatchObject({ failure_class: "pixel_not_paired" });
+
     const unpaired = healthWorld();
     unpaired.devices.pixelDevice.deviceState.bluetooth_bonded = 0;
     expect(await R00.run(unpaired.ctx)).toMatchObject({ failure_class: "pixel_not_paired" });
@@ -108,6 +139,14 @@ describe("R00, rig health", () => {
     const old = healthWorld();
     old.devices.pixelDevice.deviceState.play_services_version = 12_000_000;
     expect(await R00.run(old.ctx)).toMatchObject({ failure_class: "play_services_below_minimum" });
+
+    // One version short fails; the minimum itself passes.
+    const short = healthWorld();
+    short.devices.pixelDevice.deviceState.play_services_version = 12_450_999;
+    expect(await R00.run(short.ctx)).toMatchObject({ failure_class: "play_services_below_minimum" });
+    const exact = healthWorld();
+    exact.devices.pixelDevice.deviceState.play_services_version = 12_451_000;
+    expect(await R00.run(exact.ctx)).toEqual({ outcome: "pass", detail: undefined });
 
     const unread = healthWorld();
     unread.devices.pixelDevice.playServicesMinimum = async () => {
@@ -247,6 +286,13 @@ describe("D01, every rig surface rings and the answerer rotates", () => {
     const screen = d01World("page");
     screen.pixel.rings = { telecom_ms: 2_000 };
     expect(await D01.run(screen.ctx)).toMatchObject({ failure_class: "no_full_screen_ring" });
+  });
+
+  it("fails a Pixel week whose ring offers no answer control", async () => {
+    const world = d01World("pixel");
+    world.pixel.onScreen.delete("call_answer");
+    expect(await D01.run(world.ctx)).toMatchObject({ failure_class: "pixel_answer_control_missing" });
+    expect(world.pixel.actions).not.toContain("tap call_answer");
   });
 
   it("fails when the robot hears someone other than the answerer, or both", async () => {
@@ -460,6 +506,17 @@ describe("D08, a background tab and Web Push", () => {
     const world = d08World();
     world.rings.shows = false;
     expect(await D08.run(world.ctx)).toMatchObject({ failure_class: "no_ring_notification" });
+
+    // A notification new since the dial that is not a call's, such as a text's, is no ring.
+    const texted = d08World();
+    texted.rings.shows = false;
+    const dial = texted.robot.dial;
+    texted.robot.dial = async (plan) => {
+      const record = await dial(plan);
+      texted.browser.script.notifications = [...texted.browser.script.notifications!, { title: "New text", body: "Rig caller", tag: "loonext:message:m-1" }];
+      return record;
+    };
+    expect(await D08.run(texted.ctx)).toMatchObject({ failure_class: "no_ring_notification" });
   });
 
   it("fails a ring the outcome does not replace on its own tag", async () => {
@@ -601,6 +658,18 @@ describe("D09, the first-answer race", () => {
     control.pixel.onScreen.delete("call_answer");
     expect(await D09.run(control.ctx)).toMatchObject({ failure_class: "pixel_answer_control_missing" });
     expect(control.browser.actions).not.toContain("qa-a-dispatcher answer");
+
+    // Offered when the race read the screen, gone by the tap.
+    const vanished = d09World("qa-a-dispatcher");
+    vanished.pixel.tap = async (id) => id !== "call_answer";
+    expect(await D09.run(vanished.ctx)).toMatchObject({ failure_class: "pixel_answer_control_missing" });
+  });
+
+  it("blames the robot when it could not delete Telnyx's copy of the race's recording", async () => {
+    const kept = d09World("pixel");
+    const outcome = kept.robot.outcome;
+    kept.robot.outcome = (plan) => ({ ...outcome(plan), recording_deleted: false });
+    expect(await D09.run(kept.ctx)).toMatchObject({ outcome: "infra", component: "robot" });
   });
 
 });
@@ -667,6 +736,14 @@ describe("D13, a bad network and a mid-call Wi-Fi drop", () => {
     expect(await D13.run(world.ctx)).toMatchObject({ outcome: "infra", component: "network-shaper" });
     expect(world.undo.map((u) => u.kind)).toContain("rig.network-clear");
     expect(world.robot.plans).toEqual([]);
+  });
+
+  it("calls an outage the access point could not make infra", async () => {
+    const world = d13World();
+    world.rig.networkOutage = async () => {
+      throw new Error("sudo: tc: command not found");
+    };
+    expect(await D13.run(world.ctx)).toMatchObject({ outcome: "infra", component: "network-shaper", detail: expect.stringContaining("outage") });
   });
 
   it("fails a call that dropped", async () => {

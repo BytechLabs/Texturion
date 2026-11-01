@@ -518,6 +518,12 @@ export const D03: ScenarioRunner = {
     await pixel.exitDoze().catch(() => undefined);
     return idled ?? infra("pixel", "never reached deep idle");
   },
+  /** The Pixel reached deep idle, but no run followed to reset it. */
+  async abandon(ctx) {
+    const pixel = ctx.devices.pixel();
+    await pixel.exitDoze();
+    if ((await pixel.state()).locked) await pixel.unlock();
+  },
   async run(ctx) {
     const pixel = ctx.devices.pixel();
     // First, before anything can fail: prepare left the Pixel idle and unplugged in software.
@@ -769,6 +775,22 @@ const RECOVERY_MS = 10 * 60_000;
 /** `rig health` runs the whole CLI each time, so it is asked no more than once a minute. */
 const HEALTH_POLL_MS = 60_000;
 
+/**
+ * What D11 restarted that `rig health` does not check, which R00 reads from
+ * the devices: each emulator booted, and the Pixel up with its Bluetooth bond
+ * and hands-free link back.
+ */
+async function devicesNotBack(ctx: ScenarioContext, pixel: DeviceApi, audio: AudioLinkApi): Promise<string[]> {
+  const answers = <T,>(read: () => Promise<T>) => read().catch(() => undefined);
+  const failing: string[] = [];
+  for (const api of EMULATOR_APIS) if (!(await answers(() => ctx.devices.emulator(api).reachable()))) failing.push(`emulator-${api}`);
+  if (!(await answers(() => pixel.reachable()))) return [...failing, "pixel"];
+  const bonded = (await answers(() => pixel.state()))?.bluetooth_bonded;
+  if (bonded === undefined || bonded === null || bonded < 1) failing.push("pixel-bluetooth-bond");
+  if (!(await answers(() => audio.connected()))) failing.push("pixel-audio");
+  return failing;
+}
+
 /** D11: the Pixel power-cycled and rebooted and every emulator restarted; health green within 10 min, then D02p. */
 export const D11: ScenarioRunner = {
   id: "D11",
@@ -776,6 +798,9 @@ export const D11: ScenarioRunner = {
     const pixel = ctx.devices.pixel();
     const unreachable = await reachable(pixel);
     if (unreachable) return unreachable;
+    // Up before the disruption, or its recovery would prove nothing.
+    const link = await connectedAudio(pixel);
+    if ("failure" in link) return link.failure;
     const ev = section(ctx, "recovery");
     resetOnRelease(ctx, pixel.name);
     for (const api of EMULATOR_APIS) ctx.lease.registerUndo({ kind: "device.boot", params: { device: `emulator-${api}` } });
@@ -817,14 +842,17 @@ export const D11: ScenarioRunner = {
       } catch (error) {
         failing = [`rig health: ${(error as Error).message}`];
       }
+      failing.push(...(await devicesNotBack(ctx, pixel, link.audio)));
       if (failing.length === 0 || ctx.now() + HEALTH_POLL_MS > deadline) break;
       await ctx.sleep(HEALTH_POLL_MS);
     }
     ev.health_polls = polls;
     ev.failing = failing;
-    if (failing.length > 0) return fail("health_not_green_in_10min", `still failing 10 min after the disruption: ${failing.join(", ")}`);
+    if (failing.length > 0) {
+      const restarts = errors.length > 0 ? `; restarts that failed: ${errors.join("; ")}` : "";
+      return fail("health_not_green_in_10min", `still failing 10 min after the disruption: ${failing.join(", ")}${restarts}`);
+    }
     ev.green_after_ms = ctx.now() - started;
-    if (!(await pixel.reachable())) return fail("pixel_not_recovered", "health is green but adb does not see the Pixel");
     // The rig's reboot unlocks; one that left the Pixel before its first unlock must not fail the wake.
     if ((await pixel.state()).locked !== false) {
       const unlocked = await onDevice(pixel, "unlocking it", () => pixel.unlock());
@@ -854,6 +882,8 @@ export async function weeklyAudio(ctx: ScenarioContext, api: EmulatorApi, heard:
   return pass(`API ${api}'s code was not heard; API ${String(level)}'s was, at ${heardThisWeek.finished_at}`);
 }
 
+export const EMULATOR_HEARING_NOT_JUDGED = "the emulator hearing the robot is not judged: the rig records no emulator's audio";
+
 /** Each E01 run's variant, and how many days its runs are apart, which steps the API level. */
 const E01_EVERY_DAYS: Readonly<Record<string, number>> = { wake: 3, "notifications revoked": 7, "force-stopped": 7 };
 
@@ -866,7 +896,8 @@ export function emulatorApiOn(at: number, everyDays: number): EmulatorApi {
  * E01: as D02 on an emulator, rotating through API 34, 35 and 36. The weekly
  * variants, notifications revoked and force-stopped, must not ring; they run
  * here only, because a push the device drops could teach FCM to deprioritise
- * the package. An emulator has no audio lane, so its hearing is the robot's.
+ * the package. The rig records no emulator's audio, so D02's other half, the
+ * device hearing the robot, is not judged here, and a pass says so.
  */
 export const E01: ScenarioRunner = {
   id: "E01",
@@ -894,7 +925,8 @@ export const E01: ScenarioRunner = {
       if (setup) return setup;
       ctx.evidence.device = { ...(await device.state()) };
       const outcome = await callWake(ctx, device, EMULATOR_LANE, { judgeRobotHearing: false });
-      return outcome.failure ?? (await weeklyAudio(ctx, api, outcome.robotHeardDevice === true));
+      const verdict = outcome.failure ?? (await weeklyAudio(ctx, api, outcome.robotHeardDevice === true));
+      return verdict.outcome === "pass" ? pass([verdict.detail, EMULATOR_HEARING_NOT_JUDGED].filter(Boolean).join("; ")) : verdict;
     }
 
     const stopped = variant === "force-stopped";

@@ -603,6 +603,10 @@ export interface ScenarioContext {
   stripe: StripeApi;
   handoff: HandoffApi;
   history: ScenarioHistoryApi;
+  /** The scenario holding a lane while it prepares (D03's idling Pixel), when that is another run. */
+  laneHeldBy(lane: string): string | undefined;
+  /** The scenarios the rig times that this room would block, by id, as the runner's admission blocks them. */
+  blockedAt(room: number): string[];
   now(): number;
   sleep(ms: number): Promise<void>;
   /** Unique to this attempt; every body a scenario sends carries it. */
@@ -628,6 +632,8 @@ export interface ScenarioRunner {
    * attempt without a lease or a dial.
    */
   prepare?(ctx: ScenarioContext): Promise<ScenarioResult | undefined>;
+  /** Puts back what a finished prepare changed, when the run then never starts: no lease, or the window closed. */
+  abandon?(ctx: ScenarioContext): Promise<void>;
   run(ctx: ScenarioContext): Promise<ScenarioResult>;
   /** Checked after the lease's undos ran; a result here overrides a pass. */
   afterRelease?(ctx: ScenarioContext): Promise<ScenarioResult | undefined>;
