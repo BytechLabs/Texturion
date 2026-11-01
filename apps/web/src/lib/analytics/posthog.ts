@@ -78,6 +78,9 @@ function loadPostHog(key: string): Promise<PostHog | null> {
   const referrer = typeof document === "undefined" ? "" : document.referrer;
   return whenTelemetryMayLoad()
     .then(() => import("posthog-js"))
+    // Init in a task of its own: run straight after the SDK evaluates, the two
+    // make one long task, and Lighthouse counts all of it as blocking time.
+    .then((sdk) => new Promise<typeof sdk>((resolve) => setTimeout(() => resolve(sdk), 0)))
     .then(({ default: posthog }) => {
       posthog.init(key, {
         api_host: POSTHOG_HOST,
