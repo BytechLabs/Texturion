@@ -1,10 +1,11 @@
+import { runInDurableObject } from "cloudflare:test";
 import { EDGE_PATHS } from "@loonext/rig-protocol";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "./env";
 import { servesHost } from "./http";
-import { sealedBundle } from "./ctl";
-import { ORIGIN, TOKENS, call, edgeEnv, fakeGuard, resetEdge } from "./test/support";
+import { ALERT_REPEAT_MS, sealedBundle } from "./ctl";
+import { ORIGIN, TOKENS, call, edgeEnv, fakeGuard, resetEdge, uplinkStub } from "./test/support";
 
 let env: Env;
 
@@ -40,6 +41,7 @@ describe("the public surface", () => {
       ["POST", EDGE_PATHS.ctlUplink],
       ["GET", EDGE_PATHS.ctlRpc],
       ["POST", EDGE_PATHS.ctlSecrets],
+      ["GET", EDGE_PATHS.ctlAlert],
     ]) {
       expect((await call(new Request(`${ORIGIN}${path}`, { method }), env)).status, `${method} ${path}`).toBe(404);
     }
@@ -60,6 +62,80 @@ describe("the public surface", () => {
     expect(servesHost("loonext-rig-edge.example.workers.dev")).toBe(true);
     expect(servesHost("localhost")).toBe(true);
     expect(servesHost("edge.example.com")).toBe(false);
+  });
+});
+
+describe("/ctl/alert", () => {
+  const PROD_DSN = "https://prodkey@o1.ingest.sentry.io/202";
+  const alert = { key: "telnyx-guard-integrity", message: "The Telnyx guard's live deployment is not one guard.yml made from main", detail: "d" };
+  const post = (e: Env, body: unknown, token = TOKENS.rig) =>
+    call(
+      new Request(`${ORIGIN}${EDGE_PATHS.ctlAlert}`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      e,
+    );
+  let sent: { url: string; event: Record<string, unknown> }[];
+  let sentryAnswers: number;
+
+  beforeEach(() => {
+    sent = [];
+    sentryAnswers = 200;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const request = new Request(input, init);
+      sent.push({ url: request.url, event: JSON.parse((await request.text()).split("\n")[2]!) as Record<string, unknown> });
+      return new Response("{}", { status: sentryAnswers });
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("sends a listed key to production as ['ops', key], once in six hours", async () => {
+    const withDsn = { ...env, SENTRY_PROD_DSN: PROD_DSN };
+    const response = await post(withDsn, alert);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ sent: true });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.url).toBe("https://o1.ingest.sentry.io/api/202/envelope/");
+    expect(sent[0]!.event).toMatchObject({
+      fingerprint: ["ops", "telnyx-guard-integrity"],
+      level: "error",
+      environment: "production",
+      message: { formatted: alert.message },
+      tags: { ops_key: "telnyx-guard-integrity", raised_by: "rigd" },
+      extra: { detail: "d" },
+    });
+
+    expect(await (await post(withDsn, alert)).json()).toEqual({ sent: false, reason: "repeat" });
+    expect(sent).toHaveLength(1);
+    await runInDurableObject(uplinkStub(), (_instance, state) => {
+      state.storage.sql.exec("UPDATE meta SET value = ? WHERE key = 'alert:rig:telnyx-guard-integrity'", String(Date.now() - ALERT_REPEAT_MS - 1));
+    });
+    expect(await (await post(withDsn, alert)).json()).toEqual({ sent: true });
+    expect(sent).toHaveLength(2);
+  });
+
+  it("answers other than 200 whenever production did not get it", async () => {
+    expect((await post(env, alert)).status).toBe(503);
+    const withDsn = { ...env, SENTRY_PROD_DSN: PROD_DSN };
+    sentryAnswers = 429;
+    expect((await post(withDsn, alert)).status).toBe(502);
+    // A refused send is not tried again inside the hour.
+    sentryAnswers = 200;
+    expect(await (await post(withDsn, alert)).json()).toEqual({ error: "retry_later" });
+    expect(sent).toHaveLength(1);
+  });
+
+  it("takes the rig's token and the protocol's keys only", async () => {
+    const withDsn = { ...env, SENTRY_PROD_DSN: PROD_DSN };
+    for (const token of [TOKENS.triage, TOKENS.admin, TOKENS["rig-api"], "nope"]) expect((await post(withDsn, alert, token)).status).toBe(401);
+    expect((await post(withDsn, { ...alert, key: "synthetic-dark" })).status).toBe(400);
+    expect((await post(withDsn, { ...alert, message: "" })).status).toBe(400);
+    expect((await post(withDsn, { ...alert, detail: "x".repeat(2_001) })).status).toBe(400);
+    expect(sent).toEqual([]);
   });
 });
 

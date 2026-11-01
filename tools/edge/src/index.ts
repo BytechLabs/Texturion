@@ -2,7 +2,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { EDGE_PATHS, type EdgeForGuardMethods, type MailStatus } from "@loonext/rig-protocol";
 
 import { callerClassOf } from "./auth";
-import { handleRpc, handleSecrets, handleUplink } from "./ctl";
+import { handleAlert, handleRpc, handleSecrets, handleUplink } from "./ctl";
 import { scheduled } from "./deadman";
 import type { Env } from "./env";
 import { forwardToGuard } from "./guard";
@@ -56,6 +56,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (pathname === EDGE_PATHS.ctlUplink && method === "GET") return handleUplink(env, request);
   if (pathname === EDGE_PATHS.ctlRpc && method === "POST") return handleRpc(env, request);
   if (pathname === EDGE_PATHS.ctlSecrets && method === "GET") return handleSecrets(env, request);
+  if (pathname === EDGE_PATHS.ctlAlert && method === "POST") return handleAlert(env, request);
   return empty(404);
 }
 

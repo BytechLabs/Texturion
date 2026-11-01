@@ -67,7 +67,24 @@ export const EDGE_PATHS = {
   ctlUplink: "/ctl/uplink",
   ctlRpc: "/ctl/rpc",
   ctlSecrets: "/ctl/secrets",
+  /** POST {@link RigAlert}: rigd raises one of {@link RIG_PRODUCTION_ALERTS} in production's Sentry. */
+  ctlAlert: "/ctl/alert",
 } as const;
+
+/**
+ * The `['ops', key]` alerts the rig box may raise in production's Sentry.
+ * The box holds no production DSN; the edge sends these for it, under its
+ * own daily production budget, and refuses any other key.
+ */
+export const RIG_PRODUCTION_ALERTS = ["telnyx-guard-integrity"] as const;
+export type RigProductionAlert = (typeof RIG_PRODUCTION_ALERTS)[number];
+
+/** The body of {@link EDGE_PATHS.ctlAlert}. Counts, ids and commits only: it lands in production's issue stream. */
+export interface RigAlert {
+  key: RigProductionAlert;
+  message: string;
+  detail?: string;
+}
 
 /** Media buckets the edge will relay, and the most it relays per fetch. */
 export const MEDIA_BUCKETS = ["mms-media", "voicemail-greetings"] as const;
