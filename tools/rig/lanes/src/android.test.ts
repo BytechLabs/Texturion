@@ -688,7 +688,7 @@ describe("the hostd client", () => {
       sleep: async () => {},
       isAlive: () => false,
       killPid: () => true,
-      discover: () => ({ path: "p", pid: 4242, grpcToken: GRPC_TOKEN }),
+      discover: () => ({ path: "p", pid: 4242, grpcToken: GRPC_TOKEN, mtimeMs: 0 }),
       consoleToken: () => ({ path: "p", token: CONSOLE_TOKEN }),
     });
     const facts = { whpx: { usable: true, detail: "" }, host: { pending_reboot: true } };
