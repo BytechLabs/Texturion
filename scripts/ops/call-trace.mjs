@@ -442,15 +442,18 @@ begin
   if pg_catalog.has_database_privilege(pg_catalog.current_database(), 'TEMP') then
     v_problems := v_problems || 'it can create temporary objects'::text;
   end if;
-  if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_net')
-     and pg_catalog.has_schema_privilege('net', 'USAGE')
-     and (exists (select 1 from pg_catalog.pg_proc p
-                   where p.pronamespace = 'net'::regnamespace
-                     and pg_catalog.has_function_privilege(p.oid, 'EXECUTE'))
-          or exists (select 1 from pg_catalog.pg_class c
-                      where c.relnamespace = 'net'::regnamespace and c.relkind = 'r'
-                        and pg_catalog.has_table_privilege(c.oid, 'INSERT'))) then
-    v_problems := v_problems || 'it can reach pg_net, which sends HTTP from the database'::text;
+  -- Nested: 'net'::regnamespace is resolved when its statement is planned, and
+  -- fails on a database without pg_net however the conditions are ordered.
+  if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_net') then
+    if pg_catalog.has_schema_privilege('net', 'USAGE')
+       and (exists (select 1 from pg_catalog.pg_proc p
+                     where p.pronamespace = 'net'::regnamespace
+                       and pg_catalog.has_function_privilege(p.oid, 'EXECUTE'))
+            or exists (select 1 from pg_catalog.pg_class c
+                        where c.relnamespace = 'net'::regnamespace and c.relkind = 'r'
+                          and pg_catalog.has_table_privilege(c.oid, 'INSERT'))) then
+      v_problems := v_problems || 'it can reach pg_net, which sends HTTP from the database'::text;
+    end if;
   end if;
   select pg_catalog.string_agg(n.nspname || '.' || c.relname, ', ' order by n.nspname, c.relname)
     into v_reach
