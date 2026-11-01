@@ -20,6 +20,7 @@ import {
   SURFACES,
   type NumberBook,
 } from "@loonext/rig-robot";
+import { APK_DIR, CURRENT_APK, NONPROD_PACKAGE, PREVIOUS_APK } from "../../src/apk.mjs";
 import { AppProbe, splitMember, type TenantsFile } from "./app-probe.ts";
 import { readDeployedSha, readRoom, type RigdConfig } from "./config.ts";
 import { WindowSource } from "./guard-window.ts";
@@ -186,8 +187,8 @@ export function buildRig(config: RigdConfig): Rig {
 
   const devices = once(() =>
     rigDevices({
-      pkg: "com.loonext.android.nonprod",
-      apks: { current: join(config.home.work, "apk", "current.apk"), previous: join(config.home.work, "apk", "previous.apk") },
+      pkg: NONPROD_PACKAGE,
+      apks: { current: join(config.home.work, APK_DIR, CURRENT_APK), previous: join(config.home.work, APK_DIR, PREVIOUS_APK) },
       pin: () => store.readOptional("pixel-pin"),
       pixel: pixelSettings(store, config.env),
       emulators: EMULATORS,
