@@ -220,7 +220,8 @@ describe("the SDK waits for the page to settle (#640)", () => {
 describe("@sentry/browser is reached only through sentry-sdk.ts", () => {
   /** Any import or re-export of the package's values, static or dynamic. */
   const importsSdkValues = (text: string) =>
-    /\bimport\(\s*["']@sentry\/browser["']\s*\)/.test(text) ||
+    /\b(?:import|require)\s*\(\s*(?:\/\*[\s\S]*?\*\/\s*)*["']@sentry\/browser["']/.test(text) ||
+    /^\s*import\s*["']@sentry\/browser["']/m.test(text) ||
     /^\s*(?:import|export)\s+(?!type\b)[^;]*?\bfrom\s*["']@sentry\/browser["']/m.test(text);
 
   it("has no other import of the package that keeps every export", () => {
@@ -248,6 +249,10 @@ describe("@sentry/browser is reached only through sentry-sdk.ts", () => {
       'import {\n  init,\n  captureException,\n} from "@sentry/browser";',
       'export * from "@sentry/browser";',
       "export { init } from '@sentry/browser';",
+      'import "@sentry/browser";',
+      'import(/* webpackChunkName: "sentry" */ "@sentry/browser");',
+      'import(\n  /* webpackChunkName: "sentry" */\n  "@sentry/browser"\n);',
+      'const S = require("@sentry/browser");',
     ]) {
       expect(importsSdkValues(code), code).toBe(true);
     }
