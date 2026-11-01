@@ -8,6 +8,20 @@ import { join } from "node:path";
 import { run, start } from "./exec.mjs";
 import { stripeSandboxKey } from "./stripe.mjs";
 
+/** The events apps/api/src/webhooks/stripe.ts handles; stripe listen refuses to start without a list. */
+export const STRIPE_EVENTS = [
+  "checkout.session.completed",
+  "customer.subscription.created",
+  "customer.subscription.updated",
+  "customer.subscription.deleted",
+  "invoice.paid",
+  "invoice.payment_failed",
+  "invoice.payment_action_required",
+  "charge.dispute.created",
+  "charge.dispute.updated",
+  "charge.dispute.closed",
+];
+
 function wranglerBin(appDir) {
   const bin = join(appDir, "node_modules", ".bin", process.platform === "win32" ? "wrangler.cmd" : "wrangler");
   if (!existsSync(bin)) throw new Error(`rig serve: ${appDir} has no installed wrangler; deploy first`);
@@ -108,9 +122,17 @@ export function serve(service, { root, layout, settings, store }) {
   if (service === "stripe") {
     // The key goes in the environment, never on a command line `ps` can read,
     // and never through `stripe login`, whose pairing expires.
-    child = start("stripe", ["listen", "--forward-to", `http://127.0.0.1:${settings.apiPort}/webhooks/stripe`], {
-      env: { STRIPE_API_KEY: stripeSandboxKey(store) },
-    });
+    child = start(
+      "stripe",
+      [
+        "listen",
+        "--events",
+        STRIPE_EVENTS.join(","),
+        "--forward-to",
+        `http://127.0.0.1:${settings.apiPort}/webhooks/stripe`,
+      ],
+      { env: { STRIPE_API_KEY: stripeSandboxKey(store) } },
+    );
   } else {
     const { cwd, args } = serveArgs(service, { root, layout, settings });
     const caFile = join(store.dir, "rig-ca.crt");
