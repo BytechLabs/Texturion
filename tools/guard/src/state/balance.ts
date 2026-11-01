@@ -12,7 +12,7 @@ import { dayOf } from "./counters";
 
 /**
  * The account's prepaid balance, which production and the rig share
- * (docs/RIG.md). Below the floor, the larger of $100 and 14 days
+ * (docs/RIG.md). Below the floor, the larger of $30 and 14 days
  * of the account's spend, no test spend is admitted at all.
  */
 interface BalanceReading {

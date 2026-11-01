@@ -87,8 +87,8 @@ describe("money tiers", () => {
 });
 
 describe("the balance floor", () => {
-  it("is $100 or 14 days of the account's spend, whichever is more", () => {
-    expect(floorFor([])).toBe(100);
+  it("is $30 or 14 days of the account's spend, whichever is more", () => {
+    expect(floorFor([])).toBe(30);
     expect(averageDailySpend([{ day: "a", usd: 500 }, { day: "b", usd: 490 }, { day: "c", usd: 470 }])).toBe(15);
     expect(floorFor([{ day: "a", usd: 500 }, { day: "b", usd: 490 }, { day: "c", usd: 470 }])).toBe(210);
   });

@@ -55,7 +55,7 @@ export const MAX_NUMBERS_HELD = 10;
 export const MONTHLY_CAP_USD = 35;
 /** Kept inside the cap for month-end surcharges and detached numbers' charges, which the ledger never sees. */
 export const SET_ASIDE_USD = 1.5;
-export const BALANCE_FLOOR_MIN_USD = 100;
+export const BALANCE_FLOOR_MIN_USD = 30;
 export const BALANCE_FLOOR_DAYS = 14;
 export const BALANCE_ALERT_USD = 150;
 export const BALANCE_CACHE_MS = 10 * MINUTE;

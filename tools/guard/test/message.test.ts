@@ -76,7 +76,7 @@ describe("messages", () => {
 
   it("refuses all test spend under the balance floor", async () => {
     const h = await ready();
-    h.telnyx.balance = "99.00";
+    h.telnyx.balance = "29.00";
     expect(await ruleOf(await send(h))).toBe("budget.balance_floor");
     expect(h.telnyx.requests("POST", "/v2/messages")).toEqual([]);
   });

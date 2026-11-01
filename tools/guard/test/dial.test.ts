@@ -431,7 +431,7 @@ describe("admission", () => {
 
   it("refuses all test spend under the balance floor", async () => {
     const h = await ready();
-    h.telnyx.balance = "99.00";
+    h.telnyx.balance = "29.00";
     const id = await lease(h);
     expect(await ruleOf(await dial(h, id))).toBe("budget.balance_floor");
   });

@@ -77,7 +77,7 @@ describe("/health", () => {
       ceiling: null,
       conflict: null,
     });
-    expect(health.money).toMatchObject({ tier: "green", balance_usd: 500, balance_floor_usd: 100 });
+    expect(health.money).toMatchObject({ tier: "green", balance_usd: 500, balance_floor_usd: 30 });
   });
 
   it("names an unparseable floor, and stale production dial peaks, as paid blockers", async () => {
