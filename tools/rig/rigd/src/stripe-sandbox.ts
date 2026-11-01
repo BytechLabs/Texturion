@@ -80,3 +80,25 @@ export class StripeSandbox implements StripeApi {
     return subscription.id && subscription.status ? { id: subscription.id, status: subscription.status } : null;
   }
 }
+
+/** The undo for a sandbox object a run made, a subscription or a test clock; its handler is deleteStripeObject. */
+export const STRIPE_DELETE_UNDO = "stripe.delete";
+const STRIPE_UNDO_PATH = /^\/v1\/(subscriptions|test_helpers\/test_clocks)\/[A-Za-z0-9_]+$/;
+
+/**
+ * Removes a subscription or a test clock a run made, as the `stripe.delete`
+ * undo and as each run's own cleanup. Already gone is done, so both may run.
+ */
+export async function deleteStripeObject(stripe: Pick<StripeApi, "request">, params: Record<string, unknown>): Promise<void> {
+  const path = params.path;
+  if (typeof path !== "string" || !STRIPE_UNDO_PATH.test(path)) throw new Error("stripe.delete undo needs a subscription or test clock path");
+  let current: { deleted?: boolean; status?: string };
+  try {
+    current = await stripe.request<{ deleted?: boolean; status?: string }>("GET", path);
+  } catch (error) {
+    if (/ answered 404\b/.test((error as Error).message)) return;
+    throw error;
+  }
+  if (current.deleted === true || current.status === "canceled" || current.status === "incomplete_expired") return;
+  await stripe.request("DELETE", path);
+}

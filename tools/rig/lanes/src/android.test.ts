@@ -6,6 +6,7 @@ import {
   CALL_TEST_IDS,
   hasFullScreenNotification,
   parseBonded,
+  parseSdkInt,
   parseTelecomState,
   parseUiDump,
   parseVersionCode,
@@ -87,6 +88,27 @@ describe("the device driver's readings", () => {
     expect(parseVersionCode("    versionCode=251234000 minSdk=30 targetSdk=35")).toBe(251234000);
     expect(parseBonded("Bonded devices:\n  XX:XX:XX:XX:AA:BB [BR/EDR][ 0x240404 ] rig\n\nOther:")).toBe(1);
     expect(parseBonded("nothing here")).toBeNull();
+  });
+
+  it("reads the Android release a device runs, and nothing from a property that is not a level", async () => {
+    expect(parseSdkInt("35\n")).toBe(35);
+    expect(parseSdkInt("")).toBeNull();
+    expect(parseSdkInt("Baklava")).toBeNull();
+    const { android, calls } = device({ "getprop ro.build.version.sdk": "36\n" });
+    expect((await android.state()).sdk_int).toBe(36);
+    expect(calls).toContain("adb -s PIXEL123 shell getprop ro.build.version.sdk");
+  });
+
+  it("reads the installed build's Play services minimum from its own manifest entry", async () => {
+    const meta = [
+      "      E: meta-data (line=44)",
+      '        A: android:name(0x01010003)="com.google.android.gms.version" (Raw: "com.google.android.gms.version")',
+      "        A: android:value(0x01010024)=(type 0x10)0xbdfcb8",
+    ].join("\n");
+    const { android, calls } = device({ "pm path": `package:/data/app/${PKG}/base.apk`, "dump xmltree": meta });
+    expect(await android.playServicesMinimum()).toBe(12_451_000);
+    expect(calls.find((c) => c.includes("dump xmltree"))).toMatch(/^aapt2 dump xmltree --file AndroidManifest\.xml /);
+    expect(calls[0]).toBe(`adb -s PIXEL123 shell pm path ${PKG}`);
   });
 });
 

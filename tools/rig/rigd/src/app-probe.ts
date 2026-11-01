@@ -29,6 +29,7 @@ import {
   type MessageRow,
   type NumberRow,
   type SendResult,
+  type VoiceCapState,
   type WorkspaceState,
 } from "./scenarios/context.ts";
 
@@ -80,7 +81,7 @@ export class AppProbe implements AppApi {
   readonly #fetch: typeof fetch;
   readonly #now: () => number;
   readonly #sessions = new Map<string, { token: string; expiresAt: number }>();
-  /** Auth user ids by member key, once seen: a lease may move a member's address. */
+  /** Auth user ids by member key, once seen. */
   readonly #userIds = new Map<string, string>();
 
   constructor(options: AppProbeOptions) {
@@ -512,16 +513,22 @@ export class AppProbe implements AppApi {
     await this.#write("POST", "feature_flags", { on_conflict: "key" }, { key, enabled, note: "set by a rig scenario under its lease" }, "resolution=merge-duplicates,return=minimal");
   }
 
+  async companySettings(args: { tenant: string; fields: readonly CompanyField[] }): Promise<Partial<Record<CompanyField, unknown>>> {
+    const unknown = args.fields.filter((field) => !(COMPANY_FIELDS as readonly string[]).includes(field));
+    if (unknown.length) throw new Error(`app probe: ${unknown.join(", ")} is not a company setting a scenario may change`);
+    if (args.fields.length === 0) return {};
+    const companyId = this.#tenant(args.tenant).company_id;
+    const [row] = await this.#rest<Record<string, unknown>[]>("companies", { id: `eq.${companyId}`, select: args.fields.join(",") });
+    if (!row) throw new Error(`app probe: no company row for ${args.tenant}`);
+    return Object.fromEntries(args.fields.map((field) => [field, row[field] ?? null]));
+  }
+
   async patchCompany(args: { tenant: string; values: Partial<Record<CompanyField, unknown>> }): Promise<Partial<Record<CompanyField, unknown>>> {
     const fields = Object.keys(args.values) as CompanyField[];
-    const unknown = fields.filter((field) => !(COMPANY_FIELDS as readonly string[]).includes(field));
-    if (unknown.length) throw new Error(`app probe: ${unknown.join(", ")} is not a company setting a scenario may change`);
-    if (fields.length === 0) return {};
-    const companyId = this.#tenant(args.tenant).company_id;
-    const [before] = await this.#rest<Record<string, unknown>[]>("companies", { id: `eq.${companyId}`, select: fields.join(",") });
-    if (!before) throw new Error(`app probe: no company row for ${args.tenant}`);
-    await this.#write("PATCH", "companies", { id: `eq.${companyId}` }, args.values, "return=minimal");
-    return Object.fromEntries(fields.map((field) => [field, before[field] ?? null]));
+    const before = await this.companySettings({ tenant: args.tenant, fields });
+    if (fields.length === 0) return before;
+    await this.#write("PATCH", "companies", { id: `eq.${this.#tenant(args.tenant).company_id}` }, args.values, "return=minimal");
+    return before;
   }
 
   async setNumberStatus(args: { tenant: string; role: string; status: "active" | "suspended" | "released" }): Promise<string> {
@@ -537,9 +544,10 @@ export class AppProbe implements AppApi {
     return before.status;
   }
 
-  async addOnCallShift(args: { tenant: string; member: string; role: string; startsAt: number; endsAt: number }): Promise<{ id: string }> {
+  async addOnCallShift(args: { tenant: string; member: string; role: string; startsAt: number; endsAt: number; id?: string }): Promise<{ id: string }> {
     const companyId = this.#tenant(args.tenant).company_id;
     const [row] = await this.#write<{ id: string }[]>("POST", "on_call_shifts", { select: "id" }, {
+      ...(args.id ? { id: args.id } : {}),
       company_id: companyId,
       user_id: await this.#userIdOf(args.member),
       phone_number_id: stableUuid(companyId, args.role),
@@ -589,9 +597,72 @@ export class AppProbe implements AppApi {
     return { marker };
   }
 
+  /** This period's voice usage, read the way apps/api/src/messaging/voice-webhook.ts's gates read it. */
+  async voiceCapState(args: { tenant: string }): Promise<VoiceCapState> {
+    const companyId = this.#tenant(args.tenant).company_id;
+    const [company] = await this.#rest<{ plan: string | null; overage_cap_multiplier: number | string | null; current_period_start: string | null }[]>(
+      "companies",
+      { id: `eq.${companyId}`, select: "plan,overage_cap_multiplier,current_period_start" },
+    );
+    if (!company) throw new Error(`app probe: no company row for ${args.tenant}`);
+    const plan = company.plan === "starter" || company.plan === "pro" ? company.plan : null;
+    const multiplier = company.overage_cap_multiplier === null ? null : Number(company.overage_cap_multiplier);
+    if (!company.current_period_start) return { plan, overage_cap_multiplier: multiplier, forward_seconds: 0, forwarded_calls: 0 };
+    const period = { p_company_id: companyId, p_since: company.current_period_start };
+    const [seconds, calls] = await Promise.all([
+      this.#rpc<number | string>("api_period_forward_seconds", period),
+      this.#rpc<number | string>("api_period_forwarded_calls", period),
+    ]);
+    return { plan, overage_cap_multiplier: multiplier, forward_seconds: Number(seconds), forwarded_calls: Number(calls) };
+  }
+
+  async seedCallRecords(args: { tenant: string; leg: "out_customer" | "in_browser"; rows: number; billableSeconds: number }): Promise<{ marker: string }> {
+    if (!Number.isInteger(args.rows) || args.rows < 1 || args.rows > SEED_CALL_RECORDS_MAX) {
+      throw new Error(`app probe: seed 1 to ${SEED_CALL_RECORDS_MAX} call records`);
+    }
+    const marker = `rig-seed-${randomUUID()}`;
+    const companyId = this.#tenant(args.tenant).company_id;
+    const reportedAt = iso(this.#now());
+    for (let start = 0; start < args.rows; start += SEED_BATCH) {
+      const batch = Array.from({ length: Math.min(SEED_BATCH, args.rows - start) }, (_, i) => ({
+        company_id: companyId,
+        // One session for every seeded leg, so the undo finds them all by the marker.
+        call_session_id: marker,
+        call_leg_id: `${marker}-${start + i}`,
+        leg: args.leg,
+        billable_seconds: args.billableSeconds,
+        // Already reported, so the voice meter never sends a seeded row to the sandbox.
+        stripe_reported_at: reportedAt,
+      }));
+      await this.#write("POST", "call_records", {}, batch, "return=minimal");
+    }
+    return { marker };
+  }
+
+  async seedOutboundSegments(args: { tenant: string; role: string; segments: number; body: string }): Promise<{ marker: string }> {
+    const conversationId = await this.#conversationWith(args.tenant, args.role);
+    if (!conversationId) throw new Error(`app probe: ${args.tenant} has no thread with ${args.role} to seed segments in`);
+    const marker = `rig-seed-${randomUUID()}`;
+    await this.#write("POST", "messages", {}, {
+      company_id: this.#tenant(args.tenant).company_id,
+      conversation_id: conversationId,
+      direction: "outbound",
+      body: args.body,
+      // Delivered, so the send gates count it as sent rather than pending.
+      status: "delivered",
+      segments: args.segments,
+      sent_by_user_id: await this.#userIdOf(`${args.tenant.toLowerCase()}-owner`),
+      idempotency_key: marker,
+    }, "return=minimal");
+    return { marker };
+  }
+
+  /** Removes whatever seedUsage, seedCallRecords or seedOutboundSegments wrote under the marker. */
   async clearSeededUsage(marker: string): Promise<void> {
     if (!marker.startsWith("rig-seed-")) throw new Error("app probe: only a seeded row's marker clears usage");
     await this.#write("DELETE", "usage_events", { meter_identifier: `eq.${marker}` }, undefined, "return=minimal");
+    await this.#write("DELETE", "call_records", { call_session_id: `eq.${marker}` }, undefined, "return=minimal");
+    await this.#write("DELETE", "messages", { idempotency_key: `eq.${marker}`, direction: "eq.outbound" }, undefined, "return=minimal");
   }
 
   aiUsage(args: { tenant: string }) {
@@ -620,38 +691,22 @@ export class AppProbe implements AppApi {
     return before?.request_count ?? null;
   }
 
-  async replySuggestions(args: { member: string; withRole: string }): Promise<ApiAnswer<{ suggestions?: unknown[] }>> {
+  async replySuggestions(args: { member: string; withRole: string }): Promise<ApiAnswer<{ suggestions?: unknown[]; reason?: string }>> {
     const { tenant } = splitMember(args.member);
     const conversationId = await this.#conversationWith(tenant, args.withRole);
     if (!conversationId) throw new Error(`app probe: ${tenant} has no thread with ${args.withRole}`);
     return this.#answer(args.member, "POST", `/v1/conversations/${encodeURIComponent(conversationId)}/reply-suggestions`, {});
   }
 
-  async simulateIncoming(args: { member: string; target: string }): Promise<ApiAnswer<{ call_session_id?: string }>> {
-    return this.#answer(args.member, "POST", "/v1/rig/simulate-incoming", { user_id: await this.#userIdOf(args.target) });
+  async simulateIncoming(args: { member: string; target: string; caller?: string }): Promise<ApiAnswer<{ session_id?: string; reachable?: boolean }>> {
+    return this.#answer(args.member, "POST", "/v1/rig/simulate-incoming", {
+      user_id: await this.#userIdOf(args.target),
+      ...(args.caller ? { caller: args.caller } : {}),
+    });
   }
 
   startGreetingCapture(args: { member: string; toRole: string; name: string }): Promise<ApiAnswer> {
     return this.#answer(args.member, "POST", "/v1/voicemail-greetings/capture-call", { name: args.name, to: this.#number(args.toRole) });
-  }
-
-  async setMemberEmail(args: { member: string; email: string }): Promise<string> {
-    if (!/^[^@\s]+@[^@\s]+$/.test(args.email)) throw new Error("app probe: not an email address");
-    const before = this.#member(args.member).email;
-    const userId = await this.#userIdOf(args.member);
-    // Kept on disk too: the undo may run in the watchdog's process, which never saw the old address.
-    if (this.#o.stateDir) {
-      mkdirSync(join(this.#o.stateDir, "moved"), { recursive: true });
-      writeFileSync(join(this.#o.stateDir, "moved", `${args.member}.json`), JSON.stringify({ user_id: userId }));
-    }
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users/${userId}`, {
-      method: "PUT",
-      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ email: args.email, email_confirm: true }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) throw new Error(`app probe: changing ${args.member}'s address returned ${response.status}`);
-    return before;
   }
 
   greetings(args: { tenant: string; since: number }) {
@@ -908,8 +963,7 @@ export class AppProbe implements AppApi {
     });
     if (!response.ok) throw new Error(`app probe: listing users returned ${response.status}`);
     const { users } = (await response.json()) as { users?: { id: string; email?: string }[] };
-    // A member whose address a lease moved is found by the id this probe saw before the move.
-    const out = new Map([...this.#userIds].filter(([key]) => splitMember(key).tenant === tenant.toLowerCase()).map(([key, id]) => [id, key]));
+    const out = new Map<string, string>();
     for (const user of users ?? []) {
       const key = user.email ? byEmail.get(user.email.toLowerCase()) : undefined;
       if (!key) continue;
@@ -919,22 +973,16 @@ export class AppProbe implements AppApi {
     return out;
   }
 
+  userIdOf(memberKey: string): Promise<string> {
+    return this.#userIdOf(memberKey);
+  }
+
   async #userIdOf(memberKey: string): Promise<string> {
-    const cached = this.#userIds.get(memberKey) ?? this.#movedUserId(memberKey);
+    const cached = this.#userIds.get(memberKey);
     if (cached) return cached;
     const { tenant } = splitMember(memberKey);
     for (const [userId, key] of await this.#membersByUser(tenant)) if (key === memberKey) return userId;
     throw new Error(`app probe: no auth user for ${memberKey}`);
-  }
-
-  #movedUserId(memberKey: string): string | undefined {
-    if (!this.#o.stateDir || !/^[a-z0-9-]+$/.test(memberKey)) return undefined;
-    try {
-      const { user_id: id } = JSON.parse(readFileSync(join(this.#o.stateDir, "moved", `${memberKey}.json`), "utf8")) as { user_id?: unknown };
-      return typeof id === "string" ? id : undefined;
-    } catch {
-      return undefined;
-    }
   }
 
   /** The API's public routes, which no member signs in to. */
@@ -1040,6 +1088,17 @@ export class AppProbe implements AppApi {
     return (text ? JSON.parse(text) : []) as T;
   }
 
+  async #rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/rest/v1/rpc/${fn}`, {
+      method: "POST",
+      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}`, "content-type": "application/json" },
+      body: JSON.stringify(args),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`app probe: ${fn} returned ${response.status}`);
+    return (await response.json()) as T;
+  }
+
   async #rest<T>(table: string, query: Record<string, string>): Promise<T> {
     const search = new URLSearchParams(query);
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/rest/v1/${table}?${search}`, {
@@ -1070,6 +1129,11 @@ export class AppProbe implements AppApi {
     return number;
   }
 }
+
+/** Above Pro's dial ceiling at the hard 10x multiplier, the most S12 can ever need. */
+const SEED_CALL_RECORDS_MAX = 50_000;
+/** Rows per insert, so a large seed stays inside one request's limits. */
+const SEED_BATCH = 1_000;
 
 function iso(ms: number): string {
   return new Date(ms).toISOString();

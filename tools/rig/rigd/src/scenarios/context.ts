@@ -38,6 +38,8 @@ export function isFictional(e164: string): boolean {
 
 export interface MemberPageApi {
   waitForRing(timeoutMs: number): Promise<number | undefined>;
+  /** Waits until neither the ring dialog nor the call bar shows, which is how a surface that did not win the call shows it. */
+  waitForCallCleared(timeoutMs: number): Promise<number | undefined>;
   answer(): Promise<void>;
   decline(): Promise<void>;
   hangUp(): Promise<void>;
@@ -181,6 +183,13 @@ export const COMPANY_FIELDS = [
 ] as const;
 export type CompanyField = (typeof COMPANY_FIELDS)[number];
 
+export interface VoiceCapState {
+  plan: "starter" | "pro" | null;
+  overage_cap_multiplier: number | null;
+  forward_seconds: number;
+  forwarded_calls: number;
+}
+
 /** The rig's own Loonext, read and driven from outside, as a member and as the database. */
 export interface AppApi {
   /** Texts as a member, from one of the tenant's numbers, through the local API. */
@@ -279,12 +288,17 @@ export interface AppApi {
   flag(key: string): Promise<boolean | null>;
   /** Sets a local flag, or removes its row with null. Register `app.flag` with the previous value first. */
   setFlag(key: string, enabled: boolean | null): Promise<void>;
+  /** Company settings as they stand, read before a change so `app.company-restore` can be registered first. */
+  companySettings(args: { tenant: string; fields: readonly CompanyField[] }): Promise<Partial<Record<CompanyField, unknown>>>;
   /** Writes company settings and resolves with their previous values, for `app.company-restore`. */
   patchCompany(args: { tenant: string; values: Partial<Record<CompanyField, unknown>> }): Promise<Partial<Record<CompanyField, unknown>>>;
   /** Sets a standing number's row status and resolves with the previous one, for `app.number-status`. */
   setNumberStatus(args: { tenant: string; role: StandingRole; status: "active" | "suspended" | "released" }): Promise<string>;
-  /** Puts a member on call for a number; the undo is `app.remove-on-call` with the id. */
-  addOnCallShift(args: { tenant: string; member: string; role: StandingRole; startsAt: number; endsAt: number }): Promise<{ id: string }>;
+  /**
+   * Puts a member on call for a number; the undo is `app.remove-on-call` with
+   * the id. With `id`, the row takes it, so the undo can be registered first.
+   */
+  addOnCallShift(args: { tenant: string; member: string; role: StandingRole; startsAt: number; endsAt: number; id?: string }): Promise<{ id: string }>;
   /**
    * A member's level on a number (#106): `text` rings them, `note` and null do
    * not. Resolves with the previous level, for `app.ring-audience`.
@@ -295,14 +309,41 @@ export interface AppApi {
    * written as already reported. The undo is `app.clear-seeded-usage` with the marker.
    */
   seedUsage(args: { tenant: string; type: string; quantity: number; channel?: string; unit?: string }): Promise<{ marker: string }>;
+  /**
+   * What the tenant's voice gates read this period: the plan and its cap
+   * multiplier, forwarded seconds (the minute cap) and forwarded calls (the
+   * dial ceiling).
+   */
+  voiceCapState(args: { tenant: string }): Promise<VoiceCapState>;
+  /**
+   * `call_records` rows both voice gates count, written already reported so
+   * the voice meter never sends them to Stripe. The undo is
+   * `app.clear-seeded-usage` with the marker.
+   */
+  seedCallRecords(args: { tenant: string; leg: "out_customer" | "in_browser"; rows: number; billableSeconds: number }): Promise<{ marker: string }>;
+  /**
+   * One delivered outbound message in the thread with a role, holding that
+   * many segments: what the hourly limit and the carrier's day count. The
+   * undo is `app.clear-seeded-usage` with the marker.
+   */
+  seedOutboundSegments(args: { tenant: string; role: StandingRole; segments: number; body: string }): Promise<{ marker: string }>;
+  /** A member's auth user id, which push attempts and call legs name them by. */
+  userIdOf(member: string): Promise<string>;
   /** The AI usage rows of a tenant this period, and a seed of one to a count; the undo is `app.ai-usage`. */
   aiUsage(args: { tenant: string }): Promise<{ feature: string; period: string; request_count: number }[]>;
   /** Sets one feature's count this period, or removes the row with null; resolves with the count before. */
   seedAiUsage(args: { tenant: string; feature: string; requestCount: number | null }): Promise<number | null>;
-  /** Lou's reply suggestions for the thread with a role's number. */
-  replySuggestions(args: { member: string; withRole: StandingRole }): Promise<ApiAnswer<{ suggestions?: unknown[] }>>;
-  /** `POST /v1/rig/simulate-incoming`: a real ring push for a call that does not exist. */
-  simulateIncoming(args: { member: string; target: string }): Promise<ApiAnswer<{ call_session_id?: string }>>;
+  /**
+   * Lou's reply suggestions for the thread with a role's number. With no
+   * draft the route still answers 200, with an empty list and a reason;
+   * `over_cap` is how it refuses at the cap.
+   */
+  replySuggestions(args: { member: string; withRole: StandingRole }): Promise<ApiAnswer<{ suggestions?: unknown[]; reason?: string }>>;
+  /**
+   * `POST /v1/rig/simulate-incoming`: a real ring push to the target's
+   * devices for a call that does not exist, showing `caller` as the caller.
+   */
+  simulateIncoming(args: { member: string; target: string; caller?: string }): Promise<ApiAnswer<{ session_id?: string; reachable?: boolean }>>;
   /** `POST /v1/voicemail-greetings/capture-call`: the API calls the number the owner typed, here a robot line, to record a greeting. */
   startGreetingCapture(args: { member: string; toRole: StandingRole; name: string }): Promise<ApiAnswer>;
   /** The tenant's greetings created since a time, newest last; the audio is in the voicemail-greetings bucket. */
@@ -313,13 +354,6 @@ export interface AppApi {
   widgetVerifications(args: { tenant: string; since: number }): Promise<number>;
   /** Signs in with password and the member's TOTP factor; `meStatus` is `GET /v1/me` on the second-level session. */
   signInWithTotp(args: { member: string }): Promise<{ aal: string | null; meStatus: number }>;
-  /**
-   * Points a member's sign-in address, which is where the API's mail to them
-   * goes, at another one, and resolves with the one before, for
-   * `app.member-email`. S34 uses it to have a missed-call alert land at the
-   * robot's mailbox.
-   */
-  setMemberEmail(args: { member: string; email: string }): Promise<string>;
   /** Asks local auth to mail the member a password reset, which lands in Mailpit (S34's auth mail). */
   sendPasswordReset(args: { member: string }): Promise<number>;
   /** The workspace a public sign-up created, found by its owner's address (S32, S35). */
@@ -362,6 +396,8 @@ export interface WebhookDelivery {
   id: string;
   status: string;
   event_type: string | null;
+  /** The Telnyx event the delivery carried, which the API records once however often it arrives. */
+  event_id: string | null;
   /** Each attempt's host and HTTP status, oldest first. Never the URL's path, which carries the edge's secrets. */
   attempts: { host: string | null; http_status: number | null; at: string | null }[];
 }
@@ -424,6 +460,12 @@ export interface DeviceApi {
   signIn(member: string): Promise<boolean>;
   /** Opens the app's dialer, enters the role's number and presses Call. */
   dial(role: StandingRole): Promise<void>;
+  /**
+   * The installed build's `com.google.android.gms.version`, which
+   * play-services-basement merges into its manifest: the lowest Play services
+   * versionCode its Google libraries accept. Null when it declares none.
+   */
+  playServicesMinimum(): Promise<number | null>;
   /** Hands-free audio over Bluetooth, the Pixel's only; undefined on an emulator. */
   readonly audio?: AudioLinkApi;
 }
@@ -467,6 +509,8 @@ export interface RigApi {
   apiEvents(since: number): Promise<SeenEvent[]>;
   /** The next Telnyx call event the edge relays gets this status from the rig instead of the API's. */
   failNextCallEvent(status: 503): Promise<void>;
+  /** Drops a fault no call event took, so it cannot answer a later run's event. */
+  disarmCallEventFault(): Promise<void>;
   /** Loss and delay on the Pixel's access point, or null to clear them. */
   impairNetwork(impairment: NetworkImpairment | null): Promise<void>;
   /** Takes the Pixel's Wi-Fi away for that long, then gives it back. */
@@ -525,6 +569,14 @@ export interface HandoffApi {
   clear(): Promise<void>;
 }
 
+/** A scenario's own earlier attempts, from rigd's verdicts: what a judgement over a week reads. */
+export interface ScenarioHistoryApi {
+  /** This scenario's attempts that finished since a time, newest first, each with the evidence it saved. */
+  attempts(args: { since: number }): Promise<
+    { run_id: string; attempt: number; outcome: string; finished_at: string; evidence: Record<string, unknown> | null }[]
+  >;
+}
+
 export interface ScenarioContext {
   scenario: string;
   runId: string;
@@ -541,6 +593,7 @@ export interface ScenarioContext {
   mail: MailApi;
   stripe: StripeApi;
   handoff: HandoffApi;
+  history: ScenarioHistoryApi;
   now(): number;
   sleep(ms: number): Promise<void>;
   /** Unique to this attempt; every body a scenario sends carries it. */
@@ -554,6 +607,12 @@ export type ScenarioLanes = Pick<ScenarioContext, "robot" | "app" | "browser" | 
 
 export interface ScenarioRunner {
   id: string;
+  /**
+   * Holds the guard's lease though the scenario dials nothing, because the
+   * guard allows what it does only under a live lease named for it: S34's
+   * mail to the robot mailbox.
+   */
+  guardLease?: boolean;
   /**
    * Setup that may take longer than a lease lasts, run before the lease is
    * taken: its context's lease registers no undo. A result here ends the

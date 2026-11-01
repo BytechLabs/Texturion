@@ -168,6 +168,73 @@ export class Adb {
       rmSync(dir, { recursive: true, force: true });
     }
   }
+
+  /**
+   * An integer `<meta-data>` entry of an installed app, read from the APK the
+   * device holds rather than the one on disk. Null when the manifest has no
+   * such entry.
+   */
+  async manifestInteger(pkg: string, name: string): Promise<number | null> {
+    assertPackage(pkg);
+    const apk = parsePackagePath(await this.shell("pm", "path", pkg));
+    if (!apk) throw new Error(`adb: ${pkg} is not installed`);
+    const dir = mkdtempSync(join(tmpdir(), "rig-apk-"));
+    const copy = join(dir, "base.apk");
+    try {
+      await this.#exec(this.#adb, ["-s", this.serial, "pull", apk, copy], { timeoutMs: 2 * 60 * 1000 });
+      const value = manifestMetaValue(await this.#exec(this.#aapt2, ["dump", "xmltree", "--file", "AndroidManifest.xml", copy]), name);
+      if (typeof value !== "string") return value;
+      const resolved = integerResource(await this.#exec(this.#aapt2, ["dump", "resources", copy]), value);
+      if (resolved === null) throw new Error(`adb: ${name} names ${value}, which the APK's resource table does not hold as an integer`);
+      return resolved;
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+}
+
+/** The APK `pm path` names for a package: the base one when the app is split. */
+export function parsePackagePath(output: string): string | null {
+  const paths = output
+    .split("\n")
+    .map((line) => /^package:(\S+\.apk)$/.exec(line.trim())?.[1])
+    .filter((path): path is string => path !== undefined);
+  return paths.find((path) => path.endsWith("/base.apk")) ?? paths[0] ?? null;
+}
+
+/**
+ * A `<meta-data>` value in `aapt2 dump xmltree` output: the number when the
+ * manifest states one, the resource id (`0x7f0b0005`) when it names one, and
+ * null when there is no entry by that name.
+ */
+export function manifestMetaValue(xmltree: string, name: string): number | string | null {
+  for (const element of xmltree.replace(/\r\n/g, "\n").split(/\n(?=\s*E: )/)) {
+    if (!/^\s*E: meta-data\b/.test(element) || !element.includes(`="${name}"`)) continue;
+    const value = /:value\(0x[0-9a-f]+\)=(.+)$/im.exec(element)?.[1]?.trim();
+    if (!value) return null;
+    const reference = /^@(0x[0-9a-f]{8})$/i.exec(value)?.[1];
+    if (reference) return reference.toLowerCase();
+    // aapt2 prints a typed integer as `(type 0x10)0x...`, decimal and hex alike.
+    const typed = /^\(type 0x1[01]\)(0x[0-9a-f]+)$/i.exec(value)?.[1];
+    if (typed) return Number.parseInt(typed, 16);
+    const plain = /^"?(\d+)"?$/.exec(value)?.[1];
+    return plain ? Number(plain) : null;
+  }
+  return null;
+}
+
+/** An integer resource's default value in `aapt2 dump resources` output, by its id. */
+export function integerResource(dump: string, id: string): number | null {
+  if (!/^0x[0-9a-f]{8}$/i.test(id)) throw new Error("adb: not a resource id");
+  const lines = dump.replace(/\r\n/g, "\n").split("\n");
+  const at = lines.findIndex((line) => line.trim().toLowerCase().startsWith(`resource ${id.toLowerCase()} `));
+  if (at === -1) return null;
+  for (const line of lines.slice(at + 1)) {
+    if (/^\s*(resource|type|Package)\b/.test(line)) break;
+    const value = /^\s*\(\)\s+(?:\([a-z]+\)\s+)?(0x[0-9a-f]+|\d+)\s*$/i.exec(line)?.[1];
+    if (value) return value.startsWith("0x") ? Number.parseInt(value, 16) : Number(value);
+  }
+  return null;
 }
 
 /** Headless KVM emulators with Google Play images (API 34, 35 and 36). */

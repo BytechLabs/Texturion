@@ -61,6 +61,7 @@ export const STRIPE_HOSTS = ["checkout.stripe.com", "billing.stripe.com"] as con
 export const LOGIN_PATH = "/login";
 const SIGN_IN_TIMEOUT_MS = 30_000;
 const PUSH_TIMEOUT_MS = 15_000;
+const CLEARED_POLL_MS = 100;
 
 export interface MemberCredentials {
   email: string;
@@ -347,6 +348,24 @@ export class MemberPage {
       return Date.now() - started;
     } catch {
       return undefined;
+    }
+  }
+
+  /**
+   * Waits until no Answer or Hang up control shows: the ring dialog and the
+   * call bar are both gone. Resolves with how long that took, or undefined at
+   * the deadline.
+   */
+  async waitForCallCleared(timeoutMs: number): Promise<number | undefined> {
+    const started = Date.now();
+    const controls = [SELECTORS.answer, SELECTORS.hangUp].map((control) =>
+      this.page.getByRole(control.role, { name: control.name, exact: true }).filter({ visible: true }),
+    );
+    for (;;) {
+      const showing = await Promise.all(controls.map((control) => control.count()));
+      if (showing.every((count) => count === 0)) return Date.now() - started;
+      if (Date.now() - started >= timeoutMs) return undefined;
+      await this.page.waitForTimeout(CLEARED_POLL_MS);
     }
   }
 

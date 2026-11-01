@@ -283,6 +283,60 @@ describe("runScenario", () => {
     expect(requests).toEqual([]);
   });
 
+  it("holds the guard's lease for a scenario that dials nothing when its runner asks, at any hour, spending no dials", async () => {
+    const { deps, requests } = setup([], { at: Date.UTC(2026, 9, 31, 20, 0) });
+    const leases: string[] = [];
+    deps.runners = { ...deps.runners, S20: { id: "S20", guardLease: true, run: async (ctx) => (leases.push(ctx.lease.id), { outcome: "pass" }) } };
+    const summary = await runScenario(deps, "S20");
+    expect(summary.status).toBe("pass");
+    expect(summary.verdicts[0]).toMatchObject({ dials: 0 });
+    expect(requests.filter((r) => r.method === "POST" && r.url === `${EDGE}/g/lease`)).toHaveLength(1);
+    expect(leases[0]).toMatch(/^lease-/);
+
+    let calls = 0;
+    const waited = setup([], {
+      at: Date.UTC(2026, 9, 31, 20, 0),
+      acquire: () =>
+        ++calls < 3
+          ? json({ error: "guard_refused", rule: "lease.busy" }, 403, { [HEADER.refusedBy]: "lease.busy" })
+          : json({ lease_id: "lease-late", scenario: "S20", expires_at: "x" }, 201),
+    });
+    waited.deps.runners = { ...waited.deps.runners, S20: { id: "S20", guardLease: true, run: async () => ({ outcome: "pass" }) } };
+    expect((await runScenario(waited.deps, "S20")).status).toBe("pass");
+  });
+
+  it("hands a runner its own earlier attempts, newest first, with the evidence each saved", async () => {
+    const { deps, clock } = setup([]);
+    const seen: unknown[] = [];
+    let run = 0;
+    deps.runners = {
+      ...deps.runners,
+      S20: {
+        id: "S20",
+        async run(ctx) {
+          seen.push(await ctx.history.attempts({ since: clock.now() - 7 * 86_400_000 }));
+          ctx.evidence.audio = { heard: ++run === 1 };
+          return run === 1 ? { outcome: "pass" } : { outcome: "fail", failure_class: "deaf", detail: "x" };
+        },
+      },
+    };
+    await runScenario(deps, "S20");
+    clock.advance(3_600_000);
+    await runScenario(deps, "S20");
+    await runScenario(deps, "S02");
+    clock.advance(3_600_000);
+    await runScenario(deps, "S20");
+    expect(seen[0]).toEqual([]);
+    expect(seen[1]).toEqual([expect.objectContaining({ attempt: 1, outcome: "pass", evidence: expect.objectContaining({ attempt: 1, audio: { heard: true } }) })]);
+    const third = seen[3] as { outcome: string; attempt: number; evidence: { audio?: unknown } }[];
+    expect(third.map((a) => [a.outcome, a.attempt])).toEqual([
+      ["fail", 2],
+      ["fail", 1],
+      ["pass", 1],
+    ]);
+    expect(third[0]!.evidence.audio).toEqual({ heard: false });
+  });
+
   it("runs a scheduled paid run only on its registry day and once that day; a manual run always", async () => {
     const odd = setup([], { at: S02_DAY + 86_400_000 });
     expect((await runScenario(odd.deps, "S02", { scheduled: true })).status).toBe("not_due");

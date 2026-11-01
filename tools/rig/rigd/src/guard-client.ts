@@ -140,14 +140,15 @@ export class GuardClient implements GuardApi {
   }
 }
 
-/** One delivery, cut to what S17 judges: each attempt's host and status. */
+/** One delivery, cut to what S17 judges: the event it carried, and each attempt's host and status. */
 export function toDelivery(item: Record<string, unknown>): WebhookDelivery {
-  const webhook = (item.webhook ?? {}) as { event_type?: unknown };
+  const webhook = (item.webhook ?? {}) as { event_type?: unknown; id?: unknown };
   const attempts = Array.isArray(item.attempts) ? (item.attempts as Record<string, unknown>[]) : [];
   return {
     id: typeof item.id === "string" ? item.id : "",
     status: typeof item.status === "string" ? item.status : "unknown",
     event_type: typeof webhook.event_type === "string" ? webhook.event_type : null,
+    event_id: typeof webhook.id === "string" ? webhook.id : null,
     attempts: attempts.map((attempt) => {
       const http = (attempt.http ?? {}) as { request?: { url?: unknown }; response?: { status?: unknown } };
       let host: string | null = null;

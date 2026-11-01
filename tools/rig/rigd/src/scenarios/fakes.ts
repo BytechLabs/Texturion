@@ -35,9 +35,11 @@ import type {
   RigApi,
   RigHealthReport,
   ScenarioContext,
+  ScenarioHistoryApi,
   ScenarioLanes,
   SendResult,
   StripeApi,
+  VoiceCapState,
   WebhookDelivery,
   WorkspaceState,
 } from "./context.ts";
@@ -177,9 +179,13 @@ export class FakeApp implements AppApi {
   readonly shifts: { id: string; tenant: string; member: string; role: string; startsAt: number; endsAt: number }[] = [];
   audiences = new Map<string, "text" | "note">();
   readonly seeded: { marker: string; tenant: string; type: string; quantity: number }[] = [];
+  /** What the voice gates read this period; seeded call records add to it. */
+  voiceCap: VoiceCapState = { plan: "pro", overage_cap_multiplier: 3, forward_seconds: 0, forwarded_calls: 0 };
+  readonly seededCalls: { marker: string; tenant: string; leg: string; rows: number; billableSeconds: number }[] = [];
+  readonly seededSegments: { marker: string; tenant: string; role: string; segments: number; body: string }[] = [];
   ai = new Map<string, number>();
-  suggestions: ApiAnswer<{ suggestions?: unknown[] }> = { status: 200, body: { suggestions: ["Rig draft"] } };
-  simulated: ApiAnswer<{ call_session_id?: string }> = { status: 202, body: { call_session_id: "synthetic-1" } };
+  suggestions: ApiAnswer<{ suggestions?: unknown[]; reason?: string }> = { status: 200, body: { suggestions: ["Rig draft"] } };
+  simulated: ApiAnswer<{ session_id?: string; reachable?: boolean }> = { status: 201, body: { session_id: "synthetic-1", reachable: true } };
   greetingCapture: ApiAnswer = { status: 202 };
   greetingRows: { tenant: string; id: string; created_at: string; storage_path: string; mime_type: string | null; duration_ms: number | null }[] = [];
   widget: { start: ApiAnswer<{ verificationId?: string }>; verify: ApiAnswer; verifications: number } = {
@@ -189,8 +195,6 @@ export class FakeApp implements AppApi {
   };
   totp = { aal: "aal2" as string | null, meStatus: 200 };
   readonly invites: { member: string; email: string }[] = [];
-  /** Sign-in addresses a lease moved, by member. */
-  emails = new Map<string, string>();
   provisioned: ApiAnswer<{ number?: { id?: string } }> = { status: 201, body: { number: { id: "number-row-1" } } };
   numbers = new Map<string, NumberRow[]>();
   workspaces = new Map<string, WorkspaceState>();
@@ -328,6 +332,10 @@ export class FakeApp implements AppApi {
     if (enabled === null) this.flags.delete(key);
     else this.flags.set(key, enabled);
   }
+  async companySettings(args: { tenant: string; fields: readonly CompanyField[] }) {
+    const current = this.companies.get(args.tenant) ?? {};
+    return Object.fromEntries(args.fields.map((field) => [field, current[field] ?? null]));
+  }
   async patchCompany(args: { tenant: string; values: Partial<Record<CompanyField, unknown>> }) {
     const current = this.companies.get(args.tenant) ?? {};
     const previous = Object.fromEntries(Object.keys(args.values).map((key) => [key, current[key] ?? null]));
@@ -340,9 +348,9 @@ export class FakeApp implements AppApi {
     this.numberStatus.set(key, args.status);
     return previous;
   }
-  async addOnCallShift(args: { tenant: string; member: string; role: string; startsAt: number; endsAt: number }) {
-    const id = `shift-${this.shifts.length + 1}`;
-    this.shifts.push({ id, ...args });
+  async addOnCallShift(args: { tenant: string; member: string; role: string; startsAt: number; endsAt: number; id?: string }) {
+    const { id = `shift-${this.shifts.length + 1}`, ...shift } = args;
+    this.shifts.push({ id, ...shift });
     return { id };
   }
   async setRingAudience(args: { tenant: string; role: string; member: string; level: "text" | "note" | null }) {
@@ -356,6 +364,25 @@ export class FakeApp implements AppApi {
     const marker = `rig-seed-${this.seeded.length + 1}`;
     this.seeded.push({ marker, ...args });
     return { marker };
+  }
+  async voiceCapState() {
+    return { ...this.voiceCap };
+  }
+  async seedCallRecords(args: { tenant: string; leg: "out_customer" | "in_browser"; rows: number; billableSeconds: number }) {
+    const marker = `rig-seed-calls-${this.seededCalls.length + 1}`;
+    this.seededCalls.push({ marker, ...args });
+    // The minute cap counts every seeded second; the dial ceiling counts only dials.
+    if (args.leg === "out_customer") this.voiceCap.forwarded_calls += args.rows;
+    this.voiceCap.forward_seconds += args.rows * args.billableSeconds;
+    return { marker };
+  }
+  async seedOutboundSegments(args: { tenant: string; role: string; segments: number; body: string }) {
+    const marker = `rig-seed-messages-${this.seededSegments.length + 1}`;
+    this.seededSegments.push({ marker, ...args });
+    return { marker };
+  }
+  async userIdOf(member: string) {
+    return `user-${member}`;
   }
   async aiUsage(args: { tenant: string }) {
     return [...this.ai]
@@ -392,11 +419,6 @@ export class FakeApp implements AppApi {
   }
   async signInWithTotp() {
     return this.totp;
-  }
-  async setMemberEmail(args: { member: string; email: string }) {
-    const before = this.emails.get(args.member) ?? `delivered+rig-${args.member}@resend.dev`;
-    this.emails.set(args.member, args.email);
-    return before;
   }
   async invite(args: { member: string; email: string }) {
     this.invites.push(args);
@@ -453,13 +475,15 @@ export interface FakePageScript {
   notifications?: { title: string; body: string; tag: string }[];
   /** Makes a consult transfer fail the way a call bar with no consult control does. */
   noConsult?: boolean;
+  /** How long until the page holds no call; undefined never clears. */
+  clearsAfterMs?: number;
 }
 
 export class FakeBrowser implements BrowserApi {
   readonly opened: { member: string; surface: Surface; path?: string }[] = [];
   readonly publicPages: string[] = [];
   readonly actions: string[] = [];
-  script: FakePageScript = { ringsAfterMs: 1_500, heard: "robot", energyBeforeAnswer: 0.4, showsText: true };
+  script: FakePageScript = { ringsAfterMs: 1_500, heard: "robot", energyBeforeAnswer: 0.4, showsText: true, clearsAfterMs: 500 };
   /** What the public flows answer. */
   publicScript = {
     signUp: { ok: true } as { ok: boolean; alert?: string },
@@ -476,6 +500,10 @@ export class FakeBrowser implements BrowserApi {
     return {
       async waitForRing(timeoutMs) {
         const after = script.ringsAfterMs;
+        return after !== undefined && after <= timeoutMs ? after : undefined;
+      },
+      async waitForCallCleared(timeoutMs) {
+        const after = script.clearsAfterMs;
         return after !== undefined && after <= timeoutMs ? after : undefined;
       },
       async answer() {
@@ -587,6 +615,9 @@ export class FakeGuard implements GuardApi {
     version_id: "fake",
     telnyx: { key: "present", safety: { state: "ok", reasons: [], checked_at: 0 } },
     paid_dials: { enabled: true, blockers: [], room: 4, window_start_hour_utc: 4, window_measured_at: null, in_window: true },
+    ordering: { enabled: true, blockers: [] },
+    mail: { heartbeat_fresh: true, halted: false, pending: 0 },
+    ai_neurons_today: 0,
   };
   /** The lease's log, by `<caller> <METHOD> <path> <outcome>`. */
   log: Record<string, number> = {};
@@ -628,6 +659,7 @@ export class FakeGuard implements GuardApi {
 
 const RESTING: DeviceState = {
   boot_completed: true,
+  sdk_int: 36,
   locked: false,
   doze: "ACTIVE",
   battery_saver: false,
@@ -646,6 +678,8 @@ export class FakeDevice implements DeviceApi {
   rings: { telecom_ms?: number; full_screen_ms?: number } | undefined = { telecom_ms: 2_000, full_screen_ms: 2_500 };
   call: "ringing" | "active" | "holding" | "disconnected" | "none" = "none";
   onScreen = new Set<string>(["call_answer", "call_decline"]);
+  /** The installed build's declared Play services minimum; null when it declares none. */
+  gmsMinimum: number | null = 12_451_000;
   readonly audio?: AudioLinkApi;
 
   constructor(name: string, audio?: AudioLinkApi) {
@@ -748,6 +782,9 @@ export class FakeDevice implements DeviceApi {
     this.actions.push(`dial ${role}`);
     this.call = "active";
   }
+  async playServicesMinimum() {
+    return this.gmsMinimum;
+  }
 }
 
 export class FakeAudioLink implements AudioLinkApi {
@@ -820,6 +857,9 @@ export class FakeRig implements RigApi {
   async failNextCallEvent(status: 503) {
     this.faults.push(status);
   }
+  async disarmCallEventFault() {
+    this.faults.length = 0;
+  }
   async impairNetwork(impairment: NetworkImpairment | null) {
     this.impairment = impairment;
   }
@@ -870,6 +910,14 @@ export class FakeStripe implements StripeApi {
   }
 }
 
+export class FakeHistory implements ScenarioHistoryApi {
+  /** Earlier attempts, newest first. */
+  rows: Awaited<ReturnType<ScenarioHistoryApi["attempts"]>> = [];
+  async attempts(args: { since: number }) {
+    return this.rows.filter((row) => Date.parse(row.finished_at) >= args.since);
+  }
+}
+
 export class FakeHandoff implements HandoffApi {
   record: NumberHandoff | null = null;
   async read() {
@@ -901,6 +949,7 @@ export function fakeLanes(time: FakeTime) {
 export function fakeContext(scenario: string) {
   const time = new FakeTime();
   const lanes = fakeLanes(time);
+  const history = new FakeHistory();
   const undo: UndoAction[] = [];
   const ctx: ScenarioContext = {
     scenario,
@@ -909,10 +958,11 @@ export function fakeContext(scenario: string) {
     slot: { index: 0 },
     lease: { id: "lease-test", registerUndo: (action) => undo.push(action) },
     ...lanes,
+    history,
     now: () => time.now,
     sleep: time.sleep,
     nonce: "n0nce",
     evidence: {},
   };
-  return { ctx, time, undo, ...lanes };
+  return { ctx, time, undo, history, ...lanes };
 }

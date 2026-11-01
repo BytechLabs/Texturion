@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { codeSamples, delay, mix } from "@loonext/rig-robot";
 import { afterAll, describe, expect, it } from "vitest";
-import { Adb, emulatorArgs, type Exec } from "./android/adb.ts";
+import { Adb, emulatorArgs, integerResource, manifestMetaValue, parsePackagePath, type Exec } from "./android/adb.ts";
 import { BLOCKED_HOSTS, chromiumArgs, hostResolverRules } from "./browser/args.ts";
 import { judgeCapture } from "./browser/lane.ts";
 import type { PageCapture } from "./browser/page-judge.ts";
@@ -40,6 +40,29 @@ function fakeExec(answers: Record<string, string> = {}) {
   };
   return { exec, calls };
 }
+
+/** aapt2 dump xmltree's shape for a manifest's application meta-data (aapt2 34). */
+const MANIFEST = `N: android=http://schemas.android.com/apk/res/android (line=2)
+  E: manifest (line=2)
+    A: http://schemas.android.com/apk/res/android:versionCode(0x0101021b)=(type 0x10)0x1
+    E: application (line=12)
+      E: meta-data (line=40)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.google.firebase.messaging.default_notification_channel_id" (Raw: "com.google.firebase.messaging.default_notification_channel_id")
+        A: http://schemas.android.com/apk/res/android:value(0x01010024)="calls" (Raw: "calls")
+      E: meta-data (line=44)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.google.android.gms.version" (Raw: "com.google.android.gms.version")
+        A: http://schemas.android.com/apk/res/android:value(0x01010024)=@0x7f0b0005
+`;
+/** aapt2 dump resources' shape for an integer resource. */
+const RESOURCES = `Binary APK
+Package name=com.loonext.android.nonprod id=7f
+  type integer id=0b entryCount=6
+    resource 0x7f0b0004 integer/m3_sys_motion_duration_long1
+      () 450
+    resource 0x7f0b0005 integer/google_play_services_version
+      () 12451000
+  type layout id=0c entryCount=1
+`;
 
 describe("the adb wrappers (commands only; no device has run them)", () => {
   const PKG = "com.loonext.android.nonprod";
@@ -114,6 +137,37 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
     const { exec, calls } = fakeExec({ "dump packagename": "com.loonext.android\n" });
     await expect(new Adb({ serial: "PIXEL123", exec }).install(apk)).rejects.toThrow(/only \.nonprod builds/);
     expect(calls.some((c) => c.includes(" install "))).toBe(false);
+  });
+
+  it("reads an installed app's manifest integer from a pulled copy of its APK, resolving a resource reference", async () => {
+    const { exec, calls } = fakeExec({
+      "pm path": `package:/data/app/~~aB==/${PKG}-cD==/split_config.en.apk\npackage:/data/app/~~aB==/${PKG}-cD==/base.apk\n`,
+      "dump xmltree": MANIFEST,
+      "dump resources": RESOURCES,
+    });
+    expect(await new Adb({ serial: "PIXEL123", exec }).manifestInteger(PKG, "com.google.android.gms.version")).toBe(12_451_000);
+    const pull = calls.find((c) => c.includes(" pull "))!;
+    expect(pull).toMatch(new RegExp(`^adb -s PIXEL123 pull /data/app/~~aB==/${PKG}-cD==/base\\.apk .*rig-apk-.*base\\.apk$`));
+    expect(calls.filter((c) => c.startsWith("aapt2 dump"))).toHaveLength(2);
+    expect(existsSync(dirname(pull.split(" ").at(-1)!))).toBe(false);
+
+    const undeclared = fakeExec({ "pm path": `package:/data/app/${PKG}/base.apk`, "dump xmltree": MANIFEST.replaceAll("com.google.android.gms.version", "com.other") });
+    expect(await new Adb({ serial: "PIXEL123", exec: undeclared.exec }).manifestInteger(PKG, "com.google.android.gms.version")).toBeNull();
+    expect(undeclared.calls.some((c) => c.includes("dump resources"))).toBe(false);
+
+    const unresolved = fakeExec({ "pm path": `package:/data/app/${PKG}/base.apk`, "dump xmltree": MANIFEST, "dump resources": "Package name=x id=7f\n" });
+    await expect(new Adb({ serial: "PIXEL123", exec: unresolved.exec }).manifestInteger(PKG, "com.google.android.gms.version")).rejects.toThrow(/does not hold/);
+    await expect(new Adb({ serial: "PIXEL123", exec: fakeExec().exec }).manifestInteger(PKG, "com.google.android.gms.version")).rejects.toThrow(/not installed/);
+  });
+
+  it("reads a meta-data value whether the manifest states it or names a resource", () => {
+    expect(manifestMetaValue(MANIFEST, "com.google.android.gms.version")).toBe("0x7f0b0005");
+    expect(manifestMetaValue(MANIFEST.replace("=@0x7f0b0005", "=(type 0x10)0xbdfcb8"), "com.google.android.gms.version")).toBe(12_451_000);
+    expect(manifestMetaValue(MANIFEST, "com.google.firebase.messaging.default_notification_channel_id")).toBe(null);
+    expect(integerResource(RESOURCES, "0x7f0b0005")).toBe(12_451_000);
+    expect(integerResource(RESOURCES.replace("() 12451000", "() (integer) 0xbdfcb8"), "0x7f0b0005")).toBe(12_451_000);
+    expect(integerResource(RESOURCES, "0x7f0b0006")).toBeNull();
+    expect(parsePackagePath("")).toBeNull();
   });
 
   it("refuses shell arguments that a shell would interpret", async () => {

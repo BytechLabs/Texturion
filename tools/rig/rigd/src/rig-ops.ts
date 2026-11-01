@@ -74,6 +74,10 @@ export class RigOps implements RigApi {
     this.#o.faults.arm(status);
   }
 
+  async disarmCallEventFault(): Promise<void> {
+    this.#o.faults.disarm();
+  }
+
   async impairNetwork(impairment: NetworkImpairment | null): Promise<void> {
     if (!this.#o.shaper) throw new Error("rig: no access point interface is configured");
     await this.#o.shaper.impair(impairment);
@@ -134,6 +138,7 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
       unlock: () => android.unlock(),
       reboot: (options) => android.reboot(options),
       install: (build) => android.install(build),
+      playServicesMinimum: () => android.playServicesMinimum(),
       uninstall: () => android.uninstall(),
       launch: (path) => android.launch(path),
       waitForRinging: (ms) => android.waitForRinging(ms),
@@ -149,6 +154,8 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
     return api;
   };
   const emulatorSerial = (api: 34 | 35 | 36) => `emulator-${settings.emulators[api].port}`;
+  const booted = async (api: 34 | 35 | 36) =>
+    (await exec("adb", ["-s", emulatorSerial(api), "shell", "getprop", "sys.boot_completed"]).catch(() => "")).trim() === "1";
   return {
     pixel() {
       const pixel = settings.pixel;
@@ -170,14 +177,14 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
       return device(`emulator-${api}`, emulatorSerial(api));
     },
     async bootEmulator(api) {
-      if (running.has(api)) return;
+      // Every scenario run is its own process, so an emulator another one started is found by asking adb.
+      if (running.has(api) || (await booted(api))) return;
       const { avd, port } = settings.emulators[api];
       running.set(api, spawn("emulator", emulatorArgs(avd, port), () => running.delete(api)));
       await exec("adb", ["-s", emulatorSerial(api), "wait-for-device"], { timeoutMs: 5 * 60_000 });
       const deadline = Date.now() + 5 * 60_000;
       while (Date.now() < deadline) {
-        const booted = await exec("adb", ["-s", emulatorSerial(api), "shell", "getprop", "sys.boot_completed"]).catch(() => "");
-        if (booted.trim() === "1") return;
+        if (await booted(api)) return;
         await new Promise((resolve) => setTimeout(resolve, 2_000));
       }
       throw new Error(`rig: the API ${api} emulator did not finish booting`);

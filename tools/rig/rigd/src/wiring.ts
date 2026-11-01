@@ -32,10 +32,10 @@ import { Mailbox } from "./mail.ts";
 import { MailClient } from "./mail-client.ts";
 import { rigDevices, RigOps } from "./rig-ops.ts";
 import { FaultFile, HandoffFile } from "./state-files.ts";
-import { StripeSandbox } from "./stripe-sandbox.ts";
+import { deleteStripeObject, STRIPE_DELETE_UNDO, StripeSandbox } from "./stripe-sandbox.ts";
 import type { RunnerDeps } from "./runner.ts";
 import { RUNNERS } from "./scenarios/index.ts";
-import type { BrowserApi, DevicesApi, ScenarioLanes, WorkspaceState } from "./scenarios/context.ts";
+import type { BrowserApi, DeviceApi, DevicesApi, RigApi, ScenarioLanes, StripeApi, WorkspaceState } from "./scenarios/context.ts";
 import { parseDsn, SentryRelay, type Dsn } from "./sentry-relay.ts";
 import { VerdictStore } from "./verdicts.ts";
 
@@ -124,80 +124,7 @@ export function buildRig(config: RigdConfig): Rig {
     return binary && model ? new WhisperTranscriber({ binary, model }) : undefined;
   });
 
-  const undo: UndoHandlers = {
-    "robot.sms": async (params) => {
-      if (!isRobotRole(params.from_role) || typeof params.to_role !== "string" || typeof params.text !== "string") {
-        throw new Error("robot.sms undo needs from_role, to_role and text");
-      }
-      await robot.sms({ from_role: params.from_role, to_role: params.to_role, text: params.text, scenario: "undo" });
-    },
-    "app.disarm-automations": async (params) => {
-      await app().disarmAutomations({ tenant: String(params.tenant), nonce: String(params.nonce) });
-    },
-    "app.flag": async (params) => {
-      if (typeof params.key !== "string" || !(typeof params.enabled === "boolean" || params.enabled === null)) {
-        throw new Error("app.flag undo needs key and enabled (true, false or null)");
-      }
-      await app().setFlag(params.key, params.enabled);
-    },
-    "app.company-restore": async (params) => {
-      if (typeof params.tenant !== "string" || !isRecord(params.values)) throw new Error("app.company-restore undo needs tenant and values");
-      await app().patchCompany({ tenant: params.tenant, values: params.values });
-    },
-    "app.number-status": async (params) => {
-      const status = params.status;
-      if (typeof params.tenant !== "string" || typeof params.role !== "string" || (status !== "active" && status !== "suspended" && status !== "released")) {
-        throw new Error("app.number-status undo needs tenant, role and status");
-      }
-      await app().setNumberStatus({ tenant: params.tenant, role: params.role as never, status });
-    },
-    "app.remove-on-call": async (params) => {
-      if (typeof params.id !== "string") throw new Error("app.remove-on-call undo needs id");
-      await app().removeOnCallShift(params.id);
-    },
-    "app.ring-audience": async (params) => {
-      const level = params.level;
-      if (typeof params.tenant !== "string" || typeof params.role !== "string" || typeof params.member !== "string" || !(level === "text" || level === "note" || level === null)) {
-        throw new Error("app.ring-audience undo needs tenant, role, member and level");
-      }
-      await app().setRingAudience({ tenant: params.tenant, role: params.role as never, member: params.member, level });
-    },
-    "app.clear-seeded-usage": async (params) => {
-      if (typeof params.marker !== "string") throw new Error("app.clear-seeded-usage undo needs marker");
-      await app().clearSeededUsage(params.marker);
-    },
-    "app.ai-usage": async (params) => {
-      const count = params.requestCount;
-      if (typeof params.tenant !== "string" || typeof params.feature !== "string" || !(typeof count === "number" || count === null)) {
-        throw new Error("app.ai-usage undo needs tenant, feature and requestCount");
-      }
-      await app().seedAiUsage({ tenant: params.tenant, feature: params.feature, requestCount: count });
-    },
-    "app.member-email": async (params) => {
-      if (typeof params.member !== "string" || typeof params.email !== "string") throw new Error("app.member-email undo needs member and email");
-      await app().setMemberEmail({ member: params.member, email: params.email });
-    },
-    "app.delete-sign-up": async (params) => {
-      if (typeof params.email !== "string") throw new Error("app.delete-sign-up undo needs email");
-      await app().deleteSignUp({ email: params.email });
-    },
-    "app.revoke-invite": async (params) => {
-      if (typeof params.member !== "string" || typeof params.inviteId !== "string") throw new Error("app.revoke-invite undo needs member and inviteId");
-      await app().revokeInvite({ member: params.member, inviteId: params.inviteId });
-    },
-    "app.restore-workspace": async (params) => {
-      const state = params.state as WorkspaceState | undefined;
-      if (typeof params.tenant !== "string" || !state || typeof state.subscription_status !== "string") {
-        throw new Error("app.restore-workspace undo needs tenant and state");
-      }
-      await app().restoreWorkspace({ tenant: params.tenant, state });
-    },
-    "number.release": async (params) => releaseHeldNumber(params, { guard: guard(), app: app(), handoff }),
-    "device.reset": async (params) => resetDevice(devices(), params.device),
-    "rig.network-clear": async () => {
-      await rig().impairNetwork(null);
-    },
-  };
+  const undo = undoHandlers({ robot, app, guard, handoff, devices: () => devices(), rig: () => rig(), stripe: () => stripe() });
   const leases = new LeaseClient({
     edgeOrigin: config.edgeOrigin,
     token: store.read("guard-token-robot"),
@@ -234,6 +161,7 @@ export function buildRig(config: RigdConfig): Rig {
         const page = await lane.open(member, surface, path);
         return {
           waitForRing: (ms) => page.waitForRing(ms),
+          waitForCallCleared: (ms) => page.waitForCallCleared(ms),
           answer: () => page.answer(),
           hangUp: () => page.hangUp(),
           dial: (role) => page.dial(role),
@@ -359,6 +287,98 @@ export function buildRig(config: RigdConfig): Rig {
   };
 }
 
+/** What the undo handlers act through, each built only when an undo first needs it. */
+export interface UndoParts {
+  robot: Pick<RobotClient, "sms">;
+  app: () => AppProbe;
+  guard: () => Pick<GuardClient, "releaseNumber">;
+  handoff: Pick<HandoffFile, "read" | "clear">;
+  devices: () => DevicesApi;
+  rig: () => Pick<RigApi, "impairNetwork" | "disarmCallEventFault">;
+  stripe: () => Pick<StripeApi, "request">;
+}
+
+/** Every undo a scenario may register, by kind. A kind with no handler here fails its run's release. */
+export function undoHandlers(parts: UndoParts): UndoHandlers {
+  return {
+    "robot.sms": async (params) => {
+      if (!isRobotRole(params.from_role) || typeof params.to_role !== "string" || typeof params.text !== "string") {
+        throw new Error("robot.sms undo needs from_role, to_role and text");
+      }
+      await parts.robot.sms({ from_role: params.from_role, to_role: params.to_role, text: params.text, scenario: "undo" });
+    },
+    "app.disarm-automations": async (params) => {
+      await parts.app().disarmAutomations({ tenant: String(params.tenant), nonce: String(params.nonce) });
+    },
+    "app.flag": async (params) => {
+      if (typeof params.key !== "string" || !(typeof params.enabled === "boolean" || params.enabled === null)) {
+        throw new Error("app.flag undo needs key and enabled (true, false or null)");
+      }
+      await parts.app().setFlag(params.key, params.enabled);
+    },
+    "app.company-restore": async (params) => {
+      if (typeof params.tenant !== "string" || !isRecord(params.values)) throw new Error("app.company-restore undo needs tenant and values");
+      await parts.app().patchCompany({ tenant: params.tenant, values: params.values });
+    },
+    "app.number-status": async (params) => {
+      const status = params.status;
+      if (typeof params.tenant !== "string" || typeof params.role !== "string" || (status !== "active" && status !== "suspended" && status !== "released")) {
+        throw new Error("app.number-status undo needs tenant, role and status");
+      }
+      await parts.app().setNumberStatus({ tenant: params.tenant, role: params.role as never, status });
+    },
+    "app.remove-on-call": async (params) => {
+      if (typeof params.id !== "string") throw new Error("app.remove-on-call undo needs id");
+      await parts.app().removeOnCallShift(params.id);
+    },
+    "app.ring-audience": async (params) => {
+      const level = params.level;
+      if (typeof params.tenant !== "string" || typeof params.role !== "string" || typeof params.member !== "string" || !(level === "text" || level === "note" || level === null)) {
+        throw new Error("app.ring-audience undo needs tenant, role, member and level");
+      }
+      await parts.app().setRingAudience({ tenant: params.tenant, role: params.role as never, member: params.member, level });
+    },
+    "app.clear-seeded-usage": async (params) => {
+      if (typeof params.marker !== "string") throw new Error("app.clear-seeded-usage undo needs marker");
+      await parts.app().clearSeededUsage(params.marker);
+    },
+    "app.ai-usage": async (params) => {
+      const count = params.requestCount;
+      if (typeof params.tenant !== "string" || typeof params.feature !== "string" || !(typeof count === "number" || count === null)) {
+        throw new Error("app.ai-usage undo needs tenant, feature and requestCount");
+      }
+      await parts.app().seedAiUsage({ tenant: params.tenant, feature: params.feature, requestCount: count });
+    },
+    "app.delete-sign-up": async (params) => {
+      if (typeof params.email !== "string") throw new Error("app.delete-sign-up undo needs email");
+      await parts.app().deleteSignUp({ email: params.email });
+    },
+    "app.revoke-invite": async (params) => {
+      if (typeof params.member !== "string" || typeof params.inviteId !== "string") throw new Error("app.revoke-invite undo needs member and inviteId");
+      await parts.app().revokeInvite({ member: params.member, inviteId: params.inviteId });
+    },
+    "app.restore-workspace": async (params) => {
+      const state = params.state as WorkspaceState | undefined;
+      if (typeof params.tenant !== "string" || !state || typeof state.subscription_status !== "string") {
+        throw new Error("app.restore-workspace undo needs tenant and state");
+      }
+      await parts.app().restoreWorkspace({ tenant: params.tenant, state });
+    },
+    "number.release": async (params) => releaseHeldNumber(params, { guard: parts.guard(), app: parts.app(), handoff: parts.handoff }),
+    "device.reset": async (params) => resetDevice(parts.devices(), params.device),
+    "device.launch": async (params) => deviceNamed(parts.devices(), params.device).launch(),
+    "device.install": async (params) => reinstallDevice(parts.devices(), params),
+    "device.boot": async (params) => bootDevice(parts.devices(), params.device),
+    "rig.network-clear": async () => {
+      await parts.rig().impairNetwork(null);
+    },
+    "rig.disarm-call-event-fault": async () => {
+      await parts.rig().disarmCallEventFault();
+    },
+    [STRIPE_DELETE_UNDO]: async (params) => deleteStripeObject(parts.stripe(), params),
+  };
+}
+
 /** The dead-man's "last suite run": a file the daemon reads and beats with. */
 export function suiteMarker(config: RigdConfig): string {
   return join(rigdDir(config), "heartbeats", "suite");
@@ -425,15 +445,42 @@ export async function releaseHeldNumber(
   if (named) await lanes.handoff.clear();
 }
 
+/** The device a device undo names: `pixel`, or `emulator-34`, `-35` or `-36`. */
+export function deviceNamed(devices: DevicesApi, name: unknown): DeviceApi {
+  const match = typeof name === "string" ? /^(pixel|emulator-(34|35|36))$/.exec(name) : null;
+  if (!match) throw new Error("a device undo needs device: pixel or emulator-34, -35, -36");
+  return match[2] ? devices.emulator(Number(match[2]) as 34 | 35 | 36) : devices.pixel();
+}
+
 /** A device back at rest: out of Doze, saver off, active bucket, notifications allowed, unlocked. */
 export async function resetDevice(devices: DevicesApi, name: unknown): Promise<void> {
-  const match = typeof name === "string" ? /^(pixel|emulator-(34|35|36))$/.exec(name) : null;
-  if (!match) throw new Error("device.reset undo needs device: pixel or emulator-34, -35, -36");
-  const device = match[2] ? devices.emulator(Number(match[2]) as 34 | 35 | 36) : devices.pixel();
+  const device = deviceNamed(devices, name);
   await device.exitDoze();
   await device.batterySaver(false);
   await device.setStandbyBucket("active");
   await device.hibernate(false);
   await device.notificationsAllowed(true);
   if ((await device.state()).locked) await device.unlock();
+}
+
+/**
+ * The build a run uninstalled or swapped (D10, D12) put back in place and
+ * signed in, so the next run finds the app as the rig keeps it.
+ */
+export async function reinstallDevice(devices: DevicesApi, params: Record<string, unknown>): Promise<void> {
+  const { build, member } = params;
+  if ((build !== "current" && build !== "previous") || typeof member !== "string") throw new Error("device.install undo needs device, build and member");
+  const device = deviceNamed(devices, params.device);
+  await device.install(build);
+  await device.notificationsAllowed(true);
+  // An install over the same build keeps the app's session, so no sign-in screen is not a failure.
+  await device.signIn(member);
+}
+
+/** An emulator a run shut down (D11), booted again unless something already did. */
+export async function bootDevice(devices: DevicesApi, name: unknown): Promise<void> {
+  const device = deviceNamed(devices, name);
+  const api = /^emulator-(34|35|36)$/.exec(device.name)?.[1];
+  if (!api) throw new Error("device.boot undo is for emulators");
+  if (!(await device.reachable())) await devices.bootEmulator(Number(api) as 34 | 35 | 36);
 }

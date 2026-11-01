@@ -34,6 +34,10 @@ export class FaultFile {
     writeAtomic(this.#path, { status, armed_at: this.#now() } satisfies ArmedFault);
   }
 
+  disarm(): void {
+    rmSync(this.#path, { force: true });
+  }
+
   /** The armed status, at most once; a fault no event took within a lease's length is dropped. */
   take(): number | undefined {
     const claimed = `${this.#path}.${process.pid}.taken`;

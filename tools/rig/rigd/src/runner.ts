@@ -25,7 +25,7 @@ import {
 import { textHash } from "./late.ts";
 import { LeaseBusyError, LeaseReapedError, type Lease, type LeaseClient, type ReleaseResult } from "./lease.ts";
 import { dialsPerRun, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
-import type { LeaseHandle, ScenarioContext, ScenarioLanes, ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
+import type { LeaseHandle, ScenarioContext, ScenarioHistoryApi, ScenarioLanes, ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
 import { infraFingerprint, syntheticFingerprint, type Dsn, type RelayDecision, type SentryRelay } from "./sentry-relay.ts";
 import type { Outcome, Verdict, VerdictStore } from "./verdicts.ts";
 
@@ -249,16 +249,18 @@ type AttemptOutcome = {
   spent: boolean;
 };
 
-async function acquireLease(deps: RunnerDeps, entry: RegisteredScenario, window: DialWindow): Promise<Lease | AttemptOutcome> {
+async function acquireLease(deps: RunnerDeps, entry: RegisteredScenario, runner: ScenarioRunner, window: DialWindow): Promise<Lease | AttemptOutcome> {
   const paid = dialsPerRun(entry) > 0;
+  const atGuard = paid || runner.guardLease === true;
   const started = deps.clock.now();
   for (;;) {
     try {
-      return paid ? await deps.leases.acquire(entry.id) : await deps.localLease(entry.id);
+      return atGuard ? await deps.leases.acquire(entry.id) : await deps.localLease(entry.id);
     } catch (error) {
       if (error instanceof LeaseBusyError) {
         const next = deps.clock.now() + LEASE_POLL_MS;
-        if (next - started <= LEASE_WAIT_MS && inWindow(window, next + WINDOW_TAIL_MS)) {
+        // Only a paid run has the dial window to finish inside.
+        if (next - started <= LEASE_WAIT_MS && (!paid || inWindow(window, next + WINDOW_TAIL_MS))) {
           await deps.sleep(LEASE_POLL_MS);
           continue;
         }
@@ -297,6 +299,7 @@ async function attemptOnce(
     sleep: deps.sleep,
     nonce: `${runId}-${attempt}`.slice(-24),
     evidence,
+    history: historyOf(deps, entry.id),
   };
 
   if (runner.prepare) {
@@ -321,7 +324,7 @@ async function attemptOnce(
     }
   }
 
-  const acquired = await acquireLease(deps, entry, window);
+  const acquired = await acquireLease(deps, entry, runner, window);
   if (!("id" in acquired)) return acquired;
   const lease = acquired;
   const attemptStartedAt = deps.clock.now();
@@ -403,6 +406,24 @@ async function attemptOnce(
     detail: "detail" in result ? result.detail : undefined,
     ...(critical ? { critical: true } : {}),
     spent: paid,
+  };
+}
+
+function historyOf(deps: RunnerDeps, scenario: string): ScenarioHistoryApi {
+  return {
+    async attempts({ since }) {
+      return deps.verdicts
+        .all()
+        .filter((v) => v.scenario === scenario && Date.parse(v.finished_at) >= since)
+        .reverse()
+        .map((v) => ({
+          run_id: v.run_id,
+          attempt: v.attempt,
+          outcome: v.outcome,
+          finished_at: v.finished_at,
+          evidence: (deps.verdicts.evidence(v.run_id).find((e) => (e as { attempt?: unknown }).attempt === v.attempt) as Record<string, unknown> | undefined) ?? null,
+        }));
+    },
   };
 }
 

@@ -290,6 +290,12 @@ export interface GuardHealth {
     window_measured_at: string | null;
     in_window: boolean;
   };
+  /** Whether the guard would order a number now; `blockers` are its reasons when not. */
+  ordering?: { enabled: boolean; blockers: string[] };
+  /** The robot mailbox: the edge's heartbeat, a halt after a lost mail, and sends not seen arriving yet. */
+  mail?: { heartbeat_fresh: boolean; halted: boolean; pending: number };
+  /** Neurons spent on the guard's AI day so far, UTC. */
+  ai_neurons_today?: number;
   [detail: string]: unknown;
 }
 

@@ -32,13 +32,25 @@ window.startLoopback = async () => {
 };
 </script>`;
 
+/** The two controls the lane reads a call's state from: the ring dialog's Answer and the call bar's Hang up. */
+const CALL_BAR_PAGE = `<!doctype html><meta charset="utf-8"><title>call bar</title>
+<div role="dialog"><button id="answer">Answer</button></div>
+<div id="bar" style="display: none"><button>Hang up</button></div>
+<script>
+window.answerThenEnd = (talkMs) => {
+  document.getElementById("answer").remove();
+  document.getElementById("bar").style.display = "block";
+  setTimeout(() => { document.getElementById("bar").style.display = "none"; }, talkMs);
+};
+</script>`;
+
 let server: Server;
 let origin: string;
 const dir = mkdtempSync(join(tmpdir(), "rig-lane-browser-"));
 
 beforeAll(async () => {
-  server = createServer((_request, response) => {
-    response.writeHead(200, { "content-type": "text/html" }).end(LOOPBACK_PAGE);
+  server = createServer((request, response) => {
+    response.writeHead(200, { "content-type": "text/html" }).end(request.url === "/call-bar" ? CALL_BAR_PAGE : LOOPBACK_PAGE);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -74,6 +86,27 @@ describe("the browser lane in Chromium", () => {
       expect(inbound.at(-1)?.totalSamplesReceived).toBeGreaterThan(0);
       expect(hearing.capture.stats.some((s) => s.kind === "source" && (s.totalAudioEnergy ?? 0) > 0)).toBe(true);
       expect(hearing.concealedRatio).toBeDefined();
+    } finally {
+      await lane.closeAll();
+    }
+  });
+
+  it("tells a page still ringing or in a call from one that holds no call", async () => {
+    const lane = new BrowserLane({
+      appOrigin: origin,
+      profilesDir: join(dir, "profiles"),
+      fakeMicDir: join(dir, "mic"),
+      numbers: numberBook({}),
+    });
+    try {
+      const page = await lane.open("qa-a-dispatcher", "qa-a-dispatcher", "/call-bar");
+      expect(await page.waitForCallCleared(500)).toBeUndefined();
+      const answered = Date.now();
+      await page.page.evaluate(() => (window as unknown as { answerThenEnd(ms: number): void }).answerThenEnd(3_000));
+      // The ring dialog has gone, but the call bar still shows.
+      expect(await page.waitForCallCleared(500)).toBeUndefined();
+      expect(await page.waitForCallCleared(10_000)).toBeDefined();
+      expect(Date.now() - answered).toBeGreaterThanOrEqual(3_000);
     } finally {
       await lane.closeAll();
     }

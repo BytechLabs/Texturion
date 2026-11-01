@@ -25,9 +25,13 @@ export const CALL_TEST_IDS = [
 export type CallTestId = (typeof CALL_TEST_IDS)[number];
 
 export const PLAY_SERVICES = "com.google.android.gms";
+/** The manifest entry play-services-basement merges in: the Play services versionCode the app's Google libraries require. */
+export const PLAY_SERVICES_VERSION_META = "com.google.android.gms.version";
 
 export interface DeviceState {
   boot_completed: boolean;
+  /** `ro.build.version.sdk`, the Android release a verdict about the device holds for. */
+  sdk_int: number | null;
   locked: boolean | null;
   /** `dumpsys deviceidle get deep`: ACTIVE, IDLE_PENDING, ..., IDLE. */
   doze: string | null;
@@ -118,6 +122,11 @@ export function parseVersionCode(dump: string): number | null {
   return code ? Number(code) : null;
 }
 
+export function parseSdkInt(prop: string): number | null {
+  const level = /^\s*(\d+)\s*$/.exec(prop)?.[1];
+  return level ? Number(level) : null;
+}
+
 export function parseVersionName(dump: string): string | null {
   return /\bversionName=(\S+)/.exec(dump)?.[1] ?? null;
 }
@@ -180,6 +189,7 @@ export class AndroidDevice {
     const pkg = this.#o.pkg;
     return {
       boot_completed: await this.reachable(),
+      sdk_int: await read(async () => parseSdkInt(await this.adb.shell("getprop", "ro.build.version.sdk"))),
       locked: await read(() => this.adb.isLocked()),
       doze: await read(() => this.adb.dozeState()),
       battery_saver: await read(async () => (await this.adb.shell("settings", "get", "global", "low_power")).trim() === "1"),
@@ -244,6 +254,11 @@ export class AndroidDevice {
 
   install(build: "current" | "previous"): Promise<string> {
     return this.adb.install(this.#o.apks[build]);
+  }
+
+  /** The installed build's declared Play services minimum, from the APK on the device; null when it declares none. */
+  playServicesMinimum(): Promise<number | null> {
+    return this.adb.manifestInteger(this.#o.pkg, PLAY_SERVICES_VERSION_META);
   }
 
   async uninstall(): Promise<void> {

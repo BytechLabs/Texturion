@@ -2,9 +2,10 @@
  * The real lanes behind the scenario interfaces, against stub servers and
  * temporary directories: what each sends, and what it makes of the answer.
  */
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { HEADER } from "@loonext/rig-protocol";
 import { numberBook } from "@loonext/rig-robot";
 import { afterEach, describe, expect, it } from "vitest";
@@ -12,12 +13,14 @@ import { automationBodies, AppProbe, stableUuid } from "./app-probe.ts";
 import { webhookForwarder } from "./forward.ts";
 import { GuardClient, PROBE_FOREIGN_CONNECTION } from "./guard-client.ts";
 import { MailClient, linksIn } from "./mail-client.ts";
-import { RigOps } from "./rig-ops.ts";
-import { FakeDevices, FakeGuard, FakeApp, FakeHandoff, FakeTime } from "./scenarios/fakes.ts";
+import { rigDevices, RigOps } from "./rig-ops.ts";
+import { FakeDevices, FakeGuard, FakeApp, FakeHandoff, FakeStripe, FakeTime } from "./scenarios/fakes.ts";
 import { FaultFile, HandoffFile } from "./state-files.ts";
-import { formEncode, StripeSandbox } from "./stripe-sandbox.ts";
+import { deleteStripeObject, formEncode, STRIPE_DELETE_UNDO, StripeSandbox } from "./stripe-sandbox.ts";
 import { fakeFetch, json, type Route } from "./test-support.ts";
-import { releaseHeldNumber, resetDevice } from "./wiring.ts";
+import { bootDevice, reinstallDevice, releaseHeldNumber, resetDevice, undoHandlers } from "./wiring.ts";
+
+const SRC = dirname(fileURLToPath(import.meta.url));
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -95,7 +98,7 @@ describe("the guard client", () => {
     expect(requests.filter((r) => r.method === "GET").every((r) => r.headers.authorization === "Bearer robot-token")).toBe(true);
   });
 
-  it("reads the lease's log and keeps only each delivery attempt's host and status", async () => {
+  it("reads the lease's log and keeps only each delivery's event and each attempt's host and status", async () => {
     const { guard } = guardWith({
       [`GET ${EDGE}/g/lease/lease-1/activity`]: () => json({ lease_id: "lease-1", live: true, activity: { "rig-api GET /v2/available_phone_numbers 200": 1 } }),
       [`GET ${EDGE}/g/telnyx/v2/webhook_deliveries`]: () =>
@@ -104,7 +107,7 @@ describe("the guard client", () => {
             {
               id: "d1",
               status: "delivered",
-              webhook: { event_type: "call.initiated" },
+              webhook: { event_type: "call.initiated", id: "event-1", payload: { to: "+14165550111" } },
               attempts: [
                 { started_at: "a", http: { request: { url: `${EDGE}/t/v?x=secret` }, response: { status: 503 } } },
                 { started_at: "b", http: { request: { url: `${EDGE}/t/v2` }, response: { status: 200 } } },
@@ -119,12 +122,14 @@ describe("the guard client", () => {
       id: "d1",
       status: "delivered",
       event_type: "call.initiated",
+      event_id: "event-1",
       attempts: [
         { host: "rig-edge.example.workers.dev", http_status: 503, at: "a" },
         { host: "rig-edge.example.workers.dev", http_status: 200, at: "b" },
       ],
     });
     expect(JSON.stringify(delivery)).not.toContain("secret");
+    expect(JSON.stringify(delivery)).not.toContain("+1416");
   });
 });
 
@@ -225,15 +230,87 @@ describe("the app probe", () => {
   it("seeds usage that counts against a cap but is already marked reported, and clears it by its marker only", async () => {
     const { probe, requests } = probeWith({
       [`POST ${rest("usage_events")}`]: () => new Response(null, { status: 201 }),
-      [`DELETE ${rest("usage_events")}`]: () => new Response(null, { status: 204 }),
+      [`DELETE ${SUPABASE}/rest/v1/`]: () => new Response(null, { status: 204 }),
     });
     const { marker } = await probe.seedUsage({ tenant: "QA-W", type: "sms", quantity: 5 });
     const row = JSON.parse(requests.find((r) => r.method === "POST")!.body!);
     expect(row).toMatchObject({ company_id: COMPANY, type: "sms", quantity: 5, meter_identifier: marker });
     expect(row.stripe_reported_at).toBeTruthy();
     await probe.clearSeededUsage(marker);
-    expect(requests.find((r) => r.method === "DELETE")!.url).toContain(`meter_identifier=eq.${marker}`);
+    expect(requests.filter((r) => r.method === "DELETE").map((r) => decodeURIComponent(r.url.slice(`${SUPABASE}/rest/v1/`.length)))).toEqual([
+      `usage_events?meter_identifier=eq.${marker}`,
+      `call_records?call_session_id=eq.${marker}`,
+      `messages?idempotency_key=eq.${marker}&direction=eq.outbound`,
+    ]);
     await expect(probe.clearSeededUsage("real-meter")).rejects.toThrow(/seeded/);
+  });
+
+  it("reads the voice gates' period usage through the RPCs apps/api's gates call", async () => {
+    const { probe, requests } = probeWith({
+      [`GET ${rest("companies")}`]: () => json([{ plan: "pro", overage_cap_multiplier: "3.00", current_period_start: "2026-10-15T00:00:00+00:00" }]),
+      [`POST ${SUPABASE}/rest/v1/rpc/api_period_forward_seconds`]: () => json(1200),
+      [`POST ${SUPABASE}/rest/v1/rpc/api_period_forwarded_calls`]: () => json("40"),
+    });
+    expect(await probe.voiceCapState({ tenant: "QA-W" })).toEqual({ plan: "pro", overage_cap_multiplier: 3, forward_seconds: 1200, forwarded_calls: 40 });
+    for (const rpc of requests.filter((r) => r.url.includes("/rpc/"))) {
+      expect(JSON.parse(rpc.body!)).toEqual({ p_company_id: COMPANY, p_since: "2026-10-15T00:00:00+00:00" });
+    }
+
+    const unpaid = probeWith({ [`GET ${rest("companies")}`]: () => json([{ plan: null, overage_cap_multiplier: null, current_period_start: null }]) });
+    expect(await unpaid.probe.voiceCapState({ tenant: "QA-W" })).toEqual({ plan: null, overage_cap_multiplier: null, forward_seconds: 0, forwarded_calls: 0 });
+    expect(unpaid.requests.some((r) => r.url.includes("/rpc/"))).toBe(false);
+  });
+
+  it("seeds call records in batches under one marker, already reported, each leg its own", async () => {
+    const { probe, requests } = probeWith({ [`POST ${rest("call_records")}`]: () => new Response(null, { status: 201 }) });
+    const { marker } = await probe.seedCallRecords({ tenant: "QA-W", leg: "out_customer", rows: 2_500, billableSeconds: 0 });
+    const batches = requests.filter((r) => r.method === "POST").map((r) => JSON.parse(r.body!) as Record<string, unknown>[]);
+    expect(batches.map((batch) => batch.length)).toEqual([1_000, 1_000, 500]);
+    const rows = batches.flat();
+    expect(new Set(rows.map((row) => row.call_leg_id)).size).toBe(2_500);
+    expect(rows.every((row) => row.call_session_id === marker && row.leg === "out_customer" && row.company_id === COMPANY && row.stripe_reported_at)).toBe(true);
+    await expect(probe.seedCallRecords({ tenant: "QA-W", leg: "in_browser", rows: 0, billableSeconds: 60 })).rejects.toThrow(/1 to/);
+  });
+
+  it("seeds one delivered outbound message of many segments in the thread with a role, sent as the owner", async () => {
+    const { probe, requests } = probeWith({
+      [`GET ${rest("contacts")}`]: () => json([{ id: "contact-1" }]),
+      [`GET ${rest("conversations")}`]: () => json([{ id: "conv-1" }]),
+      [`POST ${rest("messages")}`]: () => new Response(null, { status: 201 }),
+    });
+    const { marker } = await probe.seedOutboundSegments({ tenant: "QA-W", role: "ROBOT-1", segments: 1_600, body: "Rig seeded" });
+    expect(JSON.parse(requests.find((r) => r.method === "POST" && r.url.startsWith(rest("messages")))!.body!)).toEqual({
+      company_id: COMPANY,
+      conversation_id: "conv-1",
+      direction: "outbound",
+      body: "Rig seeded",
+      status: "delivered",
+      segments: 1_600,
+      sent_by_user_id: OWNER,
+      idempotency_key: marker,
+    });
+  });
+
+  it("reads company settings without writing, and takes a shift id the runner chose", async () => {
+    const { probe, requests } = probeWith({
+      [`GET ${rest("companies")}`]: () => json([{ ring_seconds: 20 }]),
+      [`POST ${rest("on_call_shifts")}`]: (request) => json([{ id: JSON.parse(request.body!).id }], 201),
+    });
+    expect(await probe.companySettings({ tenant: "QA-W", fields: ["ring_seconds", "timezone"] })).toEqual({ ring_seconds: 20, timezone: null });
+    await expect(probe.companySettings({ tenant: "QA-W", fields: ["plan" as never] })).rejects.toThrow(/not a company setting/);
+    expect(await probe.addOnCallShift({ tenant: "QA-W", member: "qa-w-technician", role: "DEV-W1", startsAt: 0, endsAt: 1, id: "shift-chosen" })).toEqual({ id: "shift-chosen" });
+    expect(requests.some((r) => r.method === "PATCH")).toBe(false);
+    expect(JSON.parse(requests.find((r) => r.url.startsWith(rest("on_call_shifts")))!.body!)).toMatchObject({ id: "shift-chosen", user_id: TECH, created_by: OWNER });
+  });
+
+  it("rings a member's devices for a call that does not exist, with the caller the ring shows", async () => {
+    const { probe, requests } = probeWith({ [`POST ${API}/v1/rig/simulate-incoming`]: () => json({ session_id: "synthetic-1", reachable: true }, 201) });
+    expect(await probe.simulateIncoming({ member: "qa-w-owner", target: "qa-w-technician", caller: "Rig n0nce" })).toEqual({
+      status: 201,
+      body: { session_id: "synthetic-1", reachable: true },
+    });
+    expect(JSON.parse(requests.find((r) => r.url.endsWith("/v1/rig/simulate-incoming"))!.body!)).toEqual({ user_id: TECH, caller: "Rig n0nce" });
+    expect(await probe.userIdOf("qa-w-owner")).toBe(OWNER);
   });
 
   it("cancels a workspace a number of days back, suspends its numbers, and reads it through grace", async () => {
@@ -347,12 +424,49 @@ describe("the hand-off and the fault file", () => {
     expect(() => faults.arm(200)).toThrow(/5xx/);
   });
 
+  it("disarms a fault no call event took, so a later run's event is answered by the API", () => {
+    const faults = new FaultFile(tempDir());
+    faults.arm(503);
+    faults.disarm();
+    expect(faults.take()).toBeUndefined();
+    faults.disarm();
+  });
+
   it("drops a fault nothing took within a lease's length", () => {
     let now = 0;
     const faults = new FaultFile(tempDir(), () => now);
     faults.arm(503);
     now = 16 * 60 * 1000;
     expect(faults.take()).toBeUndefined();
+  });
+});
+
+describe("the undo handlers", () => {
+  /** Every kind rigd's own code registers, by its literal or the one constant that names one. */
+  function registeredKinds(): Map<string, string[]> {
+    const kinds = new Map<string, string[]>();
+    const sources = readdirSync(SRC, { recursive: true, encoding: "utf8" }).filter((path) => path.endsWith(".ts") && !path.endsWith(".test.ts"));
+    for (const path of sources) {
+      const text = readFileSync(join(SRC, path), "utf8");
+      const found = [...text.matchAll(/\bkind: "([a-z]+\.[a-z-]+)"/g)]
+        .map((match) => match[1]!)
+        // A PostgREST filter on a column named kind, such as `kind: "eq.campaign"`, is not an undo.
+        .filter((kind) => !/^(eq|neq|in|is|gt|gte|lt|lte|like|ilike)\./.test(kind));
+      if (/\bkind: STRIPE_DELETE_UNDO\b/.test(text)) found.push(STRIPE_DELETE_UNDO);
+      for (const kind of found) kinds.set(kind, [...(kinds.get(kind) ?? []), path]);
+    }
+    return kinds;
+  }
+
+  it("cover every kind a runner or the app probe registers, so no release fails for want of one", () => {
+    const unused = () => {
+      throw new Error("not built in this test");
+    };
+    const handlers = undoHandlers({ robot: { sms: unused }, app: unused, guard: unused, handoff: new FakeHandoff(), devices: unused, rig: unused, stripe: unused });
+    const kinds = registeredKinds();
+    expect(kinds.size).toBeGreaterThanOrEqual(20);
+    const missing = [...kinds].filter(([kind]) => !(kind in handlers)).map(([kind, paths]) => `${kind} (${paths.join(", ")})`);
+    expect(missing).toEqual([]);
   });
 });
 
@@ -396,6 +510,23 @@ describe("the held number's undo", () => {
     await resetDevice(devices, "pixel");
     expect(pixel.actions.slice(2)).toEqual(["exit doze", "battery saver off", "bucket active", "hibernate off", "notifications allowed", "unlock"]);
     await expect(resetDevice(devices, "phone")).rejects.toThrow(/device: pixel/);
+  });
+
+  it("puts the current build back, its notifications allowed and its member signed in", async () => {
+    const devices = new FakeDevices();
+    await reinstallDevice(devices, { device: "pixel", build: "current", member: "qa-a-technician" });
+    expect(devices.pixelDevice.actions).toEqual(["install current", "notifications allowed", "sign in qa-a-technician"]);
+    await expect(reinstallDevice(devices, { device: "pixel", build: "nightly", member: "qa-a-technician" })).rejects.toThrow(/build and member/);
+    await expect(reinstallDevice(devices, { device: "pixel", build: "current" })).rejects.toThrow(/build and member/);
+  });
+
+  it("boots an emulator a run shut down, and only one nothing else has booted", async () => {
+    const devices = new FakeDevices();
+    devices.emulator(35).reachableNow = false;
+    await bootDevice(devices, "emulator-35");
+    await bootDevice(devices, "emulator-36");
+    expect(devices.actions).toEqual(["boot 35"]);
+    await expect(bootDevice(devices, "pixel")).rejects.toThrow(/for emulators/);
   });
 });
 
@@ -456,6 +587,33 @@ describe("the Stripe sandbox", () => {
     const sandbox = new StripeSandbox({ key: () => "sk_test_x", subscriptionIdOf: async () => "sub_1", fetch });
     await expect(sandbox.subscriptionOf("QA-W")).rejects.toThrow(/live mode/);
   });
+
+  it("deletes a run's subscription or test clock once, and leaves one already gone", async () => {
+    const stripe = new FakeStripe();
+    const deletes = () => stripe.requests.filter((r) => r.method === "DELETE").map((r) => r.path);
+    stripe.answers.set("GET /v1/subscriptions/sub_1", { id: "sub_1", status: "active" });
+    await deleteStripeObject(stripe, { path: "/v1/subscriptions/sub_1" });
+    expect(deletes()).toEqual(["/v1/subscriptions/sub_1"]);
+
+    stripe.answers.set("GET /v1/subscriptions/sub_1", { id: "sub_1", status: "canceled" });
+    await deleteStripeObject(stripe, { path: "/v1/subscriptions/sub_1" });
+    stripe.answers.set("GET /v1/test_helpers/test_clocks/clock_1", { id: "clock_1", deleted: true });
+    await deleteStripeObject(stripe, { path: "/v1/test_helpers/test_clocks/clock_1" });
+    expect(deletes()).toHaveLength(1);
+
+    const gone = new FakeStripe();
+    gone.request = async () => {
+      throw new Error("stripe sandbox: GET answered 404 resource_missing");
+    };
+    await expect(deleteStripeObject(gone, { path: "/v1/test_helpers/test_clocks/clock_1" })).resolves.toBeUndefined();
+  });
+
+  it("deletes nothing but a subscription or a test clock", async () => {
+    const stripe = new FakeStripe();
+    await expect(deleteStripeObject(stripe, { path: "/v1/customers/cus_1" })).rejects.toThrow(/subscription or test clock/);
+    await expect(deleteStripeObject(stripe, {})).rejects.toThrow(/subscription or test clock/);
+    expect(stripe.requests).toEqual([]);
+  });
 });
 
 describe("the rig box", () => {
@@ -482,5 +640,29 @@ describe("the rig box", () => {
     });
     expect((await rig.health()).results).toEqual([{ name: "api", pass: false, reason: "down" }]);
     expect(ran).toEqual([[process.execPath, "/tools/rig/bin/rig.mjs", "health"]]);
+  });
+
+  it("starts an emulator only when adb finds none booted on its port, whichever process started it", async () => {
+    const up = new Set<string>(["emulator-5556"]);
+    const started: string[] = [];
+    const devices = rigDevices({
+      pkg: "com.loonext.android.nonprod",
+      apks: { current: "current.apk", previous: "previous.apk" },
+      pin: () => undefined,
+      emulators: { 34: { avd: "rig-api34", port: 5554 }, 35: { avd: "rig-api35", port: 5556 }, 36: { avd: "rig-api36", port: 5558 } },
+      fakeMicDir: tempDir(),
+      numbers: numberBook({}),
+      credentials: () => undefined,
+      exec: async (_file, args) => (args.includes("sys.boot_completed") && up.has(args[1]!) ? "1\n" : ""),
+      spawn: (_file, args) => {
+        started.push(args[1]!);
+        up.add(`emulator-${args[3]}`);
+        return { stop: () => undefined };
+      },
+    });
+    await devices.bootEmulator(35);
+    await devices.bootEmulator(34);
+    await devices.bootEmulator(34);
+    expect(started).toEqual(["rig-api34"]);
   });
 });
