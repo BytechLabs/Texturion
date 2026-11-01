@@ -519,6 +519,17 @@ describe("the held number's undo", () => {
     await expect(resetDevice(devices, "phone")).rejects.toThrow(/device: pixel/);
   });
 
+  it("runs every step of a device reset when one fails, and then fails naming it", async () => {
+    const devices = new FakeDevices();
+    const pixel = devices.pixelDevice;
+    await pixel.lock();
+    pixel.batterySaver = async () => {
+      throw new Error("adb: device offline");
+    };
+    await expect(resetDevice(devices, "pixel")).rejects.toThrow(/battery saver off: adb: device offline/);
+    expect(pixel.actions.slice(1)).toEqual(["exit doze", "bucket active", "hibernate off", "notifications allowed", "unlock"]);
+  });
+
   it("puts the current build back, its notifications allowed and its member signed in", async () => {
     const devices = new FakeDevices();
     await reinstallDevice(devices, { device: "pixel", build: "current", member: "qa-a-technician" });

@@ -465,15 +465,30 @@ export function deviceNamed(devices: DevicesApi, name: unknown): DeviceApi {
   return match[2] ? devices.emulator(Number(match[2]) as 34 | 35 | 36) : devices.pixel();
 }
 
-/** A device back at rest: out of Doze, saver off, active bucket, notifications allowed, unlocked. */
+/**
+ * A device back at rest: out of Doze, saver off, active bucket, notifications
+ * allowed, unlocked. A failed step does not stop the rest; the lease runs an
+ * undo once, so whatever it skips stays wrong for the next run.
+ */
 export async function resetDevice(devices: DevicesApi, name: unknown): Promise<void> {
   const device = deviceNamed(devices, name);
-  await device.exitDoze();
-  await device.batterySaver(false);
-  await device.setStandbyBucket("active");
-  await device.hibernate(false);
-  await device.notificationsAllowed(true);
-  if ((await device.state()).locked) await device.unlock();
+  const steps: [string, () => Promise<unknown>][] = [
+    ["exit doze", () => device.exitDoze()],
+    ["battery saver off", () => device.batterySaver(false)],
+    ["active bucket", () => device.setStandbyBucket("active")],
+    ["hibernation off", () => device.hibernate(false)],
+    ["notifications allowed", () => device.notificationsAllowed(true)],
+    ["unlock", async () => ((await device.state()).locked ? device.unlock() : undefined)],
+  ];
+  const failed: string[] = [];
+  for (const [what, step] of steps) {
+    try {
+      await step();
+    } catch (error) {
+      failed.push(`${what}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (failed.length) throw new Error(`device.reset left ${device.name}: ${failed.join("; ")}`);
 }
 
 /**
