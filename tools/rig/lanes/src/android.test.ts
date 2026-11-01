@@ -735,7 +735,10 @@ describe("the hostd client", () => {
       discover: () => ({ path: "p", pid: 4242, grpcToken: GRPC_TOKEN, mtimeMs: 0 }),
       consoleToken: () => ({ path: "p", token: CONSOLE_TOKEN }),
     });
-    const facts = { whpx: { usable: true, detail: "" }, host: { pending_reboot: true } };
+    let facts: { whpx: { usable: boolean; detail: string }; host: { pending_reboot: boolean } | null } = {
+      whpx: { usable: true, detail: "" },
+      host: { pending_reboot: false },
+    };
     const health = async () => healthReport({ facts, adbUp: true, tunnel: { up: true, since: null }, devices: devices.list() });
     const server = createHostdServer({ token: HOSTD_TOKEN, devices, health });
     const { port } = await listen(server, 0);
@@ -744,7 +747,9 @@ describe("the hostd client", () => {
     await client.boot("pixel", { cold: false, wipe: false });
     expect(await client.tokens("pixel")).toEqual({ console: CONSOLE_TOKEN, grpc: GRPC_TOKEN });
     await client.kill("pixel", { hard: true });
-    expect(await client.health()).toEqual({ whpx_usable: true, tunnel_up: true, reboot_pending: true });
+    expect(await client.health()).toEqual({ whpx_usable: true, tunnel_up: true, reboot_pending: false });
+    facts = { ...facts, host: null };
+    expect((await client.health()).reboot_pending, "unread host facts").toBe(true);
     await expect(new HostdClient({ origin: `http://127.0.0.1:${port}`, token: () => "wrong" }).health()).rejects.toThrow(/answered 401/);
   });
 
@@ -765,6 +770,10 @@ describe("the hostd client", () => {
       "POST /v1/devices/pixel/boot": { status: 409 },
     });
     await expect(hostd.client().health()).rejects.toThrow("hostd: /v1/health does not report tunnel.up");
+    for (const reboot of [undefined, "true", 1]) {
+      const shaped = await fakeHostd({ "GET /v1/health": { body: { whpx: { usable: true }, tunnel: { up: true }, reboot_pending: reboot } } });
+      await expect(shaped.client().health(), String(reboot)).rejects.toThrow("hostd: /v1/health does not report reboot_pending");
+    }
     await expect(hostd.client().tokens("pixel")).rejects.toThrow(/does not hold a console and a gRPC token/);
     await expect(hostd.client().boot("pixel", { cold: true, wipe: false })).rejects.toThrow("hostd: POST /v1/devices/pixel/boot answered 409");
     const refused = await hostd.client("wrong-token").health().catch((error: Error) => error);

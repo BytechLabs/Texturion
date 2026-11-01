@@ -9350,8 +9350,9 @@ with its reason:
   lane at one emulator and its console and gRPC ports at another.
 - **hostd's wire shapes are pinned on both sides.** The VM's client reads
   `console_token` and `grpc_token`, and `/v1/health` reports
-  `reboot_pending`, true when hostd could not read the host's facts. A lanes
-  test drives the client against hostd's own server. Why: the two halves were
+  `reboot_pending`, true when hostd could not read the host's facts. It is
+  evidence only: R00 reports it, and no run stops for it. A lanes test drives
+  the client against hostd's own server. Why: the two halves were
   written apart and disagreed on both.
 - **Cost.** Hardware is $0 and the one-time cost about $8. The monthly cost
   stays about $24, plus an estimated $2-6 of workstation power.

@@ -7,7 +7,7 @@ import { after, before, test } from "node:test";
 
 import { loadContract, rigPaths } from "../src/config.mjs";
 import { createDevices } from "../src/emulator.mjs";
-import { parseAcSleepMinutes, parseAccelCheck, parseRegDword } from "../src/host-facts.mjs";
+import { healthReport, parseAcSleepMinutes, parseAccelCheck, parseRegDword } from "../src/host-facts.mjs";
 import { BIND, bearerMatches, createHostdServer, listen, parseFlags } from "../src/server.mjs";
 import { startupPath, startupScript } from "../src/startup.mjs";
 
@@ -134,6 +134,15 @@ test("host facts are parsed from the tools' own output", () => {
   assert.equal(parseAcSleepMinutes("    Current AC Power Setting Index: 0x00000000\r\n    Current DC Power Setting Index: 0x00000384"), 0);
   assert.equal(parseAcSleepMinutes("    Current AC Power Setting Index: 0x00000708"), 30);
   assert.equal(parseAcSleepMinutes(""), null);
+});
+
+test("host facts hostd could not read are reported as a pending reboot", () => {
+  const whpx = { usable: true, detail: "" };
+  const report = (host) => healthReport({ facts: { whpx, host }, adbUp: true, tunnel: { up: true, since: null }, devices: [] });
+  assert.equal(report(null).reboot_pending, true);
+  assert.equal(report(null).host, null);
+  assert.equal(report({ pending_reboot: false }).reboot_pending, false);
+  assert.equal(report({ pending_reboot: true }).reboot_pending, true);
 });
 
 test("the Startup entry is per user, fixes the root and refuses characters cmd.exe would read", () => {

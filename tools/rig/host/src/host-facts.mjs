@@ -41,7 +41,7 @@ export function healthReport({ facts, adbUp, tunnel, devices }) {
     whpx: facts.whpx,
     adb: { listening: adbUp },
     tunnel: { ...tunnel },
-    // Unread host facts count as a pending reboot, the answer that keeps a run off the host.
+    // Unread host facts are reported as a pending reboot, the more cautious reading.
     reboot_pending: facts.host ? facts.host.pending_reboot : true,
     devices,
     host: facts.host,
