@@ -107,3 +107,8 @@ ef5f390943cf370c643a151a217393fd16a12a3c:supabase/migrations/20260819010000_eras
 1b9c6a068e14ebc80c825d40fe6963f716dfc9fe:tools/rig/test/stripe.test.mjs:generic-api-key:64
 # RFC 4226's published test seed in a rigd probe test, fixed forward the same way.
 74e8b3c4925f1693971c4a96bc9fec647621cdb9:tools/rig/rigd/src/app-probe.test.ts:generic-api-key:20
+# The fingerprint of Ubuntu's public cloud-image signing key, and a checksum
+# fixture in its test. Neither is a secret; the constant was renamed so the rule
+# no longer reads it as a credential.
+241c1ad22782c2e763985377de12ff3ab108e7e3:tools/rig/host/vm/create.mjs:generic-api-key:34
+241c1ad22782c2e763985377de12ff3ab108e7e3:tools/rig/host/test/vmx.test.mjs:generic-api-key:77

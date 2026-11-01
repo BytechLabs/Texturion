@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { checksumFor, scrubUserdata, setIniKeys, signedBy, UBUNTU_SIGNING_KEY } from "../vm/create.mjs";
+import { checksumFor, scrubUserdata, setIniKeys, signedBy, UBUNTU_IMAGE_SIGNER } from "../vm/create.mjs";
 import { MARKER } from "../src/vmrun.mjs";
 import { MARKER_LINE, parseVmx, vmxText, withoutUserdata } from "../vm/vmx.mjs";
 
@@ -78,12 +78,12 @@ test("the image is used only when SHA256SUMS lists it and the pinned key signed 
   const sums = `${"a".repeat(64)} *ubuntu-24.04-server-cloudimg-amd64.img\n${"b".repeat(64)} *ubuntu-24.04-server-cloudimg-amd64.vmdk\n`;
   assert.equal(checksumFor(sums, "ubuntu-24.04-server-cloudimg-amd64.vmdk"), "b".repeat(64));
   assert.equal(checksumFor(sums, "ubuntu-24.04-server-cloudimg-amd64.ova"), null);
-  assert.equal(UBUNTU_SIGNING_KEY, "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81");
-  const good = `[GNUPG:] GOODSIG 1A5D6C4C7DB87C81 UEC Image Automatic Signing Key\n[GNUPG:] VALIDSIG ${UBUNTU_SIGNING_KEY} 2026-10-17 1792000000 0 4 0 1 10 00 ${UBUNTU_SIGNING_KEY}\n`;
-  assert.equal(signedBy(good, UBUNTU_SIGNING_KEY), true);
-  assert.equal(signedBy(good.replaceAll(UBUNTU_SIGNING_KEY, "0".repeat(40)), UBUNTU_SIGNING_KEY), false);
-  assert.equal(signedBy("[GNUPG:] BADSIG 1A5D6C4C7DB87C81 x\n", UBUNTU_SIGNING_KEY), false);
-  assert.equal(signedBy(`gpg: VALIDSIG ${UBUNTU_SIGNING_KEY}\n`, UBUNTU_SIGNING_KEY), false, "only gpg's status lines count");
+  assert.equal(UBUNTU_IMAGE_SIGNER, "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81");
+  const good = `[GNUPG:] GOODSIG 1A5D6C4C7DB87C81 UEC Image Automatic Signing Key\n[GNUPG:] VALIDSIG ${UBUNTU_IMAGE_SIGNER} 2026-10-17 1792000000 0 4 0 1 10 00 ${UBUNTU_IMAGE_SIGNER}\n`;
+  assert.equal(signedBy(good, UBUNTU_IMAGE_SIGNER), true);
+  assert.equal(signedBy(good.replaceAll(UBUNTU_IMAGE_SIGNER, "0".repeat(40)), UBUNTU_IMAGE_SIGNER), false);
+  assert.equal(signedBy("[GNUPG:] BADSIG 1A5D6C4C7DB87C81 x\n", UBUNTU_IMAGE_SIGNER), false);
+  assert.equal(signedBy(`gpg: VALIDSIG ${UBUNTU_IMAGE_SIGNER}\n`, UBUNTU_IMAGE_SIGNER), false, "only gpg's status lines count");
 });
 
 test("an AVD's config takes the rig's cores and memory", () => {

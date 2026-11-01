@@ -31,7 +31,7 @@ export const IMAGE_NAME = "ubuntu-24.04-server-cloudimg-amd64.vmdk";
  * SHA256SUMS, as ubuntu.com/docs/public-images (public-images-how-to/
  * verify-image-checksum) documents it, fetched 2026-11-01.
  */
-export const UBUNTU_SIGNING_KEY = "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81";
+export const UBUNTU_IMAGE_SIGNER = "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81";
 const KEYSERVER = "hkps://keyserver.ubuntu.com";
 /** developer.android.com/studio, "Command line tools only", fetched 2026-11-01. */
 export const CMDLINE_TOOLS = {
@@ -157,16 +157,16 @@ async function verifyImage(dl) {
   rmSync(gnupg, { recursive: true, force: true });
   mkdirSync(gnupg, { recursive: true });
   const env = { ...process.env, GNUPGHOME: slashed(gnupg) };
-  await must(GPG, ["--batch", "--keyserver", KEYSERVER, "--recv-keys", UBUNTU_SIGNING_KEY], { env });
+  await must(GPG, ["--batch", "--keyserver", KEYSERVER, "--recv-keys", UBUNTU_IMAGE_SIGNER], { env });
   const verify = await run(GPG, ["--batch", "--status-fd", "1", "--verify", slashed(join(dl, "SHA256SUMS.gpg")), slashed(join(dl, "SHA256SUMS"))], { env, quiet: true });
-  if (verify.code !== 0 || !signedBy(verify.stdout, UBUNTU_SIGNING_KEY)) {
-    throw new Error(`SHA256SUMS is not signed by ${UBUNTU_SIGNING_KEY}`);
+  if (verify.code !== 0 || !signedBy(verify.stdout, UBUNTU_IMAGE_SIGNER)) {
+    throw new Error(`SHA256SUMS is not signed by ${UBUNTU_IMAGE_SIGNER}`);
   }
   const expected = checksumFor(readFileSync(join(dl, "SHA256SUMS"), "utf8"), IMAGE_NAME);
   if (!expected) throw new Error(`SHA256SUMS does not list ${IMAGE_NAME}`);
   const actual = await sha256File(join(dl, IMAGE_NAME));
   if (actual !== expected) throw new Error(`${IMAGE_NAME} is ${actual}, SHA256SUMS says ${expected}`);
-  console.log(`verified ${IMAGE_NAME} ${actual}, signed by ${UBUNTU_SIGNING_KEY}`);
+  console.log(`verified ${IMAGE_NAME} ${actual}, signed by ${UBUNTU_IMAGE_SIGNER}`);
 }
 
 function assertVmnet8(contract) {
@@ -315,7 +315,7 @@ async function main(argv) {
   const contract = loadContract();
   const { root, sdk, paths } = loadHostConfig();
   if (flag("--dry-run")) {
-    console.log(`would make ${paths.vmx} from ${IMAGE_BASE}/${IMAGE_NAME}, signed by ${UBUNTU_SIGNING_KEY};`);
+    console.log(`would make ${paths.vmx} from ${IMAGE_BASE}/${IMAGE_NAME}, signed by ${UBUNTU_IMAGE_SIGNER};`);
     console.log(`the SDK in ${sdk} from ${CMDLINE_TOOLS.url}; AVDs ${contract.devices.map((device) => device.avd).join(", ")} in ${paths.avd}`);
     return;
   }
