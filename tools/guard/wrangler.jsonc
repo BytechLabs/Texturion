@@ -32,16 +32,18 @@
       // The weekly key inventory (Monday 06:00 UTC).
       "0 6 * * 1",
       // Upkeep: the first order's read-back, the daily balance sample, the
-      // robot-mailbox arrival deadline, expired legs.
+      // robot-mailbox arrival deadline, expired legs, the monthly limit probe.
       "7 * * * *"
     ]
   },
 
   "vars": {
-    // The account's concurrent call limit, from FA0. "unknown" keeps every
-    // paid dial and every number order off; set the number Telnyx states in
-    // writing, and guard.yml deploys it.
-    "TELNYX_CONCURRENT_LIMIT": "unknown",
+    // The lowest documented default concurrent call limit, 2
+    // (support.telnyx.com/en/articles/1130717, fetched 2026-10-31). While it is
+    // the only evidence, admission adds no leg at all; the proof ladder in
+    // src/state/concurrency.ts is what lifts it. Raising the floor needs dated
+    // evidence in a reviewed commit.
+    "TELNYX_CONCURRENT_FLOOR": "2",
     // A second account signal inside 30 days latches the paid lanes off until
     // this value changes, which takes a reviewed commit: the design change the
     // latch waits for.

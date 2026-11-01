@@ -73,6 +73,11 @@ export const RULES = [
   "provisioning.sentinel_full",
 
   "admission.limit_unknown",
+  "admission.limit_unproven",
+  "admission.limit_conflict",
+  "admission.account_rate_unknown",
+  "admission.account_hour_full",
+  "admission.account_day_full",
   "admission.outside_window",
   "admission.ratios_unknown",
   "admission.abandoned_ratio",

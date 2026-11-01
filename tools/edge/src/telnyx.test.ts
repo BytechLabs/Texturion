@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { judge, parseEvent, type TelnyxEvent, verifyTelnyxSignature } from "./telnyx";
+import { checkTelnyxSignature, judge, parseEvent, type TelnyxEvent, verifyTelnyxSignature } from "./telnyx";
 import {
   CONNECTIONS,
   OWNED_A,
@@ -57,6 +57,19 @@ describe("verifyTelnyxSignature", () => {
     expect(await verifyTelnyxSignature(publicKey, await headers(at(-301)), body, now)).toBe(false);
     expect(await verifyTelnyxSignature(publicKey, await headers(at(301)), body, now)).toBe(false);
     expect(await verifyTelnyxSignature(publicKey, await headers(at(-300)), body, now)).toBe(true);
+  });
+
+  it("tells a late signature from a bad one, for the notices that still halt on it", async () => {
+    const { publicKey } = await telnyxKeys();
+    const now = 1_786_000_000_000;
+    const at = (offset: number) => String(now / 1000 + offset);
+    expect(await checkTelnyxSignature(publicKey, await headers(at(-300)), body, now)).toBe("valid");
+    expect(await checkTelnyxSignature(publicKey, await headers(at(-301)), body, now)).toBe("late");
+    expect(await checkTelnyxSignature(publicKey, await headers(at(-86_400)), body, now)).toBe("late");
+    // Ahead of the clock is never late, and a late timestamp proves nothing without a signature that verifies.
+    expect(await checkTelnyxSignature(publicKey, await headers(at(301)), body, now)).toBe("invalid");
+    expect(await checkTelnyxSignature(publicKey, await headers(at(-301), `${body} `), body, now)).toBe("invalid");
+    expect(await checkTelnyxSignature(undefined, await headers(at(-301)), body, now)).toBe("invalid");
   });
 
   it("refuses missing headers, a malformed timestamp and a missing or malformed key", async () => {

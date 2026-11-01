@@ -11,9 +11,10 @@
  *   EDGE_ORIGIN, GUARD_ADMIN_TOKEN
  *   measurements only: RESERVE_LEGS; CALLS, ABANDONED and SHORT together; WINDOW_START_HOUR;
  *     USAGE_USD, this month's actual Telnyx usage for the partition, from detail records.
- *     With none of them (the daily run), production's reserve, and its window
- *     when due, are read as agent_diag from AGENT_DIAG_DATABASE_URL
- *     (production-measurements.ts) and filed.
+ *     With none of them (the daily run), production's reserve, its window
+ *     when due, its concurrent-call peak and its peak hour and day of dials
+ *     are read as agent_diag from AGENT_DIAG_DATABASE_URL
+ *     (production-measurements.ts) and filed. The peaks have no typed input.
  *
  *   node --experimental-strip-types tools/guard/scripts/admin-routine.ts
  */
@@ -134,12 +135,18 @@ async function orderStanding(post: Post, wait: (ms: number) => Promise<void>): P
       continue;
     }
     if (!ok(answer)) return { ok: false, lines: [...lines, ...failed("Standing order stopped", answer).lines] };
-    const body = answer.body as { ordered?: unknown; searched?: unknown; remaining?: unknown; tagged?: unknown };
+    const body = answer.body as { ordered?: unknown; searched?: unknown; remaining?: unknown; deferred?: unknown; tagged?: unknown };
     const remaining = strings(body.remaining);
+    const deferred = strings(body.deferred);
     if (typeof body.ordered === "string") lines.push(`ordered ${body.ordered}`);
     else if (typeof body.searched === "string") lines.push(`no number free in area code ${body.searched}`);
     if (typeof body.tagged === "number" && body.tagged > 0) lines.push(`tagged ${body.tagged} standing number(s)`);
-    if (remaining.length === 0) return { ok: true, lines: [...lines, "every standing role is held"] };
+    if (remaining.length === 0) {
+      const done = deferred.length
+        ? `every role the open lanes use is held; waiting for paid dials: ${deferred.join(", ")}`
+        : "every standing role is held";
+      return { ok: true, lines: [...lines, done] };
+    }
     lines.push(`still to order: ${remaining.join(", ")}`);
     await wait(SEARCH_PAUSE_MS);
   }
@@ -317,8 +324,13 @@ export async function measureProduction(
   const guard = answer && ok(answer) ? (answer.body as Partial<GuardHealth> | null) : null;
   const lines: string[] = [];
   if (!guard?.paid_dials) lines.push("::warning title=Window not checked::The guard's /health did not answer, so only the reserve is filed.");
-  const plan = planFiling(outcome.read, guard?.paid_dials ? windowDue(guard.paid_dials.window_measured_at, now) : false);
+  const plan = planFiling(outcome.read, guard?.paid_dials ? windowDue(guard.paid_dials.window_measured_at, now) : false, now);
   lines.push(...plan.lines, RATIOS_NOT_READ);
+  for (const { route, body } of plan.measured) {
+    const answer = await post(route, body);
+    if (!ok(answer)) return { ok: false, lines: [...lines, ...failed(`Filing ${route.slice(1)} failed`, answer).lines] };
+    lines.push(`filed ${route.slice(1)}: ${JSON.stringify(body)}`);
+  }
   if (!given(plan.inputs)) return { ok: true, lines };
   const filed = await runRoutine("measurements", post, plan.inputs);
   return { ok: filed.ok, lines: [...lines, ...filed.lines] };

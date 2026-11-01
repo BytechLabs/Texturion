@@ -204,7 +204,7 @@ export const S03: ScenarioRunner = {
       finishedRow(ctx, "QA-W", "DEV-C1", since, (row) => row.direction !== "outbound"),
     ]);
     ctx.evidence.rows = { "QA-C": rowEvidence(outbound), "QA-W": rowEvidence(inbound) };
-    // How Telnyx routed the call on-net is kept for FA0's follow-up, not judged.
+    // How Telnyx routed the call on-net is kept for the rig's billing measurement, not judged.
     ctx.evidence.legs = {
       "QA-C": outbound && (await ctx.app.callLegs({ tenant: "QA-C", callSessionId: outbound.call_session_id })),
       "QA-W": inbound && (await ctx.app.callLegs({ tenant: "QA-W", callSessionId: inbound.call_session_id })),

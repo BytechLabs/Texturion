@@ -7,28 +7,20 @@ import {
   type HaltCorroboration,
   type HaltRequest,
   type LegRegistration,
+  type LevelEvidence,
 } from "@loonext/rig-protocol";
 
 import { handleAdmin } from "./admin";
 import { parseCaller, ROUTE_CALLERS, routeOf, type GuardCaller } from "./caller";
 import type { Ctx } from "./context";
 import { runKeyInventory } from "./inventory";
-import { PREEMPT_POLL_MS } from "./limits";
+import { PAID_DIALS_PER_DAY, PAID_DIALS_PER_HOUR, PREEMPT_POLL_MS } from "./limits";
 import { json, refuse, Refusal } from "./refusal";
+import { limitProbeDue, runLimitProbe } from "./setup/limit-probe";
 import { requireSafe, SAFETY_KEY, type SafetyState } from "./setup/safety";
-import {
-  ADMISSION_KEYS,
-  inWindow,
-  productionCalls,
-  ratioRule,
-  roomFor,
-  windowInForce,
-  type ProductionCalls,
-  type RatiosRecord,
-  type ReserveRecord,
-  type WindowRecord,
-} from "./state/admission";
-import { balanceAboveFloor, balanceFloor, readBalance } from "./state/balance";
+import { inWindow, paidState, productionCalls, type PaidState, type ProductionCalls } from "./state/admission";
+import { balanceFloor, readBalance } from "./state/balance";
+import { recordLevelEvidence, type LimitInForce } from "./state/concurrency";
 import { readTier } from "./state/ledger";
 import { candidateLiveLegs, markEnded, pruneLegs, registerLeg } from "./state/legs";
 import {
@@ -52,6 +44,32 @@ import { aiNeuronsToday, handleAi } from "./vendors/ai";
 import { handleDiag } from "./vendors/diag";
 import { handleFcm, handleFcmToken } from "./vendors/fcm";
 import { handleResend } from "./vendors/resend";
+
+function concurrencyWire(concurrency: LimitInForce): NonNullable<GuardHealth["concurrency"]> {
+  const { validation, ceiling } = concurrency;
+  return {
+    limit_in_force: concurrency.limit,
+    source: concurrency.source,
+    floor: concurrency.floor,
+    validation: validation
+      ? { result: validation.result, value: validation.value, measured_at: new Date(validation.measured_at).toISOString() }
+      : null,
+    history_lower_bound: concurrency.history,
+    ceiling: ceiling ? { value: ceiling.value, from: ceiling.from } : null,
+    conflict: concurrency.conflict,
+  };
+}
+
+function accountRateWire(state: PaidState): NonNullable<GuardHealth["account_rate"]> {
+  const record = state.accountRate;
+  return {
+    hour_limit: PAID_DIALS_PER_HOUR,
+    day_limit: PAID_DIALS_PER_DAY,
+    production_peak_hour: record?.peak_hour_dials ?? null,
+    production_peak_day: record?.peak_day_dials ?? null,
+    measured_at: record ? new Date(record.measured_at).toISOString() : null,
+  };
+}
 
 /**
  * The guard (docs/RIG.md). One instance, in one Durable Object,
@@ -142,6 +160,8 @@ export class Guard {
         return this.detach(request);
       case GUARD_ROUTES.halt:
         return this.halt(request);
+      case GUARD_ROUTES.evidence:
+        return this.evidence(request, rest);
       default:
         throw new Refusal("route.unknown");
     }
@@ -263,8 +283,25 @@ export class Guard {
       signal,
       notice_id: noticeId,
       corroborated_by: body.corroborated_by as HaltCorroboration,
+      late: body.late === true,
     });
     return json(await signalSummary(this.ctx));
+  }
+
+  /**
+   * The robot heard Telnyx's automated-call announcement, which only accounts
+   * at Paid or below get. It can only add a ceiling, so a caller who sends it
+   * falsely can lower the limit and never raise it.
+   */
+  private async evidence(request: Request, rest: string): Promise<Response> {
+    if (request.method !== "POST" || rest !== "/level") throw new Refusal("route.unknown");
+    const body = (await bodyOf(request)) as Partial<LevelEvidence>;
+    const ms = body.announcement_ms;
+    if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) throw new Refusal("request.body_invalid");
+    if (typeof body.at !== "string" || !Number.isFinite(Date.parse(body.at))) throw new Refusal("request.body_invalid");
+    if (ms === 0) return json({ recorded: false });
+    await recordLevelEvidence(this.ctx);
+    return json({ recorded: true, level: "paid_or_below" });
   }
 
   async health(): Promise<GuardHealth> {
@@ -283,25 +320,10 @@ export class Guard {
       safety = (await ctx.store.get<SafetyState>(SAFETY_KEY)) ?? { state: "unchecked", reasons: ["checks_failed_to_run"] };
     }
 
-    const paid: string[] = [];
-    if (!ctx.telnyx) paid.push("telnyx.key_missing");
-    if (safety.state !== "ok") paid.push(safety.state === "unsafe" ? "startup.unsafe" : "startup.unconfigured");
-    if (ctx.config.concurrentLimit === null) paid.push("admission.limit_unknown");
-    const reserve = await ctx.store.get<ReserveRecord>(ADMISSION_KEYS.reserve);
-    const room = roomFor(ctx.config.concurrentLimit, reserve, now);
-    if (ctx.config.concurrentLimit !== null && room === null) paid.push("admission.reserve_unknown");
-    const ratio = ratioRule(await ctx.store.get<RatiosRecord>(ADMISSION_KEYS.ratios), now);
-    if (ratio) paid.push(ratio.rule);
-    const window = windowInForce(await ctx.store.get<WindowRecord>(ADMISSION_KEYS.window), now);
+    const state = await paidState(ctx, safety.state);
+    const { blockers: paid, room, window, balance, balanceAbove: above } = state;
     const signals = await signalSummary(ctx);
-    if (signals.latched) paid.push("signal.latched");
-    else if (signals.halted_until) paid.push("signal.halted");
     const tier = await readTier(ctx);
-    if (tier.tier === "red") paid.push("budget.tier_red");
-
-    const { balance, above } = ctx.telnyx ? await balanceAboveFloor(ctx) : { balance: null, above: false };
-    if (ctx.telnyx && balance === null) paid.push("budget.balance_unknown");
-    if (balance !== null && !above) paid.push("budget.balance_floor");
     const floor = await balanceFloor(ctx);
 
     const lease = await liveLease(ctx);
@@ -324,6 +346,8 @@ export class Guard {
         window_measured_at: window.measuredAt === null ? null : new Date(window.measuredAt).toISOString(),
         in_window: inWindow(now, window.startHour),
       },
+      concurrency: concurrencyWire(state.concurrency),
+      account_rate: accountRateWire(state),
       money: { ...tier, balance_usd: balance, balance_floor_usd: floor },
       lease: lease ? toGrant(lease) : null,
       signals,
@@ -370,6 +394,12 @@ export class Guard {
     } catch (cause) {
       const rule = cause instanceof Refusal ? cause.rule : cause instanceof Error ? cause.message : String(cause);
       console.error(`guard: upkeep stopped: ${rule}`);
+    }
+    try {
+      if (await limitProbeDue(ctx)) await runLimitProbe(ctx);
+    } catch (cause) {
+      const rule = cause instanceof Refusal ? cause.rule : cause instanceof Error ? cause.message : String(cause);
+      console.error(`guard: limit probe not run: ${rule}`);
     }
   }
 

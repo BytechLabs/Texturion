@@ -8,9 +8,35 @@ const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-/** The default dial cap, until Telnyx states the account's limits in writing. */
+/**
+ * The guard's own cap. At the Paid level, 25% of 10 an hour is 2.5, so this
+ * never rises on that route.
+ */
 export const DIALS_PER_DAY = 18;
 export const DIALS_PER_HOUR = 3;
+
+/**
+ * The Paid row of Telnyx's account levels (developers.telnyx.com, checked
+ * 2026-10-29): 5 concurrent calls across all connection types, and 10
+ * outbound calls an hour and 100 a day across the whole account, production's
+ * included. No API reports the account's level, so these are assumed: the
+ * level evidence caps the limit at PAID_CONCURRENT, and the account-wide
+ * rate rule counts production's measured peak against the other two.
+ */
+export const PAID_CONCURRENT = 5;
+export const PAID_DIALS_PER_HOUR = 10;
+export const PAID_DIALS_PER_DAY = 100;
+
+/** Concurrency evidence older than this lapses, and the floor applies again. */
+export const LIMIT_EVIDENCE_STALE_MS = 35 * DAY;
+/** The validation check runs again once its last result is this old. */
+export const LIMIT_PROBE_INTERVAL_MS = 30 * DAY;
+/** Written first: a limit no account has, so only a profile check that is enforced refuses it. */
+export const LIMIT_PROBE_ABSURD = 9999;
+/** The search's whole budget of profile writes, the reset to 1 included. */
+export const LIMIT_PROBE_MAX_WRITES = 16;
+/** Production's peak hour and day of outbound legs, read daily. */
+export const ACCOUNT_RATE_STALE_MS = 36 * HOUR;
 /** About 300 texts a month; the day cap keeps one bad loop from spending the month. */
 export const TEXTS_PER_DAY = 20;
 export const TEXTS_PER_MONTH = 300;

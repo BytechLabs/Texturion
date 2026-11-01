@@ -2,6 +2,7 @@ import { HEADER, type GuardHealth } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
 import { CRONS } from "../src/guard";
+import { ADMISSION_KEYS } from "../src/state/admission";
 import { harness, lease, N, ready, ruleOf, type Harness } from "./support";
 
 /** The protocol's fields, and the guard-only detail these cases read. */
@@ -53,30 +54,60 @@ describe("without the Telnyx key", () => {
 });
 
 describe("/health", () => {
-  it("reports a ready partition, and why paid dials or ordering are off", async () => {
-    const h = await ready({ env: { TELNYX_CONCURRENT_LIMIT: "unknown" } });
+  it("reports a ready partition with only the floor proven: no room, paid dials off, ordering on", async () => {
+    const h = await ready({ validated: null });
     const health = await healthOf(h, "admin");
     expect(health.ok).toBe(true);
     expect(health.telnyx.safety.state).toBe("ok");
     expect(health.paid_dials).toMatchObject({
       enabled: false,
-      room: null,
+      room: 0,
       window_start_hour_utc: 4,
       window_measured_at: null,
       in_window: true,
     });
-    expect(health.paid_dials.blockers).toEqual(["admission.limit_unknown"]);
-    expect(health.ordering).toEqual({ enabled: false, blockers: ["concurrent_limit_unknown"] });
+    expect(health.paid_dials.blockers).toEqual(["admission.limit_unproven"]);
+    expect(health.ordering).toEqual({ enabled: true, blockers: [] });
+    expect(health.concurrency).toEqual({
+      limit_in_force: 2,
+      source: "floor",
+      floor: 2,
+      validation: null,
+      history_lower_bound: null,
+      ceiling: null,
+      conflict: null,
+    });
     expect(health.money).toMatchObject({ tier: "green", balance_usd: 500, balance_floor_usd: 100 });
   });
 
-  it("shows the room and the live lease once FA0's limit is set", async () => {
+  it("names an unparseable floor, and stale production dial peaks, as paid blockers", async () => {
+    const h = await ready({ env: { TELNYX_CONCURRENT_FLOOR: "unknown" } });
+    await h.store.delete(ADMISSION_KEYS.accountRate);
+    const health = await healthOf(h, "admin");
+    expect(health.paid_dials.blockers).toEqual(["admission.limit_unknown", "admission.account_rate_unknown"]);
+    expect(health.room).toBeUndefined();
+    expect(health.account_rate).toEqual({
+      hour_limit: 10,
+      day_limit: 100,
+      production_peak_hour: null,
+      production_peak_day: null,
+      measured_at: null,
+    });
+  });
+
+  it("shows the room, the evidence behind it and the live lease once the validation check proves the limit", async () => {
     const h = await ready();
     await lease(h, "S02");
     const health = await healthOf(h, "robot");
     expect(health).toMatchObject({ ok: true, balance_above_floor: true, room: 4 });
     expect(health.paid_dials).toMatchObject({ enabled: true, room: 4 });
     expect(health.ordering).toEqual({ enabled: true, blockers: [] });
+    expect(health.concurrency).toMatchObject({
+      limit_in_force: 6,
+      source: "validation",
+      validation: { result: "exact", value: 6, measured_at: new Date(h.clock.now).toISOString() },
+    });
+    expect(health.account_rate).toMatchObject({ production_peak_hour: 0, production_peak_day: 0 });
     expect(health.lease).toMatchObject({ scenario: "S02" });
   });
 

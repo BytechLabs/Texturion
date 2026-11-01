@@ -5,7 +5,7 @@
  * (developers.telnyx.com, the spec in telnyx-spec3.json): dial is
  * `POST /v2/calls`, every leg command `POST /v2/calls/<id>/actions/<name>`.
  */
-import { EDGE_PATHS, GUARD_ROUTES, HEADER, type GuardRefusal } from "@loonext/rig-protocol";
+import { EDGE_PATHS, GUARD_ROUTES, HEADER, type GuardRefusal, type LevelEvidence } from "@loonext/rig-protocol";
 
 export interface CallIds {
   call_control_id: string;
@@ -80,6 +80,8 @@ export interface CallControlApi {
     message: { from: string; to: string; text: string; media_urls?: string[] },
     context: RequestContext,
   ): Promise<{ id: string }>;
+  /** Tells the guard the robot heard Telnyx's automated-call announcement. Not a Telnyx call. */
+  reportLevelEvidence?(evidence: LevelEvidence): Promise<void>;
 }
 
 /** The guard said no: a policy rule, not a Telnyx error. */
@@ -120,12 +122,14 @@ export function telnyxBase(edgeOrigin: string): string {
 
 export class GuardedTelnyx implements CallControlApi {
   readonly #base: string;
+  readonly #evidence: string;
   readonly #token: string;
   readonly #fetch: typeof fetch;
   readonly #timeoutMs: number;
 
   constructor(options: GuardedTelnyxOptions) {
     this.#base = telnyxBase(options.edgeOrigin);
+    this.#evidence = `${options.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.evidence}/level`;
     this.#token = options.token;
     this.#fetch = options.fetch ?? fetch;
     this.#timeoutMs = options.timeoutMs ?? 10_000;
@@ -193,6 +197,21 @@ export class GuardedTelnyx implements CallControlApi {
     const data = await this.#request("POST", "/v2/messages", message, context);
     if (!hasId(data)) throw new Error("sendMessage: Telnyx returned no message id");
     return { id: data.id };
+  }
+
+  async reportLevelEvidence(evidence: LevelEvidence): Promise<void> {
+    const response = await this.#fetch(this.#evidence, {
+      method: "POST",
+      headers: { authorization: `Bearer ${this.#token}`, "content-type": "application/json" },
+      body: JSON.stringify(evidence),
+      signal: AbortSignal.timeout(this.#timeoutMs),
+    });
+    const text = await response.text();
+    if (response.headers.get(HEADER.refusedBy)) {
+      const rule = (safeJson(text) as Partial<GuardRefusal> | undefined)?.rule ?? "unknown";
+      throw new GuardRefusedError(response.status, rule);
+    }
+    if (!response.ok) throw new Error(`level evidence: the guard answered ${response.status}`);
   }
 
   async #action(id: string, name: string, body: object, context: RequestContext) {

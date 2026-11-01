@@ -2,9 +2,22 @@ import { HEADER, LEASE_MAX_MS } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
 import { ADMISSION_KEYS } from "../src/state/admission";
+import { LIMIT_KEYS, limitInForce, type Ceiling } from "../src/state/concurrency";
 import { charge } from "../src/state/ledger";
 import { recordSignal } from "../src/state/signals";
-import { EDGE, harness, lease, MONDAY_0500, N, ready, registerViaEdge, ruleOf, seedAccount, type Harness } from "./support";
+import {
+  EDGE,
+  fileValidation,
+  harness,
+  lease,
+  MONDAY_0500,
+  N,
+  ready,
+  registerViaEdge,
+  ruleOf,
+  seedAccount,
+  type Harness,
+} from "./support";
 import { runSafetyChecks } from "../src/setup/safety";
 
 const DIAL = {
@@ -182,12 +195,142 @@ describe("transfer and bridge", () => {
   });
 });
 
+/** Telnyx's refusal of the next dial, with one error code. */
+function refuseNextDial(h: Harness, status: number, code: string) {
+  h.telnyx.failNext = { method: "POST", path: "/v2/calls", status, body: { errors: [{ code, title: "refused" }] } };
+}
+
 describe("admission", () => {
-  it("keeps paid dials off while the concurrent limit is unknown", async () => {
-    const h = await ready({ env: { TELNYX_CONCURRENT_LIMIT: "unknown" } });
+  it("keeps paid dials off while the concurrency floor is unparseable, whatever else is proven", async () => {
+    const h = await ready({ env: { TELNYX_CONCURRENT_FLOOR: "unknown" } });
     const id = await lease(h);
     expect(await ruleOf(await dial(h, id))).toBe("admission.limit_unknown");
     expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
+  });
+
+  it("adds no leg while only the floor is proven, even with a reserve the old formula left room beside", async () => {
+    // Floor 2, reserve 1: limit minus reserve would leave room 1, yet the floor alone admits none.
+    const h = await ready({ validated: null });
+    await h.store.put(ADMISSION_KEYS.reserve, { legs: 1, measured_at: h.clock.now });
+    const id = await lease(h);
+    expect(await ruleOf(await dial(h, id))).toBe("admission.limit_unproven");
+    await registerViaEdge(h, "ccid-1");
+    const transfer = await h.call("/telnyx/v2/calls/ccid-1/actions/transfer", {
+      body: { to: N.devW2 },
+      headers: { [HEADER.lease]: id },
+    });
+    expect(await ruleOf(transfer)).toBe("admission.limit_unproven");
+    expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
+  });
+
+  it("still judges a bridge, which adds no leg, by the other rules while only the floor is proven", async () => {
+    const h = await ready({ validated: null });
+    const id = await lease(h);
+    await registerViaEdge(h, "ccid-1");
+    await registerViaEdge(h, "ccid-2", "conn-robot", "robot");
+    const bridge = () =>
+      h.call("/telnyx/v2/calls/ccid-1/actions/bridge", { body: { call_control_id: "ccid-2" }, headers: { [HEADER.lease]: id } });
+    expect((await bridge()).status).toBe(200);
+    await h.store.delete(ADMISSION_KEYS.ratios);
+    expect(await ruleOf(await bridge())).toBe("admission.ratios_unknown");
+  });
+
+  it("admits up to the validated limit less the reserve: V=4 with reserve 2 is two legs", async () => {
+    const h = await ready({ validated: 4 });
+    const id = await lease(h);
+    expect((await dial(h, id)).status).toBe(200);
+    expect((await dial(h, id, { ...DIAL, to: N.devW2 })).status).toBe(200);
+    expect(await ruleOf(await dial(h, id, { ...DIAL, to: N.devA1 }))).toBe("admission.no_room");
+  });
+
+  it("refuses on a conflict in the evidence, and alerts production once", async () => {
+    const h = await ready({ validated: 3 });
+    await h.store.put(LIMIT_KEYS.history, { peak_calls: 4, measured_at: h.clock.now });
+    const id = await lease(h);
+    expect(await ruleOf(await dial(h, id))).toBe("admission.limit_conflict");
+    expect(await ruleOf(await dial(h, id))).toBe("admission.limit_conflict");
+    const alerts = h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-guard-limit-conflict"]'));
+    expect(alerts).toHaveLength(1);
+  });
+
+  it("refuses without a fresh reading of production's dial peaks", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    await h.store.delete(ADMISSION_KEYS.accountRate);
+    expect(await ruleOf(await dial(h, id))).toBe("admission.account_rate_unknown");
+    await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 0, peak_day_dials: 0, measured_at: h.clock.now - 37 * 3600_000 });
+    expect(await ruleOf(await dial(h, id))).toBe("admission.account_rate_unknown");
+    expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
+  });
+
+  it("counts production's peak hour and day against Telnyx's account-wide 10 an hour and 100 a day", async () => {
+    const h = await ready();
+    await h.store.put(ADMISSION_KEYS.reserve, { legs: 0, measured_at: h.clock.now });
+    const id = await lease(h);
+    // Production's peak of 8 leaves the rig 2 of the hour's 10.
+    await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 8, peak_day_dials: 8, measured_at: h.clock.now });
+    for (let i = 0; i < 2; i++) {
+      const response = await dial(h, id);
+      expect(response.status).toBe(200);
+      h.telnyx.calls.set(((await response.json()) as { data: { call_control_id: string } }).data.call_control_id, { alive: false });
+    }
+    expect(await ruleOf(await dial(h, id))).toBe("admission.account_hour_full");
+    // The hour before still counts: a rolling hour can straddle two UTC hours.
+    h.advance(3600_000);
+    const next = await lease(h);
+    await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 8, peak_day_dials: 8, measured_at: h.clock.now });
+    expect(await ruleOf(await dial(h, next))).toBe("admission.account_hour_full");
+
+    await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 0, peak_day_dials: 98, measured_at: h.clock.now });
+    expect(await ruleOf(await dial(h, next))).toBe("admission.account_day_full");
+  });
+
+  it("records a ceiling from Telnyx's concurrency refusal, and halts the paid lanes", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    expect((await dial(h, id)).status).toBe(200);
+    refuseNextDial(h, 403, "90041");
+    expect((await dial(h, id, { ...DIAL, to: N.devW2 })).status).toBe(403);
+    // Production was idle at admission: one rig leg up plus the one refused, less one.
+    expect(await h.store.get<Ceiling[]>(LIMIT_KEYS.ceiling)).toEqual([{ value: 1, from: "telnyx-90041", at: h.clock.now }]);
+    expect((await limitInForce(h.ctx)).limit).toBe(1);
+    expect(await ruleOf(await dial(h, id, { ...DIAL, to: N.devA1 }))).toBe("signal.halted");
+    const signal = h.outbound.find((item) => item.body.includes("telnyx-concurrency-refusal"));
+    expect(signal?.body).toContain('"fingerprint":["ops","telnyx-account-signal"]');
+  });
+
+  it("records a ceiling with no value when production was not seen idle", async () => {
+    for (const code of ["90042", "90043"]) {
+      const h = await ready();
+      h.telnyx.activeCallsSupported = false;
+      const id = await lease(h);
+      refuseNextDial(h, 422, code);
+      await dial(h, id);
+      expect(await h.store.get<Ceiling[]>(LIMIT_KEYS.ceiling)).toEqual([{ value: null, from: `telnyx-${code}`, at: h.clock.now }]);
+      expect(await ruleOf(await dial(h, id))).toBe("signal.halted");
+    }
+  });
+
+  it("halts on a dial-rate refusal only when it comes with a 429, and records no ceiling for it", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    refuseNextDial(h, 422, "90103");
+    expect((await dial(h, id)).status).toBe(422);
+    expect((await dial(h, id, { ...DIAL, to: N.devW2 })).status).toBe(200);
+    refuseNextDial(h, 429, "90103");
+    expect((await dial(h, id, { ...DIAL, to: N.devA1 })).status).toBe(429);
+    expect(await h.store.get(LIMIT_KEYS.ceiling)).toBeUndefined();
+    expect(await ruleOf(await dial(h, id))).toBe("signal.halted");
+    expect(h.outbound.some((item) => item.body.includes("telnyx-dial-rate-refusal"))).toBe(true);
+  });
+
+  it("records nothing for Telnyx's other refusals", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    refuseNextDial(h, 422, "10015");
+    expect((await dial(h, id)).status).toBe(422);
+    expect(await h.store.get(LIMIT_KEYS.ceiling)).toBeUndefined();
+    expect((await dial(h, id)).status).toBe(200);
   });
 
   it("dials only inside the window, the measured one when fresh", async () => {
@@ -197,6 +340,7 @@ describe("admission", () => {
     await h.store.put(ADMISSION_KEYS.window, { start_hour: 9, measured_at: h.clock.now });
     expect((await dial(h, id)).status).toBe(200);
     h.advance(40 * 24 * 60 * 60 * 1000);
+    await fileValidation(h);
     await h.store.put(ADMISSION_KEYS.reserve, { legs: 2, measured_at: h.clock.now });
     await h.store.put(ADMISSION_KEYS.ratios, { calls: 10, abandoned: 0, short: 0, measured_at: h.clock.now });
     const fresh = await lease(h);
@@ -285,7 +429,7 @@ describe("admission", () => {
   it("refuses while an account signal has paid tests halted", async () => {
     const h = await ready();
     const id = await lease(h);
-    await recordSignal(h.ctx, { signal: "Suspicious Outbound Voice Traffic", notice_id: null, corroborated_by: "signature" });
+    await recordSignal(h.ctx, { signal: "Low Balance", notice_id: null, corroborated_by: "balance" });
     expect(await ruleOf(await dial(h, id))).toBe("signal.halted");
   });
 

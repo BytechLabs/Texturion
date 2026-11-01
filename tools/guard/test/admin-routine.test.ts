@@ -13,8 +13,9 @@ import {
   type PsqlRunner,
 } from "../scripts/production-measurements";
 import { ADMISSION_KEYS } from "../src/state/admission";
+import { LIMIT_KEYS } from "../src/state/concurrency";
 import { readTier } from "../src/state/ledger";
-import { EDGE, harness, N, ready, seedAccount, type Harness } from "./support";
+import { EDGE, fileMeasurements, fileValidation, harness, N, ready, seedAccount, type Harness } from "./support";
 
 /** guard.yml's path to the guard: the edge's /g prefix, the admin class. */
 function edgeFetcher(h: Harness): typeof fetch {
@@ -78,7 +79,8 @@ describe("guard.yml's admin routines", () => {
 
   it("order every standing role, one per call, and say which without the numbers", async () => {
     const h = harness();
-    await h.store.put(ADMISSION_KEYS.reserve, { legs: 2, measured_at: h.clock.now });
+    await fileMeasurements(h);
+    await fileValidation(h);
     h.telnyx.available = [
       "+14165550170",
       "+14165550171",
@@ -103,8 +105,24 @@ describe("guard.yml's admin routines", () => {
     assertPublicSafe(outcome.lines);
   });
 
+  it("order only the text lanes' roles while paid dials are refused, and say which wait", async () => {
+    const h = harness();
+    await fileMeasurements(h);
+    h.telnyx.available = ["+14165550170", "+14165550171", "+14165550172"];
+    expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
+    const outcome = await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms));
+    expect(outcome.ok).toBe(true);
+    expect(outcome.lines.filter((line) => line.startsWith("ordered "))).toEqual(["ordered ROBOT-1", "ordered DEV-W1", "ordered DEV-E1"]);
+    expect(outcome.lines.at(-1)).toBe(
+      "every role the open lanes use is held; waiting for paid dials: ROBOT-2, STRANGER-1, DEV-W2, DEV-A1, DEV-C1",
+    );
+    expect(h.telnyx.requests("POST", "/v2/number_orders")).toHaveLength(3);
+    assertPublicSafe(outcome.lines);
+  });
+
   it("stop, red, when ordering is off, and name the rule", async () => {
-    const h = await ready({ env: { TELNYX_CONCURRENT_LIMIT: "unknown" } });
+    const h = await ready();
+    h.production.capabilities = [];
     const outcome = await runRoutine("order-standing", throughEdge(h), {}, noWait);
     expect(outcome.ok).toBe(false);
     expect(outcome.lines.at(-1)).toContain("provisioning.ordering_off");
@@ -190,11 +208,19 @@ function hourly(quiet: readonly number[], busy = 9): number[] {
 
 const AGENT_DIAG_URL = "postgresql://agent_diag.abcdefghijklmnopqrst:pw@pooler.example.invalid:5432/postgres";
 
+/** Production's call peaks, as the statement returns them beside the reserve and window. */
+const PEAKS = { peak_concurrent_calls: 3, peak_hour_dials: 4, peak_day_dials: 20 } as const;
+
 describe("the daily measurements, read from production as agent_diag", () => {
   it("read ops_diag's views and nothing else", () => {
     // Qualified names only; the one-letter ones are the statement's own aliases.
     const relations = new Set([...PRODUCTION_SQL.matchAll(/\b([a-z_]{2,}\.[a-z_]+)\b/gi)].map((match) => match[1]));
-    expect([...relations].sort()).toEqual(["ops_diag.hourly_call_counts", "ops_diag.ring_audience_sizes"]);
+    expect([...relations].sort()).toEqual([
+      "ops_diag.call_legs",
+      "ops_diag.call_sessions",
+      "ops_diag.hourly_call_counts",
+      "ops_diag.ring_audience_sizes",
+    ]);
     expect(PRODUCTION_SQL).not.toMatch(/\b(insert|update|delete|create|alter|grant|set)\b/i);
   });
 
@@ -214,7 +240,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
   });
 
   it("reserve production's largest ring audience plus one, and never reserve for no number", () => {
-    const read: ProductionRead = { numbers: 1, largest_audience: 3, hourly_calls: hourly([6, 7, 8, 9, 10, 11]) };
+    const read: ProductionRead = { numbers: 1, largest_audience: 3, hourly_calls: hourly([6, 7, 8, 9, 10, 11]), ...PEAKS };
     expect(planFiling(read, true).inputs).toEqual({ reserveLegs: "4", windowStartHour: "6" });
     expect(planFiling(read, false).inputs).toEqual({ reserveLegs: "4" });
     const none = planFiling({ ...read, numbers: 0 }, false);
@@ -225,18 +251,47 @@ describe("the daily measurements, read from production as agent_diag", () => {
   });
 
   it("take only the statement's own document from psql", () => {
-    const document = JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]) });
-    expect(parseRead(`${document}\n`)).toMatchObject({ numbers: 1, largest_audience: 2 });
+    const document = JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...PEAKS });
+    expect(parseRead(`${document}\n`)).toMatchObject({ numbers: 1, largest_audience: 2, ...PEAKS });
     expect(parseRead("")).toBeNull();
-    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: -1, hourly_calls: hourly([]) }))).toBeNull();
-    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: [1, 2] }))).toBeNull();
+    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: -1, hourly_calls: hourly([]), ...PEAKS }))).toBeNull();
+    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: [1, 2], ...PEAKS }))).toBeNull();
+    // Without the peaks, or with peaks that cannot be true, nothing is filed.
+    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]) }))).toBeNull();
+    for (const bad of [{ peak_concurrent_calls: 1.5 }, { peak_hour_dials: -1 }, { peak_day_dials: "9" }, { peak_hour_dials: 21 }]) {
+      expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...PEAKS, ...bad })), JSON.stringify(bad)).toBeNull();
+    }
+  });
+
+  it("count overlapping answered calls with a sweep, and every outbound leg by UTC hour and day", () => {
+    expect(PRODUCTION_SQL).toContain("'peak_concurrent_calls'");
+    expect(PRODUCTION_SQL).toMatch(/c\.answered_at as at, 1 as delta/);
+    expect(PRODUCTION_SQL).toMatch(/select c\.ended_at, -1/);
+    expect(PRODUCTION_SQL).toMatch(/c\.answered_at is not null and c\.ended_at is not null/);
+    // An end sorts before a start at the same instant: touching calls do not overlap.
+    expect(PRODUCTION_SQL).toContain("order by e.at, e.delta");
+    expect(PRODUCTION_SQL).toMatch(/from ops_diag\.call_legs l/);
+    expect(PRODUCTION_SQL).toMatch(/c\.direction = 'outbound'/);
+    expect(PRODUCTION_SQL).toContain("date_trunc('hour', o.at at time zone 'UTC')");
+    expect(PRODUCTION_SQL).toContain("date_trunc('day', o.at at time zone 'UTC')");
+  });
+
+  it("file the call peaks from the read alone: no typed input reaches them", async () => {
+    const read: ProductionRead = { numbers: 1, largest_audience: 1, hourly_calls: hourly([]), ...PEAKS };
+    const now = new Date("2026-11-02T05:00:00.000Z");
+    expect(planFiling(read, false, now).measured).toEqual([
+      { route: "/concurrency-history", body: { peak_calls: 3, measured_at: now.toISOString() } },
+      { route: "/account-rate", body: { peak_hour_dials: 4, peak_day_dials: 20, measured_at: now.toISOString() } },
+    ]);
+    const typed = measurementPosts({ reserveLegs: "2", calls: "1", abandoned: "0", short: "0", windowStartHour: "4", usageUsd: "1" });
+    expect(typed.map((post) => post.route)).toEqual(["/reserve", "/ratios", "/window", "/ledger"]);
   });
 
   it("run the agent_diag self-check in the same session, and refuse any other login before psql", () => {
     const sessions: { sql: string; env: Record<string, string> }[] = [];
     const psql: PsqlRunner = (sql, env) => {
       sessions.push({ sql, env });
-      return { status: 0, stdout: JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]) }) };
+      return { status: 0, stdout: JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...PEAKS }) };
     };
     expect(readProduction(AGENT_DIAG_URL, psql)).toMatchObject({ ok: true, read: { largest_audience: 2 } });
     expect(sessions[0].sql.indexOf("current_user <> 'agent_diag'")).toBeLessThan(sessions[0].sql.indexOf(PRODUCTION_SQL));
@@ -277,17 +332,25 @@ describe("the daily measurements, read from production as agent_diag", () => {
   it("file the reserve daily and the window monthly, which /health then shows", async () => {
     const h = await ready();
     await h.store.delete(ADMISSION_KEYS.reserve);
-    const read = () => ({ ok: true, read: { numbers: 2, largest_audience: 2, hourly_calls: hourly([7, 8, 9, 10, 11, 12]) } }) as const;
+    await h.store.delete(LIMIT_KEYS.history);
+    await h.store.delete(ADMISSION_KEYS.accountRate);
+    const read = () => ({ ok: true, read: { numbers: 2, largest_audience: 2, hourly_calls: hourly([7, 8, 9, 10, 11, 12]), ...PEAKS } }) as const;
     const health = edgeHealth(EDGE, "admin-token", edgeFetcher(h));
 
     const first = await measureProduction(throughEdge(h), health, read, new Date(h.clock.now));
     expect(first.ok).toBe(true);
+    const at = new Date(h.clock.now).toISOString();
     expect(first.lines).toEqual([
       "reserve read over 2 active number(s)",
       expect.stringMatching(/^::notice title=Ratios not filed::/),
+      `filed concurrency-history: {"peak_calls":3,"measured_at":"${at}"}`,
+      `filed account-rate: {"peak_hour_dials":4,"peak_day_dials":20,"measured_at":"${at}"}`,
       'filed reserve: {"legs":3}',
       'filed window: {"start_hour":7}',
     ]);
+    expect(await h.store.get(LIMIT_KEYS.history)).toEqual({ peak_calls: 3, measured_at: h.clock.now });
+    expect(await h.store.get(ADMISSION_KEYS.accountRate)).toEqual({ peak_hour_dials: 4, peak_day_dials: 20, measured_at: h.clock.now });
+    expect(((await health()).body as GuardHealth).account_rate).toMatchObject({ production_peak_hour: 4, production_peak_day: 20 });
     assertPublicSafe(first.lines);
     const shown = (await health()).body as GuardHealth;
     expect(shown.paid_dials).toMatchObject({ window_start_hour_utc: 7, window_measured_at: new Date(h.clock.now).toISOString() });

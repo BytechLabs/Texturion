@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { edgeUrl, SPEC, WEBHOOK_PATHS } from "../src/setup/spec";
 import { vendorLimits } from "../src/setup/setup";
-import { EDGE, fileMeasurements, harness, ruleOf, type Harness } from "./support";
+import { EDGE, fileMeasurements, fileValidation, harness, ruleOf, type Harness } from "./support";
 
 async function setup(h: Harness) {
   const response = await h.call("/admin/setup", { caller: "admin", method: "POST" });
@@ -30,7 +30,11 @@ describe("the setup routine", () => {
     expect(report.safety).toMatchObject({ state: "ok", reasons: [] });
 
     expect(h.telnyx.lists.billing_groups.map((item) => item.name)).toEqual(["loonext-nonprod"]);
-    expect(h.telnyx.lists.outbound_voice_profiles.map((item) => item.name)).toEqual(["nonprod-voice-ovp", "nonprod-robot-ovp"]);
+    expect(h.telnyx.lists.outbound_voice_profiles.map((item) => item.name)).toEqual([
+      "nonprod-voice-ovp",
+      "nonprod-robot-ovp",
+      "nonprod-limit-probe-ovp",
+    ]);
     expect(h.telnyx.lists.call_control_applications.map((item) => item.application_name)).toEqual([
       "nonprod-voice",
       "nonprod-robot",
@@ -88,6 +92,54 @@ describe("the setup routine", () => {
     expect(total + 0.4 + 0.2).toBeCloseTo(0.78);
   });
 
+  it("makes the limit-probe profile attached to nothing, spending nothing, at a limit of 1", async () => {
+    const h = harness();
+    const report = await setup(h);
+    const probe = h.telnyx.lists.outbound_voice_profiles.find((item) => item.name === "nonprod-limit-probe-ovp");
+    expect(probe).toMatchObject({
+      concurrent_call_limit: 1,
+      daily_spend_limit: "0.00",
+      daily_spend_limit_enabled: true,
+      whitelisted_destinations: [],
+      billing_group_id: h.telnyx.lists.billing_groups[0]?.id,
+    });
+    const attached = [...h.telnyx.lists.call_control_applications, ...h.telnyx.lists.credential_connections].filter(
+      (item) => (item.outbound as Record<string, unknown> | undefined)?.outbound_voice_profile_id === probe?.id,
+    );
+    expect(attached).toEqual([]);
+    expect(report.steps.find((step) => step.name === "nonprod-limit-probe-ovp")).toMatchObject({ action: "created" });
+
+    // A probe that ran and was cut off is put back to 1 by the next setup.
+    if (probe) probe.concurrent_call_limit = 9999;
+    await setup(h);
+    expect(probe?.concurrent_call_limit).toBe(1);
+  });
+
+  it("reports a limit-probe profile it cannot write, without failing the rest of the setup", async () => {
+    const h = harness();
+    h.telnyx.lists.outbound_voice_profiles.push({ id: "ovp-probe", name: "nonprod-limit-probe-ovp" });
+    h.telnyx.failNext = { method: "PATCH", path: "/v2/outbound_voice_profiles/ovp-probe", status: 500 };
+    const report = await setup(h);
+    expect(report.steps.find((step) => step.name === "nonprod-limit-probe-ovp")).toEqual({
+      resource: "limit_probe_profile",
+      name: "nonprod-limit-probe-ovp",
+      action: "skipped",
+      reason: "Telnyx answered 500",
+    });
+    expect(report.safety.state).toBe("ok");
+  });
+
+  it("turns on Telnyx's call-cost webhooks on both Call Control apps", async () => {
+    const h = harness();
+    await setup(h);
+    const apps = h.telnyx.lists.call_control_applications.map((item) => [item.application_name, item.call_cost_in_webhooks]);
+    expect(apps).toEqual([
+      ["nonprod-voice", true],
+      ["nonprod-robot", true],
+    ]);
+    expect(SPEC.call_control_applications.every((item) => item.call_cost_in_webhooks === true)).toBe(true);
+  });
+
   it("is idempotent by name: a second run creates nothing", async () => {
     const h = harness();
     seedNotifications(h);
@@ -98,9 +150,20 @@ describe("the setup routine", () => {
     expect(report.steps.filter((step) => step.action === "created")).toEqual([]);
   });
 
-  it("sizes the voice limits from the room once production's reserve is filed", async () => {
+  it("writes the floor's limits of 1 and 1 while only the floor is proven", async () => {
+    const h = harness();
+    await fileMeasurements(h, 0);
+    await setup(h);
+    const voice = h.telnyx.lists.outbound_voice_profiles.find((item) => item.name === "nonprod-voice-ovp");
+    const app = h.telnyx.lists.call_control_applications.find((item) => item.application_name === "nonprod-voice");
+    expect(voice?.concurrent_call_limit).toBe(1);
+    expect(app?.outbound).toMatchObject({ channel_limit: 1 });
+  });
+
+  it("sizes the voice limits from the room once the limit is proven and production's reserve is filed", async () => {
     const h = harness();
     await fileMeasurements(h, 2);
+    await fileValidation(h);
     await setup(h);
     const voice = h.telnyx.lists.outbound_voice_profiles.find((item) => item.name === "nonprod-voice-ovp");
     const app = h.telnyx.lists.call_control_applications.find((item) => item.application_name === "nonprod-voice");
@@ -156,6 +219,14 @@ describe("the committed spec", () => {
     expect(SPEC.messaging_profiles.max_profiles).toBe(6);
     const keys = new Set(SPEC.messaging_profiles.profiles.map((item) => item.key));
     for (const item of SPEC.numbers.standing) expect(keys.has(item.messaging_profile), item.role).toBe(true);
+  });
+
+  it("names the text lanes' three standing roles, so ordering can start before paid dials", () => {
+    const texts = SPEC.numbers.standing.filter((item) => item.lanes.includes("texts")).map((item) => item.role);
+    expect(texts).toEqual(["ROBOT-1", "DEV-W1", "DEV-E1"]);
+    for (const item of SPEC.numbers.standing) {
+      expect(item.lanes, item.role).toEqual(texts.includes(item.role) ? ["texts"] : ["calls"]);
+    }
   });
 
   it("names every webhook by an edge path the protocol has", () => {

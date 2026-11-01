@@ -28,6 +28,8 @@ export const ROUTE_CALLERS: Readonly<Record<string, readonly GuardCaller[]>> = {
   ...Object.fromEntries(EDGE_ONLY_ROUTES.map((route) => [route, [EDGE_CALLER]])),
   [GUARD_ROUTES.partition]: ["rig-api", "robot", "admin", EDGE_CALLER],
   [GUARD_ROUTES.lease]: ["rig-api", "robot", "admin"],
+  // The robot alone files level evidence: it is the one that hears Telnyx's announcement.
+  [GUARD_ROUTES.evidence]: ["robot"],
   [GUARD_ROUTES.health]: ["rig-api", "robot", "diag", "admin"],
   [GUARD_ROUTES.version]: ["rig-api", "robot", "diag", "admin"],
 };

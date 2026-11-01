@@ -49,9 +49,20 @@ export class FakeTelnyx {
   dropGroupOnOrder = false;
   /** When true, list filters are ignored, as a misbehaving API would. */
   ignoreFilters = false;
+  /** The status a new number order reports. */
+  orderStatus: "pending" | "success" | "failure" = "success";
+  /** When true, an order names its number by an id that is not the number's own. */
+  orderLineIds = false;
+  /**
+   * How Telnyx answers a voice profile's concurrent_call_limit:
+   *   - `refuse-above`: values above `limit` refused with a 422 naming the field;
+   *   - `accept`: every value accepted, the rule not enforced;
+   *   - `error`: a 500 for every write of the field.
+   */
+  profileLimit: { mode: "refuse-above" | "accept" | "error"; limit: number } = { mode: "refuse-above", limit: 6 };
   available: string[] = ["+14165550150", "+14165550151", "+14165550152"];
-  /** The next request matching this answers with its status, for failure paths. */
-  failNext: { method: string; path: string; status: number } | null = null;
+  /** The next request matching this answers with its status (and body, when given), for failure paths. */
+  failNext: { method: string; path: string; status: number; body?: unknown } | null = null;
   private serial = 0;
 
   nextId(prefix: string): string {
@@ -79,7 +90,7 @@ export class FakeTelnyx {
     const fail = this.failNext;
     if (fail && fail.method === method && url.pathname === fail.path) {
       this.failNext = null;
-      return reply({ errors: [{ code: String(fail.status) }] }, fail.status);
+      return reply(fail.body ?? { errors: [{ code: String(fail.status) }] }, fail.status);
     }
     return this.route(method, url, body as Item | undefined);
   }
@@ -146,6 +157,10 @@ export class FakeTelnyx {
     }
     if (method === "POST" && sub === "token") return new Response("jwt-token-text", { status: 201 });
     if (method === "PATCH") {
+      if (resource === "outbound_voice_profiles" && typeof body?.concurrent_call_limit === "number") {
+        const refused = this.profileLimitAnswer(body.concurrent_call_limit);
+        if (refused) return refused;
+      }
       Object.assign(found, body);
       return reply({ data: found });
     }
@@ -154,6 +169,27 @@ export class FakeTelnyx {
       return reply({ data: found });
     }
     return reply({ errors: [] }, 405);
+  }
+
+  private profileLimitAnswer(value: number): Response | null {
+    const { mode, limit } = this.profileLimit;
+    if (mode === "error") return reply({ errors: [{ code: "10007", title: "Unexpected error" }] }, 500);
+    if (mode === "refuse-above" && value > limit) {
+      return reply(
+        {
+          errors: [
+            {
+              code: "10015",
+              title: "Invalid value",
+              detail: "concurrent_call_limit must be no more than the global concurrent call limit",
+              source: { pointer: "/concurrent_call_limit" },
+            },
+          ],
+        },
+        422,
+      );
+    }
+    return null;
   }
 
   private phoneNumbers(method: string, url: URL, id: string, sub: string, body: Item | undefined): Response {
@@ -178,17 +214,18 @@ export class FakeTelnyx {
   private orders(method: string, id: string | undefined, body: Item | undefined): Response {
     if (method === "POST" && !id) {
       const phone = (body?.phone_numbers as Item[] | undefined)?.[0]?.phone_number as string;
+      const numberId = this.nextId("num");
       const order: Item = {
         id: this.nextId("order"),
-        status: "success",
+        status: this.orderStatus,
         billing_group_id: body?.billing_group_id ?? null,
         connection_id: body?.connection_id ?? null,
         messaging_profile_id: body?.messaging_profile_id ?? null,
-        phone_numbers: [{ phone_number: phone }],
+        phone_numbers: [{ id: this.orderLineIds ? this.nextId("order-line") : numberId, phone_number: phone }],
       };
       this.numberOrders.push(order);
       this.numbers.push({
-        id: this.nextId("num"),
+        id: numberId,
         phone_number: phone,
         billing_group_id: this.dropGroupOnOrder ? null : (body?.billing_group_id ?? null),
         connection_id: body?.connection_id ?? null,

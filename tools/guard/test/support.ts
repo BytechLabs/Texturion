@@ -5,6 +5,7 @@ import { readConfig, type Env } from "../src/env";
 import { Guard } from "../src/guard";
 import { runSafetyChecks } from "../src/setup/safety";
 import { ADMISSION_KEYS } from "../src/state/admission";
+import { LIMIT_KEYS, type ValidationRecord } from "../src/state/concurrency";
 import { MemoryStore } from "../src/store";
 import { telnyxApi } from "../src/telnyx/client";
 import { KEYS } from "../src/telnyx/partition";
@@ -64,6 +65,8 @@ export interface CallOptions {
 
 export interface HarnessOptions {
   env?: Partial<Env>;
+  /** The validated concurrent limit {@link ready} files; null files none, leaving the floor in force. */
+  validated?: number | null;
   ai?: AiRunner | null;
   aiResult?: unknown;
   now?: number;
@@ -77,7 +80,7 @@ export const FULL_ENV: Partial<Env> = {
   EDGE_ORIGIN: EDGE,
   ROBOT_MAILBOX,
   NOTIFICATION_PATH_SECRET: "notice-path",
-  TELNYX_CONCURRENT_LIMIT: "6",
+  TELNYX_CONCURRENT_FLOOR: "2",
   SIGNAL_LATCH_RESET: "first",
 };
 
@@ -183,6 +186,7 @@ export function seedAccount(telnyx: FakeTelnyx): void {
   telnyx.lists.outbound_voice_profiles.push(
     { id: "ovp-voice", name: "nonprod-voice-ovp", billing_group_id: "bg-nonprod" },
     { id: "ovp-robot", name: "nonprod-robot-ovp", billing_group_id: "bg-nonprod" },
+    { id: "ovp-probe", name: "nonprod-limit-probe-ovp", billing_group_id: "bg-nonprod", concurrent_call_limit: 1 },
     { id: "ovp-prod", name: "production-ovp" },
   );
   telnyx.lists.call_control_applications.push(
@@ -263,6 +267,16 @@ export function seedAccount(telnyx: FakeTelnyx): void {
 export async function fileMeasurements(h: Harness, reserve = 2): Promise<void> {
   await h.store.put(ADMISSION_KEYS.reserve, { legs: reserve, measured_at: h.clock.now });
   await h.store.put(ADMISSION_KEYS.ratios, { calls: 100, abandoned: 5, short: 3, measured_at: h.clock.now });
+  await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 0, peak_day_dials: 0, measured_at: h.clock.now });
+}
+
+/** The suites' account limit: the validation check found 6, so limit 6 less a reserve of 2 leaves room 4. */
+export const VALIDATED_LIMIT = 6;
+
+/** Files a fresh exact result of the validation check, as setup/limit-probe.ts would. */
+export async function fileValidation(h: Harness, value = VALIDATED_LIMIT): Promise<void> {
+  const record: ValidationRecord = { result: "exact", value, measured_at: h.clock.now, writes: 15, refusal_code: "10015" };
+  await h.store.put(LIMIT_KEYS.validation, record);
 }
 
 /** A harness with the account seeded, the start-up checks passed and measurements filed. */
@@ -272,6 +286,7 @@ export async function ready(options: HarnessOptions = {}): Promise<Harness> {
   const safety = await runSafetyChecks(h.ctx);
   if (safety.state !== "ok") throw new Error(`seed is unsafe: ${safety.reasons.join(", ")}`);
   await fileMeasurements(h);
+  if (options.validated !== null) await fileValidation(h, options.validated ?? VALIDATED_LIMIT);
   h.telnyx.log.length = 0;
   return h;
 }

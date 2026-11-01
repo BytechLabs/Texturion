@@ -145,7 +145,7 @@ describe("account signals", () => {
     const response = await h.call("/halt", {
       caller: "edge",
       body: {
-        signal: "Suspicious Outbound Voice Traffic",
+        signal: "Abandoned calls",
         notice_id: "notice-1",
         corroborated_by: "signature",
         received_at: new Date(h.clock.now).toISOString(),
@@ -187,8 +187,8 @@ describe("account signals", () => {
 
   it("count one notice once, however often the edge retries it", async () => {
     const h = await ready();
-    await recordSignal(h.ctx, halt("Account Disabled", "notice-7"));
-    await recordSignal(h.ctx, halt("Account Disabled", "notice-7"));
+    await recordSignal(h.ctx, halt("Low Balance", "notice-7"));
+    await recordSignal(h.ctx, halt("Low Balance", "notice-7"));
     h.advance(8 * 24 * 60 * 60 * 1000);
     await expect(requirePaidLanesOpen(h.ctx)).resolves.toBeUndefined();
     const events = h.outbound.filter((item) => item.body.includes("telnyx-account-signal"));

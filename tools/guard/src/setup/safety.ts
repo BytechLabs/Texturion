@@ -101,6 +101,22 @@ export async function fetchListings(ctx: Ctx, billingGroupId: string | null): Pr
   };
 }
 
+/**
+ * The limit-probe profile must carry no call: its limit is written up to
+ * 9999 while the check runs. It is unsafe when any listed connection names
+ * it, production's included, or when its name matches more than one
+ * profile, so the probe could not tell which one it writes.
+ */
+function limitProbeInUse(listings: Listings, spec: TelnyxSpec): boolean {
+  const found = listings.outboundVoiceProfiles.filter((item) => item.name === spec.limit_probe.name);
+  if (found.length > 1) return true;
+  const ids = new Set(found.map(idOf).filter((id): id is string => id !== null));
+  return [...listings.apps, ...listings.credentialConnections].some((item) => {
+    const profile = (item.outbound as { outbound_voice_profile_id?: unknown } | undefined)?.outbound_voice_profile_id;
+    return typeof profile === "string" && ids.has(profile);
+  });
+}
+
 export interface Assessment {
   record: PartitionRecord | null;
   extraProfiles: string[];
@@ -177,6 +193,7 @@ export function assess(
       reasons.push(`credential_connection_has_ovp:${String(item.connection_name)}`);
     }
   }
+  if (limitProbeInUse(listings, spec)) reasons.push("limit_probe_ovp_in_use");
 
   const productionConnections = new Set<string>();
   const productionProfiles = new Set<string>();

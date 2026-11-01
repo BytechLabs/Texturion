@@ -21,6 +21,13 @@
       "calls_per_cld": 20
     }
   ],
+  "limit_probe": {
+    "$comment": "Attached to no connection: the start-up checks refuse if one names it. The validation check writes only its concurrent_call_limit, always back to 1 (setup/limit-probe.ts).",
+    "name": "nonprod-limit-probe-ovp",
+    "concurrent_call_limit": 1,
+    "daily_spend_limit": "0.00",
+    "whitelisted_destinations": []
+  },
   "call_control_applications": [
     {
       "key": "voice",
@@ -29,7 +36,8 @@
       "failover": "telnyxVoiceFailover",
       "webhook_timeout_secs": 10,
       "outbound_voice_profile": "voice",
-      "channel_limit": "room"
+      "channel_limit": "room",
+      "call_cost_in_webhooks": true
     },
     {
       "key": "robot",
@@ -37,7 +45,8 @@
       "webhook": "telnyxRobot",
       "webhook_timeout_secs": 10,
       "outbound_voice_profile": "robot",
-      "channel_limit": 1
+      "channel_limit": 1,
+      "call_cost_in_webhooks": true
     }
   ],
   "credential_connections": [
@@ -72,14 +81,14 @@
     "country": "CA",
     "area_codes": ["416", "647", "437", "905", "289", "365", "613", "343", "519", "226", "705", "249", "807"],
     "standing": [
-      { "role": "ROBOT-1", "connection": "robot", "messaging_profile": "robot" },
-      { "role": "ROBOT-2", "connection": "robot", "messaging_profile": "robot" },
-      { "role": "STRANGER-1", "connection": "robot", "messaging_profile": "robot" },
-      { "role": "DEV-W1", "connection": "voice", "messaging_profile": "qa-w" },
-      { "role": "DEV-W2", "connection": "voice", "messaging_profile": "qa-w" },
-      { "role": "DEV-A1", "connection": "voice", "messaging_profile": "qa-a", "caller_name_lookup": true },
-      { "role": "DEV-C1", "connection": "voice", "messaging_profile": "qa-c" },
-      { "role": "DEV-E1", "connection": "voice", "messaging_profile": "qa-e" }
+      { "role": "ROBOT-1", "connection": "robot", "messaging_profile": "robot", "lanes": ["texts"] },
+      { "role": "ROBOT-2", "connection": "robot", "messaging_profile": "robot", "lanes": ["calls"] },
+      { "role": "STRANGER-1", "connection": "robot", "messaging_profile": "robot", "lanes": ["calls"] },
+      { "role": "DEV-W1", "connection": "voice", "messaging_profile": "qa-w", "lanes": ["texts"] },
+      { "role": "DEV-W2", "connection": "voice", "messaging_profile": "qa-w", "lanes": ["calls"] },
+      { "role": "DEV-A1", "connection": "voice", "messaging_profile": "qa-a", "caller_name_lookup": true, "lanes": ["calls"] },
+      { "role": "DEV-C1", "connection": "voice", "messaging_profile": "qa-c", "lanes": ["calls"] },
+      { "role": "DEV-E1", "connection": "voice", "messaging_profile": "qa-e", "lanes": ["texts"] }
     ]
   },
   "notifications": {

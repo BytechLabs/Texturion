@@ -121,6 +121,11 @@ export const GUARD_ROUTES = {
   partition: "/partition",
   /** POST acquires, DELETE /lease/<id> releases, GET /lease/<id>/activity reads {@link LeaseActivity}. */
   lease: "/lease",
+  /**
+   * POST /evidence/level {@link LevelEvidence}: the robot heard Telnyx's
+   * automated-call announcement. It can only lower the guard's limit.
+   */
+  evidence: "/evidence",
   /** GET {@link GuardHealth}. */
   health: "/health",
   version: "/version",
@@ -237,7 +242,7 @@ export interface DetachRequest {
 /**
  * How the edge corroborated an account notice before asking for a halt:
  *   - `balance`: a balance notice, and the balance read through the guard agrees;
- *   - `signature`: Telnyx signed the notice within five minutes, and it names
+ *   - `signature`: the notice carries a valid Telnyx signature, and it names
  *     a notification type enabled on the account;
  *   - `account_refused`: Telnyx refuses the account's own reads.
  */
@@ -250,6 +255,41 @@ export interface HaltRequest {
   notice_id: string | null;
   corroborated_by: HaltCorroboration;
   received_at: string;
+  /**
+   * The signature verified but its timestamp is more than five minutes old:
+   * a retry Telnyx sent late. It still halts; the guard keeps one signal per
+   * notice id.
+   */
+  late?: boolean;
+}
+
+/** The body of POST {@link GUARD_ROUTES.evidence}`/level`. */
+export interface LevelEvidence {
+  /** How long the announcement ran on the robot's recording; only more than 0 is evidence. */
+  announcement_ms: number;
+  /** ISO 8601, when the robot judged the recording. */
+  at: string;
+}
+
+/** The concurrency proof ladder, as /health reports it (tools/guard/src/state/concurrency.ts). */
+export interface GuardConcurrency {
+  limit_in_force: number | null;
+  source: "floor" | "validation" | "history";
+  floor: number | null;
+  validation: { result: "exact" | "not_enforced" | "inconclusive"; value: number | null; measured_at: string } | null;
+  history_lower_bound: number | null;
+  ceiling: { value: number | null; from: string } | null;
+  /** Why the evidence contradicts itself; paid dials are refused while it is set. */
+  conflict: string | null;
+}
+
+/** The account-wide dial caps the guard assumes, and production's measured share of them. */
+export interface GuardAccountRate {
+  hour_limit: number;
+  day_limit: number;
+  production_peak_hour: number | null;
+  production_peak_day: number | null;
+  measured_at: string | null;
 }
 
 /**
@@ -275,7 +315,7 @@ export interface GuardHealth {
   /** The Telnyx key is present and the start-up checks passed on this deployment. */
   ok: boolean;
   balance_above_floor: boolean;
-  /** Test legs the account's limit leaves after production's reserve; absent while either is unknown. */
+  /** Test legs the limit in force leaves after production's reserve; 0 while only the floor is proven, absent while either is unknown. */
   room?: number;
   version_id: string;
   telnyx: { key: "present" | "absent"; rule?: string; safety: GuardSafety };
@@ -296,6 +336,8 @@ export interface GuardHealth {
   mail?: { heartbeat_fresh: boolean; halted: boolean; pending: number };
   /** Neurons spent on the guard's AI day so far, UTC. */
   ai_neurons_today?: number;
+  concurrency?: GuardConcurrency;
+  account_rate?: GuardAccountRate;
   [detail: string]: unknown;
 }
 

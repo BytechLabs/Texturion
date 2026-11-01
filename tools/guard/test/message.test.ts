@@ -83,7 +83,7 @@ describe("messages", () => {
 
   it("stops during an account-signal halt", async () => {
     const h = await ready();
-    await recordSignal(h.ctx, { signal: "Messaging Suspicious Traffic", notice_id: null, corroborated_by: "signature" });
+    await recordSignal(h.ctx, { signal: "Short duration calls", notice_id: null, corroborated_by: "signature" });
     expect(await ruleOf(await send(h))).toBe("signal.halted");
   });
 

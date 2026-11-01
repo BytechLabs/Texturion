@@ -42,28 +42,46 @@ export async function verifyTelnyxSignature(
   rawBody: string,
   nowMs: number = Date.now(),
 ): Promise<boolean> {
+  return (await checkTelnyxSignature(publicKey, headers, rawBody, nowMs)) === "valid";
+}
+
+/**
+ * The signature check with the window's two sides told apart: `late` is a
+ * signature that verifies over a timestamp more than 5 minutes old, which is
+ * how a retry Telnyx sent late arrives. A timestamp too far ahead stays
+ * `invalid`.
+ */
+export async function checkTelnyxSignature(
+  publicKey: string | undefined,
+  headers: Headers,
+  rawBody: string,
+  nowMs: number = Date.now(),
+): Promise<"valid" | "late" | "invalid"> {
   const signatureHeader = headers.get("telnyx-signature-ed25519");
   const timestampHeader = headers.get("telnyx-timestamp");
-  if (!publicKey || !signatureHeader || !timestampHeader) return false;
-  if (!/^\d{1,12}$/.test(timestampHeader)) return false;
-  const skew = Math.abs(Math.floor(nowMs / 1000) - Number(timestampHeader));
-  if (skew > TELNYX_SIGNATURE_WINDOW_S) return false;
+  if (!publicKey || !signatureHeader || !timestampHeader) return "invalid";
+  if (!/^\d{1,12}$/.test(timestampHeader)) return "invalid";
+  const age = Math.floor(nowMs / 1000) - Number(timestampHeader);
+  if (age < -TELNYX_SIGNATURE_WINDOW_S) return "invalid";
 
   const signature = decodeBase64(signatureHeader);
-  if (!signature || signature.length === 0) return false;
+  if (!signature || signature.length === 0) return "invalid";
   const key = await importPublicKey(publicKey);
-  if (!key) return false;
+  if (!key) return "invalid";
 
+  let verified: boolean;
   try {
-    return await crypto.subtle.verify(
+    verified = await crypto.subtle.verify(
       { name: "Ed25519" },
       key,
       signature,
       new TextEncoder().encode(`${timestampHeader}|${rawBody}`),
     );
   } catch {
-    return false;
+    verified = false;
   }
+  if (!verified) return "invalid";
+  return age > TELNYX_SIGNATURE_WINDOW_S ? "late" : "valid";
 }
 
 /** The headers the rig's own handlers verify, and nothing else. */

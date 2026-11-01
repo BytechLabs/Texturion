@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { EDGE_PATHS, GUARD_ROUTES, HEADER, type LevelEvidence } from "@loonext/rig-protocol";
+import { describe, expect, it, vi } from "vitest";
 import { codeSamples } from "./audio/generate.ts";
-import { delay, mix } from "./audio/simulate.ts";
+import { bandPass, delay, mix, noise } from "./audio/simulate.ts";
 import { encodeWav } from "./audio/wav.ts";
 import { InlineProbe } from "./probe.ts";
 import { Robot, type CallPlan } from "./robot.ts";
-import { GuardRefusedError } from "./telnyx.ts";
+import { GuardedTelnyx, GuardRefusedError } from "./telnyx.ts";
 import { FakeCallControl, ManualClock, TEST_NUMBERS, telnyxEvent } from "./test-support.ts";
 
 const OWNER_HEARD = encodeWav({
@@ -142,6 +143,89 @@ describe("an outbound call, end to end", () => {
     expect(telnyx.named("hangup")).toHaveLength(1);
     robot.handleEvent(telnyxEvent("call.hangup", { call_control_id: "ccid-1", hangup_cause: "originator_cancel" }));
     expect(robot.get("plan-1")!.state).toBe("done");
+  });
+});
+
+/**
+ * Telnyx's automated-call announcement, as the detector reads it: speech-like
+ * phone-band noise in 200 ms syllables for six seconds, then the far end's code.
+ */
+function announcedCall(): Uint8Array {
+  const rate = 8_000;
+  const voiced = bandPass(noise(6, rate, -12, 5), rate, 300, 3_400);
+  const syllable = Math.round(0.25 * rate);
+  const speech = delay(voiced.map((x, i) => (i % syllable < 0.8 * syllable ? x : 0)), rate, 200);
+  return encodeWav({
+    sampleRate: rate,
+    channels: [mix(speech, delay(codeSamples("qa-w-owner", { sampleRate: rate, cycles: 8 }), rate, 6_400))],
+  });
+}
+
+async function finishCall(robot: Robot) {
+  robot.handleEvent(telnyxEvent("call.answered", { call_control_id: "ccid-1" }));
+  robot.handleEvent(telnyxEvent("call.hangup", { call_control_id: "ccid-1" }));
+  robot.handleEvent(
+    telnyxEvent("call.recording.saved", {
+      call_control_id: "ccid-1",
+      recording_id: "rec-1",
+      recording_urls: { wav: "https://recordings.vendor.test/rec-1.wav" },
+    }),
+  );
+  const done = await robot.wait("plan-1", 1_000);
+  await robot.idle();
+  return done;
+}
+
+describe("Telnyx's announcement as level evidence", () => {
+  it("tells the guard it heard the announcement, and never fails the call when the guard does not take it", async () => {
+    const { telnyx, robot } = setup(announcedCall());
+    const filed: LevelEvidence[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    Object.assign(telnyx, {
+      reportLevelEvidence: async (evidence: LevelEvidence) => {
+        filed.push(evidence);
+        throw new GuardRefusedError(403, "class.not_allowed");
+      },
+    });
+    await robot.dial(S02);
+    const done = await finishCall(robot);
+    expect(done!.judgement!.announcement_ms).toBeGreaterThan(0);
+    expect(filed).toEqual([{ announcement_ms: done!.judgement!.announcement_ms, at: expect.any(String) }]);
+    expect(done).toMatchObject({ state: "done", errors: [] });
+    expect(done!.judgement).toMatchObject({ answered: "qa-w-owner", pass: true });
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^robot: level evidence not filed: /));
+    warn.mockRestore();
+  });
+
+  it("files nothing for a call that opened with no announcement", async () => {
+    const { telnyx, robot } = setup();
+    const filed: LevelEvidence[] = [];
+    Object.assign(telnyx, { reportLevelEvidence: async (evidence: LevelEvidence) => void filed.push(evidence) });
+    await robot.dial(S02);
+    const done = await finishCall(robot);
+    expect(done!.judgement!.announcement_ms).toBe(0);
+    expect(filed).toEqual([]);
+  });
+
+  it("posts the evidence to the guard's evidence route through the edge, with the robot's token", async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    let answer = () => Response.json({ recorded: true, level: "paid_or_below" });
+    const fetch = (async (input: string | URL | Request, init: RequestInit = {}) => {
+      calls.push({ url: String(input), init });
+      return answer();
+    }) as typeof globalThis.fetch;
+    const edge = "https://rig-edge.example.workers.dev/";
+    const telnyx = new GuardedTelnyx({ edgeOrigin: edge, token: "robot-token", fetch });
+    const evidence = { announcement_ms: 4_200, at: "2026-11-02T05:00:00.000Z" };
+    await telnyx.reportLevelEvidence(evidence);
+    expect(calls[0]!.url).toBe(`https://rig-edge.example.workers.dev${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.evidence}/level`);
+    expect(calls[0]!.init).toMatchObject({ method: "POST", body: JSON.stringify(evidence) });
+    expect((calls[0]!.init.headers as Record<string, string>).authorization).toBe("Bearer robot-token");
+
+    answer = () => Response.json({ error: "guard_refused", rule: "request.body_invalid" }, { status: 403, headers: { [HEADER.refusedBy]: "guard" } });
+    await expect(telnyx.reportLevelEvidence(evidence)).rejects.toEqual(new GuardRefusedError(403, "request.body_invalid"));
+    answer = () => new Response("bad gateway", { status: 502 });
+    await expect(telnyx.reportLevelEvidence(evidence)).rejects.toThrow(/answered 502/);
   });
 });
 

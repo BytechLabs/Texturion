@@ -2,10 +2,19 @@ import type { Ctx } from "./context";
 import { acceptInventory, runKeyInventory } from "./inventory";
 import { COST_USD, MAX_NUMBERS_HELD, SEARCH_INTERVAL_MS } from "./limits";
 import { json, Refusal } from "./refusal";
+import { runLimitProbe } from "./setup/limit-probe";
 import { requireSafe, runSafetyChecks } from "./setup/safety";
 import { runSetup } from "./setup/setup";
 import { callerNameNumbers, SPEC } from "./setup/spec";
-import { ADMISSION_KEYS, type RatiosRecord, type ReserveRecord, type WindowRecord } from "./state/admission";
+import {
+  ADMISSION_KEYS,
+  paidState,
+  type AccountRateRecord,
+  type RatiosRecord,
+  type ReserveRecord,
+  type WindowRecord,
+} from "./state/admission";
+import { LIMIT_KEYS, type HistoryRecord } from "./state/concurrency";
 import { charge, noteHeld, reconcile } from "./state/ledger";
 import { resumeMail } from "./state/mail";
 import { clearDetached, standingBinding } from "./telnyx/detach";
@@ -64,7 +73,9 @@ async function standingMap(ctx: Ctx): Promise<Record<string, StandingNumber>> {
  * call so the search interval holds without a request that waits; the caller
  * repeats until `remaining` is empty. Standing orders are exempt from the
  * 25-day order interval, which paces S28's monthly number, but not from the
- * ordering gate, the money gates or the ten-number cap.
+ * ordering gate, the money gates or the ten-number cap. While paid dials are
+ * refused, only the roles the text lanes use are ordered; the calls-only
+ * roles are reported as deferred and wait for paid dials to open.
  */
 async function orderStanding(ctx: Ctx): Promise<Response> {
   await requireSafe(ctx);
@@ -92,8 +103,11 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
   }
   if (tagged > 0) await invalidateOwned(ctx);
 
-  const missing = SPEC.numbers.standing.filter((item) => !standing[item.role]);
-  if (missing.length === 0) return json({ ordered: null, remaining: [], tagged });
+  const paidOpen = (await paidState(ctx, "ok")).blockers.length === 0;
+  const unheld = SPEC.numbers.standing.filter((item) => !standing[item.role]);
+  const missing = unheld.filter((item) => paidOpen || item.lanes.includes("texts"));
+  const deferred = unheld.filter((item) => !missing.includes(item)).map((item) => item.role);
+  if (missing.length === 0) return json({ ordered: null, remaining: [], deferred, tagged });
   if (view.numbers.length >= MAX_NUMBERS_HELD) throw new Refusal("provisioning.numbers_held");
 
   const role = missing[0];
@@ -117,7 +131,7 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
   const found = (reply.body as { data?: { phone_number?: unknown }[] } | undefined)?.data?.[0]?.phone_number;
   if (reply.status !== 200 || typeof found !== "string") {
     await ctx.store.put("standing:area-index", index + 1);
-    return json({ ordered: null, searched: areaCode, remaining: missing.map((item) => item.role), tagged });
+    return json({ ordered: null, searched: areaCode, remaining: missing.map((item) => item.role), deferred, tagged });
   }
 
   const checked = await checkOrderBody(
@@ -138,6 +152,7 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
   return json({
     ordered: role.role,
     remaining: missing.slice(1).map((item) => item.role),
+    deferred,
     tagged,
   });
 }
@@ -194,6 +209,23 @@ export async function handleAdmin(ctx: Ctx, request: Request, path: string): Pro
       await ctx.store.put(ADMISSION_KEYS.ratios, record);
       return json(record);
     }
+    case "POST /concurrency-history": {
+      const record: HistoryRecord = { peak_calls: count(body.peak_calls, 10_000), measured_at: measuredAt(ctx, body.measured_at) };
+      await ctx.store.put(LIMIT_KEYS.history, record);
+      return json(record);
+    }
+    case "POST /account-rate": {
+      const record: AccountRateRecord = {
+        peak_hour_dials: count(body.peak_hour_dials, 100_000),
+        peak_day_dials: count(body.peak_day_dials, 1_000_000),
+        measured_at: measuredAt(ctx, body.measured_at),
+      };
+      if (record.peak_hour_dials > record.peak_day_dials) throw new Refusal("request.body_invalid");
+      await ctx.store.put(ADMISSION_KEYS.accountRate, record);
+      return json(record);
+    }
+    case "POST /limit-probe":
+      return json(await runLimitProbe(ctx));
     case "POST /window": {
       const record: WindowRecord = { start_hour: count(body.start_hour, 23), measured_at: measuredAt(ctx, body.measured_at) };
       await ctx.store.put(ADMISSION_KEYS.window, record);

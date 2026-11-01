@@ -90,9 +90,13 @@ describe("wrangler.jsonc", () => {
     for (const id of declared) expect(Number(id), id).toBeLessThanOrEqual(3009);
   });
 
-  it("ships with paid dials off: the concurrent limit is unknown until FA0", () => {
+  it("ships with the concurrency floor at 2, the lowest documented default, and says where it came from", () => {
     const vars = wrangler.vars as Record<string, string>;
-    expect(parseConcurrentLimit(vars.TELNYX_CONCURRENT_LIMIT)).toBeNull();
+    expect(parseConcurrentLimit(vars.TELNYX_CONCURRENT_FLOOR)).toBe(2);
+    expect(vars.TELNYX_CONCURRENT_LIMIT).toBeUndefined();
+    const source = readFileSync(join(GUARD_DIR, "wrangler.jsonc"), "utf8");
+    expect(source).toContain("support.telnyx.com/en/articles/1130717, fetched 2026-10-31");
+    expect(source).toMatch(/Raising the floor needs dated\s+(?:\/\/\s+)?evidence in a reviewed commit/);
     expect(vars.SIGNAL_LATCH_RESET).toBeTruthy();
   });
 

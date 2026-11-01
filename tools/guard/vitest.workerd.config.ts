@@ -21,7 +21,7 @@ export default defineConfig({
           GUARD: { className: "GuardState", useSQLite: true },
         },
         bindings: {
-          TELNYX_CONCURRENT_LIMIT: "unknown",
+          TELNYX_CONCURRENT_FLOOR: "2",
           SIGNAL_LATCH_RESET: "workerd",
         },
         outboundService: () => new Response("offline in tests", { status: 503 }),

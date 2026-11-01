@@ -9,6 +9,8 @@ import {
   type ReserveRecord,
   type WindowRecord,
 } from "../state/admission";
+import { limitInForce } from "../state/concurrency";
+import { TelnyxError } from "../telnyx/client";
 import { rememberCredential, connectionOfResource } from "../telnyx/targets";
 import { runSafetyChecks, type SafetyState } from "./safety";
 import { edgeUrl, SPEC, type TelnyxSpec } from "./spec";
@@ -47,8 +49,8 @@ function randomSecret(length: number): string {
 
 /**
  * The voice profile's and app's vendor-side limits from the room. Telnyx reads
- * a null concurrent limit as "unlimited", so an unknown room is written as 1:
- * the guard itself admits no paid dial then.
+ * a null concurrent limit as "unlimited", so an unknown room is written as 1,
+ * and so is the floor's room of 0: the guard itself admits no paid dial then.
  */
 export function vendorLimits(room: number | null): { voiceOvp: number; voiceApp: number } {
   if (room === null || room < 2) return { voiceOvp: 1, voiceApp: 1 };
@@ -67,7 +69,7 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
   const steps: SetupStep[] = [];
 
   const room = roomFor(
-    ctx.config.concurrentLimit,
+    await limitInForce(ctx),
     await ctx.store.get<ReserveRecord>(ADMISSION_KEYS.reserve),
     ctx.now(),
   );
@@ -131,9 +133,13 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
     );
   }
 
+  const probe = await ensureLimitProbe(spec, groupId, ensure);
+  if (probe) steps.push(probe);
+
   for (const app of spec.call_control_applications) {
     const channel = app.channel_limit === "room" ? limits.voiceApp : app.channel_limit;
     const settings: Item = {
+      call_cost_in_webhooks: app.call_cost_in_webhooks,
       webhook_event_url: edgeUrl(edge, app.webhook),
       webhook_event_failover_url: app.failover ? edgeUrl(edge, app.failover) : null,
       webhook_timeout_secs: app.webhook_timeout_secs,
@@ -183,6 +189,31 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
 
   const safety = await runSafetyChecks(ctx);
   return { steps, safety };
+}
+
+type Ensure = (resource: string, listPath: string, nameField: string, name: string, create: Item, update: Item | null) => Promise<string>;
+
+/**
+ * The validation check's profile, found or made by name and put back to the
+ * spec's values. A failure here is reported, not thrown: the check is then
+ * inconclusive and the floor stays in force, which refuses paid dials anyway.
+ */
+async function ensureLimitProbe(spec: TelnyxSpec, groupId: string, ensure: Ensure): Promise<SetupStep | null> {
+  const probe = spec.limit_probe;
+  const settings: Item = {
+    concurrent_call_limit: probe.concurrent_call_limit,
+    daily_spend_limit: probe.daily_spend_limit,
+    daily_spend_limit_enabled: true,
+    whitelisted_destinations: probe.whitelisted_destinations,
+    billing_group_id: groupId,
+  };
+  try {
+    await ensure("limit_probe_profile", "/v2/outbound_voice_profiles", "name", probe.name, settings, { name: probe.name, ...settings });
+    return null;
+  } catch (cause) {
+    const reason = cause instanceof TelnyxError ? `Telnyx answered ${cause.status}` : "the profile could not be listed or written";
+    return { resource: "limit_probe_profile", name: probe.name, action: "skipped", reason };
+  }
 }
 
 async function ensureSentinelCredential(ctx: Ctx, connectionId: string, steps: SetupStep[]): Promise<void> {

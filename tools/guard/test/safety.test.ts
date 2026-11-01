@@ -115,6 +115,26 @@ describe("start-up checks", () => {
     expect(result.reasons).toContain("credential_connection_has_ovp:nonprod-webrtc");
   });
 
+  it("refuse a limit-probe profile any connection uses, or two profiles with its name", async () => {
+    expect(assess(ctx, listings(), []).reasons).not.toContain("limit_probe_ovp_in_use");
+    const uses = (id: string) =>
+      listings((telnyx) => {
+        const item = [...telnyx.lists.call_control_applications, ...telnyx.lists.credential_connections].find((entry) => entry.id === id);
+        if (item) item.outbound = { outbound_voice_profile_id: "ovp-probe" };
+      });
+    for (const id of ["conn-prod-voice", "conn-voice", "conn-robot", "conn-prod-webrtc"]) {
+      expect(assess(ctx, uses(id), []).reasons, id).toContain("limit_probe_ovp_in_use");
+    }
+    const twice = listings((telnyx) => telnyx.lists.outbound_voice_profiles.push({ id: "ovp-probe-2", name: "nonprod-limit-probe-ovp" }));
+    expect(assess(ctx, twice, []).reasons).toContain("limit_probe_ovp_in_use");
+
+    const h = harness();
+    seedAccount(h.telnyx);
+    const app = h.telnyx.lists.call_control_applications.find((item) => item.id === "conn-prod-voice");
+    if (app) app.outbound = { outbound_voice_profile_id: "ovp-probe" };
+    expect((await runSafetyChecks(h.ctx)).state).toBe("unsafe");
+  });
+
   it("refuse a nonprod webhook that is not the edge, and two resources with one name", () => {
     const result = assess(
       ctx,

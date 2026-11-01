@@ -450,6 +450,7 @@ export class Robot {
         calibrate: record.plan.calibrate,
         segments: record.plan.segments,
       });
+      if (record.judgement.announcement_ms > 0) this.#reportAnnouncement(record.judgement.announcement_ms);
       if (record.plan.transcribe) {
         if (!this.#o.transcriber) record.errors.push("transcribe: the robot has no transcriber");
         else record.transcript = await this.#o.transcriber.transcribe(wav);
@@ -565,6 +566,22 @@ export class Robot {
   #track(promise: Promise<unknown>): void {
     this.#pending.add(promise);
     void promise.finally(() => this.#pending.delete(promise));
+  }
+
+  /**
+   * Telnyx's automated-call announcement is played only to accounts at the
+   * Paid level or below, so hearing it is evidence the guard can use to cap
+   * its concurrent limit. The call's verdict never depends on the report.
+   */
+  #reportAnnouncement(announcementMs: number): void {
+    const report = this.#o.telnyx.reportLevelEvidence;
+    if (!report) return;
+    const evidence = { announcement_ms: announcementMs, at: this.#iso() };
+    this.#track(
+      report.call(this.#o.telnyx, evidence).catch((error: unknown) => {
+        console.warn(`robot: level evidence not filed: ${describe(error)}`);
+      }),
+    );
   }
 
   #iso(): string {

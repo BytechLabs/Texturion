@@ -18,11 +18,14 @@ export interface Env {
 
   /** FA3. The one extra Telnyx key, `nonprod-guard`. Full account power. */
   TELNYX_API_KEY?: string;
-  /** FA8. Sending-only, restricted to the loonext.com domain. */
+  /**
+   * FA8: the existing send-only Resend key, reused. The guard's recipient
+   * rules (vendors/resend.ts) confine what it may send to.
+   */
   RESEND_API_KEY?: string;
   /** FA6. `fcm-rig-sender`, Firebase messaging role only. */
   FCM_SERVICE_ACCOUNT_JSON?: string;
-  /** FA7. Production's ingest-only DSN, for the isolation and key alerts. */
+  /** FA7: the existing production project's ingest-only DSN, for the isolation and key alerts. */
   SENTRY_PROD_DSN?: string;
 
   /** The edge's https origin, `loonext-rig-edge.<acct>.workers.dev`. Not in git. */
@@ -32,7 +35,8 @@ export interface Env {
   /** The secret segment of the edge's `/t/n/<secret>` notification path. */
   NOTIFICATION_PATH_SECRET?: string;
 
-  TELNYX_CONCURRENT_LIMIT?: string;
+  /** The lowest documented default concurrent limit (wrangler.jsonc). */
+  TELNYX_CONCURRENT_FLOOR?: string;
   SIGNAL_LATCH_RESET?: string;
 }
 
@@ -45,8 +49,11 @@ export interface GuardConfig {
   edgeOrigin: string | null;
   robotMailbox: string | null;
   notificationSecret: string | null;
-  /** Null until FA0 states the limit. Null means paid dials and orders stay off. */
-  concurrentLimit: number | null;
+  /**
+   * The floor of the concurrency proof ladder (state/concurrency.ts). Null when
+   * unparseable, which refuses every paid dial (admission.limit_unknown).
+   */
+  concurrentFloor: number | null;
   signalLatchReset: string;
 }
 
@@ -85,7 +92,7 @@ export function readConfig(env: Env): GuardConfig {
     edgeOrigin: parseEdgeOrigin(env.EDGE_ORIGIN),
     robotMailbox: present(env.ROBOT_MAILBOX)?.toLowerCase() ?? null,
     notificationSecret: present(env.NOTIFICATION_PATH_SECRET),
-    concurrentLimit: parseConcurrentLimit(env.TELNYX_CONCURRENT_LIMIT),
+    concurrentFloor: parseConcurrentLimit(env.TELNYX_CONCURRENT_FLOOR),
     signalLatchReset: present(env.SIGNAL_LATCH_RESET) ?? "",
   };
 }

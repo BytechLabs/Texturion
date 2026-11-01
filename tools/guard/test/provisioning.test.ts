@@ -41,10 +41,12 @@ describe("number orders", () => {
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
   });
 
-  it("stays off until the concurrent limit is configured", async () => {
-    const h = await ready({ env: { TELNYX_CONCURRENT_LIMIT: "unknown" } });
-    await lease(h, "S28", "rig-api");
-    expect(await ruleOf(await order(h))).toBe("provisioning.ordering_off");
+  it("no longer waits on the concurrent limit: an unproven or unparseable floor leaves ordering on", async () => {
+    for (const env of [{ TELNYX_CONCURRENT_FLOOR: "unknown" }, {}]) {
+      const h = await ready({ env, validated: null });
+      await lease(h, "S28", "rig-api");
+      expect((await order(h)).status).toBe(200);
+    }
   });
 
   it("needs the S28 lease", async () => {

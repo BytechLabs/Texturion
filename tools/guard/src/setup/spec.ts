@@ -40,6 +40,17 @@ export interface TelnyxSpec {
     concurrent_call_limit: number | "room-minus-robot";
     calls_per_cld: number;
   }[];
+  /**
+   * The validation check's own profile (setup/limit-probe.ts): attached to
+   * nothing, spending nothing, calling nowhere. Its concurrent limit is 1
+   * except while the check runs.
+   */
+  limit_probe: {
+    name: string;
+    concurrent_call_limit: number;
+    daily_spend_limit: string;
+    whitelisted_destinations: string[];
+  };
   call_control_applications: {
     key: "voice" | "robot";
     application_name: string;
@@ -49,6 +60,8 @@ export interface TelnyxSpec {
     outbound_voice_profile: "voice" | "robot";
     /** A number, or "room": the room itself. */
     channel_limit: number | "room";
+    /** Telnyx's call.cost webhook, so the rig measures what each call cost. */
+    call_cost_in_webhooks: boolean;
   }[];
   credential_connections: {
     key: "webrtc" | "sentinel";
@@ -72,6 +85,8 @@ export interface TelnyxSpec {
       connection: "voice" | "robot";
       messaging_profile: string;
       caller_name_lookup?: boolean;
+      /** The rig lanes the number serves; a calls-only number is not ordered while paid dials are off. */
+      lanes: ("texts" | "calls")[];
     }[];
   };
   notifications: { profile_name: string; event_conditions: string[] };

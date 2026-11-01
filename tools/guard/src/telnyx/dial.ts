@@ -1,10 +1,13 @@
 import { COST_USD, DIALS_PER_DAY, DIALS_PER_HOUR } from "../limits";
 import { Refusal } from "../refusal";
-import { admitPaid } from "../state/admission";
+import { admitPaid, type Admitted } from "../state/admission";
+import { recordCeiling } from "../state/concurrency";
 import { dayOf, giveBack, hourOf, tryTake } from "../state/counters";
 import { requireDialLease } from "../state/lease";
 import { charge, refund } from "../state/ledger";
 import { liveLeg, registerLeg } from "../state/legs";
+import { recordSignal } from "../state/signals";
+import type { TelnyxReply } from "./client";
 import { enforceCap } from "./detach";
 import { forward, isDefiniteFailure, isOk, relay, type Handler, type TelnyxRequest } from "./forward";
 import { bodyIsContained } from "./hazards";
@@ -59,12 +62,52 @@ async function shapeOf(request: TelnyxRequest): Promise<Shape> {
   return { newLegs: 0, costUsd: 0, connectionId: null };
 }
 
+/**
+ * Telnyx's documented refusals for the account's limits
+ * (developers.telnyx.com/api/errors): channels exceeded on the account, the
+ * voice profile or the connection, and dials per second with HTTP 429.
+ */
+const CONCURRENCY_CODES: ReadonlySet<string> = new Set(["90041", "90042", "90043"]);
+const DIAL_RATE_CODE = "90103";
+
+function errorCodes(reply: TelnyxReply): string[] {
+  const errors = (reply.body as { errors?: { code?: unknown }[] } | undefined)?.errors;
+  return Array.isArray(errors) ? errors.map((error) => String(error?.code ?? "")) : [];
+}
+
+/**
+ * A refusal for a limit is the account's own answer about that limit. It
+ * records a ceiling and halts the paid lanes like an account signal. The
+ * ceiling has a value only when production was idle at admission: then every
+ * leg up was the rig's, and the account refused one more than it allows.
+ */
+async function noteLimitRefusal(request: TelnyxRequest, reply: TelnyxReply, shape: Shape, admitted: Admitted): Promise<void> {
+  const codes = errorCodes(reply);
+  const concurrency = codes.find((code) => CONCURRENCY_CODES.has(code));
+  const rate = reply.status === 429 && codes.includes(DIAL_RATE_CODE);
+  if (!concurrency && !rate) return;
+  const { ctx } = request;
+  const code = concurrency ?? DIAL_RATE_CODE;
+  if (concurrency) {
+    const counted = admitted.production === "idle" && admitted.liveLegs !== null;
+    await recordCeiling(ctx, {
+      value: counted ? (admitted.liveLegs as number) + shape.newLegs - 1 : null,
+      from: `telnyx-${code}`,
+    });
+  }
+  await recordSignal(ctx, {
+    signal: concurrency ? "telnyx-concurrency-refusal" : "telnyx-dial-rate-refusal",
+    notice_id: null,
+    corroborated_by: "guard",
+  });
+}
+
 export const handleDial: Handler = async (request) => {
   const { ctx } = request;
   if (!request.body) throw new Refusal("request.body_invalid");
   const lease = await requireDialLease(ctx, request.lease, request.caller);
   const shape = await shapeOf(request);
-  await admitPaid(ctx, request.view, { newLegs: shape.newLegs, scenario: lease.scenario });
+  const admitted = await admitPaid(ctx, request.view, { newLegs: shape.newLegs, scenario: lease.scenario });
 
   const day = dayOf(ctx.now());
   const hour = hourOf(ctx.now());
@@ -78,6 +121,7 @@ export const handleDial: Handler = async (request) => {
   if (shape.costUsd > 0) await charge(ctx, shape.costUsd);
 
   const reply = await forward(request);
+  await noteLimitRefusal(request, reply, shape, admitted);
   if (isDefiniteFailure(reply)) {
     if (shape.newLegs > 0) {
       await giveBack(ctx, "dials", day, shape.newLegs);
