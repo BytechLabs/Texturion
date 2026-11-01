@@ -6,6 +6,7 @@ import type { Env } from "./env";
 import { servesHost } from "./http";
 import { ALERT_REPEAT_MS, sealedBundle } from "./ctl";
 import { ORIGIN, TOKENS, call, edgeEnv, fakeGuard, resetEdge, uplinkStub } from "./test/support";
+import { SENTRY_DAILY_MAX } from "./uplink";
 
 let env: Env;
 
@@ -116,6 +117,22 @@ describe("/ctl/alert", () => {
     });
     expect(await (await post(withDsn, alert)).json()).toEqual({ sent: true });
     expect(sent).toHaveLength(2);
+  });
+
+  it("spends the edge's daily production budget, and sends nothing once it is spent", async () => {
+    const withDsn = { ...env, SENTRY_PROD_DSN: PROD_DSN };
+    const rig = uplinkStub();
+    expect((await post(withDsn, alert)).status).toBe(200);
+    for (let i = 1; i < SENTRY_DAILY_MAX.production; i++) expect(await rig.takeSentryBudget(Date.now(), "production")).toBe(true);
+    expect(await rig.takeSentryBudget(Date.now(), "production")).toBe(false);
+
+    await runInDurableObject(uplinkStub(), (_instance, state) => {
+      state.storage.sql.exec("DELETE FROM meta WHERE key LIKE 'alert:%'");
+    });
+    const response = await post(withDsn, alert);
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "budget_spent" });
+    expect(sent).toHaveLength(1);
   });
 
   it("answers other than 200 whenever production did not get it", async () => {
