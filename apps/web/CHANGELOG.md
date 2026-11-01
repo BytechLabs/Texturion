@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.19.2](https://github.com/BytechLabs/Texturion/compare/web-v0.19.1...web-v0.19.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* **web:** ad-click landings keep their attribution before the page settles ([7bc5aa6](https://github.com/BytechLabs/Texturion/commit/7bc5aa615c398cfe83b99110feac7663e1668ad2))
+
+
+### Performance
+
+* **web:** marketing pages load analytics and error reporting after they settle ([7340f68](https://github.com/BytechLabs/Texturion/commit/7340f68ac5bd744ae6268f1f9277f0d68ad47571))
+* **web:** product analytics starts in its own task, after its code has loaded ([a727750](https://github.com/BytechLabs/Texturion/commit/a7277509b9006eb1f1e1f90c218b8c051cd5e295))
+* **web:** the marketing font build is byte-reproducible and its axes are tested ([20ef407](https://github.com/BytechLabs/Texturion/commit/20ef4077812d013c6cf46aa50109f690bc60df7a))
+* **web:** the marketing fonts download 108 KiB less and render the same ([5ade27f](https://github.com/BytechLabs/Texturion/commit/5ade27f0c12dfb2645cc222504fa71bbb630594a))
+
 ## [0.19.1](https://github.com/BytechLabs/Texturion/compare/web-v0.19.0...web-v0.19.1) (2026-11-01)
 
 
