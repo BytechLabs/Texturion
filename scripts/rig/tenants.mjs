@@ -84,12 +84,13 @@ export const TENANTS = [
     // No person. The workspace exists so the rig's own number sweep knows the
     // robot's numbers instead of flagging them as orphans every 15 minutes;
     // the owner is a placeholder account that never signs in. Telnyx routes
-    // these numbers to the robot's own connection, never to the app.
+    // these numbers to the robot's own connection, never to the app, and their
+    // rows name it.
     members: [{ key: "owner", role: "owner", displayName: "Rig Robot", surfaces: [] }],
     numbers: [
-      { role: "ROBOT-1", rings: [], voice: false },
-      { role: "ROBOT-2", rings: [], voice: false },
-      { role: "STRANGER-1", rings: [], voice: false },
+      { role: "ROBOT-1", rings: [], connection: "robot" },
+      { role: "ROBOT-2", rings: [], connection: "robot" },
+      { role: "STRANGER-1", rings: [], connection: "robot" },
     ],
     callerIdLookup: false,
   },

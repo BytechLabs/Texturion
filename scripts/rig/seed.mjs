@@ -111,11 +111,11 @@ function npaOf(e164) {
 /**
  * One transaction for every tenant.
  *
- * @param {{ tenants, ids, userIds: Record<string, Record<string, string>>, standing: Map, profiles?: Record<string, string>, voiceConnectionId: string }} input
+ * @param {{ tenants, ids, userIds: Record<string, Record<string, string>>, standing: Map, profiles?: Record<string, string>, voiceConnectionId: string, robotConnectionId?: string }} input
  *   userIds: tenant key -> member key -> auth user id
  *   profiles: the partition's messaging profile ids by spec key
  */
-export function seedSql({ tenants = TENANTS, ids, userIds, standing, profiles: profileIds = {}, voiceConnectionId }) {
+export function seedSql({ tenants = TENANTS, ids, userIds, standing, profiles: profileIds = {}, voiceConnectionId, robotConnectionId }) {
   const statements = ["begin;"];
   const profileOwner = new Map();
   for (const tenant of tenants) {
@@ -169,7 +169,11 @@ on conflict (company_id, module) do update set disabled_at = null;`);
 
     for (const number of numbers) {
       const numberId = stableUuid(companyId, number.role);
-      const voice = number.voice !== false;
+      // voice_enabled stays on for every row: reconcileVoiceEnablement binds the
+      // voice app onto any active row with it off, and the guard refuses that for
+      // a standing number.
+      const connection = number.connection === "robot" ? robotConnectionId : voiceConnectionId;
+      if (!connection) throw new Error(`rig seed: no ${number.connection ?? "voice"} connection id for ${number.role}`);
       statements.push(`
 insert into public.phone_numbers
   (id, company_id, status, provisioning_key, requested_area_code, country, number_e164,
@@ -177,7 +181,7 @@ insert into public.phone_numbers
 values
   (${lit(numberId)}, ${lit(companyId)}, 'active', ${lit(`rig-seed-${number.role}`)}, ${lit(npaOf(number.e164))},
    'CA', ${lit(number.e164)}, ${lit(number.telnyx_phone_number_id)}, 'provisioned', ${lit(number.role)},
-   ${voice ? lit(voiceConnectionId) : "null"}, ${lit(voice)})
+   ${lit(connection)}, true)
 on conflict (id) do update set
   status = 'active',
   number_e164 = excluded.number_e164,
@@ -224,8 +228,8 @@ function anchorOf(tenant, standing) {
  * One query counting what the seed writes and the database lacks: a company,
  * a member's membership, or a number's row as the partition has it now, in
  * any status but 'released' (what the 15-minute number sweep counts as
- * known). Null when the store does not name every tenant and member yet,
- * which only the seed completes.
+ * known), with its voice flag on. Null when the store does not name every
+ * tenant and member yet, which only the seed completes.
  *
  * @param {{ tenants?, ids, standing: Map }} input
  */
@@ -259,7 +263,8 @@ export function seedGapsSql({ tenants = TENANTS, ids, standing }) {
     where not exists (
       select 1 from public.phone_numbers p
       where p.id = want.id and p.status <> 'released' and p.number_e164 = want.e164
-        and p.telnyx_phone_number_id is not distinct from want.telnyx_id));`;
+        and p.telnyx_phone_number_id is not distinct from want.telnyx_id
+        and p.voice_enabled));`;
 }
 
 /** RFC 6238 code for a base32 secret: SHA-1, six digits, 30-second steps. */
@@ -373,7 +378,7 @@ export async function seed({ workdir, store, partition, log = console.log }) {
     }
   }
 
-  psql(projectId, seedSql({ ids, userIds, standing, profiles: live.messaging_profiles, voiceConnectionId: live.connection_ids.voice }));
+  psql(projectId, seedSql({ ids, userIds, standing, profiles: live.messaging_profiles, voiceConnectionId: live.connection_ids.voice, robotConnectionId: live.connection_ids.robot }));
 
   if (totpEnabled(workdir)) {
     let changed = false;

@@ -89,7 +89,7 @@ test("a store made before a tenant or member existed gains them and keeps every 
 
 test("each number's audience at rest is everyone at note level plus the listed members", () => {
   const { standing, ids, userIds } = fixture();
-  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice" });
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice", robotConnectionId: "stub-robot" });
   const qaW = TENANTS.find((tenant) => tenant.key === "qa-w");
   const devW1 = stableUuid(ids["qa-w"].company_id, "DEV-W1");
   const devW2 = stableUuid(ids["qa-w"].company_id, "DEV-W2");
@@ -110,13 +110,14 @@ test("each number's audience at rest is everyone at note level plus the listed m
   assert.match(sql, new RegExp(userIds["qa-a"].technician + "', 'text'"));
 });
 
-test("numbers carry the guard's ids and profiles, and only tenants' numbers get the voice app", () => {
+test("numbers carry the guard's ids and profiles, and the robot's numbers name the robot connection, not the voice app", () => {
   const { standing, ids, userIds } = fixture();
-  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice" });
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice", robotConnectionId: "stub-robot" });
   assert.match(sql, /'stub-profile-qa-w', false\)/);
   assert.match(sql, /'DEV-W1',\s+'stub-voice', true\)/);
-  assert.match(sql, /'ROBOT-1',\s+null, false\)/);
-  assert.match(sql, /'STRANGER-1',\s+null, false\)/);
+  assert.match(sql, /'ROBOT-1',\s+'stub-robot', true\)/);
+  assert.match(sql, /'ROBOT-2',\s+'stub-robot', true\)/);
+  assert.match(sql, /'STRANGER-1',\s+'stub-robot', true\)/);
   assert.match(sql, /^begin;/);
   assert.match(sql, /commit;$/);
 });
@@ -126,7 +127,7 @@ test("every standing number gets the live row the 15-minute number sweep knows i
   // run, every group number that no row outside 'released' claims by Telnyx
   // id or E.164. The robot's three numbers are in the rig's group too.
   const { standing, ids, userIds } = fixture();
-  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice" });
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice", robotConnectionId: "stub-robot" });
   const rows = [...sql.matchAll(/insert into public\.phone_numbers[\s\S]*?values\s*\(([\s\S]*?)\)\s*on conflict \(id\) do update set([\s\S]*?);/g)];
   assert.equal(rows.length, STANDING_ROLES.length);
   for (const role of STANDING_ROLES) {
@@ -140,6 +141,44 @@ test("every standing number gets the live row the 15-minute number sweep knows i
     assert.match(update, /number_e164 = excluded\.number_e164/);
     assert.match(update, /telnyx_phone_number_id = excluded\.telnyx_phone_number_id/);
   }
+});
+
+test("no seeded number is one the voice reconcile would bind: the guard refuses a standing number's PATCH", () => {
+  // reconcileVoiceEnablement PATCHes connection_id onto every active row whose
+  // voice_enabled is false, and the guard refuses that for a standing number
+  // (provisioning.number_standing).
+  const reconcile = readFileSync(new URL("../../../apps/api/src/telnyx/voice.ts", import.meta.url), "utf8");
+  assert.match(reconcile, /\.eq\("status", "active"\)\s*\.eq\("voice_enabled", false\)/, "the reconcile's selection moved: revisit this seed");
+
+  const { standing, ids, userIds } = fixture();
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice", robotConnectionId: "stub-robot" });
+  const rows = [...sql.matchAll(/insert into public\.phone_numbers[\s\S]*?values\s*\(([\s\S]*?)\)\s*on conflict \(id\) do update set/g)];
+  assert.equal(rows.length, STANDING_ROLES.length);
+  for (const [, values] of rows) {
+    assert.match(values, /, true$/, "every seeded number has voice_enabled on");
+  }
+});
+
+test("each seeded number names the connection the guard's spec binds its role to", () => {
+  const spec = JSON.parse(readFileSync(new URL("../../guard/telnyx-spec.json", import.meta.url), "utf8"));
+  const { standing, ids, userIds } = fixture();
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice", robotConnectionId: "stub-robot" });
+  for (const entry of spec.numbers.standing) {
+    assert.match(sql, new RegExp(`'${entry.role}',\\s+'stub-${entry.connection}', true\\)`), `${entry.role} is on the ${entry.connection} connection`);
+  }
+});
+
+test("a robot number with no robot connection id is refused rather than seeded unbound", () => {
+  const { standing, ids, userIds } = fixture();
+  assert.throws(
+    () => seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice" }),
+    /no robot connection id for ROBOT-1/,
+  );
+});
+
+test("deploy's seed check counts a number row whose voice flag is off as a gap", () => {
+  const { standing, ids } = fixture();
+  assert.match(seedGapsSql({ ids, standing }), /and p\.voice_enabled\)\);$/);
 });
 
 test("deploy's seed check asks for every company, membership and number row as the partition has it now", () => {
@@ -177,13 +216,13 @@ test("a store that does not name every tenant and member always seeds", () => {
 test("a tenant split across messaging profiles is refused", () => {
   const { standing, ids, userIds } = fixture();
   standing.set("DEV-W2", { ...standing.get("DEV-W2"), messaging_profile_id: "stub-profile-qa-a" });
-  assert.throws(() => seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "v" }), /different messaging profiles/);
+  assert.throws(() => seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "v", robotConnectionId: "r" }), /different messaging profiles/);
 });
 
 test("a ring audience naming a stranger to the tenant is refused", () => {
   const { standing, ids, userIds } = fixture();
   const tenants = [{ ...TENANTS[0], numbers: [{ role: "DEV-W1", rings: ["nobody"] }] }];
-  assert.throws(() => seedSql({ tenants, ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "v" }), /rings nobody/);
+  assert.throws(() => seedSql({ tenants, ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "v", robotConnectionId: "r" }), /rings nobody/);
 });
 
 test("stable UUIDs are stable, distinct and version 4 shaped", () => {
@@ -209,7 +248,7 @@ test("the grace workspace holds no standing number, has its own messaging profil
   assert.ok(grace, "QA-G is a tenant");
   assert.deepEqual(grace.numbers, []);
   const anchor = standing.get(grace.anchor);
-  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice" });
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice", robotConnectionId: "stub-robot" });
   const values = sql.slice(sql.indexOf(`('${ids["qa-g"].company_id}', 'QA-G'`)).split("on conflict")[0];
   assert.ok(values.startsWith(`('${ids["qa-g"].company_id}', 'QA-G', '${userIds["qa-g"].owner}', 'CA', '${anchor.e164.slice(2, 5)}',`));
   assert.equal(grace.messagingProfile, "qa-g");
@@ -226,19 +265,19 @@ test("a tenant with no standing number and no anchor in the partition is refused
   const { standing, ids, userIds } = fixture();
   const tenants = TENANTS.map((tenant) => (tenant.key === "qa-g" ? { ...tenant, anchor: "DEV-Z9" } : tenant));
   const profiles = STUB_PROFILES;
-  assert.throws(() => seedSql({ tenants, ids, userIds, standing, profiles, voiceConnectionId: "v" }), /QA-G has no standing number and names no anchor/);
+  assert.throws(() => seedSql({ tenants, ids, userIds, standing, profiles, voiceConnectionId: "v", robotConnectionId: "r" }), /QA-G has no standing number and names no anchor/);
 });
 
 test("no two tenants are seeded onto one messaging profile, since a company's profile is unique", () => {
   const { standing, ids, userIds } = fixture();
   const profiles = (sql) => [...sql.matchAll(/'(stub-profile-[a-z-]+)', (?:true|false)\)/g)].map((match) => match[1]);
-  const seeded = profiles(seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "v" }));
+  const seeded = profiles(seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "v", robotConnectionId: "r" }));
   assert.equal(seeded.length, TENANTS.length);
   assert.equal(new Set(seeded).size, seeded.length, "every company has a profile of its own");
 
   // QA-G on DEV-C1's profile, which the unique column refuses.
   const shared = { ...STUB_PROFILES, "qa-g": standing.get("DEV-C1").messaging_profile_id };
-  assert.throws(() => seedSql({ ids, userIds, standing, profiles: shared, voiceConnectionId: "v" }), /QA-G and QA-C share a messaging profile/);
+  assert.throws(() => seedSql({ ids, userIds, standing, profiles: shared, voiceConnectionId: "v", robotConnectionId: "r" }), /QA-G and QA-C share a messaging profile/);
 });
 
 test("every tenant's messaging profile is a distinct profile the guard's spec creates", () => {
@@ -254,6 +293,6 @@ test("every tenant's messaging profile is a distinct profile the guard's spec cr
 test("the grace workspace is refused when the guard sends no profile for it", () => {
   const { standing, ids, userIds } = fixture();
   const { "qa-g": _, ...without } = STUB_PROFILES;
-  assert.throws(() => seedSql({ ids, userIds, standing, profiles: without, voiceConnectionId: "v" }), /no messaging profile for QA-G/);
-  assert.throws(() => seedSql({ ids, userIds, standing, voiceConnectionId: "v" }), /no messaging profile for QA-G/);
+  assert.throws(() => seedSql({ ids, userIds, standing, profiles: without, voiceConnectionId: "v", robotConnectionId: "r" }), /no messaging profile for QA-G/);
+  assert.throws(() => seedSql({ ids, userIds, standing, voiceConnectionId: "v", robotConnectionId: "r" }), /no messaging profile for QA-G/);
 });

@@ -87,6 +87,14 @@
           "means": "reconcile-numbers tried to reclaim a group number that has no phone_numbers row and whose customer_reference names a settled seeded workspace, and the guard refused it because it is a standing number. Only the guard's standing-number rule stood between the sweep and the number: give the number a row or clear its customer_reference."
         },
         {
+          "match": "TelnyxApiError \"Telnyx 403 on PATCH /v2/phone_numbers/\" with no [codes ...]",
+          "means": "reconcile-voice-enablement tried to bind the voice app onto an active number whose row says its voice is off, and the guard refused it (provisioning.number_standing) because it is a standing number. Only the guard's standing-number rule kept a robot number off the voice app. The seed must write every number's row with voice_enabled on and the connection its role is on (scripts/rig/seed.mjs); run rig seed, or deploy, which reseeds a row with the flag off."
+        },
+        {
+          "match": "level warning, message starts \"voice enablement reconcile: \"",
+          "means": "The same refusal, counted: the voice reconcile left numbers unbound at the end of a run. See the PATCH /v2/phone_numbers/ defect above for the cause."
+        },
+        {
           "match": "level warning, message starts \"reconcile: reclaimed orphaned Telnyx number \"",
           "means": "The same reclaim got through and a number in the rig's group was deleted. If it was a standing number, the guard's standing-number rule failed: critical."
         }

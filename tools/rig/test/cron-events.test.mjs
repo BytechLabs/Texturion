@@ -52,6 +52,9 @@ const SAMPLES = {
     { level: "warning", message: "reconcile: Telnyx number stub-number-id (customer_reference=none) is unknown to phone_numbers" },
     // reconcileNumbers captures the refused DELETE on its own.
     { level: "error", exceptions: [refusedDelete] },
+    // reconcileVoiceEnablement captures each refused bind, then counts them.
+    { level: "error", exceptions: [{ type: "TelnyxApiError", value: "Telnyx 403 on PATCH /v2/phone_numbers/stub-number-id" }] },
+    { level: "warning", message: "voice enablement reconcile: 3 number(s) still failing" },
     { level: "warning", message: "reconcile: reclaimed orphaned Telnyx number stub-number-id (customer_reference=stub-company) - x" },
   ],
   "0 14 * * *": [
