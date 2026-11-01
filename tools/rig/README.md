@@ -1,13 +1,28 @@
-# The rig box: bootstrap, deploy, seed, configuration
+# The rig: bootstrap, deploy, seed, configuration
 
-The `rig` CLI and the box's configuration for the Loonext rig (D142). The
-design is [docs/RIG.md](../../docs/RIG.md); this is how to stand one up and run
-it. Sections 3.2 and 3.3 there are what these files implement.
+The `rig` CLI, the VM's configuration and the Windows host's supervisor for
+the Loonext rig (D142). The design is [docs/RIG.md](../../docs/RIG.md); this
+is how to stand one up and run it. Sections 3.2 and 3.3 there are what these
+files implement.
 
-## A fresh box, as commands
+## A fresh VM, as commands
 
-On Ubuntu Server 24.04, after the founder's one setup session (FA11: BIOS power
-on after AC loss, Ethernet on the guest network, SSH with the agent's key):
+The rig is a VMware Workstation VM on the founder's workstation, made only for
+it, with the Android emulators on the Windows host (docs/RIG.md 3.2). No
+hardware and no setup session: an agent creates it, on Windows.
+
+```sh
+node tools/rig/host/vm/create.mjs --dry-run           # prints every step, changes nothing
+node tools/rig/host/vm/create.mjs --ref main --yes
+node tools/rig/host/vm/create.mjs --sdk-only --yes    # the host SDK and AVDs again, after a licence
+```
+
+`create.mjs` refuses to run if a `.vmx` already exists in
+`F:\loonext-rig\vm`, and it touches no other VM. It downloads the Ubuntu 24.04
+cloud image and verifies it, sizes the system disk and the independent secrets
+disk, writes the `.vmx` and the cloud-init user-data and meta-data, boots the
+VM headless and waits for cloud-init. cloud-init clones the repository and
+runs `bootstrap.sh` inside the VM:
 
 ```sh
 git clone https://github.com/BytechLabs/Texturion.git ~/texturion
@@ -20,10 +35,18 @@ Stripe CLI, Node 22.20.0 (checksum-verified) and pnpm; creates the lingering
 file under `box/`; proves the DNS blocks hold; and enables the user services.
 It is safe to run again.
 
-The phone's access point itself (hostapd on the USB adapter, the interface
-named `rig-ap0` at 10.77.0.1) is not in `bootstrap.sh`: it needs the
-adapter. Until it exists, Caddy still starts (it binds 10.77.0.1 ahead of
-time, `box/sysctl/`) and the access point's dnsmasq waits for the interface.
+The network is VMware's NAT, VMnet8. The VM is 192.168.70.10, its gateway and
+DNS 192.168.70.2, and the Windows host 192.168.70.1. The emulators run on the
+host and reach the VM directly at 192.168.70.10, started with `-dns-server
+192.168.70.10`, where Caddy and dnsmasq listen. nftables in the VM accepts
+ports 22, 443 and 53 from the host only, and drops new outbound connections to
+private ranges except the gateway.
+
+Agents reach the VM over SSH from the host:
+
+```sh
+ssh -i F:/loonext-rig/host/ssh/rig rig@192.168.70.10
+```
 
 Then fill the secret store, as `rig`, and deploy:
 
@@ -37,8 +60,9 @@ node $RIG_HOME/tooling/tools/rig/bin/rig.mjs deploy --ref main
 node $RIG_HOME/tooling/tools/rig/bin/rig.mjs health
 ```
 
-The Android SDK, for `rig apk`, is the one step with a licence to accept (FA11,
-FA15): install the command-line tools under `~/android-sdk`, run
+The Android SDK in the VM is only for `rig apk`, which builds the nonprod APK;
+the emulators run from the Windows SDK. Accepting its licence is the one
+founder step (FA15): install the command-line tools under `~/android-sdk`, run
 `sdkmanager --licenses`, and set `ANDROID_HOME` in `~/.profile`.
 
 ## The secret store
@@ -56,13 +80,17 @@ names it.
 |---|---|---|
 | `edge-origin` | `https://loonext-rig-edge.<acct>.workers.dev` | written once at setup, before rigd can reach the edge |
 | `guard-token-rig-api` | The `rig-api` caller token (Telnyx, Resend, FCM and AI through the guard) | `GUARD_TOKEN_RIG_API` |
-| `stripe-secret-key` | The `loonext-rig` sandbox key; anything not `sk_test_` or `rk_test_` is refused before Stripe is contacted | `STRIPE_SECRET_KEY` (FA5) |
-| `sentry-dsn-rig` | The `loonext-rig` DSN; rewritten to rigd's relay | `SENTRY_DSN_RIG` (FA7) |
+| `stripe-secret-key` | The existing account's test-mode key (FA5 substitution); anything not `sk_test_` or `rk_test_` is refused before Stripe is contacted | `STRIPE_SECRET_KEY` (FA5) |
+| `sentry-dsn-rig` | The existing Sentry project's DSN, for events in environment `rig`; rewritten to rigd's relay | `SENTRY_DSN_RIG` (FA7) |
+| `sentry-dsn-synthetic` | The same project's DSN, for scenario and infrastructure events in environment `synthetic` | `SENTRY_DSN_SYNTHETIC` (FA7) |
+| `hostd-token` | The bearer token the lanes present to hostd through the tunnel | written by hostd over SSH, never by the bundle |
+| `pixel-pin` | The lock PIN every AVD carries; `pixel` names the device-lane emulator `rig-pixel` | written once at setup |
+| `robot-mailbox` | The robot mailbox's address, for S34 | written once at setup |
 | `telnyx-public-key` | The account's webhook signing key, which the API checks relayed events with | `TELNYX_PUBLIC_KEY` |
 | `resend-from` | The From header for API mail, on a domain the Resend team has verified | `RESEND_FROM` |
 | `android-nonprod-google-services.json` | The nonprod app's Firebase config; also the project id the dummy service account names | `ANDROID_NONPROD_GOOGLE_SERVICES_JSON` (FA6) |
 | `firebase-project-id` | Optional: overrides the project id read from the file above | |
-| `stripe-catalog.json` | `{"STRIPE_STARTER_PRICE_ID": ...}` | made by deploy: when an id the template needs is missing, it runs `apps/api/scripts/stripe-setup.ts` (idempotent) against the sandbox |
+| `stripe-catalog.json` | `{"STRIPE_STARTER_PRICE_ID": ...}` | made by deploy: when an id the template needs is missing, it runs `apps/api/scripts/stripe-setup.ts` (idempotent) against the account's test mode |
 | `stripe-webhook-secret` | Optional; otherwise `stripe listen --print-secret` | |
 | `standing-numbers.json` | `[{role, e164, telnyx_phone_number_id, messaging_profile_id}]`, which rigd and the robot read | written by deploy and seed from the partition's `standing` |
 | `rig-ca.crt` | The CA certificate | copied by bootstrap.sh |
@@ -70,6 +98,14 @@ names it.
 | `tenants.json` | Rig-only company ids, members' passwords, the TOTP seed | generated by the first `rig seed` |
 | `supabase-signing-keys.json` | The ES256 key local Supabase signs with | generated by the first deploy |
 | `vapid.json` | The Web Push pair | generated by the first deploy |
+| `hostd-token` | hostd's bearer token | copied into the VM by hostd's tunnel, only when it differs |
+| `emulator-audio-proven` | `{"date":"YYYY-MM-DD","flags":[...]}` | written when spike EA1 passes; without it no audio verdict is given |
+| `play-services-pins.json` | The Play services versionName each emulator's system image pins, by device name | written when the agent moves a pin |
+
+The retired keys `pixel-bluetooth-mac`, `pixel-hub-location` and
+`pixel-hub-port` named hardware the rig no longer has, and nothing reads them.
+`pixel-serial` is retired too: every device's serial and ports come from
+`tools/rig/host/contract.json`.
 
 ## Commands
 
@@ -79,7 +115,7 @@ rig deploy --worktree <path>        the same for a checkout in place
 rig bootstrap-db                    rig settings on the database, pools restarted, posture proved
 rig seed                            tenants, numbers from the guard, ring audiences at rest
 rig cron "<expr>" [--time <ms>]     fire one cron on the local API
-rig health                          R00's checks that need no hardware
+rig health                          R00's checks that need no device
 rig apk --ref <ref>                 build the nonprod APK, refuse any other package, and place it as
                                     work/apk/current.apk (the build it replaces becomes previous.apk)
 rig serve api|web|stripe            what the user units run
@@ -141,6 +177,42 @@ now.
 
 Derived files in a worktree are kept out of git through the repository's
 `info/exclude`, because old refs predate any `.gitignore` line for them.
+
+## Host side
+
+`tools/rig/host/hostd.mjs` is the rig's supervisor on the Windows workstation:
+plain Node 22, no dependencies. Its state lives under `RIG_HOST_ROOT`
+(default `F:\loonext-rig`), and it addresses only the `.vmx` that carries the
+rig's marker line.
+
+```
+hostd serve                                    the supervisor: VM, emulators, adb, tunnel, the token API
+hostd vm status|start|stop|revert <snapshot>   the rig's own VM; revert restarts it
+hostd devices list|boot <name> [--cold] [--wipe]|kill <name> [--hard]
+hostd doctor                                   the VM, keys, SDK, AVDs, WHPX and the host's power facts
+hostd install-startup --yes                    a Startup-folder entry that runs serve at logon
+```
+
+`tools/rig/host/contract.json` is the one list of ports and devices, read by
+hostd and by the VM's lanes:
+
+| What | Port | Where |
+|---|---|---|
+| hostd's token API | 15900 | host loopback; the same port in the VM through the tunnel |
+| The rig-only adb server | 5137 | host loopback; the VM reaches it at 15037 |
+| `pixel` (`rig-pixel`, API 36, Pixel 8 profile, kept warm) | console 5560, gRPC 8560 | host loopback, and the VM through the tunnel |
+| `emulator-34` (`rig-api34`) | console 5554, gRPC 8554 | the same |
+| `emulator-35` (`rig-api35`) | console 5556, gRPC 8556 | the same |
+| `emulator-36` (`rig-api36`) | console 5558, gRPC 8558 | the same |
+
+At most 3 emulators are booted at once. The tunnel is one SSH connection the
+host opens to `rig@192.168.70.10` with `F:\loonext-rig\host\ssh\rig`, pinning
+the host key cloud-init pre-seeded; each port above is one `-R` bind on the
+VM's loopback, which the VM's sshd `PermitListen` allows and nothing else.
+hostd writes `hostd-token` into the VM's store over that connection. The
+emulators run under WHPX with `-accel on`, from the Windows SDK, with their
+AVD and emulator homes under `F:\loonext-rig`. FA16, an elevated ONSTART task,
+would start `serve` at boot instead of at logon.
 
 ## Workstation spikes (Phase 2, spikes 3-5)
 

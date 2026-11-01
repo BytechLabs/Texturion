@@ -6,7 +6,7 @@
     "Scenarios that name a journey carry the journey's measured values. Every other split between dials and far_end_legs, and every other peak, is a planning estimate that keeps 4.2's total for the run.",
     "runs: when the rig starts the scenario. A run with dials sits on a day of its period (offset_days, counted from the cycle's day 0) and an hour inside the dial window (hour_utc). A scenario with no dials runs at any hour, so its runs carry only a period, and an offset_days when it must fall on one day of its period: S29 runs the day after S28. Runs after the first are the ones 4.2's row names, labelled as it names them: its variants at the period it gives them, or its stated number of runs. Each is budgeted at the scenario's dials.",
     "scheduled: false means the cadence is not in force under the current cap. hourly-cap: one run has more rig dials than the hourly cap, so no hour can hold it. phase-4: an optional lane that waits on Phase 4.",
-    "4.2 as written does not fit the default cap: S07, S08, S10 and D01 need 4 dials in one run and S09 needs 5, against 3 an hour. The schedule here is 4.2's cadence for everything that fits, laid out one hour per period: 04:00 daily wake (D02), 05:00 the daily G01 with S02 every other day, 06:00 the every-3-days runs, 07:00 weekly, 08:00 fortnightly, 09:00 monthly."
+    "4.2 as written does not fit the cap: S07, S08, S10 and D01 need 4 dials in one run and S09 needs 5, against 3 an hour. The schedule here is 4.2's cadence for everything that fits, laid out one hour per period: 04:00 daily wake (D02), 05:00 the daily G01 with S02 every other day, 06:00 the every-3-days runs, 07:00 weekly, 08:00 fortnightly, 09:00 monthly."
   ],
   "budget": {
     "daily_cap": 18,
@@ -15,7 +15,7 @@
     "retry_reserve": 0.2,
     "repro_reserve_dials": 60,
     "window_utc": [4, 10],
-    "source": "docs/RIG.md 4.1, the default cap until Telnyx states its limits in writing; the window is 3.5's 04:00-10:00 UTC until production has 28 days of call history. The check reads each of these from the doc and fails when one here differs."
+    "source": "docs/RIG.md 4.1: the guard's own cap, inside the Paid level's 10 an hour and 100 a day account-wide; the window is 3.5's 04:00-10:00 UTC until production has 28 days of call history. The check reads each of these from the doc and fails when one here differs."
   },
   "lanes": [
     { "id": "health", "what": "The rig's own health check" },
@@ -25,7 +25,7 @@
     { "id": "browser", "what": "Calls between the rig's browser pages and the robot" },
     { "id": "texts", "what": "Texts, and the STOP and START lane" },
     { "id": "account", "what": "Numbers, billing, AI, sign-in, email and sign-up" },
-    { "id": "device", "what": "The Pixel, and QA-A's dispatcher page" },
+    { "id": "device", "what": "The device-lane emulator (AVD rig-pixel, a Pixel 8 profile), and QA-A's dispatcher page" },
     { "id": "emulator", "what": "The Android emulators" },
     { "id": "carrier", "what": "Calls that leave the Telnyx network" }
   ],
@@ -34,6 +34,16 @@
       "id": "X25",
       "gap": "A rig credential's SDK ringing another internal credential directly",
       "named_by": ["G02"]
+    },
+    {
+      "id": "X6",
+      "gap": "Wake, Doze and call audio on a physical Android phone",
+      "named_by": ["D03"]
+    },
+    {
+      "id": "X27",
+      "gap": "Packet loss on the Android device's network path",
+      "named_by": ["D13"]
     }
   ],
   "scenarios": [
@@ -703,7 +713,7 @@
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 2,
       "min_room": 3,
-      "note": "The ring leg to the Pixel, plus the ring-me leg its answer opens."
+      "note": "The ring leg to the device-lane emulator, plus the ring-me leg its answer opens."
     },
     {
       "id": "D02p",
@@ -723,7 +733,7 @@
     },
     {
       "id": "D03",
-      "name": "Natural Doze",
+      "name": "Stepped Doze",
       "lane": "device",
       "far_end": "ROBOT-1",
       "cadence": "Weekly (3)",
@@ -918,7 +928,7 @@
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 0,
       "min_room": 2,
-      "note": "Optional, Phase 4, and only once Telnyx agrees (2.3)."
+      "note": "Optional, Phase 4, and off by default (2.3)."
     }
   ]
 }

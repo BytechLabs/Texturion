@@ -93,7 +93,7 @@ artifact. That last part matters more than the environment itself: promoting the
 ## Repro and testing without staging: the rig (D142)
 
 Step 3 above, a Telnyx sub-account, is superseded. Calls and texts are
-reproduced on the rig, one box running the whole stack locally at any ref and
+reproduced on the rig, the rig VM running the whole stack locally at any ref and
 reaching real Telnyx only through a guard that confines it to a capped partition
 of the existing account. Production remains the only deployed environment. See
 `docs/RIG.md`.

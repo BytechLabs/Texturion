@@ -2,7 +2,7 @@
 
 **Status: CURRENT DIRECTION (D142).** The design and runbook for the rig. Where it disagrees with `docs/DECISIONS.md`, that file wins.
 
-Prepared 2026-10-30, revision 2. Brought in line with what was built on 2026-10-31 (D142's update of that date).
+Prepared 2026-10-30, revision 2. Brought in line with what was built on 2026-10-31 (D142's update of that date), and with D142's update of 2026-11-01: no Telnyx ticket and no new hardware.
 
 This replaces the separate-accounts design, which was rejected only because it needed new vendor accounts. Everything from that design that did not depend on a new account is kept:
 - the Phase 0 safety work;
@@ -30,50 +30,43 @@ Two independent reviews scored three no-new-account designs, and both chose this
 
 ## 1. The recommendation in three sentences
 
-1. Build one dedicated, always-on Linux mini-PC, **the rig**. It runs all of Loonext locally at any version: local Supabase, the API and web Workers under wrangler, browsers with fake microphones, Android emulators, a SIM-less Pixel, and a robot that is the far end of every call. An agent drives it and works inside it completely, like an EDR developer's repro VM.
+1. Run one dedicated VMware Workstation VM on your workstation, **the rig**, with its Android emulators on the Windows host. It is on while the workstation is on. It runs all of Loonext locally at any version: local Supabase, the API and web Workers under wrangler, browsers with fake microphones, Android emulators (one with a Pixel 8 profile standing in for the technician's phone), and a robot that is the far end of every call. An agent drives it and works inside it completely, like an EDR developer's repro VM.
 2. The rig reaches real Telnyx only through **`loonext-telnyx-guard`**, a policy-enforcing Worker in the existing Cloudflare account.
    - It holds the one extra Telnyx key.
    - It lets calls and texts flow only between numbers in a capped partition of the existing Telnyx account.
    - Production is changed first, through release-please, so that its account-wide number sweep acts only on numbers it positively owns.
    - Test calls are sized so that they can never take the call capacity a customer's call needs.
-3. Every scenario runs on a schedule, is judged by machine, and turns each distinct failure into one issue that an hourly cloud agent triages.
-   - Cost: about **$24/month**, with Telnyx hard-capped at $35 all-in, plus about **$918 one-time**.
+3. Every scenario runs on a schedule, is judged by machine, and turns each distinct failure into one issue that an hourly agent on the host triages.
+   - Cost: about **$24/month**, with Telnyx hard-capped at $35 all-in, plus an estimated $2-6 of workstation power and about **$8 one-time**. Hardware is $0.
    - No new vendor account anywhere.
    - No recurring founder act in operating it.
 
 ### Your part
 
-**Today (15 minutes): FA0.** Read your Telnyx account level and send the support ticket the agent drafts. The answer decides how much of the matrix can run, and whether paid calls can run at all.
-
-**Optional hardening, not required (see the amendment above).**
+**Nothing is required of you.** There is no Telnyx ticket and no hardware to buy (D142, update of 2026-11-01). The rig is a new VMware VM that an agent creates, plus Android emulators on the Windows host. What is left is optional:
 - **FA1:** agents move to their own Windows user, and production keys leave every file they can read.
 - **FA2:** that user's GitHub login becomes a token that cannot approve deployments or change settings.
+- **FA16:** an elevated ONSTART task that starts the rig at boot, with your password stored. Without it the rig starts when you log on.
+- **Active hours and overnight power:** moving Windows Update's active hours to cover 04:00-10:00 UTC, and leaving the PC on overnight, keep the dial window lit. Without them the rig loses some windows, and says so as infrastructure, never as a product failure (section 3.2).
 
-**What these would close.** Today every agent runs as you, so it can:
+**What FA1 and FA2 would close.** Today every agent runs as you, so it can:
 - drive your real Chrome, including your vendor console sessions, through Claude in Chrome;
 - read your Windows credential store;
 - read production keys in `~/.claude/settings.json` and in commented lines of `apps/api/.dev.vars`. Checked by key name on 2026-10-30: the commented lines include the production Telnyx key, the live Stripe key, the Supabase secret key, database password and access token, and the production VAPID pair.
 
 Any one of those would bypass an approval gate, which is why the amendment does not rely on one.
 
-**One time only (about 4 hours in all; click paths in section 10).**
-- one Telnyx key;
-- two placeholder Workers, five scoped Cloudflare tokens and one email address;
-- a Stripe sandbox;
-- a Firebase app and service account;
-- two Sentry projects;
-- a Resend key;
-- a GitHub App, five environments and one ruleset;
-- a Claude cloud environment;
-- buying the hardware, plus one setup session;
-- signing in to Claude on the rig;
-- (no guard approval: agents deploy it, per the amendment).
+**One time, already done or substituted (section 10).**
+- Done: the guard's Telnyx key (FA3), the Firebase app and service account (FA6), the rig GitHub App (FA9) and the `agent_diag` login (FA13).
+- Substituted with what already exists: the existing Cloudflare Workers token (FA4), the existing Stripe account's test mode (FA5), the existing Sentry project with environments `rig` and `synthetic` (FA7), and the existing send-only Resend key (FA8).
+- Dropped: the Claude cloud environment (FA10; triage runs on the host) and signing in to Claude on the rig (FA12; host agents drive the VM over SSH).
+- Withdrawn: the Telnyx ticket (FA0) and the hardware (FA11).
+- No guard approval: agents deploy it, per the amendment.
 
 **Recurring while the rig operates: none.** The system detects each of these first, and only then might it reach you:
-- a Telnyx fraud review (test traffic has already stopped itself);
-- a phone, battery, hub or box that physically breaks;
-- Anthropic signing the rig out of Claude (tests and triage keep running);
-- about once a year, accepting a new Android SDK licence when the agent upgrades the pinned SDK.
+- a Telnyx fraud notice (the paid lanes have already latched off, section 3.5);
+- the workstation being off or rebooting in the dial window (reported as infrastructure);
+- about once a year, accepting a new Android SDK licence when the agent upgrades the pinned SDK (FA15).
 
 **Outside the rig.** Nothing changes. Under the amendment, agents keep making production writes as they do today, and guard deployments need no tap.
 
@@ -85,17 +78,16 @@ Any one of those would bypass an approval gate, which is why the amendment does 
 
 | Existing account | What is created inside it |
 |---|---|
-| **Telnyx** (the production account) | **Key:** one API key, `nonprod-guard`, held only by the guard. **Billing group:** `loonext-nonprod`. **Voice:** two outbound voice profiles; two Call Control apps; two credential connections (`nonprod-webrtc`, with no outbound voice profile, and `nonprod-sentinel`, which has one credential, no numbers and is used only by test G02). **Messaging:** one robot messaging profile, plus four tenant profiles that the rig app creates through the guard (at most six in all). **Numbers:** eight Canadian local numbers, plus one bought and released each month. **Other:** one notification channel and its settings; telephony credentials created and deleted at runtime. |
-| **Cloudflare** (the production account) | **Workers:** `loonext-rig-edge`, on workers.dev, and `loonext-telnyx-guard`, with no public URL and reached only through the edge. Each has its own Durable Object. **Rate-limit namespace ids:** 3001-3009. **Tokens:** five account-owned tokens: `rig-deploy`, `guard-deploy`, `guard-attest-read`, `production-deploy` and `agent-logs-read`. **Email:** one Email Routing address on loonext.com that delivers to the edge. **Not created:** KV, D1, tunnels, Access apps, DNS records. |
+| **Telnyx** (the production account) | **Key:** one API key, `nonprod-guard`, held only by the guard. **Billing group:** `loonext-nonprod`. **Voice:** three outbound voice profiles (one of them, `nonprod-limit-probe-ovp`, has no connection and exists only to measure the concurrent limit); two Call Control apps; two credential connections (`nonprod-webrtc`, with no outbound voice profile, and `nonprod-sentinel`, which has one credential, no numbers and is used only by test G02). **Messaging:** one robot messaging profile, plus four tenant profiles that the rig app creates through the guard (at most six in all). **Numbers:** eight Canadian local numbers, plus one bought and released each month. **Other:** one notification channel and its settings; telephony credentials created and deleted at runtime. |
+| **Cloudflare** (the production account) | **Workers:** `loonext-rig-edge`, on workers.dev, and `loonext-telnyx-guard`, with no public URL and reached only through the edge. Each has its own Durable Object. **Rate-limit namespace ids:** 3001-3009. **Tokens:** none new. The existing Workers token, held only in the `main`-only environments `guard` and `rig-cloud`, deploys the guard and the edge (FA4 substitution). The five scoped tokens (`rig-deploy`, `guard-deploy`, `guard-attest-read`, `production-deploy` and `agent-logs-read`) are optional hardening; `guard-attest-read` is still wanted for attestation. **Email:** one Email Routing address on loonext.com that delivers to the edge. **Not created:** KV, D1, tunnels, Access apps, DNS records. |
 | **Supabase** | Nothing. The rig runs a local Supabase stack. |
-| **Stripe** | One sandbox, `loonext-rig`, with its own catalog, customer portal and tax settings. Test clocks are created per run. |
+| **Stripe** | Nothing. The rig uses the existing account's test mode: its test-mode key and test prices (FA5 substitution). Test clocks are created per run. Every customer and subscription the rig creates carries `metadata[loonext_rig]=1`, and every test clock a name starting `loonext_rig `, because Stripe keeps no metadata on a clock. Before a delete or a clock advance the object is read, and the change is refused unless it carries the tag, so the rig never changes what a developer made. S32's subscription comes from the app's own Checkout, which sets no metadata, so rigd tags it only after the rig's database shows that S32's own sign-up address owns the workspace that names it. |
 | **Firebase / Google Cloud** (the existing project) | Android app `com.loonext.android.nonprod`. Service account `fcm-rig-sender`, with the messaging role only, and one key. |
-| **Sentry** (the existing org) | Projects `loonext-rig` and `loonext-synthetic`. A read-only internal integration, `agent-read`. Spike protection switched on. |
-| **Resend** (the existing team) | One sending-only key, `rig-sending`, restricted to the loonext.com domain. |
+| **Sentry** (the existing org) | No new project. The existing project carries rig and synthetic events under the environments `rig` and `synthetic` (FA7 substitution). A read-only internal integration, `agent-read`. Spike protection switched on. |
+| **Resend** (the existing team) | Nothing. The guard reuses the existing send-only key, and its recipient rules confine it (FA8 substitution). |
 | **GitHub** (BytechLabs org, Texturion repo, your user account) | **App:** `loonext-rig`. **Environments:** `guard`, `rig-cloud`, `rig`, `production` and `production-ops`. **Ruleset:** one, on `main`. **Workflows:** `guard.yml`, `rig-cloud.yml`, `rig-secrets.yml` and `ops.yml`. **Label:** `synthetic`. **Token:** a fine-grained token in your account, used only by the agent Windows user. |
-| **Claude** (your existing plan) | Cloud environment `synthetic-triage`, with one hourly scheduled task. Remote Control sessions on the rig and in the agent Windows user. |
-| **Your PC** (not a vendor account) | A standard local Windows user, `loonext-agents`. It needs no Microsoft account. |
-| **No account** | The mini-PC, a used Pixel with no SIM, a USB hub, Wi-Fi and Bluetooth adapters, and possibly a travel router. |
+| **Claude** (your existing plan) | Nothing new. Triage runs from host agents (FA10 dropped), and host agents reach the rig over SSH (FA12 dropped). |
+| **Your PC** (not a vendor account) | The VMware Workstation VM `loonext-rig`, the Android emulators and their SDK, and `hostd` (section 3.2). Optionally (FA1), a standard local Windows user, `loonext-agents`, which needs no Microsoft account. |
 
 **Not created anywhere:**
 - any vendor account, sub-account, managed account, organisation, tenant, seat or mailbox;
@@ -113,20 +105,20 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | Shared thing | Risk to production | What contains it |
 |---|---|---|
 | **Your workstation identity.** Agents run as you. | An agent drives your Chrome into a vendor console; reads your credential store; or reads production keys from settings or env files. Any of these bypasses every control below. | Accepted under the amendment (section 12, risk 4). The reach audit lists every credential an agent session can reach, and the secret scanner stops a push while any file git would stage holds a live key (section 3.1). FA1 and FA2 stay optional: with them, agents run only under a separate Windows user with no console sessions, no Claude in Chrome and no production keys, and its GitHub token cannot approve deployments. |
-| **Telnyx concurrent call limit.** It is account-wide: default 2, 10 after Level 2 (support.telnyx.com/en/articles/1130717, fetched 2026-10-30). At the Paid level it is 5 concurrent, 10 outbound an hour and 100 a day (developers.telnyx.com account levels, Paid, checked 2026-10-29). | A test call holds outbound legs (robot dial, ring legs, ring-me) while a customer calls in. The customer's ring legs are refused, and the customer reaches nobody. | The guard sets nonprod concurrency to **room = account limit minus production reserve**. The reserve is production's largest ring audience plus 1, read daily from production counts. Scenarios that need more legs than the room are not scheduled and are named (section 4.1). During a run, the guard also polls production's active calls every 2 seconds and hangs up every test leg on the first production call (verify the active-calls API). The dial window is the six quietest hours in production's own call history, rechecked monthly. Paid lanes stay off until FA0 returns the real limit. |
-| **Telnyx surcharges and fraud profile, both computed on account totals.** Surcharges apply to short calls above 15% and to abandoned calls above 20%, at $0.005 each (support.telnyx.com/en/articles/1130707 and /12805746, checked 2026-10-29). | With one production number, test traffic will probably be most of the account's calls. The account's ratios and fraud profile therefore become the rig's. | The guard keeps the **whole account's** ratios (production plus rig, counts from detail records) at or below 15% abandoned and 10% short. Ring audiences are shrunk to one surface wherever the scenario does not test multi-ring, so cancelled legs are rare. FA0 tells Telnyx this traffic will be the majority, and asks whether cancelled ring legs count. If they count and the projection goes above 15%, multi-ring scenarios run monthly. The dollar effect is cents; the profile effect is what matters. |
-| **Telnyx fraud holds.** Their scope is not disclosed (support.telnyx.com/en/articles/3610162 and /7915224, checked 2026-10-30). | A hold triggered by test calls also stops production calling. | Traffic is on-net only, with about 13 dials a day on average and calls of 20-50 seconds, inside the quiet window. A written notice goes to Telnyx (FA0). Any suspicious-traffic or account notice halts paid tests for 7 days and raises a production alert. **Residual, accepted: the largest risk in this design.** |
+| **Telnyx concurrent call limit.** It is account-wide: default 2, 10 after Level 2 (support.telnyx.com/en/articles/1130717, fetched 2026-10-31). At the Paid level it is 5 concurrent, 10 outbound an hour and 100 a day (developers.telnyx.com account levels, Paid, checked 2026-10-29). These come from two separate level frameworks, an account sits in one of them, and no API exposes the level or the limit. | A test call holds outbound legs (robot dial, ring legs, ring-me) while a customer calls in. The customer's ring legs are refused, and the customer reaches nobody. | The guard sets nonprod concurrency to **room = limit in force minus production reserve**. The reserve is production's largest ring audience plus 1, read daily from production counts. The limit in force comes from the guard's **proof ladder** (section 3.5): a floor of 2 while unproven, which leaves room 0 and no paid dials; a $0 validation check on a voice profile with no connection, because Telnyx's API spec says a profile's `concurrent_call_limit` "Must be no more than your global concurrent call limit"; a lower bound from production's own overlapping calls; and ceilings from Telnyx's refusal codes 90041, 90042 and 90043 (account, voice profile, connection) and 90103 with HTTP 429 (dial rate). Scenarios that need more legs than the room are not scheduled and are named (section 4.1). During a run, the guard also polls production's active calls every 2 seconds per connection and hangs up every test leg on the first production call; an unknown answer refuses. The dial window is the six quietest hours in production's own call history, rechecked monthly. |
+| **Telnyx surcharges and fraud profile, both computed on account totals.** Surcharges apply to short calls above 15%, at $0.01 a call, and to abandoned calls above 20%, at $0.005 a call (support.telnyx.com/en/articles/1130707 and /12805746, checked 2026-10-31). | With one production number, test traffic will probably be most of the account's calls. The account's ratios and fraud profile therefore become the rig's. | The guard keeps the **whole account's** ratios (production plus rig, counts from detail records) at or below 15% abandoned and 10% short. Abandoned calls are assumed to include the ring legs Loonext cancels, since Telnyx counts a call the caller's side hangs up while ringing. Ring audiences are shrunk to one surface wherever the scenario does not test multi-ring, so cancelled legs are rare. If the projection goes above 15%, multi-ring scenarios run monthly. The dollar effect is cents; the profile effect is what matters. |
+| **Telnyx fraud holds.** Their scope is not disclosed (support.telnyx.com/en/articles/3610162 and /7915224, checked 2026-10-30), and the only stated way to lift one is emailing support. | A hold triggered by test calls also stops production calling. | Traffic is on-net only, with about 13 dials a day on average and calls of 20-50 seconds, inside the quiet window. A hold is assumed account-wide and irreversible, so the first fraud-type notice latches the paid lanes off until a reviewed change to `SIGNAL_LATCH_RESET`, and raises a production alert. Any other notice halts paid tests for 7 days. **Residual, accepted: the largest risk in this design.** |
 | **Telnyx prepaid balance.** Auto-recharge is off and the credit limit is 0 (read 2026-10-29). | Test traffic drains production's money. | Telnyx-enforced daily limits on every nonprod profile total $0.78 a day, about $35.50 a month with rentals. The guard's own cap is $35 all-in. Below a floor (the larger of $100 and 14 days of production spend), the guard refuses all test spend. A production alert fires at $150. Inbound legs and texts are not capped by Telnyx: the edge rejects strangers, and the guard detaches any number that strangers flood. |
 | **Production's account-wide number sweep.** `reconcileNumbers` runs every 15 minutes, lists every number and can DELETE. | Production flags or releases test numbers, or the rig's copy of the code releases production numbers. | Positive ownership: production acts only on numbers with no billing group, and the rig only on its own group. The group is set in the order body. The guard orders nothing until production's `/health` reports the rule. It checks the first order actually carries the group, and releases the number at once if not. Production raises an alert if a number it would own shows up with a group. |
 | **API keys with full account power.** Telnyx keys cannot be scoped (developers.telnyx.com authentication docs, checked 2026-10-30). | Any second key can release production numbers or text anyone. | Only the guard holds one. It has no public URL. It deploys only from `main`, after its policy tests pass (no approval, per the amendment). Attestation runs hourly and a key inventory runs weekly. **Residual, accepted:** a merged but faulty guard can reach production. |
 | **One webhook signing key for the whole account.** | A signature cannot tell test events from production events. | The edge decides ownership by resource: connection for call events, messaging profile for text events. Production's handler is deliberately left unchanged. |
 | **Internal SIP calling.** Production's WebRTC connection accepts SIP calls from any connection on the account. | A test could ring a real member's device. | The guard dials a SIP address only if its username is on the rig's own connection. Calls that the apps' SDK places itself bypass the guard, so test G02 checks weekly whether a rig credential can ring a sentinel credential. If it can, that residual is named (X25). |
-| **Cloudflare account and tokens.** | A test token redeploys production or the guard. | Every automation token is scoped to named Workers (granular Worker permissions, Cloudflare changelog 2026-09-15). Production CI moves to its own scoped token. Your broad user tokens never reach the agent user. |
+| **Cloudflare account and tokens.** | A test token redeploys production or the guard. | The existing Workers token deploys the guard and the edge, and sits only in the `guard` and `rig-cloud` environments, which take deployments from `main` only, so what it deploys is merged code (FA4 substitution). The VM never holds it. Scoping each automation token to named Workers (granular Worker permissions, Cloudflare changelog 2026-09-15) stays optional hardening. |
 | **Cloudflare rate-limit namespaces.** Counters are shared per id across the account (developers.cloudflare.com rate-limit binding docs, updated 2026-10-21). | Test traffic spends production's limiters. | The local stack's limiters are emulated on the rig. The cloud Workers use ids 3001-3009, and CI forbids 1001-1013 and 2001. |
 | **Workers AI pool.** 10,000 free neurons a day per account, then $0.011 per 1,000 (developers.cloudflare.com/workers-ai/platform/pricing, updated 2026-10-20). | Local `wrangler dev` bills AI to the production account. | The rig's AI calls go through the guard, which caps them at 2,000 neurons a day. |
 | **Cloudflare account standing.** | A Trust and Safety action against a test page hits the production account. | The edge serves no HTML and sets no cookies. The guard has no public URL. The Loonext app on the rig is never public. |
 | **Firebase project.** One FCM credential reaches every app in the project. | A leaked key could push to production iOS or Android devices. | The key is held only in the guard. The guard sends Android-only messages to the nonprod package: it moves any top-level notification into the Android block, drops the iOS and web blocks, and forces the package name. The rig never holds a production device token. |
-| **Sentry org quota.** | Test events crowd out production's errors. | Separate projects. A relay on the rig caps rig plus synthetic events at 100 a day and 3,000 a month, and alerts at 70%. Spike protection is on. |
+| **Sentry project and quota.** | Test events crowd out production's errors, or a rig event fires a production alert rule. | Rig and synthetic events carry the environments `rig` and `synthetic` in the existing project (FA7 substitution), and production's alert rules filter on `environment:production`. A relay on the rig caps rig plus synthetic events at 100 a day and 3,000 a month, and alerts at 70%. Spike protection is on. |
 | **Resend domain reputation and quota.** | A bounce from a failed robot mailbox, or a complaint, pauses sending for the whole team, which stops production password resets. | Default recipients are Resend's test addresses, which do not affect reputation (resend.com/docs, send-test-emails, checked 2026-10-30). The robot mailbox is used only by the weekly S34 test, and only while the edge's mail heartbeat is fresh. The edge's mail handler never rejects. Sending to the mailbox halts the first time a sent mail fails to arrive within 10 minutes. At most 10 emails a day. |
 | **GitHub approval gate.** | Agents approve their own guard or ops run. | Under the amendment there is no gate to approve: guard and ops runs need no approval. Both environments take deployments from `main` only, so what runs is merged code (FA9). |
 | **Claude plan limits.** | Rig sessions compete with your other sessions. | Triage runs only when there are failures to triage. |
@@ -141,7 +133,7 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | A separate webhook signing key | **Rebuilt** as ownership checks by resource. |
 | Separate Cloudflare accounts for the test app and the guard | **Rebuilt** with scoped tokens, disjoint ids and a guard with no public URL. Your own dashboard login still sits above everything. |
 | A hosted, always-on nonprod: real Workers runtime, hosted Supabase auth settings, and cloud lanes that survive a home outage | **Accepted.** Hosted behaviour is defect X23, partly covered by the production watches (P01, PW01). The rig is a single point of failure, watched by a dead-man. |
-| A carrier SIM handset (K00-K05): real carrier calls both ways, carrier texts, STIR/SHAKEN, caller-name display, a STOP sent from a real phone | **Accepted** as defects X5, X10, X17 and X20. P01 measures real customers' rings passively, but with one production number today it mostly reports "insufficient sample". K01 can prove outbound carrier egress once Telnyx agrees. |
+| A carrier SIM handset (K00-K05): real carrier calls both ways, carrier texts, STIR/SHAKEN, caller-name display, a STOP sent from a real phone | **Accepted** as defects X5, X10, X17 and X20. P01 measures real customers' rings passively, but with one production number today it mostly reports "insufficient sample". K01 could prove outbound carrier egress, but by default it never runs (Phase 4, optional). |
 | Real-iPhone lanes and Loonext's own APNs wake path | **Accepted** as defect X21, unless an Apple membership already exists. The iOS Simulator lane was dropped too: it could not test wake, and the iOS app hard-codes production hosts. No customer runs an iOS build today, because `ship.yml` archives it unsigned. iOS keeps its CI unit tests. |
 | Calendar test accounts | **Accepted** as defect X22. A Google partial path that needs no new account is offered in Phase 4. |
 | A separate path to Telnyx's Verified level | **Accepted.** The shared account's level governs both production and the rig. |
@@ -193,27 +185,60 @@ They live in your password manager and in two GitHub environments:
 
 **Local defaults.** In the agent user's clone, `apps/api/.dev.vars` carries a fake Telnyx key, with `TELNYX_API_BASE` pointing at the e2e fake. Plain `wrangler dev` on the workstation therefore cannot reach real Telnyx.
 
-### 3.2 The rig box
+**Reaching the rig.** Host agents drive the rig VM over SSH with the rig's own key (section 8), and nothing is signed in to Claude inside the VM (FA12 is dropped). The boundary runs one way: the host reaches into the VM, and the VM holds no host credential and cannot reach the host's drives (section 6, guarantee 18). So an agent session on the host keeps its production reach, and the rig does not gain it.
 
-**Hardware and OS.** A dedicated mini-PC: 8 cores, 32 GB RAM, 1 TB NVMe, wired Ethernet. It runs Ubuntu 24.04 LTS with Docker Engine (open source, no Docker account) and native KVM.
-- The BIOS powers it back on after a power loss.
-- Unattended upgrades reboot it outside the dial window.
+### 3.2 The rig VM
 
-**Why not your workstation.** It holds your sessions, Windows Update reboots it, you use it daily, and it is paired with your personal phone.
+No hardware is bought (D142, update of 2026-11-01). The rig's Linux half is a new VMware Workstation VM on your workstation, made only for it, and its Android emulators run on the Windows host beside it.
+
+**The VM.**
+- `loonext-rig`, in `F:\loonext-rig\vm`, booted from the Ubuntu 24.04 cloud image (release 20261017, checksum- and signature-verified) with cloud-init read from guestinfo. An agent creates it unattended (`tools/rig/README.md`, "A fresh VM"). The server ISO was not used, because it would need remastering.
+- 8 vCPU, 24 GB of RAM and a 90 GB disk, plus a 4 GB independent-persistent disk for `$RIG_HOME/secrets`, so a snapshot revert never rolls secrets back.
+- Docker Engine (open source, no Docker account), Caddy, dnsmasq, nftables and the rig's services, as `bootstrap.sh` installs them.
+- No shared folders, clipboard, drag and drop, USB, sound or `vhv`.
+- A marker line in its `.vmx` identifies it. hostd addresses only that file and never runs `vmrun list`. The 12 VMs already in VMware's inventory, WSL2 Ubuntu and docker-desktop are never used or touched.
+- Snapshots are taken powered off. The VM is never suspended, because Host VBS mode re-checks CPU features on resume.
+- Unattended upgrades reboot the VM outside the dial window. A Windows Update reboot of the host is a named risk (section 12, risk 15).
+
+**Why the emulators are not inside it.** Hyper-V stays on, so Workstation runs every VM in Host VBS mode, which gives the guest no nested virtualisation, and Google says an accelerated emulator cannot run inside another VM (developer.android.com/studio/run/emulator-acceleration). So they run on Windows under WHPX, which is already enabled.
+
+**Why not WSL2.** A WSL distro mounts the Windows drives, which hold production keys in `apps/api/.dev.vars`, and shares one kernel with every other distro. The VM sees none of the host's drives.
+
+**The Windows side: `hostd`.** `tools/rig/host/hostd.mjs` is a dependency-free Node supervisor. Its ports and devices are `tools/rig/host/contract.json`. It:
+- starts the VM with `vmrun ... nogui`, addressing only the marked `.vmx`;
+- starts the emulators under WHPX with `-accel on`, so a missing hypervisor fails loudly instead of falling back to software, with private AVD and emulator homes on F:;
+- runs a rig-only adb server on port 5137, so the agents' own adb on 5037 is untouched;
+- keeps one SSH reverse tunnel into the VM, started by the host, carrying adb (the VM's 15037 to the host's 5137), hostd's own port (15900) and each emulator's console and gRPC ports;
+- listens on loopback only. The VM's sshd `PermitListen` limits the reverse binds to those loopback ports, and its host keys are pre-seeded through cloud-init, so the host pins them on first connection instead of trusting them.
+
+It starts from the Startup folder when you log on. An elevated ONSTART task with your password stored would start it at boot with nobody logged on (FA16, optional; spike VM2 checks that emulators start that way).
 
 **Network.**
-- **Uplink:** Ethernet to your router's guest network, with client isolation. If the guest network is Wi-Fi only, a small travel router joins it and gives the rig an Ethernet port.
-- **Phone network:** a USB Wi-Fi adapter runs a 5 GHz access point that only the Pixel joins. A USB Bluetooth adapter on a short extension cable carries the hands-free audio link, kept away from the Wi-Fi radios.
-- **Firewall:** the phone can reach only the rig's web front and the internet. `tc netem` on the access point adds loss, delay and outages for bad-network tests.
+- **NAT on VMnet8.** The VM has the static address 192.168.70.10, with gateway and DNS 192.168.70.2, and the host is 192.168.70.1. Host-only networking has no internet, and bridged would put the VM on your home LAN.
+- **nftables in the VM.** Input from 192.168.70.1 is accepted only on ports 22, 443 and 53. New outbound connections to private address ranges are dropped, except to the gateway 192.168.70.2. So the VM cannot open a connection to your other machines, or to the host.
+- **Emulators reach the VM directly** at 192.168.70.10, started with `-dns-server 192.168.70.10`. Caddy and dnsmasq listen there.
+- **What the host check accepts.** `check-rig-hosts` takes exactly 192.168.70.10 and 192.168.70.1 as rig hosts. The gateway 192.168.70.2 passes only as `contract.json`'s `vm.gateway` and as the firewall file's `define gateway`, and the firewall's private blocks are read as ranges, not hosts.
+
+**Pinned downloads** (fetched 2026-11-01):
+- The cloud image is verified against Ubuntu's cloud-images signing key, fingerprint `D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81` (ubuntu.com/docs/public-images/public-images-how-to/verify-image-checksum/).
+- The Android command-line tools are `commandlinetools-win-15859902_latest.zip`, sha256 `90ae805d20434428bffcb699c290860f19bb5f66a67e6b330067e3de801fb04a` (developer.android.com/studio).
 
 **Name resolution.** This makes "cannot touch production" a property of the network:
 - `api.rig.internal`, `app.rig.internal` and `db.rig.internal` resolve to the rig. `.internal` is reserved for private use.
-- For the rig, the phone and the emulators, `loonext.com`, `supabase.co`, `pooler.supabase.com` and `api.supabase.com` resolve to nothing.
-- On the rig host only, `api.telnyx.com`, `api.resend.com`, `oauth2.googleapis.com`, `fcm.googleapis.com` and `us.i.posthog.com` also resolve to nothing. Any code that skips the guard therefore fails closed, including old releases that predate the seams. The phone keeps its own route to Google's push service.
+- For the rig and the emulators, `loonext.com`, `supabase.co`, `pooler.supabase.com` and `api.supabase.com` resolve to nothing.
+- Inside the VM only, `api.telnyx.com`, `api.resend.com`, `oauth2.googleapis.com`, `fcm.googleapis.com` and `us.i.posthog.com` also resolve to nothing. Any code that skips the guard therefore fails closed, including old releases that predate the seams. The emulators keep their own route to Google's push service.
 
-**TLS.** Caddy serves the `.rig.internal` names with a certificate authority generated on the rig and never committed. The Pixel's nonprod build trusts it for `*.rig.internal` only. Caddy binds the access point's address ahead of time (`net.ipv4.ip_nonlocal_bind`), so it starts before the access point exists, and it restarts on failure.
+**TLS.** Caddy serves the `.rig.internal` names on 192.168.70.10 with a certificate authority generated in the VM and never committed. The nonprod build trusts it for `*.rig.internal` only. Caddy restarts on failure.
 
-**Power control.** A USB hub with per-port power switching lets the agent power-cycle a stuck phone.
+**Recovery.** hostd restarts a stuck emulator by killing its process and cold-booting it (`-no-snapshot-load`), which is what D11 tests. A stuck VM is reverted to its powered-off baseline snapshot; the secrets disk is independent, so it survives the revert.
+
+**What running on the workstation costs.** Measured read-only on 2026-10-31:
+- **It is not always on.** In the last 60 days the workstation booted 33 times and was dark about 56 hours in all. Five of those gaps were overnight power-offs of 9-14 hours, each covering the whole dial window.
+- **Update restarts land in the window.** Windows Update restarted it 6 times, at 08:29-10:44 UTC, against the default 04:00-10:00 UTC dial window. Active hours are 08:00-02:00 local. Sleep and hibernate on AC are already Never.
+- **It is busy.** CPU is 44-68% busy with about 20 Claude processes running; 90 of 128 GB of RAM is free.
+- **Disks.** C (NVMe) has only 34 GB free, D is a hard drive, and F (NVMe) has 128 GB free, so the VM and the AVDs live on F.
+
+Dark time is infrastructure (`['ops','synthetic-dark']` after 6 hours, section 3.10), never a product failure.
 
 ### 3.3 Loonext in rig mode
 
@@ -251,7 +276,7 @@ A cron registry, `tools/rig/crons.json`, classifies every cron in every tracked 
 A cron's failure is explained only when its AggregateError is the outermost exception and every other exception that is not an AggregateError is a refusal listed for that cron. A job that collects its failures adds an AggregateError of its own in between. Sentry stops reading inside a chain once it has listed six exceptions, though it still lists every sibling of the one it is in. So an AggregateError it never read inside leaves the event unexplained: it may hold a real failure.
 
 **Stripe and auth mail.**
-- `stripe listen --api-key <sandbox key> --forward-to https://api.rig.internal/webhooks/stripe`. It never uses `stripe login`, whose pairing expires after 90 days. R00 checks the listener is alive and that its signing secret matches.
+- `stripe listen --api-key <test-mode key> --forward-to https://api.rig.internal/webhooks/stripe`. It never uses `stripe login`, whose pairing expires after 90 days. R00 checks the listener is alive and that its signing secret matches.
 - Supabase Auth mail goes to a local Mailpit.
 
 **Sentry.** Rig and synthetic events pass through a small relay in `rigd`. It enforces 100 events a day and 3,000 a month, and alerts at 70%.
@@ -268,8 +293,8 @@ A cron's failure is explained only when its AggregateError is the outermost exce
 - the nonprod connection ids;
 - `TELNYX_MEDIA_PUBLIC_BASE` set to the edge's media path;
 - `RESEND_API_BASE`, `FCM_API_BASE` and `FCM_OAUTH_TOKEN_URL` set to the edge's `/g/*` paths. `FCM_SERVICE_ACCOUNT_JSON` is a well-formed dummy, and a test asserts rig mode never contacts Google's token endpoint.
-- the sandbox Stripe key;
-- the `loonext-rig` Sentry DSN, through the relay;
+- the existing Stripe account's test-mode key (FA5 substitution);
+- the existing Sentry project's DSN, with environment `rig`, through the relay (FA7);
 - `RIG_OWNED_E164`, the standing numbers in the guard's live listing less STRANGER-1, never committed. A number held for one scenario, such as S28's, is never on it.
 - `RIG_ROBOT_WEBHOOK_ORIGIN`, the robot's webhook sink: customer webhooks and their test pings go there or nowhere. It must be a public https name, because the webhook URL rule refuses `*.internal` hosts when an endpoint is created and when it is pinged. It is the edge's origin. S04 and S20 create the endpoint at `/w/<secret>/...` through `/v1/webhooks`, and the edge queues each delivery for the robot (section 3.4).
 - Turnstile test keys.
@@ -288,8 +313,8 @@ A cron's failure is explained only when its AggregateError is the outermost exce
 
 | Tenant | Members and surfaces | Numbers and who they ring | Used for |
 |---|---|---|---|
-| QA-W | Owner and technician (Chromium on the rig). A note-level member and a two-factor member (API only, never ring). | DEV-W1 rings the owner only. DEV-W2 rings the owner and technician. | Browser calling, transfers, texting |
-| QA-A | Technician (the Pixel). Dispatcher (rig Chrome; rings only when a scenario's lease adds it). Owner (API only). | DEV-A1 rings the Pixel by default. Inbound caller-name lookup is on. | Device lane |
+| QA-W | Owner and technician (Chromium in the rig VM). A note-level member and a two-factor member (API only, never ring). | DEV-W1 rings the owner only. DEV-W2 rings the owner and technician. | Browser calling, transfers, texting |
+| QA-A | Technician (the device-lane emulator, AVD `rig-pixel`). Dispatcher (rig Chrome; rings only when a scenario's lease adds it). Owner (API only). | DEV-A1 rings the device-lane emulator by default. Inbound caller-name lookup is on. | Device lane |
 | QA-C | Owner (Chromium); a member used for sign-out tests | DEV-C1 rings the owner. | Calls between workspaces, caps, pause |
 | QA-G | Owner (Chromium) | No standing number. The month's S28 number is bought beside DEV-C1, taking its area code and messaging profile. It rings the owner until S29's grace run releases it the next day. | Number buying, cancellation, grace and release |
 | QA-E | Emulator member | DEV-E1, on its own messaging profile | Emulator lane, STOP and START |
@@ -299,7 +324,7 @@ A cron's failure is explained only when its AggregateError is the outermost exce
 
 The internet can reach only these paths; everything else returns an empty 404:
 - **`/t/v`, `/t/v2` (failover), `/t/w`, `/t/m`, `/t/r`.** Telnyx webhooks for the nonprod voice app, the WebRTC connection, the messaging profiles and the robot.
-- **`/t/n/<secret>`.** Account notifications. These may be unsigned, so the path carries a secret segment. Before halting anything, the edge corroborates a notice: a balance notice by reading the balance through the guard; any notice when Telnyx refuses the account's reads; any other notice only when it carries a valid Telnyx signature and names a notification type enabled on the account. The notification-event list names types, not occurrences, so it never corroborates on its own. An unsigned notice the edge cannot corroborate halts nothing and goes to `loonext-synthetic` as `['synthetic-infra','telnyx-notice']`.
+- **`/t/n/<secret>`.** Account notifications. These may be unsigned, so the path carries a secret segment. Before halting anything, the edge corroborates a notice: a balance notice by reading the balance through the guard; any notice when Telnyx refuses the account's reads; any other notice only when it carries a valid Telnyx signature and names a notification type enabled on the account. The notification-event list names types, not occurrences, so it never corroborates on its own. An unsigned notice the edge cannot corroborate halts nothing and goes to Sentry's `synthetic` environment as `['synthetic-infra','telnyx-notice']`.
 - **`/w/<secret>/...`.** Customer webhooks from the rig's API to the robot. The app refuses `*.internal` webhook hosts, so the robot's endpoint is here. The secret segment stays at the edge, which queues each delivery (at most 256 KB) for the robot with the rest of the path.
 - **`/m/...`.** Telnyx fetches of MMS and greeting media. Only Supabase-signed URLs, only for those two buckets, at most 5 MB.
 - **An `email()` handler** for the robot's address on loonext.com (named in the rig's private config, never in git) and its `+tag` sub-addresses. It never rejects mail. It stores it; if storage fails it still accepts and counts. It keeps a heartbeat.
@@ -333,7 +358,7 @@ If the rig is offline, call events get a 503 and Telnyx retries.
 
 **Dead-man.** A 15-minute cron checks three heartbeats: the rig's, the last suite run, and the last triage run.
 
-**SSH.** Optional, Phase 4. An agent already gets a full shell on the rig through Remote Control (section 8). A raw SSH relay is added only if a tool needs one.
+**SSH.** Optional, Phase 4. Host agents already get a full shell on the rig over SSH on the workstation (section 8). A raw SSH relay is added only if a tool needs one.
 
 ### 3.5 The guard, `loonext-telnyx-guard` (Cloudflare Worker, no public URL)
 
@@ -370,7 +395,7 @@ If the rig is offline, call events get a 503 and Telnyx retries.
 - **Provisioning (an explicit list):**
   - telephony credentials only on `nonprod-webrtc` and `nonprod-sentinel`;
   - number search at most once every 10 seconds, only under the S28 lease;
-  - at most one order per 25 days and at most 10 numbers held. Each order body must carry the nonprod group, profile and connection. The first order is read back to confirm the group stuck; if it did not, the number is released and ordering stops.
+  - at most one order per 25 days and at most 10 numbers held. Each order body must carry the nonprod group, profile and connection. The first order is read back to confirm the group stuck. The read-back judges only after the order reports success, and on a mismatch releases only the number id the order returned, never a number matched by phone number alone. When anything is ambiguous, ordering stops and nothing is deleted.
   - PATCH or DELETE only on owned numbers that are not standing numbers. One exception, **detach**: it clears a standing number's connection and messaging profile when strangers flood it.
   - Messaging profiles must carry a daily limit of $0.06 or less, a US/CA whitelist and an edge webhook. A messaging profile has no billing group field (Telnyx's API reference, checked 2026-10-31), so the guard knows the partition's profiles by id: the ones its setup routine created and the ones the app created through it.
 - **Refused outright:**
@@ -395,10 +420,18 @@ Phone numbers are cut to their last four digits, and message bodies and recordin
 - **AI:** a model allowlist, at most 2,000 neurons a day.
 
 **Admission.**
-- **Room.** Room is the account's concurrent limit (from FA0) minus production's reserve. Production's reserve is its largest ring audience plus 1, read daily from production counts. The nonprod voice profiles' concurrent limits are set to the room, and the guard's own live-leg count enforces it as well. If the active-calls API exists (verify), the guard polls production's active calls every 2 seconds during a paid run and hangs up every test leg on the first production call. That run is recorded as "preempted", not failed.
+- **Room.** Room is the concurrent limit in force minus production's reserve. Production's reserve is its largest ring audience plus 1, read daily from production counts. The limit in force comes from the proof ladder below. While only its floor of 2 is in force, the room is 0 whatever the reserve, so no paid dial runs. The nonprod voice profiles' concurrent limits are set to the room, and the guard's own live-leg count enforces it as well. During a paid run the guard polls production's active calls every 2 seconds, per connection (`GET /v2/connections/{id}/active_calls`; Telnyx has no account-wide list), and hangs up every test leg on the first production call. That run is recorded as "preempted", not failed. An answer the guard cannot read refuses the dial.
+- **The concurrency proof ladder.** No API exposes the account's level or its limit, and nothing waits on Telnyx to state it (D142, update of 2026-11-01). The guard's Durable Object keeps the evidence:
+  - **Floor.** `TELNYX_CONCURRENT_FLOOR=2`, the lowest documented default (support.telnyx.com/en/articles/1130717, fetched 2026-10-31). While only the floor is in force, every request that adds a leg is refused as `admission.limit_unproven`. The guard never probes the limit by dialing.
+  - **Validation check.** Telnyx's API spec says an outbound voice profile's `concurrent_call_limit` "Must be no more than your global concurrent call limit". The setup routine tests that on `nonprod-limit-probe-ovp`, a profile with no connection. It writes an absurd 9999 first. Only if Telnyx refuses that with a 422 naming `concurrent_call_limit` does it binary-search, in at most 16 writes, for the V that is accepted while V+1 is refused. It always resets the profile to 1. It costs $0 and places no call. An accepted 9999 means the rule is not enforced, so the limit stays unproven; any other answer is inconclusive.
+  - **History lower bound.** The most overlapping answered production calls in 28 days, from `ops_diag.call_sessions`, filed by the daily `measure` run. The account carried that many, so it can lift the limit in force above the floor.
+  - **Ceilings.** A refusal with code 90041 (account), 90042 (voice profile) or 90043 (connection), or 90103 with HTTP 429 (dial rate), caps the limit and also halts and alerts (account signals, below). The robot hearing Telnyx's automated-call announcement means the account is at Paid or below, which caps the limit at 5.
+  - **Conflict and lapse.** Evidence that contradicts itself refuses as `admission.limit_conflict` and alerts. Evidence older than 35 days falls back to the floor. A ceiling read from a refusal can be 0, when the rig had no live leg and production was idle; it then conflicts with the floor and refuses everything until it lapses, which is the safe reading.
+  - **Where it lives.** The store keys are `limit:validation`, `limit:history`, `limit:ceiling`, `limit:probe` and `limit:conflict-alert`. Admin's `POST /limit-probe` runs the validation check, and the daily `measurements` run files `/concurrency-history` from the `agent_diag` read. The robot files the announcement as `POST /evidence/level`, a route only the robot may call. A conflict raises `['ops','telnyx-guard-limit-conflict']` and a probe that could not reset its profile `['ops','telnyx-guard-limit-probe-reset']`, both in production. Setup refuses to run the check on a probe profile any connection uses (`limit_probe_ovp_in_use`). Its `daily_spend_limit` of `0.00` and empty destination list are unverified against the live account; if Telnyx refuses either, setup reports the step as skipped and the floor stays in force.
+- **Account-wide rate.** The guard assumes the Paid level's 10 outbound calls an hour and 100 a day, account-wide (developers.telnyx.com account levels, checked 2026-10-29), and refuses a dial when the rig's dials plus production's measured peak hour or day would exceed them (`admission.account_hour_full`, `admission.account_day_full`), or when that measurement is stale (`admission.account_rate_unknown`). The measurement is filed daily by `measurements` as `/account-rate` and kept under `admission:account-rate`. The rig's own dials are counted over the current and the previous UTC hour, and day, which bounds any rolling window from above, so the guard may refuse a little before Telnyx would. Its own caps in section 4.1 stay as ceilings below them.
 - **Window.** Paid dials run only in the six consecutive UTC hours with the fewest production calls over the past 28 days, rechecked monthly. Until there is data, the window is 04:00-10:00 UTC; it is safe because the room already reserves production's ring.
-- **Ratios.** The guard keeps the whole account's abandoned share at or below 15% and short-call share at or below 10%, using counts from detail records.
-- **Money.** Telnyx-enforced daily limits; the $35/month all-in cap, with a daily allowance after reserving next month's rental; tiers: green, amber (core only), red (only hang-ups allowed). Below the balance floor, all test spend is refused. At the cap, every non-robot number is detached, so stranger inbound stops too.
+- **Ratios.** The guard keeps the whole account's abandoned share at or below 15% and short-call share at or below 10%, using counts from detail records. Abandoned calls are assumed to include the ring legs Loonext cancels.
+- **Money.** Telnyx-enforced daily limits; the $35/month all-in cap, with a daily allowance after reserving next month's rental and a $1.50 set-aside for month-end surcharges and charges on detached numbers; tiers: green, amber (core only), red (only hang-ups allowed). Below the balance floor, all test spend is refused. At the cap, every non-robot number is detached, so stranger inbound stops too. A detached number is assumed still billed, which is what the set-aside covers. `call_cost_in_webhooks` is on for both nonprod Call Control apps, so `call.cost` events give the rig each call's actual cost to check the ledger against.
 - **Measurements.** Production's reserve, ratios and window are filed through `guard.yml`'s `measurements` routine, because the guard Worker has no login to production's database. A daily scheduled run (`measure`, 03:23 UTC) computes the reserve from the `ops_diag` views as `agent_diag`, whose login is the `guard` environment secret `AGENT_DIAG_DATABASE_URL` (copied in once FA13 has run, and again after each rotation). It refiles the window once the guard's is 28 days old. Without the login it posts a notice and files nothing. The ratios are not read yet: the repo's Telnyx spec has no call-control detail record, and nothing yet says which records Telnyx counts as abandoned or short. Until the guard can count them, an agent dispatches `measurements` with `calls`, `abandoned` and `short`. The reserve and the ratios go stale after 36 hours and the window after 35 days. A stale reserve or ratio refuses every paid dial (`admission.ratios_unknown` for the ratios) rather than guess, and a stale window falls back to 04:00 UTC.
 
 **Run lease.** One paid scenario runs at a time across the system. Scenarios register undo actions with `rigd`, the rig's service daemon. If the lease is not released within 15 minutes, `rigd` runs the undo itself.
@@ -407,18 +440,21 @@ The guard counts every Telnyx request that reaches it while a lease is live, ref
 
 A run with no dials holds a local lease, except S34, which holds the guard's: the guard mails the robot mailbox only under a live S34 lease. S34 asks for it with `dials: false`, and the guard admits no dial under such a lease, the app's included, so S34 never makes a dial the app reaches for admissible. When another scenario holds the lease, S34 waits for it as a paid run does, at any hour.
 
-A run that prepares before its lease (D03) holds its lane for the whole attempt, in a file under `state/rigd/holds`. Another run on that lane waits for it as it would for a busy lease, then is skipped. A hold lapses by itself, so a run that died cannot keep the lane. If no run follows a finished prepare (no lease, or the window closed), the runner puts back what the prepare changed.
+A run that prepares before its lease holds its lane for the whole attempt (no runner prepares today: D03's stepped Doze takes seconds), in a file under `state/rigd/holds`. Another run on that lane waits for it as it would for a busy lease, then is skipped. A hold lapses by itself, so a run that died cannot keep the lane. If no run follows a finished prepare (no lease, or the window closed), the runner puts back what the prepare changed.
 
 **Safety checks.**
 - **At start-up**, the guard refuses to serve if any nonprod resource points at `api.loonext.com`, if any nonprod id overlaps a production id, or if any nonprod number is bound to a production connection.
-- **Ordering** stays off until production's `/health` lists `telnyx-partition-v1` and FA0 has returned the concurrent limit.
+- **Ordering** waits only on production's `/health` listing `telnyx-partition-v1` and on the first-order check, not on the concurrent limit. While paid dials are refused, the guard orders only the text-lane roles: ROBOT-1, DEV-W1 and DEV-E1, and a standing order answers the calls-only roles it held back as `deferred`. Each ordered number is read back by the id the order returned, never matched by phone number. Telnyx's spec documents that id as a number-order record, which may not be the `/v2/phone_numbers` id; if it is not, the first read-back gets a 404 and ordering stops for good as `number_unreadable`, deleting nothing and alerting production, and resuming it is a decision (section 12, risk 21).
 - **Hourly version attestation.** `rigd` reads the guard's deployment list with `guard-attest-read`: Cloudflare's `GET /accounts/<id>/workers/scripts/loonext-telnyx-guard/deployments`, whose first entry is the one serving traffic. It compares the live deployment with every Deploy step `guard.yml` ran on `main`, ordered by when each step started, from the newest down to the newest that succeeded. Those runs are read through the rig's GitHub App with a token that can only read Actions, pushes and dispatches only, because a scheduled run never deploys. Failed, cancelled and running steps count, because they may have deployed, so re-running an older run is a rollback, not a mismatch. The deployment matches when it serves one version, its message is `guard.yml <sha>` for one of those steps (`guard.yml` deploys with `--message "guard.yml <sha>"`, which wrangler also puts on the deployment), and Cloudflare made it during that step, with two minutes of clock slack. A secret change (FA3, FA6 and FA8 paste keys this way) redeploys the live code with no message, so `rigd` reads through it to the deployment it replaced. A mismatch raises `['ops','telnyx-guard-integrity']` in production through the edge's `/ctl/alert` (section 3.10). A side `rigd` cannot read raises `['synthetic-infra','guard-attest']`, never a pass, and so does a missing store file: `cf-guard-attest-token`, `cloudflare-account-id`, `rig-app-id` or `rig-app-key`. rigd publishes each result in `state/guard-attest.json`. **Residual, accepted:** Cloudflare takes the secret-change label from whoever creates a deployment, and `guard-attest-read` cannot read a version's code, so a holder of the guard's deploy rights could put other code under one.
 - **Weekly key inventory.** Any unexpected Telnyx key raises `['ops','telnyx-key-inventory']`.
 - **Daily negative probes** run in G01.
 
-**Account signals.** A Telnyx notification channel posts to `/t/n/<secret>` for Suspicious Outbound Voice Traffic, Account Disabled, Low Balance, Messaging Suspicious Traffic, and the Abandoned and Short-duration call notices. None exist today.
-- Any corroborated signal halts paid tests for 7 days and raises `['ops','telnyx-account-signal']`.
-- A second signal within 30 days keeps the paid lanes off until the design changes.
+**Account signals.** A Telnyx notification channel posts to `/t/n/<secret>` for Suspicious Outbound Voice Traffic, Account Disabled, Low Balance, Messaging Suspicious Traffic, and the Abandoned and Short-duration call notices. None exist today. A fraud hold is assumed to cover the whole account and to be liftable only by emailing support, which the rig never does, so:
+- The first corroborated fraud-type notice (Suspicious Outbound Voice Traffic, Account Disabled or Messaging Suspicious Traffic) latches the paid lanes off at once, until a reviewed change to `SIGNAL_LATCH_RESET`, and raises `['ops','telnyx-account-signal']`.
+- Any other corroborated signal halts paid tests for 7 days and raises the same alert. A second within 30 days latches them off the same way.
+- A refusal with code 90041, 90042, 90043, or 90103 with HTTP 429, halts the same way and counts toward the latch.
+- A notice with a valid signature that arrives late still halts, deduplicated by its notice id, rather than being dropped with a 400.
+- Every signed type halts; narrowing that list was rejected, because it would weaken the control.
 
 ### 3.6 The Telnyx partition (inside the existing account)
 
@@ -429,14 +465,15 @@ The guard's setup routine creates everything from a committed spec, `tools/guard
 | Billing group `loonext-nonprod` | The ownership marker on every rig number. Messaging profiles have no billing group, so the guard keeps their ids instead. |
 | Outbound voice profile `nonprod-voice-ovp` | Daily spend limit $0.40, reset at 00:00 UTC. Concurrent limit set to the room minus the robot's share. Maximum rate $0.01/min. US/CA whitelist. At most 20 calls per destination per calling window. |
 | Outbound voice profile `nonprod-robot-ovp` | Daily spend limit $0.20; concurrent limit 1 |
-| Call Control app `nonprod-voice` | Webhook `/t/v`, failover `/t/v2`, webhook timeout 10 s, RTCP capture on if offered, channel limits matching the room |
-| Call Control app `nonprod-robot` | Webhook `/t/r`; channel limit 1 |
+| Outbound voice profile `nonprod-limit-probe-ovp` | No connection, so it can carry no call. Concurrent limit 1, except during the proof ladder's validation check, which always resets it to 1. |
+| Call Control app `nonprod-voice` | Webhook `/t/v`, failover `/t/v2`, webhook timeout 10 s, RTCP capture on if offered, `call_cost_in_webhooks` on, channel limits matching the room |
+| Call Control app `nonprod-robot` | Webhook `/t/r`; `call_cost_in_webhooks` on; channel limit 1 |
 | Credential connection `nonprod-webrtc` | SIP URI calling set to internal. Webhook `/t/w`. **No outbound voice profile**, so an app credential cannot call a phone number. No push credential. |
 | Credential connection `nonprod-sentinel` | One credential, no numbers, no outbound voice profile. Used only by G02. |
 | Messaging profiles | `nonprod-robot` at $0.06 a day, with webhook `/t/r`, plus four tenant profiles at $0.03 a day each, with webhook `/t/m` (Telnyx refuses sends above the limit with HTTP 429 code 40333). US/CA whitelist. At most six profiles. |
 | Numbers | Eight Canadian local numbers with Ontario area codes: ROBOT-1, ROBOT-2, STRANGER-1, DEV-W1, DEV-W2, DEV-A1, DEV-C1, DEV-E1. Plus one bought each month by S28 into QA-G and released the next day by S29's grace run. Each is ordered with the group, connection and profile in the order body. A standing number also carries a customer reference naming its role (`rig-standing-<role>`), so the role lives on Telnyx itself and no number is ever written into git to say which is which. |
 
-**Vendor-enforced daily maximum:** $0.40 + $0.20 + $0.06 + 4 × $0.03 = **$0.78**. That is about $24 in a 31-day month, about $35.50 with rentals, so Telnyx itself holds the cap even if the guard is wrong. Inbound legs and texts are not limited by these profiles; the edge's stranger rejection and the guard's detach bound them.
+**Vendor-enforced daily maximum:** $0.40 + $0.20 + $0.06 + 4 × $0.03 = **$0.78** (`nonprod-limit-probe-ovp` carries no call, so it adds nothing). That is about $24 in a 31-day month, about $35.50 with rentals, so Telnyx itself holds the cap even if the guard is wrong. Inbound legs and texts are not limited by these profiles; the edge's stranger rejection and the guard's detach bound them.
 
 **Why Canadian numbers.** Production's only number is Canadian, and Canadian inventory was reservable on 2026-10-29. The app needs no registration for Canada-bound texts, and every test text stays on-net anyway.
 
@@ -539,8 +576,8 @@ It stores the session and leg ids and its own RTP statistics at test time, becau
 | QA-A dispatcher | 1,500 Hz |
 | QA-W technician | 1,700 Hz |
 | QA-C | 1,900 Hz |
-| Pixel | 2,300 Hz |
-| Emulator | 2,750 Hz |
+| Device-lane emulator (`pixel`: AVD `rig-pixel`, Pixel 8 profile) | 2,300 Hz |
+| Emulator (E01's rotating AVDs) | 2,750 Hz |
 
 All of these avoid keypad tones, call-progress tones and 2,600 Hz.
 
@@ -556,9 +593,9 @@ All of these avoid keypad tones, call-progress tones and 2,600 Hz.
 
 **Call length.** Calls carry 20-50 seconds of talk, so none counts as short. If Telnyx plays its automated-call announcement, verdict windows start after it ends.
 
-### 3.9 Browser, Pixel and emulator lanes
+### 3.9 Browser and emulator lanes
 
-**Browsers** (on the rig).
+**Browsers** (in the rig VM).
 - Chromium runs the call lanes. Google Chrome stable, headed under a virtual display, runs Web Push.
 - Each member has its own browser profile.
 - The fake microphone plays the member's code: `--use-fake-ui-for-media-stream`, `--use-fake-device-for-media-stream`, `--use-file-for-fake-audio-capture` (chromium `media_switches.cc`, checked 2026-10-29).
@@ -566,44 +603,53 @@ All of these avoid keypad tones, call-progress tones and 2,600 Hz.
 - `getStats` supplies audio level, energy and concealed samples.
 - `--host-resolver-rules` blocks `*.loonext.com` and `*.supabase.co`.
 
-**Pixel** (a used 8a or 9a).
-- **Purchase:** unlocked, bought from a retailer with Factory Reset Protection cleared. Wi-Fi only, no SIM, no Google account.
-- **App:** runs the `.nonprod` release-style build, built on the rig from any ref. `rigd` refuses any APK whose package is not `.nonprod`.
-- **Control:** adb over USB, UIAutomator and mobile-mcp. The adb key is backed up in the rig's secret store.
+**Android emulators** (on the Windows host, section 3.2). No phone is bought, so every Android lane is an emulator. The technician's phone is the AVD `rig-pixel`, an API 36 Google Play image with the Pixel 8 device profile. Surface, scenario and store ids that say `pixel` keep it, and now name this emulator. `tools/rig/host/contract.json` lists the AVDs:
+
+| Device | AVD | API | Console port | gRPC port | Role |
+|---|---|---|---|---|---|
+| `pixel` | `rig-pixel` (Pixel 8 profile) | 36 | 5560 | 8560 | The device lane (QA-A's technician); kept warm |
+| `emulator-34` | `rig-api34` | 34 | 5554 | 8554 | E01's rotation |
+| `emulator-35` | `rig-api35` | 35 | 5556 | 8556 | E01's rotation |
+| `emulator-36` | `rig-api36` | 36 | 5558 | 8558 | E01's rotation |
+
+- **Acceleration.** WHPX on Windows, with `-accel on`, so a missing hypervisor fails instead of falling back to software. At most 3 are booted at once.
+- **Control.** adb through hostd's rig-only server on port 5137, reached from the VM over the tunnel (section 3.2), plus UIAutomator and mobile-mcp. The emulator console and gRPC ports cross the same tunnel. Nothing goes over USB.
+- **App.** Each runs the `.nonprod` release-style build, built in the VM from any ref. `rigd` refuses any APK whose package is not `.nonprod`.
+- **FCM** works without a signed-in account (firebase.google.com Android client docs, checked 2026-10-29). Google Play services are pinned by the system-image revision, so they change only when the agent moves the pin (section 5).
+- **Doze.** Emulators ship with Doze off (AOSP's `config_enableAutoPowerModes` defaults to false), so `dumpsys deviceidle force-idle` alone changes nothing. The lane runs `dumpsys deviceidle enable all` after every boot. An emulator has no significant-motion sensor, so it never enters deep Doze by itself: D03 steps it there, and natural entry is defect X6.
 - **States the agent can create:**
   - killed with `am kill` (force-stop is a separate case, because FCM drops messages to force-stopped apps);
-  - forced Doze;
-  - standby buckets and battery saver;
-  - locked, with a PIN the agent types;
-  - rebooted.
-- **Updates:** Google's full OTA images, applied monthly over adb (`adb reboot sideload-auto-reboot`). These refresh the preinstalled Google Play services; R00 compares that version with the app's minimum.
-- **Developer verification (2027):** verify that adb installs stay exempt. If not, new builds run on emulators only. No new account is created.
+  - Doze, stepped to IDLE;
+  - standby buckets, and battery saver after unplugging in software (Android ignores battery saver while powered);
+  - locked, with the PIN in `pixel-pin`, which every AVD carries;
+  - cold-booted with `-no-snapshot-load`, for before-first-unlock and D11.
+- **Bad network.** The emulator console's `network delay` and `network speed` shape the link. `svc wifi disable` drops Wi-Fi, and `gsm data unregistered` with Wi-Fi off makes a full outage. The console has no packet-loss control, so loss on the device's path is defect X27.
+- **Variants that must not ring** (notifications revoked, force-stopped) run on E01's AVDs only, never on `rig-pixel`, because they could teach FCM to deprioritise pushes to the device lane.
+- **Play Protect.** Its scanning of adb installs is off at baseline, so developer verification in 2027 does not block the lane's installs.
+- **Where they run.** hostd starts and keeps them, never a scenario run. A lane boots an emulator only when adb finds none booted on its port, so D11 and E01 never start a second one.
 
-**Pixel audio.** The rig acts as the Pixel's Bluetooth hands-free unit (PipeWire `hfp_hf`). It plays the Pixel's code into the uplink and records the downlink. Android forbids software capture of voice-call audio (developer.android.com, AudioAttributes, checked 2026-10-29).
-- The Bluetooth spike is a **purchase gate**.
-- If it fails, the fallback is a second Android phone with a 3.5 mm headset jack (several current Moto G models have one; confirm at purchase), wired to a USB sound card. Its USB-C port stays free for adb and power. The Pixel stays for wake verdicts.
-- A USB-C audio adapter on the Pixel is never used: it takes the only port and ends USB adb, and wireless adb does not survive a reboot unattended.
+**Call audio.** Android forbids software capture of voice-call audio (developer.android.com, AudioAttributes, checked 2026-10-29), and no phone or radio is bought, so the rig uses the emulator's own gRPC audio service:
+- `injectAudio` plays the device's 2,300 Hz code (48 kHz, 16-bit mono) into the emulator's virtual microphone, starting only after the guest opens it, and stops before hang-up;
+- `streamAudio` records what the device plays, at 48 kHz;
+- the existing detector judges both, unchanged.
 
-**Where the lanes find their hardware.** rigd reads the device lane from the store:
-- `pixel-serial`, `pixel-pin`, `pixel-bluetooth-mac`, `pixel-hub-location` and `pixel-hub-port`;
-- the robot mailbox's address, from `robot-mailbox`.
+This is gated by spike EA1 (section 10). **Until EA1 passes, every device-lane audio verdict is the infrastructure result `emulator-audio-unproven`, never a pass.** Wake verdicts do not depend on it. If EA1 fails, the fallback (`-allow-host-audio`) would need a third-party virtual audio cable and would share one input across every emulator, so audio verdicts stay infrastructure results instead.
 
-The box's environment names:
-- `RIG_AP_IFACE`, the access point's interface, for `tc netem`;
+**Where the lanes find their devices.** rigd reads each device's serial, console and gRPC ports from `tools/rig/host/contract.json`, the lock PIN from the store's `pixel-pin`, and the robot mailbox's address from `robot-mailbox`. The retired store keys `pixel-serial`, `pixel-bluetooth-mac`, `pixel-hub-location` and `pixel-hub-port` are gone: no store key moves a device off the contract.
+
+The store also holds `hostd-token`, hostd's bearer token, which hostd copies into the VM only when it differs; `emulator-audio-proven`, `{"date":"YYYY-MM-DD","flags":[...]}`, written when EA1 passes, without which no audio verdict is given; and `play-services-pins.json`, the Play services versionName each emulator's system image pins, by device name.
+
+The VM's environment names:
+- `RIG_HOSTD_ORIGIN` (default `http://127.0.0.1:15900`) and `RIG_ADB_SERVER` (default `127.0.0.1:15037`), the tunnel's two ends, both refused off loopback;
 - `RIG_WHISPER_BIN` and `RIG_WHISPER_MODEL`, for whisper.cpp (ffmpeg converts audio that is not WAV);
 - `RIG_CHROME_BIN`, Google Chrome for the dispatcher's Web Push;
-- `RIG_MAILPIT_URL`;
-- the PipeWire nodes `RIG_HFP_SOURCE`, `RIG_HFP_SINK` and `RIG_A2DP_SOURCE`.
+- `RIG_MAILPIT_URL`.
 
-`uhubctl` and `tc` run through `sudo -n`, so the box's sudoers entry allows exactly those two. The emulators are the AVDs `rig-api34`, `rig-api35` and `rig-api36` on console ports 5554, 5556 and 5558. The lane installs `$RIG_HOME/work/apk/current.apk` and `previous.apk`, which `rig apk --ref` places there. `previous.apk` is the build of the commit placed before `current.apk`, not necessarily the release before it, so release builds are placed oldest first: D12 installs `current.apk` over it, and adb refuses a downgrade. A `--worktree` or `--debuggable` build is not placed.
+No lane runs anything through `sudo`: shaping goes through the emulator console, and restarts through hostd. `rig health` alone uses it, for `nft list table inet loonext_rig`, through a sudoers entry that allows that one command.
 
-R00 compares Play services with the minimum the installed nonprod build declares. play-services-basement merges `com.google.android.gms.version` into the app's manifest, and the lane reads it with aapt2 from the APK installed on the Pixel.
+**What the Android lanes report.** Failure classes: `whpx_unusable`, `hostd_tunnel_down`, `pixel_deep_idle_disabled`, `emulator_deep_idle_disabled`, `pixel_audio_link_down`, `push_token_mismatch` and `no_device_push_token`, plus `health_hostd`, `health_adb_tunnel` and `health_nftables` from `rig health`. Infrastructure results: `hostd`, `emulator-audio-unproven`, `play-services-pin` and `app-probe`. D11's list of what failed to come back names `pixel-audio-link`. The lane installs `$RIG_HOME/work/apk/current.apk` and `previous.apk`, which `rig apk --ref` places there. `previous.apk` is the build of the commit placed before `current.apk`, not necessarily the release before it, so release builds are placed oldest first: D12 installs `current.apk` over it, and adb refuses a downgrade. A `--worktree` or `--debuggable` build is not placed.
 
-**Emulators.** Three AVDs with Google Play images (API 34, 35 and 36) run headless on KVM, with virtual audio devices.
-- FCM works on them without a signed-in account (firebase.google.com Android client docs, checked 2026-10-29).
-- They run under their own units on the box, not inside a scenario run, because an emulator a run starts stops when that run's unit ends. A lane boots an emulator only when adb finds none booted on its port, so D11 and E01 never start a second one.
-- They carry the Pixel's lock PIN (`pixel-pin`). E01 locks its emulator, and the release unlocks it with that PIN.
-- Variants that could teach FCM to deprioritise pushes run here only: notifications revoked, and force-stopped.
+R00 compares Play services with the minimum the installed nonprod build declares. play-services-basement merges `com.google.android.gms.version` into the app's manifest, and the lane reads it with aapt2 from the APK installed on `rig-pixel`.
 
 **No iOS lane.** Section 2.3 explains why.
 
@@ -613,26 +659,27 @@ R00 compares Play services with the minimum the installed nonprod build declares
 
 **Reporting.**
 - A failing scenario is retried once.
-- If it fails again, one event goes through the relay, by DSN only, to `loonext-synthetic`, fingerprinted `['synthetic', scenario, failure_class]`.
+- If it fails again, one event goes through the relay, by DSN only, to Sentry's `synthetic` environment, fingerprinted `['synthetic', scenario, failure_class]`.
 - Infrastructure faults use `['synthetic-infra', component]`, so one dead phone is one issue.
-- Noise limits: at most 50 events per run; a repeated fingerprint is suppressed for 6 hours; the project auto-resolves an issue after 24 hours without events.
+- Noise limits: at most 50 events per run; a repeated fingerprint is suppressed for 6 hours. Auto-resolve is a project-wide setting, so it is not set on the shared project; triage resolves a synthetic issue after 24 hours without events (not built yet).
 - No Sentry write token exists anywhere.
-- The rig box holds no production DSN. Its one production alert, the guard attestation's `['ops','telnyx-guard-integrity']`, goes to the edge's `POST /ctl/alert` with the `rig` control token. The edge sends it by DSN from its production budget, at most once every 6 hours, and refuses any key not in `RIG_PRODUCTION_ALERTS` in `tools/rig-protocol`. Any answer but 200 means production did not get it, and rigd reports that to `loonext-synthetic` as `['synthetic-infra','guard-attest']`.
+- **One project, three environments (FA7 substitution).** Rig and synthetic events go to the existing project with the environments `rig` and `synthetic`, and every event passes rigd's relay, which stamps its environment. Production's alert rules filter on `environment:production`, so a rig event cannot fire one (section 12, risk 20).
+- The rig VM sends nothing to production's environment. Its one production alert, the guard attestation's `['ops','telnyx-guard-integrity']`, goes to the edge's `POST /ctl/alert` with the `rig` control token. The edge sends it by DSN from its production budget, at most once every 6 hours, and refuses any key not in `RIG_PRODUCTION_ALERTS` in `tools/rig-protocol`. Any answer but 200 means production did not get it, and rigd reports that to Sentry's `synthetic` environment as `['synthetic-infra','guard-attest']`.
 - Each run posts an informational `synthetic/full-matrix` commit status through the rig's GitHub App.
 
-**Triage.** An hourly Claude cloud scheduled task, `synthetic-triage`, drives the rig through `/ctl/rpc`:
+**Triage.** An hourly agent on the Windows host drives the rig over SSH, through the `rig` CLI (FA10 is dropped, so there is no Claude cloud environment):
 1. reads unresolved failures from the rig's verdict store;
 2. re-runs the scenario;
 3. attaches evidence;
 4. opens or updates one issue labelled `synthetic` through the rig App.
 
-Issue numbers stay out of commit trailers. A revoked rig sign-in never stops triage.
+Issue numbers stay out of commit trailers. Triage runs only while the workstation is on, which is also when the rig runs, so it misses nothing it could act on.
 
 **Rig-authored code.** The rig App can open branches and pull requests; a ruleset keeps it off `main`. Workstation agents never auto-merge a rig-authored PR. They review the diff as untrusted input and re-run the checks themselves first.
 
 **Dead-man.**
-- If a heartbeat is stale, the edge sends `['synthetic-infra', component]` to `loonext-synthetic`.
-- If the whole system is dark for more than 6 hours, it sends `['ops','synthetic-dark']` to production.
+- If a heartbeat is stale, the edge sends `['synthetic-infra', component]` to Sentry's `synthetic` environment.
+- If the whole system is dark for more than 6 hours, it sends `['ops','synthetic-dark']` to production. The rig is on while the workstation is on, not always on, so dark time is infrastructure, never a product failure (section 3.2).
 - The suite and triage heartbeats carry when each last ran, and the edge judges them by that time, never by when the beat arrived.
 - Each destination has its own daily cap: synthetic 20, production 10, which rigd's alerts through `/ctl/alert` share. A missing DSN spends none, and a refused send is retried hourly.
 
@@ -678,7 +725,7 @@ Payloads, passwords and query strings are never logged or alerted. This catches 
 5. After hang-up:
    - the robot judges its recording for the owner's 1,300 Hz code;
    - the page has already judged the robot's 1,100 Hz code;
-   - the rig checks the call row and the sandbox meter.
+   - the rig checks the call row and the Stripe test-mode meter.
 6. The verdict is stored with the SHA. A second failure becomes one Sentry event, and triage picks it up within the hour.
 
 ---
@@ -691,20 +738,22 @@ Payloads, passwords and query strings are never logged or alerted. This catches 
 
 **Budget rule, checked in CI.** Scheduled dials times their frequency, plus a 20% retry reserve, plus a 60-dial monthly repro reserve, must fit the daily cap times 30.
 
-**Default cap**, until Telnyx states the limits in writing:
+**The guard's own cap:**
 - 18 dials a day and 3 an hour;
 - 358.7 scheduled dials a month, 490.5 with both reserves, against a ceiling of 540;
 - about 300 texts a month.
 
+**The account-wide check.** Below that cap, the guard assumes the Paid level's limits for the whole account (section 3.5): the rig's dials in an hour plus production's peak hour come to at most 10, and a day's to at most 100. A stale measurement of production's peaks refuses.
+
 **The encoded schedule.** `tools/rig/scenarios.json` holds 4.2 as data, with each run placed on a day and a UTC hour inside the window. Over its 210-day cycle the busiest hour holds 3 dials and the busiest day 18. Two days sit exactly at the daily cap, so a retry on those days waits. 4.2 at its written cadence would need 435.4 dials a month (582.5 with reserves), so not every row is scheduled:
-- S07, S08, S10 and D01 need 4 dials in one run, and S09 needs 5, against 3 an hour. They stay unscheduled until Telnyx's answer raises the hourly cap. S09 also needs two robot calls at once, and `nonprod-robot-ovp` allows one.
+- S07, S08, S10 and D01 need 4 dials in one run, and S09 needs 5, against 3 an hour. They stay unscheduled, because the hourly cap of 3 is final (below). S09 also needs two robot calls at once, and `nonprod-robot-ovp` allows one.
 - K01 waits for Phase 4.
 
 A run with no dials may name `offset_days`, which ties it to that day of its period at any hour: S29 runs on day 2 of the 30-day cycle, the day after S28's day 1.
 
 **Editing this section, 4.2 or 4.3.** A change to 4.1, 4.2 or 4.3 updates `tools/rig/scenarios.json` in the same change. `scripts/check-rig-scenarios.mjs` fails CI when the two disagree: names, far ends, cadences, dials, room, the cap and the reserves. It does not read the totals above, so copy them from its output, which prints each one.
 
-**Room** = the account's concurrent limit minus production's reserve (section 3.5). It decides which call scenarios may run at all.
+**Room** = the concurrent limit in force minus production's reserve (section 3.5). The limit in force comes from the guard's proof ladder; while only its floor of 2 is in force, the room is 0. It decides which call scenarios may run at all.
 
 | Room | What runs | What is lost |
 |---|---|---|
@@ -713,9 +762,9 @@ A run with no dials may name `offset_days`, which ties it to that day of its per
 | 2 | One-leg probes and single-surface calls only (G01, G02, K01, S01, S02, S04-S06, S11-S17, S24, S28, D07, D08), plus D02p, which needs no dial | Every paid Android wake test (D02-D04, D09-D12, E01), transfers and consults |
 | 1 or less | No paid calls. Texts, D02p, hermetic and local tests continue. | All paid call lanes |
 
-R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the limit if the room is under 4. A room under 3 would also mean production cannot ring a three-person crew, which is itself a production finding.
+R00 publishes the room and the scenarios it blocks. A room under 3 would also mean production cannot ring a three-person crew, which is itself a production finding.
 
-**After Telnyx answers**, test traffic may use up to 25% of each stated limit, through a guard configuration deploy. The core then runs twice inside each day's window.
+**The cap does not rise.** The old route for raising it was to let test traffic use up to 25% of each stated limit. At the Paid level 25% of 10 an hour is 2.5, below 3, so the cap never rises on that route, and S07-S10 and D01 have no promised date.
 
 ### 4.2 Scenarios
 
@@ -723,15 +772,15 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
 
 | ID | Scenario | Far end | How the agent verifies it, with no human | How often (dials) |
 |---|---|---|---|---|
-| R00 | Rig health | none | **Pass:** services answer; local sign-in returns 200; the Pixel is reachable, unlocked and Bluetooth-paired, its hands-free link is connected, and its Play services version meets the minimum the installed nonprod build declares; the emulators are up (booting them is D11's job); the guard is healthy and above the balance floor; the edge uplink is up; the nonprod apps point at the edge; the Stripe listener is alive; tz versions match; zero unexplained Sentry fingerprints in 24 h. **Critical:** the guard's start-up checks report the partition unsafe. **Also publishes:** the current room and the scenarios it blocks. While D03 holds the Pixel for its natural idle, the Pixel's lock state is not judged. | Every 15 min (0) |
+| R00 | Rig health | none | **Pass:** services answer; local sign-in returns 200; the device-lane emulator is booted, reachable over the tunnel, unlocked and Doze-enabled, and its Play services version meets the minimum the installed nonprod build declares; the other emulators are up (booting them is D11's job); the guard is healthy and above the balance floor; the edge uplink is up; the nonprod apps point at the edge; the Stripe listener is alive; tz versions match; zero unexplained Sentry fingerprints in 24 h. **Critical:** the guard's start-up checks report the partition unsafe. **Also publishes:** the current room and the scenarios it blocks. While D03 holds the device lane for its stepped idle, the device-lane emulator's lock state is not judged. | Every 15 min (0) |
 | H01 | Hermetic suite, including the call journeys | Fake Telnyx and Stripe | **Pass:** the CI status, watched after every push. | Every push (0) |
-| G01 | Isolation self-test | A fictional 555-01xx number; STRANGER-1 | **Pass:** the app refuses a send and a dial to 555-01xx before Telnyx, by rig mode's destination gate. The database gate is reached first and raises `rig_destination_refused`, so each route answers 500 and the API's own error report for that route names the gate. A text that the Worker's gate refuses instead is filed as failed with that code. The guard's lease record holds no app request it refused for an unowned destination. STRANGER-1's call to DEV-W1 is rejected before any ring leg, row or voicemail, and its text is not threaded. The guard returns 403 to a dial on production's connection, a text from a number outside the group, and a dial to a non-owned number, each under its own rule. The relay's report counts the two error reports of a G01 attempt as expected. **Any success:** a critical result, sent at once to `loonext-synthetic`. A production alert for it is not built yet. | Daily (1) |
-| G02 | Calls the apps' SDK places itself | The sentinel credential, held by a test page on the rig | **Pass:** the browser SDK and the Pixel's SDK, both signed in on `nonprod-webrtc`, each try a direct call to the sentinel; both are refused and the sentinel never rings. **If it rings:** alert, and residual X25 applies. Not runnable yet: the Android half needs the nonprod build to place an SDK call to a SIP address, and the app has no entry point for one. | Weekly (1) |
+| G01 | Isolation self-test | A fictional 555-01xx number; STRANGER-1 | **Pass:** the app refuses a send and a dial to 555-01xx before Telnyx, by rig mode's destination gate. The database gate is reached first and raises `rig_destination_refused`, so each route answers 500 and the API's own error report for that route names the gate. A text that the Worker's gate refuses instead is filed as failed with that code. The guard's lease record holds no app request it refused for an unowned destination. STRANGER-1's call to DEV-W1 is rejected before any ring leg, row or voicemail, and its text is not threaded. The guard returns 403 to a dial on production's connection, a text from a number outside the group, and a dial to a non-owned number, each under its own rule. The relay's report counts the two error reports of a G01 attempt as expected. **Any success:** a critical result, sent at once to Sentry's `synthetic` environment. A production alert for it is not built yet. | Daily (1) |
+| G02 | Calls the apps' SDK places itself | The sentinel credential, held by a test page on the rig | **Pass:** the browser SDK and the device-lane emulator's SDK, both signed in on `nonprod-webrtc`, each try a direct call to the sentinel; both are refused and the sentinel never rings. **If it rings:** alert, and residual X25 applies. Not runnable yet: the Android half needs the nonprod build to place an SDK call to a SIP address, and the app has no entry point for one. | Weekly (1) |
 | P01 | Production ring-success watch | Real customers' calls | **Verdicts** per platform and version, first match wins: `unattributed` (session or version unknown), `not_instrumented` (below the platform's beacon floor), `insufficient_sample` (under 30 attempts in 24 h), `no_baseline` (under 30 in the 7 days before), `drop`, `pass`. **Pass:** only `pass`. **Drop:** the rate is below the baseline less 5 points, by more than 3 standard errors of both samples; it alerts `['ops','ring-success-<platform>']` (3.11). | Hourly, in production (0) |
 | PW01 | Production wiring check | Production's own settings | **Runs** in production's own daily cron, with production's key, GET only, never through the guard. **Pass:** webhook URL, failover URL and API version on production's app, connection and profiles equal production's own, and no delivery to production's host failed in 24 h. **Otherwise:** it alerts `['ops','telnyx-wiring']`. | Daily (0) |
-| S01 | Browser calls a phone number (on-net) | ROBOT-1 answers after 4 s | **Pass:** ringback energy before answer; the page hears 1,100 Hz and the robot hears 1,300 Hz; caller ID is DEV-W1; the one-time token is used once; the row is answered; a voice-seconds meter event lands in the sandbox. | Every 3 days (2) |
+| S01 | Browser calls a phone number (on-net) | ROBOT-1 answers after 4 s | **Pass:** ringback energy before answer; the page hears 1,100 Hz and the robot hears 1,300 Hz; caller ID is DEV-W1; the one-time token is used once; the row is answered; a voice-seconds meter event lands in Stripe's test mode. | Every 3 days (2) |
 | S02 | Phone number calls Loonext, answered in the browser | ROBOT-1 dials DEV-W1 | **Pass:** ring dialog and SDK ringing within 6 s; both codes heard; row answered; billed seconds equal the meter. | Every 2 days (2) |
-| S03 | Loonext calls Loonext across workspaces | QA-C page dials DEV-W1 | **Pass:** the QA-W owner rings and answers; each side hears the other's code; two rows with distinct session keys, each billed to its own workspace; no text-back. **Recorded, not judged:** how Telnyx routed and billed the call, for the FA0 follow-up. | Weekly (3) |
+| S03 | Loonext calls Loonext across workspaces | QA-C page dials DEV-W1 | **Pass:** the QA-W owner rings and answers; each side hears the other's code; two rows with distinct session keys, each billed to its own workspace; no text-back. **Recorded, not judged:** how Telnyx routed and billed the call, for the rig's billing measurement. | Weekly (3) |
 | S04 | Unanswered call: voicemail, transcript, intake, webhook, text-back | ROBOT-1 speaks after the beep | **Pass:** voicemail stored locally, and the Telnyx copy returns 404; transcript word error 0.25 or lower; intake row; signed `voicemail.received` at the robot sink; text-back at ROBOT-1 within 60 s. | Every 3 days (2) |
 | S05 | Caller hangs up while ringing | ROBOT-1 hangs up at 8 s | **Setup:** under the lease, QA-W escalates after 10 minutes on the destination clock with no business hours, so the call is after hours, and the owner is on call for DEV-W1. **Pass:** the call is missed; the text-back arrives within 60 s; a ring push is recorded; an escalation opens, and widens when the rig fires the minute cron 10.5 minutes later. | Fortnightly (2) |
 | S06 | Hold, mute, keypad | ROBOT-1 | **Pass:** the member's code is absent from the robot's recording during hold and mute and returns within 2 s; digits 1-2-3-# arrive in order. | Fortnightly (2) |
@@ -746,35 +795,35 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
 | S15 | Greeting-capture call | ROBOT-2, seeded as the owner's mobile | **Pass:** the robot hears the prompt (75% of the capture prompt's words, leaving out the business name) and speaks 16 s after answer; the new greeting's audio transcribes within 0.25 word error of what it said. | Monthly (1) |
 | S16 | Note-level member; signing a device out revokes voice for the person (D130) | ROBOT-1 | **Pass:** the note-level member gets no ring leg and no push while the owner rings, and its dial attempt gets 403. After the seed's sign-out member signs its session out, token minting gets 401, as for any revoked session. **Afterwards:** a fresh sign-in mints again. | Fortnightly (2) |
 | S17 | Webhook failover and duplicate delivery | The edge returns 503 once | **Pass:** webhook deliveries (read through the guard) show the 503, then a 2xx on the failover; the event is recorded once and processed. rigd's webhook forwarder answers the next call event with the fault S17 arms. | Monthly (3) |
-| S20 | Outbound text | ROBOT-1 | **Pass:** exact body within 30 s; status goes sent, then delivered; usage row and sandbox meter event; `message.sent` webhook at the sink. | Daily (0) |
+| S20 | Outbound text | ROBOT-1 | **Pass:** exact body within 30 s; status goes sent, then delivered; usage row and test-mode meter event; `message.sent` webhook at the sink. | Daily (0) |
 | S21 | Inbound text | ROBOT-1 to DEV-W1 | **Pass:** threaded once within 15 s; realtime update in the page; a push-attempt row. | Daily (0) |
 | S22 | Picture messages both ways | ROBOT-1 | **Outbound pass:** the exact body and picture reach ROBOT-1 from DEV-W1, and the hash Telnyx reports equals the stored file's, so Telnyx fetched it through the edge. **Inbound pass:** threaded with an attachment and stored as a JPEG with GPS EXIF stripped, not quarantined. | Weekly (0) |
 | S23 | Loonext texts Loonext | DEV-W1 and DEV-E1 | **Pass:** both thread; no 40007 loop error. | Weekly (0) |
 | S24 | STOP, START, HELP, ARRET, AIDE, plain-English opt-out | ROBOT-2 to DEV-E1 only | **Pass:** the opt-out is recorded; the next send is refused before the guard; a call to ROBOT-2 still connects (D38); the plain-English request is only flagged. **Cleanup:** the undo has ROBOT-2 send START. A STOP left in place after cleanup is critical. | Weekly (2) |
 | S25 | Automated texts and quiet hours | ROBOT-1 | **Pass:** the away reply, emergency acknowledgement, scheduled send and reminder arrive at the daytime run. At the night run (destination clock) the scheduled send and reminder are held. The away reply and emergency acknowledgement still arrive, because they answer the customer's own text (D4). The help reply answers AIDE, which S24 sends. | Weekly, two runs (0) |
-| S26 | Messaging caps and budgets | Seeded rows, at most 2 real sends | **Pass:** each refusal carries its own gate's error: 402 `usage_cap_reached` at the monthly segment cap (seeded usage rows), and 429 `rate_limited` at the hourly limit (a seeded outbound message, which the carrier's daily count also includes); the 80% carrier-ceiling alert lands in `loonext-rig`. Not runnable yet: the API raises that warning by email only, never as a Sentry event. | Weekly (0) |
+| S26 | Messaging caps and budgets | Seeded rows, at most 2 real sends | **Pass:** each refusal carries its own gate's error: 402 `usage_cap_reached` at the monthly segment cap (seeded usage rows), and 429 `rate_limited` at the hourly limit (a seeded outbound message, which the carrier's daily count also includes); the 80% carrier-ceiling alert lands in Sentry's `rig` environment. Not runnable yet: the API raises that warning by email only, never as a Sentry event. | Weekly (0) |
 | S27 | Website widget code | ROBOT-1 | **Pass:** a start with no Turnstile token is refused and the always-pass key passes; the code reaches ROBOT-1 from DEV-W1 within 60 s; verify succeeds; the verification count goes up. The always-block key is not checked, because the rig's Turnstile secret accepts every token. | Weekly (0) |
 | S28 | Number buy, bind, call, release | ROBOT-1 calls the new number | **Pass:** one search and one order (the guard's lease record), the order carrying group, profile and connection; the first-order group check passes, or is still pending after 60 s while the number shows in the group; the number rings; no other number is touched. The number is not released. A passing S28 hands it to S29; its undo, registered before the purchase, releases every number QA-G holds unreleased when S28 did not pass, and fails, naming the row, for one whose row never named its Telnyx number. A hand-off no S29 took within two days is taken back by the next S28, which reports it as `infra` (handoff) and releases it. Whether a production Sentry event mentions the number is for production's own ownership-mismatch alert to raise, because the rig reads nothing from production. | Monthly (2) |
 | S29 | Cancel, grace, release, billing | Stripe sandbox | **Setup:** the day after S28, under the lease, S29 takes over S28's number, backdates QA-G's `canceled_at` to 31 days ago and fires the grace cron. Grace runs on the database clock (`apps/api/src/billing/grace.ts`), not Stripe's. **Pass:** grace releases S28's number, which then answers 404 through the guard; no live campaign remains; the workspace moves through grace (notices on days 1, 15 and 27, then the release). Rig mode refuses 10DLC, so QA-G holds no campaign, a pass says its deactivation was not covered, and deactivating a real campaign is tested only in the hermetic suite. With no number from S28, S29 still runs grace and reports the release half as not covered. A retry keeps the first attempt's release verdict, because that attempt's undo already released the number. The undo releases the number through the guard if grace did not, and puts QA-G back. **Separately:** a seed-created customer on a Stripe test clock checks invoice and meter totals against the month's usage; the clock is deleted after. | Monthly (0) |
 | S31 | Lou reply drafts and AI caps | A synthetic thread | **Pass:** a draft comes back through the guard and the guard's AI neuron count rises; the `suggest_reply` usage row counts it; a request seeded at the 1,500 cap answers `over_cap`. | Weekly (0) |
-| S32 | Onboarding, Checkout with the 4242 test card, customer portal | Stripe sandbox | **Pass:** sign-up is confirmed through Mailpit; onboarding completes; Checkout with the 4242 test card returns; the workspace records a subscription the sandbox reports active; the portal opens on `billing.stripe.com`. **Recorded, not judged:** whether Checkout challenged the headless browser. | Weekly (0) |
+| S32 | Onboarding, Checkout with the 4242 test card, customer portal | Stripe sandbox | **Pass:** sign-up is confirmed through Mailpit; onboarding completes; Checkout with the 4242 test card returns; the workspace records a subscription Stripe's test mode reports active; the portal opens on `billing.stripe.com`. **Recorded, not judged:** whether Checkout challenged the headless browser. | Weekly (0) |
 | S33 | Two-factor login | none | **Pass:** with a TOTP code from the rig's store, the session reaches the second assurance level and the API accepts it. | Weekly (0) |
 | S34 | Emails | Robot mailbox; Mailpit | **Pass:** API mail (an invite) arrives at the robot mailbox through Resend and Email Routing within 10 minutes, under S34's own guard lease, with working links; auth mail (a password reset) is read from Mailpit within 2 minutes and its link works. A missed-call alert is push-only since D45, so no mail is checked for one. | Weekly (0) |
 | S35 | Public sign-up form | Mailpit | **Pass:** sign up, confirm by email, reach the app. | Weekly (0) |
-| D01 | Inbound call rings every rig surface; the answering surface rotates | ROBOT-1 to DEV-A1, dispatcher added under the lease | **Pass:** within 8 s the page dialog shows, and the Pixel shows Telecom RINGING plus the full-screen notification. The robot identifies the answerer by code; the other clears within 3 s; one database winner. | Weekly (4) |
-| D02 | Android wake: app killed, forced Doze, locked with a PIN | ROBOT-1 to DEV-A1 | **Pass:** FCM accepted the push at high priority; the nonprod app's beacon stages arrive, each after the stage that causes it; Telecom shows RINGING within 12 s; UIAutomator answers; the rig hears 1,100 Hz and the robot hears 2,300 Hz. **Recorded, not judged:** the lock state at ring time, since adb can read an occluded keyguard as unlocked. | Daily (3) |
+| D01 | Inbound call rings every rig surface; the answering surface rotates | ROBOT-1 to DEV-A1, dispatcher added under the lease | **Pass:** within 8 s the page dialog shows, and the device-lane emulator shows Telecom RINGING plus the full-screen notification. The robot identifies the answerer by code; the other clears within 3 s; one database winner. | Weekly (4) |
+| D02 | Android wake: app killed, forced Doze, locked with a PIN | ROBOT-1 to DEV-A1 | **Pass:** FCM accepted the push at high priority; the nonprod app's beacon stages arrive, each after the stage that causes it; Telecom shows RINGING within 12 s; UIAutomator answers; the rig hears 1,100 Hz through `streamAudio` and the robot hears 2,300 Hz through `injectAudio` (until spike EA1 passes, the audio half is `emulator-audio-unproven`). **Recorded, not judged:** the lock state at ring time, since adb can read an occluded keyguard as unlocked. | Daily (3) |
 | D02p | Android wake with no call | none | **Pass:** a real FCM call push for a synthetic session is accepted, received, reported to Telecom, and shown ringing within 12 s; no ring-me beacon follows within 15 s, because the app stops at the session's 404 before it asks to be rung. Zero dials: D02p runs under a local lease, and the guard refuses every app dial while no lease is live. | 4 times a day (0) |
-| D03 | Natural Doze | ROBOT-1 | **Setup:** screen off, battery unplugged in software; wait for deep idle while holding the device lane, so no other run uses the Pixel meanwhile. If the run cannot start after that, the battery goes back in and the Pixel is unlocked. D03 runs on a day of its week when no other paid Pixel run is due. **Then:** as D02. Never reaching deep idle is an infrastructure result. | Weekly (3) |
-| D04 | Android variants: standby buckets, battery saver, secure lock, before first unlock, app hibernation | ROBOT-1 | **Pass:** one variant per run. Its state is read back before the ring and judged against the runner's expectations table; the first runs confirm each row. A Pixel that stays quiet counts only when FCM accepted the push. | Fortnightly, rotating (3) |
-| D07 | Android app calls out | ROBOT-1 answers | **Pass:** codes heard both ways; caller ID is DEV-A1. | Fortnightly (2) |
+| D03 | Stepped Doze | ROBOT-1 | **Setup:** `dumpsys deviceidle enable all`, screen off, battery unplugged in software; then step deep idle to IDLE through one maintenance cycle, holding the device lane so no other run uses the device-lane emulator meanwhile. If the run cannot start after that, the battery goes back in and the emulator is unlocked. D03 runs on a day of its week when no other paid device-lane run is due. **Then:** as D02. Not reaching IDLE is an infrastructure result. Natural deep-Doze entry is not tested, because an emulator never enters it by itself (X6). | Weekly (3) |
+| D04 | Android variants: standby buckets, battery saver, secure lock, before first unlock, app hibernation | ROBOT-1 | **Pass:** one variant per run. Its state is read back before the ring and judged against the runner's expectations table; the first runs confirm each row. A device that stays quiet counts only when FCM accepted the push. | Fortnightly, rotating (3) |
+| D07 | Android app calls out | ROBOT-1 answers | **Pass:** the device-lane emulator's call connects; codes heard both ways (the device's half through gRPC audio, `emulator-audio-unproven` until EA1 passes); caller ID is DEV-A1. | Fortnightly (2) |
 | D08 | Background tab and Web Push | ROBOT-1, dispatcher-only audience under the lease | **Pass:** the app's service worker shows the ring notification within 10 s, and the same notification carries the outcome within 30 s of hang-up. Chrome's own notification centre is not read. | Fortnightly (2) |
-| D09 | First-answer race | ROBOT-1 | **Pass:** the Pixel and a page answer within 300 ms of each other; the robot hears exactly one code; the database has one winner, the one heard; the loser holds no call within 5 s. Neither app shows "answered elsewhere": both drop a lost ring silently. | Fortnightly (3) |
+| D09 | First-answer race | ROBOT-1 | **Pass:** the device-lane emulator and a page answer within 300 ms of each other; the robot hears exactly one code; the database has one winner, the one heard; the loser holds no call within 5 s. Neither app shows "answered elsewhere": both drop a lost ring silently. | Fortnightly (3) |
 | D10, D12 | Fresh install; upgrade from the previous release | ROBOT-1 | **Pass:** after install, or after an upgrade from the signed-in previous build, the app has a push target, then D02p and D02 pass. A stale row from the earlier install also counts as a push target, so D02p's beacons are what prove the new install works. | Weekly, alternating (3) |
-| D11 | Unattended recovery | none | **Setup:** reboot the Pixel, power-cycle its port, restart the emulators; the Pixel's hands-free link must be up before. **Pass:** within 10 min, every `rig health` result is green, every emulator is booted, and the Pixel is back with its Bluetooth bond and hands-free link; then D02p passes. | Weekly (0) |
-| D13 | Bad network and a mid-call Wi-Fi drop | ROBOT-1 | **Setup:** 2% loss and 80 ms delay, then a 3 s outage 15 s after answer. **Pass:** the call survives; the Pixel's code is heard before the outage and again from 5 s after it; packet loss outside the outage stays under 5% in Telnyx's RTP statistics. The Pixel's own concealment is not measured. | Monthly (2) |
-| D14 | In-app voicemail and MMS playback | none | **Setup:** under a local lease, S04's newest voicemail (its audio and transcript) is copied into a QA-A call row on DEV-A1, marked as already transcribed; the undo removes the row and the audio. **Pass:** the Pixel's app lists the call with its "Play voicemail" control, and the rig's transcript of the Pixel's media audio over Bluetooth is within 0.25 word error of S04's phrase. Until S04 has left a voicemail, it is an infrastructure result. | Weekly (0) |
-| E01 | Emulator wake, rotating through API 34, 35 and 36 | ROBOT-1 to DEV-E1 | **Pass:** as D02, except the emulator hearing the robot: the rig records no emulator's audio, so a pass says that half was not judged. At least one API level a week must also pass the audio verdict, or the lane raises "emulator-audio-degraded". **Weekly variants:** notifications revoked, and force-stopped; both must NOT ring. | Every 3 days (3) |
-| K01 | Outbound carrier egress (optional, Phase 4) | A public echo-test line | **Pass:** the robot hears its own code echoed back with a 0.1-1.5 s delay. **Any other answer:** hang up within 3 s, and the line is removed permanently. | Weekly (1) |
+| D11 | Unattended recovery | none | **Setup:** hard-kill the device-lane emulator's process, restart the other emulators, and cold-boot it with `-no-snapshot-load`. **Pass:** within 10 min, every `rig health` result is green, every emulator is booted, and the device-lane emulator is back, unlocked with its PIN and Doze-enabled; then D02p passes. | Weekly (0) |
+| D13 | Bad network and a mid-call Wi-Fi drop | ROBOT-1 | **Setup:** the emulator console sets 80 ms of delay and a reduced network speed; 15 s after answer, `svc wifi disable` drops Wi-Fi, and `gsm data unregistered` with Wi-Fi off makes a 3 s outage. **Pass:** the call survives; the device's code is heard before the outage and again from 5 s after it. No loss is judged, because the console has no loss control (X27); Telnyx's RTP statistics are recorded. The device's own concealment is not measured. | Monthly (2) |
+| D14 | In-app voicemail and MMS playback | none | **Setup:** under a local lease, S04's newest voicemail (its audio and transcript) is copied into a QA-A call row on DEV-A1, marked as already transcribed; the undo removes the row and the audio. **Pass:** the device-lane emulator's app lists the call with its "Play voicemail" control, and the rig's transcript of its media audio, heard through `streamAudio`, is within 0.25 word error of S04's phrase (`emulator-audio-unproven` until EA1 passes). Until S04 has left a voicemail, it is an infrastructure result. | Weekly (0) |
+| E01 | Emulator wake, rotating through API 34, 35 and 36 | ROBOT-1 to DEV-E1 | **Pass:** as D02, except the emulator hearing the robot: only the device lane has the gRPC audio link (section 3.9), so E01 records no emulator's audio and a pass says that half was not judged. At least one API level a week must also pass the audio verdict, or the lane raises "emulator-audio-degraded". **Weekly variants:** notifications revoked, and force-stopped; both must NOT ring. | Every 3 days (3) |
+| K01 | Outbound carrier egress (optional, Phase 4) | A public echo-test line | By default it never runs: Phase 4 is optional. **Pass:** the robot hears its own code echoed back with a 0.1-1.5 s delay. **Any other answer:** hang up within 3 s, and the line is removed permanently. | Weekly (1) |
 
 **How your original examples map:**
 - **Loonext to Loonext:** S03, S10, S23.
@@ -789,18 +838,18 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
 | X5 | Texts to and from real handsets on carriers, including US 10DLC and a STOP from a real phone | Needs a SIM (forbidden), and a registered campaign for US traffic | A SIM, if the rule is ever lifted |
 | X20 | A real carrier call into Loonext: ringback, early media, STIR/SHAKEN | All inbound calls come from the robot, on-net | The same. P01 measures it passively once production has volume. |
 | X10 | Outbound caller-name display on a recipient handset | No carrier handset | The same |
-| X17 | Wi-Fi to cellular handover; a cellular call interrupting a Loonext call | The Pixel has no SIM | A data SIM |
+| X17 | Wi-Fi to cellular handover; a cellular call interrupting a Loonext call | The emulators have no real radio; the console's `gsm call` simulates one and no lane runs it yet | A data SIM |
 | X21 | Any iOS device or Simulator test: PushKit and CallKit wake, APNs, lock-screen answer, call audio | No Apple membership is assumed, and the free tier has no Push Notifications capability (developer.apple.com supported-capabilities-ios, parsed 2026-10-30). The iOS app hard-codes production hosts. | An existing membership turns on the separate-accounts iPhone lane. iOS keeps its CI unit tests. |
 | X22 | Calendar consent, refresh revocation, and all of Microsoft | No test identities can be created | Phase 4 offers a Google partial: a service account in the existing project owns its own calendar, and a token-URL seam lets the guard hand the app service-account tokens. That covers the Google API, the sync worker and push channels (verify the push-channel domain rule). |
 | X23 | Hosted behaviour: Durable Object eviction under load, CPU limits, hosted Supabase auth settings, Realtime at scale, OpenNext on real Workers | The rig is local | Partly covered by P01, PW01 and the hermetic workerd Durable Object test |
 | X24 | Supabase Auth mail over Resend SMTP; Resend bounce and complaint webhooks | Auth mail stays in Mailpit. Resend webhooks are team-wide and would carry production events. | Stays hermetic |
-| X25 | A rig credential's SDK ringing another internal credential directly | Only if G02 shows the SDK path is open | Ask Telnyx (FA0) to disable outbound SIP URI calls per connection. Production SIP usernames are never in any rig context. |
+| X25 | A rig credential's SDK ringing another internal credential directly | Only if G02 shows the SDK path is open | Accepted residual if G02 rings; `sip_uri_calling_preference` governs only inbound calls, so no connection setting closes it. Production SIP usernames are never in any rig context. |
 | X26 | Telnyx portal-only tools: SIP call flow, PCAP, QoS graphs, push debugging | No API exists for them | The robot's own RTP statistics, plus session analysis and call events read through the guard, substitute |
 | X1 | A genuine Telnyx "flagged" screening verdict | Telnyx decides it | Recorded payloads cover our handling |
 | X2 | Real port-in and port-out | Needs a legal signature; port-out loses the number | Not recommended |
 | X3 | Hosted-SMS text-enablement; the sole-proprietor code | Needs a number elsewhere, plus paperwork each time | None |
 | X4 | Live 10DLC reviews | No sandbox for them (D31) | Hermetic golden-us |
-| X6 | Wake and audio on non-Pixel Android | One Pixel | A used Samsung on the hub, about $150 (estimate) |
+| X6 | Wake, Doze and call audio on a physical Android phone | No new hardware: every Android lane is an emulator with a Pixel profile, so it misses OEM power management, natural deep-Doze entry, a real radio, Bluetooth and a vendor audio stack | None. Production's P01 ring-success watch measures wake on customers' phones hourly; nothing in production measures call audio. |
 | X7 | Firefox Web Push quota | Not automated | None |
 | X8 | A third incoming call auto-declining | Needs a third QA-W number | One more number, $1.10/month |
 | X9 | A text stuck "queued" for 15 minutes | Fault injection | Stays hermetic |
@@ -808,7 +857,8 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
 | X13 | Google and Apple sign-in | Consent screens and bot checks | Stays hermetic |
 | X14 | Passkey enrolment | Real authenticator; the relying-party id is app.loonext.com | A virtual authenticator, web only |
 | X15 | Real Turnstile | Blocks automation by design | Test keys, kept honest by the always-block check |
-| X16 | Speaker and earpiece audio routes | The rig hears only the Bluetooth or wired route | None |
+| X16 | Speaker and earpiece audio routes | The rig hears only the emulator's one virtual input and output | None |
+| X27 | Packet loss on the Android device's network path | The emulator console sets delay and speed but has no loss control | None. P01 covers wake only. |
 
 ---
 
@@ -817,32 +867,33 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
 | Credential or device state | Lifetime | Automatic renewal or check |
 |---|---|---|
 | Telnyx key `nonprod-guard` | No expiry | Guard health every 15 minutes; weekly key inventory |
-| Cloudflare tokens (`rig-deploy`, `guard-deploy`, `guard-attest-read`, `production-deploy`, `agent-logs-read`) | No expiry | Deploy health; hourly attestation; the weekly reach audit |
+| The existing Cloudflare Workers token in `guard` and `rig-cloud` (FA4); `guard-attest-read`, and the optional scoped tokens, once made | No expiry | Deploy health; hourly attestation; the weekly reach audit |
 | GitHub App key | No expiry | Installation tokens last 1 hour and are minted per use |
-| Fine-grained token for the agent Windows user | No expiry, unless the org forces one | If forced, renewing it is a 5-minute act once a year; the reach audit warns 14 days ahead. This affects development, not rig operation. |
-| Stripe sandbox key; Resend sending key; Sentry DSNs; Sentry `agent-read`; `agent_diag` password | No expiry | Used daily; failures surface in R00 or the reach audit |
+| Fine-grained token for the agent Windows user (FA2, optional) | No expiry, unless the org forces one | If forced, renewing it is a 5-minute act once a year; the reach audit warns 14 days ahead. This affects development, not rig operation. |
+| The Stripe test-mode key (FA5); the existing Resend send-only key (FA8); the Sentry DSN (FA7); Sentry `agent-read`; `agent_diag` password | No expiry | Used daily; failures surface in R00 or the reach audit |
 | FCM service-account key | No expiry, unless an org policy sets one | Checked at FA6; a daily dry-run send detects failure |
 | Edge, guard and robot caller tokens; rig certificate authority (10 years); rig ES256 signing key; VAPID keys; Android nonprod keystore (25 years) | No practical expiry | Rotated only after an incident |
-| `stripe listen` | Uses the sandbox key directly; no 90-day login | R00 checks it |
-| Claude sign-in on the rig | Refreshes; Anthropic can revoke it | The dead-man notices. Scheduled runs and cloud triage continue. Re-login is a named conditional act. |
-| Claude cloud scheduled task | Research preview | The dead-man flags a missing triage heartbeat |
-| Remote Control in the agent Windows user | Session-based | A scheduled task restarts it at boot |
+| `stripe listen` | Uses the test-mode key directly; no 90-day login | R00 checks it |
+| The VM's SSH key pair and its pre-seeded host keys | No expiry | hostd's tunnel refuses a host key that does not match the pinned one; R00 checks the tunnel |
+| hostd on the host | Per logon from the Startup folder, or per boot with FA16 | The dead-man notices a dark rig; triage on the host flags a missing triage heartbeat |
 | Telnyx balance and rentals | Spends down; monthly | Production's existing chore. The floor stops test spending first, the $150 alert warns, and the ledger reserves next month's rental. |
 | Telnyx evidence windows (call status 10 minutes after hang-up; call events 24 hours; SIP flow tool 3 days) | Short | The robot stores ids and RTP statistics at test time |
 | Stripe test clocks | Per run | Created and deleted by each run |
 | Local Supabase | Never pauses | none needed |
 | Rig disk | Fills | Nightly purge of synthetic media, plus webhook rows older than 7 days; alert at 70% |
-| adb authorisation | 7 days by default | "Disable adb authorization timeout" set once; the adb key is backed up |
+| adb authorisation | 7 days by default | "Disable adb authorization timeout" set once on each AVD; the rig-only adb server's key lives in hostd's private home on F: |
 | Android auto-revoke of permissions | Months | Set to ignore at baseline; D04 tests hibernation on purpose |
-| Play Protect checks of adb installs; developer verification | Ongoing; changes due 2027 | Off at baseline. Verify the adb exemption; otherwise emulators only for new builds. |
-| Google Play services on the Pixel | Ages without a Google account | Monthly full OTA over adb; R00 compares the version with the app's minimum |
+| Play Protect checks of adb installs; developer verification | Ongoing; changes due 2027 | Play Protect's adb scanning is off at baseline, so the lanes' installs are not scanned |
+| Android system images (each AVD's revision) | Fixed by the pinned revision | Each AVD's system-image revision is pinned; the agent moves a pin, re-creates that AVD and re-applies settings. R00 names the revision in force. |
+| Google Play services on the AVDs | Fixed by the image revision; ages without a Google account | A watch flags a new Play services `versionName` for the pinned images; R00 compares the version with the app's minimum |
 | FCM deprioritisation | Builds up over 7 days | Risky variants run on emulators only; a falling D02p receive rate raises an infrastructure alert |
-| Android OS updates | Monthly | Auto-update off; the agent applies them in a monthly window and re-applies settings |
-| Pixel reboot | Any time | `rigd` unlocks with the PIN, re-applies settings and re-pairs Bluetooth |
-| Pixel sign-in | Can be lost | The local stack uses Turnstile test keys, so `rigd` signs in again with no human |
-| Pixel battery | Years | 80% charge limit (support.google.com/pixelphone/answer/6090612). Replacement every 2-3 years is a named physical act. |
-| Android SDK packages | Pinned | Upgrading means accepting a new licence: a named founder act, about once a year |
-| Rig OS | Weekly updates | Unattended upgrades, rebooting outside the window |
+| Emulator cold boot | Any time: D11, before-first-unlock runs, a host restart | The lane re-enters the PIN from `pixel-pin`, runs `dumpsys deviceidle enable all` and re-applies settings |
+| App sign-in on an emulator | Can be lost | The local stack uses Turnstile test keys, so `rigd` signs in again with no human |
+| Android SDK packages, on Windows and in the VM | Pinned | Upgrading means accepting a new licence: a named founder act, about once a year (FA15) |
+| The emulator hypervisor | AEHD, the older driver, is sunset on 2026-12-31 | Nothing to do: the rig runs on WHPX |
+| FCM v1 message priority | No deprecation date announced | A watch records the first dated notice that FCM v1 changes how high priority is delivered; D02 already fails when FCM did not accept the push at high priority |
+| The VM's OS | Weekly updates; built from the Ubuntu 24.04 cloud image release 20261017 | Unattended upgrades, rebooting the VM outside the window. A rebuilt VM verifies the newer image's checksums and signature. |
+| Windows on the host | Monthly updates | Windows Update may restart the host inside the dial window (section 12, risk 15); hostd brings the VM and emulators back at the next logon, or boot with FA16 |
 
 ---
 
@@ -866,12 +917,13 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
    - The app also rejects owned-but-unlisted numbers, and G01 proves that daily with STRANGER-1.
    - Rig-authored pull requests are never auto-merged.
 4. **No real card is charged.**
-   - The rig holds only the sandbox key.
+   - The rig holds only the existing account's Stripe test-mode key (FA5), and refuses anything not `sk_test_` or `rk_test_`.
    - The app refuses live keys and live events outside production.
    - `stripe-setup.ts` refuses a live key without `--live`.
 5. **No production customer data is touched or copied.**
    - No production database credential exists on the rig, the edge or the guard.
-   - DNS blocks production API and database hosts for the rig, the phone and the emulators.
+   - DNS blocks production API and database hosts for the rig and the emulators.
+   - The VM cannot read the host's drives, where `apps/api/.dev.vars` holds production keys (guarantee 18).
    - The app refuses any Supabase host outside `*.rig.internal`.
    - Guard reads are filtered to nonprod resources.
    - Repro reads production only from the agent Windows user, through non-personal views and redacted reads.
@@ -900,9 +952,10 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
     - The Telnyx, Resend and FCM keys live only in the guard, which has no public URL.
     - It deploys only from `main`, after its policy tests pass.
     - Version attestation runs hourly and the key inventory weekly.
-12. **No automation token can redeploy production or the guard.**
-    - Every Cloudflare token is scoped to named Workers.
+12. **No token on the rig can redeploy production or the guard.**
+    - The existing Workers token that deploys the guard and the edge lives only in the `guard` and `rig-cloud` environments, which take deployments from `main` only, so it deploys merged code (FA4 substitution). The VM never holds it.
     - The production deploy token lives in the `production` environment, limited to `main` and release tags.
+    - Scoping each token to named Workers is optional hardening. Until then a token in those environments could deploy any Worker in the account, which only merged code running from `main` can make it do.
 13. **Cloudflare counters and bindings cannot collide.** The rig's limiters are local; the cloud Workers use ids 3001-3009 (CI-checked); nothing binds a production KV, D1 or Durable Object.
 14. **Production's login cookie is never exposed.**
     - The production cookie is host-only on app.loonext.com: `{ secure: true }` in `apps/web/src/lib/supabase/cookie-options.ts`, checked 2026-10-29.
@@ -919,10 +972,15 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
     - DNS blocks production and vendor hosts on the rig.
     - `rigd` refuses any APK that is not `.nonprod`.
 17. **Production alerts stay clean.**
-    - Rig and synthetic events go to their own projects, through a capped relay.
+    - Rig and synthetic events carry the environments `rig` and `synthetic` in the shared project, through a capped relay, and production's alert rules filter on `environment:production` (FA7).
     - Only isolation, guard, agent-reach, account, balance and "system dark" signals reach production on purpose.
     - Production's email reputation is protected by the mail rules in section 3.5.
-18. **The rig cannot reach your other machines.** It sits on the guest network with client isolation, the phone is on the rig's own access point, and every connection starts from the rig outward.
+18. **The rig cannot reach your other machines, or your workstation's files.** It rests on the VM:
+    - no shared folders (hgfs), clipboard or drag and drop, so the VM cannot read `D:\` or anything else on the host;
+    - NAT plus nftables: input from the host, 192.168.70.1, is accepted only on ports 22, 443 and 53, and new outbound connections to private ranges are dropped, except to the gateway 192.168.70.2;
+    - connections go from the host to the VM only;
+    - the VM holds no host credential;
+    - hostd listens on loopback only, and the VM's sshd `PermitListen` limits the tunnel's reverse binds to the loopback ports hostd names.
 19. **The public repo stays clean.** Derived configs, env files, Firebase files, the certificate authority and all ids are gitignored or kept as secrets. `check-rig-no-e164`, `check-production-host-literals` and `check-local-secrets` enforce it.
 
 ---
@@ -939,42 +997,37 @@ R00 publishes the room and the scenarios it blocks. FA0 asks Telnyx to raise the
 | Recording | $0.002/min |
 | Answering-machine detection | $0.002 per call |
 | Canadian SMS | $0.0025 per part, each way |
-| Transfer (SIP Refer) | $0.10 per invocation |
+| Transfer | $0.10 per invocation ("Call transfer" on the call-control page, "SIP Refer" on the rate sheet, both fetched 2026-10-31). The guard budgets $0.13, one leg more. |
 | Billing increment | 60 seconds |
 
 A judged call costs about $0.02-0.03.
 
-**Unknowns, budgeted conservatively:**
-- Canadian carrier fees on on-net texts: up to $0.0088 more per part.
-- Any per-dial charge.
+**Unknowns, budgeted at the costlier answer** (D142, update of 2026-11-01):
+- Canadian carrier fees on texts: assumed on both ends, at the highest published $0.008845 a part (Rogers and Fido).
+- On-net calls: assumed billed at full off-net rates on both legs.
+- Per-dial charges: none is published for Call Control or WebRTC.
+- Surcharges: $0.01 per short call above 15% of the account's calls and $0.005 per abandoned call above 20%, with cancelled ring legs assumed to count as abandoned.
+- A number with no connection: assumed still billed for inbound calls and texts.
 
-If either is higher, the guard sheds tests to stay under the cap.
+`call_cost_in_webhooks` is on, so `call.cost` events give the rig what each call actually cost. If any of these is higher than assumed, the guard sheds tests to stay under the cap.
 
 | Cost center | Monthly (expected) | One-time | Hard cap, and who enforces it | Alert before the cap | Source, date |
 |---|---|---|---|---|---|
 | Telnyx numbers: 8 standing at $1.00 + $0.10 SMS; caller-name lookup on one ($0.40); one monthly S28 number (about $2.10) | $11.30 | $8 | At most 10 numbers held and one extra order per 25 days (guard) | none (fixed) | telnyx.com/pricing/numbers and telnyx.com/pricing.md, 2026-10-29 |
-| Telnyx usage: the scheduled dials in section 4.1, about 300 texts, recordings, beep detection, a few transfers | about $9 | none | $35/month all-in, rentals included (guard ledger, then drop). Telnyx daily limits of $0.78/day, about $35.50 a month with rentals. Balance floor. Stranger inbound bounded by reject and detach. | Tier-change and projected-overrun alerts in `loonext-synthetic`. A production alert below $150. | Rates above, 2026-10-29; surcharges at support.telnyx.com/en/articles/1130707 and /12805746, 2026-10-29 |
+| Telnyx usage: the scheduled dials in section 4.1, about 300 texts, recordings, beep detection, a few transfers | about $9 | none | $35/month all-in, rentals included (guard ledger, then drop). Telnyx daily limits of $0.78/day, about $35.50 a month with rentals. Balance floor. Stranger inbound bounded by reject and detach. | Tier-change and projected-overrun alerts in Sentry's `synthetic` environment. A production alert below $150. | Rates above, 2026-10-29; surcharges at support.telnyx.com/en/articles/1130707 and /12805746, 2026-10-29 |
 | Cloudflare: 2 Workers and their Durable Objects on the existing Workers Paid plan; Workers AI through the guard | about $0.50 | none | AI capped at 2,000 neurons a day (guard), so at most about $0.66 a month even if the shared free tier is used up. Requests stay within the included 10M. | The 3 existing billing alerts | developers.cloudflare.com/workers/platform/pricing (updated 2026-10-02) and /workers-ai/platform/pricing (updated 2026-10-20), fetched 2026-10-29 |
 | Supabase | $0 | none | Local stack only | none | none |
-| Stripe sandbox, FCM, Resend, Sentry, GitHub Actions, Claude | $0 | none | Resend at most 10 a day; Sentry at most 100 a day and 3,000 a month; triage only when failures exist | Resend at 7 a day; Sentry at 70% | docs.stripe.com/sandboxes and firebase.google.com/pricing, 2026-10-29; resend.com/pricing, 2026-10-30 |
-| Electricity (about 35 W average) | about $3 | none | none | none | Estimate |
-| Mini-PC: 8 cores, 32 GB, 1 TB NVMe, Ethernet | none | about $450 | none | none | Estimate; DDR5 prices are volatile in 2026 |
-| Used Pixel 8a or 9a, unlocked, FRP cleared, from a retailer | none | about $300 | none | none | Estimate. A new Pixel 10a is $599 (Android Authority, 2026-10-02). |
-| USB hub with per-port power switching | none | about $60 | none | none | Estimate |
-| USB Wi-Fi adapter that can run a 5 GHz access point | none | about $35 | none | none | Estimate |
-| USB Bluetooth adapter and short extension cable | none | about $25 | none | none | Estimate |
-| Travel router (only if the guest network is Wi-Fi only) | none | about $40 | none | none | Estimate |
-| **Total** | **about $24; ceiling about $40** | **about $918** | | | |
+| Stripe test mode, FCM, Resend, Sentry, GitHub Actions, Claude | $0 | none | Resend at most 10 a day; Sentry at most 100 a day and 3,000 a month; triage only when failures exist | Resend at 7 a day; Sentry at 70% | Stripe test mode has no charge; firebase.google.com/pricing, 2026-10-29; resend.com/pricing, 2026-10-30 |
+| Set-aside for month-end surcharges and charges on detached numbers | $1.50 | none | Inside the $35 cap, not added to it (guard ledger) | The guard's monthly check against the account balance | D142, update of 2026-11-01 |
+| Electricity | Estimate: $2-6, the workstation's extra draw | none | none | none | Estimate |
+| Hardware | none | $0 | none | none | No hardware is bought: the rig is a VM on the workstation, and the phones are emulators |
+| **Total** | **about $24, plus $2-6 of power; ceiling about $40** | **about $8** | | | |
 
 **Conditional and optional:**
 
 | Item | Monthly | One-time | When | Source |
 |---|---|---|---|---|
-| Phone with a 3.5 mm jack, plus USB sound card and cable | none | about $230 | Only if the Bluetooth spike fails | Estimate |
-| Echo-test probe K01 | about $0.05 | none | Phase 4, after Telnyx agrees (inside the cap) | Rates above |
-| Used Samsung (closes X6) | none | about $150 | Optional | Estimate |
-| UPS | none | about $80 | Optional | Estimate |
-| Extra 32 GB RAM | none | about $100 | Only if three emulators do not fit | Estimate |
+| Echo-test probe K01 | about $0.05 | none | Phase 4, optional; by default it never runs (inside the cap) | Rates above |
 
 **Telnyx Managed Accounts, for comparison.** They would give real isolation, but need the Starter commit plan at a $1,000 monthly minimum, with Telnyx approval (support.telnyx.com/en/articles/4951492, checked 2026-10-29). The production account returned 403 on that API.
 
@@ -984,40 +1037,41 @@ If either is higher, the guard sheds tests to stay under the cap.
 
 ### Ways in
 
-- **Claude Code on the rig.** `claude remote-control --spawn worktree` runs as a systemd user service and uses outbound HTTPS only (code.claude.com/docs/en/remote-control, checked 2026-10-29).
-  - You, or a workstation agent, attach from claude.ai/code or the Claude app, or send it a message.
-  - It has a full shell on the rig, which is the "SSH in and diagnose everything" of the EDR analogy.
+- **SSH from the host.** Host agents reach the VM with `ssh rig@192.168.70.10`, using the key `F:\loonext-rig\host\ssh\rig`, and the host key the VM was created with is pinned.
+  - It is a full shell on the rig, which is the "SSH in and diagnose everything" of the EDR analogy.
   - Each repro or fix gets its own worktree, so the agent patches, re-runs and verifies in one place.
+  - `vmrun` guest operations are a rescue path only: they need a guest password on the command line, which puts it in the process list.
+  - Nothing is signed in to Claude in the VM, and there is no Remote Control session there (FA12 is dropped).
 - **The `rig` CLI**, locally or through `/ctl/rpc`:
   - `rig deploy --ref`, `rig seed [--recipe]`;
   - `rig run <scenario> [--recipe] [--repeat N] [--build <ref>]`, `rig suite daily|weekly|release`;
-  - `rig device pixel|emu34|emu35|emu36 install|kill|forcestop|doze|standby|saver|lock|unlock|reboot|power-cycle|netem|screenshot|logcat|callflow|bugreport`;
+  - `rig device pixel|emu34|emu35|emu36 install|kill|forcestop|doze|standby|saver|lock|unlock|coldboot|network|screenshot|logcat|callflow|bugreport`;
   - `rig robot dial|answer|dtmf|sms|mms|verdict|inbox|mail`;
   - `rig cron <expr> [--time]`;
   - `rig budget`, `rig room`, `rig lease`, `rig evidence <run>`.
-- **The hourly cloud triage task**, which holds only a triage-scoped token.
-- **Workstation agents** (in the agent Windows user), for production reads only:
+- **The hourly triage agent on the host** (section 3.10), over the same SSH path. FA10 is dropped, so there is no cloud triage task.
+- **Workstation agents**, for production reads only, from the host and never from the VM:
   - `scripts/ops/call-trace.mjs` as `agent_diag`;
   - Workers logs through `agent-logs-read`;
   - the guard's `diag` class;
   - production Sentry through `agent-read`.
-- **Optional (Phase 4):** a raw SSH relay through the edge.
+- **Optional (Phase 4):** a raw SSH relay through the edge, for reaching the rig from outside the workstation.
 
 ### Tokens
 
 **On the rig:**
 - guard caller tokens (`rig-api`, `robot`);
 - the edge uplink token;
-- the Stripe sandbox key;
+- the Stripe test-mode key, and no other Stripe key (FA5);
 - the GitHub App key (`main` is blocked by the ruleset);
 - Sentry DSNs (ingest only);
 - the nonprod Firebase config;
 - the nonprod keystore;
 - test passwords and the TOTP seed.
 
-**In the agent Windows user:** the read-tier tokens listed above, and the fine-grained GitHub token.
+**On the host** (in the agent Windows user, if FA1 is chosen): the read-tier tokens listed above, the VM's SSH key, and the fine-grained GitHub token (FA2).
 
-**Never on the rig or in the agent user:**
+**Never on the rig or in the agent user.** This holds on the rig because the VM cannot read `D:\` (guarantee 18), where `apps/api/.dev.vars` keeps production keys:
 - a Telnyx key;
 - a Cloudflare token that can deploy;
 - a Supabase platform token;
@@ -1041,18 +1095,18 @@ There is no Telnyx, Cloudflare or Sentry MCP there.
 - **Robot and edge:** robot verdicts with per-frame numbers and RTP statistics; edge relay logs.
 - **Android:** logcat; `dumpsys` telecom, notification, deviceidle, power and usagestats; the debug variant's call-flow log; screenshots; bug reports.
 - **Elsewhere on the rig:** Chrome traces and `getStats`; the Stripe listener log; Mailpit; rig health history; the current room and budget.
-- **Production, from the agent Windows user:** `ops_diag` views, Workers logs (3-7 days), Sentry and redacted Telnyx reads.
+- **Production, from the host:** `ops_diag` views, Workers logs (3-7 days), Sentry and redacted Telnyx reads.
 
 **Not visible:** Telnyx's portal-only tools (X26).
 
 ### What the agent can drive
 
-- **Calls:** place a call from the robot, any page, the Pixel or an emulator. Answer or decline anywhere. Send keypad digits, hold, mute, transfer and consult.
+- **Calls:** place a call from the robot, any page, or any emulator. Answer or decline anywhere. Send keypad digits, hold, mute, transfer and consult.
 - **Texts:** send texts and pictures.
-- **Phone states:** put phones into killed, force-stopped, Doze, standby, battery-saver, locked, rebooted or bad-network states.
+- **Device states:** put emulators into killed, force-stopped, Doze, standby, battery-saver, locked, cold-booted or bad-network states.
 - **Pushes:** trigger them by calling, or with D02p at no cost.
 - **Data:** seed tenants, audiences and usage; fire any cron at any time; flip local kill switches; move Stripe clocks.
-- **Builds and hardware:** deploy any ref; build and install any `.nonprod` APK; power-cycle a hub port.
+- **Builds and devices:** deploy any ref; build and install any `.nonprod` APK; cold-boot an emulator, or revert the VM to its baseline snapshot.
 
 ---
 
@@ -1076,13 +1130,13 @@ Example: "A customer's Android phone didn't ring yesterday."
 
    If the customer's app predates the beacon, (b) and (c) cannot be separated, so reproduce both. Android and iOS send all six stages (`push_received`, `os_reported`, `ring_me_sent`, `ringing_shown`, `answered`, `declined`); the web sends the last three it can see. Every client keys a beacon on the INVITE's `X-Loonext-Session`, and `apps/api/src/routes/ring-beacons.test.ts` fails if a client stops sending a stage it is listed for.
 4. **Write a recipe.** `tools/synthetic/recipes/<issue>.yml` holds settings only: app version, Android level, phone state, ring strategy, member levels, network. `check-rig-no-e164` checks it in CI.
-5. **Hand it to the rig.** Send the issue link to the rig's Remote Control session, or run `rig repro <issue>`.
+5. **Hand it to the rig.** Run `rig repro <issue>` in the VM over SSH.
 6. **Rebuild what the customer ran.**
    - `rig deploy --ref <server release tag>`. Old web refs use the rig-only unsupported-Next flag; pre-seam server refs run in `--pre-seam` mode.
    - `rig apk build --ref <app tag>`. Tags older than the `nonprod` build type get a build-config overlay.
    - `rig seed --recipe <issue>`.
-7. **Reproduce at a rate, for free.** Run `rig run D02p --recipe <issue> --repeat 20` on the Pixel and on an emulator at the customer's API level. Stage (d), or a confirmation, uses the paid D02: at most 5 runs from the repro reserve, in the next window.
-8. **If it does not reproduce, sweep.** Change one variable at a time: standby bucket, battery saver, each permission, lock and before-first-unlock states, network loss, app version. Record each negative result. If the customer's phone is not a Pixel and the cause looks OEM-specific, record it as X6.
+7. **Reproduce at a rate, for free.** Run `rig run D02p --recipe <issue> --repeat 20` on the device-lane emulator and on an emulator at the customer's API level. Stage (d), or a confirmation, uses the paid D02: at most 5 runs from the repro reserve, in the next window.
+8. **If it does not reproduce, sweep.** Change one variable at a time: standby bucket, battery saver, each permission, lock and before-first-unlock states, network loss, app version. Record each negative result. If the cause looks specific to a physical phone (OEM power management, the radio, the audio stack), record it as X6.
 9. **Fix test-first, in a rig worktree.**
    1. Write a failing test that pins the cause: Robolectric with `@Config(sdk = [34])`, or an API, SQL or workerd test.
    2. Fix it.
@@ -1107,32 +1161,32 @@ At no step does any customer number, name, message, recording or database row le
 | Phase | What gets built | Agent can build it | What needs you |
 |---|---|---|---|
 | **0a. The small production release** | Ownership rule, `/health` capability, ownership-mismatch alert, inbound-canary fix. Ships with `0fd3583c`, already on main. | Yes, now | Nothing beyond the normal release merge |
-| **0b. Seams, evidence, guards, workstation tools** | Everything else in section 3.7, the docs in section 14, and the drafted Telnyx ticket | Yes, now | FA0 now. FA4 and FA9 to move `ship.yml` and `backup-posture.yml`. |
-| **1. Cloud pieces in existing accounts** | Edge and guard; the Telnyx partition created by the guard's setup routine; the notification channel; attestation and key inventory; `rig-cloud.yml`, `guard.yml`, `rig-secrets.yml`. Number orders and paid dials wait for 0a in production and FA0's limit. Texts may start sooner. | Yes | FA3-FA10. |
-| **2. The rig** | **Spikes first:** (1) Bluetooth hands-free on the Pixel, the purchase gate for the fallback phone; (2) code calibration; (3) local ES256 sign-in; (4) the cron route; (5) the AI shim; (6) FCM rewrite and package pinning; (7) robot inbound recording; (8) three emulators in 32 GB; (9) the edge-to-guard service binding. **Then:** bootstrap, network, rig mode, seed, robot, `rigd`, lanes. | Yes | FA11 (hardware and setup session), FA12 (Claude sign-in) |
-| **3. Schedule, reporting, triage, production watches** | Timers and the dial-budget plan; the Sentry relay; cloud triage; dead-man; G01, G02, P01, PW01. The default cap holds until Telnyx answers. | Yes | Forward Telnyx's reply. Raising the cadence is one guard configuration deploy, which an agent makes (FA14). |
-| **4. Optional** | K01 echo probe (after Telnyx agrees); the Google calendar partial (X22); raw SSH relay; used Samsung; UPS | Yes | Optional hardware. For calendar: enable the Calendar API and create one service account in the existing Google Cloud project (10 minutes). |
+| **0b. Seams, evidence, guards, workstation tools** | Everything else in section 3.7, and the docs in section 14 | Yes, now | FA4 and FA9 to move `ship.yml` and `backup-posture.yml`. |
+| **1. Cloud pieces in existing accounts** | Edge and guard; the Telnyx partition created by the guard's setup routine; the notification channel; attestation and key inventory; `rig-cloud.yml`, `guard.yml`, `rig-secrets.yml`. Number orders wait for 0a in production and the first-order check; paid dials wait for 0a and the ladder. Texts may start sooner. | Yes | Nothing: FA3, FA6 and FA9 are done, FA4, FA5, FA7 and FA8 are substituted, and FA10 is dropped. |
+| **2. The rig** | **Spikes first:** (2) code calibration; (3) local ES256 sign-in; (4) the cron route; (5) the AI shim; (6) FCM rewrite and package pinning; (7) robot inbound recording; (8) emulators under WHPX, started by hostd; (9) the edge-to-guard service binding; **EA1** gRPC call audio, in two steps: with no Telnyx cost, an AVD booted with `-grpc` and `-no-snapshot-load` (with and without `-no-audio`) whose in-guest page plays its microphone back, with a Node client injecting the 2,300 Hz code and streaming the output, passing when the detector hears both codes at 48 kHz, and measuring injection before and after the microphone opens; then one robot dial under the lease, passing when each side hears the other's code in at least 3 cycles with calibration's 10 dB of separation and no emulator crash; **VM1** cloud-init's datasource detection on Workstation, unproven until the first boot; **VM2** emulators started with nobody logged on; **VM3** the tunnel and the 5137 adb server, including whether the emulators honour `ANDROID_ADB_SERVER_PORT`. Spike (1), the Bluetooth purchase gate, is gone with the hardware. **Then:** VM creation, bootstrap, network, rig mode, seed, robot, `rigd`, lanes. | Yes | Nothing. VM creation replaces FA11 and is an agent action; FA12 is dropped. FA16 is optional. |
+| **3. Schedule, reporting, triage, production watches** | Timers and the dial-budget plan; the Sentry relay; triage on the host; dead-man; G01, G02, P01, PW01. The guard's own cap is final (section 4.1). | Yes | Nothing |
+| **4. Optional** | K01 echo probe (by default it never runs); the Google calendar partial (X22); raw SSH relay | Yes | For calendar: enable the Calendar API and create one service account in the existing Google Cloud project (10 minutes). |
 
 ### Founder actions, with click paths
 
 Labels are as of 2026-10-29; vendor screens change.
 
-**FA0. Telnyx ticket and account level (15 minutes, now).**
-1. portal.telnyx.com > account menu > Account Level (or Verification). Copy the level and any concurrent, hourly and daily outbound limits, and give them to the agent.
-2. Support > New ticket. Paste the agent's draft. It states that synthetic monitoring between numbers we own on this account will probably be **most** of the account's call traffic (about 13 dials a day on average, overnight). It asks:
-   1. Our level and its concurrent, hourly and daily outbound limits; whether SIP-URI ring legs to our own credentials count toward them; and, if the concurrent limit is under 5, whether it can be raised.
-   2. Any per-dial or per-call charge beyond the rate sheet, and whether `transfer` is billed as SIP Refer at $0.10.
-   3. How calls and texts between two of our numbers are routed and billed, including Canadian carrier fees on texts.
-   4. Whether cancelled ring legs count toward the abandoned-call surcharge.
-   5. Whether a fraud hold applies to the whole account or to one profile or connection, and whether this traffic is acceptable.
-   6. Whether US and Canadian local numbers can both be ordered, whether `billing_group_id` is honoured on number orders, and whether listings and detail records filter by billing group.
-   7. Whether an API gives a connection's active-call count.
-   8. Whether outbound SIP URI calls can be disabled per credential connection.
-   9. Whether account notification webhooks are signed.
-   10. Whether a number with no connection and no messaging profile is billed for inbound calls or texts.
-3. Forward the reply to the agent.
+**FA0. Withdrawn (2026-10-31).** No ticket goes to Telnyx, and nothing waits on a reply. Each question it asked is answered by a dated public doc, a read-only API read or the rig's own measurement; where none settles it, the rig takes the costlier or safer answer (D142, update of 2026-11-01):
 
-**FA1. Give agents their own Windows user and remove production keys from their reach (about 45 minutes, prerequisite).**
+| Question | How it is answered now |
+|---|---|
+| 1. The account's level and its concurrent, hourly and daily limits | No API exposes them. The guard's proof ladder (section 3.5) sets the concurrent limit in force, with a floor of 2 and room 0 until proven. Hourly and daily limits are assumed at Paid: 10 an hour and 100 a day, account-wide. SIP-URI ring legs are assumed to count. |
+| 2. Per-dial charges; transfer pricing | None is published. A transfer is $0.10 ("Call transfer $0.10 per invocation"); the guard keeps $0.13, one leg more. `call_cost_in_webhooks` is on, so the rig measures actual cost. |
+| 3. Routing and billing between our numbers; Canadian carrier fees | Assumed billed at full off-net rates on both legs, and the Canadian carrier fee assumed on both ends, at the highest published $0.008845 a part. |
+| 4. Whether cancelled ring legs count as abandoned | Assumed to count. The short-call surcharge is $0.01 a call. |
+| 5. Fraud-hold scope | Assumed account-wide and liftable only by emailing support, so the first fraud-type notice latches the paid lanes off (section 3.5). |
+| 6. Ordering both countries; `billing_group_id` on orders | Measured by the first-order read-back, which releases only the number id the order returned. |
+| 7. An active-call count | Measured: `GET /v2/connections/{id}/active_calls`, per connection. An unknown answer refuses. |
+| 8. Disabling outbound SIP URI calls per connection | `sip_uri_calling_preference` governs only inbound calls, so X25 stays an accepted residual, measured weekly by G02. |
+| 9. Whether notification webhooks are signed | Probably signed, not proven. The edge's corroboration (section 3.4) is unchanged. |
+| 10. Billing on a number with no connection | Assumed billed; the $1.50 monthly set-aside covers it (section 7). |
+
+**FA1. Give agents their own Windows user and remove production keys from their reach (about 45 minutes, optional).**
 1. Settings > Accounts > Other users > Add account > "I don't have this person's sign-in information" > "Add a user without a Microsoft account". Name it `loonext-agents`, with a password stored in your password manager. Leave it a Standard user.
 2. Switch to it (Start > your picture > `loonext-agents`).
    - Install Claude from claude.ai/download and sign in with your existing Claude account.
@@ -1146,7 +1200,7 @@ Labels are as of 2026-10-29; vendor screens change.
    4. Once the agent confirms everything is pushed, delete `D:\projects\JobText` (or move it into your profile folder). Its `apps/api/.dev.vars` holds production keys in commented lines, and other local users can read that drive.
 4. From now on, start agent sessions only in `loonext-agents`, or through Remote Control into it.
 
-**FA2. The agent user's GitHub login (15 minutes, prerequisite).**
+**FA2. The agent user's GitHub login (15 minutes, optional).**
 1. In your own browser: github.com > avatar > Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token.
    - Name `workstation-agents`, resource owner BytechLabs, repository access: the repositories agents work on.
    - Permissions:
@@ -1159,12 +1213,9 @@ Labels are as of 2026-10-29; vendor screens change.
 
 Agents can still merge as before, because merging is Contents and Pull requests. Verify on the next merge.
 
-**FA3. The guard's Telnyx key (5 minutes, after FA4 step 1).**
-1. portal.telnyx.com > Auth (API Keys) > Create API Key. Label `nonprod-guard`, no expiry.
-2. dash.cloudflare.com > Workers & Pages > `loonext-telnyx-guard` > Settings > Variables and Secrets > Add. Type: Secret, name `TELNYX_API_KEY`, paste > Deploy.
-3. Paste it nowhere else.
+**FA3. Done.** The guard's Telnyx key, `nonprod-guard`, with no expiry, is the guard's secret `TELNYX_API_KEY`, and is pasted nowhere else.
 
-**FA4. Cloudflare (25 minutes).**
+**FA4. Cloudflare (substituted; the scoped tokens are optional hardening).** The existing Workers token is `CF_API_TOKEN` in the `main`-only environments `guard` and `rig-cloud`, and deploys the guard and the edge. Still wanted from step 2: `guard-attest-read`, for the hourly attestation. The other four tokens in step 2 are optional hardening. Steps 1 and 3 are unchanged.
 1. Workers & Pages > Create > Start with Hello World, twice:
    - `loonext-rig-edge`: Settings > Domains & Routes > workers.dev > Enable.
    - `loonext-telnyx-guard`: Settings > Domains & Routes > workers.dev > Disable.
@@ -1178,9 +1229,9 @@ Agents can still merge as before, because merging is Contents and Pull requests.
    - Settings > Subaddressing > enable.
    - Routing rules > Custom addresses > Create address `rig-robot`, action "Send to a Worker", Worker `loonext-rig-edge` > Save.
 
-**FA5. Stripe sandbox (3 minutes).** dashboard.stripe.com > account picker > Sandboxes > Create sandbox `loonext-rig`. Inside it: Developers > API keys > reveal the secret key. Then github.com > Texturion > Settings > Environments > `rig` > Add secret `STRIPE_SECRET_KEY`. The agent sets the catalog, portal and tax settings through the API.
+**FA5. Substituted: the existing account's test mode.** No sandbox is created. The existing Stripe account's test-mode key and test prices, from `apps/api/.dev.vars`, are the `rig` environment's `STRIPE_SECRET_KEY`. The rig refuses anything not `sk_test_` or `rk_test_` before Stripe is contacted. `rig deploy` runs `apps/api/scripts/stripe-setup.ts`, which is idempotent, only when a price id the template needs is missing.
 
-**FA6. Firebase and Google Cloud (15 minutes).**
+**FA6. Firebase and Google Cloud (done).**
 1. console.firebase.google.com > the existing project > Project settings > General > Add app > Android.
    - Package `com.loonext.android.nonprod`, plus the SHA-256 the agent gives you (the first `rig apk` makes the signing key, then stops and prints that SHA-256 until this file is in the rig's store).
    - Register, download `google-services.json`, and put it into environment `rig` as `ANDROID_NONPROD_GOOGLE_SERVICES_JSON`.
@@ -1188,17 +1239,17 @@ Agents can still merge as before, because merging is Contents and Pull requests.
 3. The key must show no expiry. If creation is blocked or an expiry shows: IAM & Admin > Organization policies > `iam.disableServiceAccountKeyCreation` or `iam.serviceAccountKeyExpiryHours` > Manage policy > override for this project only, then create the key again.
 4. Paste the JSON into the guard as secret `FCM_SERVICE_ACCOUNT_JSON` (same path as FA3 step 2), then delete the download.
 
-**FA7. Sentry (10 minutes).**
-1. sentry.io > Projects > Create Project > Node.js > `loonext-rig`; repeat for `loonext-synthetic`. Put both DSNs into environment `rig`, as `SENTRY_RIG_DSN` and `SENTRY_SYNTHETIC_DSN`. Put the `loonext-synthetic` DSN into environment `rig-cloud` as well, as `SENTRY_SYNTHETIC_DSN`: the edge's dead-man sends stale heartbeats there.
-2. Put the production API project's DSN (its Settings > Client Keys) into environments `rig-cloud` and `guard` as `SENTRY_PROD_DSN`.
-3. `loonext-synthetic` > Settings > Issues: auto-resolve after 24 hours.
+**FA7. Substituted: the existing Sentry project.** No project is created.
+1. The existing project's DSN goes into environment `rig` as `SENTRY_RIG_DSN` and `SENTRY_SYNTHETIC_DSN`, and into `rig-cloud` as `SENTRY_SYNTHETIC_DSN`: the edge's dead-man sends stale heartbeats there. Events carry the environments `rig` and `synthetic`.
+2. The same project's DSN goes into environments `rig-cloud` and `guard` as `SENTRY_PROD_DSN`, for the alerts meant for production.
+3. Every production alert rule filters on `environment:production`, so a rig or synthetic event cannot fire one (section 12, risk 20). Auto-resolve is not set: it is a project-wide setting.
 4. Organization Settings > Spike Protection: turn it on for all projects.
-5. Settings > Developer Settings > Custom Integrations > Create New Integration > Internal Integration `agent-read`, with Organization, Project and Issue & Event Read. Paste its token when the agent's setup prompts in `loonext-agents`.
+5. Settings > Developer Settings > Custom Integrations > Create New Integration > Internal Integration `agent-read`, with Organization, Project and Issue & Event Read.
 
-**FA8. Resend (2 minutes).** resend.com > API Keys > Create API Key `rig-sending`, Permission: Sending access, Domain: loonext.com. Paste it into the guard as secret `RESEND_API_KEY`.
+**FA8. Substituted: the existing send-only Resend key.** No key is created. The existing send-only key is the guard's secret `RESEND_API_KEY`, and the guard's recipient rules (section 3.5) still confine it.
 
-**FA9. GitHub (30 minutes).**
-1. github.com/organizations/BytechLabs/settings/apps/new > `loonext-rig`.
+**FA9. GitHub (the App is done).**
+1. Done: github.com/organizations/BytechLabs/settings/apps/new > `loonext-rig`.
    - Webhook: untick Active.
    - Repository permissions: Contents, Pull requests, Issues and Commit statuses read and write; Actions and Metadata read.
    - Only on this account > Create > Generate a private key > Install App on Texturion only.
@@ -1219,8 +1270,8 @@ Agents can still merge as before, because merging is Contents and Pull requests.
 
 | Environment | Secrets | Variables | Read by |
 |---|---|---|---|
-| `guard` | `CF_API_TOKEN` (`guard-deploy`, FA4), `CLOUDFLARE_ACCOUNT_ID`, `EDGE_ORIGIN`, `SENTRY_PROD_DSN` (FA7), `ROBOT_MAILBOX`, `NOTIFICATION_PATH_SECRET`, `GUARD_ADMIN_TOKEN`, and `AGENT_DIAG_DATABASE_URL` once FA13 has run | None. The account id and the edge's origin are secrets too, because Actions prints a step's environment in its public log and masks only secrets. | `guard.yml` |
-| `rig-cloud` | `CF_API_TOKEN` (`rig-deploy`, FA4), `TOKEN_SHA256_RIG_API`, `TOKEN_SHA256_ROBOT`, `TOKEN_SHA256_DIAG`, `TOKEN_SHA256_ADMIN`, `TOKEN_SHA256_RIG`, `TOKEN_SHA256_TRIAGE`, `ROBOT_WEBHOOK_SECRET_SHA256`, `NOTIFICATIONS_SECRET_SHA256`, `SENTRY_SYNTHETIC_DSN` and `SENTRY_PROD_DSN` (FA7) | `CLOUDFLARE_ACCOUNT_ID`, `TELNYX_PUBLIC_KEY` (the account's webhook key), `ROBOT_MAIL_ADDRESS` | `rig-cloud.yml`, and the store job of `rig-secrets.yml` |
+| `guard` | `CF_API_TOKEN` (the existing Workers token, FA4 substitution), `CLOUDFLARE_ACCOUNT_ID`, `EDGE_ORIGIN`, `SENTRY_PROD_DSN` (FA7), `ROBOT_MAILBOX`, `NOTIFICATION_PATH_SECRET`, `GUARD_ADMIN_TOKEN`, and `AGENT_DIAG_DATABASE_URL` once FA13 has run | None. The account id and the edge's origin are secrets too, because Actions prints a step's environment in its public log and masks only secrets. | `guard.yml` |
+| `rig-cloud` | `CF_API_TOKEN` (the existing Workers token, FA4 substitution), `TOKEN_SHA256_RIG_API`, `TOKEN_SHA256_ROBOT`, `TOKEN_SHA256_DIAG`, `TOKEN_SHA256_ADMIN`, `TOKEN_SHA256_RIG`, `TOKEN_SHA256_TRIAGE`, `ROBOT_WEBHOOK_SECRET_SHA256`, `NOTIFICATIONS_SECRET_SHA256`, `SENTRY_SYNTHETIC_DSN` and `SENTRY_PROD_DSN` (FA7) | `CLOUDFLARE_ACCOUNT_ID`, `TELNYX_PUBLIC_KEY` (the account's webhook key), `ROBOT_MAIL_ADDRESS` | `rig-cloud.yml`, and the store job of `rig-secrets.yml` |
 | `rig` | `STRIPE_SECRET_KEY` (FA5), `ANDROID_NONPROD_GOOGLE_SERVICES_JSON` (FA6), `SENTRY_RIG_DSN` and `SENTRY_SYNTHETIC_DSN` (FA7), `RIG_APP_KEY` (FA9), `CF_GUARD_ATTEST_TOKEN` (FA4), `CLOUDFLARE_ACCOUNT_ID` (the same value as in `guard`, for rigd's attestation), `RIG_TOKEN_UPLINK`, `RIG_TOKEN_RIG_API`, `RIG_TOKEN_ROBOT`, `ROBOT_WEBHOOK_SECRET` | `RIG_BUNDLE_PUBLIC_KEY`, `RIG_APP_ID` (FA9), `TELNYX_PUBLIC_KEY` (the same value as in `rig-cloud`), `RESEND_FROM` | The seal job of `rig-secrets.yml`, which delivers them to the rig's secret store |
 | `production-ops` | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | None | `ops.yml` |
 | `production` | What `ship.yml` and `backup-posture.yml` read as repository secrets today, once step 4 moves them | Likewise, once moved | `ship.yml`, `backup-posture.yml` |
@@ -1228,7 +1279,7 @@ Agents can still merge as before, because merging is Contents and Pull requests.
 Each `TOKEN_SHA256_*` and `*_SECRET_SHA256` is the lowercase hex SHA-256 of a value held somewhere else, so the edge never holds a usable token:
 - `TOKEN_SHA256_RIG_API`, `TOKEN_SHA256_ROBOT` and `TOKEN_SHA256_RIG` hash the `rig` environment's `RIG_TOKEN_RIG_API`, `RIG_TOKEN_ROBOT` and `RIG_TOKEN_UPLINK`;
 - `TOKEN_SHA256_ADMIN` hashes the `guard` environment's `GUARD_ADMIN_TOKEN`;
-- `TOKEN_SHA256_DIAG` hashes the workstation agents' `diag` token, and `TOKEN_SHA256_TRIAGE` the triage token in FA10;
+- `TOKEN_SHA256_DIAG` hashes the workstation agents' `diag` token, and `TOKEN_SHA256_TRIAGE` the triage token, which nothing presents while triage runs on the host (FA10 is dropped);
 - `ROBOT_WEBHOOK_SECRET_SHA256` hashes `ROBOT_WEBHOOK_SECRET`, and `NOTIFICATIONS_SECRET_SHA256` hashes the guard's `NOTIFICATION_PATH_SECRET`.
 
 `rig-secrets.yml`'s seal step delivers `ROBOT_WEBHOOK_SECRET` as `BUNDLE__ROBOT_WEBHOOK_SECRET`, which the rig's store keeps as `robot-webhook-secret`. Until the `rig` environment has that secret, S04 and S20 cannot create the robot's webhook endpoint.
@@ -1237,25 +1288,13 @@ Each `TOKEN_SHA256_*` and `*_SECRET_SHA256` is the lowercase hex SHA-256 of a va
 
 A secret an environment lacks falls back to a repository secret of the same name, and those are production's. `rig-secrets.yml` therefore refuses any value shaped like a production credential.
 
-**FA10. Claude cloud environment (10 minutes).** claude.ai/code > Settings > Environments > New environment `synthetic-triage`. Network access: Custom, adding `loonext-rig-edge.<acct>.workers.dev` to the defaults. Secret: the triage token the agent gives you. The agent then creates the hourly task.
+**FA10. Dropped.** Triage runs on the host (section 3.10), so there is no Claude cloud environment.
 
-**FA11. Hardware and one setup session (about 1 hour).**
-- **Router:** turn on the guest network with client isolation. If it has no Ethernet port, use the travel router on the agent's list.
-- **Buy:** the mini-PC; a used Pixel 8a or 9a, unlocked and FRP-cleared, from a retailer; the switchable USB hub; the access-point Wi-Fi adapter; the Bluetooth adapter with extension cable. Buy the fallback phone only if the agent says the Bluetooth spike failed.
-- **Mini-PC:**
-  1. BIOS: power on after AC loss.
-  2. Install Ubuntu Server 24.04 with OpenSSH, pasting the agent's public key.
-  3. Connect Ethernet.
-  4. Run the agent's bootstrap command, which shows the Android SDK and Google Chrome licences for you to accept.
-- **Pixel:**
-  1. First boot without a Google account.
-  2. Settings > About phone > tap Build number 7 times.
-  3. Developer options: turn on USB debugging and "Disable adb authorization timeout".
-  4. Plug it into the hub and tap "Always allow from this computer".
+**FA11. Withdrawn (2026-11-01), replaced by VM creation, an agent action.** No hardware is bought. An agent creates the VM `loonext-rig` unattended with `node tools/rig/host/vm/create.mjs` on Windows, which downloads and verifies the Ubuntu cloud image from Ubuntu, sizes the disks, writes the `.vmx` and cloud-init, boots the VM, waits for cloud-init to run `bootstrap.sh`, and takes the powered-off baseline snapshot. The steps are in `tools/rig/host/vm` and `tools/rig/README.md`. It refuses to run if a `.vmx` already exists in `F:\loonext-rig\vm`, and it never touches another VM.
 
-**FA12. Sign in to Claude on the rig (2 minutes).** In the rig's console, run `claude` and open the sign-in link in your browser.
+**FA12. Dropped.** Host agents drive the VM over SSH (section 8), so nothing signs in to Claude in the VM.
 
-**FA13. The `agent_diag` password (an agent action, no approval).** It waits for the release that carries migration `20261031100000`, which hardens `agent_diag`. An agent then runs these from a checkout that can read production's admin login (`apps/api/.dev.vars`, which the script also finds from a worktree):
+**FA13. The `agent_diag` password (an agent action, no approval; done 2026-11-01).** It waits for the release that carries migration `20261031100000`, which hardens `agent_diag`. An agent then runs these from a checkout that can read production's admin login (`apps/api/.dev.vars`, which the script also finds from a worktree):
 
 ```
 node scripts/ops/set-agent-diag-password.mjs --target production --dry-run
@@ -1270,9 +1309,11 @@ node scripts/ops/call-trace.mjs --self-check
 - An agent then copies the same login into environment `guard` as `AGENT_DIAG_DATABASE_URL`, for the daily measurements run (section 3.5), without printing it: `gh secret set --env guard -f ~/.loonext/agent-diag.env`. That run is the one CI job that receives the login.
 - After every rotation the agent runs that command again. After a withdrawal it deletes the copy: `gh secret delete AGENT_DIAG_DATABASE_URL --env guard`. A stale copy fails the measurements run, and once the reserve is 36 hours old every paid dial is refused.
 
-**FA14. Guard deployments (an agent action, per the amendment).** `guard.yml` deploys from `main` after its policy tests pass, with no approval. An agent dispatches its admin routines (check, setup, order-standing, key-inventory, accept-key-inventory, reattach, measurements) from `main`, including once when Telnyx's answer lets the cadence rise.
+**FA14. Guard deployments (an agent action, per the amendment).** `guard.yml` deploys from `main` after its policy tests pass, with no approval. An agent dispatches its admin routines (check, setup, order-standing, key-inventory, accept-key-inventory, reattach, measurements) from `main`.
 
-**FA15. Conditional, about once a year.** Accept a new Android SDK licence when the agent upgrades the pinned SDK on the rig.
+**FA15. Conditional, about once a year.** Accept a new Android SDK licence when the agent upgrades a pinned SDK: the Windows SDK the emulators run from, or the VM's Linux SDK for `rig apk`.
+
+**FA16. Optional: start the rig at boot (5 minutes).** In an elevated terminal, `schtasks /Create /TN "Loonext Rig" /SC ONSTART /DELAY 0002:00 /RU <your user> /RP * /TR "<the command the agent gives you>"`, typing your password at the prompt. Without it, hostd starts from your Startup folder when you log on, so after a Windows Update restart the rig stays dark until you log on.
 
 ---
 
@@ -1281,43 +1322,44 @@ node scripts/ops/call-trace.mjs --self-check
 - **A hosted twin of Loonext in the production accounts.** It would add configuration drift, a public login page on the production Cloudflare account and a hosted test database. Re-evaluate when #323's trigger fires: a second person shipping, or a customer whose outage is expensive.
 - **Synthetic tenants inside the production database.** Production point-in-time recovery is off. That approach also needed a session-minting endpoint in production, and its phone lane breaks on the first real Turnstile challenge.
 - **An iOS Simulator lane.** It could not test wake, it would need an iOS rig configuration plus a TCP relay, and no customer runs an iOS build.
-- **A raw SSH relay as the primary way in.** Remote Control already gives an agent a full shell on the rig. SSH stays optional (Phase 4).
+- **A raw SSH relay through the edge as the primary way in.** Host agents already have a full shell on the rig over SSH on the workstation. The relay stays optional (Phase 4).
 - **A production probe number** for wiring checks. PW01 reads production's settings and delivery log instead, with no dial and no exception to the guard's policy.
 - **New accounts of any kind:** SIM, Apple, Workspace or Microsoft 365, device farm.
 - **A hard release gate on synthetic results.** A flaky phone must not block a customer fix. Reconsider after 30 days with the device lanes under 2% flakiness.
 - **Any copy of production data,** even scrubbed.
 - **An App Store or TestFlight pipeline, porting, live 10DLC reviews, forced screening verdicts.**
 - **A self-hosted GitHub runner.** On a public repo, fork pull requests could run code on it.
-- **Your workstation as the rig.**
 - **Load testing.** The #251 driver still has no deployed non-production target.
 - **Switching on the #308 hourly text canary.** Its column bug is fixed in Phase 0a. Turning it on needs two more production numbers and about $12 a month by its own estimate; that stays its own decision.
 - **A Supabase scoped token for production logs.** It expires within a year, which would make a recurring founder act. Database evidence comes from `agent_diag`.
-- **A read-only live Stripe key for agents.** It would expose customer billing data. Billing repro uses the sandbox.
+- **A read-only live Stripe key for agents.** It would expose customer billing data. Billing repro uses the existing account's test mode.
 
 ---
 
 ## 12. Open risks
 
-1. **A Telnyx fraud hold is account-wide** (accepted, the largest risk). Test traffic will probably be most of the account's calls. A hold would stop production calling too, and Telnyx does not disclose its scope. Mitigations: on-net only, low volume, quiet hours, a written notice, an automatic 7-day halt. Recovery may need you.
-2. **Concurrency room may be too small.** If the account's limit is 2 or 5, most or all paid call lanes do not run (section 4.1). That would also mean production cannot ring a full crew, which is worth knowing on its own.
+1. **A Telnyx fraud hold is account-wide** (accepted, the largest risk). Test traffic will probably be most of the account's calls. A hold would stop production calling too, and Telnyx does not disclose its scope. Mitigations: on-net only, low volume, quiet hours, and the first fraud-type notice latches the paid lanes off until a reviewed change to `SIGNAL_LATCH_RESET` (section 3.5). Recovery needs you, because only Telnyx support can lift a hold.
+2. **Concurrency room may be too small.** If the account's limit is 2 or 5, most or all paid call lanes do not run (section 4.1). Telnyx documents a default of 2 (support.telnyx.com/en/articles/1130717, fetched 2026-10-31) and 5 at the Paid level (developers.telnyx.com account levels, checked 2026-10-29), and no API says which applies. Until the proof ladder proves more than its floor of 2, the room is 0 and no paid call lane runs. That would also mean production cannot ring a full crew, which is worth knowing on its own.
 3. **The guard's key has full production authority.** A merged policy bug could touch production. Mitigations: policy unit tests, the two-way registry check, start-up refusals, daily 403 probes, attestation, key inventory.
 4. **Agents keep production reach** (the amendment). Agents hold production keys and can drive the founder's browser, as they do today. The guard does not widen that. Its protections are in code, and FA1/FA2 remain available as optional hardening.
-5. **Ordering.** No number before production's `/health` shows the ownership rule, and FA0 returns the limit.
-6. **One home site.** Power or internet loss stops synthetic coverage. The dead-man alerts production after 6 hours dark.
+5. **Ordering.** No number before production's `/health` shows the ownership rule and the first-order check passes. While paid dials are refused, only ROBOT-1, DEV-W1 and DEV-E1 are ordered.
+6. **One home site, on one workstation.** Power or internet loss stops synthetic coverage. The dead-man alerts production after 6 hours dark.
 7. **Fidelity gaps from running locally** (X23).
 8. **P01 has little to measure today.** With one production number, it mostly reports "insufficient sample", and repro issues may wait a long time for production evidence.
 9. **Unproven mechanisms,** each with a spike and a fallback:
    - coded bursts surviving voice processing (fallback: "media arrived" plus speech recognition);
-   - Bluetooth hands-free on the self-managed call (fallback: the jack phone);
    - local ES256 sign-in;
    - the AI shim;
    - FCM rewrite and package pinning;
    - inbound recording;
    - the edge-to-guard binding (fallback: HMAC with a nonce);
-   - the active-calls API (fallback: room limits only);
-   - Remote Control started from a scheduled task on Windows;
-   - the adb exemption from developer verification.
-10. **Cost uncertainty.** A per-dial charge or carrier fees on on-net texts would shrink coverage, not raise spend.
+   - the per-connection active-calls read (an unknown answer refuses the dial);
+   - the proof ladder's validation check (an inconclusive answer leaves the floor in force);
+   - gRPC call audio on the emulators (EA1, risk 19);
+   - cloud-init's datasource detection on Workstation (VM1);
+   - emulators started with nobody logged on (VM2);
+   - the tunnel and the rig-only adb server on 5137 (VM3).
+10. **Cost uncertainty.** Each unknown is budgeted at its costlier answer (section 7). A higher real cost would shrink coverage, not raise spend.
 11. **Recycled numbers attract strangers.** Rejected calls and dropped texts may still bill. Detach stops a flood; replacement waits for the monthly order slot.
 12. **Shared quotas without a vendor-side split:** Sentry, Resend, Workers usage, Workers AI, Claude limits. Each is capped in our code.
 13. **Old-version repro.** Old web refs need the rig-only unsupported-Next flag. Pre-seam server refs cannot run push or email scenarios. Old Android tags need an overlay.
@@ -1326,6 +1368,13 @@ node scripts/ops/call-trace.mjs --self-check
     - The account's two mobile push credentials (iOS and Android) are attached to no connection, so iOS closed-app wake cannot work today.
     - If the account is at the Paid level, Telnyx prepends its automated-call announcement to production's own greetings and dials, and caps customers at 5 concurrent calls and 100 a day.
     - `docs/deploy/04-telnyx.md` said ring legs come from the WebRTC connection, as D43's live fix made them. The code now dials every leg from the voice connection (`apps/api/src/calls/runtime.ts`), and D43 found that a ring dialed from the voice connection fails. 04-telnyx.md now says what the code does and keeps the question open. **Verify** on production's next inbound call that a browser rings.
+15. **Windows Update restarts the host inside the dial window.** It did 6 times in 60 days, at 08:29-10:44 UTC. The VM and the emulators stop with it, and come back at the next logon, or at boot with FA16. Moving active hours over 04:00-10:00 UTC would avoid most of them; that is your choice.
+16. **Overnight power-offs.** Five gaps of 9-14 hours in 60 days each covered the whole dial window. A dark night is infrastructure (`synthetic-dark`), never a product failure, and costs that day's paid runs.
+17. **Host CPU load.** The workstation is 44-68% busy with agent sessions, and the VM and emulators add to it. Timing-sensitive verdicts (ring within 6-12 s, the 300 ms race in D09) may flake under load; a flake is retried once before it is reported.
+18. **The F: disk budget.** F has 128 GB free. The VM's disk can grow to 90 GB, its secrets disk is 4 GB, and the AVDs need their own space. C has only 34 GB free and D is a hard drive, so neither is a fallback.
+19. **Emulator audio is unproven.** gRPC `injectAudio` and `streamAudio` have not run on this workstation. Until spike EA1 passes, every device-lane audio verdict is `emulator-audio-unproven`, never a pass, so call audio on Android is not judged at all.
+20. **One Sentry project for production and the rig** (FA7). Production's alert rules must filter on `environment:production`, or a rig or synthetic event could fire a production alert. A new alert rule without that filter reopens it.
+21. **An ordered number's read-back id.** The guard reads each ordered number back by the id the order returned, which Telnyx's spec documents as a number-order record. If that is not the `/v2/phone_numbers` id, the first read-back gets a 404 and ordering stops for good (`number_unreadable`), deleting nothing and alerting production. That fails safe, but resuming ordering would be a decision; production resolves ordered numbers by phone number (`apps/api/src/telnyx/provisioning.ts`).
 
 ---
 
@@ -1341,11 +1390,11 @@ node scripts/ops/call-trace.mjs --self-check
 | How the guard knows production is ready | `/health` gains a capability list. |
 | Production wiring | PW01 reads production settings and deliveries. No probe number. |
 | The #308 text canary | Bug fixed; switching it on stays #308's decision. |
-| Where triage runs | A Claude cloud task, so a revoked rig sign-in never stops it. |
+| Where triage runs | First a Claude cloud task, so a revoked rig sign-in could not stop it. Since 2026-11-01, an agent on the host, because nothing signs in to Claude in the VM (FA10 and FA12 dropped). |
 | Production Telnyx reads | Merged into the guard as a redacted, GET-only class: one full-power key fewer. |
 | Sentry write access | None anywhere. Synthetic issues go by DSN. |
 | FCM key rotation | No self-rotating key; non-expiry is checked at setup. |
-| Box memory | 32 GB unless the emulator spike needs more. |
+| Rig memory | 24 GB for the VM; the emulators run on the host, 2 cores and 3 GB each, at most 3 booted (2026-11-01). |
 | Transfer pricing | Transfers are budgeted at $0.10 each (SIP Refer, rate sheet 2026-10-29). |
 | Cron path | `/cdn-cgi/handler/scheduled`, confirmed in wrangler 4.106.0. |
 | Isolation proof | G01 runs daily at the app layer; guard 403 probes run daily. |
@@ -1360,11 +1409,11 @@ node scripts/ops/call-trace.mjs --self-check
 |---|---|
 | Blocker: agents run as you and can drive your Chrome and credential store | Accepted under the amendment (12, risk 4). The reach audit lists what an agent can reach. A separate Windows user and a token that cannot approve stay available as FA1 and FA2 (3.1). |
 | Blocker: production keys in commented lines of `apps/api/.dev.vars` | Removed only if you choose FA1, which also gives agents local-only env files with fakes. Either way, `check-local-secrets` stops a push while any file git would stage holds a live key, and CI checks again. Its session-start hook waits for your yes (3.1). |
-| Blocker: test calls can starve a customer's call | Room formula, live-leg count, preemption, measured window; paid lanes gated on FA0 (3.5, 4.1) |
-| Test traffic is the majority, so surcharge and fraud reasoning was inverted | Account-level ratio control, single-surface audiences, disclosure in FA0 (2.2, 3.5) |
+| Blocker: test calls can starve a customer's call | Room formula, live-leg count, preemption, measured window; paid lanes open only on the proof ladder's evidence, with room 0 at the floor (3.5, 4.1) |
+| Test traffic is the majority, so surcharge and fraud reasoning was inverted | Account-level ratio control, single-surface audiences, cancelled ring legs assumed abandoned, and a latch on the first fraud-type notice (2.2, 3.5) |
 | Dials undercounted | Counts derived from the journeys; CI budget check with retry and repro reserves; the cadence encoded in `tools/rig/scenarios.json`, with the runs the hourly cap cannot hold named (4.1, 4.2) |
 | P01 has no sample | Reports n; "insufficient sample" is never a pass; repro issues stay open until evidence exists (3.11, 9) |
-| Wired fallback breaks adb | Bluetooth is a purchase gate; the fallback is a second phone with a jack (3.9) |
+| Wired fallback breaks adb | Moot since 2026-11-01: there is no phone. Emulator audio goes through gRPC, gated by EA1 (3.9) |
 | FCM token seam missing | `FCM_OAUTH_TOKEN_URL`, a guard-token bearer in rig mode, a dummy key, and a test (3.3, 3.7) |
 | iOS lane would talk to production | iOS Simulator lane and TCP relay dropped (2.3, 11) |
 | Old web refs cannot build | Rig-only unsupported-Next flag; pre-seam mode; wider DNS block (3.2, 3.3) |
@@ -1376,8 +1425,8 @@ node scripts/ops/call-trace.mjs --self-check
 | Untrusted texts could reach production code | The edge never relays stranger content; rig PRs are never auto-merged (3.4, 3.10) |
 | Vendor ceiling was 3 times the cap; inbound uncapped | Daily limits resized to $0.78; automatic detach for floods (3.6) |
 | S29 could not pass | `canceled_at` is backdated under the lease; the test clock is used only for Stripe-side assertions (4.2) |
-| SDK-placed SIP calls bypass the guard | G02 sentinel probe; residual X25 if open; question in FA0 (4.2, 4.3) |
-| Minor gaps | Notification webhook secret path and corroboration; guard with no public URL; secrets cutover order covering `backup-posture.yml`; `stripe listen --api-key`; device-side renewals (Play services, FRP, SDK pin, adb key); `DEPLOY_ENV` unset means local; ownership-mismatch alert and fallback marker; D02p dials zero; monthly Sentry ceiling; FCM Android-only rewrite; calendar partial; numeric verdicts for D13, E01 and S03; text events acknowledged at the edge; Ethernet uplink, 5 GHz access point, Ontario numbers; Phase 0 split (the API deploys before web in `ship.yml`); portal-only tools named (X26); SSH and PW01 simplified; production push-credential and Paid-level findings filed (12). |
+| SDK-placed SIP calls bypass the guard | G02 sentinel probe; residual X25 if open, since `sip_uri_calling_preference` governs only inbound calls (4.2, 4.3) |
+| Minor gaps | Notification webhook secret path and corroboration; guard with no public URL; secrets cutover order covering `backup-posture.yml`; `stripe listen --api-key`; device-side renewals (system-image and SDK pins, Play services, adb key); `DEPLOY_ENV` unset means local; ownership-mismatch alert and fallback marker; D02p dials zero; monthly Sentry ceiling; FCM Android-only rewrite; calendar partial; numeric verdicts for D13, E01 and S03; text events acknowledged at the edge; the network (now the VM's NAT and nftables), Ontario numbers; Phase 0 split (the API deploys before web in `ship.yml`); portal-only tools named (X26); SSH and PW01 simplified; production push-credential and Paid-level findings filed (12). |
 
 ---
 
@@ -1398,3 +1447,12 @@ A new decision, numbered when committed because parallel sessions also write dec
 - New rows in `docs/deploy/06-env-reference.md`, enforced by `check-env-doc`.
 - A new `docs/RIG.md`: runbook, cadence plan, verification checklist, and the resource list without ids.
 - A note in `docs/CAPACITY.md`.
+
+**Update, 2026-11-01: no Telnyx ticket, no new hardware.** Recorded in D142's update of that date, which wins where this file disagrees:
+- **FA0 is withdrawn.** Nothing waits on Telnyx. The ten questions are answered by dated public docs, read-only API reads or the rig's own measurement, and otherwise by the costlier or safer answer (section 10, FA0).
+- **The concurrency proof ladder** replaces "paid lanes off until FA0": a floor of 2 with room 0, a $0 validation check on `nonprod-limit-probe-ovp`, a lower bound from production's history, and ceilings from refusals and level evidence (section 3.5). The account-wide rate assumes the Paid values, and the guard's cap of 18 a day and 3 an hour is final (section 4.1).
+- **Ordering** waits only on `/health` and the first-order check, and the read-back releases only the number id the order returned.
+- **The first fraud-type notice latches the paid lanes off**, until a reviewed `SIGNAL_LATCH_RESET`.
+- **FA11 is withdrawn.** The rig is a new VMware Workstation VM, `loonext-rig`, with the Android emulators on the Windows host under WHPX, driven by `hostd` (section 3.2). The technician's phone is the AVD `rig-pixel`, and the id `pixel` names it. Call audio goes through the emulator's gRPC service, gated by EA1 (section 3.9). X6 widens to any physical phone, and X27 is new (section 4.3).
+- **Founder actions:** FA5, FA7, FA8 and FA4 are substituted with what already exists; FA10 and FA12 are dropped; FA3, FA6, FA9 and FA13 are done; FA16 is new and optional (section 10).
+- **Cost:** hardware $0 and about $8 one-time; about $24 a month plus $2-6 of workstation power, with a $1.50 set-aside inside the $35 cap (section 7).

@@ -8938,8 +8938,10 @@ on 15.
 ## D142 — rig mode, not staging: human-free repro inside the accounts Loonext already has (2026-10-30)
 
 **Decision.** Reproducing and testing calls and texts happens on **the rig**, one
-always-on Linux box that runs the whole stack locally at any git ref and is
-driven by agents with no person in the loop. Real Telnyx traffic leaves it only
+dedicated VMware Workstation VM on the founder's workstation, with the Android
+emulators on the Windows host. It runs the whole stack locally at any git ref,
+is on while the workstation is on, and is driven by agents with no person in
+the loop. Real Telnyx traffic leaves it only
 through `loonext-telnyx-guard`, a Worker in the existing Cloudflare account that
 holds one extra Telnyx key and confines the rig to a capped nonprod partition of
 the EXISTING Telnyx account (its own billing group, apps, profiles and numbers).
@@ -8956,7 +8958,9 @@ The design, runbook and verification checklist are `docs/RIG.md`.
   rule before the guard may order a number.
 - **Test calls never take a customer's capacity.** The guard sizes them from the
   account's concurrent-call limit minus production's largest ring audience, and
-  hangs up test legs on the first production call.
+  hangs up test legs on the first production call. The limit is the one the
+  guard's proof ladder has established. While it is unproven, the guard uses a
+  floor of 2 and allows no test calls at all.
 - **No new vendor account** of any kind, including sub-accounts, SIMs, seats and
   enrollments.
 
@@ -8967,7 +8971,8 @@ with separate accounts for every vendor was rejected on the second point alone.
 Of three no-new-account designs (a hosted twin in the existing accounts, this
 rig, and synthetic tenants inside production), two independent reviews chose the
 rig. It has no public test page, no hosted test database, and no test data in
-production, and it costs about $24 a month plus about $918 of hardware.
+production. It costs about $24 a month, plus an estimated $2-6 of workstation
+power, and about $8 one-time for the first number setup. Hardware costs $0.
 
 **Amended, against the design as delivered.** The design made two workstation
 changes prerequisites: agents in their own Windows user without production keys,
@@ -8982,8 +8987,9 @@ guards. It deploys from `main` like production does.
 **Accepted residual, stated plainly.** Telnyx does not disclose whether a fraud
 hold covers the whole account. Test traffic may become most of the account's
 calls, so a hold triggered by it could stop production calling. Paid call lanes
-stay off until Telnyx answers in writing, and any suspicious-traffic notice halts
-them for seven days.
+open only on the rig's own evidence. A fraud-type notice latches them off for
+good, until a reviewed change to `SIGNAL_LATCH_RESET`. Any other notice halts
+them for 7 days.
 
 **Lost against separate accounts:** carrier-handset paths, real-iPhone wake
 (unless an Apple membership already exists), real calendar consent, and the
@@ -9043,7 +9049,7 @@ while building them:
   the guard's is 28 days old. The ratios were to come from the guard's own
   detail-record read, which is not built: the repo's Telnyx spec has no
   call-control detail record, and nothing yet says which records Telnyx counts
-  as abandoned or short (FA0 asks about cancelled ring legs). Until it is
+  as abandoned or short (cancelled ring legs are assumed to count). Until it is
   built, an agent files the ratios by dispatch, and without them paid dials are
   refused (`admission.ratios_unknown`). `agent_diag` reads only non-personal
   views. That run is the one CI job that receives the login,
@@ -9083,15 +9089,16 @@ while building them:
   `tools/rig/scenarios.json` keeps that cadence for everything that fits: 358.7
   a month, 490.5 with reserves. S07, S08, S09, S10 and D01 stay unscheduled,
   because one run of each is more than the hourly cap of 3, and K01 waits for
-  Phase 4. An edit to `docs/RIG.md` 4.1 to 4.3 updates that file in the same
-  change, and `scripts/check-rig-scenarios.mjs` fails CI when they disagree.
+  Phase 4. The cap of 3 is the guard's own and does not rise. An edit to
+  `docs/RIG.md` 4.1 to 4.3 updates that file in the same change, and
+  `scripts/check-rig-scenarios.mjs` fails CI when they disagree.
 - **Local sign-in uses the rig's own key.** The pinned Supabase CLI already
   signs ES256, but with a key built into the CLI and the same on every
   install. The rig generates its own and keeps it in its secret store.
 - **Still no new vendor account.** Everything built runs inside accounts
-  Loonext already has: Cloudflare, Telnyx, Sentry, Stripe (one sandbox),
-  Firebase, Resend and GitHub. Nothing needs a new account, sub-account, seat,
-  SIM or enrollment.
+  Loonext already has: Cloudflare, Telnyx, Sentry, Stripe (the existing
+  account's test mode), Firebase, Resend and GitHub. Nothing needs a new
+  account, sub-account, seat, SIM or enrollment.
 - **S28 and S29 share a grace workspace.** Grace releases every number a
   workspace holds, so S29 cannot run on a tenant with a standing number. QA-G
   holds none. S28 buys the month's number into it, beside DEV-C1's area code
@@ -9132,3 +9139,209 @@ while building them:
   runner its earlier attempts and their evidence from the verdict store. E01
   forgives one API level's silence only when another level was heard in the
   last 7 days.
+
+**Update, 2026-11-01 (no Telnyx ticket, no new hardware).** Founder decisions
+of 2026-10-31 and 2026-11-01 withdraw FA0, the Telnyx ticket, and FA11, the
+hardware. `docs/RIG.md` is rewritten to match. Decisions made for it, each
+with its reason:
+
+- **Nothing waits on Telnyx.** FA0 is withdrawn and no question goes to
+  Telnyx. Each is answered by a dated public doc, a read-only API read or the
+  rig's own measurement. Where none of those settles one, the rig takes the
+  costlier or safer answer. Why: a founder decision, and a vendor's reply is a
+  person in the loop.
+- **The ten former FA0 questions.**
+  - Q1, level and limit: no API exposes either, so the proof ladder below
+    answers it.
+  - Q2, charges: no per-dial fee is published. A transfer is $0.10 a call
+    ("Call transfer $0.10 per invocation"), and the guard keeps $0.13, which
+    adds one leg. `call_cost_in_webhooks` is turned on, so the rig measures
+    what calls actually cost.
+  - Q3, on-net calls and Canadian fees: an on-net call is assumed billed at
+    full off-net rates on both legs, and the Canadian carrier fee is assumed
+    on both ends, at the highest published $0.008845 a part (Rogers and Fido).
+  - Q4, abandoned calls: cancelled ring legs are assumed to count toward the
+    abandoned surcharge. The short-call surcharge is corrected to $0.01 a
+    call.
+  - Q5, fraud-hold scope: assumed account-wide, and liftable only by emailing
+    support, which the first decision rules out.
+  - Q6, ordering: measured by the first-order read-back.
+  - Q7, active calls: measured by admission's per-connection
+    `GET /v2/connections/{id}/active_calls`. An unknown answer refuses.
+  - Q8, SIP-URI calls: `sip_uri_calling_preference` governs only inbound
+    calls, so X25 stays an accepted residual, measured weekly by G02.
+  - Q9, notice signing: probably signed, not proven. The edge's
+    corroboration is unchanged.
+  - Q10, detached numbers: a number with no connection is assumed billed.
+
+  Why: each answer is the costlier or safer of the readings the sources
+  leave open.
+- **A set-aside.** $1.50 a month is reserved inside the $35 cap for month-end
+  surcharges and spend on detached numbers. Why: the cap counted neither.
+- **A proof ladder replaces "null until FA0".** It lives in the guard's
+  Durable Object.
+  - Floor: `TELNYX_CONCURRENT_FLOOR=2`, the lowest documented default
+    (support article 1130717, fetched 2026-10-31). It is renamed from
+    `TELNYX_CONCURRENT_LIMIT` because its meaning changed; every user of it
+    is inside `tools/guard`.
+  - While only the floor is in force, the room is 0 whatever production's
+    reserve, and every request that adds a leg is refused as
+    `admission.limit_unproven`. Why: the old formula would have given room 1
+    with a reserve of 1. Nothing ever probes the limit by dialing.
+  - Validation check, on the connection-less voice profile
+    `nonprod-limit-probe-ovp`: it writes an absurd 9999 first. Only if Telnyx
+    refuses that with a 422 naming `concurrent_call_limit` does it
+    binary-search, in at most 16 writes, confirming that V is accepted and V+1
+    refused. It always resets the profile to 1. It costs $0 and places no
+    call. An accepted absurd value means the rule is not enforced, and the
+    limit stays unproven; any other answer is inconclusive. Why: Telnyx's API
+    spec says a profile's limit "Must be no more than your global concurrent
+    call limit".
+  - History lower bound: the most overlapping answered production calls in 28
+    days, from `ops_diag.call_sessions`. It can lift the limit in force above
+    the floor. Why: it is measured; the account carried that many.
+  - Ceilings: refusal codes 90041, 90042 and 90043, and 90103 with HTTP 429.
+    Each also halts and alerts. The robot hearing Telnyx's automated-call
+    announcement means Paid or below, which caps the limit at 5.
+  - Evidence that contradicts itself refuses as `admission.limit_conflict`
+    and alerts. Evidence older than 35 days falls back to the floor.
+- **Account-wide rate at the Paid values.** The guard assumes 10 outbound
+  calls an hour and 100 a day, account-wide (developers.telnyx.com account
+  levels, checked 2026-10-29). It refuses when the rig's dials plus
+  production's measured peak hour or day would exceed them, and when that
+  measurement is stale. Its own 18 a day and 3 an hour stay as ceilings. Why:
+  no API says which level the account is on, and Paid is the lowest level
+  with published limits. The 25% clause was the route for raising the cap; at
+  Paid it gives 2.5 an hour, below 3, so the cap is final, and S07-S10 and
+  D01 stay unscheduled with no promised rise.
+- **Ordering** waits only on production's `/health` listing
+  `telnyx-partition-v1` and on the first-order check, no longer on the limit.
+  While paid dials are refused it orders only the text-lane roles ROBOT-1,
+  DEV-W1 and DEV-E1. The read-back judges only after the order reports
+  success, releases only the number id the order returned, never a number
+  matched by phone number alone, and stops ordering without deleting when
+  anything is ambiguous. Why: the old read-back could judge too early and
+  release the wrong number.
+- **Fraud and refusal signals.** The first fraud-type notice (Suspicious
+  Outbound Voice Traffic, Account Disabled or Messaging Suspicious Traffic)
+  latches the paid lanes off at once, until a reviewed change to
+  `SIGNAL_LATCH_RESET`. Other notices keep the 7-day halt and the latch on a
+  second within 30 days. Concurrency and dial-rate refusals halt the same way
+  and count toward the latch. A late notice with a valid signature now halts,
+  deduplicated by notice id, instead of being dropped with a 400. Why: the
+  hold is assumed account-wide and irreversible. Narrowing which signed types
+  halt was rejected, because it would weaken a control.
+- **The rig is a VM.** FA11 is withdrawn. The rig is a new VMware Workstation
+  VM, `loonext-rig`, made only for it.
+  - It lives in `F:\loonext-rig`: F is NVMe with 128 GB free, C is nearly
+    full and D is a hard drive.
+  - It boots the Ubuntu 24.04 cloud image, with cloud-init read from
+    guestinfo. The server ISO would need remastering.
+  - 8 vCPU, 24 GB of RAM and a 90 GB disk, plus a 4 GB independent-persistent
+    secrets disk, so a snapshot revert never rolls secrets back.
+  - NAT on VMnet8 at a static 192.168.70.10. Host-only has no internet, and
+    bridged would put the VM on the home LAN.
+  - No shared folders, clipboard, drag and drop, USB, sound or `vhv`.
+  - A marker line in the `.vmx` identifies the rig's own VM. hostd addresses
+    only that file and never runs `vmrun list`. The 12 existing VMs, WSL2
+    Ubuntu and docker-desktop are never used or touched.
+  - Rejected: WSL, because it mounts the Windows drives, which hold
+    production keys in `.dev.vars`, and shares one kernel; a Hyper-V VM,
+    because the founder chose VMware.
+  - Downloads from trusted official sources (Ubuntu's cloud images, Google's
+    Android SDK) need no question; each file is verified before use. Why: a
+    founder decision, so VM creation is an agent action.
+- **Emulators run on the Windows host under WHPX.** Hyper-V stays on, so
+  Workstation's Host VBS mode gives the VM no nested virtualisation, and
+  Google says an accelerated emulator cannot run inside another VM.
+  `tools/rig/host/hostd.mjs`, a dependency-free Node supervisor, starts:
+  - the emulators, with `-accel on`, so a missing hypervisor fails loudly;
+  - a rig-only adb server on port 5137, so the agents' 5037 is untouched;
+  - one SSH reverse tunnel, started by the host, for adb, hostd and each
+    emulator's console and gRPC ports.
+
+  The AVD and emulator homes are private and on F:. Nothing on the host
+  listens beyond loopback, the VM's sshd `PermitListen` limits the reverse
+  binds to those loopback ports, and the host keys are pre-seeded through
+  cloud-init, so the first connection is pinned, not trusted.
+- **Emulators reach the VM directly**, at 192.168.70.10 with `-dns-server
+  192.168.70.10`, where Caddy and dnsmasq listen. nftables accepts 22, 443
+  and 53 only from 192.168.70.1, and drops new outbound connections to
+  private ranges on the uplink except the gateway, 192.168.70.2.
+  `check-rig-hosts` allows exactly 192.168.70.10 and 192.168.70.1. The
+  gateway 192.168.70.2 passes only as `contract.json`'s `vm.gateway` and as
+  the firewall file's `define gateway`, and the firewall's private blocks are
+  read as ranges, not hosts. Why: the contract and the firewall must name the
+  gateway, and nothing else may. The access point's 10.77.0.0/24 is retired,
+  with the nonlocal bind and the access point's dnsmasq and unit. Why: there
+  is no access point.
+- **Isolation guarantee 18 rests on the VM**: no hgfs and no clipboard, NAT
+  plus nftables, traffic from host to VM only, and no host credential inside
+  the VM. Why: the guest network and the access point are gone.
+- **The technician phone is the AVD `rig-pixel`**, an API 36 Google Play
+  image with the Pixel 8 device profile. Surface, scenario and store ids that
+  say `pixel` keep it; it now names this emulator. Why: a rename would touch
+  every test and change no meaning.
+- **Call audio** moves from Bluetooth hands-free to the emulator's gRPC
+  `injectAudio` and `streamAudio`, gated by spike EA1. Until EA1 passes, every
+  device-lane audio verdict is the infrastructure result
+  `emulator-audio-unproven`, never a pass. Why: no hardware is bought, and an
+  unproven path must not report a pass.
+- **Doze.** Emulators ship with Doze off, so every boot runs `dumpsys
+  deviceidle enable all`. D03 becomes "Stepped Doze", stepping deep idle to
+  IDLE through one maintenance cycle. An emulator has no significant-motion
+  sensor and never enters deep Doze by itself, so natural entry joins X6.
+- **Bad network.** D13 shapes the emulator console's delay and speed, and
+  drops the network with `svc wifi disable` and `gsm data unregistered`. The
+  console has no loss control, so packet loss on the device's path is the new
+  defect X27.
+- **Residuals.** X6 becomes wake, Doze and call audio on any physical Android
+  phone: production's P01 measures wake on customers' phones hourly, and
+  nothing in production measures call audio. X16 and X17 are restated for
+  emulators. X25 is an accepted residual if G02 rings, with no Telnyx request.
+- **The workstation's own risks are named, not fixed.** Over 60 days it booted
+  33 times and was dark about 56 hours, and Windows Update restarted it at
+  08:29-10:44 UTC, inside the 04:00-10:00 UTC window. Dark time is
+  infrastructure (`synthetic-dark`), never a product failure. hostd starts
+  from the Startup folder by default; an elevated ONSTART task with a stored
+  password is the optional FA16. Why: active hours, overnight power and the
+  boot task are the founder's to choose, and the rig must run without them.
+- **Founder actions, substituted.** Each is an amendment of this decision:
+  - FA5: the existing Stripe account's test-mode key and test prices, from
+    `apps/api/.dev.vars`, become the `rig` environment's `STRIPE_SECRET_KEY`.
+    No sandbox. The rig refuses anything not `sk_test_` or `rk_test_`.
+    Developers share that test mode, so the rig tags what it creates
+    (`metadata[loonext_rig]=1`, or a `loonext_rig ` name prefix on a test
+    clock, which keeps no metadata) and reads an object before a delete or a
+    clock advance, refusing an untagged one. S32's subscription comes from the
+    app's Checkout untagged; rigd tags it only after the rig's own database
+    shows that S32's sign-up address owns the workspace naming it. Why: the
+    rig must never change what a developer made, and changing the app's
+    Checkout for the rig was rejected as product code bent to a test.
+  - FA8: the existing send-only Resend key is reused in the guard. The
+    guard's recipient rules still confine it.
+  - FA4: the existing Cloudflare Workers token, in the `main`-only
+    environments `guard` and `rig-cloud`, deploys the guard and the edge. The
+    five scoped tokens become optional hardening; the attestation-read token
+    is still wanted.
+  - FA7: the existing Sentry project, with environments `rig` and
+    `synthetic`, instead of new projects. Production's alert rules must
+    filter on `environment:production`, or rig events could alert.
+  - FA10 is dropped: triage runs on the host. FA12 is dropped: host agents
+    drive the VM over SSH. FA1 and FA2 stay optional.
+  - Done: FA3 (the `nonprod-guard` key, no expiry), FA6, FA9 (the rig GitHub
+    App) and FA13 (2026-11-01).
+
+  Why: a founder decision. Each reuses something that already exists, and
+  none widens what the rig can reach.
+- **Every device position comes from `contract.json`.** The store key
+  `pixel-serial` is retired with `pixel-bluetooth-mac`, `pixel-hub-location`
+  and `pixel-hub-port`. Why: an override of the serial alone would point the
+  lane at one emulator and its console and gRPC ports at another.
+- **hostd's wire shapes are pinned on both sides.** The VM's client reads
+  `console_token` and `grpc_token`, and `/v1/health` reports
+  `reboot_pending`, true when hostd could not read the host's facts. A lanes
+  test drives the client against hostd's own server. Why: the two halves were
+  written apart and disagreed on both.
+- **Cost.** Hardware is $0 and the one-time cost about $8. The monthly cost
+  stays about $24, plus an estimated $2-6 of workstation power.
