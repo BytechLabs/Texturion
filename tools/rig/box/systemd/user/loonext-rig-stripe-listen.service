@@ -1,8 +1,8 @@
-# Stripe sandbox webhooks forwarded to the local API. Authenticated with the
-# sandbox key itself, never `stripe login`, whose pairing expires after 90
-# days.
+# Webhooks from Stripe's test mode, which developers share, forwarded to the
+# local API. Authenticated with the test-mode key itself, never `stripe login`,
+# whose pairing expires after 90 days.
 [Unit]
-Description=Loonext rig: stripe listen (sandbox)
+Description=Loonext rig: stripe listen (test mode)
 After=loonext-rig-api.service
 
 [Service]

@@ -4,7 +4,7 @@
  * Runners are written against these interfaces only: the run lease, the
  * robot, the browser lane, the app probe (the local API and database), the
  * guard, the Android emulators, the rig VM itself, the robot's mail, the
- * Stripe sandbox and the hand-off between two runs. rigd builds the real
+ * Stripe's shared test mode and the hand-off between two runs. rigd builds the real
  * ones; the tests build fakes, because no scenario can run for real until the
  * Telnyx partition exists.
  */
@@ -596,7 +596,7 @@ export interface MailApi {
   openLink(url: string): Promise<{ status: number; location: string | null }>;
 }
 
-/** The `loonext-rig` Stripe sandbox. Test-mode keys only; anything else is refused before a request. */
+/** Stripe's test mode, shared with developers. Test-mode keys only; anything else is refused before a request. */
 export interface StripeApi {
   /** One sandbox call, form-encoded, on the paths S29 and S32 use. */
   request<T = Record<string, unknown>>(method: "GET" | "POST" | "DELETE", path: string, params?: Record<string, unknown>): Promise<T>;

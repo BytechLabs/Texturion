@@ -125,7 +125,7 @@
         "job:inbound-canary",
         "job:expire-payment-requests"
       ],
-      "note": "Usage goes to the Stripe sandbox, which S01's meter check reads. The inbound canary stays off because the rig sets no CANARY_* numbers. sweep-stale-calls hangs up a runaway leg through the guard's leg-command class. ring-success-watch reads api_ring_success from the rig's own database and alerts [\"ops\",\"ring-success-<platform>\"] only on a drop, which takes 30 ring pushes in the 24-hour window and 30 in the week before it. On the rig that means the rig's own phones stopped ringing, so nothing suppresses it."
+      "note": "Usage goes to Stripe's shared test mode, which S01's meter check reads. The inbound canary stays off because the rig sets no CANARY_* numbers. sweep-stale-calls hangs up a runaway leg through the guard's leg-command class. ring-success-watch reads api_ring_success from the rig's own database and alerts [\"ops\",\"ring-success-<platform>\"] only on a drop, which takes 30 ring pushes in the 24-hour window and 30 in the week before it. On the rig that means the rig's own phones stopped ringing, so nothing suppresses it."
     },
     {
       "config": "apps/api/wrangler.jsonc",
@@ -242,7 +242,7 @@
       "cron": "0 15 * * *",
       "class": "run",
       "jobs": ["job:subscription-reconcile"],
-      "note": "Re-mirrors subscriptions from the Stripe sandbox."
+      "note": "Re-mirrors subscriptions from Stripe's shared test mode."
     },
     {
       "config": "apps/api/wrangler.jsonc",

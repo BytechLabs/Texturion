@@ -588,7 +588,7 @@
       "id": "S29",
       "name": "Cancel, grace, release, billing",
       "lane": "account",
-      "far_end": "Stripe sandbox",
+      "far_end": "Stripe test mode (shared)",
       "cadence": "Monthly (0)",
       "runs_on": "rig",
       "runs": [
@@ -621,7 +621,7 @@
       "id": "S32",
       "name": "Onboarding, Checkout with the 4242 test card, customer portal",
       "lane": "account",
-      "far_end": "Stripe sandbox",
+      "far_end": "Stripe test mode (shared)",
       "cadence": "Weekly (0)",
       "runs_on": "rig",
       "runs": [
