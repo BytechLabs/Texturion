@@ -19,7 +19,8 @@ import { triageMethods, type StartedRun } from "@loonext/rig-triage";
 import type { RigdConfig } from "./config.ts";
 import { cronExplainer, type CronExplainer } from "./cron-events.ts";
 import { webhookForwarder } from "./forward.ts";
-import { installSchedule, userUnitDir } from "./install.ts";
+import { DEPLOY_HOLD_FILE, readDeployHold } from "../../src/deploy-hold.mjs";
+import { installSchedule, userUnitDir, type Systemctl } from "./install.ts";
 import { loadRegistry } from "./registry.ts";
 import { telnyxPublicKey } from "./late.ts";
 import { LeaseWatchdog } from "./lease.ts";
@@ -125,9 +126,19 @@ export function buildRouter(rig: Rig, lastTriage: { at?: number }, run: RunStart
 /**
  * Writes the timers for the registry and the window in force, and starts
  * them. The registry is read afresh, so a deploy that changes it is timed
- * within the hour without a restart of rigd.
+ * within the hour without a restart of rigd. While a deploy holds the timers
+ * stopped for a schema change it touches nothing: the deploy installs them
+ * itself once the services serve the new ref.
  */
-export async function refreshSchedule(rig: Rig, log: (line: string) => void): Promise<void> {
+export async function refreshSchedule(rig: Rig, log: (line: string) => void, systemctl?: Systemctl): Promise<void> {
+  const hold = readDeployHold(rig.config.home.state);
+  if (hold !== null) {
+    log(
+      `timers not refreshed: state/${DEPLOY_HOLD_FILE} holds them stopped` +
+        (hold.unreadable ? "" : ` for the deploy of ${String(hold.sha).slice(0, 12)} since ${hold.at}`),
+    );
+    return;
+  }
   const window = await rig.windows().current();
   const schedule = buildSchedule(loadRegistry(rig.config.registryPath), {
     window,
@@ -137,7 +148,7 @@ export async function refreshSchedule(rig: Rig, log: (line: string) => void): Pr
     cli: CLI,
     home: rig.config.home.home,
   });
-  const result = installSchedule(schedule, { unitDir: userUnitDir(rig.config.env) });
+  const result = installSchedule(schedule, { unitDir: userUnitDir(rig.config.env), systemctl });
   if (result.written.length || result.removed.length) {
     log(`timers: ${result.written.length} written, ${result.removed.length} removed (window ${window.startHour}:00 UTC)`);
   }

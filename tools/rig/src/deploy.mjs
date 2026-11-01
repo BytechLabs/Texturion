@@ -5,7 +5,8 @@
  *      refusal happens, before anything that runs is changed;
  *   3. the local database migrated, or reset and reseeded when the ref's
  *      schema cannot be reached by migrating, with the services stopped
- *      first when the schema changes;
+ *      first when the schema changes, and held stopped (deploy-hold.mjs)
+ *      until step 4 has finished;
  *   4. the SHA recorded for every verdict, the ref's cron timers installed,
  *      the services restarted, and then rigd's scenario timers installed.
  *
@@ -30,6 +31,7 @@ import { join, resolve } from "node:path";
 
 import { bootstrapDb } from "./bootstrap-db.mjs";
 import { cronTimers, cronUnits, cronsToSchedule, readCronRegistry } from "./cron.mjs";
+import { holdForDeploy, readDeployHold, releaseDeployHold } from "./deploy-hold.mjs";
 import { dummyServiceAccount, firebaseProjectId, generateVapidPair, relayDsn, renderDevVars, seams } from "./dev-vars.mjs";
 import { run, systemctlUser, userManagerEnv } from "./exec.mjs";
 import { edgeOrigin, fetchPartition, recordStanding, rigEndpoints, standingNumbers } from "./guard.mjs";
@@ -219,15 +221,28 @@ export function checkRigdSchedule({ nodeBin = process.execPath, runner = run } =
 }
 
 /**
+ * Nothing keeps running against a schema it was not built for, even if the
+ * migration fails half way. The hold goes down first: rigd's hourly schedule
+ * refresh would otherwise start the stopped timers again mid-migration.
+ */
+export function stopForSchemaChange({ state, sha, ref, systemctl = systemctlUser, log }) {
+  holdForDeploy(state, { sha, ref });
+  systemctl(["stop", ...SCHEMA_CHANGE_STOPS]);
+  log("services stopped for the schema change");
+}
+
+/**
  * The ref's cron timers, the services, then rigd's timers. rigd's come after
  * the restart, so a failure there leaves the new SHA serving, and a run its
  * timers catch up on (they are Persistent) finds the API up. rigd's
  * systemctl calls need the user manager's runtime directory as much as the
- * CLI's own do.
+ * CLI's own do. The deploy hold is released only once all of it worked, so
+ * after a failure rigd leaves the timers as this left them.
  */
 export function activate({
   timers,
   sha,
+  state,
   nodeBin = process.execPath,
   log,
   unitDir = join(homedir(), ".config", "systemd", "user"),
@@ -260,6 +275,10 @@ export function activate({
       ? `rigd: ${installed.timed.length} scenario timer(s), ${installed.not_timed?.length ?? 0} scenario(s) not timed`
       : "rigd: scenario timers installed",
   );
+  if (readDeployHold(state) !== null) {
+    releaseDeployHold(state);
+    log(`deploy hold released: ${sha} serves, and rigd may start its timers again`);
+  }
 }
 
 /**
@@ -429,12 +448,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
     ? { action: "reset", reason: "--reset" }
     : schemaPlan(appliedMigrationVersions(projectId), refMigrationVersions(root));
   log(`schema: ${plan.action} (${plan.reason})`);
-  if (restart && plan.action !== "none") {
-    // Nothing keeps running against a schema it was not built for, even if
-    // the migration fails half way.
-    systemctlUser(["stop", ...SCHEMA_CHANGE_STOPS]);
-    log("services stopped for the schema change");
-  }
+  if (restart && plan.action !== "none") stopForSchemaChange({ state: layout.state, sha, ref, log });
   if (plan.action === "migrate") {
     try {
       supabase(["migration", "up", "--local"], { workdir, inherit: true });
@@ -473,7 +487,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   pointCurrent(layout, root);
 
   if (restart) {
-    activate({ timers, sha, log });
+    activate({ timers, sha, state: layout.state, log });
   } else if (settings.systemd) {
     log(`--no-restart: the services and timers still run ${previous?.sha ?? "what they ran"} until restarted, and rig health fails until then`);
   }

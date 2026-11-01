@@ -9,6 +9,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { cronsToSchedule, readCronRegistry } from "./cron.mjs";
+import { DEPLOY_HOLD_MAX_AGE_MS, deployHoldPath, readDeployHold } from "./deploy-hold.mjs";
 import { run, systemctlUser } from "./exec.mjs";
 import { parseDevVars } from "./dev-vars.mjs";
 import { GUARD_ROUTES } from "../../rig-protocol/src/index.ts";
@@ -242,6 +243,18 @@ export function healthChecks(context) {
         return !timer || systemctl(["is-active", timer], { allowFailure: true }).stdout.trim() !== "active";
       });
       return idle.length === 0 ? null : `no active timer for ${idle.length} cron(s): ${idle.join(" | ")}`;
+    },
+
+    async deployHold() {
+      const hold = readDeployHold(context.layout.state);
+      if (hold === null) return null;
+      const path = deployHoldPath(context.layout.state);
+      if (hold.unreadable) return `${path} is there but unreadable, and rigd starts no timer while it is; deploy again`;
+      if (fresh(hold.at, DEPLOY_HOLD_MAX_AGE_MS)) return null;
+      return (
+        `${path} has held the services and timers stopped since ${hold.at}: the deploy of ${short(hold.sha)} ` +
+        "stopped them for a schema change and did not finish, and rigd starts no timer until a deploy succeeds"
+      );
     },
 
     async tz() {

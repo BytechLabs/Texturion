@@ -6,19 +6,23 @@ import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 
 import { cronTimers } from "../src/cron.mjs";
-import { activate, checkRigdSchedule, rigdScheduleCommand, SCHEMA_CHANGE_STOPS, SERVICE_UNITS } from "../src/deploy.mjs";
+import { activate, checkRigdSchedule, rigdScheduleCommand, SCHEMA_CHANGE_STOPS, SERVICE_UNITS, stopForSchemaChange } from "../src/deploy.mjs";
+import { deployHoldPath, holdForDeploy, readDeployHold } from "../src/deploy-hold.mjs";
 import { CommandFailed, userManagerEnv } from "../src/exec.mjs";
 import { TOOLING_ROOT } from "../src/layout.mjs";
 
 const NODE = "/usr/bin/node";
 const RIGD_CLI = join(TOOLING_ROOT, "tools", "rig", "rigd", "src", "cli.ts");
 
+/** A unit folder and, beside it, the rig's state folder. */
 function withUnitDir(body) {
   const dir = mkdtempSync(join(tmpdir(), "rig-units-"));
+  const state = mkdtempSync(join(tmpdir(), "rig-state-"));
   try {
-    return body(dir);
+    return body(dir, state);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+    rmSync(state, { recursive: true, force: true });
   }
 }
 
@@ -31,7 +35,8 @@ test("rigd's schedule is installed by rigd's own CLI in the tooling checkout", (
 });
 
 test("deploy installs the ref's cron timers, restarts the services, then installs rigd's", () => {
-  withUnitDir((unitDir) => {
+  withUnitDir((unitDir, state) => {
+    holdForDeploy(state, { sha: "abc123", ref: "main" });
     writeFileSync(join(unitDir, "loonext-rig-cron-c09.timer"), "stale");
     writeFileSync(join(unitDir, "loonext-rig-scenario-S02-0.timer"), "rigd's own");
     const calls = [];
@@ -40,6 +45,7 @@ test("deploy installs the ref's cron timers, restarts the services, then install
     activate({
       timers: cronTimers(["* * * * *", "0 13 * * *"]),
       sha: "abc123",
+      state,
       nodeBin: NODE,
       log: (line) => lines.push(line),
       unitDir,
@@ -76,18 +82,22 @@ test("deploy installs the ref's cron timers, restarts the services, then install
       "crons: 2 timer(s)",
       `services restarted: ${SERVICE_UNITS.join(", ")}`,
       "rigd: 2 scenario timer(s), 1 scenario(s) not timed",
+      "deploy hold released: abc123 serves, and rigd may start its timers again",
     ]);
+    assert.equal(readDeployHold(state), null);
   });
 });
 
-test("a rigd install that fails fails the deploy, after the services restarted", () => {
-  withUnitDir((unitDir) => {
+test("a rigd install that fails fails the deploy, after the services restarted, and leaves the hold", () => {
+  withUnitDir((unitDir, state) => {
+    holdForDeploy(state, { sha: "abc123", ref: "main" });
     const calls = [];
     assert.throws(
       () =>
         activate({
           timers: [],
           sha: "abc123",
+          state,
           nodeBin: NODE,
           log: () => {},
           unitDir,
@@ -102,6 +112,56 @@ test("a rigd install that fails fails the deploy, after the services restarted",
       /abc123 is deployed and its services restarted, but rigd's schedule install failed.*exited with 1: systemctl --user enable failed/,
     );
     assert.equal(calls.at(-1), `restart ${SERVICE_UNITS.join(" ")}`);
+    assert.equal(readDeployHold(state)?.sha, "abc123");
+  });
+});
+
+test("services that fail to restart leave the hold, so rigd starts nothing against them", () => {
+  withUnitDir((unitDir, state) => {
+    holdForDeploy(state, { sha: "abc123", ref: "main" });
+    let rigdRan = false;
+    assert.throws(
+      () =>
+        activate({
+          timers: [],
+          sha: "abc123",
+          state,
+          nodeBin: NODE,
+          log: () => {},
+          unitDir,
+          systemctl: (args) => {
+            if (args[0] === "restart") throw new CommandFailed("systemctl", 1, "loonext-rig-api.service failed");
+            return { status: 0, stdout: "", stderr: "" };
+          },
+          runner: () => {
+            rigdRan = true;
+            return { status: 0, stdout: "{}", stderr: "" };
+          },
+        }),
+      /loonext-rig-api\.service failed/,
+    );
+    assert.equal(rigdRan, false);
+    assert.equal(readDeployHold(state)?.sha, "abc123");
+  });
+});
+
+test("a schema change holds the timers before it stops anything", () => {
+  withUnitDir((_unitDir, state) => {
+    const stops = [];
+    stopForSchemaChange({
+      state,
+      sha: "abc123",
+      ref: "main",
+      log: () => {},
+      systemctl: (args) => {
+        stops.push({ args, held: readDeployHold(state) });
+        return { status: 0, stdout: "", stderr: "" };
+      },
+    });
+    assert.deepEqual(stops.map((stop) => stop.args), [["stop", ...SCHEMA_CHANGE_STOPS]]);
+    assert.equal(stops[0].held?.sha, "abc123");
+    assert.equal(stops[0].held?.ref, "main");
+    assert.ok(existsSync(deployHoldPath(state)));
   });
 });
 

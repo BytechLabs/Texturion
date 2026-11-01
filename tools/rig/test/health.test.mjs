@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { main } from "../src/cli.mjs";
+import { DEPLOY_HOLD_MAX_AGE_MS, deployHoldPath, holdForDeploy } from "../src/deploy-hold.mjs";
 import { healthChecks, runHealth } from "../src/health.mjs";
 import { DEFAULT_SETTINGS, rigLayout } from "../src/layout.mjs";
 import { secretStore } from "../src/secrets.mjs";
@@ -183,6 +184,26 @@ test("the sentry check fails on an unexplained fingerprint and on each defect, n
       JSON.stringify({ at: "2026-01-01T00:00:00.000Z", unexplained_24h: [], defects_24h: [] }),
     );
     assert.equal(await check(), "the relay's report is stale");
+  });
+});
+
+test("a deploy hold over an hour old fails, naming the file", async () => {
+  await withRig(async (context) => {
+    const check = () => healthChecks(context).deployHold();
+    assert.equal(await check(), null);
+
+    holdForDeploy(context.layout.state, { sha: SHA, ref: "main" });
+    assert.equal(await check(), null, "a deploy is migrating; its hold is not a failure yet");
+
+    const path = deployHoldPath(context.layout.state);
+    const at = new Date(Date.now() - DEPLOY_HOLD_MAX_AGE_MS - 60_000).toISOString();
+    writeFileSync(path, JSON.stringify({ sha: SHA, ref: "main", at }));
+    const reason = await check();
+    assert.ok(reason.startsWith(`${path} has held the services and timers stopped since ${at}`), reason);
+    assert.match(reason, new RegExp(`the deploy of ${"a".repeat(12)} stopped them`));
+
+    writeFileSync(path, "{");
+    assert.match(await check(), /deploy-hold\.json is there but unreadable/);
   });
 });
 
