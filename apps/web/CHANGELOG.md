@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.19.1](https://github.com/BytechLabs/Texturion/compare/web-v0.19.0...web-v0.19.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **web:** the home animation no longer starts late in some browsers ([5b08ac5](https://github.com/BytechLabs/Texturion/commit/5b08ac523667e70f4c403aac04fdc1d1035471fd))
+
+
+### Performance
+
+* **web:** marketing pages stop downloading words they never show ([eb97a49](https://github.com/BytechLabs/Texturion/commit/eb97a49c3d267be3c49d5898182cf8bfaf2f20c4))
+* **web:** the home hero animation loads less than half the script ([7a330fc](https://github.com/BytechLabs/Texturion/commit/7a330fc0070580d2c15a6888d8fbeff1a5468a29))
+* **web:** the home hero animation waits for the page to finish loading ([490c0a8](https://github.com/BytechLabs/Texturion/commit/490c0a800943ebc11b4a5b28703210a1a0a315ec))
+* **web:** the trade pages load 175 KB less script on a phone ([99da289](https://github.com/BytechLabs/Texturion/commit/99da28997e6aa029ed7ce8b5e639a6527c17b273))
+
 ## [0.19.0](https://github.com/BytechLabs/Texturion/compare/web-v0.18.1...web-v0.19.0) (2026-10-30)
 
 
