@@ -102,6 +102,17 @@ export class LeaseClient {
     });
   }
 
+  /** Runs the undos of every lease this process holds, for a run stopped before it could release them. */
+  async releaseOwn(): Promise<ReleaseResult[]> {
+    const results: ReleaseResult[] = [];
+    for (const entry of this.open()) {
+      if (entry.pid !== process.pid) continue;
+      const result = await this.finish(entry.lease_id, this.#path(entry.lease_id), "releasing");
+      if (result) results.push(result);
+    }
+    return results;
+  }
+
   async acquire(scenario: string): Promise<Lease> {
     const response = await this.#fetch(this.#url(), {
       method: "POST",

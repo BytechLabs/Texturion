@@ -83,6 +83,7 @@ export function runStarter(config: Pick<RigdConfig, "home" | "systemd">, launch 
           "--collect",
           "--quiet",
           "--service-type=exec",
+          "--property=TimeoutStopSec=10min",
           `--setenv=RIG_HOME=${config.home.home}`,
           `--setenv=PATH=${path}`,
           process.execPath,

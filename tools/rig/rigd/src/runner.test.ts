@@ -530,6 +530,14 @@ describe("runScenario", () => {
     expect(events).toEqual(["prepare done", "abandon", "hold released", "hold released"]);
   });
 
+  it("starts nothing while a deploy holds the rig for a schema change", async () => {
+    const { deps, attempts } = setup([]);
+    deps.deployHold = () => "a deploy holds the rig for a schema change";
+    const summary = await runScenario(deps, "S02");
+    expect(summary.verdicts.map((v) => [v.outcome, v.detail])).toEqual([["skipped", "a deploy holds the rig for a schema change"]]);
+    expect(attempts).toEqual([]);
+  });
+
   it("tells a runner which timed scenarios a room would block, as its own admission blocks them", async () => {
     const { deps } = setup([]);
     const blocked: Record<number, string[]> = {};

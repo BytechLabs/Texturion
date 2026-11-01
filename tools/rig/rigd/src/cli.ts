@@ -66,6 +66,13 @@ async function main(argv: string[]): Promise<number> {
       if (!positionals[0]) throw new Error("run <scenario>[-<run>]");
       const { id, slot } = parseInstance(positionals[0]);
       const rig = buildRig(loadConfig());
+      // A schema-change deploy stops the run's unit; its undos land before the migration does.
+      process.once("SIGTERM", () => {
+        void rig.leases
+          .releaseOwn()
+          .catch((error: unknown) => console.error(`run: undoing on stop failed: ${error instanceof Error ? error.message : "error"}`))
+          .finally(() => process.exit(143));
+      });
       print(await runScenario(rig.runnerDeps(), id, { scheduled: values.scheduled, slot, runId: values["run-id"] }));
       return 0;
     }

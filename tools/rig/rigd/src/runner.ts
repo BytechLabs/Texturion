@@ -73,6 +73,8 @@ export interface RunnerDeps {
   ran?(at: number): void;
   /** Lanes a run holds outside any lease, while it prepares. */
   holds?: LaneHolds;
+  /** Why a deploy holds the rig for a schema change, while it does (tools/rig/src/deploy-hold.mjs). */
+  deployHold?(): string | undefined;
   log?(line: string): void;
 }
 
@@ -209,6 +211,8 @@ interface Gate {
 /** Why a run may not start now, or undefined when it may. */
 function admission(deps: RunnerDeps, entry: RegisteredScenario, now: number, window: DialWindow): Gate | undefined {
   const dials = dialsPerRun(entry);
+  const held = deps.deployHold?.();
+  if (held) return { outcome: "skipped", detail: held };
   if (blockedByRoom(entry, deps.room())) {
     return { outcome: "not_runnable", detail: `room ${deps.room()} is under ${Math.max(2, entry.room_min)}` };
   }

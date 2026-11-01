@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EDGE_PATHS, GUARD_ROUTES, HEADER, LEASE_MAX_MS } from "@loonext/rig-protocol";
@@ -114,6 +114,19 @@ describe("the run lease", () => {
     expect(client.open().map((entry) => entry.scenario)).toEqual(["G01"]);
     await lease.release();
     expect(client.open()).toEqual([]);
+  });
+
+  it("runs the undos of the leases this process holds when it is told to stop", async () => {
+    const { client, undone, stateDir } = setup();
+    const lease = client.acquireLocal("S25");
+    lease.registerUndo({ kind: "robot.sms", params: { text: "START" } });
+    const other = client.acquireLocal("S02");
+    const otherPath = client.path(other.id);
+    writeFileSync(otherPath, JSON.stringify({ ...JSON.parse(readFileSync(otherPath, "utf8")), pid: process.pid + 1 }));
+    expect((await client.releaseOwn()).map((result) => result.undone)).toEqual([1]);
+    expect(undone).toEqual(["sms START"]);
+    expect(client.open().map((entry) => entry.scenario)).toEqual(["S02"]);
+    expect(readdirSync(join(stateDir, "leases"))).toHaveLength(1);
   });
 });
 

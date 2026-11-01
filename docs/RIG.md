@@ -223,7 +223,7 @@ They live in your password manager and in two GitHub environments:
 3. derives the configuration;
 4. restarts the services.
 
-A schema change stops the services, the cron timers and rigd's scenario timers before anything migrates, and before it stops them `rig deploy` leaves `state/deploy-hold.json` in the rig's home. rigd's hourly schedule refresh starts no timer while that file is there. The deploy removes it only once the services serve the new ref and rigd's timers are installed, so a deploy that fails leaves them stopped until one succeeds. `rig health` fails on a hold over an hour old, naming the file.
+A schema change stops the services, the cron timers and rigd's scenario timers before anything migrates, and before it stops them `rig deploy` leaves `state/deploy-hold.json` in the rig's home. Scenario runs already going, timed or a triage rerun, are stopped first, while the API still serves: a stopped run releases its lease's undos before it exits. rigd's hourly schedule refresh starts no timer while that file is there, and a run started under it records `skipped` without running. The deploy removes it only once the services serve the new ref and rigd's timers are installed, so a deploy that fails leaves them stopped until one succeeds. `rig health` fails on a hold over an hour old, naming the file.
 
 Every verdict records the SHA it ran against.
 

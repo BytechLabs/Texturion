@@ -124,8 +124,9 @@ Sentry relay publish there).
 Everything that can refuse (an untaught config key, a missing or live
 secret, the cron registry, a rigd that cannot build its schedule from this
 checkout) is checked before the database or a service changes. When the
-schema changes, the services, the cron timers and rigd's scenario timers are
-stopped first, so a failed migration leaves nothing running against it.
+schema changes, the scenario runs in progress (which release their leases'
+undos as they stop), the services, the cron timers and rigd's scenario timers
+are stopped first, so a failed migration leaves nothing running against it.
 Before it stops them the deploy writes `state/deploy-hold.json`, and rigd's
 hourly schedule refresh starts no timer while that file is there; the deploy
 removes it once the services serve the new ref, so after a failure the timers

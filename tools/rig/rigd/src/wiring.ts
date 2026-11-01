@@ -21,6 +21,7 @@ import {
   type NumberBook,
 } from "@loonext/rig-robot";
 import { APK_DIR, CURRENT_APK, NONPROD_PACKAGE, PREVIOUS_APK } from "../../src/apk.mjs";
+import { readDeployHold } from "../../src/deploy-hold.mjs";
 import { AppProbe, splitMember, type TenantsFile } from "./app-probe.ts";
 import { readDeployedSha, readRoom, type RigdConfig } from "./config.ts";
 import { WindowSource } from "./guard-window.ts";
@@ -285,6 +286,11 @@ export function buildRig(config: RigdConfig): Rig {
       lateDeliveries: (query) => late.matching(query).length,
       ran: (at) => markSuiteRan(config, at),
       holds,
+      deployHold: () => {
+        const hold = readDeployHold(config.home.state);
+        if (hold === null) return undefined;
+        return `a deploy holds the rig for a schema change${hold.unreadable ? "" : ` (${String(hold.sha).slice(0, 12)} since ${hold.at})`}`;
+      },
       log: (line) => console.log(line),
     }),
   };

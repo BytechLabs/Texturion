@@ -57,6 +57,9 @@ export const STACK_EXCLUDES = ["vector", "logflare", "imgproxy", "edge-runtime"]
 /** User-level units (`loginctl enable-linger`), so deploy needs no root. */
 export const SERVICE_UNITS = ["loonext-rig-api.service", "loonext-rig-web.service", "loonext-rig-stripe-listen.service"];
 
+/** Scenario runs, timed and triage reruns: each releases its lease's undos when stopped (rigd's cli.ts). */
+export const RUN_UNITS = ["loonext-rig-scenario@*.service", "loonext-rig-rerun-*.service"];
+
 /** Stopped before a schema change: the services, and every timer that starts something against them. */
 export const SCHEMA_CHANGE_STOPS = [...SERVICE_UNITS, "loonext-rig-cron-*.timer", "loonext-rig-scenario-*.timer"];
 
@@ -227,8 +230,10 @@ export function checkRigdSchedule({ nodeBin = process.execPath, runner = run } =
  */
 export function stopForSchemaChange({ state, sha, ref, systemctl = systemctlUser, log }) {
   holdForDeploy(state, { sha, ref });
+  // Runs first, while the API their undos call still serves.
+  systemctl(["stop", ...RUN_UNITS]);
   systemctl(["stop", ...SCHEMA_CHANGE_STOPS]);
-  log("services stopped for the schema change");
+  log("runs and services stopped for the schema change");
 }
 
 /**

@@ -197,6 +197,8 @@ function serviceTemplate(options: ScheduleOptions): Unit {
       // lease's 15 minutes, and a retry that may wait for a later hour of the
       // window with room in it.
       "TimeoutStartSec=8h",
+      // A schema-change deploy stops a run; it releases its lease's undos first.
+      "TimeoutStopSec=10min",
       "Nice=5",
       "",
     ].join("\n"),

@@ -11,6 +11,7 @@ import {
   checkRigdSchedule,
   migrateAndRestart,
   rigdScheduleCommand,
+  RUN_UNITS,
   SCHEMA_CHANGE_STOPS,
   SERVICE_UNITS,
   stopForSchemaChange,
@@ -199,7 +200,7 @@ test("a schema change holds the timers before it stops anything", () => {
         return { status: 0, stdout: "", stderr: "" };
       },
     });
-    assert.deepEqual(stops.map((stop) => stop.args), [["stop", ...SCHEMA_CHANGE_STOPS]]);
+    assert.deepEqual(stops.map((stop) => stop.args), [["stop", ...RUN_UNITS], ["stop", ...SCHEMA_CHANGE_STOPS]]);
     assert.equal(stops[0].held?.sha, "abc123");
     assert.equal(stops[0].held?.ref, "main");
     assert.ok(existsSync(deployHoldPath(state)));
@@ -243,7 +244,7 @@ test("a deploy holds the timers from before a schema change stops them until the
     };
 
     const migrate = { action: "migrate", reason: "2 new" };
-    assert.deepEqual(await deployOf(migrate, true), ["stop (held)", "migrate (held)", "prepare (held)", "restart (held)", "rigd install (held)"]);
+    assert.deepEqual(await deployOf(migrate, true), ["stop (held)", "stop (held)", "migrate (held)", "prepare (held)", "restart (held)", "rigd install (held)"]);
     assert.equal(readDeployHold(state), null, "released once rigd's timers are installed");
     assert.deepEqual(await deployOf({ action: "none", reason: "current" }, true), ["migrate", "prepare", "restart", "rigd install"]);
     // --no-restart stops nothing, so it holds nothing.
@@ -310,4 +311,32 @@ test("a schema change stops every timer either install writes", async () => {
   assert.ok(schedule.units.some((unit) => unit.name.startsWith("loonext-rig-scenario-")));
   const patterns = SCHEMA_CHANGE_STOPS.map(unitPattern);
   for (const timer of timers) assert.ok(patterns.some((pattern) => pattern.test(timer)), `${timer} keeps running through a schema change`);
+});
+
+test("a schema change stops the runs a timer or a triage rerun started", async () => {
+  const rigd = (file) => pathToFileURL(join(TOOLING_ROOT, "tools", "rig", "rigd", "src", file)).href;
+  const { buildSchedule } = await import(rigd("schedule.ts"));
+  const { loadRegistry } = await import(rigd("registry.ts"));
+  const { runStarter } = await import(rigd("daemon.ts"));
+  const registry = loadRegistry(join(TOOLING_ROOT, "tools", "rig", "scenarios.json"));
+  const schedule = buildSchedule(registry, {
+    window: { startHour: 4, hours: 6 },
+    runnable: new Set(registry.scenarios.map((entry) => entry.id)),
+    node: NODE,
+    cli: RIGD_CLI,
+    home: "/var/lib/loonext-rig",
+  });
+  const timed = schedule.units
+    .filter((unit) => unit.name.endsWith(".timer"))
+    .map((unit) => /^Unit=(.+)$/m.exec(unit.content)?.[1])
+    .filter(Boolean);
+  assert.ok(timed.length > 0);
+  const launched = [];
+  runStarter({ home: { home: "/var/lib/loonext-rig", state: "/var/lib/loonext-rig/state" }, systemd: true }, (command, args) => {
+    launched.push(args);
+    return { unref: () => {} };
+  })("S02");
+  const rerun = `${/^--unit=(.+)$/.exec(launched[0].find((arg) => arg.startsWith("--unit=")))[1]}.service`;
+  const patterns = RUN_UNITS.map(unitPattern);
+  for (const unit of [...timed, rerun]) assert.ok(patterns.some((pattern) => pattern.test(unit)), `${unit} keeps running through a schema change`);
 });
