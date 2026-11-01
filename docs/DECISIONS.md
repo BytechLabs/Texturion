@@ -9092,3 +9092,43 @@ while building them:
   Loonext already has: Cloudflare, Telnyx, Sentry, Stripe (one sandbox),
   Firebase, Resend and GitHub. Nothing needs a new account, sub-account, seat,
   SIM or enrollment.
+- **S28 and S29 share a grace workspace.** Grace releases every number a
+  workspace holds, so S29 cannot run on a tenant with a standing number. QA-G
+  holds none. S28 buys the month's number into it, beside DEV-C1's area code
+  and messaging profile, so no new messaging profile is created. S28 binds the
+  number, has ROBOT-1 ring it, and keeps it. A passing S28 hands it to S29
+  through rigd's hand-off record, and its undo releases the number through the
+  guard only when S28 did not pass. S29 runs the next day (days 1 and 2 of the
+  30-day cycle), backdates QA-G's cancellation and fires the grace cron, so
+  the release the rig judges is grace's own. Its undo releases the number if
+  grace did not. The guard's one order per 25 days is unchanged, so a retried
+  S28 cannot buy again, and the 0 14 cron's defect for a standing number
+  remains.
+- **The guard keeps each lease's log.** Every Telnyx request that reaches the
+  guard under a live lease is counted on that lease by caller, endpoint and
+  outcome, never by id or number. This lets a scenario prove that a request
+  never reached the guard, or reached it exactly once.
+- **S25 follows D4.** A reply to the customer's own text is exempt from quiet
+  hours. So the night run expects the away reply and emergency acknowledgement
+  to arrive, and holds only the texts the business starts.
+- **A runner that cannot run yet is listed, not scheduled.** If every run of a
+  written runner would report the same missing piece, the runner stays out of
+  rigd's runners with its reason, because a standing red hides a real one.
+  Today these are S08 (no consult control in the web call bar) and S26 (the
+  carrier-ceiling warning is email only). G02 has no runner and is listed the
+  same way.
+- **S34 holds the guard's lease though it dials nothing.** The guard mails the
+  robot mailbox only under a live S34 lease, so under a local lease every
+  invite would be refused.
+- **Caps are seeded where their gate reads.** Both voice gates read
+  `call_records`, and the hourly send limit and the carrier's daily count read
+  outbound messages, so S12 and S26 seed those, already reported. One marker
+  undoes every seed. Production's cap values are never lowered.
+- **S07 and S08 ring in turn.** If every phone rang at once, a snap-back
+  variant would cost one dial more than its row allows. In turn, the owner
+  answers within 8 s, before the 12 s step, so the technician's phone is never
+  dialed for the inbound call.
+- **A week's judgement reads the scenario's own attempts.** rigd hands a
+  runner its earlier attempts and their evidence from the verdict store. E01
+  forgives one API level's silence only when another level was heard in the
+  last 7 days.
