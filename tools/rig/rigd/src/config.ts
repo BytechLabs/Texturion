@@ -12,6 +12,12 @@
  *   sentry-dsn-rig           loonext-rig, which the relay forwards to (the CLI's)
  *   sentry-dsn-synthetic     loonext-synthetic, for scenario and infrastructure events
  *   rig-app-id, rig-app-key  the GitHub App (RIG_APP_KEY)
+ *   cf-guard-attest-token    guard-attest-read, for the hourly attestation (guard-attest.ts)
+ *   cloudflare-account-id    the account the guard runs in, for the same read
+ *   stripe-secret-key        the sandbox key, for the scenarios' Stripe calls (the CLI's)
+ *   pixel-serial, pixel-pin, pixel-bluetooth-mac, pixel-hub-location, pixel-hub-port
+ *                            the Pixel's adb serial, lock PIN, Bluetooth address and hub port
+ *   robot-mailbox            the robot mailbox's address, for S34
  *   standing-numbers.json    numbers by role (the CLI's)
  *   tenants.json             tenants and members (the seed's)
  *   telnyx-public-key        the account's webhook key, the API's TELNYX_PUBLIC_KEY (the CLI's)
