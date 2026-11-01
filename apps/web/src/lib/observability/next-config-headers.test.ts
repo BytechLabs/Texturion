@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { isAppSurfacePath } from "@/lib/hosts";
+import { isAppSurfacePath } from "@/lib/app-surface";
 
 import { TOKEN_PATH_PREFIXES } from "./scrub";
 

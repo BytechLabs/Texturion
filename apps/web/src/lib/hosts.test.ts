@@ -6,11 +6,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  decideBlogRoute,
-  decideHostRedirect,
-  isAppSurfacePath,
-} from "./hosts";
+import { isAppSurfacePath } from "./app-surface";
+import { decideBlogRoute, decideHostRedirect } from "./hosts";
 
 const APP = "https://app.loonext.com";
 const BLOG = "https://blog.loonext.com";
