@@ -67,6 +67,28 @@ export function signedBy(status, fingerprint) {
   });
 }
 
+/**
+ * Takes user-data, which holds the VM's host private key, out of the .vmx and
+ * out of any vmware*.log in its folder that quotes it. Returns the logs it
+ * changed. A log may hold only the start of the value, so a match on its
+ * first 64 characters removes the whole base64 run.
+ */
+export function scrubUserdata(dir, vmxPath, userdata) {
+  if (existsSync(vmxPath)) writeFileSync(vmxPath, withoutUserdata(readFileSync(vmxPath, "utf8")));
+  const head = userdata.slice(0, 64);
+  const quoted = new RegExp(`${head.replace(/[+/=]/g, (char) => `\\${char}`)}[A-Za-z0-9+/=]*`, "g");
+  const changed = [];
+  for (const name of existsSync(dir) ? readdirSync(dir) : []) {
+    if (!/^vmware.*\.log$/i.test(name)) continue;
+    const path = join(dir, name);
+    const text = readFileSync(path, "utf8");
+    if (!text.includes(head)) continue;
+    writeFileSync(path, text.replace(quoted, "[user-data removed]"));
+    changed.push(name);
+  }
+  return changed;
+}
+
 /** key=value lines of an AVD's config.ini, with these keys set. */
 export function setIniKeys(text, values) {
   const lines = text.split(/\r?\n/).filter((line) => line !== "" && !Object.hasOwn(values, line.split("=")[0].trim()));
@@ -197,26 +219,32 @@ async function createVm({ contract, root, paths, ref }) {
   const meta = metaData({ instanceId, address: contract.vm.address, gateway: contract.vm.gateway });
 
   step(6, "the .vmx");
-  writeFileSync(paths.vmx, vmxText({ userdata: encode(user), metadata: encode(meta) }));
+  const userdata = encode(user);
+  writeFileSync(paths.vmx, vmxText({ userdata, metadata: encode(meta) }));
   // The VM holds the private half now; the host keeps only the public one.
   rmSync(hostKey, { force: true });
 
-  step(7, "vmcli reads the .vmx");
-  await must(VMCLI, [paths.vmx, "ConfigParams", "query"], { quiet: true });
-
   const vm = vmControls({ vmx: paths.vmx, root, exec: (file, args) => run(file, args) });
-  step(8, "start, with no window");
-  await vm.start();
+  try {
+    step(7, "vmcli reads the .vmx");
+    await must(VMCLI, [paths.vmx, "ConfigParams", "query"], { quiet: true });
 
-  step(9, "wait for the address, then for cloud-init and bootstrap.sh");
-  console.log(`guest address: ${await vm.guestIp()}`);
-  const status = await sshUntil(contract, paths, "cloud-init status --wait --long");
-  console.log(status.stdout);
-  const cloudId = (await sshUntil(contract, paths, "cloud-id")).stdout.trim();
-  const measurements = { measured_at: new Date().toISOString(), VM1: { cloud_id: cloudId, datasource_is_vmware: cloudId === "vmware" } };
-  writeFileSync(join(paths.host, "measurements.json"), `${JSON.stringify(measurements, null, 2)}\n`);
-  if (status.code === 1) throw new Error("cloud-init reported an error; see the status above and /var/log/cloud-init-output.log in the VM");
-  return vm;
+    step(8, "start, with no window");
+    await vm.start();
+
+    step(9, "wait for the address, then for cloud-init and bootstrap.sh");
+    console.log(`guest address: ${await vm.guestIp()}`);
+    const status = await sshUntil(contract, paths, "cloud-init status --wait --long");
+    console.log(status.stdout);
+    const cloudId = (await sshUntil(contract, paths, "cloud-id")).stdout.trim();
+    const measurements = { measured_at: new Date().toISOString(), VM1: { cloud_id: cloudId, datasource_is_vmware: cloudId === "vmware" } };
+    writeFileSync(join(paths.host, "measurements.json"), `${JSON.stringify(measurements, null, 2)}\n`);
+    if (status.code === 1) throw new Error("cloud-init reported an error; see the status above and /var/log/cloud-init-output.log in the VM");
+  } catch (cause) {
+    await powerOffAndScrub(vm, paths, userdata).catch((error) => console.error(`create.mjs: ${error.message}`));
+    throw cause;
+  }
+  return { vm, userdata };
 }
 
 async function installSdk({ contract, sdk, paths }) {
@@ -259,15 +287,24 @@ async function installSdk({ contract, sdk, paths }) {
   return true;
 }
 
-async function snapshotBaseline(vm, paths) {
-  step(11, "stop, take the baseline snapshot, start again");
-  await vm.stop();
-  for (let attempt = 0; (await vm.status()).state !== "off"; attempt += 1) {
-    if (attempt > 60) throw new Error("the VM did not power off");
-    await sleep(5000);
+/** Powers the VM off, then takes user-data out of the .vmx and its logs, even when the power-off fails. */
+async function powerOffAndScrub(vm, paths, userdata) {
+  try {
+    if ((await vm.status()).state !== "off") await vm.stop();
+    for (let attempt = 0; (await vm.status()).state !== "off"; attempt += 1) {
+      if (attempt > 60) throw new Error("the VM did not power off");
+      await sleep(5000);
+    }
+  } finally {
+    const changed = scrubUserdata(paths.vm, paths.vmx, userdata);
+    if (changed.length) console.log(`removed user-data from ${changed.join(", ")}`);
   }
+}
+
+async function snapshotBaseline(vm, paths, userdata) {
+  step(11, "stop, take the baseline snapshot, start again");
   // cloud-init has read user-data, and it holds the VM's host private key.
-  writeFileSync(paths.vmx, withoutUserdata(readFileSync(paths.vmx, "utf8")));
+  await powerOffAndScrub(vm, paths, userdata);
   await vm.snapshot("baseline");
   await vm.start();
 }
@@ -289,9 +326,13 @@ async function main(argv) {
   }
   const ref = flag("--ref") ? value("--ref") : undefined;
   if (!ref) throw new Error("create.mjs --ref <git ref> --yes");
-  const vm = await createVm({ contract, root, paths, ref });
-  await installSdk({ contract, sdk, paths });
-  await snapshotBaseline(vm, paths);
+  const { vm, userdata } = await createVm({ contract, root, paths, ref });
+  let failure;
+  await installSdk({ contract, sdk, paths }).catch((cause) => {
+    failure = cause;
+  });
+  await snapshotBaseline(vm, paths, userdata);
+  if (failure) throw failure;
   console.log("\ncreate.mjs: done. Measure VM2 (start with nobody logged on) and VM3 (`hostd doctor` with a device booted) next.");
 }
 

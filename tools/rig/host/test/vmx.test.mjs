@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { checksumFor, setIniKeys, signedBy, UBUNTU_SIGNING_KEY } from "../vm/create.mjs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { checksumFor, scrubUserdata, setIniKeys, signedBy, UBUNTU_SIGNING_KEY } from "../vm/create.mjs";
 import { MARKER } from "../src/vmrun.mjs";
 import { MARKER_LINE, parseVmx, vmxText, withoutUserdata } from "../vm/vmx.mjs";
 
@@ -84,4 +88,21 @@ test("the image is used only when SHA256SUMS lists it and the pinned key signed 
 
 test("an AVD's config takes the rig's cores and memory", () => {
   assert.equal(setIniKeys("hw.ramSize=2048\nhw.lcd.density=420\n", { "hw.cpu.ncore": "2", "hw.ramSize": "3072" }), "hw.lcd.density=420\nhw.cpu.ncore=2\nhw.ramSize=3072\n");
+});
+
+test("user-data leaves the .vmx and every log that quotes it, whole or cut short", () => {
+  const dir = mkdtempSync(join(tmpdir(), "rig-vm-"));
+  const userdata = Buffer.from("-----BEGIN OPENSSH PRIVATE KEY-----\n".repeat(8)).toString("base64");
+  const vmxPath = join(dir, "loonext-rig.vmx");
+  writeFileSync(vmxPath, vmxText({ userdata, metadata: "bWV0YQ==" }));
+  writeFileSync(join(dir, "vmware.log"), `2026-11-01T10:00:00Z In(05) vmx DICT guestinfo.userdata = "${userdata}"\n`);
+  writeFileSync(join(dir, "vmware-1.log"), `2026-11-01T10:00:00Z In(05) vmx guestinfo.userdata = "${userdata.slice(0, 80)}"\n`);
+  writeFileSync(join(dir, "vmware-2.log"), "nothing here\n");
+  assert.deepEqual(scrubUserdata(dir, vmxPath, userdata).sort(), ["vmware-1.log", "vmware.log"]);
+  for (const name of ["loonext-rig.vmx", "vmware.log", "vmware-1.log"]) {
+    assert.ok(!readFileSync(join(dir, name), "utf8").includes(userdata.slice(0, 64)), name);
+  }
+  assert.match(readFileSync(join(dir, "vmware.log"), "utf8"), /guestinfo\.userdata = "\[user-data removed\]"/);
+  assert.match(readFileSync(vmxPath, "utf8"), /guestinfo\.metadata/);
+  assert.deepEqual(scrubUserdata(dir, vmxPath, userdata), [], "a second pass finds nothing");
 });
