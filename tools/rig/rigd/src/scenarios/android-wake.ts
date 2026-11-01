@@ -499,6 +499,12 @@ const DEEP_IDLE_POLL_MS = 60_000;
 /** Deep idle opens short maintenance windows; one is waited out before the dial. */
 const MAINTENANCE_WAIT_MS = 3 * 60_000;
 
+/** The battery back in and the screen unlocked, as D03 found the Pixel. */
+async function wakeFromIdle(pixel: DeviceApi): Promise<void> {
+  await pixel.exitDoze();
+  if ((await pixel.state()).locked) await pixel.unlock();
+}
+
 /** D03: as D02, in the deep idle the Pixel reached by itself. */
 export const D03: ScenarioRunner = {
   id: "D03",
@@ -514,15 +520,13 @@ export const D03: ScenarioRunner = {
     const idle = idled ? undefined : await poll(ctx, async () => (await pixel.state()).doze === "IDLE", DEEP_IDLE_WAIT_MS, DEEP_IDLE_POLL_MS);
     ctx.evidence.deep_idle_after_ms = idle ? ctx.now() - started : null;
     if (idle) return undefined;
-    // No undo can be registered before the lease, so the battery goes back in here.
-    await pixel.exitDoze().catch(() => undefined);
+    // No undo can be registered before the lease, so the Pixel is put back here.
+    await wakeFromIdle(pixel).catch(() => undefined);
     return idled ?? infra("pixel", "never reached deep idle");
   },
-  /** The Pixel reached deep idle, but no run followed to reset it. */
+  /** The Pixel was left idling, but no run followed to reset it. */
   async abandon(ctx) {
-    const pixel = ctx.devices.pixel();
-    await pixel.exitDoze();
-    if ((await pixel.state()).locked) await pixel.unlock();
+    await wakeFromIdle(ctx.devices.pixel());
   },
   async run(ctx) {
     const pixel = ctx.devices.pixel();

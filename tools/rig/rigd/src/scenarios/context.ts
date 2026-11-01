@@ -641,7 +641,10 @@ export interface ScenarioRunner {
    * attempt without a lease or a dial.
    */
   prepare?(ctx: ScenarioContext): Promise<ScenarioResult | undefined>;
-  /** Puts back what a finished prepare changed, when the run then never starts: no lease, or the window closed. */
+  /**
+   * Puts back what prepare changed when no run follows: it finished but got no
+   * lease or the window closed, or it threw or ran past its limit.
+   */
   abandon?(ctx: ScenarioContext): Promise<void>;
   run(ctx: ScenarioContext): Promise<ScenarioResult>;
   /** Checked after the lease's undos ran; a result here overrides a pass. */

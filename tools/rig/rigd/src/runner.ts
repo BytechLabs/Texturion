@@ -37,6 +37,8 @@ const DUE_SLACK_MS = 2 * 60 * 60 * 1000;
 const ATTEMPT_LIMIT_MS = LEASE_MAX_MS - 60 * 1000;
 /** A runner's setup before the lease, such as waiting for natural Doze (D03), is bounded too. */
 const PREPARE_LIMIT_MS = 2 * 60 * 60 * 1000;
+/** How long a prepare past its limit is waited for before its change is put back; the lane hold covers it. */
+const PREPARE_SETTLE_MS = ATTEMPT_LIMIT_MS;
 /** Two paid runs in one hour start minutes apart; the second waits this long for the first's lease. */
 const LEASE_WAIT_MS = 20 * 60 * 1000;
 const LEASE_POLL_MS = 30 * 1000;
@@ -374,12 +376,24 @@ async function attemptHeld(
   };
   if (runner.prepare) {
     let prepared: ScenarioResult | undefined;
+    let returned: { value: ScenarioResult | undefined } | undefined;
+    let settled = false;
+    const preparing = runner
+      .prepare({ ...base, ...lanes, lease: unleased })
+      .then((value) => ((returned = { value }), value))
+      .finally(() => (settled = true));
     try {
-      prepared = await withLimit(runner.prepare({ ...base, ...lanes, lease: unleased }), PREPARE_LIMIT_MS, deps);
+      prepared = await withLimit(preparing, PREPARE_LIMIT_MS, deps);
     } catch (error) {
       prepared = attemptError(error);
     }
     if (prepared) {
+      // A prepare that returned its own result put back what it changed. One
+      // that threw or ran out of time did not, and one still running may yet.
+      if (returned?.value !== prepared) {
+        if (!settled) await withLimit(preparing.catch(() => undefined), PREPARE_SETTLE_MS, deps);
+        await abandon();
+      }
       deps.verdicts.saveEvidence(runId, attempt, evidence);
       return { ...outcomeOf(prepared), spent: false };
     }

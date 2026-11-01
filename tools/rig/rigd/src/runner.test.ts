@@ -480,6 +480,56 @@ describe("runScenario", () => {
     expect(abandoned).toHaveLength(4);
   });
 
+  it("puts back what a prepare changed when it threw, or ran past its limit, once it has stopped", async () => {
+    const abandoned: string[] = [];
+    const threw = setup([]);
+    threw.deps.runners = {
+      ...threw.deps.runners,
+      S02: {
+        id: "S02",
+        prepare: async () => {
+          throw new Error("adb dropped");
+        },
+        abandon: async () => void abandoned.push("threw"),
+        run: async () => ({ outcome: "pass" }),
+      },
+    };
+    expect((await runScenario(threw.deps, "S02")).verdicts[0]).toMatchObject({ outcome: "infra", detail: "adb dropped" });
+    expect(abandoned).toEqual(["threw", "threw"]);
+
+    const slow = setup([]);
+    const events: string[] = [];
+    let finishPrepare: () => void = () => undefined;
+    slow.deps.runners = {
+      ...slow.deps.runners,
+      S02: {
+        id: "S02",
+        prepare: () =>
+          events.length > 0
+            ? Promise.resolve(undefined)
+            : new Promise<undefined>((resolve) => {
+                finishPrepare = () => (events.push("prepare done"), resolve(undefined));
+              }),
+        abandon: async () => void events.push("abandon"),
+        run: async () => ({ outcome: "pass" }),
+      },
+    };
+    slow.deps.holds = {
+      holder: () => undefined,
+      claim: () => undefined,
+      release: () => void events.push("hold released"),
+    };
+    const running = runScenario(slow.deps, "S02");
+    await new Promise((resolve) => setImmediate(resolve));
+    slow.clock.advance(2 * 60 * 60_000);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(events).toEqual([]);
+    finishPrepare();
+    const summary = await running;
+    expect(summary.verdicts[0]).toMatchObject({ outcome: "infra", detail: "the attempt ran past 120 minutes" });
+    expect(events).toEqual(["prepare done", "abandon", "hold released", "hold released"]);
+  });
+
   it("tells a runner which timed scenarios a room would block, as its own admission blocks them", async () => {
     const { deps } = setup([]);
     const blocked: Record<number, string[]> = {};
