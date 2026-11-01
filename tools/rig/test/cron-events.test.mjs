@@ -167,6 +167,34 @@ test("a failure Sentry never read inside leaves the event unexplained", () => {
   assert.equal(explainer.explain(sent), undefined);
 });
 
+test("the sixth exception Sentry visits is the first it does not read inside", () => {
+  // The cron's, the grace job's, the first release's and its two refusals are
+  // the five Sentry reads inside; the second release is the sixth, listed
+  // with its failure dropped. One refusal fewer, and the second release is
+  // the fifth and read (the two-company grace job above).
+  const release = (failures) => new AggregateError(failures, `number release failed for ${failures.length} of ${failures.length} numbers`);
+  const real = telnyxError("Telnyx 500 on DELETE /v2/messaging_hosted_numbers/c");
+  const grace = new AggregateError(
+    [release([refused("DELETE", "/v2/messaging_hosted_numbers/a"), refused("DELETE", "/v2/messaging_hosted_numbers/b")]), release([real])],
+    "grace job failed for 2 companies",
+  );
+  const sent = sentryEvent(cronFailure("0 14 * * *", grace));
+  assert.equal(sent.exceptions.length, 6);
+  assert.ok(!sent.exceptions.some((exception) => exception.value === real.message), "Sentry dropped the real failure");
+  assert.equal(explainer.explain(sent), undefined);
+});
+
+test("a cron's failure that lists no failure at all is not explained", () => {
+  // Sentry lists only Error children, so a job that failed with anything else
+  // leaves the cron's AggregateError alone in the event.
+  const sent = sentryEvent(cronFailure("10 13 * * *", "port reconcile failed"));
+  assert.deepEqual(
+    sent.exceptions.map((exception) => exception.type),
+    ["AggregateError"],
+  );
+  assert.equal(explainer.explain(sent), undefined);
+});
+
 test("a skip's fingerprints are expected, and nothing else is", () => {
   const skipping = cronExplainer(
     JSON.stringify({
