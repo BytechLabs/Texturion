@@ -582,6 +582,50 @@ describe("the emulator's gRPC audio", () => {
     expect(await link.hear({ stream: "call", ms: 8_000, own: "pixel" })).toMatchObject({ answered: null, echo: { surface: "pixel" } });
   });
 
+  it("writes one 20 ms packet every 20 ms of the clock, since real-time mode overwrites what is queued", async () => {
+    let clock = 1_000;
+    const sleeps: number[] = [];
+    const writes: { at: number; packet: AudioPacket }[] = [];
+    let finished!: () => void;
+    const done = new Promise<void>((resolve) => (finished = resolve));
+    const stream = {
+      write(packet: AudioPacket) {
+        writes.push({ at: clock, packet });
+        // Each write takes 3 ms, which the next sleep makes up.
+        clock += 3;
+        if (writes.length === 50) {
+          link.stop();
+          finished();
+        }
+        return true;
+      },
+      end() {},
+      once() {},
+    };
+    const link = new EmulatorAudioLink({
+      port: 8560,
+      token: () => GRPC_TOKEN,
+      adb: { shell: async () => RECORDING },
+      proof: () => PROVEN,
+      client: () => ({ injectAudio: () => stream, close() {} }) as unknown as ControllerClient,
+      now: () => clock,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        clock += ms;
+      },
+    });
+    cleanups.push(() => link.close());
+    await link.playCode("pixel");
+    await done;
+    const started = writes[0]!.at;
+    writes.forEach(({ at, packet }, n) => {
+      expect(at - started, `packet ${n}`).toBe(n * 20);
+      expect(packet.timestamp - writes[0]!.packet.timestamp).toBe(n * 20_000);
+      expect(packet.audio.length).toBe(1_920);
+    });
+    expect(sleeps.slice(0, 49).every((ms) => ms === 17)).toBe(true);
+  });
+
   it("injects nothing until the guest's microphone is open", async () => {
     const controller = await fakeController();
     let open = false;
