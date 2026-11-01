@@ -2,7 +2,7 @@
 # value comes from. `rig deploy` renders it into the deployed worktree, which
 # gitignores `.dev.vars*`. Values never appear here, only their sources:
 #   {{secret:<file>}}   the rig's secret store; {{secret?:<file>}} if present
-#   {{catalog:<VAR>}}   stripe-catalog.json in the store (the sandbox's ids)
+#   {{catalog:<VAR>}}   stripe-catalog.json in the store (the test mode's ids)
 #   {{partition.<key>}} the guard's live listing, read at deploy time
 #   {{edge}}            the edge's origin, from the store
 #   {{rig.<setting>}}   rig.json
@@ -41,7 +41,8 @@ FCM_API_BASE={{seam.fcmApiBase}}
 FCM_OAUTH_TOKEN_URL={{seam.fcmOauthTokenUrl}}
 FCM_SERVICE_ACCOUNT_JSON={{derived.fcmServiceAccount}}
 
-# The Stripe sandbox: a key that is not sk_test_ or rk_test_ is refused.
+# The existing Stripe account's test mode (FA5), shared with developers: a key
+# that is not sk_test_ or rk_test_ is refused, and rigd tags what it creates.
 STRIPE_SECRET_KEY={{derived.stripeSecretKey}}
 STRIPE_WEBHOOK_SECRET={{derived.stripeWebhookSecret}}
 STRIPE_STARTER_PRICE_ID={{catalog:STRIPE_STARTER_PRICE_ID}}
@@ -65,7 +66,8 @@ STRIPE_VOICE_METER_EVENT_NAME={{catalog?:STRIPE_VOICE_METER_EVENT_NAME}}
 STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID={{catalog?:STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID}}
 STRIPE_PRO_VOICE_OVERAGE_PRICE_ID={{catalog?:STRIPE_PRO_VOICE_OVERAGE_PRICE_ID}}
 
-# loonext-rig, through rigd's capped relay.
+# The existing Sentry project (FA7), through rigd's capped relay, which marks
+# these events environment rig.
 SENTRY_DSN={{derived.sentryDsn}}
 
 # Stable across deploys: a browser's push subscription is bound to the key.

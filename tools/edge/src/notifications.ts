@@ -5,7 +5,7 @@ import { uplink, type Env } from "./env";
 import { guardCall, requestHalt } from "./guard";
 import { boundedText, empty } from "./http";
 import { parseDsn, sendSentryEvent } from "./sentry";
-import { verifyTelnyxSignature } from "./telnyx";
+import { checkTelnyxSignature } from "./telnyx";
 
 /**
  * `/t/n/<secret>`: the Telnyx account's notification channel.
@@ -17,10 +17,12 @@ import { verifyTelnyxSignature } from "./telnyx";
  *     is low;
  *   - Telnyx itself refuses the account's reads (a disabled account answers
  *     401 or 403, with no guard refusal);
- *   - it carries a valid Telnyx signature, which proves Telnyx sent it in
- *     the last five minutes, and names a notification type enabled on the
- *     account. That list of types says nothing about whether one occurred,
- *     so it never corroborates on its own.
+ *   - it carries a valid Telnyx signature, which proves Telnyx sent it, and
+ *     names a notification type enabled on the account. That list of types
+ *     says nothing about whether one occurred, so it never corroborates on
+ *     its own. A signature over a timestamp more than five minutes old is a
+ *     retry Telnyx sent late: it still halts, marked late, and the guard
+ *     keeps one signal per notice id.
  * An unsigned notice that is none of these cannot be corroborated by any
  * Telnyx read. It halts nothing and goes to the synthetic project instead,
  * where an agent can look.
@@ -151,10 +153,13 @@ export async function handleNotification(env: Env, request: Request, secret: str
   if (raw === null) return empty(413);
 
   const signed = request.headers.has("telnyx-signature-ed25519") || request.headers.has("telnyx-timestamp");
-  if (signed && !(await verifyTelnyxSignature(env.TELNYX_PUBLIC_KEY, request.headers, raw))) {
+  const signature = signed ? await checkTelnyxSignature(env.TELNYX_PUBLIC_KEY, request.headers, raw) : null;
+  if (signature === "invalid") {
     await uplink(env).bump("notice.bad_signature");
     return empty(400);
   }
+  const late = signature === "late";
+  if (late) await uplink(env).bump("notice.late_signature");
 
   const notice = await parseNotice(raw);
   if (!notice) {
@@ -192,6 +197,7 @@ export async function handleNotification(env: Env, request: Request, secret: str
     notice_id: notice.id,
     corroborated_by: verdict.by,
     received_at: new Date().toISOString(),
+    ...(late ? { late: true } : {}),
   };
   if (await requestHalt(env, halt)) {
     await rig.recordNotice(notice.key, notice.name, "halted");

@@ -602,6 +602,12 @@ export interface StripeApi {
   request<T = Record<string, unknown>>(method: "GET" | "POST" | "DELETE", path: string, params?: Record<string, unknown>): Promise<T>;
   /** The subscription the tenant's company row names, or null when it names none. */
   subscriptionOf(tenant: string): Promise<{ id: string; status: string } | null>;
+  /**
+   * Tags the subscription Checkout made for a sign-up's workspace as the
+   * rig's, once the local database confirms that workspace names it, so the
+   * run may delete it.
+   */
+  adoptCheckoutSubscription(args: { ownerEmail: string; subscriptionId: string }): Promise<void>;
 }
 
 /**

@@ -1009,6 +1009,7 @@ export class FakeStripe implements StripeApi {
   /** Answers by `METHOD path`; anything unlisted answers `{}`. */
   answers = new Map<string, Record<string, unknown>>();
   subscriptions = new Map<string, { id: string; status: string }>();
+  adopted: string[] = [];
 
   async request<T>(method: "GET" | "POST" | "DELETE", path: string, params?: Record<string, unknown>) {
     this.requests.push({ method, path, ...(params ? { params } : {}) });
@@ -1016,6 +1017,9 @@ export class FakeStripe implements StripeApi {
   }
   async subscriptionOf(tenant: string) {
     return this.subscriptions.get(tenant) ?? null;
+  }
+  async adoptCheckoutSubscription(args: { ownerEmail: string; subscriptionId: string }) {
+    this.adopted.push(args.subscriptionId);
   }
 }
 

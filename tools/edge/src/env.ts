@@ -40,7 +40,11 @@ export interface Env {
   /** The secret segment of `/t/n/<secret>`. */
   NOTIFICATIONS_SECRET_SHA256?: string;
 
-  /** `loonext-synthetic`: stale heartbeats and notices that could not be corroborated. Ingest-only. */
+  /**
+   * The existing Sentry project's ingest-only DSN (FA7: no new project). Its
+   * events carry environment `synthetic`, which keeps stale heartbeats and
+   * notices that could not be corroborated apart from production's own.
+   */
   SENTRY_SYNTHETIC_DSN?: string;
   /** Production's API project: only "the rig is dark" and account signals. */
   SENTRY_PROD_DSN?: string;

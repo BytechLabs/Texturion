@@ -27,7 +27,10 @@ test("only a test-mode key leaves the store", () => {
     }
     for (const key of ["sk_live_abc123", "rk_live_abc123", "pk_test_abc123", "whsec_abc123", "sk_test_"]) {
       store.write("stripe-secret-key", key);
-      assert.throws(() => stripeSandboxKey(store), (error) => /not a test-mode key/.test(error.message) && !error.message.includes("abc123"));
+      assert.throws(
+        () => stripeSandboxKey(store),
+        (error) => /not a test-mode key/.test(error.message) && /existing account's test-mode key/.test(error.message) && !error.message.includes("abc123"),
+      );
     }
   });
 });
@@ -53,7 +56,7 @@ test("the template's required catalog ids are the ones without a question mark",
   assert.ok(!required.includes("STRIPE_PRO_YEAR_PRICE_ID"), "an optional id is not required");
 });
 
-test("stripe-setup runs only when the stored catalog lacks an id, and only with a sandbox key", () => {
+test("stripe-setup runs only when the stored catalog lacks an id, and only with a test-mode key", () => {
   withStore((store) => {
     const runs = [];
     const runSetup = (key) => {

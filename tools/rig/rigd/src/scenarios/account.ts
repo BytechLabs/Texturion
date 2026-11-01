@@ -763,6 +763,7 @@ export const S32: ScenarioRunner = {
     try {
       let subscription: { status?: string };
       try {
+        await ctx.stripe.adoptCheckoutSubscription({ ownerEmail: email, subscriptionId: workspace.stripe_subscription_id });
         subscription = await ctx.stripe.request<{ status?: string }>("GET", path);
       } catch (error) {
         return infra("stripe", (error as Error).message);

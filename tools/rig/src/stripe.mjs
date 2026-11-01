@@ -1,7 +1,8 @@
 /**
- * The rig's Stripe: the `loonext-rig` sandbox and nothing else. Every place
- * that hands the key to something reads it through stripeSandboxKey, so a
- * live key in the store stops the rig before Stripe is contacted at all.
+ * The rig's Stripe: the existing account's test mode and nothing else (FA5:
+ * its test-mode key and test prices, no sandbox of the rig's own). Every
+ * place that hands the key to something reads it through stripeSandboxKey,
+ * so a live key in the store stops the rig before Stripe is contacted at all.
  */
 import { join } from "node:path";
 
@@ -13,7 +14,7 @@ const SANDBOX_KEY = /^(?:sk|rk)_test_[A-Za-z0-9]+$/;
 export function stripeSandboxKey(store) {
   const key = store.read("stripe-secret-key");
   if (!SANDBOX_KEY.test(key)) {
-    throw new Error("rig: stripe-secret-key is not a test-mode key (sk_test_ or rk_test_); the rig holds only the loonext-rig sandbox key");
+    throw new Error("rig: stripe-secret-key is not a test-mode key (sk_test_ or rk_test_); the rig holds only the existing account's test-mode key");
   }
   return key;
 }
@@ -42,16 +43,17 @@ export function parseCatalogOutput(stdout) {
 }
 
 /**
- * The sandbox's price and coupon ids. FA5 leaves the catalog to the agent, so
- * when the store's copy lacks an id the template needs, the repository's own
- * idempotent setup script (apps/api/scripts/stripe-setup.ts) runs against the
- * sandbox: it finds or creates each object and prints the ids.
+ * The test mode's price and coupon ids. FA5 leaves the catalog to the agent,
+ * so when the store's copy lacks an id the template needs, the repository's
+ * own idempotent setup script (apps/api/scripts/stripe-setup.ts) runs against
+ * test mode: it finds the existing test prices, or creates what is missing,
+ * and prints the ids.
  */
 export function ensureStripeCatalog({ store, required, log, runSetup = runStripeSetup }) {
   const stored = store.has("stripe-catalog.json") ? store.readJson("stripe-catalog.json") : {};
   const missing = required.filter((key) => !stored[key]);
   if (missing.length === 0) return stored;
-  log(`stripe: the sandbox catalog lacks ${missing.length} id(s); running stripe-setup against the sandbox`);
+  log(`stripe: the test-mode catalog lacks ${missing.length} id(s); running stripe-setup against test mode`);
   const catalog = parseCatalogOutput(runSetup(stripeSandboxKey(store)));
   const still = required.filter((key) => !catalog[key]);
   if (still.length > 0) throw new Error(`rig: stripe-setup printed no ${still.join(", ")}`);

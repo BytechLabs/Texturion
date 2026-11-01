@@ -219,6 +219,7 @@ export function buildRig(config: RigdConfig): Rig {
       new StripeSandbox({
         key: () => store.read("stripe-secret-key"),
         subscriptionIdOf: (tenant) => app().stripeSubscriptionId(tenant),
+        checkoutSubscriptionOf: async (ownerEmail) => (await app().workspaceOf({ ownerEmail }))?.stripe_subscription_id ?? null,
       }),
   );
   const lanes = (): ScenarioLanes => ({

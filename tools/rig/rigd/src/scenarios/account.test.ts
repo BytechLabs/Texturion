@@ -946,6 +946,7 @@ describe("S32, onboarding, Checkout and the customer portal", () => {
     ]);
     expect(ctx.evidence.checkout).toEqual({ returned: true, challenged: false });
     expect(ctx.evidence.portal_host).toBe("billing.stripe.com");
+    expect(stripe.adopted).toEqual(["sub_s32"]);
     expect(deletes(stripe)).toEqual(["/v1/subscriptions/sub_s32"]);
     expect(JSON.stringify(ctx.evidence)).not.toContain(email);
   });

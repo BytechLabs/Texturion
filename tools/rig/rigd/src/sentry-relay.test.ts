@@ -55,7 +55,11 @@ describe("the relay", () => {
     const [sent] = events();
     expect(sent!.url).toBe(SYNTHETIC.envelopeUrl);
     expect(sent!.auth).toMatch(/sentry_key=publickey1/);
-    expect(sent!.event).toMatchObject({ fingerprint: ["synthetic", "S02", "robot_did_not_hear_member"], tags: { scenario: "S02", run_id: "S02-1" } });
+    expect(sent!.event).toMatchObject({
+      fingerprint: ["synthetic", "S02", "robot_did_not_hear_member"],
+      tags: { scenario: "S02", run_id: "S02-1" },
+      environment: "synthetic",
+    });
   });
 
   it("suppresses a repeated fingerprint for 6 hours", async () => {
@@ -119,8 +123,32 @@ describe("the relay", () => {
     const { header, items } = parseEnvelope(new TextEncoder().encode(requests[0]!.body!));
     expect(JSON.parse(header).dsn).toBe(RIG.raw);
     expect(items.map((i) => i.type)).toEqual(["event"]);
+    expect(JSON.parse(items[0]!.payload)).toMatchObject({ environment: "rig", exception: { values: [{ type: "TypeError" }] } });
     expect(requests[0]!.url).toBe(RIG.envelopeUrl);
     expect(await relay.forwardEnvelope(RIG, new TextEncoder().encode(envelope))).toEqual({ sent: false, reason: "suppressed" });
+  });
+
+  it("never relays an event as production's, whatever environment the SDK set", async () => {
+    const { relay, requests } = setup();
+    const envelope = [
+      JSON.stringify({ event_id: "b".repeat(32) }),
+      JSON.stringify({ type: "event" }),
+      JSON.stringify({ environment: "production", message: "from a misconfigured SDK" }),
+      JSON.stringify({ type: "event" }),
+      JSON.stringify({ message: "with no environment" }),
+      "",
+    ].join("\n");
+    expect((await relay.forwardEnvelope(RIG, new TextEncoder().encode(envelope))).sent).toBe(true);
+    const { items } = parseEnvelope(new TextEncoder().encode(requests[0]!.body!));
+    expect(items.map((item) => JSON.parse(item.payload).environment)).toEqual(["rig", "rig"]);
+  });
+
+  it("marks the relay's own 70% alert synthetic too", async () => {
+    const { relay, events } = setup({ daily: 10, perRun: 1_000 });
+    for (let i = 0; i < 8; i++) await relay.send(SYNTHETIC, { fingerprint: ["synthetic", "S01", `c${i}`], message: "x" });
+    const alert = events().find((e) => (e.event.fingerprint as string[])[1] === "sentry-relay");
+    expect(alert?.event.environment).toBe("synthetic");
+    expect(events().every((e) => e.event.environment === "synthetic")).toBe(true);
   });
 
   it("parses an envelope whose attachment holds newlines", () => {

@@ -5,6 +5,11 @@
  * fingerprint every 6 hours. It raises its own alert once at 70% of either cap,
  * before the cap drops anything.
  *
+ * Both kinds go to the existing project (FA7: no project of the rig's own),
+ * so the environment is what keeps them apart from production's events:
+ * rigd's own carry `synthetic`, the local API's relayed ones `rig`, and
+ * neither can ever say `production`.
+ *
  * It sends envelopes by DSN only; no Sentry API token exists on the rig. The
  * counters live in one file under a lock, because scenario runs are separate
  * processes and each may report. An envelope Sentry did not take is kept
@@ -94,6 +99,11 @@ interface PendingEnvelope {
 }
 
 const PENDING_MAX = 50;
+
+/** rigd's own events: scenario failures, infrastructure, the relay's alert. */
+const SYNTHETIC_ENVIRONMENT = "synthetic";
+/** The local API's events, relayed from its SDK. */
+const RELAYED_ENVIRONMENT = "rig";
 
 interface RelayState {
   day: string;
@@ -186,7 +196,10 @@ export class SentryRelay {
     const once = new Set<string>();
     const kept = events.filter((event) => keys.includes(event.key) && !once.has(event.key) && once.add(event.key));
     if (kept.length === 0) return { sent: false, reason: refused ?? "suppressed" };
-    const lines = [rewriteDsn(header, dsn), ...kept.flatMap((event) => [JSON.stringify({ type: "event" }), event.payload])];
+    const lines = [
+      rewriteDsn(header, dsn),
+      ...kept.flatMap((event) => [JSON.stringify({ type: "event" }), asRigEvent(event.payload)]),
+    ];
     return this.#deliver(dsn, `${lines.join("\n")}\n`);
   }
 
@@ -378,7 +391,7 @@ function buildEnvelope(dsn: Dsn, event: SyntheticEvent, now: number): string {
     platform: "node",
     logger: "rigd",
     level: event.level ?? "error",
-    environment: "rig",
+    environment: SYNTHETIC_ENVIRONMENT,
     release: event.release,
     message: { formatted: event.message },
     fingerprint: [...event.fingerprint],
@@ -469,6 +482,14 @@ export function parseEnvelope(body: Uint8Array): { header: string; items: { type
     items.push({ type: typeof itemHeader.type === "string" ? itemHeader.type : undefined, payload });
   }
   return { header, items };
+}
+
+/** The local API's event, marked as the rig's whatever environment its SDK set. */
+function asRigEvent(payload: string): string {
+  const event = safeJson(payload);
+  // Sentry cannot read a payload that is not an object either, so it passes as it came.
+  if (!event || typeof event !== "object" || Array.isArray(event)) return payload;
+  return JSON.stringify({ ...(event as Record<string, unknown>), environment: RELAYED_ENVIRONMENT });
 }
 
 function rewriteDsn(header: string, dsn: Dsn): string {

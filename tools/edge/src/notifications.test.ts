@@ -88,6 +88,8 @@ describe("account notices", () => {
     expect(halts()).toEqual([]);
     expect(toProduction()).toEqual([]);
     expect(toSynthetic().map((o) => o.event?.fingerprint)).toEqual([["synthetic-infra", "telnyx-notice"]]);
+    // The existing project's DSN: environment is what keeps these apart from production's own events.
+    expect(toSynthetic().map((o) => o.event?.environment)).toEqual(["synthetic"]);
   });
 
   it("does not halt on a notice the account does not corroborate", async () => {
@@ -145,6 +147,31 @@ describe("account notices", () => {
     const noDsn = { ...env, SENTRY_PROD_DSN: undefined };
     expect((await call(await signedNotice("Suspicious Outbound Voice Traffic"), noDsn)).status).toBe(503);
     expect(outbound).toEqual([]);
+  });
+
+  it("halts on a late notice whose signature verifies, marked late, once per notice id", async () => {
+    const old = String(Math.floor(Date.now() / 1000) - 3_600);
+    const late = () =>
+      telnyxDelivery(`/t/n/${NOTIFICATIONS_SECRET}`, { data: { id: "ntc-late", event_type: "Suspicious Outbound Voice Traffic", payload: {} } }, { timestamp: old });
+    expect((await call(await late(), env)).status).toBe(200);
+    expect((await call(await late(), env)).status).toBe(200);
+    expect(halts()).toEqual([
+      expect.objectContaining({ signal: "Suspicious Outbound Voice Traffic", notice_id: "ntc-late", corroborated_by: "signature", late: true }),
+    ]);
+    expect((await counters())["notice.late_signature"]).toBe(2);
+  });
+
+  it("still refuses a late notice whose signature does not verify", async () => {
+    const old = String(Math.floor(Date.now() / 1000) - 3_600);
+    const signed = await telnyxDelivery(`/t/n/${NOTIFICATIONS_SECRET}`, { data: { id: "n", event_type: "Low Balance" } }, { timestamp: old });
+    const tampered = new Request(signed, { body: JSON.stringify({ data: { id: "n", event_type: "Account Disabled" } }) });
+    expect((await call(tampered, env)).status).toBe(400);
+    expect(halts()).toEqual([]);
+  });
+
+  it("marks nothing late on a fresh signature", async () => {
+    await call(await signedNotice("Suspicious Outbound Voice Traffic", "ntc-fresh"), env);
+    expect(halts()[0]).not.toHaveProperty("late");
   });
 
   it("verifies a notice that arrives signed", async () => {
