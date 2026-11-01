@@ -107,6 +107,14 @@ describe("account notices", () => {
     expect(halts()).toEqual([expect.objectContaining({ corroborated_by: "balance" })]);
   });
 
+  it("reads Telnyx's Low Available Credit notice as a balance notice", async () => {
+    await call(notice("Low Available Credit"), env);
+    expect(halts()).toEqual([]);
+    balance = { data: { balance: "42.10" } };
+    await call(notice("Low Available Credit"), env);
+    expect(halts()).toEqual([expect.objectContaining({ signal: "Low Available Credit", corroborated_by: "balance" })]);
+  });
+
   it("corroborates when Telnyx itself refuses the account's reads", async () => {
     guard.respond = (c) => (c.path.startsWith("/telnyx/") ? new Response(null, { status: 401 }) : undefined);
     expect((await call(notice("Account Disabled"), env)).status).toBe(200);

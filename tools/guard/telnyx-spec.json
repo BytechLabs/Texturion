@@ -96,8 +96,7 @@
     "event_conditions": [
       "Suspicious Outbound Voice Traffic",
       "Account Disabled",
-      "Low Balance",
-      "Messaging Suspicious Traffic",
+      "Low Available Credit",
       "Abandoned",
       "Short Duration"
     ]

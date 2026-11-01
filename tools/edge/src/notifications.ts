@@ -120,7 +120,8 @@ export async function corroborate(env: Env, notice: Notice, signed: boolean): Pr
   }
   if (telnyxRefused(balance)) return { outcome: "corroborated", by: "account_refused" };
 
-  if (/balance/i.test(notice.name)) {
+  // Telnyx's own condition is "Low Available Credit".
+  if (/balance|credit/i.test(notice.name)) {
     if (!balance.ok) return { outcome: "unreadable" };
     const dollars = balanceOf(await balance.json().catch(() => null));
     if (dollars === null) return { outcome: "unreadable" };

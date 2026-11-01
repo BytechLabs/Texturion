@@ -455,7 +455,7 @@ A run that prepares before its lease holds its lane for the whole attempt (no ru
 - **Weekly key inventory.** Any unexpected Telnyx key raises `['ops','telnyx-key-inventory']`.
 - **Daily negative probes** run in G01.
 
-**Account signals.** A Telnyx notification channel posts to `/t/n/<secret>` for Suspicious Outbound Voice Traffic, Account Disabled, Low Balance, Messaging Suspicious Traffic, and the Abandoned and Short-duration call notices. None exist today. A fraud hold is assumed to cover the whole account and to be permanent for the rig, which never contacts Telnyx. Lifting a hold on production is a founder act outside the rig. So:
+**Account signals.** A Telnyx notification channel posts to `/t/n/<secret>` for Suspicious Outbound Voice Traffic, Account Disabled, Low Available Credit, and the Abandoned and Short-duration call notices. Setup created the channel on 2026-11-01. The account's condition list has no Messaging Suspicious Traffic condition, so nothing subscribes to it; the guard still latches on a notice of that name. A fraud hold is assumed to cover the whole account and to be permanent for the rig, which never contacts Telnyx. Lifting a hold on production is a founder act outside the rig. So:
 - The first corroborated fraud-type notice (Suspicious Outbound Voice Traffic, Account Disabled or Messaging Suspicious Traffic) latches the paid lanes off at once, until a reviewed change to `SIGNAL_LATCH_RESET`, and raises `['ops','telnyx-account-signal']`.
 - Any other corroborated signal halts paid tests for 7 days and raises the same alert. A second within 30 days latches them off the same way.
 - A refusal with code 90041, 90042, 90043, or 90103 with HTTP 429, halts the same way and counts toward the latch.
