@@ -57,7 +57,7 @@ const SCENARIO_KEYS = [
 ];
 const RUN_KEYS = ["label", "every", "offset_days", "hour_utc"];
 export const RUNS_ON = ["rig", "ci", "production", "workstation"];
-export const UNSCHEDULED_BECAUSE = ["hourly-cap", "phase-4"];
+export const UNSCHEDULED_BECAUSE = ["hourly-cap", "phase-4", "dropped"];
 
 /** The leading words of a 4.2 cadence, and the period each one means. */
 export const CADENCE_WORDS = [

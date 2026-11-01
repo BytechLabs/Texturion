@@ -746,7 +746,7 @@ Payloads, passwords and query strings are never logged or alerted. This catches 
 
 **The guard's own cap:**
 - 18 dials a day and 3 an hour;
-- 358.7 scheduled dials a month, 490.5 with both reserves, against a ceiling of 540;
+- 356.7 scheduled dials a month, 488.1 with both reserves, against a ceiling of 540;
 - about 300 texts a month.
 
 **The account-wide check.** Below that cap, the guard assumes the Paid level's limits for the whole account (section 3.5): the rig's dials in an hour plus production's peak hour come to at most 10, and a day's to at most 100. A stale measurement of production's peaks refuses.
@@ -754,8 +754,9 @@ Payloads, passwords and query strings are never logged or alerted. This catches 
 **The encoded schedule.** `tools/rig/scenarios.json` holds 4.2 as data, with each run placed on a day and a UTC hour inside the window. Over its 210-day cycle the busiest hour holds 3 dials and the busiest day 18. Two days sit exactly at the daily cap, so a retry on those days waits. 4.2 at its written cadence would need 435.4 dials a month (582.5 with reserves), so not every row is scheduled:
 - S07, S08, S10 and D01 need 4 dials in one run, and S09 needs 5, against 3 an hour. They stay unscheduled, because the hourly cap of 3 is final (below). S09 also needs two robot calls at once, and `nonprod-robot-ovp` allows one.
 - K01 waits for Phase 4.
+- S28 and S29 are dropped (founder, 2026-11-01). Buying and releasing a number is Telnyx's work, and the hermetic suite covers the app's side of it.
 
-A run with no dials may name `offset_days`, which ties it to that day of its period at any hour: S29 runs on day 2 of the 30-day cycle, the day after S28's day 1.
+A run with no dials may name `offset_days`, which ties it to that day of its period at any hour: S29 did, on day 2 of the 30-day cycle, until it was dropped.
 
 **Editing this section, 4.2 or 4.3.** A change to 4.1, 4.2 or 4.3 updates `tools/rig/scenarios.json` in the same change. `scripts/check-rig-scenarios.mjs` fails CI when the two disagree: names, far ends, cadences, dials, room, the cap and the reserves. It does not read the totals above, so copy them from its output, which prints each one.
 

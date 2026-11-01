@@ -577,7 +577,8 @@
       "runs": [
         { "every": "30d", "offset_days": 1, "hour_utc": 9 }
       ],
-      "scheduled": true,
+      "scheduled": false,
+      "unscheduled_because": "dropped",
       "dials": 1,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 1,
@@ -594,7 +595,8 @@
       "runs": [
         { "every": "30d", "offset_days": 2 }
       ],
-      "scheduled": true,
+      "scheduled": false,
+      "unscheduled_because": "dropped",
       "dials": 0,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 0,
