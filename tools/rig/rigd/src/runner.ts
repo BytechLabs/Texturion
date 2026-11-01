@@ -25,7 +25,7 @@ import {
 import { textHash } from "./late.ts";
 import { LeaseBusyError, LeaseReapedError, type Lease, type LeaseClient, type ReleaseResult } from "./lease.ts";
 import { dialsPerRun, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
-import type { ScenarioContext, ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
+import type { LeaseHandle, ScenarioContext, ScenarioLanes, ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
 import { infraFingerprint, syntheticFingerprint, type Dsn, type RelayDecision, type SentryRelay } from "./sentry-relay.ts";
 import type { Outcome, Verdict, VerdictStore } from "./verdicts.ts";
 
@@ -35,6 +35,8 @@ const WINDOW_TAIL_MS = 15 * 60 * 1000;
 const DUE_SLACK_MS = 2 * 60 * 60 * 1000;
 /** An attempt stops itself before the watchdog would reap its lease. */
 const ATTEMPT_LIMIT_MS = LEASE_MAX_MS - 60 * 1000;
+/** A runner's setup before the lease, such as waiting for natural Doze (D03), is bounded too. */
+const PREPARE_LIMIT_MS = 2 * 60 * 60 * 1000;
 /** Two paid runs in one hour start minutes apart; the second waits this long for the first's lease. */
 const LEASE_WAIT_MS = 20 * 60 * 1000;
 const LEASE_POLL_MS = 30 * 1000;
@@ -48,8 +50,8 @@ export interface RunnerDeps {
   leases: Pick<LeaseClient, "acquire">;
   /** A lease for a run that dials nothing: undo journal only, no guard. */
   localLease(scenario: string): Lease | Promise<Lease>;
-  /** The robot, app probe and browser lane for one attempt. */
-  lanes(attempt: { scenario: string; runId: string; attempt: number }): Pick<ScenarioContext, "robot" | "app" | "browser">;
+  /** The robot, app probe, browser lane and the rest of the rig, for one attempt. */
+  lanes(attempt: { scenario: string; runId: string; attempt: number }): ScenarioLanes;
   relay?: SentryRelay;
   syntheticDsn?: Dsn;
   /** The deployed SHA: `rig deploy` writes it. */
@@ -152,7 +154,7 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
       record(attempt, startedAt, gate, 0);
       break;
     }
-    const outcome = await attemptOnce(deps, entry, runner, runId, attempt, sha, window);
+    const outcome = await attemptOnce(deps, entry, runner, runId, attempt, sha, window, slot);
     record(attempt, startedAt, outcome, outcome.spent ? dialsPerRun(entry) : 0);
     if (outcome.critical) break;
     if (!RETRIED.has(outcome.outcome)) break;
@@ -173,6 +175,11 @@ function isDue(deps: RunnerDeps, entry: RegisteredScenario, slot: RunSlot, now: 
     return !deps.verdicts.ranBetween(opened, opened + DAY_MS).has(`${entry.id}#${slot.index}`);
   }
   const last = deps.verdicts.lastRanAt(entry.id, slot.index);
+  if (slot.offsetDays !== undefined) {
+    // A free run tied to a day of its period, as S29 is to the day after S28's.
+    const today = utcDayStart(now);
+    return slotDueOn(slot, today / DAY_MS) && (last === undefined || last < today);
+  }
   return last === undefined || now - last >= slot.everyMinutes * 60_000 - DUE_SLACK_MS;
 }
 
@@ -275,26 +282,60 @@ async function attemptOnce(
   attempt: number,
   sha: string,
   window: DialWindow,
+  slot: RunSlot,
 ): Promise<AttemptOutcome> {
   const paid = dialsPerRun(entry) > 0;
+  const evidence: Record<string, unknown> = { sha, lane: entry.lane };
+  const texts = new Set<string>();
+  const lanes = deps.lanes({ scenario: entry.id, runId, attempt });
+  const base = {
+    scenario: entry.id,
+    runId,
+    attempt,
+    slot: { index: slot.index, ...(slot.label ? { label: slot.label } : {}) },
+    now: () => deps.clock.now(),
+    sleep: deps.sleep,
+    nonce: `${runId}-${attempt}`.slice(-24),
+    evidence,
+  };
+
+  if (runner.prepare) {
+    const unleased: LeaseHandle = {
+      id: "",
+      registerUndo() {
+        throw new Error("prepare runs before the lease; register undos in run");
+      },
+    };
+    let prepared: ScenarioResult | undefined;
+    try {
+      prepared = await withLimit(runner.prepare({ ...base, ...lanes, lease: unleased }), PREPARE_LIMIT_MS, deps);
+    } catch (error) {
+      prepared = attemptError(error);
+    }
+    if (prepared) {
+      deps.verdicts.saveEvidence(runId, attempt, evidence);
+      return { ...outcomeOf(prepared), spent: false };
+    }
+    if (paid && !inWindow(window, deps.clock.now() + WINDOW_TAIL_MS)) {
+      return { outcome: "skipped", detail: "the dial window closed while the run prepared", spent: false };
+    }
+  }
+
   const acquired = await acquireLease(deps, entry, window);
   if (!("id" in acquired)) return acquired;
   const lease = acquired;
   const attemptStartedAt = deps.clock.now();
 
-  const evidence: Record<string, unknown> = { sha, lane: entry.lane };
-  const texts = new Set<string>();
-  const lanes = deps.lanes({ scenario: entry.id, runId, attempt });
   const ctx: ScenarioContext = {
-    scenario: entry.id,
-    runId,
-    attempt,
+    ...base,
     lease,
-    now: () => deps.clock.now(),
-    sleep: deps.sleep,
-    nonce: `${runId}-${attempt}`.slice(-24),
-    evidence,
     browser: lanes.browser,
+    guard: lanes.guard,
+    devices: lanes.devices,
+    rig: lanes.rig,
+    mail: lanes.mail,
+    stripe: lanes.stripe,
+    handoff: lanes.handoff,
     robot: noting(lanes.robot, "sms", (message: { text: string }) => texts.add(textHash(message.text))),
     app: noting(lanes.app, "sendText", (args: { body: string }) => texts.add(textHash(args.body))),
   };
@@ -378,6 +419,16 @@ function noting<T extends object, A>(target: T, method: string, note: (arg: A) =
       };
     },
   });
+}
+
+function outcomeOf(result: ScenarioResult): Omit<AttemptOutcome, "spent"> {
+  return {
+    outcome: result.outcome,
+    failure_class: result.outcome === "fail" ? result.failure_class : undefined,
+    component: result.outcome === "infra" ? result.component : undefined,
+    detail: "detail" in result ? result.detail : undefined,
+    ...(result.outcome === "fail" && result.critical ? { critical: true } : {}),
+  };
 }
 
 function attemptError(error: unknown): ScenarioResult {

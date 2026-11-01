@@ -238,7 +238,7 @@ describe("the app probe and the seed's tenants", () => {
     await probe.pushAttempts({ tenant: "QA-W", since: Date.UTC(2026, 9, 31) });
     const query = new URL(requests[0]!.url).searchParams;
     expect(query.get("attempted_at")).toBe("gte.2026-10-31T00:00:00.000Z");
-    expect(query.get("select")).toBe("purpose,platform,response_class,attempted_at");
+    expect(query.get("select")).toBe("purpose,platform,response_class,attempted_at,priority,call_session_id,user_id");
     expect(query.has("created_at")).toBe(false);
     expect(await probe.pushTargets({ member: "qa-w-owner" })).toBe(3);
     expect(requests.filter((r) => r.url.includes("push_subscriptions") || r.url.includes("device_push_tokens")).map((r) => new URL(r.url).searchParams.get("user_id"))).toEqual([`eq.${USER}`, `eq.${USER}`]);

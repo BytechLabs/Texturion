@@ -9,7 +9,7 @@ import { textHash } from "./late.ts";
 import { LeaseClient, type UndoHandlers } from "./lease.ts";
 import { runScenario, type RunnerDeps } from "./runner.ts";
 import type { ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
-import { FakeApp, FakeBrowser, FakeRobot, FakeTime } from "./scenarios/fakes.ts";
+import { fakeLanes, FakeTime } from "./scenarios/fakes.ts";
 import { parseDsn, SentryRelay } from "./sentry-relay.ts";
 import { fakeFetch, json } from "./test-support.ts";
 import { registryOf, scenario } from "./test-registry.ts";
@@ -34,6 +34,7 @@ const REGISTRY = registryOf([
     min_room: 2,
   }),
   scenario("S20", { runs: [{ every: "1d" }] }),
+  scenario("S29", { runs: [{ every: "30d", offset_days: 2 }] }),
   scenario("S04", {
     lane: "browser",
     runs: [{ every: "1d", offset_days: 0, hour_utc: 6 }],
@@ -74,11 +75,11 @@ function setup(results: ScenarioResult[], options: SetupOptions = {}) {
   const beats: number[] = [];
   const deps: RunnerDeps = {
     registry: REGISTRY,
-    runners: { S02: runner("S02"), S20: runner("S20") },
+    runners: { S02: runner("S02"), S20: runner("S20"), S29: runner("S29") },
     verdicts,
     leases,
     localLease: (scenario) => leases.acquireLocal(scenario),
-    lanes: () => ({ robot: new FakeRobot(time), app: new FakeApp(time), browser: new FakeBrowser() }),
+    lanes: () => fakeLanes(time),
     relay: new SentryRelay({ statePath: join(stateDir, "relay.json"), alertDsn: DSN, fetch, clock }),
     syntheticDsn: DSN,
     sha: () => SHA,
@@ -293,6 +294,60 @@ describe("runScenario", () => {
     expect((await runScenario(deps, "S02", { scheduled: true })).status).toBe("not_due");
     clock.advance(2 * 86_400_000);
     expect((await runScenario(deps, "S02", { scheduled: true })).status).toBe("pass");
+  });
+
+  it("runs a free run that names a day of its period on that day only, once", async () => {
+    const DAY = 86_400_000;
+    const first = Math.floor(S02_DAY / DAY);
+    const due = (first + ((((2 - (first % 30)) % 30) + 30) % 30)) * DAY + 14 * 3_600_000;
+    const before = setup([], { at: due - DAY });
+    expect((await runScenario(before.deps, "S29", { scheduled: true })).status).toBe("not_due");
+
+    const { deps, clock } = setup([{ outcome: "pass" }, { outcome: "pass" }]);
+    clock.advance(due - clock.now());
+    expect((await runScenario(deps, "S29", { scheduled: true })).status).toBe("pass");
+    clock.advance(3 * 3_600_000);
+    expect((await runScenario(deps, "S29", { scheduled: true })).status).toBe("not_due");
+    clock.advance(DAY);
+    expect((await runScenario(deps, "S29", { scheduled: true })).status).toBe("not_due");
+    clock.advance(29 * DAY);
+    expect((await runScenario(deps, "S29", { scheduled: true })).status).toBe("pass");
+  });
+
+  it("prepares before the lease, and ends the attempt there when preparing says so", async () => {
+    const { deps, requests, verdicts } = setup([]);
+    const seen: { slot: unknown; lease: string }[] = [];
+    deps.runners = {
+      ...deps.runners,
+      S02: {
+        id: "S02",
+        async prepare(ctx) {
+          seen.push({ slot: ctx.slot, lease: ctx.lease.id });
+          expect(() => ctx.lease.registerUndo({ kind: "robot.sms", params: {} })).toThrow(/before the lease/);
+          return { outcome: "infra", component: "device", detail: "never reached deep idle" };
+        },
+        async run() {
+          throw new Error("run must not start");
+        },
+      },
+    };
+    const summary = await runScenario(deps, "S02");
+    expect(summary.verdicts.map((v) => [v.outcome, v.component, v.dials])).toEqual([
+      ["infra", "device", 0],
+      ["infra", "device", 0],
+    ]);
+    expect(seen[0]).toEqual({ slot: { index: 0 }, lease: "" });
+    expect(requests.filter((r) => r.url.includes("/g/lease"))).toEqual([]);
+    expect(verdicts.all()).toHaveLength(2);
+
+    const ready = setup([{ outcome: "pass" }]);
+    let leased = "";
+    ready.deps.runners = {
+      ...ready.deps.runners,
+      S02: { id: "S02", prepare: async () => undefined, run: async (ctx) => ((leased = ctx.lease.id), { outcome: "pass" }) },
+    };
+    expect((await runScenario(ready.deps, "S02")).status).toBe("pass");
+    expect(leased).toMatch(/^lease-/);
   });
 
   it("runs a daily text check once its day is nearly up", async () => {

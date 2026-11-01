@@ -7,8 +7,9 @@
  * (`state/uplink.json`, `state/sentry-relay.json`) sits directly in `state/`.
  */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { BrowserLane } from "@loonext/rig-lanes";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { AccessPointShaper, BrowserLane, nodeExec } from "@loonext/rig-lanes";
 import {
   isRobotRole,
   loadMargins,
@@ -25,10 +26,16 @@ import { WindowSource } from "./guard-window.ts";
 import { LateDeliveries } from "./late.ts";
 import { LeaseClient, type UndoHandlers } from "./lease.ts";
 import { loadRegistry, type Registry } from "./registry.ts";
-import { localSupabase, robotLocalToken } from "@loonext/rig-robot";
+import { localSupabase, robotLocalToken, WhisperTranscriber } from "@loonext/rig-robot";
+import { GuardClient } from "./guard-client.ts";
+import { Mailbox } from "./mail.ts";
+import { MailClient } from "./mail-client.ts";
+import { rigDevices, RigOps } from "./rig-ops.ts";
+import { FaultFile, HandoffFile } from "./state-files.ts";
+import { StripeSandbox } from "./stripe-sandbox.ts";
 import type { RunnerDeps } from "./runner.ts";
 import { RUNNERS } from "./scenarios/index.ts";
-import type { BrowserApi } from "./scenarios/context.ts";
+import type { BrowserApi, DevicesApi, ScenarioLanes, WorkspaceState } from "./scenarios/context.ts";
 import { parseDsn, SentryRelay, type Dsn } from "./sentry-relay.ts";
 import { VerdictStore } from "./verdicts.ts";
 
@@ -49,8 +56,22 @@ export interface Rig {
   numbers(): NumberBook;
   app(): AppProbe;
   browser(): BrowserApi;
+  /** Every lane a scenario attempt is handed. */
+  lanes(): ScenarioLanes;
+  /** The fault the forwarder answers the next call event with (S17), as webhookForwarder's `takeFault`. */
+  faults: FaultFile;
   runnerDeps(): RunnerDeps;
 }
+
+/** tools/rig/bin/rig.mjs, beside this package in the tooling checkout. */
+const RIG_BIN = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "rig.mjs");
+
+/** The emulators by API level: their AVD names and console ports. */
+const EMULATORS = {
+  34: { avd: "rig-api34", port: 5554 },
+  35: { avd: "rig-api35", port: 5556 },
+  36: { avd: "rig-api36", port: 5558 },
+} as const;
 
 export function rigdDir(config: RigdConfig): string {
   return join(config.home.state, "rigd");
@@ -84,7 +105,23 @@ export function buildRig(config: RigdConfig): Rig {
       edgeOrigin: config.edgeOrigin,
       guardToken: store.read("guard-token-rig-api"),
       robotWebhookSecret: () => store.readOptional("robot-webhook-secret"),
+      stateDir: dir,
     });
+  });
+  const guard = once(
+    () =>
+      new GuardClient({
+        edgeOrigin: config.edgeOrigin,
+        robotToken: store.read("guard-token-robot"),
+        rigApiToken: store.read("guard-token-rig-api"),
+      }),
+  );
+  const handoff = new HandoffFile(join(dir, "handoff"));
+  const faults = new FaultFile(join(dir, "faults"));
+  const transcriber = once(() => {
+    const binary = config.env.RIG_WHISPER_BIN;
+    const model = config.env.RIG_WHISPER_MODEL;
+    return binary && model ? new WhisperTranscriber({ binary, model }) : undefined;
   });
 
   const undo: UndoHandlers = {
@@ -96,6 +133,69 @@ export function buildRig(config: RigdConfig): Rig {
     },
     "app.disarm-automations": async (params) => {
       await app().disarmAutomations({ tenant: String(params.tenant), nonce: String(params.nonce) });
+    },
+    "app.flag": async (params) => {
+      if (typeof params.key !== "string" || !(typeof params.enabled === "boolean" || params.enabled === null)) {
+        throw new Error("app.flag undo needs key and enabled (true, false or null)");
+      }
+      await app().setFlag(params.key, params.enabled);
+    },
+    "app.company-restore": async (params) => {
+      if (typeof params.tenant !== "string" || !isRecord(params.values)) throw new Error("app.company-restore undo needs tenant and values");
+      await app().patchCompany({ tenant: params.tenant, values: params.values });
+    },
+    "app.number-status": async (params) => {
+      const status = params.status;
+      if (typeof params.tenant !== "string" || typeof params.role !== "string" || (status !== "active" && status !== "suspended" && status !== "released")) {
+        throw new Error("app.number-status undo needs tenant, role and status");
+      }
+      await app().setNumberStatus({ tenant: params.tenant, role: params.role as never, status });
+    },
+    "app.remove-on-call": async (params) => {
+      if (typeof params.id !== "string") throw new Error("app.remove-on-call undo needs id");
+      await app().removeOnCallShift(params.id);
+    },
+    "app.ring-audience": async (params) => {
+      const level = params.level;
+      if (typeof params.tenant !== "string" || typeof params.role !== "string" || typeof params.member !== "string" || !(level === "text" || level === "note" || level === null)) {
+        throw new Error("app.ring-audience undo needs tenant, role, member and level");
+      }
+      await app().setRingAudience({ tenant: params.tenant, role: params.role as never, member: params.member, level });
+    },
+    "app.clear-seeded-usage": async (params) => {
+      if (typeof params.marker !== "string") throw new Error("app.clear-seeded-usage undo needs marker");
+      await app().clearSeededUsage(params.marker);
+    },
+    "app.ai-usage": async (params) => {
+      const count = params.requestCount;
+      if (typeof params.tenant !== "string" || typeof params.feature !== "string" || !(typeof count === "number" || count === null)) {
+        throw new Error("app.ai-usage undo needs tenant, feature and requestCount");
+      }
+      await app().seedAiUsage({ tenant: params.tenant, feature: params.feature, requestCount: count });
+    },
+    "app.member-email": async (params) => {
+      if (typeof params.member !== "string" || typeof params.email !== "string") throw new Error("app.member-email undo needs member and email");
+      await app().setMemberEmail({ member: params.member, email: params.email });
+    },
+    "app.delete-sign-up": async (params) => {
+      if (typeof params.email !== "string") throw new Error("app.delete-sign-up undo needs email");
+      await app().deleteSignUp({ email: params.email });
+    },
+    "app.revoke-invite": async (params) => {
+      if (typeof params.member !== "string" || typeof params.inviteId !== "string") throw new Error("app.revoke-invite undo needs member and inviteId");
+      await app().revokeInvite({ member: params.member, inviteId: params.inviteId });
+    },
+    "app.restore-workspace": async (params) => {
+      const state = params.state as WorkspaceState | undefined;
+      if (typeof params.tenant !== "string" || !state || typeof state.subscription_status !== "string") {
+        throw new Error("app.restore-workspace undo needs tenant and state");
+      }
+      await app().restoreWorkspace({ tenant: params.tenant, state });
+    },
+    "number.release": async (params) => releaseHeldNumber(params, { guard: guard(), app: app(), handoff }),
+    "device.reset": async (params) => resetDevice(devices(), params.device),
+    "rig.network-clear": async () => {
+      await rig().impairNetwork(null);
     },
   };
   const leases = new LeaseClient({
@@ -122,12 +222,14 @@ export function buildRig(config: RigdConfig): Rig {
       fakeMicDir,
       numbers: numbers(),
       headless: config.env.RIG_HEADLESS !== "0",
+      chrome: config.env.RIG_CHROME_BIN ? { executablePath: config.env.RIG_CHROME_BIN, members: ["qa-a-dispatcher"] } : undefined,
       credentials: (member) => {
         const { tenant, member: name } = splitMember(member);
         return tenants()[tenant]?.members[name];
       },
     });
     return {
+      openPublic: (path) => lane.openPublic(path),
       async open(member, surface, path) {
         const page = await lane.open(member, surface, path);
         return {
@@ -135,6 +237,14 @@ export function buildRig(config: RigdConfig): Rig {
           answer: () => page.answer(),
           hangUp: () => page.hangUp(),
           dial: (role) => page.dial(role),
+          decline: () => page.decline(),
+          hold: (on) => page.hold(on),
+          mute: (on) => page.mute(on),
+          pressKeys: (digits) => page.pressKeys(digits),
+          transfer: (args) => page.transfer(args),
+          completeTransfer: () => page.completeTransfer(),
+          background: () => page.background(),
+          notifications: () => page.notifications(),
           waitForText: (text, ms) => page.waitForText(text, ms),
           enablePush: () => page.enablePush(),
           hear: (options) => page.hear({ margins: loadMargins(marginsFile), ...options }),
@@ -143,6 +253,60 @@ export function buildRig(config: RigdConfig): Rig {
       },
       closeAll: () => lane.closeAll(),
     };
+  });
+
+  const devices = once(() =>
+    rigDevices({
+      pkg: "com.loonext.android.nonprod",
+      apks: { current: join(config.home.work, "apk", "current.apk"), previous: join(config.home.work, "apk", "previous.apk") },
+      pin: () => store.readOptional("pixel-pin"),
+      pixel: pixelSettings(store, config.env),
+      emulators: EMULATORS,
+      fakeMicDir: join(config.home.work, "fake-mic"),
+      transcriber: transcriber(),
+      numbers: numbers(),
+      credentials: (member) => {
+        const { tenant, member: name } = splitMember(member);
+        return tenants()[tenant]?.members[name];
+      },
+    }),
+  );
+  const rig = once(
+    () =>
+      new RigOps({
+        stateDir: config.home.state,
+        rigBin: RIG_BIN,
+        relayState: join(dir, "sentry-counters.json"),
+        faults,
+        shaper: config.env.RIG_AP_IFACE ? new AccessPointShaper({ iface: config.env.RIG_AP_IFACE, exec: nodeExec }) : undefined,
+        transcriber: transcriber(),
+      }),
+  );
+  const mail = once(() => {
+    const mailbox = new Mailbox(join(dir, "mail"));
+    return new MailClient({
+      robotMailbox: store.readOptional("robot-mailbox"),
+      storedMail: (since) => mailbox.list(since),
+      mailpitUrl: config.env.RIG_MAILPIT_URL ?? "http://127.0.0.1:54324",
+    });
+  });
+  const stripe = once(
+    () =>
+      new StripeSandbox({
+        key: () => store.read("stripe-secret-key"),
+        subscriptionIdOf: (tenant) => app().stripeSubscriptionId(tenant),
+      }),
+  );
+  const lanes = (): ScenarioLanes => ({
+    robot,
+    app: app(),
+    browser: browser(),
+    guard: guard(),
+    devices: devices(),
+    rig: rig(),
+    mail: mail(),
+    stripe: stripe(),
+    handoff,
   });
 
   const registry = once(() => loadRegistry(config.registryPath));
@@ -171,13 +335,15 @@ export function buildRig(config: RigdConfig): Rig {
     numbers,
     app,
     browser,
+    lanes,
+    faults,
     runnerDeps: () => ({
       registry: registry(),
       runners: RUNNERS,
       verdicts,
       leases,
       localLease: (scenario) => leases.acquireLocal(scenario),
-      lanes: () => ({ robot, app: app(), browser: browser() }),
+      lanes,
       relay,
       syntheticDsn,
       sha: () => readDeployedSha(config),
@@ -201,4 +367,73 @@ export function suiteMarker(config: RigdConfig): string {
 function markSuiteRan(config: RigdConfig, at: number): void {
   mkdirSync(join(rigdDir(config), "heartbeats"), { recursive: true });
   writeFileSync(suiteMarker(config), String(at));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** The Pixel as the store names it; without a serial there is no Pixel lane. */
+function pixelSettings(store: RigdConfig["store"], env: NodeJS.ProcessEnv) {
+  const serial = store.readOptional("pixel-serial");
+  if (!serial) return undefined;
+  const location = store.readOptional("pixel-hub-location");
+  const port = Number(store.readOptional("pixel-hub-port"));
+  const mac = store.readOptional("pixel-bluetooth-mac");
+  return {
+    serial,
+    ...(location && Number.isInteger(port) ? { hub: { location, port } } : {}),
+    ...(mac
+      ? {
+          bluetooth: {
+            mac,
+            nodes: {
+              callSource: env.RIG_HFP_SOURCE ?? "bluez_input.pixel",
+              callSink: env.RIG_HFP_SINK ?? "bluez_output.pixel",
+              mediaSource: env.RIG_A2DP_SOURCE ?? "bluez_input.pixel.a2dp",
+            },
+          },
+        }
+      : {}),
+  };
+}
+
+/**
+ * The undo for a number a run holds. S28 registers it with
+ * `unless_handed_off`, so a passing S28's number, handed to S29, is left;
+ * S29 registers it plainly, for a number grace did not release.
+ */
+export async function releaseHeldNumber(
+  params: Record<string, unknown>,
+  lanes: {
+    guard: Pick<GuardClient, "releaseNumber">;
+    app: Pick<AppProbe, "markNumberReleased">;
+    handoff: Pick<HandoffFile, "read" | "clear">;
+  },
+): Promise<void> {
+  const telnyxId = params.telnyx_phone_number_id;
+  const rowId = params.phone_number_id;
+  if (typeof telnyxId !== "string" || typeof rowId !== "string") throw new Error("number.release undo needs telnyx_phone_number_id and phone_number_id");
+  const record = await lanes.handoff.read();
+  const named = record?.telnyx_phone_number_id === telnyxId;
+  if (params.unless_handed_off === true && named && record.state === "handed_off") return;
+  const released = await lanes.guard.releaseNumber(telnyxId);
+  if (released.status !== 404 && (released.status < 200 || released.status >= 300)) {
+    throw new Error(`the guard answered the release ${released.status}${released.rule ? ` (${released.rule})` : ""}`);
+  }
+  await lanes.app.markNumberReleased({ phoneNumberId: rowId });
+  if (named) await lanes.handoff.clear();
+}
+
+/** A device back at rest: out of Doze, saver off, active bucket, notifications allowed, unlocked. */
+export async function resetDevice(devices: DevicesApi, name: unknown): Promise<void> {
+  const match = typeof name === "string" ? /^(pixel|emulator-(34|35|36))$/.exec(name) : null;
+  if (!match) throw new Error("device.reset undo needs device: pixel or emulator-34, -35, -36");
+  const device = match[2] ? devices.emulator(Number(match[2]) as 34 | 35 | 36) : devices.pixel();
+  await device.exitDoze();
+  await device.batterySaver(false);
+  await device.setStandbyBucket("active");
+  await device.hibernate(false);
+  await device.notificationsAllowed(true);
+  if ((await device.state()).locked) await device.unlock();
 }

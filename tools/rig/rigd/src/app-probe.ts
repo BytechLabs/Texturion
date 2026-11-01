@@ -9,15 +9,33 @@
  * keyed `qa-w`, members `owner`; scenarios name a member `qa-w-owner`.
  */
 import { randomUUID } from "node:crypto";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
 import type { NumberBook } from "@loonext/rig-robot";
 import { stableUuid as seedStableUuid } from "../../../../scripts/rig/seed.mjs";
-import type { AppApi, AutomatedText, CallRow, MessageRow, SendResult } from "./scenarios/context.ts";
+import { totpCode } from "../../../../scripts/rig/seed.mjs";
+import {
+  COMPANY_FIELDS,
+  isFictional,
+  type ApiAnswer,
+  type AppApi,
+  type AutomatedText,
+  type CallRow,
+  type CallStart,
+  type CompanyField,
+  type Destination,
+  type GraceState,
+  type MessageRow,
+  type NumberRow,
+  type SendResult,
+  type WorkspaceState,
+} from "./scenarios/context.ts";
 
 /** The seed's `tenants.json`: tenant key to company id and members' sign-ins. */
 export type TenantsFile = Record<
   string,
-  { company_id: string; members: Record<string, { email: string; password: string }> }
+  { company_id: string; members: Record<string, { email: string; password: string; totp_secret?: string }> }
 >;
 
 /**
@@ -51,6 +69,8 @@ export interface AppProbeOptions {
    * the store's `robot-webhook-secret`; without it no webhook can reach the robot.
    */
   robotWebhookSecret?: () => string | undefined;
+  /** `state/rigd`: S25 keeps what it changed here, so the undo can put it back. */
+  stateDir?: string;
   fetch?: typeof fetch;
   now?: () => number;
 }
@@ -60,6 +80,8 @@ export class AppProbe implements AppApi {
   readonly #fetch: typeof fetch;
   readonly #now: () => number;
   readonly #sessions = new Map<string, { token: string; expiresAt: number }>();
+  /** Auth user ids by member key, once seen: a lease may move a member's address. */
+  readonly #userIds = new Map<string, string>();
 
   constructor(options: AppProbeOptions) {
     this.#o = options;
@@ -67,11 +89,19 @@ export class AppProbe implements AppApi {
     this.#now = options.now ?? Date.now;
   }
 
-  async sendText(args: { member: string; fromRole: string; toRole: string; body: string }): Promise<SendResult> {
-    const { tenant: tenantKey } = splitMember(args.member);
-    const tenant = this.#tenant(tenantKey);
-    const phoneNumberId = stableUuid(tenant.company_id, args.fromRole);
-    const to = this.#number(args.toRole);
+  sendText(args: { member: string; fromRole: string; toRole: string; body: string }): Promise<SendResult> {
+    return this.#compose(args, args.fromRole, this.#number(args.toRole));
+  }
+
+  /** The only raw destination the probe sends to is a fictional one. */
+  async sendTextToFictional(args: { member: string; fromRole: string; e164: string; body: string }): Promise<SendResult> {
+    if (!isFictional(args.e164)) throw new Error("app probe: a raw destination must be in the fictional 555-01xx range");
+    return this.#compose(args, args.fromRole, args.e164);
+  }
+
+  async #compose(args: { member: string; body: string }, fromRole: string, to: string): Promise<SendResult> {
+    const tenant = this.#tenant(splitMember(args.member).tenant);
+    const phoneNumberId = stableUuid(tenant.company_id, fromRole);
     const response = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}/v1/conversations`, {
       method: "POST",
       headers: {
@@ -111,7 +141,7 @@ export class AppProbe implements AppApi {
       company_id: `eq.${this.#tenant(args.tenant).company_id}`,
       attempted_at: `gte.${iso(args.since)}`,
       ...(args.purpose ? { purpose: `eq.${args.purpose}` } : {}),
-      select: "purpose,platform,response_class,attempted_at",
+      select: "purpose,platform,response_class,attempted_at,priority,call_session_id,user_id",
     });
   }
 
@@ -156,7 +186,9 @@ export class AppProbe implements AppApi {
       company_id: `eq.${this.#tenant(args.tenant).company_id}`,
       caller_e164: `eq.${this.#number(args.callerRole)}`,
       started_at: `gte.${iso(args.since - 60_000)}`,
-      select: "call_session_id,outcome,forward_seconds,started_at,ended_at,voicemail_path,voicemail_transcript,voicemail_intake",
+      select:
+        "call_session_id,outcome,forward_seconds,started_at,ended_at,voicemail_path,voicemail_transcript,voicemail_intake," +
+        "direction,state,answered_at,answered_by_user_id,notice_spoken",
       order: "started_at.asc",
     });
   }
@@ -243,20 +275,699 @@ export class AppProbe implements AppApi {
   }
 
   /**
-   * S25's automations (away reply, scheduled send, reminder, emergency
-   * acknowledgement, help reply) are not seeded by the probe yet, so S25
-   * reports an infrastructure fault rather than a pass it did not earn.
+   * S25's automations for one nonce, in the tenant's thread with the role:
+   * an away reply and an emergency acknowledgement, which the runner's own
+   * inbound text sets off, and a scheduled send and a reminder, due now.
+   * Every body carries the nonce. The help reply is not armed: only an AIDE
+   * draws it, and S24 sends one already.
    */
-  async armAutomations(_args: { tenant: string; toRole: string; nonce: string }): Promise<{ undo: { kind: string; params: Record<string, unknown> } }> {
-    throw new Error("the app probe cannot seed S25's automations yet");
+  async armAutomations(args: { tenant: string; toRole: string; nonce: string }): Promise<{ undo: { kind: string; params: Record<string, unknown> } }> {
+    const companyId = this.#tenant(args.tenant).company_id;
+    const conversationId = await this.#conversationWith(args.tenant, args.toRole);
+    if (!conversationId) throw new Error(`app probe: ${args.tenant} has no thread with ${args.toRole} to arm automations in`);
+    const bodies = automationBodies(args.nonce);
+    const previous = await this.patchCompany({
+      tenant: args.tenant,
+      values: {
+        away_enabled: true,
+        away_message: bodies.away_reply,
+        // Every weekday missing is closed all day (packages/shared business-hours.ts), so the away reply always applies.
+        business_hours: {},
+        business_hours_exceptions: [],
+        emergency_keyword_enabled: true,
+        emergency_reply_enabled: true,
+        emergency_keywords: [S25_KEYWORD],
+        emergency_message: bodies.emergency_ack,
+      },
+    });
+    this.#saveArmed(args.nonce, { tenant: args.tenant, previous, armed_at: this.#now() });
+    const owner = await this.#userIdOf(`${args.tenant.toLowerCase()}-owner`);
+    const due = iso(this.#now());
+    const expires = iso(this.#now() + 24 * 3_600_000);
+    for (const [origin, body] of [
+      ["human", bodies.scheduled_send],
+      ["reminder", bodies.reminder],
+    ] as const) {
+      await this.#write("POST", "scheduled_messages", {}, {
+        company_id: companyId,
+        conversation_id: conversationId,
+        body,
+        send_at: due,
+        clock_timezone: "America/Toronto",
+        clock_source: "area_code",
+        expires_at: expires,
+        created_by: owner,
+        origin,
+        ...(origin === "reminder" ? { reminder_offset_minutes: 60 } : {}),
+      });
+    }
+    return { undo: { kind: "app.disarm-automations", params: { tenant: args.tenant, nonce: args.nonce } } };
   }
 
-  async automatedTexts(_args: { tenant: string; nonce: string }): Promise<AutomatedText[]> {
-    return [];
+  async automatedTexts(args: { tenant: string; nonce: string }): Promise<AutomatedText[]> {
+    const armed = this.#readArmed(args.nonce);
+    if (!armed) return [];
+    const companyId = this.#tenant(args.tenant).company_id;
+    const bodies = automationBodies(args.nonce);
+    const sent = await this.#rest<{ body: string; status: string | null; direction: string }[]>("messages", {
+      company_id: `eq.${companyId}`,
+      direction: "eq.outbound",
+      body: `like.*${args.nonce}*`,
+      created_at: `gte.${iso(armed.armed_at)}`,
+      select: "body,status,direction",
+    });
+    const scheduled = await this.#rest<{ body: string; status: string }[]>("scheduled_messages", {
+      company_id: `eq.${companyId}`,
+      body: `like.*${args.nonce}*`,
+      select: "body,status",
+    });
+    const stateOf = (body: string): AutomatedText["state"] => {
+      const row = scheduled.find((candidate) => candidate.body === body);
+      if (row?.status === "held") return "held";
+      if (row && row.status !== "sent") return "pending";
+      return sent.some((message) => message.body === body && message.status !== "failed") ? "sent" : "pending";
+    };
+    return (["away_reply", "emergency_ack", "scheduled_send", "reminder"] as const).map((kind) => ({
+      kind,
+      body: bodies[kind],
+      state: stateOf(bodies[kind]),
+      reply: kind === "away_reply" || kind === "emergency_ack",
+    }));
   }
 
-  /** Undo for armAutomations; nothing is armed while arming is refused. */
-  async disarmAutomations(_args: { tenant: string; nonce: string }): Promise<void> {}
+  /** Undo for armAutomations: the company's settings back, and the scheduled texts cancelled if still unsent. */
+  async disarmAutomations(args: { tenant: string; nonce: string }): Promise<void> {
+    const armed = this.#readArmed(args.nonce);
+    const companyId = this.#tenant(args.tenant).company_id;
+    await this.#write("PATCH", "scheduled_messages", {
+      company_id: `eq.${companyId}`,
+      body: `like.*${args.nonce}*`,
+      status: "in.(pending,held)",
+    }, { status: "canceled", canceled_at: iso(this.#now()) }, "return=minimal");
+    if (armed) await this.patchCompany({ tenant: args.tenant, values: armed.previous });
+    if (this.#o.stateDir) rmSync(this.#armedPath(args.nonce), { force: true });
+  }
+
+  async sendMms(args: {
+    member: string;
+    fromRole: string;
+    toRole: string;
+    body: string;
+    media: { bytes: Uint8Array; contentType: string };
+  }): Promise<SendResult> {
+    const { tenant } = splitMember(args.member);
+    const conversationId = await this.#conversationWith(tenant, args.toRole);
+    if (!conversationId) throw new Error(`app probe: ${tenant} has no thread with ${args.toRole}`);
+    const answer = await this.#answer<{ message?: { id?: string } }>(args.member, "POST", "/v1/messages/send", {
+      conversation_id: conversationId,
+      body: args.body,
+      media: [{ content_type: args.media.contentType, base64: Buffer.from(args.media.bytes).toString("base64") }],
+    });
+    if (answer.status >= 400) return { ok: false, status: answer.status, code: answer.code };
+    const id = answer.body?.message?.id;
+    if (!id) throw new Error("app probe: the send returned no message id");
+    return { ok: true, messageId: id };
+  }
+
+  async messagesWith(args: { tenant: string; role: string; since: number }): Promise<MessageRow[]> {
+    const conversationIds = await this.#conversationsWith(args.tenant, args.role);
+    if (conversationIds.length === 0) return [];
+    return this.#rest<MessageRow[]>("messages", {
+      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
+      conversation_id: `in.(${conversationIds.join(",")})`,
+      created_at: `gte.${iso(args.since)}`,
+      select: "id,direction,body,status,error_code,conversation_id,created_at",
+      order: "created_at.asc",
+    });
+  }
+
+  attachments(messageId: string) {
+    return this.#rest<{ storage_path: string; content_type: string; size_bytes: number; quarantined_at: string | null }[]>(
+      "message_attachments",
+      { message_id: `eq.${messageId}`, select: "storage_path,content_type,size_bytes,quarantined_at" },
+    );
+  }
+
+  async storedObject(args: { bucket: string; path: string }): Promise<Uint8Array> {
+    if (!/^[a-z0-9-]+$/.test(args.bucket) || args.path.split("/").some((part) => part === ".." || part === "")) {
+      throw new Error("app probe: not a storage object");
+    }
+    const path = args.path.split("/").map(encodeURIComponent).join("/");
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/authenticated/${args.bucket}/${path}`, {
+      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!response.ok) throw new Error(`app probe: reading ${args.bucket} returned ${response.status}`);
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  async ringBeacons(args: { tenant: string; since: number; member?: string }) {
+    return this.#rest<
+      {
+        stage: string;
+        platform: string;
+        occurred_at: string;
+        call_session_id: string | null;
+        app_version: string | null;
+        device_idle: boolean | null;
+        screen_locked: boolean | null;
+        standby_bucket: string | null;
+      }[]
+    >("ring_beacons", {
+      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
+      occurred_at: `gte.${iso(args.since)}`,
+      ...(args.member ? { user_id: `eq.${await this.#userIdOf(args.member)}` } : {}),
+      select: "stage,platform,occurred_at,call_session_id,app_version,device_idle,screen_locked,standby_bucket",
+      order: "occurred_at.asc",
+    });
+  }
+
+  async callLegs(args: { tenant: string; callSessionId: string }) {
+    const rows = await this.#rest<{ user_id: string | null; state: string; kind: string | null }[]>("call_member_legs", {
+      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
+      call_session_id: `eq.${args.callSessionId}`,
+      select: "user_id,state,kind",
+      order: "created_at.asc",
+    });
+    const members = await this.#membersByUser(args.tenant);
+    return rows.map((row) => ({ member: row.user_id ? (members.get(row.user_id) ?? null) : null, state: row.state, kind: row.kind }));
+  }
+
+  async placeCall(args: { member: string; fromRole: string; to: Destination }): Promise<CallStart> {
+    const { tenant } = splitMember(args.member);
+    const to = typeof args.to === "string" ? this.#number(args.to) : args.to.fictional;
+    if (typeof args.to !== "string" && !isFictional(to)) throw new Error("app probe: a raw destination must be in the fictional 555-01xx range");
+    const answer = await this.#answer<{ session_id?: string; call_session_id?: string }>(args.member, "POST", "/v1/calls/browser", {
+      to,
+      phone_number_id: stableUuid(this.#tenant(tenant).company_id, args.fromRole),
+    });
+    if (answer.status >= 400) return { ok: false, status: answer.status, code: answer.code };
+    const sessionId = answer.body?.session_id ?? answer.body?.call_session_id;
+    if (!sessionId) throw new Error("app probe: the call authorisation returned no session id");
+    return { ok: true, sessionId };
+  }
+
+  async voiceToken(args: { member: string; fresh?: boolean }): Promise<ApiAnswer> {
+    if (args.fresh) this.#sessions.delete(args.member);
+    // The answer's body is a voice credential's token, which no scenario keeps.
+    const answer = await this.#answer(args.member, "POST", "/v1/webrtc/token", {});
+    return { status: answer.status, ...(answer.code ? { code: answer.code } : {}) };
+  }
+
+  async signOutSession(args: { member: string }): Promise<ApiAnswer> {
+    return this.#answer(args.member, "POST", "/v1/sessions/revoke", { self: true });
+  }
+
+  escalations(args: { tenant: string; since: number }) {
+    return this.#rest<
+      { kind: string; on_call_user_id: string | null; escalate_at: string; escalated_at: string | null; acknowledged_at: string | null }[]
+    >("alert_escalations", {
+      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
+      created_at: `gte.${iso(args.since)}`,
+      select: "kind,on_call_user_id,escalate_at,escalated_at,acknowledged_at",
+      order: "created_at.asc",
+    });
+  }
+
+  webhookEvents(args: { since: number; type?: string }) {
+    return this.#rest<{ event_id: string; event_type: string; processed_at: string | null; attempts: number }[]>("webhook_events", {
+      provider: "eq.telnyx",
+      received_at: `gte.${iso(args.since)}`,
+      ...(args.type ? { event_type: `eq.${args.type}` } : {}),
+      select: "event_id,event_type,processed_at,attempts",
+    });
+  }
+
+  async flag(key: string): Promise<boolean | null> {
+    const rows = await this.#rest<{ enabled: boolean }[]>("feature_flags", { key: `eq.${key}`, select: "enabled" });
+    return rows[0]?.enabled ?? null;
+  }
+
+  async setFlag(key: string, enabled: boolean | null): Promise<void> {
+    if (!/^[a-z0-9:_-]+$/.test(key)) throw new Error("app probe: not a flag key");
+    if (enabled === null) {
+      await this.#write("DELETE", "feature_flags", { key: `eq.${key}` }, undefined, "return=minimal");
+      return;
+    }
+    await this.#write("POST", "feature_flags", { on_conflict: "key" }, { key, enabled, note: "set by a rig scenario under its lease" }, "resolution=merge-duplicates,return=minimal");
+  }
+
+  async patchCompany(args: { tenant: string; values: Partial<Record<CompanyField, unknown>> }): Promise<Partial<Record<CompanyField, unknown>>> {
+    const fields = Object.keys(args.values) as CompanyField[];
+    const unknown = fields.filter((field) => !(COMPANY_FIELDS as readonly string[]).includes(field));
+    if (unknown.length) throw new Error(`app probe: ${unknown.join(", ")} is not a company setting a scenario may change`);
+    if (fields.length === 0) return {};
+    const companyId = this.#tenant(args.tenant).company_id;
+    const [before] = await this.#rest<Record<string, unknown>[]>("companies", { id: `eq.${companyId}`, select: fields.join(",") });
+    if (!before) throw new Error(`app probe: no company row for ${args.tenant}`);
+    await this.#write("PATCH", "companies", { id: `eq.${companyId}` }, args.values, "return=minimal");
+    return Object.fromEntries(fields.map((field) => [field, before[field] ?? null]));
+  }
+
+  async setNumberStatus(args: { tenant: string; role: string; status: "active" | "suspended" | "released" }): Promise<string> {
+    const id = stableUuid(this.#tenant(args.tenant).company_id, args.role);
+    const [before] = await this.#rest<{ status: string }[]>("phone_numbers", { id: `eq.${id}`, select: "status" });
+    if (!before) throw new Error(`app probe: no number row for ${args.role}`);
+    const now = iso(this.#now());
+    await this.#write("PATCH", "phone_numbers", { id: `eq.${id}` }, {
+      status: args.status,
+      suspended_at: args.status === "suspended" ? now : null,
+      released_at: args.status === "released" ? now : null,
+    }, "return=minimal");
+    return before.status;
+  }
+
+  async addOnCallShift(args: { tenant: string; member: string; role: string; startsAt: number; endsAt: number }): Promise<{ id: string }> {
+    const companyId = this.#tenant(args.tenant).company_id;
+    const [row] = await this.#write<{ id: string }[]>("POST", "on_call_shifts", { select: "id" }, {
+      company_id: companyId,
+      user_id: await this.#userIdOf(args.member),
+      phone_number_id: stableUuid(companyId, args.role),
+      starts_at: iso(args.startsAt),
+      ends_at: iso(args.endsAt),
+      created_by: await this.#userIdOf(`${args.tenant.toLowerCase()}-owner`),
+    });
+    if (!row?.id) throw new Error("app probe: the on-call shift came back without an id");
+    return { id: row.id };
+  }
+
+  async removeOnCallShift(id: string): Promise<void> {
+    await this.#write("DELETE", "on_call_shifts", { id: `eq.${id}` }, undefined, "return=minimal");
+  }
+
+  async setRingAudience(args: { tenant: string; role: string; member: string; level: "text" | "note" | null }): Promise<"text" | "note" | null> {
+    const companyId = this.#tenant(args.tenant).company_id;
+    const numberId = stableUuid(companyId, args.role);
+    const userId = await this.#userIdOf(args.member);
+    const where = { phone_number_id: `eq.${numberId}`, principal_kind: "eq.user", principal: `eq.${userId}` };
+    const [before] = await this.#rest<{ level: "text" | "note" }[]>("number_access", { ...where, select: "level" });
+    await this.#write("DELETE", "number_access", where, undefined, "return=minimal");
+    if (args.level) {
+      await this.#write("POST", "number_access", {}, {
+        company_id: companyId,
+        phone_number_id: numberId,
+        principal_kind: "user",
+        principal: userId,
+        level: args.level,
+      }, "return=minimal");
+    }
+    return before?.level ?? null;
+  }
+
+  async seedUsage(args: { tenant: string; type: string; quantity: number; channel?: string; unit?: string }): Promise<{ marker: string }> {
+    const marker = `rig-seed-${randomUUID()}`;
+    await this.#write("POST", "usage_events", {}, {
+      company_id: this.#tenant(args.tenant).company_id,
+      type: args.type,
+      quantity: args.quantity,
+      meter_identifier: marker,
+      // Already reported, so the hourly report never sends a seeded row to the sandbox.
+      stripe_reported_at: iso(this.#now()),
+      ...(args.channel ? { channel: args.channel } : {}),
+      ...(args.unit ? { unit: args.unit } : {}),
+    }, "return=minimal");
+    return { marker };
+  }
+
+  async clearSeededUsage(marker: string): Promise<void> {
+    if (!marker.startsWith("rig-seed-")) throw new Error("app probe: only a seeded row's marker clears usage");
+    await this.#write("DELETE", "usage_events", { meter_identifier: `eq.${marker}` }, undefined, "return=minimal");
+  }
+
+  aiUsage(args: { tenant: string }) {
+    return this.#rest<{ feature: string; period: string; request_count: number }[]>("company_ai_usage", {
+      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
+      period: `eq.${aiPeriod(this.#now())}`,
+      select: "feature,period,request_count",
+    });
+  }
+
+  /** Resolves with the count before, or null when there was no row, for `app.ai-usage`. */
+  async seedAiUsage(args: { tenant: string; feature: string; requestCount: number | null }): Promise<number | null> {
+    const companyId = this.#tenant(args.tenant).company_id;
+    const period = aiPeriod(this.#now());
+    const where = { company_id: `eq.${companyId}`, period: `eq.${period}`, feature: `eq.${args.feature}` };
+    const [before] = await this.#rest<{ request_count: number }[]>("company_ai_usage", { ...where, select: "request_count" });
+    if (args.requestCount === null) await this.#write("DELETE", "company_ai_usage", where, undefined, "return=minimal");
+    else {
+      await this.#write("POST", "company_ai_usage", { on_conflict: "company_id,period,feature" }, {
+        company_id: companyId,
+        period,
+        feature: args.feature,
+        request_count: args.requestCount,
+      }, "resolution=merge-duplicates,return=minimal");
+    }
+    return before?.request_count ?? null;
+  }
+
+  async replySuggestions(args: { member: string; withRole: string }): Promise<ApiAnswer<{ suggestions?: unknown[] }>> {
+    const { tenant } = splitMember(args.member);
+    const conversationId = await this.#conversationWith(tenant, args.withRole);
+    if (!conversationId) throw new Error(`app probe: ${tenant} has no thread with ${args.withRole}`);
+    return this.#answer(args.member, "POST", `/v1/conversations/${encodeURIComponent(conversationId)}/reply-suggestions`, {});
+  }
+
+  async simulateIncoming(args: { member: string; target: string }): Promise<ApiAnswer<{ call_session_id?: string }>> {
+    return this.#answer(args.member, "POST", "/v1/rig/simulate-incoming", { user_id: await this.#userIdOf(args.target) });
+  }
+
+  startGreetingCapture(args: { member: string; toRole: string; name: string }): Promise<ApiAnswer> {
+    return this.#answer(args.member, "POST", "/v1/voicemail-greetings/capture-call", { name: args.name, to: this.#number(args.toRole) });
+  }
+
+  async setMemberEmail(args: { member: string; email: string }): Promise<string> {
+    if (!/^[^@\s]+@[^@\s]+$/.test(args.email)) throw new Error("app probe: not an email address");
+    const before = this.#member(args.member).email;
+    const userId = await this.#userIdOf(args.member);
+    // Kept on disk too: the undo may run in the watchdog's process, which never saw the old address.
+    if (this.#o.stateDir) {
+      mkdirSync(join(this.#o.stateDir, "moved"), { recursive: true });
+      writeFileSync(join(this.#o.stateDir, "moved", `${args.member}.json`), JSON.stringify({ user_id: userId }));
+    }
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users/${userId}`, {
+      method: "PUT",
+      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}`, "content-type": "application/json" },
+      body: JSON.stringify({ email: args.email, email_confirm: true }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`app probe: changing ${args.member}'s address returned ${response.status}`);
+    return before;
+  }
+
+  greetings(args: { tenant: string; since: number }) {
+    return this.#rest<{ id: string; created_at: string; storage_path: string; mime_type: string | null; duration_ms: number | null }[]>(
+      "voicemail_greetings",
+      {
+        company_id: `eq.${this.#tenant(args.tenant).company_id}`,
+        created_at: `gte.${iso(args.since)}`,
+        select: "id,created_at,storage_path,mime_type,duration_ms",
+        order: "created_at.asc",
+      },
+    );
+  }
+
+  async widgetStart(args: { tenant: string; phoneRole: string; turnstileToken?: string }): Promise<ApiAnswer<{ verificationId?: string }>> {
+    const [company] = await this.#rest<{ widget_key: string }[]>("companies", {
+      id: `eq.${this.#tenant(args.tenant).company_id}`,
+      select: "widget_key",
+    });
+    if (!company) throw new Error(`app probe: no company row for ${args.tenant}`);
+    return this.#public("/widget/start", {
+      widgetKey: company.widget_key,
+      phone: this.#number(args.phoneRole),
+      ...(args.turnstileToken === undefined ? {} : { turnstileToken: args.turnstileToken }),
+    });
+  }
+
+  widgetVerify(args: { verificationId: string; code: string; message: string }): Promise<ApiAnswer> {
+    return this.#public("/widget/verify", args);
+  }
+
+  async widgetVerifications(args: { tenant: string; since: number }): Promise<number> {
+    const rows = await this.#rest<{ id: string }[]>("widget_verifications", {
+      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
+      created_at: `gte.${iso(args.since)}`,
+      select: "id",
+    });
+    return rows.length;
+  }
+
+  /** Password, then the member's TOTP factor from the seed's secret, as the app's second step does. */
+  async signInWithTotp(args: { member: string }): Promise<{ aal: string | null; meStatus: number }> {
+    const member = this.#member(args.member);
+    if (!member.totp_secret) throw new Error(`app probe: tenants.json holds no TOTP secret for ${args.member}`);
+    const auth = (path: string, init: { token?: string; body?: unknown; method?: string }) =>
+      this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1${path}`, {
+        method: init.method ?? "POST",
+        headers: {
+          apikey: this.#o.anonKey,
+          "content-type": "application/json",
+          ...(init.token ? { authorization: `Bearer ${init.token}` } : {}),
+        },
+        body: init.body === undefined ? undefined : JSON.stringify(init.body),
+        signal: AbortSignal.timeout(10_000),
+      });
+    const signedIn = await auth("/token?grant_type=password", { body: { email: member.email, password: member.password } });
+    if (!signedIn.ok) throw new Error(`app probe: signing ${args.member} in returned ${signedIn.status}`);
+    const first = ((await signedIn.json()) as { access_token?: string }).access_token;
+    if (!first) throw new Error(`app probe: no session for ${args.member}`);
+    const user = (await (await auth("/user", { token: first, method: "GET" })).json()) as { factors?: { id: string; factor_type: string; status: string }[] };
+    const factor = user.factors?.find((candidate) => candidate.factor_type === "totp" && candidate.status === "verified");
+    if (!factor) throw new Error(`app probe: ${args.member} has no verified TOTP factor`);
+    const challenge = (await (await auth(`/factors/${factor.id}/challenge`, { token: first, body: {} })).json()) as { id?: string };
+    const verified = await auth(`/factors/${factor.id}/verify`, {
+      token: first,
+      body: { challenge_id: challenge.id, code: totpCode(member.totp_secret, this.#now()) },
+    });
+    if (!verified.ok) return { aal: null, meStatus: verified.status };
+    const second = ((await verified.json()) as { access_token?: string }).access_token ?? "";
+    const aal = claimsOf(second).aal;
+    const me = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}/v1/me`, {
+      headers: { authorization: `Bearer ${second}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    await me.body?.cancel();
+    return { aal: typeof aal === "string" ? aal : null, meStatus: me.status };
+  }
+
+  async sendPasswordReset(args: { member: string }): Promise<number> {
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/recover`, {
+      method: "POST",
+      headers: { apikey: this.#o.anonKey, "content-type": "application/json" },
+      body: JSON.stringify({ email: this.#member(args.member).email }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    await response.body?.cancel();
+    return response.status;
+  }
+
+  async workspaceOf(args: { ownerEmail: string }) {
+    const user = await this.#authUserByEmail(args.ownerEmail);
+    if (!user) return null;
+    const [company] = await this.#rest<{ id: string; subscription_status: string; stripe_subscription_id: string | null }[]>("companies", {
+      owner_user_id: `eq.${user}`,
+      deleted_at: "is.null",
+      select: "id,subscription_status,stripe_subscription_id",
+    });
+    return company
+      ? { company_id: company.id, subscription_status: company.subscription_status, stripe_subscription_id: company.stripe_subscription_id }
+      : null;
+  }
+
+  /**
+   * Undo for a scenario's public sign-up: its workspace closed and its user
+   * deleted. Only an address a sign-up scenario makes is accepted, so no
+   * seeded member can be removed this way.
+   */
+  async deleteSignUp(args: { email: string }): Promise<void> {
+    if (!SIGN_UP_ADDRESS.test(args.email)) throw new Error("app probe: only a sign-up scenario's own address can be removed");
+    const user = await this.#authUserByEmail(args.email);
+    if (!user) return;
+    await this.#write("PATCH", "companies", { owner_user_id: `eq.${user}`, deleted_at: "is.null" }, { deleted_at: iso(this.#now()) }, "return=minimal");
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users/${user}`, {
+      method: "DELETE",
+      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok && response.status !== 404) throw new Error(`app probe: deleting the sign-up returned ${response.status}`);
+  }
+
+  async #authUserByEmail(email: string): Promise<string | undefined> {
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users?page=1&per_page=1000`, {
+      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`app probe: listing users returned ${response.status}`);
+    const { users } = (await response.json()) as { users?: { id: string; email?: string }[] };
+    return users?.find((user) => user.email?.toLowerCase() === email.toLowerCase())?.id;
+  }
+
+  invite(args: { member: string; email: string }): Promise<ApiAnswer<{ invite?: { id?: string } }>> {
+    return this.#answer(args.member, "POST", "/v1/invites", { email: args.email, role: "member" });
+  }
+
+  async revokeInvite(args: { member: string; inviteId: string }): Promise<void> {
+    await this.#answer(args.member, "DELETE", `/v1/invites/${encodeURIComponent(args.inviteId)}`);
+  }
+
+  async provisionNumber(args: { member: string }): Promise<ApiAnswer<{ number?: { id?: string } }>> {
+    const { tenant } = splitMember(args.member);
+    const [company] = await this.#rest<{ requested_area_code: string | null }[]>("companies", {
+      id: `eq.${this.#tenant(tenant).company_id}`,
+      select: "requested_area_code",
+    });
+    if (!company?.requested_area_code) throw new Error(`app probe: ${tenant} has no requested area code to buy in`);
+    return this.#answer(args.member, "POST", "/v1/numbers/provision", { requested_area_code: company.requested_area_code });
+  }
+
+  numberRows(args: { tenant: string }): Promise<NumberRow[]> {
+    return this.#rest<NumberRow[]>("phone_numbers", {
+      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
+      select: "id,status,telnyx_phone_number_id,voice_connection_id,label,suspended_at,released_at",
+      order: "created_at.asc",
+    });
+  }
+
+  async markNumberReleased(args: { phoneNumberId: string }): Promise<void> {
+    await this.#write("PATCH", "phone_numbers", { id: `eq.${args.phoneNumberId}`, status: "neq.released" }, {
+      status: "released",
+      released_at: iso(this.#now()),
+    }, "return=minimal");
+  }
+
+  async backdateCancellation(args: { tenant: string; daysAgo: number }): Promise<WorkspaceState> {
+    const companyId = this.#tenant(args.tenant).company_id;
+    const [before] = await this.#rest<WorkspaceState[]>("companies", { id: `eq.${companyId}`, select: "subscription_status,canceled_at" });
+    if (!before) throw new Error(`app probe: no company row for ${args.tenant}`);
+    await this.#write("PATCH", "companies", { id: `eq.${companyId}` }, {
+      subscription_status: "canceled",
+      canceled_at: iso(this.#now() - args.daysAgo * 86_400_000),
+    }, "return=minimal");
+    // What the cancellation webhook does to the numbers (suspendCompanyNumbers).
+    await this.#write("PATCH", "phone_numbers", { company_id: `eq.${companyId}`, status: "eq.active" }, {
+      status: "suspended",
+      suspended_at: iso(this.#now()),
+    }, "return=minimal");
+    return before;
+  }
+
+  /** Undo for backdateCancellation: the subscription as it was, and its suspended numbers live again. */
+  async restoreWorkspace(args: { tenant: string; state: WorkspaceState }): Promise<void> {
+    const companyId = this.#tenant(args.tenant).company_id;
+    await this.#write("PATCH", "companies", { id: `eq.${companyId}` }, args.state, "return=minimal");
+    if (args.state.subscription_status === "active") {
+      await this.#write("PATCH", "phone_numbers", { company_id: `eq.${companyId}`, status: "eq.suspended" }, {
+        status: "active",
+        suspended_at: null,
+      }, "return=minimal");
+    }
+  }
+
+  async graceState(args: { tenant: string }): Promise<GraceState> {
+    const companyId = this.#tenant(args.tenant).company_id;
+    const [company] = await this.#rest<WorkspaceState[]>("companies", { id: `eq.${companyId}`, select: "subscription_status,canceled_at" });
+    if (!company) throw new Error(`app probe: no company row for ${args.tenant}`);
+    const notices = company.canceled_at
+      ? await this.#rest<{ threshold_day: number }[]>("grace_notices", {
+          company_id: `eq.${companyId}`,
+          canceled_at: `eq.${company.canceled_at}`,
+          select: "threshold_day",
+        })
+      : [];
+    const campaigns = await this.#rest<{ id: string }[]>("messaging_registrations", {
+      company_id: `eq.${companyId}`,
+      kind: "eq.campaign",
+      telnyx_id: "not.is.null",
+      deactivated_at: "is.null",
+      select: "id",
+    });
+    return {
+      ...company,
+      notices: notices.map((notice) => notice.threshold_day).sort((a, b) => a - b),
+      numbers: await this.numberRows(args),
+      live_campaigns: campaigns.length,
+    };
+  }
+
+  /** The subscription the tenant's company row names in the sandbox, or null. */
+  async stripeSubscriptionId(tenant: string): Promise<string | null> {
+    const [company] = await this.#rest<{ stripe_subscription_id: string | null }[]>("companies", {
+      id: `eq.${this.#tenant(tenant).company_id}`,
+      select: "stripe_subscription_id",
+    });
+    return company?.stripe_subscription_id ?? null;
+  }
+
+  async #conversationsWith(tenant: string, role: string): Promise<string[]> {
+    const companyId = this.#tenant(tenant).company_id;
+    const contacts = await this.#rest<{ id: string }[]>("contacts", {
+      company_id: `eq.${companyId}`,
+      phone_e164: `eq.${this.#number(role)}`,
+      select: "id",
+    });
+    if (contacts.length === 0) return [];
+    const conversations = await this.#rest<{ id: string }[]>("conversations", {
+      company_id: `eq.${companyId}`,
+      contact_id: `in.(${contacts.map((c) => c.id).join(",")})`,
+      select: "id",
+    });
+    return conversations.map((conversation) => conversation.id);
+  }
+
+  async #conversationWith(tenant: string, role: string): Promise<string | undefined> {
+    return (await this.#conversationsWith(tenant, role))[0];
+  }
+
+  /** Member keys by auth user id, from the admin listing matched against tenants.json's addresses. */
+  async #membersByUser(tenant: string): Promise<Map<string, string>> {
+    const members = this.#tenant(tenant).members;
+    const byEmail = new Map(Object.entries(members).map(([key, member]) => [member.email.toLowerCase(), `${tenant.toLowerCase()}-${key}`]));
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users?page=1&per_page=1000`, {
+      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`app probe: listing users returned ${response.status}`);
+    const { users } = (await response.json()) as { users?: { id: string; email?: string }[] };
+    // A member whose address a lease moved is found by the id this probe saw before the move.
+    const out = new Map([...this.#userIds].filter(([key]) => splitMember(key).tenant === tenant.toLowerCase()).map(([key, id]) => [id, key]));
+    for (const user of users ?? []) {
+      const key = user.email ? byEmail.get(user.email.toLowerCase()) : undefined;
+      if (!key) continue;
+      out.set(user.id, key);
+      this.#userIds.set(key, user.id);
+    }
+    return out;
+  }
+
+  async #userIdOf(memberKey: string): Promise<string> {
+    const cached = this.#userIds.get(memberKey) ?? this.#movedUserId(memberKey);
+    if (cached) return cached;
+    const { tenant } = splitMember(memberKey);
+    for (const [userId, key] of await this.#membersByUser(tenant)) if (key === memberKey) return userId;
+    throw new Error(`app probe: no auth user for ${memberKey}`);
+  }
+
+  #movedUserId(memberKey: string): string | undefined {
+    if (!this.#o.stateDir || !/^[a-z0-9-]+$/.test(memberKey)) return undefined;
+    try {
+      const { user_id: id } = JSON.parse(readFileSync(join(this.#o.stateDir, "moved", `${memberKey}.json`), "utf8")) as { user_id?: unknown };
+      return typeof id === "string" ? id : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** The API's public routes, which no member signs in to. */
+  async #public<T>(path: string, body: unknown): Promise<ApiAnswer<T>> {
+    const response = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const json = (await response.json().catch(() => ({}))) as T & { error?: { code?: string } };
+    return { status: response.status, ...(json.error?.code ? { code: json.error.code } : {}), body: json };
+  }
+
+  #armedPath(nonce: string): string {
+    if (!this.#o.stateDir) throw new Error("app probe: no state directory to keep S25's changes in");
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(nonce)) throw new Error("app probe: not a nonce");
+    return join(this.#o.stateDir, "armed", `${nonce}.json`);
+  }
+
+  #saveArmed(nonce: string, record: ArmedAutomations): void {
+    const path = this.#armedPath(nonce);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify(record));
+  }
+
+  #readArmed(nonce: string): ArmedAutomations | undefined {
+    try {
+      return JSON.parse(readFileSync(this.#armedPath(nonce), "utf8")) as ArmedAutomations;
+    } catch {
+      return undefined;
+    }
+  }
 
   async #session(memberKey: string): Promise<string> {
     const cached = this.#sessions.get(memberKey);
@@ -291,6 +1002,42 @@ export class AppProbe implements AppApi {
     const json = (await response.json().catch(() => ({}))) as T & { error?: { code?: string } };
     if (!response.ok) throw new Error(`${method} ${path.split("/").slice(0, 3).join("/")} returned ${response.status}${json.error?.code ? ` ${json.error.code}` : ""}`);
     return json;
+  }
+
+  /** The local API as a member, answering refusals instead of throwing them. */
+  async #answer<T>(memberKey: string, method: string, path: string, body?: unknown): Promise<ApiAnswer<T>> {
+    const tenant = this.#tenant(splitMember(memberKey).tenant);
+    const response = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}${path}`, {
+      method,
+      headers: {
+        authorization: `Bearer ${await this.#session(memberKey)}`,
+        "x-company-id": tenant.company_id,
+        ...(body === undefined ? {} : { "content-type": "application/json", "idempotency-key": randomUUID() }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const json = (await response.json().catch(() => ({}))) as T & { error?: { code?: string } };
+    return { status: response.status, ...(json.error?.code ? { code: json.error.code } : {}), body: json };
+  }
+
+  /** A PostgREST write with the service key; by default it asks for the written rows back. */
+  async #write<T>(method: "POST" | "PATCH" | "DELETE", table: string, query: Record<string, string>, body?: unknown, prefer?: string): Promise<T> {
+    const search = new URLSearchParams(query);
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/rest/v1/${table}?${search}`, {
+      method,
+      headers: {
+        apikey: this.#o.serviceRoleKey,
+        authorization: `Bearer ${this.#o.serviceRoleKey}`,
+        "content-type": "application/json",
+        prefer: prefer ?? "return=representation",
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`app probe: writing ${table} returned ${response.status}`);
+    const text = await response.text();
+    return (text ? JSON.parse(text) : []) as T;
   }
 
   async #rest<T>(table: string, query: Record<string, string>): Promise<T> {
@@ -334,4 +1081,40 @@ export function subjectOf(token: string): string {
   const sub = payload ? (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub?: unknown }).sub : undefined;
   if (typeof sub !== "string" || !/^[0-9a-f-]{36}$/.test(sub)) throw new Error("app probe: the session names no user");
   return sub;
+}
+
+/** What S25 changed, kept under the nonce so the undo can put it back. */
+interface ArmedAutomations {
+  tenant: string;
+  previous: Partial<Record<CompanyField, unknown>>;
+  armed_at: number;
+}
+
+/** The addresses S32 and S35 sign up with: Resend's test sink, tagged with the scenario. */
+export const SIGN_UP_ADDRESS = /^delivered\+rig-s3[25]-[a-z0-9-]+@resend\.dev$/;
+
+/** The runner's inbound text is `Rig S25 <nonce>`; its first word is the emergency keyword while S25 is armed. */
+export const S25_KEYWORD = "RIG";
+
+export function automationBodies(nonce: string): Record<"away_reply" | "emergency_ack" | "scheduled_send" | "reminder", string> {
+  return {
+    away_reply: `Rig S25 away ${nonce}`,
+    emergency_ack: `Rig S25 emergency ${nonce}`,
+    scheduled_send: `Rig S25 scheduled ${nonce}`,
+    reminder: `Rig S25 reminder ${nonce}`,
+  };
+}
+
+/** company_ai_usage's period: the UTC month, as the migrations write it. */
+export function aiPeriod(at: number): string {
+  return new Date(at).toISOString().slice(0, 7);
+}
+
+function claimsOf(token: string): Record<string, unknown> {
+  const payload = token.split(".")[1];
+  try {
+    return payload ? (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
 }

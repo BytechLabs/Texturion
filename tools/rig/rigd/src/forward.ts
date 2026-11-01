@@ -37,6 +37,12 @@ export interface ForwardTargets {
   telnyxKey?: () => KeyObject | undefined;
   /** Called for a text the API refused only because its genuine signature aged past the window. */
   onLate?: (entry: LateDelivery) => void;
+  /**
+   * A status a scenario armed for the next call event (S17, state-files.ts):
+   * the rig answers it instead of the API, so Telnyx retries and fails over
+   * for real, and the API sees the event only on the retry.
+   */
+  takeFault?: () => number | undefined;
   fetch?: typeof fetch;
   now?: () => number;
 }
@@ -71,6 +77,10 @@ export function webhookForwarder(targets: ForwardTargets) {
   };
 
   return async (frame: WebhookFrame): Promise<WebhookResult> => {
+    if (frame.kind === "call") {
+      const fault = targets.takeFault?.();
+      if (fault !== undefined) return { status: fault };
+    }
     const headers: Record<string, string> = { ...frame.headers };
     const toRobot =
       frame.kind === "robot-call" || frame.kind === "robot-webhook" || (frame.kind === "message" && robotText(frame));

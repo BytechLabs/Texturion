@@ -227,10 +227,11 @@ export const S24: ScenarioRunner = {
 };
 
 /**
- * Automated texts and quiet hours: by day they arrive, at night they are held
- * (the destination's clock, Ontario). The registry runs it twice a week, a
- * daytime run and a night run, so both halves are exercised. Not in RUNNERS
- * until the app probe can arm the automations.
+ * Automated texts and quiet hours: by day they arrive, at night the ones the
+ * business starts are held (the destination's clock, Ontario). A reply to the
+ * customer's own text is exempt from quiet hours (D4), so it arrives at
+ * night too. The registry runs it twice a week, a daytime run and a night
+ * run, so both halves are exercised.
  */
 export const S25: ScenarioRunner = {
   id: "S25",
@@ -245,19 +246,21 @@ export const S25: ScenarioRunner = {
     }
     const since = ctx.now();
     await ctx.robot.sms({ from_role: "ROBOT-1", to_role: "DEV-W1", text: `Rig S25 ${ctx.nonce}`, scenario: ctx.scenario });
+    // The scheduled texts are due now; the minute cron sends or holds them.
+    await ctx.app.fireCron("* * * * *");
     await ctx.sleep(60_000);
 
     const texts = await ctx.app.automatedTexts({ tenant: "QA-W", nonce: ctx.nonce });
     const inbox = await ctx.robot.inbox({ to_role: "ROBOT-1", since });
     const arrived = (body: string) => inbox.some((m) => m.text === body);
-    ctx.evidence.texts = texts.map((t) => ({ kind: t.kind, state: t.state, arrived: arrived(t.body) }));
+    ctx.evidence.texts = texts.map((t) => ({ kind: t.kind, state: t.state, arrived: arrived(t.body), reply: t.reply }));
     if (texts.length === 0) return infra("app-probe", "no automated texts were armed");
-    if (night) {
-      const leaked = texts.filter((t) => t.state !== "held" || arrived(t.body));
-      if (leaked.length) return fail("sent_in_quiet_hours", `sent at night: ${leaked.map((t) => t.kind).join(", ")}`);
-    } else {
-      const missing = texts.filter((t) => t.state !== "sent" || !arrived(t.body));
-      if (missing.length) return fail("not_sent_by_day", `did not arrive by day: ${missing.map((t) => t.kind).join(", ")}`);
+    const held = night ? texts.filter((t) => !t.reply) : [];
+    const leaked = held.filter((t) => t.state !== "held" || arrived(t.body));
+    if (leaked.length) return fail("sent_in_quiet_hours", `sent at night: ${leaked.map((t) => t.kind).join(", ")}`);
+    const missing = texts.filter((t) => !held.includes(t) && (t.state !== "sent" || !arrived(t.body)));
+    if (missing.length) {
+      return fail(night ? "reply_held_at_night" : "not_sent_by_day", `did not arrive ${night ? "at night" : "by day"}: ${missing.map((t) => t.kind).join(", ")}`);
     }
     return pass();
   },
