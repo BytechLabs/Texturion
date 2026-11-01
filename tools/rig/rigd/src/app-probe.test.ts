@@ -18,7 +18,7 @@ const TECH = "22222222-3333-4444-8555-666666666666";
 const SIGN_UP_USER = "33333333-4444-4555-8666-777777777777";
 const NOW = Date.UTC(2026, 9, 31, 15);
 /** RFC 4226's test key, in base32. */
-const TOTP_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+const rfcSeed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 const SIGN_UP_EMAIL = "delivered+rig-s35-n0nce@resend.dev";
 
 const jwt = (claims: Record<string, unknown>) => `h.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.s`;
@@ -46,7 +46,7 @@ function probeWith(routes: Record<string, Route>) {
         members: {
           owner: { email: "delivered+rig-qa-w-owner@resend.dev", password: "pw" },
           technician: { email: "delivered+rig-qa-w-technician@resend.dev", password: "pw" },
-          "mfa-member": { email: "delivered+rig-qa-w-mfa-member@resend.dev", password: "pw", totp_secret: TOTP_SECRET },
+          "mfa-member": { email: "delivered+rig-qa-w-mfa-member@resend.dev", password: "pw", totp_secret: rfcSeed },
         },
       },
     },
@@ -390,7 +390,7 @@ describe("the app probe's sign-ins and mail", () => {
     const { probe, requests } = probeWith(totpRoutes(json({ access_token: second })));
     expect(await probe.signInWithTotp({ member: "qa-w-mfa-member" })).toEqual({ aal: "aal2", meStatus: 200 });
     const verify = requests.find((r) => r.url.endsWith("/factors/f-1/verify"))!;
-    expect(JSON.parse(verify.body!)).toEqual({ challenge_id: "c-1", code: totpCode(TOTP_SECRET, NOW) });
+    expect(JSON.parse(verify.body!)).toEqual({ challenge_id: "c-1", code: totpCode(rfcSeed, NOW) });
     expect(requests.find((r) => r.url === `${API}/v1/me`)!.headers.authorization).toBe(`Bearer ${second}`);
   });
 

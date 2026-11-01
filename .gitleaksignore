@@ -105,3 +105,5 @@ ef5f390943cf370c643a151a217393fd16a12a3c:supabase/migrations/20260819010000_eras
 # assigning each to a name the rule does not read as a credential.
 588c165d2496c9c33590317a622b0c612c42faf4:tools/rig/test/seed.test.mjs:generic-api-key:106
 1b9c6a068e14ebc80c825d40fe6963f716dfc9fe:tools/rig/test/stripe.test.mjs:generic-api-key:64
+# RFC 4226's published test seed in a rigd probe test, fixed forward the same way.
+74e8b3c4925f1693971c4a96bc9fec647621cdb9:tools/rig/rigd/src/app-probe.test.ts:generic-api-key:20
