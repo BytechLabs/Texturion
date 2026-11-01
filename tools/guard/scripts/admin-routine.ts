@@ -7,7 +7,7 @@
  * Its output lands in a public Actions log, so it prints states, reason codes,
  * roles and counts: never an id, a phone number, an address or a token.
  *
- *   ROUTINE=check|setup|order-standing|key-inventory|accept-key-inventory|reattach|measurements
+ *   ROUTINE=check|setup|order-standing|key-inventory|accept-key-inventory|reattach|measurements|limit-probe|health
  *   EDGE_ORIGIN, GUARD_ADMIN_TOKEN
  *   measurements only: RESERVE_LEGS; CALLS, ABANDONED and SHORT together; WINDOW_START_HOUR;
  *     USAGE_USD, this month's actual Telnyx usage for the partition, from detail records.
@@ -32,7 +32,11 @@ export const ROUTINES = [
   "accept-key-inventory",
   "reattach",
   "measurements",
+  "limit-probe",
 ] as const;
+
+/** Read through the edge's GET /health rather than posted, so it has no place in {@link runRoutine}. */
+export const HEALTH_ROUTINE = "health";
 
 export type Routine = (typeof ROUTINES)[number];
 
@@ -184,6 +188,55 @@ async function reattach(post: Post): Promise<Outcome> {
   return { ok: true, lines: [`reattached: ${strings((answer.body as Item).reattached).join(", ") || "none"}`] };
 }
 
+/** The validation check, run now: what it found, and each write's answer by code and field, never Telnyx's words. */
+async function limitProbe(post: Post): Promise<Outcome> {
+  const answer = await post("/limit-probe");
+  if (!ok(answer)) return failed("Limit probe failed", answer);
+  const body = (answer.body ?? {}) as { result?: unknown; value?: unknown; writes?: unknown; refusal_code?: unknown; trace?: unknown };
+  const lines = [JSON.stringify({ result: body.result, value: body.value, writes: body.writes, refusal_code: body.refusal_code })];
+  for (const entry of Array.isArray(body.trace) ? (body.trace as Item[]) : []) {
+    lines.push(`wrote ${String(entry.value)}: HTTP ${String(entry.status)}, code ${String(entry.code)}, field ${String(entry.pointer)}`);
+  }
+  if (body.result === "inconclusive") {
+    lines.push("::warning title=Limit probe inconclusive::The writes above show which answer stopped the search.");
+  }
+  return { ok: true, lines };
+}
+
+/** The guard's /health, cut to what a public log may carry: states, counts, rule names and hours. */
+export function healthLines(body: unknown): string[] {
+  const health = (body ?? {}) as Partial<GuardHealth>;
+  const dials = health.paid_dials;
+  const concurrency = health.concurrency;
+  return [
+    JSON.stringify({ ok: health.ok, balance_above_floor: health.balance_above_floor, room: health.room ?? null }),
+    JSON.stringify({
+      paid_dials: dials
+        ? {
+            enabled: dials.enabled,
+            blockers: dials.blockers,
+            room: dials.room,
+            window_start_hour_utc: dials.window_start_hour_utc,
+            in_window: dials.in_window,
+          }
+        : null,
+    }),
+    JSON.stringify({
+      concurrency: concurrency
+        ? {
+            limit_in_force: concurrency.limit_in_force,
+            source: concurrency.source,
+            validation: concurrency.validation,
+            history_lower_bound: concurrency.history_lower_bound,
+            ceiling: concurrency.ceiling,
+            conflict: concurrency.conflict,
+          }
+        : null,
+    }),
+    JSON.stringify({ account_rate: health.account_rate ?? null }),
+  ];
+}
+
 export interface Measurements {
   reserveLegs?: string;
   calls?: string;
@@ -265,6 +318,8 @@ export async function runRoutine(
       return reattach(post);
     case "measurements":
       return measurements(post, inputs);
+    case "limit-probe":
+      return limitProbe(post);
   }
 }
 
@@ -346,9 +401,9 @@ const RATIOS_NOT_READ =
   "::notice title=Ratios not filed::Nothing here reads the account's abandoned and short calls; dispatch measurements with calls, abandoned and short to file them.";
 
 async function main(): Promise<number> {
-  const routine = (process.env.ROUTINE ?? "check") as Routine;
-  if (!ROUTINES.includes(routine)) {
-    console.log(`::error title=Unknown routine::${routine} is not one of ${ROUTINES.join(", ")}.`);
+  const routine = (process.env.ROUTINE ?? "check") as Routine | typeof HEALTH_ROUTINE;
+  if (routine !== HEALTH_ROUTINE && !ROUTINES.includes(routine)) {
+    console.log(`::error title=Unknown routine::${routine} is not one of ${[...ROUTINES, HEALTH_ROUTINE].join(", ")}.`);
     return 1;
   }
   const inputs: Measurements = {
@@ -373,6 +428,15 @@ async function main(): Promise<number> {
   if (new URL(origin).protocol !== "https:") {
     console.log("::error title=EDGE_ORIGIN is not https::The admin token is sent only to an https edge.");
     return 1;
+  }
+  if (routine === HEALTH_ROUTINE) {
+    const answer = await edgeHealth(origin, token)();
+    if (!ok(answer)) {
+      console.log(`::error title=Guard health failed::HTTP ${answer.status}`);
+      return 1;
+    }
+    for (const line of healthLines(answer.body)) console.log(line);
+    return 0;
   }
   const outcome = fromProduction
     ? await measureProduction(edgePost(origin, token), edgeHealth(origin, token), () =>

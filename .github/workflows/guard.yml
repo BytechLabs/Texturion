@@ -56,6 +56,8 @@ on:
           - accept-key-inventory
           - reattach
           - measurements
+          - limit-probe
+          - health
       deploy:
         description: "Deploy the guard from main before the routine"
         type: boolean

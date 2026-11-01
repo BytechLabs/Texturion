@@ -30,6 +30,17 @@ export interface ValidationRecord {
   writes: number;
   /** Telnyx's error code on the identified refusal, never its words. */
   refusal_code: string | null;
+  /** Each write's answer in order, so an inconclusive run can be read afterwards. */
+  trace?: ProbeWrite[];
+}
+
+/** One write of the validation check: what was asked and the kind of answer, with Telnyx's code and field but never its words. */
+export interface ProbeWrite {
+  value: number;
+  /** HTTP status, or 0 when the request did not complete. */
+  status: number;
+  code: string | null;
+  pointer: string | null;
 }
 
 export interface HistoryRecord {

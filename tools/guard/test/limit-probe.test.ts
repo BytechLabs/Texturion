@@ -99,6 +99,14 @@ describe("the validation check", () => {
     expect((await runLimitProbe(h.ctx)).result).toBe("inconclusive");
   });
 
+  it("keeps each write's status, code and field in the record, and not Telnyx's words", async () => {
+    const { h, result } = await probed({ mode: "refuse-above", limit: 4 });
+    expect(result.trace?.[0]).toEqual({ value: 9999, status: 422, code: "10015", pointer: "/concurrent_call_limit" });
+    expect(result.trace?.at(-1)).toEqual({ value: 1, status: 200, code: null, pointer: null });
+    expect(result.trace).toHaveLength(result.writes);
+    expect(JSON.stringify(await h.store.get(LIMIT_KEYS.validation))).not.toContain("global concurrent call limit");
+  });
+
   it("writes only the probe profile, never the voice, robot or production profiles", async () => {
     const { h } = await probed({ mode: "refuse-above", limit: 9 });
     expect(new Set(writes(h).map((item) => item.path))).toEqual(new Set([PROBE]));

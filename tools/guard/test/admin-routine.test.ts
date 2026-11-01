@@ -1,7 +1,7 @@
 import { EDGE_PATHS, HEADER, type GuardHealth } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
-import { edgeHealth, edgePost, measurementPosts, measureProduction, runRoutine, type Post } from "../scripts/admin-routine";
+import { edgeHealth, edgePost, healthLines, measurementPosts, measureProduction, runRoutine, type Post } from "../scripts/admin-routine";
 import {
   parseRead,
   planFiling,
@@ -239,6 +239,47 @@ const AGENT_DIAG_URL = "postgresql://agent_diag.abcdefghijklmnopqrst:pw@pooler.e
 
 /** Production's call peaks, as the statement returns them beside the reserve and window. */
 const PEAKS = { peak_concurrent_calls: 3, peak_hour_dials: 4, peak_day_dials: 20 } as const;
+
+describe("guard.yml's limit-probe and health routines", () => {
+  it("run the validation check and print each write by status, code and field, never Telnyx's words", async () => {
+    const h = await ready({ validated: null });
+    h.telnyx.profileLimit = { mode: "refuse-above", limit: 4 };
+    const outcome = await runRoutine("limit-probe", throughEdge(h));
+    expect(outcome.ok).toBe(true);
+    expect(JSON.parse(outcome.lines[0])).toMatchObject({ result: "exact", value: 4, refusal_code: "10015" });
+    expect(outcome.lines[1]).toBe("wrote 9999: HTTP 422, code 10015, field /concurrent_call_limit");
+    expect(outcome.lines.at(-1)).toBe("wrote 1: HTTP 200, code null, field null");
+    expect(outcome.lines.join(" ")).not.toContain("global concurrent call limit");
+    assertPublicSafe(outcome.lines);
+  });
+
+  it("show which answer stopped an inconclusive search", async () => {
+    const h = await ready({ validated: null });
+    h.telnyx.profileLimit = { mode: "refuse-above", limit: 6 };
+    const realHandle = h.telnyx.handle.bind(h.telnyx);
+    h.telnyx.handle = async (request) => {
+      const body = request.method === "PATCH" ? ((await request.clone().json()) as { concurrent_call_limit?: number }) : {};
+      if (body.concurrent_call_limit === 4999) {
+        return Response.json({ errors: [{ code: "10099", detail: "private words", source: { pointer: "/concurrent_call_limit" } }] }, { status: 429 });
+      }
+      return realHandle(request);
+    };
+    const outcome = await runRoutine("limit-probe", throughEdge(h));
+    expect(outcome.lines).toContain("wrote 4999: HTTP 429, code 10099, field /concurrent_call_limit");
+    expect(outcome.lines.some((line) => line.startsWith("::warning title=Limit probe inconclusive"))).toBe(true);
+    expect(outcome.lines.join(" ")).not.toContain("private words");
+  });
+
+  it("print the guard's health as states, counts and rule names", async () => {
+    const h = await ready();
+    const lines = healthLines((await edgeHealth(EDGE, "admin-token", edgeFetcher(h))()).body);
+    expect(lines).toHaveLength(4);
+    expect(JSON.parse(lines[1])).toHaveProperty("paid_dials.blockers");
+    expect(JSON.parse(lines[2])).toHaveProperty("concurrency.limit_in_force");
+    assertPublicSafe(lines);
+    expect(healthLines(null)).toHaveLength(4);
+  });
+});
 
 describe("the daily measurements, read from production as agent_diag", () => {
   it("read ops_diag's views and nothing else", () => {

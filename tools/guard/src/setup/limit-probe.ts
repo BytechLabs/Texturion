@@ -2,7 +2,7 @@ import type { Ctx } from "../context";
 import { LIMIT_PROBE_ABSURD, LIMIT_PROBE_INTERVAL_MS, LIMIT_PROBE_MAX_WRITES } from "../limits";
 import { Refusal } from "../refusal";
 import { sendProductionEvent } from "../sentry";
-import { LIMIT_KEYS, type Ceiling, type ValidationRecord } from "../state/concurrency";
+import { LIMIT_KEYS, type Ceiling, type ProbeWrite, type ValidationRecord } from "../state/concurrency";
 import { KEYS, type PartitionRecord } from "../telnyx/partition";
 import { requireSafe } from "./safety";
 import { SPEC, type TelnyxSpec } from "./spec";
@@ -29,6 +29,18 @@ type Item = Record<string, unknown>;
 type Answer = { kind: "accepted" } | { kind: "refused"; signature: string; code: string | null } | { kind: "other" };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The first error Telnyx names on an answer: its code and field. The words go to the Worker's log only. */
+function firstError(body: unknown): { code: string | null; pointer: string | null; detail: string } {
+  const errors = (body as { errors?: unknown } | undefined)?.errors;
+  const error = (Array.isArray(errors) ? errors[0] : undefined) as Item | undefined;
+  const pointer = (error?.source as Item | undefined)?.pointer;
+  return {
+    code: error?.code === undefined ? null : String(error.code),
+    pointer: typeof pointer === "string" ? pointer : null,
+    detail: String(error?.detail ?? error?.title ?? "").slice(0, 200),
+  };
+}
 
 /** The refusal the check relies on, recognised positively: a 422 whose error names the field. */
 function identifiedRefusal(status: number, body: unknown): { signature: string; code: string | null } | null {
@@ -91,12 +103,14 @@ export async function runLimitProbe(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<
   const telnyx = ctx.telnyx;
   const id = await probeProfileId(ctx, spec);
   let writes = 0;
+  const trace: ProbeWrite[] = [];
   const outcome = (result: ValidationRecord["result"], value: number | null = null, code: string | null = null): ValidationRecord => ({
     result,
     value,
     measured_at: ctx.now(),
     writes,
     refusal_code: code,
+    trace,
   });
   if (!id) return settle(ctx, outcome("inconclusive"));
 
@@ -107,10 +121,14 @@ export async function runLimitProbe(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<
         name: spec.limit_probe.name,
         concurrent_call_limit: value,
       });
+      const error = firstError(reply.body);
+      trace.push({ value, status: reply.status, code: error.code, pointer: error.pointer });
+      console.log(`guard: limit probe wrote ${value}: HTTP ${reply.status} code=${error.code} pointer=${error.pointer} ${error.detail}`);
       if (reply.status >= 200 && reply.status <= 299) return { kind: "accepted" };
       const refused = identifiedRefusal(reply.status, reply.body);
       return refused ? { kind: "refused", ...refused } : { kind: "other" };
     } catch {
+      trace.push({ value, status: 0, code: null, pointer: null });
       return { kind: "other" };
     }
   };
@@ -129,7 +147,7 @@ export async function runLimitProbe(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<
       });
     }
   }
-  return settle(ctx, { ...result, writes });
+  return settle(ctx, { ...result, writes, trace });
 }
 
 async function search(
