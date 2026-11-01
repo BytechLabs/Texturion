@@ -58,6 +58,16 @@ const VOICE_OVERAGE_CENTS_PER_SECOND = "0.016666666667";
  */
 const VOICE_OVERAGE_CENTS_PER_SECOND_CAD = "0.025";
 
+/**
+ * A decimal inside `currency_options`. stripe 22.3.0's request schema models
+ * `currency_options` as an array, so it never converts a Decimal under the
+ * currency key, and the object is sent field by field, which Stripe refuses as
+ * "Invalid decimal". The wire value is the decimal's string.
+ */
+function currencyOptionDecimal(value: string): Stripe.Decimal {
+  return Stripe.Decimal.from(value).toString() as unknown as Stripe.Decimal;
+}
+
 /** Stripe Tax: "Software as a service (SaaS) - business use" (SPEC §2). */
 const SAAS_TAX_CODE = "txcd_10103000";
 
@@ -306,7 +316,7 @@ try {
           { up_to: 2500, unit_amount: 0 },
           {
             up_to: "inf",
-            unit_amount_decimal: Stripe.Decimal.from("3.5"),
+            unit_amount_decimal: currencyOptionDecimal("3.5"),
           },
         ],
         tax_behavior: "exclusive",
@@ -466,13 +476,11 @@ try {
   // #12 plan-builder module add-ons: a product + flat monthly licensed price
   // per module, idempotent by the same lookup_key/catalog-metadata scheme.
   const modulePriceIds: { envKey: string; id: string }[] = [];
-  let voiceProductId: string | null = null;
   for (const mod of MODULE_PRICES) {
     const product = await ensureProduct(
       `module_${mod.id}`,
       `Loonext — ${mod.label}`,
     );
-    if (mod.id === "voice") voiceProductId = product.id;
     // #522: NO `currency_options`, and it is a decision for `regions_ca` but a
     // KNOWN GAP for the two extra-number prices that also ride this loop.
     //
@@ -506,9 +514,8 @@ try {
   // at $0 up to the plan's included allowance (in seconds), then 1¢/60 per
   // second, mirroring the SMS overage shape. Attached alongside the $8
   // licensed item wherever the voice module is on the subscription.
-  if (!voiceProductId) {
-    throw new Error("voice module product missing — cannot create voice overage prices");
-  }
+  // The Calling product outlived its $8 module (D42) and still carries these prices.
+  const voiceProductId = (await ensureProduct("module_voice", "Loonext — Calling")).id;
   const starterVoiceOverage = await ensurePrice(
     "loonext_starter_voice_overage",
     {
@@ -530,9 +537,7 @@ try {
             { up_to: VOICE_INCLUDED_MINUTES.starter * 60, unit_amount: 0 },
             {
               up_to: "inf",
-              unit_amount_decimal: Stripe.Decimal.from(
-                VOICE_OVERAGE_CENTS_PER_SECOND_CAD,
-              ),
+              unit_amount_decimal: currencyOptionDecimal(VOICE_OVERAGE_CENTS_PER_SECOND_CAD),
             },
           ],
           tax_behavior: "exclusive",
@@ -560,9 +565,7 @@ try {
           { up_to: VOICE_INCLUDED_MINUTES.pro * 60, unit_amount: 0 },
           {
             up_to: "inf",
-            unit_amount_decimal: Stripe.Decimal.from(
-              VOICE_OVERAGE_CENTS_PER_SECOND_CAD,
-            ),
+            unit_amount_decimal: currencyOptionDecimal(VOICE_OVERAGE_CENTS_PER_SECOND_CAD),
           },
         ],
         tax_behavior: "exclusive",
