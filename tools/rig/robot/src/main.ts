@@ -15,6 +15,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { EDGE_PATHS, GUARD_ROUTES, PARTITION_CACHE_MS, type Partition } from "@loonext/rig-protocol";
 import { loadMargins, saveMargins } from "./audio/calibrate.ts";
+import { WhisperTranscriber } from "./audio/transcribe.ts";
 import type { Margins } from "./audio/detect.ts";
 import { Inbox, WebhookSink } from "./inbox.ts";
 import { standingBook } from "./numbers.ts";
@@ -34,6 +35,25 @@ export async function fetchPartition(edgeOrigin: string, token: string): Promise
   });
   if (!response.ok) throw new Error(`robotd: the guard's partition read returned ${response.status}`);
   return (await response.json()) as Partition;
+}
+
+/**
+ * A held number's E.164 by its Telnyx id, through the guard's read class,
+ * which answers only for numbers in the partition's billing group.
+ */
+export async function heldNumber(edgeOrigin: string, token: string, id: string, doFetch: typeof fetch = fetch): Promise<string | undefined> {
+  const url = `${edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.telnyx}/v2/phone_numbers/${encodeURIComponent(id)}`;
+  const response = await doFetch(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) return undefined;
+  const number = ((await response.json()) as { data?: { phone_number?: unknown } }).data?.phone_number;
+  return typeof number === "string" && /^\+[1-9]\d{7,14}$/.test(number) ? number : undefined;
+}
+
+/** whisper.cpp, when the box names its binary and model. */
+function whisperFromEnv(): WhisperTranscriber | undefined {
+  const binary = process.env.RIG_WHISPER_BIN;
+  const model = process.env.RIG_WHISPER_MODEL;
+  return binary && model ? new WhisperTranscriber({ binary, model }) : undefined;
 }
 
 /** Fetches a recording into memory, never to disk, refusing anything implausibly large. */
@@ -91,6 +111,8 @@ async function main(): Promise<void> {
       margins = saveMargins(marginsFile, margins, [calibration]);
     },
     recordMode: process.env.ROBOT_RECORD_MODE === "dual" ? "dual" : "inbound",
+    resolveNumberId: (id) => heldNumber(edgeOrigin, guardToken, id),
+    transcriber: whisperFromEnv(),
   });
   const server = robotServer({
     robot,
@@ -99,6 +121,7 @@ async function main(): Promise<void> {
     telnyx,
     numbers,
     token: robotLocalToken(store),
+    probe,
   });
   const port = Number(process.env.ROBOT_PORT ?? 7311);
   server.listen(port, "127.0.0.1", () => console.log(`robotd: listening on 127.0.0.1:${port}`));

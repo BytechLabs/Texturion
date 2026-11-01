@@ -16,6 +16,8 @@ export interface InboxMessage {
   to_role: string;
   text: string;
   status?: string;
+  /** Picture messages: each item's type, size and the SHA-256 Telnyx reports for what it fetched. */
+  media?: { content_type: string | null; size: number | null; sha256: string | null }[];
   received_at: number;
 }
 
@@ -80,6 +82,7 @@ export class Inbox {
       text?: unknown;
       from?: { phone_number?: unknown };
       to?: { phone_number?: unknown; status?: unknown }[];
+      media?: { content_type?: unknown; size?: unknown; hash_sha256?: unknown }[];
     };
     const from = typeof payload.from?.phone_number === "string" ? payload.from.phone_number : "";
     const first = payload.to?.[0];
@@ -91,6 +94,15 @@ export class Inbox {
       to_role: this.#numbers.role(to) ?? "unknown",
       text: typeof payload.text === "string" ? payload.text : "",
       status: typeof first?.status === "string" ? first.status : undefined,
+      ...(Array.isArray(payload.media) && payload.media.length > 0
+        ? {
+            media: payload.media.map((item) => ({
+              content_type: typeof item?.content_type === "string" ? item.content_type : null,
+              size: typeof item?.size === "number" ? item.size : null,
+              sha256: typeof item?.hash_sha256 === "string" ? item.hash_sha256.toLowerCase() : null,
+            })),
+          }
+        : {}),
       received_at: this.#now(),
     });
     return true;

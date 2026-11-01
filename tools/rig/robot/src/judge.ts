@@ -24,6 +24,14 @@ export interface JudgeOptions {
   margins?: Margins;
   /** Treat the recording as a calibration call for this surface. */
   calibrate?: Surface;
+  /** Named windows from answer, each judged on its own. */
+  segments?: { name: string; start_ms: number; end_ms: number }[];
+}
+
+export interface SegmentJudgement {
+  name: string;
+  verdict: Detection["verdict"];
+  heard: Surface[];
 }
 
 export interface SurfaceSummary {
@@ -51,6 +59,8 @@ export interface RecordingJudgement {
   duration_ms: number;
   /** Per-frame numbers, kept only when the judgement failed. */
   frames?: ReturnType<typeof framesForEvidence>;
+  /** Each named window's codes, in the plan's order. */
+  segments?: SegmentJudgement[];
   calibration?: Calibration;
 }
 
@@ -104,6 +114,17 @@ export function judgeRecording(wav: Uint8Array, options: JudgeOptions = {}): Rec
     sample_rate: pcm.sampleRate,
     duration_ms: Math.round((pcm.channels[0]!.length / pcm.sampleRate) * 1000),
     frames: pass === false ? framesForEvidence(tables[channel]!) : undefined,
+    segments: options.segments?.map((segment) => {
+      const found = detectCodes(tables[channel]!, {
+        own: options.own,
+        answerOffsetMs: options.answerOffsetMs,
+        windowStartMs: segment.start_ms,
+        windowEndMs: segment.end_ms,
+        margins: options.margins,
+        announcement: false,
+      });
+      return { name: segment.name, verdict: found.verdict, heard: found.heard };
+    }),
     calibration: options.calibrate
       ? calibrate(tables[channel]!, {
           surface: options.calibrate,

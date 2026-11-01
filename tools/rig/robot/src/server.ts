@@ -5,6 +5,7 @@
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Inbox, WebhookSink } from "./inbox.ts";
+import type { ProbeSource } from "./probe.ts";
 import type { CallControlApi, RequestContext } from "./telnyx.ts";
 import { isRobotRole, type CallPlan, type NumberBook, type Robot } from "./robot.ts";
 
@@ -20,6 +21,8 @@ export interface RobotServerDeps {
   numbers: NumberBook;
   /** Shared with rigd and scenario runs; every request must carry it. */
   token: string;
+  /** Hosts the S22 picture; without it a picture message is refused. */
+  probe?: ProbeSource;
 }
 
 export function robotServer(deps: RobotServerDeps): Server {
@@ -72,6 +75,7 @@ async function handle(deps: RobotServerDeps, request: IncomingMessage, response:
       text?: unknown;
       lease_id?: unknown;
       scenario?: unknown;
+      media?: unknown;
     };
     if (!isRobotRole(body.from_role)) return send(response, 400, { error: "from_role must be a robot line" });
     if (typeof body.to_role !== "string" || typeof body.text !== "string" || body.text.length === 0) {
@@ -84,6 +88,13 @@ async function handle(deps: RobotServerDeps, request: IncomingMessage, response:
       lease: typeof body.lease_id === "string" ? body.lease_id : undefined,
       scenario: typeof body.scenario === "string" ? body.scenario : undefined,
     };
+    if (body.media !== undefined && body.media !== "gps-jpeg") return send(response, 400, { error: "media must be gps-jpeg" });
+    if (body.media === "gps-jpeg") {
+      if (!deps.probe?.media) return send(response, 400, { error: "this robot cannot host a picture" });
+      const picture = await deps.probe.media("gps-jpeg");
+      const sent = await deps.telnyx.sendMessage({ from, to, text: body.text, media_urls: [picture.url] }, context);
+      return send(response, 200, { ...sent, media_sha256: picture.sha256 });
+    }
     return send(response, 200, await deps.telnyx.sendMessage({ from, to, text: body.text }, context));
   }
 

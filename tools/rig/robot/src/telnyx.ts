@@ -77,7 +77,7 @@ export interface CallControlApi {
   listRecordings(filter: { call_leg_id: string }, context: RequestContext): Promise<{ id: string }[]>;
   deleteRecording(id: string, context: RequestContext): Promise<void>;
   sendMessage(
-    message: { from: string; to: string; text: string },
+    message: { from: string; to: string; text: string; media_urls?: string[] },
     context: RequestContext,
   ): Promise<{ id: string }>;
 }
@@ -189,7 +189,7 @@ export class GuardedTelnyx implements CallControlApi {
     await this.#request("DELETE", `/v2/recordings/${encodeURIComponent(id)}`, undefined, context);
   }
 
-  async sendMessage(message: { from: string; to: string; text: string }, context: RequestContext) {
+  async sendMessage(message: { from: string; to: string; text: string; media_urls?: string[] }, context: RequestContext) {
     const data = await this.#request("POST", "/v2/messages", message, context);
     if (!hasId(data)) throw new Error("sendMessage: Telnyx returned no message id");
     return { id: data.id };

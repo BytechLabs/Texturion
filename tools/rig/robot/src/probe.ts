@@ -12,16 +12,20 @@
  */
 import { EDGE_PATHS, MEDIA_BUCKETS, MEDIA_MAX_BYTES } from "@loonext/rig-protocol";
 import { codeWav } from "./audio/generate.ts";
+import { gpsJpeg, sha256Hex } from "./media.ts";
 import type { Surface } from "./audio/surfaces.ts";
 import type { PlaybackCommand } from "./telnyx.ts";
 
 export interface ProbeSource {
   playback(surface: Surface): Promise<PlaybackCommand>;
+  /** A picture Telnyx can fetch for an MMS, with the hash of the bytes it will fetch. */
+  media?(kind: "gps-jpeg"): Promise<{ url: string; sha256: string; content_type: string }>;
 }
 
 /** 16 cycles, about 31 s, at 8 kHz: one pass covers the judging window, and the loop covers the rest. */
 const PROBE_CYCLES = 16;
 const BUCKET: (typeof MEDIA_BUCKETS)[number] = "voicemail-greetings";
+const MEDIA_BUCKET: (typeof MEDIA_BUCKETS)[number] = "mms-media";
 const PREFIX = "rig-robot/codes";
 const SIGNED_FOR_S = 60 * 60;
 /** Re-sign this long before expiry, so a long call never plays a dead URL. */
@@ -72,6 +76,33 @@ export class StorageProbe implements ProbeSource {
     const url = `${this.#options.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.mediaPrefix}${signedURL.slice(1)}`;
     this.#signed.set(surface, { url, expiresAt: this.#now() + SIGNED_FOR_S * 1000 });
     return url;
+  }
+
+  /** The S22 picture, in the MMS bucket, signed and served through the edge's media relay. */
+  async media(kind: "gps-jpeg"): Promise<{ url: string; sha256: string; content_type: string }> {
+    if (kind !== "gps-jpeg") throw new Error("probe: no such picture");
+    const bytes = gpsJpeg();
+    const storage = `${this.#options.supabaseUrl.replace(/\/+$/, "")}/storage/v1`;
+    const object = `${MEDIA_BUCKET}/${PREFIX}/gps.jpg`;
+    const uploaded = await this.#fetch(`${storage}/object/${object}`, {
+      method: "POST",
+      headers: this.#headers({ "content-type": "image/jpeg", "x-upsert": "true" }),
+      body: bytes,
+    });
+    if (!uploaded.ok) throw new Error(`probe: uploading the picture failed with ${uploaded.status}`);
+    const signed = await this.#fetch(`${storage}/object/sign/${object}`, {
+      method: "POST",
+      headers: this.#headers({ "content-type": "application/json" }),
+      body: JSON.stringify({ expiresIn: SIGNED_FOR_S }),
+    });
+    if (!signed.ok) throw new Error(`probe: signing the picture failed with ${signed.status}`);
+    const { signedURL } = (await signed.json()) as { signedURL?: string };
+    if (typeof signedURL !== "string" || !signedURL.startsWith("/object/sign/")) throw new Error("probe: storage returned no signed URL");
+    return {
+      url: `${this.#options.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.mediaPrefix}${signedURL.slice(1)}`,
+      sha256: sha256Hex(bytes),
+      content_type: "image/jpeg",
+    };
   }
 
   async #upload(surface: Surface): Promise<void> {

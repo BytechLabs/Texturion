@@ -17,7 +17,9 @@ export interface RobotApi {
     text: string;
     scenario: string;
     lease_id?: string;
-  }): Promise<{ id: string }>;
+    /** Sends the robot's S22 picture with the text. */
+    media?: "gps-jpeg";
+  }): Promise<{ id: string; media_sha256?: string }>;
   inbox(query: { to_role?: string; since?: number }): Promise<InboxMessage[]>;
   sink(query: { since?: number; type?: string }): Promise<SinkDelivery[]>;
 }
@@ -46,7 +48,7 @@ export class RobotClient implements RobotApi {
   }
 
   sms(message: Parameters<RobotApi["sms"]>[0]) {
-    return this.#json<{ id: string }>("POST", "/sms", message);
+    return this.#json<{ id: string; media_sha256?: string }>("POST", "/sms", message);
   }
 
   inbox(query: { to_role?: string; since?: number }) {

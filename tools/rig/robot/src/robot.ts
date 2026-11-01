@@ -17,6 +17,10 @@ import { type Surface } from "./audio/surfaces.ts";
 import { judgeRecording, type RecordingJudgement } from "./judge.ts";
 import type { ProbeSource } from "./probe.ts";
 import { GuardRefusedError, type CallControlApi, type RequestContext } from "./telnyx.ts";
+import type { Transcriber } from "./audio/transcribe.ts";
+
+/** How a plan names a number held for one scenario: by its Telnyx id, never its digits. */
+export const NUMBER_ID_PREFIX = "number-id:";
 
 export const ROBOT_ROLES = ["ROBOT-1", "ROBOT-2", "STRANGER-1"] as const satisfies readonly StandingRole[];
 export type RobotRole = (typeof ROBOT_ROLES)[number];
@@ -38,7 +42,11 @@ export interface CallPlan {
   direction: "outbound" | "inbound";
   /** The robot's number: the caller when dialing, the called number when expecting. */
   role: RobotRole;
-  /** Outbound only: a role (DEV-W1) or a `sip:` address. Never a raw number. */
+  /**
+   * Outbound only: a role (DEV-W1), a `sip:` address, or `number-id:<Telnyx id>`
+   * for a number held for one scenario (S28's), which the robot looks up
+   * through the guard. Never a raw number.
+   */
   to?: string;
   /** Inbound only: how long the robot lets it ring. */
   answer_after_ms?: number;
@@ -55,6 +63,10 @@ export interface CallPlan {
   calibrate?: Surface;
   /** Judging window from answer; defaults to 2-12 s. */
   window?: { start_ms: number; end_ms: number };
+  /** Named windows from answer, each judged for which codes it holds: hold, mute, before and after a transfer. */
+  segments?: { name: string; start_ms: number; end_ms: number }[];
+  /** Transcribe the recording locally as well, for a prompt or a notice the robot should hear. */
+  transcribe?: boolean;
   /** Wait for the voicemail beep, then say this. */
   voicemail?: { phrase: string; beep_timeout_ms?: number };
   gather?: { max_digits: number; terminating_digit?: string; timeout_ms?: number };
@@ -86,6 +98,8 @@ export interface CallRecord {
   dtmf: string;
   gathered?: { digits: string; status?: string };
   judgement?: RecordingJudgement;
+  /** The recording's words, when the plan asked for them. */
+  transcript?: string;
   recording_deleted?: boolean;
   errors: string[];
 }
@@ -121,6 +135,10 @@ export interface RobotOptions {
   recordMode?: "inbound" | "dual";
   recordingWaitMs?: number;
   newId?: () => string;
+  /** A held number's E.164 by its Telnyx id, read through the guard; undefined when it is not in the partition. */
+  resolveNumberId?: (telnyxPhoneNumberId: string) => Promise<string | undefined>;
+  /** Local speech-to-text, for plans that ask for a transcript. */
+  transcriber?: Transcriber;
 }
 
 const DEFAULT_EXPECT_WITHIN_MS = 120_000;
@@ -186,7 +204,7 @@ export class Robot {
       if (plan.direction !== "outbound") throw new Error("dial: the plan is not outbound");
       if (!plan.lease_id) throw new Error("dial: a run lease is required");
       const from = this.#numberOf(plan.role);
-      const to = this.#destination(plan.to);
+      const to = await this.#destination(plan.to);
       const ringSecs = plan.ring_timeout_secs ?? 30;
       const ids = await this.#o.telnyx.dial(
         {
@@ -430,7 +448,12 @@ export class Robot {
         windowEndMs: record.plan.window?.end_ms,
         margins: this.#o.margins?.(),
         calibrate: record.plan.calibrate,
+        segments: record.plan.segments,
       });
+      if (record.plan.transcribe) {
+        if (!this.#o.transcriber) record.errors.push("transcribe: the robot has no transcriber");
+        else record.transcript = await this.#o.transcriber.transcribe(wav);
+      }
       if (record.judgement.calibration) this.#o.onCalibration?.(record.judgement.calibration);
     } catch (error) {
       record.errors.push(`judge: ${describe(error)}`);
@@ -484,9 +507,17 @@ export class Robot {
     return number;
   }
 
-  #destination(to: string | undefined): string {
+  async #destination(to: string | undefined): Promise<string> {
     if (!to) throw new Error("dial: no destination");
     if (to.startsWith("sip:")) return to;
+    if (to.startsWith(NUMBER_ID_PREFIX)) {
+      const id = to.slice(NUMBER_ID_PREFIX.length);
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new Error("dial: not a Telnyx number id");
+      if (!this.#o.resolveNumberId) throw new Error("dial: this robot cannot look a held number up");
+      const number = await this.#o.resolveNumberId(id);
+      if (!number) throw new Error("dial: the guard does not list that number in the partition");
+      return number;
+    }
     if (/^\+?\d/.test(to)) throw new Error("dial: destinations are roles or sip: addresses, never raw numbers");
     const number = this.#o.numbers.number(to);
     if (!number) throw new Error(`dial: no number is configured for ${to}`);
