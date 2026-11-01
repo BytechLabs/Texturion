@@ -337,6 +337,18 @@ export function buildNonprodApk({ root, settings, store, publishableKey, variant
 }
 
 /**
+ * `rig apk`: builds, and places the release-style build where the device lane
+ * installs it. A debuggable build is for a person, so it stays where Gradle
+ * wrote it.
+ */
+export function buildApk({ debuggable = false, dir, sha, log, build = buildNonprodApk, ...options }) {
+  const apk = build({ ...options, variant: debuggable ? "nonprodDebug" : "nonprod", log });
+  log(`apk: ${apk}`);
+  if (!debuggable) placeApk({ apk, dir, sha, log });
+  return apk;
+}
+
+/**
  * Puts a checked build where the device lane installs it. The build it
  * replaces becomes previous.apk, which D12 upgrades from, unless both are of
  * one commit: a rebuild must not make the release before it unreachable.

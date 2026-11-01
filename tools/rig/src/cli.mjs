@@ -5,7 +5,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { APK_DIR, buildNonprodApk, placeApk } from "./apk.mjs";
+import { APK_DIR, buildApk } from "./apk.mjs";
 import { bootstrapDb } from "./bootstrap-db.mjs";
 import { fireCron, scheduledMinute } from "./cron.mjs";
 import { deploy, resolveSha, STACK_EXCLUDES } from "./deploy.mjs";
@@ -198,17 +198,16 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
         root = join(layout.worktrees, `apk-${sha}`);
         if (!existsSync(root)) run("git", ["-C", TOOLING_ROOT, "worktree", "add", "--detach", root, sha], { inherit: true });
       }
-      const apk = buildNonprodApk({
+      buildApk({
         root,
         settings,
         store,
         publishableKey: requireStatus(layout).publishableKey,
-        variant: flags.debuggable ? "nonprodDebug" : "nonprod",
+        debuggable: Boolean(flags.debuggable),
+        dir: join(layout.work, APK_DIR),
+        sha,
         log,
       });
-      log(`apk: ${apk}`);
-      // The lane installs the release-style build; a debuggable one is for a person.
-      if (!flags.debuggable) placeApk({ apk, dir: join(layout.work, APK_DIR), sha, log });
       return 0;
     }
 

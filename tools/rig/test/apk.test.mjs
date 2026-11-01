@@ -13,6 +13,7 @@ import {
   NONPROD_PACKAGE,
   apkPackage,
   apkRefusal,
+  buildApk,
   buildNonprodApk,
   ensureNonprodKeystore,
   keytoolCommand,
@@ -367,5 +368,31 @@ test("a current.apk placed by hand, with no record of its commit, becomes previo
     placeApk({ apk: built("b.apk", "build B"), dir, sha: SHA_A, log: () => {} });
     assert.equal(read(PREVIOUS_APK), "build A");
     assert.equal(read(CURRENT_APK), "build B");
+  });
+});
+
+test("rig apk places its nonprod build for the device lane", () => {
+  withApkDir(({ dir, built, read }) => {
+    const variants = [];
+    const build = ({ variant }) => {
+      variants.push(variant);
+      return built("app-nonprod.apk", "nonprod build");
+    };
+    buildApk({ build, dir, sha: SHA_A, log: () => {} });
+    assert.deepEqual(variants, ["nonprod"]);
+    assert.equal(read(CURRENT_APK), "nonprod build");
+  });
+});
+
+test("rig apk --debuggable leaves the device lane's builds as they were", () => {
+  withApkDir(({ dir, built }) => {
+    const variants = [];
+    const build = ({ variant }) => {
+      variants.push(variant);
+      return built("app-nonprod-debug.apk", "debuggable build");
+    };
+    buildApk({ build, debuggable: true, dir, sha: SHA_A, log: () => {} });
+    assert.deepEqual(variants, ["nonprodDebug"]);
+    assert.equal(existsSync(dir), false);
   });
 });
