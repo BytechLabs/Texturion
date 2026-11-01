@@ -28,7 +28,7 @@ export const USAGE = `rig <command>
   bootstrap-db [--pre-seam]       rig settings on the database, pools restarted, posture proved
   seed                            the tenants, numbers from the guard, audiences at rest
   cron <expr> [--time <ms>]       fire one cron on the local API
-  health [--only a,b] [--json]    R00's checks that need no hardware
+  health [--only a,b] [--json]    R00's checks that boot no emulator
   apk --ref <ref> | --worktree <path> [--debuggable]
                                   build the nonprod APK; refuse any other package;
                                   place a release-style build as work/apk/current.apk

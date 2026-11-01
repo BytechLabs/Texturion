@@ -1,9 +1,10 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { codeSamples, delay, mix } from "@loonext/rig-robot";
 import { afterAll, describe, expect, it } from "vitest";
-import { Adb, emulatorArgs, integerResource, manifestMetaValue, parsePackagePath, type Exec } from "./android/adb.ts";
+import { Adb, integerResource, manifestMetaValue, parsePackagePath, type Exec } from "./android/adb.ts";
+import { ADB_VM_PORT, HOSTD_PORT, MAX_BOOTED, RIG_DEVICES } from "./android/devices.ts";
 import { BLOCKED_HOSTS, chromiumArgs, hostResolverRules } from "./browser/args.ts";
 import { judgeCapture } from "./browser/lane.ts";
 import type { PageCapture } from "./browser/page-judge.ts";
@@ -29,6 +30,32 @@ describe("Chromium's launch arguments", () => {
     expect(() => hostResolverRules(["evil.com ~NOTFOUND, MAP *"])).toThrow(/not a host pattern/);
   });
 });
+
+describe("the rig's devices", () => {
+  it("are the host contract's, port for port", () => {
+    const contract = JSON.parse(readFileSync(new URL("../../host/contract.json", import.meta.url), "utf8")) as {
+      hostd: { port: number };
+      adb: { vm_port: number };
+      max_booted: number;
+      devices: { name: string; avd: string; api: number; console: number; grpc: number }[];
+    };
+    expect(HOSTD_PORT).toBe(contract.hostd.port);
+    expect(ADB_VM_PORT).toBe(contract.adb.vm_port);
+    expect(MAX_BOOTED).toBe(contract.max_booted);
+    expect(RIG_DEVICES).toEqual(
+      Object.fromEntries(
+        contract.devices.map((d) => [d.name, { avd: d.avd, api: d.api, console: d.console, grpc: d.grpc, serial: `emulator-${d.console}` }]),
+      ),
+    );
+  });
+});
+
+/** An adb whose tunnel answers. */
+function rigAdb(serial: string, exec: Exec): Adb {
+  return new Adb({ serial, exec, portCheck: async () => true });
+}
+
+const ADB = "adb -H 127.0.0.1 -P 15037";
 
 function fakeExec(answers: Record<string, string> = {}) {
   const calls: string[] = [];
@@ -69,53 +96,55 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
 
   it("kills the app as memory pressure would, apart from force-stop", async () => {
     const { exec, calls } = fakeExec();
-    const adb = new Adb({ serial: "emulator-5554", exec });
+    const adb = rigAdb("emulator-5554", exec);
     await adb.kill(PKG);
     await adb.forceStop(PKG);
     expect(calls).toEqual([
-      "adb -s emulator-5554 shell input keyevent KEYCODE_HOME",
-      `adb -s emulator-5554 shell am kill ${PKG}`,
-      `adb -s emulator-5554 shell am force-stop ${PKG}`,
+      `${ADB} -s emulator-5554 shell input keyevent KEYCODE_HOME`,
+      `${ADB} -s emulator-5554 shell am kill ${PKG}`,
+      `${ADB} -s emulator-5554 shell am force-stop ${PKG}`,
     ]);
   });
 
-  it("forces Doze and puts the app in a standby bucket", async () => {
-    const { exec, calls } = fakeExec({ "deviceidle get deep": "IDLE\n" });
-    const adb = new Adb({ serial: "PIXEL123", exec });
+  it("forces Doze, with Doze enabled first, and puts the app in a standby bucket", async () => {
+    const { exec, calls } = fakeExec({ "deviceidle get deep": "IDLE\n", "deviceidle force-idle": "Now forced in to deep idle mode\n" });
+    const adb = rigAdb("emulator-5560", exec);
     await adb.forceDoze();
     expect(await adb.dozeState()).toBe("IDLE");
     await adb.setStandbyBucket(PKG, "rare");
     await adb.exitDoze();
     expect(calls).toEqual([
-      "adb -s PIXEL123 shell dumpsys battery unplug",
-      "adb -s PIXEL123 shell dumpsys deviceidle force-idle",
-      "adb -s PIXEL123 shell dumpsys deviceidle get deep",
-      `adb -s PIXEL123 shell am set-standby-bucket ${PKG} rare`,
-      "adb -s PIXEL123 shell dumpsys deviceidle unforce",
-      "adb -s PIXEL123 shell dumpsys battery reset",
+      `${ADB} -s emulator-5560 shell dumpsys battery unplug`,
+      `${ADB} -s emulator-5560 shell dumpsys deviceidle enable all`,
+      `${ADB} -s emulator-5560 shell dumpsys deviceidle force-idle`,
+      `${ADB} -s emulator-5560 shell dumpsys deviceidle get deep`,
+      `${ADB} -s emulator-5560 shell dumpsys deviceidle get deep`,
+      `${ADB} -s emulator-5560 shell am set-standby-bucket ${PKG} rare`,
+      `${ADB} -s emulator-5560 shell dumpsys deviceidle unforce`,
+      `${ADB} -s emulator-5560 shell dumpsys battery reset`,
     ]);
     await expect(adb.setStandbyBucket(PKG, "nap" as never)).rejects.toThrow(/standby bucket/);
   });
 
   it("locks, and unlocks by typing the PIN", async () => {
     const { exec, calls } = fakeExec();
-    const adb = new Adb({ serial: "PIXEL123", exec });
+    const adb = rigAdb("PIXEL123", exec);
     await adb.lock();
     await adb.unlock("2468");
     expect(calls).toEqual([
-      "adb -s PIXEL123 shell input keyevent KEYCODE_SLEEP",
-      "adb -s PIXEL123 shell input keyevent KEYCODE_WAKEUP",
-      "adb -s PIXEL123 shell wm dismiss-keyguard",
-      "adb -s PIXEL123 shell input text 2468",
-      "adb -s PIXEL123 shell input keyevent KEYCODE_ENTER",
+      `${ADB} -s PIXEL123 shell input keyevent KEYCODE_SLEEP`,
+      `${ADB} -s PIXEL123 shell input keyevent KEYCODE_WAKEUP`,
+      `${ADB} -s PIXEL123 shell wm dismiss-keyguard`,
+      `${ADB} -s PIXEL123 shell input text 2468`,
+      `${ADB} -s PIXEL123 shell input keyevent KEYCODE_ENTER`,
     ]);
     await expect(adb.unlock("12; reboot")).rejects.toThrow(/PIN/);
   });
 
   it("reboots and waits for boot to complete", async () => {
     const { exec, calls } = fakeExec({ "getprop sys.boot_completed": "1\n" });
-    await new Adb({ serial: "PIXEL123", exec }).reboot();
-    expect(calls.slice(0, 2)).toEqual(["adb -s PIXEL123 reboot", "adb -s PIXEL123 wait-for-device"]);
+    await rigAdb("PIXEL123", exec).reboot();
+    expect(calls.slice(0, 2)).toEqual([`${ADB} -s PIXEL123 reboot`, `${ADB} -s PIXEL123 wait-for-device`]);
   });
 
   const dir = mkdtempSync(join(tmpdir(), "rig-apk-test-"));
@@ -125,7 +154,7 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
     const apk = join(dir, "app-nonprod.apk");
     writeFileSync(apk, "not really an apk");
     const { exec, calls } = fakeExec({ "dump packagename": `${PKG}\n`, "pm list packages": `package:${PKG}\n` });
-    expect(await new Adb({ serial: "PIXEL123", exec }).install(apk)).toBe(PKG);
+    expect(await rigAdb("PIXEL123", exec).install(apk)).toBe(PKG);
     const install = calls.find((c) => c.includes(" install -r "))!;
     expect(install).not.toContain(apk);
     expect(install).toMatch(/rig-apk-.*app-nonprod\.apk$/);
@@ -135,7 +164,7 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
     const apk = join(dir, "app-release.apk");
     writeFileSync(apk, "not really an apk");
     const { exec, calls } = fakeExec({ "dump packagename": "com.loonext.android\n" });
-    await expect(new Adb({ serial: "PIXEL123", exec }).install(apk)).rejects.toThrow(/only \.nonprod builds/);
+    await expect(rigAdb("PIXEL123", exec).install(apk)).rejects.toThrow(/only \.nonprod builds/);
     expect(calls.some((c) => c.includes(" install "))).toBe(false);
   });
 
@@ -145,19 +174,19 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
       "dump xmltree": MANIFEST,
       "dump resources": RESOURCES,
     });
-    expect(await new Adb({ serial: "PIXEL123", exec }).manifestInteger(PKG, "com.google.android.gms.version")).toBe(12_451_000);
+    expect(await rigAdb("PIXEL123", exec).manifestInteger(PKG, "com.google.android.gms.version")).toBe(12_451_000);
     const pull = calls.find((c) => c.includes(" pull "))!;
-    expect(pull).toMatch(new RegExp(`^adb -s PIXEL123 pull /data/app/~~aB==/${PKG}-cD==/base\\.apk .*rig-apk-.*base\\.apk$`));
+    expect(pull).toMatch(new RegExp(`^adb -H 127\\.0\\.0\\.1 -P 15037 -s PIXEL123 pull /data/app/~~aB==/${PKG}-cD==/base\\.apk .*rig-apk-.*base\\.apk$`));
     expect(calls.filter((c) => c.startsWith("aapt2 dump"))).toHaveLength(2);
     expect(existsSync(dirname(pull.split(" ").at(-1)!))).toBe(false);
 
     const undeclared = fakeExec({ "pm path": `package:/data/app/${PKG}/base.apk`, "dump xmltree": MANIFEST.replaceAll("com.google.android.gms.version", "com.other") });
-    expect(await new Adb({ serial: "PIXEL123", exec: undeclared.exec }).manifestInteger(PKG, "com.google.android.gms.version")).toBeNull();
+    expect(await rigAdb("PIXEL123", undeclared.exec).manifestInteger(PKG, "com.google.android.gms.version")).toBeNull();
     expect(undeclared.calls.some((c) => c.includes("dump resources"))).toBe(false);
 
     const unresolved = fakeExec({ "pm path": `package:/data/app/${PKG}/base.apk`, "dump xmltree": MANIFEST, "dump resources": "Package name=x id=7f\n" });
-    await expect(new Adb({ serial: "PIXEL123", exec: unresolved.exec }).manifestInteger(PKG, "com.google.android.gms.version")).rejects.toThrow(/does not hold/);
-    await expect(new Adb({ serial: "PIXEL123", exec: fakeExec().exec }).manifestInteger(PKG, "com.google.android.gms.version")).rejects.toThrow(/not installed/);
+    await expect(rigAdb("PIXEL123", unresolved.exec).manifestInteger(PKG, "com.google.android.gms.version")).rejects.toThrow(/does not hold/);
+    await expect(rigAdb("PIXEL123", fakeExec().exec).manifestInteger(PKG, "com.google.android.gms.version")).rejects.toThrow(/not installed/);
   });
 
   it("reads a meta-data value whether the manifest states it or names a resource", () => {
@@ -171,24 +200,9 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
   });
 
   it("refuses shell arguments that a shell would interpret", async () => {
-    const adb = new Adb({ serial: "PIXEL123", exec: fakeExec().exec });
+    const adb = rigAdb("PIXEL123", fakeExec().exec);
     await expect(adb.shell("echo", "$(reboot)")).rejects.toThrow(/special characters/);
     expect(() => new Adb({ serial: "a;b" })).toThrow(/serial/);
-  });
-
-  it("starts emulators headless on an even console port", () => {
-    expect(emulatorArgs("rig-api35", 5556)).toEqual([
-      "-avd",
-      "rig-api35",
-      "-port",
-      "5556",
-      "-no-window",
-      "-no-snapshot-save",
-      "-no-boot-anim",
-      "-gpu",
-      "swiftshader_indirect",
-    ]);
-    expect(() => emulatorArgs("rig-api35", 5555)).toThrow(/even/);
   });
 });
 

@@ -1,17 +1,21 @@
 /**
  * The rig's health and the Android call scenarios: R00, D01, D07, D08, D09,
  * D13 and D14. The calls ring or start on QA-A's DEV-A1, whose surfaces are
- * the dispatcher's page and the Pixel, signed in as QA-A's technician.
+ * the dispatcher's page and the device lane's emulator (`pixel`, the AVD
+ * rig-pixel), signed in as QA-A's technician. Its audio goes through the
+ * emulator's gRPC controller, and its network through the emulator's console.
  *
  * None of these sends a text, so no body carries the nonce; what each run
- * changes (ring audience, the Pixel, the access point, D14's voicemail) is
+ * changes (ring audience, the emulator and its network, D14's voicemail) is
  * undone by the lease.
  */
 import type { GuardHealth } from "@loonext/rig-protocol";
-import type { NetworkImpairment } from "@loonext/rig-lanes";
+import type { DeviceState, HostdHealth, NetworkShape, RigDeviceName } from "@loonext/rig-lanes";
 import type { CallRecord, Detection, Surface } from "@loonext/rig-robot";
 import { MAX_WORD_ERROR, VOICEMAIL_PHRASE } from "./calls.ts";
 import {
+  audioFault,
+  audioReady,
   fail,
   infra,
   pass,
@@ -88,7 +92,7 @@ function isResult(value: object): value is ScenarioResult {
   return "outcome" in value;
 }
 
-/** The Pixel with its Bluetooth audio, or the reason the rig cannot give it. */
+/** The device lane's emulator with its gRPC audio, or the reason the rig cannot give it. */
 async function pixelWithAudio(ctx: ScenarioContext): Promise<{ device: DeviceApi; audio: AudioLinkApi } | ScenarioResult> {
   let device: DeviceApi;
   try {
@@ -96,13 +100,21 @@ async function pixelWithAudio(ctx: ScenarioContext): Promise<{ device: DeviceApi
   } catch (error) {
     return infra("pixel", (error as Error).message);
   }
-  if (!(await device.reachable())) return infra("pixel", "adb does not see the Pixel, or it has not finished booting");
-  if (!device.audio) return infra("pixel-audio", "the rig's store names no Bluetooth address for the Pixel");
-  if (!(await device.audio.connected())) return infra("pixel-audio", "the Pixel's Bluetooth hands-free link is not connected");
-  return { device, audio: device.audio };
+  if (!(await device.reachable())) return infra("pixel", "adb does not see the device lane's emulator, or it has not finished booting");
+  return (await audioReady(device)) ?? { device, audio: device.audio };
 }
 
-/** The Pixel at rest is unlocked; one found locked is unlocked, and the reset puts the rest back too. */
+/** Plays the emulator's code; a refusal is the rig's to report. */
+async function playPixelCode(audio: AudioLinkApi): Promise<ScenarioResult | undefined> {
+  try {
+    await audio.playCode("pixel");
+    return undefined;
+  } catch (error) {
+    return audioFault(error);
+  }
+}
+
+/** The device lane at rest is unlocked; one found locked is unlocked, and the reset puts the rest back too. */
 async function readyToDial(ctx: ScenarioContext, device: DeviceApi): Promise<void> {
   ctx.lease.registerUndo({ kind: "device.reset", params: { device: "pixel" } });
   if ((await device.state()).locked) await device.unlock();
@@ -118,7 +130,7 @@ async function dialFromPixel(device: DeviceApi): Promise<ScenarioResult | undefi
   }
 }
 
-/** Ends whatever call the Pixel still holds, so a robot that never hung up cannot leave it open. */
+/** Ends whatever call the emulator still holds, so a robot that never hung up cannot leave it open. */
 async function endPixelCall(device: DeviceApi): Promise<void> {
   try {
     const state = await device.callState();
@@ -155,7 +167,7 @@ function untilAnswered(ctx: ScenarioContext, planId: string, timeoutMs: number):
   }, timeoutMs, 500);
 }
 
-/** How long until the Pixel holds no call, or undefined at the deadline. */
+/** How long until the emulator holds no call, or undefined at the deadline. */
 function pixelCleared(ctx: ScenarioContext, device: DeviceApi, from: number, timeoutMs: number): Promise<number | undefined> {
   return poll(ctx, async () => (CLEARED.has(await device.callState()) ? ctx.now() - from : undefined), timeoutMs, 250);
 }
@@ -225,6 +237,48 @@ async function guardFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
   return found;
 }
 
+/** hostd's report on the Windows host: WHPX and the tunnel must be up; a pending Windows reboot is only reported. */
+async function hostFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
+  let host: HostdHealth;
+  try {
+    host = await ctx.devices.hostHealth();
+  } catch (error) {
+    return [infra("hostd", (error as Error).message)];
+  }
+  ctx.evidence.host = { ...host };
+  const found: ScenarioResult[] = [];
+  if (!host.whpx_usable) found.push(fail("whpx_unusable", "hostd reports WHPX unusable, so no emulator boots accelerated"));
+  if (!host.tunnel_up) found.push(fail("hostd_tunnel_down", "hostd reports its tunnel into the VM down"));
+  return found;
+}
+
+/**
+ * What every booted emulator must show: deep Doze enabled, which each boot
+ * turns off until rigd enables it again, and Play services at the versionName
+ * its image pins. Nothing updates Play services on a headless, signed-out
+ * image, so a different one means the image changed under the rig.
+ */
+function bootedFindings(ctx: ScenarioContext, device: DeviceApi, state: DeviceState, evidence: Record<string, unknown>): ScenarioResult[] {
+  const found: ScenarioResult[] = [];
+  const lane = device.name === "pixel" ? "pixel" : "emulator";
+  if (state.deep_idle_enabled === null) found.push(infra(device.name, "whether deep Doze is enabled could not be read"));
+  else if (!state.deep_idle_enabled) found.push(fail(`${lane}_deep_idle_disabled`, `${device.name} has deep Doze off, as a boot leaves it until rigd enables it`));
+  let pin: string | undefined;
+  try {
+    pin = ctx.devices.playServicesPin(device.name as RigDeviceName);
+  } catch (error) {
+    found.push(infra("store", (error as Error).message));
+    return found;
+  }
+  evidence.play_services_pin = pin ?? null;
+  if (pin === undefined) found.push(infra("store", `play-services-pins.json pins no Play services version for ${device.name}`));
+  else if (state.play_services_version_name === null) found.push(infra(device.name, "Play services' versionName could not be read"));
+  else if (state.play_services_version_name !== pin) {
+    found.push(infra("play-services-pin", `${device.name} runs Play services ${state.play_services_version_name}, but play-services-pins.json pins ${pin}: its image changed`));
+  }
+  return found;
+}
+
 async function pixelFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
   let pixel: DeviceApi;
   try {
@@ -232,26 +286,28 @@ async function pixelFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
   } catch (error) {
     return [infra("pixel", (error as Error).message)];
   }
-  if (!(await pixel.reachable())) return [infra("pixel", "adb does not see the Pixel, or it has not finished booting")];
+  if (!(await pixel.reachable())) return [infra("pixel", "adb does not see the device lane's emulator booted")];
   const state = await pixel.state();
   const found: ScenarioResult[] = [];
   const evidence: Record<string, unknown> = {
     locked: state.locked,
-    bluetooth_bonded: state.bluetooth_bonded,
+    deep_idle_enabled: state.deep_idle_enabled,
     play_services_version: state.play_services_version,
+    play_services_version_name: state.play_services_version_name,
   };
   ctx.evidence.pixel = evidence;
-  // A run that holds the Pixel while it prepares has put it out of rest on purpose.
+  // A run that holds the device lane while it prepares has put it out of rest on purpose.
   const holder = ctx.laneHeldBy("device");
   if (holder) evidence.held_by = holder;
-  else if (state.locked === null) found.push(infra("pixel", "the Pixel's lock state could not be read"));
-  else if (state.locked) found.push(fail("pixel_locked", "the Pixel is locked, and at rest it is not"));
-  if (state.bluetooth_bonded === null) found.push(infra("pixel", "the Pixel's Bluetooth bonds could not be read"));
-  else if (state.bluetooth_bonded < 1) found.push(fail("pixel_not_paired", "the Pixel has no Bluetooth bond, so the rig's hands-free unit is gone"));
-  if (!pixel.audio) found.push(infra("pixel-audio", "the rig's store names no Bluetooth address for the Pixel"));
+  else if (state.locked === null) found.push(infra("pixel", "the device lane's lock state could not be read"));
+  else if (state.locked) found.push(fail("pixel_locked", "the device lane's emulator is locked, and at rest it is not"));
+  found.push(...bootedFindings(ctx, pixel, state, evidence));
+  evidence.audio_connected = await pixel.audio.connected();
+  evidence.audio_proven = await pixel.audio.proven();
+  if (!evidence.audio_connected) found.push(fail("pixel_audio_link_down", "the device lane's gRPC audio link does not answer getStatus"));
   else {
-    evidence.audio_connected = await pixel.audio.connected();
-    if (!evidence.audio_connected) found.push(fail("pixel_audio_disconnected", "the Pixel's Bluetooth hands-free link is not connected"));
+    const unproven = await audioReady(pixel);
+    if (unproven) found.push(unproven);
   }
   let minimum: number | null;
   try {
@@ -269,19 +325,33 @@ async function pixelFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
   return found;
 }
 
-/** Emulators are only checked: booting them belongs to D11, not to a check every 15 minutes. */
+/**
+ * E01's AVDs are checked when booted. At most three emulators run at once,
+ * the device lane's among them, so one that is down is E01's to boot.
+ */
 async function emulatorFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
-  const reachable: Record<string, boolean> = {};
-  for (const api of EMULATOR_APIS) reachable[api] = await ctx.devices.emulator(api).reachable();
-  ctx.evidence.emulators = reachable;
-  return EMULATOR_APIS.filter((api) => !reachable[api]).map((api) => infra(`emulator-${api}`, `adb does not see the API ${api} emulator booted`));
+  const booted: Record<string, boolean> = {};
+  const found: ScenarioResult[] = [];
+  for (const api of EMULATOR_APIS) {
+    const device = ctx.devices.emulator(api);
+    booted[api] = await device.reachable();
+    if (booted[api]) found.push(...bootedFindings(ctx, device, await device.state(), {}));
+  }
+  ctx.evidence.emulators = booted;
+  return found;
 }
 
-/** R00: `rig health`, the guard, the Pixel and the emulators, and the room published with the scenarios it blocks. */
+/** R00: `rig health`, the guard, hostd, the device lane and the booted emulators, and the room published with the scenarios it blocks. */
 export const R00: ScenarioRunner = {
   id: "R00",
   async run(ctx) {
-    const findings = [...(await healthFindings(ctx)), ...(await guardFindings(ctx)), ...(await pixelFindings(ctx)), ...(await emulatorFindings(ctx))];
+    const findings = [
+      ...(await healthFindings(ctx)),
+      ...(await guardFindings(ctx)),
+      ...(await hostFindings(ctx)),
+      ...(await pixelFindings(ctx)),
+      ...(await emulatorFindings(ctx)),
+    ];
     ctx.evidence.findings = findings.map((r) =>
       r.outcome === "fail" ? { fail: r.failure_class } : r.outcome === "infra" ? { infra: r.component } : { outcome: r.outcome },
     );
@@ -300,8 +370,8 @@ export function d01Answerer(at: number): "page" | "pixel" {
 
 /**
  * D01: ROBOT-1 rings DEV-A1 with the dispatcher added, so the page and the
- * Pixel both ring. The Pixel plays its code whichever answers, so a leg
- * bridged that should not be is heard.
+ * device lane's emulator both ring. The emulator plays its code whichever
+ * answers, so a leg bridged that should not be is heard.
  */
 export const D01: ScenarioRunner = {
   id: "D01",
@@ -314,7 +384,8 @@ export const D01: ScenarioRunner = {
     const page = await ctx.browser.open(DISPATCHER, DISPATCHER);
     ctx.evidence.audience_before = await setAudience(ctx, { [DISPATCHER]: "text" });
 
-    await pixel.audio.playCode("pixel");
+    const unplayed = await playPixelCode(pixel.audio);
+    if (unplayed) return unplayed;
     try {
       const since = ctx.now();
       const dialed = await ctx.robot.dial({
@@ -336,9 +407,9 @@ export const D01: ScenarioRunner = {
         pageRingMs === undefined
           ? fail("page_did_not_ring", "the dispatcher's page did not ring within 8 s")
           : rings?.telecom_ms === undefined
-            ? fail("pixel_not_ringing", "Telecom did not report the call ringing on the Pixel within 8 s")
+            ? fail("pixel_not_ringing", "Telecom did not report the call ringing on the emulator within 8 s")
             : rings.full_screen_ms === undefined
-              ? fail("no_full_screen_ring", "the Pixel's full-screen ring did not show within 8 s")
+              ? fail("no_full_screen_ring", "the emulator's full-screen ring did not show within 8 s")
               : undefined;
       if (unrung) {
         await ctx.robot.wait(dialed.plan_id, 90_000);
@@ -348,7 +419,7 @@ export const D01: ScenarioRunner = {
       if (answerer === "page") await page.answer();
       else if (!(await pixel.device.tap("call_answer"))) {
         await ctx.robot.wait(dialed.plan_id, 90_000);
-        return fail("pixel_answer_control_missing", "the Pixel's ring offered no answer control");
+        return fail("pixel_answer_control_missing", "the emulator's ring offered no answer control");
       }
       const answeredAt = ctx.now();
       const clearedMs =
@@ -360,7 +431,7 @@ export const D01: ScenarioRunner = {
       const robot = robotVerdict(record, surface, "robot_did_not_hear_answerer");
       if (robot) return robot;
       if (clearedMs === undefined) {
-        return fail("other_surface_kept_ringing", `${answerer === "page" ? "the Pixel" : "the page"} still showed the call 3 s after the ${answerer} answered`);
+        return fail("other_surface_kept_ringing", `${answerer === "page" ? "the emulator" : "the page"} still showed the call 3 s after the ${answerer} answered`);
       }
       return (await oneWinner(ctx, since, MEMBER_OF[surface]!)) ?? pass();
     } finally {
@@ -372,7 +443,7 @@ export const D01: ScenarioRunner = {
 
 const PIXEL_HEARS_MS = 12_000;
 
-/** D07: the Pixel calls ROBOT-1 from DEV-A1; codes are heard both ways and the caller ID is DEV-A1. */
+/** D07: the device lane's emulator calls ROBOT-1 from DEV-A1; codes are heard both ways and the caller ID is DEV-A1. */
 export const D07: ScenarioRunner = {
   id: "D07",
   async run(ctx) {
@@ -392,13 +463,20 @@ export const D07: ScenarioRunner = {
     const unplanned = notStarted(plan);
     if (unplanned) return unplanned;
 
-    await pixel.audio.playCode("pixel");
+    const unplayed = await playPixelCode(pixel.audio);
+    if (unplayed) return unplayed;
     try {
       const undialed = await dialFromPixel(pixel.device);
       if (undialed) return undialed;
       const answered = await untilAnswered(ctx, plan.plan_id, 90_000);
-      // The Pixel's ear opens at answer, the window the robot's code plays in.
-      const heard = answered?.answered_at ? await pixel.audio.hear({ stream: "call", ms: PIXEL_HEARS_MS, own: "pixel" }) : undefined;
+      // The emulator's ear opens at answer, the window the robot's code plays in.
+      let heard: Detection | undefined;
+      try {
+        heard = answered?.answered_at ? await pixel.audio.hear({ stream: "call", ms: PIXEL_HEARS_MS, own: "pixel" }) : undefined;
+      } catch (error) {
+        await ctx.robot.wait(plan.plan_id, 180_000);
+        return audioFault(error);
+      }
       const record = await ctx.robot.wait(plan.plan_id, 180_000);
       ctx.evidence.call = { ...callEvidence(record), pixel_heard: heard ? heardEvidence(heard) : undefined };
 
@@ -406,7 +484,7 @@ export const D07: ScenarioRunner = {
       if (robot) return robot;
       if (record.from_role !== NUMBER) return fail("wrong_caller_id", `the robot saw the call from ${record.from_role ?? "nobody"}, not DEV-A1`);
       if (heard?.answered !== "robot") {
-        return fail("pixel_did_not_hear_robot", `the Pixel heard ${heard?.heard.join(", ") || heard?.verdict || "nothing"}`);
+        return fail("pixel_did_not_hear_robot", `the emulator heard ${heard?.heard.join(", ") || heard?.verdict || "nothing"}`);
       }
       return pass();
     } finally {
@@ -488,7 +566,7 @@ const RACE_WITHIN_MS = 300;
 const LOSER_CLEARS_MS = 5_000;
 
 /**
- * D09: the page and the Pixel answer the same ring together, and exactly one
+ * D09: the page and the emulator answer the same ring together, and exactly one
  * wins. Neither catalogue has an "answered elsewhere" message: the web and
  * Android apps drop a lost call's ring and call bar without one, so the loser
  * is judged by holding no call.
@@ -501,7 +579,8 @@ export const D09: ScenarioRunner = {
     const page = await ctx.browser.open(DISPATCHER, DISPATCHER);
     ctx.evidence.audience_before = await setAudience(ctx, { [DISPATCHER]: "text" });
 
-    await pixel.audio.playCode("pixel");
+    const unplayed = await playPixelCode(pixel.audio);
+    if (unplayed) return unplayed;
     try {
       const since = ctx.now();
       // Nobody knows the winner at dial time, so the robot names no expected
@@ -520,15 +599,15 @@ export const D09: ScenarioRunner = {
 
       const [pageRingMs, rings] = await Promise.all([page.waitForRing(RACE_RINGS_MS), pixel.device.waitForRinging(RACE_RINGS_MS)]);
       ctx.evidence.ring = { page_ms: pageRingMs, telecom_ms: rings?.telecom_ms, full_screen_ms: rings?.full_screen_ms };
-      // A tap reads the screen first; timing one read lets the page's click wait for the Pixel's.
+      // A tap reads the screen first; timing one read lets the page's click wait for the emulator's.
       const readStarted = ctx.now();
       const offered = pageRingMs !== undefined && rings?.telecom_ms !== undefined && (await pixel.device.showing({ id: "call_answer" }));
       const lead = ctx.now() - readStarted;
       if (!offered) {
         await ctx.robot.wait(dialed.plan_id, 90_000);
         if (pageRingMs === undefined) return fail("page_did_not_ring", "the dispatcher's page did not ring, so there was no race");
-        if (rings?.telecom_ms === undefined) return fail("pixel_not_ringing", "Telecom did not report the call ringing on the Pixel, so there was no race");
-        return fail("pixel_answer_control_missing", "the Pixel's ring offered no answer control");
+        if (rings?.telecom_ms === undefined) return fail("pixel_not_ringing", "Telecom did not report the call ringing on the emulator, so there was no race");
+        return fail("pixel_answer_control_missing", "the emulator's ring offered no answer control");
       }
 
       const answered: { page?: number; pixel?: number } = {};
@@ -555,7 +634,7 @@ export const D09: ScenarioRunner = {
 
       const record = await ctx.robot.wait(dialed.plan_id, 180_000);
       ctx.evidence.call = callEvidence(record);
-      if (!tapped) return fail("pixel_answer_control_missing", "the Pixel's answer control was gone when the race tapped it");
+      if (!tapped) return fail("pixel_answer_control_missing", "the emulator's answer control was gone when the race tapped it");
       const won = raceWinner(record);
       if (typeof won !== "string") return won;
       ctx.evidence.winner = won;
@@ -563,7 +642,7 @@ export const D09: ScenarioRunner = {
       if (legs) return legs;
       const loserClearedMs = won === "pixel" ? pageClearedMs : pixelClearedMs;
       if (loserClearedMs === undefined) {
-        return fail("loser_kept_call", `${won === "pixel" ? "the page" : "the Pixel"} still showed the call ${LOSER_CLEARS_MS / 1000} s after losing`);
+        return fail("loser_kept_call", `${won === "pixel" ? "the page" : "the emulator"} still showed the call ${LOSER_CLEARS_MS / 1000} s after losing`);
       }
       // Nothing failed, but answers further apart than the race allows tested no race.
       if (gap > RACE_WITHIN_MS) return infra("race-timing", `the answers landed ${gap} ms apart, over ${RACE_WITHIN_MS} ms`);
@@ -585,12 +664,13 @@ function raceWinner(record: CallRecord): Surface | ScenarioResult {
   if (judgement.verdict !== "heard" || judgement.heard.length === 0) return fail("robot_heard_nobody", `the robot's recording was ${judgement.verdict}`);
   if (judgement.heard.length > 1) return fail("both_answered", `the robot heard ${judgement.heard.join(" and ")}: more than one answer was bridged`);
   const winner = judgement.heard[0]!;
-  if (!MEMBER_OF[winner]) return fail("robot_heard_wrong_surface", `the robot heard ${winner}, neither the page nor the Pixel`);
+  if (!MEMBER_OF[winner]) return fail("robot_heard_wrong_surface", `the robot heard ${winner}, neither the page nor the emulator`);
   if (!record.recording_deleted) return infra("robot", "the robot could not delete Telnyx's copy of its recording");
   return winner;
 }
 
-const IMPAIRMENT: NetworkImpairment = { lossPercent: 2, delayMs: 80, jitterMs: 20 };
+/** Delay and a narrow link through the emulator's console. It has no loss control, so loss is X27's and not shaped here. */
+const IMPAIRMENT: NetworkShape = { delayMs: 80, speedKbps: { up: 256, down: 1_024 } };
 const OUTAGE_AT_MS = 15_000;
 const OUTAGE_MS = 3_000;
 const RESUME_WITHIN_MS = 5_000;
@@ -606,7 +686,7 @@ export const MAX_LOSS = 0.05;
 const PACKET_MS = 20;
 
 /**
- * The share of the Pixel's packets the robot lost outside the outage, from
+ * The share of the emulator's packets the robot lost outside the outage, from
  * Telnyx's hang-up statistics for the robot's leg. They cover the whole call,
  * so the outage's own packets are taken out of both counts. Telnyx's call
  * control counts received and skipped packets apart, as FreeSWITCH does.
@@ -628,9 +708,11 @@ export function lossOutsideOutage(
 }
 
 /**
- * D13: the Pixel calls ROBOT-1 through loss and delay on its access point,
- * with a 3 s outage mid-call. The robot judges a window before the outage and
- * one from 5 s after it.
+ * D13: the device lane's emulator calls ROBOT-1 through delay and a narrow
+ * link set on its console, with a 3 s outage mid-call: Wi-Fi off and cellular
+ * unregistered. The robot judges a window before the outage and one from 5 s
+ * after it. The emulator cannot lose packets on purpose (X27), so the loss the
+ * robot measures is whatever the path really lost.
  */
 export const D13: ScenarioRunner = {
   id: "D13",
@@ -641,11 +723,11 @@ export const D13: ScenarioRunner = {
     await readyToDial(ctx, pixel.device);
     ctx.lease.registerUndo({ kind: "rig.network-clear", params: {} });
     try {
-      await ctx.rig.impairNetwork(IMPAIRMENT);
+      await pixel.device.network.shape(IMPAIRMENT);
     } catch (error) {
-      return infra("network-shaper", `the access point could not be shaped (RIG_AP_IFACE, sudo tc): ${(error as Error).message}`);
+      return infra("network-shaper", `the emulator's console could not shape its network: ${(error as Error).message}`);
     }
-    ctx.evidence.impairment = IMPAIRMENT;
+    ctx.evidence.impairment = { ...IMPAIRMENT, loss_controlled: false, loss_residual: "X27" };
     const plan = await ctx.robot.expect({
       scenario: ctx.scenario,
       lease_id: ctx.lease.id,
@@ -660,7 +742,8 @@ export const D13: ScenarioRunner = {
     const unplanned = notStarted(plan);
     if (unplanned) return unplanned;
 
-    await pixel.audio.playCode("pixel");
+    const unplayed = await playPixelCode(pixel.audio);
+    if (unplayed) return unplayed;
     try {
       const undialed = await dialFromPixel(pixel.device);
       if (undialed) return undialed;
@@ -671,9 +754,9 @@ export const D13: ScenarioRunner = {
         await ctx.sleep(Math.max(0, answeredAt + OUTAGE_AT_MS - ctx.now()));
         const startedAt = ctx.now();
         try {
-          await ctx.rig.networkOutage(OUTAGE_MS);
+          await pixel.device.network.outage(OUTAGE_MS);
         } catch (error) {
-          return infra("network-shaper", `the outage could not be made: ${(error as Error).message}`);
+          return infra("network-shaper", `the emulator's console and adb could not make the outage: ${(error as Error).message}`);
         }
         outage = { start_ms: startedAt - answeredAt, end_ms: ctx.now() - answeredAt };
       }
@@ -700,17 +783,17 @@ export const D13: ScenarioRunner = {
       const after = segment(AFTER.name);
       if (!before || !after) return infra("robot", "the robot's judgement has no before and after windows");
       if (!before.heard.includes("pixel")) {
-        return fail("no_code_before_outage", `under the impairment the robot heard ${before.heard.join(", ") || before.verdict} before the outage, not the Pixel`);
+        return fail("no_code_before_outage", `under the impairment the robot heard ${before.heard.join(", ") || before.verdict} before the outage, not the emulator`);
       }
       if (!after.heard.includes("pixel")) {
         const heard = after.heard.join(", ") || after.verdict;
-        return fail("codes_did_not_resume", `the Pixel's code was not back within ${RESUME_WITHIN_MS / 1000} s of the outage (heard ${heard})`);
+        return fail("codes_did_not_resume", `the emulator's code was not back within ${RESUME_WITHIN_MS / 1000} s of the outage (heard ${heard})`);
       }
       const loss = lossOutsideOutage(record.rtp, outage.end_ms - outage.start_ms);
       ctx.evidence.robot_loss = loss;
       if (!loss) return infra("robot", "the hang-up carried no inbound RTP statistics");
       if (loss.ratio >= MAX_LOSS) {
-        return fail("loss_over_limit", `the robot lost ${(loss.ratio * 100).toFixed(1)}% of the Pixel's packets outside the outage, ${MAX_LOSS * 100}% or more`);
+        return fail("loss_over_limit", `the robot lost ${(loss.ratio * 100).toFixed(1)}% of the emulator's packets outside the outage, ${MAX_LOSS * 100}% or more`);
       }
       if (!record.recording_deleted) return infra("robot", "the robot could not delete Telnyx's copy of its recording");
       return pass();
@@ -728,9 +811,9 @@ const LISTED_WITHIN_MS = 15_000;
 const PLAYBACK_MS = 20_000;
 
 /**
- * D14: S04's voicemail, copied into QA-A's DEV-A1, played in the Pixel's app;
- * the rig hears its media audio over Bluetooth and the words are S04's
- * phrase. The copy is a database and storage write, so the run dials nobody.
+ * D14: S04's voicemail, copied into QA-A's DEV-A1, played in the device
+ * lane's app; the rig hears its media audio through the emulator's
+ * streamAudio and the words are S04's phrase. The copy is a database and storage write, so the run dials nobody.
  */
 export const D14: ScenarioRunner = {
   id: "D14",
@@ -758,12 +841,12 @@ export const D14: ScenarioRunner = {
     );
     const tapped = await pixel.device.tapText(PLAY_VOICEMAIL);
     const heard = await recording;
-    if ("error" in heard) return infra("pixel-audio", `recording the Pixel's media audio failed: ${heard.error.message}`);
+    if ("error" in heard) return audioFault(heard.error);
     const transcript = heard.text;
     if (!tapped) return fail("voicemail_not_listed", `the "${PLAY_VOICEMAIL}" control was gone when it was tapped`);
     const wer = wordErrorRate(VOICEMAIL_PHRASE, transcript);
     ctx.evidence.word_error_rate = Math.round(wer * 1000) / 1000;
-    if (!transcript.trim()) return fail("playback_silent", "the rig heard nothing from the Pixel's media audio while the voicemail played");
+    if (!transcript.trim()) return fail("playback_silent", "the rig heard nothing from the emulator's media audio while the voicemail played");
     if (wer > MAX_WORD_ERROR) return fail("playback_wer", `the played voicemail's word error is ${wer.toFixed(2)}, over ${MAX_WORD_ERROR}`);
     return pass();
   },

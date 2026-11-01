@@ -34,7 +34,9 @@ export const TENANTS = [
   {
     key: "qa-a",
     name: "QA-A",
-    // The dispatcher rings only when a scenario's lease adds it.
+    // The dispatcher rings only when a scenario's lease adds it. The
+    // technician's `pixel` surface is the device-lane emulator, the AVD
+    // rig-pixel (a Pixel 8 profile), not a physical phone.
     members: [
       { key: "technician", role: "member", displayName: "QA-A Technician", surfaces: ["pixel"] },
       { key: "dispatcher", role: "member", displayName: "QA-A Dispatcher", surfaces: ["chrome"] },

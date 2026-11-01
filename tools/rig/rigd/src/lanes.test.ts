@@ -172,6 +172,13 @@ function probeWith(routes: Record<string, Route>, stateDir?: string) {
 const rest = (table: string) => `${SUPABASE}/rest/v1/${table}`;
 
 describe("the app probe", () => {
+  it("reads a member's stored Android push tokens by their user id", async () => {
+    const { probe, requests } = probeWith({ [`GET ${rest("device_push_tokens")}`]: () => json([{ token: "fcm-a" }, { token: "fcm-b" }]) });
+    expect(await probe.pushTokens({ member: "qa-w-technician" })).toEqual(["fcm-a", "fcm-b"]);
+    const read = new URL(requests.find((r) => r.url.includes("device_push_tokens"))!.url);
+    expect(Object.fromEntries(read.searchParams)).toEqual({ user_id: `eq.${TECH}`, platform: "eq.android", select: "token" });
+  });
+
   it("sends to a fictional number and refuses any other raw destination before a request", async () => {
     // routes/compose.ts files a send the Worker's gate refuses as a failed message, and answers 201 all the same.
     const answers = [
@@ -660,27 +667,117 @@ describe("the rig box", () => {
     expect(ran).toEqual([[process.execPath, "/tools/rig/bin/rig.mjs", "health"]]);
   });
 
-  it("starts an emulator only when adb finds none booted on its port, whichever process started it", async () => {
-    const up = new Set<string>(["emulator-5556"]);
-    const started: string[] = [];
+  /** The contract's devices behind a fake hostd, with adb answering for the serials that are up. */
+  function hostdDevices(options: { up: string[]; locked?: boolean; pins?: Record<string, unknown> }) {
+    const up = new Set(options.up);
+    const calls: string[] = [];
+    const hostd: string[] = [];
+    const serialOf = (name: string) => ({ pixel: "emulator-5560", "emulator-34": "emulator-5554", "emulator-35": "emulator-5556", "emulator-36": "emulator-5558" })[name]!;
     const devices = rigDevices({
       pkg: "com.loonext.android.nonprod",
       apks: { current: "current.apk", previous: "previous.apk" },
-      pin: () => undefined,
-      emulators: { 34: { avd: "rig-api34", port: 5554 }, 35: { avd: "rig-api35", port: 5556 }, 36: { avd: "rig-api36", port: 5558 } },
-      fakeMicDir: tempDir(),
+      pin: () => "2468",
+      hostd: {
+        async boot(name, boot) {
+          hostd.push(`boot ${name} ${JSON.stringify(boot)}`);
+          up.add(serialOf(name));
+        },
+        async kill(name, kill) {
+          hostd.push(`kill ${name} ${JSON.stringify(kill)}`);
+          up.delete(serialOf(name));
+        },
+        async tokens() {
+          return { console: "c0nsoleT0ken", grpc: "grpcT0ken" };
+        },
+        async health() {
+          return { whpx_usable: true, tunnel_up: true, reboot_pending: false };
+        },
+      },
+      audioProof: () => undefined,
+      playServicesPins: () => {
+        if (!options.pins) throw new Error("rig secrets: play-services-pins.json is not in the store (/rig/secrets)");
+        return options.pins;
+      },
       numbers: numberBook({}),
       credentials: () => undefined,
-      exec: async (_file, args) => (args.includes("sys.boot_completed") && up.has(args[1]!) ? "1\n" : ""),
-      spawn: (_file, args) => {
-        started.push(args[1]!);
-        up.add(`emulator-${args[3]}`);
-        return { stop: () => undefined };
+      portCheck: async () => true,
+      exec: async (file, args) => {
+        const line = [file, ...args].join(" ");
+        calls.push(line);
+        const serial = args[args.indexOf("-s") + 1]!;
+        if (line.endsWith("getprop sys.boot_completed")) return up.has(serial) ? "1\n" : "";
+        if (line.endsWith("dumpsys window")) return options.locked ? "mShowingLockscreen=true" : "";
+        return "";
       },
     });
-    await devices.bootEmulator(35);
-    await devices.bootEmulator(34);
-    await devices.bootEmulator(34);
-    expect(started).toEqual(["rig-api34"]);
+    return { devices, calls, hostd, up };
+  }
+
+  it("builds every device the host contract lists, adb through the tunnel and the device lane's serial overridable", async () => {
+    const { devices, calls } = hostdDevices({ up: [] });
+    for (const device of [devices.pixel(), devices.emulator(34), devices.emulator(35), devices.emulator(36)]) await device.reachable();
+    expect(calls).toEqual(
+      ["emulator-5560", "emulator-5554", "emulator-5556", "emulator-5558"].map((serial) => `adb -H 127.0.0.1 -P 15037 -s ${serial} shell getprop sys.boot_completed`),
+    );
+    expect(devices.pixel().name).toBe("pixel");
+    expect(devices.emulator(35).name).toBe("emulator-35");
+    expect(await devices.pixel().audio.proven()).toBe(false);
+    await expect(devices.pixel().audio.playCode("pixel")).rejects.toThrow("emulator-audio-unproven");
+
+  });
+
+  it("boots an emulator through hostd only when adb finds it down, and settles it: unlocked, Doze enabled", async () => {
+    const world = hostdDevices({ up: ["emulator-5560", "emulator-5556"], locked: true });
+    await world.devices.bootEmulator(35);
+    expect(world.hostd).toEqual([]);
+    await world.devices.bootEmulator(34);
+    expect(world.hostd).toEqual(['boot emulator-34 {"cold":false,"wipe":false}']);
+    const after = world.calls.slice(world.calls.indexOf("adb -H 127.0.0.1 -P 15037 -s emulator-5554 wait-for-device"));
+    expect(after).toEqual([
+      "adb -H 127.0.0.1 -P 15037 -s emulator-5554 wait-for-device",
+      "adb -H 127.0.0.1 -P 15037 -s emulator-5554 shell getprop sys.boot_completed",
+      "adb -H 127.0.0.1 -P 15037 -s emulator-5554 shell dumpsys window",
+      "adb -H 127.0.0.1 -P 15037 -s emulator-5554 shell input keyevent KEYCODE_WAKEUP",
+      "adb -H 127.0.0.1 -P 15037 -s emulator-5554 shell wm dismiss-keyguard",
+      "adb -H 127.0.0.1 -P 15037 -s emulator-5554 shell input text 2468",
+      "adb -H 127.0.0.1 -P 15037 -s emulator-5554 shell input keyevent KEYCODE_ENTER",
+      "adb -H 127.0.0.1 -P 15037 -s emulator-5554 shell dumpsys deviceidle enable all",
+    ]);
+    expect(world.calls.some((line) => /\bemulator\b.*-avd/.test(line))).toBe(false);
+  });
+
+  it("stops another E01 AVD to stay within max_booted, never the device lane's", async () => {
+    const world = hostdDevices({ up: ["emulator-5560", "emulator-5554", "emulator-5558"] });
+    await world.devices.bootEmulator(35);
+    expect(world.hostd).toEqual(['kill emulator-34 {"hard":false}', 'boot emulator-35 {"cold":false,"wipe":false}']);
+    expect(world.up).toEqual(new Set(["emulator-5560", "emulator-5558", "emulator-5556"]));
+  });
+
+  it("cold-restarts a device: hostd kills it hard and boots it cold, then the PIN and Doze", async () => {
+    const world = hostdDevices({ up: ["emulator-5560"], locked: true });
+    await world.devices.coldRestart("pixel");
+    expect(world.hostd).toEqual(['kill pixel {"hard":true}', 'boot pixel {"cold":true,"wipe":false}']);
+    expect(world.calls).toContain("adb -H 127.0.0.1 -P 15037 -s emulator-5560 shell input text 2468");
+    expect(world.calls.at(-1)).toBe("adb -H 127.0.0.1 -P 15037 -s emulator-5560 shell dumpsys deviceidle enable all");
+    await world.devices.shutdownEmulator(36);
+    expect(world.hostd.at(-1)).toBe('kill emulator-36 {"hard":false}');
+  });
+
+  it("reads the pinned Play services version by device, and fails without the store's pins", () => {
+    expect(hostdDevices({ up: [], pins: { pixel: "25.0.0", "emulator-34": 7 } }).devices.playServicesPin("pixel")).toBe("25.0.0");
+    expect(hostdDevices({ up: [], pins: { pixel: "25.0.0", "emulator-34": 7 } }).devices.playServicesPin("emulator-34")).toBeUndefined();
+    expect(() => hostdDevices({ up: [] }).devices.playServicesPin("pixel")).toThrow(/play-services-pins\.json/);
+  });
+
+  it("clears the device lane's console shaping on rig.network-clear", async () => {
+    const devices = new FakeDevices();
+    await devices.pixelDevice.network.shape({ delayMs: 80, speedKbps: { up: 256, down: 1_024 } });
+    const unused = () => {
+      throw new Error("not built in this test");
+    };
+    const handlers = undoHandlers({ robot: { sms: unused }, app: unused, guard: unused, handoff: new FakeHandoff(), devices: () => devices, rig: unused, stripe: unused });
+    await handlers["rig.network-clear"]!({});
+    expect(devices.pixelDevice.network.shaped).toBeNull();
+    expect(devices.pixelDevice.network.clears).toHaveLength(1);
   });
 });

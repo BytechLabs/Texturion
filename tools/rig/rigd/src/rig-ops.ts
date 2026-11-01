@@ -1,32 +1,39 @@
 /**
- * The rig box as scenarios drive it: its health report, the relay's record of
- * the local API's Sentry events, the fault the next call event gets, the
- * Pixel's network, and the Android devices.
+ * The rig VM as scenarios drive it: its health report, the relay's record of
+ * the local API's Sentry events, the fault the next call event gets, and the
+ * Android emulators.
  *
  * Health is the rig CLI's own `rig health` (tools/rig/src/health.mjs), run
  * fresh and read back from `state/health.json`, so R00 and an agent at the
  * terminal see one report.
+ *
+ * The emulators run on the Windows host. hostd starts and stops them, and
+ * every adb, console and gRPC call reaches them through its tunnel, so the VM
+ * never runs an emulator itself.
  */
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  AccessPointShaper,
   AndroidDevice,
-  BluetoothAudioLink,
-  emulatorArgs,
+  EmulatorAudioLink,
+  EmulatorConsole,
+  MAX_BOOTED,
   nodeExec,
-  nodeSpawn,
-  UsbHub,
+  RIG_DEVICE_NAMES,
+  RIG_DEVICES,
+  type AdbServer,
+  type ControllerClient,
   type Exec,
-  type NetworkImpairment,
-  type Spawn,
-  type Spawned,
+  type HostdClient,
+  type PortCheck,
+  type RigDeviceName,
 } from "@loonext/rig-lanes";
 import type { NumberBook, Transcriber } from "@loonext/rig-robot";
+import type { Socket } from "node:net";
 import type { SeenEvent } from "./sentry-relay.ts";
 import type { FaultFile } from "./state-files.ts";
-import type { AudioLinkApi, DeviceApi, DevicesApi, RigApi, RigHealthReport } from "./scenarios/context.ts";
+import type { DeviceApi, DevicesApi, RigApi, RigHealthReport } from "./scenarios/context.ts";
 
 export interface RigOpsOptions {
   /** `$RIG_HOME/state`, where `rig health` writes health.json. */
@@ -36,7 +43,6 @@ export interface RigOpsOptions {
   /** The relay's counters file, whose `apiSeen` holds the local API's events. */
   relayState: string;
   faults: FaultFile;
-  shaper?: AccessPointShaper;
   transcriber?: Transcriber;
   exec?: (file: string, args: readonly string[]) => Promise<void>;
 }
@@ -78,16 +84,6 @@ export class RigOps implements RigApi {
     this.#o.faults.disarm();
   }
 
-  async impairNetwork(impairment: NetworkImpairment | null): Promise<void> {
-    if (!this.#o.shaper) throw new Error("rig: no access point interface is configured");
-    await this.#o.shaper.impair(impairment);
-  }
-
-  async networkOutage(ms: number): Promise<void> {
-    if (!this.#o.shaper) throw new Error("rig: no access point interface is configured");
-    await this.#o.shaper.outage(ms);
-  }
-
   async transcribe(audio: Uint8Array): Promise<string> {
     if (!this.#o.transcriber) throw new Error("rig: whisper.cpp is not configured (RIG_WHISPER_BIN, RIG_WHISPER_MODEL)");
     return this.#o.transcriber.transcribe(audio);
@@ -98,29 +94,60 @@ export interface DeviceSettings {
   pkg: string;
   apks: { current: string; previous: string };
   pin: () => string | undefined;
-  pixel?: {
-    serial: string;
-    hub?: { location: string; port: number };
-    bluetooth?: { mac: string; nodes: { callSource: string; callSink: string; mediaSource: string } };
-  };
-  /** The AVD names by API level, and the console port each runs on. */
-  emulators: Record<34 | 35 | 36, { avd: string; port: number }>;
-  fakeMicDir: string;
+  hostd: Pick<HostdClient, "boot" | "kill" | "tokens" | "health">;
+  adbServer?: AdbServer;
+  /** The store's `emulator-audio-proven`, written when spike EA1 passed. */
+  audioProof: () => string | undefined;
+  /** The store's play-services-pins.json: a versionName by device name. */
+  playServicesPins: () => Record<string, unknown>;
   transcriber?: Transcriber;
   numbers: NumberBook;
   /** The seed's sign-in for a member key. */
   credentials: (member: string) => { email: string; password: string } | undefined;
   exec?: Exec;
-  spawn?: Spawn;
+  portCheck?: PortCheck;
+  /** For tests: the gRPC controller and the console connection. */
+  audioClient?: (port: number) => ControllerClient;
+  consoleConnect?: (port: number) => Socket;
+  sleep?: (ms: number) => Promise<void>;
 }
 
-/** The devices, built when a scenario first asks; a missing Pixel is an error the runner reports as infra. */
+const E01_NAMES = ["emulator-34", "emulator-35", "emulator-36"] as const satisfies readonly RigDeviceName[];
+
+/** The contract's devices, each built when a scenario first asks for it. */
 export function rigDevices(settings: DeviceSettings): DevicesApi {
   const exec = settings.exec ?? nodeExec;
-  const spawn = settings.spawn ?? nodeSpawn;
-  const running = new Map<number, Spawned>();
-  const device = (name: string, serial: string, audio?: AudioLinkApi): DeviceApi => {
-    const android = new AndroidDevice({ name, serial, pkg: settings.pkg, pin: settings.pin, apks: settings.apks, exec });
+  const built = new Map<RigDeviceName, { api: DeviceApi; android: AndroidDevice }>();
+  const build = (name: RigDeviceName) => {
+    const found = built.get(name);
+    if (found) return found;
+    const spec = RIG_DEVICES[name];
+    const android = new AndroidDevice({
+      name,
+      serial: spec.serial,
+      pkg: settings.pkg,
+      pin: settings.pin,
+      apks: settings.apks,
+      exec,
+      server: settings.adbServer,
+      portCheck: settings.portCheck,
+      sleep: settings.sleep,
+    });
+    // Each boot makes new tokens, so they are asked for when needed rather than kept.
+    const link = new EmulatorAudioLink({
+      port: spec.grpc,
+      token: async () => (await settings.hostd.tokens(name)).grpc,
+      adb: android.adb,
+      proof: settings.audioProof,
+      transcriber: settings.transcriber,
+      ...(settings.audioClient ? { client: () => settings.audioClient!(spec.grpc) } : {}),
+    });
+    const emulatorConsole = new EmulatorConsole({
+      port: spec.console,
+      token: async () => (await settings.hostd.tokens(name)).console,
+      adb: android.adb,
+      ...(settings.consoleConnect ? { connect: settings.consoleConnect } : {}),
+    });
     const api: DeviceApi = {
       name,
       reachable: () => android.reachable(),
@@ -129,7 +156,7 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
       forceStop: () => android.forceStop(),
       forceDoze: () => android.forceDoze(),
       exitDoze: () => android.exitDoze(),
-      idleNaturally: () => android.idleNaturally(),
+      stepDoze: () => android.stepDoze(),
       setStandbyBucket: (bucket) => android.setStandbyBucket(bucket),
       batterySaver: (on) => android.batterySaver(on),
       hibernate: (on) => android.hibernate(on),
@@ -137,8 +164,10 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
       lock: () => android.lock(),
       unlock: () => android.unlock(),
       reboot: (options) => android.reboot(options),
+      cryptoType: () => android.cryptoType(),
       install: (build) => android.install(build),
       playServicesMinimum: () => android.playServicesMinimum(),
+      pushToken: () => android.pushToken(),
       uninstall: () => android.uninstall(),
       launch: (path) => android.launch(path),
       waitForRinging: (ms) => android.waitForRinging(ms),
@@ -149,57 +178,65 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
       type: (text) => android.type(text),
       signIn: (member) => signInOnDevice(android, member, settings.credentials(member)),
       dial: (role) => dialOnDevice(android, role, settings.numbers),
-      ...(audio ? { audio } : {}),
+      audio: {
+        proven: () => link.proven(),
+        connected: () => link.connected(),
+        playCode: (surface) => link.playCode(surface),
+        stop: async () => link.stop(),
+        hear: (args) => link.hear(args),
+        transcribe: (args) => link.transcribe(args),
+      },
+      network: {
+        shape: (shape) => emulatorConsole.shape(shape),
+        outage: (ms) => emulatorConsole.outage(ms),
+        wifiDrop: (ms) => emulatorConsole.wifiDrop(ms),
+      },
     };
-    return api;
+    const entry = { api, android };
+    built.set(name, entry);
+    return entry;
   };
-  const emulatorSerial = (api: 34 | 35 | 36) => `emulator-${settings.emulators[api].port}`;
-  const booted = async (api: 34 | 35 | 36) =>
-    (await exec("adb", ["-s", emulatorSerial(api), "shell", "getprop", "sys.boot_completed"]).catch(() => "")).trim() === "1";
-  return {
-    pixel() {
-      const pixel = settings.pixel;
-      if (!pixel) throw new Error("rig: the store names no Pixel serial");
-      let audio: AudioLinkApi | undefined;
-      if (pixel.bluetooth) {
-        const link = new BluetoothAudioLink({ ...pixel.bluetooth, fakeMicDir: settings.fakeMicDir, exec, spawn, transcriber: settings.transcriber });
-        audio = {
-          connected: () => link.connected(),
-          playCode: (surface) => link.playCode(surface),
-          stop: async () => link.stop(),
-          hear: (args) => link.hear(args),
-          transcribe: (args) => link.transcribe(args),
-        };
-      }
-      return device("pixel", pixel.serial, audio);
-    },
-    emulator(api) {
-      return device(`emulator-${api}`, emulatorSerial(api));
-    },
+
+  /** A booted device is at rest: unlocked when the store has a PIN, and Doze on, which every boot turns off. */
+  const settle = async (name: RigDeviceName) => {
+    const { android } = build(name);
+    await android.waitForBoot();
+    if (settings.pin() !== undefined && (await android.adb.isLocked())) await android.unlock();
+    await android.enableDoze();
+  };
+
+  const devices: DevicesApi = {
+    pixel: () => build("pixel").api,
+    emulator: (api) => build(`emulator-${api}`).api,
     async bootEmulator(api) {
+      const name = `emulator-${api}` as const;
       // Every scenario run is its own process, so an emulator another one started is found by asking adb.
-      if (running.has(api) || (await booted(api))) return;
-      const { avd, port } = settings.emulators[api];
-      running.set(api, spawn("emulator", emulatorArgs(avd, port), () => running.delete(api)));
-      await exec("adb", ["-s", emulatorSerial(api), "wait-for-device"], { timeoutMs: 5 * 60_000 });
-      const deadline = Date.now() + 5 * 60_000;
-      while (Date.now() < deadline) {
-        if (await booted(api)) return;
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
+      if (await build(name).android.reachable()) return;
+      const booted: RigDeviceName[] = [];
+      for (const other of RIG_DEVICE_NAMES) if (await build(other).android.reachable()) booted.push(other);
+      if (booted.length >= MAX_BOOTED) {
+        const spare = E01_NAMES.find((other) => other !== name && booted.includes(other));
+        if (!spare) throw new Error(`rig: ${booted.length} emulators are booted, at max_booted ${MAX_BOOTED}, and none can be stopped`);
+        await settings.hostd.kill(spare, { hard: false });
       }
-      throw new Error(`rig: the API ${api} emulator did not finish booting`);
+      await settings.hostd.boot(name, { cold: false, wipe: false });
+      await settle(name);
     },
     async shutdownEmulator(api) {
-      await exec("adb", ["-s", emulatorSerial(api), "emu", "kill"]).catch(() => "");
-      running.get(api)?.stop();
-      running.delete(api);
+      await settings.hostd.kill(`emulator-${api}`, { hard: false });
     },
-    async powerCycle() {
-      const hub = settings.pixel?.hub;
-      if (!hub) throw new Error("rig: the store names no USB hub port for the Pixel");
-      await new UsbHub({ ...hub, exec }).powerCycle();
+    async coldRestart(name) {
+      await settings.hostd.kill(name, { hard: true });
+      await settings.hostd.boot(name, { cold: true, wipe: false });
+      await settle(name);
+    },
+    hostHealth: () => settings.hostd.health(),
+    playServicesPin(name) {
+      const pin = settings.playServicesPins()[name];
+      return typeof pin === "string" && pin !== "" ? pin : undefined;
     },
   };
+  return devices;
 }
 
 /** The app's sign-in screen as a member fills it in, its fields and button found by their English labels. */

@@ -1,23 +1,35 @@
 /**
- * The Pixel and the emulators, driven over adb.
+ * The rig's emulators, driven over adb. Every device is an emulator on the
+ * Windows host; the rig drives no physical phone.
+ *
+ * Every call goes to the rig's own adb server on the host, through hostd's
+ * tunnel at 127.0.0.1:15037, and is refused while that port does not answer:
+ * an adb client that finds no server starts one of its own, which in the VM
+ * would see no device.
  *
  * Every state a device lane needs is one shell command away: a killed app
  * (`am kill`, which is not force-stop: FCM drops messages to a force-stopped
- * app, so that is a separate case), forced Doze, a standby bucket, a PIN lock,
- * a reboot. Installs refuse any APK whose package is not `.nonprod`: the
- * production app on a rig phone would sign in to production.
+ * app, so that is a separate case), forced or stepped Doze, a standby bucket,
+ * a PIN lock, a reboot. Emulator images ship with Doze off and battery saver
+ * holds only on battery, so both are read back rather than assumed. Installs
+ * refuse any APK whose package is not `.nonprod`: the production app on a rig
+ * device would sign in to production.
  *
- * None of this has run against hardware yet; the tests pin the commands only.
+ * None of this has run against an emulator yet; the tests pin the commands only.
  */
 import { execFile } from "node:child_process";
 import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
+import { ADB_VM_PORT } from "./devices.ts";
 
 export const NONPROD_SUFFIX = ".nonprod";
 export const STANDBY_BUCKETS = ["active", "working_set", "frequent", "rare", "restricted"] as const;
 export type StandbyBucket = (typeof STANDBY_BUCKETS)[number];
+
+const SERVER_CHECK_MS = 2_000;
 
 /** Runs a program with arguments and returns its stdout. Never through a shell. */
 export type Exec = (file: string, args: readonly string[], options?: { timeoutMs?: number }) => Promise<string>;
@@ -32,13 +44,46 @@ export const nodeExec: Exec = async (file, args, options) => {
   return stdout;
 };
 
+/** The adb server every call goes to: hostd's tunnel to the host's rig-only server. */
+export interface AdbServer {
+  host: "127.0.0.1";
+  port: number;
+}
+
+export const RIG_ADB_SERVER: AdbServer = { host: "127.0.0.1", port: ADB_VM_PORT };
+
+/** Whether something accepts a TCP connection there within the time. */
+export type PortCheck = (host: string, port: number, timeoutMs: number) => Promise<boolean>;
+
+export const tcpAnswers: PortCheck = (host, port, timeoutMs) =>
+  new Promise((resolve) => {
+    const socket = connect({ host, port });
+    const done = (answered: boolean) => {
+      socket.destroy();
+      resolve(answered);
+    };
+    socket.setTimeout(timeoutMs, () => done(false));
+    socket.once("connect", () => done(true));
+    socket.once("error", () => done(false));
+  });
+
+/** RIG_ADB_SERVER's `127.0.0.1:<port>`; anything off loopback is not the tunnel. */
+export function parseAdbServer(text: string): AdbServer {
+  const match = /^127\.0\.0\.1:(\d{1,5})$/.exec(text.trim());
+  const port = Number(match?.[1]);
+  if (!match || port < 1 || port > 65_535) throw new Error(`adb: ${text} is not 127.0.0.1:<port>, the tunnel's address`);
+  return { host: "127.0.0.1", port };
+}
+
 export interface AdbOptions {
-  /** `adb devices` serial: the Pixel's, or `emulator-5554`. */
+  /** `adb devices` serial, `emulator-<console port>`. */
   serial: string;
   adb?: string;
   /** Android build-tools' aapt2, used to read an APK's package before installing it. */
   aapt2?: string;
   exec?: Exec;
+  server?: AdbServer;
+  portCheck?: PortCheck;
 }
 
 export class Adb {
@@ -46,17 +91,25 @@ export class Adb {
   readonly #adb: string;
   readonly #aapt2: string;
   readonly #exec: Exec;
+  readonly #server: AdbServer;
+  readonly #portCheck: PortCheck;
 
   constructor(options: AdbOptions) {
     if (!/^[A-Za-z0-9.:_-]+$/.test(options.serial)) throw new Error("adb: not a device serial");
+    const server = options.server ?? RIG_ADB_SERVER;
+    if (server.host !== "127.0.0.1" || !Number.isInteger(server.port) || server.port < 1 || server.port > 65_535) {
+      throw new Error("adb: the server is the tunnel's 127.0.0.1:<port>");
+    }
     this.serial = options.serial;
     this.#adb = options.adb ?? "adb";
     this.#aapt2 = options.aapt2 ?? "aapt2";
     this.#exec = options.exec ?? nodeExec;
+    this.#server = server;
+    this.#portCheck = options.portCheck ?? tcpAnswers;
   }
 
   async shell(...args: string[]): Promise<string> {
-    return this.#exec(this.#adb, this.#shellArgs(args));
+    return this.#run(this.#shellArgs(args));
   }
 
   /** Kills the app's process the way Android does under memory pressure. */
@@ -72,10 +125,45 @@ export class Adb {
     await this.shell("am", "force-stop", pkg);
   }
 
-  /** Deep idle now, rather than after the screen has been off for an hour. */
+  /** Doze on, light and deep. Emulator images ship it off, and a reboot turns it off again. */
+  async enableDoze(): Promise<void> {
+    await this.shell("dumpsys", "deviceidle", "enable", "all");
+  }
+
+  /**
+   * Deep idle now, rather than after the screen has been off for an hour.
+   * Throws unless Android says it forced deep idle and then reads IDLE, so a
+   * device with Doze off never passes as asleep.
+   */
   async forceDoze(): Promise<void> {
     await this.shell("dumpsys", "battery", "unplug");
-    await this.shell("dumpsys", "deviceidle", "force-idle");
+    await this.enableDoze();
+    const forced = await this.shell("dumpsys", "deviceidle", "force-idle");
+    if (!forced.includes("Now forced in to deep idle mode")) {
+      throw new Error(`adb: force-idle on ${this.serial} did not force deep idle (${firstLine(forced)})`);
+    }
+    const state = await this.dozeState();
+    if (state !== "IDLE") throw new Error(`adb: deep idle on ${this.serial} reads ${state || "nothing"} after force-idle`);
+  }
+
+  /**
+   * Deep Doze moved state by state, as its timers would move it; an emulator
+   * has no motion sensor, so it never gets there by itself. Steps until IDLE,
+   * through one maintenance window and back to IDLE, or until the cap, and
+   * resolves with every state a step reached.
+   */
+  async stepDeepIdle(maxSteps = 16): Promise<string[]> {
+    await this.enableDoze();
+    await this.shell("input", "keyevent", "KEYCODE_SLEEP");
+    await this.shell("dumpsys", "battery", "unplug");
+    const seen: string[] = [];
+    for (let step = 0; step < maxSteps && !passedMaintenance(seen); step++) {
+      const out = await this.shell("dumpsys", "deviceidle", "step", "deep");
+      const state = /Stepped to deep:\s*([A-Z_]+)/.exec(out)?.[1];
+      if (!state) throw new Error(`adb: deviceidle step on ${this.serial} printed no state (${firstLine(out)})`);
+      seen.push(state);
+    }
+    return seen;
   }
 
   async exitDoze(): Promise<void> {
@@ -98,8 +186,22 @@ export class Adb {
     return (await this.shell("am", "get-standby-bucket", pkg)).trim();
   }
 
+  /**
+   * Battery saver holds only on battery, so it is turned on unplugged; turned
+   * off, the battery goes back to what the emulator reports. Read back either way.
+   */
   async batterySaver(on: boolean): Promise<void> {
-    await this.shell("settings", "put", "global", "low_power", on ? "1" : "0");
+    if (on) {
+      await this.shell("dumpsys", "battery", "unplug");
+      await this.shell("settings", "put", "global", "low_power", "1");
+    } else {
+      await this.shell("settings", "put", "global", "low_power", "0");
+      await this.shell("dumpsys", "battery", "reset");
+    }
+    const read = (await this.shell("settings", "get", "global", "low_power")).trim();
+    if (read !== (on ? "1" : "0")) {
+      throw new Error(`adb: battery saver on ${this.serial} reads ${read || "nothing"} after turning it ${on ? "on" : "off"}`);
+    }
   }
 
   async lock(): Promise<void> {
@@ -112,7 +214,8 @@ export class Adb {
    * so this one names only the step and how it ended.
    */
   async secretShell(step: string, ...args: string[]): Promise<string> {
-    const line = this.#shellArgs(args);
+    const line = this.#withServer(this.#shellArgs(args));
+    await this.#serverAnswers();
     try {
       return await this.#exec(this.#adb, line);
     } catch (error) {
@@ -147,10 +250,9 @@ export class Adb {
     return /mDreamingLockscreen=true|isStatusBarKeyguard=true|mShowingLockscreen=true/.test(out);
   }
 
-  /** Reboots and waits until Android reports boot completed. */
-  async reboot(timeoutMs = 5 * 60 * 1000): Promise<void> {
-    await this.#exec(this.#adb, ["-s", this.serial, "reboot"]);
-    await this.#exec(this.#adb, ["-s", this.serial, "wait-for-device"], { timeoutMs });
+  /** Waits until adb sees the device and Android reports boot completed. */
+  async waitForBoot(timeoutMs = 5 * 60 * 1000): Promise<void> {
+    await this.#run(["-s", this.serial, "wait-for-device"], { timeoutMs });
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       const booted = await this.shell("getprop", "sys.boot_completed").catch(() => "");
@@ -158,6 +260,12 @@ export class Adb {
       await new Promise((resolve) => setTimeout(resolve, 2_000));
     }
     throw new Error("adb: the device did not finish booting");
+  }
+
+  /** Reboots and waits until Android reports boot completed. */
+  async reboot(timeoutMs = 5 * 60 * 1000): Promise<void> {
+    await this.#run(["-s", this.serial, "reboot"]);
+    await this.waitForBoot(timeoutMs);
   }
 
   /**
@@ -176,7 +284,7 @@ export class Adb {
       if (!pkg.endsWith(NONPROD_SUFFIX)) {
         throw new Error(`adb: refusing to install ${pkg}; the rig installs only ${NONPROD_SUFFIX} builds`);
       }
-      await this.#exec(this.#adb, ["-s", this.serial, "install", "-r", copy], { timeoutMs: 5 * 60 * 1000 });
+      await this.#run(["-s", this.serial, "install", "-r", copy], { timeoutMs: 5 * 60 * 1000 });
       const installed = await this.shell("pm", "list", "packages", pkg);
       if (!installed.split("\n").some((line) => line.trim() === `package:${pkg}`)) {
         throw new Error(`adb: ${pkg} is not listed after install`);
@@ -199,7 +307,7 @@ export class Adb {
     const dir = mkdtempSync(join(tmpdir(), "rig-apk-"));
     const copy = join(dir, "base.apk");
     try {
-      await this.#exec(this.#adb, ["-s", this.serial, "pull", apk, copy], { timeoutMs: 2 * 60 * 1000 });
+      await this.#run(["-s", this.serial, "pull", apk, copy], { timeoutMs: 2 * 60 * 1000 });
       const value = manifestMetaValue(await this.#exec(this.#aapt2, ["dump", "xmltree", "--file", "AndroidManifest.xml", copy]), name);
       if (typeof value !== "string") return value;
       const resolved = integerResource(await this.#exec(this.#aapt2, ["dump", "resources", copy]), value);
@@ -210,12 +318,35 @@ export class Adb {
     }
   }
 
+  async #run(args: readonly string[], options?: { timeoutMs?: number }): Promise<string> {
+    await this.#serverAnswers();
+    return this.#exec(this.#adb, this.#withServer(args), options);
+  }
+
+  async #serverAnswers(): Promise<void> {
+    const { host, port } = this.#server;
+    if (!(await this.#portCheck(host, port, SERVER_CHECK_MS))) {
+      throw new Error(`adb: the rig's adb server (hostd tunnel ${host}:${port}) is not answering`);
+    }
+  }
+
+  #withServer(args: readonly string[]): string[] {
+    return ["-H", this.#server.host, "-P", String(this.#server.port), ...args];
+  }
+
   #shellArgs(args: readonly string[]): string[] {
     for (const arg of args) {
       if (!/^[A-Za-z0-9._:/=+@%,-]+$/.test(arg)) throw new Error(`adb: refusing a shell argument with special characters`);
     }
     return ["-s", this.serial, "shell", ...args];
   }
+}
+
+/** Whether a stepped Doze went IDLE, through a maintenance window, and back to IDLE. */
+export function passedMaintenance(states: readonly string[]): boolean {
+  const idle = states.indexOf("IDLE");
+  const maintenance = idle === -1 ? -1 : states.indexOf("IDLE_MAINTENANCE", idle);
+  return maintenance !== -1 && states.indexOf("IDLE", maintenance) !== -1;
 }
 
 /** The APK `pm path` names for a package: the base one when the app is split. */
@@ -262,11 +393,8 @@ export function integerResource(dump: string, id: string): number | null {
   return null;
 }
 
-/** Headless KVM emulators with Google Play images (API 34, 35 and 36). */
-export function emulatorArgs(avd: string, port: number): string[] {
-  if (!/^[A-Za-z0-9._-]+$/.test(avd)) throw new Error("emulator: not an AVD name");
-  if (!Number.isInteger(port) || port < 5554 || port > 5682 || port % 2) throw new Error("emulator: console ports are even, 5554-5682");
-  return ["-avd", avd, "-port", String(port), "-no-window", "-no-snapshot-save", "-no-boot-anim", "-gpu", "swiftshader_indirect"];
+function firstLine(output: string): string {
+  return output.trim().split("\n")[0]?.trim().slice(0, 120) || "no output";
 }
 
 function assertPackage(pkg: string): void {

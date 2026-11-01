@@ -154,6 +154,15 @@ export class AppProbe implements AppApi {
     return subscriptions.length + tokens.length;
   }
 
+  async pushTokens(args: { member: string }): Promise<string[]> {
+    const rows = await this.#rest<{ token: string }[]>("device_push_tokens", {
+      user_id: `eq.${await this.#userIdOf(args.member)}`,
+      platform: "eq.android",
+      select: "token",
+    });
+    return rows.map((row) => row.token);
+  }
+
   async optOut(args: { tenant: string; role: string }) {
     const rows = await this.#rest<{ revoked_at: string | null; source: string }[]>("opt_outs", {
       company_id: `eq.${this.#tenant(args.tenant).company_id}`,

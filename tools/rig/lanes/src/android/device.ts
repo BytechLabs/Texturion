@@ -1,15 +1,16 @@
 /**
- * One Android device as a scenario drives it: the Pixel or an emulator, over
- * adb. Controls are found the way UIAutomator sees them: the call surfaces by
- * the ids in tools/rig/test-ids.json (the nonprod build exposes Compose test
- * tags as resource ids), and everything else by its text or description.
+ * One Android emulator as a scenario drives it, over adb: the device lane's
+ * rig-pixel or one of E01's AVDs. Controls are found the way UIAutomator sees
+ * them: the call surfaces by the ids in tools/rig/test-ids.json (the nonprod
+ * build exposes Compose test tags as resource ids), and everything else by
+ * its text or description.
  *
  * Readings come from `dumpsys`, whose text is not a contract, so each parser
  * here reads the narrowest line it can and says what it could not find
  * rather than guessing. None of this has met a device yet; the tests pin the
  * command lines and the parsers against captured shapes.
  */
-import { Adb, NONPROD_SUFFIX, type Exec, type StandbyBucket } from "./adb.ts";
+import { Adb, NONPROD_SUFFIX, type AdbServer, type Exec, type PortCheck, type StandbyBucket } from "./adb.ts";
 
 /** The values of CallTestTags.kt; lanes.test.ts keeps this equal to tools/rig/test-ids.json. */
 export const CALL_TEST_IDS = [
@@ -35,13 +36,15 @@ export interface DeviceState {
   locked: boolean | null;
   /** `dumpsys deviceidle get deep`: ACTIVE, IDLE_PENDING, ..., IDLE. */
   doze: string | null;
+  /** `dumpsys deviceidle enabled deep`. Emulator images ship deep Doze off, and every boot turns it off again. */
+  deep_idle_enabled: boolean | null;
   battery_saver: boolean | null;
   standby_bucket: string | null;
   app_version: string | null;
   /** Google Play services' versionCode, the number the app's minimum is stated in. */
   play_services_version: number | null;
-  /** Bonded Bluetooth devices, the rig's hands-free unit among them. */
-  bluetooth_bonded: number | null;
+  /** Google Play services' versionName, which the system image fixes: headless and signed out, nothing updates it. */
+  play_services_version_name: string | null;
 }
 
 export interface UiNode {
@@ -131,11 +134,33 @@ export function parseVersionName(dump: string): string | null {
   return /\bversionName=(\S+)/.exec(dump)?.[1] ?? null;
 }
 
-/** Devices under `Bonded devices:` in `dumpsys bluetooth_manager`. */
-export function parseBonded(dump: string): number | null {
-  const section = /Bonded devices:\s*\n((?:[ \t]+\S.*\n?)*)/.exec(dump);
-  if (!section) return null;
-  return section[1]!.split("\n").filter((line) => line.trim() !== "").length;
+/** Where firebase-messaging keeps the app's FCM token, in the app's own data. */
+export const FCM_TOKEN_PREFS = "shared_prefs/com.google.android.gms.appid.xml";
+
+/**
+ * The FCM token in firebase-messaging's preferences: the `|T|<sender>|*`
+ * entry, which newer releases store as JSON with a `token` field. Null when
+ * there is none.
+ */
+export function parseFcmToken(xml: string): string | null {
+  for (const match of xml.matchAll(/<string name="\|T\|[^"|]+\|\*">([^<]*)<\/string>/g)) {
+    const value = decodeXml(match[1]!).trim();
+    if (!value) continue;
+    if (!value.startsWith("{")) return value;
+    try {
+      const token = (JSON.parse(value) as { token?: unknown }).token;
+      if (typeof token === "string" && token) return token;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** `dumpsys deviceidle enabled deep` prints 1 or 0. */
+export function parseEnabled(output: string): boolean | null {
+  const value = output.trim();
+  return value === "1" ? true : value === "0" ? false : null;
 }
 
 export interface AndroidDeviceOptions {
@@ -150,6 +175,8 @@ export interface AndroidDeviceOptions {
   adb?: string;
   aapt2?: string;
   exec?: Exec;
+  server?: AdbServer;
+  portCheck?: PortCheck;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -167,7 +194,14 @@ export class AndroidDevice {
     this.#o = options;
     this.#now = options.now ?? Date.now;
     this.#sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
-    this.adb = new Adb({ serial: options.serial, adb: options.adb, aapt2: options.aapt2, exec: options.exec });
+    this.adb = new Adb({
+      serial: options.serial,
+      adb: options.adb,
+      aapt2: options.aapt2,
+      exec: options.exec,
+      server: options.server,
+      portCheck: options.portCheck,
+    });
   }
 
   async reachable(): Promise<boolean> {
@@ -192,11 +226,14 @@ export class AndroidDevice {
       sdk_int: await read(async () => parseSdkInt(await this.adb.shell("getprop", "ro.build.version.sdk"))),
       locked: await read(() => this.adb.isLocked()),
       doze: await read(() => this.adb.dozeState()),
+      deep_idle_enabled: await read(async () => parseEnabled(await this.adb.shell("dumpsys", "deviceidle", "enabled", "deep"))),
       battery_saver: await read(async () => (await this.adb.shell("settings", "get", "global", "low_power")).trim() === "1"),
       standby_bucket: await read(() => this.adb.standbyBucket(pkg)),
       app_version: await read(async () => parseVersionName(await this.adb.shell("dumpsys", "package", pkg))),
-      play_services_version: await read(async () => parseVersionCode(await this.adb.shell("dumpsys", "package", PLAY_SERVICES))),
-      bluetooth_bonded: await read(async () => parseBonded(await this.adb.shell("dumpsys", "bluetooth_manager"))),
+      ...(await read(async () => {
+        const dump = await this.adb.shell("dumpsys", "package", PLAY_SERVICES);
+        return { play_services_version: parseVersionCode(dump), play_services_version_name: parseVersionName(dump) };
+      })) ?? { play_services_version: null, play_services_version_name: null },
     };
   }
 
@@ -216,9 +253,17 @@ export class AndroidDevice {
     return this.adb.exitDoze();
   }
 
-  async idleNaturally(): Promise<void> {
-    await this.adb.shell("dumpsys", "battery", "unplug");
-    await this.adb.shell("input", "keyevent", "KEYCODE_SLEEP");
+  /** Deep Doze stepped to IDLE and through a maintenance window; resolves with the states it went through. */
+  stepDoze(): Promise<string[]> {
+    return this.adb.stepDeepIdle();
+  }
+
+  enableDoze(): Promise<void> {
+    return this.adb.enableDoze();
+  }
+
+  waitForBoot(timeoutMs?: number): Promise<void> {
+    return this.adb.waitForBoot(timeoutMs);
   }
 
   setStandbyBucket(bucket: StandbyBucket): Promise<void> {
@@ -259,6 +304,15 @@ export class AndroidDevice {
   /** The installed build's declared Play services minimum, from the APK on the device; null when it declares none. */
   playServicesMinimum(): Promise<number | null> {
     return this.adb.manifestInteger(this.#o.pkg, PLAY_SERVICES_VERSION_META);
+  }
+
+  /** `run-as` reads it, which only a debuggable build allows; the nonprod debug build is one. */
+  async pushToken(): Promise<string | null> {
+    return parseFcmToken(await this.adb.shell("run-as", this.#o.pkg, "cat", FCM_TOKEN_PREFS));
+  }
+
+  async cryptoType(): Promise<string | null> {
+    return (await this.adb.shell("getprop", "ro.crypto.type")).trim() || null;
   }
 
   async uninstall(): Promise<void> {

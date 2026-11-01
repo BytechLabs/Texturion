@@ -187,6 +187,59 @@ test("the sentry check fails on an unexplained fingerprint and on each defect, n
   });
 });
 
+test("the hostd check asks hostd's health through the tunnel with the store's token, and says why it could not", async () => {
+  await withRig(async (context) => {
+    const asked = [];
+    let answer = () => json({ whpx: { usable: true }, tunnel: { up: true }, reboot_pending: false });
+    context.fetch = async (url, init) => {
+      asked.push([url, init.headers.authorization]);
+      return answer();
+    };
+    await assert.rejects(healthChecks(context).hostd(), /hostd-token is not in the store/);
+    context.store.write("hostd-token", "h0stdT0ken");
+    assert.equal(await healthChecks(context).hostd(), null);
+    assert.deepEqual(asked, [["http://127.0.0.1:15900/v1/health", "Bearer h0stdT0ken"]]);
+    answer = () => json({}, 401);
+    assert.equal(await healthChecks(context).hostd(), "hostd's /v1/health answered 401");
+    answer = () => new Response("<html>", { status: 200 });
+    assert.equal(await healthChecks(context).hostd(), "hostd's /v1/health answered with something that is not JSON");
+    context.fetch = async () => {
+      throw new TypeError("fetch failed");
+    };
+    assert.equal(await healthChecks(context).hostd(), "hostd did not answer through 127.0.0.1:15900 (TypeError); is the tunnel up?");
+  });
+});
+
+test("the adb tunnel check connects to the tunnel's port, and fails naming it when nothing answers", async () => {
+  await withRig(async (context) => {
+    const asked = [];
+    let open = true;
+    context.portAnswers = async (host, port, timeoutMs) => (asked.push([host, port, timeoutMs]), open);
+    assert.equal(await healthChecks(context).adbTunnel(), null);
+    open = false;
+    assert.equal(await healthChecks(context).adbTunnel(), "nothing answers on 127.0.0.1:15037, the tunnel to the host's adb server");
+    assert.deepEqual(asked, [
+      ["127.0.0.1", 15037, 2000],
+      ["127.0.0.1", 15037, 2000],
+    ]);
+  });
+});
+
+test("the nftables check lists the rig's own table, and fails with nft's reason", async () => {
+  await withRig(async (context) => {
+    const ran = [];
+    let status = 0;
+    context.run = (command, args, options) => {
+      ran.push([command, ...args, options.allowFailure]);
+      return { status, stdout: "", stderr: status ? "Error: No such file or directory\nlist table inet loonext_rig\n" : "" };
+    };
+    assert.equal(await healthChecks(context).nftables(), null);
+    status = 1;
+    assert.equal(await healthChecks(context).nftables(), "nft list table inet loonext_rig failed: list table inet loonext_rig");
+    assert.deepEqual(ran[0], ["sudo", "-n", "nft", "list", "table", "inet", "loonext_rig", true]);
+  });
+});
+
 test("a deploy hold over an hour old fails, naming the file", async () => {
   await withRig(async (context) => {
     const check = () => healthChecks(context).deployHold();

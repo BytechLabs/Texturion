@@ -35,7 +35,7 @@ const WINDOW_TAIL_MS = 15 * 60 * 1000;
 const DUE_SLACK_MS = 2 * 60 * 60 * 1000;
 /** An attempt stops itself before the watchdog would reap its lease. */
 const ATTEMPT_LIMIT_MS = LEASE_MAX_MS - 60 * 1000;
-/** A runner's setup before the lease, such as waiting for natural Doze (D03), is bounded too. */
+/** A runner's setup before the lease is bounded too. */
 const PREPARE_LIMIT_MS = 2 * 60 * 60 * 1000;
 /** How long a prepare past its limit is waited for before its change is put back; the lane hold covers it. */
 const PREPARE_SETTLE_MS = ATTEMPT_LIMIT_MS;
@@ -79,9 +79,9 @@ export interface RunnerDeps {
 }
 
 /**
- * A run that prepares before its lease (D03 idles the Pixel for up to two
- * hours) holds its lane for the whole attempt, so no other run uses that
- * device under it. A hold lapses by itself, so a run that died cannot keep it.
+ * A run that prepares before its lease holds its lane for the whole attempt,
+ * so no other run uses that device under it. A hold lapses by itself, so a
+ * run that died cannot keep it.
  */
 export interface LaneHolds {
   holder(lane: string, now: number): { scenario: string; run_id: string } | undefined;

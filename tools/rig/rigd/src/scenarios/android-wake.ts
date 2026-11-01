@@ -4,14 +4,19 @@
  * Each asks whether a ring push wakes the app into a ring, and judges every
  * stage a ring passes through: the push the API sent and FCM accepted, the
  * beacons the device reported, Telecom's ringing state and the full-screen
- * ring, the answer on the lock screen, and the codes heard both ways. The
- * Pixel is the device lane (QA-A's technician on DEV-A1); the emulators are
- * the emulator lane (QA-E's owner on DEV-E1).
+ * ring, the answer on the lock screen, and the codes heard both ways.
+ *
+ * Every device is an emulator on the Windows host. `pixel` is the device
+ * lane's AVD rig-pixel (QA-A's technician on DEV-A1); E01's AVDs are the
+ * emulator lane (QA-E's owner on DEV-E1). What only a physical phone shows,
+ * Doze entered from its own sensors among it, is residual X6.
  */
 import type { StandingRole } from "@loonext/rig-protocol";
-import type { DeviceState } from "@loonext/rig-lanes";
+import { passedMaintenance, type DeviceState } from "@loonext/rig-lanes";
 import type { CallRecord, Detection, Surface } from "@loonext/rig-robot";
 import {
+  audioFault,
+  audioReady,
   fail,
   infra,
   pass,
@@ -120,11 +125,6 @@ async function onDevice(device: DeviceApi, what: string, action: () => Promise<u
   }
 }
 
-async function connectedAudio(pixel: DeviceApi): Promise<{ audio: AudioLinkApi } | { failure: ScenarioResult }> {
-  if (!pixel.audio) return { failure: infra("pixel-audio", "the rig names no Bluetooth hands-free link for the Pixel") };
-  if (!(await pixel.audio.connected())) return { failure: infra("pixel-audio", "the Pixel's Bluetooth hands-free link is not connected") };
-  return { audio: pixel.audio };
-}
 
 const resets = new WeakMap<LeaseHandle, Set<string>>();
 
@@ -137,16 +137,42 @@ export function resetOnRelease(ctx: ScenarioContext, device: string): void {
   resets.set(ctx.lease, registered);
 }
 
-/** The app killed as memory pressure kills it (never force-stopped), the device in deep idle and locked. */
-export async function killedAsleepLocked(device: DeviceApi, doze: "force" | "natural"): Promise<ScenarioResult | undefined> {
-  const failed =
-    (await onDevice(device, "killing the app", () => device.kill())) ??
-    (doze === "force" ? await onDevice(device, "forcing Doze", () => device.forceDoze()) : undefined) ??
-    (await onDevice(device, "locking it", () => device.lock()));
-  if (failed) return failed;
+/** Natural deep Doze needs a motion sensor, which no emulator has, so it is only ever stepped. */
+export const NATURAL_DOZE_RESIDUAL = "X6";
+
+/**
+ * The app killed as memory pressure kills it (never force-stopped), the
+ * device in deep idle and locked. `stepped` walks deep Doze to IDLE and
+ * through a maintenance window instead of forcing it.
+ */
+export async function killedAsleepLocked(
+  device: DeviceApi,
+  doze: "force" | "stepped",
+  ev?: Record<string, unknown>,
+): Promise<ScenarioResult | undefined> {
+  const killed = await onDevice(device, "killing the app", () => device.kill());
+  if (killed) return killed;
+  if (doze === "force") {
+    const forced = await onDevice(device, "forcing Doze", () => device.forceDoze());
+    if (forced) return forced;
+  } else {
+    let states: string[];
+    try {
+      states = await device.stepDoze();
+    } catch (error) {
+      return infra(device.name, `stepping Doze failed: ${(error as Error).message}`);
+    }
+    if (ev) ev.doze_steps = states;
+    if (!passedMaintenance(states)) {
+      const went = states.join(" > ") || "nowhere";
+      return infra(device.name, `never reached deep idle: stepping went ${went}. Natural deep Doze on a physical phone is ${NATURAL_DOZE_RESIDUAL}`);
+    }
+  }
+  const locked = await onDevice(device, "locking it", () => device.lock());
+  if (locked) return locked;
   const state = await device.state();
   if (state.doze !== "IDLE") {
-    return infra(device.name, `Doze reads ${state.doze ?? "nothing"}, not IDLE, ${doze === "force" ? "after forcing it" : "after idling by itself"}`);
+    return infra(device.name, `Doze reads ${state.doze ?? "nothing"}, not IDLE, ${doze === "force" ? "after forcing it" : "after stepping it"}`);
   }
   if (state.locked !== true) return infra(device.name, "the screen did not lock");
   return undefined;
@@ -341,7 +367,15 @@ export async function callWake(
   ev.locked_at_ring = (await device.state()).locked;
   const answered = await device.tap("call_answer");
   ev.answer_tapped = answered;
-  const hearing = answered && options.audio ? await options.audio.hear({ stream: "call", ms: HEAR_MS, own: lane.surface }) : undefined;
+  let hearing: Detection | undefined;
+  let unheard: ScenarioResult | undefined;
+  if (answered && options.audio) {
+    try {
+      hearing = await options.audio.hear({ stream: "call", ms: HEAR_MS, own: lane.surface });
+    } catch (error) {
+      unheard = audioFault(error);
+    }
+  }
   const record = await ctx.robot.wait(dialed.plan_id, 180_000);
   ev.call = callEvidence(record, hearing);
 
@@ -353,6 +387,7 @@ export async function callWake(
   const robot = robotVerdict(record, lane.surface, options.judgeRobotHearing ?? true);
   if (robot) return { failure: robot };
   const robotHeardDevice = record.judgement?.pass === true;
+  if (unheard) return { failure: unheard, robotHeardDevice };
   if (hearing && hearing.answered !== "robot") {
     return { failure: fail("device_did_not_hear_robot", `the ${lane.surface} heard ${hearing.heard.join(", ") || hearing.verdict}`), robotHeardDevice };
   }
@@ -399,7 +434,7 @@ export async function ringOnly(
 
 /**
  * D02p's check: a real FCM ring push for a session with no call behind it.
- * FCM accepts it; the Pixel receives it, reports it to Telecom and shows the
+ * FCM accepts it; the device lane receives it, reports it to Telecom and shows the
  * full-screen ring within 12 s; and ring-me is never answered, so no ring
  * leg is dialed. The guard's log cannot show that zero dials happened: D02p
  * runs under a local lease, which the guard has no record of, so the
@@ -444,35 +479,37 @@ export async function pushWake(ctx: ScenarioContext, pixel: DeviceApi, ev: Recor
 }
 
 /**
- * D02 from the reachability check on: the app killed, the Pixel in deep idle
- * and locked with its PIN, rung by ROBOT-1 and answered from the lock screen,
- * with the codes heard both ways. D03 keeps the deep idle the Pixel reached by
- * itself instead of forcing it; D10 and D12 repeat it after an install.
+ * D02 from the reachability check on: the app killed, the device lane's
+ * emulator in deep idle and locked with its PIN, rung by ROBOT-1 and answered
+ * from the lock screen, with the codes heard both ways through its gRPC
+ * audio. Until EA1 has proven that audio the run is infra, never a pass; once
+ * proven, a code not heard fails it. D03 steps deep idle instead of forcing
+ * it; D10 and D12 repeat it after an install.
  */
 export async function androidWake(
   ctx: ScenarioContext,
   pixel: DeviceApi,
-  doze: "force" | "natural",
+  doze: "force" | "stepped",
   ev: Record<string, unknown> = ctx.evidence,
 ): Promise<ScenarioResult> {
   const unreachable = await reachable(pixel);
   if (unreachable) return unreachable;
-  const link = await connectedAudio(pixel);
-  if ("failure" in link) return link.failure;
+  const silent = await audioReady(pixel);
+  if (silent) return silent;
   resetOnRelease(ctx, pixel.name);
-  const setup = await killedAsleepLocked(pixel, doze);
+  const setup = await killedAsleepLocked(pixel, doze, ev);
   if (setup) return setup;
   ev.device = { ...(await pixel.state()) };
   try {
-    await link.audio.playCode(PIXEL_LANE.surface);
+    await pixel.audio.playCode(PIXEL_LANE.surface);
   } catch (error) {
-    return infra("pixel-audio", `playing the Pixel's code failed: ${(error as Error).message}`);
+    return audioFault(error);
   }
   try {
-    const { failure } = await callWake(ctx, pixel, PIXEL_LANE, { audio: link.audio }, ev);
+    const { failure } = await callWake(ctx, pixel, PIXEL_LANE, { audio: pixel.audio }, ev);
     return failure ?? pass();
   } finally {
-    await link.audio.stop();
+    await pixel.audio.stop();
   }
 }
 
@@ -493,50 +530,17 @@ export const D02p: ScenarioRunner = {
   },
 };
 
-/** Natural deep idle takes far longer than a lease lasts, so it is waited for before the lease, inside rigd's 2-hour prepare limit. */
-const DEEP_IDLE_WAIT_MS = 110 * 60_000;
-const DEEP_IDLE_POLL_MS = 60_000;
-/** Deep idle opens short maintenance windows; one is waited out before the dial. */
-const MAINTENANCE_WAIT_MS = 3 * 60_000;
-
-/** The battery back in and the screen unlocked, as D03 found the Pixel. */
-async function wakeFromIdle(pixel: DeviceApi): Promise<void> {
-  await pixel.exitDoze();
-  if ((await pixel.state()).locked) await pixel.unlock();
-}
-
-/** D03: as D02, in the deep idle the Pixel reached by itself. */
+/**
+ * D03: as D02, with deep Doze stepped to IDLE and through a maintenance
+ * window rather than forced. An emulator has no motion sensor, so it never
+ * reaches deep idle by itself; that entry is residual X6, and a pass says so.
+ */
 export const D03: ScenarioRunner = {
   id: "D03",
-  async prepare(ctx) {
-    const pixel = ctx.devices.pixel();
-    const unreachable = await reachable(pixel);
-    if (unreachable) return unreachable;
-    // Found out now, not after two hours of waiting.
-    const link = await connectedAudio(pixel);
-    if ("failure" in link) return link.failure;
-    const started = ctx.now();
-    const idled = await onDevice(pixel, "letting it idle", () => pixel.idleNaturally());
-    const idle = idled ? undefined : await poll(ctx, async () => (await pixel.state()).doze === "IDLE", DEEP_IDLE_WAIT_MS, DEEP_IDLE_POLL_MS);
-    ctx.evidence.deep_idle_after_ms = idle ? ctx.now() - started : null;
-    if (idle) return undefined;
-    // No undo can be registered before the lease, so the Pixel is put back here.
-    await wakeFromIdle(pixel).catch(() => undefined);
-    return idled ?? infra("pixel", "never reached deep idle");
-  },
-  /** The Pixel was left idling, but no run followed to reset it. */
-  async abandon(ctx) {
-    await wakeFromIdle(ctx.devices.pixel());
-  },
   async run(ctx) {
-    const pixel = ctx.devices.pixel();
-    // First, before anything can fail: prepare left the Pixel idle and unplugged in software.
-    resetOnRelease(ctx, pixel.name);
-    const unreachable = await reachable(pixel);
-    if (unreachable) return unreachable;
-    const idle = await poll(ctx, async () => (await pixel.state()).doze === "IDLE", MAINTENANCE_WAIT_MS, 10_000);
-    if (!idle) return infra("pixel", "the Pixel left deep idle between reaching it and the dial");
-    return androidWake(ctx, pixel, "natural");
+    const result = await androidWake(ctx, ctx.devices.pixel(), "stepped");
+    ctx.evidence.residual = NATURAL_DOZE_RESIDUAL;
+    return result.outcome === "pass" ? pass(`stepped Doze; natural entry on a physical phone is ${NATURAL_DOZE_RESIDUAL}`) : result;
   },
 };
 
@@ -550,18 +554,18 @@ export interface WakeExpectation {
 
 export interface D04Variant {
   name: string;
-  /** Puts the Pixel in the variant's state, the screen off and locked. */
-  apply(pixel: DeviceApi): Promise<void>;
-  /** Whether the state took, as the Pixel reports it; absent when nothing reports it. */
-  took?(state: DeviceState): boolean;
+  /** Puts the device in the variant's state, the screen off and locked. */
+  apply(device: DeviceApi): Promise<void>;
+  /** What the device must read back before the push: its standby bucket, when the variant sets one, and battery saver. */
+  reads: { bucket?: "active" | "rare" | "restricted"; batterySaver: boolean };
   /** An undo that device.reset does not cover. */
   undo?: string;
   expect: WakeExpectation;
 }
 
 /** `am get-standby-bucket` prints the framework's number on some releases and the name on others. */
-const BUCKET_NUMBER: Readonly<Record<"rare" | "restricted", string>> = { rare: "40", restricted: "45" };
-const inBucket = (bucket: "rare" | "restricted") => (state: DeviceState) =>
+const BUCKET_NUMBER: Readonly<Record<"active" | "rare" | "restricted", string>> = { active: "10", rare: "40", restricted: "45" };
+const inBucket = (state: DeviceState, bucket: "active" | "rare" | "restricted") =>
   state.standby_bucket === bucket || state.standby_bucket === BUCKET_NUMBER[bucket];
 
 /**
@@ -572,47 +576,51 @@ const inBucket = (bucket: "rare" | "restricted") => (state: DeviceState) =>
 export const D04_VARIANTS: readonly D04Variant[] = [
   {
     name: "standby-rare",
-    async apply(pixel) {
-      await pixel.setStandbyBucket("rare");
-      await pixel.lock();
+    async apply(device) {
+      await device.setStandbyBucket("rare");
+      await device.lock();
     },
-    took: inBucket("rare"),
+    reads: { bucket: "rare", batterySaver: false },
     expect: { ringsWithinMs: 12_000, confirmed: false, why: "the rare bucket does not defer a high-priority FCM message" },
   },
   {
     name: "standby-restricted",
-    async apply(pixel) {
-      await pixel.setStandbyBucket("restricted");
-      await pixel.lock();
+    async apply(device) {
+      await device.setStandbyBucket("restricted");
+      await device.lock();
     },
-    took: inBucket("restricted"),
+    reads: { bucket: "restricted", batterySaver: false },
     expect: { ringsWithinMs: 12_000, confirmed: false, why: "the restricted bucket still admits a few high-priority FCM messages a day, and one ring is within them" },
   },
   {
     name: "battery-saver",
-    async apply(pixel) {
-      await pixel.batterySaver(true);
-      await pixel.lock();
+    async apply(device) {
+      await device.batterySaver(true);
+      await device.lock();
     },
-    took: (state) => state.battery_saver === true,
+    reads: { bucket: "active", batterySaver: true },
     expect: { ringsWithinMs: 12_000, confirmed: false, why: "battery saver defers background work, not a high-priority FCM message" },
   },
   {
     name: "secure-lock",
-    apply: (pixel) => pixel.lock(),
+    apply: (device) => device.lock(),
+    reads: { bucket: "active", batterySaver: false },
     expect: { ringsWithinMs: 12_000, confirmed: false, why: "the full-screen ring shows over the PIN keyguard" },
   },
   {
     name: "before-first-unlock",
-    apply: (pixel) => pixel.reboot({ unlock: false }),
+    // A real reboot: a snapshot would bring back storage already unlocked.
+    apply: (device) => device.reboot({ unlock: false }),
+    reads: { batterySaver: false },
     expect: { ringsWithinMs: null, confirmed: false, why: "the app is not direct-boot aware, so FCM holds its message until the first unlock" },
   },
   {
     name: "hibernation",
-    async apply(pixel) {
-      await pixel.hibernate(true);
-      await pixel.lock();
+    async apply(device) {
+      await device.hibernate(true);
+      await device.lock();
     },
+    reads: { batterySaver: false },
     // Hibernating stops the app, and only opening it lifts that.
     undo: "device.launch",
     expect: { ringsWithinMs: null, confirmed: false, why: "hibernation stops the app, and FCM delivers nothing to a stopped app" },
@@ -622,6 +630,15 @@ export const D04_VARIANTS: readonly D04Variant[] = [
 /** The variant a run tests: the registry runs D04 every 14 days, and each run takes the next. */
 export function d04VariantOn(at: number): D04Variant {
   return D04_VARIANTS[Math.floor(at / DAY_MS / 14) % D04_VARIANTS.length]!;
+}
+
+/**
+ * Where a variant runs. A ring that must not come runs on an E01 AVD, never
+ * on the device lane: a push the device drops can teach FCM to deprioritise
+ * the package there, as E01's must-not-ring variants already assume.
+ */
+export function d04Device(variant: D04Variant): "pixel" | "emulator" {
+  return variant.expect.ringsWithinMs === null ? "emulator" : "pixel";
 }
 
 /** A variant's ring against its expectation; a mismatch with an unconfirmed one asks for the table to be checked. */
@@ -642,41 +659,74 @@ export function d04Verdict(name: string, expectation: WakeExpectation, ring: Rin
   return fail(expectation.ringsWithinMs === null ? `rang_${key}` : `no_ring_${key}`, `${name} ${observed}, expected ${wanted}`);
 }
 
+/** The day's E01 AVD, booted when it is down; resolves with it or the reason it cannot be had. */
+async function bootedEmulator(ctx: ScenarioContext, api: EmulatorApi): Promise<DeviceApi | ScenarioResult> {
+  const device = ctx.devices.emulator(api);
+  if (await device.reachable()) return device;
+  try {
+    await ctx.devices.bootEmulator(api);
+  } catch (error) {
+    return infra(device.name, `booting it failed: ${(error as Error).message}`);
+  }
+  return (await reachable(device)) ?? device;
+}
+
 /** D04: one Android variant per run, judged against the expectations table. */
 export const D04: ScenarioRunner = {
   id: "D04",
   async run(ctx) {
-    const pixel = ctx.devices.pixel();
-    const unreachable = await reachable(pixel);
-    if (unreachable) return unreachable;
     const variant = d04VariantOn(ctx.now());
+    const where = d04Device(variant);
     ctx.evidence.variant = variant.name;
     ctx.evidence.expected = variant.expect;
-    resetOnRelease(ctx, pixel.name);
-    if (variant.undo) ctx.lease.registerUndo({ kind: variant.undo, params: { device: pixel.name } });
-    const applied = await onDevice(pixel, `putting it in ${variant.name}`, () => variant.apply(pixel));
-    if (applied) return applied;
-    const state = await pixel.state();
-    ctx.evidence.device = { ...state };
-    if (state.locked !== true || (variant.took && !variant.took(state))) {
-      return infra(pixel.name, `${variant.name} did not take (locked ${String(state.locked)}, bucket ${state.standby_bucket ?? "unknown"}, saver ${String(state.battery_saver)})`);
+    let device: DeviceApi;
+    if (where === "pixel") {
+      device = ctx.devices.pixel();
+      const unreachable = await reachable(device);
+      if (unreachable) return unreachable;
+    } else {
+      const api = emulatorApiOn(ctx.now(), 14);
+      ctx.evidence.api = api;
+      const booted = await bootedEmulator(ctx, api);
+      if ("outcome" in booted) return booted;
+      device = booted;
     }
-    const outcome = await ringOnly(ctx, pixel, PIXEL_LANE, variant.expect.ringsWithinMs ?? NO_RING_WAIT_MS);
+    ctx.evidence.device_name = device.name;
+    const lane = where === "pixel" ? PIXEL_LANE : EMULATOR_LANE;
+    resetOnRelease(ctx, device.name);
+    if (variant.undo) ctx.lease.registerUndo({ kind: variant.undo, params: { device: device.name } });
+    const applied = await onDevice(device, `putting it in ${variant.name}`, () => variant.apply(device));
+    if (applied) return applied;
+    const state = await device.state();
+    ctx.evidence.device = { ...state };
+    const { bucket, batterySaver } = variant.reads;
+    if (state.locked !== true || (bucket && !inBucket(state, bucket)) || state.battery_saver !== batterySaver) {
+      return infra(
+        device.name,
+        `${variant.name} did not take (locked ${String(state.locked)}, bucket ${state.standby_bucket ?? "unknown"}, saver ${String(state.battery_saver)})`,
+      );
+    }
+    if (variant.name === "before-first-unlock") {
+      const crypto = await device.cryptoType().catch(() => null);
+      ctx.evidence.crypto_type = crypto;
+      if (crypto !== "file") return infra(device.name, `ro.crypto.type reads ${crypto ?? "nothing"}, not file, so a reboot leaves no storage locked`);
+    }
+    const outcome = await ringOnly(ctx, device, lane, variant.expect.ringsWithinMs ?? NO_RING_WAIT_MS);
     if ("failure" in outcome) return outcome.failure;
     return d04Verdict(variant.name, variant.expect, outcome.ring);
   },
 };
 
 /**
- * Before the app is uninstalled: the Pixel answers, D02's audio link is up,
- * and the undos are in. `device.install` is registered before `device.reset`
- * so that it runs after it, on a screen the reset has unlocked.
+ * Before the app is uninstalled: the device lane answers, its audio can give
+ * D02's verdict, and the undos are in. `device.install` is registered before
+ * `device.reset` so that it runs after it, on a screen the reset has unlocked.
  */
 async function readyToReinstall(ctx: ScenarioContext, pixel: DeviceApi): Promise<ScenarioResult | undefined> {
   const unreachable = await reachable(pixel);
   if (unreachable) return unreachable;
-  const link = await connectedAudio(pixel);
-  if ("failure" in link) return link.failure;
+  const silent = await audioReady(pixel);
+  if (silent) return silent;
   ctx.lease.registerUndo({ kind: "device.install", params: { device: pixel.name, build: "current", member: PIXEL_LANE.member } });
   resetOnRelease(ctx, pixel.name);
   if ((await pixel.state()).locked === false) return undefined;
@@ -730,7 +780,30 @@ async function pushTargetStored(ctx: ScenarioContext, ev: Record<string, unknown
   return count ? undefined : fail("push_token_not_stored", `${PIXEL_LANE.member} has no push target a minute after signing in`);
 }
 
-/** D10: a fresh install signs in, stores its push token, then passes D02p and D02. */
+/**
+ * The token the API stores for the technician is the one the installed app
+ * holds. Only whether they match is kept; a token is never evidence.
+ */
+async function storedTokenIsTheDevices(ctx: ScenarioContext, pixel: DeviceApi, ev: Record<string, unknown>): Promise<ScenarioResult | undefined> {
+  let held: string | null;
+  try {
+    held = await pixel.pushToken();
+  } catch (error) {
+    return infra(pixel.name, `reading the app's FCM token failed: ${(error as Error).message}`);
+  }
+  if (!held) return fail("no_device_push_token", "the installed app holds no FCM token");
+  let stored: string[];
+  try {
+    stored = await ctx.app.pushTokens({ member: PIXEL_LANE.member });
+  } catch (error) {
+    return infra("app-probe", `reading the stored push tokens failed: ${(error as Error).message}`);
+  }
+  ev.stored_tokens = stored.length;
+  ev.token_matches = stored.includes(held);
+  return stored.includes(held) ? undefined : fail("push_token_mismatch", `none of the ${stored.length} token(s) the API stores is the one the device holds`);
+}
+
+/** D10: a fresh install signs in, stores its push token, passes D02p and D02, and the stored token is the device's. */
 export const D10: ScenarioRunner = {
   id: "D10",
   async run(ctx) {
@@ -744,11 +817,13 @@ export const D10: ScenarioRunner = {
       (await signIn(pixel, ev, (detail) => fail("no_sign_in_screen", detail))) ??
       (await pushTargetStored(ctx, ev, "push_targets"));
     if (installed) return installed;
-    return (await pushWake(ctx, pixel, section(ctx, "push_wake"))) ?? (await androidWake(ctx, pixel, "force", section(ctx, "call_wake")));
+    const woke = (await pushWake(ctx, pixel, section(ctx, "push_wake"))) ?? (await androidWake(ctx, pixel, "force", section(ctx, "call_wake")));
+    if (woke.outcome !== "pass") return woke;
+    return (await storedTokenIsTheDevices(ctx, pixel, ev)) ?? woke;
   },
 };
 
-/** D12: the previous release, signed in, upgraded in place; its push token survives, then D02p and D02 pass. */
+/** D12: the previous release, signed in, upgraded in place; its push token survives and is the device's, then D02p and D02 pass. */
 export const D12: ScenarioRunner = {
   id: "D12",
   async run(ctx) {
@@ -770,32 +845,31 @@ export const D12: ScenarioRunner = {
     ev.version_after = (await pixel.state()).app_version;
     const kept = await pushTargetStored(ctx, ev, "push_targets_after");
     if (kept) return kept;
-    return (await pushWake(ctx, pixel, section(ctx, "push_wake"))) ?? (await androidWake(ctx, pixel, "force", section(ctx, "call_wake")));
+    const woke = (await pushWake(ctx, pixel, section(ctx, "push_wake"))) ?? (await androidWake(ctx, pixel, "force", section(ctx, "call_wake")));
+    if (woke.outcome !== "pass") return woke;
+    return (await storedTokenIsTheDevices(ctx, pixel, ev)) ?? woke;
   },
 };
 
-/** D11's clock starts at the disruption: power cycle, reboot and emulator restarts included. */
+/** D11's clock starts at the disruption: the device lane's cold restart and every E01 AVD's included. */
 const RECOVERY_MS = 10 * 60_000;
 /** `rig health` runs the whole CLI each time, so it is asked no more than once a minute. */
 const HEALTH_POLL_MS = 60_000;
+/** How long an E01 AVD hostd booted gets to answer adb. */
+const EMULATOR_BACK_MS = 3 * 60_000;
 
-/**
- * What D11 restarted that `rig health` does not check, which R00 reads from
- * the devices: each emulator booted, and the Pixel up with its Bluetooth bond
- * and hands-free link back.
- */
-async function devicesNotBack(ctx: ScenarioContext, pixel: DeviceApi, audio: AudioLinkApi): Promise<string[]> {
+/** What `rig health` does not check and R00 reads from the devices: the device lane up, its audio link answering. */
+async function pixelNotBack(pixel: DeviceApi): Promise<string[]> {
   const answers = <T,>(read: () => Promise<T>) => read().catch(() => undefined);
-  const failing: string[] = [];
-  for (const api of EMULATOR_APIS) if (!(await answers(() => ctx.devices.emulator(api).reachable()))) failing.push(`emulator-${api}`);
-  if (!(await answers(() => pixel.reachable()))) return [...failing, "pixel"];
-  const bonded = (await answers(() => pixel.state()))?.bluetooth_bonded;
-  if (bonded === undefined || bonded === null || bonded < 1) failing.push("pixel-bluetooth-bond");
-  if (!(await answers(() => audio.connected()))) failing.push("pixel-audio");
-  return failing;
+  if (!(await answers(() => pixel.reachable()))) return ["pixel"];
+  return (await answers(() => pixel.audio.connected())) ? [] : ["pixel-audio-link"];
 }
 
-/** D11: the Pixel power-cycled and rebooted and every emulator restarted; health green within 10 min, then D02p. */
+/**
+ * D11: the device lane's emulator killed hard and cold-booted, and every E01
+ * AVD shut down and booted again, one at a time within max_booted; health
+ * green within 10 min, then D02p.
+ */
 export const D11: ScenarioRunner = {
   id: "D11",
   async run(ctx) {
@@ -803,16 +877,19 @@ export const D11: ScenarioRunner = {
     const unreachable = await reachable(pixel);
     if (unreachable) return unreachable;
     // Up before the disruption, or its recovery would prove nothing.
-    const link = await connectedAudio(pixel);
-    if ("failure" in link) return link.failure;
+    if (!(await pixel.audio.connected())) return infra("pixel-audio", "the device lane's gRPC audio link does not answer getStatus");
     const ev = section(ctx, "recovery");
     resetOnRelease(ctx, pixel.name);
-    for (const api of EMULATOR_APIS) ctx.lease.registerUndo({ kind: "device.boot", params: { device: `emulator-${api}` } });
+    const bootedBefore: EmulatorApi[] = [];
+    for (const api of EMULATOR_APIS) if (await ctx.devices.emulator(api).reachable()) bootedBefore.push(api);
+    // The release boots back what was running, whatever this run did to it.
+    for (const api of bootedBefore) ctx.lease.registerUndo({ kind: "device.boot", params: { device: `emulator-${api}` } });
+    ev.emulators_booted_before = bootedBefore;
     const started = ctx.now();
     try {
-      await ctx.devices.powerCycle();
+      await ctx.devices.coldRestart("pixel");
     } catch (error) {
-      return infra("usb-hub", `power-cycling the Pixel's port failed: ${(error as Error).message}`);
+      return infra("hostd", `cold-restarting the device lane's emulator failed: ${(error as Error).message}`);
     }
     // Every restart is tried; health judges what came back.
     const errors: string[] = [];
@@ -823,16 +900,15 @@ export const D11: ScenarioRunner = {
         errors.push(`${what}: ${(error as Error).message}`);
       }
     };
-    const back = await poll(ctx, () => pixel.reachable(), 2 * 60_000, 5_000);
-    if (back) await attempt("reboot pixel", () => pixel.reboot());
-    else errors.push("the Pixel did not come back after its port was power-cycled");
-    // In parallel: one at a time, three cold boots would take most of the 10 minutes.
-    await Promise.all(
-      EMULATOR_APIS.map(async (api) => {
-        await attempt(`shut down emulator-${api}`, () => ctx.devices.shutdownEmulator(api));
-        await attempt(`boot emulator-${api}`, () => ctx.devices.bootEmulator(api));
-      }),
-    );
+    for (const api of EMULATOR_APIS) await attempt(`shut down emulator-${api}`, () => ctx.devices.shutdownEmulator(api));
+    // One at a time, so the host never runs more than max_booted.
+    const unbooted: string[] = [];
+    for (const api of EMULATOR_APIS) {
+      await attempt(`boot emulator-${api}`, () => ctx.devices.bootEmulator(api));
+      const back = await poll(ctx, () => ctx.devices.emulator(api).reachable(), EMULATOR_BACK_MS, 5_000);
+      if (!back) unbooted.push(`emulator-${api}`);
+      await attempt(`shut down emulator-${api}`, () => ctx.devices.shutdownEmulator(api));
+    }
     ev.restart_errors = errors;
     ev.restarted_after_ms = ctx.now() - started;
 
@@ -846,7 +922,7 @@ export const D11: ScenarioRunner = {
       } catch (error) {
         failing = [`rig health: ${(error as Error).message}`];
       }
-      failing.push(...(await devicesNotBack(ctx, pixel, link.audio)));
+      failing.push(...unbooted, ...(await pixelNotBack(pixel)));
       if (failing.length === 0 || ctx.now() + HEALTH_POLL_MS > deadline) break;
       await ctx.sleep(HEALTH_POLL_MS);
     }
@@ -857,7 +933,7 @@ export const D11: ScenarioRunner = {
       return fail("health_not_green_in_10min", `still failing 10 min after the disruption: ${failing.join(", ")}${restarts}`);
     }
     ev.green_after_ms = ctx.now() - started;
-    // The rig's reboot unlocks; one that left the Pixel before its first unlock must not fail the wake.
+    // The cold restart unlocks; one that left the emulator before its first unlock must not fail the wake.
     if ((await pixel.state()).locked !== false) {
       const unlocked = await onDevice(pixel, "unlocking it", () => pixel.unlock());
       if (unlocked) return unlocked;
@@ -886,7 +962,7 @@ export async function weeklyAudio(ctx: ScenarioContext, api: EmulatorApi, heard:
   return pass(`API ${api}'s code was not heard; API ${String(level)}'s was, at ${heardThisWeek.finished_at}`);
 }
 
-export const EMULATOR_HEARING_NOT_JUDGED = "the emulator hearing the robot is not judged: the rig records no emulator's audio";
+export const EMULATOR_HEARING_NOT_JUDGED = "the emulator hearing the robot is not judged: E01 records no emulator's audio";
 
 /** Each E01 run's variant, and how many days its runs are apart, which steps the API level. */
 const E01_EVERY_DAYS: Readonly<Record<string, number>> = { wake: 3, "notifications revoked": 7, "force-stopped": 7 };
@@ -900,8 +976,9 @@ export function emulatorApiOn(at: number, everyDays: number): EmulatorApi {
  * E01: as D02 on an emulator, rotating through API 34, 35 and 36. The weekly
  * variants, notifications revoked and force-stopped, must not ring; they run
  * here only, because a push the device drops could teach FCM to deprioritise
- * the package. The rig records no emulator's audio, so D02's other half, the
- * device hearing the robot, is not judged here, and a pass says so.
+ * the package. Only the device lane has a gRPC audio link, so E01 records no
+ * emulator's audio: D02's other half, the device hearing the robot, is not
+ * judged here, and a pass says so.
  */
 export const E01: ScenarioRunner = {
   id: "E01",
@@ -912,16 +989,8 @@ export const E01: ScenarioRunner = {
     const api = emulatorApiOn(ctx.now(), everyDays);
     ctx.evidence.variant = variant;
     ctx.evidence.api = api;
-    const device = ctx.devices.emulator(api);
-    if (!(await device.reachable())) {
-      try {
-        await ctx.devices.bootEmulator(api);
-      } catch (error) {
-        return infra(device.name, `booting it failed: ${(error as Error).message}`);
-      }
-      const booted = await reachable(device);
-      if (booted) return booted;
-    }
+    const device = await bootedEmulator(ctx, api);
+    if ("outcome" in device) return device;
     resetOnRelease(ctx, device.name);
 
     if (variant === "wake") {

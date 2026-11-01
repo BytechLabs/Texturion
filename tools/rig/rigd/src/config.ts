@@ -9,15 +9,20 @@
  *   guard-token-robot        the `robot` caller token: the lease, the robot's Telnyx
  *   guard-token-rig-api      the `rig-api` caller token, the app's TELNYX_API_KEY (the CLI's)
  *   bundle-private-key.json  the X25519 JWK the secret bundle is sealed to
- *   sentry-dsn-rig           loonext-rig, which the relay forwards to (the CLI's)
- *   sentry-dsn-synthetic     loonext-synthetic, for scenario and infrastructure events
+ *   sentry-dsn-rig           the existing project's DSN, which the relay forwards the local API's events to (the CLI's)
+ *   sentry-dsn-synthetic     the same project's DSN, for scenario and infrastructure events (FA7)
  *   rig-app-id, rig-app-key  the GitHub App (RIG_APP_KEY)
  *   cf-guard-attest-token    guard-attest-read, for the hourly attestation (guard-attest.ts)
  *   cloudflare-account-id    the account the guard runs in, for the same read
- *   stripe-secret-key        the sandbox key, for the scenarios' Stripe calls (the CLI's)
- *   pixel-serial, pixel-pin, pixel-bluetooth-mac, pixel-hub-location, pixel-hub-port
- *                            the Pixel's adb serial, lock PIN, Bluetooth address and hub port
- *   robot-mailbox            the robot mailbox's address, for S34
+ *   stripe-secret-key        the existing account's test-mode key, for the scenarios' Stripe calls (FA5; the CLI's)
+ *   pixel-pin                the lock PIN of every emulator, the device lane's among them
+ *   hostd-token              hostd's bearer token, for the host's supervisor through the tunnel
+ *   emulator-audio-proven    {"date", "flags"}, written when spike EA1 passed; without it no audio verdict is given
+ *   play-services-pins.json  the Play services versionName each emulator's system image pins, by device name
+ *   pixel-serial, pixel-bluetooth-mac, pixel-hub-location, pixel-hub-port
+ *                            retired with the physical phone; nothing reads them, and every
+ *                            serial and port comes from tools/rig/host/contract.json
+ *   robot-mailbox           the robot mailbox's address, for S34
  *   standing-numbers.json    numbers by role (the CLI's)
  *   tenants.json             tenants and members (the seed's)
  *   telnyx-public-key        the account's webhook key, the API's TELNYX_PUBLIC_KEY (the CLI's)
@@ -27,9 +32,16 @@
  * The caps and the dial window are the registry's (registry.ts), the window
  * as the guard measures it (guard-window.ts). RIG_DIAL_CAPS and
  * RIG_DIAL_WINDOW override them, for a rig that must dial less.
+ *
+ * `pixel` is the device lane's emulator, the AVD rig-pixel (a Pixel 8
+ * profile on an API 36 Play image); the name outlived the physical phone.
+ * Every emulator is reached through hostd's tunnel: RIG_HOSTD_ORIGIN
+ * (http://127.0.0.1:15900) and RIG_ADB_SERVER (127.0.0.1:15037) move its
+ * ends, and both stay on loopback.
  */
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { HOSTD_ORIGIN, parseAdbServer, parseHostdOrigin, RIG_ADB_SERVER, type AdbServer } from "@loonext/rig-lanes";
 import { parseWindow, type DialCaps, type DialWindow } from "./budget.ts";
 import { readState, rigHome, rigSettings, SecretFiles, type RigHome, type RigSettings } from "@loonext/rig-robot";
 
@@ -47,6 +59,10 @@ export interface RigdConfig {
   relayPort: number;
   windowOverride?: DialWindow;
   capsOverride?: DialCaps;
+  /** hostd on the Windows host, through the tunnel. */
+  hostdOrigin: string;
+  /** The rig's adb server on the host, through the tunnel. */
+  adbServer: AdbServer;
   /** Whether the rig's user manager runs rigd's units (rig.json `systemd`). */
   systemd: boolean;
   repo: string;
@@ -68,6 +84,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RigdConfig {
     relayPort: Number(new URL(settings.sentryRelayOrigin).port || 8790),
     ...(env.RIG_DIAL_WINDOW ? { windowOverride: parseWindow(env.RIG_DIAL_WINDOW) } : {}),
     ...(env.RIG_DIAL_CAPS ? { capsOverride: parseCaps(env.RIG_DIAL_CAPS) } : {}),
+    hostdOrigin: parseHostdOrigin(env.RIG_HOSTD_ORIGIN ?? HOSTD_ORIGIN),
+    adbServer: env.RIG_ADB_SERVER ? parseAdbServer(env.RIG_ADB_SERVER) : RIG_ADB_SERVER,
     systemd: settings.systemd,
     repo: env.RIG_REPO ?? "BytechLabs/Texturion",
     env,

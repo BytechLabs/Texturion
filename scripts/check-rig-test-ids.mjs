@@ -4,9 +4,10 @@
  *
  *   node scripts/check-rig-test-ids.mjs
  *
- * The rig drives the Pixel and the emulators with UIAutomator scripts that
- * live outside the app, and they find the ring, answer and in-call controls by
- * the Compose test tags in CallTestTags.kt. A renamed tag fails a rig scenario
+ * The rig drives the device-lane emulator and the E01 emulators with
+ * UIAutomator scripts that live outside the app, and they find the ring,
+ * answer and in-call controls by the Compose test tags in CallTestTags.kt.
+ * A renamed tag fails a rig scenario
  * days later as "element not found", with nothing in the app's diff to say
  * why. `tools/rig/test-ids.json` is the contract the drivers read, and this
  * fails when it and the source disagree in either direction:

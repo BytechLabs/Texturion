@@ -1,5 +1,5 @@
 /**
- * `rig health`: the parts of R00 that need no phone, emulator or hub.
+ * `rig health`: the parts of R00 that need no emulator.
  * Each check passes or fails with a reason; a check that
  * cannot measure fails too, because "unknown" is not a pass. The result is
  * also written to state/health.json, with the guard's room, for rigd to
@@ -13,6 +13,8 @@ import { DEPLOY_HOLD_MAX_AGE_MS, deployHoldPath, readDeployHold } from "./deploy
 import { run, systemctlUser } from "./exec.mjs";
 import { parseDevVars } from "./dev-vars.mjs";
 import { GUARD_ROUTES } from "../../rig-protocol/src/index.ts";
+import { tcpAnswers } from "../lanes/src/android/adb.ts";
+import { ADB_VM_PORT, HOSTD_PORT } from "../lanes/src/android/devices.ts";
 import { guardGet } from "./guard.mjs";
 import { parseJsonc } from "./jsonc.mjs";
 import { stripeSandboxKey } from "./stripe.mjs";
@@ -111,11 +113,13 @@ export function sentryFailure(state) {
 }
 
 /**
- * @param {{ layout, settings, store, status, projectId, deployed, fetch?: typeof fetch, systemctl?: typeof systemctlUser, cronRegistry?: object }} context
+ * @param {{ layout, settings, store, status, projectId, deployed, fetch?: typeof fetch, systemctl?: typeof systemctlUser, cronRegistry?: object, run?: typeof run, portAnswers?: typeof tcpAnswers }} context
  */
 export function healthChecks(context) {
   const fetchImpl = context.fetch ?? fetch;
   const systemctl = context.systemctl ?? systemctlUser;
+  const runImpl = context.run ?? run;
+  const portAnswers = context.portAnswers ?? tcpAnswers;
   const api = () => `http://127.0.0.1:${context.settings.apiPort}`;
   const devVars = () => {
     const path = join(context.deployed.worktree, "apps", "api", ".dev.vars.rig");
@@ -271,6 +275,36 @@ export function healthChecks(context) {
       if (state === null) return "the relay has not published state/sentry-relay.json";
       if (!fresh(state.at, 30 * 60_000)) return "the relay's report is stale";
       return sentryFailure(state);
+    },
+
+    /** hostd on the Windows host answers through its tunnel, with the store's token. */
+    async hostd() {
+      const token = context.store.read("hostd-token").trim();
+      let response;
+      try {
+        response = await fetchImpl(`http://127.0.0.1:${HOSTD_PORT}/v1/health`, {
+          headers: { authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch (error) {
+        return `hostd did not answer through 127.0.0.1:${HOSTD_PORT} (${error instanceof Error ? error.name : "error"}); is the tunnel up?`;
+      }
+      if (response.status !== 200) return `hostd's /v1/health answered ${response.status}`;
+      const body = await response.json().catch(() => null);
+      return body !== null && typeof body === "object" ? null : "hostd's /v1/health answered with something that is not JSON";
+    },
+
+    /** The rig's adb server on the host, through the tunnel; without it every device check fails. */
+    async adbTunnel() {
+      return (await portAnswers("127.0.0.1", ADB_VM_PORT, 2_000)) ? null : `nothing answers on 127.0.0.1:${ADB_VM_PORT}, the tunnel to the host's adb server`;
+    },
+
+    /** The VM's firewall table, which keeps the rig off private ranges and the host's other ports. */
+    async nftables() {
+      const listed = runImpl("sudo", ["-n", "nft", "list", "table", "inet", "loonext_rig"], { allowFailure: true });
+      if (listed.status === 0) return null;
+      const why = (listed.stderr ?? "").trim().split("\n").at(-1) || `exit ${listed.status}`;
+      return `nft list table inet loonext_rig failed: ${why}`;
     },
   };
 }

@@ -5,7 +5,7 @@
  * the runner name the failure.
  */
 import type { GuardHealth, LeaseActivity } from "@loonext/rig-protocol";
-import type { CallTestId, DeviceState, NetworkImpairment, PageHearing, StandbyBucket } from "@loonext/rig-lanes";
+import type { CallTestId, DeviceState, HostdHealth, NetworkShape, PageHearing, RigDeviceName, StandbyBucket } from "@loonext/rig-lanes";
 import type { CallPlan, CallRecord, Detection, InboxMessage, RobotApi, SinkDelivery, Surface } from "@loonext/rig-robot";
 import type { UndoAction } from "../lease.ts";
 import type { SeenEvent } from "../sentry-relay.ts";
@@ -29,6 +29,7 @@ import type {
   MailMessage,
   MemberPageApi,
   MessageRow,
+  NetworkApi,
   NumberHandoff,
   NumberRow,
   PublicPageApi,
@@ -284,6 +285,11 @@ export class FakeApp implements AppApi {
   }
   async pushTargets(args: { member: string }) {
     return this.targets.get(args.member) ?? 0;
+  }
+  /** The FCM tokens the API stores, by member. */
+  storedTokens = new Map<string, string[]>([["qa-a-technician", ["fcm-token-1"]]]);
+  async pushTokens(args: { member: string }) {
+    return this.storedTokens.get(args.member) ?? [];
   }
   async ringBeacons(args: { tenant: string; since: number; member?: string }) {
     return this.beacons
@@ -718,12 +724,72 @@ const RESTING: DeviceState = {
   sdk_int: 36,
   locked: false,
   doze: "ACTIVE",
+  deep_idle_enabled: true,
   battery_saver: false,
   standby_bucket: "active",
   app_version: "1.0.0",
   play_services_version: 250_000_000,
-  bluetooth_bonded: 1,
+  play_services_version_name: "25.0.0",
 };
+
+/** A stepped Doze that reaches IDLE and comes back to it after a maintenance window. */
+export const STEPPED_TO_IDLE = ["INACTIVE", "IDLE_PENDING", "SENSING", "LOCATING", "IDLE", "IDLE_MAINTENANCE", "IDLE"];
+
+export class FakeAudioLink implements AudioLinkApi {
+  provenNow = true;
+  connectedNow = true;
+  heard: Surface | null = "robot";
+  transcript = "";
+  readonly played: Surface[] = [];
+
+  async proven() {
+    return this.provenNow;
+  }
+  async connected() {
+    return this.connectedNow;
+  }
+  async playCode(surface: Surface) {
+    if (!this.provenNow) throw new Error("emulator-audio-unproven");
+    this.played.push(surface);
+  }
+  async stop() {}
+  async hear(): Promise<Detection> {
+    if (!this.provenNow) throw new Error("emulator-audio-unproven");
+    const heard = this.heard;
+    return {
+      verdict: heard ? "heard" : "silent",
+      answered: heard,
+      heard: heard ? [heard] : [],
+      echo: null,
+      scores: {},
+      window: { startMs: 0, endMs: 10_000, silentFrames: 0, announcementMs: 0 },
+      frameMs: 20,
+    };
+  }
+  async transcribe() {
+    if (!this.provenNow) throw new Error("emulator-audio-unproven");
+    return this.transcript;
+  }
+}
+
+export class FakeNetwork implements NetworkApi {
+  shaped: NetworkShape | null = null;
+  readonly outages: number[] = [];
+  readonly drops: number[] = [];
+  readonly clears: number[] = [];
+
+  async shape(shape: NetworkShape | null) {
+    if (shape?.lossPercent) throw new Error("emulator: packet loss has no emulator control (X27)");
+    if (shape === null) this.clears.push(this.clears.length + 1);
+    this.shaped = shape;
+  }
+  async outage(ms: number) {
+    this.outages.push(ms);
+  }
+  async wifiDrop(ms: number) {
+    this.drops.push(ms);
+  }
+}
 
 export class FakeDevice implements DeviceApi {
   readonly name: string;
@@ -736,11 +802,17 @@ export class FakeDevice implements DeviceApi {
   onScreen = new Set<string>(["call_answer", "call_decline"]);
   /** The installed build's declared Play services minimum; null when it declares none. */
   gmsMinimum: number | null = 12_451_000;
-  readonly audio?: AudioLinkApi;
+  /** What a stepped Doze goes through. */
+  steps: string[] = [...STEPPED_TO_IDLE];
+  crypto: string | null = "file";
+  /** The FCM token the installed app holds. */
+  token: string | null = "fcm-token-1";
+  readonly audio: FakeAudioLink;
+  readonly network = new FakeNetwork();
 
-  constructor(name: string, audio?: AudioLinkApi) {
+  constructor(name: string, audio: FakeAudioLink = new FakeAudioLink()) {
     this.name = name;
-    if (audio) this.audio = audio;
+    this.audio = audio;
   }
 
   async reachable() {
@@ -763,9 +835,10 @@ export class FakeDevice implements DeviceApi {
     this.actions.push("exit doze");
     this.deviceState.doze = "ACTIVE";
   }
-  async idleNaturally() {
-    this.actions.push("idle naturally");
-    this.deviceState.doze = "IDLE";
+  async stepDoze() {
+    this.actions.push("step doze");
+    this.deviceState.doze = this.steps.at(-1) ?? "ACTIVE";
+    return [...this.steps];
   }
   async setStandbyBucket(bucket: StandbyBucket) {
     this.actions.push(`bucket ${bucket}`);
@@ -792,6 +865,9 @@ export class FakeDevice implements DeviceApi {
   async reboot(options: { unlock?: boolean } = {}) {
     this.actions.push(`reboot${options.unlock === false ? " locked" : ""}`);
     this.deviceState.locked = options.unlock === false;
+  }
+  async cryptoType() {
+    return this.crypto;
   }
   async install(build: "current" | "previous") {
     this.actions.push(`install ${build}`);
@@ -841,43 +917,20 @@ export class FakeDevice implements DeviceApi {
   async playServicesMinimum() {
     return this.gmsMinimum;
   }
-}
-
-export class FakeAudioLink implements AudioLinkApi {
-  connectedNow = true;
-  heard: Surface | null = "robot";
-  transcript = "";
-  readonly played: Surface[] = [];
-
-  async connected() {
-    return this.connectedNow;
-  }
-  async playCode(surface: Surface) {
-    this.played.push(surface);
-  }
-  async stop() {}
-  async hear(): Promise<Detection> {
-    const heard = this.heard;
-    return {
-      verdict: heard ? "heard" : "silent",
-      answered: heard,
-      heard: heard ? [heard] : [],
-      echo: null,
-      scores: {},
-      window: { startMs: 0, endMs: 10_000, silentFrames: 0, announcementMs: 0 },
-      frameMs: 20,
-    };
-  }
-  async transcribe() {
-    return this.transcript;
+  async pushToken() {
+    return this.token;
   }
 }
 
 export class FakeDevices implements DevicesApi {
-  readonly audio = new FakeAudioLink();
-  readonly pixelDevice = new FakeDevice("pixel", this.audio);
+  readonly pixelDevice = new FakeDevice("pixel");
+  /** The device lane's audio link. */
+  readonly audio = this.pixelDevice.audio;
   readonly emulators = new Map<number, FakeDevice>([34, 35, 36].map((api) => [api, new FakeDevice(`emulator-${api}`)]));
   readonly actions: string[] = [];
+  host: HostdHealth = { whpx_usable: true, tunnel_up: true, reboot_pending: false };
+  /** The store's play-services-pins.json; undefined is no file. */
+  pins: Record<string, unknown> | undefined = { pixel: "25.0.0", "emulator-34": "25.0.0", "emulator-35": "25.0.0", "emulator-36": "25.0.0" };
 
   pixel() {
     return this.pixelDevice;
@@ -891,8 +944,16 @@ export class FakeDevices implements DevicesApi {
   async shutdownEmulator(api: 34 | 35 | 36) {
     this.actions.push(`shutdown ${api}`);
   }
-  async powerCycle() {
-    this.actions.push("power cycle");
+  async coldRestart(name: RigDeviceName) {
+    this.actions.push(`cold restart ${name}`);
+  }
+  async hostHealth() {
+    return this.host;
+  }
+  playServicesPin(name: RigDeviceName) {
+    if (!this.pins) throw new Error("rig secrets: play-services-pins.json is not in the store (/rig/secrets)");
+    const pin = this.pins[name];
+    return typeof pin === "string" ? pin : undefined;
   }
 }
 
@@ -900,8 +961,6 @@ export class FakeRig implements RigApi {
   report: RigHealthReport = { at: "2026-10-31T15:00:00.000Z", sha: "abc1234", results: [{ name: "api", pass: true }], room: 4 };
   events: SeenEvent[] = [];
   readonly faults: number[] = [];
-  impairment: NetworkImpairment | null = null;
-  readonly outages: number[] = [];
   transcript = "";
 
   async health() {
@@ -915,12 +974,6 @@ export class FakeRig implements RigApi {
   }
   async disarmCallEventFault() {
     this.faults.length = 0;
-  }
-  async impairNetwork(impairment: NetworkImpairment | null) {
-    this.impairment = impairment;
-  }
-  async networkOutage(ms: number) {
-    this.outages.push(ms);
   }
   async transcribe() {
     return this.transcript;

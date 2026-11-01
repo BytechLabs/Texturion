@@ -9,7 +9,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AccessPointShaper, BrowserLane, nodeExec } from "@loonext/rig-lanes";
+import { BrowserLane, HostdClient } from "@loonext/rig-lanes";
 import {
   isRobotRole,
   loadMargins,
@@ -67,13 +67,6 @@ export interface Rig {
 
 /** tools/rig/bin/rig.mjs, beside this package in the tooling checkout. */
 const RIG_BIN = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "rig.mjs");
-
-/** The emulators by API level: their AVD names and console ports. */
-const EMULATORS = {
-  34: { avd: "rig-api34", port: 5554 },
-  35: { avd: "rig-api35", port: 5556 },
-  36: { avd: "rig-api36", port: 5558 },
-} as const;
 
 export function rigdDir(config: RigdConfig): string {
   return join(config.home.state, "rigd");
@@ -191,9 +184,10 @@ export function buildRig(config: RigdConfig): Rig {
       pkg: NONPROD_PACKAGE,
       apks: { current: join(config.home.work, APK_DIR, CURRENT_APK), previous: join(config.home.work, APK_DIR, PREVIOUS_APK) },
       pin: () => store.readOptional("pixel-pin"),
-      pixel: pixelSettings(store, config.env),
-      emulators: EMULATORS,
-      fakeMicDir: join(config.home.work, "fake-mic"),
+      hostd: new HostdClient({ origin: config.hostdOrigin, token: () => store.read("hostd-token") }),
+      adbServer: config.adbServer,
+      audioProof: () => store.readOptional("emulator-audio-proven"),
+      playServicesPins: () => store.readJson<Record<string, unknown>>("play-services-pins.json"),
       transcriber: transcriber(),
       numbers: numbers(),
       credentials: (member) => {
@@ -209,7 +203,6 @@ export function buildRig(config: RigdConfig): Rig {
         rigBin: RIG_BIN,
         relayState: join(dir, "sentry-counters.json"),
         faults,
-        shaper: config.env.RIG_AP_IFACE ? new AccessPointShaper({ iface: config.env.RIG_AP_IFACE, exec: nodeExec }) : undefined,
         transcriber: transcriber(),
       }),
   );
@@ -303,7 +296,7 @@ export interface UndoParts {
   guard: () => Pick<GuardClient, "releaseNumber">;
   handoff: Pick<HandoffFile, "read" | "clear">;
   devices: () => DevicesApi;
-  rig: () => Pick<RigApi, "impairNetwork" | "disarmCallEventFault">;
+  rig: () => Pick<RigApi, "disarmCallEventFault">;
   stripe: () => Pick<StripeApi, "request">;
 }
 
@@ -383,8 +376,9 @@ export function undoHandlers(parts: UndoParts): UndoHandlers {
     "device.launch": async (params) => deviceNamed(parts.devices(), params.device).launch(),
     "device.install": async (params) => reinstallDevice(parts.devices(), params),
     "device.boot": async (params) => bootDevice(parts.devices(), params.device),
+    // The device lane's emulator back to an unshaped network, Wi-Fi and cellular on.
     "rig.network-clear": async () => {
-      await parts.rig().impairNetwork(null);
+      await parts.devices().pixel().network.shape(null);
     },
     "rig.disarm-call-event-fault": async () => {
       await parts.rig().disarmCallEventFault();
@@ -405,31 +399,6 @@ function markSuiteRan(config: RigdConfig, at: number): void {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** The Pixel as the store names it; without a serial there is no Pixel lane. */
-function pixelSettings(store: RigdConfig["store"], env: NodeJS.ProcessEnv) {
-  const serial = store.readOptional("pixel-serial");
-  if (!serial) return undefined;
-  const location = store.readOptional("pixel-hub-location");
-  const port = Number(store.readOptional("pixel-hub-port"));
-  const mac = store.readOptional("pixel-bluetooth-mac");
-  return {
-    serial,
-    ...(location && Number.isInteger(port) ? { hub: { location, port } } : {}),
-    ...(mac
-      ? {
-          bluetooth: {
-            mac,
-            nodes: {
-              callSource: env.RIG_HFP_SOURCE ?? "bluez_input.pixel",
-              callSink: env.RIG_HFP_SINK ?? "bluez_output.pixel",
-              mediaSource: env.RIG_A2DP_SOURCE ?? "bluez_input.pixel.a2dp",
-            },
-          },
-        }
-      : {}),
-  };
 }
 
 /**

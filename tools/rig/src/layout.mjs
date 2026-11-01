@@ -16,10 +16,10 @@ import { fileURLToPath } from "node:url";
 export const TOOLING_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 export const DEFAULT_SETTINGS = {
-  /** Where browsers, the Pixel and the API reach Supabase, through Caddy. */
+  /** Where browsers, the emulators and the API reach Supabase: Caddy, at 192.168.70.10 and on loopback. */
   supabaseUrl: "https://db.rig.internal",
   appOrigin: "https://app.rig.internal",
-  /** Where browsers and the Pixel reach the API. Vendors see the edge instead. */
+  /** Where browsers and the emulators reach the API, through the same Caddy. Vendors see the edge instead. */
   apiOrigin: "https://api.rig.internal",
   apiPort: 8787,
   webPort: 8788,

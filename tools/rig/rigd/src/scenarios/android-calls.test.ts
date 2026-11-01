@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { RecordingJudgement, Surface } from "@loonext/rig-robot";
 import { D01, D07, D08, D09, D13, D14, d01Answerer, lossOutsideOutage, MAX_LOSS, PLAY_VOICEMAIL, R00 } from "./android-calls.ts";
 import type { MemberPageApi } from "./context.ts";
-import { fakeContext, FakeDevice } from "./fakes.ts";
+import { fakeContext } from "./fakes.ts";
 
 const WEEK = 7 * 86_400_000;
 const AUDIENCE = "QA-A/DEV-A1";
@@ -13,7 +13,7 @@ function healthWorld() {
 }
 
 describe("R00, rig health", () => {
-  it("passes when every check does, publishes the room and boots no emulator", async () => {
+  it("passes when every check does, publishes the room and hostd's report, and boots no emulator", async () => {
     const { ctx, devices } = healthWorld();
     const asked: number[] = [];
     ctx.blockedAt = (room) => (asked.push(room), room < 4 ? ["D01"] : []);
@@ -22,7 +22,16 @@ describe("R00, rig health", () => {
     expect(ctx.evidence.blocked_by_room).toEqual([]);
     expect(asked).toEqual([4]);
     expect(ctx.evidence.emulators).toEqual({ 34: true, 35: true, 36: true });
-    expect(ctx.evidence.pixel).toMatchObject({ locked: false, bluetooth_bonded: 1, audio_connected: true, play_services_minimum: 12_451_000 });
+    expect(ctx.evidence.pixel).toMatchObject({
+      locked: false,
+      deep_idle_enabled: true,
+      audio_connected: true,
+      audio_proven: true,
+      play_services_minimum: 12_451_000,
+      play_services_version_name: "25.0.0",
+      play_services_pin: "25.0.0",
+    });
+    expect(ctx.evidence.host).toEqual({ whpx_usable: true, tunnel_up: true, reboot_pending: false });
     expect(devices.actions).toEqual([]);
   });
 
@@ -93,10 +102,10 @@ describe("R00, rig health", () => {
     expect(await R00.run(unreachable.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
   });
 
-  it("calls a missing or unreachable Pixel infra, never a fail", async () => {
+  it("calls a missing or unreachable device lane, or audio EA1 has not proven, infra, never a fail", async () => {
     const missing = healthWorld();
     missing.devices.pixel = () => {
-      throw new Error("rig: the store names no Pixel serial");
+      throw new Error("adb: not a device serial");
     };
     expect(await R00.run(missing.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
 
@@ -104,12 +113,58 @@ describe("R00, rig health", () => {
     away.devices.pixelDevice.reachableNow = false;
     expect(await R00.run(away.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
 
-    const deaf = fakeContext("R00");
-    deaf.devices.pixel = () => new FakeDevice("pixel");
-    expect(await R00.run(deaf.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+    const unproven = healthWorld();
+    unproven.devices.audio.provenNow = false;
+    expect(await R00.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    expect(unproven.ctx.evidence.pixel).toMatchObject({ audio_proven: false, audio_connected: true });
   });
 
-  it("fails a locked, unpaired or disconnected Pixel", async () => {
+  it("reads hostd: WHPX and the tunnel must be up, and a pending reboot is reported, not failed", async () => {
+    const pending = healthWorld();
+    pending.devices.host = { whpx_usable: true, tunnel_up: true, reboot_pending: true };
+    expect(await R00.run(pending.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    expect(pending.ctx.evidence.host).toMatchObject({ reboot_pending: true });
+
+    const slow = healthWorld();
+    slow.devices.host = { whpx_usable: false, tunnel_up: true, reboot_pending: false };
+    expect(await R00.run(slow.ctx)).toMatchObject({ outcome: "fail", failure_class: "whpx_unusable" });
+
+    const cut = healthWorld();
+    cut.devices.host = { whpx_usable: true, tunnel_up: false, reboot_pending: false };
+    expect(await R00.run(cut.ctx)).toMatchObject({ outcome: "fail", failure_class: "hostd_tunnel_down" });
+
+    const gone = healthWorld();
+    gone.devices.hostHealth = async () => {
+      throw new Error("hostd: GET /v1/health got no answer (TypeError); is the tunnel up?");
+    };
+    expect(await R00.run(gone.ctx)).toMatchObject({ outcome: "infra", component: "hostd" });
+  });
+
+  it("fails a missing nftables table, as rig health reports it", async () => {
+    const world = healthWorld();
+    world.rig.report.results.push({ name: "nftables", pass: false, reason: "nft list table inet loonext_rig failed" });
+    expect(await R00.run(world.ctx)).toMatchObject({ outcome: "fail", failure_class: "health_nftables" });
+  });
+
+  it("raises an infra alert when Play services is not the image's pinned version, or the store pins none", async () => {
+    const changed = healthWorld();
+    changed.devices.pixelDevice.deviceState.play_services_version_name = "25.1.0";
+    expect(await R00.run(changed.ctx)).toMatchObject({ outcome: "infra", component: "play-services-pin", detail: expect.stringContaining("pins 25.0.0") });
+
+    const unpinned = healthWorld();
+    unpinned.devices.pins = { "emulator-34": "25.0.0" };
+    expect(await R00.run(unpinned.ctx)).toMatchObject({ outcome: "infra", component: "store", detail: expect.stringContaining("pixel") });
+
+    const pinless = healthWorld();
+    pinless.devices.pins = undefined;
+    expect(await R00.run(pinless.ctx)).toMatchObject({ outcome: "infra", component: "store", detail: expect.stringContaining("play-services-pins.json") });
+
+    const unread = healthWorld();
+    unread.devices.pixelDevice.deviceState.play_services_version_name = null;
+    expect(await R00.run(unread.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+  });
+
+  it("fails a locked device lane, one with deep Doze off, or one whose audio link is down", async () => {
     const locked = healthWorld();
     locked.devices.pixelDevice.deviceState.locked = true;
     expect(await R00.run(locked.ctx)).toMatchObject({ failure_class: "pixel_locked" });
@@ -118,22 +173,26 @@ describe("R00, rig health", () => {
     unreadable.devices.pixelDevice.deviceState.locked = null;
     expect(await R00.run(unreadable.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
 
-    // D03 holds the Pixel screen-off while it waits for deep idle; that is not the Pixel at rest.
+    // A run that holds the device lane while it prepares has it out of rest on purpose.
     const held = healthWorld();
     held.devices.pixelDevice.deviceState.locked = true;
     held.ctx.laneHeldBy = (lane) => (lane === "device" ? "D03" : undefined);
     expect(await R00.run(held.ctx)).toEqual({ outcome: "pass", detail: undefined });
     expect(held.ctx.evidence.pixel).toMatchObject({ held_by: "D03" });
-    held.devices.pixelDevice.deviceState.bluetooth_bonded = 0;
-    expect(await R00.run(held.ctx)).toMatchObject({ failure_class: "pixel_not_paired" });
+    held.devices.pixelDevice.deviceState.deep_idle_enabled = false;
+    expect(await R00.run(held.ctx)).toMatchObject({ failure_class: "pixel_deep_idle_disabled" });
 
-    const unpaired = healthWorld();
-    unpaired.devices.pixelDevice.deviceState.bluetooth_bonded = 0;
-    expect(await R00.run(unpaired.ctx)).toMatchObject({ failure_class: "pixel_not_paired" });
+    const dozeless = healthWorld();
+    dozeless.devices.pixelDevice.deviceState.deep_idle_enabled = false;
+    expect(await R00.run(dozeless.ctx)).toMatchObject({ outcome: "fail", failure_class: "pixel_deep_idle_disabled" });
+
+    const unknown = healthWorld();
+    unknown.devices.pixelDevice.deviceState.deep_idle_enabled = null;
+    expect(await R00.run(unknown.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
 
     const silent = healthWorld();
     silent.devices.audio.connectedNow = false;
-    expect(await R00.run(silent.ctx)).toMatchObject({ failure_class: "pixel_audio_disconnected" });
+    expect(await R00.run(silent.ctx)).toMatchObject({ outcome: "fail", failure_class: "pixel_audio_link_down" });
   });
 
   it("compares Play services with the minimum the installed build declares", async () => {
@@ -160,11 +219,20 @@ describe("R00, rig health", () => {
     expect(await R00.run(undeclared.ctx)).toMatchObject({ outcome: "infra", component: "app-build" });
   });
 
-  it("checks the emulators are up and leaves booting them to D11", async () => {
+  it("checks the E01 AVDs that are booted, and leaves one that is down for E01 to boot", async () => {
     const world = healthWorld();
     world.devices.emulators.get(35)!.reachableNow = false;
-    expect(await R00.run(world.ctx)).toMatchObject({ outcome: "infra", component: "emulator-35" });
+    expect(await R00.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    expect(world.ctx.evidence.emulators).toEqual({ 34: true, 35: false, 36: true });
     expect(world.devices.actions).toEqual([]);
+
+    const dozeless = healthWorld();
+    dozeless.devices.emulators.get(36)!.deviceState.deep_idle_enabled = false;
+    expect(await R00.run(dozeless.ctx)).toMatchObject({ outcome: "fail", failure_class: "emulator_deep_idle_disabled", detail: expect.stringContaining("emulator-36") });
+
+    const repinned = healthWorld();
+    repinned.devices.emulators.get(34)!.deviceState.play_services_version_name = "24.9.0";
+    expect(await R00.run(repinned.ctx)).toMatchObject({ outcome: "infra", component: "play-services-pin", detail: expect.stringContaining("emulator-34") });
   });
 });
 
@@ -333,7 +401,7 @@ describe("D01, every rig surface rings and the answerer rotates", () => {
     expect(await D01.run(rowless.ctx)).toMatchObject({ failure_class: "no_call_row" });
   });
 
-  it("calls an unreachable Pixel or its audio infra, before changing anything", async () => {
+  it("calls an unreachable emulator, its audio link or unproven audio infra, before changing anything", async () => {
     const away = d01World("page");
     away.pixel.reachableNow = false;
     expect(await D01.run(away.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
@@ -342,7 +410,11 @@ describe("D01, every rig surface rings and the answerer rotates", () => {
     silent.devices.audio.connectedNow = false;
     expect(await D01.run(silent.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
 
-    for (const world of [away, silent]) {
+    const unproven = d01World("page");
+    unproven.devices.audio.provenNow = false;
+    expect(await D01.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+
+    for (const world of [away, silent, unproven]) {
       expect(world.robot.plans).toEqual([]);
       expect(world.undo).toEqual([]);
       expect(world.app.audiences.size).toBe(0);
@@ -424,6 +496,13 @@ describe("D07, the Android app calls out", () => {
     silent.devices.audio.connectedNow = false;
     expect(await D07.run(silent.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
     expect(silent.undo).toEqual([]);
+
+    // Proven when the run began, refused by the time it listened: still never a pass.
+    const refused = d07World();
+    refused.devices.audio.hear = async () => {
+      throw new Error("emulator-audio-unproven");
+    };
+    expect(await D07.run(refused.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
 
     const robotless = d07World();
     robotless.robot.expect = async (plan) => ({ plan_id: "plan-0", plan, state: "failed", ids: {}, events: [], dtmf: "", errors: ["robot: no connection"] });
@@ -679,11 +758,12 @@ const ANSWERED_AT = Date.parse("2026-10-31T15:00:04.000Z");
 
 function d13World(rtp: unknown = { inbound: { packet_count: "1620", skip_packet_count: "180", mos: "4.10" } }) {
   const world = fakeContext("D13");
-  const { robot, rig, time, devices } = world;
+  const { robot, time, devices } = world;
   devices.pixelDevice.onScreen.add("call_hang_up");
+  const network = devices.pixelDevice.network;
   const call = { lastsMs: undefined as number | undefined, rtp };
-  rig.networkOutage = async (ms) => {
-    rig.outages.push(ms);
+  network.outage = async (ms) => {
+    network.outages.push(ms);
     await time.sleep(ms);
   };
   const outcome = robot.outcome;
@@ -693,26 +773,28 @@ function d13World(rtp: unknown = { inbound: { packet_count: "1620", skip_packet_
     ended_at: new Date(ANSWERED_AT + (call.lastsMs ?? plan.hangup_after_ms)).toISOString(),
     rtp: call.rtp,
   });
-  return { ...world, call };
+  return { ...world, call, network };
 }
 
-describe("D13, a bad network and a mid-call Wi-Fi drop", () => {
+describe("D13, a bad network and a mid-call drop of both paths", () => {
   it("passes when the call survives, the code is heard either side of the outage and loss stays under 5%", async () => {
-    const { ctx, robot, rig, undo, devices } = d13World();
-    let undosAtImpair = -1;
-    const impair = rig.impairNetwork.bind(rig);
-    rig.impairNetwork = async (impairment) => {
-      undosAtImpair = undo.length;
-      return impair(impairment);
+    const { ctx, robot, network, undo, devices } = d13World();
+    let undosAtShape = -1;
+    const shape = network.shape.bind(network);
+    network.shape = async (impairment) => {
+      undosAtShape = undo.length;
+      return shape(impairment);
     };
     expect((await D13.run(ctx)).outcome).toBe("pass");
     expect(undo).toEqual([
       { kind: "device.reset", params: { device: "pixel" } },
       { kind: "rig.network-clear", params: {} },
     ]);
-    expect(undosAtImpair).toBe(2);
-    expect(rig.impairment).toEqual({ lossPercent: 2, delayMs: 80, jitterMs: 20 });
-    expect(rig.outages).toEqual([3_000]);
+    expect(undosAtShape).toBe(2);
+    // Delay and speed through the console; no loss, which the emulator cannot make (X27).
+    expect(network.shaped).toEqual({ delayMs: 80, speedKbps: { up: 256, down: 1_024 } });
+    expect(ctx.evidence.impairment).toEqual({ delayMs: 80, speedKbps: { up: 256, down: 1_024 }, loss_controlled: false, loss_residual: "X27" });
+    expect(network.outages).toEqual([3_000]);
     expect(robot.plans[0]).toMatchObject({
       direction: "inbound",
       role: "ROBOT-1",
@@ -729,20 +811,20 @@ describe("D13, a bad network and a mid-call Wi-Fi drop", () => {
     expect(ctx.evidence.pixel_concealment).toMatchObject({ measured: false });
   });
 
-  it("calls an access point it cannot shape infra, with the clear already registered and no call made", async () => {
+  it("calls a console it cannot shape through infra, with the clear already registered and no call made", async () => {
     const world = d13World();
-    world.rig.impairNetwork = async () => {
-      throw new Error("rig: no access point interface is configured");
+    world.network.shape = async () => {
+      throw new Error("emulator console on 5560 refused the auth token");
     };
-    expect(await D13.run(world.ctx)).toMatchObject({ outcome: "infra", component: "network-shaper" });
+    expect(await D13.run(world.ctx)).toMatchObject({ outcome: "infra", component: "network-shaper", detail: expect.stringContaining("console") });
     expect(world.undo.map((u) => u.kind)).toContain("rig.network-clear");
     expect(world.robot.plans).toEqual([]);
   });
 
-  it("calls an outage the access point could not make infra", async () => {
+  it("calls an outage the console and adb could not make infra", async () => {
     const world = d13World();
-    world.rig.networkOutage = async () => {
-      throw new Error("sudo: tc: command not found");
+    world.network.outage = async () => {
+      throw new Error("emulator console: could not restore Wi-Fi: adb: device offline");
     };
     expect(await D13.run(world.ctx)).toMatchObject({ outcome: "infra", component: "network-shaper", detail: expect.stringContaining("outage") });
   });
@@ -781,7 +863,7 @@ describe("D13, a bad network and a mid-call Wi-Fi drop", () => {
 
   it("calls an outage that overran into the second window the rig's fault, not the app's", async () => {
     const world = d13World();
-    world.rig.networkOutage = async (ms) => {
+    world.network.outage = async (ms) => {
       await world.time.sleep(ms + 4_000);
     };
     expect(await D13.run(world.ctx)).toMatchObject({ outcome: "infra", component: "rig" });
@@ -834,7 +916,7 @@ describe("D14, in-app voicemail playback", () => {
     expect(robot.plans).toEqual([]);
   });
 
-  it("blames the rig when S04 has left no voicemail to copy, or the Pixel or its audio cannot be had", async () => {
+  it("blames the rig when S04 has left no voicemail to copy, or the emulator or its audio cannot be had", async () => {
     const empty = d14World();
     empty.app.voicemailToCopy = false;
     expect(await D14.run(empty.ctx)).toMatchObject({ outcome: "infra", component: "s04-voicemail" });
@@ -850,6 +932,11 @@ describe("D14, in-app voicemail playback", () => {
       throw new Error("whisper.cpp is not installed");
     };
     expect(await D14.run(deaf.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+
+    const unproven = d14World();
+    unproven.audio.provenNow = false;
+    expect(await D14.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    expect(unproven.app.copiedVoicemails.size).toBe(0);
   });
 
   it("fails a voicemail the app does not list, playback the rig cannot hear, and words that are not S04's", async () => {

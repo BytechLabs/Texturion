@@ -3,13 +3,13 @@
  *
  * Runners are written against these interfaces only: the run lease, the
  * robot, the browser lane, the app probe (the local API and database), the
- * guard, the Android devices, the rig box itself, the robot's mail, the
+ * guard, the Android emulators, the rig VM itself, the robot's mail, the
  * Stripe sandbox and the hand-off between two runs. rigd builds the real
  * ones; the tests build fakes, because no scenario can run for real until the
  * Telnyx partition exists.
  */
 import type { GuardHealth, LeaseActivity, StandingRole } from "@loonext/rig-protocol";
-import type { CallTestId, DeviceState, HearOptions, NetworkImpairment, PageHearing, StandbyBucket } from "@loonext/rig-lanes";
+import { AUDIO_UNPROVEN, type CallTestId, type DeviceState, type HearOptions, type HostdHealth, type NetworkShape, type PageHearing, type RigDeviceName, type StandbyBucket } from "@loonext/rig-lanes";
 import type { Detection, RobotApi, Surface } from "@loonext/rig-robot";
 import type { UndoAction } from "../lease.ts";
 import type { SeenEvent } from "../sentry-relay.ts";
@@ -230,6 +230,8 @@ export interface AppApi {
   >;
   /** A member's push subscriptions and device tokens: the places a push can go. */
   pushTargets(args: { member: string }): Promise<number>;
+  /** The FCM tokens the API stores for a member's Android devices, for D10 and D12 to match against the device's own. */
+  pushTokens(args: { member: string }): Promise<string[]>;
   /** The ring beacons a tenant's devices reported, oldest first; with `member`, that member's only. */
   ringBeacons(args: { tenant: string; since: number; member?: string }): Promise<
     {
@@ -435,7 +437,11 @@ export interface GuardApi {
   webhookDeliveries(args: { since: number }): Promise<WebhookDelivery[]>;
 }
 
-/** One Android device: the Pixel, or an emulator. */
+/**
+ * One Android device, every one an emulator on the Windows host: `pixel` is
+ * the device lane's AVD rig-pixel (a Pixel 8 profile on an API 36 Play
+ * image), which kept the physical phone's name; the others are E01's.
+ */
 export interface DeviceApi {
   readonly name: string;
   /** adb sees it and it has finished booting. */
@@ -444,11 +450,18 @@ export interface DeviceApi {
   /** Killed the way memory pressure kills it, which is not force-stop. */
   kill(): Promise<void>;
   forceStop(): Promise<void>;
+  /** Doze enabled and forced into deep idle; throws unless Android then reads IDLE. */
   forceDoze(): Promise<void>;
   exitDoze(): Promise<void>;
-  /** Screen off and the battery unplugged in software, so the device can reach deep idle by itself. */
-  idleNaturally(): Promise<void>;
+  /**
+   * Doze enabled, the screen off and the battery unplugged, then deep Doze
+   * stepped state by state to IDLE and through one maintenance window.
+   * Resolves with the states it went through. An emulator has no motion
+   * sensor, so it never reaches deep idle by itself (X6).
+   */
+  stepDoze(): Promise<string[]>;
   setStandbyBucket(bucket: StandbyBucket): Promise<void>;
+  /** Unplugged first, since saver holds only on battery, and read back. */
   batterySaver(on: boolean): Promise<void>;
   hibernate(on: boolean): Promise<void>;
   notificationsAllowed(on: boolean): Promise<void>;
@@ -457,6 +470,8 @@ export interface DeviceApi {
   unlock(): Promise<void>;
   /** With `unlock: false`, it stays before first unlock. */
   reboot(options?: { unlock?: boolean }): Promise<void>;
+  /** `ro.crypto.type`: `file` when credential storage stays locked until the first unlock. */
+  cryptoType(): Promise<string | null>;
   /** Installs the `.nonprod` build of the deployed ref, or the previous release's. */
   install(build: "current" | "previous"): Promise<string>;
   uninstall(): Promise<void>;
@@ -484,30 +499,56 @@ export interface DeviceApi {
    * versionCode its Google libraries accept. Null when it declares none.
    */
   playServicesMinimum(): Promise<number | null>;
-  /** Hands-free audio over Bluetooth, the Pixel's only; undefined on an emulator. */
-  readonly audio?: AudioLinkApi;
+  /** The FCM token the installed app holds, read from its own storage; null when it holds none. Never kept as evidence. */
+  pushToken(): Promise<string | null>;
+  /** The emulator's gRPC audio: injectAudio into its microphone, streamAudio from its output. */
+  readonly audio: AudioLinkApi;
+  /** The emulator's network, through its console and adb. */
+  readonly network: NetworkApi;
 }
 
-/** The rig as the Pixel's Bluetooth hands-free unit and media sink. */
+/** An emulator's gRPC audio link (EmulatorAudioLink in the lanes). */
 export interface AudioLinkApi {
+  /** Spike EA1 passed and the store holds `emulator-audio-proven`; until then every audio call refuses. */
+  proven(): Promise<boolean>;
+  /** The controller answers getStatus. */
   connected(): Promise<boolean>;
-  /** Plays the Pixel's code into the call's uplink while the call lasts. */
+  /** Plays the surface's code into the guest's microphone, once it is open, until stop(). */
   playCode(surface: Surface): Promise<void>;
   stop(): Promise<void>;
-  /** Records the call's downlink (`call`) or media playback (`media`) for that long and judges it here. */
+  /** What the guest's one output plays, for that long, judged here; `call` and `media` read the same output. */
   hear(args: { stream: "call" | "media"; ms: number; own?: Surface }): Promise<Detection>;
   /** Records and transcribes locally; no audio is kept. */
   transcribe(args: { stream: "call" | "media"; ms: number }): Promise<string>;
 }
 
+/** An emulator's network: delay and bandwidth through its console, outages through the console and adb. */
+export interface NetworkApi {
+  /** Shapes the emulated network, or null for it at rest. A loss throws: the emulator has none to give (X27). */
+  shape(shape: NetworkShape | null): Promise<void>;
+  /** Wi-Fi off and cellular unregistered for that long, then both back. */
+  outage(ms: number): Promise<void>;
+  /** Wi-Fi alone off for that long, then back. */
+  wifiDrop(ms: number): Promise<void>;
+}
+
 export interface DevicesApi {
+  /** The device lane's AVD, rig-pixel. */
   pixel(): DeviceApi;
   emulator(api: 34 | 35 | 36): DeviceApi;
-  /** Starts the AVD for that API level headless and waits for it to boot. */
+  /**
+   * Has hostd start the AVD for that API level and waits for it to boot, with
+   * Doze enabled. At max_booted, another E01 AVD is stopped first, never the
+   * device lane's.
+   */
   bootEmulator(api: 34 | 35 | 36): Promise<void>;
   shutdownEmulator(api: 34 | 35 | 36): Promise<void>;
-  /** Cuts and restores the Pixel's USB hub port. */
-  powerCycle(): Promise<void>;
+  /** hostd kills the emulator hard and cold-boots it; then it is unlocked with the PIN and Doze enabled. */
+  coldRestart(name: RigDeviceName): Promise<void>;
+  /** hostd's own report: WHPX, the tunnel, a pending Windows reboot. */
+  hostHealth(): Promise<HostdHealth>;
+  /** The Play services versionName the store's play-services-pins.json pins for the device; throws when the store has no pins. */
+  playServicesPin(name: RigDeviceName): string | undefined;
 }
 
 /** `rig health`'s report, as `state/health.json` holds it. */
@@ -519,7 +560,7 @@ export interface RigHealthReport {
   [published: string]: unknown;
 }
 
-/** The rig box itself. */
+/** The rig VM itself. */
 export interface RigApi {
   /** Runs `rig health` now and reads its report. */
   health(): Promise<RigHealthReport>;
@@ -529,10 +570,6 @@ export interface RigApi {
   failNextCallEvent(status: 503): Promise<void>;
   /** Drops a fault no call event took, so it cannot answer a later run's event. */
   disarmCallEventFault(): Promise<void>;
-  /** Loss and delay on the Pixel's access point, or null to clear them. */
-  impairNetwork(impairment: NetworkImpairment | null): Promise<void>;
-  /** Takes the Pixel's Wi-Fi away for that long, then gives it back. */
-  networkOutage(ms: number): Promise<void>;
   /** Transcribes audio locally (whisper.cpp); no audio is kept. */
   transcribe(audio: Uint8Array): Promise<string>;
 }
@@ -612,7 +649,7 @@ export interface ScenarioContext {
   stripe: StripeApi;
   handoff: HandoffApi;
   history: ScenarioHistoryApi;
-  /** The scenario holding a lane while it prepares (D03's idling Pixel), when that is another run. */
+  /** The scenario holding a lane while it prepares, when that is another run. */
   laneHeldBy(lane: string): string | undefined;
   /** The scenarios the rig times that this room would block, by id, as the runner's admission blocks them. */
   blockedAt(room: number): string[];
@@ -659,6 +696,21 @@ export const fail = (failure_class: string, detail: string, options: { critical?
   ...(options.critical ? { critical: true } : {}),
 });
 export const infra = (component: string, detail: string): ScenarioResult => ({ outcome: "infra", component, detail });
+
+const UNPROVEN_DETAIL = "spike EA1 has not proven the emulator's gRPC audio, so the store holds no emulator-audio-proven and no audio verdict is given";
+
+/** An audio call that threw: unproven audio is never a pass or a fail, and anything else is the link's fault. */
+export function audioFault(error: unknown): ScenarioResult {
+  const message = error instanceof Error ? error.message : String(error);
+  return message === AUDIO_UNPROVEN ? infra(AUDIO_UNPROVEN, UNPROVEN_DETAIL) : infra("pixel-audio", message);
+}
+
+/** Whether a device's audio can give a verdict: proven by EA1, and its controller answering. */
+export async function audioReady(device: DeviceApi): Promise<ScenarioResult | undefined> {
+  if (!(await device.audio.proven())) return infra(AUDIO_UNPROVEN, UNPROVEN_DETAIL);
+  if (!(await device.audio.connected())) return infra("pixel-audio", `${device.name}'s gRPC audio link does not answer getStatus`);
+  return undefined;
+}
 
 /** Polls until `probe` returns something, or undefined at the deadline. */
 export async function poll<T>(

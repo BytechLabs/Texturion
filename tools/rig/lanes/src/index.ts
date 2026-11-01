@@ -3,4 +3,7 @@ export * from "./browser/page-judge.ts";
 export * from "./browser/lane.ts";
 export * from "./android/adb.ts";
 export * from "./android/device.ts";
-export * from "./android/host.ts";
+export * from "./android/devices.ts";
+export * from "./android/emulator-audio.ts";
+export * from "./android/emulator-console.ts";
+export * from "./android/hostd-client.ts";

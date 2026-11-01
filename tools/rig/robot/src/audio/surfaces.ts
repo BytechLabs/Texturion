@@ -6,6 +6,10 @@
  * frequency says who is talking and the pattern says it is a code, not noise.
  * None of the frequencies is a keypad tone, a call-progress tone or 2,600 Hz,
  * and the closest two are 200 Hz apart.
+ *
+ * `pixel` is the device lane's emulator, the AVD rig-pixel (a Pixel 8 profile
+ * on an API 36 Play image), and `emulator` the E01 AVDs. The name outlived
+ * the physical phone; each AVD has its own microphone, so the two stay apart.
  */
 export const SURFACE_HZ = {
   robot: 1100,

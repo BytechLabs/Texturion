@@ -1,10 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { MAX_BOOTED } from "@loonext/rig-lanes";
 import type { CallPlan } from "@loonext/rig-robot";
 import { describe, expect, it } from "vitest";
-import { plannedRuns } from "../budget.ts";
-import { loadRegistry } from "../registry.ts";
 import {
   BEACON_AFTER,
   CALL_STAGES,
@@ -13,6 +12,7 @@ import {
   D03,
   D04,
   D04_VARIANTS,
+  d04Device,
   D10,
   D11,
   D12,
@@ -25,7 +25,7 @@ import {
   emulatorApiOn,
   judgeBeacons,
 } from "./android-wake.ts";
-import type { LeaseHandle, ScenarioContext, ScenarioHistoryApi, ScenarioResult, ScenarioRunner } from "./context.ts";
+import type { ScenarioContext, ScenarioHistoryApi, ScenarioRunner } from "./context.ts";
 import { fakeContext } from "./fakes.ts";
 
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
@@ -137,7 +137,7 @@ describe("ring beacons", () => {
 });
 
 describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
-  it("passes when FCM takes the push at high priority, the Pixel rings, is answered on its lock screen and both codes are heard", async () => {
+  it("passes when FCM takes the push at high priority, the emulator rings, is answered on its lock screen and both codes are heard", async () => {
     const world = wakeWorld("D02");
     const { ctx, robot, pixel, audio, undo } = world;
     let stopped = false;
@@ -161,24 +161,46 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     expect(JSON.stringify(ctx.evidence)).not.toMatch(/\+\d{10}/);
   });
 
-  it("blames the rig, and changes nothing, when the Pixel or its audio link is missing", async () => {
+  it("blames the rig, and changes nothing, when the emulator or its audio link is missing, or EA1 has not proven the audio", async () => {
     const gone = wakeWorld("D02");
     gone.pixel.reachableNow = false;
     expect(await D02.run(gone.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
     expect(gone.undo).toEqual([]);
     expect(gone.robot.plans).toEqual([]);
 
-    const unpaired = wakeWorld("D02");
-    unpaired.audio.connectedNow = false;
-    expect(await D02.run(unpaired.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
-    expect(unpaired.pixel.actions).toEqual([]);
-    expect(unpaired.robot.plans).toEqual([]);
+    const unlinked = wakeWorld("D02");
+    unlinked.audio.connectedNow = false;
+    expect(await D02.run(unlinked.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+    expect(unlinked.pixel.actions).toEqual([]);
+    expect(unlinked.robot.plans).toEqual([]);
+
+    const unproven = wakeWorld("D02");
+    unproven.audio.provenNow = false;
+    expect(await D02.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    expect(unproven.pixel.actions).toEqual([]);
+    expect(unproven.robot.plans).toEqual([]);
   });
 
-  it("blames the Pixel, before dialing, when Doze or the lock did not take", async () => {
+  it("turns audio refused mid-call into infra, never a pass", async () => {
+    const world = wakeWorld("D02");
+    world.audio.hear = async () => {
+      throw new Error("emulator-audio-unproven");
+    };
+    expect(await D02.run(world.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+
+    // A product failure still outranks the rig's.
+    const unshown = wakeWorld("D02");
+    unshown.audio.hear = world.audio.hear;
+    unshown.script.callStages = ["push_received", "os_reported", "ring_me_sent", "answered"];
+    expect(await D02.run(unshown.ctx)).toMatchObject({ failure_class: "ring_not_shown" });
+  });
+
+  it("blames the emulator, before dialing, when Doze or the lock did not take", async () => {
     const awake = wakeWorld("D02");
-    awake.pixel.forceDoze = async () => undefined;
-    expect(await D02.run(awake.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    awake.pixel.forceDoze = async () => {
+      throw new Error("adb: force-idle on emulator-5560 did not force deep idle (Unable to go deep idle; not enabled)");
+    };
+    expect(await D02.run(awake.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("not enabled") });
     expect(awake.robot.plans).toEqual([]);
     expect(awake.undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
 
@@ -344,31 +366,13 @@ describe("D02p, a ring push with no call", () => {
     expect(await D02p.run(world.ctx)).toMatchObject({ failure_class: "ring_me_not_refused" });
   });
 
-  it("blames the rig when the Pixel is unreachable, before asking for a ring", async () => {
+  it("blames the rig when the emulator is unreachable, before asking for a ring", async () => {
     const world = wakeWorld("D02p");
     world.pixel.reachableNow = false;
     expect(await D02p.run(world.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
     expect(world.simulated).toEqual([]);
   });
 });
-
-/** The handle rigd gives prepare: there is no lease yet to register an undo with. */
-const UNLEASED: LeaseHandle = {
-  id: "",
-  registerUndo() {
-    throw new Error("prepare runs before the lease; register undos in run");
-  },
-};
-
-function idlesAfter(world: ReturnType<typeof wakeWorld>, ms: number | undefined) {
-  const { pixel, time } = world;
-  const idleAt = ms === undefined ? Infinity : time.now + ms;
-  pixel.idleNaturally = async () => {
-    pixel.actions.push("idle naturally");
-  };
-  const state = pixel.state.bind(pixel);
-  pixel.state = async () => ({ ...(await state()), doze: time.now >= idleAt ? "IDLE" : "IDLE_PENDING" });
-}
 
 describe("the ring push and the beacons a call wake judges", () => {
   it("takes only an accepted Android ring push that names a session, and only the session it was asked for", async () => {
@@ -403,7 +407,7 @@ describe("the ring push and the beacons a call wake judges", () => {
     member.app.beacons.push({ tenant: "QA-A", member: "qa-a-dispatcher", stage: "answered", platform: "android", occurred_at: new Date(member.time.now + 3_000).toISOString(), call_session_id: "call-1" });
     expect(await D02.run(member.ctx)).toMatchObject({ failure_class: "answer_not_reported" });
 
-    // A Pixel whose clock is two minutes behind reports its stages before the rig's dial.
+    // A device whose clock is two minutes behind reports its stages before the rig's dial.
     const behind = wakeWorld("D02");
     const dial = behind.robot.dial;
     behind.robot.dial = async (plan) => {
@@ -437,72 +441,54 @@ describe("the ring push and the beacons a call wake judges", () => {
   });
 });
 
-describe("D03, natural Doze", () => {
-  it("waits before the lease for the deep idle the Pixel reaches by itself, then runs D02 without forcing Doze", async () => {
+describe("D03, stepped Doze", () => {
+  it("steps deep Doze to IDLE and through a maintenance window, then runs D02 without forcing it, naming X6", async () => {
     const world = wakeWorld("D03");
-    idlesAfter(world, 45 * 60_000);
     const { ctx, pixel, undo } = world;
-    expect(await D03.prepare!({ ...ctx, lease: UNLEASED })).toBeUndefined();
-    expect(ctx.evidence.deep_idle_after_ms).toBeGreaterThanOrEqual(45 * 60_000);
-    expect(await D03.run(ctx)).toEqual(PASSED);
-    expect(undo[0]).toEqual({ kind: "device.reset", params: { device: "pixel" } });
-    expect(undo).toHaveLength(1);
-    expect(pixel.actions).toEqual(["idle naturally", "kill", "lock", "tap call_answer"]);
+    const result = await D03.run(ctx);
+    expect(result).toEqual({ outcome: "pass", detail: "stepped Doze; natural entry on a physical phone is X6" });
+    expect(pixel.actions).toEqual(["kill", "step doze", "lock", "tap call_answer"]);
+    expect(undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
+    expect(ctx.evidence).toMatchObject({ residual: "X6", doze_steps: pixel.steps, device: { doze: "IDLE", locked: true } });
     expect(world.robot.plans).toHaveLength(1);
   });
 
-  it("reports a Pixel that never reached deep idle as the rig's, inside rigd's prepare limit, and plugs it back in", async () => {
-    const world = wakeWorld("D03");
-    idlesAfter(world, undefined);
-    const started = world.time.now;
-    expect(await D03.prepare!({ ...world.ctx, lease: UNLEASED })).toEqual({ outcome: "infra", component: "pixel", detail: "never reached deep idle" });
-    expect(world.time.now - started).toBeLessThan(2 * 60 * 60_000);
-    expect(world.pixel.actions).toEqual(["idle naturally", "exit doze"]);
+  it("calls a Doze that never reaches deep idle, or skips the maintenance window, the rig's, and dials nobody", async () => {
+    const stuck = wakeWorld("D03");
+    stuck.pixel.steps = ["INACTIVE", "IDLE_PENDING", "SENSING"];
+    const result = await D03.run(stuck.ctx);
+    expect(result).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("never reached deep idle") });
+    expect((result as { detail: string }).detail).toContain("X6");
+    expect(stuck.robot.plans).toEqual([]);
+    expect(stuck.undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
+
+    const unmaintained = wakeWorld("D03");
+    unmaintained.pixel.steps = ["INACTIVE", "IDLE_PENDING", "SENSING", "LOCATING", "IDLE"];
+    expect(await D03.run(unmaintained.ctx)).toMatchObject({ outcome: "infra", detail: expect.stringContaining("never reached deep idle") });
+
+    const broken = wakeWorld("D03");
+    broken.pixel.stepDoze = async () => {
+      throw new Error("adb: deviceidle step on emulator-5560 printed no state (Unknown command)");
+    };
+    expect(await D03.run(broken.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("stepping Doze failed") });
+    expect(broken.robot.plans).toEqual([]);
   });
 
-  it("checks the Pixel and its audio link before two hours of waiting", async () => {
+  it("checks the emulator and its audio before changing anything", async () => {
     const gone = wakeWorld("D03");
     gone.pixel.reachableNow = false;
-    expect(await D03.prepare!({ ...gone.ctx, lease: UNLEASED })).toMatchObject({ outcome: "infra", component: "pixel" });
+    expect(await D03.run(gone.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
 
-    const unpaired = wakeWorld("D03");
-    unpaired.audio.connectedNow = false;
-    expect(await D03.prepare!({ ...unpaired.ctx, lease: UNLEASED })).toMatchObject({ outcome: "infra", component: "pixel-audio" });
-    expect(unpaired.pixel.actions).toEqual([]);
+    const unproven = wakeWorld("D03");
+    unproven.audio.provenNow = false;
+    expect(await D03.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    expect(unproven.pixel.actions).toEqual([]);
+    expect(unproven.undo).toEqual([]);
   });
 
-  // A run due after the prepare, while D03 dials, waits for its hold as it would for the lease.
-  it("is planned so that no other paid Pixel run is due while it prepares, from 07:00 for up to two hours", () => {
-    const registry = loadRegistry(join(REPO, "tools", "rig", "scenarios.json"));
-    const device = new Set(registry.scenarios.filter((s) => s.lane === "device").map((s) => s.id));
-    let d03Days = 0;
-    for (let day = 0; day < 420; day++) {
-      const planned = plannedRuns(registry, day, registry.budget.window);
-      const d03 = planned.find((run) => run.scenario === "D03");
-      if (!d03) continue;
-      d03Days++;
-      const during = planned.filter((run) => run.scenario !== "D03" && device.has(run.scenario) && run.hour >= d03.hour && run.hour <= d03.hour + 1);
-      expect(during, `day ${day}`).toEqual([]);
-    }
-    expect(d03Days).toBe(60);
-  });
-
-  it("puts the battery back and unlocks the Pixel when no run follows a prepare that reached deep idle", async () => {
-    const world = wakeWorld("D03");
-    idlesAfter(world, 0);
-    expect(await D03.prepare!({ ...world.ctx, lease: UNLEASED })).toBeUndefined();
-    world.pixel.deviceState.locked = true;
-    await D03.abandon!({ ...world.ctx, lease: UNLEASED });
-    expect(world.pixel.actions).toEqual(["idle naturally", "exit doze", "unlock"]);
-    expect(world.undo).toEqual([]);
-  });
-
-  it("resets the Pixel even when it left deep idle before the dial", async () => {
-    const world = wakeWorld("D03");
-    expect(await D03.run(world.ctx)).toEqual({ outcome: "infra", component: "pixel", detail: "the Pixel left deep idle between reaching it and the dial" });
-    expect(world.pixel.actions).toEqual([]);
-    expect(world.undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
-    expect(world.robot.plans).toEqual([]);
+  it("has no prepare left: stepping takes seconds, inside the lease", () => {
+    expect(D03.prepare).toBeUndefined();
+    expect(D03.abandon).toBeUndefined();
   });
 });
 
@@ -516,7 +502,11 @@ function d04Day(name: string): number {
 function d04World(name: string) {
   const world = wakeWorld("D04");
   world.time.now = d04Day(name);
-  return world;
+  const variant = D04_VARIANTS.find((v) => v.name === name)!;
+  // The emulator variants take an API level by the 14-day period, as E01's do by theirs.
+  const api = emulatorApiOn(world.time.now, 14);
+  const device = d04Device(variant) === "pixel" ? world.pixel : world.devices.emulators.get(api)!;
+  return { ...world, device, api };
 }
 
 const SETUP: Record<string, string[]> = {
@@ -538,27 +528,84 @@ describe("D04, Android variants", () => {
 
   for (const variant of D04_VARIANTS) {
     const rings = variant.expect.ringsWithinMs !== null;
-    it(`${variant.name}: puts the Pixel in it, passes when it ${rings ? "rings" : "stays quiet"} and fails when it does not`, async () => {
+    const where = d04Device(variant);
+    it(`${variant.name}: puts the ${where === "pixel" ? "device lane" : "day's E01 AVD"} in it, passes when it ${rings ? "rings" : "stays quiet"} and fails when it does not`, async () => {
       const world = d04World(variant.name);
-      if (!rings) world.pixel.rings = undefined;
+      if (!rings) world.device.rings = undefined;
       expect((await D04.run(world.ctx)).outcome).toBe("pass");
-      expect(world.pixel.actions).toEqual(SETUP[variant.name]);
-      expect(world.undo[0]).toEqual({ kind: "device.reset", params: { device: "pixel" } });
-      if (variant.undo) expect(world.undo[1]).toEqual({ kind: variant.undo, params: { device: "pixel" } });
-      expect(world.robot.plans[0]).toMatchObject({ to: "DEV-A1", play: null, record: false, lease_id: "lease-test" });
-      expect(world.ctx.evidence).toMatchObject({ variant: variant.name, expected: variant.expect, device: { locked: true } });
+      expect(world.device.actions).toEqual(SETUP[variant.name]);
+      expect(world.undo[0]).toEqual({ kind: "device.reset", params: { device: world.device.name } });
+      if (variant.undo) expect(world.undo[1]).toEqual({ kind: variant.undo, params: { device: world.device.name } });
+      expect(world.robot.plans[0]).toMatchObject({ to: where === "pixel" ? "DEV-A1" : "DEV-E1", play: null, record: false, lease_id: "lease-test" });
+      expect(world.ctx.evidence).toMatchObject({ variant: variant.name, expected: variant.expect, device_name: world.device.name, device: { locked: true } });
 
       const wrong = d04World(variant.name);
-      if (rings) wrong.pixel.rings = undefined;
+      if (rings) wrong.device.rings = undefined;
       expect(await D04.run(wrong.ctx)).toMatchObject({ outcome: "fail", failure_class: `unconfirmed_${variant.name.replaceAll("-", "_")}` });
     });
   }
+
+  it("never runs a ring that must not come on the device lane", async () => {
+    const quiet = D04_VARIANTS.filter((v) => v.expect.ringsWithinMs === null);
+    expect(quiet.map((v) => v.name)).toEqual(["before-first-unlock", "hibernation"]);
+    for (const variant of quiet) {
+      expect(d04Device(variant)).toBe("emulator");
+      const world = d04World(variant.name);
+      world.device.rings = undefined;
+      await D04.run(world.ctx);
+      expect(world.pixel.actions).toEqual([]);
+      expect(world.undo.every((u) => u.params.device !== "pixel")).toBe(true);
+    }
+    for (const variant of D04_VARIANTS.filter((v) => v.expect.ringsWithinMs !== null)) expect(d04Device(variant)).toBe("pixel");
+  });
+
+  it("boots the day's E01 AVD for an emulator variant, and blames the rig when it will not come up", async () => {
+    const down = d04World("hibernation");
+    down.device.rings = undefined;
+    down.device.reachableNow = false;
+    down.devices.bootEmulator = async (api) => {
+      down.devices.actions.push(`boot ${api}`);
+      down.device.reachableNow = true;
+    };
+    expect((await D04.run(down.ctx)).outcome).toBe("pass");
+    expect(down.devices.actions).toEqual([`boot ${down.api}`]);
+
+    const dead = d04World("hibernation");
+    dead.device.reachableNow = false;
+    expect(await D04.run(dead.ctx)).toMatchObject({ outcome: "infra", component: dead.device.name });
+    expect(dead.robot.plans).toEqual([]);
+  });
+
+  it("reads back the bucket, battery saver and the lock before every push", async () => {
+    const leftover = d04World("secure-lock");
+    leftover.pixel.deviceState.battery_saver = true;
+    expect(await D04.run(leftover.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("saver true") });
+    expect(leftover.robot.plans).toEqual([]);
+
+    const bucketed = d04World("battery-saver");
+    bucketed.pixel.deviceState.standby_bucket = "rare";
+    expect(await D04.run(bucketed.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("bucket rare") });
+
+    const unlocked = d04World("hibernation");
+    unlocked.device.lock = async () => undefined;
+    expect(await D04.run(unlocked.ctx)).toMatchObject({ outcome: "infra", detail: expect.stringContaining("locked false") });
+    expect(unlocked.robot.plans).toEqual([]);
+  });
+
+  it("runs before-first-unlock only where storage is file-encrypted, so the reboot really locks it", async () => {
+    const world = d04World("before-first-unlock");
+    world.device.rings = undefined;
+    world.device.crypto = "none";
+    expect(await D04.run(world.ctx)).toMatchObject({ outcome: "infra", component: world.device.name, detail: expect.stringContaining("not file") });
+    expect(world.robot.plans).toEqual([]);
+    expect(world.ctx.evidence.crypto_type).toBe("none");
+  });
 
   it("hibernation's undo opens the app, which is all that lifts the stopped state hibernating leaves", () => {
     expect(D04_VARIANTS.find((v) => v.name === "hibernation")?.undo).toBe("device.launch");
   });
 
-  it("blames the Pixel when a variant did not take, and reads a bucket by name or number", async () => {
+  it("blames the device when a variant did not take, and reads a bucket by name or number", async () => {
     const stuck = d04World("standby-rare");
     stuck.pixel.setStandbyBucket = async () => undefined;
     expect(await D04.run(stuck.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
@@ -575,14 +622,14 @@ describe("D04, Android variants", () => {
     expect((await D04.run(numbered.ctx)).outcome).toBe("pass");
   });
 
-  it("counts a quiet Pixel only when the API really pushed and FCM accepted", async () => {
+  it("counts a quiet device only when the API really pushed and FCM accepted", async () => {
     const unpushed = d04World("before-first-unlock");
-    unpushed.pixel.rings = undefined;
+    unpushed.device.rings = undefined;
     unpushed.script.pushes = false;
     expect(await D04.run(unpushed.ctx)).toMatchObject({ failure_class: "no_push_attempt" });
 
     const refused = d04World("hibernation");
-    refused.pixel.rings = undefined;
+    refused.device.rings = undefined;
     refused.script.push.response_class = "rejected";
     expect(await D04.run(refused.ctx)).toMatchObject({ failure_class: "push_not_accepted" });
   });
@@ -597,7 +644,7 @@ describe("D04, Android variants", () => {
     expect(d04Verdict("hibernation", quiet, undefined).outcome).toBe("pass");
   });
 
-  it("blames the rig when the Pixel is unreachable", async () => {
+  it("blames the rig when the device lane is unreachable", async () => {
     const world = d04World("secure-lock");
     world.pixel.reachableNow = false;
     expect(await D04.run(world.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
@@ -619,13 +666,13 @@ describe("D10, fresh install", () => {
     expect(undo).toEqual(INSTALL_UNDOS);
     expect(robot.plans).toHaveLength(1);
     expect(ctx.evidence).toMatchObject({
-      install: { current_package: "com.loonext.android.nonprod", signed_in: true, push_targets: 1 },
+      install: { current_package: "com.loonext.android.nonprod", signed_in: true, push_targets: 1, stored_tokens: 1, token_matches: true },
       push_wake: { session_id: "synthetic-1" },
       call_wake: { push: [{ session_id: "call-1" }] },
     });
   });
 
-  it("unlocks the Pixel for the sign-in, and blames the rig for a Pixel or audio link that is missing", async () => {
+  it("unlocks the emulator for the sign-in, and blames the rig for an emulator or audio link that is missing", async () => {
     const locked = wakeWorld("D10");
     locked.pixel.deviceState.locked = true;
     expect(await D10.run(locked.ctx)).toEqual(PASSED);
@@ -636,10 +683,46 @@ describe("D10, fresh install", () => {
     expect(await D10.run(gone.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
     expect(gone.undo).toEqual([]);
 
-    const unpaired = wakeWorld("D10");
-    unpaired.audio.connectedNow = false;
-    expect(await D10.run(unpaired.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
-    expect(unpaired.pixel.actions).toEqual([]);
+    const unlinked = wakeWorld("D10");
+    unlinked.audio.connectedNow = false;
+    expect(await D10.run(unlinked.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+    expect(unlinked.pixel.actions).toEqual([]);
+
+    const unproven = wakeWorld("D10");
+    unproven.audio.provenNow = false;
+    expect(await D10.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    expect(unproven.pixel.actions).toEqual([]);
+  });
+
+  it("fails when the token the API stores is not the one the installed app holds, keeping neither", async () => {
+    const stale = wakeWorld("D10");
+    stale.app.storedTokens.set("qa-a-technician", ["fcm-token-0"]);
+    expect(await D10.run(stale.ctx)).toMatchObject({ outcome: "fail", failure_class: "push_token_mismatch" });
+    expect(stale.ctx.evidence.install).toMatchObject({ stored_tokens: 1, token_matches: false });
+    expect(JSON.stringify(stale.ctx.evidence)).not.toMatch(/fcm-token/);
+
+    const tokenless = wakeWorld("D10");
+    tokenless.pixel.token = null;
+    expect(await D10.run(tokenless.ctx)).toMatchObject({ outcome: "fail", failure_class: "no_device_push_token" });
+
+    const unreadable = wakeWorld("D10");
+    unreadable.pixel.pushToken = async () => {
+      throw new Error("adb: run-as: package not debuggable");
+    };
+    expect(await D10.run(unreadable.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+
+    // A probe that cannot read the stored tokens leaves the check unmade, which is no pass.
+    const blind = wakeWorld("D10");
+    blind.app.pushTokens = async () => {
+      throw new Error("app probe: reading device_push_tokens returned 503");
+    };
+    expect(await D10.run(blind.ctx)).toMatchObject({ outcome: "infra", component: "app-probe" });
+
+    // A wake that failed is reported before any token check.
+    const unwoken = wakeWorld("D10");
+    unwoken.app.storedTokens.set("qa-a-technician", []);
+    unwoken.pixel.rings = undefined;
+    expect(await D10.run(unwoken.ctx)).toMatchObject({ failure_class: "no_ring_within_12s" });
   });
 
   it("fails a missing sign-in screen and a push token never stored", async () => {
@@ -735,6 +818,15 @@ describe("D12, upgrade from the previous release", () => {
     expect(await D12.run(muted.ctx)).toMatchObject({ failure_class: "device_did_not_hear_robot" });
   });
 
+  it("fails a token the upgrade left that is not the device's", async () => {
+    const world = wakeWorld("D12");
+    world.app.storedTokens.set("qa-a-technician", ["fcm-token-0", "fcm-token-9"]);
+    expect(await D12.run(world.ctx)).toMatchObject({ outcome: "fail", failure_class: "push_token_mismatch", detail: expect.stringContaining("2 token(s)") });
+    const kept = wakeWorld("D12");
+    kept.app.storedTokens.set("qa-a-technician", ["fcm-token-0", "fcm-token-1"]);
+    expect(await D12.run(kept.ctx)).toEqual(PASSED);
+  });
+
   it("calls a production package critical", async () => {
     const world = wakeWorld("D12");
     world.pixel.install = async (build) => (build === "current" ? "com.loonext.android" : "com.loonext.android.nonprod");
@@ -751,25 +843,58 @@ function recoveryWorld() {
     // tools/rig/src/health.mjs's own check names: none of them is a device.
     return { ...world.rig.report, results: polls.length > greenAfter ? [{ name: "api", pass: true }] : [{ name: "uplink", pass: false }] };
   };
-  return { ...world, polls, greenAfter: (n: number) => (greenAfter = n) };
+  // A realistic host: API 34 and 35 up beside the device lane, 36 down, and hostd's boots and stops followed by adb.
+  world.devices.emulators.get(36)!.reachableNow = false;
+  let mostBooted = 0;
+  const count = () => {
+    const up = [world.pixel, ...world.devices.emulators.values()].filter((d) => d.reachableNow).length;
+    mostBooted = Math.max(mostBooted, up);
+  };
+  world.devices.bootEmulator = async (api) => {
+    world.devices.actions.push(`boot ${api}`);
+    world.devices.emulators.get(api)!.reachableNow = true;
+    count();
+  };
+  world.devices.shutdownEmulator = async (api) => {
+    world.devices.actions.push(`shutdown ${api}`);
+    world.devices.emulators.get(api)!.reachableNow = false;
+  };
+  return { ...world, polls, greenAfter: (n: number) => (greenAfter = n), mostBooted: () => mostBooted };
 }
 
 describe("D11, unattended recovery", () => {
-  it("disrupts the Pixel and every emulator, waits for health, then passes D02p", async () => {
+  it("cold-restarts the device lane and cycles each E01 AVD one at a time within max_booted, waits for health, then passes D02p", async () => {
     const world = recoveryWorld();
     const { ctx, devices, pixel, undo, robot } = world;
     world.greenAfter(3);
     expect(await D11.run(ctx)).toEqual(PASSED);
-    expect(devices.actions).toEqual(["power cycle", "shutdown 34", "shutdown 35", "shutdown 36", "boot 34", "boot 35", "boot 36"]);
-    expect(pixel.actions).toEqual(["reboot", "tap call_decline"]);
+    expect(devices.actions).toEqual([
+      "cold restart pixel",
+      "shutdown 34",
+      "shutdown 35",
+      "shutdown 36",
+      "boot 34",
+      "shutdown 34",
+      "boot 35",
+      "shutdown 35",
+      "boot 36",
+      "shutdown 36",
+    ]);
+    expect(world.mostBooted()).toBeLessThanOrEqual(MAX_BOOTED);
+    expect(pixel.actions).toEqual(["tap call_decline"]);
+    // The release boots back what was running before.
     expect(undo).toEqual([
       { kind: "device.reset", params: { device: "pixel" } },
-      ...EMULATOR_APIS.map((api) => ({ kind: "device.boot", params: { device: `emulator-${api}` } })),
+      { kind: "device.boot", params: { device: "emulator-34" } },
+      { kind: "device.boot", params: { device: "emulator-35" } },
     ]);
     expect(robot.plans).toEqual([]);
     expect(world.polls).toHaveLength(4);
     expect(world.polls.slice(1).every((at, i) => at - world.polls[i]! >= 60_000)).toBe(true);
-    expect(ctx.evidence).toMatchObject({ recovery: { health_polls: 4, failing: [], restart_errors: [] }, push_wake: { session_id: "synthetic-1" } });
+    expect(ctx.evidence).toMatchObject({
+      recovery: { health_polls: 4, failing: [], restart_errors: [], emulators_booted_before: [34, 35] },
+      push_wake: { session_id: "synthetic-1" },
+    });
   });
 
   it("fails when health is not green 10 minutes after the disruption, asking no more than once a minute", async () => {
@@ -782,11 +907,10 @@ describe("D11, unattended recovery", () => {
     expect(world.simulated).toEqual([]);
   });
 
-  it("judges the emulators, the Pixel's bond and its hands-free link, which rig health does not check", async () => {
+  it("judges each E01 AVD's boot and the device lane's audio link, which rig health does not check", async () => {
     const dead = recoveryWorld();
     dead.devices.bootEmulator = async (api) => {
-      if (api !== 35) return;
-      dead.devices.emulators.get(35)!.reachableNow = false;
+      if (api !== 35) return void (dead.devices.emulators.get(api)!.reachableNow = true);
       throw new Error("the API 35 emulator did not finish booting");
     };
     const deadResult = await D11.run(dead.ctx);
@@ -795,17 +919,13 @@ describe("D11, unattended recovery", () => {
     expect((deadResult as { detail: string }).detail).toContain("boot emulator-35: the API 35 emulator did not finish booting");
     expect(dead.simulated).toEqual([]);
 
-    const unbonded = recoveryWorld();
-    unbonded.pixel.reboot = async () => {
-      unbonded.pixel.deviceState.bluetooth_bonded = 0;
-    };
-    expect(await D11.run(unbonded.ctx)).toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel-bluetooth-bond") });
-
     const unlinked = recoveryWorld();
-    unlinked.devices.powerCycle = async () => {
+    unlinked.devices.coldRestart = async () => {
       unlinked.audio.connectedNow = false;
     };
-    expect(await D11.run(unlinked.ctx)).toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel-audio") });
+    const result = await D11.run(unlinked.ctx);
+    expect(result).toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel-audio-link") });
+    expect((result as { detail: string }).detail).not.toContain("bluetooth");
 
     // A link already down would make its recovery mean nothing, so nothing is disrupted.
     const downBefore = recoveryWorld();
@@ -814,13 +934,17 @@ describe("D11, unattended recovery", () => {
     expect(downBefore.devices.actions).toEqual([]);
   });
 
-  it("waits for an emulator that comes back late, inside the 10 minutes", async () => {
+  it("waits for an E01 AVD that answers adb late, inside its boot wait", async () => {
     const late = recoveryWorld();
-    const started = late.time.now;
     const emulator = late.devices.emulators.get(36)!;
-    emulator.reachable = async () => late.time.now - started >= 4 * 60_000;
+    let bootedAt = Infinity;
+    const boot = late.devices.bootEmulator;
+    late.devices.bootEmulator = async (api) => {
+      await boot(api);
+      if (api === 36) bootedAt = late.time.now;
+    };
+    emulator.reachable = async () => late.time.now - bootedAt >= 2 * 60_000;
     expect(await D11.run(late.ctx)).toEqual(PASSED);
-    expect(late.polls.length).toBeGreaterThan(1);
   });
 
   it("keeps polling past a health run that threw, and records restarts that failed", async () => {
@@ -831,42 +955,44 @@ describe("D11, unattended recovery", () => {
       if (calls === 1) throw new Error("rig health exited 1");
       return world.rig.report;
     };
+    const boot = world.devices.bootEmulator;
     world.devices.bootEmulator = async (api) => {
-      if (api === 35) throw new Error("the API 35 emulator did not finish booting");
+      await boot(api);
+      if (api === 35) throw new Error("rig: the device is locked and the store has no PIN");
     };
     expect(await D11.run(world.ctx)).toEqual(PASSED);
     expect((world.ctx.evidence.recovery as { restart_errors: string[] }).restart_errors).toEqual([
-      "boot emulator-35: the API 35 emulator did not finish booting",
+      "boot emulator-35: rig: the device is locked and the store has no PIN",
     ]);
   });
 
-  it("fails a Pixel that health calls green but adb cannot see, and unlocks one left locked by its reboot", async () => {
+  it("fails a device lane that health calls green but adb cannot see, and unlocks one its restart left locked", async () => {
     const lost = recoveryWorld();
     let seen = 0;
-    lost.pixel.reachable = async () => ++seen <= 2;
+    lost.pixel.reachable = async () => ++seen <= 1;
     expect(await D11.run(lost.ctx)).toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel") });
     expect(lost.simulated).toEqual([]);
 
     const locked = recoveryWorld();
-    locked.pixel.reboot = async () => {
-      locked.pixel.actions.push("reboot");
+    locked.devices.coldRestart = async (name) => {
+      locked.devices.actions.push(`cold restart ${name}`);
       locked.pixel.deviceState.locked = true;
     };
     expect(await D11.run(locked.ctx)).toEqual(PASSED);
-    expect(locked.pixel.actions).toEqual(["reboot", "unlock", "tap call_decline"]);
+    expect(locked.pixel.actions).toEqual(["unlock", "tap call_decline"]);
   });
 
-  it("fails when D02p fails after recovery, and blames the rig when there is no hub port to cycle", async () => {
+  it("fails when D02p fails after recovery, and blames hostd when it cannot cold-restart the device lane", async () => {
     const unwoken = recoveryWorld();
     unwoken.pixel.rings = undefined;
     expect(await D11.run(unwoken.ctx)).toMatchObject({ failure_class: "no_ring_within_12s" });
 
-    const hubless = recoveryWorld();
-    hubless.devices.powerCycle = async () => {
-      throw new Error("rig: the store names no USB hub port for the Pixel");
+    const hostless = recoveryWorld();
+    hostless.devices.coldRestart = async () => {
+      throw new Error("hostd: POST /v1/devices/pixel/kill answered 503");
     };
-    expect(await D11.run(hubless.ctx)).toMatchObject({ outcome: "infra", component: "usb-hub" });
-    expect(hubless.devices.actions).toEqual([]);
+    expect(await D11.run(hostless.ctx)).toMatchObject({ outcome: "infra", component: "hostd" });
+    expect(hostless.devices.actions).toEqual([]);
   });
 });
 
@@ -1017,7 +1143,7 @@ describe("the wake runners' budgets", () => {
   const runners: [ScenarioRunner, (world: ReturnType<typeof wakeWorld>) => void][] = [
     [D02, () => undefined],
     [D02p, () => undefined],
-    [D03, (world) => idlesAfter(world, 0)],
+    [D03, () => undefined],
     [D04, () => undefined],
     [D10, () => undefined],
     [D11, () => undefined],
@@ -1032,8 +1158,7 @@ describe("the wake runners' budgets", () => {
         const world = wakeWorld(runner.id);
         world.ctx.slot = { index: 0, ...(run.label ? { label: run.label } : {}) };
         arrange(world);
-        const prepared: ScenarioResult | undefined = runner.prepare ? await runner.prepare({ ...world.ctx, lease: UNLEASED }) : undefined;
-        expect(prepared).toBeUndefined();
+        expect(runner.prepare).toBeUndefined();
         expect((await runner.run(world.ctx)).outcome).not.toBe("infra");
         expect(world.robot.plans.length).toBeLessThanOrEqual(row.far_end_legs);
         if (row.dials === 0) expect(world.robot.plans).toEqual([]);
