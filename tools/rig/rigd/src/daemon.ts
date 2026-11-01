@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { triageMethods, type StartedRun } from "@loonext/rig-triage";
 import type { RigdConfig } from "./config.ts";
 import { cronExplainer, type CronExplainer } from "./cron-events.ts";
-import { webhookForwarder } from "./forward.ts";
+import { webhookForwarder, type ForwardTargets } from "./forward.ts";
 import { DEPLOY_HOLD_FILE, readDeployHold } from "../../src/deploy-hold.mjs";
 import { installSchedule, userUnitDir, type Systemctl } from "./install.ts";
 import { loadRegistry } from "./registry.ts";
@@ -36,8 +36,9 @@ import { NOT_RUNNABLE_YET, RUNNERS } from "./scenarios/index.ts";
 import { g01Refusal } from "./scenarios/gates.ts";
 import { attestGuard, reportAttestation } from "./guard-attest.ts";
 import { BUNDLE_KEY_SECRET, CONTROL_TOKEN_SECRET, deliverSecrets } from "./secrets.ts";
-import { infraFingerprint, parseDsn, type Dsn } from "./sentry-relay.ts";
+import { infraFingerprint, parseDsn, type Dsn, type Explanation, type SeenEvent } from "./sentry-relay.ts";
 import { Uplink } from "./uplink.ts";
+import type { VerdictStore } from "./verdicts.ts";
 import { buildRig, suiteMarker, type Rig } from "./wiring.ts";
 
 const CLI = fileURLToPath(new URL("./cli.ts", import.meta.url));
@@ -164,6 +165,41 @@ function heldForDeploy(rig: Rig, log: (line: string) => void): boolean {
   return true;
 }
 
+/** Where the uplink's webhook frames go, with the call-event fault S17 arms. */
+export function forwardTargets(rig: Pick<Rig, "config" | "numbers" | "faults" | "late">, log: (line: string) => void): ForwardTargets {
+  const { store } = rig.config;
+  return {
+    apiBase: rig.config.localApiBase,
+    robotBase: rig.config.robotBase,
+    robotToken: robotLocalToken(store),
+    robotNumber: (e164) => {
+      try {
+        return isRobotRole(rig.numbers().role(e164));
+      } catch {
+        return false;
+      }
+    },
+    telnyxKey: () => {
+      const key = store.readOptional("telnyx-public-key");
+      return key ? telnyxPublicKey(key) : undefined;
+    },
+    takeFault: () => rig.faults.take(),
+    onLate: (entry) => {
+      rig.late.record(entry);
+      log(`a genuine text reached the API ${entry.age_s} s after Telnyx signed it; recorded as a late delivery`);
+    },
+  };
+}
+
+/** How the relay's report explains a local API event: the cron registry first, then a G01 attempt's refusals. */
+export function relayExplain(
+  explainer: CronExplainer | undefined,
+  verdicts: Pick<VerdictStore, "all">,
+): (event: SeenEvent) => Explanation | undefined {
+  const g01 = verdicts.all().filter((v) => v.scenario === "G01");
+  return (event) => explainer?.explain(event) ?? (g01Refusal(event, g01) ? { kind: "expected" } : undefined);
+}
+
 export function startDaemon(config: RigdConfig): Daemon {
   const rig = buildRig(config);
   const { store, home } = config;
@@ -177,27 +213,7 @@ export function startDaemon(config: RigdConfig): Daemon {
     edgeOrigin: config.edgeOrigin,
     token: store.read("control-token-rig"),
     handlers: {
-      webhook: webhookForwarder({
-        apiBase: config.localApiBase,
-        robotBase: config.robotBase,
-        robotToken: robotLocalToken(store),
-        robotNumber: (e164) => {
-          try {
-            return isRobotRole(rig.numbers().role(e164));
-          } catch {
-            return false;
-          }
-        },
-        telnyxKey: () => {
-          const key = store.readOptional("telnyx-public-key");
-          return key ? telnyxPublicKey(key) : undefined;
-        },
-        takeFault: () => rig.faults.take(),
-        onLate: (entry) => {
-          rig.late.record(entry);
-          log(`a genuine text reached the API ${entry.age_s} s after Telnyx signed it; recorded as a late delivery`);
-        },
-      }),
+      webhook: webhookForwarder(forwardTargets(rig, log)),
       media: mediaRelay({ supabaseUrl: () => (supabaseUrl ??= localSupabase(home, config.env).apiUrl) }),
       mail: async (frame) => {
         mailbox.store(frame);
@@ -268,12 +284,7 @@ export function startDaemon(config: RigdConfig): Daemon {
       } catch (error) {
         log(`crons.json unreadable, so nothing is explained: ${error instanceof Error ? error.message : "error"}`);
       }
-      const g01 = rig.verdicts.all().filter((v) => v.scenario === "G01");
-      publishState(
-        home,
-        "sentry-relay.json",
-        relay.report((event) => explainer?.explain(event) ?? (g01Refusal(event, g01) ? { kind: "expected" } : undefined)),
-      );
+      publishState(home, "sentry-relay.json", relay.report(relayExplain(explainer, rig.verdicts)));
     };
     report();
     every(RELAY_REPORT_MS, report);
