@@ -167,9 +167,9 @@ describe("the setup routine", () => {
     await setup(h);
     const voice = h.telnyx.lists.outbound_voice_profiles.find((item) => item.name === "nonprod-voice-ovp");
     const app = h.telnyx.lists.call_control_applications.find((item) => item.application_name === "nonprod-voice");
-    // Limit 6, reserve 2: room 4, one of it the robot's.
-    expect(voice?.concurrent_call_limit).toBe(3);
-    expect(app?.outbound).toMatchObject({ channel_limit: 4 });
+    // Limit 5, reserve 2: room 3, one of it the robot's.
+    expect(voice?.concurrent_call_limit).toBe(2);
+    expect(app?.outbound).toMatchObject({ channel_limit: 3 });
   });
 
   it("never writes a null concurrent limit, which Telnyx reads as unlimited", () => {

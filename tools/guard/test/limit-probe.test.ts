@@ -31,18 +31,18 @@ async function probed(options: { mode: "refuse-above" | "accept" | "error"; limi
 
 describe("the validation check", () => {
   it("finds the largest value Telnyx accepts, from an absurd first write, and puts the profile back to 1", async () => {
-    const { h, result } = await probed({ mode: "refuse-above", limit: 7 });
-    expect(result).toMatchObject({ result: "exact", value: 7, refusal_code: "10015" });
+    const { h, result } = await probed({ mode: "refuse-above", limit: 4 });
+    expect(result).toMatchObject({ result: "exact", value: 4, refusal_code: "10015" });
     const sent = writes(h);
     expect(sent[0]).toMatchObject({ path: PROBE, value: 9999, name: "nonprod-limit-probe-ovp" });
     expect(sent.at(-1)).toMatchObject({ path: PROBE, value: 1 });
     expect(sent.length).toBeLessThanOrEqual(LIMIT_PROBE_MAX_WRITES);
     expect(result.writes).toBe(sent.length);
-    // Both ends were written: 7 accepted, 8 refused.
-    expect(sent.map((item) => item.value)).toEqual(expect.arrayContaining([7, 8]));
+    // Both ends were written: 4 accepted, 5 refused.
+    expect(sent.map((item) => item.value)).toEqual(expect.arrayContaining([4, 5]));
     expect(profile(h, "ovp-probe")?.concurrent_call_limit).toBe(1);
-    expect(await h.store.get<ValidationRecord>(LIMIT_KEYS.validation)).toMatchObject({ result: "exact", value: 7 });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 7, source: "validation" });
+    expect(await h.store.get<ValidationRecord>(LIMIT_KEYS.validation)).toMatchObject({ result: "exact", value: 4 });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 4, source: "validation" });
   });
 
   it("stays within its write budget wherever the boundary is", async () => {
@@ -169,9 +169,9 @@ describe("when the validation check runs", () => {
     await h.guard.cron(CRONS.upkeep);
     expect(writes(h)).toHaveLength(2);
     h.advance(DAY);
-    h.telnyx.profileLimit = { mode: "refuse-above", limit: 6 };
+    h.telnyx.profileLimit = { mode: "refuse-above", limit: 4 };
     await h.guard.cron(CRONS.upkeep);
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 6, source: "validation" });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 4, source: "validation" });
   });
 
   it("runs again once a conclusive result is 30 days old", async () => {

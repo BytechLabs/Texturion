@@ -21,7 +21,7 @@ async function history(h: Harness, peak: number, at = h.clock.now): Promise<void
 async function validation(h: Harness, record: Partial<ValidationRecord>): Promise<void> {
   await h.store.put(LIMIT_KEYS.validation, {
     result: "exact",
-    value: 6,
+    value: 5,
     measured_at: h.clock.now,
     writes: 15,
     refusal_code: "10015",
@@ -31,6 +31,8 @@ async function validation(h: Harness, record: Partial<ValidationRecord>): Promis
 
 const conflictAlerts = (h: Harness) =>
   h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-guard-limit-conflict"]'));
+const cappedAlerts = (h: Harness) =>
+  h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-guard-limit-capped"]'));
 
 describe("the limit in force", () => {
   it("is the floor, with no room at all, while nothing else is proven", async () => {
@@ -55,12 +57,25 @@ describe("the limit in force", () => {
 
   it("is a fresh exact validation, capped by the lowest valued ceiling", async () => {
     const h = harness();
-    await validation(h, { value: 7 });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 7, source: "validation" });
-    expect(roomUnder(await limitInForce(h.ctx), 3)).toBe(4);
-    await recordCeiling(h.ctx, { value: 5, from: "level:paid_or_below" });
-    await recordCeiling(h.ctx, { value: 6, from: "telnyx-90041" });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, source: "validation", ceiling: { value: 5, from: "level:paid_or_below" } });
+    await validation(h, { value: 5 });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, source: "validation" });
+    expect(roomUnder(await limitInForce(h.ctx), 3)).toBe(2);
+    await recordCeiling(h.ctx, { value: 4, from: "telnyx-90041" });
+    await recordCeiling(h.ctx, { value: 6, from: "telnyx-90042" });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 4, source: "validation", ceiling: { value: 4, from: "telnyx-90041" } });
+  });
+
+  it("counts a validation above Paid's 5 only as far as production's history corroborates, and warns once per value", async () => {
+    const h = harness();
+    await validation(h, { value: 40 });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, source: "validation" });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5 });
+    expect(cappedAlerts(h)).toHaveLength(1);
+    await history(h, 7);
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 7, source: "validation", conflict: null });
+    await validation(h, { value: 6 });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 6 });
+    expect(cappedAlerts(h)).toHaveLength(1);
   });
 
   it("stays the floor when the check found the rule not enforced, or could not tell", async () => {
@@ -71,38 +86,36 @@ describe("the limit in force", () => {
     }
   });
 
-  it("is the history lower bound when it is above the floor and nothing better is proven", async () => {
+  it("never opens room on the history bound alone", async () => {
     const h = harness();
-    await history(h, 2);
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 2, source: "floor", history: 2 });
     await history(h, 4);
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 4, source: "history", history: 4 });
-    expect(roomUnder(await limitInForce(h.ctx), 1)).toBe(3);
-    await recordCeiling(h.ctx, { value: 5, from: "level:paid_or_below" });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 4, source: "history", conflict: null });
+    const concurrency = await limitInForce(h.ctx);
+    expect(concurrency).toMatchObject({ limit: 2, source: "floor", history: 4, conflict: null });
+    expect(roomUnder(concurrency, 0)).toBe(0);
+    expect(limitRule(concurrency, 1)?.rule).toBe("admission.limit_unproven");
   });
 
-  it("prefers a validation at or above the history bound", async () => {
+  it("takes a validation at or above the history bound", async () => {
     const h = harness();
     await history(h, 4);
-    await validation(h, { value: 6 });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 6, source: "validation", conflict: null });
+    await validation(h, { value: 5 });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, source: "validation", conflict: null });
   });
 
   it("lets each kind of evidence lapse after 35 days", async () => {
     const h = harness();
     const old = h.clock.now - 35 * DAY - 1;
-    await validation(h, { value: 6, measured_at: old });
+    await validation(h, { value: 5, measured_at: old });
     await history(h, 4, old);
     expect(await limitInForce(h.ctx)).toMatchObject({ limit: 2, source: "floor", history: null });
-    await validation(h, { value: 6, measured_at: h.clock.now - 35 * DAY });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 6, source: "validation" });
+    await validation(h, { value: 5, measured_at: h.clock.now - 35 * DAY });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, source: "validation" });
 
     await recordCeiling(h.ctx, { value: 3, from: "telnyx-90041" });
     expect((await limitInForce(h.ctx)).limit).toBe(3);
     h.advance(35 * DAY + 1);
-    await validation(h, { value: 6 });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 6, ceiling: null });
+    await validation(h, { value: 5 });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, ceiling: null });
     expect(await h.store.get(LIMIT_KEYS.ceiling)).toHaveLength(1);
     await recordCeiling(h.ctx, { value: null, from: "telnyx-90042" });
     // Writing a new ceiling drops the lapsed ones.
@@ -111,9 +124,9 @@ describe("the limit in force", () => {
 
   it("shows a value-less ceiling without moving the limit", async () => {
     const h = harness();
-    await validation(h, { value: 6 });
+    await validation(h, { value: 5 });
     await recordCeiling(h.ctx, { value: null, from: "telnyx-90043" });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 6, ceiling: { value: null, from: "telnyx-90043" }, conflict: null });
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, ceiling: { value: null, from: "telnyx-90043" }, conflict: null });
   });
 });
 
@@ -173,7 +186,7 @@ describe("level evidence from the robot", () => {
 
   it("caps the limit at the Paid level's 5 when the robot heard the announcement", async () => {
     const h = await ready();
-    expect((await limitInForce(h.ctx)).limit).toBe(6);
+    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, ceiling: null });
     const response = await post(h, { announcement_ms: 4_200, at: new Date(h.clock.now).toISOString() });
     expect(await response.json()).toEqual({ recorded: true, level: "paid_or_below" });
     expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, ceiling: { value: 5, from: "level:paid_or_below" } });

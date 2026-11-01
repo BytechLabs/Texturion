@@ -10,9 +10,14 @@ import { sendProductionEvent } from "../sentry";
  *     only the floor is in force, admission adds no leg at all;
  *   - validation: the limit-probe profile's concurrent_call_limit, which
  *     Telnyx says must be no more than the account's, searched to the largest
- *     value it accepts (setup/limit-probe.ts);
+ *     value it accepts (setup/limit-probe.ts). It is the only evidence that
+ *     raises the limit above the floor, and only as far as Paid's
+ *     PAID_CONCURRENT, or the history bound when that is higher: Telnyx does
+ *     not say the boundary is the account's limit rather than a product
+ *     maximum;
  *   - history: the most production calls that overlapped in 28 days. The
- *     account carried that many at once, so its limit is at least that;
+ *     account carried that many at once, so its limit is at least that. It
+ *     checks the validation and never opens room by itself;
  *   - ceilings: a Telnyx refusal for concurrency, and the robot hearing the
  *     announcement only Paid accounts and below get. They only ever lower it.
  * Evidence that contradicts itself is a conflict, and admits nothing.
@@ -40,7 +45,7 @@ export interface Ceiling {
   at: number;
 }
 
-export type LimitSource = "floor" | "validation" | "history";
+export type LimitSource = "floor" | "validation";
 
 export interface LimitInForce {
   /** Null only when the floor itself is unparseable. */
@@ -63,6 +68,8 @@ export const LIMIT_KEYS = {
   /** When the validation check last ran, conclusive or not, for its once-a-day pace. */
   probe: "limit:probe",
   conflictAlert: "limit:conflict-alert",
+  /** The validated value last alerted on for being above what the rig can corroborate. */
+  cappedAlert: "limit:capped-alert",
 } as const;
 
 const MAX_CEILINGS = 20;
@@ -108,11 +115,8 @@ export async function limitInForce(ctx: Ctx): Promise<LimitInForce> {
     limit = null;
     source = "floor";
   } else if (exact !== null) {
-    limit = cap(exact);
+    limit = cap(Math.min(exact, Math.max(PAID_CONCURRENT, history ?? 0)));
     source = "validation";
-  } else if (history !== null && history > floor) {
-    limit = cap(history);
-    source = "history";
   } else {
     limit = cap(floor);
     source = "floor";
@@ -125,7 +129,23 @@ export async function limitInForce(ctx: Ctx): Promise<LimitInForce> {
 
   const result: LimitInForce = { limit, source, floor, validation: stored, history, ceiling, conflict };
   await alertConflictOnce(ctx, conflict);
+  await alertCappedOnce(ctx, exact !== null && exact > Math.max(PAID_CONCURRENT, history ?? 0) ? exact : null);
   return result;
+}
+
+/** One warning per validated value above what Paid's limit or production's history supports. */
+async function alertCappedOnce(ctx: Ctx, value: number | null): Promise<void> {
+  const alerted = await ctx.store.get<number>(LIMIT_KEYS.cappedAlert);
+  if (value === null || alerted === value) return;
+  await ctx.store.put(LIMIT_KEYS.cappedAlert, value);
+  await sendProductionEvent(ctx, {
+    key: "telnyx-guard-limit-capped",
+    summary: "The rig's validation check found a concurrent limit above what it can corroborate",
+    detail:
+      `The check accepted ${value}, above Paid's ${PAID_CONCURRENT} and production's measured peak, so the guard ` +
+      `counts no more than the higher of those two. A boundary that high may be a product maximum, not the account's limit.`,
+    level: "warning",
+  });
 }
 
 /** One production alert per conflict, raised again only once it has cleared and come back. */

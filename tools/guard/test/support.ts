@@ -270,8 +270,8 @@ export async function fileMeasurements(h: Harness, reserve = 2): Promise<void> {
   await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 0, peak_day_dials: 0, measured_at: h.clock.now });
 }
 
-/** The suites' account limit: the validation check found 6, so limit 6 less a reserve of 2 leaves room 4. */
-export const VALIDATED_LIMIT = 6;
+/** The suites' account limit: the validation check found 5, so limit 5 less a reserve of 2 leaves room 3. */
+export const VALIDATED_LIMIT = 5;
 
 /** Files a fresh exact result of the validation check, as setup/limit-probe.ts would. */
 export async function fileValidation(h: Harness, value = VALIDATED_LIMIT): Promise<void> {

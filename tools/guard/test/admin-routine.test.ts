@@ -191,7 +191,7 @@ describe("guard.yml's admin routines", () => {
     const health = (await (await h.call("/health", { caller: "admin" })).json()) as GuardHealth;
     expect(health.paid_dials).toMatchObject({
       blockers: [],
-      room: 3,
+      room: 2,
       window_start_hour_utc: 5,
       window_measured_at: new Date(h.clock.now).toISOString(),
     });

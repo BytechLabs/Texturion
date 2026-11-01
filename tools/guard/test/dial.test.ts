@@ -368,9 +368,9 @@ describe("admission", () => {
   });
 
   it("counts live nonprod legs against the room", async () => {
-    // Limit 6, reserve 4: room for two test legs.
+    // Limit 5, reserve 3: room for two test legs.
     const h = await ready();
-    await h.store.put(ADMISSION_KEYS.reserve, { legs: 4, measured_at: h.clock.now });
+    await h.store.put(ADMISSION_KEYS.reserve, { legs: 3, measured_at: h.clock.now });
     const id = await lease(h);
     expect((await dial(h, id)).status).toBe(200);
     expect((await dial(h, id, { ...DIAL, to: N.devW2 })).status).toBe(200);

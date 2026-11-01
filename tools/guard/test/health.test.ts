@@ -99,13 +99,13 @@ describe("/health", () => {
     const h = await ready();
     await lease(h, "S02");
     const health = await healthOf(h, "robot");
-    expect(health).toMatchObject({ ok: true, balance_above_floor: true, room: 4 });
-    expect(health.paid_dials).toMatchObject({ enabled: true, room: 4 });
+    expect(health).toMatchObject({ ok: true, balance_above_floor: true, room: 3 });
+    expect(health.paid_dials).toMatchObject({ enabled: true, room: 3 });
     expect(health.ordering).toEqual({ enabled: true, blockers: [] });
     expect(health.concurrency).toMatchObject({
-      limit_in_force: 6,
+      limit_in_force: 5,
       source: "validation",
-      validation: { result: "exact", value: 6, measured_at: new Date(h.clock.now).toISOString() },
+      validation: { result: "exact", value: 5, measured_at: new Date(h.clock.now).toISOString() },
     });
     expect(health.account_rate).toMatchObject({ production_peak_hour: 0, production_peak_day: 0 });
     expect(health.lease).toMatchObject({ scenario: "S02" });

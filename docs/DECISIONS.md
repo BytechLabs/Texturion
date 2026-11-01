@@ -9198,8 +9198,14 @@ with its reason:
     spec says a profile's limit "Must be no more than your global concurrent
     call limit".
   - History lower bound: the most overlapping answered production calls in 28
-    days, from `ops_diag.call_sessions`. It can lift the limit in force above
-    the floor. Why: it is measured; the account carried that many.
+    days, from `ops_diag.call_sessions`. It checks the validation, and never
+    opens room by itself. Why: the research rule is that only a self-checked
+    validation unblocks, and history rests on production's call records
+    alone.
+  - A validated value counts only up to Paid's 5, or the history bound when
+    that is higher, and a higher one raises a warning. Why: Telnyx does not
+    say the 422 boundary is the account's limit rather than a product
+    maximum, so the safer reading caps it.
   - Ceilings: refusal codes 90041, 90042 and 90043, and 90103 with HTTP 429.
     Each also halts and alerts. The robot hearing Telnyx's automated-call
     announcement means Paid or below, which caps the limit at 5.
