@@ -61,6 +61,7 @@ export const RULES = [
   "provisioning.order_group",
   "provisioning.order_profile",
   "provisioning.order_connection",
+  "provisioning.voice_closed",
   "provisioning.number_not_owned",
   "provisioning.number_standing",
   "provisioning.patch_field",

@@ -8,6 +8,7 @@ import {
 } from "../limits";
 import { Refusal } from "../refusal";
 import { callerNameNumbers, SPEC, sentinelCredentialCap } from "../setup/spec";
+import { paidState } from "../state/admission";
 import { requireAboveFloor } from "../state/balance";
 import { dayOf, giveBack, tryTake } from "../state/counters";
 import { liveLease } from "../state/lease";
@@ -47,10 +48,23 @@ const search: Handler = async (request) => {
   return relay(await forward(request, undefined));
 };
 
-/** Every order's checks, shared with the admin's standing orders. */
+/**
+ * Whether a number may be bound to a voice connection. Any bound number can
+ * take inbound calls, which use the account's channels like a dial does, so
+ * binding waits for the same proof of room that paid dials wait for.
+ */
+export async function voiceOpen(ctx: Ctx): Promise<boolean> {
+  return (await paidState(ctx, "ok")).blockers.length === 0;
+}
+
+/**
+ * Every order's checks, shared with the admin's standing orders. With `voice`
+ * false the number is ordered with no connection, for its texts alone.
+ */
 export async function checkOrderBody(
   request: Pick<TelnyxRequest, "ctx" | "view">,
   body: Item,
+  { voice = true }: { voice?: boolean } = {},
 ): Promise<{ body: Item; phoneNumber: string }> {
   const { view } = request;
   const numbers = body.phone_numbers;
@@ -62,6 +76,11 @@ export async function checkOrderBody(
   if (typeof body.messaging_profile_id !== "string" || !view.messagingProfiles.has(body.messaging_profile_id)) {
     throw new Refusal("provisioning.order_profile");
   }
+  const phoneNumber = (numbers[0] as Item).phone_number as string;
+  if (!voice) {
+    if (body.connection_id !== undefined) throw new Refusal("provisioning.voice_closed");
+    return { body, phoneNumber };
+  }
   // The app binds voice after the order, so its order body has no
   // connection. An order must carry one, so the guard adds the
   // voice app rather than letting a number land unbound.
@@ -69,10 +88,7 @@ export async function checkOrderBody(
   if (typeof connection !== "string" || !view.dialConnections.has(connection)) {
     throw new Refusal("provisioning.order_connection");
   }
-  return {
-    body: { ...body, connection_id: connection },
-    phoneNumber: (numbers[0] as Item).phone_number as string,
-  };
+  return { body: { ...body, connection_id: connection }, phoneNumber };
 }
 
 /** Money and signal gates for anything that buys. */
@@ -88,6 +104,8 @@ const order: Handler = async (request) => {
   await verifyFirstOrder(ctx);
   await requireOrdering(ctx);
   await requireLeaseFor(ctx, "provisioning.order_needs_lease");
+  // S28's number is bound to the voice app and rung, so it waits for paid dials.
+  if (!(await voiceOpen(ctx))) throw new Refusal("provisioning.voice_closed");
   const checked = await checkOrderBody(request, request.body);
   const last = (await ctx.store.get<number>(ORDER_KEYS.last)) ?? 0;
   if (ctx.now() - last < ORDER_INTERVAL_MS) throw new Refusal("provisioning.order_interval");
@@ -128,6 +146,7 @@ const patchNumber: Handler = async (request) => {
     if (field === "connection_id" && !(typeof value === "string" && request.view.dialConnections.has(value))) {
       throw new Refusal("provisioning.patch_field");
     }
+    if (field === "connection_id" && !(await voiceOpen(request.ctx))) throw new Refusal("provisioning.voice_closed");
     if (field === "billing_group_id" && value !== request.view.record.billing_group_id) {
       throw new Refusal("provisioning.patch_field");
     }

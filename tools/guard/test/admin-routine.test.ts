@@ -116,8 +116,29 @@ describe("guard.yml's admin routines", () => {
     expect(outcome.lines.at(-1)).toBe(
       "every role the open lanes use is held; waiting for paid dials: ROBOT-2, STRANGER-1, DEV-W2, DEV-A1, DEV-C1",
     );
-    expect(h.telnyx.requests("POST", "/v2/number_orders")).toHaveLength(3);
+    const orders = h.telnyx.requests("POST", "/v2/number_orders");
+    expect(orders).toHaveLength(3);
+    for (const sent of orders) expect(sent.body, "a bound number would take inbound calls").not.toHaveProperty("connection_id");
     assertPublicSafe(outcome.lines);
+  });
+
+  it("bind the voice-less standing numbers once paid dials open, but not a detached one", async () => {
+    const h = harness();
+    await fileMeasurements(h);
+    h.telnyx.available = ["+14165550170", "+14165550171", "+14165550172"];
+    expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
+    expect((await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms))).ok).toBe(true);
+    const ordered = ["+14165550170", "+14165550171", "+14165550172"];
+    const held = h.telnyx.numbers.filter((item) => ordered.includes(String(item.phone_number)));
+    expect(held.map((item) => item.connection_id)).toEqual([null, null, null]);
+    await h.store.put(`detached:${held[2]!.id}`, { at: h.clock.now, reason: "stranger_flood" });
+
+    await fileValidation(h);
+    h.telnyx.log.length = 0;
+    await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
+    const bound = h.telnyx.requests("PATCH").filter((entry) => (entry.body as Record<string, unknown>)?.connection_id !== undefined);
+    expect(bound.map((entry) => entry.path)).toEqual([`/v2/phone_numbers/${held[0]!.id}`, `/v2/phone_numbers/${held[1]!.id}`]);
+    expect(held.map((item) => item.connection_id !== null)).toEqual([true, true, false]);
   });
 
   it("stop, red, when ordering is off, and name the rule", async () => {
@@ -198,6 +219,14 @@ describe("guard.yml's admin routines", () => {
     await h.store.put("partition:standing", { "DEV-W1": { role: "DEV-W1", phone_number: N.devW1 } });
     const outcome = await runRoutine("reattach", throughEdge(h));
     expect(outcome).toEqual({ ok: true, lines: ["reattached: DEV-W1"] });
+  });
+
+  it("reattach only the messaging profile while paid dials are refused", async () => {
+    const h = await ready({ validated: null });
+    await h.store.put("partition:standing", { "DEV-W1": { role: "DEV-W1", phone_number: N.devW1 } });
+    const response = await h.call("/admin/numbers/reattach", { caller: "admin", method: "POST" });
+    expect(await response.json()).toEqual({ reattached: ["DEV-W1"], voice_deferred: ["DEV-W1"] });
+    expect(h.telnyx.requests("PATCH").map((entry) => entry.path)).toEqual(["/v2/phone_numbers/num-devw1/messaging"]);
   });
 });
 

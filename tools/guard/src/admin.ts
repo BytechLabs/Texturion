@@ -8,7 +8,6 @@ import { runSetup } from "./setup/setup";
 import { callerNameNumbers, SPEC } from "./setup/spec";
 import {
   ADMISSION_KEYS,
-  paidState,
   type AccountRateRecord,
   type RatiosRecord,
   type ReserveRecord,
@@ -17,7 +16,7 @@ import {
 import { LIMIT_KEYS, type HistoryRecord } from "./state/concurrency";
 import { charge, noteHeld, reconcile } from "./state/ledger";
 import { resumeMail } from "./state/mail";
-import { clearDetached, standingBinding } from "./telnyx/detach";
+import { clearDetached, detachedNumbers, standingBinding } from "./telnyx/detach";
 import { noteOrder, requireOrdering, verifyFirstOrder } from "./telnyx/ordering";
 import {
   invalidateOwned,
@@ -27,7 +26,7 @@ import {
   standingReference,
   type StandingNumber,
 } from "./telnyx/partition";
-import { checkOrderBody, requireSpendable } from "./telnyx/provisioning";
+import { checkOrderBody, requireSpendable, voiceOpen } from "./telnyx/provisioning";
 
 /**
  * The admin class (docs/RIG.md): the setup routine, the number
@@ -74,8 +73,10 @@ async function standingMap(ctx: Ctx): Promise<Record<string, StandingNumber>> {
  * repeats until `remaining` is empty. Standing orders are exempt from the
  * 25-day order interval, which paces S28's monthly number, but not from the
  * ordering gate, the money gates or the ten-number cap. While paid dials are
- * refused, only the roles the text lanes use are ordered; the calls-only
- * roles are reported as deferred and wait for paid dials to open.
+ * refused, only the roles the text lanes use are ordered, with no voice
+ * connection, since a bound number takes inbound calls; the calls-only roles
+ * are reported as deferred. Once paid dials open, each held standing number
+ * with no connection is bound, unless it was detached.
  */
 async function orderStanding(ctx: Ctx): Promise<Response> {
   await requireSafe(ctx);
@@ -85,8 +86,11 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
   const telnyx = ctx.telnyx!;
   const view = await loadPartition(ctx, { fresh: true });
   const standing = await standingMap(ctx);
+  const paidOpen = await voiceOpen(ctx);
+  const detached = await detachedNumbers(ctx);
 
   let tagged = 0;
+  let bound = 0;
   for (const entry of Object.values(standing)) {
     const number = view.byE164.get(entry.phone_number);
     if (!number || number.tags.includes(STANDING_TAG)) continue;
@@ -101,13 +105,21 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
     }
     tagged += 1;
   }
-  if (tagged > 0) await invalidateOwned(ctx);
+  if (paidOpen) {
+    for (const entry of Object.values(standing)) {
+      const number = view.byE164.get(entry.phone_number);
+      const connection = standingBinding(view, entry.role)?.connection_id;
+      if (!number || number.connection_id !== null || !connection || detached.has(number.id)) continue;
+      await telnyx.call("PATCH", `/v2/phone_numbers/${encodeURIComponent(number.id)}`, { connection_id: connection });
+      bound += 1;
+    }
+  }
+  if (tagged + bound > 0) await invalidateOwned(ctx);
 
-  const paidOpen = (await paidState(ctx, "ok")).blockers.length === 0;
   const unheld = SPEC.numbers.standing.filter((item) => !standing[item.role]);
   const missing = unheld.filter((item) => paidOpen || item.lanes.includes("texts"));
   const deferred = unheld.filter((item) => !missing.includes(item)).map((item) => item.role);
-  if (missing.length === 0) return json({ ordered: null, remaining: [], deferred, tagged });
+  if (missing.length === 0) return json({ ordered: null, remaining: [], deferred, tagged, bound });
   if (view.numbers.length >= MAX_NUMBERS_HELD) throw new Refusal("provisioning.numbers_held");
 
   const role = missing[0];
@@ -131,7 +143,7 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
   const found = (reply.body as { data?: { phone_number?: unknown }[] } | undefined)?.data?.[0]?.phone_number;
   if (reply.status !== 200 || typeof found !== "string") {
     await ctx.store.put("standing:area-index", index + 1);
-    return json({ ordered: null, searched: areaCode, remaining: missing.map((item) => item.role), deferred, tagged });
+    return json({ ordered: null, searched: areaCode, remaining: missing.map((item) => item.role), deferred, tagged, bound });
   }
 
   const checked = await checkOrderBody(
@@ -139,10 +151,11 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
     {
       phone_numbers: [{ phone_number: found }],
       billing_group_id: view.record.billing_group_id,
-      connection_id: binding.connection_id,
+      ...(paidOpen ? { connection_id: binding.connection_id } : {}),
       messaging_profile_id: binding.messaging_profile_id,
       customer_reference: standingReference(role.role),
     },
+    { voice: paidOpen },
   );
   const order = await telnyx.call<{ data?: { id?: unknown } }>("POST", "/v2/number_orders", checked.body);
   await charge(ctx, COST_USD.numberUpfront, "one_time");
@@ -154,22 +167,30 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
     remaining: missing.slice(1).map((item) => item.role),
     deferred,
     tagged,
+    bound,
   });
 }
 
-/** Restores every standing number's spec binding: the undo for a detach. */
+/**
+ * Restores every standing number's spec binding: the undo for a detach. The
+ * voice connection comes back only while paid dials are open; until then a
+ * number gets its messaging profile alone, and order-standing binds it later.
+ */
 async function reattach(ctx: Ctx): Promise<Response> {
   await requireSafe(ctx);
   const telnyx = ctx.telnyx!;
   const view = await loadPartition(ctx, { fresh: true });
+  const paidOpen = await voiceOpen(ctx);
   const done: string[] = [];
   for (const entry of Object.values(await standingMap(ctx))) {
     const number = view.byE164.get(entry.phone_number);
     const binding = standingBinding(view, entry.role);
     if (!number || !binding?.connection_id || !binding.messaging_profile_id) continue;
-    await telnyx.call("PATCH", `/v2/phone_numbers/${encodeURIComponent(number.id)}`, {
-      connection_id: binding.connection_id,
-    });
+    if (paidOpen) {
+      await telnyx.call("PATCH", `/v2/phone_numbers/${encodeURIComponent(number.id)}`, {
+        connection_id: binding.connection_id,
+      });
+    }
     await telnyx.call("PATCH", `/v2/phone_numbers/${encodeURIComponent(number.id)}/messaging`, {
       messaging_profile_id: binding.messaging_profile_id,
     });
@@ -177,7 +198,7 @@ async function reattach(ctx: Ctx): Promise<Response> {
     done.push(entry.role);
   }
   await invalidateOwned(ctx);
-  return json({ reattached: done });
+  return json(paidOpen ? { reattached: done } : { reattached: done, voice_deferred: done });
 }
 
 export async function handleAdmin(ctx: Ctx, request: Request, path: string): Promise<Response> {

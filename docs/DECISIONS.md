@@ -9222,6 +9222,16 @@ with its reason:
   matched by phone number alone, and stops ordering without deleting when
   anything is ambiguous. Why: the old read-back could judge too early and
   release the wrong number.
+- **No voice connection while paid dials are refused.** A number bound to a
+  connection takes inbound calls, which hold account channels like a dial,
+  and a recycled number gets robocalls. So while paid dials are refused the
+  text-lane roles are ordered with no connection, and order-standing binds
+  each to its spec connection once paid dials open, skipping a detached one.
+  S28's order, which binds the voice app and rings the number, and any PATCH
+  that sets a `connection_id`, are refused as `provisioning.voice_closed`
+  until then. `reattach` restores only the messaging profile meanwhile. Why:
+  room 0 must mean no leg at all, inbound included, and the robot's and the
+  voice app's own limits of 1 each would otherwise allow the floor's whole 2.
 - **Fraud and refusal signals.** The first fraud-type notice (Suspicious
   Outbound Voice Traffic, Account Disabled or Messaging Suspicious Traffic)
   latches the paid lanes off at once, until a reviewed change to

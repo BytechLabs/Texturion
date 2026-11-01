@@ -41,11 +41,12 @@ describe("number orders", () => {
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
   });
 
-  it("no longer waits on the concurrent limit: an unproven or unparseable floor leaves ordering on", async () => {
+  it("waits for paid dials, since its number is bound to the voice app and takes inbound calls", async () => {
     for (const env of [{ TELNYX_CONCURRENT_FLOOR: "unknown" }, {}]) {
       const h = await ready({ env, validated: null });
       await lease(h, "S28", "rig-api");
-      expect((await order(h)).status).toBe(200);
+      expect(await ruleOf(await order(h))).toBe("provisioning.voice_closed");
+      expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
     }
   });
 
@@ -156,6 +157,11 @@ describe("number changes", () => {
     expect(h.telnyx.writes()).toEqual([]);
 
     expect((await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "PATCH", body: { connection_id: "conn-voice" } })).status).toBe(200);
+    await h.store.delete("limit:validation");
+    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "PATCH", body: { connection_id: "conn-voice" } }))).toBe(
+      "provisioning.voice_closed",
+    );
+    expect((await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "PATCH", body: { customer_reference: "x" } })).status).toBe(200);
     expect((await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "DELETE" })).status).toBe(200);
   });
 
