@@ -66,9 +66,12 @@ async function shapeOf(request: TelnyxRequest): Promise<Shape> {
  * Telnyx's documented refusals for the account's limits
  * (developers.telnyx.com/api/errors): channels exceeded on the account, the
  * voice profile or the connection, and dials per second with HTTP 429.
+ * 10039, "a limit for this feature has been reached at this account level",
+ * on a dial is read as the hourly or daily cap.
  */
 const CONCURRENCY_CODES: ReadonlySet<string> = new Set(["90041", "90042", "90043"]);
 const DIAL_RATE_CODE = "90103";
+const ACCOUNT_CAP_CODE = "10039";
 
 function errorCodes(reply: TelnyxReply): string[] {
   const errors = (reply.body as { errors?: { code?: unknown }[] } | undefined)?.errors;
@@ -84,15 +87,14 @@ function errorCodes(reply: TelnyxReply): string[] {
 async function noteLimitRefusal(request: TelnyxRequest, reply: TelnyxReply, shape: Shape, admitted: Admitted): Promise<void> {
   const codes = errorCodes(reply);
   const concurrency = codes.find((code) => CONCURRENCY_CODES.has(code));
-  const rate = reply.status === 429 && codes.includes(DIAL_RATE_CODE);
+  const rate = (reply.status === 429 && codes.includes(DIAL_RATE_CODE)) || codes.includes(ACCOUNT_CAP_CODE);
   if (!concurrency && !rate) return;
   const { ctx } = request;
-  const code = concurrency ?? DIAL_RATE_CODE;
   if (concurrency) {
     const counted = admitted.production === "idle" && admitted.liveLegs !== null;
     await recordCeiling(ctx, {
       value: counted ? (admitted.liveLegs as number) + shape.newLegs - 1 : null,
-      from: `telnyx-${code}`,
+      from: `telnyx-${concurrency}`,
     });
   }
   await recordSignal(ctx, {

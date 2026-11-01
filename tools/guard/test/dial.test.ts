@@ -324,6 +324,16 @@ describe("admission", () => {
     expect(h.outbound.some((item) => item.body.includes("telnyx-dial-rate-refusal"))).toBe(true);
   });
 
+  it("halts on 10039, an account-level cap reached, with any status, and records no ceiling for it", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    refuseNextDial(h, 403, "10039");
+    expect((await dial(h, id)).status).toBe(403);
+    expect(await h.store.get(LIMIT_KEYS.ceiling)).toBeUndefined();
+    expect(await ruleOf(await dial(h, id, { ...DIAL, to: N.devW2 }))).toBe("signal.halted");
+    expect(h.outbound.some((item) => item.body.includes("telnyx-dial-rate-refusal"))).toBe(true);
+  });
+
   it("records nothing for Telnyx's other refusals", async () => {
     const h = await ready();
     const id = await lease(h);

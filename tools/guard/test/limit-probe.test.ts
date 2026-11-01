@@ -4,7 +4,7 @@ import { CRONS } from "../src/guard";
 import { LIMIT_PROBE_MAX_WRITES } from "../src/limits";
 import { limitProbeDue, runLimitProbe } from "../src/setup/limit-probe";
 import { runSafetyChecks } from "../src/setup/safety";
-import { LIMIT_KEYS, limitInForce, type ValidationRecord } from "../src/state/concurrency";
+import { LIMIT_KEYS, limitInForce, recordCeiling, type ValidationRecord } from "../src/state/concurrency";
 import { KEYS, ready, ruleOf, type Harness } from "./support";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -180,6 +180,14 @@ describe("when the validation check runs", () => {
     h.advance(29 * DAY);
     expect(await limitProbeDue(h.ctx)).toBe(false);
     h.advance(DAY);
+    expect(await limitProbeDue(h.ctx)).toBe(true);
+  });
+
+  it("runs again once Telnyx has refused for a limit since the result was measured", async () => {
+    const h = await ready();
+    h.advance(DAY);
+    expect(await limitProbeDue(h.ctx)).toBe(false);
+    await recordCeiling(h.ctx, { value: null, from: "telnyx-90041" });
     expect(await limitProbeDue(h.ctx)).toBe(true);
   });
 

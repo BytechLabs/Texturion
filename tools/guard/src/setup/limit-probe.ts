@@ -2,7 +2,7 @@ import type { Ctx } from "../context";
 import { LIMIT_PROBE_ABSURD, LIMIT_PROBE_INTERVAL_MS, LIMIT_PROBE_MAX_WRITES } from "../limits";
 import { Refusal } from "../refusal";
 import { sendProductionEvent } from "../sentry";
-import { LIMIT_KEYS, type ValidationRecord } from "../state/concurrency";
+import { LIMIT_KEYS, type Ceiling, type ValidationRecord } from "../state/concurrency";
 import { KEYS, type PartitionRecord } from "../telnyx/partition";
 import { requireSafe } from "./safety";
 import { SPEC, type TelnyxSpec } from "./spec";
@@ -46,13 +46,18 @@ function identifiedRefusal(status: number, body: unknown): { signature: string; 
   return null;
 }
 
-/** Due when no conclusive result exists or the last is a month old; tried at most once a day. */
+/**
+ * Due when no conclusive result exists, the last is a month old, or Telnyx
+ * has refused for a limit since it was measured; tried at most once a day.
+ */
 export async function limitProbeDue(ctx: Ctx): Promise<boolean> {
   const now = ctx.now();
   const last = await ctx.store.get<ProbeAttempt>(LIMIT_KEYS.probe);
   if (last && now - last.at < DAY_MS) return false;
   const validation = await ctx.store.get<ValidationRecord>(LIMIT_KEYS.validation);
   if (!validation || validation.result === "inconclusive") return true;
+  const ceilings = (await ctx.store.get<Ceiling[]>(LIMIT_KEYS.ceiling)) ?? [];
+  if (ceilings.some((ceiling) => ceiling.at > validation.measured_at)) return true;
   return now - validation.measured_at >= LIMIT_PROBE_INTERVAL_MS;
 }
 
