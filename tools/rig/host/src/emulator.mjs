@@ -2,7 +2,7 @@
 // virtualisation while Hyper-V is on, and an accelerated emulator cannot run
 // inside another VM. hostd starts and stops them; the VM's lanes reach their
 // adb, console and gRPC ports through the tunnel.
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
 
@@ -18,6 +18,11 @@ import { deviceByName, serialOf } from "./config.mjs";
  */
 export const AUDIO_FLAG = null;
 const AUDIO_FLAGS = new Set([null, "-no-audio"]);
+
+// The process a discovery file names; emulator.exe is only its launcher.
+export const EMULATOR_IMAGE = /^qemu-system-[a-z0-9_]+(?:-headless)?(?:\.exe)?$/i;
+// File times and process start times are not taken at the same instant.
+const CLOCK_SLACK_MS = 2000;
 
 export const BOOT_TIMEOUT_MS = 5 * 60 * 1000;
 export const KILL_TIMEOUT_MS = 30 * 1000;
@@ -100,11 +105,13 @@ export function parseIni(text) {
 }
 
 /**
- * The discovery file of the emulator serving this device's gRPC port. Its pid
- * is the emulator process itself, which on Windows is not the launcher hostd
- * spawned.
+ * The newest discovery file naming this device's AVD, console port and gRPC
+ * port. Its pid is the emulator process itself, which on Windows is not the
+ * launcher hostd spawned. A hard kill leaves the file behind, so an older
+ * match can name a pid Windows has since given to another process.
  */
-export function findDiscovery(device, dirs, { readdir = readdirSync, readFile = readFileSync } = {}) {
+export function findDiscovery(device, dirs, { readdir = readdirSync, readFile = readFileSync, stat = statSync } = {}) {
+  let newest = null;
   for (const dir of dirs) {
     let names;
     try {
@@ -122,12 +129,29 @@ export function findDiscovery(device, dirs, { readdir = readdirSync, readFile = 
         continue;
       }
       if (Number(ini["grpc.port"]) !== device.grpc) continue;
-      if (ini["port.serial"] !== undefined && Number(ini["port.serial"]) !== device.console) continue;
-      if (ini["avd.name"] !== undefined && ini["avd.name"] !== device.avd) continue;
-      return { path: join(dir, name), pid: Number(pid), grpcToken: ini["grpc.token"] || null };
+      if (Number(ini["port.serial"]) !== device.console) continue;
+      if (ini["avd.name"] !== device.avd) continue;
+      let mtimeMs;
+      try {
+        mtimeMs = stat(join(dir, name)).mtimeMs;
+      } catch {
+        continue;
+      }
+      if (newest && newest.mtimeMs >= mtimeMs) continue;
+      newest = { path: join(dir, name), pid: Number(pid), grpcToken: ini["grpc.token"] || null, mtimeMs };
     }
   }
-  return null;
+  return newest;
+}
+
+/** The image name and start time of a pid, or null when no process holds it. */
+export async function readProcessInfo(exec, pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return null;
+  const script = `$p = Get-Process -Id ${pid} -ErrorAction SilentlyContinue; if ($p) { $p.ProcessName; $p.StartTime.ToUniversalTime().ToString('o') }`;
+  const result = await exec("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script]).catch(() => null);
+  const [image, started] = (result?.code === 0 ? result.stdout : "").trim().split(/\r?\n/);
+  const startedMs = Date.parse(started ?? "");
+  return image && Number.isFinite(startedMs) ? { image: image.trim(), startedMs } : null;
 }
 
 export function readConsoleToken(paths, env = process.env, readFile = readFileSync) {
@@ -202,6 +226,8 @@ export function createDevices({
   // TerminateProcess on Windows: the power-loss analogue.
   killPid = (pid) => process.kill(pid, "SIGKILL"),
   discover = (device) => findDiscovery(device, discoveryDirs(paths, env)),
+  processInfo = (pid) => readProcessInfo(exec, pid),
+  removeFile = unlinkSync,
   consoleToken = () => readConsoleToken(paths, env),
   sendConsole = consoleCommand,
   log = () => {},
@@ -212,7 +238,7 @@ export function createDevices({
   const adb = adbBinary(sdk);
   const adbPort = contract.adb.server_port;
   const entries = new Map(
-    contract.devices.map((device) => [device.name, { device, state: "off", launcher: null, pid: null, booting: null }]),
+    contract.devices.map((device) => [device.name, { device, state: "off", launcher: null, pid: null, emulator: null, booting: null }]),
   );
 
   const bootCompleted = async (device) => {
@@ -224,15 +250,44 @@ export function createDevices({
     entry.state = "off";
     entry.launcher = null;
     entry.pid = null;
+    entry.emulator = null;
   };
 
-  const pidsOf = (entry) => {
-    const found = discover(entry.device);
-    if (found) entry.pid = found.pid;
-    return [...new Set([found?.pid, entry.pid, entry.launcher?.pid].filter(Number.isInteger))];
+  const isEmulator = (info) => info !== null && EMULATOR_IMAGE.test(info.image);
+
+  /**
+   * The emulator a discovery file names, as { pid, startedMs, path }: a
+   * qemu-system process that was already running when the file was written.
+   * A pid and its start time name one process; a pid alone can be reused.
+   * "unverified" is a live pid that fails that check.
+   */
+  const identify = async (found) => {
+    if (!found || !isAlive(found.pid)) return null;
+    const info = await processInfo(found.pid);
+    if (!isEmulator(info) || info.startedMs > found.mtimeMs + CLOCK_SLACK_MS) return "unverified";
+    return { pid: found.pid, startedMs: info.startedMs, path: found.path };
   };
 
-  const gone = (entry) => entry.state === "off" || pidsOf(entry).every((pid) => !isAlive(pid));
+  const stillRunning = async (emulator) => {
+    if (!emulator || !isAlive(emulator.pid)) return false;
+    const info = await processInfo(emulator.pid);
+    return isEmulator(info) && Math.abs(info.startedMs - emulator.startedMs) <= CLOCK_SLACK_MS;
+  };
+
+  /** Takes the device's emulator from its discovery file; false when a live pid fails the check. */
+  const refresh = async (entry) => {
+    const identified = await identify(discover(entry.device));
+    if (identified === "unverified") return false;
+    if (identified) {
+      entry.emulator = identified;
+      entry.pid = identified.pid;
+    }
+    return true;
+  };
+
+  // The launcher is hostd's own child, whose pid stays held until it exits.
+  const gone = async (entry) =>
+    entry.state === "off" || (!(entry.launcher && isAlive(entry.launcher.pid)) && !(await stillRunning(entry.emulator)));
 
   async function waitBooted(entry) {
     const started = now();
@@ -240,7 +295,7 @@ export function createDevices({
       if (entry.state === "off") return reply(502, { error: "emulator.exited" });
       if (await bootCompleted(entry.device)) {
         entry.state = "booted";
-        pidsOf(entry);
+        await refresh(entry);
         log(`device ${entry.device.name} booted`);
         return reply(200, { state: "booted" });
       }
@@ -278,6 +333,7 @@ export function createDevices({
     entry.state = "booting";
     entry.launcher = child;
     entry.pid = child.pid ?? null;
+    entry.emulator = null;
     child.once("exit", (code) => {
       if (entry.launcher !== child) return;
       log(`device ${name} emulator exited (${code})`);
@@ -300,7 +356,14 @@ export function createDevices({
     if (!entry) return reply(404, { error: "device.unknown" });
     if (entry.state === "off") return reply(200, { state: "off" });
     if (hard) {
-      for (const pid of pidsOf(entry)) {
+      if (!(await refresh(entry))) {
+        log(`device ${name} hard kill refused: its discovery file names a pid that is not its emulator`);
+        return reply(409, { error: "pid.unverified" });
+      }
+      const pids = [];
+      if (await stillRunning(entry.emulator)) pids.push(entry.emulator.pid);
+      if (Number.isInteger(entry.launcher?.pid)) pids.push(entry.launcher.pid);
+      for (const pid of new Set(pids)) {
         try {
           killPid(pid);
         } catch {
@@ -317,10 +380,20 @@ export function createDevices({
         return reply(502, { error: "console.failed" });
       }
     }
+    // The launcher's exit clears entry.emulator during the wait.
+    const killed = entry.emulator;
     const started = now();
-    while (!gone(entry)) {
+    while (!(await gone(entry))) {
       if (now() - started >= killTimeoutMs) return reply(504, { error: "kill.timeout" });
       await sleep(Math.min(pollMs, 500));
+    }
+    // A terminated emulator never removes its own file.
+    if (hard && killed) {
+      try {
+        removeFile(killed.path);
+      } catch {
+        // already removed
+      }
     }
     settle(entry);
     log(`device ${name} killed${hard ? " hard" : ""}`);
@@ -341,9 +414,11 @@ export function createDevices({
   async function adopt() {
     for (const entry of entries.values()) {
       if (entry.state !== "off") continue;
-      const found = discover(entry.device);
-      if (!found || !isAlive(found.pid)) continue;
-      entry.pid = found.pid;
+      const identified = await identify(discover(entry.device));
+      if (identified === "unverified") log(`device ${entry.device.name} not adopted: its discovery file names a pid that is not its emulator`);
+      if (!identified || identified === "unverified") continue;
+      entry.emulator = identified;
+      entry.pid = identified.pid;
       entry.state = (await bootCompleted(entry.device)) ? "booted" : "booting";
       log(`device ${entry.device.name} adopted (${entry.state})`);
     }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -16,6 +16,7 @@ import {
   findDiscovery,
   parseIni,
   readConsoleToken,
+  readProcessInfo,
 } from "../src/emulator.mjs";
 
 const contract = loadContract();
@@ -81,16 +82,56 @@ function discoveryDir() {
   const dir = mkdtempSync(join(tmpdir(), "avd-running-"));
   writeFileSync(join(dir, "pid_4100.ini"), "port.serial=5554\r\ngrpc.port=8554\r\ngrpc.token=other-token\r\navd.name=rig-api34\r\n");
   writeFileSync(join(dir, "pid_4200.ini"), "port.serial=5560\r\ngrpc.port=8560\r\ngrpc.token=pixel-token\r\navd.name=rig-pixel\r\n");
-  writeFileSync(join(dir, "pid_4300.ini"), "port.serial=5999\r\ngrpc.port=8560\r\ngrpc.token=impostor\r\n");
+  writeFileSync(join(dir, "pid_4300.ini"), "port.serial=5999\r\ngrpc.port=8560\r\ngrpc.token=impostor\r\navd.name=rig-pixel\r\n");
+  writeFileSync(join(dir, "pid_4400.ini"), "grpc.port=8560\r\ngrpc.token=no-serial-or-avd\r\n");
   writeFileSync(join(dir, "notes.ini"), "grpc.port=8560\r\n");
   return dir;
 }
 
+const pick = (found) => found && { path: found.path, pid: found.pid, grpcToken: found.grpcToken };
+const at = (path, seconds) => utimesSync(path, seconds, seconds);
+
 test("the gRPC token and the emulator's own pid come from its discovery file", () => {
   assert.deepEqual(parseIni("a=1\r\n# c=2\r\n b = x=y \r\n"), { a: "1", b: "x=y" });
   const dir = discoveryDir();
-  assert.deepEqual(findDiscovery(pixel, [join(dir, "absent"), dir]), { path: join(dir, "pid_4200.ini"), pid: 4200, grpcToken: "pixel-token" });
+  assert.deepEqual(pick(findDiscovery(pixel, [join(dir, "absent"), dir])), { path: join(dir, "pid_4200.ini"), pid: 4200, grpcToken: "pixel-token" });
   assert.equal(findDiscovery(api35, [dir]), null);
+});
+
+test("a discovery file matches only on its own gRPC port, console port and AVD name, all present", () => {
+  const dir = mkdtempSync(join(tmpdir(), "avd-running-"));
+  const api34 = deviceByName(contract, "emulator-34");
+  writeFileSync(join(dir, "pid_5100.ini"), `port.serial=${pixel.console}\ngrpc.port=${pixel.grpc}\ngrpc.token=pixel\navd.name=${pixel.avd}\n`);
+  writeFileSync(join(dir, "pid_5200.ini"), `port.serial=${pixel.console}\ngrpc.port=${api34.grpc}\ngrpc.token=wrong-port\navd.name=${pixel.avd}\n`);
+  writeFileSync(join(dir, "pid_5300.ini"), `grpc.port=${api34.grpc}\ngrpc.token=bare\n`);
+  at(join(dir, "pid_5100.ini"), 1000);
+  at(join(dir, "pid_5200.ini"), 2000);
+  at(join(dir, "pid_5300.ini"), 3000);
+  assert.equal(findDiscovery(pixel, [dir]).pid, 5100, "the newer file has another gRPC port");
+  assert.equal(findDiscovery(api34, [dir]), null, "a file without port.serial and avd.name names no device");
+});
+
+test("of two discovery files for one device, the newest is taken", () => {
+  const dir = mkdtempSync(join(tmpdir(), "avd-running-"));
+  const body = (token) => `port.serial=${pixel.console}\ngrpc.port=${pixel.grpc}\ngrpc.token=${token}\navd.name=${pixel.avd}\n`;
+  writeFileSync(join(dir, "pid_6100.ini"), body("live"));
+  writeFileSync(join(dir, "pid_6000.ini"), body("stale"));
+  at(join(dir, "pid_6000.ini"), 1000);
+  at(join(dir, "pid_6100.ini"), 5000);
+  assert.deepEqual(pick(findDiscovery(pixel, [dir])), { path: join(dir, "pid_6100.ini"), pid: 6100, grpcToken: "live" });
+});
+
+test("a pid's image and start time are read with Get-Process", async () => {
+  let ran;
+  const exec = async (file, args) => {
+    ran = { file, args };
+    return { code: 0, stdout: "qemu-system-x86_64\r\n2026-11-01T10:00:00.0000000Z\r\n", stderr: "" };
+  };
+  assert.deepEqual(await readProcessInfo(exec, 4200), { image: "qemu-system-x86_64", startedMs: Date.parse("2026-11-01T10:00:00Z") });
+  assert.equal(ran.file, "powershell.exe");
+  assert.match(ran.args.at(-1), /Get-Process -Id 4200 /);
+  assert.equal(await readProcessInfo(async () => ({ code: 0, stdout: "", stderr: "" }), 4200), null, "no process holds the pid");
+  assert.equal(await readProcessInfo(exec, "4200; Stop-Computer"), null);
 });
 
 test("the console token is read from the rig's emulator home first", () => {
@@ -106,7 +147,9 @@ test("the console token is read from the rig's emulator home first", () => {
 });
 
 /** createDevices with every side effect faked. */
-function fakeDevices({ bootAfter = 2, alive = new Set(), discover = () => null } = {}) {
+const QEMU = { image: "qemu-system-x86_64", startedMs: 500 };
+
+function fakeDevices({ bootAfter = 2, alive = new Set(), discover = () => null, processes = new Map(), removed = [] } = {}) {
   let clock = 0;
   const spawned = [];
   const killed = [];
@@ -137,6 +180,8 @@ function fakeDevices({ bootAfter = 2, alive = new Set(), discover = () => null }
       alive.delete(pid);
     },
     discover,
+    processInfo: async (pid) => (alive.has(pid) ? (processes.get(pid) ?? QEMU) : null),
+    removeFile: (path) => removed.push(path),
     consoleToken: () => ({ path: "p", token: "console-secret" }),
     sendConsole: async () => {},
   });
@@ -169,17 +214,19 @@ test("max_booted devices at once, and a 409 past it", async () => {
 
 test("a hard kill terminates the emulator's own pid and the launcher's; a soft one uses the console", async () => {
   const alive = new Set([7000]);
-  const { devices, killed } = fakeDevices({ alive, discover: (device) => (device.name === "pixel" ? { pid: 7000, grpcToken: "g" } : null) });
+  const removed = [];
+  const { devices, killed } = fakeDevices({ alive, removed, discover: (device) => (device.name === "pixel" ? { path: "pid_7000.ini", pid: 7000, grpcToken: "g", mtimeMs: 1000 } : null) });
   await devices.boot("pixel");
   assert.deepEqual(await devices.kill("pixel", { hard: true }), { status: 200, body: { state: "off" } });
   assert.deepEqual(killed.sort(), [7000, 9000]);
+  assert.deepEqual(removed, ["pid_7000.ini"], "the file a terminated emulator leaves is removed");
   assert.equal(devices.list().find((device) => device.name === "pixel").state, "off");
   assert.deepEqual(await devices.kill("pixel"), { status: 200, body: { state: "off" } }, "killing an off device is a no-op");
 });
 
 test("an emulator a previous hostd started is adopted, and a boot waits for it instead of starting another", async () => {
   const alive = new Set([7100]);
-  const { devices, spawned } = fakeDevices({ alive, discover: (device) => (device.name === "pixel" ? { pid: 7100, grpcToken: "g" } : null) });
+  const { devices, spawned } = fakeDevices({ alive, discover: (device) => (device.name === "pixel" ? { path: "p", pid: 7100, grpcToken: "g", mtimeMs: 1000 } : null) });
   await devices.adopt();
   assert.equal(devices.list().find((device) => device.name === "pixel").state, "booting");
   assert.deepEqual(await devices.boot("pixel"), { status: 200, body: { state: "booted" } });
@@ -187,6 +234,37 @@ test("an emulator a previous hostd started is adopted, and a boot waits for it i
   assert.equal(devices.list().find((device) => device.name === "pixel").pid, 7100);
   alive.delete(7100);
   assert.equal(devices.list().find((device) => device.name === "pixel").state, "off", "an adopted emulator that died is off");
+});
+
+test("a stale discovery file whose pid now belongs to another program is neither killed nor adopted", async () => {
+  const stale = (device) => (device.name === "pixel" ? { path: "pid_7200.ini", pid: 7200, grpcToken: "g", mtimeMs: 1000 } : null);
+  for (const holder of [{ image: "vmware-vmx", startedMs: 500 }, { image: "qemu-system-x86_64", startedMs: 60_000 }]) {
+    const alive = new Set([7200]);
+    const removed = [];
+    const { devices, killed } = fakeDevices({ alive, removed, discover: stale, processes: new Map([[7200, holder]]) });
+    await devices.adopt();
+    assert.equal(devices.list().find((device) => device.name === "pixel").state, "off", `${holder.image} is not adopted`);
+    await devices.boot("pixel");
+    assert.deepEqual(await devices.kill("pixel", { hard: true }), { status: 409, body: { error: "pid.unverified" } });
+    assert.deepEqual(killed, [], `${holder.image} started at ${holder.startedMs} is not killed`);
+    assert.ok(alive.has(7200));
+    assert.deepEqual(removed, []);
+  }
+});
+
+test("an adopted emulator whose pid is reused before the kill is not killed", async () => {
+  const alive = new Set([7300]);
+  const processes = new Map([[7300, QEMU]]);
+  let file = { path: "p", pid: 7300, grpcToken: "g", mtimeMs: 1000 };
+  const { devices, killed } = fakeDevices({ alive, processes, discover: (device) => (device.name === "pixel" ? file : null) });
+  await devices.adopt();
+  await devices.boot("pixel");
+  processes.set(7300, { image: "node", startedMs: 400 });
+  assert.equal((await devices.kill("pixel", { hard: true })).status, 409, "the file now names another program");
+  file = null;
+  assert.equal((await devices.kill("pixel", { hard: true })).status, 200, "with the file gone, the reused pid is left alone");
+  assert.deepEqual(killed, []);
+  assert.ok(alive.has(7300));
 });
 
 test("emulators are started outside hostd's job, so a hostd restart leaves them running", async () => {
