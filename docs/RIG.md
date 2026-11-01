@@ -1018,7 +1018,7 @@ A judged call costs about $0.02-0.03.
 | Cloudflare: 2 Workers and their Durable Objects on the existing Workers Paid plan; Workers AI through the guard | about $0.50 | none | AI capped at 2,000 neurons a day (guard), so at most about $0.66 a month even if the shared free tier is used up. Requests stay within the included 10M. | The 3 existing billing alerts | developers.cloudflare.com/workers/platform/pricing (updated 2026-10-02) and /workers-ai/platform/pricing (updated 2026-10-20), fetched 2026-10-29 |
 | Supabase | $0 | none | Local stack only | none | none |
 | Stripe test mode, FCM, Resend, Sentry, GitHub Actions, Claude | $0 | none | Resend at most 10 a day; Sentry at most 100 a day and 3,000 a month; triage only when failures exist | Resend at 7 a day; Sentry at 70% | Stripe test mode has no charge; firebase.google.com/pricing, 2026-10-29; resend.com/pricing, 2026-10-30 |
-| Set-aside for month-end surcharges and charges on detached numbers | $1.50 | none | Inside the $35 cap, not added to it (guard ledger) | The guard's monthly check against the account balance | D142, update of 2026-11-01 |
+| Set-aside for month-end surcharges and charges on detached numbers | $1.50 | none | Inside the $35 cap, not added to it (guard ledger, `SET_ASIDE_USD`) | None of its own: the usage an agent files from detail records counts whenever it is above the ledger's estimate | D142, update of 2026-11-01 |
 | Electricity | Estimate: $2-6, the workstation's extra draw | none | none | none | Estimate |
 | Hardware | none | $0 | none | none | No hardware is bought: the rig is a VM on the workstation, and the phones are emulators |
 | **Total** | **about $24, plus $2-6 of power; ceiling about $40** | **about $8** | | | |

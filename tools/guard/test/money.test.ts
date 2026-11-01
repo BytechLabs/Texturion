@@ -12,17 +12,22 @@ const LEDGER: MonthLedger = { usage_usd: 0, one_time_usd: 0, reconciled_usd: 0, 
 const MID_MONTH = Date.parse("2026-11-16T05:00:00Z");
 
 describe("money tiers", () => {
-  it("reserves this month's and next month's rental, and one-time fees, off the $35", () => {
+  it("reserves this month's and next month's rental, one-time fees and the $1.50 set-aside off the $35", () => {
     const reading = tierOf({ ...LEDGER, one_time_usd: 1 }, 0, MID_MONTH);
     // 8 numbers at $1.10 plus one caller-name lookup at $0.40, twice over.
     expect(reading.rentals_usd).toBeCloseTo(9.2);
     expect(reading.next_month_reserve_usd).toBeCloseTo(9.2);
-    expect(reading.usage_budget_usd).toBeCloseTo(35 - 9.2 - 9.2 - 1);
+    expect(reading.usage_budget_usd).toBeCloseTo(35 - 9.2 - 9.2 - 1 - 1.5);
+  });
+
+  it("is red once usage reaches the budget the set-aside leaves", () => {
+    expect(tierOf({ ...LEDGER, usage_usd: 15.09 }, 0, MID_MONTH).tier).toBe("amber");
+    expect(tierOf({ ...LEDGER, usage_usd: 15.1 }, 0, MID_MONTH).tier).toBe("red");
   });
 
   it("spreads what is left of the usage budget over the days left", () => {
     const reading = tierOf({ ...LEDGER, usage_usd: 4 }, 1, MID_MONTH);
-    const budget = 35 - 18.4;
+    const budget = 35 - 18.4 - 1.5;
     expect(reading.daily_allowance_usd).toBeCloseTo((budget - 3) / 15);
   });
 
@@ -61,7 +66,7 @@ describe("money tiers", () => {
     const held = h.telnyx.numbers.filter((item) => item.billing_group_id === "bg-nonprod").length;
     expect(health.money.rentals_usd).toBeCloseTo(held * 1.1);
     expect(health.money.next_month_reserve_usd).toBeCloseTo(held * 1.1);
-    expect(health.money.usage_budget_usd).toBeCloseTo(35 - 2 * held * 1.1);
+    expect(health.money.usage_budget_usd).toBeCloseTo(35 - 2 * held * 1.1 - 1.5);
   });
 
   it("counts a caller-name lookup for each held number whose role has one", async () => {

@@ -1,5 +1,5 @@
 import type { Ctx } from "../context";
-import { AMBER_SHARE, COST_USD, MONTHLY_CAP_USD } from "../limits";
+import { AMBER_SHARE, COST_USD, MONTHLY_CAP_USD, SET_ASIDE_USD } from "../limits";
 import { dayOf, monthOf } from "./counters";
 
 /**
@@ -8,8 +8,8 @@ import { dayOf, monthOf } from "./counters";
  * rates in limits.ts, and the month's actual usage from detail records can be
  * filed beside it; the larger of the two is what counts.
  *
- * $35 a month all-in: this month's rentals, the reserve for next month's, and
- * one-time fees all come off the cap before usage gets a cent.
+ * $35 a month all-in: this month's rentals, the reserve for next month's,
+ * one-time fees and the set-aside all come off the cap before usage gets a cent.
  */
 export interface MonthLedger {
   usage_usd: number;
@@ -109,7 +109,7 @@ export function tierOf(ledger: MonthLedger, todayUsd: number, now: number): Tier
     ledger.peak_numbers * COST_USD.numberRental + ledger.caller_name_numbers * COST_USD.callerNameLookup,
   );
   const reserve = rentals;
-  const budget = usd(MONTHLY_CAP_USD - rentals - reserve - ledger.one_time_usd);
+  const budget = usd(MONTHLY_CAP_USD - rentals - reserve - ledger.one_time_usd - SET_ASIDE_USD);
   const monthToDate = usd(Math.max(ledger.usage_usd, ledger.reconciled_usd));
   const daysLeft = daysInMonth(now) - new Date(now).getUTCDate() + 1;
   const allowance = usd(Math.max(0, (budget - (monthToDate - todayUsd)) / daysLeft));
