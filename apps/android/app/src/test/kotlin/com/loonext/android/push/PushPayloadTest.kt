@@ -17,7 +17,7 @@ class PushPayloadTest {
             mapOf(
                 "title" to "New text from Dana",
                 "body" to "Can you come by Thursday?",
-                "url" to "https://app.loonext.com/inbox/1f0f7a5e-1111-2222-3333-444455556666",
+                "url" to "$APP_ORIGIN/inbox/1f0f7a5e-1111-2222-3333-444455556666",
             ),
         )
 
@@ -43,7 +43,7 @@ class PushPayloadTest {
         assertEquals(ChannelIds.INCOMING_CALLS, content.channelId)
         assertEquals("call:sess-abc-123", content.tag)
         assertEquals("sess-abc-123", content.callSessionId)
-        assertEquals("https://app.loonext.com/calls?call=sess-abc-123", content.url)
+        assertEquals("$APP_ORIGIN/calls?call=sess-abc-123", content.url)
     }
 
     @Test
@@ -289,7 +289,7 @@ class PushPayloadTest {
 
         assertEquals("Loonext", content.title)
         assertEquals("You have a new notification.", content.body)
-        assertEquals("https://app.loonext.com/inbox/c1", content.url)
+        assertEquals("$APP_ORIGIN/inbox/c1", content.url)
     }
 
     @Test
@@ -307,7 +307,7 @@ class PushPayloadTest {
     @Test
     fun `relative paths resolve against the app origin`() {
         assertEquals(
-            "https://app.loonext.com/inbox/abc",
+            "$APP_ORIGIN/inbox/abc",
             normalizeDeepLink("/inbox/abc"),
         )
     }
@@ -315,11 +315,11 @@ class PushPayloadTest {
     @Test
     fun `legacy conversations paths normalize to inbox`() {
         assertEquals(
-            "https://app.loonext.com/inbox/abc",
-            normalizeDeepLink("https://app.loonext.com/conversations/abc"),
+            "$APP_ORIGIN/inbox/abc",
+            normalizeDeepLink("$APP_ORIGIN/conversations/abc"),
         )
         assertEquals(
-            "https://app.loonext.com/inbox/abc",
+            "$APP_ORIGIN/inbox/abc",
             normalizeDeepLink("/conversations/abc"),
         )
     }
@@ -327,15 +327,15 @@ class PushPayloadTest {
     @Test
     fun `query strings survive for the calls wake link`() {
         assertEquals(
-            "https://app.loonext.com/calls?call=sess-1",
-            normalizeDeepLink("https://app.loonext.com/calls?call=sess-1"),
+            "$APP_ORIGIN/calls?call=sess-1",
+            normalizeDeepLink("$APP_ORIGIN/calls?call=sess-1"),
         )
     }
 
     @Test
     fun `foreign origins fall back to the inbox`() {
         assertEquals(FALLBACK_DEEP_LINK, normalizeDeepLink("https://evil.example.com/inbox/x"))
-        assertEquals(FALLBACK_DEEP_LINK, normalizeDeepLink("http://app.loonext.com/inbox/x"))
+        assertEquals(FALLBACK_DEEP_LINK, normalizeDeepLink("http://$APP_HOST/inbox/x"))
     }
 
     @Test

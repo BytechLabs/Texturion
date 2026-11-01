@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.BuildConfig
 import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
@@ -10,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 import java.io.File
 import java.time.Instant
@@ -498,6 +500,7 @@ class SettingsLogicTest {
 
     @Test
     fun `invite link matches the web origin`() {
+        assumeFalse(BuildConfig.BUILD_TYPE.startsWith("nonprod"))
         assertEquals("https://app.loonext.com/invite/abc", inviteLink("abc"))
     }
 

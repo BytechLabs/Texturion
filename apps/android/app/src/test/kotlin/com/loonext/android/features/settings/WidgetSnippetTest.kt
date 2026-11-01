@@ -1,8 +1,10 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.BuildConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 
 /**
@@ -25,6 +27,8 @@ class WidgetSnippetTest {
 
     @Test
     fun `builds the exact line the web app builds`() {
+        // The web app's line names production; the rig's nonprod build names the rig.
+        assumeFalse(BuildConfig.BUILD_TYPE.startsWith("nonprod"))
         assertEquals(
             "<script src=\"https://app.loonext.com/widget.js\" " +
                 "data-key=\"aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa\" defer></script>",
