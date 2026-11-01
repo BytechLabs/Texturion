@@ -122,12 +122,15 @@ interface RunSpec {
   deploy: { status: "completed" | "in_progress"; conclusion: string | null; started_at: string; completed_at: string | null } | null;
 }
 
-/** The live deployment as Cloudflare lists it, and guard.yml's runs as GitHub does. */
-function serve(live: Record<string, unknown> | null, runs: RunSpec[]): void {
+/**
+ * The live deployment and those it replaced, newest first, as Cloudflare
+ * lists them, and guard.yml's runs as GitHub does.
+ */
+function serve(live: Record<string, unknown> | null, runs: RunSpec[], replaced: Record<string, unknown>[] = [YESTERDAY]): void {
   cloudflare.answer = (request) => {
     if (request.path !== `/client/v4/accounts/${ACCOUNT}/workers/scripts/${GUARD_SCRIPT}/deployments`) return undefined;
     if (request.authorization !== `Bearer ${ATTEST_TOKEN}`) return { status: 403, body: { success: false, errors: [{ code: 10000 }] } };
-    return { status: 200, body: { success: true, errors: [], result: { deployments: live ? [live] : [] } } };
+    return { status: 200, body: { success: true, errors: [], result: { deployments: live ? [live, ...replaced] : [] } } };
   };
   github.answer = (request) => {
     const url = new URL(request.path, "http://github.test");
@@ -176,6 +179,19 @@ const deployed = (sha: string, at: string, over: Record<string, unknown> = {}) =
   ...over,
 });
 
+/** A deployment this attestation must never read as the live one: nothing guard.yml ran made it. */
+const YESTERDAY = deployed(SHA_OTHER, "2026-10-30T09:01:05.000Z", { id: "dep-replaced-0001", versions: [{ version_id: "ver-0000", percentage: 100 }] });
+
+const secretChange = (id: string, at: string, over: Record<string, unknown> = {}) => ({
+  id,
+  created_on: at,
+  source: "dash",
+  strategy: "percentage",
+  versions: [{ version_id: `ver-${id}`, percentage: 100 }],
+  annotations: { "workers/triggered_by": "secret" },
+  ...over,
+});
+
 /** A push that deployed SHA_OLD at 09:00, and a scheduled run since, which never deploys. */
 const HISTORY: RunSpec[] = [
   {
@@ -193,7 +209,7 @@ const attest = (store = storeWith()) => attestGuard({ store, repo: REPO, fetch: 
 describe("the guard's version attestation", () => {
   it("matches the live deployment guard.yml made from main, during its Deploy step", async () => {
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z"), HISTORY);
-    expect(await attest()).toEqual({ outcome: "match", sha: SHA_OLD, deployment_id: "dep-live-0001", run_id: 101 });
+    expect(await attest()).toEqual({ outcome: "match", sha: SHA_OLD, deployment_id: "dep-live-0001", run_id: 101, secret_changes: 0 });
     // Only pushes and dispatches are listed; a scheduled run never deploys.
     expect(github.seen.filter((request) => request.path.includes("/runs?")).map((request) => new URL(request.path, "http://x").searchParams.get("event"))).toEqual([
       "push",
@@ -246,6 +262,36 @@ describe("the guard's version attestation", () => {
     ];
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z", { versions: split }), HISTORY);
     expect(await attest()).toMatchObject({ outcome: "mismatch", reason: expect.stringMatching(/splits traffic across 2 version/) });
+  });
+
+  it("reads through the secret changes the founder's key pastes deploy, to the deployment under them", async () => {
+    const guardYml = deployed(SHA_OLD, "2026-10-31T09:01:05.000Z");
+    serve(secretChange("dep-secret-0002", "2026-10-31T11:45:00.000Z"), HISTORY, [
+      secretChange("dep-secret-0001", "2026-10-31T11:30:00.000Z"),
+      guardYml,
+      YESTERDAY,
+    ]);
+    expect(await attest()).toEqual({ outcome: "match", sha: SHA_OLD, deployment_id: "dep-secret-0002", run_id: 101, secret_changes: 2 });
+
+    // What is under a secret change is held to the same rule as a live deployment.
+    serve(secretChange("dep-secret-0001", "2026-10-31T11:45:00.000Z"), HISTORY, [
+      deployed(SHA_OLD, "2026-10-31T11:30:00.000Z", { id: "dep-by-hand" }),
+      guardYml,
+    ]);
+    expect(await attest()).toMatchObject({
+      outcome: "mismatch",
+      deployment_id: "dep-by-hand",
+      reason: expect.stringMatching(/^the deployment under the live secret change names 111111111111, but Cloudflare made it at 2026-10-31T11:30/),
+    });
+
+    // A secret change that splits traffic is not one a key paste makes.
+    serve(secretChange("dep-secret-0001", "2026-10-31T11:45:00.000Z", { versions: [{ version_id: "a", percentage: 50 }, { version_id: "b", percentage: 50 }] }), HISTORY, [
+      guardYml,
+    ]);
+    expect(await attest()).toMatchObject({ outcome: "mismatch", reason: expect.stringMatching(/^the live deployment dep-secret-0001 splits traffic/) });
+
+    serve(secretChange("dep-secret-0001", "2026-10-31T11:45:00.000Z"), HISTORY, []);
+    expect(await attest()).toEqual({ outcome: "infra", reason: `Cloudflare lists only secret changes of ${GUARD_SCRIPT}, not the deployment under them` });
   });
 
   it("calls a side it cannot read an infrastructure fault, never a pass", async () => {
@@ -329,7 +375,7 @@ describe("reporting an attestation", () => {
 
     const quiet = reporting(CONTROL_TOKEN);
     edge.seen.length = 0;
-    expect(await reportAttestation({ outcome: "match", sha: SHA_OLD, deployment_id: "d", run_id: 1 }, quiet.options)).toBe("none");
+    expect(await reportAttestation({ outcome: "match", sha: SHA_OLD, deployment_id: "d", run_id: 1, secret_changes: 0 }, quiet.options)).toBe("none");
     expect([quiet.infra, quiet.lines, edge.seen]).toEqual([[], [], []]);
   });
 });

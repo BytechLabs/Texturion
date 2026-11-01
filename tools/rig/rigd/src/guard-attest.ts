@@ -20,6 +20,14 @@
  * one of those runs' commit, and Cloudflare made it while that run's Deploy
  * step ran. Anything else is a mismatch. A side that cannot be read is an
  * infrastructure fault, never a pass, and so is a missing credential.
+ *
+ * A secret change, which is how the founder pastes the guard's vendor keys
+ * (docs/RIG.md FA3, FA6 and FA8), redeploys the live code with no message, so
+ * it is read through to the deployment it replaced, which must match.
+ * Cloudflare takes that label from whoever creates a deployment, and the read
+ * token cannot see a version's code (Get Version needs content read), so a
+ * secret change is taken at its word: only a holder of the guard's deploy
+ * rights could put other code under one.
  */
 import { EDGE_PATHS, type RigAlert } from "@loonext/rig-protocol";
 import type { SecretFiles } from "@loonext/rig-robot";
@@ -31,6 +39,8 @@ export const GUARD_WORKFLOW = "guard.yml";
 export const DEPLOY_JOB = "Deploy loonext-telnyx-guard";
 export const DEPLOY_STEP = "Deploy";
 export const DEPLOY_MESSAGE = /^guard\.yml ([0-9a-f]{40})$/;
+/** `workers/triggered_by` on what `wrangler secret put` and the dashboard's secret Deploy make. */
+export const SECRET_CHANGE = "secret";
 export const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 
 export const ATTEST_SECRETS = {
@@ -45,10 +55,11 @@ const CLOCK_SLACK_MS = 2 * 60_000;
 /** Pushes and dispatches read, each, before the history counts as unreadable. */
 const RUNS_READ = 30;
 
-export interface LiveDeployment {
+export interface Deployment {
   id: string;
   created_on: string;
   message: string | null;
+  triggered_by: string | null;
   versions: { version_id: string; percentage: number }[];
 }
 
@@ -63,7 +74,7 @@ export interface MainDeploy {
 }
 
 export type Attestation =
-  | { outcome: "match"; sha: string; deployment_id: string; run_id: number }
+  | { outcome: "match"; sha: string; deployment_id: string; run_id: number; secret_changes: number }
   | { outcome: "mismatch"; reason: string; deployment_id: string; expected: string[] }
   | { outcome: "infra"; reason: string };
 
@@ -86,34 +97,41 @@ export async function attestGuard(options: AttestOptions): Promise<Attestation> 
   const doFetch = options.fetch ?? fetch;
   const now = (options.now ?? Date.now)();
   try {
-    const live = await liveDeployment(doFetch, store.readOptional(ATTEST_SECRETS.account)!, store.readOptional(ATTEST_SECRETS.token)!);
+    const history = await deployments(doFetch, store.readOptional(ATTEST_SECRETS.account)!, store.readOptional(ATTEST_SECRETS.token)!);
     const deploys = await mainDeploys(doFetch, {
       appId: store.readOptional(ATTEST_SECRETS.appId)!,
       privateKey: store.readOptional(ATTEST_SECRETS.appKey)!,
       repo: options.repo,
     });
-    return compare(live, deploys, now);
+    return compare(history, deploys, now);
   } catch (error) {
     if (error instanceof Unreadable) return { outcome: "infra", reason: error.message };
     return { outcome: "infra", reason: `the attestation failed: ${error instanceof Error ? error.message : "error"}` };
   }
 }
 
-export function compare(live: LiveDeployment, deploys: MainDeploy[], now: number): Attestation {
+/** `history` is Cloudflare's, newest first: the live deployment, then the ones it replaced. */
+export function compare(history: Deployment[], deploys: MainDeploy[], now: number): Attestation {
   const expected = [...new Set(deploys.map((deploy) => deploy.sha))];
-  const mismatch = (reason: string): Attestation => ({ outcome: "mismatch", reason, deployment_id: live.id, expected });
-  if (live.versions.length !== 1 || live.versions[0]!.percentage !== 100) {
-    return mismatch(`the live deployment ${live.id} splits traffic across ${live.versions.length} version(s); guard.yml deploys one`);
+  const secretChanges = history.findIndex((deployment) => !isSecretChange(deployment));
+  if (secretChanges === -1) {
+    return { outcome: "infra", reason: `Cloudflare lists only secret changes of ${GUARD_SCRIPT}, not the deployment under them` };
   }
-  const sha = DEPLOY_MESSAGE.exec(live.message ?? "")?.[1];
+  const base = history[secretChanges]!;
+  const subject = secretChanges === 0 ? "the live deployment" : `the deployment under the live secret change${secretChanges > 1 ? "s" : ""}`;
+  const mismatch = (reason: string): Attestation => ({ outcome: "mismatch", reason, deployment_id: base.id, expected });
+  if (base.versions.length !== 1 || base.versions[0]!.percentage !== 100) {
+    return mismatch(`${subject} ${base.id} splits traffic across ${base.versions.length} version(s); guard.yml deploys one`);
+  }
+  const sha = DEPLOY_MESSAGE.exec(base.message ?? "")?.[1];
   if (!sha) {
-    return mismatch(`the live deployment ${live.id} was not made by guard.yml: its message is ${JSON.stringify(clip(live.message ?? "", 120))}`);
+    return mismatch(`${subject} ${base.id} was not made by guard.yml: its message is ${JSON.stringify(clip(base.message ?? "", 120))}`);
   }
   const named = deploys.filter((deploy) => deploy.sha === sha);
   if (named.length === 0) {
-    return mismatch(`the live deployment names ${sha.slice(0, 12)}, but guard.yml last deployed ${expected.map((s) => s.slice(0, 12)).join(", ")} from main`);
+    return mismatch(`${subject} names ${sha.slice(0, 12)}, but guard.yml last deployed ${expected.map((s) => s.slice(0, 12)).join(", ")} from main`);
   }
-  const created = Date.parse(live.created_on);
+  const created = Date.parse(base.created_on);
   const during = named.find(
     (deploy) =>
       created >= Date.parse(deploy.started_at) - CLOCK_SLACK_MS &&
@@ -121,13 +139,18 @@ export function compare(live: LiveDeployment, deploys: MainDeploy[], now: number
   );
   if (!during) {
     return mismatch(
-      `the live deployment names ${sha.slice(0, 12)}, but Cloudflare made it at ${live.created_on}, while no Deploy step of guard.yml for that commit ran`,
+      `${subject} names ${sha.slice(0, 12)}, but Cloudflare made it at ${base.created_on}, while no Deploy step of guard.yml for that commit ran`,
     );
   }
-  return { outcome: "match", sha, deployment_id: live.id, run_id: during.run_id };
+  return { outcome: "match", sha, deployment_id: history[0]!.id, run_id: during.run_id, secret_changes: secretChanges };
 }
 
-async function liveDeployment(doFetch: typeof fetch, account: string, token: string): Promise<LiveDeployment> {
+/** A split is no plain secret change, so it is attested itself. */
+function isSecretChange(deployment: Deployment): boolean {
+  return deployment.triggered_by === SECRET_CHANGE && deployment.versions.length === 1 && deployment.versions[0]!.percentage === 100;
+}
+
+async function deployments(doFetch: typeof fetch, account: string, token: string): Promise<Deployment[]> {
   if (!/^[0-9a-f]{32}$/.test(account)) throw new Unreadable("cloudflare-account-id is not a Cloudflare account id");
   const response = await doFetch(`${CLOUDFLARE_API}/accounts/${account}/workers/scripts/${GUARD_SCRIPT}/deployments`, {
     headers: { authorization: `Bearer ${token}` },
@@ -144,19 +167,22 @@ async function liveDeployment(doFetch: typeof fetch, account: string, token: str
     const code = body?.errors?.[0]?.code;
     throw new Unreadable(`Cloudflare's deployments API answered ${response.status}${typeof code === "number" ? ` (error ${code})` : ""}`);
   }
-  const first = Array.isArray(body.result?.deployments) ? (body.result.deployments[0] as Record<string, unknown> | undefined) : undefined;
-  if (!first) throw new Unreadable(`Cloudflare lists no deployment of ${GUARD_SCRIPT}`);
-  const annotations = (first.annotations ?? {}) as Record<string, unknown>;
-  const versions = Array.isArray(first.versions) ? (first.versions as Record<string, unknown>[]) : [];
-  if (typeof first.id !== "string" || typeof first.created_on !== "string" || !Number.isFinite(Date.parse(first.created_on))) {
-    throw new Unreadable("Cloudflare's live deployment has no id or creation time");
-  }
-  return {
-    id: first.id,
-    created_on: first.created_on,
-    message: typeof annotations["workers/message"] === "string" ? annotations["workers/message"] : null,
-    versions: versions.map((version) => ({ version_id: String(version.version_id), percentage: Number(version.percentage) })),
-  };
+  const listed = Array.isArray(body.result?.deployments) ? (body.result.deployments as Record<string, unknown>[]) : [];
+  if (listed.length === 0) throw new Unreadable(`Cloudflare lists no deployment of ${GUARD_SCRIPT}`);
+  return listed.map((deployment) => {
+    const annotations = (deployment.annotations ?? {}) as Record<string, unknown>;
+    const versions = Array.isArray(deployment.versions) ? (deployment.versions as Record<string, unknown>[]) : [];
+    if (typeof deployment.id !== "string" || typeof deployment.created_on !== "string" || !Number.isFinite(Date.parse(deployment.created_on))) {
+      throw new Unreadable(`Cloudflare lists a deployment of ${GUARD_SCRIPT} with no id or creation time`);
+    }
+    return {
+      id: deployment.id,
+      created_on: deployment.created_on,
+      message: typeof annotations["workers/message"] === "string" ? annotations["workers/message"] : null,
+      triggered_by: typeof annotations["workers/triggered_by"] === "string" ? annotations["workers/triggered_by"] : null,
+      versions: versions.map((version) => ({ version_id: String(version.version_id), percentage: Number(version.percentage) })),
+    };
+  });
 }
 
 interface Run {
