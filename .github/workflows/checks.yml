@@ -1085,7 +1085,7 @@ jobs:
           fi
 
       # D142: the rig's `./gradlew test` runs the whole suite against its
-      # nonprod builds, whose app origin is the rig's. This runs the same suite,
+      # nonprodDebug build, whose app origin is the rig's. This runs the same suite,
       # so a test that pins production's origin fails here rather than first on
       # the rig, and CallTestTagsTest's check that only nonprod builds expose
       # test tags runs somewhere other than the rig. Stand-in Firebase and CA
