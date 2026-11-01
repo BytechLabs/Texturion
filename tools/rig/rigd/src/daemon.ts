@@ -33,6 +33,7 @@ import { objectParams, RpcRouter } from "./rpc.ts";
 import { newRunId } from "./runner.ts";
 import { buildSchedule, parseInstance } from "./schedule.ts";
 import { NOT_RUNNABLE_YET, RUNNERS } from "./scenarios/index.ts";
+import { g01Refusal } from "./scenarios/gates.ts";
 import { attestGuard, reportAttestation } from "./guard-attest.ts";
 import { BUNDLE_KEY_SECRET, CONTROL_TOKEN_SECRET, deliverSecrets } from "./secrets.ts";
 import { infraFingerprint, parseDsn, type Dsn } from "./sentry-relay.ts";
@@ -267,7 +268,12 @@ export function startDaemon(config: RigdConfig): Daemon {
       } catch (error) {
         log(`crons.json unreadable, so nothing is explained: ${error instanceof Error ? error.message : "error"}`);
       }
-      publishState(home, "sentry-relay.json", relay.report((event) => explainer?.explain(event)));
+      const g01 = rig.verdicts.all().filter((v) => v.scenario === "G01");
+      publishState(
+        home,
+        "sentry-relay.json",
+        relay.report((event) => explainer?.explain(event) ?? (g01Refusal(event, g01) ? { kind: "expected" } : undefined)),
+      );
     };
     report();
     every(RELAY_REPORT_MS, report);
