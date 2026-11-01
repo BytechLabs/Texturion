@@ -131,20 +131,29 @@ describe("R00, rig health", () => {
 /** QA-A's call row, the legs it rang, and pages that can say their call has cleared. */
 function ringWorld(scenario: string) {
   const world = fakeContext(scenario);
-  const { app, browser, devices, undo } = world;
+  const { app, browser, devices, robot, time, undo } = world;
   const pixel = devices.pixelDevice;
   pixel.onScreen.add("call_hang_up");
-  app.callRows.push({
+  const row = {
     tenant: "QA-A",
+    caller_role: "ROBOT-1",
     call_session_id: "a1-session",
-    outcome: "answered",
+    outcome: "answered" as const,
     forward_seconds: 25,
     started_at: "",
-    ended_at: "2026-10-31T15:00:30.000Z",
+    ended_at: null as string | null,
     voicemail_path: null,
     voicemail_intake: null,
     voicemail_transcript: null,
-  });
+  };
+  app.callRows.push(row);
+  // The row starts with ROBOT-1's call.
+  const dial = robot.dial.bind(robot);
+  robot.dial = async (plan) => {
+    row.started_at = new Date(time.now + 1_000).toISOString();
+    row.ended_at = new Date(time.now + 30_000).toISOString();
+    return dial(plan);
+  };
   const page = { clearsAfterMs: 400 as number | undefined, onAnswer: () => undefined as void };
   const open = browser.open.bind(browser);
   browser.open = async (member, surface, path) => {

@@ -137,6 +137,21 @@ export class FakeRobot implements RobotApi {
 
 const NO_STATE: WorkspaceState = { subscription_status: "active", canceled_at: null };
 
+/**
+ * What the local API reports when rig mode's database gate refuses a send or
+ * a dial to a stranger: the trigger raises, the route's write fails, and
+ * onError answers 500 and captures it.
+ */
+export function destinationRefusedEvent(route: "POST /v1/conversations" | "POST /v1/calls/browser", at: number): SeenEvent {
+  const value =
+    route === "POST /v1/conversations"
+      ? "gate_outbound_send failed: rig_destination_refused: outbound text to a number outside loonext.rig_endpoints"
+      : "outbound line claim failed: rig_destination_refused: outbound call to a number outside loonext.rig_endpoints";
+  return { at, level: "error", tags: { route }, exceptions: [{ type: "Error", value }] };
+}
+
+const INTERNAL_ERROR = { ok: false as const, status: 500, code: "internal_error" };
+
 export class FakeApp implements AppApi {
   readonly sends: { member: string; fromRole: string; toRole: string; body: string }[] = [];
   /** Sends to fictional numbers, which the fake refuses as rig mode does. */
@@ -144,6 +159,8 @@ export class FakeApp implements AppApi {
   rows: (MessageRow & { tenant: string; withRole?: string })[] = [];
   usage = new Map<string, { type: string; quantity: number; stripe_reported_at: string | null }[]>();
   pushes: { tenant: string; purpose: string; platform: string; response_class: string; attempted_at: string; priority?: string | null }[] = [];
+  /** Where the API's own error reports go; fakeLanes hands them to the rig's record of them. */
+  onApiError: (event: SeenEvent) => void = () => undefined;
   beacons: { tenant: string; member?: string; stage: string; platform: string; occurred_at: string; call_session_id: string | null }[] = [];
   /** Push subscriptions and device tokens by member. */
   targets = new Map<string, number>([["qa-w-owner", 1]]);
@@ -153,7 +170,8 @@ export class FakeApp implements AppApi {
   webhookRefusal: string | undefined;
   optOuts = new Map<string, { active: boolean; source: string }>();
   hints = new Map<string, string>();
-  callRows: (CallRow & { tenant: string })[] = [];
+  /** Call rows, each with the role of the number that called. */
+  callRows: (CallRow & { tenant: string; caller_role: string })[] = [];
   legs = new Map<string, { member: string | null; state: string; kind: string | null }[]>();
   metered = 25;
   voiceSeconds = 25;
@@ -169,8 +187,16 @@ export class FakeApp implements AppApi {
   tokenAnswer: (member: string) => ApiAnswer = () => ({ status: 200 });
   readonly signedOut = new Set<string>();
   readonly firedCrons: { cron: string; at?: number }[] = [];
-  escalationRows: { tenant: string; kind: string; on_call_user_id: string | null; escalate_at: string; escalated_at: string | null; acknowledged_at: string | null }[] = [];
-  webhookEventRows: { event_id: string; event_type: string; processed_at: string | null; attempts: number }[] = [];
+  escalationRows: {
+    tenant: string;
+    created_at: string;
+    kind: string;
+    on_call_user_id: string | null;
+    escalate_at: string;
+    escalated_at: string | null;
+    acknowledged_at: string | null;
+  }[] = [];
+  webhookEventRows: { received_at: string; event_id: string; event_type: string; processed_at: string | null; attempts: number }[] = [];
   attachmentRows = new Map<string, { storage_path: string; content_type: string; size_bytes: number; quarantined_at: string | null }[]>();
   objects = new Map<string, Uint8Array>();
   flags = new Map<string, boolean>();
@@ -195,7 +221,7 @@ export class FakeApp implements AppApi {
   };
   totp = { aal: "aal2" as string | null, meStatus: 200 };
   readonly invites: { member: string; email: string }[] = [];
-  provisioned: ApiAnswer<{ number?: { id?: string } }> = { status: 201, body: { number: { id: "number-row-1" } } };
+  provisioned: ApiAnswer<{ id?: string; status?: string }> = { status: 201, body: { id: "number-row-1", status: "pending" } };
   numbers = new Map<string, NumberRow[]>();
   workspaces = new Map<string, WorkspaceState>();
   grace = new Map<string, Omit<GraceState, keyof WorkspaceState | "numbers">>();
@@ -212,7 +238,8 @@ export class FakeApp implements AppApi {
 
   async sendTextToFictional(args: { member: string; fromRole: string; e164: string; body: string }): Promise<SendResult> {
     this.fictionalSends.push({ member: args.member, e164: args.e164, body: args.body });
-    return { ok: false, status: 422, code: "rig_destination_refused" };
+    this.onApiError(destinationRefusedEvent("POST /v1/conversations", this.#time.now));
+    return INTERNAL_ERROR;
   }
 
   async sendMms(args: { member: string; fromRole: string; toRole: string; body: string }) {
@@ -234,7 +261,7 @@ export class FakeApp implements AppApi {
   }
 
   async messages(args: { tenant: string; body: string; since: number }) {
-    return this.rows.filter((r) => r.tenant === args.tenant && r.body === args.body);
+    return this.rows.filter((r) => r.tenant === args.tenant && r.body === args.body && Date.parse(r.created_at) >= args.since);
   }
   async messagesWith(args: { tenant: string; role: string; since: number }) {
     return this.rows.filter((r) => r.tenant === args.tenant && r.withRole === args.role && Date.parse(r.created_at) >= args.since);
@@ -250,8 +277,10 @@ export class FakeApp implements AppApi {
     if (!bytes) throw new Error(`no object ${args.bucket}/${args.path}`);
     return bytes;
   }
-  async pushAttempts(args: { tenant: string }) {
-    return this.pushes.filter((p) => p.tenant === args.tenant);
+  async pushAttempts(args: { tenant: string; since: number; purpose?: string }) {
+    return this.pushes.filter(
+      (p) => p.tenant === args.tenant && Date.parse(p.attempted_at) >= args.since && (!args.purpose || p.purpose === args.purpose),
+    );
   }
   async pushTargets(args: { member: string }) {
     return this.targets.get(args.member) ?? 0;
@@ -275,7 +304,9 @@ export class FakeApp implements AppApi {
     this.webhooks.set(args.member, [...new Set([...(this.webhooks.get(args.member) ?? []), ...args.events])]);
   }
   async webhookEvents(args: { since: number; type?: string }) {
-    return this.webhookEventRows.filter((row) => !args.type || row.event_type === args.type);
+    return this.webhookEventRows
+      .filter((row) => Date.parse(row.received_at) >= args.since && (!args.type || row.event_type === args.type))
+      .map(({ received_at: _received, ...row }) => row);
   }
   async optOut(args: { tenant: string; role: string }) {
     return this.optOuts.get(`${args.tenant}/${args.role}`) ?? null;
@@ -283,8 +314,11 @@ export class FakeApp implements AppApi {
   async optOutHint(args: { tenant: string; role: string }) {
     return this.hints.get(`${args.tenant}/${args.role}`) ?? null;
   }
-  async calls(args: { tenant: string }) {
-    return this.callRows.filter((r) => r.tenant === args.tenant);
+  /** As the probe reads them: the caller's rows, from a minute before `since`. */
+  async calls(args: { tenant: string; callerRole: string; since: number }) {
+    return this.callRows.filter(
+      (r) => r.tenant === args.tenant && r.caller_role === args.callerRole && Date.parse(r.started_at) >= args.since - 60_000,
+    );
   }
   async callLegs(args: { tenant: string; callSessionId: string }) {
     return this.legs.get(`${args.tenant}/${args.callSessionId}`) ?? [];
@@ -299,19 +333,25 @@ export class FakeApp implements AppApi {
     return this.tokenUse;
   }
   async placeCall(args: { member: string; fromRole: string; to: string | { fictional: string } }) {
-    if (typeof args.to !== "string") return { ok: false as const, status: 422, code: "rig_destination_refused" };
+    if (typeof args.to !== "string") {
+      this.onApiError(destinationRefusedEvent("POST /v1/calls/browser", this.#time.now));
+      return INTERNAL_ERROR;
+    }
     return this.onPlaceCall({ member: args.member, fromRole: args.fromRole, to: args.to });
   }
+  /** A signed-out session is refused as auth/company.ts refuses every revoked one. */
   async voiceToken(args: { member: string; fresh?: boolean }) {
     if (args.fresh) this.signedOut.delete(args.member);
-    return this.signedOut.has(args.member) ? { status: 403, code: "forbidden" } : this.tokenAnswer(args.member);
+    return this.signedOut.has(args.member) ? { status: 401, code: "unauthorized" } : this.tokenAnswer(args.member);
   }
   async signOutSession(args: { member: string }) {
     this.signedOut.add(args.member);
     return { status: 200 };
   }
-  async escalations(args: { tenant: string }) {
-    return this.escalationRows.filter((row) => row.tenant === args.tenant);
+  async escalations(args: { tenant: string; since: number }) {
+    return this.escalationRows
+      .filter((row) => row.tenant === args.tenant && Date.parse(row.created_at) >= args.since)
+      .map(({ tenant: _tenant, created_at: _created, ...row }) => row);
   }
   async telnyxRecordings() {
     return this.recordingsLeft;
@@ -342,6 +382,9 @@ export class FakeApp implements AppApi {
     this.companies.set(args.tenant, { ...current, ...args.values });
     return previous;
   }
+  async numberStatusOf(args: { tenant: string; role: string }) {
+    return this.numberStatus.get(`${args.tenant}/${args.role}`) ?? "active";
+  }
   async setNumberStatus(args: { tenant: string; role: string; status: string }) {
     const key = `${args.tenant}/${args.role}`;
     const previous = this.numberStatus.get(key) ?? "active";
@@ -352,6 +395,9 @@ export class FakeApp implements AppApi {
     const { id = `shift-${this.shifts.length + 1}`, ...shift } = args;
     this.shifts.push({ id, ...shift });
     return { id };
+  }
+  async ringAudience(args: { tenant: string; role: string; member: string }) {
+    return this.audiences.get(`${args.tenant}/${args.role}/${args.member}`) ?? null;
   }
   async setRingAudience(args: { tenant: string; role: string; member: string; level: "text" | "note" | null }) {
     const key = `${args.tenant}/${args.role}/${args.member}`;
@@ -420,9 +466,10 @@ export class FakeApp implements AppApi {
   async signInWithTotp() {
     return this.totp;
   }
+  /** routes/team.ts answers with the invite row itself. */
   async invite(args: { member: string; email: string }) {
     this.invites.push(args);
-    return { status: 201, body: { invite: { id: `invite-${this.invites.length}` } } };
+    return { status: 201, body: { id: `invite-${this.invites.length}`, email_sent: true } };
   }
   readonly passwordResets: string[] = [];
   signUps = new Map<string, { company_id: string; subscription_status: string; stripe_subscription_id: string | null }>();
@@ -933,13 +980,16 @@ export class FakeHandoff implements HandoffApi {
 
 /** Every lane, faked, sharing one clock. */
 export function fakeLanes(time: FakeTime) {
+  const app = new FakeApp(time);
+  const rig = new FakeRig();
+  app.onApiError = (event) => rig.events.push(event);
   return {
     robot: new FakeRobot(time),
-    app: new FakeApp(time),
+    app,
     browser: new FakeBrowser(),
     guard: new FakeGuard(),
     devices: new FakeDevices(),
-    rig: new FakeRig(),
+    rig,
     mail: new FakeMail(),
     stripe: new FakeStripe(),
     handoff: new FakeHandoff(),

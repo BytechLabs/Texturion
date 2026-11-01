@@ -4,13 +4,16 @@ import { describe, expect, it } from "vitest";
 import type { LeaseActivity } from "@loonext/rig-protocol";
 import type { CallPlan } from "@loonext/rig-robot";
 import { FICTIONAL_E164, GUARD_PROBES, type ApiAnswer, type CallRow, type GuardProbe, type WebhookDelivery } from "./context.ts";
-import { fakeContext } from "./fakes.ts";
+import { destinationRefusedEvent, fakeContext } from "./fakes.ts";
 import {
   appRefusedForUnowned,
+  CAPTURE_PROMPT,
   CARRIER_WARN_SEGMENTS,
+  DOWN_STATES,
   downStatesFor,
   FLAG_CACHE_MS,
   G01,
+  g01Refusal,
   GREETING_PHRASE,
   guardCount,
   KILL_SWITCHES,
@@ -37,9 +40,15 @@ const PHONE = /\+1\d{10}/;
 /** Transforming apps/api's billing module takes seconds while the whole suite runs at once. */
 const IMPORT_TIMEOUT_MS = 30_000;
 
-function callRow(tenant: string, id: string, startedAt: number, extra: Partial<CallRow> = {}): CallRow & { tenant: string } {
+function callRow(
+  tenant: string,
+  id: string,
+  startedAt: number,
+  extra: Partial<CallRow> & { caller_role?: string } = {},
+): CallRow & { tenant: string; caller_role: string } {
   return {
     tenant,
+    caller_role: "ROBOT-1",
     call_session_id: id,
     outcome: null,
     forward_seconds: 0,
@@ -126,6 +135,73 @@ describe("G01, isolation self-test", () => {
     expect(await G01.run(dialOther.ctx)).toMatchObject({ failure_class: "fictional_dial_wrong_refusal" });
   });
 
+  it("knows rig mode's refusal by the gate's code, whichever gate gave it, and nothing else that refuses", async () => {
+    // The database's gate, which both routes reach first: a 500 whose error report names it.
+    const database = g01World();
+    expect(await G01.run(database.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    expect(database.ctx.evidence).toMatchObject({
+      fictional_text: { status: 500, code: "internal_error", gate: "error_report" },
+      fictional_dial: { status: 500, code: "internal_error", gate: "error_report" },
+    });
+
+    // The Worker's gate, behind a database that missed its setting: the text filed as failed with the code.
+    const worker = g01World();
+    worker.app.sendTextToFictional = async () => ({ ok: false, status: 201, code: "rig_destination_refused" });
+    expect(await G01.run(worker.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    expect(worker.ctx.evidence.fictional_text).toMatchObject({ status: 201, gate: "message" });
+
+    // A 500 with no such report, or with the other route's, is some other fault.
+    const unreported = g01World();
+    unreported.app.onApiError = () => undefined;
+    const unreportedResult = await G01.run(unreported.ctx);
+    expect(unreportedResult).toMatchObject({ failure_class: "fictional_text_wrong_refusal" });
+    expect(unreported.ctx.evidence.fictional_dial).toMatchObject({ gate: null });
+
+    const crossed = g01World();
+    crossed.app.onApiError = (event) => crossed.rig.events.push({ ...event, tags: { route: "POST /v1/calls/browser" } });
+    expect(await G01.run(crossed.ctx)).toMatchObject({ failure_class: "fictional_text_wrong_refusal" });
+
+    const otherError = g01World();
+    otherError.app.onApiError = (event) => otherError.rig.events.push({ ...event, exceptions: [{ type: "Error", value: "gate_outbound_send failed: connection reset" }] });
+    expect(await G01.run(otherError.ctx)).toMatchObject({ failure_class: "fictional_text_wrong_refusal" });
+
+    const blind = g01World();
+    blind.rig.apiEvents = async () => {
+      throw new Error("the relay's state is not JSON");
+    };
+    expect(await G01.run(blind.ctx)).toMatchObject({ outcome: "infra", component: "rig" });
+  });
+
+  it("tells the relay's explainer which API errors are a G01 attempt's own refusals", () => {
+    const at = Date.UTC(2026, 10, 1, 6);
+    const attempts = [{ started_at: iso(at), finished_at: iso(at + 90_000) }];
+    const text = destinationRefusedEvent("POST /v1/conversations", at + 1_000);
+    expect(g01Refusal(text, attempts)).toBe(true);
+    expect(g01Refusal(destinationRefusedEvent("POST /v1/calls/browser", at + 2_000), attempts)).toBe(true);
+    // The relay may record a report a little after the attempt ends.
+    expect(g01Refusal({ ...text, at: at + 100_000 }, attempts)).toBe(true);
+    // Outside a G01 attempt it is the app reaching for a stranger by itself.
+    expect(g01Refusal({ ...text, at: at + 10 * 60_000 }, attempts)).toBe(false);
+    expect(g01Refusal({ ...text, at: at - 1_000 }, attempts)).toBe(false);
+    expect(g01Refusal(text, [])).toBe(false);
+    expect(g01Refusal({ ...text, tags: { route: "POST /v1/messages/send" } }, attempts)).toBe(false);
+    expect(g01Refusal({ ...text, exceptions: [{ type: "Error", value: "gate_outbound_send failed: timeout" }] }, attempts)).toBe(false);
+  });
+
+  it("expects the errors apps/api raises when rig mode's database refuses a stranger", () => {
+    const migration = readdirSync(repoPath("supabase/migrations")).find((name) => name.endsWith("_the_rig_database_texts_and_dials_only_its_own_numbers.sql"))!;
+    const sql = readFileSync(repoPath(`supabase/migrations/${migration}`), "utf8");
+    const text = destinationRefusedEvent("POST /v1/conversations", 0).exceptions![0]!.value;
+    const dial = destinationRefusedEvent("POST /v1/calls/browser", 0).exceptions![0]!.value;
+    expect(sql).toContain(`raise exception '${text.slice("gate_outbound_send failed: ".length)}'`);
+    expect(sql).toContain(`raise exception '${dial.slice("outbound line claim failed: ".length)}'`);
+    expect(readFileSync(repoPath("apps/api/src/messaging/send.ts"), "utf8")).toContain("throw new Error(`gate_outbound_send failed: ${error.message}`);");
+    expect(readFileSync(repoPath("apps/api/src/routes/calls.ts"), "utf8")).toMatch(/await db\.rpc\("api_claim_outbound_line", \{[\s\S]*?\}\),\s*"outbound line claim",/);
+    expect(readFileSync(repoPath("apps/api/src/routes/core/http.ts"), "utf8")).toContain("throw new Error(`${what} failed: ${result.error.message}`);");
+    // onError tags the event with the route, and answers anything but an ApiError or a 429/503 from Telnyx with 500.
+    expect(readFileSync(repoPath("apps/api/src/index.ts"), "utf8")).toContain("tags: { route: `${method} ${path}`");
+  });
+
   it("calls an app request the guard had to refuse critical", async () => {
     for (const key of ["rig-api POST /v2/messages message.to_not_owned", "rig-api POST /v2/calls dial.to_not_owned"]) {
       const world = g01World();
@@ -144,7 +220,7 @@ describe("G01, isolation self-test", () => {
     expect(await G01.run(answered.ctx)).toMatchObject({ failure_class: "stranger_answered", critical: true });
 
     const recorded = g01World();
-    recorded.app.callRows.push(callRow("QA-W", "stranger-1", recorded.time.now));
+    recorded.app.callRows.push(callRow("QA-W", "stranger-1", recorded.time.now, { caller_role: "STRANGER-1" }));
     expect(await G01.run(recorded.ctx)).toMatchObject({ failure_class: "stranger_call_recorded", critical: true });
 
     const threaded = g01World();
@@ -416,6 +492,34 @@ describe("S13, a line that is down", () => {
     }
   });
 
+  it("registers each state's undo before the write, so a write whose answer is lost is still put back", async () => {
+    for (const state of DOWN_STATES) {
+      const lost = s13World(fortnightWith(state));
+      const write = (app: typeof lost.app) => {
+        const patch = app.patchCompany.bind(app);
+        app.patchCompany = async (args) => {
+          const before = await patch(args);
+          if (args.values.paused_at) throw new Error("app probe: writing companies returned 504");
+          return before;
+        };
+        const setStatus = app.setNumberStatus.bind(app);
+        app.setNumberStatus = async (args) => {
+          const before = await setStatus(args);
+          if (args.status !== "active") throw new Error("app probe: writing phone_numbers returned 504");
+          return before;
+        };
+      };
+      write(lost.app);
+      await expect(S13.run(lost.ctx)).rejects.toThrow(/504/);
+      expect(lost.undo).toHaveLength(1);
+      expect(lost.undo[0]).toEqual(
+        state === "paused"
+          ? { kind: "app.company-restore", params: { tenant: "QA-C", values: { paused_at: null } } }
+          : { kind: "app.number-status", params: { tenant: "QA-C", role: "DEV-C1", status: "active" } },
+      );
+    }
+  });
+
   it("never holds a number row down across a quarter hour", async () => {
     // 15:13:30, too close to 15:15 to hold the row down through a call.
     const late = s13World(fortnightWith("suspended") + 8 * 60_000 + 30_000);
@@ -663,7 +767,8 @@ function s15World() {
   robot.outcome = (plan) => ({
     state: "done",
     answered_at: iso(time.now + 2_000),
-    transcript: "This is a greeting recording call for QA-W. After the beep, say what you'd like your callers to hear.",
+    // Speech-to-text's take on the prompt: the business name mangled, a word lost.
+    transcript: "This is a greeting recording call for q a w. After the beep say what you'd like your callers to hear when nobody can pick up. When you're finished just hang up and it will be saved.",
     spoke: plan.voicemail?.phrase,
     recording_deleted: true,
   });
@@ -686,6 +791,11 @@ describe("S15, greeting-capture call", () => {
     expect(source).toMatch(/export const GREETING_BUCKET = "voicemail-greetings";/);
     expect(source).toContain("storage_path: `${GREETING_BUCKET}/${objectPath}`");
   });
+
+  it("hears apps/api's capture prompt, less the business name it reads out", async () => {
+    const capture = (await importFromRepo("apps/api/src/calls/greeting-capture.ts")) as { greetingCapturePrompt: (name: string) => string };
+    expect(capture.greetingCapturePrompt("QA-W").replace(" QA-W", "")).toBe(CAPTURE_PROMPT);
+  }, IMPORT_TIMEOUT_MS);
 
   it("passes when the robot hears the prompt, speaks after the beep and the greeting says what it said", async () => {
     const { ctx, robot, names } = s15World();
@@ -716,6 +826,13 @@ describe("S15, greeting-capture call", () => {
     const outcome = silent.robot.outcome;
     silent.robot.outcome = (plan) => ({ ...outcome(plan), transcript: "  " });
     expect(await S15.run(silent.ctx)).toMatchObject({ failure_class: "prompt_not_heard" });
+
+    // Words, but not the capture prompt's: the API called with something else to say.
+    const other = s15World();
+    const answered = other.robot.outcome;
+    other.robot.outcome = (plan) => ({ ...answered(plan), transcript: "Sorry, this number isn't taking calls right now. Please try again later." });
+    expect(await S15.run(other.ctx)).toMatchObject({ failure_class: "prompt_not_heard" });
+    expect(other.ctx.evidence.prompt_word_share).toBeLessThan(0.75);
 
     const mute = s15World();
     const spoke = mute.robot.outcome;
@@ -777,7 +894,7 @@ describe("S16, note-level member and sign-out", () => {
     expect(app.audiences.get("QA-W/DEV-W1/qa-w-note-member")).toBe("note");
     expect(robot.plans[0]).toMatchObject({ direction: "outbound", role: "ROBOT-1", to: "DEV-W1", lease_id: "lease-test" });
     expect(app.signedOut.has(SIGN_OUT_MEMBER)).toBe(true);
-    expect(ctx.evidence.tokens).toEqual({ before: 200, signed_out: 200, after: 403 });
+    expect(ctx.evidence.tokens).toEqual({ before: 200, signed_out: 200, after: 401 });
     expect(await S16.afterRelease!(ctx)).toBeUndefined();
     expect(app.signedOut.has(SIGN_OUT_MEMBER)).toBe(false);
   });
@@ -807,6 +924,23 @@ describe("S16, note-level member and sign-out", () => {
     expect(await S16.run(rowless.ctx)).toMatchObject({ failure_class: "no_call_row" });
   });
 
+  it("registers the audience's undo before the write, so a write whose answer is lost is still put back", async () => {
+    const lost = s16World();
+    const set = lost.app.setRingAudience.bind(lost.app);
+    lost.app.setRingAudience = async (args) => {
+      await set(args);
+      throw new Error("app probe: writing number_access returned 504");
+    };
+    await expect(S16.run(lost.ctx)).rejects.toThrow(/504/);
+    expect(lost.app.audiences.get("QA-W/DEV-W1/qa-w-note-member")).toBe("note");
+    expect(lost.undo).toEqual([{ kind: "app.ring-audience", params: { tenant: "QA-W", role: "DEV-W1", member: "qa-w-note-member", level: null } }]);
+
+    const earlier = s16World();
+    earlier.app.audiences.set("QA-W/DEV-W1/qa-w-note-member", "text");
+    expect((await S16.run(earlier.ctx)).outcome).toBe("pass");
+    expect(earlier.undo[0]!.params.level).toBe("text");
+  });
+
   it("fails a note member's call that was authorised, or refused with anything but 403", async () => {
     const placed = s16World();
     placed.app.onPlaceCall = () => ({ ok: true, sessionId: "s-1" });
@@ -817,10 +951,26 @@ describe("S16, note-level member and sign-out", () => {
     expect(await S16.run(other.ctx)).toMatchObject({ failure_class: "note_member_wrong_refusal" });
   });
 
+  it("expects the 401 apps/api answers a signed-out session, as it does a bad token", () => {
+    const company = readFileSync(repoPath("apps/api/src/auth/company.ts"), "utf8");
+    expect(company).toMatch(/if \(authorized\.session_revoked\) \{[^}]*errorResponse\(\s*c,\s*"unauthorized"/);
+    const codes = readFileSync(repoPath("packages/shared/src/error-codes.ts"), "utf8");
+    expect(codes).toMatch(/^\s*unauthorized: 401,$/m);
+  });
+
   it("fails a token minted after sign-out, a refused sign-out, and a token a fresh sign-in cannot mint", async () => {
     const survives = s16World();
     survives.app.signOutSession = async () => ({ status: 200 });
     expect(await S16.run(survives.ctx)).toMatchObject({ failure_class: "voice_survives_sign_out" });
+
+    // A 403 is a live session refused something else, not a signed-out one.
+    const forbidden = s16World();
+    const mint = forbidden.app.voiceToken.bind(forbidden.app);
+    forbidden.app.voiceToken = async (args) => {
+      const answer = await mint(args);
+      return answer.status === 401 ? { status: 403, code: "forbidden" } : answer;
+    };
+    expect(await S16.run(forbidden.ctx)).toMatchObject({ failure_class: "voice_survives_sign_out" });
 
     const refused = s16World();
     refused.app.signOutSession = async () => ({ status: 401 });
@@ -850,7 +1000,7 @@ function s17World(attempts: (number | null)[] = [503, 200], extra: Partial<Webho
     ...extra,
   };
   guard.deliveries = [delivery];
-  app.webhookEventRows = [{ event_id: "event-1", event_type: "call.initiated", processed_at: iso(time.now), attempts: 1 }];
+  app.webhookEventRows = [{ received_at: iso(time.now), event_id: "event-1", event_type: "call.initiated", processed_at: iso(time.now), attempts: 1 }];
   const armed: number[] = [];
   const failNext = rig.failNextCallEvent.bind(rig);
   rig.failNextCallEvent = async (status: 503) => {
@@ -895,7 +1045,7 @@ describe("S17, webhook failover", () => {
 
   it("fails the event when the API never recorded it, recorded it twice or never processed it", async () => {
     const lost = s17World();
-    lost.app.webhookEventRows = [{ event_id: "event-2", event_type: "call.initiated", processed_at: iso(lost.time.now), attempts: 1 }];
+    lost.app.webhookEventRows = [{ received_at: iso(lost.time.now), event_id: "event-2", event_type: "call.initiated", processed_at: iso(lost.time.now), attempts: 1 }];
     expect(await S17.run(lost.ctx)).toMatchObject({ failure_class: "event_not_recorded" });
 
     const twice = s17World();

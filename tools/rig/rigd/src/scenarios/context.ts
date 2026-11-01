@@ -125,6 +125,11 @@ export interface AutomatedText {
   reply: boolean;
 }
 
+/**
+ * A send the API filed and then failed is refused too: its status is the
+ * API's 2xx and its code the message's `error_code`. Rig mode's destination
+ * gate refuses that way in apps/api's dispatch (messaging/send.ts).
+ */
 export type SendResult = { ok: true; messageId: string } | { ok: false; status: number; code?: string };
 
 /** What an API call answered when the scenario expects a refusal as often as a success. */
@@ -292,6 +297,8 @@ export interface AppApi {
   companySettings(args: { tenant: string; fields: readonly CompanyField[] }): Promise<Partial<Record<CompanyField, unknown>>>;
   /** Writes company settings and resolves with their previous values, for `app.company-restore`. */
   patchCompany(args: { tenant: string; values: Partial<Record<CompanyField, unknown>> }): Promise<Partial<Record<CompanyField, unknown>>>;
+  /** A standing number's row status, read before a change so `app.number-status` can be registered first. */
+  numberStatusOf(args: { tenant: string; role: StandingRole }): Promise<string>;
   /** Sets a standing number's row status and resolves with the previous one, for `app.number-status`. */
   setNumberStatus(args: { tenant: string; role: StandingRole; status: "active" | "suspended" | "released" }): Promise<string>;
   /**
@@ -299,6 +306,8 @@ export interface AppApi {
    * the id. With `id`, the row takes it, so the undo can be registered first.
    */
   addOnCallShift(args: { tenant: string; member: string; role: StandingRole; startsAt: number; endsAt: number; id?: string }): Promise<{ id: string }>;
+  /** A member's level on a number now, read before a change so `app.ring-audience` can be registered first. */
+  ringAudience(args: { tenant: string; role: StandingRole; member: string }): Promise<"text" | "note" | null>;
   /**
    * A member's level on a number (#106): `text` rings them, `note` and null do
    * not. Resolves with the previous level, for `app.ring-audience`.
@@ -358,11 +367,11 @@ export interface AppApi {
   sendPasswordReset(args: { member: string }): Promise<number>;
   /** The workspace a public sign-up created, found by its owner's address (S32, S35). */
   workspaceOf(args: { ownerEmail: string }): Promise<{ company_id: string; subscription_status: string; stripe_subscription_id: string | null } | null>;
-  /** Invites an address to the member's workspace; the undo is `app.revoke-invite`. */
-  invite(args: { member: string; email: string }): Promise<ApiAnswer<{ invite?: { id?: string } }>>;
+  /** Invites an address to the member's workspace; the answer is the invite row itself. The undo is `app.revoke-invite`. */
+  invite(args: { member: string; email: string }): Promise<ApiAnswer<{ id?: string; email_sent?: boolean }>>;
 
-  /** `POST /v1/numbers/provision` with the company's area code: the app's own search, order and binding. */
-  provisionNumber(args: { member: string }): Promise<ApiAnswer<{ number?: { id?: string } }>>;
+  /** `POST /v1/numbers/provision` with the company's area code: the app's own search, order and binding. The answer is the number's row. */
+  provisionNumber(args: { member: string }): Promise<ApiAnswer<{ id?: string; status?: string }>>;
   numberRows(args: { tenant: string }): Promise<NumberRow[]>;
   /** Marks a number row released, as the app does after Telnyx gave the number back. */
   markNumberReleased(args: { phoneNumberId: string }): Promise<void>;

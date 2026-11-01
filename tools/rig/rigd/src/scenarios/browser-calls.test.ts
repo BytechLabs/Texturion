@@ -146,10 +146,14 @@ function row(tenant: string, caller: string, session: string, extra: Partial<Cal
   };
 }
 
-/** The probe files a row under its caller's number; the stock fake ignores the role. */
+/** The probe files a row under its caller's number; a row the test removes from the list is gone from the app too. */
 function withRows(world: World, rows: Row[]) {
   const app: AppApi = world.app;
-  app.calls = async (args) => rows.filter((r) => r.tenant === args.tenant && r.caller === args.callerRole);
+  const calls = world.app.calls.bind(world.app);
+  app.calls = async (args) => {
+    world.app.callRows = rows.map((r) => Object.assign(r, { caller_role: r.caller }));
+    return calls(args);
+  };
   return rows;
 }
 
@@ -278,7 +282,7 @@ function s05World(options: { textBack?: boolean; escalation?: boolean } = {}) {
   const seen = withLeaseAtChanges(world);
   const pages = withPages(world, {});
   const rows = withRows(world, [row("QA-W", "ROBOT-1", "s05-session", { outcome: "missed", forward_seconds: 0 })]);
-  world.app.pushes.push({ tenant: "QA-W", purpose: "ring", platform: "web", response_class: "accepted", attempted_at: "" });
+  world.app.pushes.push({ tenant: "QA-W", purpose: "ring", platform: "web", response_class: "accepted", attempted_at: iso(world.time.now) });
   robotOutcome(world, (record) => ({ ...record, answered_at: undefined, judgement: undefined, recording_deleted: undefined }));
   const wait = world.robot.wait.bind(world.robot);
   // The caller hung up: the API texts back and opens the on-call escalation.
@@ -288,6 +292,7 @@ function s05World(options: { textBack?: boolean; escalation?: boolean } = {}) {
     if (options.escalation !== false) {
       world.app.escalationRows.push({
         tenant: "QA-W",
+        created_at: iso(world.time.now),
         kind: "missed_call",
         on_call_user_id: "owner-user",
         escalate_at: iso(world.time.now + ESCALATE_AFTER_MINUTES * 60_000),
@@ -360,7 +365,7 @@ describe("S05, the caller hangs up while it rings", () => {
     expect(await S05.run(answeredRow.ctx)).toMatchObject({ failure_class: "row_not_missed" });
 
     const unpushed = s05World();
-    unpushed.app.pushes = [{ tenant: "QA-W", purpose: "alert", platform: "web", response_class: "accepted", attempted_at: "" }];
+    unpushed.app.pushes = [{ tenant: "QA-W", purpose: "alert", platform: "web", response_class: "accepted", attempted_at: iso(unpushed.time.now) }];
     expect(await S05.run(unpushed.ctx)).toMatchObject({ failure_class: "no_ring_push" });
 
     const unescalated = s05World({ escalation: false });

@@ -37,6 +37,7 @@ export const GRACE_CRON = "0 14 * * *";
 export const GRACE_NOTICES = [1, 15, 27, 30] as const;
 /** One day past the 30-day grace period. */
 const CANCELED_DAYS_AGO = 31;
+const DAY_MS = 86_400_000;
 
 /** Lou's reply drafts, as apps/api/src/messaging/reply-suggestions.ts meters them. */
 export const SUGGEST_REPLY_FEATURE = "suggest_reply";
@@ -213,7 +214,7 @@ export const S28: ScenarioRunner = {
     if (blockers.length > 0) return infra("guard", `number ordering is off: ${blockers.join(", ")}`);
     const partition = await ctx.guard.partition();
 
-    let provisioned: ApiAnswer<{ number?: { id?: string } }>;
+    let provisioned: ApiAnswer<{ id?: string }>;
     try {
       provisioned = await ctx.app.provisionNumber({ member: "qa-g-owner" });
     } catch (error) {
@@ -221,7 +222,7 @@ export const S28: ScenarioRunner = {
     }
     ctx.evidence.provision = { status: provisioned.status, code: provisioned.code };
     if (!is2xx(provisioned.status)) return refusedPurchase(ctx, provisioned);
-    const rowId = provisioned.body?.number?.id;
+    const rowId = provisioned.body?.id;
 
     // The undo goes in as soon as the row names its Telnyx number, not once binding finishes.
     const bought: { held?: NumberHandoff } = {};
@@ -433,12 +434,14 @@ async function graceAndRelease(ctx: ScenarioContext): Promise<ScenarioResult> {
   const row = number ? after.numbers.find((r) => r.id === number.phone_number_id) : undefined;
   ctx.evidence.grace = {
     notices: after.notices,
+    live_campaigns_before: before.live_campaigns,
     live_campaigns: after.live_campaigns,
     subscription_status: after.subscription_status,
     number_status: row?.status ?? null,
     ...(cronError ? { cron_error: cronError } : {}),
   };
   const because = cronError ? ` (the cron answered: ${cronError})` : "";
+  const release = await judgeRelease(ctx, number, { held: Boolean(heldRow), row }, because);
 
   const standing = (await ctx.guard.partition()).standing;
   if (standing !== standingBefore) {
@@ -448,19 +451,49 @@ async function graceAndRelease(ctx: ScenarioContext): Promise<ScenarioResult> {
     return fail("grace_notices", `grace ledgered ${after.notices.join(", ") || "no"} notices, not ${GRACE_NOTICES.join(", ")}${because}`);
   }
   if (after.live_campaigns !== 0) return fail("campaign_still_live", `${after.live_campaigns} campaign(s) are still live after the release${because}`);
+  if (release) return release;
+  // Rig mode refuses /v2/10dlc, so QA-G never holds a campaign for grace to deactivate.
+  return before.live_campaigns === 0 ? pass("QA-G held no live campaign, so its deactivation was not covered") : pass();
+}
 
-  // Rig mode refuses /v2/10dlc, so only "no live campaign remains" is checked, never a deactivation call.
+/**
+ * The release half, kept in the evidence as judged. A retry has no number to
+ * judge, since the first attempt's undo released it, so it takes that
+ * attempt's judgement rather than reporting S28's hand-off as missing.
+ */
+async function judgeRelease(
+  ctx: ScenarioContext,
+  number: NumberHandoff | null,
+  grace: { held: boolean; row: NumberRow | undefined },
+  because: string,
+): Promise<ScenarioResult | undefined> {
   if (!number) {
+    const earlier = await earlierRelease(ctx);
+    if (earlier !== null) return earlier;
     return infra("s28-handoff", "S28 handed off no number: grace ran and its notices and campaigns were judged, but the release half was not covered");
   }
-  if (!heldRow) {
-    return infra("s28-handoff", "QA-G did not hold the number S28 handed off, so the release half was not covered");
+  if (!grace.held) return infra("s28-handoff", "QA-G did not hold the number S28 handed off, so the release half was not covered");
+  let result: ScenarioResult | undefined;
+  if (grace.row?.status !== "released") result = fail("number_not_released", `the number's row reads ${grace.row?.status ?? "nothing"} after grace${because}`);
+  else {
+    const status = await ctx.guard.numberStatus(number.telnyx_phone_number_id);
+    ctx.evidence.number_lookup = status.status;
+    if (status.status !== 404) result = fail("telnyx_number_kept", `the guard still answers ${status.status} for the released number`);
   }
-  if (row?.status !== "released") return fail("number_not_released", `the number's row reads ${row?.status ?? "nothing"} after grace${because}`);
-  const status = await ctx.guard.numberStatus(number.telnyx_phone_number_id);
-  ctx.evidence.number_lookup = status.status;
-  if (status.status !== 404) return fail("telnyx_number_kept", `the guard still answers ${status.status} for the released number`);
-  return pass();
+  ctx.evidence.release = result ?? { outcome: "pass" };
+  return result;
+}
+
+/** This run's earlier judgement of the release: a failure, undefined for a pass, or null when no attempt made one. */
+async function earlierRelease(ctx: ScenarioContext): Promise<ScenarioResult | undefined | null> {
+  if (ctx.attempt === 1) return null;
+  const attempts = await ctx.history.attempts({ since: ctx.now() - DAY_MS });
+  const earlier = attempts.find((a) => a.run_id === ctx.runId && a.attempt < ctx.attempt && a.evidence?.release);
+  const judged = earlier?.evidence?.release as ScenarioResult | undefined;
+  if (!earlier || !judged) return null;
+  ctx.evidence.release_judged_on_attempt = earlier.attempt;
+  if (judged.outcome !== "fail") return undefined;
+  return fail(judged.failure_class, `on attempt ${earlier.attempt}, which took the number: ${judged.detail}`);
 }
 
 interface StripeTier {
@@ -784,7 +817,7 @@ export const S34: ScenarioRunner = {
 
     const since = ctx.now();
     const invited = await ctx.app.invite({ member: "qa-w-owner", email: address });
-    const inviteId = invited.body?.invite?.id;
+    const inviteId = invited.body?.id;
     if (inviteId) ctx.lease.registerUndo({ kind: "app.revoke-invite", params: { member: "qa-w-owner", inviteId } });
     ctx.evidence.invite = { status: invited.status, invite_id: inviteId ?? null };
     if (!is2xx(invited.status) || !inviteId) return fail("invite_refused", `the invite answered ${invited.status}${invited.code ? ` ${invited.code}` : ""}`);

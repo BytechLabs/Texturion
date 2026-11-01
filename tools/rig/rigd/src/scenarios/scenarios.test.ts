@@ -22,7 +22,7 @@ function textWorld(scenario: string) {
   robot.onSms = (message) => {
     const tenant = TENANT_OF_NUMBER[message.to_role];
     if (tenant) app.thread(tenant, message.text, "inbound");
-    app.pushes.push({ tenant: tenant ?? "", purpose: "alert", platform: "web", response_class: "accepted", attempted_at: "" });
+    app.pushes.push({ tenant: tenant ?? "", purpose: "alert", platform: "web", response_class: "accepted", attempted_at: new Date(time.now).toISOString() });
   };
   return world;
 }
@@ -292,10 +292,11 @@ function s02World() {
   const world = fakeContext("S02");
   world.app.callRows.push({
     tenant: "QA-W",
+    caller_role: "ROBOT-1",
     call_session_id: "inbound-session",
     outcome: "answered",
     forward_seconds: 25,
-    started_at: "",
+    started_at: "2026-10-31T15:00:01.000Z",
     ended_at: "2026-10-31T15:00:30.000Z",
     voicemail_path: null,
     voicemail_transcript: null,
@@ -348,10 +349,11 @@ function s04World(transcript = VOICEMAIL_PHRASE.toLowerCase()) {
   const world = fakeContext("S04");
   world.app.callRows.push({
     tenant: "QA-W",
+    caller_role: "ROBOT-1",
     call_session_id: "vm-session",
     outcome: "voicemail",
     forward_seconds: 0,
-    started_at: "",
+    started_at: "2026-10-31T15:00:01.000Z",
     ended_at: "",
     voicemail_path: "company/voicemail.wav",
     voicemail_transcript: transcript,

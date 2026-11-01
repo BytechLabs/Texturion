@@ -114,10 +114,9 @@ export class AppProbe implements AppApi {
       body: JSON.stringify({ phone_e164: to, phone_number_id: phoneNumberId, body: args.body }),
       signal: AbortSignal.timeout(20_000),
     });
-    const json = (await response.json().catch(() => ({}))) as { message?: { id?: string }; error?: { code?: string } };
+    const json = (await response.json().catch(() => ({}))) as { message?: SentMessage; error?: { code?: string } };
     if (!response.ok) return { ok: false, status: response.status, code: json.error?.code };
-    if (!json.message?.id) throw new Error("app probe: the send returned no message id");
-    return { ok: true, messageId: json.message.id };
+    return sendResult(response.status, json.message);
   }
 
   messages(args: { tenant: string; body: string; since: number }): Promise<MessageRow[]> {
@@ -379,15 +378,13 @@ export class AppProbe implements AppApi {
     const { tenant } = splitMember(args.member);
     const conversationId = await this.#conversationWith(tenant, args.toRole);
     if (!conversationId) throw new Error(`app probe: ${tenant} has no thread with ${args.toRole}`);
-    const answer = await this.#answer<{ message?: { id?: string } }>(args.member, "POST", "/v1/messages/send", {
+    const answer = await this.#answer<{ message?: SentMessage }>(args.member, "POST", "/v1/messages/send", {
       conversation_id: conversationId,
       body: args.body,
       media: [{ content_type: args.media.contentType, base64: Buffer.from(args.media.bytes).toString("base64") }],
     });
     if (answer.status >= 400) return { ok: false, status: answer.status, code: answer.code };
-    const id = answer.body?.message?.id;
-    if (!id) throw new Error("app probe: the send returned no message id");
-    return { ok: true, messageId: id };
+    return sendResult(answer.status, answer.body?.message);
   }
 
   async messagesWith(args: { tenant: string; role: string; since: number }): Promise<MessageRow[]> {
@@ -531,17 +528,23 @@ export class AppProbe implements AppApi {
     return before;
   }
 
+  async numberStatusOf(args: { tenant: string; role: string }): Promise<string> {
+    const id = stableUuid(this.#tenant(args.tenant).company_id, args.role);
+    const [row] = await this.#rest<{ status: string }[]>("phone_numbers", { id: `eq.${id}`, select: "status" });
+    if (!row) throw new Error(`app probe: no number row for ${args.role}`);
+    return row.status;
+  }
+
   async setNumberStatus(args: { tenant: string; role: string; status: "active" | "suspended" | "released" }): Promise<string> {
     const id = stableUuid(this.#tenant(args.tenant).company_id, args.role);
-    const [before] = await this.#rest<{ status: string }[]>("phone_numbers", { id: `eq.${id}`, select: "status" });
-    if (!before) throw new Error(`app probe: no number row for ${args.role}`);
+    const before = await this.numberStatusOf(args);
     const now = iso(this.#now());
     await this.#write("PATCH", "phone_numbers", { id: `eq.${id}` }, {
       status: args.status,
       suspended_at: args.status === "suspended" ? now : null,
       released_at: args.status === "released" ? now : null,
     }, "return=minimal");
-    return before.status;
+    return before;
   }
 
   async addOnCallShift(args: { tenant: string; member: string; role: string; startsAt: number; endsAt: number; id?: string }): Promise<{ id: string }> {
@@ -563,12 +566,17 @@ export class AppProbe implements AppApi {
     await this.#write("DELETE", "on_call_shifts", { id: `eq.${id}` }, undefined, "return=minimal");
   }
 
+  async ringAudience(args: { tenant: string; role: string; member: string }): Promise<"text" | "note" | null> {
+    const [row] = await this.#rest<{ level: "text" | "note" }[]>("number_access", { ...(await this.#accessRow(args)), select: "level" });
+    return row?.level ?? null;
+  }
+
   async setRingAudience(args: { tenant: string; role: string; member: string; level: "text" | "note" | null }): Promise<"text" | "note" | null> {
     const companyId = this.#tenant(args.tenant).company_id;
     const numberId = stableUuid(companyId, args.role);
     const userId = await this.#userIdOf(args.member);
-    const where = { phone_number_id: `eq.${numberId}`, principal_kind: "eq.user", principal: `eq.${userId}` };
-    const [before] = await this.#rest<{ level: "text" | "note" }[]>("number_access", { ...where, select: "level" });
+    const where = await this.#accessRow(args);
+    const before = await this.ringAudience(args);
     await this.#write("DELETE", "number_access", where, undefined, "return=minimal");
     if (args.level) {
       await this.#write("POST", "number_access", {}, {
@@ -579,7 +587,12 @@ export class AppProbe implements AppApi {
         level: args.level,
       }, "return=minimal");
     }
-    return before?.level ?? null;
+    return before;
+  }
+
+  async #accessRow(args: { tenant: string; role: string; member: string }): Promise<Record<string, string>> {
+    const numberId = stableUuid(this.#tenant(args.tenant).company_id, args.role);
+    return { phone_number_id: `eq.${numberId}`, principal_kind: "eq.user", principal: `eq.${await this.#userIdOf(args.member)}` };
   }
 
   async seedUsage(args: { tenant: string; type: string; quantity: number; channel?: string; unit?: string }): Promise<{ marker: string }> {
@@ -837,7 +850,7 @@ export class AppProbe implements AppApi {
     return users?.find((user) => user.email?.toLowerCase() === email.toLowerCase())?.id;
   }
 
-  invite(args: { member: string; email: string }): Promise<ApiAnswer<{ invite?: { id?: string } }>> {
+  invite(args: { member: string; email: string }): Promise<ApiAnswer<{ id?: string; email_sent?: boolean }>> {
     return this.#answer(args.member, "POST", "/v1/invites", { email: args.email, role: "member" });
   }
 
@@ -845,7 +858,7 @@ export class AppProbe implements AppApi {
     await this.#answer(args.member, "DELETE", `/v1/invites/${encodeURIComponent(args.inviteId)}`);
   }
 
-  async provisionNumber(args: { member: string }): Promise<ApiAnswer<{ number?: { id?: string } }>> {
+  async provisionNumber(args: { member: string }): Promise<ApiAnswer<{ id?: string; status?: string }>> {
     const { tenant } = splitMember(args.member);
     const [company] = await this.#rest<{ requested_area_code: string | null }[]>("companies", {
       id: `eq.${this.#tenant(tenant).company_id}`,
@@ -1137,6 +1150,20 @@ const SEED_BATCH = 1_000;
 
 function iso(ms: number): string {
   return new Date(ms).toISOString();
+}
+
+/** The message a send answers with, as routes/messages.ts's messageJson writes it. */
+interface SentMessage {
+  id?: string;
+  status?: string;
+  error_code?: string | null;
+}
+
+/** A 2xx send's message: sent, or filed and failed, which is the API refusing it after all. */
+function sendResult(status: number, message: SentMessage | undefined): SendResult {
+  if (!message?.id) throw new Error("app probe: the send returned no message id");
+  if (message.status === "failed") return { ok: false, status, ...(message.error_code ? { code: message.error_code } : {}) };
+  return { ok: true, messageId: message.id };
 }
 
 /** The user id in a Supabase access token. */

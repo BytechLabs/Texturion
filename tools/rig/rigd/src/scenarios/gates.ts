@@ -91,6 +91,76 @@ export const PROBE_RULES: Readonly<Record<GuardProbe, string>> = {
 
 const RIG_DESTINATION_REFUSED = "rig_destination_refused";
 const STRANGER_TEXT_WAIT_MS = 30_000;
+/** The API reports its own errors in the background; the relay has them well within this. */
+const API_ERROR_WAIT_MS = 30_000;
+const COMPOSE_ROUTE = "POST /v1/conversations";
+const BROWSER_CALL_ROUTE = "POST /v1/calls/browser";
+
+/** The API's own report of a route's error, naming rig mode's destination gate. */
+function gateRefusedOn(event: SeenEvent, route: string): boolean {
+  return event.tags?.route === route && (event.exceptions ?? []).some((e) => e.value.includes(RIG_DESTINATION_REFUSED));
+}
+
+/**
+ * Whether an API error report is one of G01's own refusals, for the relay's
+ * explainer: each run leaves two 500s that would otherwise read as
+ * unexplained for a day. Only inside a G01 attempt, since the same report at
+ * any other time is the app reaching for a stranger by itself.
+ */
+export function g01Refusal(event: SeenEvent, attempts: readonly { started_at: string; finished_at: string }[]): boolean {
+  if (!gateRefusedOn(event, COMPOSE_ROUTE) && !gateRefusedOn(event, BROWSER_CALL_ROUTE)) return false;
+  return attempts.some((a) => Date.parse(a.started_at) <= event.at && event.at <= Date.parse(a.finished_at) + API_ERROR_WAIT_MS);
+}
+
+const FICTIONAL = {
+  text: {
+    route: COMPOSE_ROUTE,
+    noun: "a text",
+    succeeded: () => fail("fictional_text_sent", "the API sent a text to a 555-01xx number", { critical: true }),
+  },
+  dial: {
+    route: BROWSER_CALL_ROUTE,
+    noun: "a call",
+    succeeded: () => fail("fictional_dial_placed", "the API authorised a call to a 555-01xx number", { critical: true }),
+  },
+} as const;
+
+/**
+ * A send or dial to a fictional number, which only rig mode's destination
+ * gate may refuse, judged by the gate's own code. The Worker's gate files a
+ * text as failed with the code. The database's, which both routes reach
+ * first, raises it, so the route answers 500 and the API's error report
+ * carries it.
+ */
+async function judgeFictional(
+  ctx: ScenarioContext,
+  what: keyof typeof FICTIONAL,
+  answer: { ok: true } | { ok: false; status: number; code?: string },
+  since: number,
+): Promise<ScenarioResult | undefined> {
+  const { route, noun, succeeded } = FICTIONAL[what];
+  if (answer.ok) {
+    ctx.evidence[`fictional_${what}`] = { refused: false };
+    return succeeded();
+  }
+  const evidence: Record<string, unknown> = { status: answer.status, code: answer.code ?? null };
+  ctx.evidence[`fictional_${what}`] = evidence;
+  if (answer.code === RIG_DESTINATION_REFUSED) {
+    evidence.gate = "message";
+    return undefined;
+  }
+  if (answer.status === 500) {
+    let reported: boolean | undefined;
+    try {
+      reported = await poll(ctx, async () => (await ctx.rig.apiEvents(since)).some((event) => gateRefusedOn(event, route)), API_ERROR_WAIT_MS, 2_000);
+    } catch (error) {
+      return infra("rig", `the API's error reports could not be read: ${(error as Error).message}`);
+    }
+    evidence.gate = reported ? "error_report" : null;
+    if (reported) return undefined;
+  }
+  return fail(`fictional_${what}_wrong_refusal`, `${noun} to a 555-01xx number was refused with ${refusalOf(answer)}, not by rig mode's destination gate`);
+}
 
 /**
  * G01: nothing leaves for a number the rig does not own, and nobody outside
@@ -109,17 +179,11 @@ export const G01: ScenarioRunner = {
       e164: FICTIONAL_E164[0],
       body: `Rig G01 fictional ${ctx.nonce}`,
     });
-    ctx.evidence.fictional_text = text.ok ? { sent: true } : { status: text.status, code: text.code ?? null };
-    if (text.ok) results.push(fail("fictional_text_sent", "the API sent a text to a 555-01xx number", { critical: true }));
-    else if (text.code !== RIG_DESTINATION_REFUSED) {
-      results.push(fail("fictional_text_wrong_refusal", `a text to a 555-01xx number was refused with ${refusalOf(text)}, not by rig mode's destination gate`));
-    }
+    const textJudged = await judgeFictional(ctx, "text", text, since);
+    if (textJudged) results.push(textJudged);
     const dial = await ctx.app.placeCall({ member: W_OWNER, fromRole: "DEV-W1", to: { fictional: FICTIONAL_E164[0] } });
-    ctx.evidence.fictional_dial = dial.ok ? { placed: true } : { status: dial.status, code: dial.code ?? null };
-    if (dial.ok) results.push(fail("fictional_dial_placed", "the API authorised a call to a 555-01xx number", { critical: true }));
-    else if (dial.code !== RIG_DESTINATION_REFUSED) {
-      results.push(fail("fictional_dial_wrong_refusal", `a call to a 555-01xx number was refused with ${refusalOf(dial)}, not by rig mode's destination gate`));
-    }
+    const dialJudged = await judgeFictional(ctx, "dial", dial, since);
+    if (dialJudged) results.push(dialJudged);
 
     // Sent first, so its 30 s of silence run alongside the stranger's call.
     const strangerBody = `Rig G01 stranger ${ctx.nonce}`;
@@ -318,7 +382,7 @@ export function downStatesFor(at: number): [DownState, DownState] {
 
 /** UNAVAILABLE_NOTICE in apps/api/src/calls/transitions.ts, QA-C's language being English. */
 export const UNAVAILABLE_NOTICE = "Sorry, this number isn't taking calls right now. Please try again later.";
-/** Speech-to-text drops or splits a word or two ("isn't"); most of the sentence must still be there. */
+/** Speech-to-text drops or splits a word or two ("isn't"); most of the spoken copy must still be there. */
 export const NOTICE_WORD_SHARE = 0.75;
 export const RELEASED_DROP_MS = 5_000;
 const QUARTER_HOUR_MS = 15 * 60_000;
@@ -331,11 +395,15 @@ function words(text: string): string[] {
   return text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
 }
 
-/** The share of the notice's words the transcript holds. */
-export function noticeWordShare(transcript: string): number {
+/** The share of a piece of the API's spoken copy that the transcript holds, word by word. */
+export function wordShare(copy: string, transcript: string): number {
   const heard = new Set(words(transcript));
-  const notice = [...new Set(words(UNAVAILABLE_NOTICE))];
-  return notice.filter((word) => heard.has(word)).length / notice.length;
+  const spoken = [...new Set(words(copy))];
+  return spoken.filter((word) => heard.has(word)).length / spoken.length;
+}
+
+export function noticeWordShare(transcript: string): number {
+  return wordShare(UNAVAILABLE_NOTICE, transcript);
 }
 
 /**
@@ -349,19 +417,24 @@ async function clearOfReconcile(ctx: ScenarioContext): Promise<void> {
   if (wait > 0) await ctx.sleep(wait);
 }
 
-/** Takes QA-C's line down one way and resolves with what puts it back. */
+/**
+ * Takes QA-C's line down one way and resolves with what puts it back. The
+ * undo is registered before the write, which may land after its answer is lost.
+ */
 async function takeDown(ctx: ScenarioContext, state: DownState): Promise<() => Promise<void>> {
   if (state === "paused") {
-    const values = await ctx.app.patchCompany({ tenant: "QA-C", values: { paused_at: new Date(ctx.now()).toISOString() } });
+    const values = await ctx.app.companySettings({ tenant: "QA-C", fields: ["paused_at"] });
     ctx.lease.registerUndo({ kind: "app.company-restore", params: { tenant: "QA-C", values } });
+    await ctx.app.patchCompany({ tenant: "QA-C", values: { paused_at: new Date(ctx.now()).toISOString() } });
     return async () => {
       await ctx.app.patchCompany({ tenant: "QA-C", values });
     };
   }
   await clearOfReconcile(ctx);
   // The row only: the number stays in the partition, so the guard is never asked to release it.
-  const previous = await ctx.app.setNumberStatus({ tenant: "QA-C", role: "DEV-C1", status: state });
+  const previous = await ctx.app.numberStatusOf({ tenant: "QA-C", role: "DEV-C1" });
   ctx.lease.registerUndo({ kind: "app.number-status", params: { tenant: "QA-C", role: "DEV-C1", status: previous } });
+  await ctx.app.setNumberStatus({ tenant: "QA-C", role: "DEV-C1", status: state });
   return async () => {
     await ctx.app.setNumberStatus({ tenant: "QA-C", role: "DEV-C1", status: previous as "active" | "suspended" | "released" });
   };
@@ -602,6 +675,13 @@ async function killAi(ctx: ScenarioContext, flip: Flip, restore: Restore, ask: s
 
 /** S15's phrase, spoken after the capture call's beep. */
 export const GREETING_PHRASE = "You have reached the rig crew. Leave your name and number and we will call you back today.";
+/**
+ * greetingCapturePrompt in apps/api/src/calls/greeting-capture.ts, without
+ * the business name it reads out, which speech-to-text spells any number of ways.
+ */
+export const CAPTURE_PROMPT =
+  "This is a greeting recording call for. After the beep, say what you'd like your callers to hear when nobody can pick up. " +
+  "When you're finished, just hang up and it'll be saved.";
 export const MAX_GREETING_WORD_ERROR = 0.25;
 /** The capture prompt is three sentences of speech before the beep; an inbound expect cannot hear the beep, so it waits this long. */
 const PROMPT_MS = 16_000;
@@ -636,7 +716,11 @@ export const S15: ScenarioRunner = {
     if (call.transcript === undefined) {
       return infra("robot", call.errors.find((e) => e.startsWith("transcribe:") || e.startsWith("judge:")) ?? "the robot kept no transcript of the prompt");
     }
-    if (!call.transcript.trim()) return fail("prompt_not_heard", "the robot heard no words from the capture call");
+    const promptShare = wordShare(CAPTURE_PROMPT, call.transcript);
+    ctx.evidence.prompt_word_share = Math.round(promptShare * 100) / 100;
+    if (promptShare < NOTICE_WORD_SHARE) {
+      return fail("prompt_not_heard", `the robot heard ${Math.round(promptShare * 100)}% of the capture prompt's words`);
+    }
     if (!call.spoke) return fail("did_not_speak", "the robot never spoke its greeting");
 
     const greeting = await poll(ctx, async () => (await ctx.app.greetings({ tenant: "QA-W", since })).at(-1), 120_000, 5_000);
@@ -676,8 +760,10 @@ export const S16: ScenarioRunner = {
   id: "S16",
   async run(ctx) {
     const noteUser = await ctx.app.userIdOf(NOTE_MEMBER);
-    const level = await ctx.app.setRingAudience({ tenant: "QA-W", role: "DEV-W1", member: NOTE_MEMBER, level: "note" });
+    // Registered before the write: its DELETE may land even when its answer is lost.
+    const level = await ctx.app.ringAudience({ tenant: "QA-W", role: "DEV-W1", member: NOTE_MEMBER });
     ctx.lease.registerUndo({ kind: "app.ring-audience", params: { tenant: "QA-W", role: "DEV-W1", member: NOTE_MEMBER, level } });
+    await ctx.app.setRingAudience({ tenant: "QA-W", role: "DEV-W1", member: NOTE_MEMBER, level: "note" });
 
     const since = ctx.now();
     const page = await ctx.browser.open(W_OWNER, "qa-w-owner", "/");
@@ -720,7 +806,8 @@ export const S16: ScenarioRunner = {
     if (signedOut.status >= 300) return fail("sign_out_refused", `signing the session out answered ${refusalOf(signedOut)}`);
     const after = await ctx.app.voiceToken({ member: SIGN_OUT_MEMBER });
     ctx.evidence.tokens = { before: before.status, signed_out: signedOut.status, after: after.status };
-    if (after.status !== 403) return fail("voice_survives_sign_out", `the signed-out session still minted a voice token (${refusalOf(after)})`);
+    // auth/company.ts answers a revoked session 401, as it does a bad token.
+    if (after.status !== 401) return fail("voice_survives_sign_out", `the signed-out session still minted a voice token (${refusalOf(after)})`);
     return pass();
   },
 

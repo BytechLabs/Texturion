@@ -173,26 +173,32 @@ const rest = (table: string) => `${SUPABASE}/rest/v1/${table}`;
 
 describe("the app probe", () => {
   it("sends to a fictional number and refuses any other raw destination before a request", async () => {
-    const { probe, requests } = probeWith({ [`POST ${API}/v1/conversations`]: () => json({ error: { code: "rig_destination_refused" } }, 422) });
-    expect(await probe.sendTextToFictional({ member: "qa-w-owner", fromRole: "DEV-W1", e164: "+14165550199", body: "b" })).toEqual({
-      ok: false,
-      status: 422,
-      code: "rig_destination_refused",
-    });
+    // routes/compose.ts files a send the Worker's gate refuses as a failed message, and answers 201 all the same.
+    const answers = [
+      json({ conversation: { id: "c-1" }, message: { id: "m-1", status: "failed", error_code: "rig_destination_refused" } }, 201),
+      json({ error: { code: "internal_error", message: "Something went wrong." } }, 500),
+      json({ conversation: { id: "c-1" }, message: { id: "m-2", status: "queued", error_code: null } }, 201),
+    ];
+    const { probe, requests } = probeWith({ [`POST ${API}/v1/conversations`]: () => answers.shift()! });
+    const send = () => probe.sendTextToFictional({ member: "qa-w-owner", fromRole: "DEV-W1", e164: "+14165550199", body: "b" });
+    expect(await send()).toEqual({ ok: false, status: 201, code: "rig_destination_refused" });
+    expect(await send()).toEqual({ ok: false, status: 500, code: "internal_error" });
+    expect(await send()).toEqual({ ok: true, messageId: "m-2" });
     await expect(probe.sendTextToFictional({ member: "qa-w-owner", fromRole: "DEV-W1", e164: "+1416555", body: "b" })).rejects.toThrow(/fictional/);
-    expect(requests.filter((r) => r.url.includes("/v1/conversations"))).toHaveLength(1);
+    expect(requests.filter((r) => r.url.includes("/v1/conversations"))).toHaveLength(3);
   });
 
   it("authorises a browser call from the tenant's own number and passes a refusal back", async () => {
+    // Rig mode's refusal of a stranger reaches the route as an error it does not map, so onError answers 500.
     const { probe, requests } = probeWith({
       [`POST ${API}/v1/calls/browser`]: (request) =>
-        JSON.parse(request.body!).to === "+14165550199" ? json({ error: { code: "rig_destination_refused" } }, 422) : json({ session_id: "s-1" }),
+        JSON.parse(request.body!).to === "+14165550199" ? json({ error: { code: "internal_error", message: "Something went wrong." } }, 500) : json({ session_id: "s-1" }),
     });
     expect(await probe.placeCall({ member: "qa-w-owner", fromRole: "DEV-W1", to: "ROBOT-1" })).toEqual({ ok: true, sessionId: "s-1" });
     expect(await probe.placeCall({ member: "qa-w-owner", fromRole: "DEV-W1", to: { fictional: "+14165550199" } })).toEqual({
       ok: false,
-      status: 422,
-      code: "rig_destination_refused",
+      status: 500,
+      code: "internal_error",
     });
     const sent = JSON.parse(requests.find((r) => r.url === `${API}/v1/calls/browser`)!.body!);
     expect(sent).toEqual({ to: "+14165550101", phone_number_id: stableUuid(COMPANY, "DEV-W1") });
@@ -339,9 +345,10 @@ describe("the app probe", () => {
   it("buys a number in the company's own area code through the app's provisioning route", async () => {
     const { probe, requests } = probeWith({
       [`GET ${rest("companies")}`]: () => json([{ requested_area_code: "416" }]),
-      [`POST ${API}/v1/numbers/provision`]: () => json({ number: { id: "row-1" } }, 201),
+      // routes/numbers.ts answers with the sanitized row itself.
+      [`POST ${API}/v1/numbers/provision`]: () => json({ id: "row-1", status: "pending", number_e164: null }, 201),
     });
-    expect(await probe.provisionNumber({ member: "qa-w-owner" })).toMatchObject({ status: 201, body: { number: { id: "row-1" } } });
+    expect(await probe.provisionNumber({ member: "qa-w-owner" })).toMatchObject({ status: 201, body: { id: "row-1" } });
     const order = requests.find((r) => r.url === `${API}/v1/numbers/provision`)!;
     expect(JSON.parse(order.body!)).toEqual({ requested_area_code: "416" });
     expect(order.headers["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/);

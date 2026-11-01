@@ -392,6 +392,22 @@ describe("S28, number buy, bind and ring", () => {
     expect(unbound.handoff.record?.state).toBe("bought");
   });
 
+  it("follows the row the purchase answered with, as routes/numbers.ts returns it, past any other row", async () => {
+    const source = readFileSync(resolve(REPO, "apps/api/src/routes/numbers.ts"), "utf8");
+    expect(source).toContain("return c.json(sanitizeNumber(provisioned as NumberRowFull), 201);");
+    expect(source).toMatch(/function sanitizeNumber\(row: NumberRowFull\) \{\s*return \{\s*id: row\.id,/);
+
+    const world = s28World();
+    const provision = world.app.provisionNumber;
+    world.app.provisionNumber = async () => {
+      const answer = await provision();
+      world.app.numbers.set("QA-G", [boughtRow({ id: "number-row-0", status: "provisioning", telnyx_phone_number_id: null }), boughtRow()]);
+      return answer;
+    };
+    expect(await S28.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    expect(world.handoff.record).toMatchObject({ phone_number_id: "number-row-1" });
+  });
+
   it("judges the guard's log: one search, one order, no release, only binding's PATCHes", async () => {
     const { "rig-api POST /v2/number_orders 200": _order, ...noOrder } = PURCHASE_LOG;
     const bypassed = s28World({ log: noOrder });
@@ -532,7 +548,7 @@ const deletes = (stripe: FakeStripe) => stripe.requests.filter((r) => r.method =
 describe("S29, cancel, grace, release and billing", () => {
   it("passes, taking the number over, restoring QA-G to active, and deleting its test clock", async () => {
     const { ctx, undo, handoff, app, stripe } = s29World();
-    expect(await S29.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
+    expect(await S29.run(ctx)).toEqual({ outcome: "pass", detail: "QA-G held no live campaign, so its deactivation was not covered" });
     expect(undo).toEqual([
       { kind: "number.release", params: { telnyx_phone_number_id: TELNYX_ID, phone_number_id: "number-row-1" } },
       { kind: "app.restore-workspace", params: { tenant: "QA-G", state: { subscription_status: "active", canceled_at: null } } },
@@ -544,6 +560,55 @@ describe("S29, cancel, grace, release and billing", () => {
     expect(ctx.evidence.billing).toMatchObject({ expected_cents: 2_930, invoiced_cents: 2_930, invoice_id: "in_cycle" });
     expect(deletes(stripe)).toEqual(["/v1/test_helpers/test_clocks/clock_1"]);
     expectNoPhoneNumber(ctx.evidence);
+  });
+
+  it("passes without the caveat when QA-G held a campaign that grace then deactivated", async () => {
+    const world = s29World();
+    world.app.grace.set("QA-G", { notices: [], live_campaigns: 1 });
+    expect(await S29.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    expect(world.ctx.evidence.grace).toMatchObject({ live_campaigns_before: 1, live_campaigns: 0 });
+  });
+
+  it("keeps a failed release through the retry, whose undo already released the number", async () => {
+    const first = s29World();
+    const fire = first.app.fireCron;
+    first.app.fireCron = async (cron: string) => {
+      await fire(cron);
+      first.app.numbers.get("QA-G")![0]!.status = "suspended";
+      first.guard.held.add(TELNYX_ID);
+    };
+    const failed = await S29.run(first.ctx);
+    expect(failed).toMatchObject({ outcome: "fail", failure_class: "number_not_released" });
+    // The plain number.release undo: through the guard, and the hand-off cleared.
+    await releaseHeldNumber(first.undo[0]!.params, first);
+    expect(first.handoff.record).toBeNull();
+
+    const retry = s29World({ handoff: null });
+    retry.ctx.attempt = 2;
+    retry.ctx.runId = first.ctx.runId;
+    retry.history.rows = [
+      { run_id: first.ctx.runId, attempt: 1, outcome: "fail", finished_at: new Date(retry.time.now).toISOString(), evidence: { attempt: 1, ...first.ctx.evidence } },
+    ];
+    const kept = await S29.run(retry.ctx);
+    expect(kept).toMatchObject({ outcome: "fail", failure_class: "number_not_released" });
+    expect((kept as Extract<ScenarioResult, { outcome: "fail" }>).detail).toMatch(/^on attempt 1, which took the number: /);
+    expect(retry.ctx.evidence.release_judged_on_attempt).toBe(1);
+
+    // Another run's judgement, or one from this run that passed, is not this attempt's to repeat.
+    const otherRun = s29World({ handoff: null });
+    otherRun.ctx.attempt = 2;
+    otherRun.history.rows = [{ ...retry.history.rows[0]!, run_id: "S29-earlier" }];
+    expect(await S29.run(otherRun.ctx)).toMatchObject({ outcome: "infra", component: "s28-handoff" });
+
+    const passedFirst = s29World();
+    await S29.run(passedFirst.ctx);
+    const afterPass = s29World({ handoff: null });
+    afterPass.ctx.attempt = 2;
+    afterPass.ctx.runId = passedFirst.ctx.runId;
+    afterPass.history.rows = [
+      { run_id: passedFirst.ctx.runId, attempt: 1, outcome: "fail", finished_at: new Date(afterPass.time.now).toISOString(), evidence: { ...passedFirst.ctx.evidence } },
+    ];
+    expect((await S29.run(afterPass.ctx)).outcome).toBe("pass");
   });
 
   it("carries the nonce in every body it sends the sandbox", async () => {
@@ -965,6 +1030,10 @@ describe("S34, emails", () => {
     expect(app.passwordResets).toEqual(["qa-w-technician"]);
     expect(S34.guardLease).toBe(true);
     expect(ctx.evidence).toMatchObject({ missed_call_alert: "not_covered", invite_mail: { link_statuses: [200] }, reset_mail: { link_statuses: [303] } });
+  });
+
+  it("reads the invite's id from the row routes/team.ts answers with", () => {
+    expect(source("apps/api/src/routes/team.ts")).toContain("return c.json({ ...invite, email_sent: emailSent }, 201);");
   });
 
   it("checks nothing without a robot mailbox, a fresh heartbeat or a guard lease that lets the guard mail it", async () => {
