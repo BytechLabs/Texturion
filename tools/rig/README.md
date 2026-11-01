@@ -80,7 +80,8 @@ rig bootstrap-db                    rig settings on the database, pools restarte
 rig seed                            tenants, numbers from the guard, ring audiences at rest
 rig cron "<expr>" [--time <ms>]     fire one cron on the local API
 rig health                          R00's checks that need no hardware
-rig apk --ref <ref>                 build the nonprod APK; refuse any other package
+rig apk --ref <ref>                 build the nonprod APK, refuse any other package, and place it as
+                                    work/apk/current.apk (the build it replaces becomes previous.apk)
 rig serve api|web|stripe            what the user units run
 rig stack up                        local Supabase from the derived config
 ```

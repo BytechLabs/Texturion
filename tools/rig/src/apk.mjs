@@ -6,11 +6,13 @@
  * The package is read from the APK itself, from the compiled manifest, with no
  * SDK tool in the way, and checked again against Gradle's own output
  * metadata. A refused APK is deleted, so nothing downstream can install it.
+ * A release-style build is then placed where the device lane installs it.
  */
 import { randomBytes } from "node:crypto";
 import {
   chmodSync,
   closeSync,
+  copyFileSync,
   existsSync,
   fstatSync,
   mkdirSync,
@@ -168,6 +170,11 @@ export const KEYSTORE_FILE = "android-nonprod.keystore";
 export const KEYSTORE_SECRETS = "android-nonprod-keystore.json";
 export const KEY_ALIAS = "loonext-rig-nonprod";
 export const GOOGLE_SERVICES = "android-nonprod-google-services.json";
+/** Where the device lane installs from, under `$RIG_HOME/work` (rigd's wiring.ts). */
+export const APK_DIR = "apk";
+export const CURRENT_APK = "current.apk";
+export const PREVIOUS_APK = "previous.apk";
+const CURRENT_RECORD = "current.json";
 /** keytool reads the password from here, so it is on no command line. */
 const PASSWORD_VARIABLE = "RIG_NONPROD_KEYSTORE_PASSWORD";
 
@@ -327,4 +334,26 @@ export function buildNonprodApk({ root, settings, store, publishableKey, variant
     throw new Error(`rig apk: refused and deleted: ${refusal}`);
   }
   return apk;
+}
+
+/**
+ * Puts a checked build where the device lane installs it. The build it
+ * replaces becomes previous.apk, which D12 upgrades from, unless both are of
+ * one commit: a rebuild must not make the release before it unreachable.
+ */
+export function placeApk({ apk, dir, sha, log }) {
+  mkdirSync(dir, { recursive: true });
+  const current = join(dir, CURRENT_APK);
+  const record = join(dir, CURRENT_RECORD);
+  const placedSha = existsSync(record) ? JSON.parse(readFileSync(record, "utf8")).sha : undefined;
+  if (existsSync(current) && placedSha !== sha) {
+    renameSync(current, join(dir, PREVIOUS_APK));
+    log(`apk: the build of ${placedSha ?? "an unrecorded commit"} is now ${PREVIOUS_APK}`);
+  }
+  const temp = `${current}.${process.pid}.tmp`;
+  copyFileSync(apk, temp);
+  renameSync(temp, current);
+  writeFileSync(record, `${JSON.stringify({ sha })}\n`);
+  log(`apk: ${sha} placed as ${current}`);
+  return current;
 }

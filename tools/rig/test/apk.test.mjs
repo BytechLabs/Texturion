@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { deflateRawSync } from "node:zlib";
 
 import {
+  CURRENT_APK,
   KEY_ALIAS,
   KEYSTORE_FILE,
   KEYSTORE_SECRETS,
@@ -17,6 +18,8 @@ import {
   keytoolCommand,
   manifestPackage,
   nonprodGradleEnv,
+  placeApk,
+  PREVIOUS_APK,
 } from "../src/apk.mjs";
 import { run } from "../src/exec.mjs";
 import { DEFAULT_SETTINGS, TOOLING_ROOT } from "../src/layout.mjs";
@@ -308,4 +311,61 @@ test("the build's properties go through the environment and name rig hosts only"
   const names = Object.keys(env).map((key) => key.replace("ORG_GRADLE_PROJECT_", ""));
   assert.ok(wanted.length >= 8);
   assert.deepEqual(names.sort(), wanted);
+});
+
+function withApkDir(body) {
+  const root = mkdtempSync(join(tmpdir(), "rig-apk-place-"));
+  try {
+    const dir = join(root, "work", "apk");
+    const built = (name, bytes) => {
+      const path = join(root, name);
+      writeFileSync(path, bytes);
+      return path;
+    };
+    body({ dir, built, read: (name) => readFileSync(join(dir, name), "utf8") });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const SHA_A = "a".repeat(40);
+const SHA_B = "b".repeat(40);
+
+test("the first placed build is current, with no previous", () => {
+  withApkDir(({ dir, built, read }) => {
+    const current = placeApk({ apk: built("a.apk", "build A"), dir, sha: SHA_A, log: () => {} });
+    assert.equal(current, join(dir, CURRENT_APK));
+    assert.equal(read(CURRENT_APK), "build A");
+    assert.equal(existsSync(join(dir, PREVIOUS_APK)), false);
+  });
+});
+
+test("a build of a new commit keeps the one it replaces as previous", () => {
+  withApkDir(({ dir, built, read }) => {
+    placeApk({ apk: built("a.apk", "build A"), dir, sha: SHA_A, log: () => {} });
+    placeApk({ apk: built("b.apk", "build B"), dir, sha: SHA_B, log: () => {} });
+    assert.equal(read(CURRENT_APK), "build B");
+    assert.equal(read(PREVIOUS_APK), "build A");
+  });
+});
+
+test("a rebuild of the same commit replaces current and leaves previous alone", () => {
+  withApkDir(({ dir, built, read }) => {
+    placeApk({ apk: built("a.apk", "build A"), dir, sha: SHA_A, log: () => {} });
+    placeApk({ apk: built("b.apk", "build B"), dir, sha: SHA_B, log: () => {} });
+    placeApk({ apk: built("b2.apk", "build B again"), dir, sha: SHA_B, log: () => {} });
+    assert.equal(read(CURRENT_APK), "build B again");
+    assert.equal(read(PREVIOUS_APK), "build A");
+    assert.deepEqual(readdirSync(dir).sort(), ["current.apk", "current.json", "previous.apk"]);
+  });
+});
+
+test("a current.apk placed by hand, with no record of its commit, becomes previous", () => {
+  withApkDir(({ dir, built, read }) => {
+    placeApk({ apk: built("a.apk", "build A"), dir, sha: SHA_A, log: () => {} });
+    rmSync(join(dir, "current.json"));
+    placeApk({ apk: built("b.apk", "build B"), dir, sha: SHA_A, log: () => {} });
+    assert.equal(read(PREVIOUS_APK), "build A");
+    assert.equal(read(CURRENT_APK), "build B");
+  });
 });

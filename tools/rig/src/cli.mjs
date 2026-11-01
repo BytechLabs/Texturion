@@ -5,7 +5,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { buildNonprodApk } from "./apk.mjs";
+import { APK_DIR, buildNonprodApk, placeApk } from "./apk.mjs";
 import { bootstrapDb } from "./bootstrap-db.mjs";
 import { fireCron, scheduledMinute } from "./cron.mjs";
 import { deploy, resolveSha, STACK_EXCLUDES } from "./deploy.mjs";
@@ -30,7 +30,8 @@ export const USAGE = `rig <command>
   cron <expr> [--time <ms>]       fire one cron on the local API
   health [--only a,b] [--json]    R00's checks that need no hardware
   apk --ref <ref> | --worktree <path> [--debuggable]
-                                  build the nonprod APK; refuse any other package
+                                  build the nonprod APK; refuse any other package;
+                                  place a release-style build as work/apk/current.apk
   serve api|web|stripe            run a service in the foreground (what the units run)
   stack up                        start the stack from the derived config; bootstrap if unready
 `;
@@ -187,10 +188,13 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
 
     case "apk": {
       let root;
-      if (flags.worktree) root = flags.worktree;
-      else {
+      let sha;
+      if (flags.worktree) {
+        root = flags.worktree;
+        sha = run("git", ["-C", root, "rev-parse", "HEAD"]).stdout.trim();
+      } else {
         if (!flags.ref) throw new Error("rig apk: --ref or --worktree is required");
-        const sha = resolveSha(flags.ref);
+        sha = resolveSha(flags.ref);
         root = join(layout.worktrees, `apk-${sha}`);
         if (!existsSync(root)) run("git", ["-C", TOOLING_ROOT, "worktree", "add", "--detach", root, sha], { inherit: true });
       }
@@ -203,6 +207,8 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
         log,
       });
       log(`apk: ${apk}`);
+      // The lane installs the release-style build; a debuggable one is for a person.
+      if (!flags.debuggable) placeApk({ apk, dir: join(layout.work, APK_DIR), sha, log });
       return 0;
     }
 
