@@ -9342,11 +9342,17 @@ with its reason:
     is still wanted.
   - FA7: the existing Sentry project, with environments `rig` and
     `synthetic`, instead of new projects. Production's alert rules must
-    filter on `environment:production`, or rig events could alert.
+    filter on `environment:production`, or rig events could alert. That is
+    still a founder act, and nothing can read the rules yet, so it is a
+    gate: `rig-secrets.yml` and `rig-cloud.yml` withhold the rig's and the
+    synthetic DSNs until the variable `SENTRY_ALERTS_FILTERED` is set.
   - FA10 is dropped: triage runs on the host. FA12 is dropped: host agents
     drive the VM over SSH. FA1 and FA2 stay optional.
   - Done: FA3 (the `nonprod-guard` key, no expiry), FA6, FA9 (the rig GitHub
     App) and FA13 (2026-11-01).
+  - Still open, each needing a console or an agreement no agent may make:
+    FA15's first licence acceptance on the Windows SDK and on the VM's SDK,
+    FA7 steps 3-5, and FA4's `guard-attest-read` token and Email Routing.
 
   Why: a founder decision. Each reuses something that already exists, and
   none widens what the rig can reach.

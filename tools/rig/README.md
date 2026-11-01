@@ -61,9 +61,10 @@ node $RIG_HOME/tooling/tools/rig/bin/rig.mjs health
 ```
 
 The Android SDK in the VM is only for `rig apk`, which builds the nonprod APK;
-the emulators run from the Windows SDK. Accepting its licence is the one
-founder step (FA15): install the command-line tools under `~/android-sdk`, run
-`sdkmanager --licenses`, and set `ANDROID_HOME` in `~/.profile`.
+the emulators run from the Windows SDK. Each SDK's first licence acceptance
+is the founder's (FA15), because it is an agreement: an agent installs the
+command-line tools under `~/android-sdk` and sets `ANDROID_HOME` in
+`~/.profile`, and the founder runs `sdkmanager --licenses`.
 
 ## The secret store
 
