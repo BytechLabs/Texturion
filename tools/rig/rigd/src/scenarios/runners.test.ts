@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { dialBudget, parseWindow } from "../budget.ts";
-import { loadRegistry } from "../registry.ts";
+import { loadRegistry, notOnRigBecause } from "../registry.ts";
 import { buildSchedule } from "../schedule.ts";
 import { NOT_RUNNABLE_YET, RUNNERS } from "./index.ts";
 
@@ -26,6 +26,14 @@ describe("the runners and the registry", () => {
     for (const [id, runner] of Object.entries(RUNNERS)) expect(runner.id, id).toBe(id);
     expect(runnable.filter((id) => notRunnable.includes(id))).toEqual([]);
     for (const [id, reason] of Object.entries(NOT_RUNNABLE_YET)) expect(reason.trim(), id).not.toBe("");
+  });
+
+  it("leave no scenario the rig times without a runner or a reason it has none", () => {
+    const unaccounted = registry.scenarios
+      .filter((entry) => notOnRigBecause(entry) === undefined)
+      .filter((entry) => !runnable.includes(entry.id) && !notRunnable.includes(entry.id))
+      .map((entry) => entry.id);
+    expect(unaccounted).toEqual([]);
   });
 
   it("lay out a schedule the budget holds: every runner timed, and every scenario that cannot run yet listed with its reason", () => {
