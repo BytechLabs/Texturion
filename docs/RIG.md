@@ -223,6 +223,8 @@ They live in your password manager and in two GitHub environments:
 3. derives the configuration;
 4. restarts the services.
 
+A schema change stops the services, the cron timers and rigd's scenario timers before anything migrates, and before it stops them `rig deploy` leaves `state/deploy-hold.json` in the rig's home. rigd's hourly schedule refresh starts no timer while that file is there. The deploy removes it only once the services serve the new ref and rigd's timers are installed, so a deploy that fails leaves them stopped until one succeeds. `rig health` fails on a hold over an hour old, naming the file.
+
 Every verdict records the SHA it ran against.
 
 **API.** `wrangler dev` runs with a gitignored `wrangler.rig.jsonc`, derived from that ref's `wrangler.jsonc`:
@@ -242,9 +244,11 @@ Every verdict records the SHA it ran against.
 A cron registry, `tools/rig/crons.json`, classifies every cron in every tracked Worker config, keyed by config and cron. An API cron also lists its jobs, which must equal `CRON_JOBS` in `apps/api/src/index.ts`, so a job added to a cron forces someone to classify it again. Each cron is one of:
 - **run**;
 - **run, expecting a refusal**, with what that refusal makes Sentry receive suppressed (for example 10DLC polls and porting reconciles: in rig mode the app refuses every 10DLC, porting, hosted-messaging and documents request itself, with `rig_endpoint_refused`, before it reaches the guard, which refuses them too). Each refusal says whether the job lets it out, so its liveness alert follows, or catches it and reports its own event;
-- **skip**, with a reason. The edge's and the guard's crons are skips: they fire on Cloudflare, never on the rig, and they suppress nothing, because the API's own alert for the same expression must stay visible.
+- **skip**, with a reason. The edge's and the guard's crons are skips: they fire on Cloudflare, never on the rig, and they suppress nothing, because the API's own alert for the same expression must stay visible. A skipped API cron lists the liveness keys it silences, and rigd expects those.
 
 `rig deploy` refuses without the registry and installs one timer for each cron it runs. CI checks the registry against each ref's Worker configs (`scripts/check-rig-crons.mjs`). R00 requires zero unexplained Sentry fingerprints over 24 hours, so a standing red cannot hide a new one.
+
+A cron's failure is explained only when its AggregateError is the outermost exception and every other exception that is not an AggregateError is a refusal listed for that cron. A job that collects its failures adds an AggregateError of its own in between. Sentry stops reading inside a chain once it has listed six exceptions, though it still lists every sibling of the one it is in. So an AggregateError it never read inside leaves the event unexplained: it may hold a real failure.
 
 **Stripe and auth mail.**
 - `stripe listen --api-key <sandbox key> --forward-to https://api.rig.internal/webhooks/stripe`. It never uses `stripe login`, whose pairing expires after 90 days. R00 checks the listener is alive and that its signing secret matches.
@@ -299,7 +303,7 @@ The internet can reach only these paths; everything else returns an empty 404:
 - **`/m/...`.** Telnyx fetches of MMS and greeting media. Only Supabase-signed URLs, only for those two buckets, at most 5 MB.
 - **An `email()` handler** for the robot's address on loonext.com (named in the rig's private config, never in git) and its `+tag` sub-addresses. It never rejects mail. It stores it; if storage fails it still accepts and counts. It keeps a heartbeat.
 - **`/g/*`.** Authenticated callers forwarded to the guard over a service binding, along with their caller class.
-- **`/ctl/uplink`, `/ctl/rpc` and `/ctl/secrets`.** The rig's own outbound WebSocket, `rig` commands, and encrypted secret delivery. Each needs a bearer token.
+- **`/ctl/uplink`, `/ctl/rpc`, `/ctl/secrets` and `/ctl/alert`.** The rig's own outbound WebSocket, `rig` commands, encrypted secret delivery, and rigd's one production alert (section 3.10). Each needs a bearer token.
 
 **Handling a Telnyx webhook, in order:**
 1. Verify the Ed25519 signature against the account key, within a 5-minute window.
@@ -401,7 +405,7 @@ Phone numbers are cut to their last four digits, and message bodies and recordin
 **Safety checks.**
 - **At start-up**, the guard refuses to serve if any nonprod resource points at `api.loonext.com`, if any nonprod id overlaps a production id, or if any nonprod number is bound to a production connection.
 - **Ordering** stays off until production's `/health` lists `telnyx-partition-v1` and FA0 has returned the concurrent limit.
-- **Hourly version attestation.** `rigd` reads the guard's live deployment with `guard-attest-read`, and compares it with the last deployment `guard.yml` made from `main`, whose message names the commit. A mismatch raises `['ops','telnyx-guard-integrity']`. The comparison is not built yet: the guard's `/health` reports its version id, and nothing on the rig reads the `cf-guard-attest-token` it is sent.
+- **Hourly version attestation.** `rigd` reads the guard's deployment list with `guard-attest-read`: Cloudflare's `GET /accounts/<id>/workers/scripts/loonext-telnyx-guard/deployments`, whose first entry is the one serving traffic. It compares the live deployment with every Deploy step `guard.yml` ran on `main`, ordered by when each step started, from the newest down to the newest that succeeded. Those runs are read through the rig's GitHub App with a token that can only read Actions, pushes and dispatches only, because a scheduled run never deploys. Failed, cancelled and running steps count, because they may have deployed, so re-running an older run is a rollback, not a mismatch. The deployment matches when it serves one version, its message is `guard.yml <sha>` for one of those steps (`guard.yml` deploys with `--message "guard.yml <sha>"`, which wrangler also puts on the deployment), and Cloudflare made it during that step, with two minutes of clock slack. A secret change (FA3, FA6 and FA8 paste keys this way) redeploys the live code with no message, so `rigd` reads through it to the deployment it replaced. A mismatch raises `['ops','telnyx-guard-integrity']` in production through the edge's `/ctl/alert` (section 3.10). A side `rigd` cannot read raises `['synthetic-infra','guard-attest']`, never a pass, and so does a missing store file: `cf-guard-attest-token`, `cloudflare-account-id`, `rig-app-id` or `rig-app-key`. rigd publishes each result in `state/guard-attest.json`. **Residual, accepted:** Cloudflare takes the secret-change label from whoever creates a deployment, and `guard-attest-read` cannot read a version's code, so a holder of the guard's deploy rights could put other code under one.
 - **Weekly key inventory.** Any unexpected Telnyx key raises `['ops','telnyx-key-inventory']`.
 - **Daily negative probes** run in G01.
 
@@ -482,7 +486,7 @@ Already shipped in release 0.18.0: `0fd3583c` (2026-10-30). It stops `scripts/de
    - P01 and PW01 (section 3.11).
 5. **Hermetic call journeys.** The fake Telnyx gains dialing and telephony credentials, and `CALL_SESSIONS` is bound. Inbound, outbound, voicemail and transfer journeys run on every push. They also emit each scenario's dial count and peak concurrent legs, which feed the budget check in section 4.1. A trace-to-fixture tool renumbers real traces into the fictional 555-01xx range.
 6. **Android `nonprod` build type**, created with `initWith(release)`:
-   - minified, with the `.nonprod` suffix, and signed with a stable key held on the rig;
+   - minified, with the `.nonprod` suffix, and signed with a stable key held on the rig, which the first `rig apk` makes with the JDK's `keytool` and never replaces (half a pair is refused);
    - values read from Gradle properties, and disabled when they are absent;
    - a debuggable twin for deep dives;
    - production literals in `CaptchaSheet`, `PasskeyEnrolment`, `PushPayload`, `SettingsLogic` and `MainActivity` moved to BuildConfig, with production defaults;
@@ -589,6 +593,7 @@ All of these avoid keypad tones, call-progress tones and 2,600 Hz.
 - Infrastructure faults use `['synthetic-infra', component]`, so one dead phone is one issue.
 - Noise limits: at most 50 events per run; a repeated fingerprint is suppressed for 6 hours; the project auto-resolves an issue after 24 hours without events.
 - No Sentry write token exists anywhere.
+- The rig box holds no production DSN. Its one production alert, the guard attestation's `['ops','telnyx-guard-integrity']`, goes to the edge's `POST /ctl/alert` with the `rig` control token. The edge sends it by DSN from its production budget, at most once every 6 hours, and refuses any key not in `RIG_PRODUCTION_ALERTS` in `tools/rig-protocol`. Any answer but 200 means production did not get it, and rigd reports that to `loonext-synthetic` as `['synthetic-infra','guard-attest']`.
 - Each run posts an informational `synthetic/full-matrix` commit status through the rig's GitHub App.
 
 **Triage.** An hourly Claude cloud scheduled task, `synthetic-triage`, drives the rig through `/ctl/rpc`:
@@ -605,7 +610,7 @@ Issue numbers stay out of commit trailers. A revoked rig sign-in never stops tri
 - If a heartbeat is stale, the edge sends `['synthetic-infra', component]` to `loonext-synthetic`.
 - If the whole system is dark for more than 6 hours, it sends `['ops','synthetic-dark']` to production.
 - The suite and triage heartbeats carry when each last ran, and the edge judges them by that time, never by when the beat arrived.
-- Each destination has its own daily cap: synthetic 20, production 10. A missing DSN spends none, and a refused send is retried hourly.
+- Each destination has its own daily cap: synthetic 20, production 10, which rigd's alerts through `/ctl/alert` share. A missing DSN spends none, and a refused send is retried hourly.
 
 **What reaches you.** You hear about the test system only when:
 - it is dark;
@@ -1151,7 +1156,7 @@ Agents can still merge as before, because merging is Contents and Pull requests.
 
 **FA6. Firebase and Google Cloud (15 minutes).**
 1. console.firebase.google.com > the existing project > Project settings > General > Add app > Android.
-   - Package `com.loonext.android.nonprod`, plus the SHA-256 the agent gives you.
+   - Package `com.loonext.android.nonprod`, plus the SHA-256 the agent gives you (the first `rig apk` makes the signing key, then stops and prints that SHA-256 until this file is in the rig's store).
    - Register, download `google-services.json`, and put it into environment `rig` as `ANDROID_NONPROD_GOOGLE_SERVICES_JSON`.
 2. console.cloud.google.com > same project > IAM & Admin > Service Accounts > Create `fcm-rig-sender`, role Firebase Cloud Messaging API Admin > Done. Open it > Keys > Add key > Create new key > JSON.
 3. The key must show no expiry. If creation is blocked or an expiry shows: IAM & Admin > Organization policies > `iam.disableServiceAccountKeyCreation` or `iam.serviceAccountKeyExpiryHours` > Manage policy > override for this project only, then create the key again.
