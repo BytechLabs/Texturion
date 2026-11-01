@@ -97,3 +97,11 @@ ef5f390943cf370c643a151a217393fd16a12a3c:supabase/migrations/20260819010000_eras
 5de7d0df780d506370d4ec76b7e369b507d386ba:supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:resend-api-key:2645
 5de7d0df780d506370d4ec76b7e369b507d386ba:supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:resend-api-key:2713
 5de7d0df780d506370d4ec76b7e369b507d386ba:supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:resend-api-key:2816
+
+# Two rig CLI test fixtures. The first is RFC 6238's own published TOTP seed
+# (base32 of "12345678901234567890"), which the test needs verbatim to check
+# the RFC's vectors; the second is "sk_live_abc123", a made-up string shaped
+# like a live Stripe key so the test can prove one is refused. Fixed forward by
+# assigning each to a name the rule does not read as a credential.
+588c165d2496c9c33590317a622b0c612c42faf4:tools/rig/test/seed.test.mjs:generic-api-key:106
+1b9c6a068e14ebc80c825d40fe6963f716dfc9fe:tools/rig/test/stripe.test.mjs:generic-api-key:64

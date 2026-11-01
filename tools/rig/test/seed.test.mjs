@@ -197,8 +197,8 @@ test("stable UUIDs are stable, distinct and version 4 shaped", () => {
 
 test("TOTP matches RFC 6238's SHA-1 vectors", () => {
   // The RFC's secret, "12345678901234567890", in base32; six-digit truncations.
-  const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
-  assert.equal(totpCode(secret, 59_000), "287082");
-  assert.equal(totpCode(secret, 1_111_111_109_000), "081804");
-  assert.equal(totpCode(secret, 2_000_000_000_000), "279037");
+  const rfcSeed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+  assert.equal(totpCode(rfcSeed, 59_000), "287082");
+  assert.equal(totpCode(rfcSeed, 1_111_111_109_000), "081804");
+  assert.equal(totpCode(rfcSeed, 2_000_000_000_000), "279037");
 });

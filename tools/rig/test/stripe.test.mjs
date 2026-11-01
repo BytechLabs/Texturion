@@ -61,7 +61,8 @@ test("stripe-setup runs only when the stored catalog lacks an id, and only with 
       return "STRIPE_STARTER_PRICE_ID=price_a\nSTRIPE_PRO_PRICE_ID=price_b\n";
     };
     const required = ["STRIPE_STARTER_PRICE_ID", "STRIPE_PRO_PRICE_ID"];
-    store.write("stripe-secret-key", "sk_live_abc123");
+    const liveShaped = "sk_live_abc123";
+    store.write("stripe-secret-key", liveShaped);
     assert.throws(() => ensureStripeCatalog({ store, required, log: () => {}, runSetup }), /not a test-mode key/);
     assert.equal(runs.length, 0, "a live key never reaches the setup script");
 
