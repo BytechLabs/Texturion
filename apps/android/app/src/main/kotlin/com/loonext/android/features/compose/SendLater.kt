@@ -355,6 +355,7 @@ internal fun senderClockNote(
     clock: DestinationClock?,
     device: ZoneId,
     locale: String? = null,
+    now: Instant = Instant.now(),
 ): String {
     val reassurance = ScheduledSend.copy("picker_reassurance", locale)
     val zone = clock?.timezone?.let { runCatching { ZoneId.of(it) }.getOrNull() }
@@ -369,7 +370,7 @@ internal fun senderClockNote(
         locale,
         "thread.senderClockApart",
         mapOf(
-            "delta" to hoursApart(zone, device, locale = locale),
+            "delta" to hoursApart(zone, device, now, locale = locale),
             "reassurance" to reassurance,
         ),
     )

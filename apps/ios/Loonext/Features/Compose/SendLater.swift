@@ -286,6 +286,7 @@ func destinationZone(_ clock: DestinationClock?) -> TimeZone {
 func senderClockNote(
     _ clock: DestinationClock?,
     device: TimeZone,
+    at now: Date = Date(),
     locale: String? = nil
 ) -> String {
     let reassurance = ScheduledSend.copyLine("picker_reassurance", locale: locale)
@@ -305,7 +306,7 @@ func senderClockNote(
         locale,
         "thread.senderClockApart",
         [
-            "delta": hoursApart(zone, from: device, locale: locale),
+            "delta": hoursApart(zone, from: device, at: now, locale: locale),
             "reassurance": reassurance,
         ]
     )

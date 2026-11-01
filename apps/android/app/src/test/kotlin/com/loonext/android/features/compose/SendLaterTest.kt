@@ -95,6 +95,7 @@ class SendLaterTest {
         val note = senderClockNote(
             DestinationClock(timezone = "America/Vancouver", source = "contact"),
             toronto,
+            now = Instant.parse("2026-01-15T17:00:00Z"),
         )
         assertTrue(note, note.contains("they are 3 hours behind you"))
     }

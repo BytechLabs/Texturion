@@ -78,7 +78,8 @@ final class SendLaterTests: XCTestCase {
                 local_hour: nil,
                 quiet: nil
             ),
-            device: toronto
+            device: toronto,
+            at: winter
         )
         XCTAssertTrue(note.contains("they are 3 hours behind you"), note)
     }
