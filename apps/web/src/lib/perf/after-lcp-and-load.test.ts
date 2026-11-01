@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { afterLcpAndLoad } from "./boot-gate";
+import { afterLcpAndLoad } from "./after-lcp-and-load";
 
 /**
  * A PerformanceObserver that behaves like the spec: `observe()` with an entry

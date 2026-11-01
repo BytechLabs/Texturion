@@ -23,10 +23,10 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
+import { afterLcpAndLoad } from "@/lib/perf/after-lcp-and-load";
 import { cn } from "@/lib/utils";
 
 import { ArrivalStatic } from "./arrival-static";
-import { afterLcpAndLoad } from "./boot-gate";
 
 const ArrivalField = dynamic(() => import("./arrival-field"), { ssr: false });
 
