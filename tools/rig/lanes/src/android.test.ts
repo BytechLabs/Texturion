@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { Exec } from "./android/adb.ts";
+import { Adb, type Exec } from "./android/adb.ts";
 import {
   AndroidDevice,
   CALL_TEST_IDS,
@@ -173,6 +173,30 @@ describe("the device driver's commands (no device has run them)", () => {
     await android.type("rig owner");
     expect(calls).toEqual(["adb -s PIXEL123 shell input text rig%sowner"]);
     await expect(android.type("a;rm")).rejects.toThrow(/plain text/);
+  });
+
+  it("never repeats a typed password or the PIN in the error of a command that failed", async () => {
+    // Node's execFile error names the whole command line, which a verdict's detail would carry to Sentry.
+    const failing = (killed: boolean): Exec => async (file, args) => {
+      const line = [file, ...args].join(" ");
+      if (!line.includes(" input text ") && !line.includes(" set-pin ")) return "";
+      throw Object.assign(new Error(`Command failed: ${line}\nerror: device offline`), { code: killed ? null : 1, killed, signal: killed ? "SIGTERM" : null, cmd: line });
+    };
+    for (const killed of [false, true]) {
+      const android = new AndroidDevice({ name: "pixel", serial: "PIXEL123", pkg: PKG, pin: () => "2468", apks: { current: "", previous: "" }, exec: failing(killed) });
+      const typed = await android.type("Qx7Tz2SeedPassword_-").catch((error: Error) => error);
+      expect(typed).toBeInstanceOf(Error);
+      expect((typed as Error).message).toBe(`adb: typing text on PIXEL123 ${killed ? "timed out" : "exited 1"}`);
+      const unlocked = await android.unlock().catch((error: Error) => error);
+      expect((unlocked as Error).message).toBe(`adb: typing the PIN on PIXEL123 ${killed ? "timed out" : "exited 1"}`);
+      const adb = new Adb({ serial: "PIXEL123", exec: failing(killed) });
+      const pinned = await adb.setPin("1357", "2468").catch((error: Error) => error);
+      for (const message of [(typed as Error).message, (unlocked as Error).message, (pinned as Error).message]) {
+        expect(message).not.toMatch(/Qx7Tz2SeedPassword|2468|1357|Command failed/);
+      }
+    }
+    // A refusal before anything runs still says why.
+    await expect(new Adb({ serial: "PIXEL123", exec: failing(false) }).secretShell("typing text", "input", "text", "a;b")).rejects.toThrow(/special characters/);
   });
 
   it("unlocks with the store's PIN and refuses without one", async () => {

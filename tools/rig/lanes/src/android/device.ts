@@ -310,7 +310,7 @@ export class AndroidDevice {
 
   async type(text: string): Promise<void> {
     if (!/^[A-Za-z0-9 .@+_-]+$/.test(text)) throw new Error(`device ${this.name}: only plain text can be typed`);
-    await this.adb.shell("input", "text", text.replace(/ /g, "%s"));
+    await this.adb.inputText(text.replace(/ /g, "%s"));
   }
 
   async #nodes(): Promise<UiNode[]> {

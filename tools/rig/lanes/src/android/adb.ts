@@ -56,10 +56,7 @@ export class Adb {
   }
 
   async shell(...args: string[]): Promise<string> {
-    for (const arg of args) {
-      if (!/^[A-Za-z0-9._:/=+@%,-]+$/.test(arg)) throw new Error(`adb: refusing a shell argument with special characters`);
-    }
-    return this.#exec(this.#adb, ["-s", this.serial, "shell", ...args]);
+    return this.#exec(this.#adb, this.#shellArgs(args));
   }
 
   /** Kills the app's process the way Android does under memory pressure. */
@@ -109,19 +106,40 @@ export class Adb {
     await this.shell("input", "keyevent", "KEYCODE_SLEEP");
   }
 
+  /**
+   * A shell command with a secret among its arguments. Node's error for a
+   * failed command repeats the whole command line, and verdicts quote errors,
+   * so this one names only the step and how it ended.
+   */
+  async secretShell(step: string, ...args: string[]): Promise<string> {
+    const line = this.#shellArgs(args);
+    try {
+      return await this.#exec(this.#adb, line);
+    } catch (error) {
+      const { code, killed, signal } = error as { code?: unknown; killed?: unknown; signal?: unknown };
+      const how = killed ? "timed out" : signal ? `ended by ${String(signal)}` : code !== undefined ? `exited ${String(code)}` : "failed";
+      throw new Error(`adb: ${step} on ${this.serial} ${how}`);
+    }
+  }
+
+  /** Types into the focused field; the text may be a password. */
+  async inputText(text: string): Promise<void> {
+    await this.secretShell("typing text", "input", "text", text);
+  }
+
   /** Wakes, swipes the keyguard away and types the PIN, as a person would. */
   async unlock(pin: string): Promise<void> {
     assertPin(pin);
     await this.shell("input", "keyevent", "KEYCODE_WAKEUP");
     await this.shell("wm", "dismiss-keyguard");
-    await this.shell("input", "text", pin);
+    await this.secretShell("typing the PIN", "input", "text", pin);
     await this.shell("input", "keyevent", "KEYCODE_ENTER");
   }
 
   async setPin(pin: string, oldPin?: string): Promise<void> {
     assertPin(pin);
     if (oldPin !== undefined) assertPin(oldPin);
-    await this.shell("locksettings", "set-pin", ...(oldPin ? ["--old", oldPin] : []), pin);
+    await this.secretShell("setting the PIN", "locksettings", "set-pin", ...(oldPin ? ["--old", oldPin] : []), pin);
   }
 
   async isLocked(): Promise<boolean> {
@@ -190,6 +208,13 @@ export class Adb {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  }
+
+  #shellArgs(args: readonly string[]): string[] {
+    for (const arg of args) {
+      if (!/^[A-Za-z0-9._:/=+@%,-]+$/.test(arg)) throw new Error(`adb: refusing a shell argument with special characters`);
+    }
+    return ["-s", this.serial, "shell", ...args];
   }
 }
 
