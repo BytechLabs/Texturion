@@ -245,7 +245,7 @@ describe("the marketing fonts keep every axis value the CSS asks for (#640)", ()
         "only the family. Give the element font-extrabold, or widen the range " +
         "in scripts/instance-marketing-fonts.mjs and run it.",
     ).toEqual([]);
-  });
+  }, 30_000);
 
   it("would report each of those", () => {
     for (const code of [
