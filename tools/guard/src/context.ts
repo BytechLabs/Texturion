@@ -13,6 +13,8 @@ export interface Ctx {
   config: GuardConfig;
   store: Store;
   now(): number;
+  /** Waits; the fake clock in tests moves on instead. */
+  sleep(ms: number): Promise<void>;
   fetch: typeof fetch;
   /** Null without TELNYX_API_KEY; every Telnyx route then fails closed. */
   telnyx: TelnyxApi | null;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CRONS } from "../src/guard";
-import { LIMIT_PROBE_MAX_WRITES } from "../src/limits";
+import { LIMIT_PROBE_MAX_WRITES, LIMIT_PROBE_PAUSE_MS, LIMIT_PROBE_RETRY_MS } from "../src/limits";
 import { limitProbeDue, runLimitProbe } from "../src/setup/limit-probe";
 import { runSafetyChecks } from "../src/setup/safety";
 import { LIMIT_KEYS, limitInForce, recordCeiling, type ValidationRecord } from "../src/state/concurrency";
@@ -71,10 +71,9 @@ describe("the validation check", () => {
     expect(await limitInForce(h.ctx)).toMatchObject({ source: "floor" });
   });
 
-  it("treats a refusal that does not name the field, a 429 or a 404 as inconclusive", async () => {
+  it("treats a refusal that does not name the field or a 404 as inconclusive", async () => {
     const answers = [
       { status: 422, body: { errors: [{ code: "10015", detail: "name is too short", source: { pointer: "/name" } }] } },
-      { status: 429, body: { errors: [{ code: "10011", detail: "concurrent_call_limit rate limited" }] } },
       { status: 404, body: { errors: [{ code: "10005" }] } },
     ];
     for (const answer of answers) {
@@ -83,6 +82,32 @@ describe("the validation check", () => {
       expect((await runLimitProbe(h.ctx)).result, String(answer.status)).toBe("inconclusive");
       expect(writes(h).map((item) => item.value)).toEqual([9999, 1]);
     }
+  });
+
+  it("waits and sends a write again when Telnyx answers 429, and keeps going", async () => {
+    const h = await ready({ validated: null });
+    h.telnyx.profileLimit = { mode: "refuse-above", limit: 4 };
+    h.telnyx.failNext = { method: "PATCH", path: PROBE, status: 429, body: { errors: [{ code: "10011", title: "rate limited" }] } };
+    const before = h.ctx.now();
+    const result = await runLimitProbe(h.ctx);
+    expect(result).toMatchObject({ result: "exact", value: 4 });
+    expect(result.trace?.[0]).toEqual({ value: 9999, status: 429, code: "10011", pointer: null });
+    expect(result.trace?.[1]).toMatchObject({ value: 9999, status: 422 });
+    expect(h.ctx.now() - before).toBeGreaterThanOrEqual(LIMIT_PROBE_PAUSE_MS * result.writes + LIMIT_PROBE_RETRY_MS[0]);
+  });
+
+  it("gives up as inconclusive when every retry gets a 429, and still tries the reset", async () => {
+    const h = await ready({ validated: null });
+    h.telnyx.profileLimit = { mode: "refuse-above", limit: 4 };
+    const realHandle = h.telnyx.handle.bind(h.telnyx);
+    h.telnyx.handle = async (request) =>
+      request.method === "PATCH"
+        ? Response.json({ errors: [{ code: "10011", title: "rate limited" }] }, { status: 429 })
+        : realHandle(request);
+    const result = await runLimitProbe(h.ctx);
+    expect(result.result).toBe("inconclusive");
+    expect(result.trace).toHaveLength(2 * (1 + LIMIT_PROBE_RETRY_MS.length));
+    expect(h.outbound.find((item) => item.body.includes("telnyx-guard-limit-probe-reset"))).toBeDefined();
   });
 
   it("aborts when a later refusal is a different error from the first", async () => {

@@ -128,6 +128,9 @@ export function harness(options: HarnessOptions = {}): Harness {
     config,
     store,
     now: () => clock.now,
+    sleep: async (ms) => {
+      clock.now += ms;
+    },
     fetch: fetcher,
     telnyx: config.telnyxKey ? telnyxApi(config.telnyxKey, fetcher) : null,
     ai,

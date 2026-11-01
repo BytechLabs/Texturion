@@ -1,5 +1,11 @@
 import type { Ctx } from "../context";
-import { LIMIT_PROBE_ABSURD, LIMIT_PROBE_INTERVAL_MS, LIMIT_PROBE_MAX_WRITES } from "../limits";
+import {
+  LIMIT_PROBE_ABSURD,
+  LIMIT_PROBE_INTERVAL_MS,
+  LIMIT_PROBE_MAX_WRITES,
+  LIMIT_PROBE_PAUSE_MS,
+  LIMIT_PROBE_RETRY_MS,
+} from "../limits";
 import { Refusal } from "../refusal";
 import { sendProductionEvent } from "../sentry";
 import { LIMIT_KEYS, type Ceiling, type ProbeWrite, type ValidationRecord } from "../state/concurrency";
@@ -114,16 +120,27 @@ export async function runLimitProbe(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<
   });
   if (!id) return settle(ctx, outcome("inconclusive"));
 
+  const patch = async (value: number) => {
+    const reply = await telnyx.send("PATCH", `/v2/outbound_voice_profiles/${encodeURIComponent(id)}`, {
+      name: spec.limit_probe.name,
+      concurrent_call_limit: value,
+    });
+    const error = firstError(reply.body);
+    trace.push({ value, status: reply.status, code: error.code, pointer: error.pointer });
+    console.log(`guard: limit probe wrote ${value}: HTTP ${reply.status} code=${error.code} pointer=${error.pointer} ${error.detail}`);
+    return reply;
+  };
+
   const write = async (value: number): Promise<Answer> => {
     writes += 1;
     try {
-      const reply = await telnyx.send("PATCH", `/v2/outbound_voice_profiles/${encodeURIComponent(id)}`, {
-        name: spec.limit_probe.name,
-        concurrent_call_limit: value,
-      });
-      const error = firstError(reply.body);
-      trace.push({ value, status: reply.status, code: error.code, pointer: error.pointer });
-      console.log(`guard: limit probe wrote ${value}: HTTP ${reply.status} code=${error.code} pointer=${error.pointer} ${error.detail}`);
+      await ctx.sleep(LIMIT_PROBE_PAUSE_MS);
+      let reply = await patch(value);
+      for (const wait of LIMIT_PROBE_RETRY_MS) {
+        if (reply.status !== 429) break;
+        await ctx.sleep(wait);
+        reply = await patch(value);
+      }
       if (reply.status >= 200 && reply.status <= 299) return { kind: "accepted" };
       const refused = identifiedRefusal(reply.status, reply.body);
       return refused ? { kind: "refused", ...refused } : { kind: "other" };

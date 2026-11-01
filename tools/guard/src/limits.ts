@@ -35,6 +35,10 @@ export const LIMIT_PROBE_INTERVAL_MS = 30 * DAY;
 export const LIMIT_PROBE_ABSURD = 9999;
 /** The search's whole budget of profile writes, the reset to 1 included. */
 export const LIMIT_PROBE_MAX_WRITES = 16;
+/** Telnyx answers 429 (code 10011) to a quick run of requests, so each write waits. */
+export const LIMIT_PROBE_PAUSE_MS = 1_500;
+/** Waits before each retry of a write that got a 429; a write that still gets one after the last is given up. */
+export const LIMIT_PROBE_RETRY_MS = [2_000, 5_000, 10_000, 20_000] as const;
 /** Production's peak hour and day of outbound legs, read daily. */
 export const ACCOUNT_RATE_STALE_MS = 36 * HOUR;
 /** About 300 texts a month; the day cap keeps one bad loop from spending the month. */
