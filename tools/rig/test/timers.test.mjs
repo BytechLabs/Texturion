@@ -6,7 +6,15 @@ import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 
 import { cronTimers } from "../src/cron.mjs";
-import { activate, checkRigdSchedule, rigdScheduleCommand, SCHEMA_CHANGE_STOPS, SERVICE_UNITS, stopForSchemaChange } from "../src/deploy.mjs";
+import {
+  activate,
+  checkRigdSchedule,
+  migrateAndRestart,
+  rigdScheduleCommand,
+  SCHEMA_CHANGE_STOPS,
+  SERVICE_UNITS,
+  stopForSchemaChange,
+} from "../src/deploy.mjs";
 import { deployHoldPath, holdForDeploy, readDeployHold } from "../src/deploy-hold.mjs";
 import { CommandFailed, userManagerEnv } from "../src/exec.mjs";
 import { TOOLING_ROOT } from "../src/layout.mjs";
@@ -196,6 +204,54 @@ test("a schema change holds the timers before it stops anything", () => {
     assert.equal(stops[0].held?.ref, "main");
     assert.ok(existsSync(deployHoldPath(state)));
   });
+});
+
+test("a deploy holds the timers from before a schema change stops them until the restart is done", async () => {
+  const unitDir = mkdtempSync(join(tmpdir(), "rig-units-"));
+  const state = mkdtempSync(join(tmpdir(), "rig-state-"));
+  try {
+    const deployOf = async (plan, restart) => {
+      const steps = [];
+      const held = () => (readDeployHold(state) === null ? "" : " (held)");
+      const prepared = await migrateAndRestart({
+        plan,
+        restart,
+        state,
+        sha: "abc123",
+        ref: "main",
+        log: () => {},
+        migrate: () => steps.push(`migrate${held()}`),
+        prepare: async () => {
+          steps.push(`prepare${held()}`);
+          return { timers: [], record: { sha: "abc123" } };
+        },
+        systemd: {
+          nodeBin: NODE,
+          unitDir,
+          systemctl: (args) => {
+            if (args[0] === "stop" || args[0] === "restart") steps.push(`${args[0]}${held()}`);
+            return { status: 0, stdout: "", stderr: "" };
+          },
+          runner: () => {
+            steps.push(`rigd install${held()}`);
+            return { status: 0, stdout: "{}", stderr: "" };
+          },
+        },
+      });
+      assert.deepEqual(prepared.record, { sha: "abc123" });
+      return steps;
+    };
+
+    const migrate = { action: "migrate", reason: "2 new" };
+    assert.deepEqual(await deployOf(migrate, true), ["stop (held)", "migrate (held)", "prepare (held)", "restart (held)", "rigd install (held)"]);
+    assert.equal(readDeployHold(state), null, "released once rigd's timers are installed");
+    assert.deepEqual(await deployOf({ action: "none", reason: "current" }, true), ["migrate", "prepare", "restart", "rigd install"]);
+    // --no-restart stops nothing, so it holds nothing.
+    assert.deepEqual(await deployOf(migrate, false), ["migrate", "prepare"]);
+  } finally {
+    rmSync(unitDir, { recursive: true, force: true });
+    rmSync(state, { recursive: true, force: true });
+  }
 });
 
 test("rigd's schedule is built into a scratch folder before anything changes, and the folder goes", () => {

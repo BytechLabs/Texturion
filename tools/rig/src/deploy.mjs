@@ -286,6 +286,21 @@ export function activate({
 }
 
 /**
+ * A deploy's schema step and its restart, with the deploy hold between them,
+ * so the database never moves without it. `migrate` brings the database to
+ * the ref's schema; `prepare` runs against it before the restart and returns
+ * `{ timers, record }`, the cron timers to install and the deploy's record.
+ * `systemd` replaces the unit commands, for tests.
+ */
+export async function migrateAndRestart({ plan, restart, state, sha, ref, log, migrate, prepare, systemd = {} }) {
+  if (restart && plan.action !== "none") stopForSchemaChange({ state, sha, ref, log, ...systemd });
+  migrate();
+  const prepared = await prepare();
+  if (restart) activate({ timers: prepared.timers, sha, state, log, ...systemd });
+  return prepared;
+}
+
+/**
  * Whether the database holds every row the seed writes, as TENANTS and the
  * partition say now, whoever reset it last. A number the 15-minute sweep
  * cannot find is flagged on every run until the seed runs.
@@ -452,47 +467,55 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
     ? { action: "reset", reason: "--reset" }
     : schemaPlan(appliedMigrationVersions(projectId), refMigrationVersions(root));
   log(`schema: ${plan.action} (${plan.reason})`);
-  if (restart && plan.action !== "none") stopForSchemaChange({ state: layout.state, sha, ref, log });
-  if (plan.action === "migrate") {
-    try {
-      supabase(["migration", "up", "--local"], { workdir, inherit: true });
-    } catch (error) {
-      // 2.109.1 has exited non-zero ("Failed to acquire connection") after
-      // applying every file. The history is what decides, not the exit code.
-      if (schemaPlan(appliedMigrationVersions(projectId), refMigrationVersions(root)).action !== "none") throw error;
-      log("schema: migration up exited non-zero, but the history now matches the ref");
-    }
-  }
-  if (plan.action === "reset") supabase(["db", "reset", "--local"], { workdir, inherit: true });
-
-  await bootstrapDb({ projectId, status, endpoints, preSeam: options.preSeam === true, log });
-  if (plan.action === "reset" || options.reseed || !seedIsCurrent(projectId, store, standing)) {
-    await seed({ workdir, store, partition, log });
-  }
-  if (recordStanding(store, standing)) log("store: standing-numbers.json rewritten from the partition");
-
-  writeDerived(files);
-  const timers = restart ? cronTimers(cronPlan.schedule) : (previous?.timers ?? []);
-  const record = {
+  const { record } = await migrateAndRestart({
+    plan,
+    restart,
+    state: layout.state,
     sha,
-    ref: ref ?? null,
-    worktree: root,
-    at: new Date().toISOString(),
-    schema: plan.action,
-    timers: timers.map(({ cron, timer }) => ({ cron, timer })),
-  };
-  // Written before the restart, because the units start whatever it names;
-  // `rig health` compares it with state/serving-<service>.json.
-  mkdirSync(layout.state, { recursive: true });
-  writeFileSync(join(layout.state, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`);
-  const historyPath = join(layout.state, "history.json");
-  const history = existsSync(historyPath) ? JSON.parse(readFileSync(historyPath, "utf8")) : [];
-  writeFileSync(historyPath, `${JSON.stringify([...history, record].slice(-50), null, 2)}\n`);
-  pointCurrent(layout, root);
+    ref,
+    log,
+    migrate() {
+      if (plan.action === "migrate") {
+        try {
+          supabase(["migration", "up", "--local"], { workdir, inherit: true });
+        } catch (error) {
+          // 2.109.1 has exited non-zero ("Failed to acquire connection") after
+          // applying every file. The history is what decides, not the exit code.
+          if (schemaPlan(appliedMigrationVersions(projectId), refMigrationVersions(root)).action !== "none") throw error;
+          log("schema: migration up exited non-zero, but the history now matches the ref");
+        }
+      }
+      if (plan.action === "reset") supabase(["db", "reset", "--local"], { workdir, inherit: true });
+    },
+    async prepare() {
+      await bootstrapDb({ projectId, status, endpoints, preSeam: options.preSeam === true, log });
+      if (plan.action === "reset" || options.reseed || !seedIsCurrent(projectId, store, standing)) {
+        await seed({ workdir, store, partition, log });
+      }
+      if (recordStanding(store, standing)) log("store: standing-numbers.json rewritten from the partition");
 
-  if (restart) {
-    activate({ timers, sha, state: layout.state, log });
-  } else if (settings.systemd) {
+      writeDerived(files);
+      const timers = restart ? cronTimers(cronPlan.schedule) : (previous?.timers ?? []);
+      const record = {
+        sha,
+        ref: ref ?? null,
+        worktree: root,
+        at: new Date().toISOString(),
+        schema: plan.action,
+        timers: timers.map(({ cron, timer }) => ({ cron, timer })),
+      };
+      // Written before the restart, because the units start whatever it names;
+      // `rig health` compares it with state/serving-<service>.json.
+      mkdirSync(layout.state, { recursive: true });
+      writeFileSync(join(layout.state, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`);
+      const historyPath = join(layout.state, "history.json");
+      const history = existsSync(historyPath) ? JSON.parse(readFileSync(historyPath, "utf8")) : [];
+      writeFileSync(historyPath, `${JSON.stringify([...history, record].slice(-50), null, 2)}\n`);
+      pointCurrent(layout, root);
+      return { timers, record };
+    },
+  });
+  if (!restart && settings.systemd) {
     log(`--no-restart: the services and timers still run ${previous?.sha ?? "what they ran"} until restarted, and rig health fails until then`);
   }
   if (!worktree) pruneWorktrees(layout, settings.keepWorktrees, root);
