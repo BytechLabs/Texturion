@@ -217,7 +217,7 @@ test("the adb tunnel check connects to the tunnel's port, and fails naming it wh
     context.portAnswers = async (host, port, timeoutMs) => (asked.push([host, port, timeoutMs]), open);
     assert.equal(await healthChecks(context).adbTunnel(), null);
     open = false;
-    assert.equal(await healthChecks(context).adbTunnel(), "nothing answers on 127.0.0.1:15037, the tunnel to the host's adb server");
+    assert.equal(await healthChecks(context).adbTunnel(), "no adb server answers on 127.0.0.1:15037, the tunnel to the host's adb server");
     assert.deepEqual(asked, [
       ["127.0.0.1", 15037, 2000],
       ["127.0.0.1", 15037, 2000],
@@ -278,11 +278,17 @@ test("a rig that cannot be measured writes a failing report over the last green 
 test("rig health with nothing deployed still writes its report and exits 1", async () => {
   await withRig(async (context, home) => {
     const lines = [];
-    const code = await main(["health"], { env: { RIG_HOME: home }, log: (line) => lines.push(line) });
+    const code = await main(["health", "--only", "api,signIn,tz,guard,hostd"], { env: { RIG_HOME: home }, log: (line) => lines.push(line) });
     assert.equal(code, 1);
     const written = JSON.parse(readFileSync(join(context.layout.state, "health.json"), "utf8"));
     assert.equal(written.sha, null);
-    assert.ok(written.results.every((result) => !result.pass && /nothing is deployed yet/.test(result.reason)));
+    const byName = Object.fromEntries(written.results.map((result) => [result.name, result]));
+    for (const name of ["api", "signIn", "tz"]) assert.match(byName[name].reason, /nothing is deployed yet/);
+    // The store has no edge-origin or hostd-token here, so these fail on that, not on the deploy.
+    for (const name of ["guard", "hostd"]) {
+      assert.equal(byName[name].pass, false);
+      assert.doesNotMatch(byName[name].reason, /nothing is deployed yet/);
+    }
     assert.ok(lines.some((line) => line.startsWith("FAIL  api  rig: nothing is deployed yet")));
   });
 });

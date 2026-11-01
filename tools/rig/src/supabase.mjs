@@ -28,7 +28,8 @@ export function supabaseCli(env = process.env) {
 export function supabase(args, { workdir, inherit = false, allowFailure = false } = {}) {
   const cli = supabaseCli();
   const full = [...cli.prefix, ...args, ...(workdir ? ["--workdir", workdir] : [])];
-  return run(cli.command, full, { inherit, allowFailure });
+  // Outside a project corepack runs its latest pnpm, which it may not be able to start.
+  return run(cli.command, full, { cwd: TOOLING_ROOT, inherit, allowFailure });
 }
 
 /**

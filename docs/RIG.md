@@ -1358,13 +1358,13 @@ node scripts/ops/call-trace.mjs --self-check
    - the AI shim;
    - FCM rewrite and package pinning;
    - inbound recording;
-   - the edge-to-guard binding (fallback: HMAC with a nonce);
+   - the edge-to-guard binding (fallback: HMAC with a nonce); passed 2026-11-01, when `/g/health` with the diag token answered 200 from the guard over the binding;
    - the per-connection active-calls read (an unknown answer refuses the dial);
    - the proof ladder's validation check (an inconclusive answer leaves the floor in force);
    - gRPC call audio on the emulators (EA1, risk 19);
-   - cloud-init's datasource detection on Workstation (VM1);
-   - emulators started with nobody logged on (VM2);
-   - the tunnel and the rig-only adb server on 5137 (VM3).
+   - cloud-init's datasource detection on Workstation (VM1); passed on the first boot, 2026-11-01: `cloud-id` said `vmware`;
+   - emulators started with nobody logged on (VM2); not measured, because no emulator is installed until FA15;
+   - the tunnel and the rig-only adb server on 5137 (VM3). The tunnel half passed 2026-11-01: all ten reverse binds sit on the VM's loopback, sshd refused a bind on an unlisted port and on 0.0.0.0, hostd listens only on 127.0.0.1:15900, and `/v1/health` through the tunnel answered 401 without the token and 200 with it. The adb half, and whether the emulators honour `ANDROID_ADB_SERVER_PORT`, wait on FA15, which installs adb.
 10. **Cost uncertainty.** Each unknown is budgeted at its costlier answer (section 7). A higher real cost would shrink coverage, not raise spend.
 11. **Recycled numbers attract strangers.** Rejected calls and dropped texts may still bill. Detach stops a flood; replacement waits for the monthly order slot.
 12. **Shared quotas without a vendor-side split:** Sentry, Resend, Workers usage, Workers AI, Claude limits. Each is capped in our code.

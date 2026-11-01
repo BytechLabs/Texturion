@@ -52,18 +52,29 @@ export interface AdbServer {
 
 export const RIG_ADB_SERVER: AdbServer = { host: "127.0.0.1", port: ADB_VM_PORT };
 
-/** Whether something accepts a TCP connection there within the time. */
+/** Whether the server answers there within the time. */
 export type PortCheck = (host: string, port: number, timeoutMs: number) => Promise<boolean>;
 
-export const tcpAnswers: PortCheck = (host, port, timeoutMs) =>
+/**
+ * Whether an adb server answers there. The tunnel's end in the VM accepts a
+ * connection even while nothing listens on the host, so only adb's own OKAY
+ * to `host:version` says the server is up.
+ */
+export const adbAnswers: PortCheck = (host, port, timeoutMs) =>
   new Promise((resolve) => {
     const socket = connect({ host, port });
+    let reply = "";
     const done = (answered: boolean) => {
       socket.destroy();
       resolve(answered);
     };
     socket.setTimeout(timeoutMs, () => done(false));
-    socket.once("connect", () => done(true));
+    socket.once("connect", () => socket.write("000chost:version"));
+    socket.on("data", (chunk: Buffer) => {
+      reply += chunk.toString("latin1");
+      if (reply.length >= 4) done(reply.startsWith("OKAY"));
+    });
+    socket.once("end", () => done(false));
     socket.once("error", () => done(false));
   });
 
@@ -105,7 +116,7 @@ export class Adb {
     this.#aapt2 = options.aapt2 ?? "aapt2";
     this.#exec = options.exec ?? nodeExec;
     this.#server = server;
-    this.#portCheck = options.portCheck ?? tcpAnswers;
+    this.#portCheck = options.portCheck ?? adbAnswers;
   }
 
   async shell(...args: string[]): Promise<string> {

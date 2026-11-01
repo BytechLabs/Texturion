@@ -13,7 +13,7 @@ import { DEPLOY_HOLD_MAX_AGE_MS, deployHoldPath, readDeployHold } from "./deploy
 import { run, systemctlUser } from "./exec.mjs";
 import { parseDevVars } from "./dev-vars.mjs";
 import { GUARD_ROUTES } from "../../rig-protocol/src/index.ts";
-import { tcpAnswers } from "../lanes/src/android/adb.ts";
+import { adbAnswers } from "../lanes/src/android/adb.ts";
 import { ADB_VM_PORT, HOSTD_PORT } from "../lanes/src/android/devices.ts";
 import { guardGet } from "./guard.mjs";
 import { parseJsonc } from "./jsonc.mjs";
@@ -80,6 +80,13 @@ export function tzMismatches(postgresRows) {
  */
 export const GUARD_SAFETY_MAX_AGE_MS = 6 * 3_600_000 + 15 * 60_000;
 
+/**
+ * The checks that read only the store, rigd's state files and the VM itself,
+ * so a rig with nothing deployed or its stack down still says whether the
+ * guard, hostd, the tunnel and the firewall are right.
+ */
+export const DEPLOY_FREE_CHECKS = new Set(["guard", "nonprodApps", "uplink", "deployHold", "sentry", "hostd", "adbTunnel", "nftables"]);
+
 function readJsonFile(path) {
   return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null;
 }
@@ -113,13 +120,13 @@ export function sentryFailure(state) {
 }
 
 /**
- * @param {{ layout, settings, store, status, projectId, deployed, fetch?: typeof fetch, systemctl?: typeof systemctlUser, cronRegistry?: object, run?: typeof run, portAnswers?: typeof tcpAnswers }} context
+ * @param {{ layout, settings, store, status, projectId, deployed, fetch?: typeof fetch, systemctl?: typeof systemctlUser, cronRegistry?: object, run?: typeof run, portAnswers?: typeof adbAnswers }} context
  */
 export function healthChecks(context) {
   const fetchImpl = context.fetch ?? fetch;
   const systemctl = context.systemctl ?? systemctlUser;
   const runImpl = context.run ?? run;
-  const portAnswers = context.portAnswers ?? tcpAnswers;
+  const portAnswers = context.portAnswers ?? adbAnswers;
   const api = () => `http://127.0.0.1:${context.settings.apiPort}`;
   const devVars = () => {
     const path = join(context.deployed.worktree, "apps", "api", ".dev.vars.rig");
@@ -296,7 +303,7 @@ export function healthChecks(context) {
 
     /** The rig's adb server on the host, through the tunnel; without it every device check fails. */
     async adbTunnel() {
-      return (await portAnswers("127.0.0.1", ADB_VM_PORT, 2_000)) ? null : `nothing answers on 127.0.0.1:${ADB_VM_PORT}, the tunnel to the host's adb server`;
+      return (await portAnswers("127.0.0.1", ADB_VM_PORT, 2_000)) ? null : `no adb server answers on 127.0.0.1:${ADB_VM_PORT}, the tunnel to the host's adb server`;
     },
 
     /** The VM's firewall table, which keeps the rig off private ranges and the host's other ports. */
@@ -311,8 +318,9 @@ export function healthChecks(context) {
 
 /**
  * Runs the checks and writes state/health.json. With `context.unavailable`
- * set (no deploy, the stack down, a broken rig.json), every check fails with
- * that reason and the report is still written, so a down rig never reads as
+ * set (no deploy, the stack down, a broken rig.json), every check that needs
+ * the deploy fails with that reason, the deploy-free ones still run when the
+ * store opened, and the report is still written, so a down rig never reads as
  * its last green report.
  */
 export async function runHealth(context, only) {
@@ -322,7 +330,7 @@ export async function runHealth(context, only) {
   for (const [name, check] of Object.entries(checks)) {
     if (only && !only.includes(name)) continue;
     let reason;
-    if (context.unavailable) reason = context.unavailable;
+    if (context.unavailable && !(context.store && DEPLOY_FREE_CHECKS.has(name))) reason = context.unavailable;
     else {
       try {
         reason = await check();

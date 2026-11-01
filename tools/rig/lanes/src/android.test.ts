@@ -6,7 +6,7 @@ import { createServer as createHttpServer, type IncomingMessage } from "node:htt
 import { connect, createServer, type AddressInfo, type Server } from "node:net";
 import grpc from "@grpc/grpc-js";
 import { afterEach, describe, expect, it } from "vitest";
-import { Adb, passedMaintenance, tcpAnswers, type Exec } from "./android/adb.ts";
+import { Adb, adbAnswers, passedMaintenance, type Exec } from "./android/adb.ts";
 import {
   AndroidDevice,
   CALL_TEST_IDS,
@@ -182,13 +182,20 @@ describe("adb through hostd's tunnel", () => {
     expect(asked).toEqual(["127.0.0.1:15037/2000", "127.0.0.1:15037/2000", "127.0.0.1:15037/2000"]);
   });
 
-  it("measures the port with a real connection", async () => {
-    const server = createServer((socket) => socket.end());
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const { port } = server.address() as AddressInfo;
-    expect(await tcpAnswers("127.0.0.1", port, 2_000)).toBe(true);
-    await new Promise((resolve) => server.close(resolve));
-    expect(await tcpAnswers("127.0.0.1", port, 2_000)).toBe(false);
+  it("counts only adb's OKAY as an answer, not a tunnel end that accepts and closes", async () => {
+    const listen = async (server: ReturnType<typeof createServer>) => {
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      return (server.address() as AddressInfo).port;
+    };
+    const adb = createServer((socket) => socket.once("data", () => socket.end("OKAY00040029")));
+    const tunnelOnly = createServer((socket) => socket.destroy());
+    const adbPort = await listen(adb);
+    const tunnelPort = await listen(tunnelOnly);
+    expect(await adbAnswers("127.0.0.1", adbPort, 2_000)).toBe(true);
+    expect(await adbAnswers("127.0.0.1", tunnelPort, 2_000)).toBe(false);
+    await new Promise((resolve) => adb.close(resolve));
+    await new Promise((resolve) => tunnelOnly.close(resolve));
+    expect(await adbAnswers("127.0.0.1", adbPort, 2_000)).toBe(false);
   });
 
   it("talks only to a loopback server", () => {
