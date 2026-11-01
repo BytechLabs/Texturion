@@ -12,7 +12,9 @@ import {
   NONPROD_PACKAGE,
   apkPackage,
   apkRefusal,
+  buildNonprodApk,
   ensureNonprodKeystore,
+  keytoolCommand,
   manifestPackage,
   nonprodGradleEnv,
 } from "../src/apk.mjs";
@@ -160,12 +162,22 @@ function withKeytool(body, stubEnv = {}) {
       return run(process.execPath, [command, ...args], { ...options, env: { ...options.env, ...stubEnv, STUB_KEYTOOL_LOG: argvLog } });
     };
     const lines = [];
-    const ensure = () => ensureNonprodKeystore({ store, keytool: STUB_KEYTOOL, runner, log: (line) => lines.push(line) });
-    return body({ store, ensure, lines, calls: () => calls, argv: () => readFileSync(argvLog, "utf8") });
+    const log = (line) => lines.push(line);
+    const signing = { keytool: STUB_KEYTOOL, runner };
+    const ensure = (on = store) => ensureNonprodKeystore({ store: on, log, ...signing });
+    const argv = () =>
+      readFileSync(argvLog, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+    return body({ dir, store, ensure, signing, log, lines, calls: () => calls, argv });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
+
+/** Each `-flag value` pair of one keytool call. */
+const flagsOf = (args) => Object.fromEntries(args.flatMap((arg, i) => (arg.startsWith("-") && !String(args[i + 1]).startsWith("-") ? [[arg, args[i + 1]]] : [])));
 
 test("the first rig apk makes the signing pair, its password never on a command line", () => {
   withKeytool(({ store, ensure, lines, argv }) => {
@@ -178,9 +190,62 @@ test("the first rig apk makes the signing pair, its password never on a command 
     assert.equal(secrets.keyAlias, KEY_ALIAS);
     assert.match(secrets.storePassword, /^[A-Za-z0-9_-]{43}$/);
     assert.equal(secrets.keyPassword, secrets.storePassword);
-    assert.ok(!argv().includes(secrets.storePassword));
+    assert.ok(!JSON.stringify(argv()).includes(secrets.storePassword));
     assert.match(lines.join("\n"), /certificate SHA-256 ([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+    assert.equal(made.sha256, /SHA-256 (\S+)$/.exec(lines.join("\n"))[1]);
     assert.deepEqual(readdirSync(store.dir).sort(), [KEYSTORE_SECRETS, KEYSTORE_FILE].sort());
+  });
+});
+
+test("the key is RSA 3072, valid for the 25 years the rig must outlive", () => {
+  withKeytool(({ ensure, argv }) => {
+    ensure();
+    const made = argv().find((args) => args[0] === "-genkeypair");
+    assert.deepEqual(
+      [flagsOf(made)["-keyalg"], flagsOf(made)["-keysize"], flagsOf(made)["-validity"], flagsOf(made)["-storetype"]],
+      ["RSA", "3072", "9131", "PKCS12"],
+    );
+  });
+});
+
+test("keytool is the JDK's that JAVA_HOME names, else the one on the PATH", () => {
+  const jdk = join(tmpdir(), "jdk-21");
+  assert.equal(keytoolCommand({ JAVA_HOME: jdk }), join(jdk, "bin", process.platform === "win32" ? "keytool.exe" : "keytool"));
+  assert.equal(keytoolCommand({}), "keytool");
+});
+
+test("a store that cannot take the passwords keeps no keystore either", () => {
+  withKeytool(({ store, ensure }) => {
+    const full = {
+      ...store,
+      write: () => {
+        throw new Error("no space left on device");
+      },
+    };
+    assert.throws(() => ensure(full), /no space left on device/);
+    assert.deepEqual(readdirSync(store.dir), []);
+  });
+});
+
+test("the first rig apk makes the key before it needs FA6's google-services.json, and names the SHA-256 FA6 asks for", () => {
+  withKeytool(({ dir, store, signing, log, lines, calls }) => {
+    store.write("rig-ca.crt", "-----BEGIN CERTIFICATE-----\nstub\n-----END CERTIFICATE-----");
+    const build = () => buildNonprodApk({ root: join(dir, "worktree"), settings: DEFAULT_SETTINGS, store, publishableKey: "k", log, signing });
+    let first = "";
+    assert.throws(build, (error) => {
+      first = error.message;
+      return /no android-nonprod-google-services\.json yet\. Register com\.loonext\.android\.nonprod in Firebase/.test(first);
+    });
+    assert.ok(existsSync(join(store.dir, KEYSTORE_FILE)));
+    const logged = /certificate SHA-256 (\S+)$/.exec(lines.join("\n"))?.[1];
+    assert.match(logged ?? "", /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+    assert.ok(first.includes(`SHA-256 ${logged} (docs/RIG.md FA6)`), first);
+
+    // Asked again before FA6 is done, it names the same certificate and makes no second key.
+    const before = calls();
+    assert.throws(build, (error) => error.message.includes(`SHA-256 ${logged} `));
+    assert.equal(calls(), before + 1, "keytool only listed the existing key");
+    assert.equal(existsSync(join(dir, "worktree")), false, "nothing was written into the worktree");
   });
 });
 

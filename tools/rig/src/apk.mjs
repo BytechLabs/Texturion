@@ -167,6 +167,7 @@ export function apkRefusal(path, metadataPath) {
 export const KEYSTORE_FILE = "android-nonprod.keystore";
 export const KEYSTORE_SECRETS = "android-nonprod-keystore.json";
 export const KEY_ALIAS = "loonext-rig-nonprod";
+export const GOOGLE_SERVICES = "android-nonprod-google-services.json";
 /** keytool reads the password from here, so it is on no command line. */
 const PASSWORD_VARIABLE = "RIG_NONPROD_KEYSTORE_PASSWORD";
 
@@ -208,6 +209,7 @@ export function ensureNonprodKeystore({ store, log, keytool = keytoolCommand(), 
   const temp = `${keystorePath}.${process.pid}.tmp`;
   mkdirSync(store.dir, { recursive: true, mode: 0o700 });
   rmSync(temp, { force: true });
+  let sha256;
   try {
     runner(
       keytool,
@@ -237,17 +239,26 @@ export function ensureNonprodKeystore({ store, log, keytool = keytoolCommand(), 
     );
     if (!existsSync(temp)) throw new Error(`rig apk: ${keytool} exited 0 but wrote no keystore`);
     chmodSync(temp, 0o600);
-    const listed = runner(keytool, ["-list", "-v", "-keystore", temp, "-storetype", "PKCS12", "-alias", KEY_ALIAS, ...storePass], { env });
+    sha256 = certificateSha256({ keystorePath: temp, keystore: { storePassword: password }, keytool, runner });
     // The passwords go first: a keystore left without them could never be
     // opened, while passwords left without a keystore have signed nothing.
     store.write(KEYSTORE_SECRETS, { storePassword: password, keyAlias: KEY_ALIAS, keyPassword: password });
     renameSync(temp, keystorePath);
-    const sha256 = /SHA-?256:\s*([0-9A-F]{2}(?::[0-9A-F]{2}){31})/i.exec(listed.stdout)?.[1];
     log(`apk: made the nonprod signing key in the store; certificate SHA-256 ${sha256 ?? "(keytool did not print it)"}`);
   } finally {
     rmSync(temp, { force: true });
   }
-  return { keystorePath, keystore: store.readJson(KEYSTORE_SECRETS), created: true };
+  return { keystorePath, keystore: store.readJson(KEYSTORE_SECRETS), created: true, sha256 };
+}
+
+/** The signing certificate's SHA-256 as keytool prints it, or null when it prints none. */
+export function certificateSha256({ keystorePath, keystore, keytool = keytoolCommand(), runner = run }) {
+  const listed = runner(
+    keytool,
+    ["-list", "-v", "-keystore", keystorePath, "-storetype", "PKCS12", "-alias", KEY_ALIAS, "-storepass:env", PASSWORD_VARIABLE],
+    { env: { [PASSWORD_VARIABLE]: keystore.storePassword } },
+  );
+  return /SHA-?256:\s*([0-9A-F]{2}(?::[0-9A-F]{2}){31})/i.exec(listed.stdout)?.[1] ?? null;
 }
 
 /**
@@ -271,20 +282,31 @@ export function nonprodGradleEnv({ settings, publishableKey, keystorePath, keyst
 
 /**
  * Builds `assembleNonprod` (or the debuggable twin) in a worktree and returns
- * the checked APK's path.
+ * the checked APK's path. `signing` replaces the keytool the key is made
+ * with, for tests.
  */
-export function buildNonprodApk({ root, settings, store, publishableKey, variant = "nonprod", log }) {
+export function buildNonprodApk({ root, settings, store, publishableKey, variant = "nonprod", log, signing = {} }) {
+  // The key comes before the google-services.json: Firebase hands that out
+  // only once the app is registered with the key's certificate (FA6).
+  const { keystorePath, keystore, sha256 } = ensureNonprodKeystore({ store, log, ...signing });
+  if (!store.has(GOOGLE_SERVICES)) {
+    const fingerprint = sha256 ?? certificateSha256({ keystorePath, keystore, ...signing });
+    throw new Error(
+      `rig apk: the store has no ${GOOGLE_SERVICES} yet. Register ${NONPROD_PACKAGE} in Firebase with the signing ` +
+        `certificate's SHA-256 ${fingerprint ?? "(keytool did not print it)"} (docs/RIG.md FA6); the google-services.json ` +
+        `it gives reaches the store as the rig environment's ANDROID_NONPROD_GOOGLE_SERVICES_JSON. Then run rig apk again`,
+    );
+  }
   const android = join(root, "apps", "android");
   const overlay = join(android, "app", "src", "nonprod");
   // The build file's own inputs, gitignored there (apps/android/.gitignore).
   mkdirSync(join(overlay, "res", "raw"), { recursive: true });
-  writeFileSync(join(overlay, "google-services.json"), store.read("android-nonprod-google-services.json"));
+  writeFileSync(join(overlay, "google-services.json"), store.read(GOOGLE_SERVICES));
   writeFileSync(join(overlay, "res", "raw", "rig_ca.pem"), `${store.read("rig-ca.crt")}\n`);
   if (variant === "nonprodDebug") {
     mkdirSync(join(android, "app", "src", "nonprodDebug"), { recursive: true });
-    writeFileSync(join(android, "app", "src", "nonprodDebug", "google-services.json"), store.read("android-nonprod-google-services.json"));
+    writeFileSync(join(android, "app", "src", "nonprodDebug", "google-services.json"), store.read(GOOGLE_SERVICES));
   }
-  const { keystorePath, keystore } = ensureNonprodKeystore({ store, log });
 
   const task = variant === "nonprodDebug" ? "assembleNonprodDebug" : "assembleNonprod";
   const gradlew = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
