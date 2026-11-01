@@ -7,7 +7,8 @@
  * Its output lands in a public Actions log, so it prints states, reason codes,
  * roles and counts: never an id, a phone number, an address or a token.
  *
- *   ROUTINE=check|setup|order-standing|key-inventory|accept-key-inventory|reattach|measurements|limit-probe|health
+ *   ROUTINE=check|setup|order-standing|resume-ordering|key-inventory|accept-key-inventory|reattach|measurements|limit-probe|health
+ *   resume-ordering only: RESUME_BY, the dispatching GitHub login; RESUME_REASON, why a person lifts the stop.
  *   EDGE_ORIGIN, GUARD_ADMIN_TOKEN
  *   measurements only: RESERVE_LEGS; CALLS, ABANDONED and SHORT together; WINDOW_START_HOUR;
  *     USAGE_USD, this month's actual Telnyx usage for the partition, from detail records.
@@ -28,6 +29,7 @@ export const ROUTINES = [
   "check",
   "setup",
   "order-standing",
+  "resume-ordering",
   "key-inventory",
   "accept-key-inventory",
   "reattach",
@@ -43,6 +45,12 @@ export type Routine = (typeof ROUTINES)[number];
 export interface Answer {
   status: number;
   body: unknown;
+}
+
+/** Who lifts a stopped ordering, and why: both are recorded by the guard. */
+export interface Resume {
+  by?: string;
+  reason?: string;
 }
 
 /** POST to `/admin<route>` on the guard. */
@@ -139,15 +147,15 @@ async function orderStanding(post: Post, wait: (ms: number) => Promise<void>): P
       continue;
     }
     if (!ok(answer)) return { ok: false, lines: [...lines, ...failed("Standing order stopped", answer).lines] };
-    const body = answer.body as { ordered?: unknown; searched?: unknown; remaining?: unknown; deferred?: unknown; tagged?: unknown };
+    const body = answer.body as { ordered?: unknown; searched?: unknown; remaining?: unknown; voice_deferred?: unknown; tagged?: unknown };
     const remaining = strings(body.remaining);
-    const deferred = strings(body.deferred);
+    const deferred = strings(body.voice_deferred);
     if (typeof body.ordered === "string") lines.push(`ordered ${body.ordered}`);
     else if (typeof body.searched === "string") lines.push(`no number free in area code ${body.searched}`);
     if (typeof body.tagged === "number" && body.tagged > 0) lines.push(`tagged ${body.tagged} standing number(s)`);
     if (remaining.length === 0) {
       const done = deferred.length
-        ? `every role the open lanes use is held; waiting for paid dials: ${deferred.join(", ")}`
+        ? `every standing role is held; no voice connection until paid dials open: ${deferred.join(", ")}`
         : "every standing role is held";
       return { ok: true, lines: [...lines, done] };
     }
@@ -155,6 +163,23 @@ async function orderStanding(post: Post, wait: (ms: number) => Promise<void>): P
     await wait(SEARCH_PAUSE_MS);
   }
   return { ok: false, lines: [...lines, `::error title=Standing order unfinished::Stopped after ${MAX_ORDER_CALLS} calls.`] };
+}
+
+async function resumeOrdering(post: Post, resume: Resume): Promise<Outcome> {
+  const by = resume.by?.trim() ?? "";
+  const reason = resume.reason?.trim() ?? "";
+  if (!by || !reason) {
+    return { ok: false, lines: ["::error title=Resume refused::Give resume_reason; the dispatching login is recorded with it."] };
+  }
+  const answer = await post("/numbers/resume-ordering", { by, reason });
+  if (!ok(answer)) return failed("Ordering not resumed", answer);
+  const body = answer.body as { cleared?: unknown; state?: unknown };
+  const state = typeof body.state === "string" ? body.state : "unknown";
+  const lines = [`cleared stop ${typeof body.cleared === "string" ? body.cleared : "unknown"} for ${by}; the read-back answered ${state}`];
+  if (state === "failed") {
+    lines.push("::error title=Ordering stopped again::The read-back still could not confirm the first order; see health's ordering.stopped_reason.");
+  }
+  return { ok: state !== "failed", lines };
 }
 
 async function keyInventory(post: Post): Promise<Outcome> {
@@ -302,6 +327,7 @@ export async function runRoutine(
   post: Post,
   inputs: Measurements = {},
   wait: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
+  resume: Resume = {},
 ): Promise<Outcome> {
   switch (routine) {
     case "check":
@@ -310,6 +336,8 @@ export async function runRoutine(
       return setup(post);
     case "order-standing":
       return orderStanding(post, wait);
+    case "resume-ordering":
+      return resumeOrdering(post, resume);
     case "key-inventory":
       return keyInventory(post);
     case "accept-key-inventory":
@@ -433,7 +461,10 @@ async function main(): Promise<number> {
     ? await measureProduction(edgePost(origin, token), edgeHealth(origin, token), () =>
         readProduction(process.env.AGENT_DIAG_DATABASE_URL),
       )
-    : await runRoutine(routine, edgePost(origin, token), inputs);
+    : await runRoutine(routine, edgePost(origin, token), inputs, undefined, {
+        by: process.env.RESUME_BY,
+        reason: process.env.RESUME_REASON,
+      });
   for (const line of outcome.lines) console.log(line);
   return outcome.ok ? 0 : 1;
 }

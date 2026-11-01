@@ -54,6 +54,7 @@ export const RULES = [
   "provisioning.search_needs_lease",
   "provisioning.search_rate",
   "provisioning.ordering_off",
+  "provisioning.resume_refused",
   "provisioning.order_needs_lease",
   "provisioning.order_interval",
   "provisioning.order_one_number",

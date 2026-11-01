@@ -6,16 +6,18 @@ import {
 } from "../limits";
 import { Refusal } from "../refusal";
 import { sendProductionEvent } from "../sentry";
-import { invalidateOwned, KEYS, type PartitionRecord } from "./partition";
+import { SPEC } from "../setup/spec";
+import { invalidateOwned, KEYS, type PartitionRecord, type StandingNumber } from "./partition";
 
 /**
  * Number ordering (docs/RIG.md). Production's sweep lists the whole account
  * and can DELETE, and it acts only on numbers with no billing group once
  * Phase 0a ships. So nothing is ordered until production's /health says the
  * rule is live. The first order is then read back: once Telnyx reports the
- * order a success, the number the order names is read by its id, and if
- * Telnyx did not keep the group, that number alone is released and ordering
- * stops for good. Anything the read-back cannot pin to one number stops
+ * order complete, the number is found in /v2/phone_numbers by its exact
+ * E.164 and the partition's group, and its group, profile and connection are
+ * checked. The order line's own id is never used: Telnyx does not say it is
+ * the number's id. Anything the read-back cannot pin to one number stops
  * ordering without deleting anything.
  */
 interface ProductionHealth {
@@ -23,11 +25,34 @@ interface ProductionHealth {
   checked_at: number;
 }
 
+/** What an order asked the number to be bound to. */
+export interface OrderedBinding {
+  messaging_profile_id: string;
+  /** Null for a number ordered with no voice connection. */
+  connection_id: string | null;
+}
+
 export interface FirstOrder {
   state: "pending" | "verified";
   order_id: string | null;
   phone_number: string;
+  /** Absent on a record from before the field: the number's standing role then says what it should carry. */
+  expect?: OrderedBinding;
+  /** The /v2/phone_numbers id, once the read-back found the number. */
+  number_id?: string;
   at: number;
+}
+
+/** Stop reasons a person may lift: the read-back could not list the number, and nothing is known to be wrong with it. */
+export const RESUMABLE_STOPS: readonly string[] = ["number_unreadable"];
+
+const RESUMES_KEEP = 20;
+
+export interface OrderingResume {
+  at: number;
+  by: string;
+  why: string;
+  cleared: string;
 }
 
 export const ORDER_KEYS = {
@@ -35,6 +60,7 @@ export const ORDER_KEYS = {
   first: "orders:first",
   stopped: "orders:stopped",
   last: "orders:last",
+  resumes: "orders:resumes",
 } as const;
 
 type Item = Record<string, unknown>;
@@ -74,13 +100,19 @@ export async function requireOrdering(ctx: Ctx): Promise<void> {
 }
 
 /** Notes a successful order, and starts the read-back when it is the first. */
-export async function noteOrder(ctx: Ctx, orderId: string | null, phoneNumber: string): Promise<void> {
+export async function noteOrder(
+  ctx: Ctx,
+  orderId: string | null,
+  phoneNumber: string,
+  expect: OrderedBinding,
+): Promise<void> {
   await invalidateOwned(ctx);
   if (await ctx.store.get<FirstOrder>(ORDER_KEYS.first)) return;
   await ctx.store.put(ORDER_KEYS.first, {
     state: "pending",
     order_id: orderId,
     phone_number: phoneNumber,
+    expect,
     at: ctx.now(),
   } satisfies FirstOrder);
   await verifyFirstOrder(ctx);
@@ -91,10 +123,14 @@ function retryable(status: number): boolean {
   return status === 0 || status === 429 || status >= 500;
 }
 
-async function read(ctx: Ctx, path: string): Promise<{ status: number; data: Item | null }> {
+async function read(ctx: Ctx, path: string): Promise<{ status: number; data: Item | null; items: Item[] | null }> {
   const reply = await ctx.telnyx!.send("GET", path).catch(() => ({ status: 0, body: undefined }));
   const data = (reply.body as { data?: unknown } | undefined)?.data;
-  return { status: reply.status, data: data && typeof data === "object" && !Array.isArray(data) ? (data as Item) : null };
+  return {
+    status: reply.status,
+    data: data && typeof data === "object" && !Array.isArray(data) ? (data as Item) : null,
+    items: Array.isArray(data) ? (data as Item[]) : null,
+  };
 }
 
 /** Stops ordering for good, and says why in production's Sentry. Deletes nothing. */
@@ -109,11 +145,23 @@ async function stop(ctx: Ctx, reason: string, detail: string): Promise<"failed">
   return "failed";
 }
 
+/** What the number should carry: what its order asked for, else its standing role's binding. */
+function expectedBinding(first: FirstOrder, record: PartitionRecord, standing: Record<string, StandingNumber>): OrderedBinding | null {
+  if (first.expect) return first.expect;
+  const role = Object.values(standing).find((entry) => entry.phone_number === first.phone_number)?.role;
+  const profile = SPEC.numbers.standing.find((item) => item.role === role)?.messaging_profile;
+  const id = profile ? record.messaging_profiles[profile] : undefined;
+  // A standing order from before the field was placed while paid dials were refused: no connection.
+  return id ? { messaging_profile_id: id, connection_id: null } : null;
+}
+
 /**
- * The first order's read-back. The order is read first, and judged only once
- * Telnyx reports it a success; the number is then read by the id the order
- * returned, never matched by its phone number. Account-wide on purpose: a
- * filter by the group would hide exactly the failure this looks for.
+ * The first order's read-back. The order is read first and must be complete
+ * and name exactly the E.164 that was ordered. The number is then listed by
+ * that E.164 and the partition's group, and there must be exactly one, still
+ * in the group, carrying the profile and connection the order asked for. Its
+ * /v2/phone_numbers id is recorded. Nothing is ever released here: a number
+ * that cannot be pinned down is left for a person.
  */
 export async function verifyFirstOrder(ctx: Ctx): Promise<FirstOrder["state"] | "failed" | "none"> {
   const first = await ctx.store.get<FirstOrder>(ORDER_KEYS.first);
@@ -124,7 +172,7 @@ export async function verifyFirstOrder(ctx: Ctx): Promise<FirstOrder["state"] | 
   if (!ctx.telnyx || !record) return "pending";
 
   if (!first.order_id) {
-    return stop(ctx, "order_id_missing", "Telnyx returned no order id, so the number cannot be read back by id. Nothing was released.");
+    return stop(ctx, "order_id_missing", "Telnyx returned no order id, so the order cannot be read back. Nothing was released.");
   }
   const order = await read(ctx, `/v2/number_orders/${encodeURIComponent(first.order_id)}`);
   if (retryable(order.status)) return "pending";
@@ -142,50 +190,66 @@ export async function verifyFirstOrder(ctx: Ctx): Promise<FirstOrder["state"] | 
   }
 
   const lines = Array.isArray(order.data.phone_numbers) ? (order.data.phone_numbers as Item[]) : [];
-  const line = lines.length === 1 ? lines[0] : undefined;
-  const numberId = typeof line?.id === "string" && line.id ? line.id : null;
-  if (!numberId || line?.phone_number !== first.phone_number) {
-    return stop(ctx, "order_ambiguous", `The order lists ${lines.length} number(s), not the one ordered with an id. Nothing was released.`);
+  if (lines.length !== 1 || lines[0]?.phone_number !== first.phone_number) {
+    return stop(ctx, "order_ambiguous", `The complete order lists ${lines.length} number(s), not exactly the one ordered. Nothing was released.`);
   }
 
-  const number = await read(ctx, `/v2/phone_numbers/${encodeURIComponent(numberId)}`);
-  if (retryable(number.status)) return "pending";
-  if (number.status !== 200 || !number.data || number.data.id !== numberId || number.data.phone_number !== first.phone_number) {
-    return stop(ctx, "number_unreadable", `Reading the ordered number by its id answered ${number.status}. Nothing was released.`);
+  const query = new URLSearchParams({
+    "filter[phone_number]": first.phone_number,
+    "filter[billing_group_id]": record.billing_group_id,
+  });
+  const found = await read(ctx, `/v2/phone_numbers?${query.toString()}`);
+  if (retryable(found.status)) return "pending";
+  if (found.status !== 200 || !found.items) {
+    return stop(ctx, "number_unreadable", `Listing the ordered number answered ${found.status}. Nothing was released.`);
   }
-  if (number.data.billing_group_id === record.billing_group_id) {
-    await ctx.store.put(ORDER_KEYS.first, { ...first, state: "verified" } satisfies FirstOrder);
-    return "verified";
+  if (found.items.length !== 1) {
+    return stop(
+      ctx,
+      found.items.length === 0 ? "number_missing" : "number_ambiguous",
+      `Listing the ordered number by its E.164 and the partition's group found ${found.items.length}, not one. Nothing was released.`,
+    );
   }
-  return releaseUngrouped(ctx, record, numberId, number.data.billing_group_id);
-}
-
-/**
- * The order's own number came back outside the group: read it by id once
- * more, and release it only if it is still bound to nothing of production's.
- */
-async function releaseUngrouped(ctx: Ctx, record: PartitionRecord, numberId: string, group: unknown): Promise<"failed"> {
-  const again = await read(ctx, `/v2/phone_numbers/${encodeURIComponent(numberId)}`);
-  const onProduction =
-    !again.data ||
-    again.data.id !== numberId ||
-    record.production.connection_ids.includes(String(again.data.connection_id ?? "")) ||
-    record.production.messaging_profile_ids.includes(String(again.data.messaging_profile_id ?? ""));
-  if (again.status !== 200 || onProduction) {
+  const [number] = found.items;
+  const numberId = typeof number.id === "string" && number.id ? number.id : null;
+  if (!numberId || number.phone_number !== first.phone_number) {
+    return stop(ctx, "number_ambiguous", "The one listed number is not the one ordered. Nothing was released.");
+  }
+  if (number.billing_group_id !== record.billing_group_id) {
     return stop(
       ctx,
       "group_not_kept",
-      `The ordered number came back with billing group ${String(group ?? "none")}, and its second read ` +
-        `(${again.status}) could not show it is clear of production's connections and profiles, so it was not released.`,
+      `The ordered number is not in the partition's billing group (${String(number.billing_group_id ?? "none")}). ` +
+        "Production's sweep treats a number with no group as its own. Nothing was released; regroup or release it by hand.",
     );
   }
-  await ctx.store.put(ORDER_KEYS.stopped, { at: ctx.now(), reason: "group_not_kept" });
-  const released = (await ctx.telnyx!.send("DELETE", `/v2/phone_numbers/${encodeURIComponent(numberId)}`).catch(() => ({ status: 0 }))).status;
-  return stop(
-    ctx,
-    "group_not_kept",
-    `The ordered number came back with billing group ${String(group ?? "none")}, not the partition's. ` +
-      `The guard released it by its id (DELETE answered ${released}) and will order nothing again. ` +
-      "Production's sweep would have treated a number with no group as its own.",
-  );
+  const standing = (await ctx.store.get<Record<string, StandingNumber>>(KEYS.standing)) ?? {};
+  const expected = expectedBinding(first, record, standing);
+  const connection = typeof number.connection_id === "string" && number.connection_id ? number.connection_id : null;
+  const profile = typeof number.messaging_profile_id === "string" && number.messaging_profile_id ? number.messaging_profile_id : null;
+  if (!expected || profile !== expected.messaging_profile_id || connection !== expected.connection_id) {
+    return stop(ctx, "binding_mismatch", "The ordered number carries a messaging profile or voice connection other than the one ordered. Nothing was released.");
+  }
+
+  await ctx.store.put(ORDER_KEYS.first, { ...first, state: "verified", number_id: numberId } satisfies FirstOrder);
+  return "verified";
+}
+
+/**
+ * Lifts a stop in {@link RESUMABLE_STOPS} on an operator's say-so, records who
+ * and why, and judges the pending first order again with the current
+ * read-back. The number that was ordered is adopted by that read-back, not
+ * ordered again. A read-back that fails stops ordering again.
+ */
+export async function resumeOrdering(
+  ctx: Ctx,
+  by: string,
+  why: string,
+): Promise<{ cleared: string; state: Awaited<ReturnType<typeof verifyFirstOrder>> }> {
+  const reason = await stoppedReason(ctx);
+  if (!reason || !RESUMABLE_STOPS.includes(reason)) throw new Refusal("provisioning.resume_refused");
+  const past = (await ctx.store.get<OrderingResume[]>(ORDER_KEYS.resumes)) ?? [];
+  await ctx.store.put(ORDER_KEYS.resumes, [...past, { at: ctx.now(), by, why, cleared: reason }].slice(-RESUMES_KEEP));
+  await ctx.store.delete(ORDER_KEYS.stopped);
+  return { cleared: reason, state: await verifyFirstOrder(ctx) };
 }

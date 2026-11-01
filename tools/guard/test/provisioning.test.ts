@@ -113,22 +113,21 @@ describe("number orders", () => {
     expect(await ruleOf(await order(h))).toBe("provisioning.numbers_held");
   });
 
-  it("releases the first number and stops ordering when the group did not stick", async () => {
+  it("stops ordering, deleting nothing, when the group did not stick", async () => {
     const h = await ready();
     h.telnyx.dropGroupOnOrder = true;
     await lease(h, "S28", "rig-api");
     expect((await order(h)).status).toBe(200);
     expect(await h.store.get(ORDER_KEYS.stopped)).toBeDefined();
-    expect(h.telnyx.numbers.some((item) => item.phone_number === "+14165550150")).toBe(false);
+    expect(h.telnyx.numbers.some((item) => item.phone_number === "+14165550150")).toBe(true);
+    expect(h.telnyx.requests("DELETE")).toEqual([]);
     const event = h.outbound.find((item) => item.url.includes("/envelope/"));
     expect(event?.body).toContain('"fingerprint":["ops","telnyx-guard-order-group"]');
-
+    // The number is still in the account, bound to nonprod resources with no group: the start-up check now reads that as unsafe.
     h.advance(30 * DAY);
     await h.store.put("admission:reserve", { legs: 2, measured_at: h.clock.now });
     await lease(h, "S28", "rig-api");
-    expect(await ruleOf(await order(h, { phone_numbers: [{ phone_number: "+14165550151" }] }))).toBe(
-      "provisioning.ordering_off",
-    );
+    expect(await ruleOf(await order(h, { phone_numbers: [{ phone_number: "+14165550151" }] }))).toBe("startup.unsafe");
   });
 
   it("waits for the first order's read-back before ordering again", async () => {

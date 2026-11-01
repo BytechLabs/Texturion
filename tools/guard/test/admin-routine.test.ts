@@ -43,6 +43,9 @@ function throughEdge(h: Harness): Post {
 
 const noWait = async () => {};
 
+const ROLES = ["ROBOT-1", "ROBOT-2", "STRANGER-1", "DEV-W1", "DEV-W2", "DEV-A1", "DEV-C1", "DEV-E1"];
+const EIGHT = ["+14165550170", "+14165550171", "+14165550172", "+14165550173", "+14165550174", "+14165550175", "+14165550176", "+14165550177"];
+
 /** Ids, numbers and addresses the fake account holds: none may reach a public log. */
 function assertPublicSafe(lines: string[]): void {
   const text = lines.join("\n");
@@ -81,16 +84,7 @@ describe("guard.yml's admin routines", () => {
     const h = harness();
     await fileMeasurements(h);
     await fileValidation(h);
-    h.telnyx.available = [
-      "+14165550170",
-      "+14165550171",
-      "+14165550172",
-      "+14165550173",
-      "+14165550174",
-      "+14165550175",
-      "+14165550176",
-      "+14165550177",
-    ];
+    h.telnyx.available = EIGHT;
     expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
     const waits: number[] = [];
     const outcome = await runRoutine("order-standing", throughEdge(h), {}, async (ms) => {
@@ -105,40 +99,45 @@ describe("guard.yml's admin routines", () => {
     assertPublicSafe(outcome.lines);
   });
 
-  it("order only the text lanes' roles while paid dials are refused, and say which wait", async () => {
+  it("order all eight roles with no voice connection while paid dials are refused, and say which wait", async () => {
     const h = harness();
     await fileMeasurements(h);
-    h.telnyx.available = ["+14165550170", "+14165550171", "+14165550172"];
+    h.telnyx.available = EIGHT;
     expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
     const outcome = await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms));
     expect(outcome.ok).toBe(true);
-    expect(outcome.lines.filter((line) => line.startsWith("ordered "))).toEqual(["ordered ROBOT-1", "ordered DEV-W1", "ordered DEV-E1"]);
-    expect(outcome.lines.at(-1)).toBe(
-      "every role the open lanes use is held; waiting for paid dials: ROBOT-2, STRANGER-1, DEV-W2, DEV-A1, DEV-C1",
-    );
+    expect(outcome.lines.filter((line) => line.startsWith("ordered "))).toEqual(ROLES.map((role) => `ordered ${role}`));
+    expect(outcome.lines.at(-1)).toBe(`every standing role is held; no voice connection until paid dials open: ${ROLES.join(", ")}`);
     const orders = h.telnyx.requests("POST", "/v2/number_orders");
-    expect(orders).toHaveLength(3);
-    for (const sent of orders) expect(sent.body, "a bound number would take inbound calls").not.toHaveProperty("connection_id");
+    expect(orders).toHaveLength(8);
+    for (const sent of orders) {
+      expect(sent.body, "a bound number would take inbound calls").not.toHaveProperty("connection_id");
+      expect(sent.body).toHaveProperty("messaging_profile_id");
+    }
+    const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
+    expect(held.map((item) => item.connection_id)).toEqual(Array(8).fill(null));
+    expect(held.every((item) => typeof item.messaging_profile_id === "string")).toBe(true);
+    expect(await h.store.get("orders:first")).toMatchObject({ state: "verified", expect: { connection_id: null }, number_id: held[0]!.id });
     assertPublicSafe(outcome.lines);
   });
 
   it("bind the voice-less standing numbers once paid dials open, but not a detached one", async () => {
     const h = harness();
     await fileMeasurements(h);
-    h.telnyx.available = ["+14165550170", "+14165550171", "+14165550172"];
+    h.telnyx.available = EIGHT;
     expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
     expect((await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms))).ok).toBe(true);
-    const ordered = ["+14165550170", "+14165550171", "+14165550172"];
-    const held = h.telnyx.numbers.filter((item) => ordered.includes(String(item.phone_number)));
-    expect(held.map((item) => item.connection_id)).toEqual([null, null, null]);
-    await h.store.put(`detached:${held[2]!.id}`, { at: h.clock.now, reason: "stranger_flood" });
+    const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
+    expect(held.map((item) => item.connection_id)).toEqual(Array(8).fill(null));
+    await h.store.put(`detached:${held[7]!.id}`, { at: h.clock.now, reason: "stranger_flood" });
 
     await fileValidation(h);
     h.telnyx.log.length = 0;
-    await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
+    const answer = await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
+    expect(await answer.json()).toMatchObject({ ordered: null, bound: 7, voice_deferred: [ROLES[7]] });
     const bound = h.telnyx.requests("PATCH").filter((entry) => (entry.body as Record<string, unknown>)?.connection_id !== undefined);
-    expect(bound.map((entry) => entry.path)).toEqual([`/v2/phone_numbers/${held[0]!.id}`, `/v2/phone_numbers/${held[1]!.id}`]);
-    expect(held.map((item) => item.connection_id !== null)).toEqual([true, true, false]);
+    expect(bound.map((entry) => entry.path)).toEqual(held.slice(0, 7).map((item) => `/v2/phone_numbers/${item.id}`));
+    expect(held.map((item) => item.connection_id !== null)).toEqual([true, true, true, true, true, true, true, false]);
   });
 
   it("stop, red, when ordering is off, and name the rule", async () => {
@@ -147,6 +146,48 @@ describe("guard.yml's admin routines", () => {
     const outcome = await runRoutine("order-standing", throughEdge(h), {}, noWait);
     expect(outcome.ok).toBe(false);
     expect(outcome.lines.at(-1)).toContain("provisioning.ordering_off");
+  });
+
+  it("resume ordering: name who and why to the guard, and print only states", async () => {
+    const h = await ready();
+    await h.store.put("orders:stopped", { at: h.clock.now, reason: "number_unreadable" });
+    const outcome = await runRoutine("resume-ordering", throughEdge(h), {}, noWait, { by: "operator-1", reason: "Read-back now lists the number" });
+    expect(outcome).toEqual({ ok: true, lines: ["cleared stop number_unreadable for operator-1; the read-back answered none"] });
+    expect(await h.store.get("orders:stopped")).toBeUndefined();
+    expect(await h.store.get("orders:resumes")).toEqual([
+      { at: h.clock.now, by: "operator-1", why: "Read-back now lists the number", cleared: "number_unreadable" },
+    ]);
+    assertPublicSafe(outcome.lines);
+  });
+
+  it("resume ordering: refuse before calling the guard when nobody says why", async () => {
+    const h = await ready();
+    await h.store.put("orders:stopped", { at: h.clock.now, reason: "number_unreadable" });
+    for (const resume of [{}, { by: "operator-1" }, { reason: "Read-back now lists the number" }, { by: " ", reason: " " }]) {
+      const outcome = await runRoutine("resume-ordering", throughEdge(h), {}, noWait, resume);
+      expect(outcome.ok).toBe(false);
+      expect(outcome.lines[0]).toMatch(/^::error title=Resume refused::/);
+    }
+    expect(await h.store.get("orders:stopped")).toMatchObject({ reason: "number_unreadable" });
+  });
+
+  it("resume ordering: fail, naming the rule, when the stop is not one a person may lift", async () => {
+    const h = await ready();
+    await h.store.put("orders:stopped", { at: h.clock.now, reason: "group_not_kept" });
+    const outcome = await runRoutine("resume-ordering", throughEdge(h), {}, noWait, { by: "operator-1", reason: "Read-back now lists the number" });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.lines.at(-1)).toContain("provisioning.resume_refused");
+  });
+
+  it("resume ordering: fail the run when the read-back stops ordering again", async () => {
+    const h = await ready();
+    h.telnyx.orderStatus = "pending";
+    await h.store.put("orders:stopped", { at: h.clock.now, reason: "number_unreadable" });
+    await h.store.put("orders:first", { state: "pending", order_id: null, phone_number: "+14165550150", at: h.clock.now });
+    const outcome = await runRoutine("resume-ordering", throughEdge(h), {}, noWait, { by: "operator-1", reason: "Read-back now lists the number" });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.lines[0]).toBe("cleared stop number_unreadable for operator-1; the read-back answered failed");
+    expect(outcome.lines[1]).toMatch(/^::error title=Ordering stopped again::/);
   });
 
   it("run and accept the key inventory, printing counts, never ids", async () => {

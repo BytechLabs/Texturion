@@ -17,7 +17,7 @@ import { LIMIT_KEYS, type HistoryRecord } from "./state/concurrency";
 import { charge, noteHeld, reconcile } from "./state/ledger";
 import { resumeMail } from "./state/mail";
 import { clearDetached, detachedNumbers, standingBinding } from "./telnyx/detach";
-import { noteOrder, requireOrdering, verifyFirstOrder } from "./telnyx/ordering";
+import { noteOrder, requireOrdering, resumeOrdering, verifyFirstOrder } from "./telnyx/ordering";
 import {
   invalidateOwned,
   KEYS,
@@ -72,11 +72,11 @@ async function standingMap(ctx: Ctx): Promise<Record<string, StandingNumber>> {
  * call so the search interval holds without a request that waits; the caller
  * repeats until `remaining` is empty. Standing orders are exempt from the
  * 25-day order interval, which paces S28's monthly number, but not from the
- * ordering gate, the money gates or the ten-number cap. While paid dials are
- * refused, only the roles the text lanes use are ordered, with no voice
- * connection, since a bound number takes inbound calls; the calls-only roles
- * are reported as deferred. Once paid dials open, each held standing number
- * with no connection is bound, unless it was detached.
+ * ordering gate, the money gates or the ten-number cap. Every role is ordered
+ * at once. While paid dials are refused no number gets a voice connection,
+ * since a bound number takes inbound calls, and the answer lists them as
+ * `voice_deferred`. Once paid dials open, each held standing number with no
+ * connection is bound, unless it was detached.
  */
 async function orderStanding(ctx: Ctx): Promise<Response> {
   await requireSafe(ctx);
@@ -91,6 +91,7 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
 
   let tagged = 0;
   let bound = 0;
+  const boundIds = new Set<string>();
   for (const entry of Object.values(standing)) {
     const number = view.byE164.get(entry.phone_number);
     if (!number || number.tags.includes(STANDING_TAG)) continue;
@@ -111,15 +112,20 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
       const connection = standingBinding(view, entry.role)?.connection_id;
       if (!number || number.connection_id !== null || !connection || detached.has(number.id)) continue;
       await telnyx.call("PATCH", `/v2/phone_numbers/${encodeURIComponent(number.id)}`, { connection_id: connection });
+      boundIds.add(number.id);
       bound += 1;
     }
   }
   if (tagged + bound > 0) await invalidateOwned(ctx);
 
-  const unheld = SPEC.numbers.standing.filter((item) => !standing[item.role]);
-  const missing = unheld.filter((item) => paidOpen || item.lanes.includes("texts"));
-  const deferred = unheld.filter((item) => !missing.includes(item)).map((item) => item.role);
-  if (missing.length === 0) return json({ ordered: null, remaining: [], deferred, tagged, bound });
+  const unbound = Object.values(standing)
+    .filter((entry) => {
+      const number = view.byE164.get(entry.phone_number);
+      return number?.connection_id === null && !boundIds.has(number.id) && Boolean(standingBinding(view, entry.role)?.connection_id);
+    })
+    .map((entry) => entry.role);
+  const missing = SPEC.numbers.standing.filter((item) => !standing[item.role]);
+  if (missing.length === 0) return json({ ordered: null, remaining: [], voice_deferred: unbound, tagged, bound });
   if (view.numbers.length >= MAX_NUMBERS_HELD) throw new Refusal("provisioning.numbers_held");
 
   const role = missing[0];
@@ -143,7 +149,7 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
   const found = (reply.body as { data?: { phone_number?: unknown }[] } | undefined)?.data?.[0]?.phone_number;
   if (reply.status !== 200 || typeof found !== "string") {
     await ctx.store.put("standing:area-index", index + 1);
-    return json({ ordered: null, searched: areaCode, remaining: missing.map((item) => item.role), deferred, tagged, bound });
+    return json({ ordered: null, searched: areaCode, remaining: missing.map((item) => item.role), tagged, bound });
   }
 
   const checked = await checkOrderBody(
@@ -161,11 +167,14 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
   await charge(ctx, COST_USD.numberUpfront, "one_time");
   await noteHeld(ctx, view.numbers.length + 1, callerNameNumbers());
   await ctx.store.put(KEYS.standing, { ...standing, [role.role]: { role: role.role, phone_number: found } });
-  await noteOrder(ctx, typeof order?.data?.id === "string" ? order.data.id : null, found);
+  await noteOrder(ctx, typeof order?.data?.id === "string" ? order.data.id : null, found, {
+    messaging_profile_id: binding.messaging_profile_id,
+    connection_id: paidOpen ? binding.connection_id : null,
+  });
   return json({
     ordered: role.role,
     remaining: missing.slice(1).map((item) => item.role),
-    deferred,
+    voice_deferred: paidOpen ? unbound : [...unbound, role.role],
     tagged,
     bound,
   });
@@ -214,6 +223,17 @@ export async function handleAdmin(ctx: Ctx, request: Request, path: string): Pro
       return orderStanding(ctx);
     case "POST /numbers/reattach":
       return reattach(ctx);
+    case "POST /numbers/resume-ordering": {
+      const by = typeof body.by === "string" && /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(body.by) ? body.by : null;
+      // The reason lands in a public log, so it carries no run of digits long enough to be a number or an id.
+      const why =
+        typeof body.reason === "string" && body.reason.trim().length >= 8 && body.reason.trim().length <= 200 && !/\d{7,}|\+\d/.test(body.reason)
+          ? body.reason.trim()
+          : null;
+      if (!by || !why) throw new Refusal("request.body_invalid");
+      await requireSafe(ctx);
+      return json(await resumeOrdering(ctx, by, why));
+    }
     case "POST /reserve": {
       const record: ReserveRecord = { legs: count(body.legs, 1_000), measured_at: measuredAt(ctx, body.measured_at) };
       await ctx.store.put(ADMISSION_KEYS.reserve, record);

@@ -85,7 +85,7 @@ export interface TelnyxSpec {
       connection: "voice" | "robot";
       messaging_profile: string;
       caller_name_lookup?: boolean;
-      /** The rig lanes the number serves; a calls-only number is not ordered while paid dials are off. */
+      /** The rig lanes the number serves. Every role is ordered whatever its lanes; voice binds once paid dials open. */
       lanes: ("texts" | "calls")[];
     }[];
   };

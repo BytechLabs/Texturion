@@ -122,7 +122,11 @@ const order: Handler = async (request) => {
   await noteHeld(ctx, view.numbers.length + 1, callerNameNumbers());
   if (isOk(reply)) {
     const id = (reply.body as { data?: { id?: unknown } } | undefined)?.data?.id;
-    await noteOrder(ctx, typeof id === "string" ? id : null, checked.phoneNumber);
+    const profile = checked.body.messaging_profile_id as string;
+    await noteOrder(ctx, typeof id === "string" ? id : null, checked.phoneNumber, {
+      messaging_profile_id: profile,
+      connection_id: typeof checked.body.connection_id === "string" ? checked.body.connection_id : null,
+    });
   }
   return relay(reply);
 };

@@ -9247,6 +9247,19 @@ with its reason:
   matched by phone number alone, and stops ordering without deleting when
   anything is ambiguous. Why: the old read-back could judge too early and
   release the wrong number.
+- **The read-back finds the number by its E.164 and the group; all eight
+  roles are ordered.** The order line's id is not the number's
+  `/v2/phone_numbers` id, so the first standing order stopped ordering as
+  `number_unreadable`. Once the order is complete the guard now lists
+  `/v2/phone_numbers` by the exact E.164 and the partition's group, requires
+  exactly one result with the expected billing group, messaging profile and
+  connection, and records that id. Anything else stops ordering and alerts,
+  and nothing is released. All eight standing roles are ordered at once, with
+  no voice connection while paid dials are refused, and the `resume-ordering`
+  routine lifts a `number_unreadable` stop, records who and why, and adopts
+  the number already held. This supersedes the text-lane-only ordering and
+  the release by order id in the bullet above. Why: the order id was never
+  the number's, and a rig deploy needs all eight roles.
 - **No voice connection while paid dials are refused.** A number bound to a
   connection takes inbound calls, which hold account channels like a dial,
   and a recycled number gets robocalls. So while paid dials are refused the

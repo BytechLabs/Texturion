@@ -51,8 +51,8 @@ export class FakeTelnyx {
   ignoreFilters = false;
   /** The status a new number order reports. */
   orderStatus: "pending" | "success" | "failure" = "success";
-  /** When true, an order names its number by an id that is not the number's own. */
-  orderLineIds = false;
+  /** An order line carries an id of its own, which is not the number's /v2/phone_numbers id (set false to make them the same). */
+  orderLineIds = true;
   /**
    * How Telnyx answers a voice profile's concurrent_call_limit:
    *   - `refuse-above`: values above `limit` refused with a 422 naming the field;
@@ -62,7 +62,7 @@ export class FakeTelnyx {
   profileLimit: { mode: "refuse-above" | "accept" | "error"; limit: number } = { mode: "refuse-above", limit: 6 };
   available: string[] = ["+14165550150", "+14165550151", "+14165550152"];
   /** The next request matching this answers with its status (and body, when given), for failure paths. */
-  failNext: { method: string; path: string; status: number; body?: unknown } | null = null;
+  failNext: { method: string; path: string; status: number; body?: unknown; whenQuery?: string } | null = null;
   private serial = 0;
 
   nextId(prefix: string): string {
@@ -88,7 +88,7 @@ export class FakeTelnyx {
     const body = text ? (JSON.parse(text) as unknown) : undefined;
     this.log.push({ method, path: url.pathname, query: url.searchParams, body });
     const fail = this.failNext;
-    if (fail && fail.method === method && url.pathname === fail.path) {
+    if (fail && fail.method === method && url.pathname === fail.path && (!fail.whenQuery || url.search.includes(fail.whenQuery))) {
       this.failNext = null;
       return reply(fail.body ?? { errors: [{ code: String(fail.status) }] }, fail.status);
     }
