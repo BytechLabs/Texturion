@@ -378,6 +378,7 @@ export function undoHandlers(parts: UndoParts): UndoHandlers {
       await parts.app().restoreWorkspace({ tenant: params.tenant, state });
     },
     "number.release": async (params) => releaseHeldNumber(params, { guard: parts.guard(), app: parts.app(), handoff: parts.handoff }),
+    "number.release-tenant": async (params) => releaseTenantNumbers(params, { guard: parts.guard(), app: parts.app(), handoff: parts.handoff }),
     "device.reset": async (params) => resetDevice(parts.devices(), params.device),
     "device.launch": async (params) => deviceNamed(parts.devices(), params.device).launch(),
     "device.install": async (params) => reinstallDevice(parts.devices(), params),
@@ -456,6 +457,32 @@ export async function releaseHeldNumber(
   }
   await lanes.app.markNumberReleased({ phoneNumberId: rowId });
   if (named) await lanes.handoff.clear();
+}
+
+/**
+ * S28's undo, registered before it buys: every number the workspace holds
+ * unreleased, so a number whose row never named it in time, or whose purchase
+ * call threw after Telnyx ordered it, is released too. One handed to S29 is left.
+ */
+export async function releaseTenantNumbers(
+  params: Record<string, unknown>,
+  lanes: {
+    guard: Pick<GuardClient, "releaseNumber">;
+    app: Pick<AppProbe, "numberRows" | "markNumberReleased">;
+    handoff: Pick<HandoffFile, "read" | "clear">;
+  },
+): Promise<void> {
+  const tenant = params.tenant;
+  if (typeof tenant !== "string") throw new Error("number.release-tenant undo needs a tenant");
+  const record = await lanes.handoff.read();
+  if (params.unless_handed_off === true && record?.tenant === tenant && record.state === "handed_off") return;
+  const unnamed: string[] = [];
+  for (const row of await lanes.app.numberRows({ tenant })) {
+    if (row.status === "released") continue;
+    if (row.telnyx_phone_number_id) await releaseHeldNumber({ telnyx_phone_number_id: row.telnyx_phone_number_id, phone_number_id: row.id }, lanes);
+    else unnamed.push(row.id);
+  }
+  if (unnamed.length) throw new Error(`${tenant} holds ${unnamed.length} number row(s) that name no Telnyx number, so none could be released`);
 }
 
 /** The device a device undo names: `pixel`, or `emulator-34`, `-35` or `-36`. */

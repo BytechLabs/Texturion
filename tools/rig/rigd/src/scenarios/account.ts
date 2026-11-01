@@ -38,6 +38,8 @@ export const GRACE_NOTICES = [1, 15, 27, 30] as const;
 /** One day past the 30-day grace period. */
 const CANCELED_DAYS_AGO = 31;
 const DAY_MS = 86_400_000;
+/** S29 runs the day after S28; a hand-off older than this one missed it. */
+const HANDOFF_MAX_AGE_MS = 2 * DAY_MS;
 
 /** Lou's reply drafts, as apps/api/src/messaging/reply-suggestions.ts meters them. */
 export const SUGGEST_REPLY_FEATURE = "suggest_reply";
@@ -198,11 +200,14 @@ export const S27: ScenarioRunner = {
 /**
  * S28: QA-G buys the month's number, the guard sees exactly the purchase and
  * binding, and ROBOT-1 rings it. A passing run hands the number to S29
- * instead of releasing it; until then the undo releases it.
+ * instead of releasing it; until then the undo releases whatever QA-G holds.
  */
 export const S28: ScenarioRunner = {
   id: "S28",
   async run(ctx) {
+    ctx.lease.registerUndo({ kind: "number.release-tenant", params: { tenant: GRACE_TENANT, unless_handed_off: true } });
+    const unclaimed = await reclaimHandoff(ctx);
+    if (unclaimed) return unclaimed;
     const workspace = await ctx.app.graceState({ tenant: GRACE_TENANT });
     if (workspace.subscription_status !== "active") {
       return infra("grace-workspace", `QA-G is ${workspace.subscription_status}, so it cannot buy; an earlier S29's undo did not put it back`);
@@ -224,7 +229,7 @@ export const S28: ScenarioRunner = {
     if (!is2xx(provisioned.status)) return refusedPurchase(ctx, provisioned);
     const rowId = provisioned.body?.id;
 
-    // The undo goes in as soon as the row names its Telnyx number, not once binding finishes.
+    // The hand-off names the number as soon as its row does, not once binding finishes.
     const bought: { held?: NumberHandoff } = {};
     const bound = await poll(ctx, async () => {
       const rows = await ctx.app.numberRows({ tenant: GRACE_TENANT });
@@ -279,12 +284,17 @@ async function holdNumber(ctx: ScenarioContext, row: NumberRow, telnyxId: string
     bought_at: new Date(ctx.now()).toISOString(),
     state: "bought",
   };
-  ctx.lease.registerUndo({
-    kind: "number.release",
-    params: { telnyx_phone_number_id: telnyxId, phone_number_id: row.id, unless_handed_off: true },
-  });
   await ctx.handoff.write(record);
   return record;
+}
+
+/** A number handed to S29 that no S29 took in time is taken back, for this run's undo to release. */
+async function reclaimHandoff(ctx: ScenarioContext): Promise<ScenarioResult | undefined> {
+  const record = await ctx.handoff.read();
+  if (record?.tenant !== GRACE_TENANT || record.state !== "handed_off") return undefined;
+  if (ctx.now() - Date.parse(record.bought_at) <= HANDOFF_MAX_AGE_MS) return undefined;
+  await ctx.handoff.write({ ...record, run_id: ctx.runId, state: "bought" });
+  return infra("handoff", `no S29 took the number S28 handed off at ${record.bought_at}; this run's undo releases it`);
 }
 
 interface ActivityEntry {

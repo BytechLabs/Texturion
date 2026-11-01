@@ -572,7 +572,7 @@
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 1,
       "min_room": 2,
-      "note": "S28 buys the month's number into the grace workspace, QA-G (scripts/rig/tenants.mjs), which holds no standing number, binds it and has ROBOT-1 ring it, and does not release it. A passing S28 leaves the number to S29 in rigd's hand-off record (state/rigd/handoff). Its undo releases the number through the guard only when S28 itself did not pass. The guard's one order per 25 days means a retry after a failed attempt cannot buy again."
+      "note": "S28 buys the month's number into the grace workspace, QA-G (scripts/rig/tenants.mjs), which holds no standing number, binds it and has ROBOT-1 ring it, and does not release it. A passing S28 leaves the number to S29 in rigd's hand-off record (state/rigd/handoff). Its undo, registered before the purchase, releases every number QA-G holds unreleased through the guard, only when S28 itself did not pass, and S28 takes back a hand-off no S29 took within two days. The guard's one order per 25 days means a retry after a failed attempt cannot buy again."
     },
     {
       "id": "S29",

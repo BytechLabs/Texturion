@@ -6,7 +6,7 @@ import { gpsJpeg, hasGpsExif, sha256Hex } from "@loonext/rig-robot";
 import { memberEmail } from "../../../../../scripts/rig/tenants.mjs";
 import { SIGN_UP_ADDRESS } from "../app-probe.ts";
 import { STRIPE_DELETE_UNDO } from "../stripe-sandbox.ts";
-import { releaseHeldNumber } from "../wiring.ts";
+import { releaseHeldNumber, releaseTenantNumbers } from "../wiring.ts";
 import {
   graduatedAmount,
   GRACE_CRON,
@@ -303,12 +303,10 @@ function s28World(options: { row?: Partial<NumberRow>; log?: Record<string, numb
 }
 
 describe("S28, number buy, bind and ring", () => {
-  it("passes, registers the release before the hand-off names the number, and hands it to S29 unreleased", async () => {
+  it("passes, registers the release before it buys, and hands the number to S29 unreleased", async () => {
     const { ctx, undo, handoff, robot, browser, guard, undoAtWrite } = s28World();
     expect(await S28.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
-    expect(undo).toEqual([
-      { kind: "number.release", params: { telnyx_phone_number_id: TELNYX_ID, phone_number_id: "number-row-1", unless_handed_off: true } },
-    ]);
+    expect(undo).toEqual([{ kind: "number.release-tenant", params: { tenant: "QA-G", unless_handed_off: true } }]);
     expect(undoAtWrite).toEqual([1, 1]);
     expect(handoff.record).toMatchObject({ tenant: "QA-G", run_id: "S28-test", telnyx_phone_number_id: TELNYX_ID, phone_number_id: "number-row-1", state: "handed_off" });
     expect(robot.plans).toHaveLength(1);
@@ -321,7 +319,7 @@ describe("S28, number buy, bind and ring", () => {
   it("keeps a passing run's number through the undo, and releases a failed run's", async () => {
     const passed = s28World();
     await S28.run(passed.ctx);
-    await releaseHeldNumber(passed.undo[0]!.params, passed);
+    await releaseTenantNumbers(passed.undo[0]!.params, passed);
     expect(passed.guard.held.has(TELNYX_ID)).toBe(true);
     expect(passed.handoff.record?.state).toBe("handed_off");
 
@@ -329,10 +327,30 @@ describe("S28, number buy, bind and ring", () => {
     silent.browser.script.ringsAfterMs = undefined;
     expect(await S28.run(silent.ctx)).toMatchObject({ failure_class: "number_did_not_ring" });
     expect(silent.handoff.record?.state).toBe("bought");
-    await releaseHeldNumber(silent.undo[0]!.params, silent);
+    await releaseTenantNumbers(silent.undo[0]!.params, silent);
     expect(silent.guard.released).toEqual([TELNYX_ID]);
     expect(silent.app.numbers.get("QA-G")![0]!.status).toBe("released");
     expect(silent.handoff.record).toBeNull();
+  });
+
+  it("takes back a hand-off no S29 took within two days, and leaves a fresh one to S29", async () => {
+    const stale = s28World();
+    stale.app.numbers.set("QA-G", [boughtRow()]);
+    stale.guard.held.add(TELNYX_ID);
+    const handedOff = { tenant: "QA-G", run_id: "S28-old", telnyx_phone_number_id: TELNYX_ID, phone_number_id: "number-row-1", state: "handed_off" as const };
+    stale.handoff.record = { ...handedOff, bought_at: new Date(stale.ctx.now() - 3 * 86_400_000).toISOString() };
+    expect(await S28.run(stale.ctx)).toMatchObject({ outcome: "infra", component: "handoff" });
+    expect(stale.handoff.record).toMatchObject({ state: "bought", run_id: "S28-test" });
+    await releaseTenantNumbers(stale.undo[0]!.params, stale);
+    expect(stale.guard.released).toEqual([TELNYX_ID]);
+    expect(stale.robot.plans).toEqual([]);
+
+    const fresh = s28World();
+    fresh.app.numbers.set("QA-G", [boughtRow()]);
+    fresh.handoff.record = { ...handedOff, bought_at: new Date(fresh.ctx.now() - 86_400_000).toISOString() };
+    expect(await S28.run(fresh.ctx)).toMatchObject({ outcome: "infra", component: "grace-workspace" });
+    await releaseTenantNumbers(fresh.undo[0]!.params, fresh);
+    expect(fresh.guard.released).toEqual([]);
   });
 
   it("buys nothing into a workspace that is not ready, or while the guard has ordering off", async () => {
@@ -381,10 +399,17 @@ describe("S28, number buy, bind and ring", () => {
     expect(await S28.run(probe.ctx)).toMatchObject({ outcome: "infra", component: "app-probe" });
   });
 
-  it("names a number never provisioned or never bound, registering the release once it has an id", async () => {
+  it("names a number never provisioned or never bound, and fails the undo for a row that never named its number", async () => {
     const unnamed = s28World({ row: { status: "provisioning", telnyx_phone_number_id: null, voice_connection_id: null } });
     expect(await S28.run(unnamed.ctx)).toMatchObject({ failure_class: "number_not_provisioned" });
-    expect(unnamed.undo).toEqual([]);
+    await expect(releaseTenantNumbers(unnamed.undo[0]!.params, unnamed)).rejects.toThrow(/name no Telnyx number/);
+
+    // The row names its number only after the run gave up on it: the undo still releases it.
+    const late = s28World({ row: { status: "provisioning", telnyx_phone_number_id: null, voice_connection_id: null } });
+    await S28.run(late.ctx);
+    late.app.numbers.get("QA-G")![0]!.telnyx_phone_number_id = TELNYX_ID;
+    await releaseTenantNumbers(late.undo[0]!.params, late);
+    expect(late.guard.released).toEqual([TELNYX_ID]);
 
     const unbound = s28World({ row: { voice_connection_id: null } });
     expect(await S28.run(unbound.ctx)).toMatchObject({ failure_class: "number_not_bound" });
