@@ -25,7 +25,12 @@ import { describe, expect, it } from "vitest";
  * 1. No reachable module imports `@/i18n/provider`.
  * 2. No module below a `"use client"` boundary imports the app catalogue or
  *    the home catalogue (the whole home page, both languages).
- * 3. Every import of this app's own files resolves, so none is skipped.
+ * 3. No client module imports zod, or `@/env`, whose schema is zod (#640).
+ *    Client code reads `@/public-env`.
+ * 4. Every import of this app's own files resolves, so none is skipped.
+ *
+ * `instrumentation-client.ts` runs in the browser on every page, so the walk
+ * starts there too, as client code.
  *
  * And the hero's p5 is the lean build, with every method the sketch calls.
  *
@@ -129,7 +134,12 @@ function marketingEntries(): string[] {
   return out;
 }
 
+/** Browser code on every page, with no `"use client"` to say so. */
+const CLIENT_ENTRIES = [join(SRC, "instrumentation-client.ts")];
+
 const PROVIDER = join(SRC, "i18n", "provider.tsx");
+const ENV = join(SRC, "env.ts");
+const isZod = (spec: string) => spec === "zod" || spec.startsWith("zod/");
 const CLIENT_FORBIDDEN = new Map([
   [join(SRC, "i18n", "catalog.ts"), "the app catalogue (every section, both languages)"],
   [join(SRC, "i18n", "marketing", "home.ts"), "the home catalogue (the whole page, both languages)"],
@@ -141,7 +151,7 @@ interface Finding {
   why: string;
 }
 
-function walk(entries: string[]): {
+function walk(entries: string[], clientEntries: string[] = []): {
   visited: Map<string, boolean>;
   findings: Finding[];
   unresolved: string[];
@@ -150,7 +160,10 @@ function walk(entries: string[]): {
   const visited = new Map<string, boolean>();
   const findings: Finding[] = [];
   const unresolved: string[] = [];
-  const queue: [string, boolean][] = entries.map((e) => [e, false]);
+  const queue: [string, boolean][] = [
+    ...entries.map((e): [string, boolean] => [e, false]),
+    ...clientEntries.map((e): [string, boolean] => [e, true]),
+  ];
   while (queue.length > 0) {
     const [file, inherited] = queue.shift()!;
     if (!CODE.test(file)) continue; // a stylesheet, a document, an image
@@ -161,6 +174,10 @@ function walk(entries: string[]): {
     if (seen === true || (seen === false && !isClient)) continue;
     visited.set(file, isClient);
     for (const spec of imports.values) {
+      if (isClient && isZod(spec)) {
+        findings.push({ importer: file, target: spec, why: "client code imports zod" });
+        continue;
+      }
       const target = resolveSpecifier(file, spec);
       if (target === undefined) continue; // a package; not this app's graph
       if (target === null) {
@@ -178,6 +195,14 @@ function walk(entries: string[]): {
         });
         continue;
       }
+      if (isClient && target === ENV) {
+        findings.push({
+          importer: file,
+          target,
+          why: "client code imports the zod schema (about 33 KB); read @/public-env",
+        });
+        continue;
+      }
       const forbidden = CLIENT_FORBIDDEN.get(target);
       if (isClient && forbidden) {
         findings.push({ importer: file, target, why: `client code imports ${forbidden}` });
@@ -190,6 +215,7 @@ function walk(entries: string[]): {
 }
 
 function rel(f: string): string {
+  if (!f.startsWith(SRC)) return f; // a package name
   return relative(SRC, f).replace(/\\/g, "/");
 }
 
@@ -231,7 +257,7 @@ describe("the import reader the walk depends on", () => {
 
 describe("the marketing pages' first load", () => {
   const entries = marketingEntries();
-  const { visited, findings, unresolved } = walk(entries);
+  const { visited, findings, unresolved } = walk(entries, CLIENT_ENTRIES);
   const reached = [...visited.keys()].map(rel);
   const clientModules = [...visited].filter(([, c]) => c).map(([f]) => rel(f));
 
@@ -264,6 +290,24 @@ describe("the marketing pages' first load", () => {
       );
     }
     expect(clientModules).toContain("components/marketing/hero/hero-inbox.tsx");
+    for (const must of [
+      "instrumentation-client.ts",
+      "lib/observability/sentry.ts",
+      "lib/analytics/posthog.ts",
+      "components/marketing/consent/consent-banner.tsx",
+      "components/marketing/gtm-boot.tsx",
+      "app/error.tsx",
+    ]) {
+      expect(clientModules, `the walk never reached ${must} as client code`).toContain(must);
+    }
+  });
+
+  it("would report a client import of zod or of the env schema", () => {
+    // The rule below passes on an empty list, so prove it can fail.
+    const { findings: probe } = walk([], [join(SRC, "lib", "supabase", "browser.ts")]);
+    expect(probe.map((f) => `${rel(f.importer)} -> ${rel(f.target)}`)).toContain(
+      "lib/supabase/browser.ts -> env.ts",
+    );
   });
 
   it("resolves every import of this app's own files", () => {
@@ -274,7 +318,7 @@ describe("the marketing pages' first load", () => {
     ).toEqual([]);
   });
 
-  it("ships neither the i18n provider nor a two-language catalogue", () => {
+  it("ships neither the i18n provider, a two-language catalogue nor zod", () => {
     expect(
       findings.map((f) => `${rel(f.importer)} -> ${rel(f.target)}: ${f.why}`),
       "These put the app catalogue (about 590 KB, both languages) or a whole " +

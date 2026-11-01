@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 import { useEffect } from "react";
 import Link from "next/link";
 
-import { publicEnv } from "@/env";
+import { initSentryClient } from "@/lib/observability/sentry";
 
 import { boundaryCopy as copy, boundaryReference } from "./boundary-copy";
 
@@ -23,18 +23,17 @@ import { boundaryCopy as copy, boundaryReference } from "./boundary-copy";
 /**
  * Best-effort Sentry report, shared with global-error.tsx. Guarded on the
  * OPTIONAL NEXT_PUBLIC_SENTRY_DSN (unset = observability off = silent no-op,
- * and the @sentry/browser chunk is never fetched). The SDK singleton was
- * already initialized by instrumentation-client.ts when the DSN is set, so
- * this import resolves to the same, configured client. Never rejects: error
- * reporting must not break the error page itself.
+ * and the @sentry/browser chunk is never fetched). Goes through the same
+ * client instrumentation-client.ts starts, so a boundary that renders before
+ * the SDK is up waits for it. Never rejects: error reporting must not break
+ * the error page itself.
  */
 export async function reportBoundaryError(
   error: Error & { digest?: string },
 ): Promise<void> {
-  if (!publicEnv.NEXT_PUBLIC_SENTRY_DSN) return;
   try {
-    const Sentry = await import("@sentry/browser");
-    Sentry.captureException(error);
+    const sdk = await initSentryClient();
+    sdk?.captureException(error);
   } catch (cause) {
     console.error("Sentry capture failed:", cause);
   }

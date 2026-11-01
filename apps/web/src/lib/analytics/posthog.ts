@@ -23,12 +23,44 @@
  */
 import type { PostHog } from "posthog-js";
 
-import { publicEnv } from "@/env";
+import { clientEnv } from "@/public-env";
 import { readCompanyCookie } from "@/lib/company/cookie";
 import { scrubUnknown } from "@/lib/observability/scrub";
+import { whenTelemetryMayLoad } from "@/lib/perf/telemetry-gate";
 
 /** PostHog Cloud (US) — same instance the API Worker captures to. */
 export const POSTHOG_HOST = "https://us.i.posthog.com";
+
+/**
+ * The campaign and ad click-id parameters posthog-js reads from the page URL
+ * (its CAMPAIGN_PARAMS list).
+ */
+const CAMPAIGN_PARAMS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "gad_source",
+  "mc_cid",
+  "gclid",
+  "gclsrc",
+  "dclid",
+  "gbraid",
+  "wbraid",
+  "fbclid",
+  "msclkid",
+  "twclid",
+  "li_fat_id",
+  "igshid",
+  "ttclid",
+  "rdt_cid",
+  "epik",
+  "qclid",
+  "sccid",
+  "irclid",
+  "_kx",
+] as const;
 
 /**
  * `sanitize_properties` hook (pure, runs on EVERY captured event), delegating
@@ -54,11 +86,24 @@ let loader: Promise<PostHog | null> | null = null;
  * `capture_pageview: "history_change"` covers both the initial load and App
  * Router client navigations (Next drives them through the History API), so
  * no React wiring is needed and marketing + app pages are both counted.
+ *
+ * On a marketing page the SDK downloads only once the page has settled
+ * (#640): fetched with the page, it joined the LCP that Lighthouse simulates.
+ * Events captured before then wait on this promise and are sent once it
+ * resolves.
  */
 export function initPostHog(): Promise<PostHog | null> {
-  const key = publicEnv.NEXT_PUBLIC_POSTHOG_KEY;
+  const key = clientEnv.NEXT_PUBLIC_POSTHOG_KEY;
   if (!key) return Promise.resolve(null); // analytics off — silent no-op
-  loader ??= import("posthog-js")
+  loader ??= loadPostHog(key);
+  return loader;
+}
+
+function loadPostHog(key: string): Promise<PostHog | null> {
+  // Read now: a client navigation before the SDK starts replaces it.
+  const landing = typeof window === "undefined" ? undefined : window.location.href;
+  return whenTelemetryMayLoad()
+    .then(() => import("posthog-js"))
     .then(({ default: posthog }) => {
       posthog.init(key, {
         api_host: POSTHOG_HOST,
@@ -79,17 +124,46 @@ export function initPostHog(): Promise<PostHog | null> {
         // once a workspace (company UUID) is identified.
         person_profiles: "identified_only",
         sanitize_properties: (properties) => sanitizeEventProperties(properties),
+        // Runs inside init, before the SDK's own first pageview.
+        loaded: (client) => {
+          // Join client events to the server-side funnel: the API Worker
+          // captures with distinct_id = company_id, so the signed-in client
+          // identifies as the same UUID (from the persisted workspace cookie,
+          // G12).
+          const companyId = readCompanyCookie();
+          if (companyId) client.identify(companyId);
+          if (landing) recordLandingPage(client, landing);
+        },
       });
-      // Join client events to the server-side funnel: the API Worker captures
-      // with distinct_id = company_id, so the signed-in client identifies as
-      // the same UUID (from the persisted workspace cookie, G12).
-      const companyId = readCompanyCookie();
-      if (companyId) posthog.identify(companyId);
       return posthog;
     })
     .catch((cause) => {
       console.error("PostHog init failed:", cause);
       return null;
     });
-  return loader;
+}
+
+/**
+ * Runs before the SDK's own first pageview, which reads the URL the visitor
+ * is on now. When a client navigation moved them on before the SDK started,
+ * capture the landing page first and keep its campaign parameters for the
+ * session, which is what the SDK records when it starts on the landing page.
+ */
+export function recordLandingPage(
+  posthog: Pick<PostHog, "capture" | "register_for_session">,
+  landing: string,
+): void {
+  if (window.location.href === landing) return;
+  const url = new URL(landing);
+  const campaign: Record<string, string> = {};
+  for (const name of CAMPAIGN_PARAMS) {
+    const value = url.searchParams.get(name);
+    if (value) campaign[name] = value;
+  }
+  if (Object.keys(campaign).length > 0) posthog.register_for_session(campaign);
+  posthog.capture("$pageview", {
+    $current_url: landing,
+    $host: url.host,
+    $pathname: url.pathname,
+  });
 }

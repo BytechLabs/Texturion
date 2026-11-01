@@ -158,3 +158,66 @@ describe("GoogleTagManager (#124)", () => {
     expect(html).not.toContain("GTM-MTL658DD");
   });
 });
+
+describe("gtm.js waits for the page to settle (#640)", () => {
+  /** The loader as the browser runs it, against a stand-in window. */
+  async function runLoader(w: Record<string, unknown> = {}) {
+    env.NEXT_PUBLIC_GTM_ID = "GTM-MTL658DD";
+    const html = await render();
+    const code = html.slice(html.indexOf(">") + 1, html.lastIndexOf("</script>"));
+    const inserted: { src?: string }[] = [];
+    w.location ??= { href: "https://loonext.com/?utm_source=x&gclid=abc" };
+    const d = {
+      cookie: "",
+      referrer: "https://www.google.com/",
+      createElement: () => ({}) as { src?: string },
+      getElementsByTagName: () => [
+        { parentNode: { insertBefore: (el: { src?: string }) => inserted.push(el) } },
+      ],
+    };
+    new Function("window", "document", code)(w, d);
+    return { w, inserted, dataLayer: w.dataLayer as unknown[] };
+  }
+
+  it("seeds the consent default and the gtm.js event at once, but does not download", async () => {
+    const { w, inserted, dataLayer } = await runLoader();
+    expect(inserted).toEqual([]);
+    expect(Array.from(dataLayer[0] as ArrayLike<unknown>).slice(0, 2)).toEqual([
+      "consent",
+      "default",
+    ]);
+    expect(dataLayer[1]).toMatchObject({ event: "gtm.js" });
+    expect(typeof w.__loonextGtm).toBe("function");
+  });
+
+  it("downloads once the boot releases it", async () => {
+    const { w, inserted } = await runLoader();
+    (w.__loonextGtm as () => void)();
+    expect(inserted.map((el) => el.src)).toEqual([
+      "https://www.googletagmanager.com/gtm.js?id=GTM-MTL658DD",
+    ]);
+  });
+
+  it("downloads at once when the boot got there first", async () => {
+    const { inserted } = await runLoader({ __loonextGtm: "go" });
+    expect(inserted).toHaveLength(1);
+  });
+
+  it("downloads once, however often it is released", async () => {
+    const { w, inserted } = await runLoader();
+    const release = w.__loonextGtm as () => void;
+    release();
+    release();
+    expect(inserted).toHaveLength(1);
+    expect(w.__loonextGtm).toBe("done");
+  });
+
+  it("hands the container the URL and referrer the visitor landed with", async () => {
+    const { dataLayer } = await runLoader();
+    expect(dataLayer[1]).toMatchObject({
+      event: "gtm.js",
+      landing_page_location: "https://loonext.com/?utm_source=x&gclid=abc",
+      landing_page_referrer: "https://www.google.com/",
+    });
+  });
+});

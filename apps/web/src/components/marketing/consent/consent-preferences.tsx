@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { publicEnv } from "@/env";
+import { clientEnv } from "@/public-env";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { consentCopy } from "@/i18n/marketing/consent";
 
@@ -65,7 +65,7 @@ export function ConsentPreferences({
   locale?: MarketingLocale;
 }) {
   // Env gate before any hooks: builds without GTM render nothing.
-  if (!publicEnv.NEXT_PUBLIC_GTM_ID) return null;
+  if (!clientEnv.NEXT_PUBLIC_GTM_ID) return null;
   return <ConsentPreferencesInner locale={locale} />;
 }
 

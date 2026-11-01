@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-import { publicEnv } from "@/env";
+import { clientEnv } from "@/public-env";
 import { compareUiCopy } from "@/i18n/marketing/compare-ui";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { trackComparisonRequested } from "@/lib/analytics/events";
@@ -94,7 +94,7 @@ export function ComparisonEmailForm({
     setStatus("submitting");
     try {
       const response = await fetch(
-        `${publicEnv.NEXT_PUBLIC_API_URL}/marketing/comparison`,
+        `${clientEnv.NEXT_PUBLIC_API_URL}/marketing/comparison`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

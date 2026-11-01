@@ -14,12 +14,18 @@ const VALID_API = "https://api.loonext.com";
 const DSN =
   "https://abc123def456@o4506000000000.ingest.us.sentry.io/4506000000001";
 
-// The SDK is loaded via dynamic import inside reportBoundaryError — mock it
+// The SDK is loaded via dynamic import inside initSentryClient — mock it
 // so the tests can prove exactly when (and with what) capture fires.
-const { captureSpy } = vi.hoisted(() => ({ captureSpy: vi.fn() }));
-vi.mock("@sentry/browser", () => ({ captureException: captureSpy }));
+const { captureSpy, initSpy } = vi.hoisted(() => ({
+  captureSpy: vi.fn(),
+  initSpy: vi.fn(),
+}));
+vi.mock("@sentry/browser", () => ({
+  captureException: captureSpy,
+  init: initSpy,
+}));
 
-// error.tsx imports @/env (validated at module load), so each test stubs the
+// error.tsx reads the DSN at module load, so each test stubs the
 // required NEXT_PUBLIC_* set first and imports a fresh copy.
 async function importBoundary(dsn: string | undefined) {
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", VALID_URL);

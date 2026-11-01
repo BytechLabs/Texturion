@@ -7,6 +7,9 @@ import {
   consentSignals,
 } from "@/components/marketing/consent/consent";
 
+import { GtmBoot } from "./gtm-boot";
+import { GTM_RELEASE } from "./gtm-release";
+
 /**
  * Google Tag Manager for the MARKETING site only (#124). Mounted by the
  * (marketing) layout, so it never loads on the authenticated app — the
@@ -29,9 +32,21 @@ import {
  * never loads (and the banner never shows, because there is nothing to ask).
  *
  * next/script `afterInteractive` is the documented Next equivalent of GTM's
- * "as high in <head> as possible" vanilla snippet — the loader still runs
- * before user interaction, and the dataLayer is seeded synchronously first so
- * no early events are lost.
+ * "as high in <head> as possible" vanilla snippet. The script seeds the
+ * consent default and pushes the `gtm.js` event at once, so the dataLayer
+ * holds them, in that order, before anything else can push. Only the gtm.js
+ * DOWNLOAD waits for the page to settle (#640): <GtmBoot> releases it after
+ * the LCP paint, load and an idle moment, or the visitor's first input.
+ * Fetched at hydration, it could land before the LCP frame and join the LCP
+ * Lighthouse simulates. The script defines the download and the boot releases
+ * it, whichever runs first, so gtm.js can only ever load after the consent
+ * default. The download runs once per document: the marketing shell mounts
+ * again on every EN/FR switch and on a return from the app.
+ *
+ * A visitor can follow a link before gtm.js runs, and tags then read the new
+ * page's URL. The `gtm.js` event carries the URL and referrer the visitor
+ * landed with, as `landing_page_location` and `landing_page_referrer`, for a
+ * tag that needs the landing page or its click ids.
  */
 export function GoogleTagManager() {
   const id = publicEnv.NEXT_PUBLIC_GTM_ID;
@@ -44,16 +59,22 @@ export function GoogleTagManager() {
   const denied = JSON.stringify(consentSignals("denied"));
 
   return (
-    <Script id="gtm-loader" strategy="afterInteractive">
-      {`(function(w,d){w.dataLayer=w.dataLayer||[];function g(){w.dataLayer.push(arguments);}
+    <>
+      <Script id="gtm-loader" strategy="afterInteractive">
+        {`(function(w,d){w.dataLayer=w.dataLayer||[];function g(){w.dataLayer.push(arguments);}
 var granted=('; '+d.cookie).indexOf('; ${CONSENT_COOKIE}=granted')!==-1;
 g('consent','default',granted?${granted}:${denied});
 })(window,document);
 (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+new Date().getTime(),event:'gtm.js',landing_page_location:w.location.href,
+landing_page_referrer:d.referrer});var load=function(){if(w.${GTM_RELEASE}==='done')return;
+w.${GTM_RELEASE}='done';var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);};
+if(w.${GTM_RELEASE}==='go')load();else w.${GTM_RELEASE}=load;
 })(window,document,'script','dataLayer','${id}');`}
-    </Script>
+      </Script>
+      <GtmBoot />
+    </>
   );
 }

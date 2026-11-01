@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { publicEnv } from "@/env";
+import { clientEnv } from "@/public-env";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { unsubscribeCopy } from "@/i18n/marketing/unsubscribe";
 
@@ -24,7 +24,7 @@ export function UnsubscribeClient({
     void (async () => {
       try {
         const response = await fetch(
-          `${publicEnv.NEXT_PUBLIC_API_URL}/marketing/unsubscribe`,
+          `${clientEnv.NEXT_PUBLIC_API_URL}/marketing/unsubscribe`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

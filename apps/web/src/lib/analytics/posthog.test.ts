@@ -9,15 +9,21 @@ const PHONE = "+14165551234";
 
 // posthog-js is loaded via dynamic import inside initPostHog — mock it so the
 // tests can prove exactly when (and with what config) init/identify fire.
-const { initSpy, identifySpy } = vi.hoisted(() => ({
-  initSpy: vi.fn(),
-  identifySpy: vi.fn(),
-}));
-vi.mock("posthog-js", () => ({
-  default: { init: initSpy, identify: identifySpy },
-}));
+const { client, initSpy, identifySpy, captureSpy, registerSpy, settle } = vi.hoisted(() => {
+  const identifySpy = vi.fn();
+  const captureSpy = vi.fn();
+  const registerSpy = vi.fn();
+  const client = { identify: identifySpy, capture: captureSpy, register_for_session: registerSpy };
+  // Like the SDK, init calls `loaded` before it returns.
+  const initSpy = vi.fn();
+  initSpy.mockImplementation((_key, config) => config.loaded?.(client));
+  return { client, initSpy, identifySpy, captureSpy, registerSpy, settle: { gate: Promise.resolve() } };
+});
+// The page-settled gate: open unless a test holds it shut.
+vi.mock("@/lib/perf/after-lcp-and-load", () => ({ whenPageSettles: () => settle.gate }));
+vi.mock("posthog-js", () => ({ default: { ...client, init: initSpy } }));
 
-// posthog.ts imports @/env (validated at module load), so each test stubs the
+// posthog.ts reads the key at module load, so each test stubs the
 // required NEXT_PUBLIC_* set first and imports a fresh copy.
 async function importPostHog(key: string | undefined) {
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", VALID_URL);
@@ -31,6 +37,9 @@ beforeEach(() => {
   vi.resetModules();
   initSpy.mockClear();
   identifySpy.mockClear();
+  captureSpy.mockClear();
+  registerSpy.mockClear();
+  settle.gate = Promise.resolve();
 });
 
 afterEach(() => {
@@ -145,5 +154,74 @@ describe("initPostHog (NEXT_PUBLIC_POSTHOG_KEY optional — absent = off)", () =
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     await initPostHog();
     expect(identifySpy).toHaveBeenCalledExactlyOnceWith(COMPANY_ID);
+  });
+});
+
+describe("the SDK waits for the page to settle (#640)", () => {
+  /** A window whose URL the test can move, as a client navigation does. */
+  function stubLocation(href: string) {
+    const location = { href, pathname: new URL(href).pathname };
+    vi.stubGlobal("window", { location });
+    return (next: string) => {
+      location.href = next;
+      location.pathname = new URL(next).pathname;
+    };
+  }
+
+  it("downloads and starts only once the page has settled", async () => {
+    let open = () => {};
+    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    const { initPostHog } = await importPostHog(POSTHOG_KEY);
+    const ready = initPostHog();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(initSpy).not.toHaveBeenCalled();
+    open();
+    expect(await ready).not.toBeNull();
+    expect(initSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("records the landing page when the visitor moved on before the SDK started", async () => {
+    const navigate = stubLocation(
+      "https://loonext.com/?utm_source=google&utm_campaign=crew&gclid=TESTGCLID&q=1",
+    );
+    let open = () => {};
+    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    const { initPostHog } = await importPostHog(POSTHOG_KEY);
+    const ready = initPostHog();
+    navigate("https://loonext.com/pricing");
+    open();
+    await ready;
+
+    // The campaign and click id stay on every event of the session, and the
+    // landing pageview goes out ahead of the SDK's own one for /pricing.
+    expect(registerSpy).toHaveBeenCalledExactlyOnceWith({
+      utm_source: "google",
+      utm_campaign: "crew",
+      gclid: "TESTGCLID",
+    });
+    expect(captureSpy).toHaveBeenCalledExactlyOnceWith("$pageview", {
+      $current_url: "https://loonext.com/?utm_source=google&utm_campaign=crew&gclid=TESTGCLID&q=1",
+      $host: "loonext.com",
+      $pathname: "/",
+    });
+    expect(registerSpy.mock.invocationCallOrder[0]).toBeLessThan(
+      captureSpy.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("leaves the first pageview to the SDK when the visitor is still on the landing page", async () => {
+    stubLocation("https://loonext.com/?utm_source=google");
+    const { initPostHog } = await importPostHog(POSTHOG_KEY);
+    await initPostHog();
+    expect(captureSpy).not.toHaveBeenCalled();
+    expect(registerSpy).not.toHaveBeenCalled();
+  });
+
+  it("starts at once on the app, where no page is scored", async () => {
+    stubLocation("https://app.loonext.com/inbox");
+    settle.gate = new Promise<void>(() => {});
+    const { initPostHog } = await importPostHog(POSTHOG_KEY);
+    expect(await initPostHog()).not.toBeNull();
+    expect(initSpy).toHaveBeenCalledTimes(1);
   });
 });

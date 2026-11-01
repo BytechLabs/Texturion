@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { contactCopy } from "@/i18n/marketing/contact";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import { publicEnv } from "@/env";
+import { clientEnv } from "@/public-env";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { trackContactSubmitted } from "@/lib/analytics/events";
 
@@ -84,7 +84,7 @@ export function ContactForm({ locale = "en" }: { locale?: MarketingLocale } = {}
 
     setStatus("submitting");
     const result = await submitContact(values, {
-      apiBaseUrl: publicEnv.NEXT_PUBLIC_API_URL,
+      apiBaseUrl: clientEnv.NEXT_PUBLIC_API_URL,
       copy,
     });
     if (result.ok) {

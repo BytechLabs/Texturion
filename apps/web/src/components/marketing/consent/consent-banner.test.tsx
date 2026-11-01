@@ -1,10 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// Both consent surfaces read publicEnv.NEXT_PUBLIC_GTM_ID — mock the env
+// Both consent surfaces read clientEnv.NEXT_PUBLIC_GTM_ID — mock the env
 // module so each test controls whether GTM (and therefore consent UI) exists.
 const env = { NEXT_PUBLIC_GTM_ID: undefined as string | undefined };
-vi.mock("@/env", () => ({ publicEnv: env }));
+vi.mock("@/public-env", () => ({ clientEnv: env }));
 
 async function renderBanner(
   initialOpen?: boolean,

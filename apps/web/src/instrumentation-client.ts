@@ -10,8 +10,10 @@
  * Both load their SDK via dynamic `import()` inside their init, so this
  * entry adds no meaningful weight to the main bundle and an unconfigured
  * environment (local dev, CI, previews) ships zero telemetry code paths.
- * Both inits are best-effort and never reject — page boot cannot fail on
- * telemetry.
+ * On a marketing page both wait for the page to settle (LCP painted, load
+ * fired, one idle moment, or the first input) before that import starts
+ * (#640); the app starts them at once. Both inits are best-effort and never
+ * reject — page boot cannot fail on telemetry.
  */
 import { initPostHog } from "@/lib/analytics/posthog";
 import { initSentryClient } from "@/lib/observability/sentry";

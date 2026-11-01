@@ -80,5 +80,11 @@ if (!parsed.success) {
   );
 }
 
-/** The only environment values the browser bundle receives (SPEC §10). */
+export type PublicEnv = z.infer<typeof publicEnvSchema>;
+
+/**
+ * The only environment values the browser bundle receives (SPEC §10).
+ * Marketing client code reads them through `public-env.ts` instead, so the
+ * schema stays off the marketing first load.
+ */
 export const publicEnv = parsed.data;
