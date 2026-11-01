@@ -1,5 +1,5 @@
 import { S22, S27, S28, S29, S31, S32, S33, S34, S35 } from "./account.ts";
-import { D01, D07, D08, D09, D13, R00 } from "./android-calls.ts";
+import { D01, D07, D08, D09, D13, D14, R00 } from "./android-calls.ts";
 import { D02, D02p, D03, D04, D10, D11, D12, E01 } from "./android-wake.ts";
 import { S03, S05, S06, S07, S09, S10, S11 } from "./browser-calls.ts";
 import { S01, S02, S04 } from "./calls.ts";
@@ -14,7 +14,7 @@ export { S03, S05, S06, S07, S08, S09, S10, S11 } from "./browser-calls.ts";
 export { G01, S12, S13, S14, S15, S16, S17, S26 } from "./gates.ts";
 export { S22, S27, S28, S29, S31, S32, S33, S34, S35 } from "./account.ts";
 export { D02, D02p, D03, D04, D10, D11, D12, E01 } from "./android-wake.ts";
-export { D01, D07, D08, D09, D13, R00 } from "./android-calls.ts";
+export { D01, D07, D08, D09, D13, D14, R00 } from "./android-calls.ts";
 
 /** Every scenario rigd can run; the scheduler times only these. */
 export const RUNNERS: Readonly<Record<string, ScenarioRunner>> = Object.fromEntries(
@@ -62,6 +62,7 @@ export const RUNNERS: Readonly<Record<string, ScenarioRunner>> = Object.fromEntr
     D11,
     D12,
     D13,
+    D14,
     E01,
   ].map((runner) => [runner.id, runner]),
 );
@@ -76,5 +77,4 @@ export const NOT_RUNNABLE_YET: Readonly<Record<string, string>> = {
   S08: "the web call bar has no consult transfer control, so every run would report the browser lane",
   S17: "the daemon does not hand the armed fault to the webhook forwarder yet, so no call event would answer 503",
   S26: "the API raises the carrier-ceiling warning by email only, never as a Sentry event, so every run would fail carrier_alert_missing",
-  D14: "it needs a QA-A voicemail of S04's phrase, which a free run cannot create",
 };

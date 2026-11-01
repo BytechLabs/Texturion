@@ -344,6 +344,10 @@ export function undoHandlers(parts: UndoParts): UndoHandlers {
       if (typeof params.marker !== "string") throw new Error("app.clear-seeded-usage undo needs marker");
       await parts.app().clearSeededUsage(params.marker);
     },
+    "app.clear-seeded-voicemail": async (params) => {
+      if (typeof params.tenant !== "string" || typeof params.sessionId !== "string") throw new Error("app.clear-seeded-voicemail undo needs tenant and sessionId");
+      await parts.app().clearSeededVoicemail({ tenant: params.tenant, sessionId: params.sessionId });
+    },
     "app.ai-usage": async (params) => {
       const count = params.requestCount;
       if (typeof params.tenant !== "string" || typeof params.feature !== "string" || !(typeof count === "number" || count === null)) {

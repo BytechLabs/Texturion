@@ -670,6 +670,59 @@ export class AppProbe implements AppApi {
     return { marker };
   }
 
+  async copyVoicemail(args: { from: string; tenant: string; role: string; callerRole: string; sessionId: string }): Promise<boolean> {
+    if (!SEEDED_VOICEMAIL.test(args.sessionId)) throw new Error("app probe: a copied voicemail's session id is rig-d14-<nonce>");
+    const [source] = await this.#rest<{ voicemail_path: string; voicemail_seconds: number | null; voicemail_transcript: string | null }[]>("calls", {
+      company_id: `eq.${this.#tenant(args.from).company_id}`,
+      caller_e164: `eq.${this.#number(args.callerRole)}`,
+      voicemail_path: "not.is.null",
+      select: "voicemail_path,voicemail_seconds,voicemail_transcript",
+      order: "started_at.desc",
+      limit: "1",
+    });
+    if (!source) return false;
+    const audio = await this.storedObject({ bucket: VOICEMAILS_BUCKET, path: source.voicemail_path });
+    const companyId = this.#tenant(args.tenant).company_id;
+    const path = seededVoicemailPath(companyId, args.sessionId);
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/${VOICEMAILS_BUCKET}/${path}`, {
+      method: "POST",
+      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}`, "content-type": "audio/mpeg", "x-upsert": "true" },
+      body: new Uint8Array(audio),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!response.ok) throw new Error(`app probe: storing the voicemail's copy returned ${response.status}`);
+    const at = iso(this.#now());
+    await this.#write("POST", "calls", {}, {
+      company_id: companyId,
+      phone_number_id: stableUuid(companyId, args.role),
+      call_session_id: args.sessionId,
+      caller_e164: this.#number(args.callerRole),
+      direction: "inbound",
+      outcome: "voicemail",
+      forward_seconds: 0,
+      started_at: at,
+      ended_at: at,
+      voicemail_path: path,
+      voicemail_seconds: source.voicemail_seconds,
+      voicemail_transcript: source.voicemail_transcript,
+      // Marked attempted, so opening a copy with no transcript buys no transcription.
+      voicemail_transcript_attempted_at: at,
+    }, "return=minimal");
+    return true;
+  }
+
+  /** Undo for copyVoicemail: the call row, then its audio. */
+  async clearSeededVoicemail(args: { tenant: string; sessionId: string }): Promise<void> {
+    if (!SEEDED_VOICEMAIL.test(args.sessionId)) throw new Error("app probe: only a copied voicemail's session id clears one");
+    const companyId = this.#tenant(args.tenant).company_id;
+    await this.#write("DELETE", "calls", { company_id: `eq.${companyId}`, call_session_id: `eq.${args.sessionId}` }, undefined, "return=minimal");
+    const response = await this.#fetch(
+      `${this.#o.supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/${VOICEMAILS_BUCKET}/${seededVoicemailPath(companyId, args.sessionId)}`,
+      { method: "DELETE", headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` }, signal: AbortSignal.timeout(10_000) },
+    );
+    if (!response.ok && response.status !== 404) throw new Error(`app probe: deleting the voicemail's copy returned ${response.status}`);
+  }
+
   /** Removes whatever seedUsage, seedCallRecords or seedOutboundSegments wrote under the marker. */
   async clearSeededUsage(marker: string): Promise<void> {
     if (!marker.startsWith("rig-seed-")) throw new Error("app probe: only a seeded row's marker clears usage");
@@ -1147,6 +1200,14 @@ export class AppProbe implements AppApi {
 const SEED_CALL_RECORDS_MAX = 50_000;
 /** Rows per insert, so a large seed stays inside one request's limits. */
 const SEED_BATCH = 1_000;
+/** VOICEMAILS_BUCKET in apps/api/src/messaging/inbound-ring.ts. */
+export const VOICEMAILS_BUCKET = "voicemails";
+const SEEDED_VOICEMAIL = /^rig-d14-[A-Za-z0-9_-]{1,40}$/;
+
+/** Where the app stores a session's voicemail (inbound-ring.ts). */
+function seededVoicemailPath(companyId: string, sessionId: string): string {
+  return `${companyId}/${sessionId}.mp3`;
+}
 
 function iso(ms: number): string {
   return new Date(ms).toISOString();

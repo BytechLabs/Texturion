@@ -3,10 +3,11 @@
  * PostgREST: what each request names, and what each answer comes back as.
  * The answers are the shapes apps/api and Supabase send.
  */
+import { readFileSync } from "node:fs";
 import { numberBook } from "@loonext/rig-robot";
 import { describe, expect, it } from "vitest";
 import { totpCode } from "../../../../scripts/rig/seed.mjs";
-import { AppProbe, SIGN_UP_ADDRESS, stableUuid } from "./app-probe.ts";
+import { AppProbe, SIGN_UP_ADDRESS, stableUuid, VOICEMAILS_BUCKET } from "./app-probe.ts";
 import { fakeFetch, json, type Recorded, type Route } from "./test-support.ts";
 
 const SUPABASE = "http://127.0.0.1:54321";
@@ -193,6 +194,72 @@ describe("the app probe's calls", () => {
     expect(JSON.parse(requests.find((r) => r.url.endsWith("/capture-call"))!.body!)).toEqual({ name: "Rig S15 n0nce", to: "+14165550102" });
     expect(await probe.greetings({ tenant: "QA-W", since: NOW })).toEqual([{ id: "g-1" }]);
     expect(query(requests.at(-1)!)).toMatchObject({ company_id: `eq.${COMPANY}`, created_at: `gte.${new Date(NOW).toISOString()}`, order: "created_at.asc" });
+  });
+});
+
+describe("the app probe's copied voicemail", () => {
+  it("stores the bucket and path apps/api stores a voicemail at", () => {
+    const ring = readFileSync(new URL("../../../../apps/api/src/messaging/inbound-ring.ts", import.meta.url), "utf8");
+    expect(ring).toContain(`export const VOICEMAILS_BUCKET = "${VOICEMAILS_BUCKET}";`);
+    expect(ring).toContain("const path = `${resolved.companyId}/${sessionId}.mp3`;");
+  });
+
+  it("copies the caller's newest voicemail, audio and transcript, into a call row on the tenant's number", async () => {
+    const { probe, requests } = probeWith({
+      [`GET ${rest("calls")}`]: () => json([{ voicemail_path: "company-w/s04-session.mp3", voicemail_seconds: 6, voicemail_transcript: "hello this is the rig robot" }]),
+      [`GET ${SUPABASE}/storage/v1/object/authenticated/voicemails/company-w/s04-session.mp3`]: () => new Response(new Uint8Array([1, 2, 3])),
+      [`POST ${SUPABASE}/storage/v1/object/voicemails/`]: () => json({ Key: "x" }),
+      [`POST ${rest("calls")}`]: noContent,
+    });
+    expect(await probe.copyVoicemail({ from: "QA-W", tenant: "QA-W", role: "DEV-W1", callerRole: "ROBOT-1", sessionId: "rig-d14-n0nce" })).toBe(true);
+    expect(query(requests.find((r) => r.method === "GET" && r.url.startsWith(rest("calls")))!)).toMatchObject({
+      company_id: `eq.${COMPANY}`,
+      caller_e164: "eq.+14165550101",
+      voicemail_path: "not.is.null",
+      order: "started_at.desc",
+      limit: "1",
+    });
+    const upload = requests.find((r) => r.url.startsWith(`${SUPABASE}/storage/v1/object/voicemails/`))!;
+    expect(upload.url).toBe(`${SUPABASE}/storage/v1/object/voicemails/${COMPANY}/rig-d14-n0nce.mp3`);
+    expect([upload.headers["content-type"], upload.headers.authorization, upload.body]).toEqual(["audio/mpeg", "Bearer service", "\u0001\u0002\u0003"]);
+    expect(JSON.parse(requests.find((r) => r.method === "POST" && r.url.startsWith(rest("calls")))!.body!)).toEqual({
+      company_id: COMPANY,
+      phone_number_id: stableUuid(COMPANY, "DEV-W1"),
+      call_session_id: "rig-d14-n0nce",
+      caller_e164: "+14165550101",
+      direction: "inbound",
+      outcome: "voicemail",
+      forward_seconds: 0,
+      started_at: new Date(NOW).toISOString(),
+      ended_at: new Date(NOW).toISOString(),
+      voicemail_path: `${COMPANY}/rig-d14-n0nce.mp3`,
+      voicemail_seconds: 6,
+      voicemail_transcript: "hello this is the rig robot",
+      voicemail_transcript_attempted_at: new Date(NOW).toISOString(),
+    });
+  });
+
+  it("copies nothing when there is no voicemail, and clears only a copy, row then audio", async () => {
+    const none = probeWith({ [`GET ${rest("calls")}`]: () => json([]) });
+    expect(await none.probe.copyVoicemail({ from: "QA-W", tenant: "QA-W", role: "DEV-W1", callerRole: "ROBOT-1", sessionId: "rig-d14-n0nce" })).toBe(false);
+    expect(none.requests.map((r) => r.method)).toEqual(["GET"]);
+
+    const { probe, requests } = probeWith({
+      [`DELETE ${rest("calls")}`]: noContent,
+      [`DELETE ${SUPABASE}/storage/v1/object/voicemails/`]: () => json({ error: "not_found" }, 404),
+    });
+    await probe.clearSeededVoicemail({ tenant: "QA-W", sessionId: "rig-d14-n0nce" });
+    expect(requests.map((r) => [r.method, r.url.split("?")[0]])).toEqual([
+      ["DELETE", rest("calls")],
+      ["DELETE", `${SUPABASE}/storage/v1/object/voicemails/${COMPANY}/rig-d14-n0nce.mp3`],
+    ]);
+    expect(query(requests[0]!)).toEqual({ company_id: `eq.${COMPANY}`, call_session_id: "eq.rig-d14-n0nce" });
+    // A real call's session, or a path, is never a copy.
+    for (const sessionId of ["v3:abc-real-session", "rig-d14-x/../../other"]) {
+      await expect(probe.clearSeededVoicemail({ tenant: "QA-W", sessionId })).rejects.toThrow(/copied voicemail/);
+      await expect(probe.copyVoicemail({ from: "QA-W", tenant: "QA-W", role: "DEV-W1", callerRole: "ROBOT-1", sessionId })).rejects.toThrow(/copied voicemail/);
+    }
+    expect(requests).toHaveLength(2);
   });
 });
 

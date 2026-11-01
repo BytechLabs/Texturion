@@ -427,6 +427,15 @@ export class FakeApp implements AppApi {
     this.seededSegments.push({ marker, ...args });
     return { marker };
   }
+  /** Voicemails copied, by session id; set `voicemailToCopy` false for a tenant S04 has left none in. */
+  readonly copiedVoicemails = new Map<string, { from: string; tenant: string; role: string; callerRole: string }>();
+  voicemailToCopy = true;
+  async copyVoicemail(args: { from: string; tenant: string; role: string; callerRole: string; sessionId: string }) {
+    if (!this.voicemailToCopy) return false;
+    const { sessionId, ...copy } = args;
+    this.copiedVoicemails.set(sessionId, copy);
+    return true;
+  }
   async userIdOf(member: string) {
     return `user-${member}`;
   }

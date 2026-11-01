@@ -1,6 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { RecordingJudgement, Surface } from "@loonext/rig-robot";
-import { D01, D07, D08, D09, D13, d01Answerer, lossOutsideOutage, MAX_LOSS, R00 } from "./android-calls.ts";
+import { D01, D07, D08, D09, D13, D14, d01Answerer, lossOutsideOutage, MAX_LOSS, PLAY_VOICEMAIL, R00 } from "./android-calls.ts";
 import type { MemberPageApi } from "./context.ts";
 import { fakeContext, FakeDevice } from "./fakes.ts";
 
@@ -796,5 +797,84 @@ describe("lossOutsideOutage", () => {
     expect(atLimit.ratio).toBe(MAX_LOSS);
     expect(lossOutsideOutage({ inbound: { packet_count: "591" } }, 3_000)).toBeUndefined();
     expect(lossOutsideOutage(null, 3_000)).toBeUndefined();
+  });
+});
+
+function d14World() {
+  const world = fakeContext("D14");
+  const { devices } = world;
+  devices.pixelDevice.onScreen.add(PLAY_VOICEMAIL);
+  devices.audio.transcript = "hello this is the rig robot please call me back about the water heater on tuesday";
+  return { ...world, pixel: devices.pixelDevice, audio: devices.audio };
+}
+
+describe("D14, in-app voicemail playback", () => {
+  it("finds the player by the label the Android app gives it", () => {
+    const strings = readFileSync(new URL("../../../../../apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/ContactsTasksStrings.kt", import.meta.url), "utf8");
+    expect(strings).toContain(`"contactsTasks.playVoicemail" to "${PLAY_VOICEMAIL}",`);
+    const screen = readFileSync(new URL("../../../../../apps/android/app/src/main/kotlin/com/loonext/android/features/calls/CallsScreen.kt", import.meta.url), "utf8");
+    expect(screen).toContain('t("contactsTasks.playVoicemail")');
+  });
+
+  it("copies S04's voicemail into DEV-A1 under an undo registered first, plays it on the Pixel and hears S04's phrase", async () => {
+    const { ctx, app, pixel, undo, robot } = d14World();
+    const copies: number[] = [];
+    const copy = app.copyVoicemail.bind(app);
+    app.copyVoicemail = async (args) => (copies.push(undo.length), copy(args));
+    expect(await D14.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
+    const sessionId = `rig-d14-${ctx.nonce}`;
+    expect([...app.copiedVoicemails]).toEqual([[sessionId, { from: "QA-W", tenant: "QA-A", role: "DEV-A1", callerRole: "ROBOT-1" }]]);
+    expect(undo).toEqual([
+      { kind: "device.reset", params: { device: "pixel" } },
+      { kind: "app.clear-seeded-voicemail", params: { tenant: "QA-A", sessionId } },
+    ]);
+    expect(copies).toEqual([2]);
+    expect(pixel.actions).toEqual(["launch /calls", `tap "${PLAY_VOICEMAIL}"`]);
+    expect(ctx.evidence.word_error_rate).toBe(0);
+    expect(robot.plans).toEqual([]);
+  });
+
+  it("blames the rig when S04 has left no voicemail to copy, or the Pixel or its audio cannot be had", async () => {
+    const empty = d14World();
+    empty.app.voicemailToCopy = false;
+    expect(await D14.run(empty.ctx)).toMatchObject({ outcome: "infra", component: "s04-voicemail" });
+    expect(empty.pixel.actions).toEqual([]);
+
+    const away = d14World();
+    away.pixel.reachableNow = false;
+    expect(await D14.run(away.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    expect(away.app.copiedVoicemails.size).toBe(0);
+
+    const deaf = d14World();
+    deaf.audio.transcribe = async () => {
+      throw new Error("whisper.cpp is not installed");
+    };
+    expect(await D14.run(deaf.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+  });
+
+  it("fails a voicemail the app does not list, playback the rig cannot hear, and words that are not S04's", async () => {
+    const unlisted = d14World();
+    unlisted.pixel.onScreen.delete(PLAY_VOICEMAIL);
+    expect(await D14.run(unlisted.ctx)).toMatchObject({ failure_class: "voicemail_not_listed", detail: expect.stringContaining("within 15 s") });
+    expect(unlisted.pixel.actions).toEqual(["launch /calls"]);
+
+    // The calls list loads after the app opens; the player is waited for, not tapped at once.
+    const slow = d14World();
+    slow.pixel.onScreen.delete(PLAY_VOICEMAIL);
+    const started = slow.time.now;
+    const showing = slow.pixel.showing.bind(slow.pixel);
+    slow.pixel.showing = async (target) => {
+      if (slow.time.now - started >= 5_000) slow.pixel.onScreen.add(PLAY_VOICEMAIL);
+      return showing(target);
+    };
+    expect(await D14.run(slow.ctx)).toEqual({ outcome: "pass", detail: undefined });
+
+    const silent = d14World();
+    silent.audio.transcript = " ";
+    expect(await D14.run(silent.ctx)).toMatchObject({ failure_class: "playback_silent" });
+
+    const garbled = d14World();
+    garbled.audio.transcript = "you have reached the rig crew leave a message";
+    expect(await D14.run(garbled.ctx)).toMatchObject({ failure_class: "playback_wer" });
   });
 });

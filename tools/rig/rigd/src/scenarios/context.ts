@@ -336,6 +336,15 @@ export interface AppApi {
    * undo is `app.clear-seeded-usage` with the marker.
    */
   seedOutboundSegments(args: { tenant: string; role: StandingRole; segments: number; body: string }): Promise<{ marker: string }>;
+  /**
+   * Copies the newest voicemail a role left in `from` into `tenant` as a
+   * voicemail on its `role` number, under the session id given: the audio
+   * into the voicemail bucket and a call row naming it, with the source's
+   * transcript, so opening it buys none. False when `from` holds no voicemail
+   * from that caller. The undo is `app.clear-seeded-voicemail`, registered
+   * first with the same session id.
+   */
+  copyVoicemail(args: { from: string; tenant: string; role: StandingRole; callerRole: StandingRole; sessionId: string }): Promise<boolean>;
   /** A member's auth user id, which push attempts and call legs name them by. */
   userIdOf(member: string): Promise<string>;
   /** The AI usage rows of a tenant this period, and a seed of one to a count; the undo is `app.ai-usage`. */

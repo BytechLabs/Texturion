@@ -1,19 +1,22 @@
 /**
- * The rig's health and the Android call scenarios: R00, D01, D07, D08, D09
- * and D13. The calls ring or start on QA-A's DEV-A1, whose surfaces are the
- * dispatcher's page and the Pixel, signed in as QA-A's technician.
+ * The rig's health and the Android call scenarios: R00, D01, D07, D08, D09,
+ * D13 and D14. The calls ring or start on QA-A's DEV-A1, whose surfaces are
+ * the dispatcher's page and the Pixel, signed in as QA-A's technician.
  *
  * None of these sends a text, so no body carries the nonce; what each run
- * changes (ring audience, the Pixel, the access point) is undone by the lease.
+ * changes (ring audience, the Pixel, the access point, D14's voicemail) is
+ * undone by the lease.
  */
 import type { GuardHealth } from "@loonext/rig-protocol";
 import type { NetworkImpairment } from "@loonext/rig-lanes";
 import type { CallRecord, Detection, Surface } from "@loonext/rig-robot";
+import { MAX_WORD_ERROR, VOICEMAIL_PHRASE } from "./calls.ts";
 import {
   fail,
   infra,
   pass,
   poll,
+  wordErrorRate,
   type AudioLinkApi,
   type DeviceApi,
   type RigHealthReport,
@@ -715,5 +718,53 @@ export const D13: ScenarioRunner = {
       await pixel.audio.stop();
       await endPixelCall(pixel.device);
     }
+  },
+};
+
+/** The voicemail player's control, by the content description the Android app gives it (contactsTasks.playVoicemail). */
+export const PLAY_VOICEMAIL = "Play voicemail";
+const LISTED_WITHIN_MS = 15_000;
+/** S04's phrase is about 6 s; the rest is the app fetching the audio. */
+const PLAYBACK_MS = 20_000;
+
+/**
+ * D14: S04's voicemail, copied into QA-A's DEV-A1, played in the Pixel's app;
+ * the rig hears its media audio over Bluetooth and the words are S04's
+ * phrase. The copy is a database and storage write, so the run dials nobody.
+ */
+export const D14: ScenarioRunner = {
+  id: "D14",
+  async run(ctx) {
+    const pixel = await pixelWithAudio(ctx);
+    if (isResult(pixel)) return pixel;
+    await readyToDial(ctx, pixel.device);
+    const sessionId = `rig-d14-${ctx.nonce}`;
+    ctx.lease.registerUndo({ kind: "app.clear-seeded-voicemail", params: { tenant: TENANT, sessionId } });
+    if (!(await ctx.app.copyVoicemail({ from: "QA-W", tenant: TENANT, role: NUMBER, callerRole: "ROBOT-1", sessionId }))) {
+      return infra("s04-voicemail", "QA-W holds no voicemail from ROBOT-1 to copy, so S04 has not left one yet");
+    }
+    try {
+      await pixel.device.launch("/calls");
+    } catch (error) {
+      return infra("pixel", `opening the app's calls failed: ${(error as Error).message}`);
+    }
+    // The newest call is listed first, and the copy is the newest.
+    const listed = await poll(ctx, () => pixel.device.showing({ text: PLAY_VOICEMAIL }), LISTED_WITHIN_MS, 1_000);
+    if (!listed) return fail("voicemail_not_listed", `the app's calls showed no "${PLAY_VOICEMAIL}" control within ${LISTED_WITHIN_MS / 1000} s`);
+    // Recording from before the tap, so the phrase's first word is not lost.
+    const recording = pixel.audio.transcribe({ stream: "media", ms: PLAYBACK_MS }).then(
+      (text) => ({ text }),
+      (error: Error) => ({ error }),
+    );
+    const tapped = await pixel.device.tapText(PLAY_VOICEMAIL);
+    const heard = await recording;
+    if ("error" in heard) return infra("pixel-audio", `recording the Pixel's media audio failed: ${heard.error.message}`);
+    const transcript = heard.text;
+    if (!tapped) return fail("voicemail_not_listed", `the "${PLAY_VOICEMAIL}" control was gone when it was tapped`);
+    const wer = wordErrorRate(VOICEMAIL_PHRASE, transcript);
+    ctx.evidence.word_error_rate = Math.round(wer * 1000) / 1000;
+    if (!transcript.trim()) return fail("playback_silent", "the rig heard nothing from the Pixel's media audio while the voicemail played");
+    if (wer > MAX_WORD_ERROR) return fail("playback_wer", `the played voicemail's word error is ${wer.toFixed(2)}, over ${MAX_WORD_ERROR}`);
+    return pass();
   },
 };
