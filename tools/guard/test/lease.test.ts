@@ -235,6 +235,21 @@ describe("the lease's activity record", () => {
     });
   });
 
+  it("answers a dial or a refusal as it was when the count cannot be written", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    const put = h.store.put.bind(h.store);
+    h.store.put = async (key, value) => {
+      if (key === "lease") throw new Error("storage unavailable");
+      return put(key, value);
+    };
+    const placed = await h.call("/telnyx/v2/calls", { caller: "robot", body: DIAL, headers: { [HEADER.lease]: id } });
+    expect(placed.status).toBe(200);
+    expect(h.telnyx.requests("POST", "/v2/calls")).toHaveLength(1);
+    const refused = await h.call("/telnyx/v2/calls", { caller: "robot", body: { ...DIAL, to: N.notOwned }, headers: { [HEADER.lease]: id } });
+    expect(await ruleOf(refused)).toBe("dial.to_not_owned");
+  });
+
   it("is kept after release, counts nothing while no lease is live, and names only the last lease", async () => {
     const h = await ready();
     const id = await lease(h);

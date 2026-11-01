@@ -149,20 +149,27 @@ export class Guard {
 
   /**
    * Every Telnyx request, refused or forwarded, is counted against the live
-   * lease, so a scenario can prove what its run did and did not ask for.
+   * lease, so a scenario can prove what its run did and did not ask for. The
+   * count is bookkeeping: failing to write it never changes the answer to a
+   * dial or an order Telnyx already took.
    */
   private async telnyx(request: Request, caller: GuardCaller, url: URL): Promise<Response> {
     const { ctx } = this;
     const method = request.method.toUpperCase();
     const path = url.pathname.slice(GUARD_ROUTES.telnyx.length);
     const endpoint = matchEndpoint(method, path)?.entry.key ?? `${method} unregistered`;
+    let outcome: string | number = "error";
     try {
       const response = await handleTelnyx(ctx, request, caller, url);
-      await noteActivity(ctx, activityKey(caller, endpoint, response.status));
+      outcome = response.status;
       return response;
     } catch (cause) {
-      await noteActivity(ctx, activityKey(caller, endpoint, cause instanceof Refusal ? cause.rule : "error"));
+      if (cause instanceof Refusal) outcome = cause.rule;
       throw cause;
+    } finally {
+      await noteActivity(ctx, activityKey(caller, endpoint, outcome)).catch((error: unknown) =>
+        console.error("guard: lease activity not recorded:", error instanceof Error ? error.message : String(error)),
+      );
     }
   }
 
