@@ -1,12 +1,24 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { deflateRawSync } from "node:zlib";
 
-import { NONPROD_PACKAGE, apkPackage, apkRefusal, manifestPackage, nonprodGradleEnv } from "../src/apk.mjs";
+import {
+  KEY_ALIAS,
+  KEYSTORE_FILE,
+  KEYSTORE_SECRETS,
+  NONPROD_PACKAGE,
+  apkPackage,
+  apkRefusal,
+  ensureNonprodKeystore,
+  manifestPackage,
+  nonprodGradleEnv,
+} from "../src/apk.mjs";
+import { run } from "../src/exec.mjs";
 import { DEFAULT_SETTINGS, TOOLING_ROOT } from "../src/layout.mjs";
+import { secretStore } from "../src/secrets.mjs";
 
 /** The smallest compiled manifest aapt2 could emit: a string pool and <manifest package=…>. */
 function compiledManifest(packageName, { utf8 = false } = {}) {
@@ -132,6 +144,86 @@ const NO_APK = "no Gradle-built APK here; RIG_TEST_APK names one";
 test("a real debug APK reads as the production package and is refused", { skip: existsSync(DEBUG_APK) ? false : NO_APK }, () => {
   assert.equal(apkPackage(DEBUG_APK), "com.loonext.android");
   assert.notEqual(apkRefusal(DEBUG_APK), null);
+});
+
+const STUB_KEYTOOL = join(TOOLING_ROOT, "tools", "rig", "test", "support", "stub-keytool.mjs");
+
+/** A store, and the stub keytool run as its own process the way `run` starts the real one. */
+function withKeytool(body, stubEnv = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "rig-keystore-"));
+  try {
+    const store = secretStore(join(dir, "secrets"));
+    const argvLog = join(dir, "keytool-argv.jsonl");
+    let calls = 0;
+    const runner = (command, args, options) => {
+      calls += 1;
+      return run(process.execPath, [command, ...args], { ...options, env: { ...options.env, ...stubEnv, STUB_KEYTOOL_LOG: argvLog } });
+    };
+    const lines = [];
+    const ensure = () => ensureNonprodKeystore({ store, keytool: STUB_KEYTOOL, runner, log: (line) => lines.push(line) });
+    return body({ store, ensure, lines, calls: () => calls, argv: () => readFileSync(argvLog, "utf8") });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("the first rig apk makes the signing pair, its password never on a command line", () => {
+  withKeytool(({ store, ensure, lines, argv }) => {
+    const made = ensure();
+    assert.equal(made.created, true);
+    assert.equal(made.keystorePath, join(store.dir, KEYSTORE_FILE));
+    assert.ok(existsSync(made.keystorePath));
+    const secrets = store.readJson(KEYSTORE_SECRETS);
+    assert.deepEqual(made.keystore, secrets);
+    assert.equal(secrets.keyAlias, KEY_ALIAS);
+    assert.match(secrets.storePassword, /^[A-Za-z0-9_-]{43}$/);
+    assert.equal(secrets.keyPassword, secrets.storePassword);
+    assert.ok(!argv().includes(secrets.storePassword));
+    assert.match(lines.join("\n"), /certificate SHA-256 ([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+    assert.deepEqual(readdirSync(store.dir).sort(), [KEYSTORE_SECRETS, KEYSTORE_FILE].sort());
+  });
+});
+
+test("an existing pair is used as it is and never made again", () => {
+  withKeytool(({ store, ensure, calls }) => {
+    const first = ensure();
+    const bytes = readFileSync(first.keystorePath);
+    const before = calls();
+    const again = ensure();
+    assert.equal(again.created, false);
+    assert.deepEqual(again.keystore, first.keystore);
+    assert.equal(calls(), before, "keytool was not run again");
+    assert.deepEqual(readFileSync(again.keystorePath), bytes);
+    assert.deepEqual(store.readJson(KEYSTORE_SECRETS), first.keystore);
+  });
+});
+
+test("half a pair is refused, naming the missing half, and nothing is made over it", () => {
+  withKeytool(({ store, ensure, calls }) => {
+    const { keystorePath } = ensure();
+    const bytes = readFileSync(keystorePath);
+    rmSync(join(store.dir, KEYSTORE_SECRETS));
+    const before = calls();
+    assert.throws(ensure, /holds android-nonprod\.keystore but not android-nonprod-keystore\.json/);
+    assert.equal(calls(), before);
+    assert.deepEqual(readFileSync(keystorePath), bytes);
+    assert.equal(store.has(KEYSTORE_SECRETS), false);
+
+    rmSync(keystorePath);
+    store.write(KEYSTORE_SECRETS, { storePassword: "p", keyAlias: KEY_ALIAS, keyPassword: "p" });
+    assert.throws(ensure, /holds android-nonprod-keystore\.json but not android-nonprod\.keystore/);
+    assert.equal(existsSync(keystorePath), false);
+  });
+});
+
+test("a keytool that fails leaves neither half behind", () => {
+  withKeytool(
+    ({ store, ensure }) => {
+      assert.throws(ensure, /exited with 1: keytool error: the stub was told to fail/);
+      assert.deepEqual(readdirSync(store.dir), []);
+    },
+    { STUB_KEYTOOL_FAIL: "1" },
+  );
 });
 
 test("the build's properties go through the environment and name rig hosts only", () => {

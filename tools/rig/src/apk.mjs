@@ -1,12 +1,26 @@
 /**
- * `rig apk --ref <ref>`: builds the Android `nonprod` variant and refuses any
- * APK whose package is not com.loonext.android.nonprod.
+ * `rig apk --ref <ref>`: builds the Android `nonprod` variant, signed with the
+ * rig's own key (made on the first run, kept for good), and refuses any APK
+ * whose package is not com.loonext.android.nonprod.
  *
  * The package is read from the APK itself, from the compiled manifest, with no
  * SDK tool in the way, and checked again against Gradle's own output
  * metadata. A refused APK is deleted, so nothing downstream can install it.
  */
-import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { inflateRawSync } from "node:zlib";
 
@@ -150,6 +164,92 @@ export function apkRefusal(path, metadataPath) {
   return null;
 }
 
+export const KEYSTORE_FILE = "android-nonprod.keystore";
+export const KEYSTORE_SECRETS = "android-nonprod-keystore.json";
+export const KEY_ALIAS = "loonext-rig-nonprod";
+/** keytool reads the password from here, so it is on no command line. */
+const PASSWORD_VARIABLE = "RIG_NONPROD_KEYSTORE_PASSWORD";
+
+/** The box's JDK, the one Gradle builds with: JAVA_HOME's, else whichever is on the PATH. */
+export function keytoolCommand(env = process.env) {
+  return env.JAVA_HOME ? join(env.JAVA_HOME, "bin", process.platform === "win32" ? "keytool.exe" : "keytool") : "keytool";
+}
+
+/**
+ * The nonprod APK's signing key and its passwords, made on the first
+ * `rig apk` with the JDK's keytool and never again. Each build installs over
+ * the last only while the signature stays the same (D10 and D12 upgrade over
+ * the previous build), so an existing pair is never replaced, and half a pair
+ * is refused rather than completed: a new key would sign every later build
+ * differently from the one on the phone.
+ *
+ * PKCS12 keeps one password for the store and the key, so both are the same
+ * 256 random bits. The certificate's SHA-256 is logged when the key is made,
+ * for registering the nonprod app with Firebase (FA6).
+ */
+export function ensureNonprodKeystore({ store, log, keytool = keytoolCommand(), runner = run }) {
+  const keystorePath = join(store.dir, KEYSTORE_FILE);
+  const haveKeystore = existsSync(keystorePath);
+  const haveSecrets = store.has(KEYSTORE_SECRETS);
+  if (haveKeystore && haveSecrets) return { keystorePath, keystore: store.readJson(KEYSTORE_SECRETS), created: false };
+  if (haveKeystore || haveSecrets) {
+    const [present, absent] = haveKeystore ? [KEYSTORE_FILE, KEYSTORE_SECRETS] : [KEYSTORE_SECRETS, KEYSTORE_FILE];
+    throw new Error(
+      `rig apk: the store holds ${present} but not ${absent}, so the nonprod signing key is half there. ` +
+        `Restore ${absent} from where it was kept. A new pair would sign builds the installed nonprod app refuses ` +
+        `to upgrade to, so the rig never makes one over half of the old; only if no build signed with it was ever ` +
+        `installed, remove ${present} from ${store.dir} and run rig apk again`,
+    );
+  }
+
+  const password = randomBytes(32).toString("base64url");
+  const env = { [PASSWORD_VARIABLE]: password };
+  const storePass = ["-storepass:env", PASSWORD_VARIABLE];
+  const temp = `${keystorePath}.${process.pid}.tmp`;
+  mkdirSync(store.dir, { recursive: true, mode: 0o700 });
+  rmSync(temp, { force: true });
+  try {
+    runner(
+      keytool,
+      [
+        "-genkeypair",
+        "-keystore",
+        temp,
+        "-storetype",
+        "PKCS12",
+        "-alias",
+        KEY_ALIAS,
+        "-keyalg",
+        "RSA",
+        "-keysize",
+        "3072",
+        "-validity",
+        // 25 years: the key must outlive the rig.
+        "9131",
+        "-dname",
+        "CN=Loonext rig nonprod, O=Loonext",
+        ...storePass,
+        "-keypass:env",
+        PASSWORD_VARIABLE,
+        "-noprompt",
+      ],
+      { env },
+    );
+    if (!existsSync(temp)) throw new Error(`rig apk: ${keytool} exited 0 but wrote no keystore`);
+    chmodSync(temp, 0o600);
+    const listed = runner(keytool, ["-list", "-v", "-keystore", temp, "-storetype", "PKCS12", "-alias", KEY_ALIAS, ...storePass], { env });
+    // The passwords go first: a keystore left without them could never be
+    // opened, while passwords left without a keystore have signed nothing.
+    store.write(KEYSTORE_SECRETS, { storePassword: password, keyAlias: KEY_ALIAS, keyPassword: password });
+    renameSync(temp, keystorePath);
+    const sha256 = /SHA-?256:\s*([0-9A-F]{2}(?::[0-9A-F]{2}){31})/i.exec(listed.stdout)?.[1];
+    log(`apk: made the nonprod signing key in the store; certificate SHA-256 ${sha256 ?? "(keytool did not print it)"}`);
+  } finally {
+    rmSync(temp, { force: true });
+  }
+  return { keystorePath, keystore: store.readJson(KEYSTORE_SECRETS), created: true };
+}
+
 /**
  * The Gradle properties the nonprod build type reads (apps/android/app/
  * build.gradle.kts), as ORG_GRADLE_PROJECT_ variables so no password is on a
@@ -184,8 +284,7 @@ export function buildNonprodApk({ root, settings, store, publishableKey, variant
     mkdirSync(join(android, "app", "src", "nonprodDebug"), { recursive: true });
     writeFileSync(join(android, "app", "src", "nonprodDebug", "google-services.json"), store.read("android-nonprod-google-services.json"));
   }
-  const keystorePath = join(store.dir, "android-nonprod.keystore");
-  if (!existsSync(keystorePath)) throw new Error("rig apk: android-nonprod.keystore is not in the store");
+  const { keystorePath, keystore } = ensureNonprodKeystore({ store, log });
 
   const task = variant === "nonprodDebug" ? "assembleNonprodDebug" : "assembleNonprod";
   const gradlew = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
@@ -193,7 +292,7 @@ export function buildNonprodApk({ root, settings, store, publishableKey, variant
   run(gradlew, [`:app:${task}`, "--no-daemon", "--console=plain"], {
     cwd: android,
     inherit: true,
-    env: nonprodGradleEnv({ settings, publishableKey, keystorePath, keystore: store.readJson("android-nonprod-keystore.json") }),
+    env: nonprodGradleEnv({ settings, publishableKey, keystorePath, keystore }),
   });
 
   const outputs = join(android, "app", "build", "outputs", "apk", variant);
