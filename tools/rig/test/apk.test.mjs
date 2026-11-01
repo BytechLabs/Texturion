@@ -396,3 +396,22 @@ test("rig apk --debuggable leaves the device lane's builds as they were", () => 
     assert.equal(existsSync(dir), false);
   });
 });
+
+test("rig apk --worktree leaves the device lane's builds as they were", () => {
+  withApkDir(({ dir, built }) => {
+    buildApk({ build: () => built("app-nonprod.apk", "worktree build"), worktree: true, dir, sha: SHA_A, log: () => {} });
+    assert.equal(existsSync(dir), false);
+  });
+});
+
+test("a record that cannot be read names no commit, and the build still lands", () => {
+  withApkDir(({ dir, built, read }) => {
+    placeApk({ apk: built("a.apk", "build A"), dir, sha: SHA_A, log: () => {} });
+    writeFileSync(join(dir, "current.json"), '{"sha":');
+    placeApk({ apk: built("b.apk", "build B"), dir, sha: SHA_B, log: () => {} });
+    assert.equal(read(PREVIOUS_APK), "build A");
+    assert.equal(read(CURRENT_APK), "build B");
+    assert.deepEqual(JSON.parse(read("current.json")), { sha: SHA_B });
+    assert.deepEqual(readdirSync(dir).sort(), ["current.apk", "current.json", "previous.apk"]);
+  });
+});

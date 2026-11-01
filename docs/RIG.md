@@ -595,7 +595,7 @@ The box's environment names:
 - `RIG_MAILPIT_URL`;
 - the PipeWire nodes `RIG_HFP_SOURCE`, `RIG_HFP_SINK` and `RIG_A2DP_SOURCE`.
 
-`uhubctl` and `tc` run through `sudo -n`, so the box's sudoers entry allows exactly those two. The emulators are the AVDs `rig-api34`, `rig-api35` and `rig-api36` on console ports 5554, 5556 and 5558. The lane installs `$RIG_HOME/work/apk/current.apk` and `previous.apk`, which `rig apk` places there.
+`uhubctl` and `tc` run through `sudo -n`, so the box's sudoers entry allows exactly those two. The emulators are the AVDs `rig-api34`, `rig-api35` and `rig-api36` on console ports 5554, 5556 and 5558. The lane installs `$RIG_HOME/work/apk/current.apk` and `previous.apk`, which `rig apk --ref` places there. `previous.apk` is the build of the commit placed before `current.apk`, not necessarily the release before it, so release builds are placed oldest first: D12 installs `current.apk` over it, and adb refuses a downgrade. A `--worktree` or `--debuggable` build is not placed.
 
 R00 compares Play services with the minimum the installed nonprod build declares. play-services-basement merges `com.google.android.gms.version` into the app's manifest, and the lane reads it with aapt2 from the APK installed on the Pixel.
 

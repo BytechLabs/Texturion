@@ -337,14 +337,14 @@ export function buildNonprodApk({ root, settings, store, publishableKey, variant
 }
 
 /**
- * `rig apk`: builds, and places the release-style build where the device lane
- * installs it. A debuggable build is for a person, so it stays where Gradle
- * wrote it.
+ * `rig apk`: builds, and places the release-style build of a commit where the
+ * device lane installs it. A debuggable build, or one of a worktree that may
+ * hold uncommitted changes, is for a person, so it stays where Gradle wrote it.
  */
-export function buildApk({ debuggable = false, dir, sha, log, build = buildNonprodApk, ...options }) {
+export function buildApk({ debuggable = false, worktree = false, dir, sha, log, build = buildNonprodApk, ...options }) {
   const apk = build({ ...options, variant: debuggable ? "nonprodDebug" : "nonprod", log });
   log(`apk: ${apk}`);
-  if (!debuggable) placeApk({ apk, dir, sha, log });
+  if (!debuggable && !worktree) placeApk({ apk, dir, sha, log });
   return apk;
 }
 
@@ -357,7 +357,7 @@ export function placeApk({ apk, dir, sha, log }) {
   mkdirSync(dir, { recursive: true });
   const current = join(dir, CURRENT_APK);
   const record = join(dir, CURRENT_RECORD);
-  const placedSha = existsSync(record) ? JSON.parse(readFileSync(record, "utf8")).sha : undefined;
+  const placedSha = placedCommit(record);
   if (existsSync(current) && placedSha !== sha) {
     renameSync(current, join(dir, PREVIOUS_APK));
     log(`apk: the build of ${placedSha ?? "an unrecorded commit"} is now ${PREVIOUS_APK}`);
@@ -365,7 +365,18 @@ export function placeApk({ apk, dir, sha, log }) {
   const temp = `${current}.${process.pid}.tmp`;
   copyFileSync(apk, temp);
   renameSync(temp, current);
-  writeFileSync(record, `${JSON.stringify({ sha })}\n`);
+  writeFileSync(`${record}.${process.pid}.tmp`, `${JSON.stringify({ sha })}\n`);
+  renameSync(`${record}.${process.pid}.tmp`, record);
   log(`apk: ${sha} placed as ${current}`);
   return current;
+}
+
+/** The commit current.apk was built from; a record that cannot be read names none. */
+function placedCommit(record) {
+  try {
+    const sha = JSON.parse(readFileSync(record, "utf8")).sha;
+    return typeof sha === "string" ? sha : undefined;
+  } catch {
+    return undefined;
+  }
 }

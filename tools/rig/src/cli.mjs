@@ -204,6 +204,7 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
         store,
         publishableKey: requireStatus(layout).publishableKey,
         debuggable: Boolean(flags.debuggable),
+        worktree: Boolean(flags.worktree),
         dir: join(layout.work, APK_DIR),
         sha,
         log,
