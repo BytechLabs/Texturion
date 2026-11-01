@@ -1,6 +1,6 @@
 import type { Ctx } from "./context";
 import { acceptInventory, runKeyInventory } from "./inventory";
-import { COST_USD, MAX_NUMBERS_HELD, SEARCH_INTERVAL_MS } from "./limits";
+import { COST_USD, MAX_NUMBERS_HELD, MIN_RATIO_SAMPLE, SEARCH_INTERVAL_MS } from "./limits";
 import { json, Refusal } from "./refusal";
 import { runLimitProbe } from "./setup/limit-probe";
 import { requireSafe, runSafetyChecks } from "./setup/safety";
@@ -225,6 +225,7 @@ export async function handleAdmin(ctx: Ctx, request: Request, path: string): Pro
         calls,
         abandoned: count(body.abandoned, calls),
         short: count(body.short, calls),
+        low_sample: calls < MIN_RATIO_SAMPLE,
         measured_at: measuredAt(ctx, body.measured_at),
       };
       await ctx.store.put(ADMISSION_KEYS.ratios, record);

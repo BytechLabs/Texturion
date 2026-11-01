@@ -9179,6 +9179,20 @@ with its reason:
 
   Why: each answer is the costlier or safer of the readings the sources
   leave open.
+- **The daily run files the ratios.** This replaces the build update's
+  "an agent files the ratios by dispatch". `guard.yml`'s `measure` run counts
+  them over 28 days from the `ops_diag` views as `agent_diag`: calls are
+  outbound calls plus ring legs, abandoned are outbound calls that ended
+  unanswered plus ring legs that did not answer (Q4: a cancelled ring leg
+  counts even when another leg of its call answered), and short are
+  connected outbound calls of 6 seconds or less. No view says who hung up,
+  so a refused outbound call counts too, the costlier reading. Under 30
+  calls the ratios are filed with a `low_sample` flag and admission does not
+  refuse on them, because the surcharge is a few cents at this volume and a
+  share over a handful of calls means nothing; from 30 calls the 15% and 10%
+  limits apply. A missing or stale filing still refuses
+  (`admission.ratios_unknown`), and a dispatch with values overrides the
+  read. Why: an agent filing them by hand let them go stale after 36 hours.
 - **A set-aside.** $1.50 a month is reserved inside the $35 cap for month-end
   surcharges and spend on detached numbers. Why: the cap counted neither.
 - **A proof ladder replaces "null until FA0".** It lives in the guard's

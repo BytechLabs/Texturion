@@ -362,9 +362,9 @@ function given(inputs: Measurements): boolean {
 }
 
 /**
- * `measurements` with nothing typed in: production's reserve, and the window
- * once the guard's is due, read as agent_diag and filed. Without the login,
- * a notice and nothing filed.
+ * `measurements` with nothing typed in: production's reserve, ratios and call
+ * peaks, and the window once the guard's is due, read as agent_diag and
+ * filed. Without the login, a notice and nothing filed.
  */
 export async function measureProduction(
   post: Post,
@@ -378,9 +378,9 @@ export async function measureProduction(
   const answer = await health().catch(() => null);
   const guard = answer && ok(answer) ? (answer.body as Partial<GuardHealth> | null) : null;
   const lines: string[] = [];
-  if (!guard?.paid_dials) lines.push("::warning title=Window not checked::The guard's /health did not answer, so only the reserve is filed.");
+  if (!guard?.paid_dials) lines.push("::warning title=Window not checked::The guard's /health did not answer, so the window was not checked.");
   const plan = planFiling(outcome.read, guard?.paid_dials ? windowDue(guard.paid_dials.window_measured_at, now) : false, now);
-  lines.push(...plan.lines, RATIOS_NOT_READ);
+  lines.push(...plan.lines);
   for (const { route, body } of plan.measured) {
     const answer = await post(route, body);
     if (!ok(answer)) return { ok: false, lines: [...lines, ...failed(`Filing ${route.slice(1)} failed`, answer).lines] };
@@ -390,15 +390,6 @@ export async function measureProduction(
   const filed = await runRoutine("measurements", post, plan.inputs);
   return { ok: filed.ok, lines: [...lines, ...filed.lines] };
 }
-
-/**
- * The ratios stay with whoever dispatches them: the guard has no reading of
- * the account's detail records that says which calls Telnyx counts as
- * abandoned or short. Until one is filed, admission refuses paid dials
- * (`admission.ratios_unknown`).
- */
-const RATIOS_NOT_READ =
-  "::notice title=Ratios not filed::Nothing here reads the account's abandoned and short calls; dispatch measurements with calls, abandoned and short to file them.";
 
 async function main(): Promise<number> {
   const routine = (process.env.ROUTINE ?? "check") as Routine | typeof HEALTH_ROUTINE;

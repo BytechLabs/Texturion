@@ -4,6 +4,7 @@ import {
   CORE_SCENARIOS,
   MAX_ABANDONED_SHARE,
   MAX_SHORT_SHARE,
+  MIN_RATIO_SAMPLE,
   PAID_DIALS_PER_DAY,
   PAID_DIALS_PER_HOUR,
   RATIOS_STALE_MS,
@@ -42,6 +43,8 @@ export interface RatiosRecord {
   calls: number;
   abandoned: number;
   short: number;
+  /** Under {@link MIN_RATIO_SAMPLE} calls: filed, but admission does not enforce the shares. */
+  low_sample?: boolean;
   measured_at: number;
 }
 
@@ -90,7 +93,7 @@ export function roomFor(concurrency: LimitInForce, reserve: ReserveRecord | unde
 
 export function ratioRule(ratios: RatiosRecord | undefined, now: number): Refusal | null {
   if (!ratios || now - ratios.measured_at > RATIOS_STALE_MS) return new Refusal("admission.ratios_unknown");
-  if (ratios.calls <= 0) return null;
+  if (ratios.calls < MIN_RATIO_SAMPLE) return null;
   if (ratios.abandoned / ratios.calls > MAX_ABANDONED_SHARE) return new Refusal("admission.abandoned_ratio");
   if (ratios.short / ratios.calls > MAX_SHORT_SHARE) return new Refusal("admission.short_ratio");
   return null;

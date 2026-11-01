@@ -370,6 +370,28 @@ describe("admission", () => {
     expect(await ruleOf(await dial(h, id))).toBe("admission.ratios_unknown");
   });
 
+  it("does not judge the shares under 30 calls, and judges them from 30", async () => {
+    const h = await ready();
+    const id = await lease(h);
+    const file = (calls: number, abandoned: number, short: number) =>
+      h.store.put(ADMISSION_KEYS.ratios, { calls, abandoned, short, measured_at: h.clock.now });
+    // 29 calls, all of them abandoned or short: a share over so few means nothing.
+    await file(29, 29, 29);
+    expect((await dial(h, id)).status).toBe(200);
+    await file(0, 0, 0);
+    expect((await dial(h, id)).status).toBe(200);
+    // 30 calls: 5 abandoned is 16.7%, 4 is 13.3%; 4 short is 13.3%, 3 is 10%.
+    await file(30, 5, 0);
+    expect(await ruleOf(await dial(h, id))).toBe("admission.abandoned_ratio");
+    await file(30, 4, 3);
+    expect((await dial(h, id)).status).toBe(200);
+    await file(30, 0, 4);
+    expect(await ruleOf(await dial(h, id))).toBe("admission.short_ratio");
+    // A low sample is no excuse for a stale filing.
+    await h.store.put(ADMISSION_KEYS.ratios, { calls: 3, abandoned: 0, short: 0, low_sample: true, measured_at: h.clock.now - 37 * 3600_000 });
+    expect(await ruleOf(await dial(h, id))).toBe("admission.ratios_unknown");
+  });
+
   it("leaves no room without a fresh production reserve", async () => {
     const h = await ready();
     const id = await lease(h);

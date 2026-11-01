@@ -240,6 +240,10 @@ const AGENT_DIAG_URL = "postgresql://agent_diag.abcdefghijklmnopqrst:pw@pooler.e
 /** Production's call peaks, as the statement returns them beside the reserve and window. */
 const PEAKS = { peak_concurrent_calls: 3, peak_hour_dials: 4, peak_day_dials: 20 } as const;
 
+/** The ratio counts the same statement returns: 40 calls, 5 abandoned, 2 short. */
+const RATIOS = { ratio_calls: 40, ratio_abandoned: 5, ratio_short: 2 } as const;
+const READ = { ...PEAKS, ...RATIOS } as const;
+
 describe("guard.yml's limit-probe and health routines", () => {
   it("run the validation check and print each write by status, code and field, never Telnyx's words", async () => {
     const h = await ready({ validated: null });
@@ -310,7 +314,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
   });
 
   it("reserve production's largest ring audience plus one, and never reserve for no number", () => {
-    const read: ProductionRead = { numbers: 1, largest_audience: 3, hourly_calls: hourly([6, 7, 8, 9, 10, 11]), ...PEAKS };
+    const read: ProductionRead = { numbers: 1, largest_audience: 3, hourly_calls: hourly([6, 7, 8, 9, 10, 11]), ...READ };
     expect(planFiling(read, true).inputs).toEqual({ reserveLegs: "4", windowStartHour: "6" });
     expect(planFiling(read, false).inputs).toEqual({ reserveLegs: "4" });
     const none = planFiling({ ...read, numbers: 0 }, false);
@@ -321,15 +325,25 @@ describe("the daily measurements, read from production as agent_diag", () => {
   });
 
   it("take only the statement's own document from psql", () => {
-    const document = JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...PEAKS });
-    expect(parseRead(`${document}\n`)).toMatchObject({ numbers: 1, largest_audience: 2, ...PEAKS });
+    const document = JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...READ });
+    expect(parseRead(`${document}\n`)).toMatchObject({ numbers: 1, largest_audience: 2, ...READ });
     expect(parseRead("")).toBeNull();
-    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: -1, hourly_calls: hourly([]), ...PEAKS }))).toBeNull();
-    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: [1, 2], ...PEAKS }))).toBeNull();
-    // Without the peaks, or with peaks that cannot be true, nothing is filed.
+    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: -1, hourly_calls: hourly([]), ...READ }))).toBeNull();
+    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: [1, 2], ...READ }))).toBeNull();
+    // Without the peaks or the ratios, or with counts that cannot be true, nothing is filed.
     expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]) }))).toBeNull();
-    for (const bad of [{ peak_concurrent_calls: 1.5 }, { peak_hour_dials: -1 }, { peak_day_dials: "9" }, { peak_hour_dials: 21 }]) {
-      expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...PEAKS, ...bad })), JSON.stringify(bad)).toBeNull();
+    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...PEAKS }))).toBeNull();
+    for (const bad of [
+      { peak_concurrent_calls: 1.5 },
+      { peak_hour_dials: -1 },
+      { peak_day_dials: "9" },
+      { peak_hour_dials: 21 },
+      { ratio_calls: -1 },
+      { ratio_short: 1.5 },
+      { ratio_abandoned: 41 },
+      { ratio_short: 41 },
+    ]) {
+      expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...READ, ...bad })), JSON.stringify(bad)).toBeNull();
     }
   });
 
@@ -347,12 +361,42 @@ describe("the daily measurements, read from production as agent_diag", () => {
     expect(PRODUCTION_SQL).not.toContain("date_trunc");
   });
 
+  it("count the ratios over 28 days from outbound calls and ring legs, as the costlier reading", () => {
+    expect(PRODUCTION_SQL).toContain("'ratio_calls'");
+    expect(PRODUCTION_SQL).toContain("'ratio_abandoned'");
+    expect(PRODUCTION_SQL).toContain("'ratio_short'");
+    expect(PRODUCTION_SQL).toMatch(/from ops_diag\.call_legs l\s+where l\.kind = 'ring' and l\.created_at >= now\(\) - interval '28 days'/);
+    expect(PRODUCTION_SQL).toMatch(/from ops_diag\.call_sessions c\s+where c\.direction = 'outbound' and c\.started_at >= now\(\) - interval '28 days'/);
+    // A ring leg that did not answer is abandoned even when another leg of its call did; the answering member's own leg is not.
+    expect(PRODUCTION_SQL).toContain("and l.state <> 'answered'");
+    expect(PRODUCTION_SQL).toContain("a.answered_by_ref = l.member_ref");
+    // Calls still up are not abandoned yet.
+    expect(PRODUCTION_SQL).toContain("u.ended_at is null");
+    expect(PRODUCTION_SQL).toContain("c.answered_at is null and c.ended_at is not null");
+    expect(PRODUCTION_SQL).toContain("c.ended_at - c.answered_at <= interval '6 seconds'");
+  });
+
+  it("file the ratios with the peaks, from the read alone, and say when the sample is low", () => {
+    const base: ProductionRead = { numbers: 1, largest_audience: 1, hourly_calls: hourly([]), ...READ };
+    const now = new Date("2026-11-02T05:00:00.000Z");
+    const ratios = (read: ProductionRead) => planFiling(read, false, now).measured.find((post) => post.route === "/ratios");
+    expect(ratios(base)).toEqual({ route: "/ratios", body: { calls: 40, abandoned: 5, short: 2, measured_at: now.toISOString() } });
+    expect(planFiling(base, false, now).lines).toContain("ratios over 40 call(s) in 28 days");
+    const few = { ...base, ratio_calls: 29 };
+    expect(ratios(few)?.body).toMatchObject({ calls: 29 });
+    expect(planFiling(few, false, now).lines).toContain("ratios over 29 call(s) in 28 days: below 30, filed as a low sample");
+    expect(planFiling({ ...base, ratio_calls: 30 }, false, now).lines).toContain("ratios over 30 call(s) in 28 days");
+    // No calls at all is still a filing: otherwise admission would refuse as unknown for ever.
+    expect(ratios({ ...base, ratio_calls: 0, ratio_abandoned: 0, ratio_short: 0 })?.body).toMatchObject({ calls: 0, abandoned: 0, short: 0 });
+  });
+
   it("file the call peaks from the read alone: no typed input reaches them", async () => {
-    const read: ProductionRead = { numbers: 1, largest_audience: 1, hourly_calls: hourly([]), ...PEAKS };
+    const read: ProductionRead = { numbers: 1, largest_audience: 1, hourly_calls: hourly([]), ...READ };
     const now = new Date("2026-11-02T05:00:00.000Z");
     expect(planFiling(read, false, now).measured).toEqual([
       { route: "/concurrency-history", body: { peak_calls: 3, measured_at: now.toISOString() } },
       { route: "/account-rate", body: { peak_hour_dials: 4, peak_day_dials: 20, measured_at: now.toISOString() } },
+      { route: "/ratios", body: { calls: 40, abandoned: 5, short: 2, measured_at: now.toISOString() } },
     ]);
     const typed = measurementPosts({ reserveLegs: "2", calls: "1", abandoned: "0", short: "0", windowStartHour: "4", usageUsd: "1" });
     expect(typed.map((post) => post.route)).toEqual(["/reserve", "/ratios", "/window", "/ledger"]);
@@ -362,7 +406,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
     const sessions: { sql: string; env: Record<string, string> }[] = [];
     const psql: PsqlRunner = (sql, env) => {
       sessions.push({ sql, env });
-      return { status: 0, stdout: JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...PEAKS }) };
+      return { status: 0, stdout: JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...READ }) };
     };
     expect(readProduction(AGENT_DIAG_URL, psql)).toMatchObject({ ok: true, read: { largest_audience: 2 } });
     expect(sessions[0].sql.indexOf("current_user <> 'agent_diag'")).toBeLessThan(sessions[0].sql.indexOf(PRODUCTION_SQL));
@@ -405,7 +449,8 @@ describe("the daily measurements, read from production as agent_diag", () => {
     await h.store.delete(ADMISSION_KEYS.reserve);
     await h.store.delete(LIMIT_KEYS.history);
     await h.store.delete(ADMISSION_KEYS.accountRate);
-    const read = () => ({ ok: true, read: { numbers: 2, largest_audience: 2, hourly_calls: hourly([7, 8, 9, 10, 11, 12]), ...PEAKS } }) as const;
+    await h.store.delete(ADMISSION_KEYS.ratios);
+    const read = () => ({ ok: true, read: { numbers: 2, largest_audience: 2, hourly_calls: hourly([7, 8, 9, 10, 11, 12]), ...READ } }) as const;
     const health = edgeHealth(EDGE, "admin-token", edgeFetcher(h));
 
     const first = await measureProduction(throughEdge(h), health, read, new Date(h.clock.now));
@@ -413,13 +458,15 @@ describe("the daily measurements, read from production as agent_diag", () => {
     const at = new Date(h.clock.now).toISOString();
     expect(first.lines).toEqual([
       "reserve read over 2 active number(s)",
-      expect.stringMatching(/^::notice title=Ratios not filed::/),
+      "ratios over 40 call(s) in 28 days",
       `filed concurrency-history: {"peak_calls":3,"measured_at":"${at}"}`,
       `filed account-rate: {"peak_hour_dials":4,"peak_day_dials":20,"measured_at":"${at}"}`,
+      `filed ratios: {"calls":40,"abandoned":5,"short":2,"measured_at":"${at}"}`,
       'filed reserve: {"legs":3}',
       'filed window: {"start_hour":7}',
     ]);
     expect(await h.store.get(LIMIT_KEYS.history)).toEqual({ peak_calls: 3, measured_at: h.clock.now });
+    expect(await h.store.get(ADMISSION_KEYS.ratios)).toEqual({ calls: 40, abandoned: 5, short: 2, low_sample: false, measured_at: h.clock.now });
     expect(await h.store.get(ADMISSION_KEYS.accountRate)).toEqual({ peak_hour_dials: 4, peak_day_dials: 20, measured_at: h.clock.now });
     expect(((await health()).body as GuardHealth).account_rate).toMatchObject({ production_peak_hour: 4, production_peak_day: 20 });
     assertPublicSafe(first.lines);
@@ -431,6 +478,35 @@ describe("the daily measurements, read from production as agent_diag", () => {
     expect(next.lines).toContain("window: measured within the month, not due");
     expect(next.lines).toContain('filed reserve: {"legs":3}');
     expect(next.lines.some((line) => line.startsWith("filed window"))).toBe(false);
+    expect(next.lines).toContain(`filed ratios: {"calls":40,"abandoned":5,"short":2,"measured_at":"${new Date(h.clock.now).toISOString()}"}`);
+  });
+
+  it("file a low sample that admission does not refuse on, and refuse again once the filing is stale", async () => {
+    const h = await ready();
+    await h.store.delete(ADMISSION_KEYS.ratios);
+    const health = edgeHealth(EDGE, "admin-token", edgeFetcher(h));
+    const blockers = async () => ((await health()).body as GuardHealth).paid_dials?.blockers;
+    expect(await blockers()).toContain("admission.ratios_unknown");
+    // Every call abandoned and short: 12 calls say nothing about a share.
+    const read = () =>
+      ({ ok: true, read: { numbers: 1, largest_audience: 1, hourly_calls: hourly([]), ...PEAKS, ratio_calls: 12, ratio_abandoned: 12, ratio_short: 12 } }) as const;
+    const outcome = await measureProduction(throughEdge(h), health, read, new Date(h.clock.now));
+    expect(outcome.ok).toBe(true);
+    expect(outcome.lines).toContain("ratios over 12 call(s) in 28 days: below 30, filed as a low sample");
+    expect(await h.store.get(ADMISSION_KEYS.ratios)).toEqual({ calls: 12, abandoned: 12, short: 12, low_sample: true, measured_at: h.clock.now });
+    expect(await blockers()).toEqual([]);
+    h.advance(37 * 60 * 60 * 1000);
+    expect(await blockers()).toContain("admission.ratios_unknown");
+  });
+
+  it("let a dispatch with values override the read, and keep the three counts together", async () => {
+    const h = await ready();
+    await h.store.delete(ADMISSION_KEYS.ratios);
+    const outcome = await runRoutine("measurements", throughEdge(h), { calls: "29", abandoned: "29", short: "0" });
+    expect(outcome).toEqual({ ok: true, lines: ['filed ratios: {"calls":29,"abandoned":29,"short":0}'] });
+    expect(await h.store.get(ADMISSION_KEYS.ratios)).toMatchObject({ calls: 29, abandoned: 29, short: 0, low_sample: true });
+    await runRoutine("measurements", throughEdge(h), { calls: "30", abandoned: "5", short: "0" });
+    expect(await h.store.get(ADMISSION_KEYS.ratios)).toMatchObject({ calls: 30, low_sample: false });
   });
 
   it("fail the run when production could not be read, so a reserve going stale is never quiet", async () => {

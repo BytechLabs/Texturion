@@ -12,10 +12,14 @@
  *   - the history lower bound on the account's concurrent limit: the most
  *     answered calls that overlapped in 28 days, from `call_sessions`;
  *   - production's peak outbound legs in one UTC hour and in one UTC day over
- *     28 days, ring legs included, which spend Telnyx's account-wide caps.
+ *     28 days, ring legs included, which spend Telnyx's account-wide caps;
+ *   - the ratios Telnyx surcharges, as counts over the same 28 days: outbound
+ *     calls plus ring legs, how many were abandoned, and how many connected
+ *     outbound calls were short.
  *
- * The last two are filed only from this read, never from a typed input: a
- * value somebody typed is not evidence.
+ * The last three are filed only from this read, never from a typed input: a
+ * value somebody typed is not evidence. A dispatch that types the ratios
+ * skips this read and overrides it.
  *
  * One statement returns counts only, and the session runs call-trace.mjs's
  * self-check first, so a login that could reach anything beyond `ops_diag`,
@@ -27,7 +31,14 @@
  * paid dials; an invented one would admit them.
  */
 import { agentDiagConnection, runPsql, sessionSql } from "../../../scripts/ops/call-trace.mjs";
-import { WINDOW_DEFAULT_START_HOUR, WINDOW_HISTORY_DAYS, WINDOW_HOURS, WINDOW_RECHECK_MS } from "../src/limits.ts";
+import {
+  MIN_RATIO_SAMPLE,
+  SHORT_CALL_SECONDS,
+  WINDOW_DEFAULT_START_HOUR,
+  WINDOW_HISTORY_DAYS,
+  WINDOW_HOURS,
+  WINDOW_RECHECK_MS,
+} from "../src/limits.ts";
 import type { Measurements } from "./admin-routine.ts";
 
 /**
@@ -66,6 +77,34 @@ const peakLegsIn = (span: "1 hour" | "1 day") => `(select coalesce(max(p.legs), 
      from (select count(*) over (order by o.at range between interval '${span}' preceding and current row) as legs
              from ${OUTBOUND_LEGS_SQL} o) p)`;
 
+/**
+ * No view says who hung up, so every outbound call that ended unanswered counts
+ * as abandoned, and so does every ring leg that did not answer, even when
+ * another leg of its call did (D142, FA0 Q4). A leg answered if its state says
+ * so or its member is the one who answered the call: the ring path can leave a
+ * winning leg at 'ringing'. Calls still up are not abandoned yet.
+ */
+const RING_LEGS_IN_WINDOW_SQL = `from ops_diag.call_legs l
+      where l.kind = 'ring' and l.created_at >= now() - interval '${WINDOW_HISTORY_DAYS} days'`;
+
+const OUTBOUND_CALLS_IN_WINDOW_SQL = `from ops_diag.call_sessions c
+      where c.direction = 'outbound' and c.started_at >= now() - interval '${WINDOW_HISTORY_DAYS} days'`;
+
+const RATIO_CALLS_SQL = `((select count(*) ${OUTBOUND_CALLS_IN_WINDOW_SQL}) + (select count(*) ${RING_LEGS_IN_WINDOW_SQL}))::int`;
+
+const RATIO_ABANDONED_SQL = `((select count(*) ${OUTBOUND_CALLS_IN_WINDOW_SQL}
+          and c.answered_at is null and c.ended_at is not null)
+     + (select count(*) ${RING_LEGS_IN_WINDOW_SQL}
+          and l.state <> 'answered'
+          and not exists (select 1 from ops_diag.call_sessions a
+                           where a.call_session_id = l.call_session_id and a.answered_by_ref = l.member_ref)
+          and not exists (select 1 from ops_diag.call_sessions u
+                           where u.call_session_id = l.call_session_id and u.ended_at is null)))::int`;
+
+const RATIO_SHORT_SQL = `(select count(*) ${OUTBOUND_CALLS_IN_WINDOW_SQL}
+          and c.answered_at is not null and c.ended_at is not null
+          and c.ended_at - c.answered_at <= interval '${SHORT_CALL_SECONDS} seconds')::int`;
+
 export const PRODUCTION_SQL = `select json_build_object(
   'numbers', (select count(*)::int from ops_diag.ring_audience_sizes),
   'largest_audience', (select coalesce(max(greatest(a.ring_legs_ceiling, a.peak_legs_28d)), 0)::int
@@ -78,7 +117,10 @@ export const PRODUCTION_SQL = `select json_build_object(
                                  group by 1) c on c.h = g.h),
   'peak_concurrent_calls', ${PEAK_CONCURRENT_SQL},
   'peak_hour_dials', ${peakLegsIn("1 hour")},
-  'peak_day_dials', ${peakLegsIn("1 day")}
+  'peak_day_dials', ${peakLegsIn("1 day")},
+  'ratio_calls', ${RATIO_CALLS_SQL},
+  'ratio_abandoned', ${RATIO_ABANDONED_SQL},
+  'ratio_short', ${RATIO_SHORT_SQL}
 );`;
 
 export interface ProductionRead {
@@ -92,6 +134,10 @@ export interface ProductionRead {
   /** The most outbound legs production opened in any 60 minutes, and in any 24 hours. */
   peak_hour_dials: number;
   peak_day_dials: number;
+  /** Outbound calls plus ring legs over the history, and of those the abandoned ones; short counts connected outbound calls. */
+  ratio_calls: number;
+  ratio_abandoned: number;
+  ratio_short: number;
 }
 
 const count = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 0;
@@ -109,6 +155,8 @@ export function parseRead(stdout: string): ProductionRead | null {
   if (!Array.isArray(read.hourly_calls) || read.hourly_calls.length !== 24 || !read.hourly_calls.every(count)) return null;
   if (!count(read.peak_concurrent_calls) || !count(read.peak_hour_dials) || !count(read.peak_day_dials)) return null;
   if (read.peak_hour_dials > read.peak_day_dials) return null;
+  if (!count(read.ratio_calls) || !count(read.ratio_abandoned) || !count(read.ratio_short)) return null;
+  if (read.ratio_abandoned > read.ratio_calls || read.ratio_short > read.ratio_calls) return null;
   return read as ProductionRead;
 }
 
@@ -137,13 +185,18 @@ export function windowDue(measuredAt: string | null | undefined, now: Date): boo
 
 export interface Plan {
   inputs: Measurements;
-  /** Filed as they are, straight from the read: these have no typed input. */
+  /** Filed as they are, straight from the read. */
   measured: { route: string; body: Record<string, unknown> }[];
   /** Safe for a public log. */
   lines: string[];
 }
 
-/** What a read files: the reserve always, when there is a number to reserve for; the window when due and there are calls to place it by. */
+/**
+ * What a read files: the ratios and the call peaks always; the reserve when
+ * there is a number to reserve for; the window when due and there are calls to
+ * place it by. Ratios under {@link MIN_RATIO_SAMPLE} calls are filed too: no
+ * filing would refuse every dial.
+ */
 export function planFiling(read: ProductionRead, due: boolean, now: Date = new Date()): Plan {
   const inputs: Measurements = {};
   const lines: string[] = [];
@@ -153,6 +206,10 @@ export function planFiling(read: ProductionRead, due: boolean, now: Date = new D
     {
       route: "/account-rate",
       body: { peak_hour_dials: read.peak_hour_dials, peak_day_dials: read.peak_day_dials, measured_at: measuredAt },
+    },
+    {
+      route: "/ratios",
+      body: { calls: read.ratio_calls, abandoned: read.ratio_abandoned, short: read.ratio_short, measured_at: measuredAt },
     },
   ];
   if (read.numbers === 0) {
@@ -168,6 +225,11 @@ export function planFiling(read: ProductionRead, due: boolean, now: Date = new D
   } else {
     inputs.windowStartHour = String(quietestWindow(read.hourly_calls));
   }
+  lines.push(
+    read.ratio_calls < MIN_RATIO_SAMPLE
+      ? `ratios over ${read.ratio_calls} call(s) in ${WINDOW_HISTORY_DAYS} days: below ${MIN_RATIO_SAMPLE}, filed as a low sample`
+      : `ratios over ${read.ratio_calls} call(s) in ${WINDOW_HISTORY_DAYS} days`,
+  );
   return { inputs, measured, lines };
 }
 

@@ -96,6 +96,10 @@ export const WINDOW_HISTORY_DAYS = 28;
 /** Over the whole account, production's calls included. */
 export const MAX_ABANDONED_SHARE = 0.15;
 export const MAX_SHORT_SHARE = 0.1;
+/** Below this many calls in the window a share means nothing, and the surcharge is a few cents. */
+export const MIN_RATIO_SAMPLE = 30;
+/** A connected call this short or shorter is a short call to Telnyx's surcharge. */
+export const SHORT_CALL_SECONDS = 6;
 export const RATIOS_STALE_MS = 36 * HOUR;
 /** Production's reserve is read daily; a missed day leaves no room at all. */
 export const RESERVE_STALE_MS = 36 * HOUR;

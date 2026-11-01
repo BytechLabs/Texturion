@@ -16,14 +16,14 @@ name: Guard
 # routine through the edge (tools/guard/scripts/admin-routine.ts) after the
 # deploy, or on its own with `deploy` off. A push runs the start-up checks.
 #
-# EVERY DAY, `measure` files production's reserve, and its dial window once a
-# month, read as `agent_diag` from production's non-personal ops_diag views
-# (AGENT_DIAG_DATABASE_URL, a `guard` environment secret, FA13). One
-# read-only session runs the login's self-check and then one SELECT, and the
-# log gets counts only. Without the
-# login it posts a notice and files nothing: the reserve then goes stale after
-# 36 hours and paid dials stop, which is the safe side. It neither tests nor
-# deploys, and it installs nothing next to the production login.
+# EVERY DAY, `measure` files production's reserve, call ratios and call peaks,
+# and its dial window once a month, read as `agent_diag` from production's
+# non-personal ops_diag views (AGENT_DIAG_DATABASE_URL, a `guard` environment
+# secret, FA13). One read-only session runs the login's self-check and then one
+# SELECT, and the log gets counts only. Without the login it posts a notice and
+# files nothing: the reserve then goes stale after 36 hours and paid dials stop,
+# which is the safe side. It neither tests nor deploys, and it installs nothing
+# next to the production login.
 #
 # BEFORE THE FOUNDER CREATES THE TOKEN (FA4) the deploy says so and stops,
 # green. A red main for a credential nobody has made yet would be a standing red,
@@ -67,7 +67,7 @@ on:
         type: string
         required: false
       calls:
-        description: "measurements: the account's calls in the ratio window"
+        description: "measurements: the account's calls in the ratio window (an override: the daily run reads these from production)"
         type: string
         required: false
       abandoned:
