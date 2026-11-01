@@ -19,8 +19,12 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-/** Just what refreshSchedule reads of a rig: the state folder, the registry, the window and the unit folder. */
-function rigAt(): { rig: Rig; state: string; unitDir: string; windowReads: () => number } {
+/**
+ * Just what refreshSchedule reads of a rig: the state folder, the registry,
+ * the window and the unit folder. `whileReading` runs while the window is
+ * fetched, as a deploy would.
+ */
+function rigAt(whileReading: (state: string) => void = () => undefined): { rig: Rig; state: string; unitDir: string; windowReads: () => number } {
   const home = mkdtempSync(join(tmpdir(), "rigd-hold-"));
   dirs.push(home);
   const state = join(home, "state");
@@ -35,6 +39,7 @@ function rigAt(): { rig: Rig; state: string; unitDir: string; windowReads: () =>
     windows: () => ({
       current: async () => {
         reads++;
+        whileReading(state);
         return parseWindow("04-10");
       },
     }),
@@ -55,6 +60,16 @@ describe("the schedule refresh under a deploy hold", () => {
     expect(lines).toEqual([
       expect.stringMatching(/^timers not refreshed: state\/deploy-hold\.json holds them stopped for the deploy of 0123456789ab since /),
     ]);
+  });
+
+  it("starts no timer when a deploy takes the hold while the window is read", async () => {
+    const { rig, unitDir } = rigAt((state) => holdForDeploy(state, { sha: "0123456789abcdef0123456789abcdef01234567", ref: "main" }));
+    const calls: string[][] = [];
+    const lines: string[] = [];
+    await refreshSchedule(rig, (line) => lines.push(line), (args) => void calls.push(args));
+    expect(calls).toEqual([]);
+    expect(existsSync(unitDir)).toBe(false);
+    expect(lines).toEqual([expect.stringMatching(/^timers not refreshed: state\/deploy-hold\.json holds them stopped for the deploy of 0123456789ab/)]);
   });
 
   it("holds as surely when the file cannot be read", async () => {

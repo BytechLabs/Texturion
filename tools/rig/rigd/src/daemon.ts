@@ -135,14 +135,7 @@ export function buildRouter(rig: Rig, lastTriage: { at?: number }, run: RunStart
  * itself once the services serve the new ref.
  */
 export async function refreshSchedule(rig: Rig, log: (line: string) => void, systemctl?: Systemctl): Promise<void> {
-  const hold = readDeployHold(rig.config.home.state);
-  if (hold !== null) {
-    log(
-      `timers not refreshed: state/${DEPLOY_HOLD_FILE} holds them stopped` +
-        (hold.unreadable ? "" : ` for the deploy of ${String(hold.sha).slice(0, 12)} since ${hold.at}`),
-    );
-    return;
-  }
+  if (heldForDeploy(rig, log)) return;
   const window = await rig.windows().current();
   const schedule = buildSchedule(loadRegistry(rig.config.registryPath), {
     window,
@@ -152,10 +145,22 @@ export async function refreshSchedule(rig: Rig, log: (line: string) => void, sys
     cli: CLI,
     home: rig.config.home.home,
   });
+  // The window comes from the edge; a deploy may have taken the hold since.
+  if (heldForDeploy(rig, log)) return;
   const result = installSchedule(schedule, { unitDir: userUnitDir(rig.config.env), systemctl });
   if (result.written.length || result.removed.length) {
     log(`timers: ${result.written.length} written, ${result.removed.length} removed (window ${window.startHour}:00 UTC)`);
   }
+}
+
+function heldForDeploy(rig: Rig, log: (line: string) => void): boolean {
+  const hold = readDeployHold(rig.config.home.state);
+  if (hold === null) return false;
+  log(
+    `timers not refreshed: state/${DEPLOY_HOLD_FILE} holds them stopped` +
+      (hold.unreadable ? "" : ` for the deploy of ${String(hold.sha).slice(0, 12)} since ${hold.at}`),
+  );
+  return true;
 }
 
 export function startDaemon(config: RigdConfig): Daemon {
