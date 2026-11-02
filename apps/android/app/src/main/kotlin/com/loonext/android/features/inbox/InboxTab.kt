@@ -84,6 +84,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
@@ -1537,7 +1538,9 @@ private fun FilterPill(
     val solid = selected && !outlined
     val haptics = rememberHaptics()
     Surface(
-        modifier = if (onLongClick == null) {
+        // Selected is a colour change and nothing else; this is what tells a
+        // screen reader which filter is on.
+        modifier = (if (onLongClick == null) {
             Modifier
         } else {
             Modifier.combinedClickable(
@@ -1550,7 +1553,7 @@ private fun FilterPill(
                     onLongClick()
                 },
             )
-        },
+        }).semantics { this.selected = selected },
         onClick = {
             haptics.tap()
             onClick()
@@ -1900,7 +1903,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                 Text(
                     relativeTime(row.last_message_at),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             val snippet = row.last_message?.let { last ->
@@ -1998,7 +2001,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -3270,4 +3273,36 @@ private fun SavedViewMenu(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(t("common.close")) } },
     )
+}
+
+/**
+ * The inbox's header, status pills and rows with no controller behind them, in
+ * the arrangement [InboxList] gives them. `internal` so the #238 accessibility
+ * audit inspects the real atoms rather than a second drawing of them.
+ */
+@Composable
+internal fun InboxAuditBody(rows: List<ConversationListItem>) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
+        Spacer(Modifier.height(8.dp))
+        InboxHeader(
+            unreadCount = rows.count { it.unread },
+            filtersActive = true,
+            scheduledCount = 2,
+            onSearch = {},
+            onFilters = {},
+            onScheduled = {},
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            InboxStatusTab.entries.forEachIndexed { index, item ->
+                FilterPill(text = t(item.labelKey), selected = index == 0, onClick = {})
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        rows.forEachIndexed { index, row ->
+            GroupedRow(first = index == 0, last = index == rows.lastIndex, onClick = {}) {
+                ConversationRow(row, assigneeName = if (index == 0) "Dana" else null)
+            }
+        }
+    }
 }

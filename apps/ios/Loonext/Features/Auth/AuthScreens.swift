@@ -220,7 +220,7 @@ final class AuthViewModel {
     }
 }
 
-private enum AuthScreen {
+enum AuthScreen {
     case login
     case signUp
     case forgot
@@ -230,10 +230,13 @@ private enum AuthScreen {
 @MainActor
 struct AuthFlow: View {
     @State private var model: AuthViewModel
-    @State private var screen: AuthScreen = .login
+    @State private var screen: AuthScreen
 
-    init(authManager: AuthManager) {
+    /// `startingAt` exists so the #238 accessibility audit can open the sign-up
+    /// and reset screens directly; the app itself always begins at sign in.
+    init(authManager: AuthManager, startingAt screen: AuthScreen = .login) {
         _model = State(initialValue: AuthViewModel(authManager: authManager))
+        _screen = State(initialValue: screen)
     }
 
     var body: some View {

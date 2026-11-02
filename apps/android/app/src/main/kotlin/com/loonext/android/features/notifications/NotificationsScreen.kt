@@ -573,7 +573,7 @@ private fun NotificationRow(row: NotificationItem, onTap: () -> Unit) {
         Text(
             relativeTime(row.created_at),
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

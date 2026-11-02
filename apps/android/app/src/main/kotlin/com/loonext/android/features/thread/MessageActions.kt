@@ -733,7 +733,7 @@ private fun QuotedMessageWell(message: Message, contactName: String, zone: ZoneI
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.SemiBold,
                 ),
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 3.dp),
             )
         }

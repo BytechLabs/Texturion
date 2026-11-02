@@ -708,6 +708,12 @@ private struct SettingsIndexPreview: View {
     }
 }
 
+/// The settings index for the #238 accessibility audit.
+@MainActor
+func settingsIndexFixture() -> some View {
+    SettingsIndexPreview()
+}
+
 #Preview("Settings index · tall phone") {
     SettingsIndexPreview()
         .frame(width: 390, height: 720)

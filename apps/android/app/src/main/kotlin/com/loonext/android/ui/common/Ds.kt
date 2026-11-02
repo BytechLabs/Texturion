@@ -65,7 +65,7 @@ fun SectionHeader(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.12.em,
             ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (count != null && count > 0) {
             Text(

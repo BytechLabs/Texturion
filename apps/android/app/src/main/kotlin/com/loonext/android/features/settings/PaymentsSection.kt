@@ -296,7 +296,7 @@ private fun Fact(label: String, value: String) {
         Text(
             label.uppercase(),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             value,

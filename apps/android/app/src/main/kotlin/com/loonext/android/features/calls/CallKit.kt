@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -201,7 +202,9 @@ fun ControlCircle(
                 .alpha(if (enabled) 1f else 0.45f),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription, modifier = Modifier.size(20.dp))
+                // The label below is outside the button, so the button is named
+                // from the icon (the label is hidden below to avoid saying it twice).
+                Icon(icon, contentDescription ?: label, modifier = Modifier.size(20.dp))
             }
         }
         Text(
@@ -213,7 +216,9 @@ fun ControlCircle(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            modifier = Modifier.alpha(if (enabled) 1f else 0.45f),
+            modifier = Modifier
+                .alpha(if (enabled) 1f else 0.45f)
+                .clearAndSetSemantics {},
         )
     }
 }
@@ -303,7 +308,7 @@ fun KeypadKey(
                     fontSize = 8.5.sp * textScale,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.14.em,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

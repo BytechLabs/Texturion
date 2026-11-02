@@ -293,7 +293,7 @@ fun DialerSheet(
                         letterSpacing = 0.01.em,
                     ),
                     color = if (digits.isEmpty()) {
-                        MaterialTheme.colorScheme.outline
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
                         MaterialTheme.colorScheme.onBackground
                     },
@@ -327,7 +327,7 @@ fun DialerSheet(
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                             ),
-                            color = MaterialTheme.colorScheme.outline,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .clickable {

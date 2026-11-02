@@ -2482,33 +2482,51 @@ private func previewListItem(
 }
 
 #Preview("Inbox rows") {
-    List {
-        ConversationRow(
-            row: previewListItem(
-                id: "c1",
-                name: "Dana Whitcomb",
-                status: "open",
-                unread: true,
-                snippet: "Can you come by Tuesday morning to look at the fence?",
-                tags: [
-                    Tag(id: "t1", name: "Estimate", color: "#66801F", created_at: nil, updated_at: nil),
-                ]
-            ),
-            assigneeName: "You",
-            onTap: {}
-        )
-        ConversationRow(
-            row: previewListItem(
-                id: "c2",
-                name: nil,
-                status: "closed",
-                unread: false,
-                snippet: "Thanks, payment sent."
-            ),
-            onTap: {}
-        )
+    inboxRowsFixture()
+}
+
+/// The inbox as a screen reader meets it: filter chips (one selected, one
+/// clearable) above an unread, tagged, assigned row and a closed, unnamed one.
+/// Shared by the preview and the #238 accessibility audit, so the audit
+/// inspects exactly what the canvas draws.
+@MainActor
+func inboxRowsFixture() -> some View {
+    VStack(spacing: 0) {
+        HStack(spacing: 8) {
+            FilterChip(label: "Open", selected: true, onTap: {}, onClear: nil)
+            FilterChip(label: "Assigned: Dana", selected: true, onTap: {}, onClear: {})
+            FilterChip(label: "Tag", selected: false, onTap: {}, onClear: nil)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        List {
+            ConversationRow(
+                row: previewListItem(
+                    id: "c1",
+                    name: "Dana Whitcomb",
+                    status: "open",
+                    unread: true,
+                    snippet: "can you come by tuesday morning to look at the fence?",
+                    tags: [
+                        Tag(id: "t1", name: "Estimate", color: "#66801F", created_at: nil, updated_at: nil),
+                    ]
+                ),
+                assigneeName: "You",
+                onTap: {}
+            )
+            ConversationRow(
+                row: previewListItem(
+                    id: "c2",
+                    name: nil,
+                    status: "closed",
+                    unread: false,
+                    snippet: "thanks, payment sent."
+                ),
+                onTap: {}
+            )
+        }
+        .listStyle(.plain)
     }
-    .listStyle(.plain)
 }
 
 /// #275 — the selection bar, shown only while something is selected.

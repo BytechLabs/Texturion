@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -46,6 +47,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -469,7 +473,7 @@ private fun SsoBlock(busy: Boolean, onGoogle: () -> Unit) {
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
             ),
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 10.dp),
         )
         HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
@@ -505,7 +509,7 @@ private fun AuthField(
             border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surfaceContainerHigh),
         ) {
             Row(
-                Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
+                Modifier.padding(horizontal = 15.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 BasicTextField(
@@ -523,18 +527,34 @@ private fun AuthField(
                     } else {
                         VisualTransformation.None
                     },
-                    modifier = Modifier.weight(1f),
+                    // The label above is a separate Text, so without this a screen
+                    // reader lands on an unnamed edit box.
+                    modifier = Modifier.weight(1f).semantics { contentDescription = label },
+                    // The padding lives inside the field, so a tap anywhere in the
+                    // 46dp pill focuses it. Outside, only the 20dp line took the tap.
+                    decorationBox = { field ->
+                        Box(Modifier.heightIn(min = 46.dp), contentAlignment = Alignment.CenterStart) {
+                            field()
+                        }
+                    },
                 )
                 if (isPassword) {
-                    Icon(
-                        if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                        contentDescription =
-                            if (showPassword) t("auth.hidePassword") else t("auth.showPassword"),
-                        tint = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clickable { showPassword = !showPassword },
-                    )
+                    // A 24dp target (WCAG 2.5.8) around the 16dp glyph, announced as a
+                    // button: a bare clickable icon is read as an image.
+                    Box(
+                        Modifier
+                            .size(24.dp)
+                            .clickable(role = Role.Button) { showPassword = !showPassword },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                            contentDescription =
+                                if (showPassword) t("auth.hidePassword") else t("auth.showPassword"),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             }
         }
@@ -542,7 +562,7 @@ private fun AuthField(
             Text(
                 helper,
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 4.dp, top = 5.dp),
             )
         }
@@ -782,7 +802,7 @@ private fun SignUpForm(
     Text(
         t("auth.legal"),
         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, lineHeight = 16.5.sp),
-        color = MaterialTheme.colorScheme.outline,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
     )

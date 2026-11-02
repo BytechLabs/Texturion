@@ -474,6 +474,14 @@ private func previewNumber(id: String, e164: String) -> PhoneNumberSummary {
 }
 
 #Preview("Dialer · two from-numbers") {
+    dialerFixture()
+}
+
+/// The dialer with two caller-ID numbers to choose between. Shared by the preview
+/// and the #238 accessibility audit.
+@MainActor
+@ViewBuilder
+func dialerFixture() -> some View {
     DialerSheet(
         manager: CallsManager.get(graph: AppGraph()),
         numbers: [

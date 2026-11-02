@@ -101,15 +101,33 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.tests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
+  # #238: Apple's accessibility audit (performAccessibilityAudit) over the
+  # primary flows. A UI-test target rather than a unit test because the audit is
+  # an XCUIApplication API: it drives the app through the OS accessibility
+  # layer, which a hosted unit test cannot.
+  LoonextUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - LoonextUITests
+    dependencies:
+      - target: Loonext
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
 schemes:
   Loonext:
     build:
       targets:
         Loonext: all
         LoonextTests: [test]
+        LoonextUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - LoonextTests
+        - LoonextUITests

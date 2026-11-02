@@ -406,7 +406,8 @@ private fun MessageMetaLine(
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.errorContainer)
                     .clickable(onClick = onRetry)
-                    .padding(horizontal = 10.dp, vertical = 3.dp),
+                    // 28dp tall: at 3dp it was 22, under the 24dp target WCAG 2.5.8 asks for.
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
         if (message.done_at != null) {
@@ -626,7 +627,7 @@ fun DayDividerLine(label: String, modifier: Modifier = Modifier) {
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.1.em,
         ),
-        color = MaterialTheme.colorScheme.outline,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = modifier
             .fillMaxWidth()

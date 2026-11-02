@@ -310,6 +310,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.compose.ui.test.junit4.accessibility)
     // The empty, exported activity `createAndroidComposeRule` launches lives in
     // this artifact's manifest.
     debugImplementation(libs.compose.ui.test.manifest)

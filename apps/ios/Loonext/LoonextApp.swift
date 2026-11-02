@@ -31,33 +31,50 @@ struct LoonextApp: App {
 
     var body: some Scene {
         WindowGroup {
-            // #330: OUTSIDE RootView, so a locked app does not build the inbox at
-            // all rather than covering it. An overlay is one app-switcher snapshot
-            // away from being nothing, and the switcher is exactly where a
-            // handed-over phone shows its last screen.
-            AppLockGate(prefs: graph.prefs) {
-                RootView(graph: graph)
+            #if DEBUG
+            // #238: the accessibility audit opens one screen on fixture data.
+            if let surface = A11yAuditSurface.requested {
+                A11yAuditHost(surface: surface)
+                    .environment(\.appLocale, appLocale)
+                    .environment(\.locale, UiLocale.platformLocale(appLocale))
+                    .tint(BrandColor.olive)
+            } else {
+                liveRoot
             }
-                // #238: `.appLocale` chooses our catalogue; SwiftUI's native
-                // locale environment carries the same resolved choice into its
-                // text and accessibility systems. Both sit ABOVE AppLockGate so
-                // the lock screen and app-switcher cover are in scope too.
-                // Environment values preserve every child's own accessibility
-                // element, role, state and action; this does not merge the tree.
-                .environment(\.appLocale, appLocale)
-                .environment(\.locale, UiLocale.platformLocale(appLocale))
-                .tint(BrandColor.olive)
-                .preferredColorScheme(preferredScheme)
-                // Universal links: app.loonext.com/inbox/{id} and
-                // /calls?call=… — parsed exactly like a notification tap
-                // (legacy /conversations/{id} normalization included) and
-                // buffered by PushHooks until the Ready shell installs its
-                // router (cold-start links wait for it).
-                .onOpenURL { routeUniversalLink($0) }
-                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
-                    if let url = activity.webpageURL { routeUniversalLink(url) }
-                }
+            #else
+            liveRoot
+            #endif
         }
+    }
+
+    /// The app as customers get it.
+    private var liveRoot: some View {
+        // #330: OUTSIDE RootView, so a locked app does not build the inbox at
+        // all rather than covering it. An overlay is one app-switcher snapshot
+        // away from being nothing, and the switcher is exactly where a
+        // handed-over phone shows its last screen.
+        AppLockGate(prefs: graph.prefs) {
+            RootView(graph: graph)
+        }
+            // #238: `.appLocale` chooses our catalogue; SwiftUI's native
+            // locale environment carries the same resolved choice into its
+            // text and accessibility systems. Both sit ABOVE AppLockGate so
+            // the lock screen and app-switcher cover are in scope too.
+            // Environment values preserve every child's own accessibility
+            // element, role, state and action; this does not merge the tree.
+            .environment(\.appLocale, appLocale)
+            .environment(\.locale, UiLocale.platformLocale(appLocale))
+            .tint(BrandColor.olive)
+            .preferredColorScheme(preferredScheme)
+            // Universal links: app.loonext.com/inbox/{id} and
+            // /calls?call=… — parsed exactly like a notification tap
+            // (legacy /conversations/{id} normalization included) and
+            // buffered by PushHooks until the Ready shell installs its
+            // router (cold-start links wait for it).
+            .onOpenURL { routeUniversalLink($0) }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL { routeUniversalLink(url) }
+            }
     }
 
     /// One answer for both the product catalogue and native language metadata.

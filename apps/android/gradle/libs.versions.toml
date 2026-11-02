@@ -78,6 +78,8 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 # Versioned by the compose BOM above, like every other compose artifact here —
 # the test rule and the runtime it drives have to be the same Compose.
 compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+# #238: Accessibility Test Framework for Compose; AtfRobolectricCanaryTest says why it is not the audit.
+compose-ui-test-junit4-accessibility = { group = "androidx.compose.ui", name = "ui-test-junit4-accessibility" }
 compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebaseMessaging" }
 firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics", version = "20.1.0" }

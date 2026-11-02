@@ -333,7 +333,7 @@ private fun ContactCallRow(
                 Text(
                     relativeTime(call.started_at),
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (onCallBack != null) {
                     val callBackInteraction = remember { MutableInteractionSource() }

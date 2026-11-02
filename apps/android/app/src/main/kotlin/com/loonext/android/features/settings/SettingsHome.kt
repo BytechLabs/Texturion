@@ -548,7 +548,7 @@ fun SettingsHome(
 }
 
 @Composable
-private fun SettingsIndex(
+internal fun SettingsIndex(
     company: CompanyView,
     me: Me,
     role: String?,
@@ -651,7 +651,7 @@ private fun DiagnosticsIndexRow(onOpen: () -> Unit) {
             Text(
                 t("settingsMore.diagnosticsBlurb"),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 1.dp),
@@ -678,7 +678,7 @@ private fun VersionFooter(onTap: () -> Unit) {
     Text(
         loonextWordmark(suffix = " ${BuildConfig.VERSION_NAME}"),
         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-        color = MaterialTheme.colorScheme.outline,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = Modifier
             .fillMaxWidth()
@@ -687,7 +687,9 @@ private fun VersionFooter(onTap: () -> Unit) {
                 interactionSource = interaction,
                 indication = null,
                 onClick = onTap,
-            ),
+            )
+            // Inside the clickable, so the tap area is 24dp rather than the 16dp line.
+            .padding(vertical = 4.dp),
     )
 }
 
@@ -964,7 +966,7 @@ private fun UsageStatusCard(usage: Usage, onOpen: () -> Unit) {
                     Text(
                         it,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -1067,7 +1069,7 @@ private fun SettingsIndexRow(
             Text(
                 t(section.blurbKey),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 1.dp),
