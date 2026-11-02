@@ -323,7 +323,7 @@ function pruneWorktrees(layout, keep, active) {
  * Every derived file's content. Every refusal (an untaught config key, a live
  * or missing secret) happens here, before the database or a service changes.
  */
-function deriveAll({ root, sha, layout, settings, store, status, partition, endpoints, edge }) {
+function deriveAll({ root, sha, layout, settings, store, status, partition, endpoints, edge, log }) {
   const apiDir = join(root, "apps", "api");
   const apiConfig = parseJsonc(readFileSync(join(apiDir, "wrangler.jsonc"), "utf8"));
 
@@ -440,6 +440,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
     partition,
     endpoints,
     edge,
+    log,
   });
   if (!options.skipWeb) files.push(buildWeb({ root, sha, settings, status, log }));
   log("config: wrangler.rig.jsonc, .dev.vars.rig and the AI shim derived");
