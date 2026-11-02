@@ -41,8 +41,11 @@ const OWNER = "qa-w-owner";
 const TECH = "qa-w-technician";
 const ROBOT_ANSWERED = Date.parse("2026-10-31T15:00:04.000Z");
 const iso = (ms: number) => new Date(ms).toISOString();
-/** Ten digits that stand alone. Digits touching a letter or more digits are part of an id, and random UUIDs can hold ten in a row. */
-const PHONE_DIGITS = /(?<![0-9A-Za-z])\+?1?\d{10}(?![0-9A-Za-z])/;
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+/** Ten digits in a row, with spaces, dots, dashes or brackets allowed between them. */
+const PHONE_DIGITS = /\+?\d(?:[\s().-]{0,2}\d){9,}/;
+/** Random UUIDs can hold ten digits in a row, so they are removed before the check. */
+const holdsPhoneNumber = (text: string) => PHONE_DIGITS.test(text.replace(UUID, "id"));
 
 type World = ReturnType<typeof fakeContext>;
 type Row = CallRow & { tenant: string; caller: string };
@@ -935,15 +938,21 @@ describe("the phone-digits check on evidence", () => {
   const evidence = (value: string) => JSON.stringify({ on_call_shift: value, note: "x" });
 
   it("passes a UUID whose digits run ten or more in a row", () => {
-    expect(evidence("82f6ab5b-8e0f-4f61-861c-bd1627082885")).not.toMatch(PHONE_DIGITS);
-    expect(evidence("82f6ab5b-8e0f-4f61-861c-162708288512")).not.toMatch(PHONE_DIGITS);
-    expect(evidence("16270828-8512-4f61-861c-bd1627082885")).not.toMatch(PHONE_DIGITS);
+    expect(holdsPhoneNumber(evidence("82f6ab5b-8e0f-4f61-861c-bd1627082885"))).toBe(false);
+    expect(holdsPhoneNumber(evidence("82f6ab5b-8e0f-4f61-861c-162708288512"))).toBe(false);
+    expect(holdsPhoneNumber(evidence("16270828-8512-4f61-861c-bd1627082885"))).toBe(false);
   });
 
-  it("still fails a number written as E.164 or as bare digits", () => {
-    expect(evidence("+14165550123")).toMatch(PHONE_DIGITS);
-    expect(evidence("4165550123")).toMatch(PHONE_DIGITS);
-    expect(JSON.stringify({ to: "tel:14165550123" })).toMatch(PHONE_DIGITS);
+  it("still fails a number written as E.164, bare digits or with separators", () => {
+    for (const number of ["+14165550123", "4165550123", "tel:14165550123", "+1 416 555 0123", "(416) 555-0123", "416.555.0123"]) {
+      expect(holdsPhoneNumber(evidence(number)), number).toBe(true);
+    }
+  });
+
+  it("fails a number that follows letters or a JSON escape", () => {
+    for (const text of ["x\n4165550123", "x\t4165550123", "id4165550123", "+14165550123x", "call4165550123"]) {
+      expect(holdsPhoneNumber(evidence(text)), text).toBe(true);
+    }
   });
 });
 
@@ -966,7 +975,7 @@ describe("the budget in tools/rig/scenarios.json", () => {
       expect((await runner.run(world.ctx)).outcome, `${id} ${world.ctx.slot.label ?? ""}`).toBe("pass");
       const row = SCENARIOS.scenarios.find((s) => s.id === id)!;
       expect(world.robot.plans.length, id).toBeLessThanOrEqual(row.far_end_legs);
-      expect(JSON.stringify(world.ctx.evidence), id).not.toMatch(PHONE_DIGITS);
+      expect(holdsPhoneNumber(JSON.stringify(world.ctx.evidence)), id).toBe(false);
     }
   });
 });
