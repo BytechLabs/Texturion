@@ -1,5 +1,12 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  DatabaseOverloadedError,
+  databaseOverloaded,
+  markDatabaseOverloaded,
+  markDatabaseReachable,
+  markDatabaseUnreachable,
+} from "./db-pressure";
 import type { Env } from "./env";
 
 /**
@@ -35,6 +42,52 @@ export function dbRequestSignal(
 ): AbortSignal {
   const deadline = AbortSignal.timeout(timeoutMs);
   return existing ? AbortSignal.any([existing, deadline]) : deadline;
+}
+
+/**
+ * Whether a database response is the database saying it is out of room, rather
+ * than saying no to one query.
+ *
+ * PostgREST answers 503 when it cannot get a connection or a schema cache and
+ * 504 when the pool wait times out, and the gateway in front of it answers 502
+ * or 504 for an upstream that is not there. A Postgres out-of-connections error
+ * (SQLSTATE 53300) is the same condition reaching us through a stack that
+ * reports it as a 500 with the code in the body, so that one body is read.
+ *
+ * So is the gateway running out of its own connections: Kong answers a bare
+ * 500 {"message":"An unexpected error occurred"} when its workers cannot open
+ * another upstream connection (the rig logged "512 worker_connections are not
+ * enough" for every one). A query that failed carries a SQLSTATE `code`; this
+ * has none, which is what tells the two apart.
+ *
+ * Every other 5xx is a failed query and stays an ordinary failure.
+ */
+export async function isDatabaseOverload(response: Response): Promise<boolean> {
+  if ([502, 503, 504].includes(response.status)) return true;
+  if (response.status !== 500) return false;
+  try {
+    const body = (await response.clone().json()) as {
+      code?: unknown;
+      message?: unknown;
+    } | null;
+    if (body?.code === "53300") return true;
+    return body?.code === undefined && body?.message === GATEWAY_FAILURE_MESSAGE;
+  } catch {
+    return false;
+  }
+}
+
+/** The sentence Kong puts in the body of a 500 it generated itself. */
+const GATEWAY_FAILURE_MESSAGE = "An unexpected error occurred";
+
+/** The caller's own signal, from .abortSignal(), rejects with an AbortError. */
+function isCallerAbort(error: unknown): boolean {
+  return (error as { name?: unknown } | null)?.name === "AbortError";
+}
+
+/** A deadline from AbortSignal.timeout rejects with a TimeoutError. */
+function isDeadline(error: unknown): boolean {
+  return (error as { name?: unknown } | null)?.name === "TimeoutError";
 }
 
 /**
@@ -86,10 +139,32 @@ export function getDb(env: Env): SupabaseClient {
          * passes one for `.abortSignal()`, and clobbering it would silently
          * un-cancel a request the caller had already given up on.
          */
-        return globalThis.fetch(input, {
-          ...init,
-          signal: dbRequestSignal(init?.signal),
-        });
+        // A request that has seen the database refuse stops asking it (db-pressure.ts).
+        return (async () => {
+          if (databaseOverloaded()) throw new DatabaseOverloadedError();
+          let response: Response;
+          try {
+            response = await globalThis.fetch(input, {
+              ...init,
+              signal: dbRequestSignal(init?.signal),
+            });
+          } catch (error) {
+            if (isDeadline(error) && markDatabaseOverloaded()) {
+              throw new DatabaseOverloadedError({ cause: error });
+            }
+            // A caller that cancelled has said nothing about the database. A
+            // call that died in transit has, and is left to postgrest-js to
+            // retry; the request only remembers it, to answer 503 if it ends
+            // in a 5xx with the database still unreachable.
+            if (!isCallerAbort(error)) markDatabaseUnreachable();
+            throw error;
+          }
+          if ((await isDatabaseOverload(response)) && markDatabaseOverloaded()) {
+            throw new DatabaseOverloadedError();
+          }
+          markDatabaseReachable();
+          return response;
+        })();
       },
     },
   });

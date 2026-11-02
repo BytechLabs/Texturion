@@ -55,6 +55,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { AppEnv } from "../context";
 import { app } from "../index";
+import { OVERLOADED_MESSAGE } from "../http/errors";
 import { buildTestApp } from "../test/routes-harness";
 import {
   authorizeRoute,
@@ -88,7 +89,7 @@ afterEach(() => {
 const REFUSAL =
   "remaining connection slots are reserved for non-replication superuser connections";
 
-function poolerRefuses() {
+function poolerRefuses(code = "53300", message = REFUSAL) {
   stubFetch(
     jwksRoute(auth),
     authorizeRoute(env, { id: MEMBER_ID, role: "owner" }),
@@ -97,15 +98,18 @@ function poolerRefuses() {
     async (url) => {
       if (!url.href.startsWith(env.SUPABASE_URL)) return undefined;
       return new Response(
-        JSON.stringify({ message: REFUSAL, code: "53300" }),
+        JSON.stringify({ message, code }),
         { status: 500, headers: { "Content-Type": "application/json" } },
       );
     },
   );
 }
 
-async function callUnderRefusal(headers: Record<string, string> = {}) {
-  poolerRefuses();
+async function callUnderRefusal(
+  headers: Record<string, string> = {},
+  refusal: { code?: string; message?: string } = {},
+) {
+  poolerRefuses(refusal.code, refusal.message);
   return app.request(
     "/v1/conversations",
     {
@@ -141,15 +145,34 @@ describe("#251 the database refusing is an honest failure", () => {
   });
 
   it("returns the SPEC envelope with a request id to trace it by", async () => {
-    // The ray turns "it broke" into one log line and one Sentry event. Without
-    // it the founder is grepping by timestamp during the incident.
+    // The ray turns "it broke" into one log line. Without it the founder is
+    // grepping by timestamp during the incident.
     const res = await callUnderRefusal({ "cf-ray": "abc123-YYZ" });
     const body = (await res.json()) as {
       error: { code: string; message: string; request_id?: string };
     };
-    expect(body.error.code).toBeTruthy();
-    expect(body.error.message).toBe("Something went wrong.");
+    expect(body.error.code).toBe("service_unavailable");
+    expect(body.error.message).toBe(OVERLOADED_MESSAGE);
     expect(body.error.request_id).toBe("abc123-YYZ");
+  });
+
+  it("says it is busy and when to come back, instead of that something broke", async () => {
+    // Out of connections is overload, not a bug: waiting fixes it. A 500
+    // "Something went wrong." tells the client to report a defect; a 503 with a
+    // Retry-After tells it to back off, which is what stops a retry storm from
+    // finishing off a pool that is already full.
+    const res = await callUnderRefusal();
+    expect(res.status).toBe(503);
+    expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
+  });
+
+  it("still reports a failure that is not overload as a plain 500", async () => {
+    // Only the database being out of room is called busy. A query that failed
+    // for its own reasons is a defect somebody has to see.
+    const res = await callUnderRefusal({}, { code: "XX000", message: "internal" });
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe("Something went wrong.");
   });
 
   it("stays READABLE cross-origin, so an outage is not misread as a CORS bug", async () => {

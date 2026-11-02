@@ -91,6 +91,51 @@ export function internalErrorResponse(
   );
 }
 
+/** The sentence a customer reads while the database is saturated. */
+export const OVERLOADED_MESSAGE =
+  "The service is busy right now. Try that again in a moment.";
+
+/**
+ * What a request answers once the database has refused it: 503 with a
+ * Retry-After, not the 500 an unhandled throw becomes, because waiting fixes
+ * overload and "Something went wrong." reads as a bug. The sentence is ours;
+ * the driver's names our infrastructure.
+ *
+ * A plain Response, because the caller may run after the chain has already
+ * produced one (db-pressure.ts). The origin is re-echoed and the ray returned
+ * for the reasons internalErrorResponse gives.
+ */
+export function overloadedResponse(
+  c: Context,
+  allowedOrigins: readonly (string | undefined)[],
+  retryAfterSeconds = 5,
+): Response {
+  const headers = new Headers({
+    "Content-Type": "application/json",
+    "Retry-After": String(retryAfterSeconds),
+  });
+  try {
+    const origin = c.req.header("origin");
+    if (origin && allowedOrigins.includes(origin)) {
+      headers.set("Access-Control-Allow-Origin", origin);
+      headers.set("Vary", "Origin");
+    }
+  } catch {
+    // Never throw from an error path; the envelope still ships.
+  }
+  const rayId = c.req.header("cf-ray") ?? undefined;
+  return new Response(
+    JSON.stringify({
+      error: {
+        code: "service_unavailable",
+        message: OVERLOADED_MESSAGE,
+        ...(rayId ? { request_id: rayId } : {}),
+      },
+    }),
+    { status: ERROR_CODE_STATUS.service_unavailable, headers },
+  );
+}
+
 /**
  * Throwable form of the SPEC §7 envelope for code that cannot return a
  * Response directly (helpers such as cursor decoding). The app's `onError`

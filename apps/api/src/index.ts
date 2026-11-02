@@ -1,6 +1,6 @@
 import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@loonext/shared";
 import * as Sentry from "@sentry/cloudflare";
-import { Hono, type ErrorHandler } from "hono";
+import { Hono, type Context, type ErrorHandler } from "hono";
 import { cors } from "hono/cors";
 
 import { securityHeaders } from "./http/security-headers";
@@ -30,6 +30,7 @@ import {
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import type { AppEnv } from "./context";
 import { getEnv, type Bindings, type Env } from "./env";
+import { databasePressure, databaseTrouble } from "./db-pressure";
 import { rigDatabaseRefusal } from "./environments/database";
 import { servesRigRoutes } from "./environments/policy";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
@@ -66,6 +67,7 @@ import {
   ApiError,
   errorResponse,
   internalErrorResponse,
+  overloadedResponse,
 } from "./http/errors";
 import {
   failStuckOutboundSends,
@@ -175,6 +177,22 @@ import { stripeWebhookRoute } from "./webhooks/stripe";
 import { telnyxWebhookRoute } from "./webhooks/telnyx";
 
 export const app = new Hono<AppEnv>();
+
+/**
+ * The origins an error response may re-echo (CORS), read defensively: an error
+ * path must never be the thing that throws.
+ */
+function allowedOriginsOf(c: Context): (string | undefined)[] {
+  try {
+    const env = getEnv(c.env as Bindings);
+    return [env.APP_ORIGIN, env.SITE_ORIGIN];
+  } catch {
+    return [];
+  }
+}
+
+/** Outermost, so every request runs in its own database-pressure scope. */
+app.use("*", databasePressure(allowedOriginsOf));
 
 /**
  * #586 — security headers on EVERY response, before anything else is mounted.
@@ -422,6 +440,14 @@ const handleAppError: ErrorHandler<AppEnv> = (error, c) => {
       "The phone network is busy right now. Try that again in a moment.",
     );
   }
+  // Overload is not a bug: a Sentry event per shed request would be an alert
+  // storm. The synthetic probes page about the database; the ray stays in the log.
+  if (databaseTrouble()) {
+    console.warn(
+      `[503] database trouble: ${c.req.method} ${new URL(c.req.url).pathname} ray=${c.req.header("cf-ray") ?? "-"}`,
+    );
+    return overloadedResponse(c, allowedOriginsOf(c));
+  }
   // A real, unexpected 500. Make it observable three ways without leaking
   // internals to the client (SPEC §10):
   //   1. a rich server log with the failing route + Cloudflare ray id — shows
@@ -463,6 +489,7 @@ let rigApp: Hono<AppEnv> | null = null;
 function rigRoutesApp(): Hono<AppEnv> {
   if (rigApp !== null) return rigApp;
   const built = new Hono<AppEnv>();
+  built.use("*", databasePressure(allowedOriginsOf));
   built.use("*", securityHeaders());
   built.use("/v1/*", v1Cors);
   built.use("/v1/*", jwtAuth());
