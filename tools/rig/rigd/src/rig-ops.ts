@@ -241,18 +241,17 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
 
 /** The app's sign-in screen as a member fills it in, its fields and button found by their English labels. */
 export async function signInOnDevice(
-  device: Pick<AndroidDevice, "launch" | "showing" | "tapText" | "type">,
+  device: Pick<AndroidDevice, "launch" | "tapFieldLabelled" | "tapText" | "type">,
   member: string,
   credentials: { email: string; password: string } | undefined,
 ): Promise<boolean> {
   if (!credentials) throw new Error(`rig: no sign-in for ${member}`);
   await device.launch();
-  if (!(await device.showing({ text: "Email" }))) return false;
   for (const [field, value] of [
     ["Email", credentials.email],
     ["Password", credentials.password],
   ] as const) {
-    if (!(await device.tapText(field))) return false;
+    if (!(await device.tapFieldLabelled(field))) return false;
     await device.type(value);
   }
   return device.tapText("Sign in");
@@ -263,7 +262,7 @@ export async function dialOnDevice(device: Pick<AndroidDevice, "launch" | "tapTe
   const number = numbers.number(role);
   if (!number) throw new Error(`rig: no number for ${role}`);
   await device.launch("/calls");
-  if (!(await device.tapText("Dial"))) throw new Error("rig: the app's calls screen offered no dialer");
+  if (!(await device.tapText("Dial a number"))) throw new Error("rig: the app's calls screen offered no dialer");
   for (const digit of number.replace(/^\+1/, "")) {
     if (!(await device.tapText(digit))) throw new Error("rig: the dialer's keypad is not on screen");
   }

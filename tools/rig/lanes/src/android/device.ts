@@ -49,6 +49,7 @@ export interface DeviceState {
 
 export interface UiNode {
   resourceId: string;
+  className: string;
   text: string;
   description: string;
   bounds: { left: number; top: number; right: number; bottom: number };
@@ -64,6 +65,7 @@ export function parseUiDump(xml: string): UiNode[] {
     if (!bounds) continue;
     nodes.push({
       resourceId: attr("resource-id"),
+      className: attr("class"),
       text: attr("text"),
       description: attr("content-desc"),
       bounds: { left: Number(bounds[1]), top: Number(bounds[2]), right: Number(bounds[3]), bottom: Number(bounds[4]) },
@@ -355,6 +357,16 @@ export class AndroidDevice {
     return this.#tapWhere((node) => node.text === text || node.description === text);
   }
 
+  /** Taps the text field after the label that holds `label`, ignoring case: the app draws a field's label as a separate text. */
+  async tapFieldLabelled(label: string): Promise<boolean> {
+    const nodes = await this.#nodes();
+    const at = nodes.findIndex((node) => node.text.toLowerCase().includes(label.toLowerCase()));
+    const field = at === -1 ? undefined : nodes.slice(at + 1).find((node) => node.className.endsWith("EditText"));
+    if (!field) return false;
+    await this.#tapNode(field);
+    return true;
+  }
+
   async showing(target: { id: CallTestId } | { text: string }): Promise<boolean> {
     const nodes = await this.#nodes();
     return "id" in target
@@ -376,9 +388,13 @@ export class AndroidDevice {
   async #tapWhere(match: (node: UiNode) => boolean): Promise<boolean> {
     const node = (await this.#nodes()).find(match);
     if (!node) return false;
+    await this.#tapNode(node);
+    return true;
+  }
+
+  async #tapNode(node: UiNode): Promise<void> {
     const { x, y } = centre(node);
     await this.adb.shell("input", "tap", String(x), String(y));
-    return true;
   }
 }
 
