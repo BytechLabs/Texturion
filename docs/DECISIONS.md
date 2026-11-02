@@ -9639,17 +9639,21 @@ Crashlytics goes too.
   Durable Object canary, the inbound canary, the synthetic probes, the Telnyx
   wiring watch, the ring-success watch, the email health checks, the
   delivery-by-country and registration-stall reports, call silence, the
-  activation-stall report and the weekly overage digest all go this way.
+  activation-stall report, the AUP watch and the
+  weekly overage digest all go this way.
 - **Product work stays.** A cap that stops spend or traffic (AI usage,
   high-priority pushes, ring beacons) keeps stopping it; its warning becomes an
   ops notice. Work that changes state (opt-out reconciliation, number health a
-  customer sees, AUP review, disputes, port-outs, carrier suspensions) keeps
-  doing it, and the founder copy becomes an ops notice. Customer emails and
-  pushes are untouched.
+  customer sees, AUP screening at signup, disputes, port-outs, carrier
+  suspensions) keeps doing it, and the founder copy becomes an ops notice,
+  sent once when the condition starts. Customer emails and pushes are
+  untouched.
 - **An ops notice is an exception.** `$exception` with
   `$exception_fingerprint: "ops:<key>"`, so each problem is one issue with a
-  status, an assignee and a history, and the "new or returning issue" alert
-  covers every one of them. `key` names the problem, never an id.
+  status, an assignee and a history. The "new or returning issue" alert
+  reports every notice in the hour it arrives, not only the first of its issue,
+  because each one is something a person must act on. `key` names the problem,
+  never an id.
 - **Absence is a PostHog alert.** Each cron trigger, each channel and the
   Durable Object send `ops_heartbeat` with its own `grace_minutes`. One SQL
   insight alert fires for any key whose last heartbeat is older than its grace.

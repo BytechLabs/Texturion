@@ -33,6 +33,7 @@ already do (D8). Alerts only read `environment = 'production'`.
 | `email_bounced` | API Worker, Resend webhook | `kind` (`bounce`, `complaint`) | Resend reported a bounce or a complaint |
 | `ring_push_sent`, `ring_beacon` | API Worker | `platform`, `app_version`, and `stage` on a beacon | a ring push went out; a device reported a ring stage |
 | `call_received` | API Worker | none | an inbound call reached a workspace |
+| `aup_signals` | API Worker, daily cron | the counts and ratios `api_aup_signals` returns, never content or names | once a day for each workspace that sent texts that day |
 | `usage_threshold_crossed`, `overage_projected` | API Worker crons | `threshold` on the first | the existing customer warnings fired |
 
 The funnel events from D8 (`checkout_completed`, `first_outbound_sent`,
@@ -45,6 +46,9 @@ words joined by hyphens, names the problem and never an id, an amount or a
 date, so every occurrence of one problem is one PostHog issue. Ids go in
 properties. Ordinary errors set no fingerprint and PostHog groups them by stack,
 which source maps make readable.
+
+A notice is sent once, when the condition starts: the request that reaches a
+cap, the transition into a bad state. Requests refused after that send nothing.
 
 ### What never leaves
 
@@ -62,10 +66,18 @@ At 200 active workspaces (about 60k texts, 10k calls and 20k emails a month)
 the channel heartbeats and outcome events bring it to about 400k events. Ten
 thousand exceptions a month would mean something is badly wrong.
 
+Reaching the limit stops ingestion for the rest of the month, errors included,
+so the "Limits and rates" alert fires at 70% of either quota, and PostHog's
+error tracking rate limits drop a flooding issue before it can use up the
+exception quota.
+
 ## In PostHog
 
 Created through PostHog's API and kept there, not in this repository. The
-free plan allows five insight alerts; four are used.
+free plan allows five alerts in total; four are used.
+
+Error tracking has exception autocapture on, a per-issue rate limit and a
+project-wide one.
 
 ### Dashboard: Loonext health
 
@@ -82,9 +94,9 @@ notifications.
 
 | Alert | Insight | Fires when | Checked |
 |---|---|---|---|
-| New or returning error issue | SQL over `$exception` and `system.error_tracking_issues` | an active issue's first event in the last hour, or its first after a quiet day | hourly |
-| Heartbeat overdue | SQL over `ops_heartbeat` | any key's last event is older than its `grace_minutes` | hourly |
-| Limits and rates | SQL, one row per breach | a gauge at 70% of its limit, a Telnyx limit missing, three signature rejections from one provider in an hour, a country's delivery rate under 80%, bounce rate over 2% or complaints over 0.05% of sends, rings shown under 80% of pushes per platform, a registration submitted seven days ago and not approved | hourly |
+| New or returning error issue | SQL over `$exception` and `system.error_tracking_issues`, one row per issue or notice | an active issue's first production event, or its first after a quiet day, in the last hour; and every ops notice in the last hour, since each one is something a person must act on | hourly |
+| Heartbeat overdue | SQL over `ops_heartbeat` in the last 35 days | any key's last event is older than its `grace_minutes` | hourly |
+| Limits and rates | SQL, one row per breach | a gauge at 70% of its limit, a Telnyx limit missing or lowered, three signature rejections from one provider in an hour, a country's delivery rate under 80%, bounce rate over 2% or complaints over 0.05% of sends, rings shown under 80% of pushes per platform, a registration submitted seven days ago and not approved, a workspace whose `aup_signals` cross the AUP thresholds, the month's events or exceptions at 70% of the free tier | hourly |
 | Exception spike | trend of `$exception` | volume far above its baseline | hourly |
 
 Muting a problem is suppressing its issue in PostHog error tracking. Resolving
