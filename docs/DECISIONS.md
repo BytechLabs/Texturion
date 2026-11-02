@@ -8593,6 +8593,7 @@ sync worker would violate the task model rather than complete this decision.
 The connect screen therefore says plainly that unrelated events are not
 imported; this issue must not close until that missing product contract is
 decided and implemented (or the inbound requirement is explicitly withdrawn).
+**Settled by D143 (2026-11-01): the inbound requirement is withdrawn.**
 
 **Unresolved, and named rather than smoothed over.**
 
@@ -9404,3 +9405,69 @@ with its reason:
   written apart and disagreed on both.
 - **Cost.** Hardware is $0 and the one-time cost about $8. The monthly cost
   stays about $24, plus an estimated $2-6 of workstation power.
+
+## D143 - a calendar event never becomes a job on its own; the connector stays a mirror (#245, 2026-11-01)
+
+**Decision.** Inbound creation is withdrawn. The two-way connector mirrors
+the jobs Loonext owns and applies changes to those jobs only. An event that
+somebody put in a connected calendar by hand is never turned into a task, never
+listed, and never read. This closes the question D137's implementation boundary
+left open ("which source, customer, completion history, or audit identity an
+arbitrary calendar occurrence should acquire"). The answer is that none can be
+manufactured, so none is.
+
+**Why.** Four independent reasons, any one enough:
+
+1. **D17 and D64 forbid it.** A task promotes something that happened with a
+   customer: a message or an answered call. D64 considered a task with no
+   source ("do the annual inspection") and kept it out of scope; a calendar
+   event has no customer, no conversation and no message. Adding a third anchor
+   type, as D64 did for calls, would reach reminders (#237), the timeline, task
+   detail and the done-state rule on all three clients, to import events that
+   are mostly not jobs.
+2. **A crew calendar is mostly not work.** The calendar is shared with a
+   spouse doing the books and holds school pickups, dentist visits and the
+   truck's MOT. Any rule that picks the "job" events guesses, and a wrong guess
+   puts a private event in front of the whole crew or, worse, schedules a
+   customer text for it.
+3. **Reading it contradicts what we told the member.** The connect screen, the
+   privacy policy section 5b and Google's verification submission all say the
+   connector does not read events it did not create. The pull path honours that
+   today: the provider delta returns content-free notices and an unmapped
+   instance costs no further request. Inbound creation would have to fetch
+   titles, notes and guests of every event, and Google's review of a sensitive
+   scope is judged against the narrower claim.
+4. **Recurrence makes it unbounded.** An inbound weekly event expands to an
+   occurrence per week, each needing a done-state, an audit actor and a
+   reminder decision, with nobody having asked for any of them.
+
+**What the issue's sentence now means.** "A job scheduled in either place
+appears in the other" is met as follows. A job scheduled in Loonext appears in
+the member's calendar. A job rescheduled, renamed or removed in the calendar is
+applied to the job, resolved by D137. Work that starts in the calendar begins
+as a job the usual way, from the customer's message or call, and the member
+schedules it there. There is no separate scheduling or booking surface (the
+`customer-gap-analysis.md` boundary on #245 holds).
+
+**Availability is not planned on this connector.** Knowing when a tech is busy
+means reading events we did not create, or the provider's free/busy view, which
+needs a scope we neither request nor disclose. It would be a new, separately
+disclosed opt-in on its own issue, and it has no consumer until there is a
+"when can you come out?" feature to feed. The existing refusal to read other
+events is the product position, not a missing feature.
+
+**Test that holds this.** `worker.test.ts` "applies only mapped provider
+instances" asserts a notice with no link costs no `getEvent`, produces no
+mutation and no task. If a later change makes that test fail, the privacy
+policy section 5b, the connect-screen copy and the Google and Microsoft consent
+justifications in `docs/deploy/11-calendar-connectors.md` are false at the same
+moment and must change first.
+
+**Supersedes.** The "Inbound recurring events expand to instance-scoped tasks
+and are never deleted" sentence in D137's phase-one list, and the sentence in
+its implementation boundary that #245 "must not close until" an inbound
+contract exists. Rules 0 to 8 of D137 are unchanged.
+
+**Consistency:** D17, D64 (a task promotes a source), D137 (the conflict
+policy this leaves whole), #237 (reminders hold on an unverified calendar, shipped
+in the same slice).

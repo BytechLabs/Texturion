@@ -55,7 +55,8 @@ by earlier ones.
 
 There are additional vendor deep-dive pages in this directory
 (`vendor-supabase-migrations.md`, `vendor-cron-triggers.md`,
-`vendor-webhooks-setup.md`, `09-stripe-catalog-setup.md`, `10-email-inbox.md`)
+`vendor-webhooks-setup.md`, `09-stripe-catalog-setup.md`, `10-email-inbox.md`,
+`11-calendar-connectors.md`)
 covering the same facts from a per-vendor angle. **This numbered set is the
 operator walkthrough — start here.**
 

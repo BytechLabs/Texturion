@@ -1351,6 +1351,11 @@ describe("calendar sync worker", () => {
     });
 
     expect(db.applyProviderEvent).toHaveBeenCalledTimes(1);
+    // The privacy policy promises we never read an event we did not create.
+    expect(calendar.getEvent).toHaveBeenCalledTimes(1);
+    expect(calendar.getEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ instanceId: LINK.provider_instance_id }),
+    );
     expect(db.applyProviderEvent).toHaveBeenCalledWith({
       connection: CONNECTION,
       link: LINK,
