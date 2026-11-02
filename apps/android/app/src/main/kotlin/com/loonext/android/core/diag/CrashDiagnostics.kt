@@ -31,6 +31,9 @@ object CrashReportLog {
      */
     const val MAX_ENTRIES = 20
 
+    /** Thread-name prefix of an entry for a failure the process survived. */
+    const val NON_FATAL_THREAD_PREFIX = "coroutine:"
+
     /** Every entry starts with this marker line prefix (the split key). */
     const val ENTRY_MARKER = "=== CRASH "
 
@@ -69,13 +72,23 @@ object CrashReportLog {
         return result.map { it.toString().trimEnd() }.filter { it.isNotEmpty() }
     }
 
-    /** Epoch ms of the NEWEST entry, or null when the log is empty/garbled. */
-    fun lastCrashAtMs(text: String): Long? = entries(text).lastOrNull()
+    /**
+     * Epoch ms of the newest entry that killed the process, or null when the log
+     * has none (empty, garbled, or only failures the app survived). The prompt
+     * and the "call was interrupted" line both speak of a crash, so a recorded
+     * failure the process lived through must not set either off.
+     */
+    fun lastCrashAtMs(text: String): Long? = entries(text)
+        .lastOrNull { !isNonFatal(it) }
         ?.lineSequence()
         ?.firstOrNull { it.startsWith(TIME_KEY) }
         ?.removePrefix(TIME_KEY)
         ?.trim()
         ?.toLongOrNull()
+
+    /** An entry [CrashDiagnostics.recordNonFatal] wrote: a failure the process survived. */
+    fun isNonFatal(entry: String): Boolean =
+        entryMeta(entry).threadName?.startsWith(NON_FATAL_THREAD_PREFIX) == true
 
     /**
      * Listing metadata parsed from ONE entry block (#197 — the Diagnostics
@@ -265,7 +278,7 @@ class CrashDiagnostics private constructor(baseDir: File, val appVersion: String
 
     /** Record a failure a coroutine handler intercepted (process survives). */
     fun recordNonFatal(tag: String, error: Throwable) {
-        store.record("coroutine:$tag", error, appVersion)
+        store.record("${CrashReportLog.NON_FATAL_THREAD_PREFIX}$tag", error, appVersion)
         // #169: caught-but-broken states become fleet-visible in the Firebase
         // console, not just the local file. Diagnostics must never throw.
         runCatching {

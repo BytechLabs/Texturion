@@ -90,6 +90,7 @@ class SoftphoneCoreTest {
 
     /** Every session the per-session fast-path decline POSTed (#171 R1). */
     private val declinedSessions = mutableListOf<String>()
+    private var declineFailure: Throwable? = null
 
     /** How many times the universal member-scoped decline-mine POSTed (#171 R1). */
     private val declineMineCalls = AtomicInteger(0)
@@ -165,6 +166,7 @@ class SoftphoneCoreTest {
 
         override suspend fun decline(companyId: String, sessionId: String): DeclineAck {
             declinedSessions += sessionId
+            declineFailure?.let { throw it }
             return DeclineAck(declined = true, state = "voicemail_greeting")
         }
 
@@ -1157,6 +1159,26 @@ class SoftphoneCoreTest {
         assertEquals("Couldn't answer — try again.", state.error)
         assertEquals("the ring survives the failed answer", CallPhase.RINGING, state.calls.single().phase)
         assertEquals("answer", reportedTag)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a decline for a call that already ended is not reported as a failure`() = runTest {
+        val h = harness()
+        val reported = mutableListOf<String>()
+        h.core.onInternalFailure = { tag, _ -> reported += tag }
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        declineFailure = ApiException(ApiErrorCode.NOT_FOUND, "No such call.", 404)
+        h.core.declineSessionSignal("session-gone")
+        runCurrent()
+        assertTrue("the 404 is the call being over, not a failure: $reported", reported.isEmpty())
+
+        declineFailure = ApiException(ApiErrorCode.INTERNAL_ERROR, "boom", 500)
+        h.core.declineSessionSignal("session-500")
+        runCurrent()
+        assertEquals(listOf("decline"), reported)
         h.scope.cancel()
     }
 

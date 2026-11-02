@@ -1301,6 +1301,13 @@ class SoftphoneCore(
                 api.decline(company, session)
             } catch (cause: CancellationException) {
                 throw cause
+            } catch (cause: ApiException) {
+                // The call already ended, so there is nothing left to decline.
+                if (cause.httpStatus == 404) {
+                    CallFlowLog.log("decline", "session already gone sess=${CallFlowLog.tail(session)}")
+                } else {
+                    onInternalFailure?.invoke("decline", cause)
+                }
             } catch (cause: Exception) {
                 onInternalFailure?.invoke("decline", cause)
             }

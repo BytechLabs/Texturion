@@ -245,6 +245,32 @@ class CrashDiagnosticsTest {
     }
 
     @Test
+    fun `a failure the process survived is kept but is not a crash`() {
+        // The post-crash prompt says the app closed, and a call marker older than
+        // the newest "crash" says a call was cut off. A refused Telecom op or a
+        // 404 on a decline is neither.
+        var clock = 1_000L
+        val store = CrashReportStore(tmp.newFolder("crash-reports"), now = { clock })
+        val nonFatalThread = "${CrashReportLog.NON_FATAL_THREAD_PREFIX}decline"
+
+        store.record(nonFatalThread, RuntimeException("No such call."), "1.0.0")
+        assertNull("nothing to offer for a survived failure", store.unsurfacedReport())
+        assertNull(store.lastCrashAtMs())
+        assertTrue("still listed for the Diagnostics screen", store.readAll()!!.contains("No such call."))
+
+        clock = 2_000L
+        store.record("main", RuntimeException("real crash"), "1.0.0")
+        assertEquals(2_000L, store.lastCrashAtMs())
+        assertNotNull(store.unsurfacedReport())
+        store.markSurfaced()
+
+        clock = 3_000L
+        store.record(nonFatalThread, RuntimeException("later survived failure"), "1.0.0")
+        assertEquals("a later survived failure is not a newer crash", 2_000L, store.lastCrashAtMs())
+        assertNull(store.unsurfacedReport())
+    }
+
+    @Test
     fun `the store rotates - twenty-three crashes keep the newest twenty`() {
         var clock = 0L
         val store = CrashReportStore(tmp.newFolder("crash-reports"), now = { clock })
