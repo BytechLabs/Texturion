@@ -174,6 +174,12 @@ const envSchema = z.object({
    */
   OPS_ALERT_EMAIL: z.string().min(3).optional(),
   /**
+   * #652: the shared secret PostHog's alert webhook sends in `x-loonext-ops-secret`
+   * (webhooks/posthog-alert.ts). Unset, the endpoint answers 503 to everything.
+   * 32 characters at least, so a guessable value cannot be set.
+   */
+  OPS_ALERT_WEBHOOK_SECRET: z.string().min(32).optional(),
+  /**
    * #308: the synthetic inbound canary's number pair, in E.164.
    *
    * BOTH OPTIONAL, and the canary is off unless both are set — a from with no

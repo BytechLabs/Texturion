@@ -7,6 +7,7 @@ import {
   applyAlerts,
   exceptionRows,
   main,
+  OPS_SECRET_HEADER,
   parity,
   posthogFingerprint,
   posthogSettings,
@@ -86,11 +87,16 @@ test("sentryOpsKeys reads the ops_key tag values for the environment", async () 
 
 test("each alert is an internal_destination filtered on the issue event, posting to the webhook", () => {
   for (const alert of ALERT_EVENTS) {
-    const fn = alertFunction(alert, "https://hooks.example.test/x");
+    const fn = alertFunction(alert, "https://hooks.example.test/x", "s3cret");
     assert.equal(fn.type, "internal_destination");
     assert.equal(fn.filters.events[0].id, alert.event);
     assert.equal(fn.inputs.url.value, "https://hooks.example.test/x");
+    // The default body is what the Worker reads, and the secret is a secret header, never a plain one.
+    assert.equal(fn.inputs.body, undefined);
+    assert.deepEqual(fn.inputs.secret_headers.value, { [OPS_SECRET_HEADER]: "s3cret" });
+    assert.equal(fn.inputs.headers.value[OPS_SECRET_HEADER], undefined);
   }
+  assert.equal(OPS_SECRET_HEADER, "x-loonext-ops-secret");
   assert.deepEqual(ALERT_EVENTS.map((alert) => alert.event), ["$error_tracking_issue_created", "$error_tracking_issue_reopened"]);
 });
 
@@ -101,7 +107,7 @@ test("applyAlerts creates what is missing, updates what exists, and wants https"
     if (!init.method) return json({ results: [{ id: "f1", name: ALERT_EVENTS[0].name }] });
     return json({});
   };
-  const outcomes = await applyAlerts(SETTINGS, "https://hooks.example.test/x", fetchImpl);
+  const outcomes = await applyAlerts(SETTINGS, "https://hooks.example.test/x", "s3cret", fetchImpl);
   assert.deepEqual(outcomes, [
     { name: ALERT_EVENTS[0].name, action: "updated" },
     { name: ALERT_EVENTS[1].name, action: "created" },
@@ -110,7 +116,8 @@ test("applyAlerts creates what is missing, updates what exists, and wants https"
     ["PATCH", "/api/environments/7/hog_functions/f1/"],
     ["POST", "/api/environments/7/hog_functions/"],
   ]);
-  await assert.rejects(applyAlerts(SETTINGS, "http://hooks.example.test/x", fetchImpl), /must be an https URL/);
+  await assert.rejects(applyAlerts(SETTINGS, "http://hooks.example.test/x", "s3cret", fetchImpl), /must be an https URL/);
+  await assert.rejects(applyAlerts(SETTINGS, "https://hooks.example.test/x", "", fetchImpl), /OPS_ALERT_WEBHOOK_SECRET/);
 });
 
 test("the parity command exits 0 on parity, 1 on a missing key, 2 when it cannot run", async () => {

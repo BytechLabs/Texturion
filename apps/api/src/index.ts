@@ -172,6 +172,7 @@ import {
   retryCampaignAssignments,
 } from "./telnyx/registration";
 import { runEmailHealthJob } from "./email/health";
+import { posthogAlertWebhookRoute } from "./webhooks/posthog-alert";
 import { resendWebhookRoute } from "./webhooks/resend";
 import { stripeWebhookRoute } from "./webhooks/stripe";
 import { telnyxWebhookRoute } from "./webhooks/telnyx";
@@ -371,6 +372,8 @@ app.route("/webhooks/telnyx", telnyxWebhookRoute);
 app.route("/webhooks/stripe", stripeWebhookRoute);
 // #386: delivery outcomes for the eighteen places this product sends email.
 app.route("/webhooks/resend", resendWebhookRoute);
+// #652: PostHog's error-tracking alerts, mailed to the founder (D144).
+app.route("/webhooks/posthog-alert", posthogAlertWebhookRoute);
 
 /**
  * PUBLIC POST /contact (marketing contact form): unversioned and outside the

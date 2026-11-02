@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { linkifyUrls, toHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { claimOpsEmailSlot, releaseOpsEmailSlot } from "./ops-email-throttle";
 
 /**
  * The one way this product tells its operator something is wrong (D139).
@@ -64,19 +65,39 @@ export async function opsAlert(env: Env, alert: OpsAlert): Promise<void> {
     .filter(Boolean)
     .join("\n\n");
 
+  await mailOperator(env, key, {
+    subject: `[ops] ${summary}`,
+    text: `${body}\n\nKey: ${key}\n`,
+    html: alert.html
+      ? `${alert.html}${opsFooterHtml(key)}`
+      : opsEmailHtml(key, summary, detail, action),
+  });
+}
+
+/**
+ * The one send to the operator's mailbox, at most once per fingerprint per
+ * hour (#652). Best effort: a failed send is logged and the slot handed back.
+ */
+async function mailOperator(
+  env: Env,
+  key: string,
+  mail: { subject: string; text: string; html: string },
+): Promise<void> {
+  const recipient = env.OPS_ALERT_EMAIL;
+  if (!recipient) return;
+  const fingerprint = `ops:${key}`;
+  if (!(await claimOpsEmailSlot(fingerprint))) return;
+
   try {
     await sendEmail(env, {
-      to: [env.OPS_ALERT_EMAIL],
+      to: [recipient],
       // No service-message footer, and replies go to ops, not to support.
       kind: "operational",
-      replyTo: env.OPS_ALERT_EMAIL,
-      subject: `[ops] ${summary}`,
-      text: `${body}\n\nKey: ${key}\n`,
-      html: alert.html
-        ? `${alert.html}${opsFooterHtml(key)}`
-        : opsEmailHtml(key, summary, detail, action),
+      replyTo: recipient,
+      ...mail,
     });
   } catch (cause) {
+    await releaseOpsEmailSlot(fingerprint);
     console.error(
       `ops alert ${key}: email failed:`,
       cause instanceof Error ? cause.message : String(cause),
@@ -90,6 +111,7 @@ function opsEmailHtml(
   summary: string,
   detail?: string,
   action?: string,
+  link?: string,
 ): string {
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -101,6 +123,9 @@ function opsEmailHtml(
     `<p style="margin:0 0 12px"><strong>${esc(summary)}</strong></p>` +
     (detail ? block(detail) : "") +
     (action ? block(`What to do: ${action}`) : "") +
+    (link
+      ? `<p style="margin:0 0 12px"><a href="${esc(link).replace(/"/g, "&quot;")}">Open in PostHog</a></p>`
+      : "") +
     opsFooterHtml(key) +
     `</div>`
   );
@@ -143,21 +168,75 @@ export async function opsEmail(
 
   if (!env.OPS_ALERT_EMAIL) return;
 
+  await mailOperator(env, key, {
+    subject,
+    text,
+    html: html ? `${html}${opsFooterHtml(key)}` : opsEmailHtml(key, subject, text),
+  });
+}
+
+/** What PostHog told us about an issue it opened or reopened (#652). */
+export interface RelayedAlert {
+  /** PostHog's grouping string; `ops:<key>` for an ops alert. */
+  fingerprint: string;
+  title: string;
+  description?: string;
+  status?: string;
+  /** `$error_tracking_issue_created` or `$error_tracking_issue_reopened`. */
+  event: string;
+  /** Link to the issue in PostHog. */
+  link?: string;
+}
+
+export type RelayOutcome = "sent" | "throttled" | "unconfigured";
+
+/**
+ * Mail an alert PostHog raised, under the same hourly slot as `opsAlert`.
+ * Unlike `opsAlert` it throws when the send fails, so PostHog sees a non-2xx
+ * answer and retries.
+ */
+export async function relayPostHogAlert(
+  env: Env,
+  alert: RelayedAlert,
+): Promise<RelayOutcome> {
+  const recipient = env.OPS_ALERT_EMAIL;
+  if (!recipient) return "unconfigured";
+  if (!(await claimOpsEmailSlot(alert.fingerprint))) return "throttled";
+
+  const headline =
+    alert.event === "$error_tracking_issue_reopened" ? "Issue reopened" : "New issue";
+  const detail = [alert.description, alert.status && `Status: ${alert.status}`]
+    .filter(Boolean)
+    .join("\n\n");
+  const text = [
+    `${headline}: ${alert.title}`,
+    detail,
+    alert.link && `Open in PostHog: ${alert.link}`,
+    `Key: ${alert.fingerprint}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
   try {
     await sendEmail(env, {
-      to: [env.OPS_ALERT_EMAIL],
+      to: [recipient],
       kind: "operational",
-      replyTo: env.OPS_ALERT_EMAIL,
-      subject,
-      text,
-      html: html ? `${html}${opsFooterHtml(key)}` : opsEmailHtml(key, subject, text),
+      replyTo: recipient,
+      subject: `[ops] ${alert.title}`,
+      text: `${text}\n`,
+      html: opsEmailHtml(
+        alert.fingerprint,
+        `${headline}: ${alert.title}`,
+        detail || undefined,
+        undefined,
+        alert.link,
+      ),
     });
   } catch (cause) {
-    console.error(
-      `ops alert ${key}: email failed:`,
-      cause instanceof Error ? cause.message : String(cause),
-    );
+    await releaseOpsEmailSlot(alert.fingerprint);
+    throw cause;
   }
+  return "sent";
 }
 
 /**

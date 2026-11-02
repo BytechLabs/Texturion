@@ -9549,3 +9549,36 @@ proven by it: list those from the code and fire them once before Sentry goes. Lo
 one real risk, so Sentry stays until the check says there is none.
 
 **Why.** One vendor instead of two, with errors next to the product funnels.
+
+## D145 — PostHog's alerts land on an endpoint we own, and ops mail is once per fingerprint per hour (#652, 2026-11-02)
+
+**Decision.** PostHog's "new issue" and "reopened issue" alerts post to
+`POST /webhooks/posthog-alert` on the API Worker, which mails the founder at
+`OPS_ALERT_EMAIL` through the existing Resend sender. No Slack or Discord URL
+and no other vendor is involved (D144 asked for a destination only the founder
+could name; this is one nobody has to supply).
+
+- **Authentication.** A shared secret, `OPS_ALERT_WEBHOOK_SECRET`, in the
+  `x-loonext-ops-secret` header. PostHog stores it as the destination's
+  `secret_headers` input, encrypted and never shown again. The check hashes both
+  sides before comparing, runs before the body is read, and an unset secret
+  answers 503, never "accept".
+- **Payload.** The webhook template's default body, `{ event, person }`. The
+  alert event carries `name`, `description`, `status`, `fingerprint` in
+  `properties` and the issue id as `distinct_id`. The endpoint groups on
+  `properties.fingerprint`, then `$exception_fingerprint`, then the issue id.
+  `$error_tracking_issue_spiking` is acknowledged (202) and not mailed: no alert is
+  created for it.
+- **Once per fingerprint per hour.** `opsAlert`'s own mail and the PostHog
+  mail take the same slot, `ops:<key>`, so whichever speaks first owns the hour.
+  Before this, setting `OPS_ALERT_EMAIL` meant one mail per `opsAlert` call with no
+  limit, which is the D139 bombardment again. The slot is a Cache API entry (no new
+  table, no new binding), so it is per data centre: two edges can each send once, and a
+  cache that fails sends anyway. A failed send hands the slot back so PostHog's retry
+  is not swallowed.
+- **Push is not used.** `deliverPush` needs a user and a workspace, and nothing in
+  the API says which workspace is the founder's. Naming one is a new setting and a
+  user lookup, so ops alerts stay email only.
+- **Reach.** PostHog raises an alert when an issue is created or reopened, not on
+  every occurrence. A recurring ops key that was never resolved in PostHog mails once
+  through PostHog; `opsAlert`'s own copy carries the repeats, one per hour.
