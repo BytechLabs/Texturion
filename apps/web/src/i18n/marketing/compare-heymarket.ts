@@ -32,20 +32,20 @@ export const compareHeymarketEn = {
     "You want to sign up and pay online today, month to month, without booking a demo to get started.",
   rivalTitle: "Reach for Heymarket if",
   rivalBodyOne:
-    "You're a larger or regulated team that needs SOC 2, a HIPAA BAA, a unified text-and-email inbox, or deep Salesforce and HubSpot integrations, and per-user pricing is normal for how you buy software.",
+    "You're a larger or regulated team that needs SOC 2, HIPAA support, a unified text-and-email inbox, or deep Salesforce and HubSpot integrations, and per-user pricing is normal for how you buy software.",
   rivalBodyTwo:
     "A guided demo and an annual plan are how you prefer to roll a tool out across a bigger organization.",
   pointComplianceTitle: "Compliance you can hand to an auditor.",
   pointComplianceBody:
-    "Heymarket publishes SOC 2 Type 2 and offers a HIPAA BAA. Loonext doesn't hold those certifications yet and won't claim them. For healthcare or security-reviewed procurement, that's a real gap on our side.",
+    "Heymarket lists SOC 2 Type 2 on every plan and HIPAA support on Pro and Enterprise. Loonext doesn't hold those certifications yet and won't claim them. For healthcare or security-reviewed procurement, that's a real gap on our side.",
   pointEmailTitle: "Text and email in one shared inbox.",
   pointEmailBody:
-    "Heymarket handles both channels together. Loonext has no email channel at all: our shared line is texts and calls, and email is not part of it. If your team needs to work email and texts from a single place, Heymarket does something we simply don't.",
+    "Heymarket handles both channels together, with email on its Plus plan and up. Loonext has no email channel at all: our shared line is texts and calls, and email is not part of it. If your team needs to work email and texts from a single place, Heymarket does something we simply don't.",
   pointCrmTitle: "Deep CRM integrations and automations.",
   pointCrmBody:
     "Heymarket integrates tightly with Salesforce and HubSpot and offers broadcasts, campaigns, and AI-assisted flows. Loonext keeps a deliberately small surface. If your workflow lives inside a CRM, Heymarket meets it where it is.",
   recommendation:
-    "Straight up: if you need SOC 2, a HIPAA BAA, a text-and-email inbox, or CRM-deep automations, buy Heymarket. It's built for that and does it well. If you're a service crew that wants texting to land in one place at one flat price, that's the job Loonext was built for.",
+    "Straight up: if you need SOC 2, HIPAA support, a text-and-email inbox, or CRM-deep automations, buy Heymarket. It's built for that and does it well. If you're a service crew that wants texting to land in one place at one flat price, that's the job Loonext was built for.",
   switchTitle: "Switching costs you nothing but the walk.",
   switchLead:
     "Start Loonext alongside Heymarket, move your texting over at your own pace, and cancel Heymarket when your conversations live here. There's no exit window on our side to plan around.",
@@ -78,7 +78,7 @@ export const compareHeymarketEn = {
     "Starter's fair-use texting covers this workload comfortably, with room to spare; receiving texts is free and unlimited.",
   workloadRivalValue: "~$15",
   workloadRivalNote:
-    "SMS/MMS billed separately at $0.03 per message segment; 500 single-segment texts assumed, longer texts cost more.",
+    "SMS billed separately at $0.03 per message segment (an MMS uses 2 credits); 500 single-segment texts assumed, longer texts cost more.",
   carrierLabel: "Carrier / 10DLC fee",
   carrierOursValue: "$0/mo",
   carrierOursNote:
@@ -91,7 +91,7 @@ export const compareHeymarketEn = {
   buyOursNote: "The price is on the page and the button starts your account.",
   buyRivalValue: "Book a free demo",
   buyRivalNote:
-    "Prices are listed, but every paid tier CTA routes to a demo first.",
+    "Prices are listed, but the Standard, Plus and Pro buttons all route to a demo first.",
   contractLabel: "Contract",
   contractOursValue: "Month to month",
   contractOursNote: "Cancel anytime in billing settings.",
@@ -120,7 +120,7 @@ export const compareHeymarketEn = {
     "Their pricing page prices each AI Agent message at three times the $0.03 base rate, charged on top of seats.",
   totalLabel: "Monthly total",
   footnote:
-    "Loonext's numbers come straight from our published plans. Heymarket figures are from heymarket.com/pricing, re-verified {date}: Standard $49/user/mo (annual) with a 2-user minimum, SMS/MMS $0.03/segment, and a $10/mo-per-campaign 10DLC fee. The ~$172 total assumes 3 seats, 500 single-segment texts, and one campaign; texts over 160 characters count as multiple segments and cost more. Neither total includes any AI usage: theirs bills AI Agent messages at 3x the base rate, and ours is included. One-time registration fees are excluded from both totals (ours is $29). If any figure changes, tell us and we'll correct it.",
+    "Loonext's numbers come straight from our published plans. Heymarket figures are from heymarket.com/pricing, re-verified {date}: Standard $49/user/mo (annual) with a 2-user minimum, SMS $0.03/segment (MMS 2 credits), and a $10/mo-per-campaign 10DLC fee. The ~$172 total assumes 3 seats, 500 single-segment texts, and one campaign; texts over 160 characters count as multiple segments and cost more. Neither total includes any AI usage: theirs bills AI Agent messages at 3x the base rate, and ours is included. One-time registration fees are excluded from both totals (ours is $29). If any figure changes, tell us and we'll correct it.",
 } as const;
 
 export const compareHeymarketFr: Translated<typeof compareHeymarketEn> = {
@@ -153,20 +153,20 @@ export const compareHeymarketFr: Translated<typeof compareHeymarketEn> = {
     "Vous voulez vous inscrire et payer en ligne aujourd'hui, de mois en mois, sans réserver de démo.",
   rivalTitle: "Choisissez Heymarket si",
   rivalBodyOne:
-    "Vous êtes une grande équipe ou une équipe réglementée qui a besoin de SOC 2, d'une entente HIPAA BAA, d'une boîte unifiée pour textos et courriels ou d'intégrations poussées à Salesforce et HubSpot, et la facturation par personne est normale pour vous.",
+    "Vous êtes une grande équipe ou une équipe réglementée qui a besoin de SOC 2, d'une prise en charge HIPAA, d'une boîte unifiée pour textos et courriels ou d'intégrations poussées à Salesforce et HubSpot, et la facturation par personne est normale pour vous.",
   rivalBodyTwo:
     "Vous préférez une démo guidée et un forfait annuel pour déployer un outil dans une grande organisation.",
   pointComplianceTitle: "Une conformité à remettre à un auditeur.",
   pointComplianceBody:
-    "Heymarket publie SOC 2 Type 2 et offre une entente HIPAA BAA. Loonext ne détient pas encore ces certifications et ne prétend pas les avoir. Pour la santé ou un achat soumis à une révision de sécurité, c'est un vrai manque de notre côté.",
+    "Heymarket affiche SOC 2 Type 2 sur chaque forfait et la prise en charge HIPAA avec Pro et Enterprise. Loonext ne détient pas encore ces certifications et ne prétend pas les avoir. Pour la santé ou un achat soumis à une révision de sécurité, c'est un vrai manque de notre côté.",
   pointEmailTitle: "Textos et courriels dans une même boîte.",
   pointEmailBody:
-    "Heymarket réunit les deux canaux. Loonext n'offre aucun canal courriel : notre ligne partagée couvre les textos et appels, pas le courriel. Si votre équipe doit traiter courriels et textos au même endroit, Heymarket fait quelque chose que nous ne faisons tout simplement pas.",
+    "Heymarket réunit les deux canaux, le courriel étant offert à partir du forfait Plus. Loonext n'offre aucun canal courriel : notre ligne partagée couvre les textos et appels, pas le courriel. Si votre équipe doit traiter courriels et textos au même endroit, Heymarket fait quelque chose que nous ne faisons tout simplement pas.",
   pointCrmTitle: "Intégrations CRM et automatisations poussées.",
   pointCrmBody:
     "Heymarket s'intègre étroitement à Salesforce et HubSpot et offre des diffusions, campagnes et flux assistés par IA. Loonext garde volontairement une petite surface. Si votre processus vit dans un CRM, Heymarket l'y rejoint.",
   recommendation:
-    "Soyons directs : si vous avez besoin de SOC 2, d'une entente HIPAA BAA, d'une boîte textos-courriels ou d'automatisations profondes dans un CRM, achetez Heymarket. Il est conçu pour cela et le fait bien. Si vous êtes une équipe de services qui veut réunir les textos à un prix fixe, c'est le travail pour lequel Loonext a été conçu.",
+    "Soyons directs : si vous avez besoin de SOC 2, d'une prise en charge HIPAA, d'une boîte textos-courriels ou d'automatisations profondes dans un CRM, achetez Heymarket. Il est conçu pour cela et le fait bien. Si vous êtes une équipe de services qui veut réunir les textos à un prix fixe, c'est le travail pour lequel Loonext a été conçu.",
   switchTitle: "Changer ne vous coûte que le déplacement.",
   switchLead:
     "Démarrez Loonext à côté de Heymarket, déplacez vos textos à votre rythme et annulez Heymarket lorsque vos conversations sont ici. Aucun délai de sortie n'est à prévoir chez nous.",
@@ -199,7 +199,7 @@ export const compareHeymarketFr: Translated<typeof compareHeymarketEn> = {
     "Les textos d'utilisation équitable de Starter couvrent aisément cette charge, avec de la marge; la réception est gratuite et illimitée.",
   workloadRivalValue: "~15 $ US",
   workloadRivalNote:
-    "SMS/MMS facturés séparément à 0,03 $ US par segment; hypothèse de 500 textos d'un segment, les textos plus longs coûtent davantage.",
+    "SMS facturés séparément à 0,03 $ US par segment (un MMS compte 2 crédits); hypothèse de 500 textos d'un segment, les textos plus longs coûtent davantage.",
   carrierLabel: "Frais de fournisseur / 10DLC",
   carrierOursValue: "0 $ US/mois",
   carrierOursNote:
@@ -212,7 +212,7 @@ export const compareHeymarketFr: Translated<typeof compareHeymarketEn> = {
   buyOursNote: "Le prix est sur la page et le bouton ouvre votre compte.",
   buyRivalValue: "Réserver une démo gratuite",
   buyRivalNote:
-    "Les prix sont affichés, mais le bouton de chaque forfait payant mène d'abord à une démo.",
+    "Les prix sont affichés, mais les boutons de Standard, Plus et Pro mènent tous d'abord à une démo.",
   contractLabel: "Contrat",
   contractOursValue: "De mois en mois",
   contractOursNote: "Annulez en tout temps dans les réglages de facturation.",
@@ -242,7 +242,7 @@ export const compareHeymarketFr: Translated<typeof compareHeymarketEn> = {
     "Leur page facture chaque message AI Agent à trois fois le tarif de base de 0,03 $ US, en plus des places.",
   totalLabel: "Total mensuel",
   footnote:
-    "Les chiffres Loonext viennent de nos forfaits publiés. Les chiffres Heymarket viennent de heymarket.com/pricing, revérifiés le {date} : Standard à 49 $ US/personne/mois (annuel), minimum de 2 places, SMS/MMS à 0,03 $ US/segment et frais 10DLC de 10 $ US/mois par campagne. Le total d'environ 172 $ US suppose 3 places, 500 textos d'un segment et une campagne; les textos de plus de 160 caractères comptent plusieurs segments et coûtent davantage. Aucun total ne comprend l'utilisation de l'IA : Heymarket facture les messages AI Agent à trois fois le tarif de base et la nôtre est incluse. Les frais uniques d'inscription sont exclus des deux totaux (les nôtres sont de 29 $ US). Si un chiffre change, dites-le-nous et nous le corrigerons.",
+    "Les chiffres Loonext viennent de nos forfaits publiés. Les chiffres Heymarket viennent de heymarket.com/pricing, revérifiés le {date} : Standard à 49 $ US/personne/mois (annuel), minimum de 2 places, SMS à 0,03 $ US/segment (MMS : 2 crédits) et frais 10DLC de 10 $ US/mois par campagne. Le total d'environ 172 $ US suppose 3 places, 500 textos d'un segment et une campagne; les textos de plus de 160 caractères comptent plusieurs segments et coûtent davantage. Aucun total ne comprend l'utilisation de l'IA : Heymarket facture les messages AI Agent à trois fois le tarif de base et la nôtre est incluse. Les frais uniques d'inscription sont exclus des deux totaux (les nôtres sont de 29 $ US). Si un chiffre change, dites-le-nous et nous le corrigerons.",
 };
 
 const COPY = { en: compareHeymarketEn, "fr-CA": compareHeymarketFr } as const;

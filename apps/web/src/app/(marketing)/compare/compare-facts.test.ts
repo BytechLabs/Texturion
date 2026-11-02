@@ -168,7 +168,7 @@ describe("compare ledgers (shared laws)", () => {
     it(`${page.name}: says the total excludes AI usage, since a row now prices it (#435)`, () => {
       // The ledger totals model seats and texts. Adding an AI row without
       // saying the total omits AI would leave the reader to assume the ~$172
-      // and ~$64 already carry it.
+      // and ~$59 already carry it.
       expect(page.footnote).toMatch(/total(s)? include(s)? (any )?AI|include AI/i);
     });
 
@@ -248,9 +248,14 @@ describe("quo ledger facts (their published prices, as verified)", () => {
     expect(flat).toContain("monthly billing");
   });
 
-  it("never claims a bundled texting allowance for Quo, only the 1¢/segment meter", () => {
-    expect(flat).toContain("No bundled allowance");
+  it("states Quo's texting as published: unlimited under fair use, only automated SMS metered at 1¢/segment", () => {
+    // quo.com/pricing lists "Messaging (US & Canada): Unlimited*" on every plan
+    // and meters only "Automated SMS (API, Zapier, Make)".
+    expect(flat).toContain("unlimited on every plan");
+    expect(flat).toContain("Fair Usage Policy");
+    expect(flat).toContain("Only automated SMS");
     expect(flat).toContain("1¢ per segment");
+    expect(flat).not.toContain("No bundled allowance");
   });
 
   it("keeps the $5/mo extra-number price and their carrier maintenance range", () => {

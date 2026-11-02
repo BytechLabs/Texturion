@@ -87,7 +87,7 @@ export function quoRows(locale: MarketingLocale = "en"): LedgerTableRow[] {
       total: true,
       cells: [
         "$29",
-        { value: "~$64", note: c.totalRivalNote },
+        { value: "~$59", note: c.totalRivalNote },
       ],
     },
   ];

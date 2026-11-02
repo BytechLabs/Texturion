@@ -5,23 +5,23 @@ import type { MarketingLocale } from "./footer";
 export const compareQuoEn = {
   metadataTitle: "Loonext vs Quo: flat beats per-user",
   metadataDescription:
-    "A dated, sourced comparison. Loonext is $29/mo flat with texting included under automated fair use; Quo (formerly OpenPhone) is $19/user/mo on monthly billing with texting metered at 1¢/segment and extra numbers at $5/mo. Where Quo's calling genuinely wins, we say so.",
+    "A dated, sourced comparison. Loonext is $29/mo flat with texting included under automated fair use; Quo (formerly OpenPhone) is $19/user/mo on monthly billing with texting unlimited under their fair-usage policy and extra numbers at $5/mo. Where Quo's calling genuinely wins, we say so.",
   home: "Home",
   compare: "Compare",
   breadcrumb: "Loonext vs Quo",
-  dateline: "$19/USER/MO + 1¢/TEXT",
+  dateline: "$19/USER/MO + $5/EXTRA NUMBER",
   title: "Loonext vs Quo: flat beats per-user.",
   lead:
-    "Quo (formerly OpenPhone) is a full business phone system: calling included, priced per user at $19 a month on monthly billing, with texting metered at 1¢ a segment and extra numbers at $5 each. Loonext is one line for texts and calls, $29 a month flat for the whole crew, both included. Here is the arithmetic, dated and sourced, {month}.",
+    "Quo (formerly OpenPhone) is a full business phone system: calling included, priced per user at $19 a month on monthly billing, with texting unlimited under their fair-usage policy and extra numbers at $5 each. Loonext is one line for texts and calls, $29 a month flat for the whole crew, both included. Here is the arithmetic, dated and sourced, {month}.",
   ledgerTitle: "A 3-person crew, side by side.",
   ledgerLead:
-    "Same crew, same workload of 500 texts a month, at published prices. Quo's texting cell states its real metered terms, we won't print a bundled allowance it doesn't sell, and the row where Quo flatly beats us is in the table too. On Loonext, texting is included under an automated fair-use policy that covers this workload comfortably; the concrete numbers live in our",
+    "Same crew, same workload of 500 texts a month, at published prices. Quo's texting cell states what its pricing page states, unlimited under fair use with only automated texts metered, and the row where Quo flatly beats us is in the table too. On Loonext, texting is included under an automated fair-use policy that covers this workload comfortably; the concrete numbers live in our",
   fairUseLink: "fair use policy",
   ledgerCaption:
     "Monthly cost for a 3-person crew sending 500 texts: Loonext Starter next to Quo Starter, at published prices {asOf}.",
   sliderTitle: "This chart's $19 line is Quo's own seat price.",
   sliderLead:
-    "The per-user line in this chart is Quo Starter's published $19/user monthly price, and it doesn't include their metered texting. Slide your crew size and watch the gap.",
+    "The per-user line in this chart is Quo Starter's published $19/user monthly price, and it doesn't include their carrier fees or extra numbers. Slide your crew size and watch the gap.",
   fitTitle: "When Quo fits better.",
   fitIntro:
     "Quo is a mature product with a real edge over us, and the biggest one is the obvious one: it's a phone system.",
@@ -29,7 +29,7 @@ export const compareQuoEn = {
   loonextBody:
     "Texting is the job: customers text photos of the problem, the crew answers from the truck, and you want all of it in one shared inbox at one flat price with the texts included.",
   loonextUs:
-    "You'd rather one flat bill than per-user math: $29 covers the whole crew and the texts, with no per-seat fee and no per-segment meter on top.",
+    "You'd rather one flat bill than per-user math: $29 covers the whole crew and the texts, with no per-seat fee and no carrier maintenance line on top.",
   loonextCa:
     "You're texting Canadian customers, or splitting work across US and Canadian customers: Canadian texting works the day you sign up, with no registration wait.",
   rivalTitle: "Reach for Quo if",
@@ -50,7 +50,7 @@ export const compareQuoEn = {
     "Plainly: if the phone ringing is your front door, buy Quo. If the text thread is your front door and you're tired of it living on one person's cell, Loonext gives the whole crew one inbox for $29 flat, and the texts are already in the price.",
   switchTitle: "Switching from a per-user bill is quick math.",
   switchLead:
-    "Count your seats, add the metered texting, and put the total next to $29 or $79 flat. If the flat line wins, moving is painless.",
+    "Count your seats, add the carrier fees and any extra numbers, and put the total next to $29 or $79 flat. If the flat line wins, moving is painless.",
   switchNumber:
     "Keep your number: transfers from Quo or any carrier are free, self-serve at signup or later, and typically take 1 to 7 business days.",
   switchLive:
@@ -63,7 +63,7 @@ export const compareQuoEn = {
     "If your team makes calls from the app all day, read the calling section above before you switch; Loonext won't do that job.",
   ctaTitle: "Flat for the crew, texts included.",
   ctaBody:
-    "$29 a month covers up to three people with texting included; $79 covers up to fifteen, with a second number in the price. No seat math, no per-segment meter, and a full refund in your first 30 days if it's not for you.",
+    "$29 a month covers up to three people with texting included; $79 covers up to fifteen, with a second number in the price. No seat math, no carrier maintenance line, and a full refund in your first 30 days if it's not for you.",
   colLoonext: "Loonext Starter",
   colRival: "Quo Starter",
   seatsLabel: "Seats (3 people)",
@@ -76,9 +76,9 @@ export const compareQuoEn = {
   workloadOursValue: "Included",
   workloadOursNote:
     "Starter's fair-use texting covers this workload comfortably, with room to spare; receiving texts is free and unlimited.",
-  workloadRivalValue: "~$5, metered",
+  workloadRivalValue: "Included, unlimited*",
   workloadRivalNote:
-    "No bundled allowance: automated SMS is billed at 1¢ per segment; 500 single-segment texts assumed.",
+    "Their pricing page lists US and Canada messaging as unlimited on every plan, subject to their Fair Usage Policy. Only automated SMS (API, Zapier, Make) is metered, at 1¢ per segment.",
   numberLabel: "A second number",
   numberOursValue: "Included on Pro ($79)",
   numberOursNote: "Pro carries two numbers: two locations, or office and field.",
@@ -110,9 +110,9 @@ export const compareQuoEn = {
   voicemailOursValue: "Every one, written down",
   voicemailOursNote:
     "A missed call takes a voicemail and we write it out into the thread, so you read it in the inbox instead of dialling in to listen. Included under fair use, not an add-on.",
-  voicemailRivalValue: "Not a priced line",
+  voicemailRivalValue: "Included on every plan",
   voicemailRivalNote:
-    "Their published pricing covers seats, automated SMS, extra numbers and Sona automation credits. Voicemail transcription is not one of the things it prices.",
+    "Their pricing page lists voicemail transcripts as included on all plans, with no separate charge.",
   aiLabel: "AI in the plan, not on the meter",
   aiOursValue: "Included, never per use",
   aiOursNote:
@@ -122,31 +122,31 @@ export const compareQuoEn = {
     "Sona ships on every plan with 1,000 automation credits included. A call costs 100 credits, so past about ten calls it bills from $1.00 down to $0.45 each depending on the credit tier you buy.",
   totalLabel: "Monthly total",
   totalRivalNote:
-    "$57 seats + ~$5 texting + their $1.50 to $3 maintenance; extra numbers $5 each on top.",
+    "$57 seats + their $1.50 to $3 monthly maintenance; extra numbers $5 each and any automated SMS on top.",
   footnote:
-    "Loonext's numbers come straight from our published plans. Quo figures are from quo.com/pricing, re-verified {date}: Starter $15/user/mo on annual billing or $19/user/mo monthly, automated SMS at $0.01/segment, extra numbers $5/mo each, and a $1.50 to $3 monthly carrier maintenance fee. Neither total includes AI usage beyond Quo's 1,000 included automation credits, which is about ten calls at 100 credits each. One-time registration fees are excluded from both totals: ours is $29, and Quo discloses a $19.50 one-time Campaign Registry review right on its pricing page, disclosure done right. If any figure changes, tell us and we'll fix it.",
+    "Loonext's numbers come straight from our published plans. Quo figures are from quo.com/pricing, re-verified {date}: Starter $15/user/mo on annual billing or $19/user/mo monthly, US and Canada messaging unlimited under their Fair Usage Policy, automated SMS (API, Zapier, Make) at $0.01/segment, extra numbers $5/mo each, and a $1.50 to $3 monthly carrier maintenance fee. Neither total includes AI usage beyond Quo's 1,000 included automation credits, which is about ten calls at 100 credits each. One-time registration fees are excluded from both totals: ours is $29, and Quo discloses a $19.50 one-time Campaign Registry review right on its pricing page, disclosure done right. If any figure changes, tell us and we'll fix it.",
 } as const;
 
 export const compareQuoFr: Translated<typeof compareQuoEn> = {
   metadataTitle: "Loonext vs Quo : le prix fixe bat le prix par personne",
   metadataDescription:
-    "Comparaison datée et sourcée. Loonext coûte 29 $ US/mois au prix fixe, textos inclus selon l'utilisation équitable; Quo (anciennement OpenPhone) coûte 19 $ US/personne/mois, avec textos à 1 ¢ US/segment et numéros supplémentaires à 5 $ US/mois. Nous nommons clairement l'avantage réel de Quo pour les appels.",
+    "Comparaison datée et sourcée. Loonext coûte 29 $ US/mois au prix fixe, textos inclus selon l'utilisation équitable; Quo (anciennement OpenPhone) coûte 19 $ US/personne/mois, avec textos illimités selon leur politique d'utilisation équitable et numéros supplémentaires à 5 $ US/mois. Nous nommons clairement l'avantage réel de Quo pour les appels.",
   home: "Accueil",
   compare: "Comparer",
   breadcrumb: "Loonext vs Quo",
-  dateline: "19 $ US/PERSONNE/MOIS + 1 ¢ US/TEXTO",
+  dateline: "19 $ US/PERSONNE/MOIS + 5 $ US/NUMÉRO SUPPLÉMENTAIRE",
   title: "Loonext vs Quo : le prix fixe bat le prix par personne.",
   lead:
-    "Quo (anciennement OpenPhone) est un système téléphonique d'entreprise complet : appels inclus, 19 $ US par personne par mois avec facturation mensuelle, textos mesurés à 1 ¢ US le segment et numéros supplémentaires à 5 $ US chacun. Loonext réunit textos et appels sur une ligne, 29 $ US par mois au prix fixe pour toute l'équipe, les deux inclus. Voici le calcul daté et sourcé, {month}.",
+    "Quo (anciennement OpenPhone) est un système téléphonique d'entreprise complet : appels inclus, 19 $ US par personne par mois avec facturation mensuelle, textos illimités selon leur politique d'utilisation équitable et numéros supplémentaires à 5 $ US chacun. Loonext réunit textos et appels sur une ligne, 29 $ US par mois au prix fixe pour toute l'équipe, les deux inclus. Voici le calcul daté et sourcé, {month}.",
   ledgerTitle: "Une équipe de 3 personnes, côte à côte.",
   ledgerLead:
-    "Même équipe, même charge de 500 textos par mois, aux prix publiés. La cellule Quo donne les vraies modalités au compteur; nous n'inventons pas un volume inclus qu'il ne vend pas, et le tableau contient aussi la ligne où Quo nous bat franchement. Chez Loonext, les textos sont inclus selon une politique automatisée d'utilisation équitable qui couvre aisément cette charge; les chiffres précis se trouvent dans notre",
+    "Même équipe, même charge de 500 textos par mois, aux prix publiés. La cellule Quo reprend ce que sa page de tarifs publie, des textos illimités selon l'utilisation équitable et seuls les textos automatisés au compteur, et le tableau contient aussi la ligne où Quo nous bat franchement. Chez Loonext, les textos sont inclus selon une politique automatisée d'utilisation équitable qui couvre aisément cette charge; les chiffres précis se trouvent dans notre",
   fairUseLink: "politique d'utilisation équitable",
   ledgerCaption:
     "Coût mensuel d'une équipe de 3 personnes qui envoie 500 textos : Loonext Starter et Quo Starter aux prix publiés {asOf}.",
   sliderTitle: "La ligne de 19 $ US est le propre prix par place de Quo.",
   sliderLead:
-    "La ligne par personne reprend le prix mensuel publié de 19 $ US/personne de Quo Starter et n'inclut pas ses textos au compteur. Faites varier la taille de l'équipe et regardez l'écart.",
+    "La ligne par personne reprend le prix mensuel publié de 19 $ US/personne de Quo Starter et n'inclut ni ses frais de fournisseur ni ses numéros supplémentaires. Faites varier la taille de l'équipe et regardez l'écart.",
   fitTitle: "Quand Quo convient mieux.",
   fitIntro:
     "Quo est un produit mûr qui possède un vrai avantage sur nous, et le plus important est évident : c'est un système téléphonique.",
@@ -154,7 +154,7 @@ export const compareQuoFr: Translated<typeof compareQuoEn> = {
   loonextBody:
     "Le texto est le travail : les clients envoient des photos du problème, l'équipe répond du camion, et vous voulez tout réunir dans une boîte partagée à prix fixe, textos compris.",
   loonextUs:
-    "Vous préférez une facture fixe au calcul par personne : 29 $ US couvrent toute l'équipe et les textos, sans frais par place ni compteur par segment.",
+    "Vous préférez une facture fixe au calcul par personne : 29 $ US couvrent toute l'équipe et les textos, sans frais par place ni frais mensuels de fournisseur.",
   loonextCa:
     "Vous textez des clients canadiens ou partagez le travail entre clients américains et canadiens : les textos canadiens fonctionnent le jour de l'inscription, sans attente d'enregistrement.",
   rivalTitle: "Choisissez Quo si",
@@ -175,7 +175,7 @@ export const compareQuoFr: Translated<typeof compareQuoEn> = {
     "En clair : si le téléphone qui sonne est votre porte d'entrée, achetez Quo. Si le fil de textos est votre porte d'entrée et que vous ne voulez plus qu'il vive sur le cellulaire d'une seule personne, Loonext donne une boîte à toute l'équipe pour 29 $ US au prix fixe, textos compris.",
   switchTitle: "Quitter une facture par personne est un calcul rapide.",
   switchLead:
-    "Comptez les places, ajoutez les textos au compteur et comparez le total aux prix fixes de 29 $ US ou 79 $ US. Si la ligne fixe gagne, le déplacement est simple.",
+    "Comptez les places, ajoutez les frais de fournisseur et les numéros supplémentaires, et comparez le total aux prix fixes de 29 $ US ou 79 $ US. Si la ligne fixe gagne, le déplacement est simple.",
   switchNumber:
     "Gardez votre numéro : les transferts depuis Quo ou tout fournisseur sont gratuits, libre-service à l'inscription ou plus tard, et prennent habituellement de 1 à 7 jours ouvrables.",
   switchLive:
@@ -188,7 +188,7 @@ export const compareQuoFr: Translated<typeof compareQuoEn> = {
     "Si votre équipe appelle toute la journée depuis l'application, lisez la section sur les appels avant de changer; Loonext ne remplit pas ce rôle.",
   ctaTitle: "Prix fixe pour l'équipe, textos inclus.",
   ctaBody:
-    "29 $ US par mois couvrent jusqu'à trois personnes, textos compris; 79 $ US couvrent jusqu'à quinze personnes avec un deuxième numéro. Aucun calcul de places, aucun compteur par segment et remboursement complet pendant les 30 premiers jours si le produit ne vous convient pas.",
+    "29 $ US par mois couvrent jusqu'à trois personnes, textos compris; 79 $ US couvrent jusqu'à quinze personnes avec un deuxième numéro. Aucun calcul de places, aucuns frais mensuels de fournisseur et remboursement complet pendant les 30 premiers jours si le produit ne vous convient pas.",
   colLoonext: "Loonext Starter",
   colRival: "Quo Starter",
   seatsLabel: "Places (3 personnes)",
@@ -201,9 +201,9 @@ export const compareQuoFr: Translated<typeof compareQuoEn> = {
   workloadOursValue: "Inclus",
   workloadOursNote:
     "Les textos d'utilisation équitable de Starter couvrent aisément cette charge, avec de la marge; la réception est gratuite et illimitée.",
-  workloadRivalValue: "~5 $ US, au compteur",
+  workloadRivalValue: "Inclus, illimité*",
   workloadRivalNote:
-    "Aucun volume inclus : les SMS automatisés coûtent 1 ¢ US par segment; hypothèse de 500 textos d'un segment.",
+    "Leur page de tarifs affiche la messagerie États-Unis et Canada comme illimitée dans chaque forfait, sous leur politique d'utilisation équitable. Seuls les SMS automatisés (API, Zapier, Make) sont au compteur, à 1 ¢ US par segment.",
   numberLabel: "Un deuxième numéro",
   numberOursValue: "Inclus avec Pro (79 $ US)",
   numberOursNote: "Pro comprend deux numéros : deux lieux, ou bureau et terrain.",
@@ -235,9 +235,9 @@ export const compareQuoFr: Translated<typeof compareQuoEn> = {
   voicemailOursValue: "Tous, transcrits",
   voicemailOursNote:
     "Un appel manqué prend un message vocal que nous transcrivons dans le fil, pour le lire plutôt que composer pour l'écouter. Inclus selon l'utilisation équitable, pas en supplément.",
-  voicemailRivalValue: "Aucun poste tarifé",
+  voicemailRivalValue: "Inclus dans chaque forfait",
   voicemailRivalNote:
-    "Leurs tarifs couvrent les places, SMS automatisés, numéros supplémentaires et crédits d'automatisation Sona. La transcription vocale n'est pas un poste tarifé.",
+    "Leur page de tarifs indique que les transcriptions de messages vocaux sont incluses dans tous les forfaits, sans frais distincts.",
   aiLabel: "L'IA dans le forfait, pas au compteur",
   aiOursValue: "Incluse, jamais par utilisation",
   aiOursNote:
@@ -247,9 +247,9 @@ export const compareQuoFr: Translated<typeof compareQuoEn> = {
     "Sona est offert dans chaque forfait avec 1 000 crédits d'automatisation. Un appel coûte 100 crédits; après environ dix appels, le prix va de 1,00 $ US à 0,45 $ US chacun selon le bloc acheté.",
   totalLabel: "Total mensuel",
   totalRivalNote:
-    "57 $ US de places + ~5 $ US de textos + 1,50 à 3 $ US d'entretien; chaque numéro supplémentaire ajoute 5 $ US.",
+    "57 $ US de places + 1,50 à 3 $ US d'entretien mensuel; chaque numéro supplémentaire et les SMS automatisés s'ajoutent.",
   footnote:
-    "Les chiffres Loonext viennent de nos forfaits publiés. Les chiffres Quo viennent de quo.com/pricing, revérifiés le {date} : Starter à 15 $ US/personne/mois avec facturation annuelle ou 19 $ US avec facturation mensuelle, SMS automatisés à 0,01 $ US/segment, numéros supplémentaires à 5 $ US/mois et entretien mensuel de 1,50 à 3 $ US. Aucun total ne comprend l'IA au-delà des 1 000 crédits Sona inclus, soit environ dix appels à 100 crédits chacun. Les frais uniques d'inscription sont exclus : les nôtres sont de 29 $ US et Quo affiche clairement une révision Campaign Registry unique de 19,50 $ US. Si un chiffre change, dites-le-nous et nous le corrigerons.",
+    "Les chiffres Loonext viennent de nos forfaits publiés. Les chiffres Quo viennent de quo.com/pricing, revérifiés le {date} : Starter à 15 $ US/personne/mois avec facturation annuelle ou 19 $ US avec facturation mensuelle, messagerie États-Unis et Canada illimitée selon leur politique d'utilisation équitable, SMS automatisés (API, Zapier, Make) à 0,01 $ US/segment, numéros supplémentaires à 5 $ US/mois et entretien mensuel de 1,50 à 3 $ US. Aucun total ne comprend l'IA au-delà des 1 000 crédits Sona inclus, soit environ dix appels à 100 crédits chacun. Les frais uniques d'inscription sont exclus : les nôtres sont de 29 $ US et Quo affiche clairement une révision Campaign Registry unique de 19,50 $ US. Si un chiffre change, dites-le-nous et nous le corrigerons.",
 };
 
 const COPY = { en: compareQuoEn, "fr-CA": compareQuoFr } as const;

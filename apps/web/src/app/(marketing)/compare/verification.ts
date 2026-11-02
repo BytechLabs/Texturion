@@ -23,20 +23,22 @@
 /**
  * The day both ledgers were last checked, figure by figure, against live pages.
  *
- * 2026-08-02 (#435): every existing figure re-read on heymarket.com/pricing and
- * quo.com/pricing and unchanged. The pass also established the two AI prices the
- * new capability rows cite: Heymarket's "Each AI Agent message costs 3x the base
- * rate", and Quo's Sona shipping on every plan with 1,000 automation credits at
- * 100 credits a call, then $1.00 down to $0.45 per call by tier.
+ * 2026-11-02: every figure re-read on heymarket.com/pricing and quo.com/pricing.
+ * Quo's page lists US and Canada messaging as unlimited on every plan under its
+ * Fair Usage Policy, with only automated SMS metered at 1c a segment, so the
+ * ledger's metered-texting line and the ~$64 total were corrected (now ~$59), and
+ * its voicemail transcripts are listed as included. Heymarket's HIPAA is listed
+ * on Pro and Enterprise only with no BAA named, so the BAA claim was softened.
+ * Seat prices, minimums, fees and AI prices matched.
  */
-export const COMPARE_VERIFIED_ON = "2026-08-02";
+export const COMPARE_VERIFIED_ON = "2026-11-02";
 
 /**
  * Re-check by this date. A quarter: competitor pricing moves on roughly that
  * cadence, and a claim about somebody else's price is the kind that gets
  * expensive rather than merely wrong when it rots.
  */
-export const COMPARE_RECHECK_AFTER = "2026-11-02";
+export const COMPARE_RECHECK_AFTER = "2027-02-02";
 
 /**
  * The competitor column's dateline, derived so it cannot drift from

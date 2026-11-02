@@ -26,11 +26,11 @@ export const compareIndexEn = {
   heymarketFact: "$49/user/mo · their published Starter seat",
   heymarketCardTitle: "Loonext vs Heymarket",
   heymarketAngle:
-    "An enterprise-grade shared inbox with SOC 2, a HIPAA BAA, and email, priced per user with a two-seat minimum and texts billed on top.",
-  quoFact: "$19/user/mo + 1¢/text",
+    "An enterprise-grade shared inbox with SOC 2, HIPAA support, and email, priced per user with a two-seat minimum and texts billed on top.",
+  quoFact: "$19/user/mo + $5/extra number",
   quoCardTitle: "Loonext vs Quo",
   quoAngle:
-    "A full business phone system (formerly OpenPhone) with calling included, billed per user, texting metered by the segment.",
+    "A full business phone system (formerly OpenPhone) with calling included, billed per user, with texting included under fair use.",
   cardAction: "See the comparison",
   omissionsTitle: "What Loonext doesn't do, on purpose.",
   omissionsLead:
@@ -88,11 +88,11 @@ export const compareIndexFr: Translated<typeof compareIndexEn> = {
   heymarketFact: "49 $ US/personne/mois · place Starter publiée",
   heymarketCardTitle: "Loonext vs Heymarket",
   heymarketAngle:
-    "Une boîte de réception partagée de calibre entreprise avec SOC 2, entente HIPAA BAA et courriel, facturée par personne avec un minimum de deux places et les textos en supplément.",
-  quoFact: "19 $ US/personne/mois + 1 ¢ US/texto",
+    "Une boîte de réception partagée de calibre entreprise avec SOC 2, prise en charge HIPAA et courriel, facturée par personne avec un minimum de deux places et les textos en supplément.",
+  quoFact: "19 $ US/personne/mois + 5 $ US/numéro supplémentaire",
   quoCardTitle: "Loonext vs Quo",
   quoAngle:
-    "Un système téléphonique d'entreprise complet (anciennement OpenPhone), appels inclus, facturé par personne et textos mesurés par segment.",
+    "Un système téléphonique d'entreprise complet (anciennement OpenPhone), appels inclus, facturé par personne, textos inclus selon l'utilisation équitable.",
   cardAction: "Voir la comparaison",
   omissionsTitle: "Ce que Loonext ne fait pas, volontairement.",
   omissionsLead:
