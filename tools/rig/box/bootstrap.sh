@@ -34,7 +34,7 @@ NODE_VERSION=22.20.0
 # The primary key of "Google Inc. (Linux Packages Signing Authority)", which signs
 # dl.google.com's Chrome repository (checked 2026-11-02). A key with any other
 # fingerprint is refused.
-CHROME_KEY_FINGERPRINT=EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796
+CHROME_SIGNER_FPR=EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796
 # The public repository. The rig clones it as itself and holds no write access.
 REPO_URL="${REPO_URL:-https://github.com/BytechLabs/Texturion.git}"
 PNPM_VERSION="$(sed -n 's/.*"packageManager": "pnpm@\([0-9.]*\)".*/\1/p' "$REPO/package.json")"
@@ -102,8 +102,8 @@ if ! command -v google-chrome-stable >/dev/null; then
     exit 1
   fi
   got="$(gpg --show-keys --with-colons "$tmp/linux_signing_key.pub" | awk -F: '/^fpr:/ { print $10; exit }')"
-  if [[ "$got" != "$CHROME_KEY_FINGERPRINT" ]]; then
-    echo "bootstrap.sh: Google's signing key is $got, not the pinned $CHROME_KEY_FINGERPRINT" >&2
+  if [[ "$got" != "$CHROME_SIGNER_FPR" ]]; then
+    echo "bootstrap.sh: Google's signing key is $got, not the pinned $CHROME_SIGNER_FPR" >&2
     exit 1
   fi
   gpg --dearmor < "$tmp/linux_signing_key.pub" > /usr/share/keyrings/google-chrome.gpg

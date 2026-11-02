@@ -112,3 +112,7 @@ ef5f390943cf370c643a151a217393fd16a12a3c:supabase/migrations/20260819010000_eras
 # no longer reads it as a credential.
 241c1ad22782c2e763985377de12ff3ab108e7e3:tools/rig/host/vm/create.mjs:generic-api-key:34
 241c1ad22782c2e763985377de12ff3ab108e7e3:tools/rig/host/test/vmx.test.mjs:generic-api-key:77
+# The fingerprint of Google's public Linux package signing key, pinned in
+# bootstrap.sh. It is not a secret; the constant was renamed so the rule no
+# longer reads it as a credential.
+21f15a235dabc798a4d99e08845cb6f45b1c6656:tools/rig/box/bootstrap.sh:generic-api-key:37
