@@ -990,6 +990,8 @@ async function linksWork(ctx: ScenarioContext, mail: MailMessage): Promise<{ sta
   return { statuses, ok: statuses.length > 0 && statuses.every((status) => status >= 200 && status < 400) };
 }
 
+const AUTH_SENT_INVITE = "local auth mailed the invite into Mailpit, so it never travelled Resend, the guard or Email Routing";
+
 /** The member S34's auth mail goes to, whose address the seed derives (scripts/rig/tenants.mjs). */
 const RESET_MEMBER = { tenant: "qa-w", member: "technician" } as const;
 
@@ -1032,9 +1034,8 @@ export const S34: ScenarioRunner = {
     ctx.evidence.invite = { status: invited.status, invite_id: inviteId ?? null, email_sent: invited.body?.email_sent ?? null };
     if (!is2xx(invited.status) || !inviteId) return fail("invite_refused", `the invite answered ${invited.status}${invited.code ? ` ${invited.code}` : ""}`);
     if (invited.body?.email_sent !== true) return fail("invite_not_sent", "the app reports its Resend send of the invite failed (email_sent is not true)");
-    if ((await ctx.mail.mailpit({ to: address, since })).length > 0) {
-      return fail("invite_sent_by_auth", "local auth mailed the invite into Mailpit, so it never travelled Resend, the guard or Email Routing");
-    }
+    const sentByAuth = async () => (await ctx.mail.mailpit({ to: address, since })).length > 0;
+    if (await sentByAuth()) return fail("invite_sent_by_auth", AUTH_SENT_INVITE);
     const resetStatus = await ctx.app.sendPasswordReset({ member: `${RESET_MEMBER.tenant}-${RESET_MEMBER.member}` });
     ctx.evidence.reset = { status: resetStatus };
     if (resetStatus === 429) return infra("auth-rate-limit", "local auth rate-limited the password reset");
@@ -1045,6 +1046,8 @@ export const S34: ScenarioRunner = {
       poll(ctx, async () => (await ctx.mail.mailpit({ to: memberEmail(RESET_MEMBER.tenant, RESET_MEMBER.member), since }))[0], 120_000, 3_000),
     ]);
     if (!invite) {
+      // Local auth can mail a moment after its answer, so the first look above may precede its mail.
+      if (await sentByAuth()) return fail("invite_sent_by_auth", AUTH_SENT_INVITE);
       const untagged = (await ctx.mail.robotMail({ since })).filter((mail) => mail.to.toLowerCase() !== address.toLowerCase());
       ctx.evidence.untagged_robot_mail = untagged.map((mail) => ({ id: mail.id, to_has_tag: mail.to.includes("+"), subject: mail.subject }));
       if (untagged.length > 0) {

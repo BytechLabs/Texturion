@@ -74,6 +74,8 @@ export interface AppProbeOptions {
    * the store's `robot-webhook-secret`; without it no webhook can reach the robot.
    */
   robotWebhookSecret?: () => string | undefined;
+  /** The robot mailbox (`local@domain`), the store's `robot-mailbox`; S34's accounts are sub-addresses of it and of nothing else. */
+  robotMailbox?: () => string | undefined;
   /** `state/rigd`: S25 keeps what it changed here, so the undo can put it back. */
   stateDir?: string;
   fetch?: typeof fetch;
@@ -1063,7 +1065,7 @@ export class AppProbe implements AppApi {
    * 200 when the account already existed.
    */
   async createMailAccount(args: { email: string }): Promise<number> {
-    if (!MAIL_ACCOUNT_ADDRESS.test(args.email)) throw new Error("app probe: only S34's own sub-address can be given an account");
+    if (!this.#isMailAccount(args.email)) throw new Error("app probe: only S34's own sub-address can be given an account");
     if (await this.#authUserByEmail(args.email)) return 200;
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users`, {
       method: "POST",
@@ -1077,7 +1079,7 @@ export class AppProbe implements AppApi {
 
   /** Undo for `createMailAccount`: the user deleted. Only S34's own sub-address is accepted. */
   async deleteMailAccount(args: { email: string }): Promise<void> {
-    if (!MAIL_ACCOUNT_ADDRESS.test(args.email)) throw new Error("app probe: only S34's own sub-address can be removed");
+    if (!this.#isMailAccount(args.email)) throw new Error("app probe: only S34's own sub-address can be removed");
     const user = await this.#authUserByEmail(args.email);
     if (!user) return;
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users/${user}`, {
@@ -1087,6 +1089,13 @@ export class AppProbe implements AppApi {
     });
     await response.body?.cancel();
     if (!response.ok && response.status !== 404) throw new Error(`app probe: deleting the mail account returned ${response.status}`);
+  }
+
+  /** A `+s34-acct-` sub-address of the configured robot mailbox. */
+  #isMailAccount(email: string): boolean {
+    const [local, domain] = (this.#o.robotMailbox?.() ?? "").toLowerCase().split("@");
+    if (!local || !domain || !MAIL_ACCOUNT_ADDRESS.test(email)) return false;
+    return email.toLowerCase().startsWith(`${local}+s34-acct-`) && email.toLowerCase().endsWith(`@${domain}`);
   }
 
   async #authUserByEmail(email: string): Promise<string | undefined> {

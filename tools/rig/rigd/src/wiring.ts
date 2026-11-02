@@ -112,6 +112,7 @@ export function buildRig(config: RigdConfig): Rig {
       edgeOrigin: config.edgeOrigin,
       guardToken: store.read("guard-token-rig-api"),
       robotWebhookSecret: () => store.readOptional("robot-webhook-secret"),
+      robotMailbox: () => store.readOptional("robot-mailbox"),
       stateDir: dir,
     });
   });

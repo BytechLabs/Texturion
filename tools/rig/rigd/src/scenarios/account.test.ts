@@ -1170,6 +1170,17 @@ describe("S34, emails", () => {
     expect(world.app.passwordResets).toEqual([]);
   });
 
+  it("still names local auth's mail when it lands in Mailpit after the first look", async () => {
+    const world = s34World();
+    world.app.createMailAccount = async () => 200;
+    world.app.mailAccounts.clear();
+    const mailpit = world.mail.mailpit.bind(world.mail);
+    let looks = 0;
+    world.mail.mailpit = async (args) => (++looks === 1 ? [] : mailpit(args));
+    expect(await S34.run(world.ctx)).toMatchObject({ outcome: "fail", failure_class: "invite_sent_by_auth" });
+    expect(looks).toBeGreaterThan(1);
+  });
+
   it("fails an invite whose Resend send the app reports as failed", async () => {
     const world = s34World();
     const invite = world.app.invite.bind(world.app);

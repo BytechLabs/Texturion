@@ -59,6 +59,7 @@ function probeWith(routes: Record<string, Route>, stateDir?: string) {
     anonKey: "publishable",
     edgeOrigin: "https://rig-edge.example.workers.dev",
     guardToken: "t",
+    robotMailbox: () => "rig-robot@example.invalid",
     fetch,
     now: () => NOW,
     ...(stateDir ? { stateDir } : {}),
@@ -538,8 +539,11 @@ describe("the app probe's workspaces", () => {
       expect(MAIL_ACCOUNT_ADDRESS.test(other)).toBe(false);
     }
     const seeded = probeWith({});
-    await expect(seeded.probe.createMailAccount({ email: "delivered+rig-qa-w-owner@resend.dev" })).rejects.toThrow(/own sub-address/);
-    await expect(seeded.probe.deleteMailAccount({ email: "delivered+rig-qa-w-owner@resend.dev" })).rejects.toThrow(/own sub-address/);
+    const elsewhere = ["delivered+rig-qa-w-owner@resend.dev", "someone+s34-acct-x@example.invalid", "rig-robot+s34-acct-x@other.invalid", "rig-robot+s34-acct-x@sub.example.invalid"];
+    for (const email of elsewhere) {
+      await expect(seeded.probe.createMailAccount({ email })).rejects.toThrow(/own sub-address/);
+      await expect(seeded.probe.deleteMailAccount({ email })).rejects.toThrow(/own sub-address/);
+    }
     expect(seeded.requests).toEqual([]);
 
     const { probe, requests } = probeWith({ [`POST ${SUPABASE}/auth/v1/admin/users`]: () => json({ id: "new" }, 200) });
@@ -566,6 +570,7 @@ describe("the app probe's workspaces", () => {
       anonKey: "publishable",
       edgeOrigin: "https://rig-edge.example.workers.dev",
       guardToken: "t",
+      robotMailbox: () => "rig-robot@example.invalid",
       fetch: known.fetch,
       now: () => NOW,
     });
