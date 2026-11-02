@@ -1,5 +1,7 @@
 # Monitoring
 
+**Status: CURRENT DIRECTION (D146).** What we send to PostHog and what PostHog does with it. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 Our code instruments. PostHog does everything else (D146).
 
 The API Worker, the call Durable Object, the web app, both mobile apps and the
