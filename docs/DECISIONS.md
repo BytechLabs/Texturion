@@ -436,6 +436,8 @@ marketing page when a broader pass is wanted.
   counts, and feature events only, autocapture masked. Logs reference IDs, never bodies.
   **Amended by D144 (#652):** PostHog also holds error events (`$exception`), but only
   the event the same scrubbers have already cleaned, never a raw one.
+  **Amended by D146:** PostHog holds exceptions from every client, the mobile apps
+  included, and the monitoring events in docs/MONITORING.md, all after the scrubbers.
 
 ## D9. Realtime & notifications
 
@@ -9613,3 +9615,78 @@ could name; this is one nobody has to supply).
 - **Reach.** PostHog raises an alert when an issue is created or reopened, not on
   every occurrence. A recurring ops key that was never resolved in PostHog mails once
   through PostHog; `opsAlert`'s own copy carries the repeats, one per hour.
+
+## D146 - our code instruments and PostHog does the rest; Sentry and homemade alerting are removed (#652, 2026-11-02)
+
+**Decision.** Error tracking, health and alerting are PostHog's products, used
+as they come. Our code only sends exceptions and a small set of events through
+PostHog's SDKs (`posthog-node` in the API Worker and the call Durable Object,
+`posthog-js` and `posthog-node` in the web app, `posthog-android` and
+`posthog-ios` in the apps). PostHog's error tracking groups and tracks issues,
+its dashboards show health, and its insight alerts email the project owner.
+docs/MONITORING.md lists what is sent and what exists in PostHog.
+
+This supersedes D139's Sentry channel and its optional email copy, D144's
+two-phase plan (the fourteen-day side-by-side window is cancelled), and all of
+D145. Sentry is removed everywhere: SDKs, wrappers, DSNs, secrets, CI steps,
+the rig's relay and R00 check, docs and the subprocessors page. Android's
+Crashlytics goes too.
+
+- **Nothing of ours decides or notifies.** A check whose only job is to decide
+  "is X broken, and should someone be told" is deleted with its schedule, its
+  throttle and any table it kept. What it measured becomes an event, and the
+  threshold lives in a PostHog alert. The liveness ledger and checker, the
+  Durable Object canary, the inbound canary, the synthetic probes, the Telnyx
+  wiring watch, the ring-success watch, the email health checks, the
+  delivery-by-country and registration-stall reports, call silence, the
+  activation-stall report and the weekly overage digest all go this way.
+- **Product work stays.** A cap that stops spend or traffic (AI usage,
+  high-priority pushes, ring beacons) keeps stopping it; its warning becomes an
+  ops notice. Work that changes state (opt-out reconciliation, number health a
+  customer sees, AUP review, disputes, port-outs, carrier suspensions) keeps
+  doing it, and the founder copy becomes an ops notice. Customer emails and
+  pushes are untouched.
+- **An ops notice is an exception.** `$exception` with
+  `$exception_fingerprint: "ops:<key>"`, so each problem is one issue with a
+  status, an assignee and a history, and the "new or returning issue" alert
+  covers every one of them. `key` names the problem, never an id.
+- **Absence is a PostHog alert.** Each cron trigger, each channel and the
+  Durable Object send `ops_heartbeat` with its own `grace_minutes`. One SQL
+  insight alert fires for any key whose last heartbeat is older than its grace.
+  Per-job heartbeats go: a job that throws is an exception.
+- **Notification is PostHog's.** Insight alerts email the owner's PostHog login
+  and appear in its in-app notifications. Error tracking's own issue alerts are
+  not used: they reach Slack, Discord, Teams or a webhook, and the only webhook
+  available was our own mailer, which is what this removes. No Slack or other
+  vendor account is added.
+- **Volume and cost.** About 60k events a month today and under 400k at 200
+  active workspaces, against a free tier of 1M events and 100k exceptions. The
+  free plan stops ingesting at its limit, which is the cost cap; no throttle of
+  ours is needed. The free plan allows five insight alerts and four are used.
+
+D8 is amended again: PostHog holds exception events and the events listed in
+docs/MONITORING.md, only after the scrubbers have run, from every client
+including the mobile apps.
+
+**Why.** The founder's direction: no observability or monitoring tools of our
+own, and no alert emails from our code. The Durable Object shows the cost of
+the alternative. `channel:do-sentry` never passed in production: every
+six-hourly run logged `client=false, ingest=200`. Sentry accepted envelopes,
+but `instrumentDurableObjectWithSentry` creates its client per invocation and
+wraps only `fetch`, `alarm` and the WebSocket handlers; RPC methods get one only
+with `enableRpcTracePropagation`, which was never set. Every warning raised
+through the DO's RPC surface, which is how call events enter it, went nowhere,
+and the alarm built to catch that could only email. PostHog is called
+explicitly with the environment passed in, so there is no wrapper to forget.
+
+**What this rejects.** Keeping the probes and canaries and pointing them at
+PostHog: they would still be code of ours deciding what is broken. Error
+tracking's issue alerts through a webhook or a new Slack workspace: one is our
+mailer again, the other is a new vendor account. Keeping Crashlytics for
+Android: PostHog's Android SDK catches the same uncaught JVM exceptions through
+the same handler, and the subprocessors page lists Firebase for push only.
+
+**What is lost, stated plainly.** Nothing now notices a path that answers 200
+and does nothing until an outcome event moves or a customer says so, and at
+today's traffic the channel heartbeats need long graces before silence means
+anything.
