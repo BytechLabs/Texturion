@@ -17,3 +17,7 @@
 # The Telnyx SDK sends its socket messages through Gson by field name, its native
 # library calls Java by name, and its AAR ships no rules. Renamed, it never registers.
 -keep class com.telnyx.webrtc.** { *; }
+
+# Gson reads a field's generic type from the Signature attribute, and the SDK's message
+# classes have List and Map fields. Gson's own rules keep it today; this holds if they stop.
+-keepattributes Signature

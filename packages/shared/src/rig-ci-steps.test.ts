@@ -88,4 +88,13 @@ describe("the rig's checks in the gate", () => {
     expect(step).toBeGreaterThan(-1);
     expect(jobs.android[step]).not.toContain("--tests");
   });
+
+  it("checks the shrunk release build after assembling it", () => {
+    const assemble = indexOf("android", "./gradlew :app:assembleRelease");
+    const check = indexOf("android", "node scripts/check-shrunk-build.mjs");
+    expect(assemble).toBeGreaterThan(-1);
+    expect(check).toBe(assemble + 1);
+    // A release build that reached the console would put a mapping there for an APK nobody ships.
+    expect(jobs.android[assemble]).toContain("-x :app:uploadCrashlyticsMappingFileRelease");
+  });
 });

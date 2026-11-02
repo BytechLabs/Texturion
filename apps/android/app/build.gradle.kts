@@ -1,6 +1,9 @@
 import com.android.build.api.variant.HostTestBuilder
 import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
 import java.net.URI
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.result.ResolvedComponentResult
+import org.gradle.api.artifacts.result.ResolvedDependencyResult
 
 plugins {
     alias(libs.plugins.android.application)
@@ -371,5 +374,57 @@ tasks.withType<Test>().configureEach {
     inputs
         .file(layout.projectDirectory.file("test-contract-inputs.txt"))
         .withPropertyName("loonextContractInputManifest")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+// ---------------------------------------------------------------------------
+// R8 inventory: the modules the release build ships, for R8InventoryTest
+// ---------------------------------------------------------------------------
+
+/**
+ * Every module on the release runtime classpath, one `group:module` per line.
+ *
+ * `R8InventoryTest` reads it to fail when a library arrives, directly or through
+ * another one, that `r8-inventory.json` has not reviewed. Gson came in through
+ * the Telnyx SDK, and nobody had chosen it.
+ */
+val releaseRuntimeModules: Provider<List<String>> = // The variant configurations do not exist until AGP creates them, after this runs.
+provider { configurations.getByName("releaseRuntimeClasspath") }
+    .flatMap { it.incoming.resolutionResult.rootComponent }
+    .map { root ->
+        val modules = sortedSetOf<String>()
+        val visited = mutableSetOf<ResolvedComponentResult>()
+        val queue = ArrayDeque(listOf(root))
+        while (queue.isNotEmpty()) {
+            val component = queue.removeFirst()
+            if (!visited.add(component)) continue
+            (component.id as? ModuleComponentIdentifier)?.let { modules.add("${it.group}:${it.module}") }
+            component.dependencies.filterIsInstance<ResolvedDependencyResult>().forEach { queue.add(it.selected) }
+        }
+        modules.toList()
+    }
+
+val releaseRuntimeModulesFile = layout.buildDirectory.file("r8-inventory/release-runtime-modules.txt")
+
+val writeReleaseRuntimeModules = tasks.register("writeReleaseRuntimeModules") {
+    val modules = releaseRuntimeModules
+    val out = releaseRuntimeModulesFile
+    inputs.property("modules", modules)
+    outputs.file(out)
+    doLast {
+        out.get().asFile.apply { parentFile.mkdirs() }.writeText(modules.get().joinToString("\n") + "\n")
+    }
+}
+
+tasks.withType<Test>().configureEach {
+    dependsOn(writeReleaseRuntimeModules)
+    inputs
+        .files(
+            "r8-inventory.json",
+            "proguard-rules.pro",
+            "build.gradle.kts",
+            "../gradle/libs.versions.toml",
+        )
+        .withPropertyName("loonextR8Inventory")
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }

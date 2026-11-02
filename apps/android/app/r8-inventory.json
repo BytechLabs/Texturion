@@ -1,0 +1,152 @@
+{
+  "about": "What R8 does to each library in the release build, reviewed. R8InventoryTest fails when the release classpath or a declared dependency is missing from here, so a new library gets read before it ships. scripts/check-shrunk-build.mjs reads `expect` and checks it against the shrunk APK and R8's mapping.txt.",
+  "direct": {
+    "androidx.compose:compose-bom": { "r8": "no-reflection", "why": "A version table; it ships no code." },
+    "androidx.core:core-ktx": { "r8": "no-reflection", "why": "Kotlin extensions over framework calls." },
+    "androidx.core:core-splashscreen": { "r8": "no-reflection", "why": "Reads theme attributes; nothing is looked up by class name." },
+    "androidx.biometric:biometric": { "r8": "ships-rules", "why": "Calls the framework BiometricPrompt; no field or class is read by name." },
+    "androidx.credentials:credentials": { "r8": "ships-rules", "why": "CredentialProviderFactory loads the Play Services provider with Class.forName; its consumer rules keep it, and expect.classes pins that." },
+    "androidx.credentials:credentials-play-services-auth": { "r8": "ships-rules", "why": "The provider that Class.forName loads, plus HiddenActivity named in the manifest." },
+    "androidx.core:core-telecom": { "r8": "no-reflection", "why": "Binder calls into Telecom; no names are looked up." },
+    "androidx.activity:activity-compose": { "r8": "no-reflection", "why": "Compose host for an Activity." },
+    "androidx.lifecycle:lifecycle-runtime-compose": { "r8": "no-reflection", "why": "Collects flows in a composition." },
+    "androidx.lifecycle:lifecycle-viewmodel-compose": { "r8": "no-reflection", "why": "MainActivity's factory compares class literals; it does not look a ViewModel up by name." },
+    "androidx.lifecycle:lifecycle-process": { "r8": "ships-rules", "why": "Starts from an androidx.startup initializer named in the manifest; the check asserts initializers keep their names." },
+    "androidx.navigation:navigation-compose": { "r8": "ships-rules", "why": "The app builds no NavHost and has no type-safe routes, so no class is serialized into a route." },
+    "androidx.datastore:datastore-preferences": { "r8": "ships-rules", "why": "Its native shared counter calls NativeSharedCounter from JNI by name; the check reads the .so and asserts the class kept its name." },
+    "androidx.compose.ui:ui": { "r8": "ships-rules", "why": "Compose runtime and UI keep what their own rules name; no name lookups." },
+    "androidx.compose.ui:ui-tooling-preview": { "r8": "no-reflection", "why": "Preview annotations, stripped from release." },
+    "androidx.compose.material3:material3": { "r8": "no-reflection", "why": "Pure Compose." },
+    "androidx.compose.material3:material3-window-size-class": { "r8": "no-reflection", "why": "Pure Compose." },
+    "androidx.compose.material:material-icons-extended": { "r8": "no-reflection", "why": "Vector data in static fields; unused icons are shrunk." },
+    "com.squareup.okhttp3:okhttp": { "r8": "ships-rules", "why": "Picks a TLS platform with Class.forName and starts from an androidx.startup initializer; it ships rules for both, and reads its public-suffix list from assets/ (expect.apkEntries)." },
+    "org.jetbrains.kotlinx:kotlinx-serialization-json": { "r8": "own-rules", "keepRules": ["-keepclassmembers class com.loonext.android.** { *** Companion; }"], "why": "The compiler plugin writes the serializers, so field names are string constants. Companion.serializer() lookups need our rules, and expect.serializable checks each serializable class kept them." },
+    "org.jetbrains.kotlinx:kotlinx-coroutines-android": { "r8": "ships-rules", "why": "Main dispatcher and exception handler are found through ServiceLoader. R8 rewrites META-INF/services as it renames; the check confirms each provider exists." },
+    "io.coil-kt.coil3:coil-compose": { "r8": "no-reflection", "why": "Compose image host." },
+    "io.coil-kt.coil3:coil-network-okhttp": { "r8": "ships-rules", "why": "The network fetcher registers through ServiceLoader. R8 rewrites that services file as it renames; the check confirms the provider exists." },
+    "org.osmdroid:osmdroid-android": { "r8": "no-reflection", "why": "Ships no rules. Only ArchiveFileFactory reflects, for offline tile archives, which this app does not open. MapView is built in code, not inflated." },
+    "com.github.team-telnyx:telnyx-webrtc-android": { "r8": "own-rules", "why": "Sends its socket messages through Gson by field name, and its native library calls Java by name. Ships no rules. Renamed, calling never registers.", "keepRules": ["-keep class com.telnyx.webrtc.** { *; }"] },
+    "com.google.firebase:firebase-messaging": { "r8": "ships-rules", "why": "Component registrars are loaded by class name from manifest metadata; firebase-components keeps them and the check asserts it." },
+    "com.google.firebase:firebase-crashlytics": { "r8": "ships-rules", "why": "Same registrar loading. The mapping file it uploads comes from this build." }
+  },
+  "groups": {
+    "androidx.activity": "No name lookups.",
+    "androidx.annotation": "Annotations only.",
+    "androidx.appcompat": "Transitive via Telnyx and Material. Views inflate by class name from XML, which aapt keeps.",
+    "androidx.arch.core": "No name lookups.",
+    "androidx.autofill": "No name lookups.",
+    "androidx.biometric": "See direct entry.",
+    "androidx.cardview": "Transitive via Material; XML views, kept by aapt.",
+    "androidx.collection": "No name lookups.",
+    "androidx.compose": "A version table; no code.",
+    "androidx.compose.animation": "Pure Compose.",
+    "androidx.compose.foundation": "Pure Compose.",
+    "androidx.compose.material": "Pure Compose.",
+    "androidx.compose.material3": "Pure Compose.",
+    "androidx.compose.runtime": "Pure Compose.",
+    "androidx.compose.ui": "Pure Compose, rules shipped.",
+    "androidx.concurrent": "No name lookups.",
+    "androidx.constraintlayout": "Transitive via Telnyx; XML views, kept by aapt.",
+    "androidx.coordinatorlayout": "Transitive via Material; XML views, kept by aapt.",
+    "androidx.core": "No name lookups beyond rules it ships.",
+    "androidx.credentials": "See direct entries.",
+    "androidx.cursoradapter": "No name lookups.",
+    "androidx.customview": "No name lookups.",
+    "androidx.datastore": "See direct entry; JNI checked from the .so.",
+    "androidx.documentfile": "No name lookups.",
+    "androidx.drawerlayout": "XML views, kept by aapt.",
+    "androidx.dynamicanimation": "No name lookups.",
+    "androidx.emoji2": "Starts from an androidx.startup initializer, asserted by name.",
+    "androidx.exifinterface": "No name lookups.",
+    "androidx.fragment": "Fragments by name from XML only; none here.",
+    "androidx.graphics": "graphics-path calls its classes from JNI; the check reads the .so and asserts they kept their names.",
+    "androidx.interpolator": "No name lookups.",
+    "androidx.legacy": "No name lookups.",
+    "androidx.lifecycle": "Ships rules for observers and ViewModels.",
+    "androidx.loader": "No name lookups.",
+    "androidx.localbroadcastmanager": "No name lookups.",
+    "androidx.navigation": "See direct entry.",
+    "androidx.navigationevent": "No name lookups.",
+    "androidx.print": "No name lookups.",
+    "androidx.profileinstaller": "Starts from an androidx.startup initializer, asserted by name.",
+    "androidx.recyclerview": "Transitive via Material; XML views, kept by aapt.",
+    "androidx.resourceinspection": "Annotations only.",
+    "androidx.savedstate": "No name lookups.",
+    "androidx.startup": "Loads initializers by class name from manifest metadata; ships rules, and the check asserts every initializer kept its name.",
+    "androidx.tracing": "No name lookups.",
+    "androidx.transition": "XML views, kept by aapt.",
+    "androidx.vectordrawable": "No name lookups.",
+    "androidx.versionedparcelable": "Ships rules for its Parcelable fields.",
+    "androidx.viewpager": "XML views, kept by aapt.",
+    "androidx.viewpager2": "XML views, kept by aapt.",
+    "androidx.window": "Optional vendor classes found by name; they ship rules and fall back when absent.",
+    "com.github.team-telnyx": "See direct entry.",
+    "com.google.accompanist": "Drawable painter via Telnyx; no name lookups.",
+    "com.google.android.datatransport": "Firebase transport; ships rules.",
+    "com.google.android.gms": "Play services client stubs; ship rules.",
+    "com.google.android.libraries.identity.googleid": "Credential types for passkeys and sign-in; Parcelable and Bundle based.",
+    "com.google.android.material": "Transitive via Telnyx. XML views, kept by aapt; app code uses Compose Material.",
+    "com.google.code.gson": "Reads fields by name. This is why the Telnyx keep exists; Gson 2.12 ships rules for TypeToken and annotated fields only, so unannotated Telnyx models depend on our rule.",
+    "com.google.errorprone": "Annotations only.",
+    "com.google.firebase": "See direct entries; registrars asserted by name.",
+    "com.google.guava": "listenablefuture only; an interface.",
+    "com.jakewharton.timber": "Via Telnyx. Tags come from caller class names, which only labels log lines.",
+    "com.squareup.okhttp3": "See direct entry.",
+    "com.squareup.okio": "No name lookups.",
+    "com.telnyx.webrtc.lib": "Telnyx's WebRTC fork; its Java classes are called from libjingle by name. Covered by the com.telnyx.webrtc.** rule and checked from the .so.",
+    "io.coil-kt.coil3": "See direct entries.",
+    "io.ktor": "Via Telnyx for its HTTP calls, with a Gson serializer. Providers register through ServiceLoader, which R8 rewrites; the models it fills are Telnyx's, kept by our rule.",
+    "javax.inject": "Annotations only.",
+    "org.jetbrains": "Annotations only.",
+    "org.jetbrains.androidx.lifecycle": "Same as androidx.lifecycle.",
+    "org.jetbrains.androidx.savedstate": "Same as androidx.savedstate.",
+    "org.jetbrains.compose.animation": "Pure Compose.",
+    "org.jetbrains.compose.foundation": "Pure Compose.",
+    "org.jetbrains.compose.runtime": "Pure Compose.",
+    "org.jetbrains.compose.ui": "Pure Compose.",
+    "org.jetbrains.kotlin": "Stdlib only. kotlin-reflect is not on the classpath, so nothing reads Kotlin metadata at run time.",
+    "org.jetbrains.kotlinx": "Coroutines use ServiceLoader (checked); serialization is generated code plus our rules.",
+    "org.jspecify": "Annotations only.",
+    "org.osmdroid": "See direct entry.",
+    "org.slf4j": "Via Ktor. No binder is shipped, so it logs nowhere; Ktor's rules silence the missing binder."
+  },
+  "expect": {
+    "minMappedClasses": 5000,
+    "packages": [
+      {
+        "prefix": "com.telnyx.webrtc.",
+        "minClasses": 400,
+        "why": "Gson reads the SDK's message classes by field name and libjingle calls its Java by name. All of it keeps its name."
+      }
+    ],
+    "classes": [
+      {
+        "name": "androidx.credentials.playservices.CredentialProviderPlayServicesImpl",
+        "why": "CredentialProviderFactory loads it with Class.forName. Without it every passkey ceremony fails with no provider."
+      }
+    ],
+    "serializable": {
+      "minClasses": 100,
+      "why": "Each class with a generated serializer keeps its Companion field and Companion.serializer(), which kotlinx looks up by name."
+    },
+    "enums": {
+      "why": "Enum.valueOf reads values(), so an enum that kept values() or valueOf() keeps them under those names."
+    },
+    "attributes": [
+      {
+        "name": "Signature",
+        "why": "Gson reads the generic type of the Telnyx SDK's List and Map fields from it."
+      },
+      {
+        "name": "RuntimeVisibleAnnotations",
+        "why": "Gson reads @SerializedName names from it, and kotlinx.serialization reads its annotations."
+      }
+    ],
+    "apkEntries": [
+      {
+        "path": "assets/PublicSuffixDatabase.list",
+        "why": "OkHttp reads its public-suffix list from the APK's assets by this name."
+      }
+    ]
+  }
+}

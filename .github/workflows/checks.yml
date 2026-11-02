@@ -1134,6 +1134,28 @@ jobs:
           path: apps/android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
+      # Nothing above runs R8: the unit tests and the debug APK are not shrunk, so
+      # a class R8 renames or strips passes every one of them. The Telnyx SDK was
+      # that. It ships no keep rules and Gson reads its messages by field name, so
+      # every release build shipped with calling broken, behind a green gate.
+      #
+      # This is the build ship.yml bundles (release has no signing config, so it
+      # comes out unsigned and needs no stand-in key), as an APK. The Crashlytics
+      # mapping upload is skipped: this build is never released, and its mapping
+      # would sit in the console beside the real ones.
+      - name: Assemble the shrunk release build
+        run: ./gradlew :app:assembleRelease -x :app:uploadCrashlyticsMappingFileRelease
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # Reads R8's mapping.txt, the merged manifest and the APK, and fails naming
+      # each class that lost its name or was stripped. What it expects of each
+      # library is in app/r8-inventory.json.
+      - name: Check what R8 kept
+        run: node scripts/check-shrunk-build.mjs
+
   ios:
     name: iOS (build + unit tests)
     # #493: skip the WORK for a release-please pull request.
