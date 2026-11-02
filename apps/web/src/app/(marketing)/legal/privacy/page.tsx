@@ -33,7 +33,7 @@ const sayEnglish = (key: string): string => {
 
 
 const PATH = "/legal/privacy";
-const LAST_UPDATED = "July 30, 2026";
+const LAST_UPDATED = "November 1, 2026";
 
 export const metadata: Metadata = buildMetadata({
   title: "Privacy policy",
@@ -49,6 +49,7 @@ const sections = [
   { id: "sms-consent", number: "4", heading: "SMS and consent data" },
   { id: "where", number: "5", heading: "Where your data lives" },
   { id: "on-your-phone", number: "5a", heading: "What stays on your phone" },
+  { id: "your-calendar", number: "5b", heading: "Your calendar, if you connect one" },
   { id: "sharing", number: "6", heading: "Who we share with" },
   { id: "ai", number: "7", heading: "AI features" },
   { id: "retention", number: "8", heading: "How long we keep it" },
@@ -252,6 +253,71 @@ export default function PrivacyPage() {
           give the app permission, it shows your own contacts beside the
           crew&apos;s so you do not have to retype a number. That search happens on
           the phone, and none of it is sent to us.
+        </p>
+      </LegalSectionBlock>
+
+      {/* #245: Google's app verification requires this disclosure. The Limited
+          Use sentence is its required wording and must stay verbatim. The
+          "does not read" claim is pinned by a worker test. */}
+      <LegalSectionBlock
+        id="your-calendar"
+        number="5b"
+        heading="Your calendar, if you connect one"
+      >
+        <p>
+          A crew member can connect their own Google Calendar or Microsoft 365
+          calendar in Settings. It is off until you do it, and each person
+          decides for themselves. Once connected, Loonext writes an event into
+          the calendar you choose for each scheduled job assigned to you, and
+          reads back only those events to see whether you moved, renamed or
+          removed one. It does not read the content of your other events, and
+          it never invites a customer.
+        </p>
+        <ul className="list-disc space-y-2 pl-6">
+          <li>
+            <strong>What we ask the provider for:</strong> permission to manage
+            events on the calendars you own and to read your calendar list so
+            you can pick one. On Google that is the Calendar events
+            (owned calendars) and Calendar list (read only) permissions; on
+            Microsoft it is Calendars.ReadWrite.
+          </li>
+          <li>
+            <strong>What we write to an event:</strong> the job&apos;s title,
+            notes, start and end time. Whatever your crew types into a job&apos;s
+            title or notes therefore appears in the calendar, so keep a
+            customer&apos;s phone number out of them if you do not want it there.
+          </li>
+          <li>
+            <strong>What we keep:</strong> a connection record holding the
+            provider&apos;s refresh credential, encrypted, and for each job a
+            copy of the schedule we last agreed with the calendar so that we
+            can tell which side changed it. It is used only to keep your
+            calendar and your jobs in step, and only people in your workspace
+            can see it.
+          </li>
+          <li>
+            <strong>Who else sees it:</strong> no one outside your workspace,
+            and no advertising or analytics service. The calendar provider you
+            chose holds the events, under its own terms.
+          </li>
+        </ul>
+        <p>
+          <strong>
+            Loonext&apos;s use and transfer to any other app of information
+            received from Google APIs will adhere to the Google API Services
+            User Data Policy, including the Limited Use requirements.
+          </strong>{" "}
+          We do not use calendar information to train models or to
+          advertise.
+        </p>
+        <p>
+          <strong>Ending it.</strong> Disconnect in Settings and we revoke our
+          access at the provider, erase the stored credential at once, and
+          remove the events we created, or clear their contents where
+          deleting one would affect other people. If a provider will not
+          confirm that, we tell your workspace owner. You can also remove
+          Loonext in your Google or Microsoft account permissions. When a
+          workspace is closed, every record described here goes with it.
         </p>
       </LegalSectionBlock>
 
