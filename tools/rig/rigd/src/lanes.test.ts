@@ -866,6 +866,7 @@ describe("the app's dialer", () => {
         async resetUi() {
           actions.push("reset ui");
           onReset();
+          return { crashPrompt: false };
         },
       },
     };

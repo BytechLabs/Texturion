@@ -28,6 +28,9 @@ export type CallTestId = (typeof CALL_TEST_IDS)[number];
 /** How long a launched app is given to draw its first frame before the launcher is put in front of it. */
 const APP_SETTLE_MS = 2_000;
 
+/** The title of the prompt the app opens on after a crash (ShellStrings `shell.crashTitle`). */
+const CRASH_PROMPT = "The app closed unexpectedly";
+
 /** The app asks for these at the dialer and at answer. */
 const CALL_PERMISSIONS = ["RECORD_AUDIO", "READ_CONTACTS", "WRITE_CONTACTS"] as const;
 
@@ -348,17 +351,23 @@ export class AndroidDevice {
    * app is launched again, because a stopped app is sent no push, and the
    * launcher is put in front of it. A build that is not installed (D10 removes
    * it on purpose) is not an error.
+   *
+   * After a crash the app opens on a prompt that covers every screen until it
+   * is dismissed, so it is dismissed here and reported.
    */
-  async resetUi(): Promise<void> {
+  async resetUi(): Promise<{ crashPrompt: boolean }> {
     await this.adb.forceStop(this.#o.pkg);
     await this.adb.shell("cmd", "statusbar", "collapse");
+    let crashPrompt = false;
     try {
       await this.launch();
       await this.#sleep(APP_SETTLE_MS);
+      crashPrompt = (await this.showing({ text: CRASH_PROMPT })) && (await this.tapText("Dismiss"));
     } catch {
       // Nothing to launch; the home key below still leaves a known screen.
     }
     await this.adb.shell("input", "keyevent", "KEYCODE_HOME");
+    return { crashPrompt };
   }
 
   async callState(): Promise<"ringing" | "active" | "holding" | "disconnected" | "none"> {

@@ -343,6 +343,7 @@ describe("D02p, a ring push with no call", () => {
     const stuck = wakeWorld("D02p");
     stuck.pixel.resetUi = async () => {
       stuck.pixel.call = "ringing";
+      return { crashPrompt: false };
     };
     expect(await D02p.run(stuck.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringMatching(/still up after the app was stopped/) });
     expect(stuck.ctx.evidence).toMatchObject({ ring_cleared: false });

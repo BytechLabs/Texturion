@@ -803,6 +803,15 @@ describe("a device scenario's start", () => {
     expect(order).toEqual(["prepare after []", "run after []"]);
   });
 
+  it("records, and does not stop for, the crash prompt a reset dismissed", async () => {
+    const { deps, lanes, verdicts } = onDevices("D02p");
+    lanes.devices.pixelDevice.crashPrompt = true;
+    const summary = await runScenario(deps, "D02p");
+    expect(summary.status).toBe("pass");
+    expect(verdicts.evidence(summary.run_id!)[0]).toMatchObject({ pixel_crash_prompt: "the app opened on its crash prompt, dismissed" });
+    expect(lanes.devices.pixelDevice.crashPrompt).toBe(false);
+  });
+
   it("touches no device for a scenario on another lane", async () => {
     const { deps, lanes } = onDevices("S20");
     await runScenario(deps, "S20");

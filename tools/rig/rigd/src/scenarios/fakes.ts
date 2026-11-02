@@ -807,6 +807,8 @@ export class FakeDevice implements DeviceApi {
   crypto: string | null = "file";
   /** The FCM token the installed app holds. */
   token: string | null = "fcm-token-1";
+  /** Whether the app opens on its crash prompt; a reset dismisses it. */
+  crashPrompt = false;
   readonly audio: FakeAudioLink;
   readonly network = new FakeNetwork();
 
@@ -916,6 +918,9 @@ export class FakeDevice implements DeviceApi {
   async resetUi() {
     this.actions.push("reset ui");
     this.call = "none";
+    const crashPrompt = this.crashPrompt;
+    this.crashPrompt = false;
+    return { crashPrompt };
   }
   async dial(role: string) {
     this.actions.push(`dial ${role}`);

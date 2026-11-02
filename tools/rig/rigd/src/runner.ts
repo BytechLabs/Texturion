@@ -336,7 +336,7 @@ async function attemptHeld(
   // Before anything of this attempt's own touches a device, and only while no other run holds its lane.
   const holder = deps.holds?.holder(entry.lane, deps.clock.now());
   if (!holder || holder.run_id === runId) {
-    const stuck = await resetDeviceUis(lanes.devices, entry.lane);
+    const stuck = await resetDeviceUis(lanes.devices, entry.lane, evidence);
     if (stuck) {
       evidence.reset_ui = stuck.detail;
       deps.verdicts.saveEvidence(runId, attempt, evidence);
@@ -558,12 +558,12 @@ function dialNoted<T extends object>(target: T, note: () => void): T {
  * counts against the next one. A device that is not up is left to the
  * scenario, which reports it. The result is undefined, or the rig fault.
  */
-async function resetDeviceUis(devices: DevicesApi, lane: string): Promise<AttemptOutcome | undefined> {
+async function resetDeviceUis(devices: DevicesApi, lane: string, evidence: Record<string, unknown>): Promise<AttemptOutcome | undefined> {
   for (const which of LANE_DEVICES[lane] ?? []) {
     const device = which === "pixel" ? devices.pixel() : devices.emulator(which);
     try {
       if (!(await device.reachable())) continue;
-      await device.resetUi();
+      if ((await device.resetUi()).crashPrompt) evidence[`${device.name}_crash_prompt`] = "the app opened on its crash prompt, dismissed";
     } catch (error) {
       return { outcome: "infra", component: device.name, detail: `resetting the app's UI failed: ${error instanceof Error ? error.message : String(error)}`, dials: 0 };
     }

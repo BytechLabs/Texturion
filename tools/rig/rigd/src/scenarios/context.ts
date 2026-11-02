@@ -483,8 +483,9 @@ export interface DeviceApi {
    * The app back at a known state: stopped (which drops a ring or a call it
    * held and every screen it had open), launched again and sent behind the
    * launcher. For the start of a run, which must not inherit the last one's UI.
+   * A prompt the app opens on after a crash is dismissed, and `crashPrompt` says it was there.
    */
-  resetUi(): Promise<void>;
+  resetUi(): Promise<{ crashPrompt: boolean }>;
   /** Waits for Telecom to report a ringing call and the full-screen ring to show; undefined if neither did. */
   waitForRinging(timeoutMs: number): Promise<{ telecom_ms?: number; full_screen_ms?: number } | undefined>;
   /** Telecom's state for the app's calls. */

@@ -361,13 +361,29 @@ describe("the device driver's commands (no device has run them)", () => {
 
   it("resets the app to a known state: stopped, launched again, and the launcher put in front of it", async () => {
     const { android, calls } = device();
-    await android.resetUi();
+    expect(await android.resetUi()).toEqual({ crashPrompt: false });
     expect(calls).toEqual([
       `${ADB} shell am force-stop ${PKG}`,
       `${ADB} shell cmd statusbar collapse`,
       `${ADB} shell monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`,
+      `${ADB} shell uiautomator dump /sdcard/rig-ui.xml`,
+      `${ADB} shell cat /sdcard/rig-ui.xml`,
       `${ADB} shell input keyevent KEYCODE_HOME`,
     ]);
+  });
+
+  it("dismisses the prompt the app opens on after a crash, which would cover every screen, and says so", async () => {
+    const prompt = `<?xml version='1.0' encoding='UTF-8' standalone='yes' ?><hierarchy rotation="0">
+<node index="0" text="The app closed unexpectedly" resource-id="" class="android.widget.TextView" content-desc="" bounds="[183,955][897,1123]" />
+<node index="1" text="Share crash report" resource-id="" class="android.widget.Button" content-desc="" bounds="[183,1165][897,1324]" />
+<node index="2" text="Dismiss" resource-id="" class="android.widget.Button" content-desc="" bounds="[284,1388][485,1514]" />
+</hierarchy>`;
+    const { android, calls } = device({ "cat /sdcard/rig-ui.xml": prompt });
+    expect(await android.resetUi()).toEqual({ crashPrompt: true });
+    const tap = calls.findIndex((line) => line.includes("input tap"));
+    expect(calls[tap]).toBe(`${ADB} shell input tap 385 1451`);
+    expect(calls[tap + 1]).toBe(`${ADB} shell input keyevent KEYCODE_HOME`);
+    expect(calls.some((line) => line.includes("Share"))).toBe(false);
   });
 
   it("resets a device whose build is not installed, as D10 leaves it, and still ends on the launcher", async () => {
@@ -387,9 +403,9 @@ describe("the device driver's commands (no device has run them)", () => {
       portCheck: tunnelUp,
       sleep: async () => undefined,
     });
-    await android.resetUi();
+    expect(await android.resetUi()).toEqual({ crashPrompt: false });
     expect(calls.at(-1)).toBe(`${ADB} shell input keyevent KEYCODE_HOME`);
-    expect(calls).toHaveLength(4);
+    expect(calls.some((line) => line.includes("uiautomator"))).toBe(false);
   });
 
   it("drives only a nonprod package, and types only plain text", async () => {
