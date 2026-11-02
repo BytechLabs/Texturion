@@ -10,6 +10,7 @@ import {
   redactTokenPaths,
   scrubBreadcrumb,
   scrubEvent,
+  scrubUrl,
   sentryOptions,
   TOKEN_PATH_PREFIXES,
 } from "./sentry";
@@ -68,6 +69,58 @@ describe("redactPhones (SPEC §10 E.164 pattern)", () => {
     expect(redactPhones("6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01")).toBe(
       "6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01",
     );
+  });
+});
+
+describe("#651 a UUID is never mistaken for a phone number", () => {
+  // Both end in a group that the bare phone pattern reads as ten digits: twelve
+  // decimal digits, and ten digits followed by two hex letters.
+  const UUIDS = [
+    "550e8400-e29b-41d4-a716-446655440000",
+    "0192f1a3-7c4e-7b2a-9f00-1234567890ab",
+  ];
+
+  it.each(UUIDS)("keeps %s whole on its own", (uuid) => {
+    expect(redactPhones(uuid)).toBe(uuid);
+  });
+
+  it.each(UUIDS)("keeps %s whole inside a URL path", (uuid) => {
+    expect(redactPhones(`/v1/companies/${uuid}/messages`)).toBe(
+      `/v1/companies/${uuid}/messages`,
+    );
+    expect(scrubUrl(`https://api.loonext.com/v1/contacts/${uuid}?q=x`)).toBe(
+      `https://api.loonext.com/v1/contacts/${uuid}`,
+    );
+  });
+
+  it.each(UUIDS)("still redacts a real phone number next to %s", (uuid) => {
+    expect(redactPhones(`${uuid} called ${PHONE}`)).toBe(
+      `${uuid} called [phone redacted]`,
+    );
+    expect(redactPhones(`${PHONE} then ${uuid}`)).toBe(
+      `[phone redacted] then ${uuid}`,
+    );
+    expect(redactPhones(`/v1/companies/${uuid}/contacts?phone=%2B14165551234`)).toBe(
+      `/v1/companies/${uuid}/contacts?phone=[phone redacted]`,
+    );
+    expect(redactPhones(`${uuid},${PHONE}`)).toBe(
+      `${uuid},[phone redacted]`,
+    );
+  });
+
+  it("keeps a UUID whole in every field a scrubber walks", () => {
+    const uuid = UUIDS[0];
+    const event = scrubEvent({
+      type: undefined,
+      message: `company ${uuid} failed`,
+      tags: { company_id: uuid },
+      extra: { ids: [uuid] },
+      user: { id: uuid },
+    } as ErrorEvent);
+    expect(event.message).toBe(`company ${uuid} failed`);
+    expect(event.tags).toEqual({ company_id: uuid });
+    expect(event.extra).toEqual({ ids: [uuid] });
+    expect(event.user).toEqual({ id: uuid });
   });
 });
 

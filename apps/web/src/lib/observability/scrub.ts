@@ -31,16 +31,28 @@ import type { Breadcrumb, ErrorEvent } from "@sentry/browser";
 /**
  * E.164-shaped digit runs (SPEC §10): optional '+' (or its URL-encoded form
  * %2B, so numbers inside URLs are caught too), optional country code 1, then
- * 10–15 digits, bounded so we do not fire inside longer identifiers (UUID
- * segments, Stripe/Telnyx ids) — no digit or letter immediately before, no
- * digit immediately after.
+ * 10 to 15 digits, bounded so we do not fire inside longer identifiers (Stripe
+ * and Telnyx ids): no digit or letter immediately before, no digit
+ * immediately after.
+ *
+ * Those bounds do not protect a UUID. Its last group follows a '-', so a group
+ * that opens with ten or more digits (about 0.9% of random v4 UUIDs) read as a
+ * phone number. UUID_PATTERN is tried first, in the same pass, and kept whole.
  */
 const PHONE_PATTERN = /(?<![0-9A-Za-z])(?:\+|%2[Bb])?1?\d{10,15}(?!\d)/g;
+const UUID_PATTERN =
+  /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/g;
+const UUID_OR_PHONE = new RegExp(
+  `(${UUID_PATTERN.source})|${PHONE_PATTERN.source}`,
+  "g",
+);
 const PHONE_REDACTED = "[phone redacted]";
 export const NAME_REDACTED = "[name redacted]";
 
 export function redactPhones(text: string): string {
-  return text.replace(PHONE_PATTERN, PHONE_REDACTED);
+  return text.replace(UUID_OR_PHONE, (_match, uuid?: string) =>
+    uuid ?? PHONE_REDACTED,
+  );
 }
 
 /** Keys that carry a person's name: `name`, `*_name`, `*-name`, `*Name`. */

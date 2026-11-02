@@ -81,6 +81,20 @@ describe("sanitizeEventProperties (D8: UUIDs, counts, and feature events only)",
     });
   });
 
+  it("#651 keeps a distinct_id whole when its last group opens with ten digits", async () => {
+    const { sanitizeEventProperties } = await importPostHog(POSTHOG_KEY);
+    const ids = [
+      "550e8400-e29b-41d4-a716-446655440000",
+      "0192f1a3-7c4e-7b2a-9f00-1234567890ab",
+    ];
+    for (const id of ids) {
+      expect(sanitizeEventProperties({ distinct_id: id, $device_id: id })).toEqual({
+        distinct_id: id,
+        $device_id: id,
+      });
+    }
+  });
+
   it("scrubs phones and name-keys in ordinary properties, deeply", async () => {
     const { sanitizeEventProperties } = await importPostHog(POSTHOG_KEY);
     expect(
