@@ -15,6 +15,7 @@ import { whenTelemetryMayLoad } from "@/lib/perf/telemetry-gate";
 import { clientEnv } from "@/public-env";
 
 import type * as SentrySdkModule from "./sentry-sdk";
+import { mirrorToPostHog } from "./posthog-errors";
 import { scrubBreadcrumb, scrubEvent } from "./scrub";
 
 /** Enough to see a boot failure, not enough to flood the project. */
@@ -53,8 +54,13 @@ export function sentryClientOptions(dsn: string): BrowserOptions {
     environment: process.env.NODE_ENV,
     sendDefaultPii: false,
     tracesSampleRate: 0,
-    beforeSend: (event) =>
-      isNetworkErrorEvent(event) ? null : scrubEvent(event),
+    beforeSend: (event) => {
+      if (isNetworkErrorEvent(event)) return null;
+      const scrubbed = scrubEvent(event);
+      // #652: the scrubbed event is also captured in PostHog.
+      void mirrorToPostHog(scrubbed);
+      return scrubbed;
+    },
     beforeBreadcrumb: scrubBreadcrumb,
   };
 }

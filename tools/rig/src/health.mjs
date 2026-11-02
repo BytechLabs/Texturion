@@ -17,6 +17,7 @@ import { adbAnswers } from "../lanes/src/android/adb.ts";
 import { ADB_VM_PORT, HOSTD_PORT } from "../lanes/src/android/devices.ts";
 import { guardGet } from "./guard.mjs";
 import { parseJsonc } from "./jsonc.mjs";
+import { posthogErrorsCheck } from "./posthog-errors.mjs";
 import { stripeSandboxKey } from "./stripe.mjs";
 import { psql } from "./supabase.mjs";
 
@@ -85,7 +86,7 @@ export const GUARD_SAFETY_MAX_AGE_MS = 6 * 3_600_000 + 15 * 60_000;
  * so a rig with nothing deployed or its stack down still says whether the
  * guard, hostd, the tunnel and the firewall are right.
  */
-export const DEPLOY_FREE_CHECKS = new Set(["guard", "nonprodApps", "uplink", "deployHold", "sentry", "hostd", "adbTunnel", "nftables"]);
+export const DEPLOY_FREE_CHECKS = new Set(["guard", "nonprodApps", "uplink", "deployHold", "sentry", "posthogErrors", "hostd", "adbTunnel", "nftables"]);
 
 function readJsonFile(path) {
   return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null;
@@ -275,6 +276,17 @@ export function healthChecks(context) {
       if (state === null) return "the relay has not published state/sentry-relay.json";
       if (!fresh(state.at, 30 * 60_000)) return "the relay's report is stale";
       return sentryFailure(state);
+    },
+
+    /**
+     * R00's PostHog half (D144): PostHog's error events are readable by API, and
+     * none of them comes from the rig. Unconfigured is published, not failed:
+     * the rig VM may not hold a personal API key.
+     */
+    async posthogErrors() {
+      const result = await posthogErrorsCheck(context.env ?? process.env, fetchImpl);
+      context.published.posthog_errors = result.published;
+      return result.failure;
     },
 
     /** hostd on the Windows host answers through its tunnel, with the store's token. */

@@ -25,6 +25,7 @@ import type {
 
 import { getEnv, type Bindings } from "../env";
 import { sentryEnvironment } from "../environments/policy";
+import { mirrorToPostHog } from "./posthog-errors";
 
 /**
  * E.164-shaped digit runs (SPEC §10): optional '+' (or its URL-encoded form
@@ -369,7 +370,14 @@ export function sentryOptions(bindings: Bindings): CloudflareOptions {
     // dangerous was the query string, and that is now cut at the single hook
     // every crumb passes through. A second belt would buy nothing the cut does
     // not already buy, and would cost the trail.
-    beforeSend: scrubEvent,
+    // #652: the scrubbed event also goes to PostHog. Async on purpose: the SDK
+    // waits for the hook and flushes through the invocation's waitUntil, so the
+    // PostHog request is not cut off when the response returns.
+    beforeSend: async (event) => {
+      const scrubbed = scrubEvent(event);
+      await mirrorToPostHog(env, scrubbed);
+      return scrubbed;
+    },
     beforeBreadcrumb: scrubBreadcrumb,
   };
 }

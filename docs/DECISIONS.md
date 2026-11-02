@@ -434,6 +434,8 @@ marketing page when a broader pass is wanted.
 - **PII policy**: message bodies, names, addresses, phone numbers never reach Sentry or
   PostHog. Sentry `beforeSend` redacts E.164 patterns + payloads; PostHog captures UUIDs,
   counts, and feature events only, autocapture masked. Logs reference IDs, never bodies.
+  **Amended by D144 (#652):** PostHog also holds error events (`$exception`), but only
+  the event the same scrubbers have already cleaned, never a raw one.
 
 ## D9. Realtime & notifications
 
@@ -9508,3 +9510,41 @@ that the rig is an on-demand environment. `docs/RIG.md` is rewritten to match.
   set-aside) plus what runs spend, since nothing spends on a schedule. The
   $35 all-in ceiling and the $0.81 a day vendor limits are unchanged. This
   supersedes the $24 above.
+
+## D144 — error tracking and ops alerts move from Sentry to PostHog, in two phases (#652, 2026-11-01)
+
+**Decision.** Errors and ops alerts (D139) are tracked in PostHog, and Sentry is
+removed once PostHog has been shown to carry every ops alert on its own. D8's
+rule that error text stays out of PostHog is amended: PostHog may hold the
+scrubbed error event, which is the same data Sentry holds today. It may not
+hold anything the scrubbers have not seen.
+
+**Feasible, checked on 2026-11-01 against the PostHog docs and the live project.**
+- **Our own fingerprints.** An `$exception` event carries `$exception_fingerprint`;
+  PostHog groups by it. Two events with `ops:feasibility-probe` and one with
+  `ops:feasibility-probe-b` produced two issues, and `GET .../error_tracking/fingerprints/`
+  listed both fingerprints verbatim.
+- **Alerts.** Error tracking raises alerts when an issue is created and when one is
+  reopened, to Slack, Discord, Teams or a webhook. They are hog functions of type
+  `internal_destination` filtered on `$error_tracking_issue_created` and
+  `$error_tracking_issue_reopened`, and the API creates them with a personal
+  API key.
+- **Queryable.** `POST .../query/` with HogQL reads `$exception` events by
+  fingerprint, environment and time, so R00 and the parity check can count them.
+
+**Phase 1 (shipped with this decision).** Every event that reaches Sentry's
+`beforeSend`, in the API Worker and in the browser, is also sent to PostHog as
+`$exception`, after `scrubEvent`. The hook is the one place every capture passes
+through, so no call site changed. The fingerprint is Sentry's parts joined by a
+colon: `["ops", "telnyx-wiring"]` is `ops:telnyx-wiring`. Events without a custom
+fingerprint are grouped by PostHog from the stack. The Worker needs no new
+setting: it uses `POSTHOG_API_KEY`, and sends nothing when that is unset.
+
+**Phase 2 (later).** Remove the Sentry SDKs, `SENTRY_*` secrets and DSNs, the
+Sentry rows in docs/DATA-INVENTORY.md and on the subprocessors page, and the rig's
+Sentry relay. It starts only when `node tools/rig/src/posthog-errors.mjs parity`
+passes over a window of at least seven days that includes every ops key's
+cadence, and PostHog's alerts reach the founder. Losing an alarm silently is the
+one real risk, so Sentry stays until the check says there is none.
+
+**Why.** One vendor instead of two, with errors next to the product funnels.

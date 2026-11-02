@@ -205,7 +205,7 @@ feature cannot ship undisclosed.
 | **Resend** | Email addresses and notification copy | Transactional email |
 | **Firebase Cloud Messaging** | Push tokens and notification payloads (sender name, message snippet) | Push to Android and iOS |
 | **Sentry** | Stack traces, request ids. Message bodies excluded | Error monitoring |
-| **PostHog** (web only) | Cookieless event counts. No message content, names, or numbers | Product analytics |
+| **PostHog** | Cookieless event counts from the web app, and scrubbed error diagnostics (stack traces, request ids) from the web app and the API Worker. No message content, names, or numbers | Product analytics and error monitoring (#652) |
 
 ---
 

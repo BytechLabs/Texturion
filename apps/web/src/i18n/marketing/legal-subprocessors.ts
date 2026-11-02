@@ -49,9 +49,9 @@ export const legalSubprocessorsEn = {
   sentryData:
     "Error diagnostics with PII scrubbed, no message bodies or phone numbers",
   sentryRegion: "United States",
-  posthogPurpose: "Product analytics (events only)",
+  posthogPurpose: "Product analytics (events only) and error diagnostics",
   posthogData:
-    "Event names, counts, and UUIDs, no message content; cookieless on marketing pages",
+    "Event names, counts, and UUIDs, no message content; cookieless on marketing pages. Error diagnostics with PII scrubbed, no message bodies or phone numbers",
   posthogRegion: "United States",
   listNote:
     "Data lives primarily in the United States (Supabase on AWS `us-east-1`). We keep message content out of Sentry and PostHog by design, see our {security} and {privacy}.",
@@ -133,9 +133,9 @@ export const legalSubprocessorsFr: Translated<typeof legalSubprocessorsEn> = {
   sentryData:
     "Diagnostics d'erreur dont les renseignements personnels ont été retirés, sans corps de message ni numéro de téléphone",
   sentryRegion: "États-Unis",
-  posthogPurpose: "Analyse du produit (seulement des événements)",
+  posthogPurpose: "Analyse du produit (seulement des événements) et diagnostics d'erreur",
   posthogData:
-    "Noms d'événements, quantités et UUID, sans contenu de message; sans témoins sur les pages publiques",
+    "Noms d'événements, quantités et UUID, sans contenu de message; sans témoins sur les pages publiques. Diagnostics d'erreur dont les renseignements personnels ont été retirés, sans corps de message ni numéro de téléphone",
   posthogRegion: "États-Unis",
   listNote:
     "Les données résident principalement aux États-Unis (Supabase sur AWS `us-east-1`). Nous gardons volontairement le contenu des messages hors de Sentry et de PostHog; consultez notre {security} et notre {privacy}.",

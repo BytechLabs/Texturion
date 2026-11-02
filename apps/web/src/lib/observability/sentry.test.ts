@@ -16,6 +16,8 @@ const { initSpy, captureSpy, settle } = vi.hoisted(() => {
   return { initSpy: vi.fn(), captureSpy: vi.fn(), settle };
 });
 vi.mock("@sentry/browser", () => ({ init: initSpy, captureException: captureSpy }));
+const { mirrorSpy } = vi.hoisted(() => ({ mirrorSpy: vi.fn() }));
+vi.mock("./posthog-errors", () => ({ mirrorToPostHog: mirrorSpy }));
 // The page-settled gate, held shut until a test opens it.
 vi.mock("@/lib/perf/after-lcp-and-load", () => ({ whenPageSettles: () => settle.gate }));
 
@@ -39,6 +41,7 @@ beforeEach(() => {
   vi.resetModules();
   initSpy.mockClear();
   captureSpy.mockClear();
+  mirrorSpy.mockClear();
   settle.gate = Promise.resolve();
 });
 
@@ -85,6 +88,17 @@ describe("sentryClientOptions (D8/§10 posture, mirroring the API Worker)", () =
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const out = beforeSend(event as any, {} as any);
     expect(out).not.toBeNull();
+    // #652: the same scrubbed event is what PostHog receives.
+    expect(mirrorSpy).toHaveBeenCalledWith(out);
+  });
+
+  it("beforeSend does not mirror a dropped network failure", async () => {
+    const { sentryClientOptions } = await importSentry(DSN);
+    const beforeSend = sentryClientOptions(DSN).beforeSend!;
+    const event = { exception: { values: [{ type: "TypeError", value: "Failed to fetch" }] } };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    beforeSend(event as any, {} as any);
+    expect(mirrorSpy).not.toHaveBeenCalled();
   });
 });
 

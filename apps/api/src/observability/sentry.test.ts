@@ -242,12 +242,15 @@ describe("scrubBreadcrumb (beforeBreadcrumb defense-in-depth)", () => {
 });
 
 describe("sentryOptions", () => {
-  it("wires the DSN from env with PII off and the scrubbers installed", () => {
+  it("wires the DSN from env with PII off and the scrubbers installed", async () => {
     const env = completeEnv();
     const options = sentryOptions(env);
     expect(options.dsn).toBe(env.SENTRY_DSN);
     expect(options.sendDefaultPii).toBe(false);
-    expect(options.beforeSend).toBe(scrubEvent);
+    // #652: scrubEvent still runs on every event; the hook only adds the
+    // PostHog copy after it (posthog-errors.test.ts proves that half).
+    const sent = await options.beforeSend?.(syntheticEvent(), {});
+    expect(JSON.stringify(sent)).not.toContain(PHONE);
     expect(options.beforeBreadcrumb).toBe(scrubBreadcrumb);
   });
 

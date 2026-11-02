@@ -34,6 +34,8 @@ async function withRig(body) {
       projectId: "rig",
       deployed: { sha: SHA, worktree, timers: [] },
       published: { serving: {} },
+      // No PostHog key: the machine running the tests may hold a real one.
+      env: {},
     };
     return await body(context, home);
   } finally {
@@ -180,6 +182,33 @@ test("the sentry check fails on an unexplained fingerprint and on each defect, n
       JSON.stringify({ at: "2026-01-01T00:00:00.000Z", unexplained_24h: [], defects_24h: [] }),
     );
     assert.equal(await check(), "the relay's report is stale");
+  });
+});
+
+test("the posthogErrors check publishes that it is unconfigured, reads PostHog when configured, and fails on a rig event", async () => {
+  await withRig(async (context) => {
+    assert.equal(await healthChecks(context).posthogErrors(), null);
+    assert.deepEqual(context.published.posthog_errors, { configured: false });
+
+    const rows = (list) => json({ results: list });
+    context.env = { POSTHOG_PERSONAL_API_KEY: "phx_test", POSTHOG_PROJECT_ID: "1" };
+    context.fetch = async () => rows([["ops:telnyx-wiring", "production", 3, "2026-11-01 10:00:00"]]);
+    assert.equal(await healthChecks(context).posthogErrors(), null);
+    assert.deepEqual(context.published.posthog_errors, {
+      configured: true,
+      readable: true,
+      exception_events_24h: 3,
+      fingerprints_24h: 1,
+    });
+
+    context.fetch = async () => rows([["synthetic:s01:x", "synthetic", 1, "2026-11-01 10:00:00"]]);
+    const leaked = await healthChecks(context).posthogErrors();
+    assert.ok(leaked.startsWith("1 non-production error fingerprint(s) reached PostHog"), leaked);
+    assert.ok(leaked.includes("synthetic:synthetic:s01:x"), leaked);
+
+    context.fetch = async () => json({}, 403);
+    assert.match(await healthChecks(context).posthogErrors(), /could not be read: PostHog answered 403/);
+    assert.equal(context.published.posthog_errors.readable, false);
   });
 });
 
