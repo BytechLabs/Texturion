@@ -61,7 +61,7 @@ beforeAll(async () => {
        company: COMPANY_ID,
        owner: OWNER_ID,
        number: NUMBER_ID,
-       e164: "+14155559253",
+       e164: "+14155550153",
        areaCode: "415",
        country: "US",
        conversations: CONVERSATIONS,

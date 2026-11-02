@@ -34,7 +34,7 @@ let stack: RigStack;
 const OWNER_ID = "10a01251-0001-4001-8001-0000000000a1";
 const COMPANY_ID = "10a01251-0002-4002-8002-0000000000a2";
 const NUMBER_ID = "10a01251-0003-4003-8003-0000000000a3";
-const NUMBER_E164 = "+16135550251";
+const NUMBER_E164 = "+16135550151";
 
 /** Distinct events per level; each is delivered `COPIES` times. */
 const LEVELS = (process.env.RIG_WEBHOOK_LEVELS ?? "25,50,100,200,400,800,1600")
@@ -166,7 +166,7 @@ describe("#251 webhook burst on the rig, ramped", () => {
   it("a retry storm of one event, 100 concurrent copies, writes exactly one message", async () => {
     const before = await messageCount();
     const eventId = `rigload-${stack.runId}-storm`;
-    const event = inbound(eventId, `${eventId}-msg`, "+16135551111", "Storm copy");
+    const event = inbound(eventId, `${eventId}-msg`, "+16135550111", "Storm copy");
 
     const report = await burst("retry storm x100", 100, () => stack.injectTelnyx(event));
     console.log(line(report));

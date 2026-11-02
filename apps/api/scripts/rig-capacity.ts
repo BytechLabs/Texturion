@@ -179,7 +179,7 @@ async function main(): Promise<void> {
         company: COMPANY,
         owner: ownerId,
         number: NUMBER,
-        e164: "+14155559252",
+        e164: "+14155550152",
         areaCode: "415",
         country: "US",
         conversations,
