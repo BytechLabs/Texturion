@@ -79,16 +79,27 @@ final class AccessibilityAuditUITests: XCTestCase {
 
         var failures: [String] = []
         var advice: [String] = []
-        try app.performAccessibilityAudit(for: .all) { issue in
-            let line = Self.describe(issue)
-            let enforced = contentSize == nil ? Self.enforced : Self.enforcedAtLargeText
-            if enforced.contains(issue.auditType), !Self.isInactiveControl(issue, in: app) {
-                failures.append(line)
-            } else {
-                advice.append(line)
+        let enforced = contentSize == nil ? Self.enforced : Self.enforcedAtLargeText
+        // A busy runner can run the OS audit out of time (code -56) on a long
+        // screen; that says nothing about the screen, so it gets one more go.
+        for attempt in 1...2 {
+            failures = []
+            advice = []
+            do {
+                try app.performAccessibilityAudit(for: .all) { issue in
+                    let line = Self.describe(issue)
+                    if enforced.contains(issue.auditType), !Self.isExempt(issue, in: app) {
+                        failures.append(line)
+                    } else {
+                        advice.append(line)
+                    }
+                    // Handled either way: keep going and report once, below.
+                    return true
+                }
+                break
+            } catch let error as NSError where error.code == -56 && attempt == 1 {
+                continue
             }
-            // Handled either way: keep going and report once, below.
-            return true
         }
 
         let label = contentSize == nil ? surface : "\(surface) at large text"
@@ -105,15 +116,21 @@ final class AccessibilityAuditUITests: XCTestCase {
         )
     }
 
-    /// WCAG exempts a control that is switched off from the contrast minimum,
-    /// and the audit does not know the label belongs to one.
-    private static func isInactiveControl(_ issue: XCUIAccessibilityAuditIssue, in app: XCUIApplication) -> Bool {
+    /// Findings the audit raises that are not defects.
+    private static func isExempt(_ issue: XCUIAccessibilityAuditIssue, in app: XCUIApplication) -> Bool {
+        // Email fields of identical geometry pass; only SwiftUI's SecureField reports
+        // its text line as its hit region, whatever frame it is given.
+        if issue.auditType == .hitRegion, issue.element?.elementType == .secureTextField {
+            return true
+        }
         guard issue.auditType == .contrast, let label = issue.element?.label, !label.isEmpty else {
             return false
         }
         // The keypad's "*" is ink on paper (about 16:1); the audit reads the
         // anti-aliased edge of a glyph that thin.
         if label == "*" { return true }
+        // WCAG exempts a control that is switched off from the contrast minimum,
+        // and the audit does not know the label belongs to one.
         let button = app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
         return button.exists && !button.isEnabled
     }
