@@ -121,3 +121,65 @@ describe("jwtAuth (SPEC §10: ES256 via JWKS, iss/aud/exp verified)", () => {
     await expectUnauthorized(await request(noSub));
   });
 });
+
+describe("jwtAuth when the key set cannot be fetched (#251)", () => {
+  // The resolver is cached per URL for the life of the isolate, so each case
+  // gets a URL of its own and cannot inherit another's cached keys.
+  let n = 0;
+  const brokenEnv = () => ({
+    ...env,
+    SUPABASE_JWKS_URL: `https://identity-${(n += 1)}.example.test/auth/v1/.well-known/jwks.json`,
+  });
+
+  async function requestWith(token: string, jwksResponse: () => Response | Promise<Response>) {
+    const e = brokenEnv();
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      if (String(input).startsWith(e.SUPABASE_JWKS_URL)) return jwksResponse();
+      throw new Error(`unstubbed fetch ${String(input)}`);
+    });
+    return app.request("/whoami", { headers: { Authorization: `Bearer ${token}` } }, e);
+  }
+
+  async function expectBusy(res: Response) {
+    // A token that was never judged is not a bad token: 401 signs the person
+    // out, 503 asks them to wait.
+    expect(res.status).toBe(503);
+    expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(await res.json()).toEqual({
+      error: { code: "service_unavailable", message: expect.any(String) },
+    });
+  }
+
+  it("answers 503, not 401, when the identity service errors", async () => {
+    await expectBusy(await requestWith(await auth.token(), () => new Response("no", { status: 502 })));
+  });
+
+  it("answers 503, not 401, when the fetch itself dies", async () => {
+    await expectBusy(
+      await requestWith(await auth.token(), () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
+  });
+
+  it("answers 503, not 401, when the key set never arrives", async () => {
+    // jose's own timeout is 5 s; abort the fetch the way it does.
+    await expectBusy(
+      await requestWith(
+        await auth.token(),
+        () =>
+          new Promise<Response>((_resolve, reject) => {
+            setTimeout(() => reject(new DOMException("aborted", "AbortError")), 10);
+          }),
+      ),
+    );
+  });
+
+  it("still answers 401 for a token that is bad once the keys DO arrive", async () => {
+    await expectUnauthorized(
+      await requestWith(await auth.token({ expiresIn: -60 }), () =>
+        Response.json({ keys: [auth.jwk] }),
+      ),
+    );
+  });
+});

@@ -1,9 +1,9 @@
 import { createMiddleware } from "hono/factory";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createRemoteJWKSet, errors, jwtVerify } from "jose";
 
 import type { AppEnv, AssuranceLevel } from "../context";
 import { getEnv, type Env } from "../env";
-import { errorResponse } from "../http/errors";
+import { errorResponse, OVERLOADED_MESSAGE } from "../http/errors";
 
 /**
  * Remote JWKS resolvers cached per isolate, keyed by URL. jose caches the
@@ -98,7 +98,8 @@ export async function verifyAccessToken(
     audience: "authenticated",
   });
   if (typeof payload.sub !== "string" || payload.sub.length === 0) {
-    throw new Error("token has no subject");
+    // A JOSE error, so any error that is not one came from fetching the key set.
+    throw new errors.JWTInvalid("token has no subject");
   }
   // #236: `session_id` is the GoTrue session this token was minted for, and
   // it is what makes revocation possible without waiting out the expiry.
@@ -121,6 +122,23 @@ export async function verifyAccessToken(
     aal,
     factorProvedAt: factorProvedAt(payload.amr),
   };
+}
+
+/**
+ * Whether verification failed because the key set could not be fetched, not
+ * because the token is bad. A bad token is a 401 and the client signs the
+ * person out; a key set that never arrived says nothing about the token, and a
+ * 401 there would sign out everyone on a cold isolate during an outage.
+ *
+ * jose raises a JOSEError for anything about the token. What is left is the key
+ * set: its own timeout, an unexpected status from it, or the fetch dying.
+ */
+export function keySetUnavailable(error: unknown): boolean {
+  if (error instanceof errors.JWKSTimeout) return true;
+  if (error instanceof errors.JOSEError) {
+    return error.message.startsWith("Expected 200 OK from the JSON Web Key Set");
+  }
+  return true;
 }
 
 const SESSION_ID_RE =
@@ -146,7 +164,13 @@ export function jwtAuth() {
       c.set("aal", aal);
       c.set("factorProvedAt", factorProvedAt);
       if (sessionId) c.set("sessionId", sessionId);
-    } catch {
+    } catch (error) {
+      if (keySetUnavailable(error)) {
+        // Not the caller's fault and not a reason to sign them out.
+        console.warn("[503] the JWKS could not be fetched; the token was not judged");
+        c.header("Retry-After", "5");
+        return errorResponse(c, "service_unavailable", OVERLOADED_MESSAGE);
+      }
       // Never leak why verification failed (SPEC §7: 401 `unauthorized`).
       return errorResponse(c, "unauthorized", "Missing or invalid access token.");
     }
