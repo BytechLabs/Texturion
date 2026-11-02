@@ -7,7 +7,7 @@ it is maintained by hand — but every row names a test, and
 
 **Standard:** WCAG 2.2 Level AA
 **Applies to:** the Loonext web application, and the Android and iOS apps where stated
-**Last verified:** 2026-11-02
+**Last verified:** 2026-11-01
 **Basis:** `docs/APP-LAYOUT-V2.md` §7 (the canonical product contract)
 
 This document exists to be handed to a buyer who asks (#285). Everything in it
@@ -119,11 +119,12 @@ What the audits found and the build now keeps fixed:
   the sign-in screens, Decline, the Text/Note switch, a tappable timeline line),
   a Retry control well under the hit-region floor, and an unlabelled password field.
 
-Three iOS findings are exempted in `AccessibilityAuditUITests.swift`, each with its
+Four iOS findings are exempted in `AccessibilityAuditUITests.swift`, each with its
 reason beside it: contrast on a control that is switched off (WCAG exempts it),
 contrast on the keypad's thin "*" glyph (ink on paper, about 16:1), and the hit
 region of the password field, which SwiftUI's `SecureField` reports as its text
-line while an email field of identical geometry passes. The password field was
+line while an email field of identical geometry passes, and text the OS reports
+without being able to say which element it is (nothing to act on). The password field was
 made to fill its row; whether a tap in the padding lands there is worth trying
 on a device.
 

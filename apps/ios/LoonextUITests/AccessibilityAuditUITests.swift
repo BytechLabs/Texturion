@@ -123,6 +123,11 @@ final class AccessibilityAuditUITests: XCTestCase {
         if issue.auditType == .hitRegion, issue.element?.elementType == .secureTextField {
             return true
         }
+        // Text the OS saw drawn but cannot tie to any element: nothing to fix, and
+        // it appeared on one of three runs of the same build.
+        if issue.auditType == .elementDetection, issue.element == nil {
+            return true
+        }
         guard issue.auditType == .contrast, let label = issue.element?.label, !label.isEmpty else {
             return false
         }
