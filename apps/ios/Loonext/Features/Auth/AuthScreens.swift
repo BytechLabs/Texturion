@@ -658,9 +658,8 @@ private struct AuthField: View {
             .font(.golos(14))
             .foregroundStyle(BrandColor.ink)
             .accessibilityLabel(title)
-            .padding(.horizontal, 15)
-            .padding(.vertical, 13)
             .frame(minHeight: 44)
+            .padding(.horizontal, 15)
             .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)

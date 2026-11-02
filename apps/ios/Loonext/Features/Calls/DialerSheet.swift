@@ -220,11 +220,7 @@ struct DialerSheet: View {
                                 VStack(spacing: 0) {
                                     Text(key)
                                         .font(.golos(keySize * 0.34, weight: .semibold))
-                                        .foregroundStyle(
-                                            (key == "*" || key == "#")
-                                                ? BrandColor.muted700
-                                                : BrandColor.ink
-                                        )
+                                        .foregroundStyle(BrandColor.ink)
                                     if let letters = keypadLetters[key] {
                                         Text(letters)
                                             .font(.golos(keySize * 0.12, weight: .bold))

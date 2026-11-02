@@ -697,7 +697,9 @@ private struct SettingsIndexPreview: View {
                 PaperCard {
                     ForEach(Array(SettingsSection.allCases.enumerated()), id: \.element.id) { index, section in
                         if index > 0 { RowDivider() }
-                        SettingsSectionRow(section: section)
+                        // A button, as the real rows are links: one element per row.
+                        Button {} label: { SettingsSectionRow(section: section) }
+                            .buttonStyle(.plain)
                     }
                 }
             }
