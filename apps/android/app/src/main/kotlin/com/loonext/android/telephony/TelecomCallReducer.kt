@@ -1,9 +1,11 @@
 package com.loonext.android.telephony
 
+import android.telecom.DisconnectCause
+
 /**
  * The pure decision half of the Jetpack Telecom rearchitecture
  * (docs/CALLS-CLIENT-V2.md §3-§8). Free of Android / `androidx.core.telecom`
- * imports so every rule unit-tests on the JVM — the platform shell
+ * imports (bar `DisconnectCause`'s compile-time constants) so every rule unit-tests on the JVM — the platform shell
  * ([TelecomCallRegistry]) stays a thin executor of these verdicts, exactly the
  * way [SoftphoneCore]/[CallWakePolicy] keep the platform classes testable.
  *
@@ -300,6 +302,15 @@ object TelecomCallReducer {
         } else {
             DisconnectDeliveryStep.FORCE_COMPLETE
         }
+
+    /**
+     * The code to hand `CallControl.disconnect`, which throws for anything but LOCAL,
+     * REMOTE, MISSED and REJECTED. A teardown the app calls ERROR ends as REMOTE.
+     */
+    fun osDisconnectCode(code: Int): Int = when (code) {
+        DisconnectCause.LOCAL, DisconnectCause.REMOTE, DisconnectCause.MISSED, DisconnectCause.REJECTED -> code
+        else -> DisconnectCause.REMOTE
+    }
 
     // ----------------------------------------------------- §3.4 ring-me retry
 

@@ -1,5 +1,6 @@
 package com.loonext.android.telephony
 
+import android.telecom.DisconnectCause
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -324,6 +325,20 @@ class TelecomCallReducerTest {
         )
         // One initial try plus exactly one retry.
         assertEquals(2, TelecomCallReducer.DISCONNECT_DELIVERY_MAX_ATTEMPTS)
+    }
+
+    @Test
+    fun `an ERROR teardown reaches Telecom as a REMOTE end - the OS refuses ERROR`() {
+        // CallControl.disconnect throws IllegalArgumentException for any code but
+        // these four, so an ERROR cause never delivered and wedged into the retry.
+        for (code in listOf(
+            DisconnectCause.LOCAL, DisconnectCause.REMOTE,
+            DisconnectCause.MISSED, DisconnectCause.REJECTED,
+        )) {
+            assertEquals(code, TelecomCallReducer.osDisconnectCode(code))
+        }
+        assertEquals(DisconnectCause.REMOTE, TelecomCallReducer.osDisconnectCode(DisconnectCause.ERROR))
+        assertEquals(DisconnectCause.REMOTE, TelecomCallReducer.osDisconnectCode(DisconnectCause.UNKNOWN))
     }
 
     @Test

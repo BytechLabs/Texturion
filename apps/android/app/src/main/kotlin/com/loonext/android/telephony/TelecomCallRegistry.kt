@@ -974,6 +974,11 @@ class TelecomCallRegistry(
         }
     }
 
+    private fun osDisconnectCause(cause: DisconnectCause): DisconnectCause {
+        val code = TelecomCallReducer.osDisconnectCode(cause.code)
+        return if (code == cause.code) cause else DisconnectCause(code, cause.label, cause.description, cause.reason)
+    }
+
     private fun disconnectEntry(entry: CallEntry, cause: DisconnectCause) {
         // scope.disconnect() ends the OS call; the suspend `addCall` then returns
         // and `finally` runs cleanup. STAND_DOWN (already terminated) and
@@ -1004,7 +1009,7 @@ class TelecomCallRegistry(
         control.launch {
             var failedAttempts = 0
             while (true) {
-                val result = runCatching { control.disconnect(cause) }
+                val result = runCatching { control.disconnect(osDisconnectCause(cause)) }
                     .onFailure { onFailure("telecom-disconnect", it) }
                     .getOrNull()
                 if (result != null && result !is CallControlResult.Error) return@launch // delivered
