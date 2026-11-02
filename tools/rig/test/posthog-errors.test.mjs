@@ -121,4 +121,11 @@ test("the parity command exits 0 on parity, 1 on a missing key, 2 when it cannot
   assert.equal(await main(["parity"], env, answer([]), (line) => out.push(line)), 1);
   assert.equal(await main(["parity"], { POSTHOG_PERSONAL_API_KEY: "k" }, answer([]), (line) => out.push(line)), 2);
   assert.equal(await main(["parity"], {}, answer([]), (line) => out.push(line)), 2);
+  const seen = [];
+  const withParityToken = { POSTHOG_PERSONAL_API_KEY: "k", POSTHOG_PROJECT_ID: "7", SENTRY_PARITY_TOKEN: "read", SENTRY_AUTH_TOKEN: "upload", SENTRY_ORG: "acme" };
+  await main(["parity"], withParityToken, async (url, init) => {
+    if (url.includes("sentry.io")) seen.push(init.headers.authorization);
+    return url.includes("sentry.io") ? json([{ value: "a" }]) : json({ results: [] });
+  }, (line) => out.push(line));
+  assert.deepEqual(seen, ["Bearer read"]);
 });

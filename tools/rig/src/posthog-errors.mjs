@@ -8,10 +8,11 @@
  *   POSTHOG_PERSONAL_API_KEY   a personal key with query:read (alerts: hog_function:write)
  *   POSTHOG_PROJECT_ID         optional; the key's first project when unset
  *   POSTHOG_APP_HOST           optional; https://us.posthog.com
- *   SENTRY_AUTH_TOKEN, SENTRY_ORG   parity only, to list Sentry's ops keys
+ *   SENTRY_PARITY_TOKEN (else SENTRY_AUTH_TOKEN), SENTRY_ORG   parity only, to list Sentry's
+ *                              ops keys; the token needs organization read access
  *
  * Usage:
- *   node tools/rig/src/posthog-errors.mjs parity [--days 7] [--environment production]
+ *   node tools/rig/src/posthog-errors.mjs parity [--days 14] [--environment production]
  *   node tools/rig/src/posthog-errors.mjs alerts   (needs POSTHOG_ALERT_WEBHOOK_URL)
  */
 import { pathToFileURL } from "node:url";
@@ -237,13 +238,14 @@ export async function main(args, env = process.env, fetchImpl = fetch, out = con
     return 2;
   }
   if (command === "parity") {
-    const days = Number(flag(args, "days", "7"));
+    const days = Number(flag(args, "days", "14"));
     const environment = flag(args, "environment", "production");
-    if (!env.SENTRY_AUTH_TOKEN || !env.SENTRY_ORG) {
-      out("SENTRY_AUTH_TOKEN and SENTRY_ORG are needed to list Sentry's ops keys");
+    const sentryToken = env.SENTRY_PARITY_TOKEN || env.SENTRY_AUTH_TOKEN;
+    if (!sentryToken || !env.SENTRY_ORG) {
+      out("SENTRY_PARITY_TOKEN (or SENTRY_AUTH_TOKEN) and SENTRY_ORG are needed to list Sentry's ops keys");
       return 2;
     }
-    const keys = await sentryOpsKeys({ token: env.SENTRY_AUTH_TOKEN, org: env.SENTRY_ORG, days, environment, fetch: fetchImpl });
+    const keys = await sentryOpsKeys({ token: sentryToken, org: env.SENTRY_ORG, days, environment, fetch: fetchImpl });
     const rows = await exceptionRows(settings, { hours: days * 24, environments: [environment], fetch: fetchImpl });
     const result = parity(keys, rows.map((row) => row.fingerprint));
     out(JSON.stringify({ days, environment, ...result }, null, 2));

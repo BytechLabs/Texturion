@@ -9543,8 +9543,9 @@ setting: it uses `POSTHOG_API_KEY`, and sends nothing when that is unset.
 **Phase 2 (later).** Remove the Sentry SDKs, `SENTRY_*` secrets and DSNs, the
 Sentry rows in docs/DATA-INVENTORY.md and on the subprocessors page, and the rig's
 Sentry relay. It starts only when `node tools/rig/src/posthog-errors.mjs parity`
-passes over a window of at least seven days that includes every ops key's
-cadence, and PostHog's alerts reach the founder. Losing an alarm silently is the
+passes over a window of at least fourteen days, and PostHog's alerts reach the founder. The
+check compares the ops keys Sentry saw, so a key that fires less often than that is not
+proven by it: list those from the code and fire them once before Sentry goes. Losing an alarm silently is the
 one real risk, so Sentry stays until the check says there is none.
 
 **Why.** One vendor instead of two, with errors next to the product funnels.
