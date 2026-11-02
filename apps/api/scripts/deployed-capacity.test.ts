@@ -1002,3 +1002,124 @@ describe("CAPACITY_RESULT privacy", () => {
     expect((thrown as Error).message).not.toContain(secret);
   });
 });
+
+describe("the rig target kind", () => {
+  const RIG_API = "https://api.rig.internal";
+  const RIG_DB = "https://db.rig.internal";
+  const RIG_TARGET = "rig-capacity-251";
+
+  function rigInput(overrides: Partial<HostedCapacityInput> = {}): HostedCapacityInput {
+    const merged: HostedCapacityInput = {
+      targetId: RIG_TARGET,
+      apiOrigin: RIG_API,
+      supabaseOrigin: RIG_DB,
+      companyId: COMPANY_ID,
+      confirmation: "",
+      accessToken: accessToken(undefined, `${RIG_DB}/auth/v1`),
+      supabasePublishableKey: PUBLISHABLE_KEY,
+      scenario: "all",
+      apiRamp: [2, 4],
+      realtimeRamp: [2, 4],
+      apiRounds: 1,
+      deadlineMs: 1_000,
+      dwellMs: 1_000,
+      targetKind: "rig",
+      ...overrides,
+    };
+    merged.confirmation =
+      overrides.confirmation ??
+      expectedConfirmation({
+        targetId: merged.targetId,
+        apiOrigin: merged.apiOrigin,
+        supabaseOrigin: merged.supabaseOrigin,
+        targetKind: "rig",
+      });
+    return merged;
+  }
+
+  it("accepts exactly the rig's two names and says so in the evidence", async () => {
+    const validated = validateHostedCapacityInput(rigInput(), NOW_SECONDS);
+    expect(validated.targetKind).toBe("rig");
+
+    const emitted: CapacityEvidence[] = [];
+    await runHostedCapacity(
+      { ...validated, scenario: "api", apiRamp: [2] },
+      {
+        fetch: vi.fn(async () => response(200)) as unknown as typeof fetch,
+        onEvidence: (evidence) => emitted.push(evidence),
+      },
+    );
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].environment).toBe("rig");
+  });
+
+  it("uses a confirmation that names the rig, so a hosted one cannot authorize it", () => {
+    expect(
+      expectedConfirmation({
+        targetId: RIG_TARGET,
+        apiOrigin: RIG_API,
+        supabaseOrigin: RIG_DB,
+        targetKind: "rig",
+      }),
+    ).toBe(`I_AUTHORIZE_RIG_CAPACITY_LOAD:${RIG_TARGET}:api.rig.internal:db.rig.internal`);
+
+    const hostedWords = `I_AUTHORIZE_NONPRODUCTION_CAPACITY_LOAD:${RIG_TARGET}:api.rig.internal:db.rig.internal`;
+    expect(() => validateHostedCapacityInput(rigInput({ confirmation: hostedWords }), NOW_SECONDS)).toThrow(
+      /LOONEXT_CAPACITY_CONFIRM/,
+    );
+  });
+
+  it.each([
+    "https://api-staging.example.net",
+    "https://other.rig.internal",
+    "http://api.rig.internal",
+    "https://api.rig.internal:8443",
+    "https://api.rig.internal/v1",
+    "https://127.0.0.1",
+    "https://api.loonext.com",
+  ])("refuses %s as the rig's API origin", (apiOrigin) => {
+    expect(() => validateHostedCapacityInput(rigInput({ apiOrigin }), NOW_SECONDS)).toThrow(
+      CapacityConfigError,
+    );
+  });
+
+  it("refuses a hosted Supabase project for a rig run", () => {
+    expect(() =>
+      validateHostedCapacityInput(rigInput({ supabaseOrigin: SUPABASE_ORIGIN }), NOW_SECONDS),
+    ).toThrow(/db\.rig\.internal/);
+  });
+
+  it("keeps the rig's names out of a hosted run", () => {
+    // The two classes are different machines with different ceilings; a result
+    // must never be labelled by the wrong one.
+    expect(() =>
+      validateHostedCapacityInput(
+        input({
+          apiOrigin: RIG_API,
+          supabaseOrigin: RIG_DB,
+          accessToken: accessToken(undefined, `${RIG_DB}/auth/v1`),
+        }),
+        NOW_SECONDS,
+      ),
+    ).toThrow(/\.internal/);
+  });
+
+  it("puts the fixture's size into every record's tested bound", async () => {
+    const validated = validateHostedCapacityInput(
+      rigInput({ fixture: { workspace_conversations: 5000, workspace_messages: 20000 } }),
+      NOW_SECONDS,
+    );
+    const emitted: CapacityEvidence[] = [];
+    await runHostedCapacity(
+      { ...validated, scenario: "api", apiRamp: [2] },
+      {
+        fetch: vi.fn(async () => response(200)) as unknown as typeof fetch,
+        onEvidence: (evidence) => emitted.push(evidence),
+      },
+    );
+    expect(emitted[0].tested_bound).toMatchObject({
+      workspace_conversations: 5000,
+      workspace_messages: 20000,
+    });
+  });
+});

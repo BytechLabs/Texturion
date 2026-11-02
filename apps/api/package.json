@@ -13,6 +13,8 @@
     "test:load": "vitest run --config vitest.load.config.ts",
     "test:capacity-deployed": "vitest run --config scripts/vitest.capacity.config.ts",
     "capacity:deployed": "node --experimental-strip-types scripts/deployed-capacity.ts",
+    "capacity:rig": "node --experimental-strip-types scripts/rig-capacity.ts",
+    "test:rig": "vitest run --config vitest.rig.config.ts",
     "stripe:setup": "node --experimental-strip-types scripts/stripe-setup.ts",
     "test:workerd": "vitest run --config vitest.workerd.config.ts"
   },

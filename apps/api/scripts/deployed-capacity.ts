@@ -7,6 +7,7 @@ import {
   parseRamp,
   runHostedCapacity,
   validateHostedCapacityInput,
+  type CapacityTargetKind,
   type HostedScenario,
 } from "./deployed-capacity-lib.ts";
 
@@ -29,6 +30,10 @@ Required environment variables (credentials never belong on the command line):
 The confirmation value is target-bound:
   I_AUTHORIZE_NONPRODUCTION_CAPACITY_LOAD:<target-id>:<api-host>:<supabase-host>
 
+For the Loonext rig, run pnpm --filter @loonext/api capacity:rig on the rig
+instead: it seeds a workspace, signs in, and calls this driver with
+--target-kind rig. See docs/CAPACITY.md.
+
 The command rejects live Loonext targets, loopback/private targets, HTTP,
 redirects, a mismatched JWT issuer, service-role keys, and failed preflights.
 The dwell/cooldown must be 1000-30000ms. A suspect level is reset, checked
@@ -46,6 +51,7 @@ const VALUE_FLAGS = new Set([
   "--api-rounds",
   "--deadline-ms",
   "--dwell-ms",
+  "--target-kind",
 ]);
 
 function argumentsMap(args: string[]): Map<string, string> {
@@ -110,6 +116,7 @@ async function main(): Promise<void> {
     apiRounds: integer(values, "--api-rounds", 3),
     deadlineMs: integer(values, "--deadline-ms", 10_000),
     dwellMs: integer(values, "--dwell-ms", 2_000),
+    targetKind: (values.get("--target-kind") ?? "hosted") as CapacityTargetKind,
   });
 
   await runHostedCapacity(config, {

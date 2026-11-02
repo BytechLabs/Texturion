@@ -35,6 +35,8 @@
  */
 import { execFileSync } from "node:child_process";
 
+import { volumeCleanupSql, volumeFixtureSql } from "../load/volume-fixture.mjs";
+
 const CONTAINER = "supabase_db_Loonext";
 
 /** One throwaway workspace, fixed so a crashed run can be cleaned up by hand. */
@@ -79,15 +81,8 @@ try {
 }
 
 function cleanup() {
-  // Children first: nothing cascades from companies by design (#284 found the
-  // same thing for calls), so the fixture is removed in dependency order.
   psql(`
-    delete from public.messages where company_id = '${COMPANY}';
-    delete from public.conversations where company_id = '${COMPANY}';
-    delete from public.contacts where company_id = '${COMPANY}';
-    delete from public.phone_numbers where company_id = '${COMPANY}';
-    delete from public.company_members where company_id = '${COMPANY}';
-    delete from public.companies where id = '${COMPANY}';
+    ${volumeCleanupSql({ company: COMPANY })}
     delete from auth.users where id = '${OWNER}';
   `);
 }
@@ -97,78 +92,24 @@ cleanup(); // a previous crashed run leaves rows; start from nothing
 console.log("  seeding…");
 const seedStarted = Date.now();
 
-// Generated in bulk with generate_series rather than row by row: seeding
-// 200k messages one INSERT at a time takes longer than the measurement it
-// exists to support, and nothing about the fixture needs per-row logic.
+// The fixture SQL is shared with the rig driver (../load/volume-fixture.mjs), so
+// the two measure the same workspace.
 psql(`
   insert into auth.users (id, email)
   values ('${OWNER}', 'load-251@test.local');
 
-  insert into public.companies
-    (id, name, owner_user_id, country, requested_area_code, aup_accepted_at)
-  values ('${COMPANY}', 'Load Fixture', '${OWNER}', 'US', '415', now());
-
-  insert into public.company_members (company_id, user_id, role)
-  values ('${COMPANY}', '${OWNER}', 'owner');
-
-  insert into public.phone_numbers
-    (id, company_id, number_e164, status, provisioning_key, country)
-  values ('${NUMBER}', '${COMPANY}', '+14155559251', 'active', 'load-251', 'US');
-
-  insert into public.contacts (company_id, phone_e164, name)
-  select '${COMPANY}', '+1415' || lpad(g::text, 7, '0'), 'Customer ' || g
-    from generate_series(1, ${conversations}) g;
-
-  -- A realistic status mix, including closed, because the inbox's default
-  -- filter EXCLUDES closed and an all-open fixture would measure the wrong
-  -- selectivity. closed_at is set with it: conversations_closed_consistency
-  -- requires the two to agree, which is the schema refusing exactly the kind
-  -- of incoherent fixture that produces a flattering benchmark.
-  insert into public.conversations
-    (company_id, contact_id, phone_number_id, status, closed_at, last_message_at)
-  select
-    '${COMPANY}', picked.id, '${NUMBER}', picked.status,
-    case when picked.status = 'closed' then now() - (picked.n || ' minutes')::interval end,
-    now() - (picked.n || ' minutes')::interval
-  from (
-    select
-      ct.id,
-      row_number() over (order by ct.id) as n,
-      (array['new','open','waiting','closed'])[
-        1 + (row_number() over (order by ct.id) % 4)
-      ]::public.conversation_status as status
-    from public.contacts ct
-    where ct.company_id = '${COMPANY}'
-  ) picked;
-
-  -- Messages spread across the conversations, so no single thread is
-  -- pathological and the per-conversation index is exercised realistically.
-  insert into public.messages
-    (company_id, conversation_id, direction, status, body, created_at,
-     sent_by_user_id)
-  with numbered as (
-    select id, row_number() over (order by id) as n
-      from public.conversations
-     where company_id = '${COMPANY}'
-  )
-  select
-    '${COMPANY}', v.id,
-    (case when g % 2 = 0 then 'inbound' else 'outbound' end)::public.message_direction,
-    (case when g % 2 = 0 then 'received' else 'delivered' end)::public.message_status,
-    'Load fixture message ' || g,
-    now() - (g || ' seconds')::interval,
-    (case when g % 2 = 0 then null else '${OWNER}' end)::uuid
-  from generate_series(1, ${messages}) g
-  -- JOINED ON A NUMBERED SET, not \`offset (g % n) limit 1\`. That first
-  -- version was fine at 5k and never finished at 50k: OFFSET scans linearly,
-  -- so every one of 200k messages walked an average of 25k conversation rows.
-  -- The seeder for a volume benchmark must not itself be the thing that
-  -- degrades with volume.
-  join numbered v on v.n = 1 + (g % ${conversations});
-
-  analyze public.conversations;
-  analyze public.messages;
-  analyze public.contacts;
+  ${volumeFixtureSql({
+    company: COMPANY,
+    owner: OWNER,
+    number: NUMBER,
+    e164: "+14155559251",
+    areaCode: "415",
+    country: "US",
+    conversations,
+    messages,
+    provisioningKey: "load-251",
+    companyName: "Load Fixture",
+  })}
 `);
 const seedMs = Date.now() - seedStarted;
 console.log(`  seeded in ${(seedMs / 1000).toFixed(1)}s\n`);

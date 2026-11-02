@@ -45,7 +45,7 @@ export const CAPACITY_RESULT_PREFIX = "CAPACITY_RESULT ";
 
 export interface CapacityEvidence {
   scenario: string;
-  environment: "local-postgres" | "local-realtime" | "workerd";
+  environment: "local-postgres" | "local-realtime" | "workerd" | "rig";
   tested_bound: Record<string, number | string>;
   ceiling_reached: boolean;
   measurements: Record<string, unknown>;

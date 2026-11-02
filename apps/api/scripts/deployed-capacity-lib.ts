@@ -57,6 +57,20 @@ const DEADLINE_SCHEDULING_TOLERANCE_MS = 100;
 
 export type HostedScenario = "api" | "realtime" | "all";
 
+/**
+ * What the load is aimed at. `hosted` is a deployed non-production project on
+ * the public internet. `rig` is the Loonext rig (docs/RIG.md): the same Worker
+ * code under wrangler and a local Supabase stack, reached through the rig's own
+ * Caddy at two fixed names. They are different machines with different
+ * ceilings, so the two are never interchangeable: a result says which one it
+ * measured, and each refuses the other's addresses.
+ */
+export type CapacityTargetKind = "hosted" | "rig";
+
+/** The only origins a rig run may name. The rig resolves them to itself. */
+export const RIG_API_ORIGIN = "https://api.rig.internal";
+export const RIG_SUPABASE_ORIGIN = "https://db.rig.internal";
+
 export interface HostedCapacityInput {
   targetId: string;
   apiOrigin: string;
@@ -71,6 +85,14 @@ export interface HostedCapacityInput {
   apiRounds: number;
   deadlineMs: number;
   dwellMs: number;
+  /** Omitted means `hosted`. */
+  targetKind?: CapacityTargetKind;
+  /**
+   * Counts that describe the fixture the load ran against, such as the
+   * workspace's conversations. They are merged into every record's tested
+   * bound, because a latency without the volume behind it is not a result.
+   */
+  fixture?: Record<string, number>;
 }
 
 interface AccessClaims {
@@ -81,6 +103,7 @@ interface AccessClaims {
 }
 
 export interface HostedCapacityConfig extends HostedCapacityInput {
+  targetKind: CapacityTargetKind;
   apiOrigin: string;
   supabaseOrigin: string;
   targetFingerprint: string;
@@ -91,7 +114,7 @@ export interface HostedCapacityConfig extends HostedCapacityInput {
 export interface CapacityEvidence {
   schema: "loonext.capacity.v1";
   scenario: "hosted-api-pooler-ramp" | "hosted-realtime-connection-ramp";
-  environment: "deployed-nonproduction";
+  environment: "deployed-nonproduction" | "rig";
   tested_bound: Record<string, number | string>;
   ceiling_reached: boolean;
   measurements: Record<string, unknown>;
@@ -204,6 +227,12 @@ function normalizeOrigin(raw: string, label: string): URL {
   }
   if (isLocalOrPrivateHost(url.hostname)) {
     fail(`${label} must be a deployed non-production host, not loopback or a private address`);
+  }
+  // .internal is reserved for private use (RFC 6762 appendix G / ICANN), so a
+  // name under it can only ever resolve inside somebody's own network. The
+  // rig is the one such network this driver knows, and it has its own mode.
+  if (url.hostname.toLowerCase().endsWith(".internal")) {
+    fail(`${label} names a private .internal host; the rig has its own target kind`);
   }
   return url;
 }
@@ -332,13 +361,37 @@ export function expectedConfirmation(input: {
   targetId: string;
   apiOrigin: string;
   supabaseOrigin: string;
+  targetKind?: CapacityTargetKind;
 }): string {
-  const api = normalizeOrigin(input.apiOrigin, "--api-origin");
-  const supabase = normalizeOrigin(input.supabaseOrigin, "--supabase-origin");
+  const rig = input.targetKind === "rig";
+  const api = rig
+    ? normalizeRigOrigin(input.apiOrigin, RIG_API_ORIGIN, "--api-origin")
+    : normalizeOrigin(input.apiOrigin, "--api-origin");
+  const supabase = rig
+    ? normalizeRigOrigin(input.supabaseOrigin, RIG_SUPABASE_ORIGIN, "--supabase-origin")
+    : normalizeOrigin(input.supabaseOrigin, "--supabase-origin");
   return (
-    `I_AUTHORIZE_NONPRODUCTION_CAPACITY_LOAD:${input.targetId}:` +
+    `I_AUTHORIZE_${rig ? "RIG" : "NONPRODUCTION"}_CAPACITY_LOAD:${input.targetId}:` +
     `${api.hostname.toLowerCase()}:${supabase.hostname.toLowerCase()}`
   );
+}
+
+/**
+ * A rig run names exactly the rig's two origins. There is no other address a
+ * rig run may be aimed at, so a typo or a pasted hosted URL is refused rather
+ * than interpreted.
+ */
+function normalizeRigOrigin(raw: string, expected: string, label: string): URL {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return fail(`${label} must be ${expected} for a rig run`);
+  }
+  if (url.origin !== expected || url.pathname !== "/" || url.search || url.hash) {
+    fail(`${label} must be exactly ${expected} for a rig run`);
+  }
+  return url;
 }
 
 export function parseRamp(raw: string, label: string): number[] {
@@ -428,8 +481,17 @@ export function validateHostedCapacityInput(
   validateRamp(input.apiRamp, "--api-ramp");
   validateRamp(input.realtimeRamp, "--realtime-ramp");
 
-  const apiUrl = normalizeOrigin(input.apiOrigin, "--api-origin");
-  const supabaseUrl = normalizeOrigin(input.supabaseOrigin, "--supabase-origin");
+  const targetKind: CapacityTargetKind = input.targetKind ?? "hosted";
+  if (targetKind !== "hosted" && targetKind !== "rig") {
+    fail("--target-kind must be hosted or rig");
+  }
+  const rig = targetKind === "rig";
+  const apiUrl = rig
+    ? normalizeRigOrigin(input.apiOrigin, RIG_API_ORIGIN, "--api-origin")
+    : normalizeOrigin(input.apiOrigin, "--api-origin");
+  const supabaseUrl = rig
+    ? normalizeRigOrigin(input.supabaseOrigin, RIG_SUPABASE_ORIGIN, "--supabase-origin")
+    : normalizeOrigin(input.supabaseOrigin, "--supabase-origin");
   guardApiHost(apiUrl.hostname);
   guardSupabaseHost(supabaseUrl.hostname);
   if (apiUrl.hostname.toLowerCase() === supabaseUrl.hostname.toLowerCase()) {
@@ -440,6 +502,7 @@ export function validateHostedCapacityInput(
     targetId: input.targetId,
     apiOrigin: apiUrl.origin,
     supabaseOrigin: supabaseUrl.origin,
+    targetKind,
   });
   if (input.confirmation !== confirmation) {
     fail(`set LOONEXT_CAPACITY_CONFIRM exactly to: ${confirmation}`);
@@ -461,6 +524,7 @@ export function validateHostedCapacityInput(
 
   return {
     ...input,
+    targetKind,
     apiOrigin: apiUrl.origin,
     supabaseOrigin: supabaseUrl.origin,
     targetFingerprint,
@@ -613,8 +677,9 @@ function safeEvidence(
 ): CapacityEvidence {
   const result: CapacityEvidence = {
     schema: "loonext.capacity.v1",
-    environment: "deployed-nonproduction",
+    environment: config.targetKind === "rig" ? "rig" : "deployed-nonproduction",
     ...evidence,
+    tested_bound: { ...evidence.tested_bound, ...config.fixture },
   };
   assertContentFreeEvidence(result, config.sensitiveValues);
   return result;
