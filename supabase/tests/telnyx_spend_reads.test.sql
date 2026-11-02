@@ -60,7 +60,8 @@ begin
   insert into public.messages
     (company_id, conversation_id, direction, body, status, telnyx_message_id,
      sent_by_user_id, provider_cost, created_at)
-  values (p_company, v_conv, p_direction, 'text', 'delivered',
+  values (p_company, v_conv, p_direction::public.message_direction, 'text',
+          case when p_accepted then 'delivered' else 'queued' end,
           case when p_accepted then 'bc-msg-' || gen_random_uuid()::text end,
           case when p_direction = 'outbound'
                then 'bc000000-0000-4000-8000-00000000000a'::uuid end,
