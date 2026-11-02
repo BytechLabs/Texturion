@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.1](https://github.com/BytechLabs/Texturion/compare/ios-v0.17.0...ios-v0.17.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **a11y:** audit the phones' primary flows in CI and fix what it found ([44494be](https://github.com/BytechLabs/Texturion/commit/44494bede810a578b095bbcb26d03362bd9fc567))
+* **a11y:** stop the iOS audit failing on a finding it cannot attribute ([7482f01](https://github.com/BytechLabs/Texturion/commit/7482f010b41128997cdf73c88f0e4d49872ca7ff))
+
 ## [0.17.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.16.0...ios-v0.17.0) (2026-10-30)
 
 

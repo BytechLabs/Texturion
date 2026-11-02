@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.17.2](https://github.com/BytechLabs/Texturion/compare/android-v0.17.1...android-v0.17.2) (2026-11-02)
+
+
+### Bug Fixes
+
+* **a11y:** audit the phones' primary flows in CI and fix what it found ([44494be](https://github.com/BytechLabs/Texturion/commit/44494bede810a578b095bbcb26d03362bd9fc567))
+* **android:** a survived failure no longer says the app closed ([a6fbbfe](https://github.com/BytechLabs/Texturion/commit/a6fbbfeb3c904cbc760264cbd0abce54ddeea472))
+* **android:** an error teardown now reaches Telecom as a remote end ([44c2872](https://github.com/BytechLabs/Texturion/commit/44c2872eb3d4ce565e2d5a008e659246ac7a597c))
+* **android:** the response-time and satisfaction cards load ([8b9c593](https://github.com/BytechLabs/Texturion/commit/8b9c593085af09358a1a8ae05cefd0e0c0eb3534))
+
 ## [0.17.1](https://github.com/BytechLabs/Texturion/compare/android-v0.17.0...android-v0.17.1) (2026-11-02)
 
 
