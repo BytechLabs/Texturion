@@ -1357,7 +1357,7 @@ node scripts/ops/call-trace.mjs --self-check
 - **Any copy of production data,** even scrubbed.
 - **An App Store or TestFlight pipeline, porting, live 10DLC reviews, forced screening verdicts.**
 - **A self-hosted GitHub runner.** On a public repo, fork pull requests could run code on it.
-- **Load testing.** The #251 driver still has no deployed non-production target.
+- **Load testing against production or the hosted stack.** Load runs on the rig (`pnpm --filter @loonext/api capacity:rig` and `test:rig`, results in docs/CAPACITY.md 2b), never against production. The hosted ceilings still need a hosted non-production target.
 - **Switching on the #308 hourly text canary.** Its column bug is fixed in Phase 0a. Turning it on needs two more production numbers and about $12 a month by its own estimate; that stays its own decision.
 - **A Supabase scoped token for production logs.** It expires within a year, which would make a recurring founder act. Database evidence comes from `agent_diag`.
 - **A read-only live Stripe key for agents.** It would expose customer billing data. Billing repro uses the existing account's test mode.
@@ -1467,7 +1467,7 @@ A new decision, numbered when committed because parallel sessions also write dec
 - **Superseded:** only the staging recipe's step 3, "a Telnyx sub-account with one test number". Managed Accounts need a $1,000/month commit and returned 403 (2026-10-29), and the founder forbade new accounts (2026-10-29). It is replaced by the in-account partition behind the guard.
 - **Amended:** the objection to standing number cost. Eight numbers at $8.80/month are justified by the human-free repro mandate.
 - **Not adopted (amendment):** the rule that agents run only in a Windows user without production write keys. FA1/FA2 are optional hardening.
-- **Unchanged:** the revisit trigger; previews from `wrangler versions upload` are never used for anything that sends, dials or bills; the #251 driver still has no target.
+- **Unchanged:** the revisit trigger; previews from `wrangler versions upload` are never used for anything that sends, dials or bills; the #251 hosted driver still has no hosted target; its `rig` mode and the `test:rig` suites run on the rig only.
 - **Do-not-build table** gains two rows: "copy production data into any test environment" and "synthetic tenants in the production database".
 
 **Docs updated in the same change:**

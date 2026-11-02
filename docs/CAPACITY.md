@@ -1,12 +1,14 @@
 # Capacity: what breaks first, and at what volume
 
-> **Status: partial; #251 remains open.** Updated 2026-08-25 with local lower
-> bounds for every functional axis and a fail-closed deployed driver for the
-> managed-pooler and hosted-Realtime connection axes. The driver has **not run**:
-> there is still no deployed non-production environment or credential. Hosted
-> ceilings, Realtime delivery under hosted fan-out, deployed call
-> latency/co-tenancy, honest degradation at those ceilings, and Worker/DO
-> compute cost therefore remain unknown. A capacity number that reads as
+> **Status: partial; #251 remains open.** Updated 2026-11-01. Section 2b holds
+> the first ceilings found by driving a deployed non-production stack: the
+> Loonext rig (`docs/RIG.md`), which runs the production Worker, Durable Object
+> and a local Supabase stack. It found where that stack gives out and five ways
+> the failure was not truthful, all fixed. The fail-closed driver for a
+> **hosted** project has still **not run**: there is no hosted non-production
+> environment or credential. Hosted ceilings (Supavisor, hosted Realtime),
+> Realtime delivery under hosted fan-out, call latency/co-tenancy on Cloudflare,
+> and Worker/DO compute cost therefore remain unknown. A capacity number that reads as
 > measured and was guessed is worse than an admitted gap: it is the number
 > somebody quotes to a 50-tech prospect.
 
@@ -18,6 +20,13 @@ node scripts/ops/query-load.mjs
 pnpm --filter @loonext/api test:load
 pnpm --filter @loonext/api test:workerd
 pnpm --filter @loonext/api capacity:deployed -- --help
+```
+
+On the rig VM (section 2b), from a worktree's `apps/api`:
+
+```bash
+pnpm --filter @loonext/api capacity:rig -- --scenario all --conversations 5000
+pnpm --filter @loonext/api test:rig
 ```
 
 Every scenario that runs emits an aggregate `CAPACITY_RESULT {json}` line. Save those
@@ -35,11 +44,11 @@ ceiling was found.
 | Axis ID | What | Rerun | Tested bound | Ceiling | Acceptance state |
 |---|---|---|---|---|---|
 | query | Hot list queries at realistic volume | `node scripts/ops/query-load.mjs` | 50,000 conversations / 200,000 messages; all current surfaces under 200 ms | Not reached | Local lower bound measured |
-| webhook | Duplicate retry storm and distinct inbound burst | `pnpm --filter @loonext/api test:load` | 25 concurrent copies → 1 row; 40 distinct → 40 rows; zero hangs | Not reached | Local lower bound measured |
-| pooler | Concurrent reads and database failure shape | `pnpm --filter @loonext/api capacity:deployed -- --target-id staging-capacity-251 --api-origin https://api-staging.example.net --supabase-origin https://abcdefghijklmnopqrst.supabase.co --scenario api` | 40 concurrent local reads; every database request has a 10 s deadline | Managed Supavisor refusal point unknown | Local lower bound measured; deployed driver committed; authorized run required |
-| realtime | Private-topic join and broadcast fan-out | `pnpm --filter @loonext/api capacity:deployed -- --target-id staging-capacity-251 --api-origin https://api-staging.example.net --supabase-origin https://abcdefghijklmnopqrst.supabase.co --scenario realtime` | 40 independent local websockets × 20 broadcasts = 800 exact deliveries | Hosted connection and delivery-fan-out ceilings unknown | Local delivery measured; hosted connection driver committed; authorized run required |
-| durable-object | Call-session FIFO and bounded ring fan-out | `pnpm --filter @loonext/api test:workerd` | 12 hot objects × 24 targets = 288 completed dial effects; per-object peak ≤ 6 | Deployed latency, co-tenancy, and saturation point unknown | Structure measured; deployed measurement required |
-| degradation | Truthful error instead of hang or silent drop | `pnpm --filter @loonext/api exec vitest run src/db-timeout.test.ts src/routes/honest-failure.test.ts src/app.test.ts` | Database stall/refusal and Telnyx 429/503 paths are bounded and truthful | Behaviour at an actually reached load ceiling unknown | Partial; deployed overload required |
+| webhook | Duplicate retry storm and distinct inbound burst | `pnpm --filter @loonext/api test:load` | 25 concurrent copies → 1 row; 40 distinct → 40 rows; zero hangs. Rig: 100 copies → 1 row; 100 distinct each twice all landed | Rig: refusals begin between 100 and 200 distinct messages in a second, retryable, none lost. Hosted not measured | Local lower bound and rig ceiling measured |
+| pooler | Concurrent reads and database failure shape | `pnpm --filter @loonext/api capacity:deployed -- --target-id staging-capacity-251 --api-origin https://api-staging.example.net --supabase-origin https://abcdefghijklmnopqrst.supabase.co --scenario api` | 40 concurrent local reads; every database request has a 10 s deadline. Rig: `GET /v1/for-you` to 1,000 concurrent callers, every request answered, refusals a 503 with Retry-After (2b) | Rig: sheds from about 400 concurrent. Managed Supavisor refusal point unknown | Rig measured; deployed driver committed; hosted authorized run required |
+| realtime | Private-topic join and broadcast fan-out | `pnpm --filter @loonext/api capacity:deployed -- --target-id staging-capacity-251 --api-origin https://api-staging.example.net --supabase-origin https://abcdefghijklmnopqrst.supabase.co --scenario realtime` | 40 independent local websockets × 20 broadcasts = 800 exact deliveries. Rig: 160 private-topic joins held stable | Rig: 200 concurrent (tenant setting). Hosted connection and delivery-fan-out ceilings unknown | Local delivery and rig joins measured; hosted connection driver committed; authorized run required |
+| durable-object | Call-session FIFO and bounded ring fan-out | `pnpm --filter @loonext/api test:workerd` | 12 hot objects × 24 targets = 288 completed dial effects; per-object peak ≤ 6. Rig: 32 simultaneous 12-person calls, no wrong or leaked call | Rig: first 5xx acknowledgements between 8 and 32 simultaneous calls. Latency, co-tenancy and saturation on Cloudflare unknown | Structure and rig latency measured; Cloudflare measurement required |
+| degradation | Truthful error instead of hang or silent drop | `pnpm --filter @loonext/api exec vitest run src/db-timeout.test.ts src/routes/honest-failure.test.ts src/app.test.ts` | Database stall/refusal and Telnyx 429/503 paths are bounded and truthful. Rig: overload answered 503 with Retry-After at every level to 1,000 callers; webhook refusals retryable, none lost | Rig ceilings reached and honest. Behaviour at a hosted ceiling unknown | Rig measured; hosted overload required |
 | cost | Storage/vendor units and serving compute | `pnpm --filter @loonext/api exec vitest run src/billing/costs.test.ts` | Message, voice, AI, storage, and egress units modelled | Worker and Durable Object compute per load unit unknown | Partial; deployed usage delta required |
 <!-- capacity-matrix:end -->
 
@@ -63,7 +72,14 @@ does.
 or dropping** (section 1b), and the guarantee is a database constraint rather
 than application logic, which is the strongest place for it.
 
-**What breaks first is therefore still unknown.** Local runs establish useful
+**On the rig, the first thing to give out is Realtime connections (200 at once,
+the tenant's setting), then the database path (about 400 simultaneous
+post-login loads, about 100 to 200 inbound webhooks in one second), and in each
+case what the customer gets is a retryable `503` with the request id, not a
+hang** (section 2b). Those are the rig's numbers: the rig has no Supavisor and
+no Cloudflare edge.
+
+**What breaks first is therefore still unknown for the hosted stack.** Local runs establish useful
 lower bounds, but they cannot order the managed pooler ceiling, hosted Realtime
 ceiling, or deployed call-path latency/co-tenancy. Section 2 says what each
 measurement requires. The acceptance matrix above names every axis explicitly
@@ -437,6 +453,8 @@ its deadline; nothing hung and nothing threw. No ceiling was reached at these
 volumes, so this is evidence that the paths are well-behaved under contention,
 not proof about behaviour at a ceiling — which by definition needs a ceiling.
 
+Ceilings were reached on the rig afterwards; what the API did there is section 2b.
+
 ---
 
 ## 2. What is NOT measured, and why not
@@ -753,6 +771,214 @@ that every ceiling produce a truthful failure rather than a hang. Section 1b
 reached no ceiling, so what it shows is good behaviour under contention. That is
 evidence, not proof, and the difference matters: nobody should quote it as "we
 degrade gracefully under overload".
+
+## 2b. Measured on the rig (2026-11-01)
+
+The Loonext rig (`docs/RIG.md`) is a deployed non-production stack: the real API
+Worker under wrangler on workerd, the real `CallSessionDO`, and a local Supabase
+stack, on an 8-vCPU, 24 GB VM. It is the first place the distributed questions
+in section 2 could be driven, and it answers them for **its own topology**:
+
+| Layer | Rig | Hosted production |
+|---|---|---|
+| Edge | Caddy, then wrangler's local proxy | Cloudflare |
+| Worker and Durable Object | the production code on workerd | the same code on Cloudflare |
+| Gateway | Kong, 512 worker connections | Supabase's gateway |
+| Database access | PostgREST, pool of 10, Postgres `max_connections` 100 | PostgREST and the project's pooler, sized by the project's plan |
+| Realtime | one tenant, `max_concurrent_users` 200, 100 joins per second | the project's plan limits |
+
+So the counts, the shapes of failure and the order in which things give out
+transfer. The milliseconds and the exact levels do not, and nothing below is a
+statement about the hosted ceilings, which section 2 still lists as unknown.
+
+Everything is rerunnable on the rig VM, from a worktree's `apps/api`, and each
+scenario prints aggregate `CAPACITY_RESULT` lines (counts and timings only):
+
+```bash
+pnpm --filter @loonext/api capacity:rig -- --scenario all --conversations 5000
+pnpm --filter @loonext/api test:rig          # all three suites below, one at a time
+pnpm --filter @loonext/api exec vitest run --config vitest.rig.config.ts e2e/rig-api-pressure.rig.ts
+```
+
+`capacity:rig` seeds one workspace, signs in as its owner through the rig's
+GoTrue, and runs the hosted driver (section 2, "Deployed non-production driver")
+at `https://api.rig.internal` and `https://db.rig.internal`. It refuses to run
+anywhere a production name resolves. The three `e2e/rig-*.rig.ts` suites start
+their own second copy of the Worker on a loopback port, with fake carrier,
+payment and mail vendors, so a burst of synthetic events never reaches the rig's
+real API, a real number, or a vendor. Run them one at a time: they share one
+Postgres, and a burst measured beside another burst measures both.
+
+### What breaks first, on the rig
+
+In the order a growing customer would meet them:
+
+1. **Realtime connections: 200 at once.** 160 independent authenticated sockets
+   joined the private company topic and stayed up (join p50 1.45 s, p95 2.5 s).
+   Asked for 320, 212 joined and 108 were refused with a join `channel_error`;
+   the refusal repeated after a cooldown and a healthy single-join control, so
+   it is a limit and not a blip. No joined socket was dropped afterwards. The
+   number is the tenant's `max_concurrent_users`, not a property of the code.
+   One member can hold several sockets (a browser tab and a phone), so 200 is
+   roughly ten busy 20-member workspaces online together.
+2. **The database path: about 400 simultaneous heavy reads.** `GET /v1/for-you`
+   on a 5,000-conversation workspace is clean to 200 concurrent callers and
+   starts to shed around 400 (section "The post-login landing under load").
+3. **Inbound webhooks: about 100 to 200 distinct messages in one second.**
+4. **Calls: the correctness holds at every size tried; latency grows and the
+   first 5xx acknowledgements appear between 8 and 32 simultaneous calls.**
+
+On this topology the shedding in 2 to 4 is PostgREST's pool of 10 and Kong's
+512 connections, not the Worker. Nothing here says where Supavisor refuses; that
+is the one hosted number the plan most needs and still does not have.
+
+### The post-login landing under load
+
+Two measurements, deliberately kept apart.
+
+**Through the rig's own API** (`capacity:rig`, hosted driver, Caddy, deployed
+ref `1e19f16c`, before the fixes below), 5,000 conversations and 20,000
+messages, three rounds per level, all requests `200`:
+
+| Concurrent callers | p50 | p95 | max |
+|---|---|---|---|
+| 5 | 96 ms | 214 ms | 214 ms |
+| 10 | 117 ms | 135 ms | 137 ms |
+| 20 | 197 ms | 214 ms | 223 ms |
+| 40 | 328 ms | 420 ms | 428 ms |
+| 80 | 569 ms | 798 ms | 838 ms |
+| 160 | 1,055 ms | 1,772 ms | 1,826 ms |
+| 320 | 2,056 ms | 3,014 ms | 3,252 ms |
+
+Latency is linear in concurrency, about 105 requests a second at 320: one
+resource is saturated and everything queues behind it. Started cold at 320
+instead of ramped to it, the same endpoint gave 940 of 960 answers, 18 `500`
+and 2 requests past the driver's 10 s deadline, and the repeat 899, 17 and 44.
+That is a confirmed ceiling by the driver's own rule, and the 44 are the
+behaviour the next measurement exists to remove.
+
+**Through a second copy of the Worker with the fixes** (`rig-api-pressure.rig.ts`),
+same workspace, three full runs of the ramp. The Worker's own access log is the
+count of requests it answered:
+
+| Concurrent callers | Received with 200 | Received with 503 | p50 | Slowest answer | Back to 200 after load stops |
+|---|---|---|---|---|---|
+| 50 to 200 | all | none | 0.4 to 1.3 s | 1.7 s | 0.5 s |
+| 400 | 341 to 347 | 48 to 53 | 2.1 to 2.4 s | 3.2 s | 0.6 s |
+| 600 | 381 to 485 | 37 to 219 | 3.1 to 3.5 s | 4.4 s | 0.5 s |
+| 800 | 515 to 587 | 5 to 285 | 3.2 to 4.5 s | 5.6 s | 0.6 to 2.0 s |
+| 1,000 | 474 to 629 | 111 to 526 | 4.6 to 5.9 s | 6.9 s | 0.5 to 1.6 s |
+
+Counts are what the driver received; where it received fewer than it sent, see
+"A limit of the rig" below. Every `503` carried a `Retry-After` and the SPEC error envelope with the
+request id. The Worker answered every request it was sent at every level of
+every run (21 level-runs, none short). Before the fixes the same overload was
+answered after 80 to 110 seconds, as a `500` "Something went wrong.", and an
+overloaded request kept asking the database it had just been refused by.
+
+The `503` share at a given level swings a lot from run to run, because what
+fills is a queue and not a counter. Read the table as a range, and read the
+200-concurrent row as the largest size that was clean in every run.
+
+### Honest degradation, found and fixed here
+
+Driving the Worker past the pool, and reading the failure paths that exposed,
+found five ways the truthful answer was not the answer given. Each is fixed and pinned by a test that fails without it:
+
+1. **A request kept asking a database that was refusing it.** Each of a
+   request's several database calls waited its own 10 s in the queue that had
+   just failed the first, and postgrest-js retries every GET three more times
+   with 1, 2 and 4 s sleeps. `db-pressure.ts` gives each request a scope: after
+   the first timeout or refusal its remaining calls fail at once, with an error
+   coded `ABORT_ERR` because that is the one thing postgrest-js does not retry.
+2. **Overload was reported as a bug.** A saturated database answered `500`
+   "Something went wrong." and filed a Sentry event for every shed request.
+   It is now `503 service_unavailable` with `Retry-After`, no event, and the ray
+   in the log. Only the database being out of room is called busy; a query that
+   failed for its own reasons is still a `500`.
+3. **The gateway running out of connections looked like a failed query.** Kong
+   logs `512 worker_connections are not enough` and answers a bare
+   `500 {"message":"An unexpected error occurred"}` with no SQLSTATE, which the
+   Worker reported as a bug for 32 of 800 callers. A bare gateway `500`, and a
+   gateway `502`, are now overload. The same sentence beside a SQLSTATE is not.
+4. **A key set that did not arrive signed people out.** When the identity
+   service was slow or reset under load, JWT verification failed and the API
+   answered `401`, which the clients treat as "sign in again". A token that was
+   never judged is not a bad token: it is now `503` with `Retry-After`, and a
+   token that is bad once the keys do arrive is still `401`.
+5. **Background work must not inherit a request's rules.** Crons and Durable
+   Object alarms have no request scope and keep the database's own answer, so
+   code that reads the status (push attempts logs `HTTP 503`) is unchanged.
+
+### Webhook burst on workerd
+
+A signed Telnyx webhook is acknowledged before it is ingested (deliberate), so
+the suite measures the acknowledgement, the landing and the ledger separately.
+
+| Scenario | Acknowledged | Result |
+|---|---|---|
+| One event, 100 concurrent copies | 100 `200` in 0.56 s | exactly 1 message row |
+| 25 distinct events, each twice | 50 `200`, p95 0.25 s | 25 of 25 landed |
+| 50 distinct, each twice | 100 `200`, p95 0.44 s | 50 of 50 |
+| 100 distinct, each twice | 200 `200`, p95 0.86 s | 100 of 100 in 2.3 s |
+| 200 distinct, each twice | 381 `200`, 19 `503`, p95 1.55 s | 191 landed |
+
+At 200 distinct events the rig refused 19 acknowledgements. In the 9 events
+that did not land, both copies had been refused, so the carrier is told to
+retry; none was acknowledged and then lost, none was duplicated, and every
+acknowledged event was in the ledger and finished within 0.2 s of landing. In
+earlier runs of the same code the first refusals appeared at 100 distinct
+events (10 refused). So the ceiling is between 100 and 200 distinct inbound
+messages in one second, and what it produces is a retryable `503`, which is the
+honest failure for a carrier that retries.
+
+### The call session under a burst
+
+N workspaces, each with a 12-technician crew, take one inbound call each at the
+same moment, through signed webhooks into the Worker, the router, one real
+Durable Object per call and a fake switch. Every level runs ring, answer and end
+as three bursts.
+
+| Simultaneous calls | Ring settles | Answer settles | Webhooks acknowledged |
+|---|---|---|---|
+| 2 | 1.2 s | 1.2 s | all `200` |
+| 8 | 1.7 s | 2.3 s | 239 `200`, 1 `503` (one run) |
+| 12 | 2.5 s | 2.8 s | all `200` |
+| 16 | 2.7 s | 3.9 s | all `200` |
+| 24 | 4.0 to 4.3 s | 4.9 to 5.2 s | all `200` in one run, 18 `503` of 720 in another |
+| 32 | 5.5 s | 7.2 s | 116 `503` of 960 |
+
+Which level first shows a `503` acknowledgement moved between runs (8, 24, 32),
+so treat it as a band, not a line. What did not move, at any level in any run:
+every call rang, was answered by the technician who answered and ended; no leg
+was left alive after a call ended; no object dialled past its bound of 12 for a
+12-person crew; and a replayed `call.initiated`, 40 copies at once, dialled the
+crew once. So saturation costs call-setup latency and then retryable
+acknowledgements, never a wrong or leaked call. These milliseconds are the
+driver's wall clock around real HTTP on a VM, not Cloudflare's.
+
+### A limit of the rig, not of the Worker
+
+At 400 concurrent connections and above, wrangler's local proxy sometimes never
+returned the response to the driver: 6 to 260 requests in 1 level of about every
+other run, with the rest of the run clean. The Worker's log shows it finished
+every one of them. The driver counts these separately (`unanswered_at_driver`
+beside `answered_by_worker`) and the suite fails if the Worker finished fewer
+requests than it was sent, so this cannot hide a request stuck inside the
+Worker. The hosted path does not go through wrangler's proxy.
+
+### Still unmeasured after this
+
+- **Supavisor's refusal point.** The rig has no Supavisor; the pool that filled
+  here is PostgREST's. Needs the hosted driver aimed at a hosted non-production
+  project (section 2).
+- **Hosted Realtime limits and broadcast fan-out.** The 200 above is the rig
+  tenant's setting; the hosted number is the project's plan limit, and delivery
+  under fan-out still needs an approved event emitter.
+- **Cloudflare compute and Durable Object cost per unit of load,** and call
+  latency on Cloudflare with real co-tenancy. The rig has no billing meter.
+- The 50,000-conversation workspace through the HTTP path. Section 1 measured
+  the queries at that size; the rig runs above used 5,000 conversations.
 
 ---
 
