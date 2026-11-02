@@ -108,6 +108,9 @@ const SEARCH_SPACING_MS = 1_200;
 const INBOX_SETTLE_MS = 3_000;
 const CHECKOUT_OPEN_TIMEOUT_MS = 30_000;
 const CHECKOUT_RETURN_TIMEOUT_MS = 90_000;
+const CHECKOUT_REPRICE_TIMEOUT_MS = 10_000;
+/** How long Pay may show no progress before it is pressed once more. */
+const CHECKOUT_PAY_WAIT_MS = 20_000;
 const SIGN_IN_TIMEOUT_MS = 30_000;
 const PUSH_TIMEOUT_MS = 15_000;
 const CLEARED_POLL_MS = 100;
@@ -382,6 +385,12 @@ export class PublicPage {
     if (new URL(this.page.url()).hostname !== "checkout.stripe.com") throw new Error("browser lane: Checkout is not open");
     const filled = await fillCheckout(this.page, args);
     if (!filled.submitted) return { returned: false, ...filled };
+    const back = (timeout: number) => this.page.waitForURL((url) => url.origin === new URL(this.#origin).origin, { timeout }).then(() => true, () => false);
+    if (await back(CHECKOUT_PAY_WAIT_MS)) return { returned: true, ...filled };
+    // A press Checkout swallowed leaves Pay enabled and no error; one more press is what a customer does.
+    const pay = this.page.locator(SELECTORS.checkout.submit).first();
+    const errors = await checkoutErrors(this.page);
+    if (errors.errors?.length === 0 && (await pay.isEnabled().catch(() => false))) await pay.click().catch(() => undefined);
     try {
       await this.page.waitForURL((url) => url.origin === new URL(this.#origin).origin, { timeout: CHECKOUT_RETURN_TIMEOUT_MS });
       return { returned: true, ...filled };
@@ -480,7 +489,13 @@ export async function fillCheckout(page: Page, args: { card: string; email: stri
   const country = page.locator(fields.billingCountry);
   if (await country.count()) await country.selectOption("CA");
   const postal = page.locator(fields.billingPostalCode);
-  if (await postal.count()) await postal.fill(args.postalCode);
+  if (await postal.count()) {
+    // The address re-prices the session for tax, and Pay pressed before that answer lands does nothing.
+    const repriced = page.waitForResponse((response) => response.url().includes("/v1/payment_pages/") && response.request().method() === "POST", { timeout: CHECKOUT_REPRICE_TIMEOUT_MS }).catch(() => undefined);
+    await postal.fill(args.postalCode);
+    await postal.blur();
+    await repriced;
+  }
   await page.locator(fields.submit).first().click();
   return { challenged: false, submitted: true };
 }
