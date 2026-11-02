@@ -182,7 +182,6 @@ data class ResponseTimeBaseline(
 @Serializable
 data class ResponseTimeWindow(val days: Int = 30)
 
-@Serializable
 /**
  * #313 — the satisfaction report, hand-ported from the web client's type.
  *
@@ -192,6 +191,7 @@ data class ResponseTimeWindow(val days: Int = 30)
  * whole point is that three clients cannot disagree about when five answers
  * become a trend.
  */
+@Serializable
 data class SatisfactionMember(
     val user_id: String = "",
     /** Null when the profile row is missing — our gap, not "Unknown". */
@@ -201,6 +201,7 @@ data class SatisfactionMember(
     val average: Double? = null,
 )
 
+@Serializable
 data class SatisfactionBaseline(
     val since: String = "",
     val until: String = "",
@@ -208,6 +209,7 @@ data class SatisfactionBaseline(
     val average: Double = 0.0,
 )
 
+@Serializable
 data class SatisfactionReport(
     val window: ResponseTimeWindow = ResponseTimeWindow(),
     val asked: Int = 0,
@@ -226,6 +228,7 @@ data class SatisfactionReport(
     val row_limit: Int = 0,
 )
 
+@Serializable
 data class ResponseTimeReport(
     val window: ResponseTimeWindow = ResponseTimeWindow(),
     val leads: Int = 0,
