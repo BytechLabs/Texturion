@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.19.1](https://github.com/BytechLabs/Texturion/compare/api-v0.19.0...api-v0.19.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **api:** a busy database now answers with a retry hint instead of failing ([c6d4468](https://github.com/BytechLabs/Texturion/commit/c6d4468126ea98c7f34a51badc20fee1bdbc830f))
+* **api:** a slow sign-in key service no longer signs people out ([40f0113](https://github.com/BytechLabs/Texturion/commit/40f0113acbbaa88eca12d16a42ea59f499cf622c))
+* **api:** the Stripe catalog script builds a fresh test-mode catalog ([1b64d4f](https://github.com/BytechLabs/Texturion/commit/1b64d4fc0fd2173d36868acc578fb0fff3e56178))
+
 ## [0.19.0](https://github.com/BytechLabs/Texturion/compare/api-v0.18.1...api-v0.19.0) (2026-10-30)
 
 
