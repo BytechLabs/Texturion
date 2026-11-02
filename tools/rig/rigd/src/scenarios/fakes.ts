@@ -913,6 +913,10 @@ export class FakeDevice implements DeviceApi {
     this.actions.push(`sign in ${member}`);
     return true;
   }
+  async resetUi() {
+    this.actions.push("reset ui");
+    this.call = "none";
+  }
   async dial(role: string) {
     this.actions.push(`dial ${role}`);
     this.call = "active";

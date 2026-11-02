@@ -25,6 +25,9 @@ export const CALL_TEST_IDS = [
 ] as const;
 export type CallTestId = (typeof CALL_TEST_IDS)[number];
 
+/** How long a launched app is given to draw its first frame before the launcher is put in front of it. */
+const APP_SETTLE_MS = 2_000;
+
 /** The app asks for these at the dialer and at answer. */
 const CALL_PERMISSIONS = ["RECORD_AUDIO", "READ_CONTACTS", "WRITE_CONTACTS"] as const;
 
@@ -336,6 +339,26 @@ export class AndroidDevice {
     if (!/^\/[A-Za-z0-9/_-]*$/.test(path)) throw new Error(`device ${this.name}: ${path} is not an app path`);
     // The nonprod build's app links answer the inert host, so a deep link opens the app and nothing else.
     await this.adb.shell("am", "start", "-a", "android.intent.action.VIEW", "-d", `https://nonprod.invalid${path}`, this.#o.pkg);
+  }
+
+  /**
+   * The app back at a known state. A failed run can leave the dialer sheet
+   * open, a ring up or the shade down, and the next run's first tap lands on
+   * that. Force-stop drops all of it, and the Telecom call the app held. The
+   * app is launched again, because a stopped app is sent no push, and the
+   * launcher is put in front of it. A build that is not installed (D10 removes
+   * it on purpose) is not an error.
+   */
+  async resetUi(): Promise<void> {
+    await this.adb.forceStop(this.#o.pkg);
+    await this.adb.shell("cmd", "statusbar", "collapse");
+    try {
+      await this.launch();
+      await this.#sleep(APP_SETTLE_MS);
+    } catch {
+      // Nothing to launch; the home key below still leaves a known screen.
+    }
+    await this.adb.shell("input", "keyevent", "KEYCODE_HOME");
   }
 
   async callState(): Promise<"ringing" | "active" | "holding" | "disconnected" | "none"> {

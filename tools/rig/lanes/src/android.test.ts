@@ -359,6 +359,39 @@ describe("the device driver's commands (no device has run them)", () => {
     await expect(android.launch("/calls?x=1")).rejects.toThrow(/not an app path/);
   });
 
+  it("resets the app to a known state: stopped, launched again, and the launcher put in front of it", async () => {
+    const { android, calls } = device();
+    await android.resetUi();
+    expect(calls).toEqual([
+      `${ADB} shell am force-stop ${PKG}`,
+      `${ADB} shell cmd statusbar collapse`,
+      `${ADB} shell monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`,
+      `${ADB} shell input keyevent KEYCODE_HOME`,
+    ]);
+  });
+
+  it("resets a device whose build is not installed, as D10 leaves it, and still ends on the launcher", async () => {
+    const calls: string[] = [];
+    const android = new AndroidDevice({
+      name: "pixel",
+      serial: SERIAL,
+      pkg: PKG,
+      pin: () => "2468",
+      apks: { current: "a.apk", previous: "b.apk" },
+      exec: async (file, args) => {
+        const line = [file, ...args].join(" ");
+        calls.push(line);
+        if (line.includes("shell monkey")) throw new Error("** No activities found to run, monkey aborted.");
+        return "";
+      },
+      portCheck: tunnelUp,
+      sleep: async () => undefined,
+    });
+    await android.resetUi();
+    expect(calls.at(-1)).toBe(`${ADB} shell input keyevent KEYCODE_HOME`);
+    expect(calls).toHaveLength(4);
+  });
+
   it("drives only a nonprod package, and types only plain text", async () => {
     expect(() => new AndroidDevice({ name: "p", serial: "S", pkg: "com.loonext.android", pin: () => "1", apks: { current: "", previous: "" } })).toThrow(/nonprod/);
     const { android, calls } = device();

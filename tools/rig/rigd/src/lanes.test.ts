@@ -13,7 +13,7 @@ import { automationBodies, AppProbe, stableUuid } from "./app-probe.ts";
 import { webhookForwarder } from "./forward.ts";
 import { GuardClient, PROBE_FOREIGN_CONNECTION } from "./guard-client.ts";
 import { MailClient, linksIn } from "./mail-client.ts";
-import { rigDevices, RigOps } from "./rig-ops.ts";
+import { dialOnDevice, rigDevices, RigOps } from "./rig-ops.ts";
 import { FakeDevices, FakeGuard, FakeApp, FakeHandoff, FakeStripe, FakeTime } from "./scenarios/fakes.ts";
 import { FaultFile, HandoffFile } from "./state-files.ts";
 import { deleteStripeObject, formEncode, STRIPE_DELETE_UNDO, StripeSandbox } from "./stripe-sandbox.ts";
@@ -843,5 +843,51 @@ describe("the rig box", () => {
     await handlers["rig.network-clear"]!({});
     expect(devices.pixelDevice.network.shaped).toBeNull();
     expect(devices.pixelDevice.network.clears).toHaveLength(1);
+  });
+});
+
+describe("the app's dialer", () => {
+  const numbers = numberBook({ "ROBOT-1": "+14165550111" });
+
+  /** A device whose screens show the controls in `present`, as a list the test edits. */
+  function dialerDevice(present: Set<string>, onReset: () => void = () => undefined) {
+    const actions: string[] = [];
+    return {
+      actions,
+      device: {
+        async launch(path?: string) {
+          actions.push(`launch ${path ?? ""}`.trim());
+        },
+        async tapText(text: string) {
+          if (!present.has(text)) return false;
+          actions.push(`tap ${text}`);
+          return true;
+        },
+        async resetUi() {
+          actions.push("reset ui");
+          onReset();
+        },
+      },
+    };
+  }
+
+  it("types the number's digits and presses Call, with no reset when the calls screen is as it should be", async () => {
+    const { device, actions } = dialerDevice(new Set(["Dial a number", ..."4165550111".split(""), "Call"]));
+    await dialOnDevice(device, "ROBOT-1", numbers);
+    expect(actions).toEqual(["launch /calls", "tap Dial a number", ...[..."4165550111"].map((d) => `tap ${d}`), "tap Call"]);
+  });
+
+  it("resets the app once and asks again when a sheet the last run left open hides the dialer's button", async () => {
+    const present = new Set(["Call", ..."4165550111".split("")]);
+    const { device, actions } = dialerDevice(present, () => present.add("Dial a number"));
+    await dialOnDevice(device, "ROBOT-1", numbers);
+    expect(actions.slice(0, 4)).toEqual(["launch /calls", "reset ui", "launch /calls", "tap Dial a number"]);
+    expect(actions.at(-1)).toBe("tap Call");
+  });
+
+  it("says the calls screen offered no dialer when a reset does not bring it back, and never presses Call", async () => {
+    const { device, actions } = dialerDevice(new Set(["Call"]));
+    await expect(dialOnDevice(device, "ROBOT-1", numbers)).rejects.toThrow("the app's calls screen offered no dialer");
+    expect(actions).toEqual(["launch /calls", "reset ui", "launch /calls"]);
   });
 });

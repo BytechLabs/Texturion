@@ -35,6 +35,8 @@ const REGISTRY = registryOf([
   }),
   scenario("S20"),
   scenario("S29"),
+  scenario("D02p", { lane: "device" }),
+  scenario("E01", { lane: "emulator" }),
   scenario("S04", {
     lane: "browser",
     dials: 1,
@@ -743,5 +745,93 @@ describe("chargedDials", () => {
   it("without the log, is nothing before the robot's first dial and everything after", () => {
     expect(chargedDials(base)).toBe(0);
     expect(chargedDials({ ...base, byRobot: 1 })).toBe(2);
+  });
+});
+
+describe("a device scenario's start", () => {
+  /** A runner for `id` that notes what the devices had been told when each step began. */
+  function onDevices(id: string) {
+    const lanes = fakeLanes(new FakeTime());
+    const order: string[] = [];
+    const made = setup([]);
+    made.deps.lanes = () => lanes;
+    made.deps.runners = {
+      ...made.deps.runners,
+      [id]: {
+        id,
+        async prepare() {
+          order.push(`prepare after [${lanes.devices.pixelDevice.actions}]`);
+          return undefined;
+        },
+        async run() {
+          order.push(`run after [${lanes.devices.pixelDevice.actions}]`);
+          return { outcome: "pass" };
+        },
+      },
+    };
+    return { ...made, lanes, order };
+  }
+
+  it("resets the device lane's app before the scenario's own setup, so it does not inherit the last run's UI", async () => {
+    const { deps, order } = onDevices("D02p");
+    expect((await runScenario(deps, "D02p")).status).toBe("pass");
+    expect(order).toEqual(["prepare after [reset ui]", "run after [reset ui]"]);
+  });
+
+  it("resets it again for the retry", async () => {
+    const { deps, lanes } = onDevices("D02p");
+    deps.runners = { D02p: { id: "D02p", run: async () => failing("no_ring_within_12s") } };
+    await runScenario(deps, "D02p");
+    expect(lanes.devices.pixelDevice.actions).toEqual(["reset ui", "reset ui"]);
+  });
+
+  it("resets each booted emulator of the emulator lane, and none that is down", async () => {
+    const { deps, lanes } = onDevices("E01");
+    lanes.devices.emulator(35).reachableNow = false;
+    await runScenario(deps, "E01");
+    expect(lanes.devices.emulator(34).actions).toEqual(["reset ui"]);
+    expect(lanes.devices.emulator(35).actions).toEqual([]);
+    expect(lanes.devices.emulator(36).actions).toEqual(["reset ui"]);
+    expect(lanes.devices.pixelDevice.actions).toEqual([]);
+  });
+
+  it("leaves a device that is not up to the scenario, which reports it", async () => {
+    const { deps, lanes, order } = onDevices("D02p");
+    lanes.devices.pixelDevice.reachableNow = false;
+    expect((await runScenario(deps, "D02p")).status).toBe("pass");
+    expect(lanes.devices.pixelDevice.actions).toEqual([]);
+    expect(order).toEqual(["prepare after []", "run after []"]);
+  });
+
+  it("touches no device for a scenario on another lane", async () => {
+    const { deps, lanes } = onDevices("S20");
+    await runScenario(deps, "S20");
+    expect(lanes.devices.pixelDevice.actions).toEqual([]);
+  });
+
+  it("does not reset a device another run holds while it prepares", async () => {
+    const { deps, lanes } = onDevices("D02p");
+    deps.holds = {
+      holder: () => ({ scenario: "D04", run_id: "D04-other" }),
+      claim: () => undefined,
+      release: () => undefined,
+    };
+    const summary = await runScenario(deps, "D02p");
+    expect(lanes.devices.pixelDevice.actions).toEqual([]);
+    expect(summary.verdicts[0]!.outcome).toBe("skipped");
+  });
+
+  it("reports a reset that fails as the device's fault, spends nothing and runs nothing", async () => {
+    const { deps, lanes, order } = onDevices("D02p");
+    lanes.devices.pixelDevice.resetUi = async () => {
+      throw new Error("adb: device offline");
+    };
+    const summary = await runScenario(deps, "D02p");
+    expect(summary.verdicts.map((v) => [v.outcome, v.component, v.dials])).toEqual([
+      ["infra", "pixel", 0],
+      ["infra", "pixel", 0],
+    ]);
+    expect(summary.detail).toBe("resetting the app's UI failed: adb: device offline");
+    expect(order).toEqual([]);
   });
 });

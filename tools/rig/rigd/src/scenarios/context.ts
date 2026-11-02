@@ -479,6 +479,12 @@ export interface DeviceApi {
   uninstall(): Promise<void>;
   /** Opens the app, at a path when given. */
   launch(path?: string): Promise<void>;
+  /**
+   * The app back at a known state: stopped (which drops a ring or a call it
+   * held and every screen it had open), launched again and sent behind the
+   * launcher. For the start of a run, which must not inherit the last one's UI.
+   */
+  resetUi(): Promise<void>;
   /** Waits for Telecom to report a ringing call and the full-screen ring to show; undefined if neither did. */
   waitForRinging(timeoutMs: number): Promise<{ telecom_ms?: number; full_screen_ms?: number } | undefined>;
   /** Telecom's state for the app's calls. */

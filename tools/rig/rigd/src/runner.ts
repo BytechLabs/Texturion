@@ -43,6 +43,12 @@ const LEASE_POLL_MS = 30 * 1000;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
+/** The devices a lane's scenarios drive: the device lane's emulator, or E01's three. */
+const LANE_DEVICES: Readonly<Record<string, readonly ("pixel" | 34 | 35 | 36)[]>> = {
+  device: ["pixel"],
+  emulator: [34, 35, 36],
+};
+
 export interface RunnerDeps {
   registry: Registry;
   runners: Readonly<Record<string, ScenarioRunner>>;
@@ -327,6 +333,17 @@ async function attemptHeld(
     },
   };
 
+  // Before anything of this attempt's own touches a device, and only while no other run holds its lane.
+  const holder = deps.holds?.holder(entry.lane, deps.clock.now());
+  if (!holder || holder.run_id === runId) {
+    const stuck = await resetDeviceUis(lanes.devices, entry.lane);
+    if (stuck) {
+      evidence.reset_ui = stuck.detail;
+      deps.verdicts.saveEvidence(runId, attempt, evidence);
+      return stuck;
+    }
+  }
+
   const unleased: LeaseHandle = {
     id: "",
     registerUndo() {
@@ -532,6 +549,26 @@ function dialNoted<T extends object>(target: T, note: () => void): T {
       };
     },
   });
+}
+
+/**
+ * A device scenario starts with the app at a known state, not wherever the
+ * last run left it: a failed run can leave the dialer sheet open, which
+ * covers the next run's "Dial a number", or a ring up, which Telecom then
+ * counts against the next one. A device that is not up is left to the
+ * scenario, which reports it. The result is undefined, or the rig fault.
+ */
+async function resetDeviceUis(devices: DevicesApi, lane: string): Promise<AttemptOutcome | undefined> {
+  for (const which of LANE_DEVICES[lane] ?? []) {
+    const device = which === "pixel" ? devices.pixel() : devices.emulator(which);
+    try {
+      if (!(await device.reachable())) continue;
+      await device.resetUi();
+    } catch (error) {
+      return { outcome: "infra", component: device.name, detail: `resetting the app's UI failed: ${error instanceof Error ? error.message : String(error)}`, dials: 0 };
+    }
+  }
+  return undefined;
 }
 
 function historyOf(deps: RunnerDeps, scenario: string): ScenarioHistoryApi {

@@ -171,6 +171,7 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
       pushToken: () => android.pushToken(),
       uninstall: () => android.uninstall(),
       launch: (path) => android.launch(path),
+      resetUi: () => android.resetUi(),
       waitForRinging: (ms) => android.waitForRinging(ms),
       callState: () => android.callState(),
       tap: (id) => android.tap(id),
@@ -258,12 +259,24 @@ export async function signInOnDevice(
   return device.tapText("Sign in");
 }
 
-/** The app's dialer: the role's digits on its keypad, then Call. */
-export async function dialOnDevice(device: Pick<AndroidDevice, "launch" | "tapText">, role: string, numbers: NumberBook): Promise<void> {
+/**
+ * The app's dialer: the role's digits on its keypad, then Call. A calls screen
+ * with no "Dial a number" is the app in a state the last run left (a dialer
+ * sheet still open covers it), so the app is reset once and asked again.
+ */
+export async function dialOnDevice(
+  device: Pick<AndroidDevice, "launch" | "tapText" | "resetUi">,
+  role: string,
+  numbers: NumberBook,
+): Promise<void> {
   const number = numbers.number(role);
   if (!number) throw new Error(`rig: no number for ${role}`);
   await device.launch("/calls");
-  if (!(await device.tapText("Dial a number"))) throw new Error("rig: the app's calls screen offered no dialer");
+  if (!(await device.tapText("Dial a number"))) {
+    await device.resetUi();
+    await device.launch("/calls");
+    if (!(await device.tapText("Dial a number"))) throw new Error("rig: the app's calls screen offered no dialer");
+  }
   for (const digit of number.replace(/^\+1/, "")) {
     if (!(await device.tapText(digit))) throw new Error("rig: the dialer's keypad is not on screen");
   }
