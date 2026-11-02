@@ -33,6 +33,7 @@ describe("S20, outbound text", () => {
     expect(await S20.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
     expect(app.sends[0]).toMatchObject({ member: "qa-w-owner", fromRole: "DEV-W1", toRole: "ROBOT-1" });
     expect(app.sends[0]!.body).toContain(ctx.nonce);
+    expect(app.firedCrons).toEqual([{ cron: "0 * * * *" }, { cron: "*/5 * * * *" }]);
   });
 
   it("names each missing piece", async () => {

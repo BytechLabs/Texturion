@@ -70,6 +70,15 @@ const THREAD: Record<string, Route> = {
 };
 
 describe("the app probe's messages", () => {
+  it("confirms the quiet-hours prompt so a text sent in the Toronto night still goes", async () => {
+    const { probe, requests } = probeWith({
+      [`POST ${API}/v1/conversations`]: () => json({ message: { id: "m-1", status: "queued", error_code: null } }, 201),
+    });
+    expect(await probe.sendText({ member: "qa-w-owner", fromRole: "DEV-W1", toRole: "ROBOT-1", body: "Rig night" })).toEqual({ ok: true, messageId: "m-1" });
+    const sent = requests.find((r) => r.url === `${API}/v1/conversations`)!;
+    expect(JSON.parse(sent.body!)).toMatchObject({ body: "Rig night", quiet_hours_confirmed: true });
+  });
+
   it("sends a picture into the thread with the role, and reads a filed-then-failed send as refused", async () => {
     const answers = [
       json({ message: { id: "m-1", status: "queued", error_code: null } }, 201),

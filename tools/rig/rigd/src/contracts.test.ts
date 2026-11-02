@@ -204,7 +204,7 @@ describe("the app probe and the seed's tenants", () => {
     const send = requests[1]!;
     expect(send.headers.authorization).toBe("Bearer member-jwt");
     expect(send.headers["x-company-id"]).toBe(companyId);
-    expect(JSON.parse(send.body!)).toEqual({ phone_e164: "+14165550101", phone_number_id: "7de34ea1-d188-4bcf-ad8e-be2efe86bdfe", body: "hello" });
+    expect(JSON.parse(send.body!)).toEqual({ phone_e164: "+14165550101", phone_number_id: "7de34ea1-d188-4bcf-ad8e-be2efe86bdfe", body: "hello", quiet_hours_confirmed: true });
   });
 
   const USER = "11111111-2222-4333-8444-555555555555";

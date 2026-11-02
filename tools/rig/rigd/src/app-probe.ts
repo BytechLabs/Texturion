@@ -111,7 +111,9 @@ export class AppProbe implements AppApi {
         "idempotency-key": randomUUID(),
         "content-type": "application/json",
       },
-      body: JSON.stringify({ phone_e164: to, phone_number_id: phoneNumberId, body: args.body }),
+      // Every rig number is Ontario's, so from 8 pm to 8 am Toronto the API asks for a
+      // confirmation, as it asks a person. The runs are about the send, not that prompt.
+      body: JSON.stringify({ phone_e164: to, phone_number_id: phoneNumberId, body: args.body, quiet_hours_confirmed: true }),
       signal: AbortSignal.timeout(20_000),
     });
     const json = (await response.json().catch(() => ({}))) as { message?: SentMessage; error?: { code?: string } };

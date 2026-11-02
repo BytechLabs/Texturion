@@ -8,6 +8,12 @@ import { fail, infra, pass, poll, type ScenarioContext, type ScenarioResult, typ
 /** Every rig number has an Ontario area code, so the destination's clock is Toronto's. */
 const DESTINATION_ZONE = "America/Toronto";
 
+/** The hourly cron that reports unreported usage to Stripe's test mode. */
+const USAGE_REPORT_CRON = "0 * * * *";
+
+/** The five-minute cron that delivers the workspace's outbound webhooks. */
+const OUTBOUND_WEBHOOK_CRON = "*/5 * * * *";
+
 /** The robot's sink must be a webhook endpoint of the workspace before its events can arrive there. */
 async function robotWebhook(ctx: ScenarioContext, member: string, events: string[]): Promise<ScenarioResult | undefined> {
   try {
@@ -55,12 +61,15 @@ export const S20: ScenarioRunner = {
       return rows.length > 0 ? rows : undefined;
     }, 30_000);
     if (!usage) return fail("no_usage_row", "no usage row for the message");
+    // Production reports usage on the hour, and nothing on the rig keeps time.
+    await ctx.app.fireCron(USAGE_REPORT_CRON);
     const metered = await poll(ctx, async () => {
       const rows = await ctx.app.usageFor(sent.messageId);
       return rows.find((r) => r.stripe_reported_at !== null);
     }, 120_000, 5_000);
     if (!metered) return fail("meter_not_reported", "the usage row was never reported to the sandbox meter");
 
+    await ctx.app.fireCron(OUTBOUND_WEBHOOK_CRON);
     const webhook = await poll(ctx, async () => {
       const deliveries = await ctx.robot.sink({ since, type: "message.sent" });
       return deliveries.find((d) => d.body.includes(sent.messageId));
