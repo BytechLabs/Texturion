@@ -47,6 +47,8 @@ const DEVICE_CLOCK_MARGIN_MS = 5 * 60_000;
  * this long, no ring_me_sent beacon means no ring-me was answered.
  */
 const RING_ME_SETTLE_MS = 15_000;
+/** How long a ring that was ended is given to leave Telecom. */
+const RING_CLEARED_MS = 5_000;
 
 /** Where a wake lands: the tenant, the member signed in on the device, the number that rings it and the code it plays. */
 export interface WakeLane {
@@ -70,15 +72,17 @@ export type RingBeaconStage = (typeof RING_BEACON_STAGES)[number];
 
 /**
  * The stages each stage must come after. apps/api lists the usual order, not
- * a law: the Android app shows the ring from the push while it asks to be
- * rung, so ring_me_sent and ringing_shown race. Only cause and effect is
- * judged.
+ * a law: the Android app's ring is its own notification, since a self-managed
+ * Telecom call draws none, posted from the push as it asks Telecom to take the
+ * call and asks to be rung. So ringing_shown races os_reported and
+ * ring_me_sent: it came 316-340 ms ahead of os_reported on rig-pixel. Only
+ * cause and effect is judged.
  */
 export const BEACON_AFTER: Readonly<Record<RingBeaconStage, readonly RingBeaconStage[]>> = {
   push_received: [],
   os_reported: ["push_received"],
   ring_me_sent: ["push_received"],
-  ringing_shown: ["os_reported"],
+  ringing_shown: ["push_received"],
   answered: ["ringing_shown"],
   declined: ["ringing_shown"],
 };
@@ -462,7 +466,7 @@ export async function pushWake(ctx: ScenarioContext, pixel: DeviceApi, ev: Recor
   ev.ring = ring ?? null;
   if (ring) ev.ring_shows_nonce = await pixel.showing({ text: caller });
   const beacons = await readBeacons(ctx, PIXEL_LANE, { since, sessionId, until: PUSH_STAGES, settleUntil: since + RING_ME_SETTLE_MS }, ev);
-  if (ring) ev.dismissed = await pixel.tap("call_decline");
+  const cleared = await dismissRing(ctx, pixel, ring !== undefined, ev);
 
   const push = await ringPush(ctx, PIXEL_LANE, { since, sessionId }, ev);
   if ("failure" in push) return push.failure;
@@ -475,7 +479,25 @@ export async function pushWake(ctx: ScenarioContext, pixel: DeviceApi, ev: Recor
   if (beacons.some((b) => b.stage === "ring_me_sent")) {
     return fail("ring_me_not_refused", "ring-me answered the device for a session with no call, which only a live call may");
   }
-  return undefined;
+  return cleared;
+}
+
+/**
+ * Ends the ring a synthetic push left up. Telecom allows one ringing call per
+ * app and refuses the next ("incoming call is not permitted at this time"), so
+ * a ring left up leaves the retry with no os_reported. On an unlocked device
+ * the ring is a heads-up gone before a tap finds it, so the tap is only tried
+ * and stopping the app is what ends the call.
+ *
+ * @returns a rig fault when the ring is still up afterwards
+ */
+async function dismissRing(ctx: ScenarioContext, pixel: DeviceApi, rang: boolean, ev: Record<string, unknown>): Promise<ScenarioResult | undefined> {
+  if (rang) ev.dismissed = await pixel.tap("call_decline");
+  const stopped = await onDevice(pixel, "stopping the app to end the ring", () => pixel.resetUi());
+  const left = await poll(ctx, async () => ((await pixel.callState()) === "ringing" ? undefined : true), RING_CLEARED_MS, 500);
+  ev.ring_cleared = left === true;
+  if (stopped) return stopped;
+  return left === true ? undefined : infra(pixel.name, "the ring is still up after the app was stopped, so the next push would be refused");
 }
 
 /**

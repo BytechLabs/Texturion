@@ -117,11 +117,18 @@ describe("ring beacons", () => {
     standby_bucket: null,
   });
 
-  it("lets ring-me and the ring race, and fails only what breaks cause and effect", () => {
+  it("lets ring-me, Telecom and the ring race, and fails only what breaks cause and effect", () => {
     const raced = ["push_received", "os_reported", "ringing_shown", "ring_me_sent", "answered"].map((s, i) => at(s, i * 100));
     expect(judgeBeacons(raced, CALL_STAGES)).toBeUndefined();
+    // The app's ring is its own notification, posted from the push before Telecom has taken the call: 340 ms ahead on D02p's first run.
     const shownFirst = ["push_received", "ringing_shown", "os_reported", "ring_me_sent", "answered"].map((s, i) => at(s, i * 100));
-    expect(judgeBeacons(shownFirst, CALL_STAGES)).toMatchObject({ failure_class: "beacons_out_of_order" });
+    expect(judgeBeacons(shownFirst, CALL_STAGES)).toBeUndefined();
+    expect(judgeBeacons([at("push_received", 0), at("ringing_shown", 14), at("os_reported", 354)], ["push_received", "os_reported", "ringing_shown"])).toBeUndefined();
+    const shownWithoutPush = [at("ringing_shown", 0), at("push_received", 100), at("os_reported", 200)];
+    expect(judgeBeacons(shownWithoutPush, ["push_received", "os_reported", "ringing_shown"])).toMatchObject({
+      failure_class: "beacons_out_of_order",
+      detail: "ringing_shown came 100 ms before push_received",
+    });
     const answeredFirst = ["push_received", "os_reported", "answered", "ringing_shown", "ring_me_sent"].map((s, i) => at(s, i * 100));
     expect(judgeBeacons(answeredFirst, CALL_STAGES)).toMatchObject({ failure_class: "beacons_out_of_order" });
   });
@@ -272,8 +279,13 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     expect(await D02.run(unanswered.ctx)).toMatchObject({ failure_class: "answer_not_reported" });
 
     const disordered = wakeWorld("D02");
-    disordered.script.callStages = ["push_received", "ringing_shown", "os_reported", "ring_me_sent", "answered"];
+    disordered.script.callStages = ["push_received", "os_reported", "answered", "ringing_shown", "ring_me_sent"];
     expect(await D02.run(disordered.ctx)).toMatchObject({ failure_class: "beacons_out_of_order" });
+
+    // Shown ahead of Telecom is how the app rings, not a fault.
+    const shownFirst = wakeWorld("D02");
+    shownFirst.script.callStages = ["push_received", "ringing_shown", "os_reported", "ring_me_sent", "answered"];
+    expect(await D02.run(shownFirst.ctx)).toEqual(PASSED);
   });
 
   it("fails when either side does not hear the other, or the call never connected", async () => {
@@ -303,11 +315,51 @@ describe("D02p, a ring push with no call", () => {
     expect(await D02p.run(ctx)).toEqual(PASSED);
     expect(simulated).toEqual([{ member: "qa-a-owner", target: "qa-a-technician", caller: "Rig n0nce" }]);
     expect((simulated[0] as { caller: string }).caller).toContain(ctx.nonce);
-    expect(pixel.actions).toEqual(["tap call_decline"]);
+    expect(pixel.actions).toEqual(["tap call_decline", "reset ui"]);
     expect(robot.plans).toEqual([]);
     expect(undo).toEqual([]);
-    expect(ctx.evidence).toMatchObject({ session_id: "synthetic-1", dismissed: true, push: [{ session_id: "synthetic-1" }] });
+    expect(ctx.evidence).toMatchObject({ session_id: "synthetic-1", dismissed: true, ring_cleared: true, push: [{ session_id: "synthetic-1" }] });
     expect(ctx.evidence.simulated).toEqual({ status: 201, code: undefined, reachable: true });
+  });
+
+  it("passes when the ring is shown before Telecom reports the call, as the app does it", async () => {
+    const world = wakeWorld("D02p");
+    world.script.syntheticStages = ["push_received", "ringing_shown", "os_reported"];
+    expect(await D02p.run(world.ctx)).toEqual(PASSED);
+  });
+
+  it("ends the ring it started, for the next attempt: Telecom refuses a second ringing call", async () => {
+    // The first real run: the heads-up was gone before the tap, the ring stayed up, and the retry's push got no os_reported.
+    const world = wakeWorld("D02p");
+    world.pixel.onScreen.delete("call_decline");
+    world.pixel.call = "ringing";
+    expect(await D02p.run(world.ctx)).toEqual(PASSED);
+    expect(world.pixel.actions).toEqual(["reset ui"]);
+    expect(world.pixel.call).toBe("none");
+    expect(world.ctx.evidence).toMatchObject({ dismissed: false, ring_cleared: true });
+  });
+
+  it("blames the rig when the ring is still up after the app was stopped, and when it cannot be stopped", async () => {
+    const stuck = wakeWorld("D02p");
+    stuck.pixel.resetUi = async () => {
+      stuck.pixel.call = "ringing";
+    };
+    expect(await D02p.run(stuck.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringMatching(/still up after the app was stopped/) });
+    expect(stuck.ctx.evidence).toMatchObject({ ring_cleared: false });
+
+    const broken = wakeWorld("D02p");
+    broken.pixel.resetUi = async () => {
+      throw new Error("adb: device offline");
+    };
+    expect(await D02p.run(broken.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringMatching(/stopping the app to end the ring failed: adb: device offline/) });
+
+    // A beacon failure is still the product's, found first.
+    const unshown = wakeWorld("D02p");
+    unshown.script.syntheticStages = ["push_received", "os_reported"];
+    unshown.pixel.resetUi = async () => {
+      throw new Error("adb: device offline");
+    };
+    expect(await D02p.run(unshown.ctx)).toMatchObject({ outcome: "fail", failure_class: "ring_not_shown" });
   });
 
   it("fails a refused or session-less simulate-incoming, and blames a refused probe session on the rig", async () => {
@@ -656,7 +708,7 @@ const INSTALL_UNDOS = [
   { kind: "device.install", params: { device: "pixel", build: "current", member: "qa-a-technician" } },
   { kind: "device.reset", params: { device: "pixel" } },
 ];
-const WAKES = ["tap call_decline", "kill", "force doze", "lock", "tap call_answer"];
+const WAKES = ["tap call_decline", "reset ui", "kill", "force doze", "lock", "tap call_answer"];
 
 describe("D10, fresh install", () => {
   it("installs, signs in, stores a push token, then passes D02p and D02", async () => {
@@ -881,7 +933,7 @@ describe("D11, unattended recovery", () => {
       "shutdown 36",
     ]);
     expect(world.mostBooted()).toBeLessThanOrEqual(MAX_BOOTED);
-    expect(pixel.actions).toEqual(["tap call_decline"]);
+    expect(pixel.actions).toEqual(["tap call_decline", "reset ui"]);
     // The release boots back what was running before.
     expect(undo).toEqual([
       { kind: "device.reset", params: { device: "pixel" } },
@@ -979,7 +1031,7 @@ describe("D11, unattended recovery", () => {
       locked.pixel.deviceState.locked = true;
     };
     expect(await D11.run(locked.ctx)).toEqual(PASSED);
-    expect(locked.pixel.actions).toEqual(["unlock", "tap call_decline"]);
+    expect(locked.pixel.actions).toEqual(["unlock", "tap call_decline", "reset ui"]);
   });
 
   it("fails when D02p fails after recovery, and blames hostd when it cannot cold-restart the device lane", async () => {
