@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/BytechLabs/Texturion/compare/android-v0.17.0...android-v0.17.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **android:** keep the Telnyx SDK through R8 so the softphone registers ([a4d1900](https://github.com/BytechLabs/Texturion/commit/a4d1900f911c07e02972a448fcadbc4472f522b6))
+
 ## [0.17.0](https://github.com/BytechLabs/Texturion/compare/android-v0.16.0...android-v0.17.0) (2026-10-30)
 
 
