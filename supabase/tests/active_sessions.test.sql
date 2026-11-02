@@ -272,7 +272,63 @@ begin
 end $$;
 
 -- ===========================================================================
--- 6. Grants: everything here reads auth.sessions, so nothing may be reachable
+-- 6. A deleted account's token (it lives up to an hour after the delete) is
+--    refused as revoked. It used to break the user_sessions foreign key and
+--    surface as a 500.
+-- ===========================================================================
+insert into auth.users (id, email) values
+  ('a5000000-0000-4000-8000-00000000000c','sessions-gone@test.local');
+
+do $$
+declare v jsonb;
+begin
+  -- The account existed and had been seen once; deleting it cascades the row.
+  perform public.api_authorize_request(
+    p_user_id    => 'a5000000-0000-4000-8000-00000000000c',
+    p_session_id => 'a5000000-0000-4000-8000-000000000110');
+  delete from auth.users where id = 'a5000000-0000-4000-8000-00000000000c';
+  if exists (select 1 from public.user_sessions
+              where session_id = 'a5000000-0000-4000-8000-000000000110') then
+    raise exception 'deleting the account left its session row behind';
+  end if;
+
+  v := public.api_authorize_request(
+    p_user_id    => 'a5000000-0000-4000-8000-00000000000c',
+    p_session_id => 'a5000000-0000-4000-8000-000000000110',
+    p_company_id => 'a5000000-0000-4000-8000-000000000001',
+    p_client     => 'web');
+  if (v ->> 'session_revoked')::boolean is not true then
+    raise exception 'a deleted account must read as revoked: %', v;
+  end if;
+  if (v ->> 'session_new')::boolean then
+    raise exception 'a deleted account must not announce a new device: %', v;
+  end if;
+  if v -> 'member' is distinct from 'null'::jsonb
+     or v -> 'mfa' is distinct from 'null'::jsonb then
+    raise exception 'a deleted account must carry no membership or posture: %', v;
+  end if;
+  if exists (select 1 from public.user_sessions
+              where session_id = 'a5000000-0000-4000-8000-000000000110'
+                 or user_id = 'a5000000-0000-4000-8000-00000000000c') then
+    raise exception 'a deleted account must not get a session row written';
+  end if;
+end $$;
+
+-- An unknown user with no session id (the API-key path) must not error either.
+do $$
+declare v jsonb;
+begin
+  v := public.api_authorize_request(
+    p_user_id    => 'a5000000-0000-4000-8000-00000000000c',
+    p_session_id => null,
+    p_company_id => 'a5000000-0000-4000-8000-000000000001');
+  if v -> 'member' is distinct from 'null'::jsonb then
+    raise exception 'a deleted account must resolve to no member: %', v;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- 7. Grants: everything here reads auth.sessions, so nothing may be reachable
 --    from a browser's anon/authenticated key.
 -- ===========================================================================
 do $$

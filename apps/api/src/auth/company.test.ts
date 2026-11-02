@@ -116,6 +116,32 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     });
   });
 
+  // A deleted account's token stays valid until it expires. The database used to
+  // break a foreign key while recording the session, and the caller saw a 500.
+  // It now answers "revoked" with no membership and no posture; this pins what
+  // the middleware does with that answer.
+  it("401s the token of a deleted account instead of erroring", async () => {
+    const href = `${env.SUPABASE_URL}/rest/v1/rpc/api_authorize_request`;
+    stubFetch((url) =>
+      url.href.startsWith(href)
+        ? Response.json({
+            session_revoked: true,
+            session_new: false,
+            member: null,
+            mfa: null,
+          })
+        : undefined,
+    );
+    const res = await request({ "X-Company-Id": COMPANY_ID });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({
+      error: { code: "unauthorized", message: expect.any(String) },
+    });
+
+    const exempt = await app.request("/v1/me", {}, env);
+    expect(exempt.status).toBe(401);
+  });
+
   // #314. The lockout risk is the whole design constraint here, so what these
   // pin is mostly when the gate must NOT fire.
   it("does not demand a factor while the grace window is still open", async () => {
