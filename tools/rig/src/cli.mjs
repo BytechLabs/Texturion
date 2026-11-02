@@ -17,8 +17,9 @@ import { runCommand } from "./run.mjs";
 import { secretStore } from "./secrets.mjs";
 import { serve } from "./serve.mjs";
 import { projectIdOf } from "./supabase-config.mjs";
-import { localStatus, supabase } from "./supabase.mjs";
+import { localStatus, supabase, waitForStack } from "./supabase.mjs";
 import { run, userManagerEnv } from "./exec.mjs";
+import { waitForStackUnit } from "./stack-unit.mjs";
 import { seed } from "../../../scripts/rig/seed.mjs";
 
 export const USAGE = `rig <command>
@@ -41,6 +42,7 @@ The rig runs nothing on a timer. Every command below is something you ask for.
                                   place a release-style build as work/apk/current.apk
   serve api|web|stripe            run a service in the foreground (what the units run)
   stack up                        start the stack from the derived config; bootstrap if unready
+  stack wait                      wait until the stack unit is up (what the API and web units run first)
 `;
 
 const BOOLEAN_FLAGS = new Set([
@@ -134,6 +136,12 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
       if (report.room !== undefined) log(`room: ${report.room}`);
     }
     return report.results.every((result) => result.pass) ? 0 : 1;
+  }
+
+  // Needs neither the secret store nor a deployed ref: the units run it first.
+  if (command === "stack" && rest[0] === "wait") {
+    await waitForStackUnit({ log });
+    return 0;
   }
 
   const layout = rigLayout(env);
@@ -241,7 +249,9 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
     }
 
     case "stack": {
-      if (rest[0] !== "up") throw new Error("rig stack: only `rig stack up`");
+      if (rest[0] !== "up") throw new Error("rig stack: only `rig stack up` and `rig stack wait`");
+      // Docker restarts the containers when the VM boots; `supabase start` refuses them until they are healthy.
+      await waitForStack(projectIdFor(layout), { log });
       if (localStatus(layout.supabaseWorkdir) === null) {
         supabase(["start", "-x", STACK_EXCLUDES.join(",")], { workdir: layout.supabaseWorkdir, inherit: true });
       }

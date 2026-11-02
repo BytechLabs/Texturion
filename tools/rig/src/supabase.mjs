@@ -8,6 +8,9 @@ import { run } from "./exec.mjs";
 import { TOOLING_ROOT } from "./layout.mjs";
 import { isLocalUrl } from "../../../scripts/local-supabase.mjs";
 
+/** How long `rig stack up` gives the stack's containers to become healthy after the VM boots. */
+export const STACK_READY_MS = 3 * 60_000;
+
 /**
  * The version `supabase/setup-cli` installs in CI, read from the workflow so
  * the rig and CI cannot drift apart.
@@ -114,4 +117,64 @@ export function schemaPlan(applied, wanted) {
   return pending.length === 0
     ? { action: "none", reason: "the database is at the ref's schema" }
     : { action: "migrate", reason: `${pending.length} migration(s) to apply`, pending };
+}
+
+/** The stack's containers with their state and, when they have a healthcheck, its answer. */
+export function listStackContainers(projectId, exec = run) {
+  const { stdout, status } = exec(
+    "docker",
+    ["ps", "-a", "--filter", `label=com.supabase.cli.project=${projectId}`, "--format", "{{.Names}}\t{{.State}}\t{{.Status}}"],
+    { allowFailure: true },
+  );
+  if (status !== 0) return [];
+  return stdout
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [name = "", state = "", text = ""] = line.split("\t");
+      return { name, state, health: /\((?:health: )?(starting|healthy|unhealthy)\)/.exec(text)?.[1] ?? null };
+    });
+}
+
+/** What keeps a container from being used yet: still starting, or restarting. Null when it is ready or not meant to run. */
+export function notReadyBecause(container) {
+  if (container.state === "restarting") return "restarting";
+  if (container.state !== "running") return null;
+  return container.health === "starting" || container.health === "unhealthy" ? container.health : null;
+}
+
+/**
+ * Waits for the stack's containers to finish starting. Docker brings the
+ * containers back by itself when the VM boots (`unless-stopped`), so at that
+ * moment `supabase start` finds them "already running" and refuses while the
+ * database is still starting. The wait is bounded; a database that is not
+ * healthy by then is named, with where to look.
+ *
+ * Containers that are not running at all are left to `supabase start`.
+ */
+export async function waitForStack(
+  projectId,
+  { timeoutMs = STACK_READY_MS, intervalMs = 2_000, list = listStackContainers, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), now = Date.now, log = () => {} } = {},
+) {
+  const deadline = now() + timeoutMs;
+  const database = `supabase_db_${projectId}`;
+  let announced = false;
+  for (;;) {
+    const waiting = list(projectId)
+      .map((container) => ({ name: container.name, because: notReadyBecause(container) }))
+      .filter((entry) => entry.because !== null);
+    if (waiting.length === 0) return;
+    if (now() >= deadline) {
+      const named = waiting.map((entry) => `${entry.name} (${entry.because})`).join(", ");
+      const which = waiting.some((entry) => entry.name === database) ? `the database ${database}` : "the stack";
+      throw new Error(
+        `rig stack: ${which} was still not ready after ${Math.round(timeoutMs / 1000)} s: ${named}. Look at \`docker logs ${database}\`, then run \`rig stack up\` again.`,
+      );
+    }
+    if (!announced) {
+      log(`stack: waiting for ${waiting.map((entry) => entry.name).join(", ")}`);
+      announced = true;
+    }
+    await sleep(intervalMs);
+  }
 }

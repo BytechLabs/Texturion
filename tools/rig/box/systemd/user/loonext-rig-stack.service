@@ -1,9 +1,17 @@
 # Local Supabase from the rig's derived config, then the database's rig
 # posture if a reset or a fresh volume lost it (`rig stack up`).
 # User unit for the `rig` account, which lingers (tools/rig/README.md).
+#
+# Docker brings the containers back by itself when the VM boots, and
+# `supabase start` refuses them until the database is healthy, so `rig stack
+# up` waits for them (3 min at most) before it starts anything. A start that
+# still fails is tried again, up to five starts in an hour; the API and web units
+# wait for this one (`rig stack wait`) instead of failing with it.
 [Unit]
 Description=Loonext rig: local Supabase stack
 After=network-online.target
+StartLimitIntervalSec=1h
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
@@ -13,6 +21,8 @@ Environment=PATH=/usr/local/bin:/usr/bin:/bin
 # Docker is a system service this user manager cannot order against.
 ExecStartPre=/bin/sh -c 'for i in $$(seq 1 90); do docker info >/dev/null 2>&1 && exit 0; sleep 2; done; exit 1'
 ExecStart=/usr/local/bin/node /var/lib/loonext-rig/tooling/tools/rig/bin/rig.mjs stack up
+Restart=on-failure
+RestartSec=20s
 TimeoutStartSec=15min
 
 [Install]

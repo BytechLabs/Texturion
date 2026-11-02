@@ -247,6 +247,8 @@ It starts from the Startup folder when you log on. An elevated ONSTART task with
 
 **Recovery.** hostd restarts a stuck emulator by killing its process and cold-booting it (`-no-snapshot-load`), which is what D11 tests. A stuck VM is reverted to its powered-off baseline snapshot; the secrets disk is independent, so it survives the revert.
 
+**Boot order inside the VM.** Docker brings the Supabase containers back by itself when the VM boots, and `supabase start` refuses them until the database is healthy. `rig stack up` therefore waits for the stack's containers (3 minutes at most, and it names the database when it gives up) before it starts anything. The stack unit retries a failed start up to five times in an hour. The API and web units want the stack unit and run `rig stack wait` first, which waits through the retries and fails with a reason once the stack unit has given up; `Requires=` would have failed them for good on the stack's first failed start. `rig deploy` copies these three units from the tooling checkout when they differ.
+
 **What running on the workstation costs.** Measured read-only on 2026-10-31:
 - **It is not always on.** In the last 60 days the workstation booted 33 times and was dark about 56 hours in all. Five of those gaps were overnight power-offs of 9-14 hours, each covering the whole dial window, so a paid run could not be started then.
 - **Update restarts land in the window.** Windows Update restarted it 6 times, at 08:29-10:44 UTC, against the default 04:00-10:00 UTC dial window. Active hours are 08:00-02:00 local. Sleep and hibernate on AC are already Never.

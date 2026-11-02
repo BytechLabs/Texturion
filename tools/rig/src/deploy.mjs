@@ -199,6 +199,27 @@ export function removeLegacyUnits({ unitDir, systemctl = systemctlUser }) {
   return removed;
 }
 
+/**
+ * The stack, API and web units from the tooling checkout, written into the
+ * user manager's folder when they differ. bootstrap.sh copies them once, so
+ * without this a fix to a unit never reaches a VM that already exists.
+ * @returns {string[]} the unit files written
+ */
+export function syncUserUnits({ source, unitDir, systemctl = systemctlUser }) {
+  mkdirSync(unitDir, { recursive: true });
+  const written = [];
+  for (const file of readdirSync(source)) {
+    if (!file.endsWith(".service")) continue;
+    const wanted = readFileSync(join(source, file));
+    const target = join(unitDir, file);
+    if (existsSync(target) && readFileSync(target).equals(wanted)) continue;
+    writeFileSync(target, wanted);
+    written.push(file);
+  }
+  if (written.length > 0) systemctl(["daemon-reload"]);
+  return written;
+}
+
 /** rigd writes its own units. Like the `rig` CLI, it runs from the tooling checkout, never the deployed ref. */
 export function rigdUnitsCommand(nodeBin = process.execPath, root = TOOLING_ROOT, target = ["--install"]) {
   return { command: nodeBin, args: [join(root, "tools", "rig", "rigd", "src", "cli.ts"), "units", ...target] };
@@ -252,9 +273,12 @@ export function activate({
   unitDir = join(homedir(), ".config", "systemd", "user"),
   systemctl = systemctlUser,
   runner = run,
+  unitSource,
 }) {
   const removed = removeLegacyUnits({ unitDir, systemctl });
   if (removed.length > 0) log(`timers removed: ${removed.join(", ")}`);
+  const synced = unitSource ? syncUserUnits({ source: unitSource, unitDir, systemctl }) : [];
+  if (synced.length > 0) log(`units updated: ${synced.join(", ")}`);
   systemctl(["restart", ...SERVICE_UNITS], { inherit: true });
   log(`services restarted: ${SERVICE_UNITS.join(", ")}`);
   const { command, args } = rigdUnitsCommand(nodeBin);
@@ -456,6 +480,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
     sha,
     ref,
     log,
+    systemd: { unitSource: join(TOOLING_ROOT, "tools", "rig", "box", "systemd", "user") },
     migrate() {
       if (plan.action === "migrate") {
         try {
