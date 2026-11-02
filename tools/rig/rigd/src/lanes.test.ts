@@ -599,7 +599,7 @@ describe("the Stripe sandbox", () => {
 
   it("sends only with a test key and only on the paths the rig uses", async () => {
     const { fetch, requests } = fakeFetch({ "POST https://api.stripe.com/v1/test_helpers/test_clocks": () => json({ id: "clock_1", livemode: false }) });
-    const sandbox = (key: string) => new StripeSandbox({ key: () => key, subscriptionIdOf: async () => null, checkoutSubscriptionOf: async () => null, fetch });
+    const sandbox = (key: string) => new StripeSandbox({ key: () => key, subscriptionIdOf: async () => null, checkoutSubscriptionOf: async () => null, checkoutCustomerOf: async () => null, fetch });
     expect(await sandbox("sk_test_x").request("POST", "/v1/test_helpers/test_clocks", { frozen_time: 1 })).toMatchObject({ id: "clock_1" });
     expect(requests[0]!.body).toBe("frozen_time=1");
     await expect(sandbox("sk_live_x").request("POST", "/v1/test_helpers/test_clocks")).rejects.toThrow(/not a test-mode key/);
@@ -609,13 +609,13 @@ describe("the Stripe sandbox", () => {
 
   it("stops at a live-mode answer", async () => {
     const { fetch } = fakeFetch({ "GET https://api.stripe.com/v1/subscriptions/sub_1": () => json({ id: "sub_1", status: "active", livemode: true }) });
-    const sandbox = new StripeSandbox({ key: () => "sk_test_x", subscriptionIdOf: async () => "sub_1", checkoutSubscriptionOf: async () => null, fetch });
+    const sandbox = new StripeSandbox({ key: () => "sk_test_x", subscriptionIdOf: async () => "sub_1", checkoutSubscriptionOf: async () => null, checkoutCustomerOf: async () => null, fetch });
     await expect(sandbox.subscriptionOf("QA-W")).rejects.toThrow(/live mode/);
   });
 
   it("tags what it creates: metadata on a customer or subscription, a name prefix on a named clock", async () => {
     const { fetch, requests } = fakeFetch({ "POST https://api.stripe.com/v1/": () => json({ id: "x_1", livemode: false }) });
-    const sandbox = new StripeSandbox({ key: () => "sk_test_x", subscriptionIdOf: async () => null, checkoutSubscriptionOf: async () => null, fetch });
+    const sandbox = new StripeSandbox({ key: () => "sk_test_x", subscriptionIdOf: async () => null, checkoutSubscriptionOf: async () => null, checkoutCustomerOf: async () => null, fetch });
     await sandbox.request("POST", "/v1/customers", { email: "a@resend.dev", metadata: { rig: "s29" } });
     await sandbox.request("POST", "/v1/subscriptions", { customer: "cus_1" });
     await sandbox.request("POST", "/v1/test_helpers/test_clocks", { frozen_time: 1, name: "S29 run" });
@@ -641,7 +641,7 @@ describe("the Stripe sandbox", () => {
       "DELETE https://api.stripe.com/v1/": () => json({ deleted: true }),
       "POST https://api.stripe.com/v1/": () => json({}),
     });
-    const sandbox = new StripeSandbox({ key: () => "sk_test_x", subscriptionIdOf: async () => null, checkoutSubscriptionOf: async () => null, fetch });
+    const sandbox = new StripeSandbox({ key: () => "sk_test_x", subscriptionIdOf: async () => null, checkoutSubscriptionOf: async () => null, checkoutCustomerOf: async () => null, fetch });
     await sandbox.request("DELETE", "/v1/subscriptions/sub_ours");
     await sandbox.request("POST", "/v1/test_helpers/test_clocks/clock_ours/advance", { frozen_time: 2 });
     await sandbox.request("DELETE", "/v1/test_helpers/test_clocks/clock_ours");
@@ -667,6 +667,7 @@ describe("the Stripe sandbox", () => {
       key: () => "sk_test_x",
       subscriptionIdOf: async () => null,
       checkoutSubscriptionOf: async (email) => (email === owner ? "sub_s32" : null),
+      checkoutCustomerOf: async (email) => (email === owner ? "cus_s32" : null),
       fetch,
     });
     await expect(sandbox.adoptCheckoutSubscription({ ownerEmail: "dev@example.test", subscriptionId: "sub_s32" })).rejects.toThrow(/sign-up scenario/);
@@ -675,6 +676,39 @@ describe("the Stripe sandbox", () => {
     await sandbox.adoptCheckoutSubscription({ ownerEmail: owner, subscriptionId: "sub_s32" });
     expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual(["GET https://api.stripe.com/v1/subscriptions/sub_s32", tag]);
     expect(decodeURIComponent(requests[1]!.body ?? "")).toBe("metadata[loonext_rig]=1");
+  });
+
+  it("adopts only the Checkout customer the rig's database gives a sign-up address", async () => {
+    const tag = "POST https://api.stripe.com/v1/customers/cus_s32";
+    const { fetch, requests } = fakeFetch({
+      "GET https://api.stripe.com/v1/customers/cus_s32": () => json({ id: "cus_s32", metadata: {} }),
+      [tag]: () => json({ id: "cus_s32", metadata: { loonext_rig: "1" } }),
+    });
+    const owner = "delivered+rig-s32-run-1@resend.dev";
+    const sandbox = new StripeSandbox({
+      key: () => "sk_test_x",
+      subscriptionIdOf: async () => null,
+      checkoutSubscriptionOf: async () => null,
+      checkoutCustomerOf: async (email) => (email === owner ? "cus_s32" : null),
+      fetch,
+    });
+    await expect(sandbox.adoptCheckoutCustomer({ ownerEmail: owner, customerId: "cus_other" })).rejects.toThrow(/does not give/);
+    await expect(sandbox.adoptCheckoutCustomer({ ownerEmail: owner, customerId: "sub_s32" })).rejects.toThrow(/not a customer id/);
+    expect(requests).toEqual([]);
+    await sandbox.adoptCheckoutCustomer({ ownerEmail: owner, customerId: "cus_s32" });
+    expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual(["GET https://api.stripe.com/v1/customers/cus_s32", tag]);
+  });
+
+  it("reads the test mode's portal configurations and tax settings, S32's preflight", async () => {
+    const { fetch, requests } = fakeFetch({
+      "GET https://api.stripe.com/v1/billing_portal/configurations": () => json({ data: [] }),
+      "GET https://api.stripe.com/v1/tax/settings": () => json({ status: "active" }),
+    });
+    const sandbox = new StripeSandbox({ key: () => "sk_test_x", subscriptionIdOf: async () => null, checkoutSubscriptionOf: async () => null, checkoutCustomerOf: async () => null, fetch });
+    await sandbox.request("GET", "/v1/billing_portal/configurations", { is_default: true });
+    await sandbox.request("GET", "/v1/tax/settings");
+    await expect(sandbox.request("POST", "/v1/billing_portal/configurations")).rejects.toThrow(/not a path the rig uses/);
+    expect(requests).toHaveLength(2);
   });
 
   it("deletes a run's subscription or test clock once, and leaves one already gone", async () => {
@@ -697,10 +731,10 @@ describe("the Stripe sandbox", () => {
     await expect(deleteStripeObject(gone, { path: "/v1/test_helpers/test_clocks/clock_1" })).resolves.toBeUndefined();
   });
 
-  it("deletes nothing but a subscription or a test clock", async () => {
+  it("deletes nothing but a customer, a subscription or a test clock", async () => {
     const stripe = new FakeStripe();
-    await expect(deleteStripeObject(stripe, { path: "/v1/customers/cus_1" })).rejects.toThrow(/subscription or test clock/);
-    await expect(deleteStripeObject(stripe, {})).rejects.toThrow(/subscription or test clock/);
+    await expect(deleteStripeObject(stripe, { path: "/v1/products/prod_1" })).rejects.toThrow(/customer, subscription or test clock/);
+    await expect(deleteStripeObject(stripe, {})).rejects.toThrow(/customer, subscription or test clock/);
     expect(stripe.requests).toEqual([]);
   });
 });

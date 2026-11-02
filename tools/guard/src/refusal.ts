@@ -53,6 +53,7 @@ export const RULES = [
 
   "provisioning.search_needs_lease",
   "provisioning.search_rate",
+  "provisioning.search_cap",
   "provisioning.ordering_off",
   "provisioning.resume_refused",
   "provisioning.order_needs_lease",
@@ -138,6 +139,7 @@ export type RuleName = (typeof RULES)[number];
 export function statusFor(rule: RuleName): 403 | 429 {
   return rule.startsWith("budget.") ||
     rule === "provisioning.search_rate" ||
+    rule === "provisioning.search_cap" ||
     rule === "provisioning.order_interval"
     ? 429
     : 403;

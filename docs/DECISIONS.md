@@ -9408,6 +9408,32 @@ with its reason:
 - **Cost.** Hardware is $0 and the one-time cost about $8. The monthly cost
   stays about $24, plus an estimated $2-6 of workstation power.
 
+**Update, 2026-11-02: S32 passes the number step without buying a number.**
+- **The fixture number is rig test data, not a mock.** S32 drives the real
+  wizard, the real hosted Checkout in Stripe test mode, the real paid webhook
+  and the real portal. Before Checkout, rigd inserts one row into the rig's
+  own `phone_numbers`: active, no Telnyx id, a fictional `+1 <npa> 555-01xx`
+  number (NANP's fictional range), keyed `rig-signup-s32-<nonce>`. The paid
+  webhook's provisioning then finds a number it did not buy and skips the
+  purchase, as it does for a resubscribe within grace. No product code path is
+  faked or changed: the row lives only in the rig's database, every path that
+  reaches Telnyx skips a row with no Telnyx id, and S32's undo releases it in
+  the database. Why: the rig keeps its eight standing numbers and orders no
+  new ones, and buying was dropped with S28 ("why would we need to test
+  buying").
+- **The guard lets S32's lease search and nothing more.** A number search is
+  forwarded only under a live S32 lease, at most 12 a lease and 1 second
+  apart. Ordering still needs S28's lease, so it is refused under every lease
+  a run takes. Why: the picker is the step's real UI, and a search is a free
+  read.
+- **The sign-up's address is suppressed for the app's mail until its undo.**
+  Cancelling S32's test subscription mails the day-1 grace notice, and the
+  guard allows ten Resend sends a day. The suppression row is the app's own
+  `email_suppressions`, so the app decides not to send, as it does for a hard
+  bounce.
+- **Not covered:** the US branch (US texting, the $29 fee line, the business
+  step after payment, 10DLC) and the number purchase itself.
+
 ## D143 - a calendar event never becomes a job on its own; the connector stays a mirror (#245, 2026-11-01)
 
 **Decision.** Inbound creation is withdrawn. The two-way connector mirrors

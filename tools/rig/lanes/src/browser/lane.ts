@@ -60,9 +60,34 @@ export const SELECTORS = {
   wizardContinue: { role: "button", name: "Continue" },
   numberStepTitle: "How do you want your business number?",
   numbersLoadFailed: "Couldn't load numbers",
-  /** The number picker's rows (components/numbers/number-picker.tsx); the step's other radios are its mode and country. */
+  /** The number step's country and US-texting radios (i18n/sections/onboarding.ts). */
+  canada: { role: "radio", name: "Canada" },
+  canadianCustomersOnly: { role: "radio", name: "No, Canadian customers only" },
+  /** The number picker (components/numbers/number-picker.tsx, i18n/sections/misc.ts). */
+  areaCode: "Area code (optional)",
+  numbersRefresh: { role: "button", name: "Refresh" },
+  /** Canada's masked inventory: one choice for the whole area code. */
+  maskedNumber: (code: string) => ({ role: "radio" as const, name: `Get a number in area code ${code}` }),
+  /** The picker's rows; the step's other radios are its mode and country. */
   listedNumber: 'ul button[role="radio"]',
-  checkoutCard: 'input[name="cardnumber"], input[name="cardNumber"]',
+  /** The plan step's commit, and setting-up's way out (i18n/sections/onboarding.ts). */
+  continueToCheckout: { role: "button", name: "Continue to checkout" },
+  openInbox: { role: "link", name: "Open your inbox" },
+  /** Billing's portal button (app/(app)/settings/billing/page.tsx, appShell.billingManagePortal). */
+  billingPortal: { role: "button", name: "Manage payment & invoices" },
+  /** Stripe's hosted Checkout fields, by their element names. */
+  checkout: {
+    email: 'input[name="email"]',
+    cardAccordion: '[data-testid="card-accordion-item-button"], button[aria-label="Pay with card"]',
+    cardNumber: 'input[name="cardNumber"], input[name="cardnumber"]',
+    cardExpiry: 'input[name="cardExpiry"]',
+    cardCvc: 'input[name="cardCvc"]',
+    billingName: 'input[name="billingName"]',
+    billingCountry: 'select[name="billingCountry"]',
+    billingPostalCode: 'input[name="billingPostalCode"]',
+    submit: 'button[type="submit"]',
+    challenge: 'iframe[src*="hcaptcha"], iframe[title*="challenge" i]',
+  },
 } as const;
 
 /** Stripe's hosted pages the lane may follow Checkout and the portal to. */
@@ -71,6 +96,15 @@ export const STRIPE_HOSTS = ["checkout.stripe.com", "billing.stripe.com"] as con
 export const LOGIN_PATH = "/login";
 const WIZARD_PATH = /^\/onboarding\/([a-z-]+)$/;
 const WIZARD_STEP_TIMEOUT_MS = 15_000;
+/** Refresh is pressed at most this often on a picker that could not load, this far apart. */
+const NUMBER_REFRESHES = 2;
+const NUMBER_REFRESH_GAP_MS = 2_000;
+/** A little over the guard's spacing between one lease's number searches. */
+const SEARCH_SPACING_MS = 1_200;
+/** The inbox must still show this long after it opens: an unfinished setup sends the owner back to onboarding. */
+const INBOX_SETTLE_MS = 3_000;
+const CHECKOUT_OPEN_TIMEOUT_MS = 30_000;
+const CHECKOUT_RETURN_TIMEOUT_MS = 90_000;
 const SIGN_IN_TIMEOUT_MS = 30_000;
 const PUSH_TIMEOUT_MS = 15_000;
 const CLEARED_POLL_MS = 100;
@@ -95,10 +129,11 @@ export interface BrowserLaneOptions {
   browserType?: BrowserType;
   executablePath?: string;
   /**
-   * Google Chrome, for the pages opened with `push: true`: Chromium has no
-   * push service, so Web Push (S21, D08) runs only there. It runs in Chrome's
-   * own headless mode, which needs no display and gets a push subscription;
-   * `headless: false` runs it headed, which needs a display.
+   * Google Chrome, for the pages opened with `push: true` and the public
+   * page: Chromium has no push service, so Web Push (S21, D08) runs only
+   * there. It runs in Chrome's own headless mode, which needs no display and
+   * gets a push subscription; `headless: false` runs it headed, which needs a
+   * display.
    */
   chrome?: { executablePath: string };
 }
@@ -119,6 +154,27 @@ export interface OnboardingWalk {
   steps: string[];
   /** "listed" numbers to pick from, "failed" to load them, or neither within the wait. */
   numberSearch: "listed" | "failed" | "pending";
+}
+
+/** What the number step did: which inventory the picker offered and whether the plan step followed. */
+export interface NumberChoice {
+  /** masked: Canada's area-code choice; revealed: a list of numbers; failed: never loaded, Refresh included. */
+  inventory: "masked" | "revealed" | "failed" | "none";
+  refreshes: number;
+  /** True once the plan step showed. */
+  continued: boolean;
+  /** The step's own alert, when it showed one. */
+  alert?: string;
+}
+
+/** What hosted Checkout did. */
+export interface CheckoutRun {
+  /** Back on the app's own origin after paying. */
+  returned: boolean;
+  /** Stripe showed an hCaptcha or other challenge frame. */
+  challenged: boolean;
+  /** The pay button was pressed. */
+  submitted: boolean;
 }
 
 export class BrowserLane {
@@ -165,11 +221,15 @@ export class BrowserLane {
     return opened;
   }
 
-  /** A fresh browser with no profile and nobody signed in, closed with the run. */
+  /**
+   * A fresh browser with no profile and nobody signed in, closed with the run.
+   * Google Chrome when the lane has it: the page goes on to Stripe's hosted
+   * Checkout, which challenges Chromium's headless shell more often.
+   */
   async openPublic(path: string): Promise<PublicPage> {
     const browser = await (this.#o.browserType ?? chromium).launch({
       headless: this.#o.headless ?? true,
-      executablePath: this.#o.executablePath,
+      executablePath: this.#o.chrome?.executablePath ?? this.#o.executablePath,
       args: [`--host-resolver-rules=${hostResolverRules()}`],
     });
     const context = await browser.newContext({ locale: "en-CA", timezoneId: "America/Toronto" });
@@ -240,11 +300,9 @@ export class PublicPage {
   }
 
   /**
-   * Walks the onboarding wizard as far as it is safe to: the name step is
-   * filled in and continued, and the walk stops on the number step without
-   * touching it. Continuing from there creates the workspace, and the
-   * Checkout after it ends in an order for a number. Null when the page is
-   * not on the name step, or the name step never moves on.
+   * Fills in the wizard's name step and continues, then stops on the number
+   * step, recording whether its picker listed numbers. Null when the page is
+   * not on the name step, or the name step never reaches the number step.
    */
   async walkOnboarding(args: { business: string }): Promise<OnboardingWalk | null> {
     const wizardStep = () => WIZARD_PATH.exec(new URL(this.page.url()).pathname)?.[1];
@@ -266,30 +324,71 @@ export class PublicPage {
     return { steps, numberSearch };
   }
 
-  async checkout(args: { card: string }): Promise<{ returned: boolean; challenged: boolean }> {
-    if (!/^\d{16}$/.test(args.card)) throw new Error("browser lane: a test card is 16 digits");
-    await this.goto("/settings/billing");
-    await this.page.getByRole("button", { name: /^(Subscribe|Choose|Start|Upgrade)/ }).first().click({ timeout: PUSH_TIMEOUT_MS });
-    await this.page.waitForURL((url) => url.hostname === "checkout.stripe.com", { timeout: 30_000 });
-    const challenged = (await this.page.locator('iframe[src*="hcaptcha"], iframe[title*="challenge" i]').count()) > 0;
-    await this.page.locator(SELECTORS.checkoutCard).first().fill(args.card);
-    await this.page.locator('input[name="cardExpiry"]').fill("12 / 34");
-    await this.page.locator('input[name="cardCvc"]').fill("123");
-    const holder = this.page.locator('input[name="billingName"]');
-    if (await holder.count()) await holder.fill("Rig Owner");
-    await this.page.locator('button[type="submit"]').first().click();
+  /**
+   * The number step for a Canadian workspace: Canada, the area code, a number
+   * in it, Canadian customers only, then Continue, which creates the
+   * workspace. A picker that could not load is refreshed before giving up.
+   */
+  async chooseCanadianNumber(args: { areaCode: string }): Promise<NumberChoice> {
+    if (!/^[2-9]\d{2}$/.test(args.areaCode)) throw new Error("browser lane: an area code is three digits");
+    // Each click below starts a search, and the guard spaces S32's searches a second apart.
+    await this.page.waitForTimeout(SEARCH_SPACING_MS);
+    await this.page.getByRole(SELECTORS.canada.role, { name: SELECTORS.canada.name, exact: true }).click();
+    await this.page.getByLabel(SELECTORS.areaCode).fill(args.areaCode);
+    await this.page.waitForTimeout(SEARCH_SPACING_MS);
+    await this.page.getByRole("button", { name: new RegExp(`^\\(${args.areaCode}\\)`) }).first().click({ timeout: WIZARD_STEP_TIMEOUT_MS });
+    const picked = await pickNumber(this.page, args.areaCode);
+    if (picked.inventory === "failed" || picked.inventory === "none") return { ...picked, continued: false };
+    await this.page.getByRole(SELECTORS.canadianCustomersOnly.role, { name: SELECTORS.canadianCustomersOnly.name, exact: true }).click();
+    await this.page.getByRole(SELECTORS.wizardContinue.role, { name: SELECTORS.wizardContinue.name, exact: true }).click();
     try {
-      await this.page.waitForURL((url) => url.origin === new URL(this.#origin).origin, { timeout: 60_000 });
-      return { returned: true, challenged };
+      await this.page.waitForURL((url) => url.pathname === "/onboarding/plan", { timeout: WIZARD_STEP_TIMEOUT_MS });
+      return { ...picked, continued: true };
     } catch {
-      return { returned: false, challenged };
+      const alert = await this.page.getByRole("alert").first().textContent({ timeout: 1_000 }).catch(() => null);
+      return { ...picked, continued: false, ...(alert ? { alert: alert.trim() } : {}) };
+    }
+  }
+
+  async continueToCheckout(): Promise<boolean> {
+    await this.page.getByRole(SELECTORS.continueToCheckout.role, { name: SELECTORS.continueToCheckout.name, exact: true }).click({ timeout: WIZARD_STEP_TIMEOUT_MS });
+    try {
+      await this.page.waitForURL((url) => url.hostname === "checkout.stripe.com", { timeout: CHECKOUT_OPEN_TIMEOUT_MS });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Pays on hosted Checkout, which continueToCheckout opened, and waits to be sent back to the app. */
+  async checkout(args: { card: string; email: string; postalCode: string }): Promise<CheckoutRun> {
+    if (!/^\d{16}$/.test(args.card)) throw new Error("browser lane: a test card is 16 digits");
+    if (new URL(this.page.url()).hostname !== "checkout.stripe.com") throw new Error("browser lane: Checkout is not open");
+    const filled = await fillCheckout(this.page, args);
+    if (!filled.submitted) return { returned: false, ...filled };
+    try {
+      await this.page.waitForURL((url) => url.origin === new URL(this.#origin).origin, { timeout: CHECKOUT_RETURN_TIMEOUT_MS });
+      return { returned: true, ...filled };
+    } catch {
+      return { returned: false, ...filled, challenged: filled.challenged || (await challenged(this.page)) };
+    }
+  }
+
+  async waitForInbox(timeoutMs: number): Promise<boolean> {
+    try {
+      await this.page.getByRole(SELECTORS.openInbox.role, { name: SELECTORS.openInbox.name, exact: true }).first().click({ timeout: timeoutMs });
+      await this.page.waitForURL((url) => url.pathname === "/inbox", { timeout: WIZARD_STEP_TIMEOUT_MS });
+      await this.page.waitForTimeout(INBOX_SETTLE_MS);
+      return new URL(this.page.url()).pathname === "/inbox";
+    } catch {
+      return false;
     }
   }
 
   async openBillingPortal(): Promise<string | null> {
     await this.goto("/settings/billing");
     try {
-      await this.page.getByRole("button", { name: /portal|Manage billing|Manage subscription/i }).first().click({ timeout: PUSH_TIMEOUT_MS });
+      await this.page.getByRole(SELECTORS.billingPortal.role, { name: SELECTORS.billingPortal.name, exact: true }).first().click({ timeout: PUSH_TIMEOUT_MS });
       await this.page.waitForURL((url) => url.hostname === "billing.stripe.com", { timeout: 30_000 });
       return new URL(this.page.url()).hostname;
     } catch {
@@ -300,6 +399,66 @@ export class PublicPage {
   close(): Promise<void> {
     return this.#close();
   }
+}
+
+/**
+ * Picks a number on the number step's picker once it has loaded: the area
+ * code's one choice for masked inventory, else the first listed number.
+ * Refresh is pressed when it could not load.
+ */
+export async function pickNumber(page: Page, areaCode: string): Promise<Omit<NumberChoice, "continued">> {
+  // The choice's name runs on into its hint, so it is matched from its start.
+  const masked = page.getByRole("radio", { name: new RegExp(`^${SELECTORS.maskedNumber(areaCode).name}(?!\\d)`) });
+  const listed = page.locator(SELECTORS.listedNumber);
+  const failed = page.getByText(SELECTORS.numbersLoadFailed);
+  let refreshes = 0;
+  for (;;) {
+    await masked.or(listed.first()).or(failed).first().waitFor({ timeout: WIZARD_STEP_TIMEOUT_MS }).catch(() => undefined);
+    if (await masked.count()) {
+      await masked.click();
+      return { inventory: "masked", refreshes };
+    }
+    if (await listed.count()) {
+      await listed.first().click();
+      return { inventory: "revealed", refreshes };
+    }
+    if (!(await failed.count())) return { inventory: "none", refreshes };
+    if (refreshes >= NUMBER_REFRESHES) return { inventory: "failed", refreshes };
+    await page.waitForTimeout(NUMBER_REFRESH_GAP_MS);
+    await page.getByRole(SELECTORS.numbersRefresh.role, { name: SELECTORS.numbersRefresh.name, exact: true }).click();
+    refreshes++;
+    await failed.waitFor({ state: "detached", timeout: WIZARD_STEP_TIMEOUT_MS }).catch(() => undefined);
+  }
+}
+
+async function challenged(page: Page): Promise<boolean> {
+  return (await page.locator(SELECTORS.checkout.challenge).count()) > 0;
+}
+
+/**
+ * Fills hosted Checkout as a Canadian customer pays: the email when it asks,
+ * the card, the name, and the country and postal code automatic tax needs,
+ * then presses Pay. A challenge frame is recorded and never answered.
+ */
+export async function fillCheckout(page: Page, args: { card: string; email: string; postalCode: string }): Promise<Omit<CheckoutRun, "returned">> {
+  const fields = SELECTORS.checkout;
+  await page.locator(fields.cardNumber).or(page.locator(fields.cardAccordion)).or(page.locator(fields.email)).first().waitFor({ timeout: CHECKOUT_OPEN_TIMEOUT_MS });
+  const email = page.locator(fields.email);
+  if ((await email.count()) && (await email.isEditable()) && !(await email.inputValue())) await email.fill(args.email);
+  const accordion = page.locator(fields.cardAccordion);
+  if ((await accordion.count()) && !(await page.locator(fields.cardNumber).isVisible())) await accordion.first().click();
+  await page.locator(fields.cardNumber).first().fill(args.card);
+  await page.locator(fields.cardExpiry).fill("12 / 34");
+  await page.locator(fields.cardCvc).fill("123");
+  const holder = page.locator(fields.billingName);
+  if (await holder.count()) await holder.fill("Rig Owner");
+  const country = page.locator(fields.billingCountry);
+  if (await country.count()) await country.selectOption("CA");
+  const postal = page.locator(fields.billingPostalCode);
+  if (await postal.count()) await postal.fill(args.postalCode);
+  if (await challenged(page)) return { challenged: true, submitted: false };
+  await page.locator(fields.submit).first().click();
+  return { challenged: false, submitted: true };
 }
 
 export function onLoginPage(url: string): boolean {

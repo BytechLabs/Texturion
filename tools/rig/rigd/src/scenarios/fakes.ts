@@ -5,8 +5,9 @@
  * the runner name the failure.
  */
 import type { GuardHealth, LeaseActivity } from "@loonext/rig-protocol";
-import type { CallTestId, DeviceState, HostdHealth, NetworkShape, OnboardingWalk, PageHearing, RigDeviceName, StandbyBucket } from "@loonext/rig-lanes";
+import type { CallTestId, CheckoutRun, DeviceState, HostdHealth, NetworkShape, NumberChoice, OnboardingWalk, PageHearing, RigDeviceName, StandbyBucket } from "@loonext/rig-lanes";
 import type { CallPlan, CallRecord, Detection, InboxMessage, RobotApi, SinkDelivery, Surface } from "@loonext/rig-robot";
+import { signUpNumberKey } from "../app-probe.ts";
 import type { UndoAction } from "../lease.ts";
 import type { SeenEvent } from "../sentry-relay.ts";
 import type {
@@ -17,6 +18,7 @@ import type {
   BrowserApi,
   CallRow,
   CallStart,
+  CheckoutEvent,
   CompanyField,
   DeviceApi,
   DevicesApi,
@@ -39,6 +41,9 @@ import type {
   ScenarioHistoryApi,
   ScenarioLanes,
   SendResult,
+  SignUpNumber,
+  SignUpNumberRow,
+  SignUpWorkspace,
   StripeApi,
   VoiceCapState,
   WebhookDelivery,
@@ -496,13 +501,40 @@ export class FakeApp implements AppApi {
     this.mailAccounts.delete(args.email);
   }
   readonly passwordResets: string[] = [];
-  signUps = new Map<string, { company_id: string; subscription_status: string; stripe_subscription_id: string | null }>();
+  signUps = new Map<string, SignUpWorkspace>();
+  /** Number rows by sign-up address; the fixture S32 assigns lands here. */
+  signUpRows = new Map<string, SignUpNumberRow[]>();
+  /** The paid webhook's ledger row by sign-up address. */
+  checkoutEvents = new Map<string, CheckoutEvent>();
+  /** What signUpNumberLeak answers. */
+  leak = { fixtures: 0, foreign: [] as string[] };
+  readonly mutedMail: string[] = [];
   async sendPasswordReset(args: { member: string }) {
     this.passwordResets.push(args.member);
     return 200;
   }
   async workspaceOf(args: { ownerEmail: string }) {
     return this.signUps.get(args.ownerEmail) ?? null;
+  }
+  async assignSignUpNumber(args: { ownerEmail: string; nonce: string }): Promise<SignUpNumber> {
+    const row = { id: `fixture-${args.nonce}`, status: "active", provisioning_key: signUpNumberKey(args.nonce) };
+    this.signUpRows.set(args.ownerEmail, [...(this.signUpRows.get(args.ownerEmail) ?? []), row]);
+    return { row_id: row.id, number_e164: "+14165550142", provisioning_key: row.provisioning_key };
+  }
+  async releaseSignUpNumber(args: { provisioningKey: string }) {
+    for (const rows of this.signUpRows.values()) for (const row of rows) if (row.provisioning_key === args.provisioningKey) row.status = "released";
+  }
+  async signUpNumbers(args: { ownerEmail: string }) {
+    return this.signUpRows.get(args.ownerEmail) ?? [];
+  }
+  async checkoutEvent(args: { ownerEmail: string }) {
+    return this.checkoutEvents.get(args.ownerEmail) ?? null;
+  }
+  async signUpNumberLeak() {
+    return this.leak;
+  }
+  async muteSignUpMail(args: { email: string }) {
+    this.mutedMail.push(args.email);
   }
   async provisionNumber() {
     return this.provisioned;
@@ -558,8 +590,11 @@ export class FakeBrowser implements BrowserApi {
   /** What the public flows answer. */
   publicScript = {
     signUp: { ok: true } as { ok: boolean; alert?: string },
-    onboarding: { steps: ["name", "number"], numberSearch: "failed" } as OnboardingWalk | null,
-    checkout: { returned: true, challenged: false },
+    onboarding: { steps: ["name", "number"], numberSearch: "listed" } as OnboardingWalk | null,
+    numberChoice: { inventory: "masked", refreshes: 0, continued: true } as NumberChoice,
+    checkoutOpens: true,
+    checkout: { returned: true, challenged: false, submitted: true } as CheckoutRun,
+    inbox: true,
     portalHost: "billing.stripe.com" as string | null,
     path: "/",
   };
@@ -665,8 +700,20 @@ export class FakeBrowser implements BrowserApi {
       async walkOnboarding() {
         return script.onboarding;
       },
-      async checkout() {
+      async chooseCanadianNumber(args) {
+        actions.push(`public number ${args.areaCode}`);
+        return script.numberChoice;
+      },
+      async continueToCheckout() {
+        actions.push("public continue to checkout");
+        return script.checkoutOpens;
+      },
+      async checkout(args) {
+        actions.push(`public checkout ${args.postalCode}`);
         return script.checkout;
+      },
+      async waitForInbox() {
+        return script.inbox;
       },
       async openBillingPortal() {
         return script.portalHost;
@@ -1041,6 +1088,9 @@ export class FakeStripe implements StripeApi {
   }
   async adoptCheckoutSubscription(args: { ownerEmail: string; subscriptionId: string }) {
     this.adopted.push(args.subscriptionId);
+  }
+  async adoptCheckoutCustomer(args: { ownerEmail: string; customerId: string }) {
+    this.adopted.push(args.customerId);
   }
 }
 

@@ -52,6 +52,9 @@ export const AI_NEURONS_PER_DAY = 2_000;
 export const CREDENTIALS_PER_DAY = 50;
 
 export const SEARCH_INTERVAL_MS = 10 * 1000;
+/** Searches one lease may make, at least this far apart: enough for the wizard's picker to switch country and retry. */
+export const SEARCH_PER_LEASE = 12;
+export const LEASE_SEARCH_SPACING_MS = 1_000;
 export const ORDER_INTERVAL_MS = 25 * DAY;
 export const MAX_NUMBERS_HELD = 10;
 /** How long a complete first order's number may stay unlisted before ordering stops: Telnyx can list a new number late. */
@@ -129,9 +132,11 @@ export const LIVE_LEG_HORIZON_MS = HOUR;
  */
 export const CORE_SCENARIOS: readonly string[] = ["G01", "S01", "S02", "S04", "S20", "S21", "D02"];
 
-/** The lease scenarios that unlock a number search and order, and the robot mailbox. */
+/** The lease scenarios a number order (S28, dropped from the rig's runs) and the robot mailbox need. */
 export const NUMBER_SCENARIO = "S28";
 export const MAILBOX_SCENARIO = "S34";
+/** The lease scenarios that may search for numbers: S32's onboarding picker searches and never orders. */
+export const SEARCH_SCENARIOS: readonly string[] = ["S32"];
 
 /** The models the app calls; keep in step with apps/api/src/billing/workers-ai-prices.ts. */
 export const AI_MODELS: Readonly<Record<string, AiModelRate>> = {

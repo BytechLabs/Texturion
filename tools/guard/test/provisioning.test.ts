@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { LEASE_SEARCH_SPACING_MS, SEARCH_PER_LEASE } from "../src/limits";
 import { charge, readTier } from "../src/state/ledger";
 import { ORDER_KEYS } from "../src/telnyx/ordering";
 import { EDGE, lease, N, ready, ruleOf, type Harness } from "./support";
@@ -18,18 +19,73 @@ function order(h: Harness, body: Record<string, unknown> = {}) {
   });
 }
 
+/** S32's lease as rigd takes it: a run that dials nothing. */
+async function signUpLease(h: Harness): Promise<string> {
+  const response = await h.call("/lease", { caller: "robot", body: { scenario: "S32", dials: false } });
+  if (response.status !== 201) throw new Error(`lease refused: ${await response.text()}`);
+  return ((await response.json()) as { lease_id: string }).lease_id;
+}
+
+const SEARCH_PATH = "/telnyx/v2/available_phone_numbers?filter[country_code]=CA";
+const searches = (h: Harness) => h.telnyx.requests("GET", "/v2/available_phone_numbers").length;
+
 describe("number search", () => {
-  it("runs only under the S28 lease, at most once every 10 seconds", async () => {
+  it("runs only under a lease for a scenario that may search", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call("/telnyx/v2/available_phone_numbers"))).toBe("provisioning.search_needs_lease");
-    await lease(h, "S02", "rig-api");
-    expect(await ruleOf(await h.call("/telnyx/v2/available_phone_numbers"))).toBe("provisioning.search_needs_lease");
-    h.advance(16 * 60 * 1000);
-    await lease(h, "S28", "rig-api");
-    expect((await h.call("/telnyx/v2/available_phone_numbers?filter[country_code]=CA")).status).toBe(200);
-    expect(await ruleOf(await h.call("/telnyx/v2/available_phone_numbers"))).toBe("provisioning.search_rate");
-    h.advance(10_000);
-    expect((await h.call("/telnyx/v2/available_phone_numbers")).status).toBe(200);
+    expect(await ruleOf(await h.call(SEARCH_PATH))).toBe("provisioning.search_needs_lease");
+    for (const scenario of ["S02", "S28"]) {
+      const id = await lease(h, scenario, "rig-api");
+      expect(await ruleOf(await h.call(SEARCH_PATH)), scenario).toBe("provisioning.search_needs_lease");
+      await h.call(`/lease/${id}`, { method: "DELETE" });
+    }
+    expect(searches(h)).toBe(0);
+  });
+
+  it("forwards S32's searches a second apart, up to the lease's cap", async () => {
+    const h = await ready();
+    await signUpLease(h);
+    expect((await h.call(SEARCH_PATH)).status).toBe(200);
+    expect(searches(h)).toBe(1);
+    h.advance(2_000);
+    expect((await h.call(SEARCH_PATH)).status).toBe(200);
+    expect(await ruleOf(await h.call(SEARCH_PATH))).toBe("provisioning.search_rate");
+    for (let i = 2; i < SEARCH_PER_LEASE; i++) {
+      h.advance(LEASE_SEARCH_SPACING_MS);
+      expect((await h.call(SEARCH_PATH)).status, `search ${i + 1}`).toBe(200);
+    }
+    h.advance(LEASE_SEARCH_SPACING_MS);
+    expect(await ruleOf(await h.call(SEARCH_PATH))).toBe("provisioning.search_cap");
+    expect(searches(h)).toBe(SEARCH_PER_LEASE);
+  });
+
+  it("starts a new lease's count afresh", async () => {
+    const h = await ready();
+    const first = await signUpLease(h);
+    for (let i = 0; i < SEARCH_PER_LEASE; i++) {
+      expect((await h.call(SEARCH_PATH)).status).toBe(200);
+      h.advance(LEASE_SEARCH_SPACING_MS);
+    }
+    expect(await ruleOf(await h.call(SEARCH_PATH))).toBe("provisioning.search_cap");
+    await h.call(`/lease/${first}`, { method: "DELETE" });
+    await signUpLease(h);
+    expect((await h.call(SEARCH_PATH)).status).toBe(200);
+  });
+
+  it("never lets S32's lease order or change a standing number", async () => {
+    const h = await ready();
+    await signUpLease(h);
+    await h.call("/partition", { caller: "rig-api" });
+    const before = await readTier(h.ctx);
+    const lastOrder = await h.store.get(ORDER_KEYS.last);
+    expect(await ruleOf(await order(h))).toBe("provisioning.order_needs_lease");
+    expect(await h.store.get(ORDER_KEYS.last)).toEqual(lastOrder);
+    expect((await readTier(h.ctx)).month_to_date_usd).toBe(before.month_to_date_usd);
+    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "PATCH", body: { customer_reference: "x" } }))).toBe(
+      "provisioning.number_standing",
+    );
+    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "DELETE" }))).toBe("provisioning.number_standing");
+    expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
+    expect(h.telnyx.writes()).toEqual([]);
   });
 });
 

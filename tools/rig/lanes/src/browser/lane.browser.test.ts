@@ -13,7 +13,7 @@ import { chromium } from "playwright";
 import { numberBook, writeFakeMicWavs } from "@loonext/rig-robot";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromiumArgs } from "./args.ts";
-import { BrowserLane } from "./lane.ts";
+import { BrowserLane, fillCheckout } from "./lane.ts";
 
 const LOOPBACK_PAGE = `<!doctype html><meta charset="utf-8"><title>loopback</title>
 <script>
@@ -44,13 +44,77 @@ window.answerThenEnd = (talkMs) => {
 };
 </script>`;
 
+/**
+ * The number step as the wizard renders it (app/onboarding/number/page.tsx and
+ * components/numbers/number-picker.tsx): Radix radios named by their labels,
+ * the area-code search and its suggestions, then the picker's inventory.
+ * `?inventory=` picks masked, revealed or a first load that fails.
+ */
+const NUMBER_STEP_PAGE = `<!doctype html><meta charset="utf-8"><title>number step</title>
+<label><button type="button" role="radio" aria-checked="true" id="us"></button>United States</label>
+<label><button type="button" role="radio" aria-checked="false" id="ca"></button>Canada</label>
+<label for="np-area">Area code (optional)</label><input id="np-area">
+<ul id="suggestions"></ul>
+<div id="picker"></div>
+<label><button type="button" role="radio" aria-checked="true" id="us-yes"></button>Yes, I text US customers too</label>
+<label><button type="button" role="radio" aria-checked="false" id="us-no"></button>No, Canadian customers only</label>
+<button type="button" id="continue">Continue</button>
+<script>
+const inventory = new URLSearchParams(location.search).get("inventory");
+let loads = 0;
+window.picked = null;
+const picker = document.getElementById("picker");
+const check = (id) => document.getElementById(id).setAttribute("aria-checked", "true");
+document.getElementById("ca").onclick = () => check("ca");
+document.getElementById("us-no").onclick = () => check("us-no");
+document.getElementById("np-area").oninput = (event) => {
+  if (event.target.value !== "416") return;
+  document.getElementById("suggestions").innerHTML = '<li><button type="button" id="npa">(416) · Ontario<span>Ontario</span></button></li>';
+  document.getElementById("npa").onclick = () => { document.getElementById("suggestions").innerHTML = ""; load(); };
+};
+function load() {
+  loads++;
+  if (inventory === "flaky" && loads === 1) {
+    picker.innerHTML = '<p>Couldn&#39;t load numbers. Try Refresh in a moment.</p><button type="button" id="refresh">Refresh</button>';
+    document.getElementById("refresh").onclick = () => setTimeout(load, 200);
+    return;
+  }
+  if (inventory === "revealed") {
+    picker.innerHTML = '<ul><li><button type="button" role="radio" aria-checked="false" data-n="+14165550123">(416) 555-0123</button></li><li><button type="button" role="radio" aria-checked="false" data-n="+14165550124">(416) 555-0124</button></li></ul>';
+    for (const row of picker.querySelectorAll("[data-n]")) row.onclick = () => { window.picked = row.dataset.n; };
+    return;
+  }
+  picker.innerHTML = '<button type="button" role="radio" aria-checked="false" id="masked"><span style="display:block">Get a number in area code 416</span><span style="display:block">We assign the exact number when your account is set up.</span></button>';
+  document.getElementById("masked").onclick = () => { window.picked = "416"; };
+}
+document.getElementById("continue").onclick = () => {
+  if (window.picked && document.getElementById("us-no").getAttribute("aria-checked") === "true") location.href = "/onboarding/plan?picked=" + encodeURIComponent(window.picked);
+};
+</script>`;
+
+/** Hosted Checkout's fields, by the element names Stripe gives them, behind its card accordion. */
+const CHECKOUT_PAGE = `<!doctype html><meta charset="utf-8"><title>checkout</title>
+<form onsubmit="event.preventDefault(); window.submitted = Object.fromEntries(new FormData(this));">
+<input name="email">
+<button type="button" data-testid="card-accordion-item-button" onclick="document.getElementById('card').hidden = false">Card</button>
+<div id="card" hidden>
+<input name="cardNumber"><input name="cardExpiry"><input name="cardCvc"><input name="billingName">
+<select name="billingCountry"><option value="US">United States</option><option value="CA">Canada</option></select>
+<input name="billingPostalCode">
+</div>
+<button type="submit">Subscribe</button>
+</form>`;
+
 let server: Server;
 let origin: string;
+const PAGES: Record<string, string> = { "/call-bar": CALL_BAR_PAGE, "/onboarding/number": NUMBER_STEP_PAGE, "/pay": CHECKOUT_PAGE };
 const dir = mkdtempSync(join(tmpdir(), "rig-lane-browser-"));
 
 beforeAll(async () => {
   server = createServer((request, response) => {
-    response.writeHead(200, { "content-type": "text/html" }).end(request.url === "/call-bar" ? CALL_BAR_PAGE : LOOPBACK_PAGE);
+    const path = new URL(request.url ?? "/", "http://lane.test").pathname;
+    const page = PAGES[path] ?? (path.startsWith("/onboarding/") ? "<!doctype html><title>step</title>" : LOOPBACK_PAGE);
+    response.writeHead(200, { "content-type": "text/html" }).end(page);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -134,6 +198,44 @@ describe("the browser lane in Chromium", () => {
     } finally {
       await open.close();
       await blocked.close();
+    }
+  });
+
+  it("picks Canada's masked choice, a revealed number, or refreshes a picker that could not load, then continues", async () => {
+    const lane = new BrowserLane({ appOrigin: origin, profilesDir: join(dir, "profiles"), fakeMicDir: join(dir, "mic"), numbers: numberBook({}) });
+    try {
+      for (const [inventory, expected, picked] of [
+        ["masked", { inventory: "masked", refreshes: 0 }, "416"],
+        ["revealed", { inventory: "revealed", refreshes: 0 }, "+14165550123"],
+        ["flaky", { inventory: "masked", refreshes: 1 }, "416"],
+      ] as const) {
+        const page = await lane.openPublic(`/onboarding/number?inventory=${inventory}`);
+        expect(await page.chooseCanadianNumber({ areaCode: "416" }), inventory).toEqual({ ...expected, continued: true });
+        expect(new URL(page.page.url()).searchParams.get("picked"), inventory).toBe(picked);
+        await page.close();
+      }
+    } finally {
+      await lane.closeAll();
+    }
+  });
+
+  it("fills Checkout behind its card accordion with the email, the card and a Canadian postal code", async () => {
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await page.goto(`${origin}/pay`);
+      expect(await fillCheckout(page, { card: "4242424242424242", email: "owner@example.invalid", postalCode: "M5V 3L9" })).toEqual({ challenged: false, submitted: true });
+      expect(await page.evaluate(() => (window as unknown as { submitted: Record<string, string> }).submitted)).toEqual({
+        email: "owner@example.invalid",
+        cardNumber: "4242424242424242",
+        cardExpiry: "12 / 34",
+        cardCvc: "123",
+        billingName: "Rig Owner",
+        billingCountry: "CA",
+        billingPostalCode: "M5V 3L9",
+      });
+    } finally {
+      await browser.close();
     }
   });
 });

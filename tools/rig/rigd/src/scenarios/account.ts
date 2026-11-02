@@ -6,9 +6,11 @@
  * bought.
  */
 import { randomBytes } from "node:crypto";
+import type { NumberChoice } from "@loonext/rig-lanes";
 import type { GuardHealth } from "@loonext/rig-protocol";
 import { gpsJpeg, hasGpsExif, NUMBER_ID_PREFIX, sha256Hex } from "@loonext/rig-robot";
 import { memberEmail } from "../../../../../scripts/rig/tenants.mjs";
+import { signUpNumberKey } from "../app-probe.ts";
 import { deleteStripeObject, STRIPE_DELETE_UNDO } from "../stripe-sandbox.ts";
 import {
   fail,
@@ -24,6 +26,7 @@ import {
   type ScenarioResult,
   type ScenarioRunner,
   type SendResult,
+  type SignUpNumber,
 } from "./context.ts";
 
 /** The bucket both directions of a picture message are stored in, and the edge relays Telnyx's fetch from. */
@@ -737,25 +740,213 @@ export const S35: ScenarioRunner = {
   },
 };
 
+/** S32's workspace is Canadian, in Toronto's area code, so the wizard is name, number, plan. */
+const S32_AREA_CODE = "416";
+/** A Toronto postal code: Checkout's automatic tax needs the customer's country and postal code. */
+const S32_POSTAL_CODE = "M5V 3L9";
+/** The grace notice still looks the owner up and pushes after the cancellation is mirrored. */
+const CANCELLATION_SETTLE_MS = 5_000;
+/** The Telnyx writes that buy, bind, profile or release a number: S32 must forward none of them. */
+const NUMBER_WRITES: ReadonlySet<string> = new Set([
+  ORDER,
+  "POST /v2/messaging_profiles",
+  "PATCH /v2/phone_numbers/:id",
+  "PATCH /v2/phone_numbers/:id/voice",
+  RELEASE,
+]);
+
 /**
- * S32: a new owner fills in the wizard's name step and reaches its number
- * step, where the walk stops. The step cannot be passed on the rig: its picker
- * searches Telnyx, which the guard refuses outside S28's lease, the wizard has
- * no choose-later or skip, and porting is a call the guard refuses too. The
- * Checkout after it ends in an order for a number, so Checkout, the
- * subscription and the portal are not covered.
+ * S32: a new owner signs up, walks every wizard step of the Canadian path,
+ * pays on Stripe's hosted Checkout in test mode, reaches the inbox and opens
+ * the customer portal. The number is the rig's: a fixture row on the new
+ * workspace before Checkout, so the paid webhook finds a number and buys
+ * none (decision: the rig keeps its standing numbers and orders no new ones).
+ * The guard lets this lease search, so the picker is real, and refuses every
+ * order under it.
  */
 export const S32: ScenarioRunner = {
   id: "S32",
+  // The guard searches for numbers only under a live S32 lease of its own.
+  guardLease: true,
   async run(ctx) {
+    const notReady = await stripeTestModeReady(ctx);
+    if (notReady) return notReady;
     const signedUp = await signUpAndConfirm(ctx, "S32");
     if ("outcome" in signedUp) return signedUp;
-    const walk = await signedUp.page.walkOnboarding({ business: `Rig S32 ${ctx.nonce}` });
+    const { page, email } = signedUp;
+    const walk = await page.walkOnboarding({ business: `Rig S32 ${ctx.nonce}` });
     ctx.evidence.onboarding = walk;
-    if (!walk) return fail("onboarding_stalled", "the new owner did not get from the wizard's name step to its number step");
-    return pass("onboarding is judged up to its number step; Checkout, the subscription and the customer portal are not covered: the number step cannot be passed on the rig without a number search and order the guard refuses");
+    if (walk?.steps.at(-1) !== "number") return fail("onboarding_incomplete", "the new owner did not get from the wizard's name step to its number step");
+
+    const choice = await page.chooseCanadianNumber({ areaCode: S32_AREA_CODE });
+    ctx.evidence.number_step = choice;
+    if (!choice.continued) return numberStepFailed(ctx, choice);
+
+    const provisioningKey = signUpNumberKey(ctx.nonce);
+    ctx.lease.registerUndo({ kind: "app.release-signup-number", params: { provisioningKey } });
+    let fixture: SignUpNumber;
+    try {
+      fixture = await ctx.app.assignSignUpNumber({ ownerEmail: email, nonce: ctx.nonce });
+    } catch (error) {
+      return infra("app-probe", `the fixture number could not be assigned: ${(error as Error).message}`);
+    }
+    // A fictional 555-01xx number, so its last four are no one's.
+    ctx.evidence.fixture = { row_id: fixture.row_id, last_four: fixture.number_e164.slice(-4) };
+
+    await ctx.app.muteSignUpMail({ email });
+
+    const made: { subscription?: string; customer?: string } = {};
+    try {
+      return await payAndJudge(ctx, page, email, fixture, made);
+    } finally {
+      if (made.subscription) await removeFromSandbox(ctx, `/v1/subscriptions/${made.subscription}`);
+      if (made.customer) await removeFromSandbox(ctx, `/v1/customers/${made.customer}`);
+      if (made.subscription) await cancellationMirrored(ctx, email);
+    }
+  },
+  async afterRelease(ctx) {
+    const leak = await ctx.app.signUpNumberLeak();
+    ctx.evidence.leak = leak;
+    if (leak.fixtures > 0 || leak.foreign.length > 0) {
+      return fail(
+        "signup_number_leaked",
+        `${leak.fixtures} fixture number row(s) stayed unreleased and ${leak.foreign.length} sign-up workspace row(s) the rig did not assign (${leak.foreign.join(", ") || "none"}) are held`,
+        { critical: true },
+      );
+    }
+    return undefined;
   },
 };
+
+async function payAndJudge(
+  ctx: ScenarioContext,
+  page: PublicPageApi,
+  email: string,
+  fixture: SignUpNumber,
+  made: { subscription?: string; customer?: string },
+): Promise<ScenarioResult> {
+  if (!(await page.continueToCheckout())) return fail("checkout_not_opened", "Continue to checkout did not open Stripe's hosted Checkout");
+  const paid = await page.checkout({ card: STRIPE_TEST_CARD, email, postalCode: S32_POSTAL_CODE });
+  ctx.evidence.checkout = paid;
+  if (!paid.returned) {
+    // Stripe's anti-automation is Stripe's to decide; the rig never answers a challenge.
+    if (paid.challenged) return infra("stripe-checkout", "challenged");
+    return fail("checkout_not_returned", paid.submitted ? "Checkout did not send the new owner back to the app after paying" : "Checkout's pay button was never pressed");
+  }
+
+  const workspace = await poll(ctx, async () => {
+    const found = await ctx.app.workspaceOf({ ownerEmail: email });
+    return found?.stripe_subscription_id ? found : undefined;
+  }, 90_000, 3_000);
+  if (!workspace?.stripe_subscription_id) return fail("no_subscription", "the workspace named no subscription within 90 s of Checkout");
+  try {
+    await ctx.stripe.adoptCheckoutSubscription({ ownerEmail: email, subscriptionId: workspace.stripe_subscription_id });
+    made.subscription = workspace.stripe_subscription_id;
+    if (workspace.stripe_customer_id) {
+      await ctx.stripe.adoptCheckoutCustomer({ ownerEmail: email, customerId: workspace.stripe_customer_id });
+      made.customer = workspace.stripe_customer_id;
+      ctx.lease.registerUndo({ kind: STRIPE_DELETE_UNDO, params: { path: `/v1/customers/${made.customer}` } });
+    }
+    ctx.lease.registerUndo({ kind: STRIPE_DELETE_UNDO, params: { path: `/v1/subscriptions/${made.subscription}` } });
+  } catch (error) {
+    return infra("stripe", `the Checkout subscription could not be adopted: ${(error as Error).message}`);
+  }
+  const subscription = await ctx.stripe.request<{ status?: string }>("GET", `/v1/subscriptions/${made.subscription}`);
+  ctx.evidence.subscription = { id: made.subscription, status: subscription.status ?? null, workspace_status: workspace.subscription_status };
+  if (subscription.status !== "active") return fail("subscription_not_active", `Stripe holds the Checkout subscription as ${subscription.status ?? "nothing"}`);
+
+  const skipped = await purchaseSkipped(ctx, email, fixture);
+  if (skipped) return skipped;
+  if (!(await page.waitForInbox(90_000))) return fail("setup_not_complete", "setting-up never offered the inbox, or the inbox did not open");
+  const activity = judgeSignUpActivity(ctx, (await ctx.guard.activity(ctx.lease.id)).activity);
+  if (activity) return activity;
+
+  const portal = await page.openBillingPortal();
+  ctx.evidence.portal_host = portal;
+  if (portal !== "billing.stripe.com") return fail("portal_not_opened", `billing's portal button led to ${portal ?? "nothing"}, not Stripe's portal`);
+  return pass("the US branch (texting, its $29 fee line, the business step after payment, 10DLC) and the number purchase itself are not covered");
+}
+
+/** The number step stopped: a guard without S32's search allowance is the rig's, anything else the app's. */
+async function numberStepFailed(ctx: ScenarioContext, choice: NumberChoice): Promise<ScenarioResult> {
+  const searches = activityEntries((await ctx.guard.activity(ctx.lease.id)).activity).filter((e) => e.endpoint === SEARCH);
+  ctx.evidence.searches = Object.fromEntries(searches.map((e) => [e.outcome, e.count]));
+  if (searches.some((e) => e.outcome === "provisioning.search_needs_lease")) return infra("guard", "search allowance not deployed");
+  const where = choice.inventory === "failed" ? "its picker never loaded numbers" : choice.inventory === "none" ? "its picker offered no number" : "Continue did not reach the plan step";
+  return fail("number_step", `the number step stopped: ${where}${choice.alert ? ` (${choice.alert})` : ""}`);
+}
+
+/** Checkout needs Stripe Tax on in the shared test mode, and the portal a default configuration. */
+async function stripeTestModeReady(ctx: ScenarioContext): Promise<ScenarioResult | undefined> {
+  try {
+    const portal = await ctx.stripe.request<{ data?: { is_default?: boolean; active?: boolean }[] }>("GET", "/v1/billing_portal/configurations", { is_default: true, limit: 1 });
+    if (!portal.data?.some((configuration) => configuration.is_default && configuration.active !== false)) {
+      return infra("stripe-portal-config", "Stripe's test mode has no active default portal configuration");
+    }
+    const tax = await ctx.stripe.request<{ status?: string }>("GET", "/v1/tax/settings");
+    if (tax.status !== "active") return infra("stripe-tax", `Stripe Tax is ${tax.status ?? "unknown"} in test mode, and Checkout's automatic tax needs it active`);
+  } catch (error) {
+    return infra("stripe", `the test-mode preflight failed: ${(error as Error).message}`);
+  }
+  return undefined;
+}
+
+/**
+ * The paid webhook ran to its end and bought nothing: the fixture is the
+ * workspace's only unreleased number, and no row is keyed by the Checkout
+ * session, which is the key a purchase's row would carry.
+ */
+async function purchaseSkipped(ctx: ScenarioContext, email: string, fixture: SignUpNumber): Promise<ScenarioResult | undefined> {
+  const event = await poll(ctx, async () => {
+    const found = await ctx.app.checkoutEvent({ ownerEmail: email });
+    return found?.processed ? found : undefined;
+  }, 90_000, 3_000);
+  if (!event) {
+    const last = await ctx.app.checkoutEvent({ ownerEmail: email });
+    return fail("checkout_webhook_unfinished", last ? `the paid webhook did not finish within 90 s${last.last_error ? `: ${last.last_error}` : ""}` : "no paid webhook reached the app within 90 s");
+  }
+  const rows = await ctx.app.signUpNumbers({ ownerEmail: email });
+  const held = rows.filter((row) => row.status !== "released");
+  const purchased = rows.filter((row) => row.provisioning_key === event.session_id);
+  ctx.evidence.numbers = { held: held.length, fixture_status: rows.find((row) => row.id === fixture.row_id)?.status ?? null, keyed_by_checkout: purchased.length };
+  if (purchased.length > 0 || held.length !== 1 || held[0]!.id !== fixture.row_id) {
+    return fail("number_purchase_attempted", `the workspace holds ${held.length} unreleased number row(s) and ${purchased.length} keyed by its Checkout session; only the fixture was expected`, { critical: true });
+  }
+  return undefined;
+}
+
+/**
+ * The lease's record: the picker searched, and nothing that buys, binds or
+ * releases a number was forwarded. A refused attempt is recorded, not judged,
+ * because other crons share the lease's window.
+ */
+function judgeSignUpActivity(ctx: ScenarioContext, activity: Record<string, number>): ScenarioResult | undefined {
+  const entries = activityEntries(activity);
+  const forwarded = (entry: ActivityEntry) => /^\d+$/.test(entry.outcome);
+  const searched = entries.filter((e) => e.endpoint === SEARCH && e.outcome === "200").reduce((sum, e) => sum + e.count, 0);
+  const writes = entries.filter((e) => NUMBER_WRITES.has(e.endpoint));
+  ctx.evidence.activity = {
+    searches: Object.fromEntries(entries.filter((e) => e.endpoint === SEARCH).map((e) => [e.outcome, e.count])),
+    writes: Object.fromEntries(writes.map((e) => [`${e.endpoint} ${e.outcome}`, e.count])),
+  };
+  const sent = writes.filter(forwarded);
+  if (sent.length > 0) {
+    return fail("number_purchase_attempted", `the guard forwarded ${sent.map((e) => `${e.endpoint} (${e.outcome})`).join(", ")} under S32's lease`, { critical: true });
+  }
+  if (searched === 0) return fail("no_number_search", "the number picker's search never reached Telnyx through the guard");
+  return undefined;
+}
+
+/**
+ * Waits for the cancellation webhook to mirror the deleted subscription, so
+ * the sign-up's undo deletes the owner only after the app has looked them up
+ * for the day-1 grace notice. Recorded, not judged.
+ */
+async function cancellationMirrored(ctx: ScenarioContext, email: string): Promise<void> {
+  const canceled = await poll(ctx, async () => (await ctx.app.workspaceOf({ ownerEmail: email }))?.subscription_status === "canceled", 60_000, 3_000);
+  ctx.evidence.cancellation_mirrored = canceled === true;
+  if (canceled) await ctx.sleep(CANCELLATION_SETTLE_MS);
+}
 
 /** S33: password and the seeded TOTP factor reach the second assurance level, and the API takes that session. */
 export const S33: ScenarioRunner = {

@@ -488,12 +488,13 @@ describe("the app probe's sign-ins and mail", () => {
 describe("the app probe's workspaces", () => {
   it("finds a sign-up's workspace by its owner's address, and none for an address auth does not know", async () => {
     const { probe, requests } = probeWith({
-      [`GET ${rest("companies")}`]: () => json([{ id: "company-new", subscription_status: "trialing", stripe_subscription_id: null }]),
+      [`GET ${rest("companies")}`]: () => json([{ id: "company-new", subscription_status: "trialing", stripe_subscription_id: null, stripe_customer_id: null }]),
     });
     expect(await probe.workspaceOf({ ownerEmail: SIGN_UP_EMAIL.toUpperCase() })).toEqual({
       company_id: "company-new",
       subscription_status: "trialing",
       stripe_subscription_id: null,
+      stripe_customer_id: null,
     });
     expect(query(requests.find((r) => r.url.startsWith(rest("companies")))!)).toMatchObject({ owner_user_id: `eq.${SIGN_UP_USER}`, deleted_at: "is.null" });
     expect(await probe.workspaceOf({ ownerEmail: "nobody@example.invalid" })).toBeNull();
@@ -506,21 +507,26 @@ describe("the app probe's workspaces", () => {
     await expect(seeded.probe.deleteSignUp({ email: "delivered+rig-qa-w-owner@resend.dev" })).rejects.toThrow(/sign-up scenario's own address/);
     expect(seeded.requests).toEqual([]);
 
-    const { probe, requests } = probeWith({
+    const workspace: Record<string, Route> = {
+      [`DELETE ${rest("email_suppressions")}`]: noContent,
+      [`GET ${rest("companies")}`]: () => json([{ id: "company-new" }]),
+      [`GET ${rest("phone_numbers")}`]: () => json([{ id: "fixture-1", provisioning_key: "rig-signup-s32-n0nce" }]),
       [`PATCH ${rest("companies")}`]: noContent,
-      [`DELETE ${SUPABASE}/auth/v1/admin/users/${SIGN_UP_USER}`]: () => json({}, 200),
-    });
+    };
+    const { probe, requests } = probeWith({ ...workspace, [`DELETE ${SUPABASE}/auth/v1/admin/users/${SIGN_UP_USER}`]: () => json({}, 200) });
     await probe.deleteSignUp({ email: SIGN_UP_EMAIL });
-    const [, close, remove] = requests;
+    const [unmute, , , held, close, remove] = requests;
+    expect([unmute!.method, query(unmute!)]).toEqual(["DELETE", { email: `eq.${SIGN_UP_EMAIL}` }]);
+    expect(query(held!)).toEqual({ company_id: "in.(company-new)", status: "neq.released", select: "id,provisioning_key" });
     expect(query(close!)).toEqual({ owner_user_id: `eq.${SIGN_UP_USER}`, deleted_at: "is.null" });
     expect(JSON.parse(close!.body!)).toEqual({ deleted_at: new Date(NOW).toISOString() });
     expect([remove!.method, remove!.url, remove!.headers.authorization]).toEqual(["DELETE", `${SUPABASE}/auth/v1/admin/users/${SIGN_UP_USER}`, "Bearer service"]);
 
-    const gone = probeWith({});
+    const gone = probeWith({ [`DELETE ${rest("email_suppressions")}`]: noContent });
     await gone.probe.deleteSignUp({ email: "delivered+rig-s35-other@resend.dev" });
-    expect(gone.requests.map((r) => r.method)).toEqual(["GET"]);
+    expect(gone.requests.map((r) => r.method)).toEqual(["DELETE", "GET"]);
 
-    const failed = probeWith({ [`PATCH ${rest("companies")}`]: noContent, [`DELETE ${SUPABASE}/auth/v1/admin/users/`]: () => json({}, 500) });
+    const failed = probeWith({ ...workspace, [`DELETE ${SUPABASE}/auth/v1/admin/users/`]: () => json({}, 500) });
     await expect(failed.probe.deleteSignUp({ email: SIGN_UP_EMAIL })).rejects.toThrow(/returned 500/);
   });
 
@@ -573,6 +579,75 @@ describe("the app probe's workspaces", () => {
 
     const failed = probeWith({ [`GET ${SUPABASE}/auth/v1/admin/users`]: () => json({ users: [{ id: "acct-2", email: mine }] }), [`DELETE ${SUPABASE}/auth/v1/admin/users/acct-2`]: () => json({}, 500) });
     await expect(failed.probe.deleteMailAccount({ email: mine })).rejects.toThrow(/returned 500/);
+  });
+
+  it("refuses to delete a sign-up whose workspace holds a number the rig did not assign", async () => {
+    const { probe, requests } = probeWith({
+      [`DELETE ${rest("email_suppressions")}`]: noContent,
+      [`GET ${rest("companies")}`]: () => json([{ id: "company-new" }]),
+      [`GET ${rest("phone_numbers")}`]: () => json([{ id: "bought-1", provisioning_key: "cs_test_1" }]),
+    });
+    await expect(probe.deleteSignUp({ email: SIGN_UP_EMAIL })).rejects.toThrow(/number row bought-1/);
+    expect(requests.some((r) => r.method === "PATCH" || r.url.includes("/admin/users/"))).toBe(false);
+  });
+
+  it("gives an unpaid Canadian sign-up a fictional fixture number, trying the next on a clash", async () => {
+    const owner = "delivered+rig-s32-run-1@resend.dev";
+    let posts = 0;
+    const company = { id: "company-new", subscription_status: "incomplete", stripe_subscription_id: null, stripe_customer_id: null, country: "CA", requested_area_code: "416" };
+    const { probe, requests } = probeWith({
+      [`GET ${SUPABASE}/auth/v1/admin/users`]: () => json({ users: [{ id: SIGN_UP_USER, email: owner }] }),
+      [`GET ${rest("companies")}`]: () => json([company]),
+      [`GET ${rest("phone_numbers")}`]: () => json([]),
+      [`POST ${rest("phone_numbers")}`]: () => (posts++ === 0 ? json({ code: "23505" }, 409) : json([{ id: "fixture-1" }], 201)),
+    });
+    const fixture = await probe.assignSignUpNumber({ ownerEmail: owner, nonce: "Run 1" });
+    expect(fixture.row_id).toBe("fixture-1");
+    expect(fixture.provisioning_key).toBe("rig-signup-s32-run-1");
+    expect(fixture.number_e164).toMatch(/^\+141655501\d\d$/);
+    const inserts = requests.filter((r) => r.method === "POST" && r.url.startsWith(rest("phone_numbers"))).map((r) => JSON.parse(r.body!));
+    expect(inserts).toHaveLength(2);
+    expect(inserts[1]).toMatchObject({ company_id: "company-new", status: "active", country: "CA", telnyx_phone_number_id: null, provisioning_key: "rig-signup-s32-run-1" });
+    expect(inserts[0].number_e164).not.toBe(inserts[1].number_e164);
+
+    await expect(probe.assignSignUpNumber({ ownerEmail: "delivered+rig-qa-w-owner@resend.dev", nonce: "x" })).rejects.toThrow(/sign-up scenario/);
+    for (const changed of [{ subscription_status: "active" }, { country: "US" }]) {
+      const refused = probeWith({
+        [`GET ${SUPABASE}/auth/v1/admin/users`]: () => json({ users: [{ id: SIGN_UP_USER, email: owner }] }),
+        [`GET ${rest("companies")}`]: () => json([{ ...company, ...changed }]),
+      });
+      await expect(refused.probe.assignSignUpNumber({ ownerEmail: owner, nonce: "x" })).rejects.toThrow();
+      expect(refused.requests.some((r) => r.method === "POST")).toBe(false);
+    }
+  });
+
+  it("releases only a fixture row, in the database, and reports fixtures and foreign rows left held", async () => {
+    const { probe, requests } = probeWith({ [`PATCH ${rest("phone_numbers")}`]: noContent });
+    await expect(probe.releaseSignUpNumber({ provisioningKey: "cs_test_1" })).rejects.toThrow(/fixture number/);
+    await probe.releaseSignUpNumber({ provisioningKey: "rig-signup-s32-run-1" });
+    expect(query(requests.at(-1)!)).toEqual({ provisioning_key: "eq.rig-signup-s32-run-1", status: "neq.released" });
+    expect(JSON.parse(requests.at(-1)!.body!)).toEqual({ status: "released", released_at: new Date(NOW).toISOString() });
+
+    const leak = probeWith({
+      [`GET ${rest("phone_numbers")}?provisioning_key`]: () => json([{ id: "fixture-left" }]),
+      [`GET ${rest("companies")}`]: () => json([{ id: "company-new" }]),
+      [`GET ${rest("phone_numbers")}?company_id`]: () => json([{ id: "fixture-left", provisioning_key: "rig-signup-s32-x" }, { id: "bought-1", provisioning_key: "cs_test_1" }]),
+    });
+    expect(await leak.probe.signUpNumberLeak()).toEqual({ fixtures: 1, foreign: ["bought-1"] });
+    expect(query(leak.requests.find((r) => r.url.startsWith(rest("companies")))!)).toMatchObject({ owner_user_id: `in.(${SIGN_UP_USER})` });
+  });
+
+  it("mutes only a sign-up's address, and reads the Checkout's ledger row by the workspace", async () => {
+    const { probe, requests } = probeWith({
+      [`POST ${rest("email_suppressions")}`]: noContent,
+      [`GET ${rest("companies")}`]: () => json([{ id: "company-new" }]),
+      [`GET ${rest("webhook_events")}`]: () => json([{ session_id: "cs_test_1", processed_at: "2026-10-31T15:00:00Z", last_error: null }]),
+    });
+    await expect(probe.muteSignUpMail({ email: "delivered+rig-qa-w-owner@resend.dev" })).rejects.toThrow(/sign-up scenario/);
+    await probe.muteSignUpMail({ email: SIGN_UP_EMAIL });
+    expect(JSON.parse(requests.at(-1)!.body!)).toEqual({ email: SIGN_UP_EMAIL, reason: "hard_bounce", cleared_at: null });
+    expect(await probe.checkoutEvent({ ownerEmail: SIGN_UP_EMAIL })).toEqual({ session_id: "cs_test_1", processed: true, last_error: null });
+    expect(query(requests.at(-1)!)).toMatchObject({ event_type: "eq.checkout.session.completed", "payload->data->object->>client_reference_id": "eq.company-new" });
   });
 
   it("marks a number released only if it is not already, and puts a canceled workspace back with its numbers", async () => {

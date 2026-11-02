@@ -8,7 +8,7 @@
  * rig's secret store (scripts/rig/seed.mjs), which git never sees. Tenants are
  * keyed `qa-w`, members `owner`; scenarios name a member `qa-w-owner`.
  */
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
@@ -29,7 +29,10 @@ import {
   type GraceState,
   type MessageRow,
   type NumberRow,
+  type CheckoutEvent,
   type SendResult,
+  type SignUpNumber,
+  type SignUpNumberRow,
   type VoiceCapState,
   type WorkspaceState,
 } from "./scenarios/context.ts";
@@ -889,16 +892,140 @@ export class AppProbe implements AppApi {
   }
 
   async workspaceOf(args: { ownerEmail: string }) {
-    const user = await this.#authUserByEmail(args.ownerEmail);
-    if (!user) return null;
-    const [company] = await this.#rest<{ id: string; subscription_status: string; stripe_subscription_id: string | null }[]>("companies", {
+    const company = await this.#signUpCompany(args.ownerEmail);
+    return company
+      ? {
+          company_id: company.id,
+          subscription_status: company.subscription_status,
+          stripe_subscription_id: company.stripe_subscription_id,
+          stripe_customer_id: company.stripe_customer_id,
+        }
+      : null;
+  }
+
+  async #signUpCompany(ownerEmail: string): Promise<SignUpCompany | undefined> {
+    const user = await this.#authUserByEmail(ownerEmail);
+    if (!user) return undefined;
+    const [company] = await this.#rest<SignUpCompany[]>("companies", {
       owner_user_id: `eq.${user}`,
       deleted_at: "is.null",
-      select: "id,subscription_status,stripe_subscription_id",
+      select: "id,subscription_status,stripe_subscription_id,stripe_customer_id,country,requested_area_code",
     });
-    return company
-      ? { company_id: company.id, subscription_status: company.subscription_status, stripe_subscription_id: company.stripe_subscription_id }
-      : null;
+    return company;
+  }
+
+  /**
+   * Gives a sign-up's unpaid Canadian workspace an active number row before
+   * Checkout, so the paid webhook's provisioning finds a number it did not
+   * buy and skips the purchase (provisionCompanyNumber). The row is rig test
+   * data: a fictional 555-01xx number with no Telnyx id, which every path that
+   * reaches Telnyx skips. Its undo is `app.release-signup-number`.
+   */
+  async assignSignUpNumber(args: { ownerEmail: string; nonce: string }): Promise<SignUpNumber> {
+    if (!SIGN_UP_ADDRESS.test(args.ownerEmail)) throw new Error("app probe: only a sign-up scenario's own workspace gets a fixture number");
+    const company = await this.#signUpCompany(args.ownerEmail);
+    if (!company) throw new Error("app probe: the sign-up has no workspace yet");
+    if (PAID_STATUSES.has(company.subscription_status)) throw new Error(`app probe: the sign-up's workspace is already ${company.subscription_status}`);
+    if (company.country !== "CA") throw new Error("app probe: the fixture number is for a Canadian workspace only");
+    const areaCode = company.requested_area_code;
+    if (!areaCode || !/^[2-9]\d{2}$/.test(areaCode)) throw new Error("app probe: the sign-up's workspace has no area code");
+    const held = await this.#rest<{ id: string }[]>("phone_numbers", { company_id: `eq.${company.id}`, status: "neq.released", select: "id" });
+    if (held.length > 0) throw new Error(`app probe: the sign-up's workspace already holds ${held.length} number(s)`);
+
+    const provisioningKey = signUpNumberKey(args.nonce);
+    const start = Number.parseInt(createHash("sha256").update(args.nonce).digest("hex").slice(0, 8), 16) % 100;
+    for (let i = 0; i < 100; i++) {
+      const numberE164 = `+1${areaCode}55501${String((start + i) % 100).padStart(2, "0")}`;
+      try {
+        const [row] = await this.#write<{ id: string }[]>("POST", "phone_numbers", { select: "id" }, {
+          company_id: company.id,
+          status: "active",
+          source: "provisioned",
+          country: "CA",
+          requested_area_code: areaCode,
+          provisioning_key: provisioningKey,
+          telnyx_phone_number_id: null,
+          number_e164: numberE164,
+          label: SIGN_UP_NUMBER_LABEL,
+        });
+        if (!row) throw new Error("app probe: the fixture number's insert returned no row");
+        return { row_id: row.id, number_e164: numberE164, provisioning_key: provisioningKey };
+      } catch (error) {
+        // Another workspace holds this fictional number; try the next one.
+        if ((error as WriteError).status === 409) continue;
+        throw error;
+      }
+    }
+    throw new Error(`app probe: every 555-01xx number in ${areaCode} is held`);
+  }
+
+  /** Undo for assignSignUpNumber, straight in the database: the row never named a Telnyx number, so nothing at Telnyx is released. */
+  async releaseSignUpNumber(args: { provisioningKey: string }): Promise<void> {
+    if (!SIGN_UP_NUMBER_KEY.test(args.provisioningKey)) throw new Error("app probe: only a sign-up's fixture number can be released this way");
+    await this.#write("PATCH", "phone_numbers", { provisioning_key: `eq.${args.provisioningKey}`, status: "neq.released" }, {
+      status: "released",
+      released_at: iso(this.#now()),
+    }, "return=minimal");
+  }
+
+  /** The paid webhook's ledger row for the sign-up workspace's Checkout, once Stripe delivered it. */
+  async checkoutEvent(args: { ownerEmail: string }): Promise<CheckoutEvent | null> {
+    const company = await this.#signUpCompany(args.ownerEmail);
+    if (!company) return null;
+    const [event] = await this.#rest<{ session_id: string | null; processed_at: string | null; last_error: string | null }[]>("webhook_events", {
+      provider: "eq.stripe",
+      event_type: "eq.checkout.session.completed",
+      "payload->data->object->>client_reference_id": `eq.${company.id}`,
+      select: "session_id:payload->data->object->>id,processed_at,last_error",
+      order: "received_at.desc",
+      limit: "1",
+    });
+    return event ? { session_id: event.session_id, processed: event.processed_at !== null, last_error: event.last_error } : null;
+  }
+
+  /** The sign-up workspace's number rows, released ones included. */
+  async signUpNumbers(args: { ownerEmail: string }): Promise<SignUpNumberRow[]> {
+    const company = await this.#signUpCompany(args.ownerEmail);
+    if (!company) return [];
+    return this.#rest<SignUpNumberRow[]>("phone_numbers", { company_id: `eq.${company.id}`, select: "id,status,provisioning_key", order: "created_at.asc" });
+  }
+
+  /**
+   * Fixture rows any run left unreleased, and the rows a sign-up's workspace
+   * holds that are not fixtures: one of those may name a real Telnyx number.
+   */
+  async signUpNumberLeak(): Promise<{ fixtures: number; foreign: string[] }> {
+    const fixtures = await this.#rest<{ id: string }[]>("phone_numbers", {
+      provisioning_key: `like.${SIGN_UP_NUMBER_PREFIX}*`,
+      status: "neq.released",
+      select: "id",
+    });
+    const owners = await this.#signUpOwners();
+    const companies = owners.length
+      ? await this.#rest<{ id: string }[]>("companies", { owner_user_id: `in.(${owners.join(",")})`, select: "id" })
+      : [];
+    const rows = await this.#heldNumbers(companies.map((company) => company.id));
+    return { fixtures: fixtures.length, foreign: rows.filter((row) => !row.provisioning_key.startsWith(SIGN_UP_NUMBER_PREFIX)).map((row) => row.id) };
+  }
+
+  async #heldNumbers(companyIds: string[]): Promise<{ id: string; provisioning_key: string }[]> {
+    if (companyIds.length === 0) return [];
+    return this.#rest("phone_numbers", { company_id: `in.(${companyIds.join(",")})`, status: "neq.released", select: "id,provisioning_key" });
+  }
+
+  /**
+   * Keeps the app's mail to a sign-up's address off the guard's Resend day:
+   * the address is suppressed, as a hard bounce leaves one, until deleteSignUp
+   * removes the row. Cancelling S32's subscription mails the day-1 grace
+   * notice otherwise.
+   */
+  async muteSignUpMail(args: { email: string }): Promise<void> {
+    if (!SIGN_UP_ADDRESS.test(args.email)) throw new Error("app probe: only a sign-up scenario's own address can be muted");
+    await this.#write("POST", "email_suppressions", { on_conflict: "email" }, {
+      email: args.email.toLowerCase(),
+      reason: "hard_bounce",
+      cleared_at: null,
+    }, "resolution=merge-duplicates,return=minimal");
   }
 
   /**
@@ -908,8 +1035,14 @@ export class AppProbe implements AppApi {
    */
   async deleteSignUp(args: { email: string }): Promise<void> {
     if (!SIGN_UP_ADDRESS.test(args.email)) throw new Error("app probe: only a sign-up scenario's own address can be removed");
+    await this.#write("DELETE", "email_suppressions", { email: `eq.${args.email.toLowerCase()}` }, undefined, "return=minimal");
     const user = await this.#authUserByEmail(args.email);
     if (!user) return;
+    const companies = await this.#rest<{ id: string }[]>("companies", { owner_user_id: `eq.${user}`, deleted_at: "is.null", select: "id" });
+    const held = await this.#heldNumbers(companies.map((company) => company.id));
+    const real = held.find((row) => !row.provisioning_key.startsWith(SIGN_UP_NUMBER_PREFIX));
+    // A row the app provisioned may name a real Telnyx number, which a person releases before the workspace goes.
+    if (real) throw new Error(`app probe: the sign-up's workspace holds number row ${real.id}, which the rig did not assign; release it by hand`);
     await this.#write("PATCH", "companies", { owner_user_id: `eq.${user}`, deleted_at: "is.null" }, { deleted_at: iso(this.#now()) }, "return=minimal");
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users/${user}`, {
       method: "DELETE",
@@ -955,13 +1088,21 @@ export class AppProbe implements AppApi {
   }
 
   async #authUserByEmail(email: string): Promise<string | undefined> {
+    return (await this.#authUsers()).find((user) => user.email?.toLowerCase() === email.toLowerCase())?.id;
+  }
+
+  /** The users the sign-up scenarios made, found by their addresses. */
+  async #signUpOwners(): Promise<string[]> {
+    return (await this.#authUsers()).filter((user) => SIGN_UP_ADDRESS.test(user.email?.toLowerCase() ?? "")).map((user) => user.id);
+  }
+
+  async #authUsers(): Promise<{ id: string; email?: string }[]> {
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users?page=1&per_page=1000`, {
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) throw new Error(`app probe: listing users returned ${response.status}`);
-    const { users } = (await response.json()) as { users?: { id: string; email?: string }[] };
-    return users?.find((user) => user.email?.toLowerCase() === email.toLowerCase())?.id;
+    return ((await response.json()) as { users?: { id: string; email?: string }[] }).users ?? [];
   }
 
   invite(args: { member: string; email: string }): Promise<ApiAnswer<{ id?: string; email_sent?: boolean }>> {
@@ -1208,7 +1349,7 @@ export class AppProbe implements AppApi {
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(10_000),
     });
-    if (!response.ok) throw new Error(`app probe: writing ${table} returned ${response.status}`);
+    if (!response.ok) throw Object.assign(new Error(`app probe: writing ${table} returned ${response.status}`), { status: response.status });
     const text = await response.text();
     return (text ? JSON.parse(text) : []) as T;
   }
@@ -1306,6 +1447,30 @@ export const SIGN_UP_ADDRESS = /^delivered\+rig-s3[25]-[a-z0-9-]+@resend\.dev$/;
 
 /** The addresses S34 gives an account: a `+s34-acct-` sub-address, which no seeded member's address matches. */
 export const MAIL_ACCOUNT_ADDRESS = /^[a-z0-9._-]+\+s34-acct-[a-z0-9-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+
+/** S32's fixture number rows are keyed by this prefix and the run's nonce. */
+export const SIGN_UP_NUMBER_PREFIX = "rig-signup-";
+const SIGN_UP_NUMBER_KEY = /^rig-signup-s3[2]-[a-z0-9-]+$/;
+const SIGN_UP_NUMBER_LABEL = "Rig S32 fixture";
+/** The subscription states the app treats as paid (apps/web/src/app/onboarding/steps.ts). */
+const PAID_STATUSES: ReadonlySet<string> = new Set(["active", "past_due", "unpaid"]);
+
+/** The fixture number's provisioning key for a run. */
+export function signUpNumberKey(nonce: string): string {
+  const slug = nonce.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "run";
+  return `${SIGN_UP_NUMBER_PREFIX}s32-${slug}`;
+}
+
+type WriteError = Error & { status?: number };
+
+interface SignUpCompany {
+  id: string;
+  subscription_status: string;
+  stripe_subscription_id: string | null;
+  stripe_customer_id: string | null;
+  country: string;
+  requested_area_code: string | null;
+}
 
 /** The runner's inbound text is `Rig S25 <nonce>`; its first word is the emergency keyword while S25 is armed. */
 export const S25_KEYWORD = "RIG";

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { gpsJpeg, hasGpsExif, sha256Hex } from "@loonext/rig-robot";
 import { memberEmail } from "../../../../../scripts/rig/tenants.mjs";
-import { MAIL_ACCOUNT_ADDRESS, SIGN_UP_ADDRESS } from "../app-probe.ts";
+import { MAIL_ACCOUNT_ADDRESS, SIGN_UP_ADDRESS, signUpNumberKey } from "../app-probe.ts";
 import { STRIPE_DELETE_UNDO } from "../stripe-sandbox.ts";
 import { releaseHeldNumber, releaseTenantNumbers } from "../wiring.ts";
 import {
@@ -894,8 +894,12 @@ function signUpWorld(scenario: "S32" | "S35", landing = "http://127.0.0.1:3100/o
     };
     return page;
   };
-  app.signUps.set(email, { company_id: "company-s32", subscription_status: "active", stripe_subscription_id: "sub_s32" });
+  app.signUps.set(email, { company_id: "company-s32", subscription_status: "active", stripe_subscription_id: "sub_s32", stripe_customer_id: "cus_s32" });
+  app.checkoutEvents.set(email, { session_id: "cs_test_s32", processed: true, last_error: null });
   stripe.answers.set("GET /v1/subscriptions/sub_s32", { id: "sub_s32", status: "active" });
+  stripe.answers.set("GET /v1/billing_portal/configurations", { data: [{ is_default: true, active: true }] });
+  stripe.answers.set("GET /v1/tax/settings", { status: "active" });
+  world.guard.log["rig-api GET /v2/available_phone_numbers 200"] = 2;
   return { ...world, email, undoAtSignUp };
 }
 
@@ -936,44 +940,117 @@ describe("S35, public sign-up", () => {
   });
 });
 
-describe("S32, onboarding up to the number step", () => {
-  it("passes on reaching the number step, records what its picker did, and goes no further", async () => {
-    const { ctx, undo, email, browser } = signUpWorld("S32");
+describe("S32, sign-up through Checkout and the portal", () => {
+  it("passes through every step, with the fixture number registered for release before it exists", async () => {
+    const { ctx, undo, email, browser, app, stripe } = signUpWorld("S32");
     const result = await S32.run(ctx);
     expect(result.outcome).toBe("pass");
-    expect(result.detail).toMatch(/Checkout, the subscription and the customer portal are not covered/);
-    expect(undo).toEqual([{ kind: "app.delete-sign-up", params: { email } }]);
-    expect(ctx.evidence.onboarding).toEqual({ steps: ["name", "number"], numberSearch: "failed" });
-    expect(browser.publicPages).toEqual(["/signup"]);
+    expect(result.detail).toMatch(/US branch .* not covered/);
+    expect(browser.actions.filter((action) => action.startsWith("public ") && !action.includes("sign up") && !action.includes("goto"))).toEqual([
+      "public number 416",
+      "public continue to checkout",
+      "public checkout M5V 3L9",
+    ]);
+    const key = signUpNumberKey(ctx.nonce);
+    expect(undo.slice(0, 2)).toEqual([
+      { kind: "app.delete-sign-up", params: { email } },
+      { kind: "app.release-signup-number", params: { provisioningKey: key } },
+    ]);
+    expect(undo.slice(2)).toEqual([
+      { kind: "stripe.delete", params: { path: "/v1/customers/cus_s32" } },
+      { kind: "stripe.delete", params: { path: "/v1/subscriptions/sub_s32" } },
+    ]);
+    expect(app.mutedMail).toEqual([email]);
+    expect(stripe.adopted).toEqual(["sub_s32", "cus_s32"]);
+    expect(deletes(stripe)).toEqual(["/v1/subscriptions/sub_s32", "/v1/customers/cus_s32"]);
+    expect(ctx.evidence.portal_host).toBe("billing.stripe.com");
+    expect(ctx.evidence.numbers).toEqual({ held: 1, fixture_status: "active", keyed_by_checkout: 0 });
     expect(JSON.stringify(ctx.evidence)).not.toContain(email);
+    expect(JSON.stringify(ctx.evidence)).not.toContain("+1416");
   });
 
-  it("never starts Checkout, opens the portal or touches Stripe", async () => {
-    const world = signUpWorld("S32");
-    const open = world.browser.openPublic;
-    world.browser.openPublic = async (path) => {
-      const page = await open(path);
-      page.checkout = async () => {
-        throw new Error("S32 started Checkout");
-      };
-      page.openBillingPortal = async () => {
-        throw new Error("S32 opened the billing portal");
-      };
-      return page;
-    };
-    expect((await S32.run(world.ctx)).outcome).toBe("pass");
-    expect(world.stripe.adopted).toEqual([]);
-    expect(deletes(world.stripe)).toEqual([]);
-  });
+  it("reports a guard without the search allowance as the rig's, and any other stop at the number step as a fail", async () => {
+    const undeployed = signUpWorld("S32");
+    undeployed.browser.publicScript.numberChoice = { inventory: "failed", refreshes: 2, continued: false };
+    undeployed.guard.log = { "rig-api GET /v2/available_phone_numbers provisioning.search_needs_lease": 3 };
+    expect(await S32.run(undeployed.ctx)).toMatchObject({ outcome: "infra", component: "guard", detail: "search allowance not deployed" });
+    expect(undeployed.undo).toHaveLength(1);
 
-  it("names a wizard whose name step never reaches the number step, and a sign-up that fails first", async () => {
+    const empty = signUpWorld("S32");
+    empty.browser.publicScript.numberChoice = { inventory: "none", refreshes: 0, continued: false };
+    expect(await S32.run(empty.ctx)).toMatchObject({ failure_class: "number_step" });
+
     const stalled = signUpWorld("S32");
     stalled.browser.publicScript.onboarding = null;
-    expect(await S32.run(stalled.ctx)).toMatchObject({ failure_class: "onboarding_stalled" });
+    expect(await S32.run(stalled.ctx)).toMatchObject({ failure_class: "onboarding_incomplete" });
+  });
+
+  it("stops before Checkout when test mode lacks Stripe Tax or a default portal configuration", async () => {
+    const noPortal = signUpWorld("S32");
+    noPortal.stripe.answers.set("GET /v1/billing_portal/configurations", { data: [] });
+    expect(await S32.run(noPortal.ctx)).toMatchObject({ outcome: "infra", component: "stripe-portal-config" });
+    expect(noPortal.browser.actions).not.toContain("public continue to checkout");
+
+    const noTax = signUpWorld("S32");
+    noTax.stripe.answers.set("GET /v1/tax/settings", { status: "pending" });
+    expect(await S32.run(noTax.ctx)).toMatchObject({ outcome: "infra", component: "stripe-tax" });
+  });
+
+  it("reports a challenged Checkout as the rig's and never a fail", async () => {
+    const world = signUpWorld("S32");
+    world.browser.publicScript.checkout = { returned: false, challenged: true, submitted: false };
+    expect(await S32.run(world.ctx)).toEqual({ outcome: "infra", component: "stripe-checkout", detail: "challenged" });
+    expect(world.stripe.adopted).toEqual([]);
+  });
+
+  it("fails critically when the paid webhook made a number row of its own", async () => {
+    const world = signUpWorld("S32");
+    const assign = world.app.assignSignUpNumber.bind(world.app);
+    world.app.assignSignUpNumber = async (args) => {
+      const fixture = await assign(args);
+      world.app.signUpRows.get(args.ownerEmail)!.push({ id: "bought", status: "provisioning", provisioning_key: "cs_test_s32" });
+      return fixture;
+    };
+    expect(await S32.run(world.ctx)).toMatchObject({ failure_class: "number_purchase_attempted", critical: true });
+    expect(deletes(world.stripe)).toEqual(["/v1/subscriptions/sub_s32", "/v1/customers/cus_s32"]);
+  });
+
+  it("fails critically on any number write the guard forwarded, and records refused ones", async () => {
+    const forwarded = signUpWorld("S32");
+    forwarded.guard.log["rig-api POST /v2/number_orders 200"] = 1;
+    expect(await S32.run(forwarded.ctx)).toMatchObject({ failure_class: "number_purchase_attempted", critical: true });
 
     const refused = signUpWorld("S32");
-    refused.browser.publicScript.signUp = { ok: false, alert: "That email is already registered." };
-    expect(await S32.run(refused.ctx)).toMatchObject({ failure_class: "sign_up_refused" });
+    refused.guard.log["rig-api PATCH /v2/phone_numbers/:id provisioning.number_standing"] = 1;
+    expect((await S32.run(refused.ctx)).outcome).toBe("pass");
+    expect(refused.ctx.evidence.activity).toMatchObject({ writes: { "PATCH /v2/phone_numbers/:id provisioning.number_standing": 1 } });
+
+    const unsearched = signUpWorld("S32");
+    unsearched.guard.log = {};
+    expect(await S32.run(unsearched.ctx)).toMatchObject({ failure_class: "no_number_search" });
+  });
+
+  it("names an unfinished webhook, a setup that never completes and a portal that does not open", async () => {
+    const unfinished = signUpWorld("S32");
+    unfinished.app.checkoutEvents.set(unfinished.email, { session_id: "cs_test_s32", processed: false, last_error: "boom" });
+    expect(await S32.run(unfinished.ctx)).toMatchObject({ failure_class: "checkout_webhook_unfinished" });
+
+    const stuck = signUpWorld("S32");
+    stuck.browser.publicScript.inbox = false;
+    expect(await S32.run(stuck.ctx)).toMatchObject({ failure_class: "setup_not_complete" });
+
+    const portal = signUpWorld("S32");
+    portal.browser.publicScript.portalHost = null;
+    expect(await S32.run(portal.ctx)).toMatchObject({ failure_class: "portal_not_opened" });
+  });
+
+  it("fails critically after release when a fixture or a foreign number is left held", async () => {
+    const world = signUpWorld("S32");
+    expect(await S32.afterRelease!(world.ctx)).toBeUndefined();
+    world.app.leak = { fixtures: 1, foreign: [] };
+    expect(await S32.afterRelease!(world.ctx)).toMatchObject({ failure_class: "signup_number_leaked", critical: true });
+    world.app.leak = { fixtures: 0, foreign: ["row-1"] };
+    expect(await S32.afterRelease!(world.ctx)).toMatchObject({ failure_class: "signup_number_leaked", detail: expect.stringContaining("row-1") });
   });
 });
 

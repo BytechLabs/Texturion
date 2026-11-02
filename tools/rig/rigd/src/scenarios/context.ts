@@ -9,7 +9,7 @@
  * Telnyx partition exists.
  */
 import type { GuardHealth, LeaseActivity, StandingRole } from "@loonext/rig-protocol";
-import { AUDIO_UNPROVEN, type CallTestId, type DeviceState, type HearOptions, type HostdHealth, type NetworkShape, type OnboardingWalk, type PageHearing, type RigDeviceName, type StandbyBucket } from "@loonext/rig-lanes";
+import { AUDIO_UNPROVEN, type CallTestId, type DeviceState, type HearOptions, type HostdHealth, type CheckoutRun, type NetworkShape, type NumberChoice, type OnboardingWalk, type PageHearing, type RigDeviceName, type StandbyBucket } from "@loonext/rig-lanes";
 import type { Detection, RobotApi, Surface } from "@loonext/rig-robot";
 import type { UndoAction } from "../lease.ts";
 import type { SeenEvent } from "../sentry-relay.ts";
@@ -78,8 +78,19 @@ export interface PublicPageApi {
    * not where a new owner starts, or the name step never moves on.
    */
   walkOnboarding(args: { business: string }): Promise<OnboardingWalk | null>;
-  /** Starts Checkout from billing, pays with a Stripe test card, and waits to be sent back. */
-  checkout(args: { card: string }): Promise<{ returned: boolean; challenged: boolean }>;
+  /**
+   * On the number step: Canada, the area code, a number in it (Refresh when
+   * the list could not load), Canadian customers only, then Continue, which
+   * creates the workspace. Resolves once the plan step shows, or says where it
+   * stopped.
+   */
+  chooseCanadianNumber(args: { areaCode: string }): Promise<NumberChoice>;
+  /** On the plan step: Continue to checkout, then waits for Stripe's hosted Checkout. False when it never opened. */
+  continueToCheckout(): Promise<boolean>;
+  /** Pays on Stripe's hosted Checkout with a test card and a Canadian address, and waits to be sent back to the app. */
+  checkout(args: { card: string; email: string; postalCode: string }): Promise<CheckoutRun>;
+  /** On setting-up: waits for "Open your inbox", opens it, and resolves whether the inbox showed. */
+  waitForInbox(timeoutMs: number): Promise<boolean>;
   /** Opens the customer portal from billing; resolves with the portal page's host, or null. */
   openBillingPortal(): Promise<string | null>;
   close(): Promise<void>;
@@ -382,7 +393,22 @@ export interface AppApi {
   /** Asks local auth to mail the member a password reset, which lands in Mailpit (S34's auth mail). */
   sendPasswordReset(args: { member: string }): Promise<number>;
   /** The workspace a public sign-up created, found by its owner's address (S32, S35). */
-  workspaceOf(args: { ownerEmail: string }): Promise<{ company_id: string; subscription_status: string; stripe_subscription_id: string | null } | null>;
+  workspaceOf(args: { ownerEmail: string }): Promise<SignUpWorkspace | null>;
+  /**
+   * Gives S32's unpaid Canadian workspace an active fixture number row, so the
+   * paid webhook skips buying one. The undo is `app.release-signup-number`,
+   * registered before this call with the key from signUpNumberKey.
+   */
+  assignSignUpNumber(args: { ownerEmail: string; nonce: string }): Promise<SignUpNumber>;
+  releaseSignUpNumber(args: { provisioningKey: string }): Promise<void>;
+  /** The sign-up workspace's number rows, released ones included. */
+  signUpNumbers(args: { ownerEmail: string }): Promise<SignUpNumberRow[]>;
+  /** The paid webhook's ledger row for the sign-up workspace's Checkout, or null before Stripe delivered it. */
+  checkoutEvent(args: { ownerEmail: string }): Promise<CheckoutEvent | null>;
+  /** Unreleased fixture rows anywhere, and rows on a sign-up's workspace that are not fixtures. */
+  signUpNumberLeak(): Promise<{ fixtures: number; foreign: string[] }>;
+  /** Suppresses the app's mail to a sign-up's address until deleteSignUp, so its grace notice spends no Resend send. */
+  muteSignUpMail(args: { email: string }): Promise<void>;
   /** Invites an address to the member's workspace; the answer is the invite row itself. The undo is `app.revoke-invite`. */
   invite(args: { member: string; email: string }): Promise<ApiAnswer<{ id?: string; email_sent?: boolean }>>;
   /** A confirmed local-auth account at S34's sub-address of the robot mailbox, which makes the app mail an invite to it over Resend. Answers the HTTP status. The undo is `app.delete-mail-account`. */
@@ -602,6 +628,33 @@ export interface MailMessage {
   received_at: string;
 }
 
+export interface SignUpWorkspace {
+  company_id: string;
+  subscription_status: string;
+  stripe_subscription_id: string | null;
+  stripe_customer_id: string | null;
+}
+
+/** S32's fixture number: rig test data, a fictional 555-01xx number with no Telnyx id. */
+export interface SignUpNumber {
+  row_id: string;
+  number_e164: string;
+  provisioning_key: string;
+}
+
+export interface SignUpNumberRow {
+  id: string;
+  status: string;
+  provisioning_key: string;
+}
+
+export interface CheckoutEvent {
+  session_id: string | null;
+  /** The webhook finished, provisioning included. */
+  processed: boolean;
+  last_error: string | null;
+}
+
 export interface MailApi {
   /** The robot mailbox's `+tag` address, or undefined when the rig's private config names none. */
   robotAddress(tag: string): string | undefined;
@@ -625,6 +678,8 @@ export interface StripeApi {
    * run may delete it.
    */
   adoptCheckoutSubscription(args: { ownerEmail: string; subscriptionId: string }): Promise<void>;
+  /** Tags the customer Checkout made for a sign-up's workspace, on the same check, so the run may delete it. */
+  adoptCheckoutCustomer(args: { ownerEmail: string; customerId: string }): Promise<void>;
 }
 
 /**

@@ -1,10 +1,12 @@
 import {
   CREDENTIALS_PER_DAY,
   COST_USD,
+  LEASE_SEARCH_SPACING_MS,
   MAX_NUMBERS_HELD,
   NUMBER_SCENARIO,
   ORDER_INTERVAL_MS,
-  SEARCH_INTERVAL_MS,
+  SEARCH_PER_LEASE,
+  SEARCH_SCENARIOS,
 } from "../limits";
 import { Refusal } from "../refusal";
 import { callerNameNumbers, SPEC, sentinelCredentialCap } from "../setup/spec";
@@ -34,17 +36,24 @@ import {
  */
 type Item = Record<string, unknown>;
 
-async function requireLeaseFor(ctx: Ctx, rule: "provisioning.search_needs_lease" | "provisioning.order_needs_lease") {
-  const lease = await liveLease(ctx);
-  if (!lease || lease.scenario !== NUMBER_SCENARIO) throw new Refusal(rule);
+/** The searches made under one lease; a new lease starts the count again. */
+interface LeaseSearches {
+  lease_id: string;
+  count: number;
+  last: number;
 }
+
+const LEASE_SEARCHES = "search:lease";
 
 const search: Handler = async (request) => {
   const { ctx } = request;
-  await requireLeaseFor(ctx, "provisioning.search_needs_lease");
-  const last = (await ctx.store.get<number>("search:last")) ?? 0;
-  if (ctx.now() - last < SEARCH_INTERVAL_MS) throw new Refusal("provisioning.search_rate");
-  await ctx.store.put("search:last", ctx.now());
+  const lease = await liveLease(ctx);
+  if (!lease || !SEARCH_SCENARIOS.includes(lease.scenario)) throw new Refusal("provisioning.search_needs_lease");
+  const stored = await ctx.store.get<LeaseSearches>(LEASE_SEARCHES);
+  const searches = stored?.lease_id === lease.lease_id ? stored : { lease_id: lease.lease_id, count: 0, last: 0 };
+  if (searches.count >= SEARCH_PER_LEASE) throw new Refusal("provisioning.search_cap");
+  if (ctx.now() - searches.last < LEASE_SEARCH_SPACING_MS) throw new Refusal("provisioning.search_rate");
+  await ctx.store.put(LEASE_SEARCHES, { ...searches, count: searches.count + 1, last: ctx.now() });
   return relay(await forward(request, undefined));
 };
 
@@ -106,7 +115,8 @@ const order: Handler = async (request) => {
   if (!request.body) throw new Refusal("request.body_invalid");
   await verifyFirstOrder(ctx);
   await requireOrdering(ctx);
-  await requireLeaseFor(ctx, "provisioning.order_needs_lease");
+  const lease = await liveLease(ctx);
+  if (!lease || lease.scenario !== NUMBER_SCENARIO) throw new Refusal("provisioning.order_needs_lease");
   // S28's number is bound to the voice app and rung, so it waits for paid dials.
   if (!(await voiceOpen(ctx))) throw new Refusal("provisioning.voice_closed");
   const checked = await checkOrderBody(request, request.body);

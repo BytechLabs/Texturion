@@ -233,6 +233,7 @@ export function buildRig(config: RigdConfig): Rig {
         key: () => store.read("stripe-secret-key"),
         subscriptionIdOf: (tenant) => app().stripeSubscriptionId(tenant),
         checkoutSubscriptionOf: async (ownerEmail) => (await app().workspaceOf({ ownerEmail }))?.stripe_subscription_id ?? null,
+        checkoutCustomerOf: async (ownerEmail) => (await app().workspaceOf({ ownerEmail }))?.stripe_customer_id ?? null,
       }),
   );
   const lanes = (): ScenarioLanes => ({
@@ -375,6 +376,10 @@ export function undoHandlers(parts: UndoParts): UndoHandlers {
     "app.delete-mail-account": async (params) => {
       if (typeof params.email !== "string") throw new Error("app.delete-mail-account undo needs email");
       await parts.app().deleteMailAccount({ email: params.email });
+    },
+    "app.release-signup-number": async (params) => {
+      if (typeof params.provisioningKey !== "string") throw new Error("app.release-signup-number undo needs provisioningKey");
+      await parts.app().releaseSignUpNumber({ provisioningKey: params.provisioningKey });
     },
     "app.revoke-invite": async (params) => {
       if (typeof params.member !== "string" || typeof params.inviteId !== "string") throw new Error("app.revoke-invite undo needs member and inviteId");

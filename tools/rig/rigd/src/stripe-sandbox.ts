@@ -10,8 +10,9 @@
  * starting `loonext_rig ` (Stripe keeps no metadata on a clock). Before a
  * delete or a clock advance the object is read, and the change is refused
  * unless it carries the tag: the rig never changes what a developer made.
- * S32's subscription comes from the app's Checkout, which sets no metadata;
- * it is tagged once the rig's own database shows that S32's sign-up owns it.
+ * S32's subscription and customer come from the app's Checkout, which sets no
+ * metadata; each is tagged once the rig's own database shows that S32's
+ * sign-up owns it.
  */
 import { SIGN_UP_ADDRESS } from "./app-probe.ts";
 import type { StripeApi } from "./scenarios/context.ts";
@@ -26,6 +27,8 @@ const ALLOWED: readonly [string, RegExp][] = [
   ["GET", /^\/v1\/(customers|subscriptions|invoices|prices|products|billing\/meters|test_helpers\/test_clocks)(\/[A-Za-z0-9_]+)?$/],
   ["GET", /^\/v1\/invoices\/upcoming$/],
   ["GET", /^\/v1\/billing\/meters\/[A-Za-z0-9_]+\/event_summaries$/],
+  // S32's preflight: hosted Checkout needs Stripe Tax on, and the portal a default configuration.
+  ["GET", /^\/v1\/(billing_portal\/configurations|tax\/settings)$/],
   ["POST", /^\/v1\/(customers|subscriptions|test_helpers\/test_clocks|billing\/meter_events|invoices)$/],
   ["POST", /^\/v1\/test_helpers\/test_clocks\/[A-Za-z0-9_]+\/advance$/],
   ["POST", /^\/v1\/invoices\/[A-Za-z0-9_]+\/finalize$/],
@@ -54,6 +57,8 @@ export interface StripeSandboxOptions {
   subscriptionIdOf: (tenant: string) => Promise<string | null>;
   /** The `stripe_subscription_id` of the workspace a sign-up address owns, read from the local database. */
   checkoutSubscriptionOf: (ownerEmail: string) => Promise<string | null>;
+  /** That workspace's `stripe_customer_id`. */
+  checkoutCustomerOf: (ownerEmail: string) => Promise<string | null>;
   fetch?: typeof fetch;
 }
 
@@ -87,13 +92,21 @@ export class StripeSandbox implements StripeApi {
   }
 
   async adoptCheckoutSubscription(args: { ownerEmail: string; subscriptionId: string }): Promise<void> {
-    if (!SIGN_UP_ADDRESS.test(args.ownerEmail)) throw new Error("stripe sandbox: only a sign-up scenario's own subscription can be adopted");
     if (!/^sub_[A-Za-z0-9]+$/.test(args.subscriptionId)) throw new Error("stripe sandbox: that is not a subscription id");
-    const recorded = await this.#o.checkoutSubscriptionOf(args.ownerEmail);
-    if (recorded !== args.subscriptionId) throw new Error("stripe sandbox: the rig's database does not give that subscription to the sign-up; nothing was changed");
+    await this.#adopt(args.ownerEmail, `/v1/subscriptions/${args.subscriptionId}`, args.subscriptionId, this.#o.checkoutSubscriptionOf);
+  }
+
+  async adoptCheckoutCustomer(args: { ownerEmail: string; customerId: string }): Promise<void> {
+    if (!/^cus_[A-Za-z0-9]+$/.test(args.customerId)) throw new Error("stripe sandbox: that is not a customer id");
+    await this.#adopt(args.ownerEmail, `/v1/customers/${args.customerId}`, args.customerId, this.#o.checkoutCustomerOf);
+  }
+
+  /** Tags an object Checkout made, once the rig's database gives it to the sign-up's workspace. */
+  async #adopt(ownerEmail: string, path: string, id: string, recordedOf: (ownerEmail: string) => Promise<string | null>): Promise<void> {
+    if (!SIGN_UP_ADDRESS.test(ownerEmail)) throw new Error("stripe sandbox: only a sign-up scenario's own Checkout objects can be adopted");
+    if ((await recordedOf(ownerEmail)) !== id) throw new Error("stripe sandbox: the rig's database does not give that object to the sign-up; nothing was changed");
     const key = this.#o.key();
     if (!/^(sk|rk)_test_/.test(key)) throw new Error("stripe sandbox: the key is not a test-mode key; nothing was sent");
-    const path = `/v1/subscriptions/${args.subscriptionId}`;
     const current = await this.request<{ metadata?: Record<string, unknown> }>("GET", path);
     if (current.metadata?.[RIG_TAG] !== "1") await this.#send("POST", path, { metadata: { [RIG_TAG]: "1" } }, key);
   }
@@ -140,17 +153,18 @@ function tagged(path: string, params: Record<string, unknown>): Record<string, u
   return params;
 }
 
-/** The undo for a sandbox object a run made, a subscription or a test clock; its handler is deleteStripeObject. */
+/** The undo for a sandbox object a run made, a customer, a subscription or a test clock; its handler is deleteStripeObject. */
 export const STRIPE_DELETE_UNDO = "stripe.delete";
-const STRIPE_UNDO_PATH = /^\/v1\/(subscriptions|test_helpers\/test_clocks)\/[A-Za-z0-9_]+$/;
+const STRIPE_UNDO_PATH = /^\/v1\/(customers|subscriptions|test_helpers\/test_clocks)\/[A-Za-z0-9_]+$/;
 
 /**
- * Removes a subscription or a test clock a run made, as the `stripe.delete`
- * undo and as each run's own cleanup. Already gone is done, so both may run.
+ * Removes a customer, a subscription or a test clock a run made, as the
+ * `stripe.delete` undo and as each run's own cleanup. Already gone is done,
+ * so both may run.
  */
 export async function deleteStripeObject(stripe: Pick<StripeApi, "request">, params: Record<string, unknown>): Promise<void> {
   const path = params.path;
-  if (typeof path !== "string" || !STRIPE_UNDO_PATH.test(path)) throw new Error("stripe.delete undo needs a subscription or test clock path");
+  if (typeof path !== "string" || !STRIPE_UNDO_PATH.test(path)) throw new Error("stripe.delete undo needs a customer, subscription or test clock path");
   let current: { deleted?: boolean; status?: string };
   try {
     current = await stripe.request<{ deleted?: boolean; status?: string }>("GET", path);

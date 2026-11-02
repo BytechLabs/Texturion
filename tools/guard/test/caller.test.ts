@@ -113,7 +113,11 @@ describe("refusals", () => {
 
   it("are 429 for a spent budget and 403 for everything else", () => {
     for (const rule of RULES) {
-      const spent = rule.startsWith("budget.") || rule === "provisioning.search_rate" || rule === "provisioning.order_interval";
+      const spent =
+        rule.startsWith("budget.") ||
+        rule === "provisioning.search_rate" ||
+        rule === "provisioning.search_cap" ||
+        rule === "provisioning.order_interval";
       expect(statusFor(rule), rule).toBe(spent ? 429 : 403);
     }
   });
