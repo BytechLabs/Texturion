@@ -28,6 +28,9 @@ export interface DeviceTokens {
   grpc: string;
 }
 
+/** A cold emulator takes minutes to boot, and hostd answers only once it has (its own limit is five). */
+const BOOT_REQUEST_TIMEOUT_MS = 6 * 60 * 1000;
+
 export interface HostdOptions {
   /** `http://127.0.0.1:<port>`, the tunnel's end. */
   origin?: string;
@@ -71,7 +74,7 @@ export class HostdClient {
 
   /** Starts the device's emulator; `cold` skips the snapshot, `wipe` also erases its data. */
   async boot(name: RigDeviceName, options: { cold: boolean; wipe: boolean }): Promise<void> {
-    await this.#request("POST", `/v1/devices/${device(name)}/boot`, { cold: options.cold === true, wipe: options.wipe === true });
+    await this.#request("POST", `/v1/devices/${device(name)}/boot`, { cold: options.cold === true, wipe: options.wipe === true }, BOOT_REQUEST_TIMEOUT_MS);
   }
 
   /** Stops the device's emulator: through its console, or `hard` by ending the process. */
@@ -90,7 +93,7 @@ export class HostdClient {
     return { console: consoleToken, grpc: grpcToken };
   }
 
-  async #request(method: "GET" | "POST", path: string, body?: Record<string, boolean>): Promise<unknown> {
+  async #request(method: "GET" | "POST", path: string, body?: Record<string, boolean>, minTimeoutMs = 0): Promise<unknown> {
     const token = this.#o.token().trim();
     if (!token) throw new Error("hostd: the store's hostd-token is empty");
     let response: Response;
@@ -99,7 +102,7 @@ export class HostdClient {
         method,
         headers: { authorization: `Bearer ${token}`, ...(body ? { "content-type": "application/json" } : {}) },
         ...(body ? { body: JSON.stringify(body) } : {}),
-        signal: AbortSignal.timeout(this.#o.timeoutMs ?? 30_000),
+        signal: AbortSignal.timeout(Math.max(this.#o.timeoutMs ?? 30_000, minTimeoutMs)),
       });
     } catch (error) {
       throw new Error(`hostd: ${method} ${path} got no answer (${error instanceof Error ? error.name : "error"}); is the tunnel up?`);

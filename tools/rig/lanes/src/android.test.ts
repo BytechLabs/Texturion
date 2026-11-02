@@ -834,6 +834,17 @@ describe("the hostd client", () => {
     await expect(new HostdClient({ origin: `http://127.0.0.1:${port}`, token: () => "wrong" }).health()).rejects.toThrow(/answered 401/);
   });
 
+  it("waits out a boot that outlasts its ordinary timeout", async () => {
+    const slow = (async (_url: string | URL | Request, init?: RequestInit) => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      if (init?.signal?.aborted) throw new DOMException("timed out", "TimeoutError");
+      return new Response("", { status: 200 });
+    }) as typeof fetch;
+    const client = new HostdClient({ origin: "http://127.0.0.1:15900", token: () => HOSTD_TOKEN, fetch: slow, timeoutMs: 20 });
+    await expect(client.kill("pixel", { hard: false })).rejects.toThrow(/got no answer/);
+    await expect(client.boot("emulator-34", { cold: true, wipe: false })).resolves.toBeUndefined();
+  });
+
   it("refuses a device the contract does not name before any request, and an origin off loopback", async () => {
     const hostd = await fakeHostd({});
     await expect(hostd.client().boot("emulator-33" as never, { cold: false, wipe: false })).rejects.toThrow(/not one of the rig's devices/);
