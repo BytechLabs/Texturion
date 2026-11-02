@@ -56,6 +56,7 @@ is nothing verified that is not here.
 | **1.3.5** Identify Input Purpose | Every field in sign-in, sign-up, onboarding, brand registration and profile that collects the person's own details names its `autocomplete` purpose with a registered token, or says `off` on purpose | `apps/web/src/app/wcag22-new-criteria.test.ts` |
 | **3.3.8** Accessible Authentication (Minimum) | Nothing on the sign-in surface blocks paste, copy or drop; every password field says whether it is new or existing and every code field is `one-time-code`, so a password manager or the phone does the remembering | `apps/web/src/app/wcag22-new-criteria.test.ts` |
 | **3.2.6** Consistent Help | Every signed-out screen shows the same help link in the same slot, because it is rendered by the auth layout and not by each page; the signed-in and marketing help routes are pinned where their screens expect them | `apps/web/src/app/wcag22-new-criteria.test.ts` |
+| **1.4.10** Reflow | Every public page, in English and in French, fits a 320px viewport without the page scrolling sideways; text fields are 16px at phone widths so Mobile Safari does not zoom on focus | `scripts/check-app-a11y.mjs` (CI)  |
 
 Every one of these guards has been **proven by breaking it** — the rule was
 removed from the product, the test observed to fail, and the removal reverted.
@@ -74,7 +75,6 @@ cannot promise they still hold on any given day.
 | **2.1.1** Keyboard | A complete path — rail → list → thread → composer → panel — with focus never trapped in a scroll region, and `Tab` order following visual order across panes (§7) | Partly verified, and the honest split is worth stating: the walk in `theme-audit.mjs` does press `Tab` through each surface, so a focus TRAP now fails a build. Whether the order it visits matches the *visual* order is a judgement about layout that nothing mechanical makes. |
 | **2.4.13** Focus Appearance | Visible focus throughout (§7) | AAA, and it adds minimum-area and enclosure rules on top of the 3:1 the row above verifies. Contrast is measured; area is not, so the criterion is not claimed. |
 | **3.3.7** Redundant Entry | A multi-step flow shows an earlier answer back, prefilled, instead of asking again; confirming a new password is the criterion's own exception (§7) | Whether a flow re-asks a question is a judgement about that flow's content. `wcag22-new-criteria.test.ts` fixes the mechanism that makes prefilling work (named autocomplete purposes), not the flow design. |
-| **1.4.10** Reflow | Designed at 375px; one-handed throughout; 16px message field to defeat iOS zoom (§7) | No mechanical reflow check at 320px/400% yet. |
 | **1.1.1** Non-text Content | Alt text on every gallery thumbnail; timeline events are readable text, not icon-only (§7) | Presence of alt text is checked; whether it is *useful* is not machine-decidable. |
 
 ---

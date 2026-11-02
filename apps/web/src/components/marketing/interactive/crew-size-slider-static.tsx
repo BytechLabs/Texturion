@@ -118,7 +118,7 @@ export function CrewSizeSliderStatic({
       <div className="mt-6 space-y-4">
         {/* Loonext: the cobalt flat line. */}
         <div>
-          <div className="flex items-baseline justify-between gap-3 text-[0.875rem]">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[0.875rem]">
             <span className="font-medium text-[color:var(--fr-ink)]">
               {copy.sliderLoonext}
             </span>
@@ -139,7 +139,7 @@ export function CrewSizeSliderStatic({
 
         {/* The rival: the Flare climbing line (§3.4.5, non-text mark). */}
         <div>
-          <div className="flex items-baseline justify-between gap-3 text-[0.875rem]">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[0.875rem]">
             <span className="font-medium text-[color:var(--fr-ink)]">
               {copy.sliderRivalBefore} {usd(perUserMonthly, audience)}
               {copy.sliderRivalAfter}

@@ -337,7 +337,7 @@ export function PricingPageBody({
       {/* Text-length explainer + the counter running the real billing code,
           staged in a Panel Frame with the app's own tokens (Law 2). */}
       <FrSection>
-        <div className="mx-auto grid max-w-4xl gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
+        <div className="mx-auto grid max-w-4xl grid-cols-1 gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
           <div>
             <h2 className="fr-h2 text-[color:var(--fr-ink)]">
               {copy.segmentTitle}

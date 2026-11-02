@@ -96,7 +96,7 @@ describe("#238/#285 the accessibility statement is backed by real tests", () => 
     // 2.4.11. Raising it is not bookkeeping: left at 8, the three new rows
     // could each be deleted in silence, and the comment above would be a lie
     // the next reader trusts.
-    expect(verifiedRows().length).toBeGreaterThanOrEqual(15);
+    expect(verifiedRows().length).toBeGreaterThanOrEqual(16);
     expect(citedPaths().length).toBeGreaterThanOrEqual(6);
   });
 

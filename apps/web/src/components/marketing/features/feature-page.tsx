@@ -127,7 +127,7 @@ export function FeatureSection({
   return (
     <FrSection ground={ground} id={id}>
       {visual ? (
-        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+        <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <div className={cn(flip && "lg:order-2")}>{copy}</div>
           <div className={cn(flip && "lg:order-1")}>{visual}</div>
         </div>

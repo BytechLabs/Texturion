@@ -304,7 +304,7 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
         />
       </CountryOnly>
 
-      <div className="mx-auto mt-14 grid max-w-5xl gap-10 lg:grid-cols-2 lg:gap-8">
+      <div className="mx-auto mt-14 grid max-w-5xl grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-8">
         <div>
           <p className="font-body-mkt max-w-[52ch] text-[15px] leading-[1.65] text-[color:var(--fr-ink-70)]">
             {copy.dealSliderCaption}

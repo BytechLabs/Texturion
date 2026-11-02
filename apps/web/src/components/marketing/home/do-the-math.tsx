@@ -29,7 +29,7 @@ export function DoTheMath({
   const copy = homeCopy(locale);
   return (
     <FrSection ground="white" id="math">
-      <div className="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
         <div>
           <Eyebrow>{copy.mathEyebrow}</Eyebrow>
           <h2 className="fr-h2 mt-4">

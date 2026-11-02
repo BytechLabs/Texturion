@@ -164,7 +164,7 @@ export function RulesCanada({
       {/* US (SSR default): the carrier proof points + the registration-tracked
           reassurance card. No Canadian content. */}
       <CountryOnly country="us">
-        <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
           <ProofColumn
             eyebrow={copy.rulesEyebrowUs}
             points={US_PROOF_POINTS}
@@ -183,7 +183,7 @@ export function RulesCanada({
       {/* Canada: the CASL-framed proof points + the day-one story, stated. No
           US registration, wait, or fee. */}
       <CountryOnly country="ca">
-        <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
           <ProofColumn
             eyebrow={copy.rulesEyebrowCa}
             points={CA_PROOF_POINTS}

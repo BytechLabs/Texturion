@@ -89,7 +89,7 @@ export function Hero({ locale = "en" }: { locale?: MarketingLocale } = {}) {
       />
 
       <div className="relative z-10 mx-auto w-full max-w-[72rem] px-6 md:px-8">
-        <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-8">
+        <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-8">
           {/* LEFT (7/12): the pitch. The H1 is the LCP; nothing above it but
               the dateline chip. */}
           <div className="lg:col-span-7">

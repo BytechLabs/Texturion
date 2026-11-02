@@ -99,8 +99,9 @@ export function ContactForm({ locale = "en" }: { locale?: MarketingLocale } = {}
     setErrorNonce((n) => n + 1);
   }
 
+  // 16px below sm: Mobile Safari zooms the page on focus into anything smaller.
   const fieldClass =
-    "w-full rounded-[10px] bg-[color:var(--fr-frost)] px-3.5 py-2.5 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:opacity-60";
+    "w-full rounded-[10px] bg-[color:var(--fr-frost)] px-3.5 py-2.5 text-base text-[color:var(--fr-ink)] sm:text-[0.9375rem] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:opacity-60";
   const labelClass = "block text-sm font-semibold text-[color:var(--fr-ink)]";
   // The FR palette has no error red (§2: nine colors are the law; flare is
   // whitelist-only, never body text). Errors read through weight, the alert

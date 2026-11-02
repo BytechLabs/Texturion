@@ -109,6 +109,19 @@ const CSS = `
 .frn-cta:hover {
   background-color: var(--fr-olive-deep);
 }
+/* The header is sticky, so a control scrolled to the top edge by Tab would sit
+   under it (WCAG 2.4.11 Focus Not Obscured). */
+html {
+  scroll-padding-top: 5rem;
+}
+/* This rule is unlayered, so it beats the Tailwind hidden class. Without it
+   the header CTA stays on phones, where the French label pushes the hamburger
+   off a 375px screen; the sheet carries the CTA there. */
+@media (max-width: 639.98px) {
+  .frn-cta.hidden {
+    display: none;
+  }
+}
 /* The mobile sheet's pinned CTA: same pill, 48px tap height. */
 .frn-cta-lg {
   height: 3rem;

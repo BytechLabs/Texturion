@@ -211,6 +211,13 @@ export const accessibilityVerifiedFr: Record<
     sourceHolds:
       "Every signed-out screen shows the same help link in the same slot, because it is rendered by the auth layout and not by each page; the signed-in and marketing help routes are pinned where their screens expect them",
   },
+  "1.4.10 Reflow": {
+    criterion: "**1.4.10** Redimensionnement du contenu",
+    holds:
+      "Chaque page publique, en anglais comme en français, tient dans une fenêtre de 320 px sans défilement horizontal de la page; les champs de texte font 16 px sur téléphone pour que Mobile Safari ne zoome pas à la mise en focus",
+    sourceHolds:
+      "Every public page, in English and in French, fits a 320px viewport without the page scrolling sideways; text fields are 16px at phone widths so Mobile Safari does not zoom on focus",
+  },
 };
 
 const COPY = { en: legalAccessibilityEn, "fr-CA": legalAccessibilityFr } as const;
