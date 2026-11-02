@@ -947,7 +947,7 @@ describe("S32, sign-up through Checkout and the portal", () => {
     expect(result.outcome).toBe("pass");
     expect(result.detail).toMatch(/US branch .* not covered/);
     expect(browser.actions.filter((action) => action.startsWith("public ") && !action.includes("sign up") && !action.includes("goto"))).toEqual([
-      "public number 416",
+      "public number 416,647,437,905,289",
       "public continue to checkout",
       "public checkout M5V 3L9",
     ]);
@@ -985,15 +985,18 @@ describe("S32, sign-up through Checkout and the portal", () => {
     expect(await S32.run(stalled.ctx)).toMatchObject({ failure_class: "onboarding_incomplete" });
   });
 
-  it("stops before Checkout when test mode lacks Stripe Tax or a default portal configuration", async () => {
-    const noPortal = signUpWorld("S32");
-    noPortal.stripe.answers.set("GET /v1/billing_portal/configurations", { data: [] });
-    expect(await S32.run(noPortal.ctx)).toMatchObject({ outcome: "infra", component: "stripe-portal-config" });
-    expect(noPortal.browser.actions).not.toContain("public continue to checkout");
-
+  it("stops before sign-up without Stripe Tax, and judges all but the portal without a default portal configuration", async () => {
     const noTax = signUpWorld("S32");
     noTax.stripe.answers.set("GET /v1/tax/settings", { status: "pending" });
     expect(await S32.run(noTax.ctx)).toMatchObject({ outcome: "infra", component: "stripe-tax" });
+    expect(noTax.browser.publicPages).toEqual([]);
+
+    const noPortal = signUpWorld("S32");
+    noPortal.stripe.answers.set("GET /v1/billing_portal/configurations", { data: [] });
+    noPortal.browser.publicScript.portalHost = null;
+    expect(await S32.run(noPortal.ctx)).toMatchObject({ outcome: "infra", component: "stripe-portal-config" });
+    expect(noPortal.ctx.evidence.numbers).toEqual({ held: 1, fixture_status: "active", keyed_by_checkout: 0 });
+    expect(deletes(noPortal.stripe)).toEqual(["/v1/subscriptions/sub_s32", "/v1/customers/cus_s32"]);
   });
 
   it("reports a challenged Checkout as the rig's and never a fail", async () => {

@@ -710,9 +710,14 @@ function confirmationLink(mail: MailMessage): string {
 const outsideApp = (path: string) => /^\/(login|signup)(\/|$|\?)/.test(path);
 
 /** The public sign-up, confirmed from Mailpit, leaving the page signed in as the new owner. */
-async function signUpAndConfirm(ctx: ScenarioContext, scenario: "S32" | "S35"): Promise<{ page: PublicPageApi; email: string } | ScenarioResult> {
+async function signUpAndConfirm(
+  ctx: ScenarioContext,
+  scenario: "S32" | "S35",
+  { muteMail = false }: { muteMail?: boolean } = {},
+): Promise<{ page: PublicPageApi; email: string } | ScenarioResult> {
   const email = signUpAddress(scenario, ctx.nonce);
   ctx.lease.registerUndo({ kind: "app.delete-sign-up", params: { email } });
+  if (muteMail) await ctx.app.muteSignUpMail({ email });
   const since = ctx.now();
   const page = await ctx.browser.openPublic("/signup");
   const signedUp = await page.signUp({ email, password: oneTimePassword(), name: `Rig ${scenario} ${ctx.nonce}` });
@@ -740,8 +745,11 @@ export const S35: ScenarioRunner = {
   },
 };
 
-/** S32's workspace is Canadian, in Toronto's area code, so the wizard is name, number, plan. */
-const S32_AREA_CODE = "416";
+/**
+ * S32's workspace is Canadian, so the wizard is name, number, plan. Toronto's
+ * area codes in turn: Telnyx's inventory in any one of them can run dry.
+ */
+const S32_AREA_CODES = ["416", "647", "437", "905", "289"] as const;
 /** A Toronto postal code: Checkout's automatic tax needs the customer's country and postal code. */
 const S32_POSTAL_CODE = "M5V 3L9";
 /** The grace notice still looks the owner up and pushes after the cancellation is mirrored. */
@@ -769,16 +777,17 @@ export const S32: ScenarioRunner = {
   // The guard searches for numbers only under a live S32 lease of its own.
   guardLease: true,
   async run(ctx) {
-    const notReady = await stripeTestModeReady(ctx);
-    if (notReady) return notReady;
-    const signedUp = await signUpAndConfirm(ctx, "S32");
+    const noTax = await stripeTaxReady(ctx);
+    if (noTax) return noTax;
+    // Muted from the start: the new-device notice and the cancellation's grace notice would each spend a Resend send.
+    const signedUp = await signUpAndConfirm(ctx, "S32", { muteMail: true });
     if ("outcome" in signedUp) return signedUp;
     const { page, email } = signedUp;
     const walk = await page.walkOnboarding({ business: `Rig S32 ${ctx.nonce}` });
     ctx.evidence.onboarding = walk;
     if (walk?.steps.at(-1) !== "number") return fail("onboarding_incomplete", "the new owner did not get from the wizard's name step to its number step");
 
-    const choice = await page.chooseCanadianNumber({ areaCode: S32_AREA_CODE });
+    const choice = await page.chooseCanadianNumber({ areaCodes: S32_AREA_CODES });
     ctx.evidence.number_step = choice;
     if (!choice.continued) return numberStepFailed(ctx, choice);
 
@@ -793,7 +802,6 @@ export const S32: ScenarioRunner = {
     // A fictional 555-01xx number, so its last four are no one's.
     ctx.evidence.fixture = { row_id: fixture.row_id, last_four: fixture.number_e164.slice(-4) };
 
-    await ctx.app.muteSignUpMail({ email });
 
     const made: { subscription?: string; customer?: string } = {};
     try {
@@ -861,6 +869,9 @@ async function payAndJudge(
   const activity = judgeSignUpActivity(ctx, (await ctx.guard.activity(ctx.lease.id)).activity);
   if (activity) return activity;
 
+  // Everything before the portal is judged even when the portal cannot open.
+  const noPortal = await portalConfigured(ctx);
+  if (noPortal) return noPortal;
   const portal = await page.openBillingPortal();
   ctx.evidence.portal_host = portal;
   if (portal !== "billing.stripe.com") return fail("portal_not_opened", `billing's portal button led to ${portal ?? "nothing"}, not Stripe's portal`);
@@ -872,23 +883,30 @@ async function numberStepFailed(ctx: ScenarioContext, choice: NumberChoice): Pro
   const searches = activityEntries((await ctx.guard.activity(ctx.lease.id)).activity).filter((e) => e.endpoint === SEARCH);
   ctx.evidence.searches = Object.fromEntries(searches.map((e) => [e.outcome, e.count]));
   if (searches.some((e) => e.outcome === "provisioning.search_needs_lease")) return infra("guard", "search allowance not deployed");
-  const where = choice.inventory === "failed" ? "its picker never loaded numbers" : choice.inventory === "none" ? "its picker offered no number" : "Continue did not reach the plan step";
+  const where = choice.inventory === "failed" ? "its picker never loaded numbers" : choice.inventory === "none" ? `no number in any of ${S32_AREA_CODES.join(", ")}` : "Continue did not reach the plan step";
   return fail("number_step", `the number step stopped: ${where}${choice.alert ? ` (${choice.alert})` : ""}`);
 }
 
-/** Checkout needs Stripe Tax on in the shared test mode, and the portal a default configuration. */
-async function stripeTestModeReady(ctx: ScenarioContext): Promise<ScenarioResult | undefined> {
+/** Checkout's automatic tax needs Stripe Tax active in the shared test mode. */
+async function stripeTaxReady(ctx: ScenarioContext): Promise<ScenarioResult | undefined> {
   try {
-    const portal = await ctx.stripe.request<{ data?: { is_default?: boolean; active?: boolean }[] }>("GET", "/v1/billing_portal/configurations", { is_default: true, limit: 1 });
-    if (!portal.data?.some((configuration) => configuration.is_default && configuration.active !== false)) {
-      return infra("stripe-portal-config", "Stripe's test mode has no active default portal configuration");
-    }
     const tax = await ctx.stripe.request<{ status?: string }>("GET", "/v1/tax/settings");
     if (tax.status !== "active") return infra("stripe-tax", `Stripe Tax is ${tax.status ?? "unknown"} in test mode, and Checkout's automatic tax needs it active`);
   } catch (error) {
     return infra("stripe", `the test-mode preflight failed: ${(error as Error).message}`);
   }
   return undefined;
+}
+
+/** The owner's full portal needs a default portal configuration in the shared test mode. */
+async function portalConfigured(ctx: ScenarioContext): Promise<ScenarioResult | undefined> {
+  try {
+    const portal = await ctx.stripe.request<{ data?: { is_default?: boolean; active?: boolean }[] }>("GET", "/v1/billing_portal/configurations", { is_default: true, limit: 1 });
+    if (portal.data?.some((configuration) => configuration.is_default && configuration.active !== false)) return undefined;
+    return infra("stripe-portal-config", "everything up to the portal passed; Stripe's test mode has no active default portal configuration, so the portal was not opened");
+  } catch (error) {
+    return infra("stripe", `the portal configuration could not be read: ${(error as Error).message}`);
+  }
 }
 
 /**

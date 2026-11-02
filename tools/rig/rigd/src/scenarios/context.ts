@@ -79,12 +79,12 @@ export interface PublicPageApi {
    */
   walkOnboarding(args: { business: string }): Promise<OnboardingWalk | null>;
   /**
-   * On the number step: Canada, the area code, a number in it (Refresh when
-   * the list could not load), Canadian customers only, then Continue, which
-   * creates the workspace. Resolves once the plan step shows, or says where it
-   * stopped.
+   * On the number step: Canada, the first of the area codes with numbers, a
+   * number in it (Refresh when the list could not load), Canadian customers
+   * only, then Continue, which creates the workspace. Resolves once the plan
+   * step shows, or says where it stopped.
    */
-  chooseCanadianNumber(args: { areaCode: string }): Promise<NumberChoice>;
+  chooseCanadianNumber(args: { areaCodes: readonly string[] }): Promise<NumberChoice>;
   /** On the plan step: Continue to checkout, then waits for Stripe's hosted Checkout. False when it never opened. */
   continueToCheckout(): Promise<boolean>;
   /** Pays on Stripe's hosted Checkout with a test card and a Canadian address, and waits to be sent back to the app. */
@@ -407,7 +407,7 @@ export interface AppApi {
   checkoutEvent(args: { ownerEmail: string }): Promise<CheckoutEvent | null>;
   /** Unreleased fixture rows anywhere, and rows on a sign-up's workspace that are not fixtures. */
   signUpNumberLeak(): Promise<{ fixtures: number; foreign: string[] }>;
-  /** Suppresses the app's mail to a sign-up's address until deleteSignUp, so its grace notice spends no Resend send. */
+  /** Suppresses the app's mail to a sign-up's address until deleteSignUp, so the run spends no Resend send. */
   muteSignUpMail(args: { email: string }): Promise<void>;
   /** Invites an address to the member's workspace; the answer is the invite row itself. The undo is `app.revoke-invite`. */
   invite(args: { member: string; email: string }): Promise<ApiAnswer<{ id?: string; email_sent?: boolean }>>;

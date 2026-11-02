@@ -66,6 +66,8 @@ export const SELECTORS = {
   /** The number picker (components/numbers/number-picker.tsx, i18n/sections/misc.ts). */
   areaCode: "Area code (optional)",
   numbersRefresh: { role: "button", name: "Refresh" },
+  numbersNone: /^No numbers (available )?(in|near) area code/,
+  areaCodeChange: { role: "button", name: "Change area code" },
   /** Canada's masked inventory: one choice for the whole area code. */
   maskedNumber: (code: string) => ({ role: "radio" as const, name: `Get a number in area code ${code}` }),
   /** The picker's rows; the step's other radios are its mode and country. */
@@ -87,6 +89,7 @@ export const SELECTORS = {
     billingPostalCode: 'input[name="billingPostalCode"]',
     submit: 'button[type="submit"]',
     challenge: 'iframe[src*="hcaptcha"], iframe[title*="challenge" i]',
+    error: '[role="alert"], .FieldError, .ConfirmPaymentButton-error',
   },
 } as const;
 
@@ -161,6 +164,8 @@ export interface NumberChoice {
   /** masked: Canada's area-code choice; revealed: a list of numbers; failed: never loaded, Refresh included. */
   inventory: "masked" | "revealed" | "failed" | "none";
   refreshes: number;
+  /** The area code the number was picked in, or the last one tried. */
+  areaCode?: string;
   /** True once the plan step showed. */
   continued: boolean;
   /** The step's own alert, when it showed one. */
@@ -171,10 +176,13 @@ export interface NumberChoice {
 export interface CheckoutRun {
   /** Back on the app's own origin after paying. */
   returned: boolean;
-  /** Stripe showed an hCaptcha or other challenge frame. */
+  /** Stripe showed a visible hCaptcha or other challenge frame after Pay. */
   challenged: boolean;
   /** The pay button was pressed. */
   submitted: boolean;
+  /** When Checkout kept the customer: its visible error texts, and the names of the fields it marked invalid. */
+  errors?: string[];
+  invalid?: string[];
 }
 
 export class BrowserLane {
@@ -325,19 +333,27 @@ export class PublicPage {
   }
 
   /**
-   * The number step for a Canadian workspace: Canada, the area code, a number
+   * The number step for a Canadian workspace: Canada, an area code, a number
    * in it, Canadian customers only, then Continue, which creates the
-   * workspace. A picker that could not load is refreshed before giving up.
+   * workspace. An area code with no numbers moves on to the next, as a
+   * customer would; a picker that could not load is refreshed before giving up.
    */
-  async chooseCanadianNumber(args: { areaCode: string }): Promise<NumberChoice> {
-    if (!/^[2-9]\d{2}$/.test(args.areaCode)) throw new Error("browser lane: an area code is three digits");
+  async chooseCanadianNumber(args: { areaCodes: readonly string[] }): Promise<NumberChoice> {
+    if (args.areaCodes.length === 0 || !args.areaCodes.every((code) => /^[2-9]\d{2}$/.test(code))) {
+      throw new Error("browser lane: area codes are three digits");
+    }
     // Each click below starts a search, and the guard spaces S32's searches a second apart.
     await this.page.waitForTimeout(SEARCH_SPACING_MS);
     await this.page.getByRole(SELECTORS.canada.role, { name: SELECTORS.canada.name, exact: true }).click();
-    await this.page.getByLabel(SELECTORS.areaCode).fill(args.areaCode);
-    await this.page.waitForTimeout(SEARCH_SPACING_MS);
-    await this.page.getByRole("button", { name: new RegExp(`^\\(${args.areaCode}\\)`) }).first().click({ timeout: WIZARD_STEP_TIMEOUT_MS });
-    const picked = await pickNumber(this.page, args.areaCode);
+    let picked: Omit<NumberChoice, "continued"> = { inventory: "none", refreshes: 0 };
+    for (const [index, areaCode] of args.areaCodes.entries()) {
+      if (index > 0) await this.page.getByRole(SELECTORS.areaCodeChange.role, { name: SELECTORS.areaCodeChange.name, exact: true }).click();
+      await this.page.getByLabel(SELECTORS.areaCode).fill(areaCode);
+      await this.page.waitForTimeout(SEARCH_SPACING_MS);
+      await this.page.getByRole("button", { name: new RegExp(`^\\(${areaCode}\\)`) }).first().click({ timeout: WIZARD_STEP_TIMEOUT_MS });
+      picked = { ...(await pickNumber(this.page, areaCode)), areaCode };
+      if (picked.inventory !== "none") break;
+    }
     if (picked.inventory === "failed" || picked.inventory === "none") return { ...picked, continued: false };
     await this.page.getByRole(SELECTORS.canadianCustomersOnly.role, { name: SELECTORS.canadianCustomersOnly.name, exact: true }).click();
     await this.page.getByRole(SELECTORS.wizardContinue.role, { name: SELECTORS.wizardContinue.name, exact: true }).click();
@@ -370,7 +386,7 @@ export class PublicPage {
       await this.page.waitForURL((url) => url.origin === new URL(this.#origin).origin, { timeout: CHECKOUT_RETURN_TIMEOUT_MS });
       return { returned: true, ...filled };
     } catch {
-      return { returned: false, ...filled, challenged: filled.challenged || (await challenged(this.page)) };
+      return { returned: false, ...filled, challenged: await challenged(this.page), ...(await checkoutErrors(this.page)) };
     }
   }
 
@@ -411,9 +427,10 @@ export async function pickNumber(page: Page, areaCode: string): Promise<Omit<Num
   const masked = page.getByRole("radio", { name: new RegExp(`^${SELECTORS.maskedNumber(areaCode).name}(?!\\d)`) });
   const listed = page.locator(SELECTORS.listedNumber);
   const failed = page.getByText(SELECTORS.numbersLoadFailed);
+  const none = page.getByText(SELECTORS.numbersNone);
   let refreshes = 0;
   for (;;) {
-    await masked.or(listed.first()).or(failed).first().waitFor({ timeout: WIZARD_STEP_TIMEOUT_MS }).catch(() => undefined);
+    await masked.or(listed.first()).or(failed).or(none).first().waitFor({ timeout: WIZARD_STEP_TIMEOUT_MS }).catch(() => undefined);
     if (await masked.count()) {
       await masked.click();
       return { inventory: "masked", refreshes };
@@ -431,14 +448,22 @@ export async function pickNumber(page: Page, areaCode: string): Promise<Omit<Num
   }
 }
 
+/** What a Checkout that did not send the customer back shows: its error texts and the fields it marks invalid. */
+async function checkoutErrors(page: Page): Promise<Pick<CheckoutRun, "errors" | "invalid">> {
+  const errors = (await page.locator(SELECTORS.checkout.error).filter({ visible: true }).allTextContents()).map((text) => text.trim()).filter(Boolean);
+  const invalid = await page.locator('[aria-invalid="true"]').evaluateAll((elements) => elements.map((element) => element.getAttribute("name") ?? element.id));
+  return { errors: [...new Set(errors)].slice(0, 5), invalid: [...new Set(invalid)].slice(0, 10) };
+}
+
+/** Checkout always carries an invisible hCaptcha frame; only a visible one is a challenge. */
 async function challenged(page: Page): Promise<boolean> {
-  return (await page.locator(SELECTORS.checkout.challenge).count()) > 0;
+  return (await page.locator(SELECTORS.checkout.challenge).filter({ visible: true }).count()) > 0;
 }
 
 /**
  * Fills hosted Checkout as a Canadian customer pays: the email when it asks,
  * the card, the name, and the country and postal code automatic tax needs,
- * then presses Pay. A challenge frame is recorded and never answered.
+ * then presses Pay. A challenge that follows is recorded and never answered.
  */
 export async function fillCheckout(page: Page, args: { card: string; email: string; postalCode: string }): Promise<Omit<CheckoutRun, "returned">> {
   const fields = SELECTORS.checkout;
@@ -456,7 +481,6 @@ export async function fillCheckout(page: Page, args: { card: string; email: stri
   if (await country.count()) await country.selectOption("CA");
   const postal = page.locator(fields.billingPostalCode);
   if (await postal.count()) await postal.fill(args.postalCode);
-  if (await challenged(page)) return { challenged: true, submitted: false };
   await page.locator(fields.submit).first().click();
   return { challenged: false, submitted: true };
 }

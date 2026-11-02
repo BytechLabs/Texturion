@@ -1016,8 +1016,8 @@ export class AppProbe implements AppApi {
   /**
    * Keeps the app's mail to a sign-up's address off the guard's Resend day:
    * the address is suppressed, as a hard bounce leaves one, until deleteSignUp
-   * removes the row. Cancelling S32's subscription mails the day-1 grace
-   * notice otherwise.
+   * removes the row. S32's new-device notice and its cancellation's day-1
+   * grace notice would each spend a send otherwise.
    */
   async muteSignUpMail(args: { email: string }): Promise<void> {
     if (!SIGN_UP_ADDRESS.test(args.email)) throw new Error("app probe: only a sign-up scenario's own address can be muted");
@@ -1038,15 +1038,17 @@ export class AppProbe implements AppApi {
     await this.#write("DELETE", "email_suppressions", { email: `eq.${args.email.toLowerCase()}` }, undefined, "return=minimal");
     const user = await this.#authUserByEmail(args.email);
     if (!user) return;
-    const companies = await this.#rest<{ id: string }[]>("companies", { owner_user_id: `eq.${user}`, deleted_at: "is.null", select: "id" });
+    const companies = await this.#rest<{ id: string }[]>("companies", { owner_user_id: `eq.${user}`, select: "id" });
     const held = await this.#heldNumbers(companies.map((company) => company.id));
     const real = held.find((row) => !row.provisioning_key.startsWith(SIGN_UP_NUMBER_PREFIX));
     // A row the app provisioned may name a real Telnyx number, which a person releases before the workspace goes.
     if (real) throw new Error(`app probe: the sign-up's workspace holds number row ${real.id}, which the rig did not assign; release it by hand`);
     await this.#write("PATCH", "companies", { owner_user_id: `eq.${user}`, deleted_at: "is.null" }, { deleted_at: iso(this.#now()) }, "return=minimal");
+    // A workspace's rows keep the owner by a restricting foreign key, so an owner is soft-deleted: no sign-in, its address freed.
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users/${user}`, {
       method: "DELETE",
-      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
+      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}`, "content-type": "application/json" },
+      body: JSON.stringify({ should_soft_delete: companies.length > 0 }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok && response.status !== 404) throw new Error(`app probe: deleting the sign-up returned ${response.status}`);

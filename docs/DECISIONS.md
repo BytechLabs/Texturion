@@ -9427,8 +9427,9 @@ with its reason:
   a run takes. Why: the picker is the step's real UI, and a search is a free
   read.
 - **The sign-up's address is suppressed for the app's mail until its undo.**
-  Cancelling S32's test subscription mails the day-1 grace notice, and the
-  guard allows ten Resend sends a day. The suppression row is the app's own
+  S32's first sign-in mails a new-device notice and cancelling its test
+  subscription mails the day-1 grace notice, and the guard allows ten Resend
+  sends a day. The suppression row is the app's own
   `email_suppressions`, so the app decides not to send, as it does for a hard
   bounce.
 - **Not covered:** the US branch (US texting, the $29 fee line, the business

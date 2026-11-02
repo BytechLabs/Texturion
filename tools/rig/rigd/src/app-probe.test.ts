@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { numberBook } from "@loonext/rig-robot";
 import { describe, expect, it } from "vitest";
 import { totpCode } from "../../../../scripts/rig/seed.mjs";
-import { AppProbe, MAIL_ACCOUNT_ADDRESS, SIGN_UP_ADDRESS, stableUuid, VOICEMAILS_BUCKET } from "./app-probe.ts";
+import { AppProbe, MAIL_ACCOUNT_ADDRESS, SIGN_UP_ADDRESS, signUpNumberKey, stableUuid, VOICEMAILS_BUCKET } from "./app-probe.ts";
 import { fakeFetch, json, type Recorded, type Route } from "./test-support.ts";
 
 const SUPABASE = "http://127.0.0.1:54321";
@@ -510,7 +510,7 @@ describe("the app probe's workspaces", () => {
     const workspace: Record<string, Route> = {
       [`DELETE ${rest("email_suppressions")}`]: noContent,
       [`GET ${rest("companies")}`]: () => json([{ id: "company-new" }]),
-      [`GET ${rest("phone_numbers")}`]: () => json([{ id: "fixture-1", provisioning_key: "rig-signup-s32-n0nce" }]),
+      [`GET ${rest("phone_numbers")}`]: () => json([{ id: "fixture-1", provisioning_key: signUpNumberKey("n0nce") }]),
       [`PATCH ${rest("companies")}`]: noContent,
     };
     const { probe, requests } = probeWith({ ...workspace, [`DELETE ${SUPABASE}/auth/v1/admin/users/${SIGN_UP_USER}`]: () => json({}, 200) });
@@ -521,6 +521,7 @@ describe("the app probe's workspaces", () => {
     expect(query(close!)).toEqual({ owner_user_id: `eq.${SIGN_UP_USER}`, deleted_at: "is.null" });
     expect(JSON.parse(close!.body!)).toEqual({ deleted_at: new Date(NOW).toISOString() });
     expect([remove!.method, remove!.url, remove!.headers.authorization]).toEqual(["DELETE", `${SUPABASE}/auth/v1/admin/users/${SIGN_UP_USER}`, "Bearer service"]);
+    expect(JSON.parse(remove!.body!)).toEqual({ should_soft_delete: true });
 
     const gone = probeWith({ [`DELETE ${rest("email_suppressions")}`]: noContent });
     await gone.probe.deleteSignUp({ email: "delivered+rig-s35-other@resend.dev" });
@@ -607,7 +608,7 @@ describe("the app probe's workspaces", () => {
     expect(fixture.number_e164).toMatch(/^\+141655501\d\d$/);
     const inserts = requests.filter((r) => r.method === "POST" && r.url.startsWith(rest("phone_numbers"))).map((r) => JSON.parse(r.body!));
     expect(inserts).toHaveLength(2);
-    expect(inserts[1]).toMatchObject({ company_id: "company-new", status: "active", country: "CA", telnyx_phone_number_id: null, provisioning_key: "rig-signup-s32-run-1" });
+    expect(inserts[1]).toMatchObject({ company_id: "company-new", status: "active", country: "CA", telnyx_phone_number_id: null, provisioning_key: signUpNumberKey("Run 1") });
     expect(inserts[0].number_e164).not.toBe(inserts[1].number_e164);
 
     await expect(probe.assignSignUpNumber({ ownerEmail: "delivered+rig-qa-w-owner@resend.dev", nonce: "x" })).rejects.toThrow(/sign-up scenario/);
@@ -624,14 +625,14 @@ describe("the app probe's workspaces", () => {
   it("releases only a fixture row, in the database, and reports fixtures and foreign rows left held", async () => {
     const { probe, requests } = probeWith({ [`PATCH ${rest("phone_numbers")}`]: noContent });
     await expect(probe.releaseSignUpNumber({ provisioningKey: "cs_test_1" })).rejects.toThrow(/fixture number/);
-    await probe.releaseSignUpNumber({ provisioningKey: "rig-signup-s32-run-1" });
-    expect(query(requests.at(-1)!)).toEqual({ provisioning_key: "eq.rig-signup-s32-run-1", status: "neq.released" });
+    await probe.releaseSignUpNumber({ provisioningKey: signUpNumberKey("run-1") });
+    expect(query(requests.at(-1)!)).toEqual({ provisioning_key: `eq.${signUpNumberKey("run-1")}`, status: "neq.released" });
     expect(JSON.parse(requests.at(-1)!.body!)).toEqual({ status: "released", released_at: new Date(NOW).toISOString() });
 
     const leak = probeWith({
       [`GET ${rest("phone_numbers")}?provisioning_key`]: () => json([{ id: "fixture-left" }]),
       [`GET ${rest("companies")}`]: () => json([{ id: "company-new" }]),
-      [`GET ${rest("phone_numbers")}?company_id`]: () => json([{ id: "fixture-left", provisioning_key: "rig-signup-s32-x" }, { id: "bought-1", provisioning_key: "cs_test_1" }]),
+      [`GET ${rest("phone_numbers")}?company_id`]: () => json([{ id: "fixture-left", provisioning_key: signUpNumberKey("x") }, { id: "bought-1", provisioning_key: "cs_test_1" }]),
     });
     expect(await leak.probe.signUpNumberLeak()).toEqual({ fixtures: 1, foreign: ["bought-1"] });
     expect(query(leak.requests.find((r) => r.url.startsWith(rest("companies")))!)).toMatchObject({ owner_user_id: `in.(${SIGN_UP_USER})` });

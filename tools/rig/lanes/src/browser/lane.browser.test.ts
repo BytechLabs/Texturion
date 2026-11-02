@@ -48,12 +48,13 @@ window.answerThenEnd = (talkMs) => {
  * The number step as the wizard renders it (app/onboarding/number/page.tsx and
  * components/numbers/number-picker.tsx): Radix radios named by their labels,
  * the area-code search and its suggestions, then the picker's inventory.
- * `?inventory=` picks masked, revealed or a first load that fails.
+ * `?inventory=` picks masked, revealed, a first load that fails, or none in 416.
  */
 const NUMBER_STEP_PAGE = `<!doctype html><meta charset="utf-8"><title>number step</title>
 <label><button type="button" role="radio" aria-checked="true" id="us"></button>United States</label>
 <label><button type="button" role="radio" aria-checked="false" id="ca"></button>Canada</label>
-<label for="np-area">Area code (optional)</label><input id="np-area">
+<div id="search"><label for="np-area">Area code (optional)</label><input id="np-area"></div>
+<button type="button" id="change" hidden>Change area code</button>
 <ul id="suggestions"></ul>
 <div id="picker"></div>
 <label><button type="button" role="radio" aria-checked="true" id="us-yes"></button>Yes, I text US customers too</label>
@@ -67,16 +68,30 @@ const picker = document.getElementById("picker");
 const check = (id) => document.getElementById(id).setAttribute("aria-checked", "true");
 document.getElementById("ca").onclick = () => check("ca");
 document.getElementById("us-no").onclick = () => check("us-no");
+const search = document.getElementById("search");
+const change = document.getElementById("change");
+change.onclick = () => { search.hidden = false; change.hidden = true; picker.innerHTML = ""; };
 document.getElementById("np-area").oninput = (event) => {
-  if (event.target.value !== "416") return;
-  document.getElementById("suggestions").innerHTML = '<li><button type="button" id="npa">(416) · Ontario<span>Ontario</span></button></li>';
-  document.getElementById("npa").onclick = () => { document.getElementById("suggestions").innerHTML = ""; load(); };
+  const code = event.target.value;
+  if (!/^[0-9]{3}$/.test(code)) return;
+  document.getElementById("suggestions").innerHTML = '<li><button type="button" id="npa">(' + code + ') · Ontario<span>Ontario</span></button></li>';
+  document.getElementById("npa").onclick = () => {
+    document.getElementById("suggestions").innerHTML = "";
+    search.hidden = true;
+    change.hidden = false;
+    event.target.value = "";
+    load(code);
+  };
 };
-function load() {
+function load(code) {
   loads++;
+  if (inventory === "dry" && code === "416") {
+    picker.innerHTML = '<p>No numbers in area code 416 right now. Turn on nearby numbers, or try a different area code.</p>';
+    return;
+  }
   if (inventory === "flaky" && loads === 1) {
     picker.innerHTML = '<p>Couldn&#39;t load numbers. Try Refresh in a moment.</p><button type="button" id="refresh">Refresh</button>';
-    document.getElementById("refresh").onclick = () => setTimeout(load, 200);
+    document.getElementById("refresh").onclick = () => setTimeout(() => load(code), 200);
     return;
   }
   if (inventory === "revealed") {
@@ -84,8 +99,8 @@ function load() {
     for (const row of picker.querySelectorAll("[data-n]")) row.onclick = () => { window.picked = row.dataset.n; };
     return;
   }
-  picker.innerHTML = '<button type="button" role="radio" aria-checked="false" id="masked"><span style="display:block">Get a number in area code 416</span><span style="display:block">We assign the exact number when your account is set up.</span></button>';
-  document.getElementById("masked").onclick = () => { window.picked = "416"; };
+  picker.innerHTML = '<button type="button" role="radio" aria-checked="false" id="masked"><span style="display:block">Get a number in area code ' + code + '</span><span style="display:block">We assign the exact number when your account is set up.</span></button>';
+  document.getElementById("masked").onclick = () => { window.picked = code; };
 }
 document.getElementById("continue").onclick = () => {
   if (window.picked && document.getElementById("us-no").getAttribute("aria-checked") === "true") location.href = "/onboarding/plan?picked=" + encodeURIComponent(window.picked);
@@ -201,16 +216,17 @@ describe("the browser lane in Chromium", () => {
     }
   });
 
-  it("picks Canada's masked choice, a revealed number, or refreshes a picker that could not load, then continues", async () => {
+  it("picks Canada's masked choice or a revealed number, refreshing a failed load and moving past a dry area code, then continues", async () => {
     const lane = new BrowserLane({ appOrigin: origin, profilesDir: join(dir, "profiles"), fakeMicDir: join(dir, "mic"), numbers: numberBook({}) });
     try {
       for (const [inventory, expected, picked] of [
-        ["masked", { inventory: "masked", refreshes: 0 }, "416"],
-        ["revealed", { inventory: "revealed", refreshes: 0 }, "+14165550123"],
-        ["flaky", { inventory: "masked", refreshes: 1 }, "416"],
+        ["masked", { inventory: "masked", refreshes: 0, areaCode: "416" }, "416"],
+        ["revealed", { inventory: "revealed", refreshes: 0, areaCode: "416" }, "+14165550123"],
+        ["flaky", { inventory: "masked", refreshes: 1, areaCode: "416" }, "416"],
+        ["dry", { inventory: "masked", refreshes: 0, areaCode: "647" }, "647"],
       ] as const) {
         const page = await lane.openPublic(`/onboarding/number?inventory=${inventory}`);
-        expect(await page.chooseCanadianNumber({ areaCode: "416" }), inventory).toEqual({ ...expected, continued: true });
+        expect(await page.chooseCanadianNumber({ areaCodes: ["416", "647"] }), inventory).toEqual({ ...expected, continued: true });
         expect(new URL(page.page.url()).searchParams.get("picked"), inventory).toBe(picked);
         await page.close();
       }

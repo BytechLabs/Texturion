@@ -701,7 +701,7 @@ export class FakeBrowser implements BrowserApi {
         return script.onboarding;
       },
       async chooseCanadianNumber(args) {
-        actions.push(`public number ${args.areaCode}`);
+        actions.push(`public number ${args.areaCodes.join(",")}`);
         return script.numberChoice;
       },
       async continueToCheckout() {

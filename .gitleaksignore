@@ -116,3 +116,7 @@ ef5f390943cf370c643a151a217393fd16a12a3c:supabase/migrations/20260819010000_eras
 # bootstrap.sh. It is not a secret; the constant was renamed so the rule no
 # longer reads it as a credential.
 21f15a235dabc798a4d99e08845cb6f45b1c6656:tools/rig/box/bootstrap.sh:generic-api-key:37
+
+# S32's fixture-number provisioning key in a test stub (rig-signup-s32- plus a test nonce). It is a
+# database key the rig makes from a run id, not a credential; later commits build it with signUpNumberKey.
+224b14c744e10581152bf5027cad0bbb83d25e24:tools/rig/rigd/src/app-probe.test.ts:generic-api-key:513
