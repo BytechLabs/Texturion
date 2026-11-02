@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { AuthHelp } from "@/components/auth/auth-help";
 import { Wordmark } from "@/components/shell/wordmark";
 
 import { AppProviders } from "../app-providers";
@@ -33,6 +34,7 @@ export default function AuthLayout({
         <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6">
           {children}
         </div>
+        <AuthHelp />
       </div>
     </AppProviders>
   );

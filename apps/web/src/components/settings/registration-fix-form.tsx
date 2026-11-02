@@ -564,7 +564,7 @@ export function RegistrationFixForm({
                     {t("settingsMore.regDisplayNameLabel")}
                   </FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input autoComplete="organization" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -578,7 +578,12 @@ export function RegistrationFixForm({
                   <FormItem>
                     <FormLabel>{t("settingsMore.regEmailLabel")}</FormLabel>
                     <FormControl>
-                      <Input type="email" inputMode="email" {...field} />
+                      <Input
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -591,7 +596,7 @@ export function RegistrationFixForm({
                   <FormItem>
                     <FormLabel>{t("settingsMore.regPhoneLabel")}</FormLabel>
                     <FormControl>
-                      <Input inputMode="tel" {...field} />
+                      <Input inputMode="tel" autoComplete="tel" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -619,7 +624,7 @@ export function RegistrationFixForm({
                   <FormItem>
                     <FormLabel>{t("settingsMore.portFixCity")}</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input autoComplete="address-level2" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -636,7 +641,7 @@ export function RegistrationFixForm({
                         : t("settingsMore.portFixProvince")}
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input autoComplete="address-level1" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -653,7 +658,7 @@ export function RegistrationFixForm({
                         : t("settingsMore.portFixPostalCode")}
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input autoComplete="postal-code" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -675,6 +680,7 @@ export function RegistrationFixForm({
                       <Input
                         type="url"
                         inputMode="url"
+                        autoComplete="url"
                         placeholder="https://…"
                         {...field}
                       />

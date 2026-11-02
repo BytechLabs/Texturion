@@ -182,6 +182,7 @@ export function WorkspaceSummary({
                   onChange={(e) => setNameDraft(e.target.value)}
                   className="h-9"
                   aria-label={t("onboarding.workspaceNameLabel")}
+                  autoComplete="organization"
                   maxLength={200}
                   autoFocus
                 />

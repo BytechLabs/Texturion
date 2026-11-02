@@ -582,6 +582,10 @@ export const onboardingEn = {
     "We couldn't load the security check. Refresh the page and try again.",
   captchaNotConfigured: "Captcha isn't configured in this environment.",
 
+  // ── Help on the front door (WCAG 3.2.6) ────────────────────────────────────
+  authHelpPrompt: "Trouble signing in?",
+  authHelpLink: "Contact support",
+
   // ── Invites ───────────────────────────────────────────────────────────────
   aLoonextWorkspace: "a Loonext workspace",
   inviteBannerText: "You've been invited to join",
@@ -1211,6 +1215,10 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
     "Nous n'avons pas pu charger la vérification de sécurité. Actualisez la page et réessayez.",
   captchaNotConfigured:
     "Le captcha n'est pas configuré dans cet environnement.",
+
+  // ── Help on the front door (WCAG 3.2.6) ────────────────────────────────────
+  authHelpPrompt: "Un problème de connexion?",
+  authHelpLink: "Contacter l'assistance",
 
   // ── Invites ───────────────────────────────────────────────────────────────
   aLoonextWorkspace: "un espace de travail Loonext",

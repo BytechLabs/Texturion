@@ -40,6 +40,8 @@
  *
  *   1. The 16px field rule, at mobile widths only (it is an iOS zoom defence).
  *   2. Reduced motion.
+ *   3. 1.4.10 Reflow, at 320px: the page must not scroll sideways. Public
+ *      surfaces only until the authenticated shell has been measured there.
  *
  * FOCUS IS NOT HERE. `scripts/theme-audit.mjs` already walks it for 2.4.7,
  * 1.4.11 and 2.4.11, with a shared classifier and unit tests. I built a second
@@ -151,6 +153,11 @@ const WIDTHS = [
   { label: "1440px", width: 1440, height: 900 },
   // §7's own design width.
   { label: "375px", width: 375, height: 812 },
+  // 1.4.10 Reflow: content must fit 320 CSS px wide (the width a 1280px window
+  // has at 400% zoom) without scrolling in two dimensions. `reflow` marks the
+  // one width where that is judged; the rest of the audit also runs there,
+  // because a layout that only breaks at 320 is a layout axe has never seen.
+  { label: "320px", width: 320, height: 640, reflow: true },
 ];
 
 const browser = await chromium.launch();
@@ -296,6 +303,38 @@ try {
       );
       if (reducedMotionProblem) problems.push(reducedMotionProblem);
 
+      // 1.4.10 Reflow. The criterion is about the PAGE: a region that scrolls
+      // sideways on purpose (a wide data table in its own scroller) is allowed,
+      // and does not move `documentElement.scrollWidth`. What does is a fixed
+      // width, a long unbroken string, or a flex row that refuses to wrap.
+      //
+      // The measured widths are printed so a pass shows what it measured: a
+      // check that reports only "ok" cannot be told from one that read zero.
+      if (size.reflow && !surface.auth) {
+        const reflow = await page.evaluate(() => {
+          const root = document.documentElement;
+          const client = root.clientWidth;
+          const wide = [...document.body.querySelectorAll("*")]
+            .filter((element) => {
+              const box = element.getBoundingClientRect();
+              return box.width > 0 && box.right > client + 1;
+            })
+            .slice(0, 3)
+            .map((element) => element.tagName.toLowerCase() + (element.className ? "." + String(element.className).trim().split(/\s+/)[0] : ""));
+          return { scroll: root.scrollWidth, client, wide };
+        });
+        notes.push(
+          `${where}: reflow scrollWidth ${reflow.scroll} in a ${reflow.client}px viewport`,
+        );
+        if (reflow.scroll > reflow.client + 1) {
+          problems.push(
+            `${where}: the page scrolls sideways (scrollWidth ${reflow.scroll} > ` +
+              `${reflow.client}). WCAG 1.4.10 Reflow requires content to fit 320px ` +
+              `wide. Elements past the edge include ${reflow.wide.join(", ") || "none found"}.`,
+          );
+        }
+      }
+
       // 2.4.11 Focus Not Obscured is NOT checked here, and that is a
       // correction rather than an omission. `scripts/theme-audit.mjs`
       // already walks focus for it, with a shared classifier
@@ -328,6 +367,6 @@ if (problems.length > 0) {
 
 console.log(
   `\ncheck-app-a11y: no serious or critical violations across the audited ` +
-    `surfaces; every visible text field is at least 16px and the rendered ` +
+    `surfaces; every visible text field is at least 16px, no public page scrolls sideways at 320px, and the rendered ` +
     `reduced-motion probe is at most ${MAX_REDUCED_TRANSITION_MS}ms.`,
 );

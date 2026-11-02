@@ -524,6 +524,15 @@ it instead of creating an inheritance cycle.
   surface; anything carrying essential meaning bumps to `stone-500`.
 - Attachments gallery: every thumbnail has alt/label text; lightbox is a focus-trapped dialog with
   ESC; downloads are keyboard-reachable.
+- WCAG 2.2 additions beyond dragging, target size and focus (checked by
+  `apps/web/src/app/wcag22-new-criteria.test.ts`): **3.3.8** sign-in never blocks paste and every
+  password and code field names itself to the browser (`current-password`, `new-password`,
+  `one-time-code`); **1.3.5** every field that collects the person's own details states its
+  `autocomplete` purpose, or `off` where a browser should not remember the value (an EIN);
+  **3.2.6** every signed-out screen carries the same help link in the same slot (the auth layout,
+  directly under the card), the app's is Settings → Help and the marketing site's is the footer's
+  contact link; **3.3.7** a multi-step flow shows a value already entered back to the person and
+  never asks for it twice (confirming a new password is the criterion's own exception).
 
 **Reduced motion**
 - All new motion (pane/panel slides, in-thread filter transitions, the message action reveal, FLIP

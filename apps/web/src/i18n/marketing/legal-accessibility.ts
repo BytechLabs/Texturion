@@ -8,7 +8,7 @@ export const legalAccessibilityEn = {
     "What Loonext verifies about accessibility and what it does not: WCAG 2.2 AA criteria enforced by named tests, the gaps stated plainly, and no third-party audit claimed.",
   title: "Accessibility conformance statement",
   breadcrumbLabel: "Accessibility",
-  lastUpdated: "August 25, 2026",
+  lastUpdated: "November 1, 2026",
   summary:
     "We target WCAG 2.2 Level AA. Everything on this page is either enforced by a named test that fails our build, or listed as not verified — there is no third category, and nothing is claimed here because it is probably true. No third-party audit has been carried out, which is exactly why each claim names the check behind it.",
   sectionAsking: "What a buyer is usually asking",
@@ -57,7 +57,7 @@ export const legalAccessibilityFr: Translated<typeof legalAccessibilityEn> = {
     "Ce que Loonext vérifie en matière d'accessibilité et ce qu'il ne vérifie pas : les critères WCAG 2.2 AA protégés par des tests nommés, les lacunes indiquées clairement et aucune prétention d'audit indépendant.",
   title: "Déclaration de conformité en matière d'accessibilité",
   breadcrumbLabel: "Accessibilité",
-  lastUpdated: "25 août 2026",
+  lastUpdated: "1er novembre 2026",
   summary:
     "Nous visons le niveau AA des WCAG 2.2. Chaque élément de cette page est soit protégé par un test nommé qui fait échouer notre compilation, soit indiqué comme non vérifié; il n'existe aucune troisième catégorie et nous ne prétendons rien simplement parce que c'est probablement vrai. Aucun audit indépendant n'a été effectué, et c'est précisément pourquoi chaque affirmation nomme la vérification qui l'appuie.",
   sectionAsking: "Ce qu'un acheteur cherche habituellement à savoir",
@@ -189,6 +189,27 @@ export const accessibilityVerifiedFr: Record<
       "L'attribut lang du document suit le réglage de la personne plutôt que celui de la compilation, afin qu'un lecteur d'écran lise le français avec une voix française",
     sourceHolds:
       "The document's lang follows the READER's own setting rather than the build's, so a screen reader speaks French with a French voice instead of an English one",
+  },
+  "1.3.5 Identify Input Purpose": {
+    criterion: "**1.3.5** Identifier la finalité de la saisie",
+    holds:
+      "Chaque champ de la connexion, de l'inscription, de l'intégration, de l'enregistrement de la marque et du profil qui recueille les renseignements de la personne nomme sa finalité avec une valeur autocomplete reconnue, ou indique off de façon délibérée",
+    sourceHolds:
+      "Every field in sign-in, sign-up, onboarding, brand registration and profile that collects the person's own details names its autocomplete purpose with a registered token, or says off on purpose",
+  },
+  "3.3.8 Accessible Authentication (Minimum)": {
+    criterion: "**3.3.8** Authentification accessible (minimum)",
+    holds:
+      "Rien sur la surface de connexion ne bloque le collage, la copie ou le glisser-déposer; chaque champ de mot de passe indique s'il est nouveau ou existant et chaque champ de code est one-time-code, de sorte qu'un gestionnaire de mots de passe ou le téléphone se charge de la mémorisation",
+    sourceHolds:
+      "Nothing on the sign-in surface blocks paste, copy or drop; every password field says whether it is new or existing and every code field is one-time-code, so a password manager or the phone does the remembering",
+  },
+  "3.2.6 Consistent Help": {
+    criterion: "**3.2.6** Aide cohérente",
+    holds:
+      "Chaque écran sans session affiche le même lien d'aide au même endroit, parce qu'il est rendu par la mise en page d'authentification et non par chaque page; les routes d'aide de l'application et du site sont fixées là où leurs écrans les attendent",
+    sourceHolds:
+      "Every signed-out screen shows the same help link in the same slot, because it is rendered by the auth layout and not by each page; the signed-in and marketing help routes are pinned where their screens expect them",
   },
 };
 

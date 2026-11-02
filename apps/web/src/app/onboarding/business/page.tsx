@@ -496,6 +496,7 @@ export default function BusinessIdentityPage() {
                     <FormControl>
                       <Input
                         inputMode="numeric"
+                        autoComplete="off"
                         maxLength={4}
                         placeholder="1234"
                         className="tabular-nums"
@@ -566,6 +567,7 @@ export default function BusinessIdentityPage() {
                     <FormControl>
                       <Input
                         inputMode="numeric"
+                        autoComplete="off"
                         placeholder={country === "US" ? "12-3456789" : "123456789"}
                         className="tabular-nums"
                         {...field}

@@ -17,6 +17,16 @@ export const SURFACES = [
   // Marketing: its own palette, its own scope, and newly dark (#362 phase 8).
   { path: "/", label: "marketing home", auth: false },
   { path: "/pricing", label: "marketing pricing", auth: false },
+  // #228: the French site is real routes (D138), so it is audited as its own
+  // pages. A screen reader, a contrast pair or a layout that works in English
+  // can still fail in French: the words are longer and the document says
+  // lang="fr-CA".
+  { path: "/fr", label: "marketing home (fr-CA)", auth: false },
+  { path: "/fr/tarifs", label: "marketing pricing (fr-CA)", auth: false },
+  // The form page and the page that makes the accessibility claims.
+  { path: "/contact", label: "marketing contact (form)", auth: false },
+  { path: "/legal/accessibility", label: "accessibility statement", auth: false },
+  { path: "/fr/accessibilite", label: "accessibility statement (fr-CA)", auth: false },
   // #218 was literally "auth screens unreadable in light mode".
   { path: "/login", label: "login", auth: false },
   { path: "/signup", label: "signup", auth: false },
