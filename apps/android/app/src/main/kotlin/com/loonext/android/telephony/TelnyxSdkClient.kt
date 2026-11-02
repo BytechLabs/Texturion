@@ -1,6 +1,7 @@
 package com.loonext.android.telephony
 
 import android.content.Context
+import com.loonext.android.BuildConfig
 import com.telnyx.webrtc.sdk.TelnyxClient
 import com.telnyx.webrtc.sdk.TokenConfig
 import com.telnyx.webrtc.sdk.model.AudioDevice
@@ -19,6 +20,11 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+
+// The rig's builds log the SDK's registration to logcat. DEBUG never prints the
+// login token; VERTO would.
+private val sdkLogLevel =
+    if (BuildConfig.BUILD_TYPE.startsWith("nonprod")) LogLevel.DEBUG else LogLevel.ERROR
 
 /**
  * The real [SdkClient] over the Telnyx Android WebRTC SDK (v3.5). One
@@ -58,7 +64,7 @@ class TelnyxSdkClient(
                 fcmToken = null,
                 ringtone = null,
                 ringBackTone = null,
-                logLevel = LogLevel.ERROR,
+                logLevel = sdkLogLevel,
                 autoReconnect = true,
             ),
             null,

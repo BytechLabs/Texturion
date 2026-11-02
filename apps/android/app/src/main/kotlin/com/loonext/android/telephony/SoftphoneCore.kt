@@ -403,7 +403,10 @@ class SoftphoneCore(
                 // failures without a READY in between) or an error while a
                 // call is actually live.
                 consecutiveSdkErrors++
-                CallFlowLog.log("socket", "Error consecutive=$consecutiveSdkErrors")
+                CallFlowLog.log(
+                    "socket",
+                    "Error consecutive=$consecutiveSdkErrors message=${event.message?.take(120)}",
+                )
                 val worthTelling =
                     _state.value.liveCalls.isNotEmpty() || consecutiveSdkErrors >= 3
                 _state.update {
