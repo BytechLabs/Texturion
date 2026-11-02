@@ -274,6 +274,159 @@ rig share this one account.
 - `TELNYX_VOICE_CONNECTION_ID` → api Worker secret (the Call-Control app id, §1).
 - Account with US/CA + 10DLC enabled and funded.
 
+---
+
+## 8. Vendor-side daily spend limits (#642)
+
+The app's own per-company caps are the first line against a bug that spends.
+Telnyx's daily spend limit is the second: over the limit, Telnyx refuses new
+calls on the outbound voice profile until 00:00 UTC, and answers HTTP 429 with
+code `40333` to a send on a messaging profile (and fires
+`messaging-profile.spend-limit-reached`). It also emails the account owner, but
+only after the fact.
+
+### Sizing, from evidence
+
+Read on 2026-11-01 from `GET /v2/detail_records`, the last 60 days
+(`filter[date_range]=last_60_days`), production's resources only (no billing
+group):
+
+| Cost centre | Records | Busiest real day | Source |
+|---|---|---|---|
+| Voice | 4 calls on `sip-trunking`, with 3 matching `call-control` records, on 2 days | about USD 0.013 (2026-10-07: two outbound legs and one WebRTC inbound leg, 132 billed seconds) | `record_type=sip-trunking` and `call-control` |
+| Messaging | 0 | none | `record_type=messaging` returned no rows |
+
+Production has not carried real volume yet. The rule for the limit is the larger
+of ten times the busiest real day and USD 25 a day: ten times is about USD 0.13
+for voice and nothing for messaging, so the floor decides, and **both limits are
+USD 25.00 a day** (about 1,900 times the busiest voice day). A limit that high
+never caps a real customer day, and it is still far below what a loop could burn
+in a day. When real volume arrives, re-measure; if ten times the busiest day
+passes USD 25, raise the limit to that and change the floor in
+`apps/api/src/telnyx/spend-limits.ts` in the same change.
+
+### What was set (2026-11-01, one production configuration change)
+
+Production's profiles are the ones without the `nonprod-` prefix. There is one
+outbound voice profile and, today, one messaging profile (one per company; its
+name is the company id).
+
+| Profile | Field | Before | After |
+|---|---|---|---|
+| Outbound voice profile `loonext-conversational` | `daily_spend_limit` | `""` | `"25.00"` |
+| | `daily_spend_limit_enabled` | `null` | `true` |
+| Messaging profile of the production company | `daily_spend_limit` | `"0.00"` | `"25.00"` |
+| | `daily_spend_limit_enabled` | `false` | `true` |
+
+Read back after the change: nothing else on either profile moved (the
+`updated_at` stamps apart). New messaging profiles are created with the same
+limit (`ensureMessagingProfile` in `apps/api/src/telnyx/provisioning.ts`).
+
+### How to revert, or to raise a limit
+
+An outbound voice profile PATCH needs `name` and replaces the profile, so read it
+first and send it back whole with only the limit fields changed:
+
+```bash
+curl -s -H "Authorization: Bearer $TELNYX_API_KEY" \
+  https://api.telnyx.com/v2/outbound_voice_profiles/<id>      # read, copy the fields below
+curl -s -X PATCH -H "Authorization: Bearer $TELNYX_API_KEY" -H "Content-Type: application/json" \
+  https://api.telnyx.com/v2/outbound_voice_profiles/<id> -d '{
+    "name": "<name>", "traffic_type": "<as read>", "service_plan": "<as read>",
+    "usage_payment_method": "<as read>", "whitelisted_destinations": ["US","CA"],
+    "enabled": true, "tags": [], "concurrent_call_limit": null,
+    "daily_spend_limit": "25.00", "daily_spend_limit_enabled": true }'
+```
+
+For a messaging profile a partial body is enough:
+
+```bash
+curl -s -X PATCH -H "Authorization: Bearer $TELNYX_API_KEY" -H "Content-Type: application/json" \
+  https://api.telnyx.com/v2/messaging_profiles/<id> \
+  -d '{"daily_spend_limit": "25.00", "daily_spend_limit_enabled": true}'
+```
+
+To revert, send `"daily_spend_limit_enabled": false` with the before values
+above. Reverting removes the vendor-side cap, and the weekly check below will
+alert until the limit is back. Raising a limit is fine and is not drift; record
+the new figure and the reason here.
+
+### Watches in the API Worker (production only)
+
+All three read only, refuse to run anywhere but production
+(`productionWatchRefusal`), and report through `opsAlert`.
+
+| Alert key | Job | When | Fires when |
+|---|---|---|---|
+| `telnyx-spend-precap-voice`, `telnyx-spend-precap-messaging` | `job:telnyx-spend-watch` | hourly | A UTC day's spend passes about 70% of the live limit (voice: the account; messaging: per company, listed by id). Level `error` at 100%. Repeats only at 00, 06, 12 and 18 UTC. A quiet hour reads the cost ledger and makes no Telnyx request. |
+| `telnyx-messaging-spend-cap` | the send path and the webhook | when it happens | A send is refused with `40333`, or `messaging-profile.spend-limit-reached` arrives. One alert per profile per half hour per isolate. The customer sees an ordinary failed message, not a vendor limit. |
+| `telnyx-spend-limit-drift` | `job:telnyx-spend-limit-drift` | weekly, Monday 13:50 UTC | A production voice or messaging profile has no enforced limit, a disabled one, or one below USD 25.00. |
+
+Spend is the cost ledger's (`provider_costs` for voice, `messages.provider_cost`
+for texts, through `api_telnyx_spend_since`), which trails a message by its
+delivery report and covers only legs that resolve to a company. It can run behind
+Telnyx's own meter, which is why the alert is at 70% and not at the cap.
+
+---
+
+## 9. The account level and its limits (#643)
+
+No API exposes the account's level (`/v2/account` returns 404), and the founder
+will not contact Telnyx, so the level is judged from what can be measured.
+
+### Evidence
+
+- **Measured, 2026-11-01.** The rig guard's validation check wrote
+  `concurrent_call_limit` on an outbound voice profile that has no connection.
+  Telnyx accepted **10** and refused **11**. Telnyx documents the field as "Must
+  be no more than your global concurrent call limit", so the account's global
+  concurrent call limit is **10**.
+- **Paid** (developers.telnyx.com, "Paid Account Privileges & Limitations",
+  fetched 2026-11-01): 5 concurrent outbound calls across all connection types,
+  10 outbound calls an hour, 100 outbound calls a day, and Telnyx's automated-call
+  announcement prepended to machine-generated audio.
+- **Verified** (same site, "Verified Account Privileges & Limitations", fetched
+  2026-11-01): full access except as the page specifies. It lists no hourly or
+  daily call caps.
+- **Level 2** (support.telnyx.com/en/articles/1130717): the concurrent limit is 2
+  by default and 10 after Level 2.
+
+A limit of 10 is above the Paid level's 5, so the account is **not at Paid**. It
+matches Level 2 in the older framework, and a Verified account has no documented
+cap below it. The exact name of the level is not recorded, because nothing
+readable states it; the limits are.
+
+### Limits that apply
+
+| Limit | Value | Basis |
+|---|---|---|
+| Concurrent calls, account-wide | **10** | Measured (above). Held in `TELNYX_CONCURRENT_CALL_LIMIT`, `apps/api/src/telnyx/account-limits.ts`. |
+| Outbound calls an hour (10) and a day (100) | **Do not apply** | Telnyx documents them for the Paid level only, and the measured concurrent limit rules Paid out. No direct measurement of an hourly or daily cap exists: if a dial is ever refused for rate with code `90103` and HTTP 429, treat this decision as wrong and re-open it. The rig's guard keeps assuming the Paid values as ceilings (`docs/RIG.md` section 3.5), which only makes the rig more cautious. |
+| Automated-call announcement | **Does not apply** | A Paid-level behaviour. If a customer ever hears it, the account is at Paid or below and every row here is wrong. |
+
+### The capacity check
+
+`job:telnyx-capacity-watch` (daily, 13:00 UTC) reads `api_voice_capacity_read`
+and warns, through `opsAlert` under the key `telnyx-concurrency-capacity`, before
+production's calls can exceed the limit. The worst case it prices:
+
+```
+legs needed = 1 (the new call's customer leg)
+            + the largest ring audience of any active number
+            + 2 x the most answered calls ever up at once in 28 days
+```
+
+A number's ring audience is its text-level members who hold a telephony
+credential, or the most ring legs one call opened in 28 days, whichever is
+larger (the same definition as the rig's reserve, `docs/RIG.md` section 3.5).
+Telnyx's docs do not say whether SIP-URI ring legs count against the limit, so
+they are counted. At exactly the limit it warns; above it, it raises an error.
+With a limit of 10, a five-member crew leaves room for two calls already up.
+
+When the account's level changes, change `TELNYX_CONCURRENT_CALL_LIMIT` and the
+table above together. The rig's room formula (`docs/RIG.md` section 4.1) reads the
+same number.
+
 Next: [05 — Workers deploy](./05-workers-deploy.md).
 
 ---
