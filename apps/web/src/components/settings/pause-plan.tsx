@@ -274,11 +274,11 @@ export function SeasonalPauseAnswer({
  * would be actively wrong. This is a moment that has already happened, and the
  * reader's own calendar is the honest place to put it.
  */
-function pausedDay(isoDate: string): string | null {
+function pausedDay(isoDate: string, locale: string): string | null {
   const when = new Date(isoDate);
   return Number.isNaN(when.getTime())
     ? null
-    : when.toLocaleDateString(undefined, {
+    : when.toLocaleDateString(locale, {
         month: "long",
         day: "numeric",
         year: "numeric",
@@ -331,7 +331,7 @@ export function PausedPlanCard({
   const data = pause.data;
   if (!show || !data || data.paused_at === null) return null;
 
-  const since = pausedDay(data.paused_at);
+  const since = pausedDay(data.paused_at, t.locale);
   const resumeName = data.resume_plan ? PLAN_FACTS[data.resume_plan].name : null;
 
   return (

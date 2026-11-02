@@ -79,7 +79,7 @@ export function TwoFactorCard() {
       const { data, error: enrolError } = await getSupabaseBrowser().auth.mfa.enroll({
         factorType: "totp",
         friendlyName: t("settingsMore.tfaAuthenticatorFactorName", {
-          date: new Date().toLocaleDateString(),
+          date: new Date().toLocaleDateString(t.locale),
         }),
       });
       if (enrolError || !data) throw enrolError ?? new Error("enrol failed");
@@ -129,7 +129,7 @@ export function TwoFactorCard() {
       const { data: factor, error: enrolError } = await supabase.auth.mfa.enroll({
         factorType: "webauthn",
         friendlyName: t("settingsMore.tfaPasskeyFactorName", {
-          date: new Date().toLocaleDateString(),
+          date: new Date().toLocaleDateString(t.locale),
         }),
       });
       if (enrolError || !factor) throw enrolError ?? new Error("enrol failed");

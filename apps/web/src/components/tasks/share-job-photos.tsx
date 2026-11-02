@@ -115,7 +115,7 @@ export function ShareJobPhotos({
     <div className="space-y-1.5 rounded-lg border bg-app-hover/40 p-2.5">
       <p className="text-[12.5px] text-app-muted">
         {t("tasks.shareExpiryNote", {
-          when: formatAbsoluteDateTime(link.expiresAt),
+          when: formatAbsoluteDateTime(link.expiresAt, undefined, t.locale),
         })}
       </p>
       <div className="flex items-center gap-1.5">

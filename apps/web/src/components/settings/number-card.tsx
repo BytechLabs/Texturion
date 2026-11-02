@@ -226,7 +226,7 @@ export function NumberCard({
       {released && number.released_at && (
         <p className="mt-2 text-sm text-muted-foreground">
           {t("settingsMore.numberReleasedOn", {
-            date: new Date(number.released_at).toLocaleDateString(undefined, {
+            date: new Date(number.released_at).toLocaleDateString(t.locale, {
               month: "short",
               day: "numeric",
               year: "numeric",

@@ -499,7 +499,7 @@ export function TextEnableCard({
   const startedLine =
     !ui.live && order.created_at
       ? t("settingsMore.hostedStartedOn", {
-          date: new Date(order.created_at).toLocaleDateString(undefined, {
+          date: new Date(order.created_at).toLocaleDateString(t.locale, {
             month: "short",
             day: "numeric",
             year: "numeric",

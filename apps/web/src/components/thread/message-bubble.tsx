@@ -118,7 +118,7 @@ export function DeliveryState({
   return (
     <span
       className="text-[12px] text-muted-foreground"
-      title={formatAbsoluteDateTime(message.created_at)}
+      title={formatAbsoluteDateTime(message.created_at, undefined, t.locale)}
     >
       <span aria-hidden>{time}</span>
       {state !== null && (
@@ -430,7 +430,7 @@ export const MessageBubble = memo(function MessageBubble({
               (note || !outbound ? (
                 <span
                   className="text-[12px] text-muted-foreground"
-                  title={formatAbsoluteDateTime(message.created_at)}
+                  title={formatAbsoluteDateTime(message.created_at, undefined, t.locale)}
                 >
                   {format(new Date(message.created_at), "h:mm a")}
                 </span>

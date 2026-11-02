@@ -77,7 +77,7 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
         // nothing lingers on a shared machine.
         await endSessionOnThisDevice(company.id);
         const when = result.purge_after
-          ? formatAbsoluteDateTime(result.purge_after)
+          ? formatAbsoluteDateTime(result.purge_after, undefined, t.locale)
           : t("settings.closeWorkspaceInThirtyDays");
         // #371: the toast is the last thing they see before being signed out,
         // so it has to say where the details went. Only claimed when the send

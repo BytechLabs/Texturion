@@ -191,7 +191,7 @@ export function VCardImportDialog({
               <DialogDescription>
                 {t("contacts.vcardCardsCount", {
                   file: fileName,
-                  cards: pending.cards.toLocaleString(),
+                  cards: pending.cards.toLocaleString(t.locale),
                 })}{" "}
                 {properties.length === 1
                   ? t("contacts.vcardUnreadOne")
@@ -225,13 +225,13 @@ export function VCardImportDialog({
                               it knowingly, and then the click is theatre. */}
                           {row.total === 0 ? (
                             t("contacts.vcardPropertyEmpty", {
-                              cards: row.cards.toLocaleString(),
+                              cards: row.cards.toLocaleString(t.locale),
                             })
                           ) : (
                             <>
                               {t("contacts.vcardPropertyOn", {
-                                cards: row.cards.toLocaleString(),
-                                total: pending.cards.toLocaleString(),
+                                cards: row.cards.toLocaleString(t.locale),
+                                total: pending.cards.toLocaleString(t.locale),
                               })}{" "}
                               <span className="font-medium break-words text-foreground">
                                 {(showAll.has(row.property)
@@ -392,7 +392,7 @@ export function VCardImportDialog({
                 {importVCard.isPending
                   ? t("contacts.importing")
                   : t("contacts.vcardImportCards", {
-                      count: pending.cards.toLocaleString(),
+                      count: pending.cards.toLocaleString(t.locale),
                     })}
               </Button>
             </DialogFooter>

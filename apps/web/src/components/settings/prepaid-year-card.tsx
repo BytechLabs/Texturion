@@ -116,7 +116,7 @@ export function PrepaidYearCard({
         <p className="text-sm text-muted-foreground">
           {t("settingsMore.prepaidYearOpenLead")}{" "}
           <span className="font-medium text-foreground">
-            {new Date(open.granted_through).toLocaleDateString("en-US", {
+            {new Date(open.granted_through).toLocaleDateString(t.locale, {
               year: "numeric",
               month: "long",
               day: "numeric",

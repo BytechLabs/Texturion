@@ -165,14 +165,16 @@ function MemberRow({
           className="text-xs text-muted-foreground"
           title={formatAbsoluteDateTime(
             deactivated ? (member.deactivated_at as string) : member.created_at,
+            undefined,
+            t.locale,
           )}
         >
           {deactivated
             ? t("appShell.teamDeactivatedAgo", {
-                when: formatRelativeTime(member.deactivated_at as string),
+                when: formatRelativeTime(member.deactivated_at as string, undefined, t),
               })
             : t("appShell.teamJoinedAgo", {
-                when: formatRelativeTime(member.created_at),
+                when: formatRelativeTime(member.created_at, undefined, t),
               })}
         </p>
       </div>
@@ -520,7 +522,7 @@ function InviteRow({ invite }: { invite: Invite }) {
           {expired
             ? t("appShell.teamInviteExpired")
             : t("appShell.teamInviteExpires", {
-                date: new Date(invite.expires_at).toLocaleDateString(undefined, {
+                date: new Date(invite.expires_at).toLocaleDateString(t.locale, {
                   month: "short",
                   day: "numeric",
                 }),

@@ -62,7 +62,7 @@ function makeSchema(t: Translate) {
       .min(1, t("appShell.templateNameRequired"))
       .max(
         NAME_MAX,
-        t("appShell.templateNameTooLong", { max: NAME_MAX.toLocaleString() }),
+        t("appShell.templateNameTooLong", { max: NAME_MAX.toLocaleString(t.locale) }),
       ),
     body: z
       .string()
@@ -70,7 +70,7 @@ function makeSchema(t: Translate) {
       .min(1, t("appShell.templateBodyRequired"))
       .max(
         BODY_MAX,
-        t("appShell.templateBodyTooLong", { max: BODY_MAX.toLocaleString() }),
+        t("appShell.templateBodyTooLong", { max: BODY_MAX.toLocaleString(t.locale) }),
       ),
     /**
      * #274: the crew's own grouping. Optional, and blank is how it is cleared —
@@ -82,7 +82,7 @@ function makeSchema(t: Translate) {
       .max(
         CATEGORY_MAX,
         t("appShell.templateCategoryTooLong", {
-          max: CATEGORY_MAX.toLocaleString(),
+          max: CATEGORY_MAX.toLocaleString(t.locale),
         }),
       ),
   });
@@ -315,7 +315,7 @@ export function TemplateDialog({
                       )}
                     >
                       {t("appShell.templateSegmentCount", {
-                        characters: body.length.toLocaleString(),
+                        characters: body.length.toLocaleString(t.locale),
                         segments: estimate.segments,
                         unit:
                           estimate.segments === 1

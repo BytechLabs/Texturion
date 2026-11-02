@@ -122,10 +122,10 @@ function WaitingRow({ item }: { item: ForYouWaiting }) {
     ? t("inbox.forYouWhyOverdueTask")
     : item.unread
       ? t("inbox.forYouWhyUnread", {
-          when: formatRelativeTime(item.last_message_at),
+          when: formatRelativeTime(item.last_message_at, undefined, t),
         })
       : t("inbox.forYouWhyWaiting", {
-          when: formatRelativeTime(item.last_message_at),
+          when: formatRelativeTime(item.last_message_at, undefined, t),
         });
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
@@ -165,10 +165,10 @@ function FollowUpRow({ item }: { item: ForYouFollowUp }) {
   const why = item.note
     ? t("inbox.forYouWhyFollowUpNote", {
         note: item.note,
-        when: formatRelativeTime(item.due_at),
+        when: formatRelativeTime(item.due_at, undefined, t),
       })
     : t("inbox.forYouWhyNoReply", {
-        when: formatRelativeTime(item.last_message_at),
+        when: formatRelativeTime(item.last_message_at, undefined, t),
       });
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
@@ -294,7 +294,7 @@ function UnreadRow({ item }: { item: ForYouUnread }) {
         <span className="mt-0.5 block">
           <Why
             text={t("inbox.forYouWhyUnread", {
-              when: formatRelativeTime(item.last_message_at),
+              when: formatRelativeTime(item.last_message_at, undefined, t),
             })}
           />
         </span>
@@ -324,7 +324,7 @@ function TriageConvRow({ item }: { item: ForYouTriageConversation }) {
           </span>
         </span>
         <span className="mt-0.5 block">
-          <Why text={formatRelativeTime(item.last_message_at)} />
+          <Why text={formatRelativeTime(item.last_message_at, undefined, t)} />
         </span>
       </span>
     </Card>
@@ -385,7 +385,7 @@ function RecentCallRow({ call }: { call: Call }) {
             {name}
           </span>
           <span className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2">
-            {formatRelativeTime(call.started_at)}
+            {formatRelativeTime(call.started_at, undefined, t)}
           </span>
         </span>
         {/* #566: the same unbounded label as the /calls row, on a card that is
@@ -513,6 +513,8 @@ function SummaryTile({
         : t("inbox.forYouTileOldest", {
             when: formatRelativeTime(
               new Date(Date.now() - tile.signal.ageMillis).toISOString(),
+              undefined,
+              t,
             ),
           });
 
@@ -848,7 +850,7 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
     ? t("inbox.forYouSpamWhyTexted")
     : item.sustained
       ? t("inbox.forYouSpamWhySustained", {
-          when: formatRelativeTime(item.last_inbound_at),
+          when: formatRelativeTime(item.last_inbound_at, undefined, t),
         })
       : t("inbox.forYouSpamWhyCount", { count: item.inbound_since });
 

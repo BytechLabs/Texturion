@@ -107,7 +107,7 @@ export function CallRow({ call }: { call: Call }) {
             {name}
           </span>
           <span className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2">
-            {formatRelativeTime(call.started_at)}
+            {formatRelativeTime(call.started_at, undefined, t)}
           </span>
         </span>
         {/* #566: `min-w-0` so this line may be narrower than its content —

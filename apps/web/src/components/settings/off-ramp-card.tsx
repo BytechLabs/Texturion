@@ -89,7 +89,7 @@ export function OffRampCard() {
                     The year is here because the day-27 email that sends people
                     to this screen prints one, and because this branch is read
                     after the deadline and can be read a year later. */}
-                {releaseAt.toLocaleDateString(undefined, {
+                {releaseAt.toLocaleDateString(t.locale, {
                   day: "numeric",
                   month: "long",
                   year: "numeric",

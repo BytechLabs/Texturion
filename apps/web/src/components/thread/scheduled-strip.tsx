@@ -4,7 +4,7 @@ import { AlertTriangle, Clock, X } from "lucide-react";
 
 import { scheduledClockProvenance, scheduledHoldText } from "@loonext/shared";
 
-import { useT } from "@/i18n/provider";
+import { useT, type Translate } from "@/i18n/provider";
 
 import {
   useCancelScheduledMessage,
@@ -102,7 +102,7 @@ function ScheduledRow({
       <div className="min-w-0 flex-1">
         <p className="truncate">
           <span className="font-medium text-foreground">
-            {held ? "Waiting" : sendAtLabel(row)}
+            {held ? t("tasks.scheduledWaiting") : sendAtLabel(row, t)}
           </span>
           {" — "}
           {row.body}
@@ -126,7 +126,9 @@ function ScheduledRow({
         type="button"
         onClick={onCancel}
         disabled={cancelling}
-        aria-label={`Cancel the message scheduled for ${sendAtSpoken(row)}`}
+        aria-label={t("thread.scheduledCancelAria", {
+          when: sendAtSpoken(row, t),
+        })}
         className="tap-target -mr-1 flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground disabled:opacity-45"
       >
         <X className="size-3.5" strokeWidth={1.75} />
@@ -151,17 +153,29 @@ function ScheduledRow({
  * clocks actually read differently, so a crew whose customers are all in town
  * still sees one plain time.
  */
-export function sendAtLabel(row: {
-  send_at: string;
-  clock_timezone: string;
-}): string {
-  return twoClockLabel(row.send_at, row.clock_timezone) || "Scheduled";
+export function sendAtLabel(
+  row: {
+    send_at: string;
+    clock_timezone: string;
+  },
+  t: Translate,
+): string {
+  return (
+    twoClockLabel(row.send_at, row.clock_timezone, undefined, t.locale) ||
+    t("thread.scheduledFallback")
+  );
 }
 
 /** The same, as a sentence, for the cancel button's accessible name. */
-export function sendAtSpoken(row: {
-  send_at: string;
-  clock_timezone: string;
-}): string {
-  return twoClockSpoken(row.send_at, row.clock_timezone) || "Scheduled";
+export function sendAtSpoken(
+  row: {
+    send_at: string;
+    clock_timezone: string;
+  },
+  t: Translate,
+): string {
+  return (
+    twoClockSpoken(row.send_at, row.clock_timezone, undefined, t.locale) ||
+    t("thread.scheduledFallback")
+  );
 }

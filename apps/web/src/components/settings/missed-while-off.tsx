@@ -82,6 +82,6 @@ function relativeDay(when: Date, t: Translate): string {
   if (days <= 0) return t("settings.dayToday");
   if (days === 1) return t("settings.dayYesterday");
   return t("settings.dayOn", {
-    date: when.toLocaleDateString(undefined, { day: "numeric", month: "long" }),
+    date: when.toLocaleDateString(t.locale, { day: "numeric", month: "long" }),
   });
 }

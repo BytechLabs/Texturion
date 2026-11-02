@@ -57,7 +57,7 @@ function makeCompanyNameSchema(t: Translate) {
       .max(
         COMPANY_NAME_MAX,
         t("appShell.workspaceNameTooLong", {
-          max: COMPANY_NAME_MAX.toLocaleString(),
+          max: COMPANY_NAME_MAX.toLocaleString(t.locale),
         }),
       ),
   });
@@ -303,7 +303,7 @@ function TimezoneCard({ company }: { company: CompanyView }) {
   const [error, setError] = useState<string | null>(null);
 
   const timezone = company.timezone;
-  const localTime = new Intl.DateTimeFormat(undefined, {
+  const localTime = new Intl.DateTimeFormat(t.locale, {
     hour: "numeric",
     minute: "2-digit",
     timeZone: timezone,

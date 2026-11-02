@@ -155,7 +155,7 @@ function TagUsageRow({
               the count alone cannot say that. */}
           {row.last_used !== null &&
             t("settingsMore.tagLastUsed", {
-              when: formatRelativeTime(row.last_used),
+              when: formatRelativeTime(row.last_used, undefined, t),
             })}
         </span>
         {canManage && (

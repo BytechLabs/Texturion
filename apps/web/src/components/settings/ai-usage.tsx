@@ -49,8 +49,8 @@ export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
               <span className="shrink-0 text-[13px] tabular-nums text-muted-foreground">
                 {feature.enabled
                   ? t("settings.aiUsageUsedOfCap", {
-                      used: feature.used.toLocaleString(),
-                      cap: feature.cap.toLocaleString(),
+                      used: feature.used.toLocaleString(t.locale),
+                      cap: feature.cap.toLocaleString(t.locale),
                     })
                   : t("settings.aiUsageOff")}
               </span>
@@ -91,7 +91,7 @@ export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
                   <span key={outcome.label}>
                     {index > 0 && <span aria-hidden> · </span>}
                     <span className="tabular-nums">
-                      {outcome.count.toLocaleString()}
+                      {outcome.count.toLocaleString(t.locale)}
                     </span>{" "}
                     {outcome.label}
                   </span>

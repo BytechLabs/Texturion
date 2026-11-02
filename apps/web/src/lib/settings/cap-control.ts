@@ -90,6 +90,7 @@ export function describeCapChange(
   next: number | null,
   includedSegments: number,
   say: SayCapChange,
+  locale: string = "en",
 ): CapChange {
   const currentValue = current ?? MAX_CAP_MULTIPLIER;
   const nextValue = next ?? MAX_CAP_MULTIPLIER;
@@ -109,9 +110,9 @@ export function describeCapChange(
       summary: say(
         atCeiling ? "settings.capRaisedToCeiling" : "settings.capRaised",
         {
-          next: nextTotal.toLocaleString(),
-          current: currentTotal.toLocaleString(),
-          included: includedSegments.toLocaleString(),
+          next: nextTotal.toLocaleString(locale),
+          current: currentTotal.toLocaleString(locale),
+          included: includedSegments.toLocaleString(locale),
         },
       ),
     };
@@ -120,6 +121,6 @@ export function describeCapChange(
   return {
     kind: "lower",
     requiresConfirmation: true,
-    summary: say("settings.capLowered", { next: nextTotal.toLocaleString() }),
+    summary: say("settings.capLowered", { next: nextTotal.toLocaleString(locale) }),
   };
 }

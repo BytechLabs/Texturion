@@ -48,7 +48,7 @@ function TemplateRow({
         </p>
         <p
           className="mt-1 text-xs text-muted-foreground"
-          title={formatAbsoluteDateTime(template.updated_at)}
+          title={formatAbsoluteDateTime(template.updated_at, undefined, t.locale)}
         >
           {/* #419: not a permission — visibility. A template is the only
               object here where one person's edit changes what everyone else
@@ -58,7 +58,7 @@ function TemplateRow({
               left the crew or predates the column.
               *Applying: G10 — system states must be precise.* */}
           {t("appShell.templateUpdatedAgo", {
-            when: formatRelativeTime(template.updated_at),
+            when: formatRelativeTime(template.updated_at, undefined, t),
           })}
           {editorName !== null &&
             t("appShell.templateUpdatedBy", { name: editorName })}

@@ -369,6 +369,11 @@ export const threadEn = {
   pickATime: "Pick a time…",
   sendLater: "Send later",
   pickWhichClock: "Pick which clock you mean. They are {delta}.",
+  clocksSame: "on the same clock",
+  clocksAheadOne: "an hour ahead of you",
+  clocksAheadMany: "{count} hours ahead of you",
+  clocksBehindOne: "an hour behind you",
+  clocksBehindMany: "{count} hours behind you",
   yourOwnTime:
     "This is your own time. You can change or cancel it any time before it " +
     "goes.",
@@ -738,6 +743,11 @@ export const threadEn = {
      carrying its own "25" would drift the day that changes. */
   retrySendFailed: "Couldn't retry that message. Try again.",
   scheduledCancelled: "Cancelled. That text will not go out.",
+  scheduledCancelAria: "Cancel the message scheduled for {when}",
+  scheduledFallback: "Scheduled",
+  stagedFileFallbackName: "File",
+  stagedFileMarkUpAria: "Draw on {name}",
+  stagedFileRemoveAria: "Remove {name}",
   attachmentTooMany: "You can attach up to {count} files here.",
   attachmentEmpty: "That file is empty.",
   attachmentTooBig: "That file is over {megabytes} MB. Try a smaller one.",
@@ -1100,6 +1110,11 @@ export const threadFr: Translated<typeof threadEn> = {
   pickATime: "Choisir une heure…",
   sendLater: "Envoyer plus tard",
   pickWhichClock: "Choisissez de quelle heure vous parlez. Elles sont {delta}.",
+  clocksSame: "à la même heure",
+  clocksAheadOne: "en avance d'une heure sur vous",
+  clocksAheadMany: "en avance de {count} heures sur vous",
+  clocksBehindOne: "en retard d'une heure sur vous",
+  clocksBehindMany: "en retard de {count} heures sur vous",
   yourOwnTime:
     "Ceci est votre propre heure. Vous pouvez la modifier ou annuler l'envoi " +
     "à tout moment avant qu'il ne parte.",
@@ -1415,6 +1430,11 @@ export const threadFr: Translated<typeof threadEn> = {
   // --- Sending, and what a file is allowed to be ----------------------------
   retrySendFailed: "Impossible de renvoyer ce message. Réessayez.",
   scheduledCancelled: "Annulé. Ce texto ne partira pas.",
+  scheduledCancelAria: "Annuler le message programmé pour {when}",
+  scheduledFallback: "Programmé",
+  stagedFileFallbackName: "Fichier",
+  stagedFileMarkUpAria: "Annoter {name}",
+  stagedFileRemoveAria: "Retirer {name}",
   attachmentTooMany: "Vous pouvez joindre jusqu'à {count} fichiers ici.",
   attachmentEmpty: "Ce fichier est vide.",
   attachmentTooBig: "Ce fichier dépasse {megabytes} Mo. Essayez-en un plus petit.",

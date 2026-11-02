@@ -27,13 +27,14 @@ export const DEFAULT_ERROR_CAP = 50;
 export function summarizeImport(
   result: ImportResult,
   cap: number = DEFAULT_ERROR_CAP,
+  locale: string = "en",
 ): ImportSummary {
   const visibleErrors = result.errors.slice(0, Math.max(0, cap));
   return {
     headline:
-      `${result.imported.toLocaleString()} new, ` +
-      `${result.updated.toLocaleString()} updated, ` +
-      `${result.skipped.toLocaleString()} skipped.`,
+      `${result.imported.toLocaleString(locale)} new, ` +
+      `${result.updated.toLocaleString(locale)} updated, ` +
+      `${result.skipped.toLocaleString(locale)} skipped.`,
     hasErrors: result.errors.length > 0,
     visibleErrors,
     hiddenErrorCount: result.errors.length - visibleErrors.length,

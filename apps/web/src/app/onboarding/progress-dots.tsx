@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -25,13 +26,17 @@ export function ProgressDots({
   index: number;
   total: number;
 }) {
+  const t = useT();
   // The account is a real completed step, so it shifts both numbers by one.
   const shownIndex = index + 1;
   const shownTotal = total + 1;
   return (
     <div
       role="img"
-      aria-label={`Step ${shownIndex} of ${shownTotal}`}
+      aria-label={t("onboarding.stepXofY", {
+        current: shownIndex,
+        total: shownTotal,
+      })}
       className="flex items-center gap-2"
     >
       {Array.from({ length: shownTotal }, (_, i) => (

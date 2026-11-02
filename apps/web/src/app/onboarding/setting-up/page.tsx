@@ -260,7 +260,7 @@ function OtpRow({
 /** Human date for the confirmed switch-over (mirrors the Settings port card). */
 function switchDate(iso: string | null, t: Translate): string {
   if (!iso) return t("onboarding.switchDateFallback");
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString(t.locale, {
     weekday: "long",
     month: "long",
     day: "numeric",

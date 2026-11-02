@@ -268,9 +268,9 @@ export const ConversationRow = memo(function ConversationRow({
             )}
             <span
               className="text-[11.5px] tabular-nums text-app-muted-2"
-              title={formatAbsoluteDateTime(conversation.last_message_at)}
+              title={formatAbsoluteDateTime(conversation.last_message_at, undefined, t.locale)}
             >
-              {formatRelativeTime(conversation.last_message_at)}
+              {formatRelativeTime(conversation.last_message_at, undefined, t)}
             </span>
           </span>
         </span>

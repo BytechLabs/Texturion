@@ -128,7 +128,7 @@ function ConsentLine({ contact }: { contact: ContactDetail }) {
     );
   }
   const date = contact.consent_at
-    ? new Date(contact.consent_at).toLocaleDateString(undefined, {
+    ? new Date(contact.consent_at).toLocaleDateString(t.locale, {
         month: "short",
         day: "numeric",
       })
@@ -165,7 +165,7 @@ function RecordAttribution({ contact }: { contact: ContactDetail }) {
   const addedBy = contact.created_by_name?.trim();
   const editedBy = contact.updated_by_name?.trim();
   if (!addedBy && !editedBy) return null;
-  const addedOn = new Date(contact.created_at).toLocaleDateString(undefined, {
+  const addedOn = new Date(contact.created_at).toLocaleDateString(t.locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -203,7 +203,7 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
   const [editing, setEditing] = useState(false);
   const update = useUpdateContact(contact.id);
 
-  const reading = new Intl.DateTimeFormat(undefined, {
+  const reading = new Intl.DateTimeFormat(t.locale, {
     hour: "numeric",
     minute: "2-digit",
     timeZone: contact.timezone_resolved,

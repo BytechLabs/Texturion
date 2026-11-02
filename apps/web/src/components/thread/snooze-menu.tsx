@@ -156,7 +156,7 @@ function DeferralSubmenu({
           >
             <span>{preset.label}</span>
             <span className="ml-auto pl-4 text-xs tabular-nums text-muted-foreground">
-              {formatPresetHint(preset.at)}
+              {formatPresetHint(preset.at, t.locale)}
             </span>
           </DropdownMenuItem>
         ))}
@@ -269,15 +269,15 @@ export function SnoozeDialog({
 }
 
 /** "3:00 PM" / "Mon 8:00 AM" — enough to know what you are choosing. */
-function formatPresetHint(at: number): string {
+function formatPresetHint(at: number, locale: string): string {
   const date = new Date(at);
-  const time = date.toLocaleTimeString(undefined, {
+  const time = date.toLocaleTimeString(locale, {
     hour: "numeric",
     minute: "2-digit",
   });
   return snoozeReturnShape(date) === "today"
     ? time
-    : `${date.toLocaleDateString(undefined, { weekday: "short" })} ${time}`;
+    : `${date.toLocaleDateString(locale, { weekday: "short" })} ${time}`;
 }
 
 /**
@@ -316,7 +316,7 @@ export function deferralReturnLabel(
   // Never a blank chip: the row is in this view BECAUSE it is deferred, so a
   // timestamp we cannot read still has to say that much (#293).
   if (Number.isNaN(date.getTime())) return t("thread.snoozedFallback");
-  const time = date.toLocaleTimeString(undefined, {
+  const time = date.toLocaleTimeString(t.locale, {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -328,12 +328,12 @@ export function deferralReturnLabel(
         return t("thread.snoozeWhenTomorrow", { time });
       case "weekday":
         return t("thread.snoozeWhenWeekday", {
-          weekday: date.toLocaleDateString(undefined, { weekday: "long" }),
+          weekday: date.toLocaleDateString(t.locale, { weekday: "long" }),
           time,
         });
       case "date":
         return t("thread.snoozeWhenDate", {
-          date: date.toLocaleDateString(undefined, {
+          date: date.toLocaleDateString(t.locale, {
             day: "numeric",
             month: "short",
           }),

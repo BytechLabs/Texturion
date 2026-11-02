@@ -431,7 +431,7 @@ export function ImportWizard({
         if (dataRows.length > CONTACT_IMPORT_MAX_ROWS) {
           setUploadError(
             t("contacts.csvTooManyRows", {
-              rows: CONTACT_IMPORT_MAX_ROWS.toLocaleString(),
+              rows: CONTACT_IMPORT_MAX_ROWS.toLocaleString(t.locale),
             }),
           );
           return;
@@ -500,7 +500,7 @@ export function ImportWizard({
               {t("contacts.csvChooseFile")}
               <span className="text-xs">
                 {t("contacts.csvUpTo", {
-                  rows: CONTACT_IMPORT_MAX_ROWS.toLocaleString(),
+                  rows: CONTACT_IMPORT_MAX_ROWS.toLocaleString(t.locale),
                   size: MAX_SIZE_LABEL,
                 })}
               </span>
@@ -532,9 +532,9 @@ export function ImportWizard({
               <DialogDescription>
                 {t("contacts.csvColumnsBlurb", {
                   file: file?.name ?? "",
-                  rows: rows.length.toLocaleString(),
-                  answered: answered.toLocaleString(),
-                  columns: columns.length.toLocaleString(),
+                  rows: rows.length.toLocaleString(t.locale),
+                  answered: answered.toLocaleString(t.locale),
+                  columns: columns.length.toLocaleString(t.locale),
                 })}
               </DialogDescription>
             </DialogHeader>
@@ -784,15 +784,15 @@ export function ImportWizard({
               <DialogTitle>{t("contacts.previewTitle")}</DialogTitle>
               <DialogDescription>
                 {t("contacts.previewWillImport", {
-                  count: summary.ready.toLocaleString(),
+                  count: summary.ready.toLocaleString(t.locale),
                 })}
                 {summary.optedOut > 0 &&
                   t("contacts.previewOptedOut", {
-                    count: summary.optedOut.toLocaleString(),
+                    count: summary.optedOut.toLocaleString(t.locale),
                   })}
                 {summary.skipped > 0 &&
                   t("contacts.previewSkipped", {
-                    count: summary.skipped.toLocaleString(),
+                    count: summary.skipped.toLocaleString(t.locale),
                   })}
                 {t("contacts.previewDedupeNote")}
               </DialogDescription>
@@ -843,7 +843,7 @@ export function ImportWizard({
                 <p className="border-t px-3 py-2 text-xs text-muted-foreground">
                   {t("contacts.previewShowingFirst", {
                     shown: PREVIEW_ROW_LIMIT,
-                    total: preview.length.toLocaleString(),
+                    total: preview.length.toLocaleString(t.locale),
                   })}
                 </p>
               )}
@@ -892,7 +892,7 @@ export function ImportWizard({
                 {importContacts.isPending
                   ? t("contacts.importing")
                   : t("contacts.importCount", {
-                      count: summary.ready.toLocaleString(),
+                      count: summary.ready.toLocaleString(t.locale),
                     })}
               </Button>
             </DialogFooter>
@@ -910,9 +910,9 @@ export function ImportWizard({
               <DialogTitle>{t("contacts.importFinished")}</DialogTitle>
               <DialogDescription>
                 {t("contacts.doneSummary", {
-                  imported: result.imported.toLocaleString(),
-                  updated: result.updated.toLocaleString(),
-                  skipped: result.skipped.toLocaleString(),
+                  imported: result.imported.toLocaleString(t.locale),
+                  updated: result.updated.toLocaleString(t.locale),
+                  skipped: result.skipped.toLocaleString(t.locale),
                 })}
               </DialogDescription>
             </DialogHeader>

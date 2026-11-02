@@ -676,7 +676,7 @@ function CallerIdCard({
           {pending && company.cnam_submitted_at && (
             <p className="text-xs text-muted-foreground" aria-live="polite">
               {t("appShell.cnamPendingNotice", {
-                when: formatAbsoluteDateTime(company.cnam_submitted_at),
+                when: formatAbsoluteDateTime(company.cnam_submitted_at, undefined, t.locale),
               })}
             </p>
           )}
@@ -843,7 +843,7 @@ export default function CallingSettingsPage() {
           {/* D36/D38 fair use, one quiet line — the detail lives in Usage. */}
           <p className="px-1 text-xs text-muted-foreground">
             {t("appShell.callingMinutesIncluded", {
-              minutes: usage.data.voice.included_minutes.toLocaleString(),
+              minutes: usage.data.voice.included_minutes.toLocaleString(t.locale),
             })}
             {usage.data.voice.overage_billed
               ? t("appShell.callingMinutesOverage")

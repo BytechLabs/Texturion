@@ -50,10 +50,10 @@ interface DraftRow {
 const EMPTY: DraftRow = { from: "", to: "", note: "" };
 
 /** "2026-12-25" → "Fri 25 Dec 2026", or the raw value if it will not parse. */
-function readableDate(iso: string): string {
+function readableDate(iso: string, locale: string): string {
   const parsed = new Date(`${iso}T12:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString(undefined, {
+  return parsed.toLocaleDateString(locale, {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -62,10 +62,10 @@ function readableDate(iso: string): string {
   });
 }
 
-function rangeLabel(entry: HoursException): string {
+function rangeLabel(entry: HoursException, locale: string): string {
   return entry.from === entry.to
-    ? readableDate(entry.from)
-    : `${readableDate(entry.from)} — ${readableDate(entry.to)}`;
+    ? readableDate(entry.from, locale)
+    : `${readableDate(entry.from, locale)} — ${readableDate(entry.to, locale)}`;
 }
 
 export function ClosedDatesCard({
@@ -153,7 +153,7 @@ export function ClosedDatesCard({
                 className="flex items-start justify-between gap-3 border-b border-border-subtle pb-2 last:border-b-0 last:pb-0"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium">{rangeLabel(entry)}</p>
+                  <p className="text-sm font-medium">{rangeLabel(entry, t.locale)}</p>
                   {entry.note ? (
                     <p className="text-[13px] text-muted-foreground">
                       {entry.note}
@@ -165,7 +165,7 @@ export function ClosedDatesCard({
                     variant="ghost"
                     size="icon-sm"
                     aria-label={t("settings.closedDatesRemoveAria", {
-                      range: rangeLabel(entry),
+                      range: rangeLabel(entry, t.locale),
                     })}
                     disabled={update.isPending}
                     onClick={() => remove(index)}

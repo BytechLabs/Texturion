@@ -129,7 +129,7 @@ export function ReferralCard({
                     {say(REFERRAL_STAGE_LABELS[row.stage])}
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {new Date(row.created_at).toLocaleDateString("en-US", {
+                    {new Date(row.created_at).toLocaleDateString(t.locale, {
                       month: "short",
                       day: "numeric",
                     })}

@@ -193,7 +193,7 @@ function GalleryThumb({
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const label = fileLabel(item);
-  const captured = formatRelativeTime(item.created_at);
+  const captured = formatRelativeTime(item.created_at, undefined, t);
 
   if (failed) {
     return (
@@ -240,6 +240,7 @@ function GalleryThumb({
 
 /** A file row (name, origin, size, date) with a signed-URL download. */
 function GalleryFileRow({ item }: { item: GalleryItem }) {
+  const t = useT();
   const label = fileLabel(item);
   const size = formatBytes(item.size_bytes);
   return (
@@ -258,10 +259,10 @@ function GalleryFileRow({ item }: { item: GalleryItem }) {
           <span className="block truncate text-sm text-foreground">{label}</span>
           <span
             className="block text-[11px] tabular-nums text-muted-foreground"
-            title={formatAbsoluteDateTime(item.created_at)}
+            title={formatAbsoluteDateTime(item.created_at, undefined, t.locale)}
           >
             {sourceLabel(item.source)}
-            {size ? ` · ${size}` : ""} · {formatRelativeTime(item.created_at)}
+            {size ? ` · ${size}` : ""} · {formatRelativeTime(item.created_at, undefined, t)}
           </span>
         </span>
         <Download

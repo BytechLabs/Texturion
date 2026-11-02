@@ -1,6 +1,6 @@
 "use client";
 
-import type { BillingCurrency } from "@loonext/shared";
+import { DEFAULT_LOCALE, type BillingCurrency } from "@loonext/shared";
 import { Gauge, OctagonPause, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
@@ -36,8 +36,12 @@ import { cn } from "@/lib/utils";
  * The currency arrives ON the payload rather than being read from the company
  * row, so the number and its label cannot come from two different places.
  */
-function dollars(cents: number, currency: BillingCurrency = "usd"): string {
-  return (cents / 100).toLocaleString(undefined, {
+function dollars(
+  cents: number,
+  currency: BillingCurrency = "usd",
+  locale: string = DEFAULT_LOCALE,
+): string {
+  return (cents / 100).toLocaleString(locale, {
     style: "currency",
     currency: currency.toUpperCase(),
     // A Canadian reading their own invoice should see "$40.00", not "CA$40.00" —
@@ -49,11 +53,10 @@ function dollars(cents: number, currency: BillingCurrency = "usd"): string {
 function periodRange(t: Translate, usage: Usage): string | null {
   if (!usage.period_start || !usage.period_end) return null;
   const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const start = new Date(usage.period_start).toLocaleDateString(
-    undefined,
+  const start = new Date(usage.period_start).toLocaleDateString(t.locale,
     options,
   );
-  const end = new Date(usage.period_end).toLocaleDateString(undefined, options);
+  const end = new Date(usage.period_end).toLocaleDateString(t.locale, options);
   return t("appShell.usagePeriodRange", { start, end });
 }
 
@@ -146,11 +149,11 @@ function PacingCard({ usage }: { usage: Usage }) {
               <>
                 {t("appShell.usageUsedBefore")}{" "}
                 <span className="tabular-nums">
-                  {usage.used_segments.toLocaleString()}
+                  {usage.used_segments.toLocaleString(t.locale)}
                 </span>{" "}
                 {t("appShell.usageUsedOfYour")}{" "}
                 <span className="tabular-nums">
-                  {usage.included_segments.toLocaleString()}
+                  {usage.included_segments.toLocaleString(t.locale)}
                 </span>{" "}
                 {t("appShell.usageIncludedMessages")}{" "}
               </>
@@ -159,11 +162,11 @@ function PacingCard({ usage }: { usage: Usage }) {
               <>
                 {t("appShell.usageUsedBefore")}{" "}
                 <span className="tabular-nums">
-                  {usage.voice.used_minutes.toLocaleString()}
+                  {usage.voice.used_minutes.toLocaleString(t.locale)}
                 </span>{" "}
                 {t("appShell.usageUsedOfYour")}{" "}
                 <span className="tabular-nums">
-                  {usage.voice.included_minutes.toLocaleString()}
+                  {usage.voice.included_minutes.toLocaleString(t.locale)}
                 </span>{" "}
                 {t("appShell.usageIncludedMinutes")}{" "}
               </>
@@ -172,7 +175,7 @@ function PacingCard({ usage }: { usage: Usage }) {
               <>
                 {t("appShell.usageProjectionBefore")}{" "}
                 <span className="font-medium tabular-nums text-foreground">
-                  {dollars(projected, usage.currency)}
+                  {dollars(projected, usage.currency, t.locale)}
                 </span>{" "}
                 {t("appShell.usageProjectionAfter")}
               </>
@@ -271,10 +274,10 @@ function CappedCard({ usage }: { usage: Usage }) {
                   : t("appShell.usageMeterCalling")}{" "}
                 {t("appShell.usageMeterAt")}{" "}
                 <span className="tabular-nums">
-                  {state.used.toLocaleString()}
+                  {state.used.toLocaleString(t.locale)}
                 </span>{" "}
                 {t("appShell.usageMeterOfThe")}{" "}
-                <span className="tabular-nums">{state.cap.toLocaleString()}</span>{" "}
+                <span className="tabular-nums">{state.cap.toLocaleString(t.locale)}</span>{" "}
                 {t("appShell.usageMeterYouAllowed")}
                 {state.used >= state.cap ? (
                   <>. {pauseSentence(t, state.label, true)}</>
@@ -297,10 +300,10 @@ function CappedCard({ usage }: { usage: Usage }) {
   );
 }
 
-function monthLabel(month: string, long = false): string {
+function monthLabel(month: string, locale: string, long = false): string {
   const [year, monthNumber] = month.split("-").map(Number);
   return new Date(year, (monthNumber ?? 1) - 1, 1).toLocaleDateString(
-    undefined,
+    locale,
     long ? { month: "long", year: "numeric" } : { month: "short" },
   );
 }
@@ -314,7 +317,7 @@ function HistoryBars({ history }: { history: UsageMonth[] }) {
       role="img"
       aria-label={t("appShell.usageHistoryAria", {
         months: history
-          .map((entry) => `${monthLabel(entry.month, true)}: ${entry.segments}`)
+          .map((entry) => `${monthLabel(entry.month, t.locale, true)}: ${entry.segments}`)
           .join(". "),
       })}
     >
@@ -325,7 +328,7 @@ function HistoryBars({ history }: { history: UsageMonth[] }) {
             className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
           >
             <span className="text-xs tabular-nums text-muted-foreground">
-              {entry.segments.toLocaleString()}
+              {entry.segments.toLocaleString(t.locale)}
             </span>
             <div className="flex h-24 w-full max-w-14 items-end">
               <div
@@ -343,7 +346,7 @@ function HistoryBars({ history }: { history: UsageMonth[] }) {
               />
             </div>
             <span className="text-xs text-tertiary">
-              {monthLabel(entry.month)}
+              {monthLabel(entry.month, t.locale)}
             </span>
           </div>
         ))}
@@ -381,22 +384,22 @@ function UsageDetails({ usage }: { usage: Usage }) {
             <p>
               {t("appShell.usageMessagesLabel")}{" "}
               <span className="tabular-nums">
-                {usage.used_segments.toLocaleString()}
+                {usage.used_segments.toLocaleString(t.locale)}
               </span>{" "}
               {t("appShell.usageSentOf")}{" "}
               <span className="tabular-nums">
-                {usage.included_segments.toLocaleString()}
+                {usage.included_segments.toLocaleString(t.locale)}
               </span>{" "}
               {t("appShell.usageIncludedSuffix")}
             </p>
             {usage.overage_segments > 0 && (
               <p>
                 <span className="tabular-nums">
-                  {usage.overage_segments.toLocaleString()}
+                  {usage.overage_segments.toLocaleString(t.locale)}
                 </span>{" "}
                 {t("appShell.usagePastIncluded")}{" "}
                 <span className="tabular-nums">
-                  {dollars(usage.projected_overage_cents, usage.currency)}
+                  {dollars(usage.projected_overage_cents, usage.currency, t.locale)}
                 </span>{" "}
                 {t("appShell.usageAtOverageRate")}
               </p>
@@ -406,7 +409,7 @@ function UsageDetails({ usage }: { usage: Usage }) {
                 only be legacy data and still names a real pause point. */}
             <p>
               {t("appShell.usageSendingPausesAt")}{" "}
-              <span className="tabular-nums">{pauseAt.toLocaleString()}</span>{" "}
+              <span className="tabular-nums">{pauseAt.toLocaleString(t.locale)}</span>{" "}
               {t("appShell.usageMessagesWord")}
               {usage.cap_segments === null
                 ? t("appShell.usageCapIsMaximum")
@@ -415,7 +418,7 @@ function UsageDetails({ usage }: { usage: Usage }) {
             {usage.inbound_segments > 0 && (
               <p>
                 <span className="tabular-nums">
-                  {usage.inbound_segments.toLocaleString()}
+                  {usage.inbound_segments.toLocaleString(t.locale)}
                 </span>{" "}
                 {t("appShell.usageMessagesReceived")}
               </p>
@@ -426,18 +429,18 @@ function UsageDetails({ usage }: { usage: Usage }) {
               <p>
                 {t("appShell.usageCallingLabel")}{" "}
                 <span className="tabular-nums">
-                  {voice.used_minutes.toLocaleString()}
+                  {voice.used_minutes.toLocaleString(t.locale)}
                 </span>{" "}
                 {t("appShell.usageOf")}{" "}
                 <span className="tabular-nums">
-                  {voice.included_minutes.toLocaleString()}
+                  {voice.included_minutes.toLocaleString(t.locale)}
                 </span>{" "}
                 {t("appShell.usageIncludedMinutesUsed")}
               </p>
               {voice.overage_minutes > 0 && voice.overage_billed && (
                 <p>
                   <span className="tabular-nums">
-                    {voice.overage_minutes.toLocaleString()}
+                    {voice.overage_minutes.toLocaleString(t.locale)}
                   </span>{" "}
                   {t("appShell.usageExtraMinutes")}
                 </p>
@@ -446,7 +449,7 @@ function UsageDetails({ usage }: { usage: Usage }) {
                 <p>
                   {t("appShell.usageCallingPausesAt")}{" "}
                   <span className="tabular-nums">
-                    {voice.cap_minutes.toLocaleString()}
+                    {voice.cap_minutes.toLocaleString(t.locale)}
                   </span>{" "}
                   {t("appShell.usageMinutesSameCap")}
                 </p>
@@ -538,14 +541,14 @@ function DeliveryCard({ usage }: { usage: Usage }) {
         <p className="text-sm">
           <span className="font-medium">
             {t("appShell.usageDeliveryConfirmed", {
-              count: delivery.delivered.toLocaleString(),
+              count: delivery.delivered.toLocaleString(t.locale),
             })}
           </span>
           {delivery.failed > 0 ? (
             <>
               {" · "}
               {t("appShell.usageDeliveryFailed", {
-                count: delivery.failed.toLocaleString(),
+                count: delivery.failed.toLocaleString(t.locale),
               })}
             </>
           ) : null}
@@ -553,7 +556,7 @@ function DeliveryCard({ usage }: { usage: Usage }) {
             <>
               {" · "}
               {t("appShell.usageDeliveryPending", {
-                count: delivery.pending.toLocaleString(),
+                count: delivery.pending.toLocaleString(t.locale),
               })}
             </>
           ) : null}
@@ -567,8 +570,8 @@ function DeliveryCard({ usage }: { usage: Usage }) {
                 <span className="tabular-nums">
                   {row.rate === null
                     ? t("appShell.usageDeliveryOfTotal", {
-                        delivered: row.delivered.toLocaleString(),
-                        total: (row.delivered + row.failed).toLocaleString(),
+                        delivered: row.delivered.toLocaleString(t.locale),
+                        total: (row.delivered + row.failed).toLocaleString(t.locale),
                       })
                     : `${Math.round(row.rate * 100)}%`}
                 </span>

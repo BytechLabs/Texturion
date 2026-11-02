@@ -407,7 +407,7 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
                       : t("settings.planStarterStarts", {
                           date: new Date(
                             result.effective_at,
-                          ).toLocaleDateString(undefined, {
+                          ).toLocaleDateString(t.locale, {
                             month: "short",
                             day: "numeric",
                           }),

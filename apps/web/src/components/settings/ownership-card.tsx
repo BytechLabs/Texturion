@@ -146,7 +146,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                 {state.pending.kind === "offer" ? (
                   <>
                     {t("settingsMore.ownershipOfferExpires", {
-                      when: formatAbsoluteDateTime(state.pending.expires_at),
+                      when: formatAbsoluteDateTime(state.pending.expires_at, undefined, t.locale),
                     })}
                   </>
                 ) : state.pending.ready ? (
@@ -154,7 +154,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                 ) : (
                   <>
                     {t("settingsMore.ownershipCompletesAt", {
-                      when: formatAbsoluteDateTime(state.pending.ripens_at),
+                      when: formatAbsoluteDateTime(state.pending.ripens_at, undefined, t.locale),
                     })}
                   </>
                 )}

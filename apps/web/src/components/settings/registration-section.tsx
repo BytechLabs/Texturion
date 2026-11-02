@@ -43,9 +43,9 @@ import type { CompanyView, RegistrationRow } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
-function shortDate(iso: string | null): string | null {
+function shortDate(iso: string | null, locale: string): string | null {
   if (!iso) return null;
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
   });
@@ -420,7 +420,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
       label: t("settingsMore.regStepSubmitted"),
       detail: submittedAt
         ? t("settingsMore.regStepSubmittedOn", {
-            date: shortDate(submittedAt) ?? "",
+            date: shortDate(submittedAt, t.locale) ?? "",
           })
         : t("settingsMore.regStepNotSubmitted"),
     },
@@ -438,7 +438,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
       label: t("settingsMore.regStepLive"),
       detail: campaign?.approved_at
         ? t("settingsMore.regStepApprovedOn", {
-            date: shortDate(campaign.approved_at) ?? "",
+            date: shortDate(campaign.approved_at, t.locale) ?? "",
           })
         : null,
     },

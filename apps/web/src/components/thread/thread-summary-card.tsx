@@ -356,10 +356,10 @@ export function ThreadSummaryCard({
                             this is what lets a reader see that "Tuesday" was
                             said three weeks ago. */}
                         <span
-                          title={formatAbsoluteDateTime(line.at)}
+                          title={formatAbsoluteDateTime(line.at, undefined, t.locale)}
                           className="shrink-0 pt-0.5 text-[11px] tabular-nums text-app-muted-2"
                         >
-                          {formatRelativeTime(line.at)}
+                          {formatRelativeTime(line.at, undefined, t)}
                         </span>
                       </button>
                     </li>

@@ -65,7 +65,7 @@ export function ImportConsentRefused({ result }: { result: ImportResult }) {
             <p className="text-sm font-medium">
               {t("contacts.consentNotRecordedLead")}{" "}
               <span className="tabular-nums">
-                {refusals.count.toLocaleString()}
+                {refusals.count.toLocaleString(t.locale)}
               </span>{" "}
               {t("contacts.consentNotRecordedTail")}
             </p>
@@ -91,7 +91,7 @@ export function ImportConsentRefused({ result }: { result: ImportResult }) {
               {refusals.hiddenCount > 0 && (
                 <li className="text-muted-foreground">
                   {t("contacts.andMore", {
-                    count: refusals.hiddenCount.toLocaleString(),
+                    count: refusals.hiddenCount.toLocaleString(t.locale),
                   })}
                 </li>
               )}

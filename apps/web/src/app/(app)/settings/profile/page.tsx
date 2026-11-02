@@ -50,7 +50,7 @@ function makeProfileSchema(t: Translate) {
       .min(1, t("appShell.profileNameRequired"))
       .max(
         NAME_MAX,
-        t("appShell.profileNameTooLong", { max: NAME_MAX.toLocaleString() }),
+        t("appShell.profileNameTooLong", { max: NAME_MAX.toLocaleString(t.locale) }),
       ),
   });
 }

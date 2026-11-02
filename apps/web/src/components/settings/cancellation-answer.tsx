@@ -90,10 +90,10 @@ import type { CompanyView, PlanId } from "@/lib/api/types";
  * that may have been sitting cancelled for a year, and a yearless date there is
  * not a date — it is a date-shaped thing the reader has to guess the year of.
  */
-function releaseDay(canceledAt: string | null): string | null {
+function releaseDay(canceledAt: string | null, locale: string): string | null {
   const release = numberReleaseAt(canceledAt);
   return release
-    ? release.toLocaleDateString(undefined, {
+    ? release.toLocaleDateString(locale, {
         day: "numeric",
         month: "long",
         year: "numeric",
@@ -132,7 +132,7 @@ export function HoldSentence({ company }: { company: CompanyView }) {
   // #228: cancellationOffer names its sentences and takes the lookup, so the
   // cancel card says them in the reader's language.
   const say = sayWith(t);
-  const day = releaseDay(company.canceled_at);
+  const day = releaseDay(company.canceled_at, t.locale);
 
   if (day === null) {
     return (

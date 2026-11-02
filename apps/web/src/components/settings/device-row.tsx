@@ -94,15 +94,15 @@ export function DeviceRow({
           {secondary ?? location ?? t("settings.deviceNoLocation")}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          <span title={formatAbsoluteDateTime(lastActiveAt)}>
+          <span title={formatAbsoluteDateTime(lastActiveAt, undefined, t.locale)}>
             {t("settings.deviceLastActive", {
-              when: formatRelativeTime(lastActiveAt),
+              when: formatRelativeTime(lastActiveAt, undefined, t),
             })}
           </span>
           {" · "}
-          <span title={formatAbsoluteDateTime(signedInAt)}>
+          <span title={formatAbsoluteDateTime(signedInAt, undefined, t.locale)}>
             {t("settings.deviceSignedIn", {
-              when: formatRelativeTime(signedInAt),
+              when: formatRelativeTime(signedInAt, undefined, t),
             })}
           </span>
         </p>

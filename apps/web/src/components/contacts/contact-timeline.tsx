@@ -107,7 +107,7 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
   return (
     <Section showJump>
       <ol className="divide-y divide-app-line-soft">
-        {groupByDay(entries).map(({ isoDay, label, rows }) => (
+        {groupByDay(entries, t.locale).map(({ isoDay, label, rows }) => (
           <li key={isoDay}>
             {/* The jump target. Keyed by ISO day because that is what a
                 <input type="date"> produces; the heading itself is localised. */}
@@ -226,7 +226,7 @@ function TimelineRow({
         className="shrink-0 text-xs tabular-nums text-app-muted-2"
         dateTime={entry.occurred_at}
       >
-        {timeOf(entry.occurred_at)}
+        {timeOf(entry.occurred_at, t.locale)}
       </time>
     </div>
   );
@@ -290,7 +290,7 @@ function rowDetail(entry: TimelineEntry, t: Translate): string {
   if (entry.kind === "task") {
     if (entry.done) return t("contacts.timelineDone");
     return entry.due_at
-      ? t("contacts.timelineDue", { date: dayOf(entry.due_at) })
+      ? t("contacts.timelineDue", { date: dayOf(entry.due_at, t.locale) })
       : t("contacts.timelineOpen");
   }
   if (entry.kind === "call") {
@@ -312,15 +312,15 @@ function minutes(seconds: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-function timeOf(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, {
+function timeOf(iso: string, locale: string): string {
+  return new Date(iso).toLocaleTimeString(locale, {
     hour: "numeric",
     minute: "2-digit",
   });
 }
 
-function dayOf(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
+function dayOf(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
   });
@@ -341,7 +341,7 @@ interface DayGroup {
  * UTC date, so a jump to the day the crew remembers would land on the wrong
  * heading, or on none.
  */
-function groupByDay(entries: TimelineEntry[]): DayGroup[] {
+function groupByDay(entries: TimelineEntry[], locale: string): DayGroup[] {
   const groups = new Map<string, DayGroup>();
   for (const entry of entries) {
     const at = new Date(entry.occurred_at);
@@ -353,7 +353,7 @@ function groupByDay(entries: TimelineEntry[]): DayGroup[] {
     }
     groups.set(isoDay, {
       isoDay,
-      label: at.toLocaleDateString(undefined, {
+      label: at.toLocaleDateString(locale, {
         year: "numeric",
         month: "long",
         day: "numeric",

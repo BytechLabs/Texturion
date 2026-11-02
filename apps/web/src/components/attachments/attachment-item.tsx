@@ -297,7 +297,7 @@ function ImageAttachmentRow({
           <span className="block truncate text-sm text-foreground">{label}</span>
           <span
             className="block text-[11px] tabular-nums text-muted-foreground"
-            title={formatAbsoluteDateTime(attachment.created_at)}
+            title={formatAbsoluteDateTime(attachment.created_at, undefined, t.locale)}
           >
             {subLine([t("misc.attachmentKindImage"), size, meta])}
           </span>
@@ -377,7 +377,7 @@ function FileAttachmentRow({
         <span className="block truncate text-sm text-foreground">{label}</span>
         <span
           className="block text-[11px] tabular-nums text-muted-foreground"
-          title={formatAbsoluteDateTime(attachment.created_at)}
+          title={formatAbsoluteDateTime(attachment.created_at, undefined, t.locale)}
         >
           {subLine([typeLabel, size, meta])}
         </span>

@@ -751,9 +751,9 @@ function PriorConversations({
               <StatusPill status={row.status} />
               <span
                 className="text-[13px] text-muted-foreground"
-                title={formatAbsoluteDateTime(row.last_message_at)}
+                title={formatAbsoluteDateTime(row.last_message_at, undefined, t.locale)}
               >
-                {formatRelativeTime(row.last_message_at)}
+                {formatRelativeTime(row.last_message_at, undefined, t)}
               </span>
             </span>
           </Link>

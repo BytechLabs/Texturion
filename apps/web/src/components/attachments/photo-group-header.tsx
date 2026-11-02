@@ -57,7 +57,7 @@ export function PhotoGroupHeader({
       )}
       <span className="text-[12.5px] text-app-ink">{who}</span>
       <span className="text-[12px] text-app-muted">
-        {formatAbsoluteDateTime(at)}
+        {formatAbsoluteDateTime(at, undefined, t.locale)}
       </span>
     </div>
   );

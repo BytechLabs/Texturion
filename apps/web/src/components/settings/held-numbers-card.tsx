@@ -108,9 +108,9 @@ export function showsHold(view: HeldNumbersView | undefined): boolean {
 }
 
 /** "on 4 August" — the day it went on hold, when we know it. */
-function heldSince(iso: string | null): string | null {
+function heldSince(iso: string | null, locale: string): string | null {
   if (!iso) return null;
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString(locale, {
     day: "numeric",
     month: "long",
   });
@@ -227,7 +227,7 @@ function HeldNumberRow({
 }) {
   const t = useT();
   const [confirming, setConfirming] = useState(false);
-  const since = heldSince(number.suspended_at);
+  const since = heldSince(number.suspended_at, t.locale);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border bg-background px-4 py-3">

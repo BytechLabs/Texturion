@@ -97,6 +97,7 @@ import {
 
 /** Relative time, in the reader's own locale, without pulling a library in. */
 function useWhen() {
+  const t = useT();
   return (iso: string | null): string => {
     if (!iso) return "";
     const then = new Date(iso).getTime();
@@ -104,7 +105,7 @@ function useWhen() {
     const minutes = Math.round((then - Date.now()) / 60_000);
     const abs = Math.abs(minutes);
     const format = (value: number, unit: Intl.RelativeTimeFormatUnit) =>
-      new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(
+      new Intl.RelativeTimeFormat(t.locale, { numeric: "auto" }).format(
         value,
         unit,
       );

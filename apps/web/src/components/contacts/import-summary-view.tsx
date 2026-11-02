@@ -30,7 +30,7 @@ export function ImportSummaryView({
   renderError: (error: { row: number; reason: string }) => React.ReactNode;
 }) {
   const t = useT();
-  const summary = summarizeImport(result);
+  const summary = summarizeImport(result, undefined, t.locale);
   return (
     <>
       <DialogHeader>
@@ -52,7 +52,7 @@ export function ImportSummaryView({
             {summary.hiddenErrorCount > 0 && (
               <li className="text-muted-foreground">
                 {t("contacts.andMore", {
-                  count: summary.hiddenErrorCount.toLocaleString(),
+                  count: summary.hiddenErrorCount.toLocaleString(t.locale),
                 })}
               </li>
             )}

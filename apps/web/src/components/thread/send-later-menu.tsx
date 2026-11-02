@@ -29,7 +29,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useT } from "@/i18n/provider";
+import { DEFAULT_LOCALE } from "@loonext/shared";
+import { makeTranslate, useT, type Translate } from "@/i18n/provider";
 import type { DestinationClock } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -100,7 +101,7 @@ export function SendLaterMenuItems({
             <Clock className="size-4" strokeWidth={1.75} />
             <span>{preset.label}</span>
             <span className="ml-auto pl-4 text-xs tabular-nums text-muted-foreground">
-              {formatPresetHint(preset.at, zone)}
+              {formatPresetHint(preset.at, zone, t.locale)}
             </span>
           </DropdownMenuItem>
         ) : null,
@@ -172,8 +173,8 @@ export function SendLaterDialog({
   const equivalent =
     valid && canSwitch
       ? choice === "theirs"
-        ? t("thread.thatsYourTime", { when: clockAt(new Date(parsed), here) })
-        : t("thread.thatsTheirTime", { when: clockAt(new Date(parsed), zone) })
+        ? t("thread.thatsYourTime", { when: clockAt(new Date(parsed), here, t.locale) })
+        : t("thread.thatsTheirTime", { when: clockAt(new Date(parsed), zone, t.locale) })
       : null;
 
   return (
@@ -193,7 +194,7 @@ export function SendLaterDialog({
                 sentence explained the constraint and left the reader to do the
                 arithmetic; the switch below removes the arithmetic entirely. */}
             {canSwitch
-              ? t("thread.pickWhichClock", { delta: hoursApart(zone) })
+              ? t("thread.pickWhichClock", { delta: hoursApart(zone, t) })
               : t("thread.yourOwnTime")}
           </DialogDescription>
         </DialogHeader>
@@ -319,8 +320,8 @@ export function QuietHoursConfirm({
 }
 
 /** "Tue 8:00 AM" in the DESTINATION's zone — enough to know what you picked. */
-function formatPresetHint(at: Date, timeZone: string): string {
-  return at.toLocaleString(undefined, {
+function formatPresetHint(at: Date, timeZone: string, locale: string): string {
+  return at.toLocaleString(locale, {
     timeZone,
     weekday: "short",
     hour: "numeric",
@@ -346,7 +347,10 @@ function deviceZone(): string {
  * Measured rather than assumed from an offset table, so it is right across a
  * DST boundary where the two zones change on different dates.
  */
-export function hoursApart(timeZone: string): string {
+export function hoursApart(
+  timeZone: string,
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
+): string {
   const now = new Date();
   const there = Number(
     new Intl.DateTimeFormat("en-US", {
@@ -361,9 +365,16 @@ export function hoursApart(timeZone: string): string {
   if (delta > 12) delta -= 24;
   if (delta < -12) delta += 24;
 
-  if (delta === 0) return "on the same clock";
-  const magnitude = Math.abs(delta) === 1 ? "an hour" : `${Math.abs(delta)} hours`;
-  return `${magnitude} ${delta > 0 ? "ahead of" : "behind"} you`;
+  if (delta === 0) return t("thread.clocksSame");
+  const count = Math.abs(delta);
+  if (delta > 0) {
+    return count === 1
+      ? t("thread.clocksAheadOne")
+      : t("thread.clocksAheadMany", { count });
+  }
+  return count === 1
+    ? t("thread.clocksBehindOne")
+    : t("thread.clocksBehindMany", { count });
 }
 
 /**
@@ -417,16 +428,16 @@ export function parseLocalInput(value: string): {
 }
 
 /** "8:00 AM" at an instant, in a zone. Used for the other-clock line. */
-function clockAt(at: Date, timeZone: string): string {
+function clockAt(at: Date, timeZone: string, locale: string): string {
   try {
-    return at.toLocaleString(undefined, {
+    return at.toLocaleString(locale, {
       timeZone,
       weekday: "short",
       hour: "numeric",
       minute: "2-digit",
     });
   } catch {
-    return at.toLocaleString(undefined, {
+    return at.toLocaleString(locale, {
       weekday: "short",
       hour: "numeric",
       minute: "2-digit",
@@ -443,5 +454,6 @@ function clockAt(at: Date, timeZone: string): string {
  * difference that is not there.
  */
 function nowIn(timeZone: string): string {
-  return clockAt(new Date(), timeZone);
+  // Compared for equality only, never shown, so one fixed locale is right.
+  return clockAt(new Date(), timeZone, "en-US");
 }

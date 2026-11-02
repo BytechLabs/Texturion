@@ -188,9 +188,11 @@ export function ContactsTable({
                         <span
                           title={formatAbsoluteDateTime(
                             contact.last_activity_at,
+                            undefined,
+                            t.locale,
                           )}
                         >
-                          {formatRelativeTime(contact.last_activity_at)}
+                          {formatRelativeTime(contact.last_activity_at, undefined, t)}
                         </span>
                       ) : (
                         <>

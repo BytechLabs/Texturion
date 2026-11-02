@@ -50,9 +50,9 @@ import { useActiveCompany } from "@/lib/company/provider";
 
 import { planFactsFor } from "./plan-facts";
 
-function fullDate(iso: string | null): string | null {
+function fullDate(iso: string | null, locale: string): string | null {
   if (!iso) return null;
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString(locale, {
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -208,7 +208,7 @@ function StatusNotices({ company }: { company: CompanyView }) {
           {t("appShell.billingCancelScheduled")}
           {company.current_period_end
             ? t("appShell.billingCancelOnDate", {
-                date: fullDate(company.current_period_end) ?? "",
+                date: fullDate(company.current_period_end, t.locale) ?? "",
               })
             : t("appShell.billingCancelAtPeriodEnd")}
           {t("appShell.billingCancelTail", {
@@ -428,7 +428,7 @@ export default function BillingSettingsPage() {
                 {company.data.current_period_end && (
                   <p className="text-xs text-muted-foreground">
                     {t("appShell.billingPeriodEnds", {
-                      date: fullDate(company.data.current_period_end) ?? "",
+                      date: fullDate(company.data.current_period_end, t.locale) ?? "",
                     })}
                   </p>
                 )}

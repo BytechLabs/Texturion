@@ -210,7 +210,7 @@ function ScheduledListRow({
               held ? "text-app-amber" : "text-app-muted",
             )}
           >
-            {held ? t("tasks.scheduledWaiting") : sendAtLabel(row)}
+            {held ? t("tasks.scheduledWaiting") : sendAtLabel(row, t)}
           </span>
         </div>
         <p className="mt-0.5 truncate text-[12.5px] text-app-muted">{row.body}</p>

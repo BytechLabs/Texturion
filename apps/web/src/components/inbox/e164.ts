@@ -68,11 +68,12 @@ export const QUIET_HOURS_END = 8;
 export function destinationLocalClock(
   e164: string,
   now: Date = new Date(),
+  locale = "en-US",
 ): { label: string; hour: number; quiet: boolean } | null {
   const entry = lookupAreaCode(e164);
   if (!entry || !entry.geographic) return null;
   try {
-    const label = new Intl.DateTimeFormat("en-US", {
+    const label = new Intl.DateTimeFormat(locale, {
       hour: "numeric",
       minute: "2-digit",
       timeZone: entry.timezone,
@@ -104,6 +105,7 @@ export function destinationLocalClock(
 export function destinationLocalTimeLabel(
   e164: string,
   now: Date = new Date(),
+  locale = "en-US",
 ): string | null {
-  return destinationLocalClock(e164, now)?.label ?? null;
+  return destinationLocalClock(e164, now, locale)?.label ?? null;
 }

@@ -99,7 +99,7 @@ export function OutstandingQuotesSection() {
                   fact that decides whether to chase; the deadline is the reason
                   the row will vanish on its own. */}
               <span className="shrink-0 text-[12px] text-app-muted-2">
-                {quote.sent_at ? formatRelativeTime(quote.sent_at) : ""}
+                {quote.sent_at ? formatRelativeTime(quote.sent_at, undefined, t) : ""}
               </span>
             </Link>
             {canChase && (

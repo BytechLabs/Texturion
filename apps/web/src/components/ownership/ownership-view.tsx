@@ -403,13 +403,13 @@ function detailFor(
   switch (kind) {
     case "accept_offer":
       return t("misc.ownershipDetailAcceptOffer", {
-        when: formatAbsoluteDateTime(pending?.expires_at ?? ""),
+        when: formatAbsoluteDateTime(pending?.expires_at ?? "", undefined, t.locale),
       });
     case "complete_claim":
       return t("misc.ownershipDetailCompleteClaim");
     case "claim_waiting":
       return t("misc.ownershipDetailClaimWaiting", {
-        when: formatAbsoluteDateTime(pending?.ripens_at ?? ""),
+        when: formatAbsoluteDateTime(pending?.ripens_at ?? "", undefined, t.locale),
       });
     case "backup_standing":
       // Loss aversion, stated once and plainly — the same sentence the owner
@@ -422,13 +422,13 @@ function detailFor(
   if (!pending) return "";
   if (pending.kind === "offer") {
     return t("misc.ownershipDetailOfferPending", {
-      when: formatAbsoluteDateTime(pending.expires_at),
+      when: formatAbsoluteDateTime(pending.expires_at, undefined, t.locale),
     });
   }
   if (pending.ready) {
     return t("misc.ownershipDetailClaimReady");
   }
   return t("misc.ownershipDetailClaimPending", {
-    when: formatAbsoluteDateTime(pending.ripens_at),
+    when: formatAbsoluteDateTime(pending.ripens_at, undefined, t.locale),
   });
 }

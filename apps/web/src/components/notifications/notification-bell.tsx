@@ -117,7 +117,7 @@ function NotificationRow({
           {describe(item, name, t)}
         </span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
-          {formatRelativeTime(item.created_at)}
+          {formatRelativeTime(item.created_at, undefined, t)}
         </span>
       </span>
     </>

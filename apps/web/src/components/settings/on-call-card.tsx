@@ -69,8 +69,8 @@ function offsetMinutesNow(): number {
   return -new Date().getTimezoneOffset();
 }
 
-function formatUntil(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+function formatUntil(iso: string, locale: string): string {
+  return new Date(iso).toLocaleString(locale, {
     weekday: "short",
     hour: "numeric",
     minute: "2-digit",
@@ -131,7 +131,7 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
       ) : live ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-[14px] text-app-ink">
-            {onCallLine(nameOf(live.user_id), formatUntil(live.ends_at), say)}
+            {onCallLine(nameOf(live.user_id), formatUntil(live.ends_at, t.locale), say)}
           </p>
           {canEdit ? (
             <Button
@@ -157,8 +157,8 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
               className="flex items-center justify-between gap-3 text-[13px] text-app-muted-2"
             >
               <span>
-                {nameOf(shift.user_id)} · {formatUntil(shift.starts_at)} →{" "}
-                {formatUntil(shift.ends_at)}
+                {nameOf(shift.user_id)} · {formatUntil(shift.starts_at, t.locale)} →{" "}
+                {formatUntil(shift.ends_at, t.locale)}
               </span>
               {canEdit ? (
                 <button

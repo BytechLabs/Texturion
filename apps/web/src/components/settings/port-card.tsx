@@ -53,7 +53,7 @@ import { cn } from "@/lib/utils";
 /** Human date for the confirmed switch-over (no time-of-day noise). */
 function switchDate(iso: string | null, t: Translate): string {
   if (!iso) return t("settingsMore.portSwitchDateUnknown");
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString(t.locale, {
     weekday: "long",
     month: "long",
     day: "numeric",

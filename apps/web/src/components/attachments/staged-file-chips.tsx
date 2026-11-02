@@ -3,6 +3,7 @@
 import { Paperclip, X } from "lucide-react";
 
 import { formatBytes } from "@/components/thread/gallery-grouping";
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /** One file staged in a composer, waiting for the note to be created (D28). */
@@ -35,11 +36,12 @@ export function StagedFileChips({
   onMarkUp?: (id: string) => void;
   className?: string;
 }) {
+  const t = useT();
   if (files.length === 0) return null;
   return (
     <div className={cn("flex flex-wrap gap-1.5", className)}>
       {files.map(({ id, file }) => {
-        const name = file.name || "File";
+        const name = file.name || t("thread.stagedFileFallbackName");
         const size = formatBytes(file.size);
         return (
           <span
@@ -55,7 +57,7 @@ export function StagedFileChips({
               <button
                 type="button"
                 onClick={() => onMarkUp(id)}
-                aria-label={`Draw on ${name}`}
+                aria-label={t("thread.stagedFileMarkUpAria", { name })}
                 className="max-w-40 truncate underline decoration-dotted underline-offset-2"
               >
                 {name}
@@ -71,7 +73,7 @@ export function StagedFileChips({
             <button
               type="button"
               onClick={() => onRemove(id)}
-              aria-label={`Remove ${name}`}
+              aria-label={t("thread.stagedFileRemoveAria", { name })}
               className="tap-target flex size-5 shrink-0 items-center justify-center rounded-full text-app-amber-ink/80 transition-colors duration-150 ease-out hover:bg-app-amber-line/60 hover:text-app-amber-ink"
             >
               <X className="size-3" strokeWidth={1.75} />

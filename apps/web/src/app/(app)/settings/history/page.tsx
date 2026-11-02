@@ -285,10 +285,10 @@ function HistoryRow({ entry }: { entry: AuditEntry }) {
         <p className="text-[15px] leading-snug">{auditSentence(entry)}</p>
         <time
           dateTime={entry.occurred_at}
-          title={formatAbsoluteDateTime(entry.occurred_at)}
+          title={formatAbsoluteDateTime(entry.occurred_at, undefined, t.locale)}
           className="shrink-0 text-xs tabular-nums text-muted-foreground"
         >
-          {formatRelativeTime(entry.occurred_at)}
+          {formatRelativeTime(entry.occurred_at, undefined, t)}
         </time>
       </div>
       {hasDetail && (

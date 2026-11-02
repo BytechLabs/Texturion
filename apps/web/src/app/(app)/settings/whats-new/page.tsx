@@ -71,7 +71,7 @@ export default function WhatsNewSettingsPage() {
                 dateTime={entry.date}
                 className="text-xs tabular-nums text-muted-foreground"
               >
-                {new Date(`${entry.date}T00:00:00Z`).toLocaleDateString("en-US", {
+                {new Date(`${entry.date}T00:00:00Z`).toLocaleDateString(t.locale, {
                   month: "long",
                   day: "numeric",
                   year: "numeric",

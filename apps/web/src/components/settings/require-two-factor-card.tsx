@@ -71,7 +71,7 @@ export function RequireTwoFactorCard({
             nextRequired
               ? result.grace_until
                 ? t("settingsMore.mfaOnWithDeadline", {
-                    when: formatAbsoluteDateTime(result.grace_until),
+                    when: formatAbsoluteDateTime(result.grace_until, undefined, t.locale),
                   })
                 : t("settingsMore.mfaOn")
               : t("settingsMore.mfaOff"),
@@ -118,7 +118,7 @@ export function RequireTwoFactorCard({
                 ) : (
                   <>
                     {t("settingsMore.mfaGraceBody", {
-                      when: formatAbsoluteDateTime(graceUntil),
+                      when: formatAbsoluteDateTime(graceUntil, undefined, t.locale),
                     })}
                   </>
                 )

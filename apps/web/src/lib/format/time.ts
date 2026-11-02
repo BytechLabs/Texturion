@@ -198,7 +198,7 @@ export function formatRelativeTime(
   iso: string,
   now: Date = new Date(),
   t: Translate = makeTranslate(DEFAULT_LOCALE),
-  locale: UiLocale = DEFAULT_LOCALE,
+  locale: UiLocale = t.locale,
 ): string {
   const date = new Date(iso);
   // A bad/absent timestamp must render blank, not "NaNm" or a 1970 date.
@@ -246,11 +246,12 @@ export function twoClockLabel(
   iso: string,
   destinationZone: string,
   readerZone?: string,
+  locale?: string,
 ): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  const here = wallClock(at, readerZone);
-  return bothClocks(wallClock(at, destinationZone, here), here);
+  const here = wallClock(at, readerZone, undefined, locale);
+  return bothClocks(wallClock(at, destinationZone, here, locale), here);
 }
 
 /** The same two facts as a sentence, for an accessible name. */
@@ -258,11 +259,12 @@ export function twoClockSpoken(
   iso: string,
   destinationZone: string,
   readerZone?: string,
+  locale?: string,
 ): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  const here = wallClock(at, readerZone);
-  return bothClocksSpoken(wallClock(at, destinationZone, here), here);
+  const here = wallClock(at, readerZone, undefined, locale);
+  return bothClocksSpoken(wallClock(at, destinationZone, here, locale), here);
 }
 
 /**
@@ -280,9 +282,14 @@ export function twoClockSpoken(
  * column-constrained and API-validated, so this only fires if tzdata drops a zone
  * underneath a live value — and a quiet single time is the right failure there.
  */
-function wallClock(at: Date, timeZone?: string, ifUnknown?: string): string {
+function wallClock(
+  at: Date,
+  timeZone?: string,
+  ifUnknown?: string,
+  locale?: string,
+): string {
   try {
-    return at.toLocaleString(undefined, {
+    return at.toLocaleString(locale, {
       timeZone,
       weekday: "short",
       hour: "numeric",
@@ -291,7 +298,7 @@ function wallClock(at: Date, timeZone?: string, ifUnknown?: string): string {
   } catch {
     return (
       ifUnknown ??
-      at.toLocaleString(undefined, {
+      at.toLocaleString(locale, {
         weekday: "short",
         hour: "numeric",
         minute: "2-digit",

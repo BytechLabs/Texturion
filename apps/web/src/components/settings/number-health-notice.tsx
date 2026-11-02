@@ -49,7 +49,7 @@ export function NumberHealthNotice({ health }: { health: NumberHealth }) {
         {health.degraded_since && (
           <p className="mt-1 text-xs text-muted-foreground">
             {t("settingsMore.numberHealthSince", {
-              date: new Date(health.degraded_since).toLocaleDateString(),
+              date: new Date(health.degraded_since).toLocaleDateString(t.locale),
             })}
           </p>
         )}

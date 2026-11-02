@@ -69,7 +69,13 @@ export function CapControl({
     );
   }
 
-  const change = describeCapChange(currentValue, proposed, includedSegments, t);
+  const change = describeCapChange(
+    currentValue,
+    proposed,
+    includedSegments,
+    t,
+    t.locale,
+  );
   const pauseAt = capSegments(includedSegments, proposed);
   const dirty = proposed !== currentValue;
 
@@ -112,7 +118,7 @@ export function CapControl({
             className="mt-1 block text-[28px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-app-ink"
             aria-live="polite"
           >
-            {pauseAt.toLocaleString()}
+            {pauseAt.toLocaleString(t.locale)}
           </span>
           <span className="mt-1 block text-[12px] text-app-muted">
             {t("settings.capMessagesThisPeriod")}
@@ -135,7 +141,7 @@ export function CapControl({
         // Screen readers hear the consequence, not the raw multiplier.
         aria-valuetext={t("settings.capSliderValueText", {
           cap: capLabel(proposed),
-          pauseAt: pauseAt.toLocaleString(),
+          pauseAt: pauseAt.toLocaleString(t.locale),
         })}
         style={{ "--cap-fill": `${fillPercent}%` } as React.CSSProperties}
         className="cap-slider mt-4"

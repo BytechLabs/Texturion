@@ -412,7 +412,7 @@ export function NewConversation() {
           error.code === "quiet_hours_confirmation_required"
         ) {
           setQuietHours({
-            localTime: destinationLocalTimeLabel(destinationE164),
+            localTime: destinationLocalTimeLabel(destinationE164, undefined, t.locale),
           });
           return;
         }

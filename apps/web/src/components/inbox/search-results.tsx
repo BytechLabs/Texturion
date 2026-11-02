@@ -105,9 +105,9 @@ export function SearchResults({ q }: { q: string }) {
               <span className="flex shrink-0 flex-col items-end gap-1">
                 <span
                   className="text-xs tabular-nums text-foreground-tertiary"
-                  title={formatAbsoluteDateTime(hit.matched_at)}
+                  title={formatAbsoluteDateTime(hit.matched_at, undefined, t.locale)}
                 >
-                  {formatRelativeTime(hit.matched_at)}
+                  {formatRelativeTime(hit.matched_at, undefined, t)}
                 </span>
                 <StatusPill status={hit.status} />
               </span>

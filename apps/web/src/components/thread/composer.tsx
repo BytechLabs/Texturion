@@ -1261,7 +1261,7 @@ export function Composer({
         setQuietConfirmFor(null);
         toast.success(
           t("thread.scheduledFor", {
-            when: new Date(sendAtIso).toLocaleString(undefined, {
+            when: new Date(sendAtIso).toLocaleString(t.locale, {
               weekday: "short",
               hour: "numeric",
               minute: "2-digit",

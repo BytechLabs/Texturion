@@ -79,8 +79,8 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
         <h1 className="text-xl font-semibold">{who}</h1>
         <p className="text-sm text-muted-foreground">
           {outcomeLine(row, t)} ·{" "}
-          <span title={formatAbsoluteDateTime(row.started_at)}>
-            {formatRelativeTime(row.started_at)}
+          <span title={formatAbsoluteDateTime(row.started_at, undefined, t.locale)}>
+            {formatRelativeTime(row.started_at, undefined, t)}
           </span>
         </p>
       </header>
@@ -131,13 +131,13 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
           </Row>
         )}
         <Row label={t("shell.startedLabel")}>
-          <span title={formatAbsoluteDateTime(row.started_at)}>
-            {formatAbsoluteDateTime(row.started_at)}
+          <span title={formatAbsoluteDateTime(row.started_at, undefined, t.locale)}>
+            {formatAbsoluteDateTime(row.started_at, undefined, t.locale)}
           </span>
         </Row>
         {row.ended_at && (
           <Row label={t("shell.endedLabel")}>
-            {formatAbsoluteDateTime(row.ended_at)}
+            {formatAbsoluteDateTime(row.ended_at, undefined, t.locale)}
           </Row>
         )}
         {row.stir_attestation && (

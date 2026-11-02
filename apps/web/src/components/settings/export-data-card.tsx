@@ -78,7 +78,7 @@ export function ExportDataCard() {
         {latestFailed && !building && (
           <p className="text-sm text-destructive">
             {t("settings.exportDataFailed", {
-              when: formatRelativeTime(latestFailed.requested_at),
+              when: formatRelativeTime(latestFailed.requested_at, undefined, t),
             })}
           </p>
         )}
@@ -109,12 +109,12 @@ function ReadyExport({ row }: { row: DataExport }) {
             renders that as "Export from now", which reads as a typo. */}
         <p className="text-sm font-medium">{t("settings.exportDataLatest")}</p>
         <p className="text-xs tabular-nums text-muted-foreground">
-          {t("settings.exportDataRecords", { count: total.toLocaleString() })} ·{" "}
+          {t("settings.exportDataRecords", { count: total.toLocaleString(t.locale) })} ·{" "}
           <time
             dateTime={row.completed_at ?? row.requested_at}
-            title={formatAbsoluteDateTime(row.completed_at ?? row.requested_at)}
+            title={formatAbsoluteDateTime(row.completed_at ?? row.requested_at, undefined, t.locale)}
           >
-            {formatRelativeTime(row.completed_at ?? row.requested_at)}
+            {formatRelativeTime(row.completed_at ?? row.requested_at, undefined, t)}
           </time>
         </p>
       </div>
@@ -142,7 +142,7 @@ function ReadyExport({ row }: { row: DataExport }) {
           {row.expires_at && (
             <p className="text-xs text-muted-foreground">
               {t("settings.exportDataLinksExpire", {
-                when: formatAbsoluteDateTime(row.expires_at),
+                when: formatAbsoluteDateTime(row.expires_at, undefined, t.locale),
               })}
             </p>
           )}
