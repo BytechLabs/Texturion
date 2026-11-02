@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.20.0](https://github.com/BytechLabs/Texturion/compare/web-v0.19.2...web-v0.20.0) (2026-11-02)
+
+
+### Features
+
+* **a11y:** sign-in screens link to support ([01120db](https://github.com/BytechLabs/Texturion/commit/01120dba1ea83dcb27cb2ba8516083cfaf29f5d5))
+
+
+### Bug Fixes
+
+* **web:** dates, numbers and times follow the app's language ([78c5694](https://github.com/BytechLabs/Texturion/commit/78c5694cfcac97771fcdf15797324200c1997a17))
+* **web:** marketing pages fit 320px phones, focus clears the header ([e3ffc25](https://github.com/BytechLabs/Texturion/commit/e3ffc25e9fbbd43c312e92d84d4a508561f55935))
+* **web:** the comparison pages show competitors' current prices ([ea94e9d](https://github.com/BytechLabs/Texturion/commit/ea94e9d5c815495d37fb299cf5256b43107a093b))
+* **web:** the pricing page shows Quo's texting as included, at ~$59 ([ef27494](https://github.com/BytechLabs/Texturion/commit/ef27494ee2d6a2ff9278df6940bc0b8c0122aa01))
+
 ## [0.19.2](https://github.com/BytechLabs/Texturion/compare/web-v0.19.1...web-v0.19.2) (2026-11-01)
 
 
