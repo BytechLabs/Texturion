@@ -228,13 +228,13 @@ export const pricingEn = {
   elsewhereSoftware: "Monthly software",
   elsewhereWorkload: "500 texts a month, the workload",
   elsewhereIncluded: "Included",
-  elsewhereNotIncluded: "Not included, metered at 1¢/segment (~$5)",
+  elsewhereQuoTexting: "Included, unlimited under fair use",
   elsewhereCarrier: "Monthly carrier line item",
   elsewhereTotal: "Monthly total",
   elsewhereFlat: "{starter} flat",
-  elsewhereQuoTotal: "~$64 + extra numbers at $5 ea.",
+  elsewhereQuoTotal: "~$59 + extra numbers at $5 ea.",
   elsewhereFootnote:
-    "Competitor prices from their public pricing pages, July 2026; each figure is sourced on the matching comparison page. Every figure in this table is in US dollars, which is what Heymarket and Quo publish in, so the Loonext row is our US price; Canadian workspaces are quoted and billed in Canadian dollars. Heymarket's texting total assumes 500 single-segment texts at their published 3¢/segment plus their $10/mo per-campaign carrier fee. Quo's total is $57 in seats plus ~$5 of metered texting (1¢/segment) plus their published $1.50 to $3 monthly carrier maintenance, and extra numbers are $5 each. One-time registration fees excluded for all (ours is {fee}; Quo discloses $19.50; others don't say). If any number changes, tell us and we'll fix it.",
+    "Competitor prices from their public pricing pages, November 2026; each figure is sourced on the matching comparison page. Every figure in this table is in US dollars, which is what Heymarket and Quo publish in, so the Loonext row is our US price; Canadian workspaces are quoted and billed in Canadian dollars. Heymarket's texting total assumes 500 single-segment texts at their published 3¢/segment plus their $10/mo per-campaign carrier fee. Quo's total is $57 in seats plus their published $1.50 to $3 monthly carrier maintenance. Quo includes US and Canada texting under its fair usage policy and meters only automated texts (1¢/segment), and extra numbers are $5 each. One-time registration fees excluded for all (ours is {fee}; Quo discloses $19.50; others don't say). If any number changes, tell us and we'll fix it.",
 
   faqTrialQ: "Is there a free trial?",
   faqTrialA:
@@ -471,13 +471,13 @@ export const pricingFr: Translated<typeof pricingEn> = {
   elsewhereSoftware: "Logiciel mensuel",
   elsewhereWorkload: "500 textos par mois, la charge de travail",
   elsewhereIncluded: "Inclus",
-  elsewhereNotIncluded: "Non inclus, facturé 1 ¢/segment (~5 $)",
+  elsewhereQuoTexting: "Inclus, illimité sous utilisation équitable",
   elsewhereCarrier: "Ligne mensuelle d'opérateur",
   elsewhereTotal: "Total mensuel",
   elsewhereFlat: "{starter} prix fixe",
-  elsewhereQuoTotal: "~64 $ + numéros supplémentaires à 5 $ ch.",
+  elsewhereQuoTotal: "~59 $ + numéros supplémentaires à 5 $ ch.",
   elsewhereFootnote:
-    "Prix des concurrents tirés de leurs pages de prix publiques, juillet 2026 ; chaque chiffre est sourcé sur la page de comparaison correspondante. Chaque chiffre de ce tableau est en dollars américains, ce qui est la monnaie dans laquelle Heymarket et Quo publient, alors la ligne Loonext est notre prix américain ; les espaces de travail canadiens sont établis et facturés en dollars canadiens. Le total de textos de Heymarket suppose 500 textos d'un seul segment à leur tarif publié de 3 ¢/segment plus leurs frais d'opérateur de 10 $/mois par campagne. Le total de Quo est de 57 $ en sièges plus ~5 $ de textos facturés à l'unité (1 ¢/segment) plus leur entretien d'opérateur publié de 1,50 $ à 3 $ par mois, et les numéros supplémentaires sont à 5 $ chacun. Frais d'enregistrement uniques exclus pour tous (les nôtres sont de {fee} ; Quo déclare 19,50 $ ; les autres ne le disent pas). Si un chiffre change, dites-le-nous et on le corrigera.",
+    "Prix des concurrents tirés de leurs pages de prix publiques, novembre 2026 ; chaque chiffre est sourcé sur la page de comparaison correspondante. Chaque chiffre de ce tableau est en dollars américains, ce qui est la monnaie dans laquelle Heymarket et Quo publient, alors la ligne Loonext est notre prix américain ; les espaces de travail canadiens sont établis et facturés en dollars canadiens. Le total de textos de Heymarket suppose 500 textos d'un seul segment à leur tarif publié de 3 ¢/segment plus leurs frais d'opérateur de 10 $/mois par campagne. Le total de Quo est de 57 $ en sièges plus leur entretien d'opérateur publié de 1,50 $ à 3 $ par mois. Quo inclut les textos aux États-Unis et au Canada sous sa politique d'utilisation équitable et ne facture à l'unité que les textos automatisés (1 ¢/segment), et les numéros supplémentaires sont à 5 $ chacun. Frais d'enregistrement uniques exclus pour tous (les nôtres sont de {fee} ; Quo déclare 19,50 $ ; les autres ne le disent pas). Si un chiffre change, dites-le-nous et on le corrigera.",
 
   faqTrialQ: "Y a-t-il un essai gratuit ?",
   faqTrialA:

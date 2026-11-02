@@ -357,7 +357,7 @@ export const elsewhereRows = (
     cells: [
       copy.elsewhereIncluded,
       french ? "~15 $ US (3 ¢ US/segment × 500)" : "~$15 (3¢/segment × 500)",
-      copy.elsewhereNotIncluded,
+      copy.elsewhereQuoTexting,
     ],
   },
   {

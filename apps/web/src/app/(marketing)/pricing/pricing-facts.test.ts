@@ -284,16 +284,16 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     }
   });
 
-  it('the "priced elsewhere" table keeps the dated July 2026 math and the sourced footnote', () => {
+  it('the "priced elsewhere" table keeps the dated November 2026 math and the sourced footnote', () => {
     const total = ELSEWHERE_ROWS.find((r) => r.total);
     expect(total?.cells[0]).toBe(`$${PLAN_PRICING.starter.monthlyDollars}`);
     expect(total?.cells[1]).toBe("~$172");
-    expect(total?.cells[2]).toBe("~$64 + extra numbers at $5 ea.");
+    expect(total?.cells[2]).toBe("~$59 + extra numbers at $5 ea.");
     expect(
       // #403: derived, so it cannot outlive the verification it describes.
       ELSEWHERE_COLUMNS.filter((c) => c.sub === COMPARE_AS_OF),
     ).toHaveLength(2);
-    expect(ELSEWHERE_FOOTNOTE).toContain("July 2026");
+    expect(ELSEWHERE_FOOTNOTE).toContain("November 2026");
     expect(COMPARE_AS_OF).toContain("2026");
     expect(ELSEWHERE_FOOTNOTE).toContain("$19.50");
     expect(ELSEWHERE_FOOTNOTE).toContain("tell us and we'll fix it");
