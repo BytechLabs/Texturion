@@ -42,7 +42,7 @@ timedatectl set-timezone UTC
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   ca-certificates curl git gnupg openssl jq unzip xz-utils \
-  docker.io caddy dnsmasq nftables openssh-server unattended-upgrades
+  docker.io caddy dnsmasq nftables openssh-server unattended-upgrades libnss3-tools
 
 step "firewall and sshd: only the workstation opens connections in"
 install -d -m 0755 /etc/loonext-rig
@@ -183,6 +183,9 @@ fi
 git -C "$home/tooling" fetch --tags --prune origin
 git -C "$home/tooling" checkout --detach origin/main
 (cd "$home/tooling" && pnpm install --frozen-lockfile)
+# The browser lane (S01-S35's pages) launches Playwright's own Chromium; the
+# build number moves with the pinned playwright, so it is fetched here.
+(cd "$home/tooling/tools/rig/lanes" && pnpm exec playwright install chromium)
 # The JDK and Android SDK for `rig apk`. The SDK packages wait for FA15's
 # licence acceptance (android-toolchain.sh --accept-licences).
 bash "$home/tooling/tools/rig/box/android-toolchain.sh"
@@ -194,6 +197,20 @@ systemctl --user daemon-reload
 systemctl --user enable loonext-rig-stack.service loonext-rig-api.service loonext-rig-web.service \
   loonext-rig-stripe-listen.service
 AS_RIG
+
+# Chromium reads trust from the user's NSS database, not the system store, so the
+# browser lane trusts the rig's authority (name-constrained to rig.internal) there.
+sudo -u "$RIG_USER" -H bash -s -- "$RIG_HOME" <<'AS_RIG_NSS'
+set -euo pipefail
+nss="sql:$HOME/.pki/nssdb"
+mkdir -p "$HOME/.pki/nssdb"
+certutil -d "$nss" -L >/dev/null 2>&1 || certutil -d "$nss" -N --empty-password
+certutil -d "$nss" -D -n "Loonext Rig CA" >/dev/null 2>&1 || true
+certutil -d "$nss" -A -t "C,," -n "Loonext Rig CA" -i "$1/secrets/rig-ca.crt"
+AS_RIG_NSS
+
+# Chromium's shared libraries, which need root.
+(cd "$RIG_HOME/tooling/tools/rig/lanes" && pnpm exec playwright install-deps chromium)
 
 echo
 echo "bootstrap.sh: done. Next, as $RIG_USER: fill $RIG_HOME/secrets (tools/rig/README.md),"

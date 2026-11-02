@@ -111,6 +111,9 @@ export function deriveSupabaseConfig(text, { supabaseUrl, appOrigin, totp = fals
       `[${tomlString(appOrigin)}, ${tomlString(`${appOrigin}/**`)}]`,
     );
   }
+  // The committed config leaves confirmations off for local development, which
+  // sends no sign-up mail at all; production confirms by mail, and S35 needs the mail.
+  next = setTomlKey(next, "auth.email", "enable_confirmations", "true");
   if (totp) {
     next = setTomlKey(next, "auth.mfa.totp", "enroll_enabled", "true");
     next = setTomlKey(next, "auth.mfa.totp", "verify_enabled", "true");

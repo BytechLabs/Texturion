@@ -2,11 +2,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { codeSamples, delay, mix } from "@loonext/rig-robot";
+import type { Page } from "playwright";
 import { afterAll, describe, expect, it } from "vitest";
 import { Adb, integerResource, manifestMetaValue, parsePackagePath, type Exec } from "./android/adb.ts";
 import { ADB_VM_PORT, HOSTD_PORT, MAX_BOOTED, RIG_DEVICES } from "./android/devices.ts";
 import { BLOCKED_HOSTS, chromiumArgs, hostResolverRules } from "./browser/args.ts";
-import { judgeCapture } from "./browser/lane.ts";
+import { judgeCapture, PublicPage } from "./browser/lane.ts";
 import type { PageCapture } from "./browser/page-judge.ts";
 
 describe("Chromium's launch arguments", () => {
@@ -246,5 +247,27 @@ describe("judgeCapture", () => {
     expect(answered.detection.answered).toBe("robot");
     // Silence before answer: no ringback reached the page.
     expect(answered.energyBeforeAnswer).toBe(0);
+  });
+});
+
+describe("the visitor's page", () => {
+  const visited: string[] = [];
+  const page = { goto: async (url: string) => void visited.push(url) } as unknown as Page;
+  const visitor = new PublicPage(page, "https://app.rig.internal", async () => undefined, "https://db.rig.internal");
+
+  it("opens the app, the sign-up verify link and Stripe's hosted pages, and nothing else", async () => {
+    await visitor.goto("/sign-up");
+    await visitor.goto("https://db.rig.internal/auth/v1/verify?token=t&type=signup");
+    await visitor.goto("https://checkout.stripe.com/c/pay/cs_test_1");
+    expect(visited).toEqual([
+      "https://app.rig.internal/sign-up",
+      "https://db.rig.internal/auth/v1/verify?token=t&type=signup",
+      "https://checkout.stripe.com/c/pay/cs_test_1",
+    ]);
+    await expect(visitor.goto("https://db.rig.internal/rest/v1/companies")).rejects.toThrow(/neither the rig's app/);
+    await expect(visitor.goto("https://example.com/")).rejects.toThrow(/neither the rig's app/);
+    await expect(new PublicPage(page, "https://app.rig.internal", async () => undefined).goto("https://db.rig.internal/auth/v1/verify")).rejects.toThrow(
+      /neither the rig's app/,
+    );
   });
 });

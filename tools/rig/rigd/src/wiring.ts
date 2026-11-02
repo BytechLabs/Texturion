@@ -41,6 +41,9 @@ import type { BrowserApi, DeviceApi, DevicesApi, RigApi, ScenarioLanes, StripeAp
 import { parseDsn, SentryRelay, type Dsn } from "./sentry-relay.ts";
 import { VerdictStore } from "./verdicts.ts";
 
+/** Where the rig's Supabase auth answers, which a sign-up's confirmation link opens (tools/rig/src/layout.mjs). */
+const RIG_AUTH_ORIGIN = "https://db.rig.internal";
+
 export interface Rig {
   config: RigdConfig;
   /** `state/rigd`: verdicts, lease journals, counters. */
@@ -141,6 +144,7 @@ export function buildRig(config: RigdConfig): Rig {
     if (!SURFACES.every((surface) => existsSync(join(fakeMicDir, `${surface}.wav`)))) writeFakeMicWavs(fakeMicDir);
     const lane = new BrowserLane({
       appOrigin: config.settings.appOrigin,
+      authOrigin: RIG_AUTH_ORIGIN,
       profilesDir: join(config.home.work, "browser-profiles"),
       fakeMicDir,
       numbers: numbers(),

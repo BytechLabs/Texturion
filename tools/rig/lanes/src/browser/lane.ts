@@ -77,6 +77,8 @@ export interface BrowserLaneOptions {
   numbers: NumberBook;
   /** The member's sign-in: the seed's tenants.json, by member key. */
   credentials?: (member: string) => MemberCredentials | undefined;
+  /** The rig's Supabase origin: a sign-up's confirmation link opens its verify path. */
+  authOrigin?: string;
   headless?: boolean;
   browserType?: BrowserType;
   executablePath?: string;
@@ -140,7 +142,7 @@ export class BrowserLane {
     });
     const context = await browser.newContext({ locale: "en-CA", timezoneId: "America/Toronto" });
     const page = await context.newPage();
-    const opened = new PublicPage(page, this.#o.appOrigin, () => browser.close());
+    const opened = new PublicPage(page, this.#o.appOrigin, () => browser.close(), this.#o.authOrigin);
     this.#public.add(opened);
     await opened.goto(path);
     return opened;
@@ -162,17 +164,20 @@ export class PublicPage {
   readonly page: Page;
   readonly #origin: string;
   readonly #close: () => Promise<void>;
+  readonly #authOrigin: string | undefined;
 
-  constructor(page: Page, origin: string, close: () => Promise<void>) {
+  constructor(page: Page, origin: string, close: () => Promise<void>, authOrigin?: string) {
     this.page = page;
     this.#origin = origin;
     this.#close = close;
+    this.#authOrigin = authOrigin;
   }
 
   async goto(pathOrUrl: string): Promise<void> {
     const target = new URL(pathOrUrl, this.#origin);
-    if (target.origin !== new URL(this.#origin).origin && !(STRIPE_HOSTS as readonly string[]).includes(target.hostname)) {
-      throw new Error(`browser lane: ${target.hostname} is neither the rig's app nor Stripe's hosted pages`);
+    const verifyLink = this.#authOrigin !== undefined && target.origin === new URL(this.#authOrigin).origin && target.pathname === "/auth/v1/verify";
+    if (target.origin !== new URL(this.#origin).origin && !verifyLink && !(STRIPE_HOSTS as readonly string[]).includes(target.hostname)) {
+      throw new Error(`browser lane: ${target.hostname} is neither the rig's app, its sign-up verify link nor Stripe's hosted pages`);
     }
     await this.page.goto(target.toString());
   }

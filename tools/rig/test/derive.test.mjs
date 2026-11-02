@@ -105,14 +105,16 @@ test("derivation refuses what it has not been taught, and anything remote", () =
   assert.throws(() => deriveRigConfig({ ...base, kv_namespaces: [{ binding: "K", id: "x", remote: true }] }, { port: 1 }), /remote/);
 });
 
-test("the derived config.toml points at the signing key and changes nothing else", () => {
+test("the derived config.toml points at the signing key, confirms sign-ups by mail, and changes nothing else", () => {
   const committed = repoFile("supabase", "config.toml");
   const derived = deriveSupabaseConfig(committed);
   const before = committed.split(/\r?\n/);
   const after = derived.split(/\r?\n/);
   assert.equal(after.length, before.length, "the commented example line is replaced, not added to");
   const changed = after.filter((line, i) => line !== before[i]);
-  assert.deepEqual(changed, ['signing_keys_path = "./signing_keys.json"']);
+  assert.deepEqual(changed, ['signing_keys_path = "./signing_keys.json"', "enable_confirmations = true"]);
+  const email = /\n\[auth\.email\]\n([\s\S]*?)\n\[/.exec(derived.replace(/\r\n/g, "\n"))[1];
+  assert.match(email, /^enable_confirmations = true$/m, "the phone table's own enable_confirmations stays off");
   assert.equal(projectIdOf(derived), projectIdOf(committed));
 });
 
