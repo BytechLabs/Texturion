@@ -2,24 +2,28 @@
  * The `rig` command. Every command is a function of its
  * arguments and the environment, so tests import `main` instead of spawning.
  */
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { APK_DIR, buildApk } from "./apk.mjs";
 import { bootstrapDb } from "./bootstrap-db.mjs";
-import { fireCron, scheduledMinute } from "./cron.mjs";
+import { fireCron, readCronRegistry, resolveCron, scheduledMinute } from "./cron.mjs";
 import { deploy, resolveSha, STACK_EXCLUDES } from "./deploy.mjs";
 import { fetchPartition, recordStanding, rigEndpoints, standingNumbers } from "./guard.mjs";
 import { runHealth } from "./health.mjs";
 import { rigLayout, rigSettings, TOOLING_ROOT } from "./layout.mjs";
+import { runCommand } from "./run.mjs";
 import { secretStore } from "./secrets.mjs";
 import { serve } from "./serve.mjs";
 import { projectIdOf } from "./supabase-config.mjs";
 import { localStatus, supabase } from "./supabase.mjs";
-import { run } from "./exec.mjs";
+import { run, userManagerEnv } from "./exec.mjs";
 import { seed } from "../../../scripts/rig/seed.mjs";
 
 export const USAGE = `rig <command>
+
+The rig runs nothing on a timer. Every command below is something you ask for.
 
   deploy --ref <tag|branch|sha>   worktree, install, derive, migrate or reset+reseed, restart
          --worktree <path>        deploy a checkout in place instead of a ref
@@ -27,7 +31,10 @@ export const USAGE = `rig <command>
          [--no-restart] [--offline]
   bootstrap-db [--pre-seam]       rig settings on the database, pools restarted, posture proved
   seed                            the tenants, numbers from the guard, audiences at rest
-  cron <expr> [--time <ms>]       fire one cron on the local API
+  run <scenario>[-<variant>] [--run-id <id>]
+                                  one scenario run: the guard lease, the judging, the verdict
+  cron <expr|job:name> [--time <ms>]
+                                  fire one cron on the local API
   health [--only a,b] [--json]    R00's checks that boot no emulator
   apk --ref <ref> | --worktree <path> [--debuggable]
                                   build the nonprod APK; refuse any other package;
@@ -172,9 +179,24 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
       return 0;
     }
 
+    case "run": {
+      const [instance] = rest;
+      if (!instance) throw new Error("rig run: give the scenario, like S20, D02p or S25-2");
+      const { command: file, args, env: extra } = runCommand({
+        instance,
+        runId: typeof flags["run-id"] === "string" ? flags["run-id"] : undefined,
+        layout,
+        systemd: settings.systemd,
+      });
+      const result = spawnSync(file, args, { stdio: "inherit", env: userManagerEnv({ ...process.env, ...extra }) });
+      if (result.error) throw new Error(`rig run: ${file} did not start: ${result.error.code ?? result.error.message}`);
+      return result.status ?? 1;
+    }
+
     case "cron": {
-      const [cron] = rest;
-      if (!cron) throw new Error("rig cron: give the cron expression, quoted");
+      const [arg] = rest;
+      if (!arg) throw new Error("rig cron: give the cron expression, quoted, or job:<name>");
+      const cron = resolveCron(arg, readCronRegistry());
       const time = flags.time === undefined ? scheduledMinute() : Number(flags.time);
       if (!Number.isSafeInteger(time) || time < 0) throw new Error("rig cron: --time is milliseconds since the epoch");
       const result = await fireCron(`http://127.0.0.1:${settings.apiPort}`, cron, time);

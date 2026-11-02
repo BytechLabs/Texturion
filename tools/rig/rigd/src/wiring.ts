@@ -6,7 +6,7 @@
  * rigd keeps its own files under `state/rigd/`; what other tools read
  * (`state/uplink.json`, `state/sentry-relay.json`) sits directly in `state/`.
  */
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BrowserLane, HostdClient } from "@loonext/rig-lanes";
@@ -241,7 +241,7 @@ export function buildRig(config: RigdConfig): Rig {
         edgeOrigin: config.edgeOrigin,
         token: store.read("guard-token-robot"),
         stateFile: join(dir, "guard-window.json"),
-        registry: registry().budget.window,
+        registry: registry().caps.window,
         override: config.windowOverride,
       }),
   );
@@ -274,11 +274,10 @@ export function buildRig(config: RigdConfig): Rig {
       sha: () => readDeployedSha(config),
       room: () => readRoom(config),
       dialWindow: () => windows().current(),
-      caps: config.capsOverride ?? registry().budget,
+      caps: config.capsOverride ?? registry().caps,
       clock: systemClock,
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       lateDeliveries: (query) => late.matching(query).length,
-      ran: (at) => markSuiteRan(config, at),
       holds,
       deployHold: () => {
         const hold = readDeployHold(config.home.state);
@@ -386,16 +385,6 @@ export function undoHandlers(parts: UndoParts): UndoHandlers {
     },
     [STRIPE_DELETE_UNDO]: async (params) => deleteStripeObject(parts.stripe(), params),
   };
-}
-
-/** The dead-man's "last suite run": a file the daemon reads and beats with. */
-export function suiteMarker(config: RigdConfig): string {
-  return join(rigdDir(config), "heartbeats", "suite");
-}
-
-function markSuiteRan(config: RigdConfig, at: number): void {
-  mkdirSync(join(rigdDir(config), "heartbeats"), { recursive: true });
-  writeFileSync(suiteMarker(config), String(at));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,11 +1,10 @@
 /**
  * What a schema-change deploy leaves in the rig's state while the services
- * and timers it stopped are down: `rig deploy` writes it before it stops
- * anything and removes it only once the services serve the new ref. rigd's
- * hourly schedule refresh starts no timer while it is there, so nothing runs
- * against a database mid-migration, and a deploy that failed leaves the
- * timers stopped until one succeeds. `rig health` fails on one over an hour
- * old.
+ * it stopped are down: `rig deploy` writes it before it stops anything and
+ * removes it only once the services serve the new ref. A scenario run asked
+ * for while it is there is skipped (runner.ts), so nothing runs against a
+ * database mid-migration, and a deploy that failed leaves runs refused until
+ * one succeeds. `rig health` fails on one over an hour old.
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

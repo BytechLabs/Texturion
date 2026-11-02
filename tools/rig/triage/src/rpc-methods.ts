@@ -1,5 +1,5 @@
 /**
- * The rpc methods the hourly `synthetic-triage` task calls through
+ * The rpc methods the `synthetic-triage` task calls through
  * `/ctl/rpc`. They are thin on purpose: the task decides, the rig acts within
  * limits it enforces itself.
  *
@@ -28,8 +28,6 @@ export interface TriageDeps {
   evidence(runId: string): { verdicts: unknown[]; evidence: unknown[] };
   /** Read when an issue is filed, so a rig without the App key still triages. */
   app(): AppCredentials;
-  /** Marks the triage heartbeat for the dead-man. */
-  heartbeat(): void;
   fetch?: typeof fetch;
 }
 
@@ -40,7 +38,6 @@ export const TRIAGE_METHODS = ["triage.unresolved", "triage.rerun", "triage.evid
 export function triageMethods(deps: TriageDeps): TriageMethods {
   return {
     async "triage.unresolved"() {
-      deps.heartbeat();
       return deps.unresolved();
     },
 

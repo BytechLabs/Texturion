@@ -128,21 +128,17 @@ test("the nonprod apps check is the guard's own start-up check", async () => {
   }
 });
 
-test("an unclassified cron or an idle timer fails the crons check", async () => {
+test("an unclassified cron fails the crons check, and no timer is looked for", async () => {
   await withRig(async (context) => {
     context.cronRegistry = { crons: [{ config: "apps/api/wrangler.jsonc", cron: "* * * * *", class: "run" }] };
-    assert.match(await healthChecks(context).crons(), /1 cron\(s\) tools\/rig\/crons\.json does not classify have no timer: 0 13 \* \* \*/);
+    assert.match(await healthChecks(context).crons(), /1 cron\(s\) tools\/rig\/crons\.json does not classify, so nothing says what firing them should do: 0 13 \* \* \*/);
 
     context.cronRegistry.crons.push({ config: "apps/api/wrangler.jsonc", cron: "0 13 * * *", class: "skip" });
     assert.equal(await healthChecks(context).crons(), null);
 
+    // The rig runs nothing on a timer, so a rig with systemd and no cron timer is healthy.
     context.settings = { ...context.settings, systemd: true };
-    let active = "inactive";
-    context.systemctl = () => ({ stdout: `${active}\n` });
-    assert.equal(await healthChecks(context).crons(), "no active timer for 1 cron(s): * * * * *");
-    context.deployed.timers = [{ cron: "* * * * *", timer: "loonext-rig-cron-c00.timer" }];
-    assert.equal(await healthChecks(context).crons(), "no active timer for 1 cron(s): * * * * *");
-    active = "active";
+    context.systemctl = () => assert.fail("the crons check asked systemd about a timer");
     assert.equal(await healthChecks(context).crons(), null);
   });
 });
@@ -252,7 +248,7 @@ test("a deploy hold over an hour old fails, naming the file", async () => {
     const at = new Date(Date.now() - DEPLOY_HOLD_MAX_AGE_MS - 60_000).toISOString();
     writeFileSync(path, JSON.stringify({ sha: SHA, ref: "main", at }));
     const reason = await check();
-    assert.ok(reason.startsWith(`${path} has held the services and timers stopped since ${at}`), reason);
+    assert.ok(reason.startsWith(`${path} has held the services stopped since ${at}`), reason);
     assert.match(reason, new RegExp(`the deploy of ${"a".repeat(12)} stopped them`));
 
     writeFileSync(path, "{");

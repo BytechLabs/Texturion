@@ -7,8 +7,10 @@
  *      schema cannot be reached by migrating, with the services stopped
  *      first when the schema changes, and held stopped (deploy-hold.mjs)
  *      until step 4 has finished;
- *   4. the SHA recorded for every verdict, the ref's cron timers installed,
- *      the services restarted, and then rigd's scenario timers installed.
+ *   4. the SHA recorded for every verdict, the services restarted, and
+ *      rigd's own two services installed. Nothing is put on a timer: the
+ *      scenario timers, cron timers and health timer an earlier rig had are
+ *      removed. Scenarios, crons and health run when someone asks.
  *
  * `--worktree <path>` deploys a checkout in place instead, for a branch an
  * agent is working on; nothing is fetched, created or installed.
@@ -30,7 +32,6 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { bootstrapDb } from "./bootstrap-db.mjs";
-import { cronTimers, cronUnits, cronsToSchedule, readCronRegistry } from "./cron.mjs";
 import { deployHoldPath, holdForDeploy, readDeployHold, releaseDeployHold } from "./deploy-hold.mjs";
 import { dummyServiceAccount, firebaseProjectId, generateVapidPair, relayDsn, renderDevVars, seams } from "./dev-vars.mjs";
 import { run, systemctlUser, userManagerEnv } from "./exec.mjs";
@@ -64,11 +65,14 @@ export const STACK_EXCLUDES = ["vector", "logflare", "imgproxy", "edge-runtime"]
 /** User-level units (`loginctl enable-linger`), so deploy needs no root. */
 export const SERVICE_UNITS = ["loonext-rig-api.service", "loonext-rig-web.service", "loonext-rig-stripe-listen.service"];
 
-/** Scenario runs, timed and triage reruns: each releases its lease's undos when stopped (rigd's cli.ts). */
-export const RUN_UNITS = ["loonext-rig-scenario@*.service", "loonext-rig-rerun-*.service"];
+/** Scenario runs asked for with `rig run` and triage reruns: each releases its lease's undos when stopped (rigd's cli.ts). */
+export const RUN_UNITS = ["loonext-rig-run-*.service", "loonext-rig-rerun-*.service"];
 
-/** Stopped before a schema change: the services, and every timer that starts something against them. */
-export const SCHEMA_CHANGE_STOPS = [...SERVICE_UNITS, "loonext-rig-cron-*.timer", "loonext-rig-scenario-*.timer"];
+/** Stopped before a schema change: the services a run works against. */
+export const SCHEMA_CHANGE_STOPS = [...SERVICE_UNITS];
+
+/** Units an earlier rig installed and nothing installs now: every timer the rig used to run, and what they started. */
+export const LEGACY_UNITS = /^loonext-rig-(?:cron-.+\.(?:timer|service)|scenario-.+\.timer|scenario@\.service|health\.(?:timer|service))$/;
 
 /** Files the rig writes into a worktree; none may ever be committed from one. */
 export const DERIVED_FILES = ["apps/api/wrangler.rig.jsonc", "apps/api/.dev.vars.rig", "apps/web/wrangler.rig.jsonc"];
@@ -178,51 +182,42 @@ function requireUserManager() {
 }
 
 /**
- * The ref's crons as user timers. The new units are written before the stale
- * ones are removed, so a failure part way leaves timers that still fire.
+ * Disables and removes every timer an earlier rig installed, and the services
+ * they started. The rig runs nothing on a timer.
+ * @returns {string[]} the unit files removed
  */
-function installCronTimers({ timers, nodeBin, unitDir, systemctl }) {
-  mkdirSync(unitDir, { recursive: true });
-  const keep = new Set();
-  for (const { cron, slug } of timers) {
-    const units = cronUnits({ cron, slug, node: nodeBin, rigBin: join(TOOLING_ROOT, "tools", "rig", "bin", "rig.mjs") });
-    for (const [kind, text] of [["service", units.service], ["timer", units.timer]]) {
-      const file = `loonext-rig-cron-${slug}.${kind}`;
-      writeFileSync(join(unitDir, file), text);
-      keep.add(file);
-    }
-  }
+export function removeLegacyUnits({ unitDir, systemctl = systemctlUser }) {
+  if (!existsSync(unitDir)) return [];
+  const removed = [];
   for (const file of readdirSync(unitDir)) {
-    if (!file.startsWith("loonext-rig-cron-") || keep.has(file)) continue;
+    if (!LEGACY_UNITS.test(file)) continue;
     if (file.endsWith(".timer")) systemctl(["disable", "--now", file], { allowFailure: true });
     rmSync(join(unitDir, file), { force: true });
+    removed.push(file);
   }
-  systemctl(["daemon-reload"]);
-  if (timers.length === 0) return;
-  const names = timers.map((entry) => entry.timer);
-  systemctl(["enable", ...names]);
-  systemctl(["restart", ...names]);
+  if (removed.length > 0) systemctl(["daemon-reload"]);
+  return removed;
 }
 
 /** rigd writes its own units. Like the `rig` CLI, it runs from the tooling checkout, never the deployed ref. */
-export function rigdScheduleCommand(nodeBin = process.execPath, root = TOOLING_ROOT, target = ["--install"]) {
-  return { command: nodeBin, args: [join(root, "tools", "rig", "rigd", "src", "cli.ts"), "schedule", ...target] };
+export function rigdUnitsCommand(nodeBin = process.execPath, root = TOOLING_ROOT, target = ["--install"]) {
+  return { command: nodeBin, args: [join(root, "tools", "rig", "rigd", "src", "cli.ts"), "units", ...target] };
 }
 
 /**
- * rigd's schedule built into a scratch folder and thrown away, before
- * anything changes: a rigd that cannot load from this checkout (its packages
- * not installed there), or that lacks what its schedule reads, refuses the
- * deploy here rather than after the services were stopped.
+ * rigd's units built into a scratch folder and thrown away, before anything
+ * changes: a rigd that cannot load from this checkout (its packages not
+ * installed there) refuses the deploy here rather than after the services
+ * were stopped.
  */
-export function checkRigdSchedule({ nodeBin = process.execPath, runner = run } = {}) {
-  const out = mkdtempSync(join(tmpdir(), "rig-rigd-schedule-"));
+export function checkRigdUnits({ nodeBin = process.execPath, runner = run } = {}) {
+  const out = mkdtempSync(join(tmpdir(), "rig-rigd-units-"));
   try {
-    const { command, args } = rigdScheduleCommand(nodeBin, TOOLING_ROOT, ["--out", out]);
+    const { command, args } = rigdUnitsCommand(nodeBin, TOOLING_ROOT, ["--out", out]);
     runner(command, args);
   } catch (error) {
     throw new Error(
-      `rig deploy: rigd cannot build its schedule from ${TOOLING_ROOT}, so nothing was changed ` +
+      `rig deploy: rigd cannot build its units from ${TOOLING_ROOT}, so nothing was changed ` +
         `(run pnpm install there if its packages are missing): ${error.message}`,
     );
   } finally {
@@ -232,8 +227,8 @@ export function checkRigdSchedule({ nodeBin = process.execPath, runner = run } =
 
 /**
  * Nothing keeps running against a schema it was not built for, even if the
- * migration fails half way. The hold goes down first: rigd's hourly schedule
- * refresh would otherwise start the stopped timers again mid-migration.
+ * migration fails half way. The hold goes down first, so a run asked for
+ * mid-migration is skipped rather than started against it.
  */
 export function stopForSchemaChange({ state, sha, ref, systemctl = systemctlUser, log }) {
   holdForDeploy(state, { sha, ref });
@@ -244,15 +239,12 @@ export function stopForSchemaChange({ state, sha, ref, systemctl = systemctlUser
 }
 
 /**
- * The ref's cron timers, the services, then rigd's timers. rigd's come after
- * the restart, so a failure there leaves the new SHA serving, and a run its
- * timers catch up on (they are Persistent) finds the API up. rigd's
- * systemctl calls need the user manager's runtime directory as much as the
- * CLI's own do. The deploy hold is released only once all of it worked, so
- * after a failure rigd leaves the timers as this left them.
+ * The services, then rigd's own two. rigd's come after the restart, so a
+ * failure there leaves the new SHA serving. The timers an earlier rig
+ * installed are removed first. The deploy hold is released only once all of it
+ * worked, so after a failure runs stay refused until a deploy succeeds.
  */
 export function activate({
-  timers,
   sha,
   state,
   nodeBin = process.execPath,
@@ -261,39 +253,24 @@ export function activate({
   systemctl = systemctlUser,
   runner = run,
 }) {
-  installCronTimers({ timers, nodeBin, unitDir, systemctl });
-  log(`crons: ${timers.length} timer(s)`);
+  const removed = removeLegacyUnits({ unitDir, systemctl });
+  if (removed.length > 0) log(`timers removed: ${removed.join(", ")}`);
   systemctl(["restart", ...SERVICE_UNITS], { inherit: true });
   log(`services restarted: ${SERVICE_UNITS.join(", ")}`);
-  const { command, args } = rigdScheduleCommand(nodeBin);
-  let stdout;
+  const { command, args } = rigdUnitsCommand(nodeBin);
   try {
-    ({ stdout } = runner(command, args, { env: userManagerEnv() }));
+    runner(command, args, { env: userManagerEnv() });
   } catch (error) {
-    // rigd's own install starts the timers but cannot release the hold, so
-    // under one only a deploy that finishes brings them back for good.
     const recovery =
       readDeployHold(state) === null
-        ? `its scenario timers stay as the last install left them until rigd's hourly refresh or ` +
-          `"node tools/rig/rigd/src/cli.ts schedule --install" succeeds`
-        : `its scenario timers stay stopped for the schema change, and rigd starts none while ` +
-          `${deployHoldPath(state)} is there; run the same rig deploy again once rigd's install can succeed`;
-    throw new Error(`rig deploy: ${sha} is deployed and its services restarted, but rigd's schedule install failed, so ${recovery}: ${error.message}`);
+        ? `rigd's units stay as the last install left them until "node tools/rig/rigd/src/cli.ts units --install" succeeds`
+        : `runs stay refused while ${deployHoldPath(state)} is there; run the same rig deploy again once rigd's install can succeed`;
+    throw new Error(`rig deploy: ${sha} is deployed and its services restarted, but rigd's units install failed, so ${recovery}: ${error.message}`);
   }
-  let installed = null;
-  try {
-    installed = JSON.parse(stdout);
-  } catch {
-    // The units are in place once it exits 0; the count is only for the log.
-  }
-  log(
-    Array.isArray(installed?.timed)
-      ? `rigd: ${installed.timed.length} scenario timer(s), ${installed.not_timed?.length ?? 0} scenario(s) not timed`
-      : "rigd: scenario timers installed",
-  );
+  log("rigd: units installed");
   if (readDeployHold(state) !== null) {
     releaseDeployHold(state);
-    log(`deploy hold released: ${sha} serves, and rigd may start its timers again`);
+    log(`deploy hold released: ${sha} serves, and runs may start again`);
   }
 }
 
@@ -301,21 +278,21 @@ export function activate({
  * A deploy's schema step and its restart, with the deploy hold between them,
  * so the database never moves without it. `migrate` brings the database to
  * the ref's schema; `prepare` runs against it before the restart and returns
- * `{ timers, record }`, the cron timers to install and the deploy's record.
- * `systemd` replaces the unit commands, for tests.
+ * `{ record }`, the deploy's record. `systemd` replaces the unit commands, for
+ * tests.
  */
 export async function migrateAndRestart({ plan, restart, state, sha, ref, log, migrate, prepare, systemd = {} }) {
   if (restart && plan.action !== "none") stopForSchemaChange({ state, sha, ref, log, ...systemd });
   migrate();
   const prepared = await prepare();
-  if (restart) activate({ timers: prepared.timers, sha, state, log, ...systemd });
+  if (restart) activate({ sha, state, log, ...systemd });
   return prepared;
 }
 
 /**
  * Whether the database holds every row the seed writes, as TENANTS and the
- * partition say now, whoever reset it last. A number the 15-minute sweep
- * cannot find is flagged on every run until the seed runs.
+ * partition say now, whoever reset it last. A number the reconcile-numbers
+ * sweep cannot find is flagged on every run of it until the seed runs.
  */
 function seedIsCurrent(projectId, store, standing) {
   if (!store.has("tenants.json")) return false;
@@ -344,17 +321,11 @@ function pruneWorktrees(layout, keep, active) {
 
 /**
  * Every derived file's content. Every refusal (an untaught config key, a live
- * or missing secret, a missing or unreadable cron registry) happens here,
- * before the database or a service changes.
+ * or missing secret) happens here, before the database or a service changes.
  */
-function deriveAll({ root, sha, layout, settings, store, status, partition, endpoints, edge, timersWanted, log }) {
+function deriveAll({ root, sha, layout, settings, store, status, partition, endpoints, edge }) {
   const apiDir = join(root, "apps", "api");
   const apiConfig = parseJsonc(readFileSync(join(apiDir, "wrangler.jsonc"), "utf8"));
-  const crons = apiConfig.triggers?.crons ?? [];
-  const cronPlan = timersWanted ? cronsToSchedule(crons, readCronRegistry()) : null;
-  if (cronPlan && cronPlan.unclassified.length > 0) {
-    log(`crons: no timer for ${cronPlan.unclassified.length} cron(s) tools/rig/crons.json does not classify (rig health fails on them): ${cronPlan.unclassified.join(" | ")}`);
-  }
 
   const stripeSecretKey = stripeSandboxKey(store);
   const template = readFileSync(join(TOOLING_ROOT, "tools", "rig", "templates", "api.dev.vars.rig"), "utf8");
@@ -398,7 +369,7 @@ function deriveAll({ root, sha, layout, settings, store, status, partition, endp
     },
     { path: join(layout.aiShimDir, ".dev.vars.rig"), content: `GUARD_TOKEN=${store.read("guard-token-rig-api")}\n`, mode: 0o600 },
   ];
-  return { files, cronPlan };
+  return files;
 }
 
 function writeDerived(files) {
@@ -415,7 +386,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   const restart = settings.systemd && !options.noRestart;
   if (restart) {
     requireUserManager();
-    checkRigdSchedule();
+    checkRigdUnits();
   }
 
   let root;
@@ -459,7 +430,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   const status = localStatus(workdir);
   if (status === null) throw new Error("rig deploy: the stack is not answering after start");
 
-  const { files, cronPlan } = deriveAll({
+  const files = deriveAll({
     root,
     sha,
     layout,
@@ -469,8 +440,6 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
     partition,
     endpoints,
     edge,
-    timersWanted: restart,
-    log,
   });
   if (!options.skipWeb) files.push(buildWeb({ root, sha, settings, status, log }));
   log("config: wrangler.rig.jsonc, .dev.vars.rig and the AI shim derived");
@@ -507,14 +476,12 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
       if (recordStanding(store, standing)) log("store: standing-numbers.json rewritten from the partition");
 
       writeDerived(files);
-      const timers = restart ? cronTimers(cronPlan.schedule) : (previous?.timers ?? []);
       const record = {
         sha,
         ref: ref ?? null,
         worktree: root,
         at: new Date().toISOString(),
         schema: plan.action,
-        timers: timers.map(({ cron, timer }) => ({ cron, timer })),
       };
       // Written before the restart, because the units start whatever it names;
       // `rig health` compares it with state/serving-<service>.json.
@@ -524,11 +491,11 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
       const history = existsSync(historyPath) ? JSON.parse(readFileSync(historyPath, "utf8")) : [];
       writeFileSync(historyPath, `${JSON.stringify([...history, record].slice(-50), null, 2)}\n`);
       pointCurrent(layout, root);
-      return { timers, record };
+      return { record };
     },
   });
   if (!restart && settings.systemd) {
-    log(`--no-restart: the services and timers still run ${previous?.sha ?? "what they ran"} until restarted, and rig health fails until then`);
+    log(`--no-restart: the services still run ${previous?.sha ?? "what they ran"} until restarted, and rig health fails until then`);
   }
   if (!worktree) pruneWorktrees(layout, settings.keepWorktrees, root);
   log(`deployed ${sha}`);

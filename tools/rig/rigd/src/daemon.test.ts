@@ -35,7 +35,6 @@ function g01Verdict(startedAt: number, finishedAt: number): Verdict {
     started_at: new Date(startedAt).toISOString(),
     finished_at: new Date(finishedAt).toISOString(),
     dials: 0,
-    scheduled: true,
   };
 }
 

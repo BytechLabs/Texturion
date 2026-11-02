@@ -9471,3 +9471,40 @@ contract exists. Rules 0 to 8 of D137 are unchanged.
 **Consistency:** D17, D64 (a task promotes a source), D137 (the conflict
 policy this leaves whole), #237 (reminders hold on an unverified calendar, shipped
 in the same slice).
+
+**Update, 2026-11-01 (the rig runs nothing on a timer).** The founder decided
+that the rig is an on-demand environment. `docs/RIG.md` is rewritten to match.
+
+- **The rule.** Nothing on the rig runs on a timer: no scenario timer, no cron
+  timer, no health timer. `rig deploy` and bootstrap install none. The rig is a
+  full dev and QA environment: any ref of Loonext runs there for real (API,
+  web, database, the Android app on emulators, real Telnyx through the guard).
+  An agent uses it to reproduce, diagnose and verify a reported issue (a Sentry
+  error, or a customer report such as dropped calls) and for ad-hoc work:
+  placing a call or text between any two surfaces, driving the web or Android
+  app, inspecting the database and logs, and trying an unreleased branch
+  before it ships. The scenarios are optional shortcuts. CI does regression
+  testing.
+- **Entry points, all by hand:** `rig deploy --ref <branch>`, `rig apk`,
+  `rig seed`, `rig health` (R00), `rig cron <expr|job:name>`, `rig run
+  <scenario>[-<variant>]`, and robotd and hostd. The commands the design lists
+  beyond these (`--recipe`, `--repeat`, `rig repro`, `rig suite`, `rig device`,
+  `rig robot`) are marked designed in `docs/RIG.md` section 8.
+- **Removed, with the reason: they described a schedule.** The scheduling
+  fields of `tools/rig/scenarios.json`, the encoded schedule and the monthly
+  dial budget with its retry and repro reserves, rigd's hourly schedule
+  refresh, the edge's dead-man (the rig, suite and triage heartbeats, the
+  stale-heartbeat and `synthetic-dark` alerts) and the hourly triage agent. A
+  rig that is off, or a run nobody started, is no longer a fault. rigd reports
+  a run's verdict when a run happens.
+- **Kept.** Each scenario's dials, legs and room, and the guard's own caps
+  (18 dials a day, 3 an hour, the account-wide check) and window, which
+  protect production whoever starts a run. The edge's mail heartbeat stays
+  because the guard's Resend gate reads it.
+- **The guard's daily $0 jobs stay** (`guard.yml`'s `measure` and the limit
+  probe in the guard's own upkeep), so paid-call admission is fresh and an
+  on-demand repro is never refused.
+- **Cost.** The monthly cost is about $13 fixed (numbers, Cloudflare, the
+  set-aside) plus what runs spend, since nothing spends on a schedule. The
+  $35 all-in ceiling and the $0.81 a day vendor limits are unchanged. This
+  supersedes the $24 above.

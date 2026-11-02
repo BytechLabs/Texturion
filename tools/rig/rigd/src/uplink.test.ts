@@ -49,10 +49,10 @@ function setup(handlers: Partial<UplinkHandlers> = {}) {
 }
 
 describe("the uplink", () => {
-  it("dials the edge's uplink path with the control token, and beats on open", () => {
+  it("dials the edge's uplink path with the control token, and sends nothing until it has something to answer", () => {
     const { opened, socket } = setup();
     expect(opened).toEqual([{ url: `wss://rig-edge.example.workers.dev${EDGE_PATHS.ctlUplink}`, token: "rig-control-token" }]);
-    expect(socket.sent[0]).toMatchObject({ t: "heartbeat", component: "rig" });
+    expect(socket.sent).toEqual([]);
   });
 
   it("answers a call event with the local status and body", async () => {
@@ -129,13 +129,13 @@ describe("the uplink", () => {
     expect(socket.sent.at(-1)).toEqual({ t: "rpc-result", id: "slow", ok: false, error: "rpc_timeout" });
   });
 
-  it("reports the socket's state for state/uplink.json: up, beating, down", () => {
+  it("reports the socket's state for state/uplink.json: up, then down", () => {
     const { socket, clock, states } = setup();
     expect(states).toEqual([true]);
     clock.advance(60_000);
-    expect(states).toEqual([true, true]);
+    expect(states).toEqual([true]);
     socket.emit("close", { data: undefined, code: 4000 });
-    expect(states).toEqual([true, true, false]);
+    expect(states).toEqual([true, false]);
   });
 
   it("serves media, rpc and ping frames", async () => {
@@ -154,7 +154,8 @@ describe("the uplink", () => {
     expect(socket.sent).toContainEqual({ t: "media-result", id: "m-1", status: 200, content_type: "audio/wav", body_b64: "UklGRg==" });
     expect(socket.sent).toContainEqual({ t: "rpc-result", id: "r-1", ok: true, result: { echoed: { a: 1 } } });
     expect(socket.sent).toContainEqual({ t: "rpc-result", id: "r-2", ok: false, error: "no such thing" });
-    expect(socket.sent.filter((f) => (f as { t: string }).t === "heartbeat")).toHaveLength(2);
+    // A ping from the edge needs no answer.
+    expect(socket.sent.map((f) => (f as { t: string }).t).sort()).toEqual(["media-result", "rpc-result", "rpc-result"]);
   });
 
   it("reconnects with a growing backoff, reset once a connection holds", () => {
@@ -239,9 +240,8 @@ describe("the uplink over a real WebSocket", () => {
       for (let i = 0; i < 200 && !check(); i++) await new Promise((resolve) => setTimeout(resolve, 10));
       expect(check()).toBe(true);
     };
-    await until(() => server!.received.length > 0);
+    await until(() => server!.upgrades.length > 0);
     expect(server.upgrades[0]).toEqual({ url: EDGE_PATHS.ctlUplink, authorization: "Bearer rig-control-token" });
-    expect(server.received[0]).toMatchObject({ t: "heartbeat", component: "rig" });
 
     server.send(webhook("call", "evt-real"));
     await until(() => server!.received.some((f) => (f as { t: string }).t === "webhook-result"));

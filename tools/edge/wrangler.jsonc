@@ -29,7 +29,7 @@
     }
   },
 
-  // The dead-man, the mailbox heartbeat and the uplink ping (src/deadman.ts).
+  // The mailbox heartbeat and the uplink housekeeping and ping (src/cron.ts). The rig runs nothing on a timer, so nothing here alerts on its silence.
   "triggers": {
     "crons": ["*/15 * * * *"]
   },

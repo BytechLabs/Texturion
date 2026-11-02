@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * rigd's commands, run under Node by type stripping on the rig:
+ * rigd's commands, run under Node by type stripping on the rig. Nothing here
+ * runs on a timer: `run` is how a scenario starts, when someone asks.
  *
  *   node tools/rig/rigd/src/cli.ts daemon
- *   node tools/rig/rigd/src/cli.ts run <scenario>[-<run>] [--scheduled] [--run-id <id>]
- *   node tools/rig/rigd/src/cli.ts schedule --install | --out <dir> [--node <path>]
+ *   node tools/rig/rigd/src/cli.ts run <scenario>[-<run>] [--run-id <id>]
+ *   node tools/rig/rigd/src/cli.ts units --install | --out <dir> [--node <path>]
  *   node tools/rig/rigd/src/cli.ts secrets
  *   node tools/rig/rigd/src/cli.ts budget
  *   node tools/rig/rigd/src/cli.ts verdicts [--unresolved]
@@ -18,15 +19,15 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { analyzeFrames, calibrate, decodeWav, isSurface, loadMargins, saveMargins, SURFACES, SURFACE_HZ } from "@loonext/rig-robot";
-import { dialBudget } from "./budget.ts";
+import { clockHourStart, utcDayStart } from "./budget.ts";
 import { loadConfig } from "./config.ts";
 import { deliverSecrets } from "./secrets.ts";
 import { startDaemon } from "./daemon.ts";
-import { installSchedule, userUnitDir } from "./install.ts";
-import { loadRegistry } from "./registry.ts";
+import { installUnits, userUnitDir } from "./install.ts";
+import { loadRegistry, parseInstance } from "./registry.ts";
 import { runScenario } from "./runner.ts";
-import { NOT_RUNNABLE_YET, RUNNERS } from "./scenarios/index.ts";
-import { buildSchedule, parseInstance } from "./schedule.ts";
+import { NOT_RUNNABLE_YET } from "./scenarios/index.ts";
+import { buildUnits } from "./units.ts";
 import { VerdictStore } from "./verdicts.ts";
 import { buildRig, marginsFileOf, rigdDir } from "./wiring.ts";
 
@@ -38,7 +39,6 @@ async function main(argv: string[]): Promise<number> {
     args: rest,
     allowPositionals: true,
     options: {
-      scheduled: { type: "boolean" },
       unresolved: { type: "boolean" },
       install: { type: "boolean" },
       "run-id": { type: "string" },
@@ -65,42 +65,47 @@ async function main(argv: string[]): Promise<number> {
     case "run": {
       if (!positionals[0]) throw new Error("run <scenario>[-<run>]");
       const { id, slot } = parseInstance(positionals[0]);
+      if (NOT_RUNNABLE_YET[id]) throw new Error(`${id} cannot be run yet: ${NOT_RUNNABLE_YET[id]}`);
       const rig = buildRig(loadConfig());
-      // A schema-change deploy stops the run's unit; its undos land before the migration does.
+      // A schema-change deploy stops a run's unit; its undos land before the migration does.
       process.once("SIGTERM", () => {
         void rig.leases
           .releaseOwn()
           .catch((error: unknown) => console.error(`run: undoing on stop failed: ${error instanceof Error ? error.message : "error"}`))
           .finally(() => process.exit(143));
       });
-      print(await runScenario(rig.runnerDeps(), id, { scheduled: values.scheduled, slot, runId: values["run-id"] }));
+      print(await runScenario(rig.runnerDeps(), id, { slot, runId: values["run-id"] }));
       return 0;
     }
-    case "schedule": {
-      if (!values.out && !values.install) throw new Error("schedule --install | --out <dir>");
-      const rig = buildRig(loadConfig());
-      const schedule = buildSchedule(rig.registry(), {
-        window: await rig.windows().current(),
-        runnable: new Set(Object.keys(RUNNERS)),
-        notRunnable: NOT_RUNNABLE_YET,
-        node: values.node ?? process.execPath,
-        cli: CLI,
-        home: rig.config.home.home,
-      });
+    case "units": {
+      if (!values.out && !values.install) throw new Error("units --install | --out <dir>");
+      const config = loadConfig();
+      const units = buildUnits({ node: values.node ?? process.execPath, cli: CLI, home: config.home.home });
       if (values.install) {
-        if (!rig.config.systemd) throw new Error("schedule --install: rig.json has systemd off");
-        print({ ...installSchedule(schedule, { unitDir: userUnitDir() }), timed: schedule.timed, not_timed: schedule.notTimed });
+        if (!config.systemd) throw new Error("units --install: rig.json has systemd off");
+        print(installUnits(units, { unitDir: userUnitDir() }));
         return 0;
       }
       mkdirSync(values.out!, { recursive: true });
-      for (const unit of schedule.units) writeFileSync(join(values.out!, unit.name), unit.content);
-      print({ timed: schedule.timed, not_timed: schedule.notTimed });
+      for (const unit of units) writeFileSync(join(values.out!, unit.name), unit.content);
+      print({ units: units.map((unit) => unit.name) });
       return 0;
     }
     case "budget": {
       const config = loadConfig();
       const registry = loadRegistry(config.registryPath);
-      print(dialBudget(registry, config.capsOverride ?? registry.budget));
+      const caps = config.capsOverride ?? registry.caps;
+      const store = new VerdictStore(join(rigdDir(config), "verdicts"));
+      const now = Date.now();
+      const spentIn = (from: number, to: number) => store.dialsBetween(from, to);
+      print({
+        caps: { daily: caps.daily, hourly: caps.hourly },
+        window: registry.caps.window,
+        spent: {
+          today: spentIn(utcDayStart(now), utcDayStart(now) + 86_400_000),
+          this_hour: spentIn(clockHourStart(now), clockHourStart(now) + 3_600_000),
+        },
+      });
       return 0;
     }
     case "verdicts": {
@@ -126,7 +131,7 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     default:
-      console.error("usage: cli.ts daemon | run <scenario> [--scheduled] [--run-id <id>] | schedule --install | --out <dir> | budget | verdicts | secrets | calibrate");
+      console.error("usage: cli.ts daemon | run <scenario> [--run-id <id>] | units --install | --out <dir> | budget | verdicts | secrets | calibrate");
       return 2;
   }
 }

@@ -37,8 +37,7 @@ export interface Verdict {
   started_at: string;
   finished_at: string;
   dials: number;
-  scheduled: boolean;
-  /** Which of the scenario's registry runs a timer started, from 0. */
+  /** Which of the scenario's registry runs this was, from 0. */
   slot?: number;
   /** A failure the doc calls critical: reported at once, never retried. */
   critical?: boolean;
@@ -100,14 +99,6 @@ export class VerdictStore {
     return matching.at(-1);
   }
 
-  /** When a scenario (or one of its registry runs) last actually ran, for cadences longer than its timer. */
-  lastRanAt(scenario: string, slot?: number): number | undefined {
-    const last = this.all()
-      .filter((v) => v.scenario === scenario && SPENT.has(v.outcome) && (slot === undefined || (v.slot ?? 0) === slot))
-      .at(-1);
-    return last ? Date.parse(last.started_at) : undefined;
-  }
-
   /** Scenarios whose latest decisive verdict is a failure. */
   unresolved(): UnresolvedFailure[] {
     const byScenario = new Map<string, Verdict[]>();
@@ -141,16 +132,6 @@ export class VerdictStore {
     return this.all()
       .filter((v) => SPENT.has(v.outcome) && Date.parse(v.started_at) >= from && Date.parse(v.started_at) < to)
       .reduce((sum, v) => sum + v.dials, 0);
-  }
-
-  /** Scenario runs (scenario and slot) that spent anything in [from, to). */
-  ranBetween(from: number, to: number): Set<string> {
-    const ran = new Set<string>();
-    for (const v of this.all()) {
-      const at = Date.parse(v.started_at);
-      if (SPENT.has(v.outcome) && at >= from && at < to) ran.add(`${v.scenario}#${v.slot ?? 0}`);
-    }
-    return ran;
   }
 
   saveEvidence(runId: string, attempt: number, evidence: unknown): void {

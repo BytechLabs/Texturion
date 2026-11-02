@@ -1,10 +1,10 @@
 /**
  * The long-running half of rigd: the uplink, the lease watchdog, the Sentry
- * relay's listener, secret delivery, the rpc commands, the dead-man's
- * heartbeats, the guard's version attestation and the scenario timers.
- * Scenario runs are separate processes (timers and `triage.rerun` start
- * them), each in its own systemd unit, so a run that crashes takes nothing
- * else down and a restart of rigd takes no run with it.
+ * relay's listener, secret delivery, the rpc commands and the guard's version
+ * attestation. It starts no scenario by itself: runs are separate processes
+ * that someone asks for (`rig run`, or `triage.rerun` through the rpc), each
+ * in its own process or systemd unit, so a run that crashes takes nothing else
+ * down and a restart of rigd takes no run with it.
  *
  * What it publishes in state/ (`rig health` reads the first two,
  * tools/rig/src/health.mjs):
@@ -21,9 +21,7 @@ import { triageMethods, type StartedRun } from "@loonext/rig-triage";
 import type { RigdConfig } from "./config.ts";
 import { cronExplainer, type CronExplainer } from "./cron-events.ts";
 import { webhookForwarder, type ForwardTargets } from "./forward.ts";
-import { DEPLOY_HOLD_FILE, readDeployHold } from "../../src/deploy-hold.mjs";
-import { installSchedule, userUnitDir, type Systemctl } from "./install.ts";
-import { loadRegistry } from "./registry.ts";
+import { parseInstance } from "./registry.ts";
 import { telnyxPublicKey } from "./late.ts";
 import { LeaseWatchdog, type LeaseClient } from "./lease.ts";
 import { Mailbox } from "./mail.ts";
@@ -31,22 +29,19 @@ import { mediaRelay } from "./media.ts";
 import { isRobotRole, localSupabase, publishState, robotLocalToken } from "@loonext/rig-robot";
 import { objectParams, RpcRouter } from "./rpc.ts";
 import { newRunId } from "./runner.ts";
-import { buildSchedule, parseInstance } from "./schedule.ts";
-import { NOT_RUNNABLE_YET, RUNNERS } from "./scenarios/index.ts";
 import { g01Refusal } from "./scenarios/gates.ts";
 import { attestGuard, reportAttestation } from "./guard-attest.ts";
 import { BUNDLE_KEY_SECRET, CONTROL_TOKEN_SECRET, deliverSecrets } from "./secrets.ts";
 import { infraFingerprint, parseDsn, type Dsn, type Explanation, type SeenEvent } from "./sentry-relay.ts";
 import { Uplink } from "./uplink.ts";
 import type { VerdictStore } from "./verdicts.ts";
-import { buildRig, suiteMarker, type Rig } from "./wiring.ts";
+import { buildRig, type Rig } from "./wiring.ts";
 
 const CLI = fileURLToPath(new URL("./cli.ts", import.meta.url));
-const HEARTBEAT_MS = 60_000;
+const UPLINK_STATE_MS = 60_000;
 const RELAY_REPORT_MS = 5 * 60_000;
 const VERDICT_POLL_MS = 10_000;
 const SECRET_REFRESH_MS = 6 * 60 * 60_000;
-const SCHEDULE_REFRESH_MS = 60 * 60_000;
 const ATTEST_MS = 60 * 60_000;
 const ENVELOPE_MAX_BYTES = 1024 * 1024;
 
@@ -101,7 +96,7 @@ export function runStarter(config: Pick<RigdConfig, "home" | "systemd">, launch 
   };
 }
 
-export function buildRouter(rig: Rig, lastTriage: { at?: number }, run: RunStarter = runStarter(rig.config)): RpcRouter {
+export function buildRouter(rig: Rig, run: RunStarter = runStarter(rig.config)): RpcRouter {
   const router = new RpcRouter();
   router.register(
     "rig.status",
@@ -123,48 +118,9 @@ export function buildRouter(rig: Rig, lastTriage: { at?: number }, run: RunStart
     run: async (scenario) => run(scenario),
     evidence: (runId) => ({ verdicts: rig.verdicts.forRun(runId), evidence: rig.verdicts.evidence(runId) }),
     app: () => ({ appId: store.read("rig-app-id"), privateKey: store.read("rig-app-key"), repo: rig.config.repo }),
-    heartbeat: () => {
-      lastTriage.at = Date.now();
-    },
   });
   for (const [name, handler] of Object.entries(methods)) router.register(name, handler, ["triage", "rig"]);
   return router;
-}
-
-/**
- * Writes the timers for the registry and the window in force, and starts
- * them. The registry is read afresh, so a deploy that changes it is timed
- * within the hour without a restart of rigd. While a deploy holds the timers
- * stopped for a schema change it touches nothing: the deploy installs them
- * itself once the services serve the new ref.
- */
-export async function refreshSchedule(rig: Rig, log: (line: string) => void, systemctl?: Systemctl): Promise<void> {
-  if (heldForDeploy(rig, log)) return;
-  const window = await rig.windows().current();
-  const schedule = buildSchedule(loadRegistry(rig.config.registryPath), {
-    window,
-    runnable: new Set(Object.keys(RUNNERS)),
-    notRunnable: NOT_RUNNABLE_YET,
-    node: process.execPath,
-    cli: CLI,
-    home: rig.config.home.home,
-  });
-  // The window comes from the edge; a deploy may have taken the hold since.
-  if (heldForDeploy(rig, log)) return;
-  const result = installSchedule(schedule, { unitDir: userUnitDir(rig.config.env), systemctl });
-  if (result.written.length || result.removed.length) {
-    log(`timers: ${result.written.length} written, ${result.removed.length} removed (window ${window.startHour}:00 UTC)`);
-  }
-}
-
-function heldForDeploy(rig: Rig, log: (line: string) => void): boolean {
-  const hold = readDeployHold(rig.config.home.state);
-  if (hold === null) return false;
-  log(
-    `timers not refreshed: state/${DEPLOY_HOLD_FILE} holds them stopped` +
-      (hold.unreadable ? "" : ` for the deploy of ${String(hold.sha).slice(0, 12)} since ${hold.at}`),
-  );
-  return true;
 }
 
 /** Where the uplink's webhook frames go, with the call-event fault S17 arms. */
@@ -218,8 +174,7 @@ export function startDaemon(config: RigdConfig): Daemon {
   const rig = buildRig(config);
   const { store, home } = config;
   const log = (line: string) => console.log(`rigd: ${line}`);
-  const lastTriage: { at?: number } = {};
-  const router = buildRouter(rig, lastTriage);
+  const router = buildRouter(rig);
   const mailbox = new Mailbox(join(rig.dir, "mail"));
   let supabaseUrl: string | undefined;
 
@@ -261,12 +216,9 @@ export function startDaemon(config: RigdConfig): Daemon {
     timers.push(timer);
   };
 
-  // The dead-man reads three beats: the rig's own, the last suite run and the last triage run.
-  every(HEARTBEAT_MS, () => {
+  // `rig health` reads uplink.json's `at` to know the daemon is up.
+  every(UPLINK_STATE_MS, () => {
     publishState(home, "uplink.json", { connected: uplink.connected, at: new Date().toISOString() });
-    const marker = suiteMarker(config);
-    if (existsSync(marker)) uplink.heartbeat("suite", Number(readFileSync(marker, "utf8")));
-    if (lastTriage.at) uplink.heartbeat("triage", lastTriage.at);
   });
 
   if (store.has(BUNDLE_KEY_SECRET)) {
@@ -336,15 +288,6 @@ export function startDaemon(config: RigdConfig): Daemon {
       .catch((error: unknown) => log(`guard attestation failed: ${error instanceof Error ? error.message : "error"}`));
   void attest();
   every(ATTEST_MS, () => void attest());
-
-  if (config.systemd) {
-    const schedule = () =>
-      refreshSchedule(rig, log).catch((error: unknown) =>
-        log(`timers not refreshed: ${error instanceof Error ? error.message : "error"}`),
-      );
-    void schedule();
-    every(SCHEDULE_REFRESH_MS, () => void schedule());
-  }
 
   return {
     uplink,

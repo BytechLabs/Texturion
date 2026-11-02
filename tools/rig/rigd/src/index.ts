@@ -6,7 +6,7 @@ export * from "./media.ts";
 export * from "./registry.ts";
 export * from "./rpc.ts";
 export * from "./runner.ts";
-export * from "./schedule.ts";
+export * from "./units.ts";
 export * from "./sentry-relay.ts";
 export * from "./uplink.ts";
 export * from "./verdicts.ts";

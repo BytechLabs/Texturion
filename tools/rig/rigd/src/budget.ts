@@ -1,53 +1,17 @@
 /**
- * The dial budget, room and window, all from the registry's `budget`.
+ * What may be dialled now: the guard's caps, the room and the quiet window.
  *
- * Rule: scheduled dials times their runs a month, plus the
- * retry reserve, plus the monthly repro reserve, must fit the daily cap times
- * the month's days. The guard enforces the caps too; rigd checks first so a
- * run it would refuse is never started.
+ * The guard enforces all three. rigd checks first so a run it would refuse is
+ * never started. Nothing here says when a run happens: runs are asked for.
  *
  * Hours and days are counted the way the guard counts them: a clock hour and
- * a UTC day, not a sliding 60 minutes, so the registry's hour-by-hour layout
- * means the same thing to the scheduler, the runner and the guard.
+ * a UTC day, not a sliding 60 minutes.
  */
-import { dialsPerRun, runsPerMonth, timedOnRig, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
+import { dialsPerRun, type RegisteredScenario } from "./registry.ts";
 
 export interface DialCaps {
   daily: number;
   hourly: number;
-}
-
-export interface BudgetReport {
-  scheduledDials: number;
-  retryReserve: number;
-  reproReserve: number;
-  total: number;
-  monthlyCap: number;
-  fits: boolean;
-  byScenario: { id: string; runs: number; dials: number }[];
-}
-
-export function dialBudget(registry: Registry, caps: DialCaps = registry.budget): BudgetReport {
-  const { budget } = registry;
-  const byScenario = registry.scenarios
-    .filter((entry) => entry.scheduled && dialsPerRun(entry) > 0)
-    .map((entry) => {
-      const runs = entry.runs.reduce((sum, slot) => sum + runsPerMonth(slot, budget.daysPerMonth), 0);
-      return { id: entry.id, runs: round2(runs), dials: round2(runs * dialsPerRun(entry)) };
-    });
-  const scheduledDials = round2(byScenario.reduce((sum, s) => sum + s.dials, 0));
-  const retryReserve = round2(scheduledDials * budget.retryReserve);
-  const total = round2(scheduledDials + retryReserve + budget.reproReserveDials);
-  const monthlyCap = caps.daily * budget.daysPerMonth;
-  return {
-    scheduledDials,
-    retryReserve,
-    reproReserve: budget.reproReserveDials,
-    total,
-    monthlyCap,
-    fits: total <= monthlyCap,
-    byScenario,
-  };
 }
 
 /**
@@ -92,52 +56,4 @@ export function clockHourStart(at: number): number {
 
 export function utcDayStart(at: number): number {
   return Math.floor(at / DAY_MS) * DAY_MS;
-}
-
-/**
- * The day a paid run belongs to: the one whose window opening is the latest at
- * or before `at`. With a window from 04:00 this is the UTC day; with one that
- * crosses midnight, its small hours stay on the evening's day.
- */
-export function windowDay(at: number, window: DialWindow): number {
-  return Math.floor((at - window.startHour * HOUR_MS) / DAY_MS);
-}
-
-/**
- * The UTC hour a paid slot fires at: its place in the registry's window,
- * moved with the window when the guard has measured a different one.
- */
-export function slotHour(slot: RunSlot, registryWindow: DialWindow, window: DialWindow): number {
-  return ((slot.hourUtc ?? registryWindow.startHour) - registryWindow.startHour + window.startHour + 24) % 24;
-}
-
-/** Whether a paid slot is laid out on this window day. */
-export function slotDueOn(slot: RunSlot, day: number): boolean {
-  const every = slot.everyMinutes / (24 * 60);
-  return Number.isInteger(every) && every >= 1 && ((day % every) + every) % every === (slot.offsetDays ?? 0);
-}
-
-export interface PlannedRun {
-  scenario: string;
-  slot: number;
-  hour: number;
-  dials: number;
-}
-
-/** The paid runs the registry lays out on one window day, hour by hour. */
-export function plannedRuns(registry: Registry, day: number, window: DialWindow, runnable?: ReadonlySet<string>): PlannedRun[] {
-  const planned: PlannedRun[] = [];
-  for (const entry of registry.scenarios) {
-    if (!timedOnRig(entry) || dialsPerRun(entry) === 0) continue;
-    if (runnable && !runnable.has(entry.id)) continue;
-    for (const slot of entry.runs) {
-      if (!slotDueOn(slot, day)) continue;
-      planned.push({ scenario: entry.id, slot: slot.index, hour: slotHour(slot, registry.budget.window, window), dials: dialsPerRun(entry) });
-    }
-  }
-  return planned;
-}
-
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
 }

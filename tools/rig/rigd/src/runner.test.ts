@@ -19,7 +19,7 @@ import { VerdictStore } from "./verdicts.ts";
 const SHA = "0123456789abcdef0123456789abcdef01234567";
 const EDGE = "https://rig-edge.example.workers.dev";
 const DSN = parseDsn("https://key@o1.ingest.sentry.example/101");
-/** 1 November 2026, an even day from the epoch: S02's day (every 2 days, offset 0). */
+/** 1 November 2026, 05:00 UTC: inside the dial window. */
 const S02_DAY = Date.UTC(2026, 10, 1, 5, 0, 0);
 const dirs: string[] = [];
 afterEach(() => {
@@ -29,16 +29,14 @@ afterEach(() => {
 const REGISTRY = registryOf([
   scenario("S02", {
     lane: "browser",
-    runs: [{ every: "2d", offset_days: 0, hour_utc: 5 }],
     dials: 1,
     far_end_legs: 1,
     min_room: 2,
   }),
-  scenario("S20", { runs: [{ every: "1d" }] }),
-  scenario("S29", { runs: [{ every: "30d", offset_days: 2 }] }),
+  scenario("S20"),
+  scenario("S29"),
   scenario("S04", {
     lane: "browser",
-    runs: [{ every: "1d", offset_days: 0, hour_utc: 6 }],
     dials: 1,
     far_end_legs: 1,
     min_room: 2,
@@ -73,7 +71,6 @@ function setup(results: ScenarioResult[], options: SetupOptions = {}) {
     },
   });
   const time = new FakeTime();
-  const beats: number[] = [];
   const deps: RunnerDeps = {
     registry: REGISTRY,
     runners: { S02: runner("S02"), S20: runner("S20"), S29: runner("S29") },
@@ -89,24 +86,22 @@ function setup(results: ScenarioResult[], options: SetupOptions = {}) {
     caps: { daily: 18, hourly: 3 },
     clock,
     sleep: async (ms) => clock.advance(ms),
-    ran: (at) => beats.push(at),
   };
   const reports = () => requests.filter((r) => r.url === DSN.envelopeUrl);
   const event = (index = 0) => JSON.parse(reports()[index]!.body!.split("\n")[2]!) as { fingerprint: string[]; message: { formatted: string }; level: string };
-  return { deps, verdicts, requests, attempts, clock, reports, event, beats };
+  return { deps, verdicts, requests, attempts, clock, reports, event };
 }
 
 const failing = (failure_class: string): ScenarioResult => ({ outcome: "fail", failure_class, detail: "x" });
 
 describe("runScenario", () => {
   it("records a pass with the SHA and the dials it spent, under a lease it releases", async () => {
-    const { deps, verdicts, requests, beats } = setup([{ outcome: "pass" }]);
-    const summary = await runScenario(deps, "S02", { scheduled: true });
+    const { deps, verdicts, requests } = setup([{ outcome: "pass" }]);
+    const summary = await runScenario(deps, "S02");
     expect(summary.status).toBe("pass");
-    expect(verdicts.all()).toMatchObject([{ scenario: "S02", sha: SHA, attempt: 1, outcome: "pass", dials: 2, scheduled: true }]);
+    expect(verdicts.all()).toMatchObject([{ scenario: "S02", sha: SHA, attempt: 1, outcome: "pass", dials: 2 }]);
     expect(requests.map((r) => r.method)).toEqual(["POST", "DELETE"]);
     expect(verdicts.evidence(summary.run_id!)[0]).toMatchObject({ attempt: 1, sha: SHA, lease: { reaped: false } });
-    expect(beats).toHaveLength(1);
   });
 
   it("uses the run id it is given, so triage can name the run before it ends", async () => {
@@ -129,15 +124,6 @@ describe("runScenario", () => {
     expect(summary.report).toMatchObject({ sent: true });
     expect(broken.reports()).toHaveLength(1);
     expect(broken.event().fingerprint).toEqual(["synthetic", "S02", "no_ring_within_6s"]);
-  });
-
-  it("does not retry into an hour the registry has planned full, but into the next one with room", async () => {
-    const { deps, verdicts, attempts } = setup([failing("no_ring_within_6s"), { outcome: "pass" }]);
-    deps.runners = { ...deps.runners, S04: { id: "S04", run: async () => ({ outcome: "pass" }) } };
-    expect((await runScenario(deps, "S02")).status).toBe("pass");
-    expect(attempts).toEqual([1, 2]);
-    // 06:00 holds S04's two dials, so S02's retry waits for 07:00.
-    expect(verdicts.all().map((v) => v.started_at)).toEqual(["2026-11-01T05:00:00.000Z", "2026-11-01T07:01:00.000Z"]);
   });
 
   it("reports an infrastructure fault under its component", async () => {
@@ -163,7 +149,6 @@ describe("runScenario", () => {
       started_at: "2026-10-30T05:10:00.000Z",
       finished_at: "",
       dials: 2,
-      scheduled: true,
     });
     const summary = await runScenario(deps, "S02");
     expect(summary.verdicts.map((v) => v.outcome)).toEqual(["fail", "skipped"]);
@@ -216,11 +201,10 @@ describe("runScenario", () => {
     expect(reports()).toEqual([]);
   });
 
-  it("starts no paid run outside the window, past the caps or below the room, and beats no heartbeat for it", async () => {
+  it("starts no paid run outside the window, past the caps or below the room", async () => {
     const late = setup([], { at: Date.UTC(2026, 10, 1, 9, 50) });
     expect(await runScenario(late.deps, "S02")).toMatchObject({ status: "skipped", detail: "outside the dial window (04:00 UTC for 6 h)" });
     expect(late.requests).toEqual([]);
-    expect(late.beats).toEqual([]);
 
     const tight = setup([], { room: 1 });
     expect((await runScenario(tight.deps, "S02")).status).toBe("not_runnable");
@@ -236,7 +220,6 @@ describe("runScenario", () => {
       started_at: new Date(Date.UTC(2026, 10, 1, 5, 10)).toISOString(),
       finished_at: "",
       dials: 2,
-      scheduled: true,
     });
     expect(await runScenario(spent.deps, "S02")).toMatchObject({ status: "skipped", detail: "the hourly cap of 3 dials is spent" });
     // ...but not for one at 06:05.
@@ -339,35 +322,12 @@ describe("runScenario", () => {
     expect(third[0]!.evidence.audio).toEqual({ heard: false });
   });
 
-  it("runs a scheduled paid run only on its registry day and once that day; a manual run always", async () => {
-    const odd = setup([], { at: S02_DAY + 86_400_000 });
-    expect((await runScenario(odd.deps, "S02", { scheduled: true })).status).toBe("not_due");
-    expect((await runScenario(odd.deps, "S02")).status).toBe("pass");
-
-    const { deps, clock } = setup([{ outcome: "pass" }, { outcome: "pass" }]);
-    expect((await runScenario(deps, "S02", { scheduled: true })).status).toBe("pass");
-    clock.advance(30 * 60_000);
-    expect((await runScenario(deps, "S02", { scheduled: true })).status).toBe("not_due");
-    clock.advance(2 * 86_400_000);
-    expect((await runScenario(deps, "S02", { scheduled: true })).status).toBe("pass");
-  });
-
-  it("runs a free run that names a day of its period on that day only, once", async () => {
-    const DAY = 86_400_000;
-    const first = Math.floor(S02_DAY / DAY);
-    const due = (first + ((((2 - (first % 30)) % 30) + 30) % 30)) * DAY + 14 * 3_600_000;
-    const before = setup([], { at: due - DAY });
-    expect((await runScenario(before.deps, "S29", { scheduled: true })).status).toBe("not_due");
-
-    const { deps, clock } = setup([{ outcome: "pass" }, { outcome: "pass" }]);
-    clock.advance(due - clock.now());
-    expect((await runScenario(deps, "S29", { scheduled: true })).status).toBe("pass");
-    clock.advance(3 * 3_600_000);
-    expect((await runScenario(deps, "S29", { scheduled: true })).status).toBe("not_due");
-    clock.advance(DAY);
-    expect((await runScenario(deps, "S29", { scheduled: true })).status).toBe("not_due");
-    clock.advance(29 * DAY);
-    expect((await runScenario(deps, "S29", { scheduled: true })).status).toBe("pass");
+  it("runs when asked, on any day and as often as asked: no cadence decides whether it is due", async () => {
+    const { deps, verdicts } = setup([{ outcome: "pass" }, { outcome: "pass" }, { outcome: "pass" }], { at: S02_DAY + 86_400_000 });
+    expect((await runScenario(deps, "S02")).status).toBe("pass");
+    expect((await runScenario(deps, "S20")).status).toBe("pass");
+    expect((await runScenario(deps, "S20")).status).toBe("pass");
+    expect(verdicts.all().map((v) => v.scenario)).toEqual(["S02", "S20", "S20"]);
   });
 
   it("prepares before the lease, and ends the attempt there when preparing says so", async () => {
@@ -539,7 +499,7 @@ describe("runScenario", () => {
     expect(attempts).toEqual([]);
   });
 
-  it("tells a runner which timed scenarios a room would block, as its own admission blocks them", async () => {
+  it("tells a runner which rig scenarios a room would block, as its own admission blocks them", async () => {
     const { deps } = setup([]);
     const blocked: Record<number, string[]> = {};
     deps.runners = {
@@ -548,15 +508,6 @@ describe("runScenario", () => {
     };
     await runScenario(deps, "S20");
     expect(blocked).toEqual({ 1: ["S02", "S04"], 4: [] });
-  });
-
-  it("runs a daily text check once its day is nearly up", async () => {
-    const { deps, clock } = setup([{ outcome: "pass" }, { outcome: "pass" }]);
-    await runScenario(deps, "S20", { scheduled: true });
-    clock.advance(21 * 60 * 60 * 1000);
-    expect((await runScenario(deps, "S20", { scheduled: true })).status).toBe("not_due");
-    clock.advance(60 * 60 * 1000);
-    expect((await runScenario(deps, "S20", { scheduled: true })).status).toBe("pass");
   });
 
   it("turns a failed undo into an infrastructure verdict", async () => {

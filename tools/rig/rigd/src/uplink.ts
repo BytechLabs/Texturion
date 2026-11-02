@@ -15,7 +15,6 @@ import {
   CALL_EVENT_RELAY_TIMEOUT_MS,
   EDGE_PATHS,
   type EdgeToRig,
-  type HeartbeatComponent,
   type RigToEdge,
   WEBHOOK_KINDS,
 } from "@loonext/rig-protocol";
@@ -78,14 +77,13 @@ export interface UplinkOptions {
   handlers: UplinkHandlers;
   socket?: SocketFactory;
   clock?: Clock;
-  heartbeatMs?: number;
   initialBackoffMs?: number;
   maxBackoffMs?: number;
   /** A connection must stay up this long before the backoff resets. */
   stableMs?: number;
   random?: () => number;
   log?: (line: string) => void;
-  /** Told whenever the socket opens, drops or beats, for `state/uplink.json`. */
+  /** Told whenever the socket opens or drops, for `state/uplink.json`. */
   onState?: (connected: boolean) => void;
 }
 
@@ -106,7 +104,6 @@ export class Uplink {
   #attempt = 0;
   #stopped = true;
   #cancelReconnect: (() => void) | undefined;
-  #cancelHeartbeat: (() => void) | undefined;
   #cancelStable: (() => void) | undefined;
   /** Queued frames being handled now; a redelivery during handling is not handled twice. */
   readonly #inFlight = new Set<string>();
@@ -130,15 +127,9 @@ export class Uplink {
   stop(): void {
     this.#stopped = true;
     this.#cancelReconnect?.();
-    this.#cancelHeartbeat?.();
     this.#cancelStable?.();
     this.#socket?.close(1000, "rigd stopping");
     this.#socket = undefined;
-  }
-
-  /** `at` is when the component last did its work; the rig's own beat is now. */
-  heartbeat(component: HeartbeatComponent, at: number = this.#clock.now()): void {
-    this.#send({ t: "heartbeat", component, at: new Date(at).toISOString() });
   }
 
   #connect(): void {
@@ -149,9 +140,7 @@ export class Uplink {
       this.#cancelStable = this.#clock.after(this.#o.stableMs ?? 10_000, () => {
         this.#attempt = 0;
       });
-      this.heartbeat("rig");
       this.#o.onState?.(true);
-      this.#scheduleHeartbeat();
     });
     socket.addEventListener("message", (event) => {
       void this.#onMessage(event.data);
@@ -161,7 +150,6 @@ export class Uplink {
       if (event?.code === REPLACED) this.#log("uplink replaced by another rig connection");
       this.#socket = undefined;
       this.#o.onState?.(false);
-      this.#cancelHeartbeat?.();
       this.#cancelStable?.();
       if (!this.#stopped) this.#scheduleReconnect();
     };
@@ -182,15 +170,6 @@ export class Uplink {
     });
   }
 
-  #scheduleHeartbeat(): void {
-    this.#cancelHeartbeat = this.#clock.after(this.#o.heartbeatMs ?? 60_000, () => {
-      if (!this.connected) return;
-      this.heartbeat("rig");
-      this.#o.onState?.(true);
-      this.#scheduleHeartbeat();
-    });
-  }
-
   async #onMessage(data: unknown): Promise<void> {
     const frame = parseFrame(data);
     if (!frame) {
@@ -199,7 +178,6 @@ export class Uplink {
     }
     switch (frame.t) {
       case "ping":
-        this.heartbeat("rig");
         return;
       case "webhook":
         return frame.kind === "call" || frame.kind === "robot-call"

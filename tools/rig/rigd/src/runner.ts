@@ -1,38 +1,26 @@
 /**
- * One scenario run, start to verdict.
+ * One scenario run, start to verdict. A run happens when it is asked for.
  *
- * Before anything is spent: the scenario must be due, the room must hold it,
- * a paid one must start inside the dial window with time to finish there, and
- * the day's and the clock hour's dials must have room for it. Then the run
- * holds the lease, a failing attempt is tried once more, every attempt's
- * verdict is recorded with the SHA, and only a second failure becomes a Sentry
- * event. A failure the doc calls critical is reported at once and not retried.
+ * Before anything is spent: the room must hold the scenario, a paid one must
+ * start inside the guard's dial window with time to finish there, and the
+ * day's and the clock hour's dials must have room for it. Then the run holds
+ * the lease, a failing attempt is tried once more, every attempt's verdict is
+ * recorded with the SHA, and only a second failure becomes a Sentry event. A
+ * failure the doc calls critical is reported at once and not retried.
  */
 import { randomBytes } from "node:crypto";
 import { LEASE_MAX_MS } from "@loonext/rig-protocol";
 import { GuardRefusedError, type Clock } from "@loonext/rig-robot";
-import {
-  blockedByRoom,
-  clockHourStart,
-  inWindow,
-  plannedRuns,
-  slotDueOn,
-  utcDayStart,
-  windowDay,
-  type DialCaps,
-  type DialWindow,
-} from "./budget.ts";
+import { blockedByRoom, clockHourStart, inWindow, utcDayStart, type DialCaps, type DialWindow } from "./budget.ts";
 import { textHash } from "./late.ts";
 import { LeaseBusyError, LeaseReapedError, type Lease, type LeaseClient, type ReleaseResult } from "./lease.ts";
-import { dialsPerRun, timedOnRig, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
+import { dialsPerRun, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
 import type { LeaseHandle, ScenarioContext, ScenarioHistoryApi, ScenarioLanes, ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
 import { infraFingerprint, syntheticFingerprint, type Dsn, type RelayDecision, type SentryRelay } from "./sentry-relay.ts";
 import type { Outcome, Verdict, VerdictStore } from "./verdicts.ts";
 
 /** A paid run must be able to finish before the window shuts. */
 const WINDOW_TAIL_MS = 15 * 60 * 1000;
-/** A cadence's run is due this long before its period is up, so a daily timer never slips a day. */
-const DUE_SLACK_MS = 2 * 60 * 60 * 1000;
 /** An attempt stops itself before the watchdog would reap its lease. */
 const ATTEMPT_LIMIT_MS = LEASE_MAX_MS - 60 * 1000;
 /** A runner's setup before the lease is bounded too. */
@@ -69,8 +57,6 @@ export interface RunnerDeps {
    * signature had aged out (late.ts), matched by body.
    */
   lateDeliveries?(query: { since: number; texts: ReadonlySet<string> }): number;
-  /** Marks the suite heartbeat for the dead-man. */
-  ran?(at: number): void;
   /** Lanes a run holds outside any lease, while it prepares. */
   holds?: LaneHolds;
   /** Why a deploy holds the rig for a schema change, while it does (tools/rig/src/deploy-hold.mjs). */
@@ -90,9 +76,7 @@ export interface LaneHolds {
 }
 
 export interface RunOptions {
-  /** Started by a timer: honour the cadence. A manual or triage run is always due. */
-  scheduled?: boolean;
-  /** Which of the scenario's registry runs the timer belongs to, from 0. */
+  /** Which of the scenario's registry runs to make, from 0. */
   slot?: number;
   /** Chosen by the caller, so `triage.rerun` can name the run before it finishes. */
   runId?: string;
@@ -101,7 +85,7 @@ export interface RunOptions {
 export interface RunSummary {
   scenario: string;
   run_id?: string;
-  status: "not_due" | Outcome;
+  status: Outcome;
   verdicts: Verdict[];
   report?: RelayDecision;
   detail?: string;
@@ -123,7 +107,6 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
   if (options.runId !== undefined && !RUN_ID.test(options.runId)) throw new Error("a run id is letters, digits, - and _");
   const window = await deps.dialWindow();
   const now = deps.clock.now();
-  if (options.scheduled && !isDue(deps, entry, slot, now, window)) return { scenario: id, status: "not_due", verdicts: [] };
 
   const sha = deps.sha();
   const runId = options.runId ?? newRunId(id, now);
@@ -141,7 +124,6 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
       started_at: new Date(startedAt).toISOString(),
       finished_at: new Date(deps.clock.now()).toISOString(),
       dials,
-      scheduled: Boolean(options.scheduled),
       ...(options.slot ? { slot: options.slot } : {}),
       ...(result.critical ? { critical: true } : {}),
     });
@@ -151,12 +133,9 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     if (attempt === 2) {
-      const at = retryAt(deps, entry, slot, deps.clock.now(), window);
+      const at = retryAt(deps, entry, deps.clock.now(), window);
       if (at === undefined) {
-        record(attempt, deps.clock.now(), {
-          outcome: "skipped",
-          detail: "no hour left in this window has room for the retry; the next run's first attempt decides",
-        }, 0);
+        record(attempt, deps.clock.now(), { outcome: "skipped", detail: "no hour left in the dial window has room for the retry; run it again to finish" }, 0);
         break;
       }
       const wait = at - deps.clock.now();
@@ -181,24 +160,6 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
 }
 
 const RETRIED: ReadonlySet<Outcome> = new Set(["fail", "infra", "late_delivery"]);
-
-function isDue(deps: RunnerDeps, entry: RegisteredScenario, slot: RunSlot, now: number, window: DialWindow): boolean {
-  if (slot.everyMinutes < 24 * 60) return true;
-  if (dialsPerRun(entry) > 0) {
-    // A paid run keeps the registry's day, so the hours it shares stay within the cap.
-    const day = windowDay(now, window);
-    if (!slotDueOn(slot, day)) return false;
-    const opened = day * DAY_MS + window.startHour * HOUR_MS;
-    return !deps.verdicts.ranBetween(opened, opened + DAY_MS).has(`${entry.id}#${slot.index}`);
-  }
-  const last = deps.verdicts.lastRanAt(entry.id, slot.index);
-  if (slot.offsetDays !== undefined) {
-    // A free run tied to a day of its period, as S29 is to the day after S28's.
-    const today = utcDayStart(now);
-    return slotDueOn(slot, today / DAY_MS) && (last === undefined || last < today);
-  }
-  return last === undefined || now - last >= slot.everyMinutes * 60_000 - DUE_SLACK_MS;
-}
 
 interface Gate {
   outcome: Outcome;
@@ -232,29 +193,19 @@ function admission(deps: RunnerDeps, entry: RegisteredScenario, now: number, win
 }
 
 /**
- * When the retry may start: now, or the first clock hour left in the window
- * whose cap holds it beside the runs the registry still has planned there.
- * Undefined when no hour today does.
+ * When the retry may start: now, or the first clock hour left in the dial
+ * window whose cap holds it. Undefined when no hour today does.
  */
-function retryAt(deps: RunnerDeps, entry: RegisteredScenario, slot: RunSlot, now: number, window: DialWindow): number | undefined {
+function retryAt(deps: RunnerDeps, entry: RegisteredScenario, now: number, window: DialWindow): number | undefined {
   const dials = dialsPerRun(entry);
   if (dials === 0) return now;
-  const day = windowDay(now, window);
-  const opened = day * DAY_MS + window.startHour * HOUR_MS;
-  const started = deps.verdicts.ranBetween(opened, opened + DAY_MS);
-  const remaining = plannedRuns(deps.registry, day, window, new Set(Object.keys(deps.runners))).filter(
-    (run) => !(run.scenario === entry.id && run.slot === slot.index) && !started.has(`${run.scenario}#${run.slot}`),
-  );
   const today = utcDayStart(now);
-  const dayRoom = deps.caps.daily - deps.verdicts.dialsBetween(today, today + DAY_MS) - remaining.reduce((sum, run) => sum + run.dials, 0);
-  if (dayRoom < dials) return undefined;
+  if (deps.verdicts.dialsBetween(today, today + DAY_MS) + dials > deps.caps.daily) return undefined;
   for (let k = 0; k < 24; k++) {
     const hour = clockHourStart(now) + k * HOUR_MS;
     const at = k === 0 ? now : hour + 60_000;
-    if (!inWindow(window, at)) break;
-    if (!inWindow(window, at + WINDOW_TAIL_MS)) break;
-    const planned = remaining.filter((run) => run.hour === new Date(hour).getUTCHours()).reduce((sum, run) => sum + run.dials, 0);
-    if (deps.verdicts.dialsBetween(hour, hour + HOUR_MS) + planned + dials <= deps.caps.hourly) return at;
+    if (!inWindow(window, at) || !inWindow(window, at + WINDOW_TAIL_MS)) break;
+    if (deps.verdicts.dialsBetween(hour, hour + HOUR_MS) + dials <= deps.caps.hourly) return at;
   }
   return undefined;
 }
@@ -361,7 +312,7 @@ async function attemptHeld(
       return holder && holder.run_id !== runId ? holder.scenario : undefined;
     },
     blockedAt(room: number) {
-      return deps.registry.scenarios.filter((scenario) => timedOnRig(scenario) && blockedByRoom(scenario, room)).map((scenario) => scenario.id);
+      return deps.registry.scenarios.filter((scenario) => scenario.runsOn === "rig" && blockedByRoom(scenario, room)).map((scenario) => scenario.id);
     },
   };
 
@@ -560,12 +511,9 @@ function withLimit<T>(promise: Promise<T>, ms: number, deps: RunnerDeps): Promis
 }
 
 const DECISIVE: ReadonlySet<Outcome> = new Set(["pass", "fail", "infra"]);
-/** Outcomes where an attempt actually ran, which is what the suite heartbeat means. */
-const RAN: ReadonlySet<Outcome> = new Set(["pass", "fail", "infra", "preempted", "late_delivery"]);
 
 async function finish(deps: RunnerDeps, entry: RegisteredScenario, runId: string, verdicts: Verdict[]): Promise<RunSummary> {
   const last = verdicts.at(-1)!;
-  if (verdicts.some((v) => RAN.has(v.outcome))) deps.ran?.(deps.clock.now());
   const summary: RunSummary = { scenario: entry.id, run_id: runId, status: last.outcome, verdicts, detail: last.detail };
   // The event describes this run's last attempt that actually judged
   // something, never a later "skipped" from the window or the cap.

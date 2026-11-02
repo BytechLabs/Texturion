@@ -54,41 +54,16 @@ describe("the uplink", () => {
     second.close();
   });
 
-  it("records heartbeats and arms the dead-man on the first", async () => {
-    expect((await uplinkStub().deadman()).armedAt).toBeNull();
+  it("ignores a heartbeat frame from an older rigd, and any other frame it cannot read", async () => {
     const rig = await connectRig(env);
-    rig.send({ t: "heartbeat", component: "rig", at: "2026-10-30T00:00:00.000Z" });
-    rig.send({ t: "heartbeat", component: "suite", at: "2026-10-30T00:00:00.000Z" });
+    rig.ws.send(JSON.stringify({ t: "heartbeat", component: "rig", at: "2026-10-30T00:00:00.000Z" }));
     rig.ws.send(JSON.stringify({ t: "heartbeat", component: "nonsense", at: "x" }));
     rig.ws.send("not json");
     await rig.next(() => false, 150).catch(() => undefined);
-    const view = await uplinkStub().deadman();
-    expect(view.armedAt).not.toBeNull();
-    expect(view.heartbeats.rig).not.toBeNull();
-    expect(view.heartbeats.suite).not.toBeNull();
-    expect(view.heartbeats.triage).toBeNull();
-    expect((await counters())["uplink.bad_frame"]).toBe(2);
-    rig.close();
-  });
-
-  it("judges a heartbeat by when the component last worked, not by when the beat arrived", async () => {
-    const DAY = 86_400_000;
-    const rig = await connectRig(env);
-    const suiteRan = Date.now() - 3 * DAY;
-    // rigd re-reports the suite's last run every minute.
-    rig.send({ t: "heartbeat", component: "suite", at: new Date(suiteRan).toISOString() });
-    rig.send({ t: "heartbeat", component: "suite", at: new Date(suiteRan).toISOString() });
-    rig.send({ t: "heartbeat", component: "triage", at: new Date(Date.now() + DAY).toISOString() });
-    await rig.next(() => false, 150).catch(() => undefined);
-    let view = await uplinkStub().deadman();
-    expect(view.heartbeats.suite).toBe(suiteRan);
-    expect(view.heartbeats.triage).toBeLessThanOrEqual(Date.now());
-
-    // An older report never moves a component back.
-    rig.send({ t: "heartbeat", component: "suite", at: new Date(suiteRan - DAY).toISOString() });
-    await rig.next(() => false, 150).catch(() => undefined);
-    view = await uplinkStub().deadman();
-    expect(view.heartbeats.suite).toBe(suiteRan);
+    expect((await counters())["uplink.bad_frame"]).toBe(3);
+    // Still connected and answering.
+    await call(await telnyxDelivery("/t/m", messageEvent("message.sent", {})), env);
+    expect((await rig.next((f) => f.t === "webhook")).t).toBe("webhook");
     rig.close();
   });
 });
@@ -227,8 +202,7 @@ describe("frames", () => {
     expect(parseRigFrame(JSON.stringify({ t: "ack" }))).toBeNull();
     expect(parseRigFrame(JSON.stringify({ t: "webhook-result", id: "a" }))).toBeNull();
     expect(parseRigFrame(JSON.stringify({ t: "rpc-result", id: "a", ok: false }))).toBeNull();
-    expect(parseRigFrame(JSON.stringify({ t: "heartbeat", component: "triage", at: "2026-10-30T00:00:00.000Z" }))).not.toBeNull();
-    expect(parseRigFrame(JSON.stringify({ t: "heartbeat", component: "triage", at: "now" }))).toBeNull();
+    expect(parseRigFrame(JSON.stringify({ t: "heartbeat", component: "rig", at: "2026-10-30T00:00:00.000Z" }))).toBeNull();
     expect(parseRigFrame(new ArrayBuffer(4))).toBeNull();
   });
 

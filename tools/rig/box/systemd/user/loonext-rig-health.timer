@@ -1,9 +1,0 @@
-[Unit]
-Description=Loonext rig: health every 15 minutes
-
-[Timer]
-OnCalendar=*-*-* *:00/15:00 UTC
-AccuracySec=10s
-
-[Install]
-WantedBy=timers.target

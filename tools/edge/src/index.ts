@@ -3,7 +3,7 @@ import { EDGE_PATHS, type EdgeForGuardMethods, type MailStatus } from "@loonext/
 
 import { callerClassOf } from "./auth";
 import { handleAlert, handleRpc, handleSecrets, handleUplink } from "./ctl";
-import { scheduled } from "./deadman";
+import { scheduled } from "./cron";
 import type { Env } from "./env";
 import { forwardToGuard } from "./guard";
 import { empty, harden, servesHost } from "./http";

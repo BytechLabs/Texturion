@@ -8,7 +8,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { cronsToSchedule, readCronRegistry } from "./cron.mjs";
+import { classifyCrons, readCronRegistry } from "./cron.mjs";
 import { DEPLOY_HOLD_MAX_AGE_MS, deployHoldPath, readDeployHold } from "./deploy-hold.mjs";
 import { run, systemctlUser } from "./exec.mjs";
 import { parseDevVars } from "./dev-vars.mjs";
@@ -243,28 +243,21 @@ export function healthChecks(context) {
 
     async crons() {
       const config = parseJsonc(readFileSync(join(context.deployed.worktree, "apps", "api", "wrangler.jsonc"), "utf8"));
-      const { schedule, unclassified } = cronsToSchedule(config.triggers?.crons ?? [], context.cronRegistry ?? readCronRegistry());
-      if (unclassified.length > 0) {
-        return `${unclassified.length} cron(s) tools/rig/crons.json does not classify have no timer: ${unclassified.join(" | ")}`;
-      }
-      if (!context.settings.systemd) return null;
-      const installed = new Map((context.deployed.timers ?? []).map((entry) => [entry.cron, entry.timer]));
-      const idle = schedule.filter((cron) => {
-        const timer = installed.get(cron);
-        return !timer || systemctl(["is-active", timer], { allowFailure: true }).stdout.trim() !== "active";
-      });
-      return idle.length === 0 ? null : `no active timer for ${idle.length} cron(s): ${idle.join(" | ")}`;
+      const { unclassified } = classifyCrons(config.triggers?.crons ?? [], context.cronRegistry ?? readCronRegistry());
+      return unclassified.length === 0
+        ? null
+        : `${unclassified.length} cron(s) tools/rig/crons.json does not classify, so nothing says what firing them should do: ${unclassified.join(" | ")}`;
     },
 
     async deployHold() {
       const hold = readDeployHold(context.layout.state);
       if (hold === null) return null;
       const path = deployHoldPath(context.layout.state);
-      if (hold.unreadable) return `${path} is there but unreadable, and rigd starts no timer while it is; deploy again`;
+      if (hold.unreadable) return `${path} is there but unreadable, and runs are refused while it is; deploy again`;
       if (fresh(hold.at, DEPLOY_HOLD_MAX_AGE_MS)) return null;
       return (
-        `${path} has held the services and timers stopped since ${hold.at}: the deploy of ${short(hold.sha)} ` +
-        "stopped them for a schema change and did not finish, and rigd starts no timer until a deploy succeeds"
+        `${path} has held the services stopped since ${hold.at}: the deploy of ${short(hold.sha)} ` +
+        "stopped them for a schema change and did not finish, and runs are refused until a deploy succeeds"
       );
     },
 

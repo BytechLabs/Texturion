@@ -188,11 +188,11 @@ git -C "$home/tooling" checkout --detach origin/main
 bash "$home/tooling/tools/rig/box/android-toolchain.sh"
 units="$home/tooling/tools/rig/box/systemd/user"
 mkdir -p "$HOME/.config/systemd/user"
-cp "$units"/*.service "$units"/*.timer "$HOME/.config/systemd/user/"
+cp "$units"/*.service "$HOME/.config/systemd/user/"
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 systemctl --user daemon-reload
 systemctl --user enable loonext-rig-stack.service loonext-rig-api.service loonext-rig-web.service \
-  loonext-rig-stripe-listen.service loonext-rig-health.timer
+  loonext-rig-stripe-listen.service
 AS_RIG
 
 echo

@@ -115,7 +115,6 @@ describe("the triage rpc methods", () => {
 
   function methods() {
     const { fetch, calls } = github();
-    const beats: number[] = [];
     const runs: string[] = [];
     const handlers = triageMethods({
       unresolved: () => unresolved,
@@ -125,16 +124,14 @@ describe("the triage rpc methods", () => {
       },
       evidence: (runId) => ({ verdicts: [{ run_id: runId }], evidence: [] }),
       app: () => APP,
-      heartbeat: () => beats.push(1),
       fetch,
     });
-    return { handlers, calls, beats, runs };
+    return { handlers, calls, runs };
   }
 
-  it("lists unresolved failures and beats the triage heartbeat", async () => {
-    const { handlers, beats } = methods();
+  it("lists unresolved failures", async () => {
+    const { handlers } = methods();
     expect(await handlers["triage.unresolved"]!({})).toEqual(unresolved);
-    expect(beats).toHaveLength(1);
   });
 
   it("re-runs and files only what the rig itself reports as unresolved", async () => {

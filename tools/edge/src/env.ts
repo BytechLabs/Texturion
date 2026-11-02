@@ -42,11 +42,11 @@ export interface Env {
 
   /**
    * The existing Sentry project's ingest-only DSN (FA7: no new project). Its
-   * events carry environment `synthetic`, which keeps stale heartbeats and
-   * notices that could not be corroborated apart from production's own.
+   * events carry environment `synthetic`, which keeps notices that could not be
+   * corroborated apart from production's own.
    */
   SENTRY_SYNTHETIC_DSN?: string;
-  /** Production's API project: only "the rig is dark" and account signals. */
+  /** Production's API project: only the account signals and the rig's integrity alerts. */
   SENTRY_PROD_DSN?: string;
 
   /**

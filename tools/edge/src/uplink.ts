@@ -2,8 +2,6 @@ import { DurableObject } from "cloudflare:workers";
 import {
   type ControlClass,
   type EdgeToRig,
-  HEARTBEAT_COMPONENTS,
-  type HeartbeatComponent,
   MEDIA_MAX_BYTES,
   QUEUED_DELIVERY_MAX_AGE_MS,
   type RigToEdge,
@@ -81,14 +79,10 @@ export interface StrangerRecord {
   theirs: string;
 }
 
-export interface DeadmanView {
-  /** When the first heartbeat of any component arrived; null until then. */
-  armedAt: number | null;
-  /** When each component last did its work, as the rig reported it and never later than it arrived. */
-  heartbeats: Record<HeartbeatComponent, number | null>;
-  /** Last alert Sentry took, per dead-man key. */
+export interface AlertLog {
+  /** Last alert Sentry took, per alert key. */
   alerts: Record<string, number>;
-  /** Last send Sentry did not take, per dead-man key. */
+  /** Last send Sentry did not take, per alert key. */
   failures: Record<string, number>;
 }
 
@@ -154,13 +148,6 @@ export function parseRigFrame(message: string | ArrayBuffer): RigToEdge | null {
   }
   const f = frame as Record<string, unknown> | null;
   if (!f || typeof f !== "object") return null;
-  if (f.t === "heartbeat") {
-    return HEARTBEAT_COMPONENTS.includes(f.component as HeartbeatComponent) &&
-      typeof f.at === "string" &&
-      Number.isFinite(Date.parse(f.at))
-      ? (f as unknown as RigToEdge)
-      : null;
-  }
   if (typeof f.id !== "string" || f.id === "") return null;
   if (f.t === "ack") return f as unknown as RigToEdge;
   if (f.t === "webhook-result" || f.t === "media-result") {
@@ -200,7 +187,6 @@ export class RigUplink extends DurableObject<Env> {
       "CREATE TABLE IF NOT EXISTS seen (key TEXT PRIMARY KEY, at INTEGER NOT NULL)",
       "CREATE TABLE IF NOT EXISTS late_calls (id TEXT PRIMARY KEY, key TEXT NOT NULL, at INTEGER NOT NULL)",
       "CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, n INTEGER NOT NULL)",
-      "CREATE TABLE IF NOT EXISTS heartbeats (component TEXT PRIMARY KEY, at INTEGER NOT NULL, reported_at TEXT NOT NULL)",
       "CREATE TABLE IF NOT EXISTS strangers (e164 TEXT PRIMARY KEY, window_start INTEGER NOT NULL, n INTEGER NOT NULL, detach_at INTEGER)",
       "CREATE TABLE IF NOT EXISTS stranger_senders (hash TEXT PRIMARY KEY, n INTEGER NOT NULL, last_at INTEGER NOT NULL)",
       "CREATE TABLE IF NOT EXISTS notices (key TEXT PRIMARY KEY, name TEXT NOT NULL, at INTEGER NOT NULL, outcome TEXT NOT NULL)",
@@ -208,6 +194,9 @@ export class RigUplink extends DurableObject<Env> {
     ]) {
       this.sql.exec(statement);
     }
+    // Drop the heartbeat rows and arming time that older edges kept.
+    this.sql.exec("DROP TABLE IF EXISTS heartbeats");
+    this.sql.exec("DELETE FROM meta WHERE key = 'armed_at'");
   }
 
   // ---------------------------------------------------------------------------
@@ -243,10 +232,6 @@ export class RigUplink extends DurableObject<Env> {
     const frame = parseRigFrame(message);
     if (!frame) {
       this.count("uplink.bad_frame");
-      return;
-    }
-    if (frame.t === "heartbeat") {
-      this.heartbeat(frame.component, frame.at);
       return;
     }
     if (frame.t === "ack") {
@@ -610,42 +595,10 @@ export class RigUplink extends DurableObject<Env> {
   }
 
   // ---------------------------------------------------------------------------
-  // The dead-man.
+  // Alerts the edge sent.
 
-  /**
-   * Each beat carries when its component last did its work, and rigd
-   * re-reports a suite that last ran three days ago every minute with that
-   * date. So `at` is judged, never the arrival, and it only moves forward.
-   */
-  private heartbeat(component: HeartbeatComponent, reportedAt: string): void {
-    const now = Date.now();
-    const at = Math.min(Date.parse(reportedAt), now);
-    this.sql.exec(
-      "INSERT INTO heartbeats (component, at, reported_at) VALUES (?, ?, ?) ON CONFLICT(component) DO UPDATE SET at = MAX(at, excluded.at), reported_at = excluded.reported_at",
-      component,
-      at,
-      reportedAt.slice(0, 64),
-    );
-    if (this.meta("armed_at") === null) this.setMeta("armed_at", String(now));
-  }
-
-  async deadman(): Promise<DeadmanView> {
-    const heartbeats = Object.fromEntries(HEARTBEAT_COMPONENTS.map((c) => [c, null])) as Record<
-      HeartbeatComponent,
-      number | null
-    >;
-    for (const row of this.sql.exec<{ component: string; at: number }>("SELECT component, at FROM heartbeats")) {
-      if (HEARTBEAT_COMPONENTS.includes(row.component as HeartbeatComponent)) {
-        heartbeats[row.component as HeartbeatComponent] = row.at;
-      }
-    }
-    const armed = this.meta("armed_at");
-    return {
-      armedAt: armed === null ? null : Number(armed),
-      heartbeats,
-      alerts: this.metaTimes("alert:"),
-      failures: this.metaTimes("alert-failed:"),
-    };
+  async alertLog(): Promise<AlertLog> {
+    return { alerts: this.metaTimes("alert:"), failures: this.metaTimes("alert-failed:") };
   }
 
   private metaTimes(prefix: string): Record<string, number> {

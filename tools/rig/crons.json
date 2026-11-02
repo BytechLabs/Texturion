@@ -1,8 +1,8 @@
 {
   "schema": "loonext.rig-crons.v1",
   "notes": [
-    "What the rig does with each cron a tracked Worker config declares (docs/RIG.md, Loonext in rig mode). The rig fires every cron itself through /cdn-cgi/handler/scheduled; scripts/check-rig-crons.mjs fails when a config and this file disagree, and `--ref <ref>` checks another ref's configs against it.",
-    "run: fire it on schedule. run-expect-refusal: fire it, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it. A skipped API cron silences its liveness keys, [\"ops\",\"cron:<expr>\"] and each job's, so it lists them in fingerprints. Another Worker's cron (the edge's, the guard's) is always a skip, since the rig fires only the API's, and lists no fingerprint: that Worker reports nowhere the rig's relay reads, so a listed one could only hide an event the rig's own API raises (the API runs */15 too).",
+    "What the rig does with each cron a tracked Worker config declares (docs/RIG.md, Loonext in rig mode). Nothing fires a cron on a timer: an agent fires one on demand (rig cron) through /cdn-cgi/handler/scheduled; scripts/check-rig-crons.mjs fails when a config and this file disagree, and `--ref <ref>` checks another ref's configs against it.",
+    "run: the rig can fire it on demand. run-expect-refusal: the rig can fire it on demand, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it. A skipped API cron silences its liveness keys, [\"ops\",\"cron:<expr>\"] and each job's, so it lists them in fingerprints. Another Worker's cron (the edge's, the guard's) is always a skip, since the rig fires only the API's, and lists no fingerprint: that Worker reports nowhere the rig's relay reads, so a listed one could only hide an event the rig's own API raises (the API runs */15 too).",
     "Refusals are listed for every code path that can reach one, not only for what today's seed exercises: a refusal that never happens costs nothing, and one that is missing is an unexplained Sentry fingerprint in R00.",
     "A refusal's outcome says what Sentry receives. job-fails: the job lets the TelnyxApiError out, runScheduledJobs rejects with an AggregateError that holds it (under the job's own AggregateError too, since poll-registrations, poll-port-requests and grace-and-release each collect their failures, and the release's own inside grace's), the job's heartbeat is withheld, and after its grace the liveness checker raises the job's ops fingerprint. captured: the job catches it at caught_in, reports it as its own event and returns normally, so its heartbeat is recorded and no ops fingerprint follows; follow_on_events lists what the job raises next because of it.",
     "defects: events that mean the rig's seed or a scenario's setup is wrong, with the cause. Nothing suppresses them; R00 reports them with that cause instead of as unexplained. rigd reports the first defect that matches, so no two may match one event: `message starts` reads the event's own text, which for a cron's failure is the cron's AggregateError, so it tells an exception a job captured from the same exception inside a cron's failure.",
@@ -59,7 +59,7 @@
           "code": "rig_endpoint_refused",
           "outcome": "captured",
           "telnyx_paths": ["/v2/10dlc/phoneNumberCampaign"],
-          "when": "an approved campaign row with a telnyx_id and no deactivated_at has an active number whose numberAssignments entry is neither added nor pending. Each run marks the number failed and the next run clears failed entries and tries again, so this is one event per such number every 15 minutes, 96 a day each: the US-number fallback's seeded registration must record every QA-W number as added, or carry no telnyx_id.",
+          "when": "an approved campaign row with a telnyx_id and no deactivated_at has an active number whose numberAssignments entry is neither added nor pending. Each run marks the number failed and the next run clears failed entries and tries again, so this is one event per such number each time the cron is fired: the US-number fallback's seeded registration must record every QA-W number as added, or carry no telnyx_id.",
           "caught_in": "apps/api/src/telnyx/registration.ts#assignNumbersToCampaign"
         },
         {
@@ -320,7 +320,7 @@
       "config": "tools/edge/wrangler.jsonc",
       "cron": "*/15 * * * *",
       "class": "skip",
-      "reason": "loonext-rig-edge runs on Cloudflare, never on the rig box: its mail self-test, uplink tick and dead-man fire there on Cloudflare's clock, so the rig has nothing to fire. The dead-man reports to the synthetic project as [\"synthetic-infra\", <component>] and to production as [\"ops\",\"synthetic-dark\"], never through the rig's relay, and no liveness key watches this cron.",
+      "reason": "loonext-rig-edge runs on Cloudflare, never on the rig box: its mail self-test and uplink housekeeping fire there on Cloudflare's clock, so the rig has nothing to fire, and no liveness key watches this cron.",
       "fingerprints": []
     },
     {

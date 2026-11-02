@@ -454,11 +454,12 @@ jobs:
       - name: Guard the rig's cron registry
         run: node scripts/check-rig-crons.mjs
 
-      # D142: Telnyx counts every leg as a dial, and the rig's default cap is 18
+      # D142: Telnyx counts every leg as a dial, and the guard's own cap is 18
       # a day and 3 an hour. tools/rig/scenarios.json is docs/RIG.md's scenario
-      # tables as data; this fails a schedule over the cap, a scenario whose
-      # dials differ from its hermetic journey, and any drift from the tables.
-      - name: Guard the rig's scenarios and dial budget
+      # tables as data; this fails a scenario whose dials differ from its
+      # hermetic journey, a scheduling field (the rig runs nothing on a timer),
+      # and any drift from the tables.
+      - name: Guard the rig's scenario catalogue
         run: node scripts/check-rig-scenarios.mjs
 
       # D142: the rig's UIAutomator drivers find call controls by CallTestTags,

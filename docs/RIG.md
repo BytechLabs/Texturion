@@ -1,8 +1,17 @@
-# Loonext Rig: human-free repro and testing inside the accounts Loonext already has
+# Loonext Rig: an on-demand dev and QA environment inside the accounts Loonext already has
 
 **Status: CURRENT DIRECTION (D142).** The design and runbook for the rig. Where it disagrees with `docs/DECISIONS.md`, that file wins.
 
-Prepared 2026-10-30, revision 2. Brought in line with what was built on 2026-10-31 (D142's update of that date), and with D142's update of 2026-11-01: no Telnyx ticket and no new hardware.
+Prepared 2026-10-30, revision 2. Brought in line with what was built on 2026-10-31 (D142's update of that date), and with D142's updates of 2026-11-01: no Telnyx ticket and no new hardware, and the rig runs nothing on a timer.
+
+**What the rig is for.** The rig is a full dev and QA environment, used on demand. Any ref of Loonext runs there for real: the API, the web app, the database, the Android app on emulators, and real Telnyx through the guard. Nothing on it runs on a timer. An agent uses it to reproduce, diagnose and verify a reported issue (a Sentry error, or a customer report such as dropped calls) and for any ad-hoc work:
+- place a call or a text between any two surfaces;
+- drive the web app or the Android app;
+- inspect the database and the logs;
+- try an unreleased branch before it ships (`rig deploy --ref <branch>`);
+- reproduce a reported issue's exact steps.
+
+The scenarios in section 4.2 are optional shortcuts for the same work: each is a prepared, machine-judged run that an agent starts by hand. Regression testing is not the rig's job. It stays in CI (the hermetic suite, H01). Section 8 lists the entry points, and section 9 walks a customer report through them.
 
 This replaces the separate-accounts design, which was rejected only because it needed new vendor accounts. Everything from that design that did not depend on a new account is kept:
 - the Phase 0 safety work;
@@ -10,7 +19,7 @@ This replaces the separate-accounts design, which was rejected only because it n
 - the robot and the run lease;
 - the expiry table;
 - the test matrix and repro workflow;
-- the CI guards and the triage loop.
+- the CI guards and the triage method.
 
 Two independent reviews scored three no-new-account designs, and both chose this one. A second review then found 3 blockers and 15 major gaps in the first draft. Section 13.2 says where each one is closed.
 
@@ -36,8 +45,8 @@ Two independent reviews scored three no-new-account designs, and both chose this
    - It lets calls and texts flow only between numbers in a capped partition of the existing Telnyx account.
    - Production is changed first, through release-please, so that its account-wide number sweep acts only on numbers it positively owns.
    - Test calls are sized so that they can never take the call capacity a customer's call needs.
-3. Every scenario runs on a schedule, is judged by machine, and turns each distinct failure into one issue that an hourly agent on the host triages.
-   - Cost: about **$24/month**, with Telnyx hard-capped at $35 all-in, plus an estimated $2-6 of workstation power and about **$8 one-time**. Hardware is $0.
+3. Nothing on the rig runs on a timer. An agent starts a run when there is something to reproduce, diagnose or verify; each scenario run is judged by machine, and a failure that survives its retry becomes one Sentry event that an agent can triage on request.
+   - Cost: about **$13/month** fixed, plus what the runs and ad-hoc calls spend (a judged call costs about $0.02-0.03). Telnyx is hard-capped at $35 all-in. Add an estimated $2-6 of workstation power and about **$8 one-time**. Hardware is $0.
    - No new vendor account anywhere.
    - No recurring founder act in operating it.
 
@@ -46,14 +55,14 @@ Two independent reviews scored three no-new-account designs, and both chose this
 There is no Telnyx ticket and no hardware to buy (D142, update of 2026-11-01). The rig is a new VMware VM that an agent creates, plus Android emulators on the Windows host. Four one-time acts are still yours, because each needs a console or an agreement no agent may make (section 10):
 - **FA15, open:** accept the Android SDK licences once on the Windows SDK, before `create.mjs` can install the emulators, and once on the VM's Linux SDK, before `rig apk` can build. Each is one `sdkmanager --licenses` that the agent prints.
 - **FA7 steps 3-5, open:** filter every production alert rule on `environment:production`, turn on spike protection, and create the `agent-read` integration. Until step 3 is done the rig sends no event to Sentry: its DSNs are withheld until you set the variable `SENTRY_ALERTS_FILTERED` (section 12, risk 20).
-- **FA4 step 2's `guard-attest-read` token, open:** without it the hourly attestation of the guard's deployment cannot run.
+- **FA4 step 2's `guard-attest-read` token, open:** without it the attestation of the guard's deployment cannot run.
 - **FA4 step 3, Email Routing on loonext.com, open:** without it `rig-robot@loonext.com` reaches nothing and S34's mail check cannot pass.
 
 What is left beyond those is optional:
 - **FA1:** agents move to their own Windows user, and production keys leave every file they can read.
 - **FA2:** that user's GitHub login becomes a token that cannot approve deployments or change settings.
 - **FA16:** an elevated ONSTART task that starts the rig at boot, with your password stored. Without it the rig starts when you log on.
-- **Active hours and overnight power:** moving Windows Update's active hours to cover 04:00-10:00 UTC, and leaving the PC on overnight, keep the dial window lit. Without them the rig loses some windows, and says so as infrastructure, never as a product failure (section 3.2).
+- **Active hours and overnight power:** moving Windows Update's active hours to cover 04:00-10:00 UTC, and leaving the PC on overnight, keep the dial window open when you want a paid run. Without them a paid run started inside the window can be cut short by a restart, and a run started while the workstation was off simply does not happen (section 3.2).
 
 **What FA1 and FA2 would close.** Today every agent runs as you, so it can:
 - drive your real Chrome, including your vendor console sessions, through Claude in Chrome;
@@ -65,13 +74,13 @@ Any one of those would bypass an approval gate, which is why the amendment does 
 **One time, already done or substituted (section 10).**
 - Done: the guard's Telnyx key (FA3), the Firebase app and service account (FA6), the rig GitHub App (FA9) and the `agent_diag` login (FA13).
 - Substituted with what already exists: the existing Cloudflare Workers token (FA4, except the two open steps above), the existing Stripe account's test mode (FA5), the existing Sentry project with environments `rig` and `synthetic` (FA7, except the open steps above), and the existing send-only Resend key (FA8).
-- Dropped: the Claude cloud environment (FA10; triage runs on the host) and signing in to Claude on the rig (FA12; host agents drive the VM over SSH).
+- Dropped: the Claude cloud environment (FA10; triage runs from host agents) and signing in to Claude on the rig (FA12; host agents drive the VM over SSH).
 - Withdrawn: the Telnyx ticket (FA0) and the hardware (FA11).
 - No guard approval: agents deploy it, per the amendment.
 
 **Recurring while the rig operates: none.** The system detects each of these first, and only then might it reach you:
 - a Telnyx fraud notice (the paid lanes have already latched off, section 3.5);
-- the workstation being off or rebooting in the dial window (reported as infrastructure);
+- the workstation being off or rebooting during a paid run (reported as infrastructure);
 - about once a year, accepting a new Android SDK licence when the agent upgrades the pinned SDK (FA15).
 
 **Outside the rig.** Nothing changes. Under the amendment, agents keep making production writes as they do today, and guard deployments need no tap.
@@ -118,16 +127,16 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | **Production's account-wide number sweep.** `reconcileNumbers` runs every 15 minutes, lists every number and can DELETE. | Production flags or releases test numbers, or the rig's copy of the code releases production numbers. | Positive ownership: production acts only on numbers with no billing group, and the rig only on its own group. The group is set in the order body. The guard orders nothing until production's `/health` reports the rule. It checks the first order actually carries the group, and releases the number at once if not. Production raises an alert if a number it would own shows up with a group. |
 | **API keys with full account power.** Telnyx keys cannot be scoped (developers.telnyx.com authentication docs, checked 2026-10-30). | Any second key can release production numbers or text anyone. | Only the guard holds one. It has no public URL. It deploys only from `main`, after its policy tests pass (no approval, per the amendment). Attestation runs hourly and a key inventory runs weekly. **Residual, accepted:** a merged but faulty guard can reach production. |
 | **One webhook signing key for the whole account.** | A signature cannot tell test events from production events. | The edge decides ownership by resource: connection for call events, messaging profile for text events. Production's handler is deliberately left unchanged. |
-| **Internal SIP calling.** Production's WebRTC connection accepts SIP calls from any connection on the account. | A test could ring a real member's device. | The guard dials a SIP address only if its username is on the rig's own connection. Calls that the apps' SDK places itself bypass the guard, so test G02 checks weekly whether a rig credential can ring a sentinel credential. If it can, that residual is named (X25). |
+| **Internal SIP calling.** Production's WebRTC connection accepts SIP calls from any connection on the account. | A test could ring a real member's device. | The guard dials a SIP address only if its username is on the rig's own connection. Calls that the apps' SDK places itself bypass the guard, so test G02 checks, when it is run, whether a rig credential can ring a sentinel credential. If it can, that residual is named (X25). |
 | **Cloudflare account and tokens.** | A test token redeploys production or the guard. | The existing Workers token deploys the guard and the edge, and sits only in the `guard` and `rig-cloud` environments, which take deployments from `main` only, so what it deploys is merged code (FA4 substitution). The VM never holds it. Scoping each automation token to named Workers (granular Worker permissions, Cloudflare changelog 2026-09-15) stays optional hardening. |
 | **Cloudflare rate-limit namespaces.** Counters are shared per id across the account (developers.cloudflare.com rate-limit binding docs, updated 2026-10-21). | Test traffic spends production's limiters. | The local stack's limiters are emulated on the rig. The cloud Workers use ids 3001-3009, and CI forbids 1001-1013 and 2001. |
 | **Workers AI pool.** 10,000 free neurons a day per account, then $0.011 per 1,000 (developers.cloudflare.com/workers-ai/platform/pricing, updated 2026-10-20). | Local `wrangler dev` bills AI to the production account. | The rig's AI calls go through the guard, which caps them at 2,000 neurons a day. |
 | **Cloudflare account standing.** | A Trust and Safety action against a test page hits the production account. | The edge serves no HTML and sets no cookies. The guard has no public URL. The Loonext app on the rig is never public. |
 | **Firebase project.** One FCM credential reaches every app in the project. | A leaked key could push to production iOS or Android devices. | The key is held only in the guard. The guard sends Android-only messages to the nonprod package: it moves any top-level notification into the Android block, drops the iOS and web blocks, and forces the package name. The rig never holds a production device token. |
 | **Sentry project and quota.** | Test events crowd out production's errors, or a rig event fires a production alert rule. | Rig and synthetic events carry the environments `rig` and `synthetic` in the existing project (FA7 substitution), and production's alert rules must filter on `environment:production`. Until the founder records that done (`SENTRY_ALERTS_FILTERED`), the rig's DSNs are withheld and no rig event is sent. A relay on the rig caps rig plus synthetic events at 100 a day and 3,000 a month, and alerts at 70%. Spike protection is on. |
-| **Resend domain reputation and quota.** | A bounce from a failed robot mailbox, or a complaint, pauses sending for the whole team, which stops production password resets. | Default recipients are Resend's test addresses, which do not affect reputation (resend.com/docs, send-test-emails, checked 2026-10-30). The robot mailbox is used only by the weekly S34 test, and only while the edge's mail heartbeat is fresh. The edge's mail handler never rejects. Sending to the mailbox halts the first time a sent mail fails to arrive within 10 minutes. At most 10 emails a day. |
+| **Resend domain reputation and quota.** | A bounce from a failed robot mailbox, or a complaint, pauses sending for the whole team, which stops production password resets. | Default recipients are Resend's test addresses, which do not affect reputation (resend.com/docs, send-test-emails, checked 2026-10-30). The robot mailbox is used only by the S34 test, and only while the edge's mail heartbeat is fresh. The edge's mail handler never rejects. Sending to the mailbox halts the first time a sent mail fails to arrive within 10 minutes. At most 10 emails a day. |
 | **GitHub approval gate.** | Agents approve their own guard or ops run. | Under the amendment there is no gate to approve: guard and ops runs need no approval. Both environments take deployments from `main` only, so what runs is merged code (FA9). |
-| **Claude plan limits.** | Rig sessions compete with your other sessions. | Triage runs only when there are failures to triage. |
+| **Claude plan limits.** | Rig sessions compete with your other sessions. | Triage runs only when an agent is asked to triage failures. |
 
 ### 2.3 What was lost against the separate-accounts design
 
@@ -138,7 +147,7 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | A Telnyx key that physically could not touch production | **Rebuilt** as the guard's policy. This is weaker: a guard bug now reaches production. |
 | A separate webhook signing key | **Rebuilt** as ownership checks by resource. |
 | Separate Cloudflare accounts for the test app and the guard | **Rebuilt** with scoped tokens, disjoint ids and a guard with no public URL. Your own dashboard login still sits above everything. |
-| A hosted, always-on nonprod: real Workers runtime, hosted Supabase auth settings, and cloud lanes that survive a home outage | **Accepted.** Hosted behaviour is defect X23, partly covered by the production watches (P01, PW01). The rig is a single point of failure, watched by a dead-man. |
+| A hosted, always-on nonprod: real Workers runtime, hosted Supabase auth settings, and cloud lanes that survive a home outage | **Accepted.** Hosted behaviour is defect X23, partly covered by the production watches (P01, PW01). The rig is a single point of failure, and it is off whenever the workstation is; nothing watches it, because nothing on it is scheduled. |
 | A carrier SIM handset (K00-K05): real carrier calls both ways, carrier texts, STIR/SHAKEN, caller-name display, a STOP sent from a real phone | **Accepted** as defects X5, X10, X17 and X20. P01 measures real customers' rings passively, but with one production number today it mostly reports "insufficient sample". K01 could prove outbound carrier egress, but by default it never runs (Phase 4, optional). |
 | Real-iPhone lanes and Loonext's own APNs wake path | **Accepted** as defect X21, unless an Apple membership already exists. The iOS Simulator lane was dropped too: it could not test wake, and the iOS app hard-codes production hosts. No customer runs an iOS build today, because `ship.yml` archives it unsigned. iOS keeps its CI unit tests. |
 | Calendar test accounts | **Accepted** as defect X22. A Google partial path that needs no new account is offered in Phase 4. |
@@ -239,12 +248,12 @@ It starts from the Startup folder when you log on. An elevated ONSTART task with
 **Recovery.** hostd restarts a stuck emulator by killing its process and cold-booting it (`-no-snapshot-load`), which is what D11 tests. A stuck VM is reverted to its powered-off baseline snapshot; the secrets disk is independent, so it survives the revert.
 
 **What running on the workstation costs.** Measured read-only on 2026-10-31:
-- **It is not always on.** In the last 60 days the workstation booted 33 times and was dark about 56 hours in all. Five of those gaps were overnight power-offs of 9-14 hours, each covering the whole dial window.
+- **It is not always on.** In the last 60 days the workstation booted 33 times and was dark about 56 hours in all. Five of those gaps were overnight power-offs of 9-14 hours, each covering the whole dial window, so a paid run could not be started then.
 - **Update restarts land in the window.** Windows Update restarted it 6 times, at 08:29-10:44 UTC, against the default 04:00-10:00 UTC dial window. Active hours are 08:00-02:00 local. Sleep and hibernate on AC are already Never.
 - **It is busy.** CPU is 44-68% busy with about 20 Claude processes running; 90 of 128 GB of RAM is free.
 - **Disks.** C (NVMe) has only 34 GB free, D is a hard drive, and F (NVMe) has 128 GB free, so the VM and the AVDs live on F.
 
-Dark time is infrastructure (`['ops','synthetic-dark']` after 6 hours, section 3.10), never a product failure.
+Dark time costs nothing and alerts nobody: the rig is used on demand, so an agent who needs it starts it (section 8), and nothing on it is waiting for a scheduled run.
 
 ### 3.3 Loonext in rig mode
 
@@ -254,7 +263,7 @@ Dark time is infrastructure (`['ops','synthetic-dark']` after 6 hours, section 3
 3. derives the configuration;
 4. restarts the services.
 
-A schema change stops the services, the cron timers and rigd's scenario timers before anything migrates, and before it stops them `rig deploy` leaves `state/deploy-hold.json` in the rig's home. Scenario runs already going, timed or a triage rerun, are stopped first, while the API still serves: a stopped run releases its lease's undos before it exits. rigd's hourly schedule refresh starts no timer while that file is there, and a run started under it records `skipped` without running. The deploy removes it only once the services serve the new ref and rigd's timers are installed, so a deploy that fails leaves them stopped until one succeeds. `rig health` fails on a hold over an hour old, naming the file.
+A schema change stops the services before anything migrates, and before it stops them `rig deploy` leaves `state/deploy-hold.json` in the rig's home. Scenario runs already going, whether an agent started them or a triage rerun, are stopped first, while the API still serves: a stopped run releases its lease's undos before it exits. A run started while that file is there records `skipped` without running. The deploy removes it only once the services serve the new ref, so a deploy that fails leaves the hold in place until one succeeds. No timer exists to stop or restart. `rig health` fails on a hold over an hour old, naming the file.
 
 Every verdict records the SHA it ran against.
 
@@ -270,14 +279,14 @@ Every verdict records the SHA it ran against.
 - The first deploy generates the rig's own ES256 key into the secret store, so a redeploy signs nobody out. A derived `config.toml` in a working folder points at it. The committed config is untouched.
 - R00 checks that local auth signs ES256 and that a seeded user's `/v1/me` call returns 200.
 
-**Crons.** systemd timers fire each cron in that ref's config at its time, through `/cdn-cgi/handler/scheduled?cron=<expr>&time=<ms>`. That route is present in the repo's pinned wrangler 4.106.0 (checked 2026-10-29), with `/__scheduled` as the fallback. `time` is in milliseconds and reaches the job as its scheduled time. The fallback ignores `time`, so the job runs at the wall clock, and `rig cron` says so (both checked 2026-10-31). An agent can replay any cron at a chosen instant.
+**Crons.** No timer fires a cron. An agent fires one on demand with `rig cron <expr>`, or by a job name from the registry (`rig cron job:lead-chase` fires the cron that lists that job), through `/cdn-cgi/handler/scheduled?cron=<expr>&time=<ms>`. Scenarios that need a cron fire it themselves. That route is present in the repo's pinned wrangler 4.106.0 (checked 2026-10-29), with `/__scheduled` as the fallback. `time` is in milliseconds and reaches the job as its scheduled time. The fallback ignores `time`, so the job runs at the wall clock, and `rig cron` says so (both checked 2026-10-31). An agent can replay any cron at a chosen instant.
 
 A cron registry, `tools/rig/crons.json`, classifies every cron in every tracked Worker config, keyed by config and cron. An API cron also lists its jobs, which must equal `CRON_JOBS` in `apps/api/src/index.ts`, so a job added to a cron forces someone to classify it again. Each cron is one of:
-- **run**;
+- **run**: the rig can fire it on demand;
 - **run, expecting a refusal**, with what that refusal makes Sentry receive suppressed (for example 10DLC polls and porting reconciles: in rig mode the app refuses every 10DLC, porting, hosted-messaging and documents request itself, with `rig_endpoint_refused`, before it reaches the guard, which refuses them too). Each refusal says whether the job lets it out, so its liveness alert follows, or catches it and reports its own event;
 - **skip**, with a reason. The edge's and the guard's crons are skips: they fire on Cloudflare, never on the rig, and they suppress nothing, because the API's own alert for the same expression must stay visible. A skipped API cron lists the liveness keys it silences, and rigd expects those.
 
-`rig deploy` refuses without the registry and installs one timer for each cron it runs. CI checks the registry against each ref's Worker configs (`scripts/check-rig-crons.mjs`). R00 requires zero unexplained Sentry fingerprints over 24 hours, so a standing red cannot hide a new one.
+`rig deploy` refuses without the registry, and installs no timer for any cron. CI checks the registry against each ref's Worker configs (`scripts/check-rig-crons.mjs`). R00 requires zero unexplained Sentry fingerprints over 24 hours, so a standing red cannot hide a new one.
 
 A cron's failure is explained only when its AggregateError is the outermost exception and every other exception that is not an AggregateError is a refusal listed for that cron. A job that collects its failures adds an AggregateError of its own in between. Sentry stops reading inside a chain once it has listed six exceptions, though it still lists every sibling of the one it is in. So an AggregateError it never read inside leaves the event unexplained: it may hold a real failure.
 
@@ -333,7 +342,7 @@ The internet can reach only these paths; everything else returns an empty 404:
 - **`/t/n/<secret>`.** Account notifications. These may be unsigned, so the path carries a secret segment. Before halting anything, the edge corroborates a notice: a balance notice by reading the balance through the guard; any notice when Telnyx refuses the account's reads; any other notice only when it carries a valid Telnyx signature and names a notification type enabled on the account. The notification-event list names types, not occurrences, so it never corroborates on its own. An unsigned notice the edge cannot corroborate halts nothing and goes to Sentry's `synthetic` environment as `['synthetic-infra','telnyx-notice']`.
 - **`/w/<secret>/...`.** Customer webhooks from the rig's API to the robot. The app refuses `*.internal` webhook hosts, so the robot's endpoint is here. The secret segment stays at the edge, which queues each delivery (at most 256 KB) for the robot with the rest of the path.
 - **`/m/...`.** Telnyx fetches of MMS and greeting media. Only Supabase-signed URLs, only for those two buckets, at most 5 MB.
-- **An `email()` handler** for the robot's address on loonext.com (named in the rig's private config, never in git) and its `+tag` sub-addresses. It never rejects mail. It stores it; if storage fails it still accepts and counts. It keeps a heartbeat.
+- **An `email()` handler** for the robot's address on loonext.com (named in the rig's private config, never in git) and its `+tag` sub-addresses. It never rejects mail. It stores it; if storage fails it still accepts and counts. It keeps a mail heartbeat, refreshed by the edge's own Cloudflare cron (not a rig timer), because the guard's Resend gate reads it before it lets a test mail go to the robot mailbox.
 - **`/g/*`.** Authenticated callers forwarded to the guard over a service binding, along with their caller class.
 - **`/ctl/uplink`, `/ctl/rpc`, `/ctl/secrets` and `/ctl/alert`.** The rig's own outbound WebSocket, `rig` commands, encrypted secret delivery, and rigd's one production alert (section 3.10). Each needs a bearer token.
 
@@ -362,7 +371,7 @@ If the rig is offline, call events get a 503 and Telnyx retries.
 - Responses carry a sandbox CSP and `nosniff`.
 - The edge refuses to serve on any loonext.com hostname.
 
-**Dead-man.** A 15-minute cron checks three heartbeats: the rig's, the last suite run, and the last triage run.
+**No dead-man.** The edge has no check on whether the rig, a suite or triage has run lately. The rig runs nothing on a schedule, so there is nothing to miss, and a rig that is off alerts nobody. The edge's one cron refreshes the mail heartbeat and tidies the uplink's tables.
 
 **SSH.** Optional, Phase 4. Host agents already get a full shell on the rig over SSH on the workstation (section 8). A raw SSH relay is added only if a tool needs one.
 
@@ -396,7 +405,7 @@ If the rig is offline, call events get a 503 and Telnyx retries.
   - The connection must be `nonprod-voice` or `nonprod-robot`.
   - `from` must be an owned number.
   - `to` must be an owned number (live listing by billing group, cached at most 5 minutes) or a SIP username on `nonprod-webrtc`.
-  - A live run lease and room in the budget are required. Test code names the lease in its header; the app's own legs (`rig-api`) run under the live lease. A header that names any other lease is refused.
+  - A live run lease and room are required. Test code names the lease in its header; the app's own legs (`rig-api`) run under the live lease. A header that names any other lease is refused.
 - **Messages.** `from` and `to` must both be owned, and the profile must be a nonprod profile.
 - **Provisioning (an explicit list):**
   - telephony credentials only on `nonprod-webrtc` and `nonprod-sentinel`;
@@ -442,7 +451,7 @@ Phone numbers are cut to their last four digits, and message bodies and recordin
   - **short:** connected outbound calls of 6 seconds or less.
   - **Minimum sample.** Under 30 calls in the window the ratios are filed with `low_sample` set, and admission does not refuse on them: the surcharge is a few cents at this volume, and a share over a handful of calls means nothing. At 30 calls or more the limits above apply. A filing older than 36 hours, or none, still refuses as `admission.ratios_unknown`, and zero calls is still a filing.
 - **Money.** Telnyx-enforced daily limits; the $35/month all-in cap, with a daily allowance after reserving next month's rental and a $1.50 set-aside for month-end surcharges and charges on detached numbers; tiers: green, amber (core only), red (only hang-ups allowed). Below the balance floor, all test spend is refused. At the cap, every non-robot number is detached, so stranger inbound stops too. A detached number is assumed still billed, which is what the set-aside covers. `call_cost_in_webhooks` is on for both nonprod Call Control apps, so `call.cost` events record each call's actual cost in the rig's own database (`apps/api/src/billing/provider-costs.ts`). Nothing checks the guard's ledger against them yet: the ledger charges `COST_USD`'s estimates, and only the month's usage an agent files from detail records can raise it.
-- **Measurements.** Production's reserve, ratios and window are filed through `guard.yml`'s `measurements` routine, because the guard Worker has no login to production's database. A daily scheduled run (`measure`, 03:23 UTC) computes the reserve from the `ops_diag` views as `agent_diag`, whose login is the `guard` environment secret `AGENT_DIAG_DATABASE_URL` (copied in once FA13 has run, and again after each rotation). It files the ratios (above) and refiles the window once the guard's is 28 days old. Without the login it posts a notice and files nothing. A manual dispatch that gives values overrides the read and files only what it gives; the three ratio counts go together. The reserve and the ratios go stale after 36 hours and the window after 35 days. A stale reserve or ratio refuses every paid dial (`admission.ratios_unknown` for the ratios) rather than guess, and a stale window falls back to 04:00 UTC.
+- **Measurements.** Production's reserve, ratios and window are filed through `guard.yml`'s `measurements` routine, because the guard Worker has no login to production's database. A daily scheduled run (`measure`, 03:23 UTC) computes the reserve from the `ops_diag` views as `agent_diag`, whose login is the `guard` environment secret `AGENT_DIAG_DATABASE_URL` (copied in once FA13 has run, and again after each rotation). It files the ratios (above) and refiles the window once the guard's is 28 days old. Without the login it posts a notice and files nothing. A manual dispatch that gives values overrides the read and files only what it gives; the three ratio counts go together. The reserve and the ratios go stale after 36 hours and the window after 35 days. A stale reserve or ratio refuses every paid dial (`admission.ratios_unknown` for the ratios) rather than guess, and a stale window falls back to 04:00 UTC. The guard's daily $0 jobs, `measure` in `guard.yml` and the limit probe in the guard's own upkeep, stay: they are the guard's, not the rig's, and they keep paid-call admission fresh so an on-demand repro is never refused.
 
 **Run lease.** One paid scenario runs at a time across the system. Scenarios register undo actions with `rigd`, the rig's service daemon. If the lease is not released within 15 minutes, `rigd` runs the undo itself.
 
@@ -458,9 +467,9 @@ A run that prepares before its lease holds its lane for the whole attempt (no ru
   - **The first order's read-back.** The order's phone-number line carries an id of its own, which Telnyx does not say is the number's `/v2/phone_numbers` id, and it is not (2026-11-01, risk 21). So the guard never reads by it. Once the order reports `success`: (1) it reads the order and requires it to list exactly one number, the E.164 that was requested; (2) it lists `/v2/phone_numbers` with `filter[billing_group_id]` set to the partition's group and finds the E.164 itself, because Telnyx's spec says `filter[phone_number]` returns nothing for a non-numerical character and an E.164 starts with `+`; (3) it requires exactly one listed number with that E.164, whose `billing_group_id` is the partition's, and whose messaging profile and voice connection are the ones the order asked for; (4) it records that result's id as the number's id, and any later release goes by that verified id only. A number is identified by phone number and a complete order and the partition's group together, never by phone number alone. A pending order waits, and a 429, a 5xx or a failed call is asked again on the next upkeep. Telnyx can list a new number late, so a complete order whose number the group does not list yet waits too, for 30 minutes from the first miss, and then stops as `number_missing`; a number listed with no billing group, in production's partition, stops ordering at once as `group_not_kept`. Anything else stops ordering for good and alerts production, with a reason code in `/health`'s `ordering.stopped_reason`: `order_ambiguous`, `order_status_unknown`, `order_unreadable`, `order_id_missing`, `number_unreadable`, `number_missing`, `number_ambiguous`, `group_not_kept` or `binding_mismatch`. None of them deletes anything: a number the guard cannot pin down is left for a person, and while it sits outside the group bound to the partition's resources the start-up checks read the partition as unsafe. Only the first order is read back; Telnyx's honouring of `billing_group_id` is the thing it measures. A first order that Telnyx reports as `failure` bought nothing, so its standing role is ordered again.
   - **An order Telnyx does not confirm.** A standing role is held before its order is sent, so a second caller or a retry never orders it again. A 4xx gives the role back. Any other answer, a 5xx or no answer, may have bought the number: the role stays held and the fee is charged, the run fails red as `Order unconfirmed`, and a person checks the partition before dispatching again. A search passes over a number already held for another role, and a held role whose number the group does not list is named in the run's last lines.
   - **Resuming.** `number_unreadable` is the one stop a person may lift, with the `resume-ordering` admin routine (`guard.yml`, dispatched from `main`; its input `resume_reason` is required). The guard records who (`github.triggering_actor`, the login that started the attempt, a re-run included), why and which stop was cleared, in the Durable Object, and then runs the current read-back on the pending first order, so the number already held is adopted by it and is not ordered again; if the read-back fails, ordering stops again and the run fails. Any other stop, and a call when ordering is not stopped, is refused as `provisioning.resume_refused`.
-- **Hourly version attestation.** `rigd` reads the guard's deployment list with `guard-attest-read`: Cloudflare's `GET /accounts/<id>/workers/scripts/loonext-telnyx-guard/deployments`, whose first entry is the one serving traffic. It compares the live deployment with every Deploy step `guard.yml` ran on `main`, ordered by when each step started, from the newest down to the newest that succeeded. Those runs are read through the rig's GitHub App with a token that can only read Actions, pushes and dispatches only, because a scheduled run never deploys. Failed, cancelled and running steps count, because they may have deployed, so re-running an older run is a rollback, not a mismatch. The deployment matches when it serves one version, its message is `guard.yml <sha>` for one of those steps (`guard.yml` deploys with `--message "guard.yml <sha>"`, which wrangler also puts on the deployment), and Cloudflare made it during that step, with two minutes of clock slack. A secret change (FA3, FA6 and FA8 paste keys this way) redeploys the live code with no message, so `rigd` reads through it to the deployment it replaced. A mismatch raises `['ops','telnyx-guard-integrity']` in production through the edge's `/ctl/alert` (section 3.10). A side `rigd` cannot read raises `['synthetic-infra','guard-attest']`, never a pass, and so does a missing store file: `cf-guard-attest-token`, `cloudflare-account-id`, `rig-app-id` or `rig-app-key`. rigd publishes each result in `state/guard-attest.json`. **Residual, accepted:** Cloudflare takes the secret-change label from whoever creates a deployment, and `guard-attest-read` cannot read a version's code, so a holder of the guard's deploy rights could put other code under one.
+- **Version attestation.** While it is up, `rigd` reads the guard's deployment list once an hour with `guard-attest-read`: Cloudflare's `GET /accounts/<id>/workers/scripts/loonext-telnyx-guard/deployments`, whose first entry is the one serving traffic. It compares the live deployment with every Deploy step `guard.yml` ran on `main`, ordered by when each step started, from the newest down to the newest that succeeded. Those runs are read through the rig's GitHub App with a token that can only read Actions, pushes and dispatches only, because a workflow run that is not a push or a dispatch never deploys. Failed, cancelled and running steps count, because they may have deployed, so re-running an older run is a rollback, not a mismatch. The deployment matches when it serves one version, its message is `guard.yml <sha>` for one of those steps (`guard.yml` deploys with `--message "guard.yml <sha>"`, which wrangler also puts on the deployment), and Cloudflare made it during that step, with two minutes of clock slack. A secret change (FA3, FA6 and FA8 paste keys this way) redeploys the live code with no message, so `rigd` reads through it to the deployment it replaced. A mismatch raises `['ops','telnyx-guard-integrity']` in production through the edge's `/ctl/alert` (section 3.10). A side `rigd` cannot read raises `['synthetic-infra','guard-attest']`, never a pass, and so does a missing store file: `cf-guard-attest-token`, `cloudflare-account-id`, `rig-app-id` or `rig-app-key`. rigd publishes each result in `state/guard-attest.json`. **Residual, accepted:** Cloudflare takes the secret-change label from whoever creates a deployment, and `guard-attest-read` cannot read a version's code, so a holder of the guard's deploy rights could put other code under one.
 - **Weekly key inventory.** Any unexpected Telnyx key raises `['ops','telnyx-key-inventory']`.
-- **Daily negative probes** run in G01.
+- **Negative probes** run in G01, when an agent starts it.
 
 **Account signals.** A Telnyx notification channel posts to `/t/n/<secret>` for Suspicious Outbound Voice Traffic, Account Disabled, Low Available Credit, and the Abandoned and Short-duration call notices. Setup created the channel on 2026-11-01. The account's condition list has no Messaging Suspicious Traffic condition, so nothing subscribes to it; the guard still latches on a notice of that name. A fraud hold is assumed to cover the whole account and to be permanent for the rig, which never contacts Telnyx. Lifting a hold on production is a founder act outside the rig. So:
 - The first corroborated fraud-type notice (Suspicious Outbound Voice Traffic, Account Disabled or Messaging Suspicious Traffic) latches the paid lanes off at once, until a reviewed change to `SIGNAL_LATCH_RESET`, and raises `['ops','telnyx-account-signal']`.
@@ -557,8 +566,7 @@ Already shipped in release 0.18.0: `0fd3583c` (2026-10-30). It stops `scripts/de
    - `check-rig-hosts`;
    - `check-rig-ratelimit-band`;
    - the cron registry check;
-   - the scenario registry;
-   - the dial-budget check;
+   - the scenario registry and its per-run dial costs;
    - the test-id contract.
 8. **Workstation tools:** `check-local-secrets.mjs`, `audit-agent-reach.mjs` and `ops.yml`.
 9. **Deploy secrets.** `ship.yml` and `backup-posture.yml` move to the `production` environment, which uses the scoped `production-deploy` token. Both read repo-level secrets today.
@@ -668,44 +676,45 @@ R00 compares Play services with the minimum the installed nonprod build declares
 
 **No iOS lane.** Section 2.3 explains why.
 
-### 3.10 Scheduler, reporting, triage, dead-man
+### 3.10 Running scenarios on demand, reporting, triage
 
-**Scheduler.** `rigd` uses systemd timers, all in UTC. Paid dials run only inside the measured window. Texts and push-only checks run at any time. A scenario rigd cannot run yet gets no timer, and the schedule lists it with its reason (`NOT_RUNNABLE_YET` in `tools/rig/rigd/src/scenarios/index.ts`). Today these are G02, S08 and S26. A test keeps every scenario the rig times either runnable or listed. A runner can read its own earlier attempts and their evidence from the verdict store, which is how E01 judges emulator audio over a week.
+**Running scenarios on demand.** Nothing on the rig runs on a timer: no scenario timer, no cron timer, no health timer, and no unit that starts a run. An agent starts a scenario with `rig run <scenario>[-<variant>]` (a thin wrapper over rigd's `node tools/rig/rigd/src/cli.ts run`; a variant is a numbered run from the registry, such as `S25-2`), and rigd's `scenario.run` and triage's `triage.rerun` start one the same way. A run still takes the guard's lease, is judged by machine, and records its verdict, evidence and the SHA, whoever started it.
+- Paid dials run only inside the guard's window and under its caps (the room, the hourly and daily dial caps, the account-wide check). Texts and push-only checks run at any time.
+- The registry (`tools/rig/scenarios.json`) is the catalogue of what can be run, with each scenario's dials and room. It holds no schedule.
+- A scenario rigd cannot run yet is listed with its reason (`NOT_RUNNABLE_YET` in `tools/rig/rigd/src/scenarios/index.ts`), and `rig run` refuses it. Today these are G02, S08 and S26. A test keeps every scenario in the registry either runnable or listed.
+- A runner can read its own earlier attempts and their evidence from the verdict store, which is how E01 judges emulator audio across the runs an agent has made.
 
 **Reporting.**
-- A failing scenario is retried once.
+- A failing scenario is retried once, if the guard's caps and window still admit it.
 - If it fails again, one event goes through the relay, by DSN only, to Sentry's `synthetic` environment, fingerprinted `['synthetic', scenario, failure_class]`.
 - Infrastructure faults use `['synthetic-infra', component]`, so one dead phone is one issue.
-- Noise limits: at most 50 events per run; a repeated fingerprint is suppressed for 6 hours. Auto-resolve is a project-wide setting, so it is not set on the shared project; triage resolves a synthetic issue after 24 hours without events (not built yet).
+- Noise limits: at most 50 events per run; a repeated fingerprint is suppressed for 6 hours. Auto-resolve is a project-wide setting, so it is not set on the shared project; triage resolves a synthetic issue after 24 hours without events (not built yet). Events are sent when a run fails, never because a run did not happen.
 - No Sentry write token exists anywhere.
 - **One project, three environments (FA7 substitution).** Rig and synthetic events go to the existing project with the environments `rig` and `synthetic`, and every event passes rigd's relay, which stamps its environment. Production's alert rules must filter on `environment:production`, or a rig event could fire one (section 12, risk 20). That is FA7 step 3, still open; until the variable `SENTRY_ALERTS_FILTERED` is set, the rig's DSNs are withheld and no rig or synthetic event is sent.
-- The rig VM sends nothing to production's environment. Its one production alert, the guard attestation's `['ops','telnyx-guard-integrity']`, goes to the edge's `POST /ctl/alert` with the `rig` control token. The edge sends it by DSN from its production budget, at most once every 6 hours, and refuses any key not in `RIG_PRODUCTION_ALERTS` in `tools/rig-protocol`. Any answer but 200 means production did not get it, and rigd reports that to Sentry's `synthetic` environment as `['synthetic-infra','guard-attest']`.
+- The rig VM sends nothing to production's environment. Its one production alert, the guard attestation's `['ops','telnyx-guard-integrity']`, goes to the edge's `POST /ctl/alert` with the `rig` control token. The edge sends it by DSN from its production send allowance, at most once every 6 hours, and refuses any key not in `RIG_PRODUCTION_ALERTS` in `tools/rig-protocol`. Any answer but 200 means production did not get it, and rigd reports that to Sentry's `synthetic` environment as `['synthetic-infra','guard-attest']`.
 - Each run posts an informational `synthetic/full-matrix` commit status through the rig's GitHub App.
 
-**Triage.** An hourly agent on the Windows host drives the rig over SSH, through the `rig` CLI (FA10 is dropped, so there is no Claude cloud environment):
+**Triage.** Nothing schedules triage. When an agent is asked to triage, or a Sentry issue arrives, it drives the rig over SSH, through the `rig` CLI (FA10 is dropped, so there is no Claude cloud environment):
 1. reads unresolved failures from the rig's verdict store;
 2. re-runs the scenario;
 3. attaches evidence;
 4. opens or updates one issue labelled `synthetic` through the rig App.
 
-Issue numbers stay out of commit trailers. Triage runs only while the workstation is on, which is also when the rig runs, so it misses nothing it could act on.
+Issue numbers stay out of commit trailers. Triage can only run while the workstation is on, which is also when the rig runs.
 
 **Rig-authored code.** The rig App can open branches and pull requests; a ruleset keeps it off `main`. Workstation agents never auto-merge a rig-authored PR. They review the diff as untrusted input and re-run the checks themselves first.
 
-**Dead-man.**
-- If a heartbeat is stale, the edge sends `['synthetic-infra', component]` to Sentry's `synthetic` environment.
-- If the whole system is dark for more than 6 hours, it sends `['ops','synthetic-dark']` to production. The rig is on while the workstation is on, not always on, so dark time is infrastructure, never a product failure (section 3.2).
-- The suite and triage heartbeats carry when each last ran, and the edge judges them by that time, never by when the beat arrived.
-- Each destination has its own daily cap: synthetic 20, production 10, which rigd's alerts through `/ctl/alert` share. A missing DSN spends none, and a refused send is retried hourly.
+**No dead-man (D142, update of 2026-11-01).** The edge's dead-man is gone, with the rig, suite and triage heartbeats, the stale-heartbeat events `['synthetic-infra', component]` and the dark alert `['ops','synthetic-dark']`. A rig that is off, or a suite nobody ran, is not a fault. What stays on the edge: the mail heartbeat (the guard's Resend gate reads it) and the daily caps on its Sentry sends, synthetic 20 and production 10, which rigd's alerts through `/ctl/alert` share. A missing DSN spends none, and a refused send is retried hourly.
 
 **What reaches you.** You hear about the test system only when:
-- it is dark;
 - isolation is at risk (G01, G02, guard integrity, key inventory, agent reach);
 - the Telnyx account or balance needs attention.
 
 Product regressions go to agents as GitHub issues.
 
 ### 3.11 Production watches
+
+These two run inside production's own crons, in production, with production's keys. They are not the rig's, nothing on the rig schedules them, and they stay as they are.
 
 **P01 (ring success, hourly, in production).** `api_ring_success`, read on production's existing hourly cron.
 - Ring success per platform and app version: the share of ring pushes that the same device reported as "ringing shown" within 15 seconds of the send starting. A push the provider answered "gone" is not an attempt.
@@ -733,7 +742,7 @@ Payloads, passwords and query strings are never logged or alerted. This catches 
 
 ### 3.12 One call, end to end (S02)
 
-1. The robot asks the guard, through the edge, to dial DEV-W1 from ROBOT-1. The guard checks the lease, budget, room, window and ownership, then dials.
+1. The robot asks the guard, through the edge, to dial DEV-W1 from ROBOT-1. The guard checks the lease, caps, room, window and ownership, then dials.
 2. Telnyx sends `call.initiated` for `nonprod-voice` to the edge's `/t/v`. The edge verifies the signature, sees a nonprod connection and an owned caller, registers the call and relays the event to the rig.
 3. The local API's Durable Object claims the line and asks the guard to dial one ring leg, to the QA-W owner's SIP username on `nonprod-webrtc`.
 4. The owner's Chromium page rings and Playwright answers. Media flows through Telnyx.
@@ -741,33 +750,30 @@ Payloads, passwords and query strings are never logged or alerted. This catches 
    - the robot judges its recording for the owner's 1,300 Hz code;
    - the page has already judged the robot's 1,100 Hz code;
    - the rig checks the call row and the Stripe test-mode meter.
-6. The verdict is stored with the SHA. A second failure becomes one Sentry event, and triage picks it up within the hour.
+6. The verdict is stored with the SHA. A second failure becomes one Sentry event, and an agent triages it when asked.
 
 ---
 
 ## 4. Test matrix
 
-### 4.1 Budget, concurrency and window
+### 4.1 Dial caps, concurrency and window
 
-**Dials, not calls.** Telnyx limits count dials, and ring legs, transfers and ring-me legs are dials too. Each scenario's dials and peak concurrent outbound legs are taken from the hermetic journeys, which record them in `apps/api/e2e/call-journey-budget.json` and fail when the code disagrees with it. A rig run's dials are its `dials` plus its `far_end_legs`. For S01, S02, S04 and S07 the measured values equal the planning estimates; the numbers below are planning estimates for the rest.
+**Dials, not calls.** Telnyx limits count dials, and ring legs, transfers and ring-me legs are dials too. Each scenario's dials and peak concurrent outbound legs are taken from the hermetic journeys, which record them in `apps/api/e2e/call-journey-budget.json` and fail when the code disagrees with it. A rig run's dials are its `dials` plus its `far_end_legs`. For S01, S02, S04 and S07 the measured values equal the planning estimates; the numbers in 4.2 are planning estimates for the rest.
 
-**Budget rule, checked in CI.** Scheduled dials times their frequency, plus a 20% retry reserve, plus a 60-dial monthly repro reserve, must fit the daily cap times 30.
+**Every scenario is run on demand.** The registry holds no schedule and no monthly budget. What limits a run is its own dial cost and the guard's caps, which protect production whoever starts the run.
 
 **The guard's own cap:**
 - 18 dials a day and 3 an hour;
-- 356.7 scheduled dials a month, 488.1 with both reserves, against a ceiling of 540;
-- about 300 texts a month.
+- a run is admitted only if its dials fit what is left of the hour and the day, and only inside the guard's window (section 3.5).
 
-**The account-wide check.** Below that cap, the guard assumes the Paid level's limits for the whole account (section 3.5): the rig's dials in an hour plus production's peak hour come to at most 10, and a day's to at most 100. A stale measurement of production's peaks refuses.
+**The account-wide check.** Below that cap, the guard assumes the Paid level's limits for the whole account (section 3.5): the rig's dials in an hour plus production's peak hour come to at most 10, and a day's to at most 100. A stale measurement of production's peaks refuses. The guard's daily `measure` job and its limit probe keep those measurements fresh, so an on-demand run is not refused for a stale one.
 
-**The encoded schedule.** `tools/rig/scenarios.json` holds 4.2 as data, with each run placed on a day and a UTC hour inside the window. Over its 210-day cycle the busiest hour holds 3 dials and the busiest day 18. Two days sit exactly at the daily cap, so a retry on those days waits. 4.2 at its written cadence would need 435.4 dials a month (582.5 with reserves), so not every row is scheduled:
-- S07, S08, S10 and D01 need 4 dials in one run, and S09 needs 5, against 3 an hour. They stay unscheduled, because the hourly cap of 3 is final (below). S09 also needs two robot calls at once, and `nonprod-robot-ovp` allows one.
+**Runs that do not fit the hourly cap.** A scenario whose single run needs more dials than the hourly cap of 3 admits cannot run until the cap or the room changes. That is a property of the run's dial cost, not of a schedule:
+- S07, S08, S10 and D01 need 4 dials in one run, and S09 needs 5. The hourly cap of 3 is final (below), so they are not runnable. S09 also needs two robot calls at once, and `nonprod-robot-ovp` allows one.
 - K01 waits for Phase 4.
 - S28 and S29 are dropped (founder, 2026-11-01). Buying and releasing a number is Telnyx's work, and the hermetic suite covers the app's side of it.
 
-A run with no dials may name `offset_days`, which ties it to that day of its period at any hour: S29 did, on day 2 of the 30-day cycle, until it was dropped.
-
-**Editing this section, 4.2 or 4.3.** A change to 4.1, 4.2 or 4.3 updates `tools/rig/scenarios.json` in the same change. `scripts/check-rig-scenarios.mjs` fails CI when the two disagree: names, far ends, cadences, dials, room, the cap and the reserves. It does not read the totals above, so copy them from its output, which prints each one.
+**Editing this section, 4.2 or 4.3.** A change to 4.1, 4.2 or 4.3 updates `tools/rig/scenarios.json` in the same change. `scripts/check-rig-scenarios.mjs` fails CI when the two disagree on names, far ends, dials, room and the caps.
 
 **Room** = the concurrent limit in force minus production's reserve (section 3.5). The limit in force comes from the guard's proof ladder; while only its floor of 2 is in force, the room is 0. It decides which call scenarios may run at all.
 
@@ -784,62 +790,62 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 
 ### 4.2 Scenarios
 
-"Pages" means the browser pages on the rig. **Pass** lists every condition the agent checks with no human. The last column is how often the scheduled run exercises it, with dials per run.
+"Pages" means the browser pages on the rig. **Pass** lists every condition the agent checks with no human. The last column is the dials one run spends (Loonext's legs plus the far end's). Every row is run on demand; none has a cadence. A row that runs in CI or in production says so in its text.
 
-| ID | Scenario | Far end | How the agent verifies it, with no human | How often (dials) |
+| ID | Scenario | Far end | How the agent verifies it, with no human | Dials per run |
 |---|---|---|---|---|
-| R00 | Rig health | none | **Pass:** services answer; local sign-in returns 200; the device-lane emulator is booted, reachable over the tunnel, unlocked and Doze-enabled, and its Play services version meets the minimum the installed nonprod build declares; the other emulators are up (booting them is D11's job); the guard is healthy and above the balance floor; the edge uplink is up; the nonprod apps point at the edge; the Stripe listener is alive; tz versions match; zero unexplained Sentry fingerprints in 24 h. **Critical:** the guard's start-up checks report the partition unsafe. **Also publishes:** the current room and the scenarios it blocks. While D03 holds the device lane for its stepped idle, the device-lane emulator's lock state is not judged. | Every 15 min (0) |
-| H01 | Hermetic suite, including the call journeys | Fake Telnyx and Stripe | **Pass:** the CI status, watched after every push. | Every push (0) |
-| G01 | Isolation self-test | A fictional 555-01xx number; STRANGER-1 | **Pass:** the app refuses a send and a dial to 555-01xx before Telnyx, by rig mode's destination gate. The database gate is reached first and raises `rig_destination_refused`, so each route answers 500 and the API's own error report for that route names the gate. A text that the Worker's gate refuses instead is filed as failed with that code. The guard's lease record holds no app request it refused for an unowned destination. STRANGER-1's call to DEV-W1 is rejected before any ring leg, row or voicemail, and its text is not threaded. The guard returns 403 to a dial on production's connection, a text from a number outside the group, and a dial to a non-owned number, each under its own rule. The relay's report counts the two error reports of a G01 attempt as expected. **Any success:** a critical result, sent at once to Sentry's `synthetic` environment. A production alert for it is not built yet. | Daily (1) |
-| G02 | Calls the apps' SDK places itself | The sentinel credential, held by a test page on the rig | **Pass:** the browser SDK and the device-lane emulator's SDK, both signed in on `nonprod-webrtc`, each try a direct call to the sentinel; both are refused and the sentinel never rings. **If it rings:** alert, and residual X25 applies. Not runnable yet: the Android half needs the nonprod build to place an SDK call to a SIP address, and the app has no entry point for one. | Weekly (1) |
-| P01 | Production ring-success watch | Real customers' calls | **Verdicts** per platform and version, first match wins: `unattributed` (session or version unknown), `not_instrumented` (below the platform's beacon floor), `insufficient_sample` (under 30 attempts in 24 h), `no_baseline` (under 30 in the 7 days before), `drop`, `pass`. **Pass:** only `pass`. **Drop:** the rate is below the baseline less 5 points, by more than 3 standard errors of both samples; it alerts `['ops','ring-success-<platform>']` (3.11). | Hourly, in production (0) |
-| PW01 | Production wiring check | Production's own settings | **Runs** in production's own daily cron, with production's key, GET only, never through the guard. **Pass:** webhook URL, failover URL and API version on production's app, connection and profiles equal production's own, and no delivery to production's host failed in 24 h. **Otherwise:** it alerts `['ops','telnyx-wiring']`. | Daily (0) |
-| S01 | Browser calls a phone number (on-net) | ROBOT-1 answers after 4 s | **Pass:** ringback energy before answer; the page hears 1,100 Hz and the robot hears 1,300 Hz; caller ID is DEV-W1; the one-time token is used once; the row is answered; a voice-seconds meter event lands in Stripe's test mode. | Every 3 days (2) |
-| S02 | Phone number calls Loonext, answered in the browser | ROBOT-1 dials DEV-W1 | **Pass:** ring dialog and SDK ringing within 6 s; both codes heard; row answered; billed seconds equal the meter. | Every 2 days (2) |
-| S03 | Loonext calls Loonext across workspaces | QA-C page dials DEV-W1 | **Pass:** the QA-W owner rings and answers; each side hears the other's code; two rows with distinct session keys, each billed to its own workspace; no text-back. **Recorded, not judged:** how Telnyx routed and billed the call, for the rig's billing measurement. | Weekly (3) |
-| S04 | Unanswered call: voicemail, transcript, intake, webhook, text-back | ROBOT-1 speaks after the beep | **Pass:** voicemail stored locally, and the Telnyx copy returns 404; transcript word error 0.25 or lower; intake row; signed `voicemail.received` at the robot sink; text-back at ROBOT-1 within 60 s. | Every 3 days (2) |
-| S05 | Caller hangs up while ringing | ROBOT-1 hangs up at 8 s | **Setup:** under the lease, QA-W escalates after 10 minutes on the destination clock with no business hours, so the call is after hours, and the owner is on call for DEV-W1. **Pass:** the call is missed; the text-back arrives within 60 s; a ring push is recorded; an escalation opens, and widens when the rig fires the minute cron 10.5 minutes later. | Fortnightly (2) |
-| S06 | Hold, mute, keypad | ROBOT-1 | **Pass:** the member's code is absent from the robot's recording during hold and mute and returns within 2 s; digits 1-2-3-# arrive in order. | Fortnightly (2) |
-| S07 | Blind transfer; decline, timeout and hop-cap variants | ROBOT-1 to DEV-W2 | **Setup:** QA-W rings in turn under the lease, so the owner's page rings alone first and the technician's phone is never dialed for the inbound call. **Pass:** the robot's heard code switches from 1,300 to 1,700 Hz, and the technician's transfer leg is answered. **Variants:** decline and timeout snap the call back to the owner, who is heard again. The hop cap is the API's one automatic snap-back; after it, the call reaches voicemail. | Weekly; variants monthly (4) |
-| S08 | Consult transfer, inbound and outbound (the first live test of outbound transfer) | ROBOT-1 | **Pass:** during the consult the robot hears no member while the pages hear each other; after completion the robot hears the target and the sender's leg ends. Not runnable yet: the web call bar has no consult transfer control. Outbound also needs four Loonext dials (the browser call's two and the consult's two). Before S08 runs, in one change, this row's cell becomes (5) and S08's `dials` in `scenarios.json` becomes 4. | Weekly, alternating direction (4) |
-| S09 | Busy line, second caller, self-dial | ROBOT-1, ROBOT-2 | **Pass:** the second caller reaches voicemail within 8 s; while the line is busy, the owner's dial shows "This line is on another call" and the guard's lease record shows no new app dial; after hang-up, a self-dial reaches voicemail. | Monthly (5) |
-| S10 | Number X calls number Y in one workspace; call waiting | DEV-W1 to DEV-W2 | **Pass:** the technician and the owner ring (DEV-W2's audience includes the owner); the owner's page shows call waiting; the pages hear each other; DEV-W1's inbound row is answered. | Monthly (4) |
-| S11 | After-hours, on-call, in-turn, ring length | ROBOT-1 | **Setup:** under the lease, today's hours are set two hours from now, so the shop is closed; after-hours calls are `on_call_only`, ringing is in turn with a 20 s ring, and the technician is on call for DEV-W2. **Pass:** only the on-call page rings, and the owner's stays idle for 15 s; voicemail answers at 20 s, plus or minus 2 s. | Weekly (2) |
-| S12 | Voice and dial-count caps (QA-C) | ROBOT-1 | **Setup:** call records seeded, already reported, to production's own cap values, never lowered: the dial ceiling first, on its own, then the minute cap. Both gates read `call_records`, not usage rows. **Pass:** at the dial ceiling, outbound gets 402 `usage_cap_reached` and the guard's lease record shows no dial; over the minute cap, inbound ends busy and the text-back still arrives. | Fortnightly (1) |
-| S13 | Paused, suspended or released number receives a call | ROBOT-1 | **Pass:** each fortnight's run tests two of the three states, each put back as soon as its call ends: no ring legs; the "line is down" notice is transcribed (75% of its words), or the call rings out when the row says the notice was not spoken; a released number is dropped within 5 s. | Fortnightly (2) |
-| S14 | Kill switches (local flags only) | ROBOT-1 | **Pass:** `kill:calls` refuses a new call with 503 while a live call's codes continue; `kill:outbound-send` refuses with 503 before the guard, and nothing reaches the robot; `kill:ai` stops Lou's drafts (the same `runAiFeature` gate also covers transcripts); every flag is reset afterwards. | Fortnightly (2) |
-| S15 | Greeting-capture call | ROBOT-2, seeded as the owner's mobile | **Pass:** the robot hears the prompt (75% of the capture prompt's words, leaving out the business name) and speaks 16 s after answer; the new greeting's audio transcribes within 0.25 word error of what it said. | Monthly (1) |
-| S16 | Note-level member; signing a device out revokes voice for the person (D130) | ROBOT-1 | **Pass:** the note-level member gets no ring leg and no push while the owner rings, and its dial attempt gets 403. After the seed's sign-out member signs its session out, token minting gets 401, as for any revoked session. **Afterwards:** a fresh sign-in mints again. | Fortnightly (2) |
-| S17 | Webhook failover and duplicate delivery | The edge returns 503 once | **Pass:** webhook deliveries (read through the guard) show the 503, then a 2xx on the failover; the event is recorded once and processed. rigd's webhook forwarder answers the next call event with the fault S17 arms. | Monthly (3) |
-| S20 | Outbound text | ROBOT-1 | **Pass:** exact body within 30 s; status goes sent, then delivered; usage row and test-mode meter event; `message.sent` webhook at the sink. | Daily (0) |
-| S21 | Inbound text | ROBOT-1 to DEV-W1 | **Pass:** threaded once within 15 s; realtime update in the page; a push-attempt row. | Daily (0) |
-| S22 | Picture messages both ways | ROBOT-1 | **Outbound pass:** the exact body and picture reach ROBOT-1 from DEV-W1, and the hash Telnyx reports equals the stored file's, so Telnyx fetched it through the edge. **Inbound pass:** threaded with an attachment and stored as a JPEG with GPS EXIF stripped, not quarantined. | Weekly (0) |
-| S23 | Loonext texts Loonext | DEV-W1 and DEV-E1 | **Pass:** both thread; no 40007 loop error. | Weekly (0) |
-| S24 | STOP, START, HELP, ARRET, AIDE, plain-English opt-out | ROBOT-2 to DEV-E1 only | **Pass:** the opt-out is recorded; the next send is refused before the guard; a call to ROBOT-2 still connects (D38); the plain-English request is only flagged. **Cleanup:** the undo has ROBOT-2 send START. A STOP left in place after cleanup is critical. | Weekly (2) |
-| S25 | Automated texts and quiet hours | ROBOT-1 | **Pass:** the away reply, emergency acknowledgement, scheduled send and reminder arrive at the daytime run. At the night run (destination clock) the scheduled send and reminder are held. The away reply and emergency acknowledgement still arrive, because they answer the customer's own text (D4). The help reply answers AIDE, which S24 sends. | Weekly, two runs (0) |
-| S26 | Messaging caps and budgets | Seeded rows, at most 2 real sends | **Pass:** each refusal carries its own gate's error: 402 `usage_cap_reached` at the monthly segment cap (seeded usage rows), and 429 `rate_limited` at the hourly limit (a seeded outbound message, which the carrier's daily count also includes); the 80% carrier-ceiling alert lands in Sentry's `rig` environment. Not runnable yet: the API raises that warning by email only, never as a Sentry event. | Weekly (0) |
-| S27 | Website widget code | ROBOT-1 | **Pass:** a start with no Turnstile token is refused and the always-pass key passes; the code reaches ROBOT-1 from DEV-W1 within 60 s; verify succeeds; the verification count goes up. The always-block key is not checked, because the rig's Turnstile secret accepts every token. | Weekly (0) |
-| S28 | Number buy, bind, call, release | ROBOT-1 calls the new number | **Pass:** one search and one order (the guard's lease record), the order carrying group, profile and connection; the first-order group check passes, or is still pending after 60 s while the number shows in the group; the number rings; no other number is touched. The number is not released. A passing S28 hands it to S29; its undo, registered before the purchase, releases every number QA-G holds unreleased when S28 did not pass, and fails, naming the row, for one whose row never named its Telnyx number. A hand-off no S29 took within two days is taken back by the next S28, which reports it as `infra` (handoff) and releases it. Whether a production Sentry event mentions the number is for production's own ownership-mismatch alert to raise, because the rig reads nothing from production. | Monthly (2) |
-| S29 | Cancel, grace, release, billing | Stripe test mode (shared) | **Setup:** the day after S28, under the lease, S29 takes over S28's number, backdates QA-G's `canceled_at` to 31 days ago and fires the grace cron. Grace runs on the database clock (`apps/api/src/billing/grace.ts`), not Stripe's. **Pass:** grace releases S28's number, which then answers 404 through the guard; no live campaign remains; the workspace moves through grace (notices on days 1, 15 and 27, then the release). Rig mode refuses 10DLC, so QA-G holds no campaign, a pass says its deactivation was not covered, and deactivating a real campaign is tested only in the hermetic suite. With no number from S28, S29 still runs grace and reports the release half as not covered. A retry keeps the first attempt's release verdict, because that attempt's undo already released the number. The undo releases the number through the guard if grace did not, and puts QA-G back. **Separately:** a seed-created customer on a Stripe test clock checks invoice and meter totals against the month's usage; the clock is deleted after. | Monthly (0) |
-| S31 | Lou reply drafts and AI caps | A synthetic thread | **Pass:** a draft comes back through the guard and the guard's AI neuron count rises; the `suggest_reply` usage row counts it; a request seeded at the 1,500 cap answers `over_cap`. | Weekly (0) |
-| S32 | Onboarding, Checkout with the 4242 test card, customer portal | Stripe test mode (shared) | **Pass:** sign-up is confirmed through Mailpit; onboarding completes; Checkout with the 4242 test card returns; the workspace records a subscription Stripe's test mode reports active; the portal opens on `billing.stripe.com`. **Recorded, not judged:** whether Checkout challenged the headless browser. | Weekly (0) |
-| S33 | Two-factor login | none | **Pass:** with a TOTP code from the rig's store, the session reaches the second assurance level and the API accepts it. | Weekly (0) |
-| S34 | Emails | Robot mailbox; Mailpit | **Pass:** API mail (an invite) arrives at the robot mailbox through Resend and Email Routing within 10 minutes, under S34's own guard lease, with working links; auth mail (a password reset) is read from Mailpit within 2 minutes and its link works. A missed-call alert is push-only since D45, so no mail is checked for one. | Weekly (0) |
-| S35 | Public sign-up form | Mailpit | **Pass:** sign up, confirm by email, reach the app. | Weekly (0) |
-| D01 | Inbound call rings every rig surface; the answering surface rotates | ROBOT-1 to DEV-A1, dispatcher added under the lease | **Pass:** within 8 s the page dialog shows, and the device-lane emulator shows Telecom RINGING plus the full-screen notification. The robot identifies the answerer by code; the other clears within 3 s; one database winner. | Weekly (4) |
-| D02 | Android wake: app killed, forced Doze, locked with a PIN | ROBOT-1 to DEV-A1 | **Pass:** FCM accepted the push at high priority; the nonprod app's beacon stages arrive, each after the stage that causes it; Telecom shows RINGING within 12 s; UIAutomator answers; the rig hears 1,100 Hz through `streamAudio` and the robot hears 2,300 Hz through `injectAudio` (until spike EA1 passes, the audio half is `emulator-audio-unproven`). **Recorded, not judged:** the lock state at ring time, since adb can read an occluded keyguard as unlocked. | Daily (3) |
-| D02p | Android wake with no call | none | **Pass:** a real FCM call push for a synthetic session is accepted, received, reported to Telecom, and shown ringing within 12 s; no ring-me beacon follows within 15 s, because the app stops at the session's 404 before it asks to be rung. Zero dials: D02p runs under a local lease, and the guard refuses every app dial while no lease is live. | 4 times a day (0) |
-| D03 | Stepped Doze | ROBOT-1 | **Setup:** `dumpsys deviceidle enable all`, screen off, battery unplugged in software; then step deep idle to IDLE through one maintenance cycle, holding the device lane so no other run uses the device-lane emulator meanwhile. If the run cannot start after that, the battery goes back in and the emulator is unlocked. D03 runs on a day of its week when no other paid device-lane run is due. **Then:** as D02. Not reaching IDLE is an infrastructure result. Natural deep-Doze entry is not tested, because an emulator never enters it by itself (X6). | Weekly (3) |
-| D04 | Android variants: standby buckets, battery saver, secure lock, before first unlock, app hibernation | ROBOT-1 | **Pass:** one variant per run. Its state is read back before the ring and judged against the runner's expectations table; the first runs confirm each row. A device that stays quiet counts only when FCM accepted the push. | Fortnightly, rotating (3) |
-| D07 | Android app calls out | ROBOT-1 answers | **Pass:** the device-lane emulator's call connects; codes heard both ways (the device's half through gRPC audio, `emulator-audio-unproven` until EA1 passes); caller ID is DEV-A1. | Fortnightly (2) |
-| D08 | Background tab and Web Push | ROBOT-1, dispatcher-only audience under the lease | **Pass:** the app's service worker shows the ring notification within 10 s, and the same notification carries the outcome within 30 s of hang-up. Chrome's own notification centre is not read. | Fortnightly (2) |
-| D09 | First-answer race | ROBOT-1 | **Pass:** the device-lane emulator and a page answer within 300 ms of each other; the robot hears exactly one code; the database has one winner, the one heard; the loser holds no call within 5 s. Neither app shows "answered elsewhere": both drop a lost ring silently. | Fortnightly (3) |
-| D10, D12 | Fresh install; upgrade from the previous release | ROBOT-1 | **Pass:** after install, or after an upgrade from the signed-in previous build, the app has a push target, then D02p and D02 pass. A stale row from the earlier install also counts as a push target, so D02p's beacons are what prove the new install works. | Weekly, alternating (3) |
-| D11 | Unattended recovery | none | **Setup:** hard-kill the device-lane emulator's process, restart the other emulators, and cold-boot it with `-no-snapshot-load`. **Pass:** within 10 min, every `rig health` result is green, every emulator is booted, and the device-lane emulator is back, unlocked with its PIN and Doze-enabled; then D02p passes. | Weekly (0) |
-| D13 | Bad network and a mid-call Wi-Fi drop | ROBOT-1 | **Setup:** the emulator console sets 80 ms of delay and a reduced network speed; 15 s after answer, `svc wifi disable` drops Wi-Fi, and `gsm data unregistered` with Wi-Fi off makes a 3 s outage. **Pass:** the call survives; the device's code is heard before the outage and again from 5 s after it. No loss is judged, because the console has no loss control (X27); Telnyx's RTP statistics are recorded. The device's own concealment is not measured. | Monthly (2) |
-| D14 | In-app voicemail and MMS playback | none | **Setup:** under a local lease, S04's newest voicemail (its audio and transcript) is copied into a QA-A call row on DEV-A1, marked as already transcribed; the undo removes the row and the audio. **Pass:** the device-lane emulator's app lists the call with its "Play voicemail" control, and the rig's transcript of its media audio, heard through `streamAudio`, is within 0.25 word error of S04's phrase (`emulator-audio-unproven` until EA1 passes). Until S04 has left a voicemail, it is an infrastructure result. | Weekly (0) |
-| E01 | Emulator wake, rotating through API 34, 35 and 36 | ROBOT-1 to DEV-E1 | **Pass:** as D02, except the emulator hearing the robot: only the device lane has the gRPC audio link (section 3.9), so E01 records no emulator's audio and a pass says that half was not judged. At least one API level a week must also pass the audio verdict, or the lane raises "emulator-audio-degraded". **Weekly variants:** notifications revoked, and force-stopped; both must NOT ring. | Every 3 days (3) |
-| K01 | Outbound carrier egress (optional, Phase 4) | A public echo-test line | By default it never runs: Phase 4 is optional. **Pass:** the robot hears its own code echoed back with a 0.1-1.5 s delay. **Any other answer:** hang up within 3 s, and the line is removed permanently. | Weekly (1) |
+| R00 | Rig health | none | **Pass:** services answer; local sign-in returns 200; the device-lane emulator is booted, reachable over the tunnel, unlocked and Doze-enabled, and its Play services version meets the minimum the installed nonprod build declares; the other emulators are up (booting them is D11's job); the guard is healthy and above the balance floor; the edge uplink is up; the nonprod apps point at the edge; the Stripe listener is alive; tz versions match; zero unexplained Sentry fingerprints in 24 h. **Critical:** the guard's start-up checks report the partition unsafe. **Also publishes:** the current room and the scenarios it blocks. While D03 holds the device lane for its stepped idle, the device-lane emulator's lock state is not judged. Run on demand with `rig health`. | 0 |
+| H01 | Hermetic suite, including the call journeys | Fake Telnyx and Stripe | **Pass:** the CI status. CI runs it on every push; the rig does not run it, because regression testing stays in CI. | 0 |
+| G01 | Isolation self-test | A fictional 555-01xx number; STRANGER-1 | **Pass:** the app refuses a send and a dial to 555-01xx before Telnyx, by rig mode's destination gate. The database gate is reached first and raises `rig_destination_refused`, so each route answers 500 and the API's own error report for that route names the gate. A text that the Worker's gate refuses instead is filed as failed with that code. The guard's lease record holds no app request it refused for an unowned destination. STRANGER-1's call to DEV-W1 is rejected before any ring leg, row or voicemail, and its text is not threaded. The guard returns 403 to a dial on production's connection, a text from a number outside the group, and a dial to a non-owned number, each under its own rule. The relay's report counts the two error reports of a G01 attempt as expected. **Any success:** a critical result, sent at once to Sentry's `synthetic` environment. A production alert for it is not built yet. | 1 |
+| G02 | Calls the apps' SDK places itself | The sentinel credential, held by a test page on the rig | **Pass:** the browser SDK and the device-lane emulator's SDK, both signed in on `nonprod-webrtc`, each try a direct call to the sentinel; both are refused and the sentinel never rings. **If it rings:** alert, and residual X25 applies. Not runnable yet: the Android half needs the nonprod build to place an SDK call to a SIP address, and the app has no entry point for one. | 1 |
+| P01 | Production ring-success watch | Real customers' calls | Runs in production's own hourly cron, not on the rig. **Verdicts** per platform and version, first match wins: `unattributed` (session or version unknown), `not_instrumented` (below the platform's beacon floor), `insufficient_sample` (under 30 attempts in 24 h), `no_baseline` (under 30 in the 7 days before), `drop`, `pass`. **Pass:** only `pass`. **Drop:** the rate is below the baseline less 5 points, by more than 3 standard errors of both samples; it alerts `['ops','ring-success-<platform>']` (3.11). | 0 |
+| PW01 | Production wiring check | Production's own settings | **Runs** in production's own daily cron (not on the rig), with production's key, GET only, never through the guard. **Pass:** webhook URL, failover URL and API version on production's app, connection and profiles equal production's own, and no delivery to production's host failed in 24 h. **Otherwise:** it alerts `['ops','telnyx-wiring']`. | 0 |
+| S01 | Browser calls a phone number (on-net) | ROBOT-1 answers after 4 s | **Pass:** ringback energy before answer; the page hears 1,100 Hz and the robot hears 1,300 Hz; caller ID is DEV-W1; the one-time token is used once; the row is answered; a voice-seconds meter event lands in Stripe's test mode. | 2 |
+| S02 | Phone number calls Loonext, answered in the browser | ROBOT-1 dials DEV-W1 | **Pass:** ring dialog and SDK ringing within 6 s; both codes heard; row answered; billed seconds equal the meter. | 2 |
+| S03 | Loonext calls Loonext across workspaces | QA-C page dials DEV-W1 | **Pass:** the QA-W owner rings and answers; each side hears the other's code; two rows with distinct session keys, each billed to its own workspace; no text-back. **Recorded, not judged:** how Telnyx routed and billed the call, for the rig's billing measurement. | 3 |
+| S04 | Unanswered call: voicemail, transcript, intake, webhook, text-back | ROBOT-1 speaks after the beep | **Pass:** voicemail stored locally, and the Telnyx copy returns 404; transcript word error 0.25 or lower; intake row; signed `voicemail.received` at the robot sink; text-back at ROBOT-1 within 60 s. | 2 |
+| S05 | Caller hangs up while ringing | ROBOT-1 hangs up at 8 s | **Setup:** under the lease, QA-W escalates after 10 minutes on the destination clock with no business hours, so the call is after hours, and the owner is on call for DEV-W1. **Pass:** the call is missed; the text-back arrives within 60 s; a ring push is recorded; an escalation opens, and widens when the rig fires the minute cron 10.5 minutes later. | 2 |
+| S06 | Hold, mute, keypad | ROBOT-1 | **Pass:** the member's code is absent from the robot's recording during hold and mute and returns within 2 s; digits 1-2-3-# arrive in order. | 2 |
+| S07 | Blind transfer; decline, timeout and hop-cap variants | ROBOT-1 to DEV-W2 | **Setup:** QA-W rings in turn under the lease, so the owner's page rings alone first and the technician's phone is never dialed for the inbound call. **Pass:** the robot's heard code switches from 1,300 to 1,700 Hz, and the technician's transfer leg is answered. **Variants:** decline and timeout snap the call back to the owner, who is heard again. The hop cap is the API's one automatic snap-back; after it, the call reaches voicemail. | 4 |
+| S08 | Consult transfer, inbound and outbound (the first live test of outbound transfer) | ROBOT-1 | **Pass:** during the consult the robot hears no member while the pages hear each other; after completion the robot hears the target and the sender's leg ends. Not runnable yet: the web call bar has no consult transfer control. Outbound also needs four Loonext dials (the browser call's two and the consult's two). Before S08 runs, in one change, this row's Dials per run becomes 5 and S08's `dials` in `scenarios.json` becomes 4. | 4 |
+| S09 | Busy line, second caller, self-dial | ROBOT-1, ROBOT-2 | **Pass:** the second caller reaches voicemail within 8 s; while the line is busy, the owner's dial shows "This line is on another call" and the guard's lease record shows no new app dial; after hang-up, a self-dial reaches voicemail. | 5 |
+| S10 | Number X calls number Y in one workspace; call waiting | DEV-W1 to DEV-W2 | **Pass:** the technician and the owner ring (DEV-W2's audience includes the owner); the owner's page shows call waiting; the pages hear each other; DEV-W1's inbound row is answered. | 4 |
+| S11 | After-hours, on-call, in-turn, ring length | ROBOT-1 | **Setup:** under the lease, today's hours are set two hours from now, so the shop is closed; after-hours calls are `on_call_only`, ringing is in turn with a 20 s ring, and the technician is on call for DEV-W2. **Pass:** only the on-call page rings, and the owner's stays idle for 15 s; voicemail answers at 20 s, plus or minus 2 s. | 2 |
+| S12 | Voice and dial-count caps (QA-C) | ROBOT-1 | **Setup:** call records seeded, already reported, to production's own cap values, never lowered: the dial ceiling first, on its own, then the minute cap. Both gates read `call_records`, not usage rows. **Pass:** at the dial ceiling, outbound gets 402 `usage_cap_reached` and the guard's lease record shows no dial; over the minute cap, inbound ends busy and the text-back still arrives. | 1 |
+| S13 | Paused, suspended or released number receives a call | ROBOT-1 | **Pass:** a run tests two of the three states, each put back as soon as its call ends: no ring legs; the "line is down" notice is transcribed (75% of its words), or the call rings out when the row says the notice was not spoken; a released number is dropped within 5 s. | 2 |
+| S14 | Kill switches (local flags only) | ROBOT-1 | **Pass:** `kill:calls` refuses a new call with 503 while a live call's codes continue; `kill:outbound-send` refuses with 503 before the guard, and nothing reaches the robot; `kill:ai` stops Lou's drafts (the same `runAiFeature` gate also covers transcripts); every flag is reset afterwards. | 2 |
+| S15 | Greeting-capture call | ROBOT-2, seeded as the owner's mobile | **Pass:** the robot hears the prompt (75% of the capture prompt's words, leaving out the business name) and speaks 16 s after answer; the new greeting's audio transcribes within 0.25 word error of what it said. | 1 |
+| S16 | Note-level member; signing a device out revokes voice for the person (D130) | ROBOT-1 | **Pass:** the note-level member gets no ring leg and no push while the owner rings, and its dial attempt gets 403. After the seed's sign-out member signs its session out, token minting gets 401, as for any revoked session. **Afterwards:** a fresh sign-in mints again. | 2 |
+| S17 | Webhook failover and duplicate delivery | The edge returns 503 once | **Pass:** webhook deliveries (read through the guard) show the 503, then a 2xx on the failover; the event is recorded once and processed. rigd's webhook forwarder answers the next call event with the fault S17 arms. | 3 |
+| S20 | Outbound text | ROBOT-1 | **Pass:** exact body within 30 s; status goes sent, then delivered; usage row and test-mode meter event; `message.sent` webhook at the sink. | 0 |
+| S21 | Inbound text | ROBOT-1 to DEV-W1 | **Pass:** threaded once within 15 s; realtime update in the page; a push-attempt row. | 0 |
+| S22 | Picture messages both ways | ROBOT-1 | **Outbound pass:** the exact body and picture reach ROBOT-1 from DEV-W1, and the hash Telnyx reports equals the stored file's, so Telnyx fetched it through the edge. **Inbound pass:** threaded with an attachment and stored as a JPEG with GPS EXIF stripped, not quarantined. | 0 |
+| S23 | Loonext texts Loonext | DEV-W1 and DEV-E1 | **Pass:** both thread; no 40007 loop error. | 0 |
+| S24 | STOP, START, HELP, ARRET, AIDE, plain-English opt-out | ROBOT-2 to DEV-E1 only | **Pass:** the opt-out is recorded; the next send is refused before the guard; a call to ROBOT-2 still connects (D38); the plain-English request is only flagged. **Cleanup:** the undo has ROBOT-2 send START. A STOP left in place after cleanup is critical. | 2 |
+| S25 | Automated texts and quiet hours | ROBOT-1 | **Pass:** the away reply, emergency acknowledgement, scheduled send and reminder arrive in the daytime run (variant 1). In the night run (variant 2, destination clock) the scheduled send and reminder are held. The away reply and emergency acknowledgement still arrive, because they answer the customer's own text (D4). The help reply answers AIDE, which S24 sends. | 0 |
+| S26 | Messaging caps and budgets | Seeded rows, at most 2 real sends | **Pass:** each refusal carries its own gate's error: 402 `usage_cap_reached` at the monthly segment cap (seeded usage rows), and 429 `rate_limited` at the hourly limit (a seeded outbound message, which the carrier's daily count also includes); the 80% carrier-ceiling alert lands in Sentry's `rig` environment. Not runnable yet: the API raises that warning by email only, never as a Sentry event. | 0 |
+| S27 | Website widget code | ROBOT-1 | **Pass:** a start with no Turnstile token is refused and the always-pass key passes; the code reaches ROBOT-1 from DEV-W1 within 60 s; verify succeeds; the verification count goes up. The always-block key is not checked, because the rig's Turnstile secret accepts every token. | 0 |
+| S28 | Number buy, bind, call, release | ROBOT-1 calls the new number | **Pass:** one search and one order (the guard's lease record), the order carrying group, profile and connection; the first-order group check passes, or is still pending after 60 s while the number shows in the group; the number rings; no other number is touched. The number is not released. A passing S28 hands it to S29; its undo, registered before the purchase, releases every number QA-G holds unreleased when S28 did not pass, and fails, naming the row, for one whose row never named its Telnyx number. A hand-off no S29 took within two days is taken back by the next S28, which reports it as `infra` (handoff) and releases it. Whether a production Sentry event mentions the number is for production's own ownership-mismatch alert to raise, because the rig reads nothing from production. | 2 |
+| S29 | Cancel, grace, release, billing | Stripe test mode (shared) | **Setup:** the day after S28, under the lease, S29 takes over S28's number, backdates QA-G's `canceled_at` to 31 days ago and fires the grace cron. Grace runs on the database clock (`apps/api/src/billing/grace.ts`), not Stripe's. **Pass:** grace releases S28's number, which then answers 404 through the guard; no live campaign remains; the workspace moves through grace (notices on days 1, 15 and 27, then the release). Rig mode refuses 10DLC, so QA-G holds no campaign, a pass says its deactivation was not covered, and deactivating a real campaign is tested only in the hermetic suite. With no number from S28, S29 still runs grace and reports the release half as not covered. A retry keeps the first attempt's release verdict, because that attempt's undo already released the number. The undo releases the number through the guard if grace did not, and puts QA-G back. **Separately:** a seed-created customer on a Stripe test clock checks invoice and meter totals against the month's usage; the clock is deleted after. | 0 |
+| S31 | Lou reply drafts and AI caps | A synthetic thread | **Pass:** a draft comes back through the guard and the guard's AI neuron count rises; the `suggest_reply` usage row counts it; a request seeded at the 1,500 cap answers `over_cap`. | 0 |
+| S32 | Onboarding, Checkout with the 4242 test card, customer portal | Stripe test mode (shared) | **Pass:** sign-up is confirmed through Mailpit; onboarding completes; Checkout with the 4242 test card returns; the workspace records a subscription Stripe's test mode reports active; the portal opens on `billing.stripe.com`. **Recorded, not judged:** whether Checkout challenged the headless browser. | 0 |
+| S33 | Two-factor login | none | **Pass:** with a TOTP code from the rig's store, the session reaches the second assurance level and the API accepts it. | 0 |
+| S34 | Emails | Robot mailbox; Mailpit | **Pass:** API mail (an invite) arrives at the robot mailbox through Resend and Email Routing within 10 minutes, under S34's own guard lease, with working links; auth mail (a password reset) is read from Mailpit within 2 minutes and its link works. A missed-call alert is push-only since D45, so no mail is checked for one. | 0 |
+| S35 | Public sign-up form | Mailpit | **Pass:** sign up, confirm by email, reach the app. | 0 |
+| D01 | Inbound call rings every rig surface; the answering surface rotates | ROBOT-1 to DEV-A1, dispatcher added under the lease | **Pass:** within 8 s the page dialog shows, and the device-lane emulator shows Telecom RINGING plus the full-screen notification. The robot identifies the answerer by code; the other clears within 3 s; one database winner. | 4 |
+| D02 | Android wake: app killed, forced Doze, locked with a PIN | ROBOT-1 to DEV-A1 | **Pass:** FCM accepted the push at high priority; the nonprod app's beacon stages arrive, each after the stage that causes it; Telecom shows RINGING within 12 s; UIAutomator answers; the rig hears 1,100 Hz through `streamAudio` and the robot hears 2,300 Hz through `injectAudio` (until spike EA1 passes, the audio half is `emulator-audio-unproven`). **Recorded, not judged:** the lock state at ring time, since adb can read an occluded keyguard as unlocked. | 3 |
+| D02p | Android wake with no call | none | **Pass:** a real FCM call push for a synthetic session is accepted, received, reported to Telecom, and shown ringing within 12 s; no ring-me beacon follows within 15 s, because the app stops at the session's 404 before it asks to be rung. Zero dials: D02p runs under a local lease, and the guard refuses every app dial while no lease is live. | 0 |
+| D03 | Stepped Doze | ROBOT-1 | **Setup:** `dumpsys deviceidle enable all`, screen off, battery unplugged in software; then step deep idle to IDLE through one maintenance cycle, holding the device lane so no other run uses the device-lane emulator meanwhile. If the run cannot start after that, the battery goes back in and the emulator is unlocked. D03 holds the device lane, so it is started when no other paid device-lane run is going. **Then:** as D02. Not reaching IDLE is an infrastructure result. Natural deep-Doze entry is not tested, because an emulator never enters it by itself (X6). | 3 |
+| D04 | Android variants: standby buckets, battery saver, secure lock, before first unlock, app hibernation | ROBOT-1 | **Pass:** one variant per run. Its state is read back before the ring and judged against the runner's expectations table; the first runs confirm each row. A device that stays quiet counts only when FCM accepted the push. | 3 |
+| D07 | Android app calls out | ROBOT-1 answers | **Pass:** the device-lane emulator's call connects; codes heard both ways (the device's half through gRPC audio, `emulator-audio-unproven` until EA1 passes); caller ID is DEV-A1. | 2 |
+| D08 | Background tab and Web Push | ROBOT-1, dispatcher-only audience under the lease | **Pass:** the app's service worker shows the ring notification within 10 s, and the same notification carries the outcome within 30 s of hang-up. Chrome's own notification centre is not read. | 2 |
+| D09 | First-answer race | ROBOT-1 | **Pass:** the device-lane emulator and a page answer within 300 ms of each other; the robot hears exactly one code; the database has one winner, the one heard; the loser holds no call within 5 s. Neither app shows "answered elsewhere": both drop a lost ring silently. | 3 |
+| D10, D12 | Fresh install; upgrade from the previous release | ROBOT-1 | **Pass:** after install, or after an upgrade from the signed-in previous build, the app has a push target, then D02p and D02 pass. A stale row from the earlier install also counts as a push target, so D02p's beacons are what prove the new install works. | 3 |
+| D11 | Unattended recovery | none | **Setup:** hard-kill the device-lane emulator's process, restart the other emulators, and cold-boot it with `-no-snapshot-load`. **Pass:** within 10 min, every `rig health` result is green, every emulator is booted, and the device-lane emulator is back, unlocked with its PIN and Doze-enabled; then D02p passes. | 0 |
+| D13 | Bad network and a mid-call Wi-Fi drop | ROBOT-1 | **Setup:** the emulator console sets 80 ms of delay and a reduced network speed; 15 s after answer, `svc wifi disable` drops Wi-Fi, and `gsm data unregistered` with Wi-Fi off makes a 3 s outage. **Pass:** the call survives; the device's code is heard before the outage and again from 5 s after it. No loss is judged, because the console has no loss control (X27); Telnyx's RTP statistics are recorded. The device's own concealment is not measured. | 2 |
+| D14 | In-app voicemail and MMS playback | none | **Setup:** under a local lease, S04's newest voicemail (its audio and transcript) is copied into a QA-A call row on DEV-A1, marked as already transcribed; the undo removes the row and the audio. **Pass:** the device-lane emulator's app lists the call with its "Play voicemail" control, and the rig's transcript of its media audio, heard through `streamAudio`, is within 0.25 word error of S04's phrase (`emulator-audio-unproven` until EA1 passes). Until S04 has left a voicemail, it is an infrastructure result. | 0 |
+| E01 | Emulator wake, rotating through API 34, 35 and 36 | ROBOT-1 to DEV-E1 | **Pass:** as D02, except the emulator hearing the robot: only the device lane has the gRPC audio link (section 3.9), so E01 records no emulator's audio and a pass says that half was not judged. Across a week of E01 runs, at least one API level must also pass the audio verdict, or the lane raises "emulator-audio-degraded". **Variants:** notifications revoked, and force-stopped; both must NOT ring. | 3 |
+| K01 | Outbound carrier egress (optional, Phase 4) | A public echo-test line | By default it never runs: Phase 4 is optional. **Pass:** the robot hears its own code echoed back with a 0.1-1.5 s delay. **Any other answer:** hang up within 3 s, and the line is removed permanently. | 1 |
 
 **How your original examples map:**
 - **Loonext to Loonext:** S03, S10, S23.
@@ -882,16 +888,16 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 
 | Credential or device state | Lifetime | Automatic renewal or check |
 |---|---|---|
-| Telnyx key `nonprod-guard` | No expiry | Guard health every 15 minutes; weekly key inventory |
-| The existing Cloudflare Workers token in `guard` and `rig-cloud` (FA4); `guard-attest-read`, and the optional scoped tokens, once made | No expiry | Deploy health; hourly attestation; the weekly reach audit |
+| Telnyx key `nonprod-guard` | No expiry | Guard health in R00, when it is run; the guard's own weekly key inventory |
+| The existing Cloudflare Workers token in `guard` and `rig-cloud` (FA4); `guard-attest-read`, and the optional scoped tokens, once made | No expiry | Deploy health; attestation (hourly while rigd is up); the reach audit |
 | GitHub App key | No expiry | Installation tokens last 1 hour and are minted per use |
 | Fine-grained token for the agent Windows user (FA2, optional) | No expiry, unless the org forces one | If forced, renewing it is a 5-minute act once a year; the reach audit warns 14 days ahead. This affects development, not rig operation. |
-| The Stripe test-mode key (FA5); the existing Resend send-only key (FA8); the Sentry DSN (FA7); Sentry `agent-read`; `agent_diag` password | No expiry | Used daily; failures surface in R00 or the reach audit |
-| FCM service-account key | No expiry, unless an org policy sets one | Checked at FA6; a daily dry-run send detects failure |
+| The Stripe test-mode key (FA5); the existing Resend send-only key (FA8); the Sentry DSN (FA7); Sentry `agent-read`; `agent_diag` password | No expiry | Used whenever the rig is; failures surface in R00 or the reach audit |
+| FCM service-account key | No expiry, unless an org policy sets one | Checked at FA6; a dry-run send detects failure |
 | Edge, guard and robot caller tokens; rig certificate authority (10 years); rig ES256 signing key; VAPID keys; Android nonprod keystore (25 years) | No practical expiry | Rotated only after an incident |
 | `stripe listen` | Uses the test-mode key directly; no 90-day login | R00 checks it |
 | The VM's SSH key pair and its pre-seeded host keys | No expiry | hostd's tunnel refuses a host key that does not match the pinned one; R00 checks the tunnel |
-| hostd on the host | Per logon from the Startup folder, or per boot with FA16 | The dead-man notices a dark rig; triage on the host flags a missing triage heartbeat |
+| hostd on the host | Per logon from the Startup folder, or per boot with FA16 | Nothing notices a rig that is off: it is used on demand, and an agent who needs it starts it |
 | Telnyx balance and rentals | Spends down; monthly | Production's existing chore. The floor stops test spending first, the $150 alert warns, and the ledger reserves next month's rental. |
 | Telnyx evidence windows (call status 10 minutes after hang-up; call events 24 hours; SIP flow tool 3 days) | Short | The robot stores ids and RTP statistics at test time |
 | Stripe test clocks | Per run | Created and deleted by each run |
@@ -917,7 +923,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 
 1. **Agents and the gates (amended).** Under the amendment, agents keep the production access they have today, and guard and ops runs need no approval, so there is no gate for an agent to approve (section 12, risk 4). What still holds:
    - guard and ops runs take only `main`, through each environment's deployment-branch rule (FA9);
-   - the reach audit lists every credential an agent session can reach. Its weekly run and its GitHub probes are still planned (section 3.1);
+   - the reach audit lists every credential an agent session can reach. Its recurring run and its GitHub probes are still planned (section 3.1);
    - with FA1 and FA2, which stay optional, agents would run in a separate Windows user with no console sessions, no Claude in Chrome and no production keys, under a GitHub token that lacks Deployments, Administration, Environments, Secrets and Variables.
 2. **No real person is called or texted.**
    - The guard holds the only usable Telnyx key. It requires an owned `from` and an owned `to` (live by billing group) or a SIP username on the rig's own connection.
@@ -925,12 +931,12 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
    - The SQL gate inside the send and dial functions refuses non-endpoint destinations on the rig's database.
    - The rig's credential connection has no outbound voice profile.
    - The rig's database holds synthetic data only.
-   - G01 proves this daily.
+   - G01 proves this each time it is run.
 
    The only non-owned destination is the optional echo line. Email goes only to Resend test addresses, or to the robot during S34. Pushes reach only the nonprod Android package.
 3. **Strangers cannot drive the rig, or put words in an agent's input.**
    - The edge rejects strangers' calls through the guard and drops their texts, so their content never reaches the rig or any agent.
-   - The app also rejects owned-but-unlisted numbers, and G01 proves that daily with STRANGER-1.
+   - The app also rejects owned-but-unlisted numbers, and G01 proves that each time it is run, with STRANGER-1.
    - Rig-authored pull requests are never auto-merged.
 4. **No real card is charged.**
    - The rig holds only the existing account's Stripe test-mode key (FA5), and refuses anything not `sk_test_` or `rk_test_`.
@@ -948,14 +954,14 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
    - Nothing is ordered before `/health` reports the rule.
    - An ownership-mismatch alert covers the silent case.
    - 10DLC writes are refused.
-   - S28 proves this monthly.
+   - S28 proved this when it was run (it is dropped).
 7. **Test calls never take a customer's call capacity.**
    - Nonprod concurrency is set to the room left after production's reserve, and the guard's own leg count also enforces it.
    - When the API allows, test legs are hung up on the first production call.
    - Paid dials happen only in the quietest hours.
 8. **The rig cannot command production calls or ring production devices through the guard.**
    - Commands work only on registered legs, SIP targets are limited to the rig's own credentials, and connections are pinned.
-   - The SDK's direct-call path is checked weekly by G02, and named as X25 if open.
+   - The SDK's direct-call path is checked by G02 when it is run, and named as X25 if open.
 9. **Webhook ownership is decided by resource, never by signature.** The edge checks the connection for calls and the profile for texts. Production's handler is untouched.
 10. **Spending is bounded in four layers:**
     - the app's own caps;
@@ -967,7 +973,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 11. **The dangerous keys sit in one place.**
     - The Telnyx, Resend and FCM keys live only in the guard, which has no public URL.
     - It deploys only from `main`, after its policy tests pass.
-    - Version attestation runs hourly and the key inventory weekly.
+    - Version attestation runs hourly while rigd is up, and the guard's key inventory weekly.
 12. **No token on the rig can redeploy production or the guard.**
     - The existing Workers token that deploys the guard and the edge lives only in the `guard` and `rig-cloud` environments, which take deployments from `main` only, so it deploys merged code (FA4 substitution). The VM never holds it.
     - The production deploy token lives in the `production` environment, limited to `main` and release tags.
@@ -989,7 +995,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
     - `rigd` refuses any APK that is not `.nonprod`.
 17. **Production alerts stay clean.**
     - Rig and synthetic events carry the environments `rig` and `synthetic` in the shared project, through a capped relay, and are sent only once production's alert rules filter on `environment:production` (FA7 step 3, gated by `SENTRY_ALERTS_FILTERED`).
-    - Only isolation, guard, agent-reach, account, balance and "system dark" signals reach production on purpose.
+    - Only isolation, guard, agent-reach, account, balance and account signals reach production on purpose.
     - Production's email reputation is protected by the mail rules in section 3.5.
 18. **The rig cannot reach your other machines, or your workstation's files.** It rests on the VM:
     - no shared folders (hgfs), clipboard or drag and drop, so the VM cannot read `D:\` or anything else on the host;
@@ -1030,14 +1036,14 @@ A judged call costs about $0.02-0.03.
 | Cost center | Monthly (expected) | One-time | Hard cap, and who enforces it | Alert before the cap | Source, date |
 |---|---|---|---|---|---|
 | Telnyx numbers: 8 standing at $1.00 + $0.10 SMS; caller-name lookup on one ($0.40); one monthly S28 number (about $2.10) | $11.30 | $8 | At most 10 numbers held and one extra order per 25 days (guard) | none (fixed) | telnyx.com/pricing/numbers and telnyx.com/pricing.md, 2026-10-29 |
-| Telnyx usage: the scheduled dials in section 4.1, about 300 texts, recordings, beep detection, a few transfers | about $9 | none | $35/month all-in, rentals included (guard ledger, then drop). Telnyx daily limits of $0.81/day, about $36.40 a month with rentals. Balance floor. Stranger inbound bounded by reject and detach. | Tier-change and projected-overrun alerts in Sentry's `synthetic` environment. A production alert below $150. | Rates above, 2026-10-29; surcharges at support.telnyx.com/en/articles/1130707 and /12805746, 2026-10-29 |
+| Telnyx usage: whatever the runs and ad-hoc calls and texts spend (a judged call is about $0.02-0.03), with recordings, beep detection and transfers. Nothing is scheduled, so an idle month spends none. | $0 idle; an estimate of a few dollars in a month of heavy repro work | none | $35/month all-in, rentals included (guard ledger, then drop). Telnyx daily limits of $0.81/day, about $36.40 a month with rentals. Balance floor. Stranger inbound bounded by reject and detach. | Tier-change and projected-overrun alerts in Sentry's `synthetic` environment. A production alert below $150. | Rates above, 2026-10-29; surcharges at support.telnyx.com/en/articles/1130707 and /12805746, 2026-10-29 |
 | Cloudflare: 2 Workers and their Durable Objects on the existing Workers Paid plan; Workers AI through the guard | about $0.50 | none | AI capped at 2,000 neurons a day (guard), so at most about $0.66 a month even if the shared free tier is used up. Requests stay within the included 10M. | The 3 existing billing alerts | developers.cloudflare.com/workers/platform/pricing (updated 2026-10-02) and /workers-ai/platform/pricing (updated 2026-10-20), fetched 2026-10-29 |
 | Supabase | $0 | none | Local stack only | none | none |
 | Stripe test mode, FCM, Resend, Sentry, GitHub Actions, Claude | $0 | none | Resend at most 10 a day; Sentry at most 100 a day and 3,000 a month; triage only when failures exist | Resend at 7 a day; Sentry at 70% | Stripe test mode has no charge; firebase.google.com/pricing, 2026-10-29; resend.com/pricing, 2026-10-30 |
 | Set-aside for month-end surcharges and charges on detached numbers | $1.50 | none | Inside the $35 cap, not added to it (guard ledger, `SET_ASIDE_USD`) | None of its own: the usage an agent files from detail records counts whenever it is above the ledger's estimate | D142, update of 2026-11-01 |
 | Electricity | Estimate: $2-6, the workstation's extra draw | none | none | none | Estimate |
 | Hardware | none | $0 | none | none | No hardware is bought: the rig is a VM on the workstation, and the phones are emulators |
-| **Total** | **about $24, plus $2-6 of power; ceiling about $40** | **about $8** | | | |
+| **Total** | **about $13 fixed, plus usage and $2-6 of power; ceiling about $40** | **about $8** | | | |
 
 **Conditional and optional:**
 
@@ -1051,6 +1057,8 @@ A judged call costs about $0.02-0.03.
 
 ## 8. How an agent gets in, and what it can see and drive
 
+This section is the main way to use the rig. Everything below is started by an agent, by hand. Nothing starts on its own, and the scenarios of section 4.2 are only one of the things an agent can do here.
+
 ### Ways in
 
 - **SSH from the host.** Host agents reach the VM with `ssh rig@192.168.70.10`, using the key `F:\loonext-rig\host\ssh\rig`, and the host key the VM was created with is pinned.
@@ -1058,14 +1066,16 @@ A judged call costs about $0.02-0.03.
   - Each repro or fix gets its own worktree, so the agent patches, re-runs and verifies in one place.
   - `vmrun` guest operations are a rescue path only: they need a guest password on the command line, which puts it in the process list.
   - Nothing is signed in to Claude in the VM, and there is no Remote Control session there (FA12 is dropped).
-- **The `rig` CLI**, locally or through `/ctl/rpc`:
-  - `rig deploy --ref`, `rig seed [--recipe]`;
-  - `rig run <scenario> [--recipe] [--repeat N] [--build <ref>]`, `rig suite daily|weekly|release`;
-  - `rig device pixel|emu34|emu35|emu36 install|kill|forcestop|doze|standby|saver|lock|unlock|coldboot|network|screenshot|logcat|callflow|bugreport`;
-  - `rig robot dial|answer|dtmf|sms|mms|verdict|inbox|mail`;
-  - `rig cron <expr> [--time]`;
-  - `rig budget`, `rig room`, `rig lease`, `rig evidence <run>`.
-- **The hourly triage agent on the host** (section 3.10), over the same SSH path. FA10 is dropped, so there is no cloud triage task.
+- **The `rig` CLI**, on the rig over SSH. Built today (`tools/rig/src/cli.mjs`):
+  - `rig deploy --ref <tag|branch|sha>` (or `--worktree <path>`) puts any ref on the rig, so an unreleased branch can be tried before it ships; `rig apk --ref <ref>` builds the matching nonprod app; `rig seed` and `rig stack up` prepare the database and the stack;
+  - `rig health` is R00 on demand;
+  - `rig cron <expr|job:name> [--time]` fires one app cron on demand;
+  - `rig run <scenario>[-<variant>] [--run-id <id>]` starts one scenario, a thin wrapper over rigd's `node tools/rig/rigd/src/cli.ts run`. It takes the guard's lease, judges, and records its verdict and evidence as always. rigd's `verdicts [--unresolved]`, `secrets` and `calibrate` commands are in the same CLI;
+  - robotd (`tools/rig/robot`) serves the robot over loopback HTTP, with its own token: `POST /calls/dial`, `POST /calls/expect`, `GET /calls/<id>`, `POST /sms`, `GET /inbox` and `GET /sink`. That is how an agent places a call or a text from a robot number today;
+  - hostd (`tools/rig/host`, on the Windows host) boots, kills and lists the emulators and the VM: `hostd devices list|boot|kill`, `hostd vm status|start|stop|revert`, `hostd doctor`.
+- **Designed, not built yet:** a single front for the rest, which the design lists as `rig run <scenario> [--recipe] [--repeat N] [--build <ref>]`, `rig suite release`, `rig repro <issue>`, `rig seed --recipe`, `rig device pixel|emu34|emu35|emu36 install|kill|forcestop|doze|standby|saver|lock|unlock|coldboot|network|screenshot|logcat|callflow|bugreport`, `rig robot dial|answer|dtmf|sms|mms|verdict|inbox|mail`, and `rig budget`, `rig room`, `rig lease`, `rig evidence <run>`. Until they exist, the same things are done through the lanes, hostd and robotd above, adb, and plain SQL. None of them is a schedule: a `rig suite` would run a chosen set once, when an agent asks.
+- **Through the edge,** `/ctl/rpc` reaches rigd with the triage token: `rig.status`, `scenario.run` and the `triage.*` methods, which list unresolved failures, re-run a scenario, and fetch evidence.
+- **Triage on request** (section 3.10), over the same SSH path. Nothing schedules it, and FA10 is dropped, so there is no cloud triage task.
 - **Workstation agents**, for production reads only, from the host and never from the VM:
   - `scripts/ops/call-trace.mjs` as `agent_diag`;
   - Workers logs through `agent-logs-read`;
@@ -1100,17 +1110,17 @@ A judged call costs about $0.02-0.03.
 - mobile-mcp (adb);
 - Playwright MCP;
 - a Postgres MCP pointed only at the local database;
-- `loonext-rig`, which wraps the rig commands, robot verdicts, the inbox and the guard's nonprod reads.
+- `loonext-rig`, which wraps the rig commands, robot verdicts, the inbox and the guard's nonprod reads (designed; no MCP server is built in `tools/rig` yet).
 
 There is no Telnyx, Cloudflare or Sentry MCP there.
 
 ### What the agent can see
 
 - **Server side:** unsampled API and web logs; the whole local database (calls, legs, sessions, push attempts, beacons, the webhook ledger, messages, opt-outs, usage); Durable Object state.
-- **Telnyx, through the guard:** call events, detail records, webhook deliveries, session analysis, recordings and the budget ledger, for nonprod ids only.
+- **Telnyx, through the guard:** call events, detail records, webhook deliveries, session analysis, recordings and the cost ledger, for nonprod ids only.
 - **Robot and edge:** robot verdicts with per-frame numbers and RTP statistics; edge relay logs.
 - **Android:** logcat; `dumpsys` telecom, notification, deviceidle, power and usagestats; the debug variant's call-flow log; screenshots; bug reports.
-- **Elsewhere on the rig:** Chrome traces and `getStats`; the Stripe listener log; Mailpit; rig health history; the current room and budget.
+- **Elsewhere on the rig:** Chrome traces and `getStats`; the Stripe listener log; Mailpit; `rig health` results (`state/health.json`); the current room and the cost ledger.
 - **Production, from the host:** `ops_diag` views, Workers logs (3-7 days), Sentry and redacted Telnyx reads.
 
 **Not visible:** Telnyx's portal-only tools (X26).
@@ -1126,9 +1136,11 @@ There is no Telnyx, Cloudflare or Sentry MCP there.
 
 ---
 
-## 9. Customer-repro workflow
+## 9. Reproducing a reported issue
 
-Example: "A customer's Android phone didn't ring yesterday."
+Example: "A customer's Android phone didn't ring yesterday." A Sentry error follows the same path, from step 2 with the event's stack and breadcrumbs in place of the call trace. Every step is started by an agent when a report arrives; nothing repeats on its own, and what the rig proves afterwards (steps 7 and 10) is proved by runs the agent starts. Regression coverage of the fix belongs in a CI test (step 9), not in a recurring rig run.
+
+Commands marked "designed" in section 8 are not built yet; the text says what to use until they are.
 
 1. **Intake.** Open a GitHub issue holding only a hash of the workspace id, the platform and the time window. The issue number stays out of commit trailers until the work is done.
 2. **Read production without copying it** (agent Windows user). Run `node scripts/ops/call-trace.mjs --company-hash <h> --since 48h` as `agent_diag`. The login comes from `AGENT_DIAG_DATABASE_URL`, or from the same name in `~/.loonext/agent-diag.env`, which FA13 writes (the pooler login `agent_diag.<project ref>`). Any other login is refused. Every session first checks its own safety: read-only, each timeout at 60 seconds or less, no TEMP, no `pg_net`, and nothing outside `ops_diag`. The tool runs `psql`, or without one the client inside a local Supabase database container. `--company-id <uuid>` hashes the id locally and sends only the hash. For the window it shows:
@@ -1146,12 +1158,12 @@ Example: "A customer's Android phone didn't ring yesterday."
 
    If the customer's app predates the beacon, (b) and (c) cannot be separated, so reproduce both. Android and iOS send all six stages (`push_received`, `os_reported`, `ring_me_sent`, `ringing_shown`, `answered`, `declined`); the web sends the last three it can see. Every client keys a beacon on the INVITE's `X-Loonext-Session`, and `apps/api/src/routes/ring-beacons.test.ts` fails if a client stops sending a stage it is listed for.
 4. **Write a recipe.** `tools/synthetic/recipes/<issue>.yml` holds settings only: app version, Android level, phone state, ring strategy, member levels, network. `check-rig-no-e164` checks it in CI.
-5. **Hand it to the rig.** Run `rig repro <issue>` in the VM over SSH.
+5. **Hand it to the rig.** Designed: `rig repro <issue>` in the VM over SSH. Until it is built, the agent runs steps 6 and 7 by hand over SSH.
 6. **Rebuild what the customer ran.**
    - `rig deploy --ref <server release tag>`. Old web refs use the rig-only unsupported-Next flag; pre-seam server refs run in `--pre-seam` mode.
-   - `rig apk build --ref <app tag>`. Tags older than the `nonprod` build type get a build-config overlay.
-   - `rig seed --recipe <issue>`.
-7. **Reproduce at a rate, for free.** Run `rig run D02p --recipe <issue> --repeat 20` on the device-lane emulator and on an emulator at the customer's API level. Stage (d), or a confirmation, uses the paid D02: at most 5 runs from the repro reserve, in the next window.
+   - `rig apk --ref <app tag>` (the design calls it `rig apk build`). Tags older than the `nonprod` build type get a build-config overlay.
+   - `rig seed` today; `rig seed --recipe <issue>` is designed.
+7. **Reproduce at a rate, for free.** Run D02p 20 times on the device-lane emulator and on an emulator at the customer's API level (`rig run D02p`, once per run today; `--recipe <issue> --repeat 20` is designed). Stage (d), or a confirmation, uses the paid D02: keep it to about 5 runs, because each is real dials under the guard's caps, and it runs only inside the guard's window.
 8. **If it does not reproduce, sweep.** Change one variable at a time: standby bucket, battery saver, each permission, lock and before-first-unlock states, network loss, app version. Record each negative result. If the cause looks specific to a physical phone (OEM power management, the radio, the audio stack), record it as X6.
 9. **Fix test-first, in a rig worktree.**
    1. Write a failing test that pins the cause: Robolectric with `@Config(sdk = [34])`, or an API, SQL or workerd test.
@@ -1159,14 +1171,14 @@ Example: "A customer's Android phone didn't ring yesterday."
    3. Run lint, `pnpm -r typecheck` and `pnpm -r test`, plus the Android suite if shared code changed.
 10. **Verify before merge.**
     - Deploy the branch on the rig and build the APK from it.
-    - Require 20 of 20 D02p passes, 5 of 5 D02 passes, and a core run with no new failures.
+    - Require 20 of 20 D02p passes, 5 of 5 D02 passes, and a run of the scenarios that touch the area with no new failures.
     - The rig App posts a `synthetic/repro` status and opens the PR.
     - A workstation agent reviews the diff as untrusted input, re-runs the checks, and merges it.
 11. **Release and confirm.**
     - Production changes only when the release-please PR merges.
-    - The rig reruns the recipe against the released tag.
+    - An agent reruns the recipe against the released tag.
     - The issue stays open, labelled `awaiting-production-evidence`, until P01 has at least 30 attempts for that platform and version with a passing rate; P01 then closes it automatically. With today's volume that can take a long time, and the label says so.
-    - The recipe joins the rotation for good, and its trace becomes a hermetic fixture under `apps/api/e2e/` through `node scripts/trace-to-fixture.mjs <trace> --out <fixture>`, which renumbers every number into 555-0100..0199 and writes nothing if any number survives.
+    - The recipe is kept as the way to repeat the repro on demand, and its trace becomes a hermetic fixture under `apps/api/e2e/` through `node scripts/trace-to-fixture.mjs <trace> --out <fixture>`, which renumbers every number into 555-0100..0199 and writes nothing if any number survives.
 
 At no step does any customer number, name, message, recording or database row leave production.
 
@@ -1180,7 +1192,7 @@ At no step does any customer number, name, message, recording or database row le
 | **0b. Seams, evidence, guards, workstation tools** | Everything else in section 3.7, and the docs in section 14 | Yes, now | FA4 and FA9 to move `ship.yml` and `backup-posture.yml`. |
 | **1. Cloud pieces in existing accounts** | Edge and guard; the Telnyx partition created by the guard's setup routine; the notification channel; attestation and key inventory; `rig-cloud.yml`, `guard.yml`, `rig-secrets.yml`. Number orders wait for 0a in production and the first-order check; paid dials wait for 0a and the ladder. Texts may start sooner. | Yes | Open: FA4's `guard-attest-read` token and Email Routing, and FA7 steps 3-5. FA3, FA6 and FA9 are done, FA5 and FA8 are substituted, and FA10 is dropped. |
 | **2. The rig** | **Spikes first:** (2) code calibration; (3) local ES256 sign-in; (4) the cron route; (5) the AI shim; (6) FCM rewrite and package pinning; (7) robot inbound recording; (8) emulators under WHPX, started by hostd; (9) the edge-to-guard service binding; **EA1** gRPC call audio, in two steps: with no Telnyx cost, an AVD booted with `-grpc` and `-no-snapshot-load` (with and without `-no-audio`) whose in-guest page plays its microphone back, with a Node client injecting the 2,300 Hz code and streaming the output, passing when the detector hears both codes at 48 kHz, and measuring injection before and after the microphone opens; then one robot dial under the lease, passing when each side hears the other's code in at least 3 cycles with calibration's 10 dB of separation and no emulator crash; **VM1** cloud-init's datasource detection on Workstation, unproven until the first boot; **VM2** emulators started with nobody logged on; **VM3** the tunnel and the 5137 adb server, including whether the emulators honour `ANDROID_ADB_SERVER_PORT`. Spike (1), the Bluetooth purchase gate, is gone with the hardware. **Then:** VM creation, bootstrap, network, rig mode, seed, robot, `rigd`, lanes. | Yes | Open: FA15's first licence acceptance, on the Windows SDK and on the VM's SDK. VM creation replaces FA11 and is an agent action; FA12 is dropped. FA16 is optional. |
-| **3. Schedule, reporting, triage, production watches** | Timers and the dial-budget plan; the Sentry relay; triage on the host; dead-man; G01, G02, P01, PW01. The guard's own cap is final (section 4.1). | Yes | Nothing |
+| **3. On-demand runs, reporting, triage, production watches** | Running scenarios by hand under the guard's caps; the Sentry relay; triage on request; G01, G02, P01, PW01. No timers and no dead-man (D142, second update of 2026-11-01). The guard's own cap is final (section 4.1). | Yes | Nothing |
 | **4. Optional** | K01 echo probe (by default it never runs); the Google calendar partial (X22); raw SSH relay | Yes | For calendar: enable the Calendar API and create one service account in the existing Google Cloud project (10 minutes). |
 
 ### Founder actions, with click paths
@@ -1198,7 +1210,7 @@ Labels are as of 2026-10-29; vendor screens change.
 | 5. Fraud-hold scope | Assumed account-wide and, for the rig, permanent: the rig never contacts Telnyx, and lifting a hold on production is a founder act outside it. So the first fraud-type notice latches the paid lanes off (section 3.5). |
 | 6. Ordering both countries; `billing_group_id` on orders | Measured by the first-order read-back, which finds the E.164 in the partition's group listing and releases nothing. |
 | 7. An active-call count | Measured: `GET /v2/connections/{id}/active_calls`, per connection. An unknown answer refuses. |
-| 8. Disabling outbound SIP URI calls per connection | `sip_uri_calling_preference` governs only inbound calls, so X25 stays an accepted residual, measured weekly by G02. |
+| 8. Disabling outbound SIP URI calls per connection | `sip_uri_calling_preference` governs only inbound calls, so X25 stays an accepted residual, measured by G02 when it is run. |
 | 9. Whether notification webhooks are signed | Probably signed, not proven. The edge's corroboration (section 3.4) is unchanged. |
 | 10. Billing on a number with no connection | Assumed billed; the $1.50 monthly set-aside covers it (section 7). |
 
@@ -1231,7 +1243,7 @@ Agents can still merge as before, because merging is Contents and Pull requests.
 
 **FA3. Done.** The guard's Telnyx key, `nonprod-guard`, with no expiry, is the guard's secret `TELNYX_API_KEY`, and is pasted nowhere else.
 
-**FA4. Cloudflare (substituted; the scoped tokens are optional hardening).** The existing Workers token is `CF_API_TOKEN` in the `main`-only environments `guard` and `rig-cloud`, and deploys the guard and the edge. Still wanted from step 2, and open: `guard-attest-read`, for the hourly attestation. The other four tokens in step 2 are optional hardening. Step 1 is unchanged; step 3, Email Routing, is open and agents cannot do it, having no access to the zone.
+**FA4. Cloudflare (substituted; the scoped tokens are optional hardening).** The existing Workers token is `CF_API_TOKEN` in the `main`-only environments `guard` and `rig-cloud`, and deploys the guard and the edge. Still wanted from step 2, and open: `guard-attest-read`, for the attestation. The other four tokens in step 2 are optional hardening. Step 1 is unchanged; step 3, Email Routing, is open and agents cannot do it, having no access to the zone.
 1. Workers & Pages > Create > Start with Hello World, twice:
    - `loonext-rig-edge`: Settings > Domains & Routes > workers.dev > Enable.
    - `loonext-telnyx-guard`: Settings > Domains & Routes > workers.dev > Disable.
@@ -1256,7 +1268,7 @@ Agents can still merge as before, because merging is Contents and Pull requests.
 4. Paste the JSON into the guard as secret `FCM_SERVICE_ACCOUNT_JSON` (same path as FA3 step 2), then delete the download.
 
 **FA7. Substituted: the existing Sentry project.** No project is created.
-1. The existing project's DSN goes into environment `rig` as `SENTRY_RIG_DSN` and `SENTRY_SYNTHETIC_DSN`, and into `rig-cloud` as `SENTRY_SYNTHETIC_DSN`: the edge's dead-man sends stale heartbeats there. Events carry the environments `rig` and `synthetic`.
+1. The existing project's DSN goes into environment `rig` as `SENTRY_RIG_DSN` and `SENTRY_SYNTHETIC_DSN`, and into `rig-cloud` as `SENTRY_SYNTHETIC_DSN`: rigd's relay and the edge's synthetic-environment sends use it. Events carry the environments `rig` and `synthetic`.
 2. The same project's DSN goes into environments `rig-cloud` and `guard` as `SENTRY_PROD_DSN`, for the alerts meant for production.
 3. Open: every production alert rule must filter on `environment:production`, or a rig or synthetic event could fire one (section 12, risk 20). Auto-resolve is not set: it is a project-wide setting. Once it is done, set the variable `SENTRY_ALERTS_FILTERED` to the date in environments `rig` and `rig-cloud`; until then `rig-secrets.yml` and `rig-cloud.yml` withhold `SENTRY_RIG_DSN` and `SENTRY_SYNTHETIC_DSN`, so no rig or synthetic event is sent.
 4. Open: Organization Settings > Spike Protection: turn it on for all projects.
@@ -1322,7 +1334,7 @@ node scripts/ops/call-trace.mjs --self-check
 - `--dry-run` connects to nothing. `--check` is read-only, and refuses until the migration is live.
 - The script generates the password, sends the database only its SCRAM-SHA-256 verifier, and writes the login to `~/.loonext/agent-diag.env`, readable by that user only. Nobody sees the password, and no CI job creates or sets it. Running it again rotates it.
 - If `call-trace` ever refuses the login as unsafe, withdraw it: `node scripts/ops/set-agent-diag-password.mjs --target production --withdraw`.
-- An agent then copies the same login into environment `guard` as `AGENT_DIAG_DATABASE_URL`, for the daily measurements run (section 3.5), without printing it: `gh secret set --env guard -f ~/.loonext/agent-diag.env`. That run is the one CI job that receives the login.
+- An agent then copies the same login into environment `guard` as `AGENT_DIAG_DATABASE_URL`, for the guard's daily measurements run (section 3.5), without printing it: `gh secret set --env guard -f ~/.loonext/agent-diag.env`. That run is the one CI job that receives the login.
 - After every rotation the agent runs that command again. After a withdrawal it deletes the copy: `gh secret delete AGENT_DIAG_DATABASE_URL --env guard`. A stale copy fails the measurements run, and once the reserve is 36 hours old every paid dial is refused.
 
 **FA14. Guard deployments (an agent action, per the amendment).** `guard.yml` deploys from `main` after its policy tests pass, with no approval. An agent dispatches its admin routines (check, setup, order-standing, resume-ordering, key-inventory, accept-key-inventory, reattach, measurements) from `main`.
@@ -1356,10 +1368,10 @@ node scripts/ops/call-trace.mjs --self-check
 
 1. **A Telnyx fraud hold is account-wide** (accepted, the largest risk). Test traffic will probably be most of the account's calls. A hold would stop production calling too, and Telnyx does not disclose its scope. Mitigations: on-net only, low volume, quiet hours, and the first fraud-type notice latches the paid lanes off until a reviewed change to `SIGNAL_LATCH_RESET` (section 3.5). Recovery needs you, because only Telnyx support can lift a hold; that is a founder act outside the rig, which never contacts Telnyx.
 2. **Concurrency room may be too small.** If the account's limit is 2 or 5, most or all paid call lanes do not run (section 4.1). Telnyx documents a default of 2 (support.telnyx.com/en/articles/1130717, fetched 2026-10-31) and 5 at the Paid level (developers.telnyx.com account levels, checked 2026-10-29), and no API says which applies. Until the proof ladder proves more than its floor of 2, the room is 0 and no paid call lane runs. That would also mean production cannot ring a full crew, which is worth knowing on its own.
-3. **The guard's key has full production authority.** A merged policy bug could touch production. Mitigations: policy unit tests, the two-way registry check, start-up refusals, daily 403 probes, attestation, key inventory.
+3. **The guard's key has full production authority.** A merged policy bug could touch production. Mitigations: policy unit tests, the two-way registry check, start-up refusals, 403 probes (G01), attestation, key inventory.
 4. **Agents keep production reach** (the amendment). Agents hold production keys and can drive the founder's browser, as they do today. The guard does not widen that. Its protections are in code, and FA1/FA2 remain available as optional hardening.
 5. **Ordering.** No number before production's `/health` shows the ownership rule and the first-order check passes. All eight standing roles are ordered; while paid dials are refused none is ordered with a voice connection.
-6. **One home site, on one workstation.** Power or internet loss stops synthetic coverage. The dead-man alerts production after 6 hours dark.
+6. **One home site, on one workstation.** Power or internet loss means the rig is unavailable until it is back. Nothing alerts on that, because nothing on the rig is scheduled; an agent who needs a repro waits for the workstation.
 7. **Fidelity gaps from running locally** (X23).
 8. **P01 has little to measure today.** With one production number, it mostly reports "insufficient sample", and repro issues may wait a long time for production evidence.
 9. **Unproven mechanisms,** each with a spike and a fallback:
@@ -1385,7 +1397,7 @@ node scripts/ops/call-trace.mjs --self-check
     - If the account is at the Paid level, Telnyx prepends its automated-call announcement to production's own greetings and dials, and caps customers at 5 concurrent calls and 100 a day.
     - `docs/deploy/04-telnyx.md` said ring legs come from the WebRTC connection, as D43's live fix made them. The code now dials every leg from the voice connection (`apps/api/src/calls/runtime.ts`), and D43 found that a ring dialed from the voice connection fails. 04-telnyx.md now says what the code does and keeps the question open. **Verify** on production's next inbound call that a browser rings.
 15. **Windows Update restarts the host inside the dial window.** It did 6 times in 60 days, at 08:29-10:44 UTC. The VM and the emulators stop with it, and come back at the next logon, or at boot with FA16. Moving active hours over 04:00-10:00 UTC would avoid most of them; that is your choice.
-16. **Overnight power-offs.** Five gaps of 9-14 hours in 60 days each covered the whole dial window. A dark night is infrastructure (`synthetic-dark`), never a product failure, and costs that day's paid runs.
+16. **Overnight power-offs.** Five gaps of 9-14 hours in 60 days each covered the whole dial window. A paid run cannot be started in a window the workstation slept through. That is infrastructure, never a product finding.
 17. **Host CPU load.** The workstation is 44-68% busy with agent sessions, and the VM and emulators add to it. Timing-sensitive verdicts (ring within 6-12 s, the 300 ms race in D09) may flake under load; a flake is retried once before it is reported.
 18. **The F: disk budget.** F has 128 GB free. The VM's disk can grow to 90 GB, its secrets disk is 4 GB, and the AVDs need their own space. C has only 34 GB free and D is a hard drive, so neither is a fallback.
 19. **Emulator audio is half proven.** gRPC `injectAudio` and `streamAudio` ran on this workstation on 2026-11-01 (EA1 step one), but the robot-dial step has not, so the store has no `emulator-audio-proven`. Until spike EA1 passes, every device-lane audio verdict is `emulator-audio-unproven`, never a pass, so call audio on Android is not judged at all.
@@ -1413,7 +1425,7 @@ node scripts/ops/call-trace.mjs --self-check
 | Rig memory | 24 GB for the VM; the emulators run on the host, 2 cores and 3 GB each, at most 3 booted (2026-11-01). |
 | Transfer pricing | Transfers are budgeted at $0.10 each (SIP Refer, rate sheet 2026-10-29). |
 | Cron path | `/cdn-cgi/handler/scheduled`, confirmed in wrangler 4.106.0. |
-| Isolation proof | G01 runs daily at the app layer; guard 403 probes run daily. |
+| Isolation proof | G01 proves the app layer and the guard's 403s when it is run (on demand since 2026-11-01). |
 | Email realism | A robot mailbox through Email Routing, now limited to S34. |
 | Stripe hidden step | Portal and tax settings are made by API. |
 | Android build | `initWith(release)` plus a debuggable twin. |
@@ -1427,7 +1439,7 @@ node scripts/ops/call-trace.mjs --self-check
 | Blocker: production keys in commented lines of `apps/api/.dev.vars` | Removed only if you choose FA1, which also gives agents local-only env files with fakes. Either way, `check-local-secrets` stops a push while any file git would stage holds a live key, and CI checks again. Its session-start hook waits for your yes (3.1). |
 | Blocker: test calls can starve a customer's call | Room formula, live-leg count, preemption, measured window; paid lanes open only on the proof ladder's evidence, with room 0 at the floor (3.5, 4.1) |
 | Test traffic is the majority, so surcharge and fraud reasoning was inverted | Account-level ratio control, single-surface audiences, cancelled ring legs assumed abandoned, and a latch on the first fraud-type notice (2.2, 3.5) |
-| Dials undercounted | Counts derived from the journeys; CI budget check with retry and repro reserves; the cadence encoded in `tools/rig/scenarios.json`, with the runs the hourly cap cannot hold named (4.1, 4.2) |
+| Dials undercounted | Counts derived from the journeys; per-run dial costs in `tools/rig/scenarios.json`, checked in CI, with the runs the hourly cap cannot hold named (4.1, 4.2) |
 | P01 has no sample | Reports n; "insufficient sample" is never a pass; repro issues stay open until evidence exists (3.11, 9) |
 | Wired fallback breaks adb | Moot since 2026-11-01: there is no phone. Emulator audio goes through gRPC, gated by EA1 (3.9) |
 | FCM token seam missing | `FCM_OAUTH_TOKEN_URL`, a guard-token bearer in rig mode, a dummy key, and a test (3.3, 3.7) |
@@ -1461,7 +1473,7 @@ A new decision, numbered when committed because parallel sessions also write dec
 **Docs updated in the same change:**
 - `docs/deploy/04-telnyx.md` section 6: "sandbox" becomes "the nonprod partition, through the guard"; the ring-leg description is corrected; the rule that production numbers never carry a billing group is added.
 - New rows in `docs/deploy/06-env-reference.md`, enforced by `check-env-doc`.
-- A new `docs/RIG.md`: runbook, cadence plan, verification checklist, and the resource list without ids.
+- A new `docs/RIG.md`: runbook, verification checklist, and the resource list without ids.
 - A note in `docs/CAPACITY.md`.
 
 **Update, 2026-11-01: no Telnyx ticket, no new hardware.** Recorded in D142's update of that date, which wins where this file disagrees:
@@ -1473,3 +1485,10 @@ A new decision, numbered when committed because parallel sessions also write dec
 - **FA11 is withdrawn.** The rig is a new VMware Workstation VM, `loonext-rig`, with the Android emulators on the Windows host under WHPX, driven by `hostd` (section 3.2). The technician's phone is the AVD `rig-pixel`, and the id `pixel` names it. Call audio goes through the emulator's gRPC service, gated by EA1 (section 3.9). X6 widens to any physical phone, and X27 is new (section 4.3).
 - **Founder actions:** FA5, FA7, FA8 and FA4 are substituted with what already exists; FA10 and FA12 are dropped; FA3, FA6, FA9 and FA13 are done; FA16 is new and optional (section 10).
 - **Cost:** hardware $0 and about $8 one-time; about $24 a month plus $2-6 of workstation power, with a $1.50 set-aside inside the $35 cap (section 7).
+
+**Second update, 2026-11-01: the rig runs nothing on a timer.** Recorded in D142's second update of that date, which wins where this file disagrees. Earlier sections describe what was decided at the time, and this list is the current behaviour:
+- **On demand only.** No scenario timer, cron timer or health timer is installed by `rig deploy` or by bootstrap. The rig is a dev and QA environment: any ref runs there for real, and an agent uses it to reproduce, diagnose and verify a reported issue (a Sentry error, a customer report such as dropped calls) and for ad-hoc work. The scenarios are optional shortcuts. CI does regression testing (sections 1, 8 and 9).
+- **Registry.** `tools/rig/scenarios.json` is the catalogue of what can be run: dials, far-end legs, room and variants. Its cadences, the encoded schedule, the monthly dial budget and the 20% retry and 60-dial repro reserves are gone (section 4.1).
+- **Kept:** each run's dial cost, and the guard's own caps and window (18 a day, 3 an hour, the account-wide check). The guard's daily `measure` job and limit probe also stay, to keep paid-call admission fresh so an on-demand repro is never refused.
+- **Gone:** the edge's dead-man with its rig, suite and triage heartbeats, `['synthetic-infra', component]` stale alerts and `['ops','synthetic-dark']`; rigd's hourly schedule refresh; the hourly triage agent. The edge's mail heartbeat stays because the guard's Resend gate reads it.
+- **Cost:** about $13 a month fixed plus usage and $2-6 of workstation power; the $35 all-in ceiling is unchanged (section 7). This supersedes the $24 a month above.

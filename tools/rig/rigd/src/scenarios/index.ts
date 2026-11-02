@@ -69,12 +69,14 @@ export const RUNNERS: Readonly<Record<string, ScenarioRunner>> = Object.fromEntr
 );
 
 /**
- * Scenarios the rig would time that rigd cannot run yet, and why: a runner
- * left out of RUNNERS because every run would report the same missing piece,
- * a standing red that hides a real one, or one that cannot be written yet.
+ * Scenarios in the catalogue that rigd cannot run yet, and why: a runner left
+ * out of RUNNERS because every run would report the same missing piece, a
+ * standing red that hides a real one, or one that cannot be written yet.
+ * `rig run` refuses them with the reason.
  */
 export const NOT_RUNNABLE_YET: Readonly<Record<string, string>> = {
   G02: "the Android half needs the nonprod build to place an SDK call to a SIP address, and the app has no entry point for one",
   S08: "the web call bar has no consult transfer control, so every run would report the browser lane",
+  K01: "an optional Phase 4 lane with no runner; it never runs by default (docs/RIG.md 2.3)",
   S26: "the API raises the carrier-ceiling warning by email only, never as a Sentry event, so every run would fail carrier_alert_missing",
 };

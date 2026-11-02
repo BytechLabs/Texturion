@@ -18,7 +18,7 @@
  * follows, and suppressing one would hide a real failure.
  *
  * A skipped API cron lists the liveness alerts that follow. The rig fires
- * only the API's crons (`rig deploy` gives no other config a timer), so any
+ * only the API's crons (`rig cron` takes the API's), so any
  * other Worker's (the edge's, the guard's) is a skip, and it lists no
  * fingerprint: that Worker reports nowhere the rig's relay reads, so anything
  * listed could only match an event the rig's own API raises, and hide it.

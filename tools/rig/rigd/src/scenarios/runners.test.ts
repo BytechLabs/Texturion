@@ -1,14 +1,12 @@
 /**
  * RUNNERS, NOT_RUNNABLE_YET and tools/rig/scenarios.json describe one set of
  * scenarios: what rigd can run, what it cannot yet and why, and what the
- * registry schedules. The scheduler reads all three, so they must agree.
+ * registry lists. `rig run` reads all three, so they must agree.
  */
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { dialBudget, parseWindow } from "../budget.ts";
-import { loadRegistry, notOnRigBecause } from "../registry.ts";
-import { buildSchedule } from "../schedule.ts";
+import { loadRegistry } from "../registry.ts";
 import { NOT_RUNNABLE_YET, RUNNERS } from "./index.ts";
 
 const registry = loadRegistry(resolve(fileURLToPath(import.meta.url), "../../../../scenarios.json"));
@@ -28,31 +26,11 @@ describe("the runners and the registry", () => {
     for (const [id, reason] of Object.entries(NOT_RUNNABLE_YET)) expect(reason.trim(), id).not.toBe("");
   });
 
-  it("leave no scenario the rig times without a runner or a reason it has none", () => {
+  it("leave no scenario the registry runs on the rig without a runner or a reason it has none", () => {
     const unaccounted = registry.scenarios
-      .filter((entry) => notOnRigBecause(entry) === undefined)
+      .filter((entry) => entry.runsOn === "rig")
       .filter((entry) => !runnable.includes(entry.id) && !notRunnable.includes(entry.id))
       .map((entry) => entry.id);
     expect(unaccounted).toEqual([]);
-  });
-
-  it("lay out a schedule the budget holds: every runner timed, and every scenario that cannot run yet listed with its reason", () => {
-    expect(dialBudget(registry).fits).toBe(true);
-    const schedule = buildSchedule(registry, {
-      window: parseWindow("04-10"),
-      runnable: new Set(runnable),
-      notRunnable: NOT_RUNNABLE_YET,
-      node: "/usr/local/bin/node",
-      cli: "/opt/rig/tools/rig/rigd/src/cli.ts",
-      home: "/var/lib/loonext-rig",
-    });
-    const timed = new Set(schedule.timed.map((t) => t.id));
-    for (const id of runnable) {
-      const entry = registry.byId.get(id)!;
-      if (entry.scheduled) expect(timed.has(id), `${id} is runnable and scheduled but has no timer`).toBe(true);
-    }
-    for (const [id, reason] of Object.entries(NOT_RUNNABLE_YET)) {
-      if (registry.byId.get(id)!.scheduled) expect(schedule.notTimed).toContainEqual({ id, reason });
-    }
   });
 });

@@ -416,17 +416,7 @@ export type RigToEdge =
       body_b64?: string;
     }
   | { t: "rpc-result"; id: string; ok: true; result: unknown }
-  | { t: "rpc-result"; id: string; ok: false; error: string }
-  | {
-      t: "heartbeat";
-      component: HeartbeatComponent;
-      /** When the component last did its work, not when the beat was sent; the edge never counts it later than arrival. */
-      at: string;
-    };
-
-/** The dead-man's three heartbeats (section 3.10). */
-export const HEARTBEAT_COMPONENTS = ["rig", "suite", "triage"] as const;
-export type HeartbeatComponent = (typeof HEARTBEAT_COMPONENTS)[number];
+  | { t: "rpc-result"; id: string; ok: false; error: string };
 
 /** A call event must be answered inside the app's 10-second webhook timeout. */
 export const CALL_EVENT_RELAY_TIMEOUT_MS = 9_000;

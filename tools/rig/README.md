@@ -2,7 +2,8 @@
 
 The `rig` CLI, the VM's configuration and the Windows host's supervisor for
 the Loonext rig (D142). The design is [docs/RIG.md](../../docs/RIG.md); this
-is how to stand one up and run it. Sections 3.2 and 3.3 there are what these
+is how to stand one up and run it. Nothing here runs on a timer: the rig is a
+dev and QA environment you use on demand, to reproduce, diagnose and verify. Sections 3.2 and 3.3 there are what these
 files implement.
 
 ## A fresh VM, as commands
@@ -119,8 +120,8 @@ rig deploy --ref <tag|branch|sha>   worktree, install, derive, migrate or reset+
 rig deploy --worktree <path>        the same for a checkout in place
 rig bootstrap-db                    rig settings on the database, pools restarted, posture proved
 rig seed                            tenants, numbers from the guard, ring audiences at rest
-rig cron "<expr>" [--time <ms>]     fire one cron on the local API
-rig health                          R00's checks that need no device
+rig cron "<expr>" [--time <ms>]     fire one cron on the local API, on demand
+rig health                          R00's checks that need no device, on demand
 rig apk --ref <ref>                 build the nonprod APK, refuse any other package, and place it as
                                     work/apk/current.apk (the build it replaces becomes previous.apk)
 rig serve api|web|stripe            what the user units run
@@ -151,28 +152,26 @@ Sentry relay publish there).
   `config.toml` (`signing_keys_path`, the issuer, TOTP), the ES256 key, and
   links to the ref's migrations, seed and templates. The committed config is
   never touched.
-- One user timer per cron that `crons.json` classifies as run, or run
-  expecting a refusal. Without `crons.json` the deploy is refused; a cron it
-  does not classify gets no timer, and `rig health` fails until it does. Only
-  the API's crons get timers: the edge's and the guard's are skips, because
-  they run on Cloudflare.
-- Then, after the services restart, rigd's own units, which rigd writes
-  itself (`node tools/rig/rigd/src/cli.ts schedule --install`, from this
-  checkout): a timer per scheduled scenario run, and the rigd and robotd
-  services. A failure there fails the deploy, with the new SHA already
-  serving.
+- No timers. Crons are not installed: the derived config has none, and an
+  agent fires any of them on demand with `rig cron`. `crons.json` still
+  classifies each one for R00 and rigd's Sentry relay, and `rig health` fails
+  while a cron of the ref is unclassified. The edge's and the guard's crons
+  are skips, because they run on Cloudflare.
+- After the services restart, rigd's own units, which rigd writes itself from
+  this checkout: the rigd and robotd services. Scenarios are started by hand
+  (`rig run`, or `node tools/rig/rigd/src/cli.ts run <scenario>`), never by a
+  unit. A failure there fails the deploy, with the new SHA already serving.
 
 Everything that can refuse (an untaught config key, a missing or live
-secret, the cron registry, a rigd that cannot build its schedule from this
-checkout) is checked before the database or a service changes. When the
-schema changes, the scenario runs in progress (which release their leases'
-undos as they stop), the services, the cron timers and rigd's scenario timers
-are stopped first, so a failed migration leaves nothing running against it.
-Before it stops them the deploy writes `state/deploy-hold.json`, and rigd's
-hourly schedule refresh starts no timer while that file is there; the deploy
-removes it once the services serve the new ref, so after a failure the timers
-stay stopped until a deploy succeeds, and `rig health` fails on a hold over an
-hour old. A
+secret, the cron registry, a rigd that cannot load from this checkout) is
+checked before the database or a service changes. When the schema changes,
+the scenario runs in progress (which release their leases' undos as they
+stop) and the services are stopped first, so a failed migration leaves
+nothing running against it. Before it stops them the deploy writes
+`state/deploy-hold.json`, and a scenario started while that file is there
+records `skipped` without running; the deploy removes it once the services
+serve the new ref, so after a failure the hold stays until a deploy
+succeeds, and `rig health` fails on a hold over an hour old. A
 seed runs on a reset, on `--reseed`, and whenever the database lacks a
 company, membership or number row the seed writes, as the partition has it
 now.
