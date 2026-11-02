@@ -464,6 +464,7 @@ export async function resetDevice(devices: DevicesApi, name: unknown): Promise<v
     ["active bucket", () => device.setStandbyBucket("active")],
     ["hibernation off", () => device.hibernate(false)],
     ["notifications allowed", () => device.notificationsAllowed(true)],
+    ["call permissions allowed", () => device.callPermissionsAllowed()],
     ["unlock", async () => ((await device.state()).locked ? device.unlock() : undefined)],
   ];
   const failed: string[] = [];
@@ -487,6 +488,7 @@ export async function reinstallDevice(devices: DevicesApi, params: Record<string
   const device = deviceNamed(devices, params.device);
   await device.install(build);
   await device.notificationsAllowed(true);
+  await device.callPermissionsAllowed();
   // An install over the same build keeps the app's session, so no sign-in screen is not a failure.
   await device.signIn(member);
 }

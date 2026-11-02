@@ -854,6 +854,9 @@ export class FakeDevice implements DeviceApi {
   async notificationsAllowed(on: boolean) {
     this.actions.push(`notifications ${on ? "allowed" : "revoked"}`);
   }
+  async callPermissionsAllowed() {
+    this.actions.push("call permissions allowed");
+  }
   async lock() {
     this.actions.push("lock");
     this.deviceState.locked = true;

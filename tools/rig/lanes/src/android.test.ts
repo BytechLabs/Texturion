@@ -346,10 +346,14 @@ describe("the device driver's commands (no device has run them)", () => {
     const { android, calls } = device();
     await android.hibernate(true);
     await android.notificationsAllowed(false);
+    await android.callPermissionsAllowed();
     await android.launch("/calls");
     expect(calls).toEqual([
       `${ADB} shell cmd app_hibernation set-state ${PKG} true`,
       `${ADB} shell pm revoke ${PKG} android.permission.POST_NOTIFICATIONS`,
+      `${ADB} shell pm grant ${PKG} android.permission.RECORD_AUDIO`,
+      `${ADB} shell pm grant ${PKG} android.permission.READ_CONTACTS`,
+      `${ADB} shell pm grant ${PKG} android.permission.WRITE_CONTACTS`,
       `${ADB} shell am start -a android.intent.action.VIEW -d https://nonprod.invalid/calls ${PKG}`,
     ]);
     await expect(android.launch("/calls?x=1")).rejects.toThrow(/not an app path/);

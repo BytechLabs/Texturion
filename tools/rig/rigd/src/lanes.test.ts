@@ -522,7 +522,7 @@ describe("the held number's undo", () => {
     await pixel.forceDoze();
     await pixel.lock();
     await resetDevice(devices, "pixel");
-    expect(pixel.actions.slice(2)).toEqual(["exit doze", "battery saver off", "bucket active", "hibernate off", "notifications allowed", "unlock"]);
+    expect(pixel.actions.slice(2)).toEqual(["exit doze", "battery saver off", "bucket active", "hibernate off", "notifications allowed", "call permissions allowed", "unlock"]);
     await expect(resetDevice(devices, "phone")).rejects.toThrow(/device: pixel/);
   });
 
@@ -534,13 +534,13 @@ describe("the held number's undo", () => {
       throw new Error("adb: device offline");
     };
     await expect(resetDevice(devices, "pixel")).rejects.toThrow(/battery saver off: adb: device offline/);
-    expect(pixel.actions.slice(1)).toEqual(["exit doze", "bucket active", "hibernate off", "notifications allowed", "unlock"]);
+    expect(pixel.actions.slice(1)).toEqual(["exit doze", "bucket active", "hibernate off", "notifications allowed", "call permissions allowed", "unlock"]);
   });
 
   it("puts the current build back, its notifications allowed and its member signed in", async () => {
     const devices = new FakeDevices();
     await reinstallDevice(devices, { device: "pixel", build: "current", member: "qa-a-technician" });
-    expect(devices.pixelDevice.actions).toEqual(["install current", "notifications allowed", "sign in qa-a-technician"]);
+    expect(devices.pixelDevice.actions).toEqual(["install current", "notifications allowed", "call permissions allowed", "sign in qa-a-technician"]);
     await expect(reinstallDevice(devices, { device: "pixel", build: "nightly", member: "qa-a-technician" })).rejects.toThrow(/build and member/);
     await expect(reinstallDevice(devices, { device: "pixel", build: "current" })).rejects.toThrow(/build and member/);
   });

@@ -123,6 +123,7 @@ async function readyToDial(ctx: ScenarioContext, device: DeviceApi): Promise<voi
 /** The labels the device lane finds the app's dialer by are unverified on the nonprod build, so a miss is the lane's. */
 async function dialFromPixel(device: DeviceApi): Promise<ScenarioResult | undefined> {
   try {
+    await device.callPermissionsAllowed();
     await device.dial("ROBOT-1");
     return undefined;
   } catch (error) {

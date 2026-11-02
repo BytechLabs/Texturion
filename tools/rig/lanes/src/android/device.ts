@@ -25,6 +25,9 @@ export const CALL_TEST_IDS = [
 ] as const;
 export type CallTestId = (typeof CALL_TEST_IDS)[number];
 
+/** The app asks for these at the dialer and at answer. */
+const CALL_PERMISSIONS = ["RECORD_AUDIO", "READ_CONTACTS", "WRITE_CONTACTS"] as const;
+
 export const PLAY_SERVICES = "com.google.android.gms";
 /** The manifest entry play-services-basement merges in: the Play services versionCode the app's Google libraries require. */
 export const PLAY_SERVICES_VERSION_META = "com.google.android.gms.version";
@@ -282,6 +285,10 @@ export class AndroidDevice {
 
   async notificationsAllowed(on: boolean): Promise<void> {
     await this.adb.shell("pm", on ? "grant" : "revoke", this.#o.pkg, "android.permission.POST_NOTIFICATIONS");
+  }
+
+  async callPermissionsAllowed(): Promise<void> {
+    for (const permission of CALL_PERMISSIONS) await this.adb.shell("pm", "grant", this.#o.pkg, `android.permission.${permission}`);
   }
 
   lock(): Promise<void> {

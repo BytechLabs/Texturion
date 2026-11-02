@@ -161,6 +161,7 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
       batterySaver: (on) => android.batterySaver(on),
       hibernate: (on) => android.hibernate(on),
       notificationsAllowed: (on) => android.notificationsAllowed(on),
+      callPermissionsAllowed: () => android.callPermissionsAllowed(),
       lock: () => android.lock(),
       unlock: () => android.unlock(),
       reboot: (options) => android.reboot(options),

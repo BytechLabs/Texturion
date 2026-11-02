@@ -450,7 +450,7 @@ describe("D07, the Android app calls out", () => {
     expect(undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
     expect(undosAtExpect).toBe(1);
     expect(devices.audio.played).toEqual(["pixel"]);
-    expect(devices.pixelDevice.actions).toEqual(["dial ROBOT-1", "tap call_hang_up"]);
+    expect(devices.pixelDevice.actions).toEqual(["call permissions allowed", "dial ROBOT-1", "tap call_hang_up"]);
     expect(ctx.evidence.call).toMatchObject({ from_role: "DEV-A1", pixel_heard: { verdict: "heard", answered: "robot" } });
   });
 
@@ -458,7 +458,7 @@ describe("D07, the Android app calls out", () => {
     const world = d07World();
     world.devices.pixelDevice.deviceState.locked = true;
     expect((await D07.run(world.ctx)).outcome).toBe("pass");
-    expect(world.devices.pixelDevice.actions.slice(0, 2)).toEqual(["unlock", "dial ROBOT-1"]);
+    expect(world.devices.pixelDevice.actions.slice(0, 3)).toEqual(["unlock", "call permissions allowed", "dial ROBOT-1"]);
   });
 
   it("names a deaf robot, a wrong caller ID, a deaf Pixel and a call that never connected", async () => {

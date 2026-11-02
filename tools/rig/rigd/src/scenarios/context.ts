@@ -465,6 +465,8 @@ export interface DeviceApi {
   batterySaver(on: boolean): Promise<void>;
   hibernate(on: boolean): Promise<void>;
   notificationsAllowed(on: boolean): Promise<void>;
+  /** The microphone and contacts a technician grants on first use; the dialer asks for contacts as it opens, over its keypad. */
+  callPermissionsAllowed(): Promise<void>;
   lock(): Promise<void>;
   /** Types the PIN from the rig's store. */
   unlock(): Promise<void>;
