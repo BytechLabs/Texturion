@@ -142,6 +142,9 @@ describe("provisionCompanyNumber — §4.3 saga happy path", () => {
       webhook_url: "https://api.loonext.com/webhooks/telnyx",
       webhook_failover_url: "https://api.loonext.com/webhooks/telnyx",
       whitelisted_destinations: ["US", "CA"],
+      // #642: the vendor-side daily cap is set when the profile is made.
+      daily_spend_limit: "25.00",
+      daily_spend_limit_enabled: true,
     });
     expect(
       rest.rows("companies")[0].telnyx_messaging_profile_id,

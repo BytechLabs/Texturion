@@ -17,6 +17,11 @@ import {
 } from "./billing/overage-warning";
 import { runProbes } from "./observability/probes";
 import { runRingSuccessWatch } from "./observability/ring-success";
+import { runTelnyxCapacityWatch } from "./observability/telnyx-capacity";
+import {
+  runTelnyxSpendLimitDriftWatch,
+  runTelnyxSpendWatch,
+} from "./observability/telnyx-spend";
 import { runTelnyxWiringWatch } from "./observability/telnyx-wiring";
 import { runResponseTimeRecapJob } from "./reports/monthly-recap";
 import {
@@ -650,6 +655,11 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // is 24 hours wide and a drop is worth hearing about the hour it appears;
     // the job itself keeps a persisting drop to one alert every six hours.
     job("job:ring-success-watch", runRingSuccessWatch),
+    // #642: the warning before Telnyx's own daily spend limits. Hourly because
+    // the limits reset at 00:00 UTC and an afternoon's runaway should be heard
+    // about while there is still a cap left to save. A quiet hour reads the
+    // cost ledger and makes no Telnyx request.
+    job("job:telnyx-spend-watch", runTelnyxSpendWatch),
     // #308: the synthetic inbound canary — one text from our number to our
     // number, confirmed by its own webhook coming back. HOURLY because the
     // cadence is the cost: each round trip is ~1.7c, and an hour is the
@@ -696,6 +706,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // portal edit, and the delivery log it reads is 24 hours wide. Production
     // only; the job refuses anywhere else before any request.
     job("job:telnyx-wiring-watch", runTelnyxWiringWatch),
+    // #643: can the ring audience plus the calls already up outgrow Telnyx's
+    // concurrent call limit? Daily: the inputs (crew size, number access) move
+    // by deliberate edits, and the 28-day peak moves slowly.
+    job("job:telnyx-capacity-watch", runTelnyxCapacityWatch),
     // #303: the AUP has been accepted by everyone and enforced against nobody.
     // Daily, on the slow trigger, because the signals it reads are day-scale by
     // construction — a workspace's own median day against the last one.
@@ -730,7 +744,13 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // revenue in the last 7 days. The per-tenant copies go out hourly with the
   // warning; this is the only place the PATTERN shows up, which is the
   // question #446 asks. Monday morning, off the hour.
-  "50 13 * * 1": [job("job:overage-digest", runOverageDigestJob)],
+  "50 13 * * 1": [
+    job("job:overage-digest", runOverageDigestJob),
+    // #642: has a Telnyx daily spend limit been removed or lowered? Weekly,
+    // because that is a portal edit, and the cap is the second line behind the
+    // app's own, not the first.
+    job("job:telnyx-spend-limit-drift", runTelnyxSpendLimitDriftWatch),
+  ],
   // #482/#239: the monthly response-time recap. Monthly because the arc it
   // reports moves on that scale — a weekly one would mostly report noise, and
   // an email that mostly says nothing is one people stop opening.

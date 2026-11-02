@@ -184,6 +184,8 @@ const SUITES = [
   "agent_diag",
   // D142 P01: ring success counts, verdicts and grants.
   "ring_success",
+  // #642/#643: Telnyx spend and voice-capacity reads.
+  "telnyx_spend_reads",
 ];
 
 const args = process.argv.slice(2);

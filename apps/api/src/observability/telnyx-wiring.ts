@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { productionWatchRefusal } from "../environments/policy";
 import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
+import type { ReportedSpendLimit } from "../telnyx/spend-limits";
 import { telnyxWebhookUrl } from "../telnyx/wizard";
 import { opsAlert } from "./ops-alert";
 
@@ -64,9 +65,9 @@ export interface WiringReport {
   deliveries: DeliveryFailures;
 }
 
-const PAGE_SIZE = 250;
+export const PAGE_SIZE = 250;
 /** 5,000 profiles, far beyond today's fleet; past it the rest are reported unchecked. */
-const MAX_PROFILE_PAGES = 20;
+export const MAX_PROFILE_PAGES = 20;
 /** 1,000 failed deliveries is already a fire; counting further changes nothing. */
 const MAX_DELIVERY_PAGES = 4;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -81,7 +82,7 @@ interface ConnectionResponse {
   data?: ConnectionSettings;
 }
 
-interface MessagingProfileItem {
+export interface MessagingProfileItem extends ReportedSpendLimit {
   id?: string;
   webhook_url?: string | null;
   webhook_failover_url?: string | null;
@@ -200,7 +201,7 @@ async function readConnection(
 }
 
 /** Telnyx's view of every messaging profile in the account, up to the page cap. */
-async function listMessagingProfiles(
+export async function listMessagingProfiles(
   env: Env,
 ): Promise<{ profiles: Map<string, MessagingProfileItem>; truncated: boolean }> {
   const profiles = new Map<string, MessagingProfileItem>();
@@ -223,7 +224,7 @@ async function listMessagingProfiles(
 }
 
 /** Production's own profiles: the ones its workspaces were given. */
-async function productionProfileIds(db: SupabaseClient): Promise<string[]> {
+export async function productionProfileIds(db: SupabaseClient): Promise<string[]> {
   const { data, error } = await db
     .from("companies")
     .select("telnyx_messaging_profile_id")

@@ -68,7 +68,8 @@ const MODE_IMPORT = /\bfrom\s+["'][^"']*environments\/mode(?:\.ts)?["']|\bimport
  * Sentry has to file events under the right environment, the Worker entry has
  * to decide whether the rig's routes exist, the FCM sender has to know
  * whether it may mint a Google token (its answer differs only on the rig),
- * and the Telnyx wiring watch has to know it is production.
+ * and the Telnyx watches (wiring, spend limits, concurrent-call capacity) have
+ * to know they are production.
  */
 export const MODE_REVEALING_IMPORTERS = {
   sentryEnvironment: [
@@ -77,7 +78,11 @@ export const MODE_REVEALING_IMPORTERS = {
   ],
   servesRigRoutes: ["apps/api/src/index.ts"],
   fcmCredential: ["apps/api/src/notifications/fcm.ts"],
-  productionWatchRefusal: ["apps/api/src/observability/telnyx-wiring.ts"],
+  productionWatchRefusal: [
+    "apps/api/src/observability/telnyx-wiring.ts",
+    "apps/api/src/observability/telnyx-spend.ts",
+    "apps/api/src/observability/telnyx-capacity.ts",
+  ],
 };
 
 const ENVIRONMENTS_SPECIFIER = /(?:^|\/)environments\/[\w.-]+$/;

@@ -197,6 +197,14 @@ describe("read rules for the production watches' reads", () => {
     });
   });
 
+  it("read one nonprod outbound voice profile by id, and refuse production's before asking", async () => {
+    const h = await ready();
+    expect(await read(h, "GET /v2/outbound_voice_profiles/:id", ["ovp-voice"], { id: "ovp-voice" })).toHaveLength(1);
+    await expect(read(h, "GET /v2/outbound_voice_profiles/:id", ["ovp-prod"], {})).rejects.toMatchObject({
+      rule: "read.not_in_partition",
+    });
+  });
+
   it("keep only nonprod profiles and deliveries for nonprod resources", async () => {
     const h = await ready();
     expect(await read(h, "GET /v2/messaging_profiles", [], [{ id: "prof-qa-w" }, { id: "prof-prod" }])).toEqual([

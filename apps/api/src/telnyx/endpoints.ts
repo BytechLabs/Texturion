@@ -73,6 +73,11 @@ export const TELNYX_ENDPOINTS = [
   { method: "GET", path: "/v2/call_control_applications/:id", policy: "read" },
   { method: "GET", path: "/v2/credential_connections/:id", policy: "read" },
 
+  // #642 reads the daily spend limit on production's own profiles, from the
+  // same production-only watches as PW01. Same rule if one ever came from the
+  // rig: the guard's read filter drops every resource that is not nonprod.
+  { method: "GET", path: "/v2/outbound_voice_profiles/:id", policy: "read" },
+
   // Porting and hosted-messaging paperwork.
   { method: "POST", path: "/v2/documents", policy: "refused" },
   { method: "GET", path: "/v2/documents/:id/download", policy: "refused" },

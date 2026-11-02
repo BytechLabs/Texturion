@@ -99,6 +99,11 @@ export const READ_RULES: Readonly<Record<string, ReadRule>> = {
     view.record.connections.webrtc,
     view.record.connections.sentinel,
   ]),
+  // #642: the daily spend limit on production's own outbound voice profile.
+  // From the rig it answers for the partition's profiles only.
+  "GET /v2/outbound_voice_profiles/:id": onePartitionResource(({ view }) =>
+    Object.values(view.record.outbound_voice_profiles ?? {}),
+  ),
   "GET /v2/messaging_profiles": {
     keep: (item, request) => typeof item.id === "string" && request.view.messagingProfiles.has(item.id),
   },

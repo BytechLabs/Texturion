@@ -130,10 +130,11 @@
         "job:sweep-stale-calls",
         "job:email-health",
         "job:ring-success-watch",
+        "job:telnyx-spend-watch",
         "job:inbound-canary",
         "job:expire-payment-requests"
       ],
-      "note": "Usage goes to Stripe's shared test mode, which S01's meter check reads. The inbound canary stays off because the rig sets no CANARY_* numbers. sweep-stale-calls hangs up a runaway leg through the guard's leg-command class. ring-success-watch reads api_ring_success from the rig's own database and alerts [\"ops\",\"ring-success-<platform>\"] only on a drop, which takes 30 ring pushes in the 24-hour window and 30 in the week before it. On the rig that means the rig's own phones stopped ringing, so nothing suppresses it."
+      "note": "Usage goes to Stripe's shared test mode, which S01's meter check reads. The inbound canary stays off because the rig sets no CANARY_* numbers. sweep-stale-calls hangs up a runaway leg through the guard's leg-command class. ring-success-watch reads api_ring_success from the rig's own database and alerts [\"ops\",\"ring-success-<platform>\"] only on a drop, which takes 30 ring pushes in the 24-hour window and 30 in the week before it. On the rig that means the rig's own phones stopped ringing, so nothing suppresses it. telnyx-spend-watch reads production's Telnyx spend limits and cost ledger in production only: productionWatchRefusal stops it in rig mode before any request, so it logs that it was skipped and returns."
     },
     {
       "config": "apps/api/wrangler.jsonc",
@@ -174,10 +175,11 @@
         "job:registration-stalls",
         "job:call-silence",
         "job:telnyx-wiring-watch",
+        "job:telnyx-capacity-watch",
         "job:aup-watch",
         "job:activation-stall"
       ],
-      "note": "No job but the registration poller makes a Telnyx request. telnyx-wiring-watch reads production's Telnyx wiring in production only: productionWatchRefusal stops it in rig mode before any request, so it logs that it was skipped and returns, and its heartbeat is recorded.",
+      "note": "No job but the registration poller makes a Telnyx request. telnyx-wiring-watch reads production's Telnyx wiring in production only: productionWatchRefusal stops it in rig mode before any request, so it logs that it was skipped and returns, and its heartbeat is recorded. telnyx-capacity-watch behaves the same way: it prices production's ring audience against the account's concurrent call limit, production only, and returns before any read in rig mode.",
       "refusals": [
         {
           "job": "job:poll-registrations",
@@ -299,8 +301,8 @@
       "config": "apps/api/wrangler.jsonc",
       "cron": "50 13 * * 1",
       "class": "run",
-      "jobs": ["job:overage-digest"],
-      "note": "Weekly founder digest. On the rig it can only describe seeded tenants, and it reaches no inbox outside the guard's Resend allowlist."
+      "jobs": ["job:overage-digest", "job:telnyx-spend-limit-drift"],
+      "note": "Weekly founder digest. On the rig it can only describe seeded tenants, and it reaches no inbox outside the guard's Resend allowlist. telnyx-spend-limit-drift reads production's Telnyx daily spend limits in production only: productionWatchRefusal stops it in rig mode before any request, so it logs that it was skipped and returns."
     },
     {
       "config": "apps/api/wrangler.jsonc",

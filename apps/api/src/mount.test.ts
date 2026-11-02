@@ -12,6 +12,11 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runEmailHealthJob } from "./email/health";
 import { runRingSuccessWatch } from "./observability/ring-success";
+import { runTelnyxCapacityWatch } from "./observability/telnyx-capacity";
+import {
+  runTelnyxSpendLimitDriftWatch,
+  runTelnyxSpendWatch,
+} from "./observability/telnyx-spend";
 import { runTelnyxWiringWatch } from "./observability/telnyx-wiring";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
@@ -565,6 +570,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       sweepStaleCalls, // #133: stale-calls sweeper (in-flight >4h → missed)
       runEmailHealthJob, // #386: domain bounce/complaint rates, rolling 24h
       runRingSuccessWatch, // D142 P01: ring pushes that became a shown ring
+      runTelnyxSpendWatch, // #642: spend past 70% of a Telnyx daily limit
       runInboundCanaryJob, // #308: synthetic inbound round trip (off until configured)
       // #224: retires payment requests past their 14-day expiry, so a thread
       // stops showing "Waiting" for a link that no longer opens.
@@ -585,12 +591,16 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runCallSilenceJob,
       // D142 PW01: production's Telnyx webhook settings and failed deliveries.
       runTelnyxWiringWatch,
+      // #643: ring audience plus calls up, against the concurrent call limit.
+      runTelnyxCapacityWatch,
       // #303: the AUP watcher, on the same daily trigger as the other slow
       // watchers — its signals are day-scale by construction.
       runAupWatchJob,
       // #281: a workspace stalling on the way to its first conversation.
       runActivationStallJob,
     ]);
+    // #642: the weekly drift check rides the Monday slot beside the digest.
+    expect(runs("50 13 * * 1")).toContain(runTelnyxSpendLimitDriftWatch);
     expect(runs("10 13 * * *")).toEqual([pollPortRequests]);
     expect(runs("0 14 * * *")).toEqual([runGraceJob]);
     expect(runs("0 15 * * *")).toEqual([runSubscriptionReconcileJob]);

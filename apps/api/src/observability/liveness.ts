@@ -1097,6 +1097,45 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:telnyx-spend-watch": {
+    what:
+      "Nothing is warning before production reaches Telnyx's daily spend " +
+      "limits (#642), so a runaway would be found when Telnyx starts " +
+      "refusing calls and texts.",
+    doThis:
+      "Workers Logs, search `cron job job:telnyx-spend-watch failed` for the " +
+      "stack; a Supabase error means the `api_telnyx_spend_since` function. " +
+      "Then read today's spend by hand: Voice > Call Logs and Messaging > " +
+      "Logs in portal.telnyx.com, against the limits in docs/deploy/04-telnyx.md " +
+      "section 8. It runs hourly.",
+    everyMinutes: 60,
+    graceMinutes: 120,
+  },
+  "job:telnyx-capacity-watch": {
+    what:
+      "Nothing is checking that production's ring audience and calls fit " +
+      "inside Telnyx's concurrent call limit (#643).",
+    doThis:
+      "Workers Logs, search `cron job job:telnyx-capacity-watch failed` for " +
+      "the stack; a Supabase error means the `api_voice_capacity_read` " +
+      "function. The inputs move slowly, so the next automatic check is " +
+      "13:00 UTC tomorrow.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
+  "job:telnyx-spend-limit-drift": {
+    what:
+      "Nothing is checking that production's Telnyx daily spend limits are " +
+      "still set (#642), so a limit removed in the portal would go unseen.",
+    doThis:
+      "Workers Logs, search `cron job job:telnyx-spend-limit-drift failed` for " +
+      "the stack; a Telnyx 401 means the API key changed. Then read the " +
+      "outbound voice profile and each messaging profile by hand " +
+      "(docs/deploy/04-telnyx.md section 8). It runs Mondays, so a fix any " +
+      "time this week is in time for the next check.",
+    everyMinutes: 10080,
+    graceMinutes: 1440,
+  },
   "job:activation-stall": {
     what:
       "Nothing is watching for a workspace stalling on the way to its first "

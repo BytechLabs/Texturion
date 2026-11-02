@@ -17,6 +17,7 @@ import {
 // vite-node — so the hosted release below re-issues the two Telnyx DELETEs
 // itself instead of calling cancelTextEnablement.
 import type { TextEnablementOrderRow } from "./text-enablement";
+import { TELNYX_DAILY_SPEND_LIMIT } from "./spend-limits";
 import { telnyxWebhookUrl } from "./wizard";
 import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
@@ -294,6 +295,9 @@ export async function ensureMessagingProfile(
       webhook_failover_url: webhook,
       // SMS-pumping defense layer 1 (SPEC §10): US + Canada only.
       whitelisted_destinations: ["US", "CA"],
+      // #642: Telnyx's own daily cap, so a runaway send stops at the vendor.
+      daily_spend_limit: TELNYX_DAILY_SPEND_LIMIT,
+      daily_spend_limit_enabled: true,
     },
   });
   const profileId = response.data?.id;
