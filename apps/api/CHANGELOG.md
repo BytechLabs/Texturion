@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.1](https://github.com/BytechLabs/Texturion/compare/api-v0.20.0...api-v0.20.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **api:** a deleted account's sign-in is refused instead of erroring ([1a5670d](https://github.com/BytechLabs/Texturion/commit/1a5670d57dc6ec931c65843750e953e7347628ef))
+
 ## [0.20.0](https://github.com/BytechLabs/Texturion/compare/api-v0.19.1...api-v0.20.0) (2026-11-02)
 
 
