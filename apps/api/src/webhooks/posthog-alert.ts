@@ -70,9 +70,10 @@ function posthogLink(value: unknown): string | undefined {
 }
 
 /**
- * Read the webhook template's default body: `{ event, person }`, where `event`
- * carries `event`, `distinct_id` (the issue id), `url` and `properties`
- * (`name`, `description`, `status`, `fingerprint`, ...).
+ * Read the body tools/rig/src/posthog-errors.mjs sets on the alert: `{ event }`,
+ * where `event` carries `event`, `distinct_id` (the issue id), `url` and
+ * `properties` (`name`, `description`, `status`, `fingerprint`). The same
+ * shape as the template's default `{ event, person }`, minus the person.
  *
  * Returns `ignored` for an event this endpoint has no use for and `null` for a
  * body that is not an alert at all.

@@ -3,8 +3,8 @@
  *
  * The shared secret is the only authentication this endpoint has, and it
  * protects the founder's inbox, so most of this is about rejection. The body
- * fixtures follow PostHog's webhook destination: the template's default body is
- * `{ event, person }` (the `event` and `person` globals), and the error
+ * fixtures follow PostHog's webhook destination: the body is `{ event, person }`
+ * (the `event` and `person` globals; the live alert sends the event only), and the error
  * tracking alert event carries `name`, `description`, `status`, `fingerprint`
  * and `exception_timestamp` in `properties`, with the issue id as
  * `distinct_id` (posthog.com/docs/data-pipelines/destinations/customizing-destinations,

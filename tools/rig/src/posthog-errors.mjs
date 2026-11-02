@@ -183,8 +183,10 @@ export function parity(sentryKeys, posthogFingerprints) {
 /**
  * The hog function body for one alert event, posting the issue to a webhook.
  *
- * The body is the webhook template's default, `{ event, person }`, which is
- * what apps/api/src/webhooks/posthog-alert.ts reads. The shared secret goes in
+ * PostHog does not fill in the template's default body when a function is
+ * created through the API (the input is stored as null and the POST goes out
+ * empty), so the body is spelled out here in the shape
+ * apps/api/src/webhooks/posthog-alert.ts reads. The shared secret goes in
  * `secret_headers`, which PostHog stores encrypted and never shows again.
  */
 export function alertFunction(alert, webhookUrl, secret) {
@@ -198,6 +200,22 @@ export function alertFunction(alert, webhookUrl, secret) {
       url: { value: webhookUrl },
       method: { value: "POST" },
       headers: { value: { "content-type": "application/json" } },
+      body: {
+        value: {
+          event: {
+            event: "{event.event}",
+            distinct_id: "{event.distinct_id}",
+            url: "{project.url}/error-tracking/fingerprint/{encodeURLComponent(event.properties.fingerprint)}?utm_source=alert&utm_medium=email",
+            properties: {
+              name: "{event.properties.name}",
+              description: "{event.properties.description}",
+              status: "{event.properties.status}",
+              fingerprint: "{event.properties.fingerprint}",
+              $exception_fingerprint: "{event.properties.$exception_fingerprint}",
+            },
+          },
+        },
+      },
       ...(secret ? { secret_headers: { value: { [OPS_SECRET_HEADER]: secret } } } : {}),
     },
   };

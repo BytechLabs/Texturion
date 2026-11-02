@@ -9563,18 +9563,22 @@ could name; this is one nobody has to supply).
   `secret_headers` input, encrypted and never shown again. The check hashes both
   sides before comparing, runs before the body is read, and an unset secret
   answers 503, never "accept".
-- **Payload.** The webhook template's default body, `{ event, person }`. The
-  alert event carries `name`, `description`, `status`, `fingerprint` in
+- **Payload.** A body the rig script spells out, `{ event: { event, distinct_id, url,
+  properties } }`: PostHog stores an unset `body` input as null and posts nothing, so the
+  template's default does not apply to a function created through the API. The alert event carries `name`, `description`, `status`, `fingerprint` in
   `properties` and the issue id as `distinct_id`. The endpoint groups on
-  `properties.fingerprint`, then `$exception_fingerprint`, then the issue id.
+  `properties.fingerprint`, then `$exception_fingerprint`, then the issue id. Checked against a live alert: both carry the
+  `ops:` string verbatim. The event has no `url`, so the body builds the PostHog link from `project.url`.
   `$error_tracking_issue_spiking` is acknowledged (202) and not mailed: no alert is
   created for it.
 - **Once per fingerprint per hour.** `opsAlert`'s own mail and the PostHog
   mail take the same slot, `ops:<key>`, so whichever speaks first owns the hour.
   Before this, setting `OPS_ALERT_EMAIL` meant one mail per `opsAlert` call with no
   limit, which is the D139 bombardment again. The slot is a Cache API entry (no new
-  table, no new binding), so it is per data centre: two edges can each send once, and a
-  cache that fails sends anyway. A failed send hands the slot back so PostHog's retry
+  table, no new binding), so it is per data centre: two edges can each send once (seen live: a replay from
+  another network, five minutes after PostHog's own alert, was mailed again), and a
+  cache that fails sends anyway. A store that is global needs a table; that is the
+  follow-up if one extra mail ever matters. A failed send hands the slot back so PostHog's retry
   is not swallowed.
 - **Push is not used.** `deliverPush` needs a user and a workspace, and nothing in
   the API says which workspace is the founder's. Naming one is a new setting and a

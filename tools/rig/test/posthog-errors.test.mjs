@@ -91,8 +91,11 @@ test("each alert is an internal_destination filtered on the issue event, posting
     assert.equal(fn.type, "internal_destination");
     assert.equal(fn.filters.events[0].id, alert.event);
     assert.equal(fn.inputs.url.value, "https://hooks.example.test/x");
-    // The default body is what the Worker reads, and the secret is a secret header, never a plain one.
-    assert.equal(fn.inputs.body, undefined);
+    // An unset body goes out empty, so it is spelled out; the secret is a secret header, never a plain one.
+    assert.equal(fn.inputs.body.value.event.event, "{event.event}");
+    // The alert event has no url of its own, so the link into PostHog is built from the project's.
+    assert.ok(fn.inputs.body.value.event.url.startsWith("{project.url}/error-tracking/fingerprint/"));
+    assert.equal(fn.inputs.body.value.event.properties.fingerprint, "{event.properties.fingerprint}");
     assert.deepEqual(fn.inputs.secret_headers.value, { [OPS_SECRET_HEADER]: "s3cret" });
     assert.equal(fn.inputs.headers.value[OPS_SECRET_HEADER], undefined);
   }
