@@ -8,7 +8,7 @@
  * rig's secret store (scripts/rig/seed.mjs), which git never sees. Tenants are
  * keyed `qa-w`, members `owner`; scenarios name a member `qa-w-owner`.
  */
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
@@ -919,6 +919,41 @@ export class AppProbe implements AppApi {
     if (!response.ok && response.status !== 404) throw new Error(`app probe: deleting the sign-up returned ${response.status}`);
   }
 
+  /**
+   * S34's recipient: a confirmed local-auth account at the robot mailbox's
+   * `+s34-acct-` sub-address, with a password made here and kept nowhere. An
+   * invite to an address that has an account is the one the app mails over
+   * Resend itself (routes/team.ts, sendExistingAccountInvite); an invite to a
+   * new address is mailed by local auth into Mailpit. Answers the HTTP status,
+   * 200 when the account already existed.
+   */
+  async createMailAccount(args: { email: string }): Promise<number> {
+    if (!MAIL_ACCOUNT_ADDRESS.test(args.email)) throw new Error("app probe: only S34's own sub-address can be given an account");
+    if (await this.#authUserByEmail(args.email)) return 200;
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users`, {
+      method: "POST",
+      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}`, "content-type": "application/json" },
+      body: JSON.stringify({ email: args.email, password: `${randomBytes(18).toString("base64url")}Aa1`, email_confirm: true }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    await response.body?.cancel();
+    return response.status;
+  }
+
+  /** Undo for `createMailAccount`: the user deleted. Only S34's own sub-address is accepted. */
+  async deleteMailAccount(args: { email: string }): Promise<void> {
+    if (!MAIL_ACCOUNT_ADDRESS.test(args.email)) throw new Error("app probe: only S34's own sub-address can be removed");
+    const user = await this.#authUserByEmail(args.email);
+    if (!user) return;
+    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users/${user}`, {
+      method: "DELETE",
+      headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    await response.body?.cancel();
+    if (!response.ok && response.status !== 404) throw new Error(`app probe: deleting the mail account returned ${response.status}`);
+  }
+
   async #authUserByEmail(email: string): Promise<string | undefined> {
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users?page=1&per_page=1000`, {
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
@@ -1268,6 +1303,9 @@ interface ArmedAutomations {
 
 /** The addresses S32 and S35 sign up with: Resend's test sink, tagged with the scenario. */
 export const SIGN_UP_ADDRESS = /^delivered\+rig-s3[25]-[a-z0-9-]+@resend\.dev$/;
+
+/** The addresses S34 gives an account: a `+s34-acct-` sub-address, which no seeded member's address matches. */
+export const MAIL_ACCOUNT_ADDRESS = /^[a-z0-9._-]+\+s34-acct-[a-z0-9-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
 
 /** The runner's inbound text is `Rig S25 <nonce>`; its first word is the emergency keyword while S25 is armed. */
 export const S25_KEYWORD = "RIG";

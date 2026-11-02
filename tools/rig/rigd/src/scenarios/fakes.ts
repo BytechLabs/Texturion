@@ -486,6 +486,15 @@ export class FakeApp implements AppApi {
     this.invites.push(args);
     return { status: 201, body: { id: `invite-${this.invites.length}`, email_sent: true } };
   }
+  /** Accounts S34 made, by address. */
+  readonly mailAccounts = new Set<string>();
+  async createMailAccount(args: { email: string }) {
+    this.mailAccounts.add(args.email);
+    return 201;
+  }
+  async deleteMailAccount(args: { email: string }) {
+    this.mailAccounts.delete(args.email);
+  }
   readonly passwordResets: string[] = [];
   signUps = new Map<string, { company_id: string; subscription_status: string; stripe_subscription_id: string | null }>();
   async sendPasswordReset(args: { member: string }) {

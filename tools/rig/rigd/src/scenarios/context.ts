@@ -385,6 +385,9 @@ export interface AppApi {
   workspaceOf(args: { ownerEmail: string }): Promise<{ company_id: string; subscription_status: string; stripe_subscription_id: string | null } | null>;
   /** Invites an address to the member's workspace; the answer is the invite row itself. The undo is `app.revoke-invite`. */
   invite(args: { member: string; email: string }): Promise<ApiAnswer<{ id?: string; email_sent?: boolean }>>;
+  /** A confirmed local-auth account at S34's sub-address of the robot mailbox, which makes the app mail an invite to it over Resend. Answers the HTTP status. The undo is `app.delete-mail-account`. */
+  createMailAccount(args: { email: string }): Promise<number>;
+  deleteMailAccount(args: { email: string }): Promise<void>;
 
   /** `POST /v1/numbers/provision` with the company's area code: the app's own search, order and binding. The answer is the number's row. */
   provisionNumber(args: { member: string }): Promise<ApiAnswer<{ id?: string; status?: string }>>;

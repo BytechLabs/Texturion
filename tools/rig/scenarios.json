@@ -610,7 +610,7 @@
       "id": "S34",
       "name": "Emails",
       "lane": "account",
-      "far_end": "Robot mailbox; Mailpit",
+      "far_end": "Robot mailbox (Resend, Email Routing, edge); Mailpit",
       "runs_on": "rig",
       "runs": [
         {}

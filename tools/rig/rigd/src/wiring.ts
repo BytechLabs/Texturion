@@ -372,6 +372,10 @@ export function undoHandlers(parts: UndoParts): UndoHandlers {
       if (typeof params.email !== "string") throw new Error("app.delete-sign-up undo needs email");
       await parts.app().deleteSignUp({ email: params.email });
     },
+    "app.delete-mail-account": async (params) => {
+      if (typeof params.email !== "string") throw new Error("app.delete-mail-account undo needs email");
+      await parts.app().deleteMailAccount({ email: params.email });
+    },
     "app.revoke-invite": async (params) => {
       if (typeof params.member !== "string" || typeof params.inviteId !== "string") throw new Error("app.revoke-invite undo needs member and inviteId");
       await parts.app().revokeInvite({ member: params.member, inviteId: params.inviteId });

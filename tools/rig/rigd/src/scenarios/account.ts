@@ -785,17 +785,23 @@ async function linksWork(ctx: ScenarioContext, mail: MailMessage): Promise<{ sta
 const RESET_MEMBER = { tenant: "qa-w", member: "technician" } as const;
 
 /**
- * S34: an invite reaches the robot mailbox through Resend and Email Routing,
- * and a password reset reaches Mailpit; every link in each works. No
- * missed-call alert is checked: D45 made missed calls push-only, so the API
- * sends no mail for one.
+ * S34: the app's invite mail travels Resend, the guard, Cloudflare Email
+ * Routing and the edge to the robot mailbox, and a password reset reaches
+ * Mailpit; every link in each works. No missed-call alert is checked: D45
+ * made missed calls push-only, so the API sends no mail for one.
+ *
+ * Only an invite to an address that already has a Loonext account goes
+ * through Resend (routes/team.ts, sendExistingAccountInvite). An invite to a
+ * new address is Supabase Auth's inviteUserByEmail, which on the rig is local
+ * GoTrue's own SMTP into Mailpit and never reaches Resend, the guard or the
+ * zone. So the run first gives the robot mailbox's sub-address an account.
  */
 export const S34: ScenarioRunner = {
   id: "S34",
   // The guard mails the robot mailbox only under a live S34 lease of its own.
   guardLease: true,
   async run(ctx) {
-    const tag = `s34-invite-${slug(ctx.nonce)}`;
+    const tag = `s34-acct-${slug(ctx.nonce)}`;
     const address = ctx.mail.robotAddress(tag);
     if (!address) return infra("robot-mailbox", "the rig's private config names no robot mailbox");
     if (!mailboxReady(await ctx.guard.health())) return infra("robot-mailbox", "the guard's mailbox heartbeat is stale or its mail is halted");
@@ -803,12 +809,23 @@ export const S34: ScenarioRunner = {
     if (!lease?.live) return infra("guard-lease", "the guard holds no live lease for this run, so it would refuse mail to the robot mailbox");
     ctx.evidence.missed_call_alert = "not_covered";
 
+    ctx.lease.registerUndo({ kind: "app.delete-mail-account", params: { email: address } });
+    const account = await ctx.app.createMailAccount({ email: address }).catch((error: Error) => error);
+    ctx.evidence.account = { status: typeof account === "number" ? account : null };
+    if (typeof account !== "number" || !is2xx(account)) {
+      return infra("local-auth", `local auth could not create the invited account: ${typeof account === "number" ? account : account.message}`);
+    }
+
     const since = ctx.now();
     const invited = await ctx.app.invite({ member: "qa-w-owner", email: address });
     const inviteId = invited.body?.id;
     if (inviteId) ctx.lease.registerUndo({ kind: "app.revoke-invite", params: { member: "qa-w-owner", inviteId } });
-    ctx.evidence.invite = { status: invited.status, invite_id: inviteId ?? null };
+    ctx.evidence.invite = { status: invited.status, invite_id: inviteId ?? null, email_sent: invited.body?.email_sent ?? null };
     if (!is2xx(invited.status) || !inviteId) return fail("invite_refused", `the invite answered ${invited.status}${invited.code ? ` ${invited.code}` : ""}`);
+    if (invited.body?.email_sent !== true) return fail("invite_not_sent", "the app reports its Resend send of the invite failed (email_sent is not true)");
+    if ((await ctx.mail.mailpit({ to: address, since })).length > 0) {
+      return fail("invite_sent_by_auth", "local auth mailed the invite into Mailpit, so it never travelled Resend, the guard or Email Routing");
+    }
     const resetStatus = await ctx.app.sendPasswordReset({ member: `${RESET_MEMBER.tenant}-${RESET_MEMBER.member}` });
     ctx.evidence.reset = { status: resetStatus };
     if (resetStatus === 429) return infra("auth-rate-limit", "local auth rate-limited the password reset");
@@ -818,9 +835,18 @@ export const S34: ScenarioRunner = {
       poll(ctx, async () => (await ctx.mail.robotMail({ since, tag }))[0], 600_000, 15_000),
       poll(ctx, async () => (await ctx.mail.mailpit({ to: memberEmail(RESET_MEMBER.tenant, RESET_MEMBER.member), since }))[0], 120_000, 3_000),
     ]);
-    if (!invite) return fail("invite_mail_missing", "the invite did not reach the robot mailbox within 10 min");
+    if (!invite) {
+      const untagged = (await ctx.mail.robotMail({ since })).filter((mail) => mail.to.toLowerCase() !== address.toLowerCase());
+      ctx.evidence.untagged_robot_mail = untagged.map((mail) => ({ id: mail.id, to_has_tag: mail.to.includes("+"), subject: mail.subject }));
+      if (untagged.length > 0) {
+        return fail("invite_mail_untagged", `mail reached the robot mailbox within 10 min but not at the invite's sub-address, so Email Routing may drop the +tag (${untagged.length} other mail)`);
+      }
+      return fail("invite_mail_missing", "the invite did not reach the robot mailbox within 10 min");
+    }
     const inviteLinks = await linksWork(ctx, invite);
-    ctx.evidence.invite_mail = { id: invite.id, arrived_ms: Date.parse(invite.received_at) - since, link_statuses: inviteLinks.statuses };
+    ctx.evidence.invite_mail = { id: invite.id, arrived_ms: Date.parse(invite.received_at) - since, subject: invite.subject, link_statuses: inviteLinks.statuses };
+    if (!/invited to join/i.test(invite.subject)) return fail("invite_mail_wrong", `the mail at the robot mailbox is not the invite: its subject is "${invite.subject}"`);
+    if (!invite.links.some((link) => link.includes(`/invite/${inviteId}`))) return fail("invite_link_broken", "the invite mail has no link to this invite's accept page");
     if (!inviteLinks.ok) return fail("invite_link_broken", `the invite's links answered ${inviteLinks.statuses.join(", ") || "nothing: it had none"}`);
     if (!reset) return fail("reset_mail_missing", "the password reset did not reach Mailpit within 2 min");
     const resetLinks = await linksWork(ctx, reset);

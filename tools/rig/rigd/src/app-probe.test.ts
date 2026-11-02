@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { numberBook } from "@loonext/rig-robot";
 import { describe, expect, it } from "vitest";
 import { totpCode } from "../../../../scripts/rig/seed.mjs";
-import { AppProbe, SIGN_UP_ADDRESS, stableUuid, VOICEMAILS_BUCKET } from "./app-probe.ts";
+import { AppProbe, MAIL_ACCOUNT_ADDRESS, SIGN_UP_ADDRESS, stableUuid, VOICEMAILS_BUCKET } from "./app-probe.ts";
 import { fakeFetch, json, type Recorded, type Route } from "./test-support.ts";
 
 const SUPABASE = "http://127.0.0.1:54321";
@@ -522,6 +522,57 @@ describe("the app probe's workspaces", () => {
 
     const failed = probeWith({ [`PATCH ${rest("companies")}`]: noContent, [`DELETE ${SUPABASE}/auth/v1/admin/users/`]: () => json({}, 500) });
     await expect(failed.probe.deleteSignUp({ email: SIGN_UP_EMAIL })).rejects.toThrow(/returned 500/);
+  });
+
+  it("makes and removes a confirmed account only at S34's own sub-address, never a seeded member's", async () => {
+    const mine = "rig-robot+s34-acct-n0nce@example.invalid";
+    expect(MAIL_ACCOUNT_ADDRESS.test(mine)).toBe(true);
+    for (const other of ["delivered+rig-qa-w-owner@resend.dev", SIGN_UP_EMAIL, "rig-robot@example.invalid", "rig-robot+s34-acct-x@example.invalid.", "a+s34-acct-x@localhost"]) {
+      expect(MAIL_ACCOUNT_ADDRESS.test(other)).toBe(false);
+    }
+    const seeded = probeWith({});
+    await expect(seeded.probe.createMailAccount({ email: "delivered+rig-qa-w-owner@resend.dev" })).rejects.toThrow(/own sub-address/);
+    await expect(seeded.probe.deleteMailAccount({ email: "delivered+rig-qa-w-owner@resend.dev" })).rejects.toThrow(/own sub-address/);
+    expect(seeded.requests).toEqual([]);
+
+    const { probe, requests } = probeWith({ [`POST ${SUPABASE}/auth/v1/admin/users`]: () => json({ id: "new" }, 200) });
+    expect(await probe.createMailAccount({ email: mine })).toBe(200);
+    const create = requests.find((r) => r.method === "POST")!;
+    expect(create.headers.authorization).toBe("Bearer service");
+    const body = JSON.parse(create.body!);
+    expect(body).toMatchObject({ email: mine, email_confirm: true });
+    expect(String(body.password).length).toBeGreaterThanOrEqual(20);
+  });
+
+  it("does not make a second account for an address that has one, and removes the one it made", async () => {
+    const mine = "rig-robot+s34-acct-n0nce@example.invalid";
+    const known = fakeFetch({
+      [`GET ${SUPABASE}/auth/v1/admin/users`]: () => json({ users: [{ id: "acct-1", email: mine.toUpperCase() }] }),
+      [`DELETE ${SUPABASE}/auth/v1/admin/users/acct-1`]: () => json({}, 200),
+    });
+    const probe = new AppProbe({
+      tenants: {},
+      numbers: numberBook({}),
+      apiBase: API,
+      supabaseUrl: SUPABASE,
+      serviceRoleKey: "service",
+      anonKey: "publishable",
+      edgeOrigin: "https://rig-edge.example.workers.dev",
+      guardToken: "t",
+      fetch: known.fetch,
+      now: () => NOW,
+    });
+    expect(await probe.createMailAccount({ email: mine })).toBe(200);
+    expect(known.requests.map((r) => r.method)).toEqual(["GET"]);
+    await probe.deleteMailAccount({ email: mine });
+    expect(known.requests.at(-1)).toMatchObject({ method: "DELETE", url: `${SUPABASE}/auth/v1/admin/users/acct-1` });
+
+    const gone = probeWith({});
+    await gone.probe.deleteMailAccount({ email: mine });
+    expect(gone.requests.map((r) => r.method)).toEqual(["GET"]);
+
+    const failed = probeWith({ [`GET ${SUPABASE}/auth/v1/admin/users`]: () => json({ users: [{ id: "acct-2", email: mine }] }), [`DELETE ${SUPABASE}/auth/v1/admin/users/acct-2`]: () => json({}, 500) });
+    await expect(failed.probe.deleteMailAccount({ email: mine })).rejects.toThrow(/returned 500/);
   });
 
   it("marks a number released only if it is not already, and puts a canceled workspace back with its numbers", async () => {

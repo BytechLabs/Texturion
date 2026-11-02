@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { gpsJpeg, hasGpsExif, sha256Hex } from "@loonext/rig-robot";
 import { memberEmail } from "../../../../../scripts/rig/tenants.mjs";
-import { SIGN_UP_ADDRESS } from "../app-probe.ts";
+import { MAIL_ACCOUNT_ADDRESS, SIGN_UP_ADDRESS } from "../app-probe.ts";
 import { STRIPE_DELETE_UNDO } from "../stripe-sandbox.ts";
 import { releaseHeldNumber, releaseTenantNumbers } from "../wiring.ts";
 import {
@@ -52,8 +52,8 @@ function withoutGps(jpeg: Uint8Array): Uint8Array {
   return bytes;
 }
 
-function mailTo(to: string, links: string[], receivedAt: number, id = "mail-1"): MailMessage {
-  return { id, to, from: "rig@example.invalid", subject: "Rig mail", text: links.join("\n"), links, received_at: new Date(receivedAt).toISOString() };
+function mailTo(to: string, links: string[], receivedAt: number, id = "mail-1", subject = "Rig mail"): MailMessage {
+  return { id, to, from: "rig@example.invalid", subject, text: links.join("\n"), links, received_at: new Date(receivedAt).toISOString() };
 }
 
 function s22World() {
@@ -1004,7 +1004,8 @@ describe("S33, two-factor sign-in", () => {
 });
 
 const RESET_LINK = "http://127.0.0.1:54321/auth/v1/verify?token=reset&type=recovery";
-const INVITE_LINK = "http://127.0.0.1:3100/invite/accept?token=invite";
+const INVITE_LINK = "http://127.0.0.1:3100/invite/invite-1";
+const INVITE_SUBJECT = "You've been invited to join QA-W on Loonext";
 
 function s34World() {
   const world = fakeContext("S34");
@@ -1013,7 +1014,9 @@ function s34World() {
   const invite = app.invite.bind(app);
   app.invite = async (args: { member: string; email: string }) => {
     const answer = await invite(args);
-    mail.robot.push(mailTo(args.email, [INVITE_LINK], time.now + 30_000, "robot-mail-1"));
+    // routes/team.ts: an address with an account is mailed over Resend, to the edge; any other is mailed by local auth.
+    if (app.mailAccounts.has(args.email)) mail.robot.push(mailTo(args.email, [INVITE_LINK], time.now + 30_000, "robot-mail-1", INVITE_SUBJECT));
+    else mail.auth.push(mailTo(args.email, [INVITE_LINK], time.now + 1_000, "auth-invite-1", INVITE_SUBJECT));
     return answer;
   };
   const reset = app.sendPasswordReset.bind(app);
@@ -1027,20 +1030,95 @@ function s34World() {
 }
 
 describe("S34, emails", () => {
-  it("passes when the invite reaches the robot mailbox and the reset reaches Mailpit, every link working", async () => {
+  it("passes when the invite to an existing account reaches the robot mailbox and the reset reaches Mailpit, every link working", async () => {
     const { ctx, undo, app, mail } = s34World();
     const result = await S34.run(ctx);
     expect(result).toMatchObject({ outcome: "pass" });
     expect((result as { detail?: string }).detail).toMatch(/missed-call alert is not covered/);
-    expect(app.invites).toEqual([{ member: "qa-w-owner", email: mail.robotAddress(`s34-invite-${ctx.nonce}`) }]);
-    expect(undo).toEqual([{ kind: "app.revoke-invite", params: { member: "qa-w-owner", inviteId: "invite-1" } }]);
+    const address = mail.robotAddress(`s34-acct-${ctx.nonce}`)!;
+    expect(address).toMatch(MAIL_ACCOUNT_ADDRESS);
+    expect([...app.mailAccounts]).toEqual([address]);
+    expect(app.invites).toEqual([{ member: "qa-w-owner", email: address }]);
+    expect(undo).toEqual([
+      { kind: "app.delete-mail-account", params: { email: address } },
+      { kind: "app.revoke-invite", params: { member: "qa-w-owner", inviteId: "invite-1" } },
+    ]);
     expect(app.passwordResets).toEqual(["qa-w-technician"]);
     expect(S34.guardLease).toBe(true);
-    expect(ctx.evidence).toMatchObject({ missed_call_alert: "not_covered", invite_mail: { link_statuses: [200] }, reset_mail: { link_statuses: [303] } });
+    expect(ctx.evidence).toMatchObject({ missed_call_alert: "not_covered", invite_mail: { subject: INVITE_SUBJECT, link_statuses: [200] }, invite: { email_sent: true }, reset_mail: { link_statuses: [303] } });
   });
 
   it("reads the invite's id from the row routes/team.ts answers with", () => {
     expect(source("apps/api/src/routes/team.ts")).toContain("return c.json({ ...invite, email_sent: emailSent }, 201);");
+  });
+
+  it("gives the sub-address an account before it invites, because only an account makes the app mail over Resend", async () => {
+    const { ctx, app } = s34World();
+    const order: string[] = [];
+    const create = app.createMailAccount.bind(app);
+    app.createMailAccount = async (args) => {
+      order.push("account");
+      return create(args);
+    };
+    const invite = app.invite.bind(app);
+    app.invite = async (args) => {
+      order.push("invite");
+      return invite(args);
+    };
+    await S34.run(ctx);
+    expect(order).toEqual(["account", "invite"]);
+  });
+
+  it("reports an account local auth would not make as infrastructure, and invites nobody", async () => {
+    const refused = s34World();
+    refused.app.createMailAccount = async () => 500;
+    expect(await S34.run(refused.ctx)).toMatchObject({ outcome: "infra", component: "local-auth" });
+    const down = s34World();
+    down.app.createMailAccount = async () => {
+      throw new Error("fetch failed");
+    };
+    expect(await S34.run(down.ctx)).toMatchObject({ outcome: "infra", component: "local-auth" });
+    expect(refused.app.invites).toEqual([]);
+    expect(down.app.invites).toEqual([]);
+  });
+
+  it("fails an invite that local auth mailed instead of the app, which never touches Resend or Email Routing", async () => {
+    const world = s34World();
+    world.app.createMailAccount = async () => 200;
+    world.app.mailAccounts.clear();
+    expect(await S34.run(world.ctx)).toMatchObject({ outcome: "fail", failure_class: "invite_sent_by_auth" });
+    expect(world.app.passwordResets).toEqual([]);
+  });
+
+  it("fails an invite whose Resend send the app reports as failed", async () => {
+    const world = s34World();
+    const invite = world.app.invite.bind(world.app);
+    world.app.invite = async (args) => ({ ...(await invite(args)), body: { id: "invite-1", email_sent: false } });
+    expect(await S34.run(world.ctx)).toMatchObject({ failure_class: "invite_not_sent" });
+  });
+
+  it("tells mail that arrived without the +tag from mail that never arrived, and checks the mail is the invite", async () => {
+    const stripped = s34World();
+    stripped.mail.robotMail = async (args) => (args.tag ? [] : [mailTo("rig-robot@example.invalid", [INVITE_LINK], stripped.time.now + 60_000)]);
+    expect(await S34.run(stripped.ctx)).toMatchObject({ failure_class: "invite_mail_untagged" });
+
+    const other = s34World();
+    const invite = other.app.invite.bind(other.app);
+    other.app.invite = async (args) => {
+      const answer = await invite(args);
+      other.mail.robot.forEach((item) => (item.subject = "Your receipt"));
+      return answer;
+    };
+    expect(await S34.run(other.ctx)).toMatchObject({ failure_class: "invite_mail_wrong" });
+
+    const elsewhere = s34World();
+    const invite2 = elsewhere.app.invite.bind(elsewhere.app);
+    elsewhere.app.invite = async (args) => {
+      const answer = await invite2(args);
+      elsewhere.mail.robot.forEach((item) => (item.links = ["http://127.0.0.1:3100/login"]));
+      return answer;
+    };
+    expect(await S34.run(elsewhere.ctx)).toMatchObject({ failure_class: "invite_link_broken" });
   });
 
   it("checks nothing without a robot mailbox, a fresh heartbeat or a guard lease that lets the guard mail it", async () => {
@@ -1062,7 +1140,10 @@ describe("S34, emails", () => {
     };
     expect(await S34.run(local.ctx)).toMatchObject({ outcome: "infra", component: "guard-lease" });
 
-    for (const world of [unnamed, stale, halted, local]) expect(world.app.invites).toEqual([]);
+    for (const world of [unnamed, stale, halted, local]) {
+      expect(world.app.invites).toEqual([]);
+      expect(world.app.mailAccounts.size).toBe(0);
+    }
   });
 
   it("names a refused invite or reset, and mail that never came", async () => {
