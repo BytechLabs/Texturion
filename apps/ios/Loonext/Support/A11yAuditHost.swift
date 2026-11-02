@@ -31,7 +31,11 @@ struct A11yAuditHost: View {
     @State private var graph = AppGraph()
 
     var body: some View {
+        let locale = UiLocaleStore.shared.resolved
         content
+            .environment(\.appLocale, locale)
+            .environment(\.locale, UiLocale.platformLocale(locale))
+            .tint(BrandColor.olive)
             .background(BrandColor.canvas.ignoresSafeArea())
     }
 

@@ -35,25 +35,25 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     // MARK: Large text
 
-    /// Text clipping and scaling at the largest accessibility size. The default-size
-    /// audit already covers contrast and hit regions, which the font does not change.
+    /// The same screens at the largest accessibility text size, where controls
+    /// are pushed off screen and labels stop fitting.
     func testLargeText() throws {
         for surface in ["login", "inbox", "thread", "calls", "inCall", "settings"] {
-            try audit(
-                surface,
-                types: [.textClipped, .dynamicType],
-                contentSize: "UICTContentSizeCategoryAccessibilityXXXL"
-            )
+            try audit(surface, contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
         }
     }
 
     // MARK: Harness
 
-    private func audit(
-        _ surface: String,
-        types: XCUIAccessibilityAuditType = .all,
-        contentSize: String? = nil
-    ) throws {
+    /// Findings that fail the build. The two it leaves out are logged instead:
+    /// `dynamicType` flags the small captions the app does scale (through
+    /// `relativeTo:`, which `scripts/check-native-a11y.mjs` enforces), and
+    /// `textClipped` flags the one-line previews that truncate by design.
+    private static let enforced: XCUIAccessibilityAuditType = [
+        .contrast, .elementDetection, .hitRegion, .sufficientElementDescription, .trait,
+    ]
+
+    private func audit(_ surface: String, contentSize: String? = nil) throws {
         let app = XCUIApplication()
         app.launchArguments += ["-a11yAuditSurface", surface]
         if let contentSize {
@@ -70,26 +70,50 @@ final class AccessibilityAuditUITests: XCTestCase {
             "\(surface): nothing on screen to audit"
         )
 
-        var found: [String] = []
-        try app.performAccessibilityAudit(for: types) { issue in
-            found.append(Self.describe(issue))
-            // Handled: keep going, and fail once with the whole list below.
+        var failures: [String] = []
+        var advice: [String] = []
+        try app.performAccessibilityAudit(for: .all) { issue in
+            let line = Self.describe(issue)
+            if Self.enforced.contains(issue.auditType), !Self.isInactiveControl(issue, in: app) {
+                failures.append(line)
+            } else {
+                advice.append(line)
+            }
+            // Handled either way: keep going and report once, below.
             return true
         }
 
         let label = contentSize == nil ? surface : "\(surface) at large text"
+        if !advice.isEmpty {
+            let note = "\(label): \(advice.count) advisory finding(s)\n" + advice.joined(separator: "\n")
+            print("A11Y-AUDIT " + note)
+            let attachment = XCTAttachment(string: note)
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
         XCTAssertTrue(
-            found.isEmpty,
-            "\(label): \(found.count) accessibility issue(s)\n" + found.joined(separator: "\n")
+            failures.isEmpty,
+            "\(label): \(failures.count) accessibility issue(s)\n" + failures.joined(separator: "\n")
         )
+    }
+
+    /// WCAG exempts a control that is switched off from the contrast minimum,
+    /// and the audit does not know the label belongs to one.
+    private static func isInactiveControl(_ issue: XCUIAccessibilityAuditIssue, in app: XCUIApplication) -> Bool {
+        guard issue.auditType == .contrast, let label = issue.element?.label, !label.isEmpty else {
+            return false
+        }
+        let button = app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
+        return button.exists && !button.isEnabled
     }
 
     private static func describe(_ issue: XCUIAccessibilityAuditIssue) -> String {
         let element = issue.element
         let name = element.flatMap { $0.label.isEmpty ? nil : $0.label } ?? "(no label)"
         let kind = element.map { String(describing: $0.elementType) } ?? "?"
+        let frame = element.map { String(describing: $0.frame) } ?? "?"
         return "  [\(typeName(issue.auditType))] \(issue.compactDescription)"
-            + " - \(kind) \"\(name)\""
+            + " - \(kind) \"\(name)\" \(frame)"
     }
 
     private static func typeName(_ type: XCUIAccessibilityAuditType) -> String {

@@ -354,8 +354,8 @@ private struct MessageMetaLine: View {
                     Text(AppStrings.translate(appLocale, "thread.retry"))
                         .font(.golos(10.5, weight: .bold))
                         .foregroundStyle(BrandColor.destructive)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
                         .background(BrandColor.destructiveContainer, in: Capsule())
                 }
                 .buttonStyle(.plain)
@@ -501,7 +501,11 @@ struct EventLine: View {
     var body: some View {
         VStack(spacing: 3) {
             if let onTap {
-                Button(action: onTap) { sentence }
+                Button(action: onTap) {
+                    sentence
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                }
                     .buttonStyle(.plain)
                     .accessibilityLabel(tapLabel ?? text)
                     .accessibilityAddTraits(.isButton)

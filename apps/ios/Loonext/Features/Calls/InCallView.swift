@@ -503,6 +503,7 @@ private struct OtherCallRow: View {
                         .foregroundStyle(BrandColor.destructive)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(t("contactsTasks.decline"))

@@ -1104,6 +1104,7 @@ struct ThreadComposerView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(selected ? selectedBg : Color.clear, in: Capsule())
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }

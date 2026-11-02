@@ -222,7 +222,7 @@ struct DialerSheet: View {
                                         .font(.golos(keySize * 0.34, weight: .semibold))
                                         .foregroundStyle(
                                             (key == "*" || key == "#")
-                                                ? BrandColor.muted500
+                                                ? BrandColor.muted700
                                                 : BrandColor.ink
                                         )
                                     if let letters = keypadLetters[key] {

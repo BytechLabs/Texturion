@@ -339,6 +339,8 @@ private struct LinkButton: View {
             Text(title)
                 .font(.golos(12.5, weight: .semibold))
                 .foregroundStyle(tint)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -399,6 +401,7 @@ private struct SsoButtons: View {
                     .foregroundStyle(BrandColor.ink)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
+                    .contentShape(Capsule())
             }
             .buttonStyle(.plain)
             .background(BrandColor.paper, in: Capsule())
@@ -654,8 +657,10 @@ private struct AuthField: View {
             }
             .font(.golos(14))
             .foregroundStyle(BrandColor.ink)
+            .accessibilityLabel(title)
             .padding(.horizontal, 15)
             .padding(.vertical, 13)
+            .frame(minHeight: 44)
             .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)

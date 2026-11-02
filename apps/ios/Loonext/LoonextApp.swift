@@ -35,9 +35,6 @@ struct LoonextApp: App {
             // #238: the accessibility audit opens one screen on fixture data.
             if let surface = A11yAuditSurface.requested {
                 A11yAuditHost(surface: surface)
-                    .environment(\.appLocale, appLocale)
-                    .environment(\.locale, UiLocale.platformLocale(appLocale))
-                    .tint(BrandColor.olive)
             } else {
                 liveRoot
             }
