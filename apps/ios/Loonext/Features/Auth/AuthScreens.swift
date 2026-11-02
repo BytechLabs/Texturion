@@ -623,6 +623,10 @@ private struct AuthField: View {
     @Binding var text: String
     let kind: AuthFieldKind
 
+    /// The field fills its whole row, so a tap anywhere in the pill lands in it.
+    /// Scaled, so a bigger font does not clip inside a fixed height.
+    @ScaledMetric(relativeTo: .body) private var fieldHeight: CGFloat = 44
+
     init(_ title: String, text: Binding<String>, kind: AuthFieldKind) {
         self.title = title
         self._text = text
@@ -658,7 +662,7 @@ private struct AuthField: View {
             .font(.golos(14))
             .foregroundStyle(BrandColor.ink)
             .accessibilityLabel(title)
-            .frame(minHeight: 44)
+            .frame(height: fieldHeight)
             .padding(.horizontal, 15)
             .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
