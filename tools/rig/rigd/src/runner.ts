@@ -11,11 +11,21 @@
 import { randomBytes } from "node:crypto";
 import { LEASE_MAX_MS } from "@loonext/rig-protocol";
 import { GuardRefusedError, type Clock } from "@loonext/rig-robot";
-import { blockedByRoom, clockHourStart, inWindow, utcDayStart, type DialCaps, type DialWindow } from "./budget.ts";
+import { blockedByRoom, clockHourStart, dialsInLog, inWindow, utcDayStart, type DialCaps, type DialWindow } from "./budget.ts";
 import { textHash } from "./late.ts";
 import { LeaseBusyError, LeaseReapedError, type Lease, type LeaseClient, type ReleaseResult } from "./lease.ts";
 import { dialsPerRun, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
-import type { LeaseHandle, ScenarioContext, ScenarioHistoryApi, ScenarioLanes, ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
+import type {
+  BrowserApi,
+  DevicesApi,
+  GuardApi,
+  LeaseHandle,
+  ScenarioContext,
+  ScenarioHistoryApi,
+  ScenarioLanes,
+  ScenarioResult,
+  ScenarioRunner,
+} from "./scenarios/context.ts";
 import { infraFingerprint, syntheticFingerprint, type Dsn, type RelayDecision, type SentryRelay } from "./sentry-relay.ts";
 import type { Outcome, Verdict, VerdictStore } from "./verdicts.ts";
 
@@ -151,7 +161,7 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
       break;
     }
     const outcome = await attemptOnce(deps, entry, runner, runId, attempt, sha, window, slot);
-    record(attempt, startedAt, outcome, outcome.spent ? dialsPerRun(entry) : 0);
+    record(attempt, startedAt, outcome, outcome.dials);
     if (outcome.critical) break;
     if (!RETRIED.has(outcome.outcome)) break;
     if (attempt === 1) deps.log?.(`${id}: attempt 1 ${outcome.outcome} (${outcome.detail ?? ""}); retrying once`);
@@ -216,7 +226,8 @@ type AttemptOutcome = {
   component?: string;
   detail?: string;
   critical?: boolean;
-  spent: boolean;
+  /** Dials charged to the hourly and daily caps: the ones this attempt placed, not the ones its scenario would have. */
+  dials: number;
 };
 
 /** A lane another run holds is waited for as a busy lease is. */
@@ -239,7 +250,7 @@ async function acquireLease(
         await deps.sleep(LEASE_POLL_MS);
         continue;
       }
-      return { outcome: "skipped", detail: `${holder.scenario} held the ${entry.lane} lane for ${waited()} min while it prepared`, spent: false };
+      return { outcome: "skipped", detail: `${holder.scenario} held the ${entry.lane} lane for ${waited()} min while it prepared`, dials: 0 };
     }
     try {
       if (!atGuard) return await deps.localLease(entry.id);
@@ -252,14 +263,14 @@ async function acquireLease(
           await deps.sleep(LEASE_POLL_MS);
           continue;
         }
-        return { outcome: "skipped", detail: `another scenario held the lease for ${waited()} min`, spent: false };
+        return { outcome: "skipped", detail: `another scenario held the lease for ${waited()} min`, dials: 0 };
       }
       // Only a busy lease is a reason to skip. Any other refusal, a rejected
       // token or a guard that does not answer is the rig's fault to report.
       if (error instanceof GuardRefusedError) {
-        return { outcome: "infra", component: "guard", detail: `the guard refused the lease: ${error.rule}`, spent: false };
+        return { outcome: "infra", component: "guard", detail: `the guard refused the lease: ${error.rule}`, dials: 0 };
       }
-      return { outcome: "infra", component: "lease", detail: (error as Error).message, spent: false };
+      return { outcome: "infra", component: "lease", detail: (error as Error).message, dials: 0 };
     }
   }
 }
@@ -351,12 +362,12 @@ async function attemptHeld(
         await abandon();
       }
       deps.verdicts.saveEvidence(runId, attempt, evidence);
-      return { ...outcomeOf(prepared), spent: false };
+      return { ...outcomeOf(prepared), dials: 0 };
     }
     if (paid && !inWindow(window, deps.clock.now() + WINDOW_TAIL_MS)) {
       await abandon();
       deps.verdicts.saveEvidence(runId, attempt, evidence);
-      return { outcome: "skipped", detail: "the dial window closed while the run prepared", spent: false };
+      return { outcome: "skipped", detail: "the dial window closed while the run prepared", dials: 0 };
     }
   }
 
@@ -371,17 +382,23 @@ async function attemptHeld(
   const lease = acquired;
   const attemptStartedAt = deps.clock.now();
 
+  // The apps place some dials themselves, through Telnyx's SDK, past the guard's log.
+  const placed = { byApp: 0, byRobot: 0 };
   const ctx: ScenarioContext = {
     ...base,
     lease,
-    browser: lanes.browser,
+    browser: dialsOnPages(lanes.browser, () => placed.byApp++),
     guard: lanes.guard,
-    devices: lanes.devices,
+    devices: dialsOnDevices(lanes.devices, () => placed.byApp++),
     rig: lanes.rig,
     mail: lanes.mail,
     stripe: lanes.stripe,
     handoff: lanes.handoff,
-    robot: noting(lanes.robot, "sms", (message: { text: string }) => texts.add(textHash(message.text))),
+    robot: noting(
+      noting(lanes.robot, "sms", (message: { text: string }) => texts.add(textHash(message.text))),
+      "dial",
+      () => placed.byRobot++,
+    ),
     app: noting(lanes.app, "sendText", (args: { body: string }) => texts.add(textHash(args.body))),
   };
 
@@ -391,6 +408,9 @@ async function attemptHeld(
   } catch (error) {
     result = attemptError(error);
   }
+  // Read before the lease is released and before any later step can change the result.
+  const judged = result.outcome === "pass" || result.outcome === "fail";
+  const inLog = paid && !judged ? await dialsAtGuard(lanes.guard, lease.id) : undefined;
   let released: ReleaseResult | undefined;
   try {
     await ctx.browser.closeAll();
@@ -436,7 +456,7 @@ async function attemptHeld(
     return {
       outcome: "late_delivery",
       detail: `${late} of this attempt's text(s) reached the API after Telnyx's signature window; ${failureClass} not counted`,
-      spent: paid,
+      dials: dialsPerRun(entry),
     };
   }
   deps.verdicts.saveEvidence(runId, attempt, evidence);
@@ -447,8 +467,71 @@ async function attemptHeld(
     component: result.outcome === "infra" ? result.component : undefined,
     detail: "detail" in result ? result.detail : undefined,
     ...(critical ? { critical: true } : {}),
-    spent: paid,
+    dials: chargedDials({ full: dialsPerRun(entry), judged, inLog, byApp: placed.byApp, byRobot: placed.byRobot }),
   };
+}
+
+/**
+ * The dials an attempt is charged for. A run that was judged placed its dials,
+ * as the scenario counts them. One that ended some other way (a rig fault, a
+ * preemption) is charged for the dials the guard's log for its lease shows
+ * reached Telnyx, since a run that never dialed spent nothing: the caps count
+ * calls, not attempts. An app's own dial does not pass the guard, so a run in
+ * which an app placed one is charged in full. When the log cannot be read, a
+ * run with no dial of its own noted is charged nothing and any other in full.
+ */
+export function chargedDials(args: { full: number; judged: boolean; inLog: number | undefined; byApp: number; byRobot: number }): number {
+  const { full, judged, inLog, byApp, byRobot } = args;
+  if (full === 0 || judged || byApp > 0) return full;
+  if (inLog === undefined) return byRobot > 0 ? full : 0;
+  return Math.min(full, inLog);
+}
+
+async function dialsAtGuard(guard: GuardApi, leaseId: string): Promise<number | undefined> {
+  try {
+    return dialsInLog((await guard.activity(leaseId)).activity);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Member pages whose dial, once it has pressed Call, is noted. */
+function dialsOnPages(browser: BrowserApi, note: () => void): BrowserApi {
+  return new Proxy(browser, {
+    get(object, property) {
+      const value: unknown = Reflect.get(object, property);
+      if (typeof value !== "function") return value;
+      if (property !== "open") return value.bind(object);
+      return async (...args: unknown[]) => dialNoted(await (value as (...a: unknown[]) => Promise<object>).apply(object, args), note);
+    },
+  });
+}
+
+/** Devices whose dial, once it has pressed Call, is noted. */
+function dialsOnDevices(devices: DevicesApi, note: () => void): DevicesApi {
+  return new Proxy(devices, {
+    get(object, property) {
+      const value: unknown = Reflect.get(object, property);
+      if (typeof value !== "function") return value;
+      if (property !== "pixel" && property !== "emulator") return value.bind(object);
+      return (...args: unknown[]) => dialNoted((value as (...a: unknown[]) => object).apply(object, args), note);
+    },
+  });
+}
+
+function dialNoted<T extends object>(target: T, note: () => void): T {
+  return new Proxy(target, {
+    get(object, property) {
+      const value: unknown = Reflect.get(object, property);
+      if (typeof value !== "function") return value;
+      if (property !== "dial") return value.bind(object);
+      return async (...args: unknown[]) => {
+        const done = await (value as (...a: unknown[]) => unknown).apply(object, args);
+        note();
+        return done;
+      };
+    },
+  });
 }
 
 function historyOf(deps: RunnerDeps, scenario: string): ScenarioHistoryApi {
@@ -484,7 +567,7 @@ function noting<T extends object, A>(target: T, method: string, note: (arg: A) =
   });
 }
 
-function outcomeOf(result: ScenarioResult): Omit<AttemptOutcome, "spent"> {
+function outcomeOf(result: ScenarioResult): Omit<AttemptOutcome, "dials"> {
   return {
     outcome: result.outcome,
     failure_class: result.outcome === "fail" ? result.failure_class : undefined,

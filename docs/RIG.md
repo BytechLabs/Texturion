@@ -766,7 +766,8 @@ Payloads, passwords and query strings are never logged or alerted. This catches 
 
 **The guard's own cap:**
 - 18 dials a day and 3 an hour;
-- a run is admitted only if its dials fit what is left of the hour and the day, and only inside the guard's window (section 3.5).
+- a run is admitted only if its dials fit what is left of the hour and the day, and only inside the guard's window (section 3.5);
+- an attempt is charged against those two counts for the dials it placed. A run that was judged is charged its dials. A run that ended as a rig fault or a preemption is charged what the guard's log for its lease shows reached Telnyx (a dial or a transfer the guard forwarded and Telnyx did not refuse), or its full dials once an app has pressed Call, because an app's own dial does not pass the guard. An attempt that ended before its first dial is charged nothing, so rig faults do not use up the hour.
 
 **The account-wide check.** Below that cap, the guard assumes the Paid level's limits for the whole account (section 3.5): the rig's dials in an hour plus production's peak hour come to at most 10, and a day's to at most 100. A stale measurement of production's peaks refuses. The guard's daily `measure` job and its limit probe keep those measurements fresh, so an on-demand run is not refused for a stale one.
 

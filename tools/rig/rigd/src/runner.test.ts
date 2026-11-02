@@ -4,10 +4,10 @@ import { join } from "node:path";
 import { HEADER } from "@loonext/rig-protocol";
 import { ManualClock } from "@loonext/rig-robot/test-support";
 import { afterEach, describe, expect, it } from "vitest";
-import { parseWindow } from "./budget.ts";
+import { dialsInLog, parseWindow } from "./budget.ts";
 import { textHash } from "./late.ts";
 import { LeaseClient, type UndoHandlers } from "./lease.ts";
-import { runScenario, type RunnerDeps } from "./runner.ts";
+import { chargedDials, runScenario, type RunnerDeps } from "./runner.ts";
 import type { ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
 import { fakeLanes, FakeTime } from "./scenarios/fakes.ts";
 import { parseDsn, SentryRelay } from "./sentry-relay.ts";
@@ -596,5 +596,152 @@ describe("runScenario", () => {
     await expect(runScenario(deps, "S20", { slot: 3 })).rejects.toThrow(/no run 3/);
     deps.runners = {};
     await expect(runScenario(deps, "S02")).rejects.toThrow(/no runner/);
+  });
+});
+
+describe("the dials an attempt is charged", () => {
+  const infra: ScenarioResult = { outcome: "infra", component: "android-dialer", detail: "the dialer's keypad is not on screen" };
+
+  /** S02 runs `body` on each attempt, against lanes whose guard log is `log`. */
+  function withLog(log: Record<string, number> | Error, body: (ctx: Parameters<ScenarioRunner["run"]>[0]) => Promise<ScenarioResult>) {
+    const made = setup([]);
+    const time = new FakeTime();
+    made.deps.lanes = () => {
+      const lanes = fakeLanes(time);
+      if (log instanceof Error) {
+        lanes.guard.activity = async () => {
+          throw log;
+        };
+      } else lanes.guard.log = { ...log };
+      return lanes;
+    };
+    made.deps.runners = { ...made.deps.runners, S02: { id: "S02", run: body } };
+    return made;
+  }
+
+  it("charges nothing for an attempt that ended as a rig fault before any dial, so it does not use the hour's cap", async () => {
+    const { deps, verdicts } = withLog({}, async () => infra);
+    const summary = await runScenario(deps, "S02");
+    expect(summary.verdicts.map((v) => [v.outcome, v.dials])).toEqual([
+      ["infra", 0],
+      ["infra", 0],
+    ]);
+    // Four attempts used to fill the hour's 3; none now has.
+    expect(verdicts.dialsBetween(S02_DAY, S02_DAY + 3_600_000)).toBe(0);
+    expect((await runScenario(deps, "S02")).verdicts.every((v) => v.detail !== "the hourly cap of 3 dials is spent")).toBe(true);
+  });
+
+  it("charges the dials the guard's log shows reached Telnyx, and only those", async () => {
+    const { deps } = withLog({ "robot POST /v2/calls 200": 1, "rig-api GET /v2/calls/:id 200": 4 }, async () => infra);
+    expect((await runScenario(deps, "S02")).verdicts.map((v) => v.dials)).toEqual([1, 1]);
+  });
+
+  it("does not count a dial the guard or Telnyx refused", async () => {
+    const { deps } = withLog(
+      { "robot POST /v2/calls dial.to_not_owned": 1, "robot POST /v2/calls 422": 1, "robot POST /v2/calls budget.dials_hour": 1 },
+      async () => infra,
+    );
+    expect((await runScenario(deps, "S02")).verdicts.map((v) => v.dials)).toEqual([0, 0]);
+  });
+
+  it("never charges more than the scenario's own dials", async () => {
+    const { deps } = withLog({ "robot POST /v2/calls 200": 7 }, async () => infra);
+    expect((await runScenario(deps, "S02")).verdicts.map((v) => v.dials)).toEqual([2, 2]);
+  });
+
+  it("charges a run that was judged its full dials, whatever the log shows", async () => {
+    const passing = withLog({}, async () => ({ outcome: "pass" }));
+    expect((await runScenario(passing.deps, "S02")).verdicts.map((v) => v.dials)).toEqual([2]);
+    const failed = withLog({}, async () => failing("no_ring_within_6s"));
+    expect((await runScenario(failed.deps, "S02")).verdicts.map((v) => [v.outcome, v.dials])).toEqual([
+      ["fail", 2],
+      ["fail", 2],
+    ]);
+  });
+
+  it("charges in full a run in which an app pressed Call, since an app's dial does not pass the guard", async () => {
+    const { deps } = withLog({}, async (ctx) => {
+      await ctx.devices.pixel().dial("ROBOT-1");
+      return infra;
+    });
+    expect((await runScenario(deps, "S02")).verdicts.map((v) => v.dials)).toEqual([2, 2]);
+
+    const browser = withLog({}, async (ctx) => {
+      await (await ctx.browser.open("qa-w-owner", "qa-w-owner", "/calls")).dial("ROBOT-1");
+      return infra;
+    });
+    expect((await runScenario(browser.deps, "S02")).verdicts.map((v) => v.dials)).toEqual([2, 2]);
+  });
+
+  it("charges nothing for a dial that failed before it was placed", async () => {
+    const { deps } = withLog({}, async (ctx) => {
+      const pixel = ctx.devices.pixel();
+      pixel.dial = async () => {
+        throw new Error("rig: the app's calls screen offered no dialer");
+      };
+      await pixel.dial("ROBOT-1").catch(() => undefined);
+      return infra;
+    });
+    expect((await runScenario(deps, "S02")).verdicts.map((v) => v.dials)).toEqual([0, 0]);
+  });
+
+  it("falls back to the attempt's own dials when the log cannot be read", async () => {
+    const none = withLog(new Error("lease.not_found"), async () => infra);
+    expect((await runScenario(none.deps, "S02")).verdicts.map((v) => v.dials)).toEqual([0, 0]);
+    const dialed = withLog(new Error("lease.not_found"), async (ctx) => {
+      await ctx.robot.dial({} as never);
+      return infra;
+    });
+    expect((await runScenario(dialed.deps, "S02")).verdicts.map((v) => v.dials)).toEqual([2, 2]);
+  });
+});
+
+describe("dialsInLog", () => {
+  it("counts the dials and transfers that reached Telnyx, by status or an unknown answer", () => {
+    expect(
+      dialsInLog({
+        "robot POST /v2/calls 200": 2,
+        "rig-api POST /v2/calls 201": 1,
+        "rig-api POST /v2/calls 503": 1,
+        "robot POST /v2/calls error": 1,
+        "rig-api POST /v2/calls/:id/actions/transfer 200": 1,
+      }),
+    ).toBe(6);
+  });
+
+  it("leaves out what the guard or Telnyx refused, and requests that place no leg", () => {
+    expect(
+      dialsInLog({
+        "robot POST /v2/calls 422": 1,
+        "robot POST /v2/calls 429": 1,
+        "robot POST /v2/calls dial.from_not_owned": 1,
+        "robot POST /v2/calls budget.dials_day": 1,
+        "robot POST /v2/calls/:id/actions/answer 200": 3,
+        "robot POST /v2/calls/:id/actions/bridge 200": 1,
+        "rig-api GET /v2/calls 200": 2,
+        "rig-api POST /v2/messages 200": 1,
+      }),
+    ).toBe(0);
+  });
+});
+
+describe("chargedDials", () => {
+  const base = { full: 2, judged: false, inLog: undefined as number | undefined, byApp: 0, byRobot: 0 };
+
+  it("is the scenario's dials for a judged run or one with an app's dial, nothing for a scenario that dials nothing", () => {
+    expect(chargedDials({ ...base, judged: true })).toBe(2);
+    expect(chargedDials({ ...base, byApp: 1, inLog: 0 })).toBe(2);
+    expect(chargedDials({ ...base, full: 0, judged: true })).toBe(0);
+  });
+
+  it("is the log's count, capped at the scenario's dials, otherwise", () => {
+    expect(chargedDials({ ...base, inLog: 0 })).toBe(0);
+    expect(chargedDials({ ...base, inLog: 1 })).toBe(1);
+    expect(chargedDials({ ...base, inLog: 9 })).toBe(2);
+  });
+
+  it("without the log, is nothing before the robot's first dial and everything after", () => {
+    expect(chargedDials(base)).toBe(0);
+    expect(chargedDials({ ...base, byRobot: 1 })).toBe(2);
   });
 });

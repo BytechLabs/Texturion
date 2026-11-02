@@ -9,6 +9,9 @@
  */
 import { dialsPerRun, type RegisteredScenario } from "./registry.ts";
 
+/** The guard's lease-log endpoints that place a leg: a dial and a transfer. */
+const DIAL_ENDPOINTS: ReadonlySet<string> = new Set(["POST /v2/calls", "POST /v2/calls/:id/actions/transfer"]);
+
 export interface DialCaps {
   daily: number;
   hourly: number;
@@ -21,6 +24,24 @@ export interface DialCaps {
 export function blockedByRoom(entry: RegisteredScenario, room: number): boolean {
   if (dialsPerRun(entry) === 0) return false;
   return room <= 1 || entry.room_min > room;
+}
+
+/**
+ * Dials a lease's log shows reached Telnyx. The log counts requests as
+ * `<caller> <METHOD> <path> <outcome>`, the outcome being Telnyx's status or
+ * the guard's rule. A guard rule refused the dial and a 4xx is Telnyx
+ * refusing it, so neither placed anything; the guard gives those back too. A
+ * 2xx, a 5xx and an error that left the answer unknown count.
+ */
+export function dialsInLog(activity: Readonly<Record<string, number>>): number {
+  let total = 0;
+  for (const [key, count] of Object.entries(activity)) {
+    const [, method = "", path = "", outcome = ""] = key.split(" ");
+    if (!DIAL_ENDPOINTS.has(`${method} ${path}`)) continue;
+    if (/^4\d\d$/.test(outcome) || !(/^\d+$/.test(outcome) || outcome === "error")) continue;
+    total += count;
+  }
+  return total;
 }
 
 /** The quietest UTC hours, measured monthly by the guard; the registry's until there is data. */
