@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/BytechLabs/Texturion/compare/api-v0.19.1...api-v0.20.0) (2026-11-02)
+
+
+### Features
+
+* **api:** mail PostHog error alerts to the founder ([3a0a07d](https://github.com/BytechLabs/Texturion/commit/3a0a07df79c925c2f11402ba0c088c05e4c247a7))
+
 ## [0.19.1](https://github.com/BytechLabs/Texturion/compare/api-v0.19.0...api-v0.19.1) (2026-11-02)
 
 
