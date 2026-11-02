@@ -45,7 +45,7 @@ import {
 const API_ROOT = new URL("..", import.meta.url).pathname;
 /**
  * The local gateway, directly. Not https://db.rig.internal: the Worker refuses
- * any *.rig.internal host unless it runs as DEPLOY_ENV=rig, and rig mode would
+ * any *.rig.internal host unless it runs in rig mode, and rig mode would
  * in turn refuse the fictional numbers a load run is made of. This Worker is the
  * ordinary "local" deployment pointed at the rig's database.
  */
