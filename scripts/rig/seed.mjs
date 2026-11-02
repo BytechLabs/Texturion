@@ -267,6 +267,71 @@ export function seedGapsSql({ tenants = TENANTS, ids, standing }) {
         and p.voice_enabled));`;
 }
 
+/** The tenants that send or take metered usage; each needs a customer for Stripe to take a meter event. */
+export const METERED_TENANTS = ["qa-w", "qa-a", "qa-c", "qa-e"];
+
+const STRIPE_API = "https://api.stripe.com";
+
+/**
+ * One Stripe test-mode customer per metered tenant, so the usage the rig makes
+ * has somewhere to land. Test mode is shared with developers, so each customer
+ * carries metadata[loonext_rig]=1 and is found again by id, never by search. The
+ * ids live in stripe-customers.json beside the other rig-only ids. Without a
+ * test-mode key the usage rows simply stay unreported, as before.
+ */
+export async function ensureStripeCustomers({ store, tenants = TENANTS, fetchImpl = fetch, log = console.log }) {
+  const key = store.readOptional("stripe-secret-key");
+  if (!key) {
+    log("seed: no Stripe key in the store, so no tenant has a customer and usage stays unreported");
+    return {};
+  }
+  if (!/^(sk|rk)_test_/.test(key)) throw new Error("rig seed: the Stripe key is not a test-mode key; no customer was made");
+  const known = store.has("stripe-customers.json") ? store.readJson("stripe-customers.json") : {};
+  const customers = {};
+  let changed = false;
+  for (const tenant of tenants.filter((candidate) => METERED_TENANTS.includes(candidate.key))) {
+    const headers = { authorization: `Bearer ${key}` };
+    let id = known[tenant.key];
+    if (id) {
+      const read = await fetchImpl(`${STRIPE_API}/v1/customers/${encodeURIComponent(id)}`, { headers });
+      const body = await read.json().catch(() => ({}));
+      if (read.status === 404 || body.deleted === true) id = undefined;
+      else if (!read.ok) throw new Error(`rig seed: Stripe refused to read ${tenant.name}'s customer (${read.status})`);
+    }
+    if (!id) {
+      const form = new URLSearchParams({ name: `loonext_rig ${tenant.name}`, "metadata[loonext_rig]": "1" });
+      const made = await fetchImpl(`${STRIPE_API}/v1/customers`, {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/x-www-form-urlencoded" },
+        body: form,
+      });
+      const body = await made.json().catch(() => ({}));
+      if (!made.ok || typeof body.id !== "string") throw new Error(`rig seed: Stripe refused to create ${tenant.name}'s customer (${made.status})`);
+      id = body.id;
+      known[tenant.key] = id;
+      changed = true;
+    }
+    customers[tenant.key] = id;
+  }
+  if (changed) store.write("stripe-customers.json", known);
+  return customers;
+}
+
+/** Writes each customer id onto its tenant's company row. */
+export function stripeCustomersSql({ ids, customers }) {
+  const statements = ["begin;"];
+  for (const [tenantKey, customerId] of Object.entries(customers)) {
+    const companyId = ids[tenantKey]?.company_id;
+    if (!UUID.test(companyId ?? "")) throw new Error(`rig seed: tenants.json has no company id for ${tenantKey}`);
+    if (!/^cus_[A-Za-z0-9]+$/.test(customerId)) throw new Error(`rig seed: "${customerId}" is not a Stripe customer id`);
+    statements.push(
+      `update public.companies set stripe_customer_id = ${lit(customerId)} where id = ${lit(companyId)} and stripe_customer_id is distinct from ${lit(customerId)};`,
+    );
+  }
+  statements.push("commit;");
+  return statements.join("\n");
+}
+
 /** RFC 6238 code for a base32 secret: SHA-1, six digits, 30-second steps. */
 export function totpCode(secret, now = Date.now()) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -379,6 +444,9 @@ export async function seed({ workdir, store, partition, log = console.log }) {
   }
 
   psql(projectId, seedSql({ ids, userIds, standing, profiles: live.messaging_profiles, voiceConnectionId: live.connection_ids.voice, robotConnectionId: live.connection_ids.robot }));
+
+  const customers = await ensureStripeCustomers({ store, log });
+  if (Object.keys(customers).length > 0) psql(projectId, stripeCustomersSql({ ids, customers }));
 
   if (totpEnabled(workdir)) {
     let changed = false;

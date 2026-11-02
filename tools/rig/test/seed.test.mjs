@@ -7,10 +7,13 @@ import { test } from "node:test";
 import {
   checkTenantIds,
   completeTenantIds,
+  ensureStripeCustomers,
   generateTenantIds,
+  METERED_TENANTS,
   seedGapsSql,
   seedSql,
   stableUuid,
+  stripeCustomersSql,
   totpCode,
 } from "../../../scripts/rig/seed.mjs";
 import { TENANTS } from "../../../scripts/rig/tenants.mjs";
@@ -295,4 +298,61 @@ test("the grace workspace is refused when the guard sends no profile for it", ()
   const { "qa-g": _, ...without } = STUB_PROFILES;
   assert.throws(() => seedSql({ ids, userIds, standing, profiles: without, voiceConnectionId: "v", robotConnectionId: "r" }), /no messaging profile for QA-G/);
   assert.throws(() => seedSql({ ids, userIds, standing, voiceConnectionId: "v", robotConnectionId: "r" }), /no messaging profile for QA-G/);
+});
+
+function stripeFake({ deleted = [] } = {}) {
+  const calls = [];
+  let n = 0;
+  const fetchImpl = async (url, init = {}) => {
+    calls.push({ method: init.method ?? "GET", url: String(url), body: init.body ? String(init.body) : undefined });
+    const id = String(url).split("/v1/customers/")[1];
+    if (id !== undefined) {
+      return deleted.includes(id) ? new Response("{}", { status: 404 }) : new Response(JSON.stringify({ id }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ id: `cus_new${++n}` }), { status: 200 });
+  };
+  return { fetchImpl, calls };
+}
+
+test("each metered tenant gets one tagged Stripe test customer, kept in the store and found again by id", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "rig-seed-stripe-"));
+  try {
+    const store = secretStore(dir);
+    store.write("stripe-secret-key", "sk_test_abc");
+    const first = stripeFake();
+    const made = await ensureStripeCustomers({ store, fetchImpl: first.fetchImpl, log: () => undefined });
+    assert.deepEqual(Object.keys(made).sort(), [...METERED_TENANTS].sort());
+    assert.equal(first.calls.every((call) => call.method === "POST" && call.body.includes("metadata%5Bloonext_rig%5D=1")), true);
+
+    const again = stripeFake({ deleted: [made["qa-c"]] });
+    const reread = await ensureStripeCustomers({ store, fetchImpl: again.fetchImpl, log: () => undefined });
+    assert.equal(reread["qa-w"], made["qa-w"], "a customer that still exists is kept");
+    assert.notEqual(reread["qa-c"], made["qa-c"], "one deleted in Stripe is made again");
+    assert.equal(again.calls.filter((call) => call.method === "POST").length, 1);
+    assert.equal(store.readJson("stripe-customers.json")["qa-c"], reread["qa-c"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("without a Stripe key no customer is made, and a live key is refused before any request", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "rig-seed-stripe-"));
+  try {
+    const store = secretStore(dir);
+    const fake = stripeFake();
+    assert.deepEqual(await ensureStripeCustomers({ store, fetchImpl: fake.fetchImpl, log: () => undefined }), {});
+    store.write("stripe-secret-key", "sk_live_nope");
+    await assert.rejects(ensureStripeCustomers({ store, fetchImpl: fake.fetchImpl, log: () => undefined }), /not a test-mode key/);
+    assert.equal(fake.calls.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a customer id goes on its tenant's company row, and nothing else is accepted", () => {
+  const { ids } = fixture();
+  const sql = stripeCustomersSql({ ids, customers: { "qa-w": "cus_Abc123" } });
+  assert.match(sql, /update public\.companies set stripe_customer_id = 'cus_Abc123' where id = '/);
+  assert.throws(() => stripeCustomersSql({ ids, customers: { "qa-w": "x'; drop table companies;--" } }), /not a Stripe customer id/);
+  assert.throws(() => stripeCustomersSql({ ids, customers: { nobody: "cus_1" } }), /no company id/);
 });
