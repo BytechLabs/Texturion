@@ -737,51 +737,23 @@ export const S35: ScenarioRunner = {
   },
 };
 
-/** S32: onboarding, Checkout with the 4242 card, an active subscription and the customer portal. */
+/**
+ * S32: a new owner fills in the wizard's name step and reaches its number
+ * step, where the walk stops. The step cannot be passed on the rig: its picker
+ * searches Telnyx, which the guard refuses outside S28's lease, the wizard has
+ * no choose-later or skip, and porting is a call the guard refuses too. The
+ * Checkout after it ends in an order for a number, so Checkout, the
+ * subscription and the portal are not covered.
+ */
 export const S32: ScenarioRunner = {
   id: "S32",
   async run(ctx) {
     const signedUp = await signUpAndConfirm(ctx, "S32");
     if ("outcome" in signedUp) return signedUp;
-    const { page, email } = signedUp;
-    if (!(await page.completeOnboarding({ business: `Rig S32 ${ctx.nonce}` }))) {
-      return fail("onboarding_incomplete", "a step of onboarding never offered its control");
-    }
-    let paid: { returned: boolean; challenged: boolean };
-    try {
-      paid = await page.checkout({ card: STRIPE_TEST_CARD });
-    } catch (error) {
-      return infra("browser", `Checkout could not be driven: ${(error as Error).message}`);
-    }
-    // A challenge to a headless browser is recorded, not judged.
-    ctx.evidence.checkout = paid;
-    if (!paid.returned) return fail("checkout_not_returned", "Checkout never sent the new owner back to the app");
-
-    const workspace = await poll(ctx, async () => {
-      const found = await ctx.app.workspaceOf({ ownerEmail: email });
-      return found?.stripe_subscription_id ? found : undefined;
-    }, 60_000, 3_000);
-    if (!workspace?.stripe_subscription_id) return fail("subscription_not_recorded", "the workspace recorded no subscription within 60 s of Checkout");
-    const path = `/v1/subscriptions/${workspace.stripe_subscription_id}`;
-    ctx.lease.registerUndo({ kind: STRIPE_DELETE_UNDO, params: { path } });
-    ctx.evidence.workspace = { company_id: workspace.company_id, subscription_id: workspace.stripe_subscription_id };
-    try {
-      let subscription: { status?: string };
-      try {
-        await ctx.stripe.adoptCheckoutSubscription({ ownerEmail: email, subscriptionId: workspace.stripe_subscription_id });
-        subscription = await ctx.stripe.request<{ status?: string }>("GET", path);
-      } catch (error) {
-        return infra("stripe", (error as Error).message);
-      }
-      ctx.evidence.subscription_status = subscription.status ?? null;
-      if (subscription.status !== "active") return fail("subscription_not_active", `the sandbox has the subscription ${subscription.status ?? "with no status"}`);
-      const portal = await page.openBillingPortal();
-      ctx.evidence.portal_host = portal;
-      if (portal !== "billing.stripe.com") return fail("portal_not_opened", `billing opened ${portal ?? "nothing"}, not Stripe's customer portal`);
-      return pass();
-    } finally {
-      await removeFromSandbox(ctx, path);
-    }
+    const walk = await signedUp.page.walkOnboarding({ business: `Rig S32 ${ctx.nonce}` });
+    ctx.evidence.onboarding = walk;
+    if (!walk) return fail("onboarding_stalled", "the new owner did not get from the wizard's name step to its number step");
+    return pass("onboarding is judged up to its number step; Checkout, the subscription and the customer portal are not covered: the number step cannot be passed on the rig without a number search and order the guard refuses");
   },
 };
 

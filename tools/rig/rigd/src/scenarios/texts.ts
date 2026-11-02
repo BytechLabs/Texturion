@@ -83,12 +83,15 @@ export const S20: ScenarioRunner = {
 export const S21: ScenarioRunner = {
   id: "S21",
   async run(ctx) {
-    const page = await ctx.browser.open("qa-w-owner", "qa-w-owner", "/inbox");
-    // A push attempt needs somewhere to push to; the owner's browser
-    // subscribes through the app's own control when nothing else has.
+    // Chrome, because a push attempt needs somewhere to push to and Chromium has no push service.
+    const page = await ctx.browser.open("qa-w-owner", "qa-w-owner", "/inbox", { push: true });
+    // The owner's browser subscribes through the app's own control when nothing else has.
     if ((await ctx.app.pushTargets({ member: "qa-w-owner" })) === 0) {
       if (!(await page.enablePush())) {
-        return infra("push-target", "qa-w-owner has no push subscription or device token, and the browser could not subscribe");
+        return infra(
+          "push-target",
+          "qa-w-owner has no push subscription or device token, and the browser could not subscribe: Web Push needs Google Chrome (RIG_CHROME_BIN), and Chromium has no push service",
+        );
       }
       const saved = await poll(ctx, async () => (await ctx.app.pushTargets({ member: "qa-w-owner" })) > 0, 10_000);
       if (!saved) return fail("push_subscription_not_saved", "the page subscribed to push but the API kept no subscription");

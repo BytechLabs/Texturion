@@ -580,9 +580,9 @@
     },
     {
       "id": "S32",
-      "name": "Onboarding, Checkout with the 4242 test card, customer portal",
+      "name": "Onboarding up to the number step",
       "lane": "account",
-      "far_end": "Stripe test mode (shared)",
+      "far_end": "none",
       "runs_on": "rig",
       "runs": [
         {}

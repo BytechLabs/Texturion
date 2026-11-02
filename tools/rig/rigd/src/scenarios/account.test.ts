@@ -936,63 +936,44 @@ describe("S35, public sign-up", () => {
   });
 });
 
-describe("S32, onboarding, Checkout and the customer portal", () => {
-  it("passes with an active subscription and the portal, and cancels the sandbox subscription after", async () => {
-    const { ctx, undo, email, stripe } = signUpWorld("S32");
-    expect((await S32.run(ctx)).outcome).toBe("pass");
-    expect(undo).toEqual([
-      { kind: "app.delete-sign-up", params: { email } },
-      { kind: STRIPE_DELETE_UNDO, params: { path: "/v1/subscriptions/sub_s32" } },
-    ]);
-    expect(ctx.evidence.checkout).toEqual({ returned: true, challenged: false });
-    expect(ctx.evidence.portal_host).toBe("billing.stripe.com");
-    expect(stripe.adopted).toEqual(["sub_s32"]);
-    expect(deletes(stripe)).toEqual(["/v1/subscriptions/sub_s32"]);
+describe("S32, onboarding up to the number step", () => {
+  it("passes on reaching the number step, records what its picker did, and goes no further", async () => {
+    const { ctx, undo, email, browser } = signUpWorld("S32");
+    const result = await S32.run(ctx);
+    expect(result.outcome).toBe("pass");
+    expect(result.detail).toMatch(/Checkout, the subscription and the customer portal are not covered/);
+    expect(undo).toEqual([{ kind: "app.delete-sign-up", params: { email } }]);
+    expect(ctx.evidence.onboarding).toEqual({ steps: ["name", "number"], numberSearch: "failed" });
+    expect(browser.publicPages).toEqual(["/signup"]);
     expect(JSON.stringify(ctx.evidence)).not.toContain(email);
   });
 
-  it("records a Checkout challenge without failing on it", async () => {
-    const world = signUpWorld("S32");
-    world.browser.publicScript.checkout = { returned: true, challenged: true };
-    expect((await S32.run(world.ctx)).outcome).toBe("pass");
-    expect(world.ctx.evidence.checkout).toEqual({ returned: true, challenged: true });
-  });
-
-  it("names unfinished onboarding, a Checkout that never returned, no subscription, an inactive one and no portal", async () => {
-    const stalled = signUpWorld("S32");
-    stalled.browser.publicScript.onboarding = false;
-    expect(await S32.run(stalled.ctx)).toMatchObject({ failure_class: "onboarding_incomplete" });
-
-    const stranded = signUpWorld("S32");
-    stranded.browser.publicScript.checkout = { returned: false, challenged: false };
-    expect(await S32.run(stranded.ctx)).toMatchObject({ failure_class: "checkout_not_returned" });
-
-    const unrecorded = signUpWorld("S32");
-    unrecorded.app.signUps.set(unrecorded.email, { company_id: "company-s32", subscription_status: "trialing", stripe_subscription_id: null });
-    expect(await S32.run(unrecorded.ctx)).toMatchObject({ failure_class: "subscription_not_recorded" });
-
-    const incomplete = signUpWorld("S32");
-    incomplete.stripe.answers.set("GET /v1/subscriptions/sub_s32", { id: "sub_s32", status: "incomplete" });
-    expect(await S32.run(incomplete.ctx)).toMatchObject({ failure_class: "subscription_not_active" });
-    expect(deletes(incomplete.stripe)).toEqual(["/v1/subscriptions/sub_s32"]);
-
-    const portalless = signUpWorld("S32");
-    portalless.browser.publicScript.portalHost = null;
-    expect(await S32.run(portalless.ctx)).toMatchObject({ failure_class: "portal_not_opened" });
-    expect(deletes(portalless.stripe)).toEqual(["/v1/subscriptions/sub_s32"]);
-  });
-
-  it("blames the browser lane when Checkout's page cannot be driven", async () => {
+  it("never starts Checkout, opens the portal or touches Stripe", async () => {
     const world = signUpWorld("S32");
     const open = world.browser.openPublic;
     world.browser.openPublic = async (path) => {
       const page = await open(path);
       page.checkout = async () => {
-        throw new Error("browser lane: no card number field on Checkout");
+        throw new Error("S32 started Checkout");
+      };
+      page.openBillingPortal = async () => {
+        throw new Error("S32 opened the billing portal");
       };
       return page;
     };
-    expect(await S32.run(world.ctx)).toMatchObject({ outcome: "infra", component: "browser" });
+    expect((await S32.run(world.ctx)).outcome).toBe("pass");
+    expect(world.stripe.adopted).toEqual([]);
+    expect(deletes(world.stripe)).toEqual([]);
+  });
+
+  it("names a wizard whose name step never reaches the number step, and a sign-up that fails first", async () => {
+    const stalled = signUpWorld("S32");
+    stalled.browser.publicScript.onboarding = null;
+    expect(await S32.run(stalled.ctx)).toMatchObject({ failure_class: "onboarding_stalled" });
+
+    const refused = signUpWorld("S32");
+    refused.browser.publicScript.signUp = { ok: false, alert: "That email is already registered." };
+    expect(await S32.run(refused.ctx)).toMatchObject({ failure_class: "sign_up_refused" });
   });
 });
 

@@ -31,6 +31,10 @@ REPO="$(cd "$BOX/../../.." && pwd)"
 RIG_USER=rig
 RIG_HOME=/var/lib/loonext-rig
 NODE_VERSION=22.20.0
+# The primary key of "Google Inc. (Linux Packages Signing Authority)", which signs
+# dl.google.com's Chrome repository (checked 2026-11-02). A key with any other
+# fingerprint is refused.
+CHROME_KEY_FINGERPRINT=EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796
 # The public repository. The rig clones it as itself and holds no write access.
 REPO_URL="${REPO_URL:-https://github.com/BytechLabs/Texturion.git}"
 PNPM_VERSION="$(sed -n 's/.*"packageManager": "pnpm@\([0-9.]*\)".*/\1/p' "$REPO/package.json")"
@@ -42,7 +46,7 @@ timedatectl set-timezone UTC
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   ca-certificates curl git gnupg openssl jq unzip xz-utils \
-  docker.io caddy dnsmasq nftables openssh-server unattended-upgrades libnss3-tools
+  docker.io caddy dnsmasq nftables openssh-server unattended-upgrades libnss3-tools xvfb
 
 step "firewall and sshd: only the workstation opens connections in"
 install -d -m 0755 /etc/loonext-rig
@@ -85,6 +89,34 @@ if ! command -v stripe >/dev/null; then
   apt-get update
   apt-get install -y stripe
 fi
+
+step "google chrome stable, from Google's own package repository"
+# Web Push (S21, D08) needs a browser with a push service, which Playwright's
+# Chromium does not have. The lane runs Chrome in its own headless mode, so no
+# display is needed.
+if ! command -v google-chrome-stable >/dev/null; then
+  tmp="$(mktemp -d)"
+  curl -fsSLo "$tmp/linux_signing_key.pub" https://dl.google.com/linux/linux_signing_key.pub
+  if [[ "$(gpg --show-keys --with-colons "$tmp/linux_signing_key.pub" | grep -c '^pub:')" != 1 ]]; then
+    echo "bootstrap.sh: Google's signing key file does not hold exactly one key" >&2
+    exit 1
+  fi
+  got="$(gpg --show-keys --with-colons "$tmp/linux_signing_key.pub" | awk -F: '/^fpr:/ { print $10; exit }')"
+  if [[ "$got" != "$CHROME_KEY_FINGERPRINT" ]]; then
+    echo "bootstrap.sh: Google's signing key is $got, not the pinned $CHROME_KEY_FINGERPRINT" >&2
+    exit 1
+  fi
+  gpg --dearmor < "$tmp/linux_signing_key.pub" > /usr/share/keyrings/google-chrome.gpg
+  rm -rf "$tmp"
+  echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+    > /etc/apt/sources.list.d/google-chrome.list
+  # Keeps the package from trusting its key for every repository; the source it leaves
+  # (google-chrome.sources) is signed by the keyring above alone.
+  printf 'repo_add_once="false"\nrepo_reenable_on_distupgrade="false"\n' > /etc/default/google-chrome
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y google-chrome-stable
+fi
+google-chrome-stable --version
 
 step "the rig account"
 if ! id "$RIG_USER" >/dev/null 2>&1; then

@@ -510,7 +510,7 @@ const OUTCOME_SHOWS_MS = 30_000;
 export const D08: ScenarioRunner = {
   id: "D08",
   async run(ctx) {
-    const page = await ctx.browser.open(DISPATCHER, DISPATCHER, "/");
+    const page = await ctx.browser.open(DISPATCHER, DISPATCHER, "/", { push: true });
     if (!(await page.enablePush())) {
       return infra(
         "push-target",

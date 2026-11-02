@@ -8,6 +8,7 @@ import { main } from "../src/cli.mjs";
 import { DEPLOY_HOLD_MAX_AGE_MS, deployHoldPath, holdForDeploy } from "../src/deploy-hold.mjs";
 import { healthChecks, runHealth } from "../src/health.mjs";
 import { DEFAULT_SETTINGS, rigLayout } from "../src/layout.mjs";
+import { clearMemberSessions } from "../src/member-sessions.mjs";
 import { secretStore } from "../src/secrets.mjs";
 import { startStubGuard, STUB_TOKEN } from "./support/stub-guard.mjs";
 
@@ -76,10 +77,28 @@ test("sign-in must be ES256 and reach /v1/me", async () => {
     const { signIn } = healthChecks(context);
     alg = "HS256";
     assert.equal(await signIn(), "local auth signs HS256, and the API accepts ES256 only");
+    clearMemberSessions(context.layout.state);
     alg = "ES256";
     assert.equal(await signIn(), null);
+    clearMemberSessions(context.layout.state);
     me = 401;
     assert.equal(await signIn(), "GET /v1/me answered 401");
+  });
+});
+
+test("sign-in keeps its session, so a second run is not a new device", async () => {
+  await withRig(async (context) => {
+    const grants = [];
+    context.fetch = async (url, init) => {
+      if (url.includes("/auth/v1/token")) {
+        grants.push(new URL(url).searchParams.get("grant_type"));
+        return json({ access_token: token("ES256"), refresh_token: "r1", expires_in: 3600 });
+      }
+      if (url.endsWith("/v1/me")) return json({}, init.headers.authorization.includes("dead") ? 401 : 200);
+      throw new Error(`unexpected ${url}`);
+    };
+    for (let run = 0; run < 3; run++) assert.equal(await healthChecks(context).signIn(), null);
+    assert.deepEqual(grants, ["password"]);
   });
 });
 

@@ -9,7 +9,7 @@
  * Telnyx partition exists.
  */
 import type { GuardHealth, LeaseActivity, StandingRole } from "@loonext/rig-protocol";
-import { AUDIO_UNPROVEN, type CallTestId, type DeviceState, type HearOptions, type HostdHealth, type NetworkShape, type PageHearing, type RigDeviceName, type StandbyBucket } from "@loonext/rig-lanes";
+import { AUDIO_UNPROVEN, type CallTestId, type DeviceState, type HearOptions, type HostdHealth, type NetworkShape, type OnboardingWalk, type PageHearing, type RigDeviceName, type StandbyBucket } from "@loonext/rig-lanes";
 import type { Detection, RobotApi, Surface } from "@loonext/rig-robot";
 import type { UndoAction } from "../lease.ts";
 import type { SeenEvent } from "../sentry-relay.ts";
@@ -72,8 +72,12 @@ export interface PublicPageApi {
   waitForText(text: string, timeoutMs: number): Promise<boolean>;
   /** The public sign-up form, passed by Turnstile's always-pass test key. */
   signUp(args: { email: string; password: string; name: string }): Promise<{ ok: boolean; alert?: string }>;
-  /** Walks onboarding to the end with this business name; false when a step never offered its control. */
-  completeOnboarding(args: { business: string }): Promise<boolean>;
+  /**
+   * Walks the onboarding wizard from its name step with this business name and
+   * stops on the number step, which it never touches. Null when the wizard is
+   * not where a new owner starts, or the name step never moves on.
+   */
+  walkOnboarding(args: { business: string }): Promise<OnboardingWalk | null>;
   /** Starts Checkout from billing, pays with a Stripe test card, and waits to be sent back. */
   checkout(args: { card: string }): Promise<{ returned: boolean; challenged: boolean }>;
   /** Opens the customer portal from billing; resolves with the portal page's host, or null. */
@@ -82,7 +86,8 @@ export interface PublicPageApi {
 }
 
 export interface BrowserApi {
-  open(member: string, surface: Surface, path?: string): Promise<MemberPageApi>;
+  /** `push` asks for a browser with a push service (Google Chrome); a member's Chrome profile is kept apart from its Chromium one. */
+  open(member: string, surface: Surface, path?: string, options?: { push?: boolean }): Promise<MemberPageApi>;
   openPublic(path: string): Promise<PublicPageApi>;
   closeAll(): Promise<void>;
 }

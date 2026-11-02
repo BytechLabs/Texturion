@@ -18,7 +18,7 @@ import { FakeDevices, FakeGuard, FakeApp, FakeHandoff, FakeStripe, FakeTime } fr
 import { FaultFile, HandoffFile } from "./state-files.ts";
 import { deleteStripeObject, formEncode, STRIPE_DELETE_UNDO, StripeSandbox } from "./stripe-sandbox.ts";
 import { fakeFetch, json, type Route } from "./test-support.ts";
-import { bootDevice, reinstallDevice, releaseHeldNumber, resetDevice, undoHandlers } from "./wiring.ts";
+import { bootDevice, CHROME_STABLE_PATH, chromeOf, reinstallDevice, releaseHeldNumber, resetDevice, undoHandlers } from "./wiring.ts";
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 
@@ -890,5 +890,13 @@ describe("the app's dialer", () => {
     const { device, actions } = dialerDevice(new Set(["Call"]));
     await expect(dialOnDevice(device, "ROBOT-1", numbers)).rejects.toThrow("the app's calls screen offered no dialer");
     expect(actions).toEqual(["launch /calls", "reset ui", "launch /calls"]);
+  });
+});
+
+describe("the Chrome the browser lane opens push pages in", () => {
+  it("is the one RIG_CHROME_BIN names, else the one bootstrap.sh installs, else none", () => {
+    expect(chromeOf({ RIG_CHROME_BIN: "/opt/chrome" }, () => true)).toEqual({ executablePath: "/opt/chrome" });
+    expect(chromeOf({}, (path) => path === CHROME_STABLE_PATH)).toEqual({ executablePath: "/usr/bin/google-chrome-stable" });
+    expect(chromeOf({}, () => false)).toBeUndefined();
   });
 });

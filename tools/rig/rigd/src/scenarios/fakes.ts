@@ -5,7 +5,7 @@
  * the runner name the failure.
  */
 import type { GuardHealth, LeaseActivity } from "@loonext/rig-protocol";
-import type { CallTestId, DeviceState, HostdHealth, NetworkShape, PageHearing, RigDeviceName, StandbyBucket } from "@loonext/rig-lanes";
+import type { CallTestId, DeviceState, HostdHealth, NetworkShape, OnboardingWalk, PageHearing, RigDeviceName, StandbyBucket } from "@loonext/rig-lanes";
 import type { CallPlan, CallRecord, Detection, InboxMessage, RobotApi, SinkDelivery, Surface } from "@loonext/rig-robot";
 import type { UndoAction } from "../lease.ts";
 import type { SeenEvent } from "../sentry-relay.ts";
@@ -542,21 +542,21 @@ export interface FakePageScript {
 }
 
 export class FakeBrowser implements BrowserApi {
-  readonly opened: { member: string; surface: Surface; path?: string }[] = [];
+  readonly opened: { member: string; surface: Surface; path?: string; push?: boolean }[] = [];
   readonly publicPages: string[] = [];
   readonly actions: string[] = [];
   script: FakePageScript = { ringsAfterMs: 1_500, heard: "robot", energyBeforeAnswer: 0.4, showsText: true, clearsAfterMs: 500 };
   /** What the public flows answer. */
   publicScript = {
     signUp: { ok: true } as { ok: boolean; alert?: string },
-    onboarding: true,
+    onboarding: { steps: ["name", "number"], numberSearch: "failed" } as OnboardingWalk | null,
     checkout: { returned: true, challenged: false },
     portalHost: "billing.stripe.com" as string | null,
     path: "/",
   };
 
-  async open(member: string, surface: Surface, path?: string): Promise<MemberPageApi> {
-    this.opened.push({ member, surface, path });
+  async open(member: string, surface: Surface, path?: string, options?: { push?: boolean }): Promise<MemberPageApi> {
+    this.opened.push({ member, surface, path, ...(options?.push ? { push: true } : {}) });
     const script = this.script;
     const actions = this.actions;
     return {
@@ -653,7 +653,7 @@ export class FakeBrowser implements BrowserApi {
         actions.push(`public sign up ${args.email}`);
         return script.signUp;
       },
-      async completeOnboarding() {
+      async walkOnboarding() {
         return script.onboarding;
       },
       async checkout() {

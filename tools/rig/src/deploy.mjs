@@ -38,6 +38,7 @@ import { run, systemctlUser, userManagerEnv } from "./exec.mjs";
 import { edgeOrigin, fetchPartition, recordStanding, rigEndpoints, standingNumbers } from "./guard.mjs";
 import { TOOLING_ROOT } from "./layout.mjs";
 import { parseJsonc } from "./jsonc.mjs";
+import { clearMemberSessions } from "./member-sessions.mjs";
 import {
   buildSupabaseWorkdir,
   deriveSupabaseConfig,
@@ -498,6 +499,8 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
       await bootstrapDb({ projectId, status, endpoints, preSeam: options.preSeam === true, log });
       if (plan.action === "reset" || options.reseed || !seedIsCurrent(projectId, store, standing)) {
         await seed({ workdir, store, partition, log });
+        // The seed makes the members anew, so every session kept for the old ones is dead.
+        clearMemberSessions(layout.state);
       }
       if (recordStanding(store, standing)) log("store: standing-numbers.json rewritten from the partition");
 

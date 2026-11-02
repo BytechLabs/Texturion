@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { Adb, integerResource, manifestMetaValue, parsePackagePath, type Exec } from "./android/adb.ts";
 import { ADB_VM_PORT, HOSTD_PORT, MAX_BOOTED, RIG_DEVICES } from "./android/devices.ts";
 import { BLOCKED_HOSTS, chromiumArgs, hostResolverRules } from "./browser/args.ts";
-import { judgeCapture, PublicPage } from "./browser/lane.ts";
+import { judgeCapture, profileName, PublicPage } from "./browser/lane.ts";
 import type { PageCapture } from "./browser/page-judge.ts";
 
 describe("Chromium's launch arguments", () => {
@@ -29,6 +29,14 @@ describe("Chromium's launch arguments", () => {
   it("refuse a path or a host pattern that could smuggle another argument", () => {
     expect(() => chromiumArgs({ fakeMicWav: "/tmp/a b.wav" })).toThrow(/spaces/);
     expect(() => hostResolverRules(["evil.com ~NOTFOUND, MAP *"])).toThrow(/not a host pattern/);
+  });
+});
+
+describe("a member's browser profile folder", () => {
+  it("keeps Chrome's apart from Chromium's, and every member's apart from every other", () => {
+    expect(profileName("qa-w-owner", false)).toBe("qa-w-owner");
+    expect(profileName("qa-w-owner", true)).toBe("qa-w-owner.chrome");
+    expect(new Set(["qa-w-owner", "qa-a-dispatcher"].flatMap((member) => [false, true].map((chrome) => profileName(member, chrome)))).size).toBe(4);
   });
 });
 

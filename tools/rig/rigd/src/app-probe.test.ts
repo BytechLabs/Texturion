@@ -3,7 +3,9 @@
  * PostgREST: what each request names, and what each answer comes back as.
  * The answers are the shapes apps/api and Supabase send.
  */
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { numberBook } from "@loonext/rig-robot";
 import { describe, expect, it } from "vitest";
 import { totpCode } from "../../../../scripts/rig/seed.mjs";
@@ -26,7 +28,7 @@ const rest = (table: string) => `${SUPABASE}/rest/v1/${table}`;
 const query = (request: Recorded) => Object.fromEntries(new URL(request.url).searchParams);
 const noContent = () => new Response(null, { status: 204 });
 
-function probeWith(routes: Record<string, Route>) {
+function probeWith(routes: Record<string, Route>, stateDir?: string) {
   const { fetch, requests } = fakeFetch({
     [`POST ${SUPABASE}/auth/v1/token`]: () => json({ access_token: jwt({ sub: OWNER, aal: "aal1" }), expires_in: 3600 }),
     [`GET ${SUPABASE}/auth/v1/admin/users`]: () =>
@@ -59,6 +61,7 @@ function probeWith(routes: Record<string, Route>) {
     guardToken: "t",
     fetch,
     now: () => NOW,
+    ...(stateDir ? { stateDir } : {}),
   });
   return { probe, requests };
 }
@@ -380,6 +383,55 @@ describe("the app probe's public widget", () => {
     expect(withToken!.headers.authorization).toBeUndefined();
     expect(await probe.widgetVerify({ verificationId: "v-1", code: "123456", message: "hi" })).toMatchObject({ status: 422, code: "validation_failed" });
     expect(await probe.widgetVerifications({ tenant: "QA-W", since: NOW })).toBe(2);
+  });
+});
+
+describe("the app probe's kept sign-ins", () => {
+  const logins = (requests: Recorded[]) => requests.filter((r) => r.url.startsWith(`${SUPABASE}/auth/v1/token`));
+  const inState = async (body: (stateDir: string) => Promise<void>) => {
+    const root = mkdtempSync(join(tmpdir(), "rig-probe-"));
+    try {
+      await body(join(root, "rigd"));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  };
+
+  it("signs a member in once for every process that shares the state directory", async () => {
+    await inState(async (stateDir) => {
+      const route = { [`POST ${API}/v1/webrtc/token`]: () => json({ token: "voice" }) };
+      const first = probeWith(route, stateDir);
+      await first.probe.voiceToken({ member: "qa-w-owner" });
+      const second = probeWith(route, stateDir);
+      await second.probe.voiceToken({ member: "qa-w-owner" });
+      expect(logins(first.requests)).toHaveLength(1);
+      expect(logins(second.requests)).toHaveLength(0);
+    });
+  });
+
+  it("signs in once more when the kept session was made before a reset and the API refuses it", async () => {
+    await inState(async (stateDir) => {
+      const route = { [`POST ${API}/v1/webrtc/token`]: () => json({ token: "voice" }) };
+      await probeWith(route, stateDir).probe.voiceToken({ member: "qa-w-owner" });
+      const refused = [json({ error: { code: "unauthorized" } }, 401), json({ token: "voice" })];
+      const later = probeWith({ [`POST ${API}/v1/webrtc/token`]: () => refused.shift()! }, stateDir);
+      expect(await later.probe.voiceToken({ member: "qa-w-owner" })).toEqual({ status: 200 });
+      expect(logins(later.requests)).toHaveLength(1);
+    });
+  });
+
+  it("hands a later process nothing of a session it signed out", async () => {
+    await inState(async (stateDir) => {
+      const route = {
+        [`POST ${API}/v1/webrtc/token`]: () => json({ token: "voice" }),
+        [`POST ${API}/v1/sessions/revoke`]: () => json({ ok: true }),
+      };
+      const first = probeWith(route, stateDir);
+      await first.probe.signOutSession({ member: "qa-w-technician" });
+      const second = probeWith(route, stateDir);
+      await second.probe.voiceToken({ member: "qa-w-technician" });
+      expect(logins(second.requests)).toHaveLength(1);
+    });
   });
 });
 

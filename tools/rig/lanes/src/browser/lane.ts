@@ -1,9 +1,12 @@
 /**
- * The Playwright browser lane: one Chromium profile per member, each with its
+ * The Playwright browser lane: one browser profile per member, each with its
  * own code on the fake microphone and the in-page judge installed.
  *
  * A profile signs its member in on the app's own login page the first time
- * the app sends it there, and keeps the session for later runs. The UI steps
+ * the app sends it there, and keeps the session for later runs. A kept session
+ * is a known device: the app mails the account holder about every session id
+ * it has not seen (apps/api auth/new-device-notice.ts), and each mail spends
+ * the guard's Resend budget. The UI steps
  * find controls by role and English name, the way a member does ("Answer",
  * "Hang up", "Call"). The web app has no test-id contract for calls yet;
  * `SELECTORS` is the one place to change when it lands.
@@ -52,6 +55,13 @@ export const SELECTORS = {
   completeTransfer: { role: "button", name: "Complete transfer" },
   /** apps/web/src/app/(auth)/signup. */
   signUpName: 'input[name="name"]',
+  /** The onboarding wizard (apps/web/src/app/onboarding, English): its name step's field and the shared Continue button. */
+  companyName: 'input[name="name"]',
+  wizardContinue: { role: "button", name: "Continue" },
+  numberStepTitle: "How do you want your business number?",
+  numbersLoadFailed: "Couldn't load numbers",
+  /** The number picker's rows (components/numbers/number-picker.tsx); the step's other radios are its mode and country. */
+  listedNumber: 'ul button[role="radio"]',
   checkoutCard: 'input[name="cardnumber"], input[name="cardNumber"]',
 } as const;
 
@@ -59,6 +69,8 @@ export const SELECTORS = {
 export const STRIPE_HOSTS = ["checkout.stripe.com", "billing.stripe.com"] as const;
 
 export const LOGIN_PATH = "/login";
+const WIZARD_PATH = /^\/onboarding\/([a-z-]+)$/;
+const WIZARD_STEP_TIMEOUT_MS = 15_000;
 const SIGN_IN_TIMEOUT_MS = 30_000;
 const PUSH_TIMEOUT_MS = 15_000;
 const CLEARED_POLL_MS = 100;
@@ -83,11 +95,30 @@ export interface BrowserLaneOptions {
   browserType?: BrowserType;
   executablePath?: string;
   /**
-   * Google Chrome, headed under the rig's virtual display, for the members
-   * whose surface is Chrome: Chromium has no push service, so Web Push (D08)
-   * runs only there.
+   * Google Chrome, for the pages opened with `push: true`: Chromium has no
+   * push service, so Web Push (S21, D08) runs only there. It runs in Chrome's
+   * own headless mode, which needs no display and gets a push subscription;
+   * `headless: false` runs it headed, which needs a display.
    */
-  chrome?: { executablePath: string; members: readonly string[] };
+  chrome?: { executablePath: string };
+}
+
+export interface OpenOptions {
+  /** The page needs Web Push: Google Chrome when the lane has it, else Chromium, which cannot subscribe. */
+  push?: boolean;
+}
+
+/** A member's profile folder; Chrome's is kept apart, because a profile is not shared between browsers. */
+export function profileName(member: string, chrome: boolean): string {
+  return chrome ? `${member}.chrome` : member;
+}
+
+/** Where the onboarding wizard took a new owner, and what its number step's picker did. */
+export interface OnboardingWalk {
+  /** The wizard steps the page was on, in order; the last is where it stopped. */
+  steps: string[];
+  /** "listed" numbers to pick from, "failed" to load them, or neither within the wait. */
+  numberSearch: "listed" | "failed" | "pending";
 }
 
 export class BrowserLane {
@@ -100,15 +131,16 @@ export class BrowserLane {
   }
 
   /** The member's page, launched once and reused for the run. */
-  async open(member: string, surface: Surface, path = "/"): Promise<MemberPage> {
-    const existing = this.#open.get(member);
-    if (existing) return existing;
+  async open(member: string, surface: Surface, path = "/", options: OpenOptions = {}): Promise<MemberPage> {
     if (!/^[a-z0-9-]+$/.test(member)) throw new Error(`browser lane: "${member}" is not a member key`);
-    const profile = join(this.#o.profilesDir, member);
+    const chrome = options.push ? this.#o.chrome : undefined;
+    const name = profileName(member, chrome !== undefined);
+    const existing = this.#open.get(name);
+    if (existing) return existing;
+    const profile = join(this.#o.profilesDir, name);
     mkdirSync(profile, { recursive: true });
-    const chrome = this.#o.chrome?.members.includes(member) ? this.#o.chrome : undefined;
     const context = await (this.#o.browserType ?? chromium).launchPersistentContext(profile, {
-      headless: chrome ? false : (this.#o.headless ?? true),
+      headless: this.#o.headless ?? true,
       executablePath: chrome?.executablePath ?? this.#o.executablePath,
       args: chromiumArgs({ fakeMicWav: join(this.#o.fakeMicDir, `${surface}.wav`) }),
       permissions: ["microphone", "notifications"],
@@ -129,7 +161,7 @@ export class BrowserLane {
       throw error;
     }
     const opened = new MemberPage(member, surface, context, page, this.#o.numbers, this.#o.appOrigin);
-    this.#open.set(member, opened);
+    this.#open.set(name, opened);
     return opened;
   }
 
@@ -207,20 +239,31 @@ export class PublicPage {
     return alert && /error|could not|invalid|already/i.test(alert) ? { ok: false, alert: alert.trim() } : { ok: true };
   }
 
-  async completeOnboarding(args: { business: string }): Promise<boolean> {
-    for (let step = 0; step < 12; step++) {
-      if (!new URL(this.page.url()).pathname.startsWith("/onboarding")) return true;
-      const field = this.page.getByRole("textbox").first();
-      if ((await field.count()) && (await field.inputValue().catch(() => "")) === "") await field.fill(args.business);
-      const next = this.page.getByRole("button", { name: /^(Continue|Next|Get started|Finish|Done)$/ }).first();
-      try {
-        await next.click({ timeout: PUSH_TIMEOUT_MS });
-      } catch {
-        return false;
-      }
-      await this.page.waitForLoadState("networkidle").catch(() => undefined);
+  /**
+   * Walks the onboarding wizard as far as it is safe to: the name step is
+   * filled in and continued, and the walk stops on the number step without
+   * touching it. Continuing from there creates the workspace, and the
+   * Checkout after it ends in an order for a number. Null when the page is
+   * not on the name step, or the name step never moves on.
+   */
+  async walkOnboarding(args: { business: string }): Promise<OnboardingWalk | null> {
+    const wizardStep = () => WIZARD_PATH.exec(new URL(this.page.url()).pathname)?.[1];
+    await this.page.waitForURL((url) => WIZARD_PATH.test(url.pathname), { timeout: WIZARD_STEP_TIMEOUT_MS }).catch(() => undefined);
+    const steps: string[] = [];
+    if (wizardStep() === "name") {
+      steps.push("name");
+      await this.page.locator(SELECTORS.companyName).fill(args.business);
+      await this.page.getByRole(SELECTORS.wizardContinue.role, { name: SELECTORS.wizardContinue.name, exact: true }).click();
+      await this.page.waitForURL((url) => url.pathname !== "/onboarding/name", { timeout: WIZARD_STEP_TIMEOUT_MS }).catch(() => undefined);
     }
-    return !new URL(this.page.url()).pathname.startsWith("/onboarding");
+    if (wizardStep() !== "number") return null;
+    steps.push("number");
+    await this.page.getByText(SELECTORS.numberStepTitle).waitFor({ timeout: WIZARD_STEP_TIMEOUT_MS });
+    const failed = this.page.getByText(SELECTORS.numbersLoadFailed);
+    const listed = this.page.locator(SELECTORS.listedNumber);
+    await failed.or(listed.first()).first().waitFor({ timeout: WIZARD_STEP_TIMEOUT_MS }).catch(() => undefined);
+    const numberSearch = (await failed.count()) > 0 ? "failed" : (await listed.count()) > 0 ? "listed" : "pending";
+    return { steps, numberSearch };
   }
 
   async checkout(args: { card: string }): Promise<{ returned: boolean; challenged: boolean }> {

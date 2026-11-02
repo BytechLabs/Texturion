@@ -17,6 +17,7 @@ import { adbAnswers } from "../lanes/src/android/adb.ts";
 import { ADB_VM_PORT, HOSTD_PORT } from "../lanes/src/android/devices.ts";
 import { guardGet } from "./guard.mjs";
 import { parseJsonc } from "./jsonc.mjs";
+import { MemberSessions, memberSessionsFile } from "./member-sessions.mjs";
 import { posthogErrorsCheck } from "./posthog-errors.mjs";
 import { stripeSandboxKey } from "./stripe.mjs";
 import { psql } from "./supabase.mjs";
@@ -180,21 +181,39 @@ export function healthChecks(context) {
       return null;
     },
 
+    /**
+     * Local auth signs ES256 and the API takes it. The owner's session is the
+     * one rigd's probe keeps (member-sessions.mjs): a password sign-in here
+     * would be a new device, and a mail against the guard's Resend budget,
+     * every time this runs.
+     */
     async signIn() {
       const tenants = context.store.readJson("tenants.json");
       const owner = tenants["qa-w"]?.members?.owner;
       if (!owner) return "tenants.json has no QA-W owner";
-      const session = await fetchImpl(`${context.status.apiUrl}/auth/v1/token?grant_type=password`, {
-        method: "POST",
-        headers: { apikey: context.status.publishableKey, "content-type": "application/json" },
-        body: JSON.stringify({ email: owner.email, password: owner.password }),
+      const sessions = new MemberSessions({
+        authUrl: `${context.status.apiUrl}/auth/v1`,
+        apiKey: context.status.publishableKey,
+        file: memberSessionsFile(context.layout.state),
+        fetch: fetchImpl,
       });
-      if (!session.ok) return `sign-in answered ${session.status}`;
-      const { access_token: token } = await session.json();
-      const alg = JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString()).alg;
-      if (alg !== "ES256") return `local auth signs ${alg}, and the API accepts ES256 only`;
-      const me = await fetchImpl(`${api()}/v1/me`, { headers: { authorization: `Bearer ${token}` } });
-      return me.status === 200 ? null : `GET /v1/me answered ${me.status}`;
+      const member = { key: "qa-w-owner", email: owner.email, password: owner.password };
+      let answered;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        let session;
+        try {
+          session = await sessions.token(member);
+        } catch (error) {
+          return error.message.replace(/^member sessions: signing qa-w-owner in returned/, "sign-in answered");
+        }
+        const alg = JSON.parse(Buffer.from(session.token.split(".")[0], "base64url").toString()).alg;
+        if (alg !== "ES256") return `local auth signs ${alg}, and the API accepts ES256 only`;
+        answered = await fetchImpl(`${api()}/v1/me`, { headers: { authorization: `Bearer ${session.token}` } });
+        // A session kept from before a reset database is gone: sign in once more.
+        if (answered.status !== 401 || session.source !== "stored") break;
+        sessions.forget(member.key);
+      }
+      return answered.status === 200 ? null : `GET /v1/me answered ${answered.status}`;
     },
 
     async guard() {

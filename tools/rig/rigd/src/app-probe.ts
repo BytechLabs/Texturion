@@ -15,6 +15,7 @@ import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
 import type { NumberBook } from "@loonext/rig-robot";
 import { stableUuid as seedStableUuid } from "../../../../scripts/rig/seed.mjs";
 import { totpCode } from "../../../../scripts/rig/seed.mjs";
+import { MemberSessions, memberSessionsFile } from "../../src/member-sessions.mjs";
 import {
   COMPANY_FIELDS,
   isFictional,
@@ -80,7 +81,8 @@ export class AppProbe implements AppApi {
   readonly #o: AppProbeOptions;
   readonly #fetch: typeof fetch;
   readonly #now: () => number;
-  readonly #sessions = new Map<string, { token: string; expiresAt: number }>();
+  /** The members' sign-ins, kept in the state directory so a new process refreshes them and signs no one in again. */
+  readonly #signIns: MemberSessions;
   /** Auth user ids by member key, once seen. */
   readonly #userIds = new Map<string, string>();
 
@@ -88,6 +90,13 @@ export class AppProbe implements AppApi {
     this.#o = options;
     this.#fetch = options.fetch ?? fetch;
     this.#now = options.now ?? Date.now;
+    this.#signIns = new MemberSessions({
+      authUrl: `${options.supabaseUrl.replace(/\/+$/, "")}/auth/v1`,
+      apiKey: options.anonKey,
+      ...(options.stateDir ? { file: memberSessionsFile(dirname(options.stateDir)) } : {}),
+      fetch: this.#fetch,
+      now: this.#now,
+    });
   }
 
   sendText(args: { member: string; fromRole: string; toRole: string; body: string }): Promise<SendResult> {
@@ -103,19 +112,21 @@ export class AppProbe implements AppApi {
   async #compose(args: { member: string; body: string }, fromRole: string, to: string): Promise<SendResult> {
     const tenant = this.#tenant(splitMember(args.member).tenant);
     const phoneNumberId = stableUuid(tenant.company_id, fromRole);
-    const response = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}/v1/conversations`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${await this.#session(args.member)}`,
-        "x-company-id": tenant.company_id,
-        "idempotency-key": randomUUID(),
-        "content-type": "application/json",
-      },
-      // Every rig number is Ontario's, so from 8 pm to 8 am Toronto the API asks for a
-      // confirmation, as it asks a person. The runs are about the send, not that prompt.
-      body: JSON.stringify({ phone_e164: to, phone_number_id: phoneNumberId, body: args.body, quiet_hours_confirmed: true }),
-      signal: AbortSignal.timeout(20_000),
-    });
+    const response = await this.#authorized(args.member, (token) =>
+      this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}/v1/conversations`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "x-company-id": tenant.company_id,
+          "idempotency-key": randomUUID(),
+          "content-type": "application/json",
+        },
+        // Every rig number is Ontario's, so from 8 pm to 8 am Toronto the API asks for a
+        // confirmation, as it asks a person. The runs are about the send, not that prompt.
+        body: JSON.stringify({ phone_e164: to, phone_number_id: phoneNumberId, body: args.body, quiet_hours_confirmed: true }),
+        signal: AbortSignal.timeout(20_000),
+      }),
+    );
     const json = (await response.json().catch(() => ({}))) as { message?: SentMessage; error?: { code?: string } };
     if (!response.ok) return { ok: false, status: response.status, code: json.error?.code };
     return sendResult(response.status, json.message);
@@ -477,14 +488,18 @@ export class AppProbe implements AppApi {
   }
 
   async voiceToken(args: { member: string; fresh?: boolean }): Promise<ApiAnswer> {
-    if (args.fresh) this.#sessions.delete(args.member);
+    if (args.fresh) this.#signIns.forget(args.member);
     // The answer's body is a voice credential's token, which no scenario keeps.
     const answer = await this.#answer(args.member, "POST", "/v1/webrtc/token", {});
     return { status: answer.status, ...(answer.code ? { code: answer.code } : {}) };
   }
 
   async signOutSession(args: { member: string }): Promise<ApiAnswer> {
-    return this.#answer(args.member, "POST", "/v1/sessions/revoke", { self: true });
+    const answer = await this.#answer<Record<string, unknown>>(args.member, "POST", "/v1/sessions/revoke", { self: true });
+    // This process keeps the revoked token, so the run can watch the API refuse it;
+    // no later process is handed it.
+    this.#signIns.forget(args.member, { keepInMemory: true });
+    return answer;
   }
 
   escalations(args: { tenant: string; since: number }) {
@@ -1095,35 +1110,43 @@ export class AppProbe implements AppApi {
   }
 
   async #session(memberKey: string): Promise<string> {
-    const cached = this.#sessions.get(memberKey);
-    if (cached && cached.expiresAt - 60_000 > this.#now()) return cached.token;
-    const member = this.#member(memberKey);
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/token?grant_type=password`, {
-      method: "POST",
-      headers: { apikey: this.#o.anonKey, "content-type": "application/json" },
-      body: JSON.stringify({ email: member.email, password: member.password }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) throw new Error(`app probe: signing ${memberKey} in returned ${response.status}`);
-    const { access_token: token, expires_in: expiresIn } = (await response.json()) as { access_token?: string; expires_in?: number };
-    if (!token) throw new Error(`app probe: no session for ${memberKey}`);
-    this.#sessions.set(memberKey, { token, expiresAt: this.#now() + (expiresIn ?? 3600) * 1000 });
-    return token;
+    return (await this.#signIns.token({ key: memberKey, ...this.#member(memberKey) })).token;
+  }
+
+  /**
+   * Sends a request as the member. A session an earlier process stored may have
+   * died with a reset database; when its first use here is refused as
+   * unauthorised, it is dropped and the request goes again on a fresh sign-in.
+   */
+  async #authorized(memberKey: string, send: (token: string) => Promise<Response>): Promise<Response> {
+    const member = { key: memberKey, ...this.#member(memberKey) };
+    const first = await this.#signIns.token(member);
+    const response = await send(first.token);
+    if (response.status !== 401 || first.source !== "stored") return response;
+    this.#signIns.forget(memberKey);
+    return send((await this.#signIns.token(member)).token);
+  }
+
+  /** A request to the local API as a member of the member's tenant. */
+  #request(memberKey: string, method: string, path: string, body?: unknown): Promise<Response> {
+    const tenant = this.#tenant(splitMember(memberKey).tenant);
+    return this.#authorized(memberKey, (token) =>
+      this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}${path}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "x-company-id": tenant.company_id,
+          ...(body === undefined ? {} : { "content-type": "application/json", "idempotency-key": randomUUID() }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(20_000),
+      }),
+    );
   }
 
   /** The local API as a member of the member's tenant. */
   async #api<T>(memberKey: string, method: string, path: string, body?: unknown): Promise<T> {
-    const tenant = this.#tenant(splitMember(memberKey).tenant);
-    const response = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}${path}`, {
-      method,
-      headers: {
-        authorization: `Bearer ${await this.#session(memberKey)}`,
-        "x-company-id": tenant.company_id,
-        ...(body === undefined ? {} : { "content-type": "application/json", "idempotency-key": randomUUID() }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(20_000),
-    });
+    const response = await this.#request(memberKey, method, path, body);
     const json = (await response.json().catch(() => ({}))) as T & { error?: { code?: string } };
     if (!response.ok) throw new Error(`${method} ${path.split("/").slice(0, 3).join("/")} returned ${response.status}${json.error?.code ? ` ${json.error.code}` : ""}`);
     return json;
@@ -1131,17 +1154,7 @@ export class AppProbe implements AppApi {
 
   /** The local API as a member, answering refusals instead of throwing them. */
   async #answer<T>(memberKey: string, method: string, path: string, body?: unknown): Promise<ApiAnswer<T>> {
-    const tenant = this.#tenant(splitMember(memberKey).tenant);
-    const response = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}${path}`, {
-      method,
-      headers: {
-        authorization: `Bearer ${await this.#session(memberKey)}`,
-        "x-company-id": tenant.company_id,
-        ...(body === undefined ? {} : { "content-type": "application/json", "idempotency-key": randomUUID() }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(20_000),
-    });
+    const response = await this.#request(memberKey, method, path, body);
     const json = (await response.json().catch(() => ({}))) as T & { error?: { code?: string } };
     return { status: response.status, ...(json.error?.code ? { code: json.error.code } : {}), body: json };
   }

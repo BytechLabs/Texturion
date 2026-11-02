@@ -71,6 +71,15 @@ export interface Rig {
 /** tools/rig/bin/rig.mjs, beside this package in the tooling checkout. */
 const RIG_BIN = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "rig.mjs");
 
+/** Where bootstrap.sh puts Google Chrome stable; `RIG_CHROME_BIN` names another. */
+export const CHROME_STABLE_PATH = "/usr/bin/google-chrome-stable";
+
+/** The Chrome the browser lane opens push pages in, or none when this box has none. */
+export function chromeOf(env: NodeJS.ProcessEnv, exists: (path: string) => boolean = existsSync): { executablePath: string } | undefined {
+  const executablePath = env.RIG_CHROME_BIN || (exists(CHROME_STABLE_PATH) ? CHROME_STABLE_PATH : undefined);
+  return executablePath ? { executablePath } : undefined;
+}
+
 export function rigdDir(config: RigdConfig): string {
   return join(config.home.state, "rigd");
 }
@@ -149,7 +158,7 @@ export function buildRig(config: RigdConfig): Rig {
       fakeMicDir,
       numbers: numbers(),
       headless: config.env.RIG_HEADLESS !== "0",
-      chrome: config.env.RIG_CHROME_BIN ? { executablePath: config.env.RIG_CHROME_BIN, members: ["qa-a-dispatcher"] } : undefined,
+      chrome: chromeOf(config.env),
       credentials: (member) => {
         const { tenant, member: name } = splitMember(member);
         return tenants()[tenant]?.members[name];
@@ -157,8 +166,8 @@ export function buildRig(config: RigdConfig): Rig {
     });
     return {
       openPublic: (path) => lane.openPublic(path),
-      async open(member, surface, path) {
-        const page = await lane.open(member, surface, path);
+      async open(member, surface, path, options) {
+        const page = await lane.open(member, surface, path, options);
         return {
           waitForRing: (ms) => page.waitForRing(ms),
           waitForCallCleared: (ms) => page.waitForCallCleared(ms),
