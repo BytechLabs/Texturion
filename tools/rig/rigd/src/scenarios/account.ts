@@ -763,6 +763,16 @@ const NUMBER_WRITES: ReadonlySet<string> = new Set([
   RELEASE,
 ]);
 
+/** What Checkout made for the sign-up that the rig has tagged as its own, and whether Pay was pressed. */
+interface CheckoutObjects {
+  subscription?: string;
+  customer?: string;
+  pressed?: boolean;
+}
+
+/** How long a run that stopped before the subscription was named waits for it to arrive. */
+const LATE_SUBSCRIPTION_MS = 30_000;
+
 /**
  * S32: a new owner signs up, walks every wizard step of the Canadian path,
  * pays on Stripe's hosted Checkout in test mode, reaches the inbox and opens
@@ -803,10 +813,12 @@ export const S32: ScenarioRunner = {
     ctx.evidence.fixture = { row_id: fixture.row_id, last_four: fixture.number_e164.slice(-4) };
 
 
-    const made: { subscription?: string; customer?: string } = {};
+    const made: CheckoutObjects = {};
     try {
       return await payAndJudge(ctx, page, email, fixture, made);
     } finally {
+      // Pay was pressed but the run stopped before the workspace named the subscription: it may still arrive.
+      if (made.pressed && !made.subscription) await adoptLate(ctx, email, made);
       if (made.subscription) await removeFromSandbox(ctx, `/v1/subscriptions/${made.subscription}`);
       if (made.customer) await removeFromSandbox(ctx, `/v1/customers/${made.customer}`);
       if (made.subscription) await cancellationMirrored(ctx, email);
@@ -826,16 +838,44 @@ export const S32: ScenarioRunner = {
   },
 };
 
+/** Tags the workspace's Checkout subscription and customer as the rig's and registers their deletion. */
+async function adoptCheckoutObjects(ctx: ScenarioContext, email: string, workspace: { stripe_subscription_id: string; stripe_customer_id: string | null }, made: CheckoutObjects): Promise<void> {
+  await ctx.stripe.adoptCheckoutSubscription({ ownerEmail: email, subscriptionId: workspace.stripe_subscription_id });
+  made.subscription = workspace.stripe_subscription_id;
+  if (workspace.stripe_customer_id) {
+    await ctx.stripe.adoptCheckoutCustomer({ ownerEmail: email, customerId: workspace.stripe_customer_id });
+    made.customer = workspace.stripe_customer_id;
+    ctx.lease.registerUndo({ kind: STRIPE_DELETE_UNDO, params: { path: `/v1/customers/${made.customer}` } });
+  }
+  ctx.lease.registerUndo({ kind: STRIPE_DELETE_UNDO, params: { path: `/v1/subscriptions/${made.subscription}` } });
+}
+
+/** Without this, a paid subscription named after the run gave up would stay in the shared test mode untagged. */
+async function adoptLate(ctx: ScenarioContext, email: string, made: CheckoutObjects): Promise<void> {
+  const workspace = await poll(ctx, async () => {
+    const found = await ctx.app.workspaceOf({ ownerEmail: email });
+    return found?.stripe_subscription_id ? found : undefined;
+  }, LATE_SUBSCRIPTION_MS, 3_000);
+  ctx.evidence.late_subscription = workspace?.stripe_subscription_id !== undefined;
+  if (!workspace?.stripe_subscription_id) return;
+  try {
+    await adoptCheckoutObjects(ctx, email, { stripe_subscription_id: workspace.stripe_subscription_id, stripe_customer_id: workspace.stripe_customer_id }, made);
+  } catch (error) {
+    ctx.evidence.stripe_cleanup_error = (error as Error).message;
+  }
+}
+
 async function payAndJudge(
   ctx: ScenarioContext,
   page: PublicPageApi,
   email: string,
   fixture: SignUpNumber,
-  made: { subscription?: string; customer?: string },
+  made: CheckoutObjects,
 ): Promise<ScenarioResult> {
   if (!(await page.continueToCheckout())) return fail("checkout_not_opened", "Continue to checkout did not open Stripe's hosted Checkout");
   const paid = await page.checkout({ card: STRIPE_TEST_CARD, email, postalCode: S32_POSTAL_CODE });
   ctx.evidence.checkout = paid;
+  made.pressed = paid.submitted;
   if (!paid.returned) {
     // Stripe's anti-automation is Stripe's to decide; the rig never answers a challenge.
     if (paid.challenged) return infra("stripe-checkout", "challenged");
@@ -848,14 +888,7 @@ async function payAndJudge(
   }, 90_000, 3_000);
   if (!workspace?.stripe_subscription_id) return fail("no_subscription", "the workspace named no subscription within 90 s of Checkout");
   try {
-    await ctx.stripe.adoptCheckoutSubscription({ ownerEmail: email, subscriptionId: workspace.stripe_subscription_id });
-    made.subscription = workspace.stripe_subscription_id;
-    if (workspace.stripe_customer_id) {
-      await ctx.stripe.adoptCheckoutCustomer({ ownerEmail: email, customerId: workspace.stripe_customer_id });
-      made.customer = workspace.stripe_customer_id;
-      ctx.lease.registerUndo({ kind: STRIPE_DELETE_UNDO, params: { path: `/v1/customers/${made.customer}` } });
-    }
-    ctx.lease.registerUndo({ kind: STRIPE_DELETE_UNDO, params: { path: `/v1/subscriptions/${made.subscription}` } });
+    await adoptCheckoutObjects(ctx, email, { stripe_subscription_id: workspace.stripe_subscription_id, stripe_customer_id: workspace.stripe_customer_id }, made);
   } catch (error) {
     return infra("stripe", `the Checkout subscription could not be adopted: ${(error as Error).message}`);
   }

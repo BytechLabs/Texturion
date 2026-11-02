@@ -429,9 +429,11 @@ export class PublicPage {
 /**
  * Picks a number on the number step's picker once it has loaded: the area
  * code's one choice for masked inventory, else the first listed number.
- * Refresh is pressed when it could not load.
+ * Refresh is pressed when it could not load. Only the picker's own "no numbers"
+ * text is an empty area code: a picker that shows nothing within `settleMs`
+ * (still loading, or stalled) is "failed", so a slow search is never filed as dry.
  */
-export async function pickNumber(page: Page, areaCode: string): Promise<Omit<NumberChoice, "continued">> {
+export async function pickNumber(page: Page, areaCode: string, settleMs = WIZARD_STEP_TIMEOUT_MS): Promise<Omit<NumberChoice, "continued">> {
   // The choice's name runs on into its hint, so it is matched from its start.
   const masked = page.getByRole("radio", { name: new RegExp(`^${SELECTORS.maskedNumber(areaCode).name}(?!\\d)`) });
   const listed = page.locator(SELECTORS.listedNumber);
@@ -439,7 +441,7 @@ export async function pickNumber(page: Page, areaCode: string): Promise<Omit<Num
   const none = page.getByText(SELECTORS.numbersNone);
   let refreshes = 0;
   for (;;) {
-    await masked.or(listed.first()).or(failed).or(none).first().waitFor({ timeout: WIZARD_STEP_TIMEOUT_MS }).catch(() => undefined);
+    await masked.or(listed.first()).or(failed).or(none).first().waitFor({ timeout: settleMs }).catch(() => undefined);
     if (await masked.count()) {
       await masked.click();
       return { inventory: "masked", refreshes };
@@ -448,8 +450,8 @@ export async function pickNumber(page: Page, areaCode: string): Promise<Omit<Num
       await listed.first().click();
       return { inventory: "revealed", refreshes };
     }
-    if (!(await failed.count())) return { inventory: "none", refreshes };
-    if (refreshes >= NUMBER_REFRESHES) return { inventory: "failed", refreshes };
+    if (await none.count()) return { inventory: "none", refreshes };
+    if (!(await failed.count()) || refreshes >= NUMBER_REFRESHES) return { inventory: "failed", refreshes };
     await page.waitForTimeout(NUMBER_REFRESH_GAP_MS);
     await page.getByRole(SELECTORS.numbersRefresh.role, { name: SELECTORS.numbersRefresh.name, exact: true }).click();
     refreshes++;
@@ -465,7 +467,7 @@ async function checkoutErrors(page: Page): Promise<Pick<CheckoutRun, "errors" | 
 }
 
 /** Checkout always carries an invisible hCaptcha frame; only a visible one is a challenge. */
-async function challenged(page: Page): Promise<boolean> {
+export async function challenged(page: Page): Promise<boolean> {
   return (await page.locator(SELECTORS.checkout.challenge).filter({ visible: true }).count()) > 0;
 }
 

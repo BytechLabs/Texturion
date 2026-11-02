@@ -516,7 +516,7 @@ describe("the app probe's workspaces", () => {
     };
     const { probe, requests } = probeWith({ ...workspace, [`DELETE ${SUPABASE}/auth/v1/admin/users/${SIGN_UP_USER}`]: () => json({}, 200) });
     await probe.deleteSignUp({ email: SIGN_UP_EMAIL });
-    const [unmute, , , held, close, remove] = requests;
+    const [, , held, close, remove, unmute] = requests;
     expect([unmute!.method, query(unmute!)]).toEqual(["DELETE", { email: `eq.${SIGN_UP_EMAIL}` }]);
     expect(query(held!)).toEqual({ company_id: "in.(company-new)", status: "neq.released", select: "id,provisioning_key" });
     expect(query(close!)).toEqual({ owner_user_id: `eq.${SIGN_UP_USER}`, deleted_at: "is.null" });
@@ -526,10 +526,11 @@ describe("the app probe's workspaces", () => {
 
     const gone = probeWith({ [`DELETE ${rest("email_suppressions")}`]: noContent });
     await gone.probe.deleteSignUp({ email: "delivered+rig-s35-other@resend.dev" });
-    expect(gone.requests.map((r) => r.method)).toEqual(["DELETE", "GET"]);
+    expect(gone.requests.map((r) => r.method)).toEqual(["GET", "DELETE"]);
 
     const failed = probeWith({ ...workspace, [`DELETE ${SUPABASE}/auth/v1/admin/users/`]: () => json({}, 500) });
     await expect(failed.probe.deleteSignUp({ email: SIGN_UP_EMAIL })).rejects.toThrow(/returned 500/);
+    expect(failed.requests.some((r) => r.url.startsWith(rest("email_suppressions")))).toBe(false);
   });
 
   it("makes and removes a confirmed account only at S34's own sub-address, never a seeded member's", async () => {
@@ -595,6 +596,7 @@ describe("the app probe's workspaces", () => {
     });
     await expect(probe.deleteSignUp({ email: SIGN_UP_EMAIL })).rejects.toThrow(/number row bought-1/);
     expect(requests.some((r) => r.method === "PATCH" || r.url.includes("/admin/users/"))).toBe(false);
+    expect(requests.some((r) => r.url.startsWith(rest("email_suppressions")))).toBe(false);
   });
 
   it("gives an unpaid Canadian sign-up a fictional fixture number, trying the next on a clash", async () => {

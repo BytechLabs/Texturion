@@ -13,7 +13,7 @@ import { chromium } from "playwright";
 import { numberBook, writeFakeMicWavs } from "@loonext/rig-robot";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromiumArgs } from "./args.ts";
-import { BrowserLane, fillCheckout } from "./lane.ts";
+import { BrowserLane, challenged, fillCheckout, pickNumber, PublicPage } from "./lane.ts";
 
 const LOOPBACK_PAGE = `<!doctype html><meta charset="utf-8"><title>loopback</title>
 <script>
@@ -119,6 +119,34 @@ const CHECKOUT_PAGE = `<!doctype html><meta charset="utf-8"><title>checkout</tit
 </div>
 <button type="submit">Subscribe</button>
 </form>`;
+
+/**
+ * Checkout as the lane meets it on checkout.stripe.com (routed to this page):
+ * the address re-prices the session through a POST to /v1/payment_pages/, a
+ * hidden hCaptcha frame is always there, and Pay reports each press to
+ * /v1/press before sending the customer back to `app`. `?swallow=1` makes the
+ * first press do nothing, as a press that comes before the re-price does.
+ */
+const STRIPE_CHECKOUT_PAGE = `<!doctype html><meta charset="utf-8"><title>stripe checkout</title>
+<iframe src="about:blank#hcaptcha-checkbox" hidden></iframe>
+<form id="f">
+<input name="email">
+<input name="cardNumber"><input name="cardExpiry"><input name="cardCvc"><input name="billingName">
+<select name="billingCountry"><option value="US">United States</option><option value="CA">Canada</option></select>
+<input name="billingPostalCode" onchange="fetch('/v1/payment_pages/cs_test_rig', { method: 'POST' })">
+<button type="submit">Pay</button>
+</form>
+<script>
+const params = new URLSearchParams(location.search);
+let presses = 0;
+document.getElementById("f").onsubmit = async (event) => {
+  event.preventDefault();
+  presses++;
+  await fetch("/v1/press", { method: "POST" });
+  if (params.get("swallow") === "1" && presses === 1) return;
+  location.href = params.get("app") + "/inbox";
+};
+</script>`;
 
 let server: Server;
 let origin: string;
@@ -232,6 +260,63 @@ describe("the browser lane in Chromium", () => {
       }
     } finally {
       await lane.closeAll();
+    }
+  });
+
+  it("calls an empty area code dry only on the picker's own text, and a picker that shows nothing failed", async () => {
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await page.setContent('<div id="picker"><p>No numbers in area code 416 right now.</p></div>');
+      expect(await pickNumber(page, "416", 1_000)).toEqual({ inventory: "none", refreshes: 0 });
+      await page.setContent('<div id="picker"></div>');
+      expect(await pickNumber(page, "416", 1_000)).toEqual({ inventory: "failed", refreshes: 0 });
+    } finally {
+      await browser.close();
+    }
+  });
+
+  it("counts only a visible challenge frame as a challenge", async () => {
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await page.setContent('<iframe src="about:blank#hcaptcha-checkbox" hidden></iframe>');
+      expect(await challenged(page)).toBe(false);
+      await page.setContent('<iframe src="about:blank#hcaptcha-challenge" width="300" height="300"></iframe>');
+      expect(await challenged(page)).toBe(true);
+    } finally {
+      await browser.close();
+    }
+  });
+
+  it("pays only after the address re-prices, presses Pay once more when the first press did nothing, and waits to be back in the app", async () => {
+    const browser = await chromium.launch();
+    try {
+      for (const [swallow, presses] of [[false, 1], [true, 2]] as const) {
+        const page = await browser.newPage();
+        const events: string[] = [];
+        await page.route("https://checkout.stripe.com/**", async (route) => {
+          const url = new URL(route.request().url());
+          if (url.pathname.startsWith("/v1/payment_pages/")) {
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            events.push("reprice");
+            return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+          }
+          if (url.pathname === "/v1/press") {
+            events.push("press");
+            return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+          }
+          return route.fulfill({ status: 200, contentType: "text/html", body: STRIPE_CHECKOUT_PAGE });
+        });
+        await page.goto(`https://checkout.stripe.com/pay?app=${encodeURIComponent(origin)}${swallow ? "&swallow=1" : ""}`);
+        const lane = new PublicPage(page, origin, () => Promise.resolve());
+        expect(await lane.checkout({ card: "4242424242424242", email: "owner@example.invalid", postalCode: "M5V 3L9" }), String(swallow)).toEqual({ challenged: false, submitted: true, returned: true });
+        expect(events, String(swallow)).toEqual(["reprice", ...Array(presses).fill("press")]);
+        expect(new URL(page.url()).pathname).toBe("/inbox");
+        await page.close();
+      }
+    } finally {
+      await browser.close();
     }
   });
 

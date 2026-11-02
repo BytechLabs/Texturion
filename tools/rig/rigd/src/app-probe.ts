@@ -1033,12 +1033,17 @@ export class AppProbe implements AppApi {
   /**
    * Undo for a scenario's public sign-up: its workspace closed and its user
    * deleted. Only an address a sign-up scenario makes is accepted, so no
-   * seeded member can be removed this way.
+   * seeded member can be removed this way. The address stays muted until the
+   * owner is gone, so an undo that fails part way leaves no live owner mailable.
    */
   async deleteSignUp(args: { email: string }): Promise<void> {
     if (!SIGN_UP_ADDRESS.test(args.email)) throw new Error("app probe: only a sign-up scenario's own address can be removed");
+    await this.#removeSignUpOwner(args.email);
     await this.#write("DELETE", "email_suppressions", { email: `eq.${args.email.toLowerCase()}` }, undefined, "return=minimal");
-    const user = await this.#authUserByEmail(args.email);
+  }
+
+  async #removeSignUpOwner(email: string): Promise<void> {
+    const user = await this.#authUserByEmail(email);
     if (!user) return;
     const companies = await this.#rest<{ id: string }[]>("companies", { owner_user_id: `eq.${user}`, select: "id" });
     const held = await this.#heldNumbers(companies.map((company) => company.id));

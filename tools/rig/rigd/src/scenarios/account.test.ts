@@ -1006,6 +1006,25 @@ describe("S32, sign-up through Checkout and the portal", () => {
     expect(world.stripe.adopted).toEqual([]);
   });
 
+  it("tags and removes the Checkout objects a run that stopped early finds named afterwards, and leaves an unpaid Checkout alone", async () => {
+    const unreturned = signUpWorld("S32");
+    unreturned.browser.publicScript.checkout = { returned: false, challenged: false, submitted: true };
+    expect(await S32.run(unreturned.ctx)).toMatchObject({ failure_class: "checkout_not_returned" });
+    expect(unreturned.stripe.adopted).toEqual(["sub_s32", "cus_s32"]);
+    expect(deletes(unreturned.stripe)).toEqual(["/v1/subscriptions/sub_s32", "/v1/customers/cus_s32"]);
+    expect(unreturned.undo.slice(2)).toEqual([
+      { kind: "stripe.delete", params: { path: "/v1/customers/cus_s32" } },
+      { kind: "stripe.delete", params: { path: "/v1/subscriptions/sub_s32" } },
+    ]);
+
+    const unnamed = signUpWorld("S32");
+    unnamed.browser.publicScript.checkout = { returned: false, challenged: false, submitted: true };
+    unnamed.app.signUps.set(unnamed.email, { company_id: "company-s32", subscription_status: "incomplete", stripe_subscription_id: null, stripe_customer_id: null });
+    expect(await S32.run(unnamed.ctx)).toMatchObject({ failure_class: "checkout_not_returned" });
+    expect(unnamed.ctx.evidence.late_subscription).toBe(false);
+    expect(unnamed.stripe.adopted).toEqual([]);
+  });
+
   it("fails critically when the paid webhook made a number row of its own", async () => {
     const world = signUpWorld("S32");
     const assign = world.app.assignSignUpNumber.bind(world.app);
