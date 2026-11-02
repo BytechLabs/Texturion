@@ -1,5 +1,7 @@
 # 11 - Calendar connectors (Google Calendar and Microsoft 365)
 
+**Status: CURRENT DIRECTION (#323).** A per-vendor deep-dive on switching on the two-way calendar connectors (#245). The numbered set 01-08 is the operator walkthrough; this page is the console click path for the one step it leaves out.
+
 The two-way connectors (#245, D137) are shipped and stay dark until their
 secrets exist. Nothing here opens a new vendor account: the Google OAuth client
 lives in a Google Cloud project under a Google account you already hold, and the
