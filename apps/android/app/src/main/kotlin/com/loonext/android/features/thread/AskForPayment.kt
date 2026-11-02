@@ -308,7 +308,7 @@ fun AskForPayment(
         Text(
             t("thread.askFootnote"),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

@@ -503,6 +503,7 @@ private struct OtherCallRow: View {
                         .foregroundStyle(BrandColor.destructive)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(t("contactsTasks.decline"))
@@ -831,11 +832,21 @@ private func previewSnapshot(
 }
 
 #Preview("In-call states") {
+    inCallControlsFixture()
+}
+
+/// The live-call pieces on one screen: phase lines, the held and ringing rows,
+/// and the control toggles. Shared by the preview and the #238 accessibility
+/// audit.
+@MainActor
+@ViewBuilder
+func inCallControlsFixture() -> some View {
     let manager = CallsManager.get(graph: AppGraph())
+    let caller = "Dana Whitcomb"
     VStack(spacing: 24) {
         VStack(spacing: 8) {
-            InitialsAvatar(name: "Dana Whitcomb", size: 112)
-            Text("Dana Whitcomb")
+            InitialsAvatar(name: caller, size: 112)
+            Text(caller)
                 .font(.display(26))
                 .foregroundStyle(BrandColor.ink)
             Text("(415) 555-0134")
@@ -843,7 +854,7 @@ private func previewSnapshot(
                 .foregroundStyle(BrandColor.muted600)
             CallPhaseLine(call: previewSnapshot(
                 id: "a",
-                name: "Dana Whitcomb",
+                name: caller,
                 number: "+14155550134",
                 phase: .active,
                 activeSince: Date().addingTimeInterval(-272)

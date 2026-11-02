@@ -7,7 +7,7 @@ it is maintained by hand — but every row names a test, and
 
 **Standard:** WCAG 2.2 Level AA
 **Applies to:** the Loonext web application, and the Android and iOS apps where stated
-**Last verified:** 2026-11-01
+**Last verified:** 2026-11-02
 **Basis:** `docs/APP-LAYOUT-V2.md` §7 (the canonical product contract)
 
 This document exists to be handed to a buyer who asks (#285). Everything in it
@@ -91,6 +91,47 @@ TalkBack or VoiceOver pass into evidence. What we can state factually today:
 | Large-text render coverage | **Partial** — `DashboardScreenshotTest.the panels at 200 percent font scale` renders `LeadSourcesCard` at 200% and writes a PNG; it is not a primary-flow pass | **Partial** — `DashboardScreenshotTests.testRepresentativeDashboardInBothThemesAndTextSizes` renders the full For You dashboard in both themes at `.accessibility5`, keeps paginated PNG attachments, and asserts that the large-text layout materially grows; it is not a primary-flow pass |
 | Text sizes are declared in a scaling unit | **Yes**, and enforced — `scripts/check-native-a11y.mjs` | **Yes**, and enforced — `scripts/check-native-a11y.mjs` |
 | In-app language attached to native accessibility content | **Yes, mechanically** — the Compose accessibility provider adds the resolved locale as `LocaleSpan` metadata while preserving node semantics and explicit per-content language spans; `AccessibilityLanguageTest` | **Yes, mechanically** — the app root publishes the resolved locale through SwiftUI's native `locale` environment above the lock gate; `AccessibilityLanguageTests` |
+| The primary flows through the platform's own accessibility checks | **Yes, mechanically** — `apps/android/app/src/test/kotlin/com/loonext/android/a11y/AccessibilityAuditTest.kt` (details below) | **Yes, mechanically** — `apps/ios/LoonextUITests/AccessibilityAuditUITests.swift` runs `performAccessibilityAudit()` (details below) |
+
+### What the automated audits cover, and what they are not
+
+Since #238 each phone audits its primary flows on every build, with fixture data
+behind the real views: sign in, sign up and password reset; the inbox list and
+its filters; a thread with its composer; the call controls; settings.
+
+| | Android | iOS |
+|---|---|---|
+| What runs | The semantics tree Compose hands TalkBack, drawn under Robolectric. The questions are the Accessibility Test Framework's, asked by `apps/android/app/src/test/kotlin/com/loonext/android/a11y/SemanticsAudit.kt` | Apple's `performAccessibilityAudit()` on an iOS simulator, in the `Gate / iOS` job |
+| Why not the stock tool | ATF's `enableAccessibilityChecks()` is in this Compose but cannot see Compose under Robolectric: it visited five Views, ran no check and reported green on the sign-in screen, where the real audit then found nine. `apps/android/app/src/test/kotlin/com/loonext/android/a11y/AtfRobolectricCanaryTest.kt` fails the day that stops being true | It is the stock tool |
+| Fails the build | A control with no name; a target under 24dp (WCAG 2.5.8); text under WCAG 1.4.3, measured from the colour drawn and the pixels behind it; the status filter not saying which one is selected | Contrast, hit region, an element the OS cannot detect, a label that is not human-readable, a wrong trait; the first four again at the largest accessibility text size |
+| Reported, not failed | Targets between 24dp and the product's 44dp (25 across these flows today) | `dynamicType` and `textClipped`: the first flags small captions that do scale (through `relativeTo:`, which `scripts/check-native-a11y.mjs` enforces), the second one-line previews that truncate by design |
+| Beyond these screens | `apps/android/app/src/test/kotlin/com/loonext/android/a11y/TextColorLintTest.kt` fails if any source file colours text with the theme's border grey | `scripts/check-screen-reader-names.mjs` |
+
+What the audits found and the build now keeps fixed:
+
+- **Android**: three form fields with no name (the label above them was a separate
+  text), a show-password control that was a 16dp image, a Google mark read aloud as
+  "G", a filter that did not say which one was on, a Retry control
+  22dp tall, and text coloured with the border grey on 23 call sites (about 2:1 on
+  paper; section blurbs, hints, the legal line, the day divider).
+- **iOS**: Settings icons that VoiceOver would have read as symbol names
+  ("person.2"), text-only controls whose tappable area was the glyphs (the links on
+  the sign-in screens, Decline, the Text/Note switch, a tappable timeline line),
+  a Retry control well under the hit-region floor, and an unlabelled password field.
+
+Three iOS findings are exempted in `AccessibilityAuditUITests.swift`, each with its
+reason beside it: contrast on a control that is switched off (WCAG exempts it),
+contrast on the keypad's thin "*" glyph (ink on paper, about 16:1), and the hit
+region of the password field, which SwiftUI's `SecureField` reports as its text
+line while an email field of identical geometry passes. The password field was
+made to fill its row; whether a tap in the padding lands there is worth trying
+on a device.
+
+These are the checks a tool can make. They do not speak. Reading order, the
+wording a user hears, whether a live region announces at the right moment, whether
+a custom control exposes the right role and value, French pronunciation, and
+whether someone can finish a flow eyes-closed on a physical device still need a
+person with TalkBack and VoiceOver, which is the protocol below.
 
 ### The iOS row above used to say "Partly", and the number in it was wrong
 
@@ -164,14 +205,19 @@ believing the rest of the document.
 - **No third-party audit** has been carried out. Everything here is
   first-party, which is exactly why each claim names the test behind it.
 - **Native screen-reader flows are untested end to end.** Every icon-only
-  control now has a name and a build fails if one loses it — but a name is
-  necessary and nowhere near sufficient. Reading ORDER, whether a live region
+  control now has a name and a build fails if one loses it, and each phone's
+  primary flows run through the platform's accessibility audit on every build —
+  but a name is necessary and nowhere near sufficient, and an audit does not
+  speak. Reading ORDER, whether a live region
   speaks at the right moment, whether a custom control exposes the right role
   and state, and whether a whole flow can be driven by TalkBack or VoiceOver
   all need a person with a phone. None of that is claimed.
 - **Large-text render coverage is partial.** Android covers one dashboard card
-  at 200%; iOS covers the For You dashboard at `.accessibility5` in both themes.
-  Neither covers the three primary flows in the protocol above.
+  at 200%; iOS covers the For You dashboard at `.accessibility5` in both themes,
+  and its audit re-runs the main flows at the largest accessibility size for
+  hit regions and unreadable elements. Neither phone has a render of the three
+  primary flows in the protocol above, and the iOS `dynamicType`/`textClipped`
+  findings are logged for a person to read, not enforced.
 - **Native spoken language remains unverified.** Android now attaches the resolved
   in-app locale to the text, labels, values and hints exposed by Compose as Android's
   `LocaleSpan` metadata; iOS publishes the same resolved value through SwiftUI's

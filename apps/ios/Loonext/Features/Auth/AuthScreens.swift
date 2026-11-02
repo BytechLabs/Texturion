@@ -220,7 +220,7 @@ final class AuthViewModel {
     }
 }
 
-private enum AuthScreen {
+enum AuthScreen {
     case login
     case signUp
     case forgot
@@ -230,10 +230,13 @@ private enum AuthScreen {
 @MainActor
 struct AuthFlow: View {
     @State private var model: AuthViewModel
-    @State private var screen: AuthScreen = .login
+    @State private var screen: AuthScreen
 
-    init(authManager: AuthManager) {
+    /// `startingAt` exists so the #238 accessibility audit can open the sign-up
+    /// and reset screens directly; the app itself always begins at sign in.
+    init(authManager: AuthManager, startingAt screen: AuthScreen = .login) {
         _model = State(initialValue: AuthViewModel(authManager: authManager))
+        _screen = State(initialValue: screen)
     }
 
     var body: some View {
@@ -336,6 +339,8 @@ private struct LinkButton: View {
             Text(title)
                 .font(.golos(12.5, weight: .semibold))
                 .foregroundStyle(tint)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -396,6 +401,7 @@ private struct SsoButtons: View {
                     .foregroundStyle(BrandColor.ink)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
+                    .contentShape(Capsule())
             }
             .buttonStyle(.plain)
             .background(BrandColor.paper, in: Capsule())
@@ -617,6 +623,10 @@ private struct AuthField: View {
     @Binding var text: String
     let kind: AuthFieldKind
 
+    /// The field fills its whole row, so a tap anywhere in the pill lands in it.
+    /// Scaled, so a bigger font does not clip inside a fixed height.
+    @ScaledMetric(relativeTo: .body) private var fieldHeight: CGFloat = 44
+
     init(_ title: String, text: Binding<String>, kind: AuthFieldKind) {
         self.title = title
         self._text = text
@@ -651,8 +661,9 @@ private struct AuthField: View {
             }
             .font(.golos(14))
             .foregroundStyle(BrandColor.ink)
+            .accessibilityLabel(title)
+            .frame(height: fieldHeight)
             .padding(.horizontal, 15)
-            .padding(.vertical, 13)
             .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)

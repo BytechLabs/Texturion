@@ -220,11 +220,7 @@ struct DialerSheet: View {
                                 VStack(spacing: 0) {
                                     Text(key)
                                         .font(.golos(keySize * 0.34, weight: .semibold))
-                                        .foregroundStyle(
-                                            (key == "*" || key == "#")
-                                                ? BrandColor.muted500
-                                                : BrandColor.ink
-                                        )
+                                        .foregroundStyle(BrandColor.ink)
                                     if let letters = keypadLetters[key] {
                                         Text(letters)
                                             .font(.golos(keySize * 0.12, weight: .bold))
@@ -474,6 +470,14 @@ private func previewNumber(id: String, e164: String) -> PhoneNumberSummary {
 }
 
 #Preview("Dialer · two from-numbers") {
+    dialerFixture()
+}
+
+/// The dialer with two caller-ID numbers to choose between. Shared by the preview
+/// and the #238 accessibility audit.
+@MainActor
+@ViewBuilder
+func dialerFixture() -> some View {
     DialerSheet(
         manager: CallsManager.get(graph: AppGraph()),
         numbers: [

@@ -941,6 +941,15 @@ private func previewCall(
 }
 
 #Preview("Call log rows") {
+    callLogFixture()
+}
+
+/// The call log as a screen reader meets it: a missed, an answered, an outbound,
+/// a voicemail and a screened-as-spam row. Shared by the preview and the #238
+/// accessibility audit.
+@MainActor
+@ViewBuilder
+func callLogFixture() -> some View {
     let service = CallsService(api: AppGraph().api)
     ScrollView {
         PaperCard {

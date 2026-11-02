@@ -251,7 +251,7 @@ private fun TemplateListRow(
             Text(
                 updatedLine(template.updated_at, template.updated_by_name),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }

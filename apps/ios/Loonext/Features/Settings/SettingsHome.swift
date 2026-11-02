@@ -653,6 +653,7 @@ private struct SettingsSectionRow: View {
                     BrandColor.inset,
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                 )
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(AppStrings.translate(appLocale, section.titleKey))
                     .font(.golos(13.5, weight: .semibold))
@@ -674,6 +675,7 @@ private struct SettingsSectionRow: View {
             Image(systemName: "chevron.right")
                 .font(.scaled(12, weight: .semibold))
                 .foregroundStyle(BrandColor.muted250)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 11)
@@ -695,7 +697,9 @@ private struct SettingsIndexPreview: View {
                 PaperCard {
                     ForEach(Array(SettingsSection.allCases.enumerated()), id: \.element.id) { index, section in
                         if index > 0 { RowDivider() }
-                        SettingsSectionRow(section: section)
+                        // A button, as the real rows are links: one element per row.
+                        Button {} label: { SettingsSectionRow(section: section) }
+                            .buttonStyle(.plain)
                     }
                 }
             }
@@ -706,6 +710,12 @@ private struct SettingsIndexPreview: View {
         }
         .background(BrandColor.canvas)
     }
+}
+
+/// The settings index for the #238 accessibility audit.
+@MainActor
+func settingsIndexFixture() -> some View {
+    SettingsIndexPreview()
 }
 
 #Preview("Settings index · tall phone") {

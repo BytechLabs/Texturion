@@ -830,7 +830,7 @@ private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
                         fontSize = 26.sp * scale,
                     ),
                     color = if (sent.isEmpty()) {
-                        MaterialTheme.colorScheme.outline
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
                         MaterialTheme.colorScheme.onBackground
                     },
@@ -987,7 +987,7 @@ private fun TransferSheet(
             Text(
                 t("contactsTasks.transferSnapBack"),
                 fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()

@@ -57,6 +57,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -865,6 +867,9 @@ private fun OngoingTicker(anchorIso: String, color: Color, modifier: Modifier = 
 private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
+        // Selected is a colour change and nothing else; this is what tells a
+        // screen reader which filter is on.
+        modifier = Modifier.semantics { this.selected = selected },
         shape = CircleShape,
         color = if (selected) {
             MaterialTheme.colorScheme.secondaryContainer
@@ -1027,7 +1032,7 @@ private fun CallRow(
                 Text(
                     relativeTime(call.started_at),
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     // #566: a non-weighted sibling is measured BEFORE the
                     // weighted Column beside it, so at a large OS font scale this
                     // took its full intrinsic width and crushed the name and

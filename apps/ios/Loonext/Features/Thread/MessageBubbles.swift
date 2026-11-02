@@ -354,8 +354,8 @@ private struct MessageMetaLine: View {
                     Text(AppStrings.translate(appLocale, "thread.retry"))
                         .font(.golos(10.5, weight: .bold))
                         .foregroundStyle(BrandColor.destructive)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
                         .background(BrandColor.destructiveContainer, in: Capsule())
                 }
                 .buttonStyle(.plain)
@@ -501,7 +501,11 @@ struct EventLine: View {
     var body: some View {
         VStack(spacing: 3) {
             if let onTap {
-                Button(action: onTap) { sentence }
+                Button(action: onTap) {
+                    sentence
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                }
                     .buttonStyle(.plain)
                     .accessibilityLabel(tapLabel ?? text)
                     .accessibilityAddTraits(.isButton)
@@ -661,3 +665,80 @@ struct NoteFilesSection: View {
         .onAppear { onLoad() }
     }
 }
+
+// MARK: - Accessibility audit fixture
+
+#if DEBUG
+/// A thread as a screen reader meets it: an inbound text, a delivered reply, a
+/// failed one with its retry control, an internal note, two timeline events (one
+/// a link) and a queued send. Drawn from the shipping views so the #238 audit
+/// inspects what customers get.
+@MainActor
+func threadTimelineFixture() -> some View {
+    let actions = MessageBubbleActions(
+        onToggleDone: {},
+        onTogglePin: {},
+        onRetry: {},
+        onMakeTask: {},
+        onCopied: {},
+        onOpenTask: { _ in }
+    )
+    func bubble(_ message: Message, author: String? = nil) -> MessageBubble {
+        MessageBubble(
+            message: message,
+            authorName: author,
+            doneByName: nil,
+            noteFilesState: nil,
+            onLoadNoteFiles: {},
+            onOpenFile: { _ in },
+            mintAttachmentUrl: { _, _ in throw URLError(.badURL) },
+            actions: actions
+        )
+    }
+    return ScrollView {
+        VStack(spacing: 0) {
+            DayDividerLine(label: "Today")
+            bubble(fixtureMessage("m1", MessageDirection.inbound, "Can you come by Tuesday morning?", status: MessageStatus.received))
+            bubble(fixtureMessage("m2", MessageDirection.outbound, "Yes, 9am works.", status: MessageStatus.delivered), author: "Dana")
+            bubble(fixtureMessage("m3", MessageDirection.outbound, "On my way.", status: MessageStatus.failed), author: "Dana")
+            bubble(fixtureMessage("m4", MessageDirection.note, "Gate code is 4411."), author: "Dana")
+            EventLine(text: "assigned to Dana", timeIso: "2026-07-15T12:00:00Z")
+            EventLine(
+                text: "Missed call",
+                timeIso: "2026-07-15T12:01:00Z",
+                onTap: {},
+                tapLabel: "open the call"
+            )
+            PendingBubble(
+                pending: PendingSend(
+                    localId: "p1",
+                    body: "Sending this",
+                    mediaCount: 0,
+                    createdAt: "2026-07-15T12:02:00Z",
+                    idempotencyKey: "k1",
+                    queued: true
+                )
+            )
+        }
+        .padding(.vertical, 8)
+    }
+    .background(BrandColor.canvas)
+}
+
+/// Built by decoding, the way the app gets messages: the memberwise
+/// initialiser is order-sensitive and this only compiles in CI.
+private func fixtureMessage(_ id: String, _ direction: String, _ body: String, status: String? = nil) -> Message {
+    let statusJson = status.map { "\"\($0)\"" } ?? "null"
+    let json = """
+    {
+      "id": "\(id)",
+      "conversation_id": "c1",
+      "direction": "\(direction)",
+      "body": "\(body)",
+      "status": \(statusJson),
+      "created_at": "2026-07-15T12:00:00Z"
+    }
+    """
+    return try! JSONDecoder().decode(Message.self, from: Data(json.utf8))
+}
+#endif

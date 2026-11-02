@@ -1242,7 +1242,12 @@ jobs:
             CURRENT_PROJECT_VERSION="${{ steps.build_number.outputs.value }}" \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Unit tests
+      # #238: the scheme's tests are LoonextTests and LoonextUITests. The second
+      # target runs performAccessibilityAudit() over the primary flows, so an
+      # unnamed control, small hit region, low contrast or clipped large text
+      # fails here. It is the OS's audit and not VoiceOver; the spoken pass
+      # stays a person with a phone (docs/ACCESSIBILITY.md).
+      - name: Unit and accessibility audit tests
         run: |
           set -o pipefail
           xcodebuild test \

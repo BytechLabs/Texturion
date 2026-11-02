@@ -1104,6 +1104,7 @@ struct ThreadComposerView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(selected ? selectedBg : Color.clear, in: Capsule())
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -1743,6 +1744,12 @@ struct TemplatePickerSheet: View {
 // MARK: - Previews
 
 #Preview("Composer") {
+    composerFixture()
+}
+
+/// The reply box on its own, for the preview and the #238 accessibility audit.
+@MainActor
+func composerFixture() -> some View {
     VStack {
         Spacer()
         ThreadComposerView(
