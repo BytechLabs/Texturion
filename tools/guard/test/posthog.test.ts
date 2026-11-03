@@ -34,10 +34,10 @@ describe("production ops notices", () => {
   it("send no phone number or email address in the summary or the detail", () => {
     const body = buildCapture(
       "phc_k",
-      { key: "k", summary: "dial to +16135551234 refused", detail: "owner a@b.co, 16135551234" },
+      { key: "k", summary: "dial to +12025550123 refused", detail: "owner a@b.co, 12025550123" },
       0,
     );
-    expect(body).not.toContain("6135551234");
+    expect(body).not.toContain("2025550123");
     expect(body).not.toContain("a@b.co");
     expect(JSON.parse(body).properties.detail).toBe("owner [email redacted], [phone redacted]");
   });
