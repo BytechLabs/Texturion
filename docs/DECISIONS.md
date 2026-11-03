@@ -9663,14 +9663,19 @@ Crashlytics goes too.
   not used: they reach Slack, Discord, Teams or a webhook, and the only webhook
   available was our own mailer, which is what this removes. No Slack or other
   vendor account is added.
-- **Volume and cost.** About 60k events a month today and under 400k at 200
+- **Volume and cost.** About 60k events a month today and about 250k at 200
   active workspaces, against a free tier of 1M events and 100k exceptions. The
-  free plan stops ingesting at its limit, which is the cost cap; no throttle of
-  ours is needed. The free plan allows five insight alerts and four are used.
+  free plan stops ingesting at its limit, which is the cost cap, and it stops
+  errors and heartbeats with everything else. So the two sources a stranger or
+  a retry storm can repeat without limit are capped in the sender: a refused
+  webhook signature sends one `webhook_rejected` per provider every five
+  minutes per isolate, and the Telnyx channel heartbeats one every ten. The free
+  plan allows five insight alerts and four are used.
 
 D8 is amended again: PostHog holds exception events and the events listed in
 docs/MONITORING.md, only after the scrubbers have run, from every client
-including the mobile apps.
+including the mobile apps. The funnel events carry `environment` too, so an
+alert can leave the rig's out.
 
 **Why.** The founder's direction: no observability or monitoring tools of our
 own, and no alert emails from our code. The Durable Object shows the cost of
