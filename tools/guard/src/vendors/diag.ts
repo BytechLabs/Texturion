@@ -4,7 +4,7 @@ import { isCleanPath } from "../telnyx/registry";
 import { redact } from "./redact";
 
 /**
- * The diag class (docs/RIG.md, and PW01's wiring check): GET-only reads
+ * The diag class (docs/RIG.md): GET-only reads
  * of production's Telnyx evidence for workstation agents, through the guard's
  * key, so no second full-power key exists for reading. Only the listed reads,
  * each answer redacted.

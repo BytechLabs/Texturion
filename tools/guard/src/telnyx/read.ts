@@ -89,8 +89,7 @@ export const READ_RULES: Readonly<Record<string, ReadRule>> = {
       typeof item.messaging_profile_id === "string" && request.view.messagingProfiles.has(item.messaging_profile_id),
   },
 
-  // Production's own wiring watches (PW01) register these, and production
-  // alone runs them; from the rig, each answers for the partition only.
+  // From the rig, each answers for the partition only.
   "GET /v2/call_control_applications/:id": onePartitionResource(({ view }) => [
     view.record.connections.voice,
     view.record.connections.robot,

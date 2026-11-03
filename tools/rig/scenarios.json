@@ -27,10 +27,6 @@
       "what": "Proofs that the partition holds"
     },
     {
-      "id": "production-watch",
-      "what": "Read-only checks of production itself"
-    },
-    {
       "id": "browser",
       "what": "Calls between the rig's browser pages and the robot"
     },
@@ -136,34 +132,6 @@
       "peak_concurrent_outbound_legs": 1,
       "min_room": 2,
       "note": "The SDK places the sentinel call itself, outside the guard; budgeted as one dial for both attempts, as 4.2 does."
-    },
-    {
-      "id": "P01",
-      "name": "Production ring-success watch",
-      "lane": "production-watch",
-      "far_end": "Real customers' calls",
-      "runs_on": "production",
-      "runs": [
-        {}
-      ],
-      "dials": 0,
-      "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
-    },
-    {
-      "id": "PW01",
-      "name": "Production wiring check",
-      "lane": "production-watch",
-      "far_end": "Production's own settings",
-      "runs_on": "production",
-      "runs": [
-        {}
-      ],
-      "dials": 0,
-      "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
     },
     {
       "id": "S01",

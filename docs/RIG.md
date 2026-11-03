@@ -147,8 +147,8 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | A Telnyx key that physically could not touch production | **Rebuilt** as the guard's policy. This is weaker: a guard bug now reaches production. |
 | A separate webhook signing key | **Rebuilt** as ownership checks by resource. |
 | Separate Cloudflare accounts for the test app and the guard | **Rebuilt** with scoped tokens, disjoint ids and a guard with no public URL. Your own dashboard login still sits above everything. |
-| A hosted, always-on nonprod: real Workers runtime, hosted Supabase auth settings, and cloud lanes that survive a home outage | **Accepted.** Hosted behaviour is defect X23, partly covered by the production watches (P01, PW01). The rig is a single point of failure, and it is off whenever the workstation is; nothing watches it, because nothing on it is scheduled. |
-| A carrier SIM handset (K00-K05): real carrier calls both ways, carrier texts, STIR/SHAKEN, caller-name display, a STOP sent from a real phone | **Accepted** as defects X5, X10, X17 and X20. P01 measures real customers' rings passively, but with one production number today it mostly reports "insufficient sample". K01 could prove outbound carrier egress, but by default it never runs (Phase 4, optional). |
+| A hosted, always-on nonprod: real Workers runtime, hosted Supabase auth settings, and cloud lanes that survive a home outage | **Accepted.** Hosted behaviour is defect X23, partly covered by production's own events in PostHog. The rig is a single point of failure, and it is off whenever the workstation is; nothing watches it, because nothing on it is scheduled. |
+| A carrier SIM handset (K00-K05): real carrier calls both ways, carrier texts, STIR/SHAKEN, caller-name display, a STOP sent from a real phone | **Accepted** as defects X5, X10, X17 and X20. Production's ring events in PostHog measure real customers' rings passively, but with one production number today there are few of them. K01 could prove outbound carrier egress, but by default it never runs (Phase 4, optional). |
 | Real-iPhone lanes and Loonext's own APNs wake path | **Accepted** as defect X21, unless an Apple membership already exists. The iOS Simulator lane was dropped too: it could not test wake, and the iOS app hard-codes production hosts. No customer runs an iOS build today, because `ship.yml` archives it unsigned. iOS keeps its CI unit tests. |
 | Calendar test accounts | **Accepted** as defect X22. A Google partial path that needs no new account is offered in Phase 4. |
 | A separate path to Telnyx's Verified level | **Accepted.** The shared account's level governs both production and the rig. |
@@ -552,7 +552,6 @@ Already shipped in release 0.18.0: `0fd3583c` (2026-10-30). It stops `scripts/de
    - `ops_diag` views, including hourly call counts and ring-audience sizes.
    - The `agent_diag` role, with an SQL test proving it cannot read messages, contacts, numbers or payloads.
    - `scripts/ops/call-trace.mjs`, which reads only the `ops_diag` views as `agent_diag`.
-   - P01 and PW01 (section 3.11).
 5. **Hermetic call journeys.** The fake Telnyx gains dialing and telephony credentials, and `CALL_SESSIONS` is bound. Inbound, outbound, voicemail and transfer journeys run on every push. They also emit each scenario's dial count and peak concurrent legs, which feed the budget check in section 4.1. A trace-to-fixture tool renumbers real traces into the fictional 555-01xx range.
 6. **Android `nonprod` build type**, created with `initWith(release)`:
    - minified, with the `.nonprod` suffix, and signed with a stable key held on the rig, which the first `rig apk` makes with the JDK's `keytool` and never replaces (half a pair is refused);
@@ -717,31 +716,7 @@ Product regressions go to agents as GitHub issues.
 
 ### 3.11 Production watches
 
-These two run inside production's own crons, in production, with production's keys. They are not the rig's, nothing on the rig schedules them, and they stay as they are.
-
-**P01 (ring success, hourly, in production).** `api_ring_success`, read on production's existing hourly cron.
-- Ring success per platform and app version: the share of ring pushes that the same device reported as "ringing shown" within 15 seconds of the send starting. A push the provider answered "gone" is not an attempt.
-- The share of answered sessions with media is not measured yet: nothing records whether audio flowed on an answered call. The answered count is returned, and media is reported as not measured.
-- The version is the one the push's session last sent the API, and nothing else.
-- The window is the 24 hours ending a minute ago. The baseline is the same platform's judged versions over the 7 days before it.
-- Every row reports its sample size **n** and one verdict, first match wins:
-  - `unattributed`: the push's session or version is unknown;
-  - `not_instrumented`: the version is below the platform's beacon floor, the lowest version that sent any beacon in the 14 days kept;
-  - `insufficient_sample`: under 30 attempts in the window;
-  - `no_baseline`: under 30 attempts in the baseline;
-  - `drop`: the window's rate is below `t - 3 * sqrt(t(1 - t)(1/n_window + 1/n_baseline))`, where t is the baseline rate minus 5 points;
-  - `pass`.
-- Only `pass` is a pass. `unattributed` and `not_instrumented` rows are counted but never judged, and stay out of the baseline.
-- Computed exactly from the binomial, the threshold fires by chance on at most 0.28% of windows, and 0.05% once the baseline holds 100 attempts.
-- A `drop` alerts `['ops','ring-success-<platform>']` the hour it first appears, then every 6 hours while it lasts.
-- Only non-personal aggregates are used: platforms, versions, counts, rates and verdicts.
-- With one production number today, it will mostly say `insufficient_sample`. It is the only real-carrier, real-device signal possible without a SIM, and it grows with the customer base.
-
-**PW01 (wiring check, daily, read-only, no number).** It runs inside production's own scheduled handler, on the existing daily `0 13 * * *` cron, with production's existing Telnyx key and GET requests only. It never goes through the guard, and `productionWatchRefusal` stops it on the rig and on a laptop before any request. It:
-- reads production's Call Control app, its credential connection and the messaging profiles its workspaces use, and confirms the webhook URL, failover URL and webhook API version "2" against the URL production builds for itself. The credential connection may leave its failover unset, as `docs/deploy/04-telnyx.md` creates it;
-- reads the last 24 hours of failed webhook deliveries. A failure at production's URL, or at production's host under another path, alerts `['ops','telnyx-wiring']`. Failures at other hosts, such as the rig's edge, are counted and not alerted.
-
-Payloads, passwords and query strings are never logged or alerted. This catches portal and webhook drift without a dial or any exception to the guard's policy.
+There are none on the rig or in production's crons any more (D146). Ring success and Telnyx wiring are read from the events production sends to PostHog: `ring_push_sent` and `ring_beacon` per platform and app version, and `webhook_rejected` per provider. PostHog's "Limits and rates" alert reports rings shown under 80% of pushes and repeated signature rejections; `docs/MONITORING.md` lists what is sent and what alerts on it.
 
 ### 3.12 One call, end to end (S02)
 
@@ -804,8 +779,6 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 | H01 | Hermetic suite, including the call journeys | Fake Telnyx and Stripe | **Pass:** the CI status. CI runs it on every push; the rig does not run it, because regression testing stays in CI. | 0 |
 | G01 | Isolation self-test | A fictional 555-01xx number; STRANGER-1 | **Pass:** the app refuses a send and a dial to 555-01xx before Telnyx, by rig mode's destination gate. The database gate is reached first and raises `rig_destination_refused`, so each route answers 500 and the API's own error report for that route names the gate. A text that the Worker's gate refuses instead is filed as failed with that code. The guard's lease record holds no app request it refused for an unowned destination. STRANGER-1's call to DEV-W1 is rejected before any ring leg, row or voicemail, and its text is not threaded. The guard returns 403 to a dial on production's connection, a text from a number outside the group, and a dial to a non-owned number, each under its own rule. The relay's report counts the two error reports of a G01 attempt as expected. **Any success:** a critical result, sent at once to Sentry's `synthetic` environment. A production alert for it is not built yet. | 1 |
 | G02 | Calls the apps' SDK places itself | The sentinel credential, held by a test page on the rig | **Pass:** the browser SDK and the device-lane emulator's SDK, both signed in on `nonprod-webrtc`, each try a direct call to the sentinel; both are refused and the sentinel never rings. **If it rings:** alert, and residual X25 applies. Not runnable yet: the Android half needs the nonprod build to place an SDK call to a SIP address, and the app has no entry point for one. | 1 |
-| P01 | Production ring-success watch | Real customers' calls | Runs in production's own hourly cron, not on the rig. **Verdicts** per platform and version, first match wins: `unattributed` (session or version unknown), `not_instrumented` (below the platform's beacon floor), `insufficient_sample` (under 30 attempts in 24 h), `no_baseline` (under 30 in the 7 days before), `drop`, `pass`. **Pass:** only `pass`. **Drop:** the rate is below the baseline less 5 points, by more than 3 standard errors of both samples; it alerts `['ops','ring-success-<platform>']` (3.11). | 0 |
-| PW01 | Production wiring check | Production's own settings | **Runs** in production's own daily cron (not on the rig), with production's key, GET only, never through the guard. **Pass:** webhook URL, failover URL and API version on production's app, connection and profiles equal production's own, and no delivery to production's host failed in 24 h. **Otherwise:** it alerts `['ops','telnyx-wiring']`. | 0 |
 | S01 | Browser calls a phone number (on-net) | ROBOT-1 answers after 4 s | **Pass:** ringback energy before answer; the page hears 1,100 Hz and the robot hears 1,300 Hz; caller ID is DEV-W1; the one-time token is used once; the row is answered; a voice-seconds meter event lands in Stripe's test mode. | 2 |
 | S02 | Phone number calls Loonext, answered in the browser | ROBOT-1 dials DEV-W1 | **Pass:** ring dialog and SDK ringing within 6 s; both codes heard; row answered; billed seconds equal the meter. | 2 |
 | S03 | Loonext calls Loonext across workspaces | QA-C page dials DEV-W1 | **Pass:** the QA-W owner rings and answers; each side hears the other's code; two rows with distinct session keys, each billed to its own workspace; no text-back. **Recorded, not judged:** how Telnyx routed and billed the call, for the rig's billing measurement. | 3 |
@@ -857,19 +830,19 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 - **Loonext to Loonext:** S03, S10, S23.
 - **Loonext to phones:** S01, D07 (K01 later).
 - **Phones to Loonext:** S02, D01, D02, E01.
-- **"An app didn't ring":** D02, D02p, D03, D04, D10-D12, E01 and P01.
+- **"An app didn't ring":** D02, D02p, D03, D04, D10-D12, E01, and production's ring events in PostHog.
 
 ### 4.3 Named defects (not covered human-free, and why)
 
 | ID | Gap | Why a machine cannot do it within the rules | What would close it |
 |---|---|---|---|
 | X5 | Texts to and from real handsets on carriers, including US 10DLC and a STOP from a real phone | Needs a SIM (forbidden), and a registered campaign for US traffic | A SIM, if the rule is ever lifted |
-| X20 | A real carrier call into Loonext: ringback, early media, STIR/SHAKEN | All inbound calls come from the robot, on-net | The same. P01 measures it passively once production has volume. |
+| X20 | A real carrier call into Loonext: ringback, early media, STIR/SHAKEN | All inbound calls come from the robot, on-net | The same. Production's ring events in PostHog measure it passively once production has volume. |
 | X10 | Outbound caller-name display on a recipient handset | No carrier handset | The same |
 | X17 | Wi-Fi to cellular handover; a cellular call interrupting a Loonext call | The emulators have no real radio; the console's `gsm call` simulates one and no lane runs it yet | None (no SIMs); a data SIM only if the rule is ever lifted |
 | X21 | Any iOS device or Simulator test: PushKit and CallKit wake, APNs, lock-screen answer, call audio | No Apple membership is assumed, and the free tier has no Push Notifications capability (developer.apple.com supported-capabilities-ios, parsed 2026-10-30). The iOS app hard-codes production hosts. | An existing membership turns on the separate-accounts iPhone lane. iOS keeps its CI unit tests. |
 | X22 | Calendar consent, refresh revocation, and all of Microsoft | No test identities can be created | Phase 4 offers a Google partial: a service account in the existing project owns its own calendar, and a token-URL seam lets the guard hand the app service-account tokens. That covers the Google API, the sync worker and push channels (verify the push-channel domain rule). |
-| X23 | Hosted behaviour: Durable Object eviction under load, CPU limits, hosted Supabase auth settings, Realtime at scale, OpenNext on real Workers | The rig is local | Partly covered by P01, PW01 and the hermetic workerd Durable Object test |
+| X23 | Hosted behaviour: Durable Object eviction under load, CPU limits, hosted Supabase auth settings, Realtime at scale, OpenNext on real Workers | The rig is local | Partly covered by production's events in PostHog and the hermetic workerd Durable Object test |
 | X24 | Supabase Auth mail over Resend SMTP; Resend bounce and complaint webhooks | Auth mail stays in Mailpit. Resend webhooks are team-wide and would carry production events. | Stays hermetic |
 | X25 | A rig credential's SDK ringing another internal credential directly | Only if G02 shows the SDK path is open | Accepted residual if G02 rings; `sip_uri_calling_preference` governs only inbound calls, so no connection setting closes it. Production SIP usernames are never in any rig context. |
 | X26 | Telnyx portal-only tools: SIP call flow, PCAP, QoS graphs, push debugging | No API exists for them | The robot's own RTP statistics, plus session analysis and call events read through the guard, substitute |
@@ -877,7 +850,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 | X2 | Real port-in and port-out | Needs a legal signature; port-out loses the number | Not recommended |
 | X3 | Hosted-SMS text-enablement; the sole-proprietor code | Needs a number elsewhere, plus paperwork each time | None |
 | X4 | Live 10DLC reviews | No sandbox for them (D31) | Hermetic golden-us |
-| X6 | Wake, Doze and call audio on a physical Android phone | No new hardware: every Android lane is an emulator with a Pixel profile, so it misses OEM power management, natural deep-Doze entry, a real radio, Bluetooth and a vendor audio stack | None. Production's P01 ring-success watch measures wake on customers' phones hourly; nothing in production measures call audio. |
+| X6 | Wake, Doze and call audio on a physical Android phone | No new hardware: every Android lane is an emulator with a Pixel profile, so it misses OEM power management, natural deep-Doze entry, a real radio, Bluetooth and a vendor audio stack | None. Production's ring events in PostHog measure wake on customers' phones; nothing in production measures call audio. |
 | X7 | Firefox Web Push quota | Not automated | None |
 | X8 | A third incoming call auto-declining | Needs a third QA-W number | One more number, $1.10/month |
 | X9 | A text stuck "queued" for 15 minutes | Fault injection | Stays hermetic |
@@ -886,7 +859,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 | X14 | Passkey enrolment | Real authenticator; the relying-party id is app.loonext.com | A virtual authenticator, web only |
 | X15 | Real Turnstile | Blocks automation by design | Test keys, kept honest by the always-block check |
 | X16 | Speaker and earpiece audio routes | The rig hears only the emulator's one virtual input and output | None |
-| X27 | Packet loss on the Android device's network path | The emulator console sets delay and speed but has no loss control | None. P01 covers wake only. |
+| X27 | Packet loss on the Android device's network path | The emulator console sets delay and speed but has no loss control | None. Production's ring events cover wake only. |
 
 ---
 
@@ -1183,7 +1156,7 @@ Commands marked "designed" in section 8 are not built yet; the text says what to
 11. **Release and confirm.**
     - Production changes only when the release-please PR merges.
     - An agent reruns the recipe against the released tag.
-    - The issue stays open, labelled `awaiting-production-evidence`, until P01 has at least 30 attempts for that platform and version with a passing rate; P01 then closes it automatically. With today's volume that can take a long time, and the label says so.
+    - The issue stays open, labelled `awaiting-production-evidence`, until production's ring events in PostHog show at least 30 rings for that platform and version, at least 80% of them shown; the agent that reads them closes it. With today's volume that can take a long time, and the label says so.
     - The recipe is kept as the way to repeat the repro on demand, and its trace becomes a hermetic fixture under `apps/api/e2e/` through `node scripts/trace-to-fixture.mjs <trace> --out <fixture>`, which renumbers every number into 555-0100..0199 and writes nothing if any number survives.
 
 At no step does any customer number, name, message, recording or database row leave production.
@@ -1198,7 +1171,7 @@ At no step does any customer number, name, message, recording or database row le
 | **0b. Seams, evidence, guards, workstation tools** | Everything else in section 3.7, and the docs in section 14 | Yes, now | FA4 and FA9 to move `ship.yml` and `backup-posture.yml`. |
 | **1. Cloud pieces in existing accounts** | Edge and guard; the Telnyx partition created by the guard's setup routine; the notification channel; attestation and key inventory; `rig-cloud.yml`, `guard.yml`, `rig-secrets.yml`. Number orders wait for 0a in production and the first-order check; paid dials wait for 0a and the ladder. Texts may start sooner. | Yes | Open: FA4's `guard-attest-read` token and Email Routing, and FA7 steps 3-5. FA3, FA6 and FA9 are done, FA5 and FA8 are substituted, and FA10 is dropped. |
 | **2. The rig** | **Spikes first:** (2) code calibration; (3) local ES256 sign-in; (4) the cron route; (5) the AI shim; (6) FCM rewrite and package pinning; (7) robot inbound recording; (8) emulators under WHPX, started by hostd; (9) the edge-to-guard service binding; **EA1** gRPC call audio, in two steps: with no Telnyx cost, an AVD booted with `-grpc` and `-no-snapshot-load` (with and without `-no-audio`) whose in-guest page plays its microphone back, with a Node client injecting the 2,300 Hz code and streaming the output, passing when the detector hears both codes at 48 kHz, and measuring injection before and after the microphone opens; then one robot dial under the lease, passing when each side hears the other's code in at least 3 cycles with calibration's 10 dB of separation and no emulator crash; **VM1** cloud-init's datasource detection on Workstation, unproven until the first boot; **VM2** emulators started with nobody logged on; **VM3** the tunnel and the 5137 adb server, including whether the emulators honour `ANDROID_ADB_SERVER_PORT`. Spike (1), the Bluetooth purchase gate, is gone with the hardware. **Then:** VM creation, bootstrap, network, rig mode, seed, robot, `rigd`, lanes. | Yes | Open: FA15's first licence acceptance, on the Windows SDK and on the VM's SDK. VM creation replaces FA11 and is an agent action; FA12 is dropped. FA16 is optional. |
-| **3. On-demand runs, reporting, triage, production watches** | Running scenarios by hand under the guard's caps; the Sentry relay; triage on request; G01, G02, P01, PW01. No timers and no dead-man (D142, second update of 2026-11-01). The guard's own cap is final (section 4.1). | Yes | Nothing |
+| **3. On-demand runs, reporting, triage, production watches** | Running scenarios by hand under the guard's caps; triage on request; G01, G02. No timers and no dead-man (D142, second update of 2026-11-01). The guard's own cap is final (section 4.1). | Yes | Nothing |
 | **4. Optional** | K01 echo probe (by default it never runs); the Google calendar partial (X22); raw SSH relay | Yes | For calendar: enable the Calendar API and create one service account in the existing Google Cloud project (10 minutes). |
 
 ### Founder actions, with click paths
@@ -1363,7 +1336,7 @@ node scripts/ops/call-trace.mjs --self-check
 - **Synthetic tenants inside the production database.** Production point-in-time recovery is off. That approach also needed a session-minting endpoint in production, and its phone lane breaks on the first real Turnstile challenge.
 - **An iOS Simulator lane.** It could not test wake, it would need an iOS rig configuration plus a TCP relay, and no customer runs an iOS build.
 - **A raw SSH relay through the edge as the primary way in.** Host agents already have a full shell on the rig over SSH on the workstation. The relay stays optional (Phase 4).
-- **A production probe number** for wiring checks. PW01 reads production's settings and delivery log instead, with no dial and no exception to the guard's policy.
+- **A production probe number** for wiring checks. Production's `webhook_rejected` events in PostHog stand in, with no dial and no exception to the guard's policy.
 - **New accounts of any kind:** SIM, Apple, Workspace or Microsoft 365, device farm.
 - **A hard release gate on synthetic results.** A flaky phone must not block a customer fix. Reconsider after 30 days with the device lanes under 2% flakiness.
 - **Any copy of production data,** even scrubbed.
@@ -1385,7 +1358,7 @@ node scripts/ops/call-trace.mjs --self-check
 5. **Ordering.** No number before production's `/health` shows the ownership rule and the first-order check passes. All eight standing roles are ordered; while paid dials are refused none is ordered with a voice connection.
 6. **One home site, on one workstation.** Power or internet loss means the rig is unavailable until it is back. Nothing alerts on that, because nothing on the rig is scheduled; an agent who needs a repro waits for the workstation.
 7. **Fidelity gaps from running locally** (X23).
-8. **P01 has little to measure today.** With one production number, it mostly reports "insufficient sample", and repro issues may wait a long time for production evidence.
+8. **Production's ring events have little to measure today.** With one production number there are few of them, and repro issues may wait a long time for production evidence.
 9. **Unproven mechanisms,** each with a spike and a fallback:
    - coded bursts surviving voice processing (fallback: "media arrived" plus speech recognition);
    - local ES256 sign-in;
@@ -1428,7 +1401,7 @@ node scripts/ops/call-trace.mjs --self-check
 | Protecting production from the shared sweep | Positive ownership by billing group, not a deny-list secret. It needs no production secret and fails safe. |
 | Filtering production's webhooks by connection id | Rejected: it would drop production's text and registration events. Ownership is decided at the edge, per event type. |
 | How the guard knows production is ready | `/health` gains a capability list. |
-| Production wiring | PW01 reads production settings and deliveries. No probe number. |
+| Production wiring | Production's `webhook_rejected` events in PostHog. No probe number. |
 | The #308 text canary | Bug fixed; switching it on stays #308's decision. |
 | Where triage runs | First a Claude cloud task, so a revoked rig sign-in could not stop it. Since 2026-11-01, an agent on the host, because nothing signs in to Claude in the VM (FA10 and FA12 dropped). |
 | Production Telnyx reads | Merged into the guard as a redacted, GET-only class: one full-power key fewer. |
@@ -1452,7 +1425,7 @@ node scripts/ops/call-trace.mjs --self-check
 | Blocker: test calls can starve a customer's call | Room formula, live-leg count, preemption, measured window; paid lanes open only on the proof ladder's evidence, with room 0 at the floor (3.5, 4.1) |
 | Test traffic is the majority, so surcharge and fraud reasoning was inverted | Account-level ratio control, single-surface audiences, cancelled ring legs assumed abandoned, and a latch on the first fraud-type notice (2.2, 3.5) |
 | Dials undercounted | Counts derived from the journeys; per-run dial costs in `tools/rig/scenarios.json`, checked in CI, with the runs the hourly cap cannot hold named (4.1, 4.2) |
-| P01 has no sample | Reports n; "insufficient sample" is never a pass; repro issues stay open until evidence exists (3.11, 9) |
+| Few production rings | Repro issues stay open until production's ring events are evidence enough (3.11, 9) |
 | Wired fallback breaks adb | Moot since 2026-11-01: there is no phone. Emulator audio goes through gRPC, gated by EA1 (3.9) |
 | FCM token seam missing | `FCM_OAUTH_TOKEN_URL`, a guard-token bearer in rig mode, a dummy key, and a test (3.3, 3.7) |
 | iOS lane would talk to production | iOS Simulator lane and TCP relay dropped (2.3, 11) |

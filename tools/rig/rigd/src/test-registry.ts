@@ -42,7 +42,6 @@ export function registryOf(scenarios: RawScenario[], caps: Record<string, unknow
 export const SAMPLE: RawScenario[] = [
   scenario("R00", { lane: "health" }),
   scenario("H01", { lane: "hermetic", runs_on: "ci" }),
-  scenario("P01", { lane: "production-watch", runs_on: "production" }),
   scenario("S01", { lane: "browser", dials: 2, peak_concurrent_outbound_legs: 1, min_room: 2 }),
   scenario("S02", { lane: "browser", dials: 1, far_end_legs: 1, peak_concurrent_outbound_legs: 1, min_room: 2 }),
   scenario("S04", { lane: "browser", dials: 1, far_end_legs: 1, peak_concurrent_outbound_legs: 1, min_room: 2 }),

@@ -45,7 +45,7 @@ describe("diag class", () => {
     expect(deliveries).toContain("***0101");
     const settings = JSON.stringify(await (await h.call("/diag/v2/credential_connections", { caller: "diag" })).json());
     expect(settings).not.toContain("sip-password");
-    // Ids and webhook URLs are what PW01 compares; they survive.
+    // Ids and webhook URLs are what a wiring check compares; they survive.
     expect(settings).toContain("1521916448077776306");
     expect(settings).toContain("https://api.loonext.com/webhooks/telnyx");
   });
