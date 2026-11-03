@@ -6,7 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getEnv, type Bindings, type Env } from "./env";
-import { handler, HEARTBEAT_SESSION_NAME, pingCallSessionObject, runScheduledJobs } from "./index";
+import { handler, runScheduledJobs } from "./index";
+import { HEARTBEAT_SESSION_NAME, pingCallSessionObject } from "./observability/heartbeat";
 import { captured, eventsCaptured, exceptionsCaptured, resetCaptures } from "./test/capture-mock";
 import { testExecutionContext } from "./test/messaging-support";
 import { supabaseStub } from "./test/routes-harness";

@@ -17,6 +17,7 @@ import {
 import {
   cronHeartbeat,
   isCronSchedule,
+  pingCallSessionObject,
   type CronSchedule,
 } from "./observability/heartbeat";
 import { runTelnyxCapacityGauge } from "./observability/telnyx-capacity";
@@ -545,34 +546,6 @@ async function rigUnreadyResponse(env: Bindings): Promise<Response | null> {
     { error: { code: "service_unavailable", message: refusal } },
     { status: 503 },
   );
-}
-
-/** The one RPC the heartbeat job needs; structural so this file names no DO internals. */
-interface HeartbeatStub {
-  heartbeat(): Promise<void>;
-}
-
-/**
- * A reserved name, never a real session id: `CallSessionDO` keys on
- * `idFromName(sessionId)`, so this instance can never hold a live call.
- */
-export const HEARTBEAT_SESSION_NAME = "__heartbeat__";
-
-/**
- * Ask the call Durable Object to send its own heartbeat. Without the binding
- * there is no object to ask; a failed call is the run's failure, and the
- * missing heartbeat is what PostHog alerts on.
- */
-export async function pingCallSessionObject(env: Env): Promise<void> {
-  const namespace = env.CALL_SESSIONS;
-  if (!namespace) {
-    console.warn("call session heartbeat: CALL_SESSIONS is not bound; skipping");
-    return;
-  }
-  const stub = namespace.get(
-    namespace.idFromName(HEARTBEAT_SESSION_NAME),
-  ) as unknown as HeartbeatStub;
-  await stub.heartbeat();
 }
 
 type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;

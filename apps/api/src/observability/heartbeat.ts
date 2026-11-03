@@ -38,6 +38,12 @@ export const CRON_GRACE_MINUTES = {
 export type CronSchedule = keyof typeof CRON_GRACE_MINUTES;
 
 /**
+ * A reserved name, never a real session id: `CallSessionDO` keys on
+ * `idFromName(sessionId)`, so this instance can never hold a live call.
+ */
+export const HEARTBEAT_SESSION_NAME = "__heartbeat__";
+
+/**
  * The delivery paths, beating when they carry something. Long graces on
  * purpose: at today's traffic a quiet night is normal, and an alert that cries
  * wolf is one nobody reads.
@@ -49,6 +55,11 @@ export const CHANNEL_GRACE_MINUTES = {
 } as const;
 
 export type Channel = keyof typeof CHANNEL_GRACE_MINUTES;
+
+/** The one RPC the heartbeat job needs; structural so this file names no DO internals. */
+interface HeartbeatStub {
+  heartbeat(): Promise<void>;
+}
 
 export function isCronSchedule(cron: string): cron is CronSchedule {
   return Object.hasOwn(CRON_GRACE_MINUTES, cron);
@@ -89,4 +100,21 @@ export function channelHeartbeat(
     { key: channel, grace_minutes: CHANNEL_GRACE_MINUTES[channel] },
     waitUntil,
   );
+}
+
+/**
+ * Ask the call Durable Object to send its own heartbeat. Without the binding
+ * there is no object to ask; a failed call is the run's failure, and the
+ * missing heartbeat is what PostHog alerts on.
+ */
+export async function pingCallSessionObject(env: Env): Promise<void> {
+  const namespace = env.CALL_SESSIONS;
+  if (!namespace) {
+    console.warn("call session heartbeat: CALL_SESSIONS is not bound; skipping");
+    return;
+  }
+  const stub = namespace.get(
+    namespace.idFromName(HEARTBEAT_SESSION_NAME),
+  ) as unknown as HeartbeatStub;
+  await stub.heartbeat();
 }

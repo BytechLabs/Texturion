@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { CRON_GRACE_MINUTES } from "./observability/heartbeat";
+import { CRON_GRACE_MINUTES, pingCallSessionObject } from "./observability/heartbeat";
 import { runTelnyxCapacityGauge } from "./observability/telnyx-capacity";
 import { runTelnyxSpendGauges } from "./observability/telnyx-spend";
 import { runNumberHealthJob } from "./messaging/number-health";
@@ -46,7 +46,7 @@ import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
 import { notifyDueTasksJob } from "./tasks/due-notice";
 import { runCalendarSyncJob } from "./calendar/worker";
-import { app, CRON_JOBS, pingCallSessionObject } from "./index";
+import { app, CRON_JOBS } from "./index";
 import {
   failStuckOutboundSends,
   pruneWebhookEvents,
@@ -626,6 +626,16 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       expect(worker[name], `wrangler binds "${name}" but the Worker exports no such name`).toBeTypeOf(
         "function",
       );
+    }
+  });
+
+  it("exports nothing workerd refuses to boot with", async () => {
+    // workerd reads every named export of the entry as a handler or a class;
+    // a string or number there stops the Worker from starting at all.
+    const worker = (await import("./index")) as Record<string, unknown>;
+    for (const [name, value] of Object.entries(worker)) {
+      expect(["function", "object"], name).toContain(typeof value);
+      expect(value, name).not.toBeNull();
     }
   });
 
