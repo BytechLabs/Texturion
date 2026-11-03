@@ -190,7 +190,7 @@ describe("the destination gate in the client", () => {
   it.each(cases)("sends %s unchanged outside the rig", async (_l, path, body) => {
     for (const env of [
       getEnv(completeEnv()),
-      getEnv({ ...completeEnv(), DEPLOY_ENV: "production" }),
+      getEnv({ ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" }),
     ] satisfies Env[]) {
       const sent = recordTelnyx();
       await telnyxRequest(env, { method: "POST", path, body });
@@ -252,7 +252,7 @@ describe("the messaging-profile limits in the client", () => {
 
   it("leave production's profile exactly as built", async () => {
     const sent = recordTelnyx();
-    await telnyxRequest(getEnv({ ...completeEnv(), DEPLOY_ENV: "production" }), {
+    await telnyxRequest(getEnv({ ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" }), {
       method: "POST",
       path: "/v2/messaging_profiles",
       body: asked,
@@ -299,13 +299,13 @@ describe("the endpoints the guard never forwards, in the client", () => {
     const sent = recordTelnyx();
     await expectRefused(triggerBrandOtp(getEnv(rigEnv()), "brand-1"));
     expect(sent).toEqual([]);
-    await triggerBrandOtp(getEnv({ ...completeEnv(), DEPLOY_ENV: "production" }), "brand-1");
+    await triggerBrandOtp(getEnv({ ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" }), "brand-1");
     expect(sent.map((s) => s.url)).toEqual(["https://api.telnyx.com/v2/10dlc/brand/brand-1/smsOtp"]);
   });
 
   it("are sent outside the rig", async () => {
     const sent = recordTelnyx();
-    const env = getEnv({ ...completeEnv(), DEPLOY_ENV: "production" });
+    const env = getEnv({ ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" });
     await telnyxRequest(env, { method: "POST", path: "/v2/10dlc/brand/b-1/smsOtp" });
     await telnyxUpload(env, upload);
     expect(sent.map((s) => s.url)).toEqual([

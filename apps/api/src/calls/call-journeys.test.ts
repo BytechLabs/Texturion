@@ -23,9 +23,6 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
-);
 vi.mock("../observability/capture", async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
@@ -38,7 +35,6 @@ import { liveCallsRoutes } from "../routes/live-calls";
 import { webrtcRoutes } from "../routes/webrtc";
 import { captured, resetCaptures } from "../test/capture-mock";
 import { apiRequest, buildTestApp } from "../test/routes-harness";
-import { resetSentryCaptures, sentryCaptures } from "../test/sentry-mock";
 import { completeEnv, createTestAuth, type TestAuth } from "../test/support";
 
 import { createCallSessions, type CallSessionsDouble } from "../../e2e/call-sessions";
@@ -558,7 +554,6 @@ beforeEach(() => {
   tables.calls.length = 0;
   tables.call_member_legs.length = 0;
   tables.outbound_call_authorizations.length = 0;
-  resetSentryCaptures();
   resetCaptures();
 });
 
@@ -575,7 +570,6 @@ function expectQuietSession(sessionId: string) {
   expect(half, `session object ${sessionId} was created`).toBeDefined();
   expect(half?.warnings).toEqual([]);
   expect(half?.errorCount).toBe(0);
-  expect(sentryCaptures.map((capture) => capture.message)).toEqual([]);
   expect(captured).toEqual([]);
   return half as NonNullable<typeof half>;
 }

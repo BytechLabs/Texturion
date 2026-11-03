@@ -246,7 +246,7 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
     expect(query.get("subscription_status")).toBe("in.(active,past_due)");
     expect(query.get("deleted_at")).toBe("is.null");
 
-    // Regression (Sentry NODE-D): this filters the DB enum — Postgres rejects
+    // Regression: this filters the DB enum — Postgres rejects
     // the whole query on any non-enum value ('trialing' is a RAW Stripe
     // status; plans.ts launders it to 'active' before it ever hits the DB),
     // which broke the */15 cron on every run. Pin the list to the enum.

@@ -72,7 +72,6 @@ ef37c6d58565582d0015bbf4798a5161bda78efb:apps/api/src/routes/billing.held-number
 # is precisely why the scanner objected; neither ever opened anything. Pinned by
 # fingerprint rather than by rule, so the shape still fails for the next one —
 # and a share token is the one shape we most need it to catch.
-f53a434a21d7f5128a8b54b8cc099966c39fbfbf:apps/api/src/observability/sentry.test.ts:generic-api-key:216
 f53a434a21d7f5128a8b54b8cc099966c39fbfbf:apps/web/src/lib/observability/scrub.test.ts:generic-api-key:293
 
 # A FILENAME quoted in a migration comment, not a credential. The #581 erasure

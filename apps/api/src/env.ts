@@ -98,7 +98,6 @@ const envSchema = z.object({
    */
   STRIPE_CONNECT_WEBHOOK_SECRET: z.string().min(1).optional(),
   RESEND_API_KEY: z.string().min(1),
-  SENTRY_DSN: z.url(),
   /**
    * The git SHA this Worker was built from — stamped by the Deploy workflow
    * (`wrangler deploy --var GIT_SHA:<head_sha>`) and sent with every PostHog
@@ -332,9 +331,12 @@ const envSchema = z.object({
   STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID: z.string().min(1).optional(),
   STRIPE_PRO_VOICE_OVERAGE_PRICE_ID: z.string().min(1).optional(),
   /**
-   * PostHog Cloud project API key (SPEC §12 step 18 product analytics).
-   * OPTIONAL: when unset (local dev, tests) every analytics capture is a
-   * silent no-op — see src/analytics/posthog.ts.
+   * PostHog Cloud project API key: product analytics (SPEC §12 step 18) and
+   * everything observability sends (D146, observability/capture.ts).
+   * OPTIONAL in the schema because local dev and tests send nothing without
+   * it, and every capture is then a no-op. Production refuses to boot
+   * without it (environments/policy.ts), because nothing else would notice a
+   * Worker that reports nothing.
    */
   POSTHOG_API_KEY: z.string().min(1).optional(),
   /**

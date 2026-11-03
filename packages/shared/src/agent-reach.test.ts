@@ -111,7 +111,6 @@ describe("otherwise the name decides", () => {
     ["SUPABASE_ACCESS_TOKEN", "readablestemforthistest", "production-write"],
     ["TELNYX_API_KEY", "guard-caller-token-stem", "nonprod"],
     ["TELNYX_PUBLIC_KEY", "readablestemforthistest", "none"],
-    ["SENTRY_DSN", "https://stem@o0.ingest.sentry.io/1", "none"],
     ["AHREFS_API_KEY", "readablestemforthistest", "nonprod"],
     ["SOMETHING_NEW_SECRET", "readablestemforthistest", "unclassified"],
   ])("%s is %s", (name, value, tier) => {

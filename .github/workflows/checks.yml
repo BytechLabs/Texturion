@@ -449,7 +449,7 @@ jobs:
 
       # D142: the rig fires every cron in the deployed ref's own config. A cron
       # nobody classified as run, run-expecting-a-refusal or skip leaves R00 an
-      # unexplained Sentry fingerprint, and a job added to a cron changes what
+      # unexplained PostHog exception, and a job added to a cron changes what
       # that cron does in rig mode, so both are compared with tools/rig/crons.json.
       - name: Guard the rig's cron registry
         run: node scripts/check-rig-crons.mjs

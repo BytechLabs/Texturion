@@ -7,7 +7,6 @@
 import { describe, expect, it } from "vitest";
 
 import { getEnv, type Env } from "../env";
-import { sentryOptions } from "../observability/sentry";
 import { completeEnv } from "../test/support";
 import { deployEnv } from "./mode";
 import * as policy from "./policy";
@@ -22,7 +21,6 @@ import {
   restrictTelnyxBody,
   RIG_DESTINATION_REFUSED,
   RIG_MESSAGING_PROFILE_DAILY_LIMIT,
-  sentryEnvironment,
   telemetryEnvironment,
   servesRigRoutes,
   telnyxRequestRefusal,
@@ -36,7 +34,7 @@ describe("DEPLOY_ENV", () => {
 
   it("accepts the three names and nothing else", () => {
     for (const name of ["local", "rig", "production"] as const) {
-      const env = name === "rig" ? rigEnv() : { ...completeEnv(), DEPLOY_ENV: name };
+      const env = name === "rig" ? rigEnv() : { ...completeEnv(), DEPLOY_ENV: name, POSTHOG_API_KEY: "phc_policy_test_key" };
       expect(deployEnv(getEnv(env))).toBe(name);
     }
     expect(() => getEnv({ ...completeEnv(), DEPLOY_ENV: "staging" })).toThrowError(
@@ -50,11 +48,20 @@ describe("production's start-up refusals", () => {
   const production = (overrides: Record<string, unknown> = {}) => ({
     ...completeEnv(),
     DEPLOY_ENV: "production",
+    POSTHOG_API_KEY: "phc_policy_test_key",
     ...overrides,
   });
 
   it("boots with production's configuration", () => {
     expect(() => getEnv(production())).not.toThrow();
+  });
+
+  it("refuses to boot without a PostHog key, since nothing else would notice", () => {
+    expect(() => getEnv(production({ POSTHOG_API_KEY: undefined }))).toThrowError(
+      /POSTHOG_API_KEY/,
+    );
+    expect(() => getEnv({ ...completeEnv() })).not.toThrow();
+    expect(() => getEnv(rigEnv())).not.toThrow();
   });
 
   it("refuses TELNYX_API_BASE, naming the variable", () => {
@@ -132,7 +139,7 @@ describe("local's start-up refusals: a rig configuration without its flag", () =
 
   it("leaves production alone: there the flag is stamped, and a stray variable is unread", () => {
     expect(() =>
-      getEnv({ ...completeEnv(), DEPLOY_ENV: "production", RIG_OWNED_E164: OWNED_A }),
+      getEnv({ ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key", RIG_OWNED_E164: OWNED_A }),
     ).not.toThrow();
   });
 });
@@ -192,11 +199,6 @@ const INERT_OUTSIDE_RIG: Record<string, ((env: Env) => void) | "constant"> = {
   deployPostureRefusals: (env) => {
     if (deployEnv(env) === "local") expect(deployPostureRefusals(env)).toEqual([]);
   },
-  sentryEnvironment: (env) => {
-    expect(sentryEnvironment(env)).toBe(
-      deployEnv(env) === "production" ? "production" : "development",
-    );
-  },
   telemetryEnvironment: (env) => {
     expect(telemetryEnvironment(env)).toBe(
       deployEnv(env) === "production" ? "production" : "local",
@@ -247,7 +249,7 @@ describe("outside the rig, every policy answer is the permissive one", () => {
 
   it.each([
     ["local", () => getEnv(completeEnv())],
-    ["production", () => getEnv({ ...completeEnv(), DEPLOY_ENV: "production" })],
+    ["production", () => getEnv({ ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" })],
   ])("%s", (_name, build) => {
     const env = build();
     for (const check of Object.values(INERT_OUTSIDE_RIG)) {
@@ -410,7 +412,7 @@ describe("the rig's messaging-profile limits", () => {
 
 describe("PostHog's environment comes from DEPLOY_ENV", () => {
   it("names each deployment, and a release stamp is not production", () => {
-    expect(telemetryEnvironment(getEnv({ ...completeEnv(), DEPLOY_ENV: "production" }))).toBe(
+    expect(telemetryEnvironment(getEnv({ ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" }))).toBe(
       "production",
     );
     expect(telemetryEnvironment(getEnv(rigEnv()))).toBe("rig");
@@ -418,18 +420,3 @@ describe("PostHog's environment comes from DEPLOY_ENV", () => {
   });
 });
 
-describe("Sentry's environment comes from DEPLOY_ENV", () => {
-  it("names each deployment", () => {
-    expect(sentryOptions({ ...completeEnv(), DEPLOY_ENV: "production" }).environment).toBe(
-      "production",
-    );
-    expect(sentryOptions(rigEnv()).environment).toBe("rig");
-    expect(sentryOptions(completeEnv()).environment).toBe("development");
-  });
-
-  it("does not take a release stamp to mean production", () => {
-    expect(sentryOptions({ ...completeEnv(), GIT_SHA: "abc123" }).environment).toBe(
-      "development",
-    );
-  });
-});

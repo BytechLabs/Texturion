@@ -399,7 +399,7 @@ describe("a customer picture message, behaving", () => {
   });
 
   it("hands Telnyx production's signed URL untouched", async () => {
-    const bindings = { ...completeEnv(), DEPLOY_ENV: "production" };
+    const bindings = { ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" };
     const signed = `${getEnv(bindings).SUPABASE_URL}/storage/v1/object/sign/mms/a.jpg?token=t`;
     const call = await sendPicture(bindings, STRANGER, signed);
     expect(call.url.href).toBe("https://api.telnyx.com/v2/messages");

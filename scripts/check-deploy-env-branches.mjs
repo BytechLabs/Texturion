@@ -65,7 +65,7 @@ const MODE_IMPORT = /\bfrom\s+["'][^"']*environments\/mode(?:\.ts)?["']|\bimport
 
 /**
  * Exports that name the deployment, and the only files that may import each.
- * PostHog and Sentry have to file events under the right environment, the Worker entry has
+ * PostHog capture has to file events under the right environment, the Worker entry has
  * to decide whether the rig's routes exist, the FCM sender has to know
  * whether it may mint a Google token (its answer differs only on the rig),
  * and the Telnyx gauges (spend limits, concurrent-call capacity) have to know
@@ -73,7 +73,6 @@ const MODE_IMPORT = /\bfrom\s+["'][^"']*environments\/mode(?:\.ts)?["']|\bimport
  */
 export const MODE_REVEALING_IMPORTERS = {
   telemetryEnvironment: ["apps/api/src/observability/capture.ts"],
-  sentryEnvironment: ["apps/api/src/observability/sentry.ts"],
   servesRigRoutes: ["apps/api/src/index.ts"],
   fcmCredential: ["apps/api/src/notifications/fcm.ts"],
   productionWatchRefusal: [

@@ -56,8 +56,8 @@ describe("check-deploy-env-branches refuses every way of reading DEPLOY_ENV", ()
   it.each([
     [
       "an export that names the deployment, imported to relax a cap",
-      `import { sentryEnvironment, servesRigRoutes } from "../environments/policy";\n` +
-        `if (sentryEnvironment(env) !== "production") return Infinity;\n` +
+      `import { telemetryEnvironment, servesRigRoutes } from "../environments/policy";\n` +
+        `if (telemetryEnvironment(env) !== "production") return Infinity;\n` +
         "if (servesRigRoutes(env)) return Infinity;",
       2,
     ],
@@ -67,7 +67,7 @@ describe("check-deploy-env-branches refuses every way of reading DEPLOY_ENV", ()
       `import {\n  outboundDestinationRefusal,\n  type DestinationRefusal,\n  servesRigRoutes,\n} from "../environments/policy";`,
       1,
     ],
-    ["the same export taken from a file that passed it on", `import { sentryEnvironment } from "../observability/sentry";`, 1],
+    ["the same export taken from a file that passed it on", `import { telemetryEnvironment } from "../observability/capture";`, 1],
     ["a namespace import", `import * as policy from "../environments/policy";`, 1],
     ["a re-export of everything", `export * from "../environments/policy";`, 1],
     ["a dynamic import", `const policy = await import("../environments/policy");`, 1],
@@ -76,14 +76,14 @@ describe("check-deploy-env-branches refuses every way of reading DEPLOY_ENV", ()
   });
 
   it("a sanctioned importer passing the name on", () => {
-    const text = `export { sentryEnvironment } from "../environments/policy";`;
+    const text = `export { telemetryEnvironment } from "../environments/policy";`;
     expect(
-      offences([{ path: "apps/api/src/observability/sentry.ts", text }]).map((o) => o.rule),
-    ).toEqual([expect.stringMatching(/^re-exports sentryEnvironment/)]);
+      offences([{ path: "apps/api/src/observability/capture.ts", text }]).map((o) => o.rule),
+    ).toEqual([expect.stringMatching(/^re-exports telemetryEnvironment/)]);
   });
 
   it("a sanctioned importer taking a name it was not given", () => {
-    const text = `import { sentryEnvironment } from "./environments/policy";`;
+    const text = `import { telemetryEnvironment } from "./environments/policy";`;
     expect(offences([{ path: "apps/api/src/index.ts", text }])).toHaveLength(1);
   });
 
@@ -124,8 +124,8 @@ describe("check-deploy-env-branches allows what is not a read", () => {
       offences([
         { path: "apps/api/src/index.ts", text: `import { servesRigRoutes } from "./environments/policy";` },
         {
-          path: "apps/api/src/observability/sentry.ts",
-          text: `import { sentryEnvironment } from "../environments/policy";`,
+          path: "apps/api/src/observability/capture.ts",
+          text: `import { telemetryEnvironment } from "../environments/policy";`,
         },
       ]),
     ).toEqual([]);

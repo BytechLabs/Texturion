@@ -210,7 +210,7 @@
       ]
     },
     "app/(app)/error.tsx": {
-      "why": "Console-only boundary label paired with the Error object for developers and Sentry correlation; the reader sees the translated appShell.segmentErrorTitle and appShell.segmentErrorBody instead. Translating this diagnostic would only change the debugging vocabulary, not customer copy.",
+      "why": "Console-only boundary label paired with the Error object for developers and error-report correlation; the reader sees the translated appShell.segmentErrorTitle and appShell.segmentErrorBody instead. Translating this diagnostic would only change the debugging vocabulary, not customer copy.",
       "literals": [
         "App segment error"
       ]

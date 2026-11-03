@@ -34,7 +34,6 @@ export function completeEnv(): Env {
     STRIPE_SECRET_KEY: "rk_test_0123456789abcdef",
     STRIPE_WEBHOOK_SECRET: "whsec_0123456789abcdef",
     RESEND_API_KEY: "re_0123456789abcdef",
-    SENTRY_DSN: "https://0123456789abcdef@o000001.ingest.sentry.io/0000001",
     APP_ORIGIN: "https://app.loonext.com",
     API_ORIGIN: "https://api.loonext.com",
     RESEND_FROM: "Loonext <notifications@loonext.com>",

@@ -37,6 +37,8 @@ export async function capture(
   properties: Record<string, unknown> = {},
 ): Promise<void> {
   if (!env.POSTHOG_API_KEY) return; // analytics off — silent no-op
+  // The rig's funnel events would read as production's.
+  if (environmentOf(env) === "rig") return;
 
   try {
     const response = await fetch(POSTHOG_CAPTURE_URL, {

@@ -133,7 +133,7 @@ describe("notifyIncomingCall — observability + prune (#142)", () => {
     await notifyIncomingCall(env, getDb(env), { ...INPUT, userIds: [USER_A] });
 
     expect(deletedId).toBe(`eq.${sub.id}`);
-    // Routine lifecycle: NO Sentry event (founder: expected ≠ error) — the
+    // Routine lifecycle: NO PostHog exception (founder: expected ≠ error) — the
     // prune is a log line, host only, never the per-device endpoint path.
     expect(exceptionsCaptured()).toEqual([]);
     const line = log.mock.calls.map((c) => String(c[0])).find((m) => m.includes("pruned"));
@@ -217,7 +217,7 @@ describe("notifyIncomingCall — observability + prune (#142)", () => {
 // #151 native device push: the call wake reaches registered Android/iOS
 // devices as an FCM HIGH-priority, 45s-TTL send with the same kind:'call'
 // payload. Shapes are covered in fcm.test.ts; this asserts the wiring, the
-// prune, and that the token value never leaks into Sentry.
+// prune, and that the token value never leaks into PostHog.
 // ---------------------------------------------------------------------------
 
 const DEVICE_ROW_ID = "50000000-aaaa-4000-8000-000000000001";

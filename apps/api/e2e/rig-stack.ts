@@ -211,7 +211,6 @@ export async function startRigStack(): Promise<RigStack> {
     STRIPE_SECRET_KEY: "sk_test_rig_load",
     STRIPE_WEBHOOK_SECRET: "whsec_rig_load",
     RESEND_API_KEY: "re_rig_load",
-    SENTRY_DSN: "https://rigload@o000001.ingest.sentry.io/0000001",
     APP_ORIGIN: "https://app.example.test",
     API_ORIGIN: "https://api.example.test",
     RESEND_FROM: "Loonext <notifications@example.test>",

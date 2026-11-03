@@ -24,7 +24,7 @@
  *   - the API's settings template (tools/rig/templates): literal values. A
  *     {{placeholder}} is filled from the settings below or from the edge, so a
  *     host that is only a placeholder is not judged, while the literal part of
- *     one beside a placeholder (`{{ref}}.supabase.co`, `{{key}}@sentry.io`) is;
+ *     one beside a placeholder (`{{ref}}.supabase.co`, `{{key}}@vendor.test`) is;
  *   - the deploy CLI's settings defaults (tools/rig/src/layout.mjs);
  *   - every JSON and JSONC file under tools/rig, tools/edge and tools/guard:
  *     every URL in a string value, and a value that is a host and nothing

@@ -53,7 +53,7 @@ describe("capture (analytics/posthog)", () => {
     );
   });
 
-  it("tags the deployment, so an alert can leave the rig's events out", async () => {
+  it("tags the deployment, and sends nothing from the rig, which holds the key only to read its exceptions back", async () => {
     const posthog = stubRoute(posthogMatch, () => ({ status: 1 }));
     stubFetch(posthog.route);
 
@@ -62,7 +62,7 @@ describe("capture (analytics/posthog)", () => {
 
     expect(
       posthog.calls.map((call) => (call.body as { properties: unknown }).properties),
-    ).toEqual([{ environment: "production" }, { environment: "rig" }]);
+    ).toEqual([{ environment: "production" }]);
   });
 
   it("defaults properties to an empty object", async () => {

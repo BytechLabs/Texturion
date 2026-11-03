@@ -30,7 +30,7 @@ function database(bindings: Bindings, posture: SbResponder) {
 describe("the rig's database posture", () => {
   it.each([
     ["local", completeEnv()],
-    ["production", { ...completeEnv(), DEPLOY_ENV: "production" }],
+    ["production", { ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" }],
   ])("is never asked in %s", async (_name, bindings) => {
     stubFetch(() => {
       throw new Error("nothing may be fetched");
@@ -127,7 +127,7 @@ describe("a rig whose database gate is off", () => {
 
 describe("a production Worker", () => {
   it("serves without asking", async () => {
-    const bindings = { ...completeEnv(), DEPLOY_ENV: "production" };
+    const bindings = { ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" };
     const sb = supabaseStub(getEnv(bindings));
     stubFetch(sb.route);
     const { ctx, flush } = testExecutionContext();

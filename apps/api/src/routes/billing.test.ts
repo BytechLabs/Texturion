@@ -1095,7 +1095,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
      * #277. A paused subscription carries the PAUSE price on its licensed
      * item, so the licensed+metered pair lookup below finds nothing and hits
      * the invariant `throw` — which becomes `internal_error`, "Something went
-     * wrong", and a Sentry alert, for a perfectly ordinary thing to try.
+     * wrong", and an exception alert, for a perfectly ordinary thing to try.
      *
      * Refused rather than performed because the request is genuinely ambiguous
      * and only the customer can settle it: resume now on the new plan, or keep

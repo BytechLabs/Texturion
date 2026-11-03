@@ -121,7 +121,6 @@ const VARS = {
   RESEND_API_KEY: "re_local_theme_audit",
   // Required and validated as a URL. Nothing is ever sent to it: the audit
   // opens pages, and a DSN on a domain that does not resolve simply drops.
-  SENTRY_DSN: "https://local@o000001.ingest.sentry.io/0000001",
   APP_ORIGIN: "http://localhost:3100",
   API_ORIGIN: "http://127.0.0.1:8787",
   RESEND_FROM: "Loonext <notifications@loonext.local>",

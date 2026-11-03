@@ -191,7 +191,6 @@ export async function startHarness(): Promise<Harness> {
     STRIPE_SECRET_KEY: "sk_test_e2e",
     STRIPE_WEBHOOK_SECRET,
     RESEND_API_KEY: "re_e2e",
-    SENTRY_DSN: "https://e2e@o000001.ingest.sentry.io/0000001",
     APP_ORIGIN: "https://app.loonext.com",
     API_ORIGIN: "https://api.loonext.com",
     RESEND_FROM: "Loonext <notifications@loonext.com>",

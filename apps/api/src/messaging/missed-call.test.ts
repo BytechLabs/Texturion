@@ -418,8 +418,8 @@ describe("sendMissedCallText — text-back + alert", () => {
 
   it("skips an anonymous / non-US-CA caller SILENTLY (no gates, no throw)", async () => {
     // CLIR callers arrive as 'anonymous'; internationals as non-NANP E.164.
-    // Neither can be texted — a throw here would burn 5 ledger retries + a
-    // Sentry page on a condition known final on the first pass.
+    // Neither can be texted — a throw here would burn 5 ledger retries + an
+    // exception on a condition known final on the first pass.
     const company = mctbCompanyStub();
     const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({}));
     serve(company, numberStub(), claim);

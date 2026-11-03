@@ -13,7 +13,7 @@ import { judgeCapacity, legsNeeded, runTelnyxCapacityGauge } from "./telnyx-capa
 
 vi.mock("./capture", async () => (await import("../test/capture-mock")).captureModuleMock());
 
-const production = () => getEnv({ ...completeEnv(), DEPLOY_ENV: "production" });
+const production = () => getEnv({ ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" });
 const NOW = new Date("2026-11-01T13:00:00Z");
 
 let requests: string[];

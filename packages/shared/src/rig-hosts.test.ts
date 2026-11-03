@@ -76,7 +76,7 @@ describe("the rig's own hosts", () => {
 describe("what it reads as a host", () => {
   it("reads URL hosts, IP or name, with or without a port", () => {
     expect(guard.hostsInText("--forward-to https://api.rig.internal/webhooks/stripe")).toEqual(["api.rig.internal"]);
-    expect(guard.hostsInText("SENTRY=http://127.0.0.1:8790/1")).toEqual(["127.0.0.1"]);
+    expect(guard.hostsInText("TELEMETRY=http://127.0.0.1:8790/1")).toEqual(["127.0.0.1"]);
   });
 
   it("reads a bare name under a domain, and an address", () => {
@@ -93,7 +93,7 @@ describe("what it reads as a host", () => {
 
   it("reads a URL's host past its userinfo and port", () => {
     expect(guard.hostsInText("https://user:pass@api.loonext.com:443/x")).toEqual(["api.loonext.com"]);
-    expect(guard.hostsInText("https://key@o123.ingest.us.sentry.io/45")).toEqual(["o123.ingest.us.sentry.io"]);
+    expect(guard.hostsInText("https://key@o123.ingest.us.vendor.test/45")).toEqual(["o123.ingest.us.vendor.test"]);
     expect(guard.hostsInText("file:///etc/loonext-rig/rig.json")).toEqual([]);
   });
 
@@ -228,8 +228,8 @@ describe("the settings template", () => {
   });
 
   it("judges the literal part of a host built around a placeholder", () => {
-    expect(guard.templateFindings("t", "SENTRY_DSN=https://{{secret:sentry-key}}@o123.ingest.us.sentry.io/45").problems).toEqual([
-      "t:1  names o123.ingest.us.sentry.io, which is not the rig's",
+    expect(guard.templateFindings("t", "TELEMETRY_URL=https://{{secret:telemetry-key}}@o123.ingest.us.vendor.test/45").problems).toEqual([
+      "t:1  names o123.ingest.us.vendor.test, which is not the rig's",
     ]);
     expect(guard.templateFindings("t", "SUPABASE_URL=https://{{secret:project-ref}}.supabase.co").problems).toEqual([
       "t:1  names {{...}}.supabase.co, which is not the rig's",

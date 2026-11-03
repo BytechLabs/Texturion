@@ -21,7 +21,7 @@ const OVP = "ovp-prod";
 const COMPANY = "cccccccc-0000-4000-8000-0000000000c1";
 const OTHER_COMPANY = "cccccccc-0000-4000-8000-0000000000c2";
 
-const production = (): Env => getEnv({ ...completeEnv(), DEPLOY_ENV: "production" });
+const production = (): Env => getEnv({ ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" });
 
 const LIMITED = { daily_spend_limit: "25.00", daily_spend_limit_enabled: true };
 

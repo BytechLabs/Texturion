@@ -97,6 +97,11 @@ export function deployPostureRefusals(env: Env): string[] {
     if (isRigOrLoopbackHost(env.SUPABASE_URL)) {
       refusals.push("SUPABASE_URL is a rig or loopback database");
     }
+    // Every error report, heartbeat and gauge goes through this key, and
+    // PostHog's alerts cannot tell a quiet Worker from one that sends nothing.
+    if (env.POSTHOG_API_KEY === undefined) {
+      refusals.push("POSTHOG_API_KEY is unset, so production would report nothing");
+    }
   }
 
   if (mode === "rig") {
@@ -138,21 +143,6 @@ export function deployPostureRefusals(env: Env): string[] {
   }
 
   return refusals;
-}
-
-/**
- * Sentry's `environment`. Production keeps the name its alerts and saved
- * searches already use, and a laptop keeps "development".
- */
-export function sentryEnvironment(env: Env): string {
-  switch (deployEnv(env)) {
-    case "production":
-      return "production";
-    case "rig":
-      return "rig";
-    case "local":
-      return "development";
-  }
 }
 
 /**

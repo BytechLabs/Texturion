@@ -77,7 +77,7 @@ describe("POST /v1/rig/simulate-incoming exists only on the rig", () => {
   });
 
   it.each([
-    ["production", { ...completeEnv(), DEPLOY_ENV: "production" }],
+    ["production", { ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" }],
     ["local", completeEnv()],
   ])("answers an authenticated member 404 in %s, and sends nothing", async (_name, bindings) => {
     const env = getEnv(bindings);
