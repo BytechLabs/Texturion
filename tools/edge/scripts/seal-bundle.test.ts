@@ -134,17 +134,18 @@ describe("what gets sealed", () => {
 describe("the edge's own secrets", () => {
   it("writes only provisioned, well-shaped values", () => {
     const digest = "a".repeat(64);
+    const KEY = `phc_edgetest${"0".repeat(20)}`;
     expect(
       edgeSecrets({
         TOKEN_SHA256_RIG: digest,
         TOKEN_SHA256_TRIAGE: "",
-        SENTRY_SYNTHETIC_DSN: "https://key@o1.ingest.sentry.io/101",
+        POSTHOG_PROJECT_KEY: KEY,
         UNRELATED: "x",
       }),
-    ).toEqual({ bulk: { TOKEN_SHA256_RIG: digest, SENTRY_SYNTHETIC_DSN: "https://key@o1.ingest.sentry.io/101" }, malformed: [] });
-    expect(edgeSecrets({ TOKEN_SHA256_RIG: "plaintext-token", SENTRY_PROD_DSN: "not a dsn" }).malformed).toEqual([
+    ).toEqual({ bulk: { TOKEN_SHA256_RIG: digest, POSTHOG_PROJECT_KEY: KEY }, malformed: [] });
+    expect(edgeSecrets({ TOKEN_SHA256_RIG: "plaintext-token", POSTHOG_PROJECT_KEY: "not a key" }).malformed).toEqual([
       "TOKEN_SHA256_RIG",
-      "SENTRY_PROD_DSN",
+      "POSTHOG_PROJECT_KEY",
     ]);
   });
 });

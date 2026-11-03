@@ -17,7 +17,7 @@ export const securityEn = {
     "Traffic to Loonext runs over HTTPS/TLS, and your data, the messages, contacts, and attachments, is encrypted at rest by our infrastructure providers. Message attachments live in a private, per-business storage bucket and are served only through short-lived signed links.",
   claimLogsTitle: "Message content stays out of analytics and error logs",
   claimLogsBody:
-    "We keep message content, names, addresses, and phone numbers out of our error monitoring (Sentry) and product analytics (PostHog). Error reports strip request and response bodies and redact phone-number patterns; analytics record events, counts, and IDs only, never message text.",
+    "We keep message content, names, addresses, and phone numbers out of our error monitoring and product analytics (PostHog). Error reports strip request and response bodies and redact phone-number and email-address patterns; analytics record events, counts, and IDs only, never message text.",
   claimRegionTitle: "Your data is stored in the United States",
   claimRegionBefore:
     "Loonext processes and stores data in the United States: our database, authentication, and file storage run on Supabase in the AWS",
@@ -83,7 +83,7 @@ export const securityFr: Translated<typeof securityEn> = {
   claimLogsTitle:
     "Le contenu des messages reste hors des analyses et des journaux d'erreurs",
   claimLogsBody:
-    "Nous excluons le contenu des messages, les noms, les adresses et les numéros de téléphone de la surveillance des erreurs (Sentry) et de l'analyse du produit (PostHog). Les rapports d'erreur retirent le corps des requêtes et réponses et masquent les formes de numéros; les analyses enregistrent seulement des événements, des comptes et des identifiants, jamais le texte des messages.",
+    "Nous excluons le contenu des messages, les noms, les adresses et les numéros de téléphone de la surveillance des erreurs et de l'analyse du produit (PostHog). Les rapports d'erreur retirent le corps des requêtes et réponses et masquent les formes de numéros et d'adresses courriel; les analyses enregistrent seulement des événements, des comptes et des identifiants, jamais le texte des messages.",
   claimRegionTitle: "Vos données sont stockées aux États-Unis",
   claimRegionBefore:
     "Loonext traite et stocke les données aux États-Unis : la base de données, l'authentification et les fichiers fonctionnent sur Supabase dans la région AWS",

@@ -15,12 +15,13 @@ import type { PublicEnv } from "@/env";
 export const clientEnv: Pick<
   PublicEnv,
   | "NEXT_PUBLIC_API_URL"
-  | "NEXT_PUBLIC_SENTRY_DSN"
   | "NEXT_PUBLIC_POSTHOG_KEY"
   | "NEXT_PUBLIC_GTM_ID"
+  | "NEXT_PUBLIC_DEPLOY_ENV"
 > = {
   NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "",
-  NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
   NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY || undefined,
   NEXT_PUBLIC_GTM_ID: process.env.NEXT_PUBLIC_GTM_ID || undefined,
+  NEXT_PUBLIC_DEPLOY_ENV:
+    (process.env.NEXT_PUBLIC_DEPLOY_ENV as PublicEnv["NEXT_PUBLIC_DEPLOY_ENV"]) || undefined,
 };

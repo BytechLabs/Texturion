@@ -357,7 +357,7 @@ export class Guard {
         resend: Boolean(ctx.config.resendKey),
         fcm: Boolean(ctx.config.fcmServiceAccount),
         ai: Boolean(ctx.ai),
-        sentry_production: Boolean(ctx.config.sentryProdDsn),
+        posthog_production: Boolean(ctx.config.posthogProjectKey),
         edge_origin: Boolean(ctx.config.edgeOrigin),
       },
     };

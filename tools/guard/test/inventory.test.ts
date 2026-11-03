@@ -4,7 +4,7 @@ import { CRONS } from "../src/guard";
 import { harness, ready, ruleOf, type Harness } from "./support";
 
 const inventoryEvents = (h: Harness) =>
-  h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-key-inventory"]'));
+  h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-key-inventory"'));
 
 describe("the weekly key inventory", () => {
   it("runs on its cron and raises an event until a baseline is accepted", async () => {
@@ -35,8 +35,8 @@ describe("the weekly key inventory", () => {
       "oauth_grant:grant-unexpected",
     ]);
     const event = inventoryEvents(h).at(-1);
-    expect(event?.url).toBe("https://o1.ingest.sentry.example/api/12345/envelope/");
-    expect(event?.body).toContain('"level":"error"');
+    expect(event?.url).toBe("https://us.i.posthog.com/i/v0/e/");
+    expect(event?.body).toContain('"$exception_level":"error"');
   });
 
   it("reads key activity in the audit log since the last run", async () => {

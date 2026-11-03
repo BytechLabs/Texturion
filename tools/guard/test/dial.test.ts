@@ -249,7 +249,7 @@ describe("admission", () => {
     const id = await lease(h);
     expect(await ruleOf(await dial(h, id))).toBe("admission.limit_conflict");
     expect(await ruleOf(await dial(h, id))).toBe("admission.limit_conflict");
-    const alerts = h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-guard-limit-conflict"]'));
+    const alerts = h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-guard-limit-conflict"'));
     expect(alerts).toHaveLength(1);
   });
 
@@ -296,7 +296,7 @@ describe("admission", () => {
     expect((await limitInForce(h.ctx)).limit).toBe(1);
     expect(await ruleOf(await dial(h, id, { ...DIAL, to: N.devA1 }))).toBe("signal.halted");
     const signal = h.outbound.find((item) => item.body.includes("telnyx-concurrency-refusal"));
-    expect(signal?.body).toContain('"fingerprint":["ops","telnyx-account-signal"]');
+    expect(signal?.body).toContain('"$exception_fingerprint":"ops:telnyx-account-signal"');
   });
 
   it("records a ceiling with no value when production was not seen idle", async () => {

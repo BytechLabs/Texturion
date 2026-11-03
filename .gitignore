@@ -66,3 +66,6 @@ apps/api/wrangler.ci.jsonc
 # deployed worktree. Its .dev.vars.rig is covered by .dev.vars* above.
 apps/api/wrangler.rig.jsonc
 apps/web/wrangler.rig.jsonc
+
+# D146: written by xcodegen from project.yml on every generate.
+apps/ios/Loonext/Info.plist

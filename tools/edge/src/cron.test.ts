@@ -12,13 +12,13 @@ beforeEach(async () => {
 });
 
 describe("the cron", () => {
-  it("refreshes the mail heartbeat, even with no DSN configured", async () => {
+  it("refreshes the mail heartbeat, even with no PostHog key configured", async () => {
     const bare = await edgeEnv(fakeGuard());
     await worker.scheduled(createScheduledController({ scheduledTime: NOW, cron: "*/15 * * * *" }), bare);
     expect((await mailStatus(bare)).heartbeat_at).toBe(new Date(NOW).toISOString());
   });
 
-  it("sends nothing to Sentry however long the rig has been quiet", async () => {
+  it("sends nothing to PostHog however long the rig has been quiet", async () => {
     const sent: string[] = [];
     const original = globalThis.fetch;
     globalThis.fetch = (async (input, init) => {
@@ -27,8 +27,7 @@ describe("the cron", () => {
     }) as typeof fetch;
     try {
       const env = await edgeEnv(fakeGuard(), {
-        SENTRY_SYNTHETIC_DSN: "https://synthetickey@o1.ingest.sentry.io/101",
-        SENTRY_PROD_DSN: "https://prodkey@o1.ingest.sentry.io/202",
+        POSTHOG_PROJECT_KEY: "phc_edge_test_key",
       });
       for (let at = NOW; at <= NOW + 12 * 60 * 60_000; at += 15 * 60_000) {
         await worker.scheduled(createScheduledController({ scheduledTime: at, cron: "*/15 * * * *" }), env);
@@ -36,7 +35,7 @@ describe("the cron", () => {
     } finally {
       globalThis.fetch = original;
     }
-    expect(sent.filter((url) => url.includes("ingest.sentry.io"))).toEqual([]);
-    expect(Object.keys(await counters()).filter((name) => name.startsWith("sentry.sent."))).toEqual([]);
+    expect(sent.filter((url) => url.includes("posthog.com"))).toEqual([]);
+    expect(Object.keys(await counters()).filter((name) => name.startsWith("events.sent."))).toEqual([]);
   });
 });

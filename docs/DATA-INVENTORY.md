@@ -204,8 +204,7 @@ feature cannot ship undisclosed.
 | **Stripe** | Billing identifiers, no card data held by us | Payments |
 | **Resend** | Email addresses and notification copy | Transactional email |
 | **Firebase Cloud Messaging** | Push tokens and notification payloads (sender name, message snippet) | Push to Android and iOS |
-| **Sentry** | Stack traces, request ids. Message bodies excluded | Error monitoring |
-| **PostHog** | Cookieless event counts from the web app, and scrubbed error diagnostics (stack traces, request ids) from the web app and the API Worker. No message content, names, or numbers | Product analytics and error monitoring (#652) |
+| **PostHog** | Cookieless event counts from the web app, and scrubbed error reports (stack traces, request ids) from the web app, the API Worker and both mobile apps. No message content, names, or numbers | Product analytics and error tracking (D146) |
 
 ---
 

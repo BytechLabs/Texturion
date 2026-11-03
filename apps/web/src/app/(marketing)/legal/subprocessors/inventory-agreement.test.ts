@@ -72,8 +72,7 @@ const VENDORS: { token: string; why: string }[] = [
   { token: "Stripe", why: "payments" },
   { token: "Resend", why: "transactional email" },
   { token: "Firebase Cloud Messaging", why: "push to Android" },
-  { token: "Sentry", why: "error monitoring" },
-  { token: "PostHog", why: "product analytics, web only" },
+  { token: "PostHog", why: "product analytics and error monitoring, every client" },
 ];
 
 /** Rows in the inventory's third-party table, counted from its `| **Name**` shape. */

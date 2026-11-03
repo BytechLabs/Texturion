@@ -209,7 +209,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          SENTRY_PROD_DSN: ${{ secrets.SENTRY_PROD_DSN }}
+          # D146: public, so it is the web build's own key rather than a new secret.
+          POSTHOG_PROJECT_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
           EDGE_ORIGIN: ${{ secrets.EDGE_ORIGIN }}
           ROBOT_MAILBOX: ${{ secrets.ROBOT_MAILBOX }}
           NOTIFICATION_PATH_SECRET: ${{ secrets.NOTIFICATION_PATH_SECRET }}
@@ -219,13 +220,13 @@ jobs:
           log="$(mktemp)"
           trap 'rm -f "$file" "$log"' EXIT
           jq -n \
-            --arg SENTRY_PROD_DSN "$SENTRY_PROD_DSN" \
+            --arg POSTHOG_PROJECT_KEY "$POSTHOG_PROJECT_KEY" \
             --arg EDGE_ORIGIN "$EDGE_ORIGIN" \
             --arg ROBOT_MAILBOX "$ROBOT_MAILBOX" \
             --arg NOTIFICATION_PATH_SECRET "$NOTIFICATION_PATH_SECRET" \
             '$ARGS.named | with_entries(select(.value != ""))' > "$file"
           if [ "$(jq 'length' "$file")" -eq 0 ]; then
-            echo "::notice title=No guard configuration to send::None of SENTRY_PROD_DSN, EDGE_ORIGIN, ROBOT_MAILBOX or NOTIFICATION_PATH_SECRET is set in the guard environment."
+            echo "::notice title=No guard configuration to send::None of POSTHOG_PROJECT_KEY, EDGE_ORIGIN, ROBOT_MAILBOX or NOTIFICATION_PATH_SECRET is set in the guard environment."
           fi
           deploy() {
             pnpm --filter @loonext/telnyx-guard exec wrangler deploy \

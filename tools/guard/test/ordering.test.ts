@@ -36,7 +36,7 @@ const ordered = (h: Harness) => h.telnyx.numbers.find((item) => item.phone_numbe
 const deletes = (h: Harness) => h.telnyx.requests("DELETE").map((entry) => entry.path);
 const groupListings = (h: Harness) =>
   h.telnyx.requests("GET", "/v2/phone_numbers").filter((entry) => entry.query.get("filter[billing_group_id]") === "bg-nonprod");
-const stopAlerts = (h: Harness) => h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-guard-order-group"]'));
+const stopAlerts = (h: Harness) => h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-guard-order-group"'));
 const first = (h: Harness) => h.store.get<FirstOrder>(ORDER_KEYS.first);
 
 /** Stopped, nothing deleted, one alert, and the reason code health shows. */

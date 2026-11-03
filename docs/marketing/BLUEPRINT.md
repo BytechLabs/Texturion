@@ -767,7 +767,7 @@ Launch set (peer-verified against Textline/Heymarket/Quo/Telnyx in
   frequency varies, message and data rates may apply. Doubles as customer-adaptable template.
 - **/legal/subprocessors** — table: Telnyx (SMS/MMS carriage, numbers), Stripe (payments, tax),
   Supabase/AWS us-east-1 (database, auth, file storage), Cloudflare (hosting/CDN), Resend
-  (email), Sentry (errors — PII-scrubbed), PostHog (product analytics — no message content,
+  (email), PostHog (product analytics and PII-scrubbed error tracking, no message content,
   cookieless on marketing pages). One line each on data touched. Textline-pattern; Quo lacks it.
 - **/legal/refunds** — the guarantee, three paragraphs, no asterisks.
 - **/security** — per §2 decision.

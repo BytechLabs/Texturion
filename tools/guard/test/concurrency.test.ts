@@ -30,9 +30,9 @@ async function validation(h: Harness, record: Partial<ValidationRecord>): Promis
 }
 
 const conflictAlerts = (h: Harness) =>
-  h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-guard-limit-conflict"]'));
+  h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-guard-limit-conflict"'));
 const cappedAlerts = (h: Harness) =>
-  h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-guard-limit-capped"]'));
+  h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-guard-limit-capped"'));
 
 describe("the limit in force", () => {
   it("is the floor, with no room at all, while nothing else is proven", async () => {

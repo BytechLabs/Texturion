@@ -30,7 +30,7 @@ type MailFrame = Extract<EdgeToRig, { t: "mail" }>;
 type QueuedFrame = Omit<WebhookFrame, "id" | "attempt"> | Omit<MailFrame, "id">;
 type RpcFrame = Extract<EdgeToRig, { t: "rpc" }>;
 
-/** Where an edge-sent Sentry event goes; each has its own daily budget. */
+/** Which environment an edge-sent PostHog event is filed under; each has its own daily budget. */
 export type AlertTarget = "synthetic" | "production";
 
 export interface CallRelay {
@@ -80,9 +80,9 @@ export interface StrangerRecord {
 }
 
 export interface AlertLog {
-  /** Last alert Sentry took, per alert key. */
+  /** Last notice PostHog took, per alert key. */
   alerts: Record<string, number>;
-  /** Last send Sentry did not take, per alert key. */
+  /** Last send PostHog did not take, per alert key. */
   failures: Record<string, number>;
 }
 
@@ -114,10 +114,10 @@ const NOTICES_MAX = 100;
 const LATE_CALL_MEMORY_MS = 15 * 60 * 1000;
 const TELNYX_SIGNATURE_WINDOW_MS = TELNYX_SIGNATURE_WINDOW_S * 1000;
 /**
- * Sentry events the edge itself may send in a UTC day, per destination, so a
- * missing or failing synthetic DSN can never spend production's.
+ * PostHog events the edge itself may send in a UTC day, per environment, so a
+ * flood of synthetic notices can never spend production's.
  */
-export const SENTRY_DAILY_MAX: Record<AlertTarget, number> = { synthetic: 20, production: 10 };
+export const EVENT_DAILY_MAX: Record<AlertTarget, number> = { synthetic: 20, production: 10 };
 
 /** Redelivery backoff after the nth unacked attempt: 30 s doubling to 15 min. */
 export function retryDelay(attempts: number): number {
@@ -621,11 +621,11 @@ export class RigUplink extends DurableObject<Env> {
     this.setMeta(`alert-failed:${key}`, String(at));
   }
 
-  /** One of the day's {@link SENTRY_DAILY_MAX} edge-sent events to `target`, or false. */
-  async takeSentryBudget(now: number, target: AlertTarget): Promise<boolean> {
-    const name = `sentry.sent.${new Date(now).toISOString().slice(0, 10)}.${target}`;
+  /** One of the day's {@link EVENT_DAILY_MAX} edge-sent events to `target`, or false. */
+  async takeEventBudget(now: number, target: AlertTarget): Promise<boolean> {
+    const name = `events.sent.${new Date(now).toISOString().slice(0, 10)}.${target}`;
     const used = this.number("SELECT COALESCE(MAX(n), 0) AS n FROM counters WHERE name = ?", name);
-    if (used >= SENTRY_DAILY_MAX[target]) return false;
+    if (used >= EVENT_DAILY_MAX[target]) return false;
     this.count(name);
     return true;
   }
@@ -643,7 +643,7 @@ export class RigUplink extends DurableObject<Env> {
       "DELETE FROM notices WHERE key NOT IN (SELECT key FROM notices ORDER BY at DESC LIMIT ?)",
       NOTICES_MAX,
     );
-    this.sql.exec("DELETE FROM counters WHERE name LIKE 'sentry.sent.%' AND name < ?", `sentry.sent.${new Date(now - 7 * 86_400_000).toISOString().slice(0, 10)}`);
+    this.sql.exec("DELETE FROM counters WHERE name LIKE 'events.sent.%' AND name < ?", `events.sent.${new Date(now - 7 * 86_400_000).toISOString().slice(0, 10)}`);
     this.flush(now);
     const ws = this.socket();
     if (ws) {

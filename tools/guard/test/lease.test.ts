@@ -153,8 +153,8 @@ describe("account signals", () => {
     });
     expect(await response.json()).toMatchObject({ latched: false });
     await expect(requirePaidLanesOpen(h.ctx)).rejects.toMatchObject({ rule: "signal.halted" });
-    const event = h.outbound.find((item) => item.url.includes("/envelope/"));
-    expect(event?.body).toContain('"fingerprint":["ops","telnyx-account-signal"]');
+    const event = h.outbound.find((item) => item.url.includes("posthog.com"));
+    expect(event?.body).toContain('"$exception_fingerprint":"ops:telnyx-account-signal"');
     h.advance(7 * 24 * 60 * 60 * 1000);
     await expect(requirePaidLanesOpen(h.ctx)).resolves.toBeUndefined();
   });

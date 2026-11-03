@@ -62,12 +62,6 @@ const ROWS = [
     region: "firebaseRegion",
   },
   {
-    name: "Sentry",
-    purpose: "sentryPurpose",
-    data: "sentryData",
-    region: "sentryRegion",
-  },
-  {
     name: "PostHog",
     purpose: "posthogPurpose",
     data: "posthogData",

@@ -94,7 +94,7 @@ describe("the rig's checks in the gate", () => {
     const check = indexOf("android", "node scripts/check-shrunk-build.mjs");
     expect(assemble).toBeGreaterThan(-1);
     expect(check).toBe(assemble + 1);
-    // A release build that reached the console would put a mapping there for an APK nobody ships.
-    expect(jobs.android[assemble]).toContain("-x :app:uploadCrashlyticsMappingFileRelease");
+    // A mapping for an APK nobody ships would sit in PostHog beside the real ones.
+    expect(jobs.android[assemble]).not.toMatch(/posthog|upload/i);
   });
 });

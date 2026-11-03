@@ -117,9 +117,9 @@ jobs:
           TOKEN_SHA256_TRIAGE: ${{ secrets.TOKEN_SHA256_TRIAGE }}
           ROBOT_WEBHOOK_SECRET_SHA256: ${{ secrets.ROBOT_WEBHOOK_SECRET_SHA256 }}
           NOTIFICATIONS_SECRET_SHA256: ${{ secrets.NOTIFICATIONS_SECRET_SHA256 }}
-          # Withheld until production's alert rules filter on environment:production (FA7 step 3).
-          SENTRY_SYNTHETIC_DSN: ${{ vars.SENTRY_ALERTS_FILTERED && secrets.SENTRY_SYNTHETIC_DSN || '' }}
-          SENTRY_PROD_DSN: ${{ secrets.SENTRY_PROD_DSN }}
+          # D146: public; the web build's key. PostHog's alerts read environment
+          # production only, so the edge's synthetic notices never page anyone.
+          POSTHOG_PROJECT_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
         run: |
           bulk=$(node tools/edge/scripts/edge-secrets.mjs)
           if [ "$bulk" = "{}" ]; then

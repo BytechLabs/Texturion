@@ -102,7 +102,7 @@ describe("wrangler.jsonc", () => {
 
   it("commits no secret, edge origin or mailbox", () => {
     const vars = wrangler.vars as Record<string, string>;
-    for (const name of ["TELNYX_API_KEY", "RESEND_API_KEY", "FCM_SERVICE_ACCOUNT_JSON", "SENTRY_PROD_DSN", "EDGE_ORIGIN", "ROBOT_MAILBOX"]) {
+    for (const name of ["TELNYX_API_KEY", "RESEND_API_KEY", "FCM_SERVICE_ACCOUNT_JSON", "POSTHOG_PROJECT_KEY", "EDGE_ORIGIN", "ROBOT_MAILBOX"]) {
       expect(vars[name], name).toBeUndefined();
     }
   });

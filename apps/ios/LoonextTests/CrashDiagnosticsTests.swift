@@ -107,6 +107,32 @@ final class CrashDiagnosticsTests: XCTestCase {
         XCTAssertEqual(decoded?.first, original)
     }
 
+    // MARK: - D146: what a crash report carries to PostHog
+
+    func testAThrownMessageLeavesWithItsPhoneNumberAndEmailRedacted() {
+        XCTAssertEqual(
+            Telemetry.scrubText("+16135551234 a@b.co"),
+            "[phone redacted] [email redacted]"
+        )
+    }
+
+    func testOnlyTheMessageIsRewrittenNotTheFrames() {
+        let list: [[String: Any]] = [[
+            "type": "NSInvalidArgumentException",
+            "value": "no route to +16135551234",
+            "stacktrace": ["frames": [["function": "send", "lineno": 42]]],
+        ]]
+        let out = Telemetry.scrubbedExceptions(list)
+        XCTAssertEqual(out.first?["value"] as? String, "no route to [phone redacted]")
+        XCTAssertEqual(out.first?["type"] as? String, "NSInvalidArgumentException")
+        XCTAssertNotNil(out.first?["stacktrace"])
+    }
+
+    func testABuildWithoutAProjectKeySendsNothing() {
+        // The test host has no PostHogProjectKey: setup must return quietly.
+        Telemetry.setup(bundle: Bundle(for: CrashDiagnosticsTests.self))
+    }
+
     private func snapshot() -> DiagnosticsSnapshot {
         DiagnosticsSnapshot(
             appVersion: "1.0",

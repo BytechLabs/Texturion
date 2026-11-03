@@ -301,14 +301,13 @@ describe("messaging — the SMS program disclosures survive", () => {
 
 describe("subprocessors — the vendor ledger survives", () => {
   const html = PAGES[4].html;
-  it("lists all seven vendors", () => {
+  it("lists all six vendors", () => {
     for (const vendor of [
       "Telnyx",
       "Stripe",
       "Supabase (on AWS)",
       "Cloudflare",
       "Resend",
-      "Sentry",
       "PostHog",
     ]) {
       expect(html).toContain(vendor);

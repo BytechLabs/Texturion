@@ -25,8 +25,11 @@ export interface Env {
   RESEND_API_KEY?: string;
   /** FA6. `fcm-rig-sender`, Firebase messaging role only. */
   FCM_SERVICE_ACCOUNT_JSON?: string;
-  /** FA7: the existing production project's ingest-only DSN, for the isolation and key alerts. */
-  SENTRY_PROD_DSN?: string;
+  /**
+   * D146: the production PostHog project's public capture key, for the
+   * isolation and key notices. Passed by the deploy workflow, not committed.
+   */
+  POSTHOG_PROJECT_KEY?: string;
 
   /** The edge's https origin, `loonext-rig-edge.<acct>.workers.dev`. Not in git. */
   EDGE_ORIGIN?: string;
@@ -45,7 +48,7 @@ export interface GuardConfig {
   telnyxKey: string | null;
   resendKey: string | null;
   fcmServiceAccount: string | null;
-  sentryProdDsn: string | null;
+  posthogProjectKey: string | null;
   edgeOrigin: string | null;
   robotMailbox: string | null;
   notificationSecret: string | null;
@@ -88,7 +91,7 @@ export function readConfig(env: Env): GuardConfig {
     telnyxKey: present(env.TELNYX_API_KEY),
     resendKey: present(env.RESEND_API_KEY),
     fcmServiceAccount: present(env.FCM_SERVICE_ACCOUNT_JSON),
-    sentryProdDsn: present(env.SENTRY_PROD_DSN),
+    posthogProjectKey: present(env.POSTHOG_PROJECT_KEY),
     edgeOrigin: parseEdgeOrigin(env.EDGE_ORIGIN),
     robotMailbox: present(env.ROBOT_MAILBOX)?.toLowerCase() ?? null,
     notificationSecret: present(env.NOTIFICATION_PATH_SECRET),

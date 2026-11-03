@@ -23,11 +23,10 @@ import MetricKit
 ///
 /// `MXCrashDiagnostic` is Apple's own crash reporter, which already catches
 /// those signals correctly and hands us the result. So it gives full trap
-/// coverage with no signal code of ours, and — the part that decided it — the
-/// payload never leaves the device unless a person taps share. That is the
-/// posture Android chose deliberately, and it means no new subprocessor, no
-/// `/legal/subprocessors` row and no DATA-INVENTORY entry, which Crashlytics
-/// would all have required.
+/// coverage with no signal code of ours, and this log never leaves the device
+/// unless a person taps share. Since D146 PostHog's SDK reports the same
+/// crashes to us as well (``Telemetry``); this stays as the copy a person can
+/// read and send without us.
 ///
 /// # The honest cost
 ///
@@ -194,7 +193,9 @@ private nonisolated(unsafe) var previousExceptionHandler:
 final class CrashDiagnostics: NSObject, MXMetricManagerSubscriber, @unchecked Sendable {
     static let shared = CrashDiagnostics()
 
-    /// Subscribe, and install the Objective-C supplement. Call once, at launch.
+    /// Subscribe, and install the Objective-C supplement. Call once, at launch,
+    /// after ``Telemetry/setup(bundle:)`` so the handler installed here chains
+    /// into PostHog's.
     static func start() {
         MXMetricManager.shared.add(shared)
         installExceptionHandler()

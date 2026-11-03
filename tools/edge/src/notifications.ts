@@ -4,7 +4,7 @@ import { secretSegmentMatches } from "./auth";
 import { uplink, type Env } from "./env";
 import { guardCall, requestHalt } from "./guard";
 import { boundedText, empty } from "./http";
-import { parseDsn, sendSentryEvent } from "./sentry";
+import { sendOpsEvent } from "./posthog";
 import { checkTelnyxSignature } from "./telnyx";
 
 /**
@@ -176,14 +176,14 @@ export async function handleNotification(env: Env, request: Request, secret: str
   if (verdict.outcome === "uncorroborated") {
     await rig.recordNotice(notice.key, notice.name, "uncorroborated");
     // Best effort and never retried: this notice halts nothing either way.
-    if (parseDsn(env.SENTRY_SYNTHETIC_DSN) && (await rig.takeSentryBudget(Date.now(), "synthetic"))) {
-      await sendSentryEvent(env.SENTRY_SYNTHETIC_DSN, {
-        fingerprint: ["synthetic-infra", "telnyx-notice"],
+    if (env.POSTHOG_PROJECT_KEY && (await rig.takeEventBudget(Date.now(), "synthetic"))) {
+      await sendOpsEvent(env.POSTHOG_PROJECT_KEY, {
+        fingerprint: "synthetic-infra:telnyx-notice",
         level: "warning",
         environment: "synthetic",
         edgeSha: env.GIT_SHA,
         message: `Telnyx notice not corroborated: ${notice.name}`,
-        extra: {
+        properties: {
           notice_id: notice.id,
           signed,
           detail: "Paid tests were not halted. Check the Telnyx portal's notifications for this account.",
@@ -205,15 +205,15 @@ export async function handleNotification(env: Env, request: Request, secret: str
     return empty(200);
   }
   const alerted =
-    parseDsn(env.SENTRY_PROD_DSN) !== null &&
-    (await rig.takeSentryBudget(Date.now(), "production")) &&
-    (await sendSentryEvent(env.SENTRY_PROD_DSN, {
-      fingerprint: ["ops", "telnyx-account-signal"],
+    Boolean(env.POSTHOG_PROJECT_KEY) &&
+    (await rig.takeEventBudget(Date.now(), "production")) &&
+    (await sendOpsEvent(env.POSTHOG_PROJECT_KEY, {
+      fingerprint: "ops:telnyx-account-signal",
       level: "error",
       environment: "production",
       edgeSha: env.GIT_SHA,
       message: `Telnyx account signal: ${notice.name}`,
-      extra: {
+      properties: {
         detail: `Corroborated by ${verdict.by}, but the guard did not take the halt.`,
         action: "Stop paid rig tests by hand, then find out why the guard refused or failed the halt.",
       },

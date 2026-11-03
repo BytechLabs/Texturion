@@ -6,7 +6,7 @@ import {
   BALANCE_FLOOR_MIN_USD,
 } from "../limits";
 import { Refusal } from "../refusal";
-import { sendProductionEvent } from "../sentry";
+import { sendProductionEvent } from "../posthog";
 import type { TelnyxReply } from "../telnyx/client";
 import { dayOf } from "./counters";
 

@@ -129,7 +129,7 @@ Cloudflare account** — change it if it collides with another Worker's limiter.
 
 ---
 
-## B. Web build-time public vars (`loonext-web`) — 3 required + 6 optional
+## B. Web build-time public vars (`loonext-web`): 3 required + 9 optional
 
 Inlined at `next build`; the build **fails** if any of the three required ones is
 missing (`apps/web/src/env.ts:3-17,22-38`). They are public (shipped in the
@@ -143,8 +143,8 @@ browser bundle).
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — **OPTIONAL** | no (public) | Cloudflare → Turnstile → your widget → **Site key** | `0x4AAAAAAA...` |
 | `NEXT_PUBLIC_APP_ORIGIN` — **OPTIONAL** | no (public) | Operator decision; must equal the api Worker's `APP_ORIGIN` secret | `https://app.loonext.com` |
 | `NEXT_PUBLIC_GTM_ID` — **OPTIONAL** | no (public) | Google Tag Manager → container → **Container ID** (#124) | `GTM-MTL658DD` |
-| `NEXT_PUBLIC_SENTRY_DSN` — **OPTIONAL** | no (public) | Sentry → the WEB project → Client Keys (DSN). Unset means client-side error reporting is silently off — the server Worker keeps reporting either way. | `https://abc123@o0.ingest.sentry.io/1` |
-| `NEXT_PUBLIC_POSTHOG_KEY` — **OPTIONAL** | no (public) | PostHog → Project Settings → Project API key. Unset means product analytics is silently off. Distinct from the Worker's `POSTHOG_API_KEY`. | `phc_xxxxxxxxxxxx` |
+| `NEXT_PUBLIC_POSTHOG_KEY` — **OPTIONAL** | no (public) | PostHog → Project Settings → Project API key. Unset means product analytics and error tracking, browser and server, are silently off (D146). The same key is the Worker's `POSTHOG_API_KEY`. | `phc_xxxxxxxxxxxx` |
+| `NEXT_PUBLIC_DEPLOY_ENV` — **OPTIONAL** | no (public) | `ship.yml` stamps `production`. Every exception carries it as `environment`, and PostHog's alerts read `production` only (D146). Unset is a laptop or CI and reports as `local`. | `production` |
 | `NEXT_PUBLIC_BLOG_ORIGIN` — **OPTIONAL** | no (public) | Operator decision (#130). When set, the middleware serves the blog at this host's root; `loonext.com/blog` keeps working either way. Unset = no blog host. | `https://blog.loonext.com` |
 | `NEXT_PUBLIC_MAP_TILE_URL` — **OPTIONAL** | no (public) | #428: the Map's basemap tile template, from a provider whose terms permit a PAID product to serve their tiles. Unset means the map draws pins on an empty ground and says so — it never falls back to `tile.openstreetmap.org`, which the OSMF does not license for commercial use (and which the code refuses even if configured). Requires the attribution below to be set too. See `docs/MAP-TILES.md`. | `https://api.example.com/maps/{z}/{x}/{y}.png?key=…` |
 | `NEXT_PUBLIC_MAP_TILE_ATTRIBUTION` — **OPTIONAL** | no (public) | #428: the provider's required credit line, VERBATIM as they word it — most require crediting both themselves and OpenStreetMap where OSM data underlies their tiles. Set together with the URL above; either one alone counts as no basemap, because a tile source with no credit is the same licensing problem under a different name. | `&copy; Example Maps &copy; OpenStreetMap contributors` |

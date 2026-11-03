@@ -210,8 +210,8 @@ describe("number orders", () => {
     expect(await h.store.get(ORDER_KEYS.stopped)).toBeDefined();
     expect(h.telnyx.numbers.some((item) => item.phone_number === "+14165550150")).toBe(true);
     expect(h.telnyx.requests("DELETE")).toEqual([]);
-    const event = h.outbound.find((item) => item.url.includes("/envelope/"));
-    expect(event?.body).toContain('"fingerprint":["ops","telnyx-guard-order-group"]');
+    const event = h.outbound.find((item) => item.url.includes("posthog.com"));
+    expect(event?.body).toContain('"$exception_fingerprint":"ops:telnyx-guard-order-group"');
     // The number is still in the account, bound to nonprod resources with no group: the start-up check now reads that as unsafe.
     h.advance(30 * DAY);
     await h.store.put("admission:reserve", { legs: 2, measured_at: h.clock.now });

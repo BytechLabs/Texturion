@@ -121,14 +121,14 @@ describe("the balance floor", () => {
     h.telnyx.balance = "140.00";
     await readBalance(h.ctx, { fresh: true });
     await readBalance(h.ctx, { fresh: true });
-    const events = h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-balance-low"]'));
+    const events = h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-balance-low"'));
     expect(events).toHaveLength(1);
   });
 });
 
 describe("the cap", () => {
   const detachEvents = (h: Harness) =>
-    h.outbound.filter((item) => item.body.includes('"fingerprint":["ops","telnyx-guard-detach"]'));
+    h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-guard-detach"'));
 
   it("detaches every number off the robot's connection, and nothing twice", async () => {
     const h = await ready();

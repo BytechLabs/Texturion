@@ -279,12 +279,9 @@ class CrashDiagnostics private constructor(baseDir: File, val appVersion: String
     /** Record a failure a coroutine handler intercepted (process survives). */
     fun recordNonFatal(tag: String, error: Throwable) {
         store.record("${CrashReportLog.NON_FATAL_THREAD_PREFIX}$tag", error, appVersion)
-        // #169: caught-but-broken states become fleet-visible in the Firebase
-        // console, not just the local file. Diagnostics must never throw.
-        runCatching {
-            com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance()
-                .recordException(error)
-        }
+        // #169: caught-but-broken states become fleet-visible in PostHog
+        // (D146), not just the local file. Diagnostics must never throw.
+        Telemetry.captureNonFatal(tag, error)
     }
 
     companion object {

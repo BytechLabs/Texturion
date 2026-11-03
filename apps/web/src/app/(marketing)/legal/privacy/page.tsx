@@ -326,7 +326,7 @@ export default function PrivacyPage() {
           We share data only with the sub-processors that make the service run,
           the phone carrier (Telnyx), payments (Stripe), infrastructure
           (Supabase/AWS, Cloudflare), email (Resend), and error/analytics tooling
-          (Sentry, PostHog), each limited to what its job requires and listed on
+          (PostHog), each limited to what its job requires and listed on
           our <LegalLink href="/legal/subprocessors">sub-processors page</LegalLink>
           . We may disclose data if the law requires it. We do not sell personal
           information.

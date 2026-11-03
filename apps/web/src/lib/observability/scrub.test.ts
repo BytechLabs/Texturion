@@ -1,15 +1,15 @@
 import { ATTRIBUTION_PARAMS, sanitizeAttributionValue } from "@loonext/shared";
-import type { ErrorEvent } from "@sentry/browser";
 import { describe, expect, it } from "vitest";
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  redactEmails,
   redactPhones,
   redactTokenPaths,
-  scrubBreadcrumb,
-  scrubEvent,
+  scrubText,
+  scrubUnknown,
   scrubUrl,
   stripQueryAndHash,
   TOKEN_PATH_PREFIXES,
@@ -20,70 +20,6 @@ const PHONE = "+14165551234";
 // A user-typed search term: not digit-shaped, so no redaction pattern can
 // catch it — it must be STRIPPED with the query string it travels in.
 const SEARCH_TERM = "Jane Doe";
-
-// Browser-shaped synthetic event: page URL + fetch/navigation breadcrumbs
-// instead of a Worker request, but the same PII corners the API suite proves
-// clean (apps/api/src/observability/sentry.test.ts — keep the two in sync).
-function syntheticEvent(): ErrorEvent {
-  return {
-    type: undefined,
-    message: `send failed for ${PHONE}`,
-    logentry: { message: `could not deliver to ${PHONE}` },
-    exception: {
-      values: [
-        {
-          type: "TypeError",
-          value: `Failed to fetch /v1/messages/send for ${PHONE} (error code 40300)`,
-        },
-      ],
-    },
-    breadcrumbs: [
-      {
-        category: "fetch",
-        message: `dialing 14165551234 then 4165551234567`,
-        data: {
-          // Search-as-you-type: the palette fires GET /v1/search?q=<term>
-          // per keystroke, and the default breadcrumbsIntegration records
-          // the full request URL.
-          url: `https://api.loonext.com/v1/search?q=${encodeURIComponent(SEARCH_TERM)}&phone=${encodeURIComponent(PHONE)}`,
-          to: PHONE,
-          contact_name: "Jane Doe",
-          displayName: "Jane Doe",
-          nested: { numbers: [PHONE, "+12125550000"] },
-        },
-      },
-      {
-        category: "navigation",
-        data: {
-          // Inbox filters serialize into the URL, so navigation breadcrumbs
-          // carry the typed term in from/to.
-          from: `/inbox?q=${encodeURIComponent(SEARCH_TERM)}`,
-          to: `/contacts?q=${encodeURIComponent(PHONE)}#results`,
-        },
-      },
-    ],
-    request: {
-      // location.href while an inbox search is active: the typed term
-      // round-trips through ?q= (filter-url.ts serializeInboxFilters).
-      url: `https://app.loonext.com/inbox?q=${encodeURIComponent(`${SEARCH_TERM} ${PHONE}`)}`,
-      query_string: `q=${SEARCH_TERM} ${PHONE}`,
-      cookies: { session: "abc" },
-      headers: {
-        "User-Agent": "vitest",
-        "x-note": PHONE,
-        Referer: `https://app.loonext.com/contacts?q=${encodeURIComponent(SEARCH_TERM)}`,
-      },
-      data: `{"body":"hi, call me at ${PHONE}","name":"Jane Doe"}`,
-    },
-    user: {
-      id: "6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01",
-      username: "Jane Doe",
-      email: "jane@example.com",
-    },
-    extra: { note: `customer at ${PHONE}`, customer_name: "Jane Doe" },
-    tags: { destination: PHONE },
-  } as ErrorEvent;
-}
 
 describe("redactPhones (SPEC §10 E.164 pattern)", () => {
   it("redacts +1-prefixed, bare-11-digit, and long international runs", () => {
@@ -146,221 +82,46 @@ describe("#651 a UUID is never mistaken for a phone number", () => {
 
   it("keeps a UUID whole in every field a scrubber walks", () => {
     const uuid = UUIDS[0];
-    const event = scrubEvent({
-      type: undefined,
+    expect(
+      scrubUnknown({
+        message: `company ${uuid} failed`,
+        tags: { company_id: uuid },
+        extra: { ids: [uuid] },
+      }),
+    ).toEqual({
       message: `company ${uuid} failed`,
       tags: { company_id: uuid },
       extra: { ids: [uuid] },
-      user: { id: uuid },
-    } as ErrorEvent);
-    expect(event.message).toBe(`company ${uuid} failed`);
-    expect(event.tags).toEqual({ company_id: uuid });
-    expect(event.extra).toEqual({ ids: [uuid] });
-    expect(event.user).toEqual({ id: uuid });
+    });
   });
 });
 
-describe("scrubEvent (SPEC §10: no bodies, names, or phone numbers reach Sentry)", () => {
-  it("provably strips the phone number and the request body from a synthetic event", () => {
-    const scrubbed = scrubEvent(syntheticEvent());
-    const serialized = JSON.stringify(scrubbed);
-
-    // The E.164 number is gone from every corner of the event.
-    expect(serialized).not.toContain("14165551234");
-    expect(serialized).not.toContain("4165551234567");
-    expect(serialized).not.toContain("12125550000");
-
-    // The request body (which embedded the message text) was dropped outright.
-    expect(scrubbed.request?.data).toBeUndefined();
-    expect(scrubbed.request?.cookies).toBeUndefined();
-    expect(scrubbed.request?.query_string).toBeUndefined();
-    expect(serialized).not.toContain("hi, call me at");
-
-    // Contact names are stripped everywhere.
-    expect(serialized).not.toContain("Jane");
-    expect(scrubbed.user).toEqual({
-      id: "6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01",
-    });
-
-    // Redaction markers replaced the phones in messages/exceptions/breadcrumbs.
-    expect(scrubbed.message).toBe("send failed for [phone redacted]");
-    expect(scrubbed.exception?.values?.[0]?.value).toContain("[phone redacted]");
-    expect(scrubbed.exception?.values?.[0]?.value).toContain("40300");
-    expect(scrubbed.breadcrumbs?.[0]?.message).toBe(
-      "dialing [phone redacted] then [phone redacted]",
+describe("scrubText and scrubUnknown (SPEC §10: no names, emails or phone numbers)", () => {
+  it("redacts an email address and a phone number in free text", () => {
+    expect(scrubText("+16135551234 a@b.co")).toBe("[phone redacted] [email redacted]");
+    expect(redactEmails("write to dana@brightside.example now")).toBe(
+      "write to [email redacted] now",
     );
-    expect(scrubbed.breadcrumbs?.[0]?.data).toEqual({
-      url: "https://api.loonext.com/v1/search",
-      to: "[phone redacted]",
+  });
+
+  it("leaves a package path that merely contains an @ alone", () => {
+    expect(redactEmails("at node_modules/@loonext/shared/dist/index.js")).toBe(
+      "at node_modules/@loonext/shared/dist/index.js",
+    );
+  });
+
+  it("strips name keys, cuts URL keys and redacts the rest, at any depth", () => {
+    expect(
+      scrubUnknown({
+        contact_name: "Jane Doe",
+        $current_url: `https://app.loonext.com/inbox?q=${encodeURIComponent(SEARCH_TERM)}`,
+        nested: [{ value: `call ${PHONE}` }],
+      }),
+    ).toEqual({
       contact_name: "[name redacted]",
-      displayName: "[name redacted]",
-      nested: { numbers: ["[phone redacted]", "[phone redacted]"] },
+      $current_url: "https://app.loonext.com/inbox",
+      nested: [{ value: "call [phone redacted]" }],
     });
-  });
-
-  it("strips typed search terms from every URL-carrying field (D8: names are not digit-shaped)", () => {
-    const scrubbed = scrubEvent(syntheticEvent());
-    const serialized = JSON.stringify(scrubbed);
-
-    // The typed term is gone in every encoding it travels as.
-    expect(serialized).not.toContain("Jane");
-    expect(serialized).not.toContain(encodeURIComponent(SEARCH_TERM));
-
-    // (1) event.request.url is location.href — ?q=<term> is cut, path kept.
-    expect(scrubbed.request?.url).toBe("https://app.loonext.com/inbox");
-
-    // (2) fetch/XHR breadcrumbs record the full search request URL.
-    expect(scrubbed.breadcrumbs?.[0]?.data?.url).toBe(
-      "https://api.loonext.com/v1/search",
-    );
-
-    // (3) navigation breadcrumbs carry from/to including query strings.
-    expect(scrubbed.breadcrumbs?.[1]?.data).toEqual({
-      from: "/inbox",
-      to: "/contacts",
-    });
-
-    // The Referer header is a URL too.
-    expect(scrubbed.request?.headers?.["Referer"]).toBe(
-      "https://app.loonext.com/contacts",
-    );
-  });
-
-  it("still phone-redacts URL path segments after the query is cut", () => {
-    const event = syntheticEvent();
-    event.request = { url: `https://app.loonext.com/contacts/${PHONE}?tab=notes` };
-    expect(scrubEvent(event).request?.url).toBe(
-      "https://app.loonext.com/contacts/[phone redacted]",
-    );
-  });
-
-  it("keeps non-PII diagnostics intact", () => {
-    const scrubbed = scrubEvent(syntheticEvent());
-    expect(scrubbed.request?.headers?.["User-Agent"]).toBe("vitest");
-    expect(scrubbed.exception?.values?.[0]?.type).toBe("TypeError");
-  });
-
-  it("drops a user with no id entirely", () => {
-    const event = syntheticEvent();
-    event.user = { email: "jane@example.com" };
-    expect(scrubEvent(event).user).toBeUndefined();
-  });
-});
-
-/**
- * A crumb this test expects to SURVIVE.
- *
- * #585 made `scrubBreadcrumb` return null for a console crumb, so every call
- * site now has to say which outcome it expects. This says kept, and fails with
- * the crumb printed rather than throwing on a property of null — so a future
- * change that starts dropping one of these reads as a sentence instead of a
- * TypeError. Mirrors the helper in apps/api/src/observability/sentry.test.ts.
- */
-function kept(breadcrumb: Parameters<typeof scrubBreadcrumb>[0]) {
-  const crumb = scrubBreadcrumb(breadcrumb);
-  if (crumb === null) {
-    throw new Error(
-      `scrubBreadcrumb dropped a crumb this test expects to survive: ` +
-        JSON.stringify(breadcrumb),
-    );
-  }
-  return crumb;
-}
-
-describe("scrubBreadcrumb (beforeBreadcrumb defense-in-depth)", () => {
-  it("redacts phones in message and data", () => {
-    const crumb = kept({
-      message: `sms to ${PHONE}`,
-      data: { name: "Jane" },
-    });
-    expect(crumb.message).toBe("sms to [phone redacted]");
-    expect(crumb.data).toEqual({ name: "[name redacted]" });
-  });
-
-  it("cuts query strings from url/from/to before the crumb is stored", () => {
-    const fetchCrumb = kept({
-      category: "fetch",
-      data: { url: "https://api.loonext.com/v1/search?q=Jane%20Doe", method: "GET" },
-    });
-    expect(fetchCrumb.data).toEqual({
-      url: "https://api.loonext.com/v1/search",
-      method: "GET",
-    });
-
-    const navCrumb = kept({
-      category: "navigation",
-      data: { from: "/inbox?q=Jane+Doe", to: "/inbox?q=Jane+Doe&page=2" },
-    });
-    expect(navCrumb.data).toEqual({ from: "/inbox", to: "/inbox" });
-  });
-});
-
-/*
- * #585 — a URL cannot reach Sentry through a console breadcrumb.
- *
- * The Worker half shipped first and this side was left behind, which nobody
- * noticed because the parity test below compares the token prefixes and the two
- * regexes and has never compared the BREADCRUMB rule. The leak was live: 
- * `components/tasks/views/map-island.tsx` logs `Sample: ${sample}` where sample
- * is a basemap tile URL.
- *
- * The crumb shapes here are the ones `breadcrumbsIntegration` actually builds
- * (`{ category: "console", message, data: { arguments, logger } }`), not a
- * shape invented for the test — a test that plants a crumb the SDK never
- * produces proves nothing about the SDK.
- */
-describe("#585 a URL cannot reach Sentry through a console crumb", () => {
-  it("drops a console crumb carrying a URL in its message", () => {
-    expect(
-      scrubBreadcrumb({
-        category: "console",
-        level: "error",
-        message: "#428 basemap tiles are not loading (3 failures). Sample: https://tile.example.com/12/34/56.png?key=abc",
-        data: { logger: "console" },
-      }),
-    ).toBeNull();
-  });
-
-  it("drops a console crumb carrying a URL inside data.arguments", () => {
-    // The argument array is where the RAW values sit. `scrubUnknown` walks it
-    // for phone numbers only, and no key in it ever matches URL_KEY_PATTERN.
-    expect(
-      scrubBreadcrumb({
-        category: "console",
-        level: "error",
-        message: "tiles failed",
-        data: {
-          arguments: ["tiles failed", "https://tile.example.com/12/34/56.png?q=Jane+Doe"],
-          logger: "console",
-        },
-      }),
-    ).toBeNull();
-  });
-
-  it("drops an ordinary console crumb too, because the rule is structural", () => {
-    // Not a filter on URL-shaped text: a pattern list is a vocabulary and the
-    // next thing worth redacting is always the one not in it.
-    expect(
-      scrubBreadcrumb({ category: "console", level: "log", message: "hello" }),
-    ).toBeNull();
-  });
-
-  it("keeps the fetch crumb, which is the one that carries the trail", () => {
-    expect(kept({ category: "fetch", data: { url: "https://api.loonext.com/v1/me" } }))
-      .not.toBeNull();
-  });
-
-  it("filters console crumbs out of an event, not just off the scope", () => {
-    // Crumbs already on the scope reach `beforeSend` inside the event, so the
-    // rule has to hold in both places. A `.map` here would leave a null hole.
-    const event = scrubEvent({
-      breadcrumbs: [
-        { category: "console", message: "https://tile.example.com/a.png" },
-        { category: "fetch", data: { url: "https://api.loonext.com/v1/me" } },
-      ],
-    } as Parameters<typeof scrubEvent>[0]);
-    expect(event.breadcrumbs).toHaveLength(1);
-    expect(event.breadcrumbs?.[0]?.category).toBe("fetch");
   });
 });
 
@@ -379,50 +140,6 @@ describe("#296 the duplicated allow-list cannot drift", () => {
       expect(sanitizeAttributionValue(bad)).toBeNull();
       expect(stripQueryAndHash(`/x?utm_source=${encodeURIComponent(bad)}`)).toBe("/x");
     }
-  });
-});
-
-describe("#585 the two clients' breadcrumb rules cannot drift apart", () => {
-  /*
-   * The check that was missing, and its absence is why this took a second pass.
-   *
-   * The Worker learned to drop console crumbs in 9739c944 and the browser did
-   * not. Nothing failed, because the parity tests in this file compare the
-   * token prefixes and the two regexes and had never compared the BREADCRUMB
-   * rule — so a promise in SPEC §10 held on one client and not the other, with
-   * a live call site interpolating a tile URL into console.error.
-   *
-   * Read off the API source rather than asserted as prose. A comment saying
-   * the two agree is the thing that was already there and was already wrong:
-   * this file's own header said "No drift as of 2026-08-09", which was the day
-   * the drift was introduced.
-   */
-  const API_SCRUB = join(
-    __dirname,
-    "../../../../../apps/api/src/observability/sentry.ts",
-  );
-
-  it("the API really does drop console crumbs, and this test can see it", () => {
-    // Coverage before verdict: if the file moves or the rule is rewritten in
-    // some other shape, this must fail loudly rather than quietly comparing
-    // nothing and passing.
-    const source = readFileSync(API_SCRUB, "utf8");
-    expect(
-      source.includes('breadcrumb.category === "console"'),
-      "apps/api/src/observability/sentry.ts no longer contains the console rule " +
-        "this test reads — find where it went before deleting this assertion",
-    ).toBe(true);
-  });
-
-  it("drops the same console crumb the API drops", () => {
-    // The behaviour, not the source text. Both sides are handed the shape
-    // `breadcrumbsIntegration` and `consoleIntegration` actually build.
-    const crumb = {
-      category: "console" as const,
-      message: "Sample: https://tile.example.com/12/34/56.png",
-      data: { arguments: ["Sample:", "https://tile.example.com/12/34/56.png"] },
-    };
-    expect(scrubBreadcrumb(crumb)).toBeNull();
   });
 });
 
@@ -526,17 +243,14 @@ describe("#558 tokenised paths never leave in full", () => {
     expect(scrubUrl(`/photos/${digitFirst}`)).toBe("/photos/[token]");
   });
 
-  it("reaches PostHog's properties, not only Sentry's request.url", () => {
-    // $current_url and $pathname both go through scrubUnknown → scrubUrl, so
-    // one fix covers both vendors. That is the claim; this is the check.
-    const event = scrubEvent({
-      extra: {
-        $current_url: `https://loonext.com/photos/${TOKEN}`,
-        $pathname: `/photos/${TOKEN}`,
-      },
-    } as unknown as ErrorEvent);
-    expect(JSON.stringify(event.extra)).not.toContain(TOKEN);
-    expect(event.extra?.$pathname).toBe("/photos/[token]");
+  it("reaches PostHog's properties, wherever they sit", () => {
+    // $current_url and $pathname both go through scrubUnknown → scrubUrl.
+    const scrubbed = scrubUnknown({
+      $current_url: `https://loonext.com/photos/${TOKEN}`,
+      $pathname: `/photos/${TOKEN}`,
+    }) as Record<string, string>;
+    expect(JSON.stringify(scrubbed)).not.toContain(TOKEN);
+    expect(scrubbed.$pathname).toBe("/photos/[token]");
   });
 });
 
@@ -586,7 +300,7 @@ describe("#558 the prefix list cannot go stale", () => {
     for (const prefix of tokenRoutePrefixes(APP_DIR)) {
       expect(
         TOKEN_PATH_PREFIXES as readonly string[],
-        `app/**/${prefix}/[token] has no redaction rule — its token would be sent to PostHog and Sentry in full. Add "${prefix}" to TOKEN_PATH_PREFIXES in scrub.ts AND in apps/api/src/observability/scrub.ts.`,
+        `app/**/${prefix}/[token] has no redaction rule, so its token would be sent to PostHog in full. Add "${prefix}" to TOKEN_PATH_PREFIXES in scrub.ts AND in apps/api/src/observability/scrub.ts.`,
       ).toContain(prefix);
     }
   });
@@ -637,7 +351,12 @@ describe("#558 the prefix list cannot go stale", () => {
     // comparison symmetric, and it does not require exporting an internal from
     // either file just so a test can see it.
     const browser = readFileSync(join(__dirname, "./scrub.ts"), "utf8");
-    for (const name of ["URL_KEY_PATTERN", "PHONE_PATTERN", "UUID_PATTERN"] as const) {
+    for (const name of [
+      "URL_KEY_PATTERN",
+      "PHONE_PATTERN",
+      "UUID_PATTERN",
+      "EMAIL_PATTERN",
+    ] as const) {
       const pattern = new RegExp(`${name} =\\s*(/.*/[a-z]*);`);
       const mine = pattern.exec(browser);
       const theirs = pattern.exec(worker);

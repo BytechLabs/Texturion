@@ -1,6 +1,6 @@
 import type { Ctx } from "../context";
 import { LIMIT_EVIDENCE_STALE_MS, PAID_CONCURRENT } from "../limits";
-import { sendProductionEvent } from "../sentry";
+import { sendProductionEvent } from "../posthog";
 
 /**
  * The account's concurrent call limit, as the guard can prove it (docs/RIG.md,

@@ -216,9 +216,9 @@
       ]
     },
     "app/error.tsx": {
-      "why": "Both strings are console diagnostics: one reports that best-effort Sentry capture itself failed and one labels the root-boundary Error object. The rendered boundary already uses catalogue keys, so translating these would change only developer incident output.",
+      "why": "Both strings are console diagnostics: one reports that best-effort PostHog capture itself failed and one labels the root-boundary Error object. The rendered boundary already uses catalogue keys, so translating these would change only developer incident output.",
       "literals": [
-        "Sentry capture failed:",
+        "PostHog capture failed:",
         "Root boundary error"
       ]
     },
@@ -238,12 +238,6 @@
       "why": "Console-only observability bootstrap diagnostic; initialization fails closed to null and no reader sees this label. Translating it would change the developer console and nothing in the product UI.",
       "literals": [
         "PostHog init failed:"
-      ]
-    },
-    "lib/observability/sentry.ts": {
-      "why": "Console-only observability bootstrap diagnostic emitted when the reporting tool itself cannot start. No UI renders it, and translating it would make incident output vary with a member's language rather than localising customer copy.",
-      "literals": [
-        "Sentry browser init failed:"
       ]
     },
     "lib/push/register.ts": {

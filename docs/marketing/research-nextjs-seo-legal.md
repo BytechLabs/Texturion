@@ -250,7 +250,7 @@ Loonext's checklist:
 4. **Sub-processor list** — cheap, peer-verified trust page. Loonext's is short and
    honest: Telnyx (SMS/MMS, numbers, 10DLC), Stripe (payments/tax), Supabase (database,
    auth, file storage — AWS us-east-1), Cloudflare (hosting/CDN), Resend (transactional
-   email), Sentry (error monitoring, PII-scrubbed), PostHog (product analytics, no message
+   email), PostHog (product analytics and PII-scrubbed error tracking, no message
    content). One line each: what it is, what data it touches, region.
 5. **Nice-to-have at launch, standard among peers:** a short security page (RLS,
    encrypted at rest/in transit, PII-scrubbed monitoring — only claim what SPEC supports);

@@ -1140,11 +1140,10 @@ jobs:
       # every release build shipped with calling broken, behind a green gate.
       #
       # This is the build ship.yml bundles (release has no signing config, so it
-      # comes out unsigned and needs no stand-in key), as an APK. The Crashlytics
-      # mapping upload is skipped: this build is never released, and its mapping
-      # would sit in the console beside the real ones.
+      # comes out unsigned and needs no stand-in key), as an APK. Its mapping is
+      # not uploaded: only ship.yml sends one to PostHog, for the build it releases.
       - name: Assemble the shrunk release build
-        run: ./gradlew :app:assembleRelease -x :app:uploadCrashlyticsMappingFileRelease
+        run: ./gradlew :app:assembleRelease
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:

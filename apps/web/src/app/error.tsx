@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 import { useEffect } from "react";
 import Link from "next/link";
 
-import { initSentryClient } from "@/lib/observability/sentry";
+import { initPostHog } from "@/lib/analytics/posthog";
 
 import { boundaryCopy as copy, boundaryReference } from "./boundary-copy";
 
@@ -21,21 +21,21 @@ import { boundaryCopy as copy, boundaryReference } from "./boundary-copy";
  */
 
 /**
- * Best-effort Sentry report, shared with global-error.tsx. Guarded on the
- * OPTIONAL NEXT_PUBLIC_SENTRY_DSN (unset = observability off = silent no-op,
- * and the @sentry/browser chunk is never fetched). Goes through the same
- * client instrumentation-client.ts starts, so a boundary that renders before
- * the SDK is up waits for it. Never rejects: error reporting must not break
- * the error page itself.
+ * Best-effort PostHog report, shared with global-error.tsx. Guarded on the
+ * OPTIONAL NEXT_PUBLIC_POSTHOG_KEY (unset = observability off = silent no-op,
+ * and posthog-js is never fetched). Goes through the same client
+ * instrumentation-client.ts starts, so a boundary that renders before the SDK
+ * is up waits for it. Never rejects: error reporting must not break the error
+ * page itself.
  */
 export async function reportBoundaryError(
   error: Error & { digest?: string },
 ): Promise<void> {
   try {
-    const sdk = await initSentryClient();
-    sdk?.captureException(error);
+    const posthog = await initPostHog();
+    posthog?.captureException(error, error.digest ? { digest: error.digest } : undefined);
   } catch (cause) {
-    console.error("Sentry capture failed:", cause);
+    console.error("PostHog capture failed:", cause);
   }
 }
 
@@ -124,7 +124,7 @@ export default function RootError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Console for local debugging; Sentry (when configured) for production.
+    // Console for local debugging; PostHog (when configured) for production.
     console.error("Root boundary error", error);
     void reportBoundaryError(error);
   }, [error]);

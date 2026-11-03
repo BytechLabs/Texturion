@@ -292,7 +292,7 @@ describe("the marketing pages' first load", () => {
     expect(clientModules).toContain("components/marketing/hero/hero-inbox.tsx");
     for (const must of [
       "instrumentation-client.ts",
-      "lib/observability/sentry.ts",
+      "lib/observability/errors.ts",
       "lib/analytics/posthog.ts",
       "components/marketing/consent/consent-banner.tsx",
       "components/marketing/gtm-boot.tsx",

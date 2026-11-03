@@ -19,10 +19,6 @@ const publicEnvSchema = z.object({
   // internal rewrite (blog.loonext.com/<slug> → the /blog/<slug> route), while
   // loonext.com/blog keeps working. Unset (dev/CI/previews) = no blog host.
   NEXT_PUBLIC_BLOG_ORIGIN: z.url().optional(),
-  // Optional: Sentry browser DSN (D13 client observability). When set, the
-  // client instrumentation lazily loads @sentry/browser with the same PII
-  // scrubbing posture as the API Worker (lib/observability/sentry.ts);
-  // unset (dev/CI/previews) = client error reporting silently off.
   /**
    * #428: the Map's basemap. Optional — with no provider configured the map
    * renders pins on an empty ground rather than falling back to OSM's donated
@@ -32,11 +28,11 @@ const publicEnvSchema = z.object({
   NEXT_PUBLIC_MAP_TILE_URL: z.string().min(1).optional(),
   NEXT_PUBLIC_MAP_TILE_ATTRIBUTION: z.string().min(1).optional(),
   NEXT_PUBLIC_MAP_TILE_MAX_ZOOM: z.string().min(1).optional(),
-  NEXT_PUBLIC_SENTRY_DSN: z.url().optional(),
-  // Optional: PostHog project API key (D8/D12 product analytics). When set,
-  // the client instrumentation lazily loads posthog-js — sanitized pageviews
-  // + company UUIDs only, autocapture/recording off (lib/analytics/posthog.ts);
-  // unset = analytics silently off.
+  // Optional: PostHog project API key (D8/D12 product analytics, D146 error
+  // tracking). When set, the client instrumentation lazily loads posthog-js:
+  // sanitized pageviews, company UUIDs and scrubbed exceptions only,
+  // autocapture/recording off (lib/analytics/posthog.ts), and the server sends
+  // its request errors (instrumentation.ts); unset = both silently off.
   NEXT_PUBLIC_POSTHOG_KEY: z.string().min(1).optional(),
   // Optional: Google Tag Manager container id (#124), e.g. "GTM-MTL658DD".
   // When set, the MARKETING layout loads GTM (marketing pages only, never the
@@ -46,6 +42,10 @@ const publicEnvSchema = z.object({
     .string()
     .regex(/^GTM-[A-Z0-9]+$/)
     .optional(),
+  // D142, D146: which deployment this build is, stamped by the deploy
+  // workflow. Every exception carries it, and PostHog's alerts read
+  // `production` only. Unset is a laptop or CI.
+  NEXT_PUBLIC_DEPLOY_ENV: z.enum(["local", "rig", "production"]).optional(),
 });
 
 // NEXT_PUBLIC_* variables are inlined at build time, so each one must be
@@ -68,9 +68,9 @@ const parsed = publicEnvSchema.safeParse({
     process.env.NEXT_PUBLIC_MAP_TILE_ATTRIBUTION || undefined,
   NEXT_PUBLIC_MAP_TILE_MAX_ZOOM:
     process.env.NEXT_PUBLIC_MAP_TILE_MAX_ZOOM || undefined,
-  NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
   NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY || undefined,
   NEXT_PUBLIC_GTM_ID: process.env.NEXT_PUBLIC_GTM_ID || undefined,
+  NEXT_PUBLIC_DEPLOY_ENV: process.env.NEXT_PUBLIC_DEPLOY_ENV || undefined,
 });
 
 if (!parsed.success) {

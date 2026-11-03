@@ -7,7 +7,7 @@ import {
   LIMIT_PROBE_RETRY_MS,
 } from "../limits";
 import { Refusal } from "../refusal";
-import { sendProductionEvent } from "../sentry";
+import { sendProductionEvent } from "../posthog";
 import { LIMIT_KEYS, type Ceiling, type ProbeWrite, type ValidationRecord } from "../state/concurrency";
 import { KEYS, type PartitionRecord } from "../telnyx/partition";
 import { requireSafe } from "./safety";

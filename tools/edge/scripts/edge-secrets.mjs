@@ -7,7 +7,7 @@
  *
  * Only names with a value are written, so a secret not yet provisioned keeps
  * whatever the edge already has. A digest that is not 64 hex characters, or a
- * DSN that is not one, would turn a feature off silently on the edge, so it
+ * PostHog key that is not one, would turn a feature off silently on the edge, so it
  * fails here, where somebody reads the run. Digests are of the token or path
  * secret, never the value itself.
  */
@@ -15,7 +15,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DIGEST = /^[0-9a-f]{64}$/;
-const DSN = /^https:\/\/[^@\s/]+@[^\s/]+(?:\/[^\s]*)?\/\d+$/;
+const POSTHOG_KEY = /^phc_[A-Za-z0-9]{20,}$/;
 
 export const EDGE_SECRETS = {
   TOKEN_SHA256_RIG_API: DIGEST,
@@ -26,8 +26,7 @@ export const EDGE_SECRETS = {
   TOKEN_SHA256_TRIAGE: DIGEST,
   ROBOT_WEBHOOK_SECRET_SHA256: DIGEST,
   NOTIFICATIONS_SECRET_SHA256: DIGEST,
-  SENTRY_SYNTHETIC_DSN: DSN,
-  SENTRY_PROD_DSN: DSN,
+  POSTHOG_PROJECT_KEY: POSTHOG_KEY,
 };
 
 /** The secrets to write, and the names whose values have the wrong shape. */

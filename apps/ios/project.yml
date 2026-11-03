@@ -14,6 +14,10 @@ packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk
     majorVersion: 12.16.0
+  # D146: crash and error tracking. 3.56 is the first with fatal crash capture.
+  PostHog:
+    url: https://github.com/PostHog/posthog-ios
+    exactVersion: 3.92.0
 targets:
   Loonext:
     type: application
@@ -32,6 +36,15 @@ targets:
         product: FirebaseMessaging
       - package: Firebase
         product: FirebaseCore
+      - package: PostHog
+        product: PostHog
+    info:
+      # Merged with the keys GENERATE_INFOPLIST_FILE writes; these two are not
+      # ones it knows. Telemetry.swift reads them.
+      path: Loonext/Info.plist
+      properties:
+        PostHogProjectKey: $(POSTHOG_PROJECT_KEY)
+        LoonextTelemetryEnvironment: $(LOONEXT_TELEMETRY_ENVIRONMENT)
     entitlements:
       path: Loonext/Loonext.entitlements
       properties:
@@ -89,6 +102,15 @@ targets:
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
+        # D146: blank sends nothing; only the release workflow passes a key.
+        POSTHOG_PROJECT_KEY: ""
+      configs:
+        Debug:
+          LOONEXT_TELEMETRY_ENVIRONMENT: local
+        Release:
+          LOONEXT_TELEMETRY_ENVIRONMENT: production
+          # dSYMs for PostHog to symbolicate a crash with (posthog-cli in ship.yml).
+          DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
   LoonextTests:
     type: bundle.unit-test
     platform: iOS

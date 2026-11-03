@@ -30,6 +30,8 @@ kotlinxSerialization = "1.11.0"
 kotlinxCoroutines = "1.11.0"
 coil = "3.5.0"
 firebaseMessaging = "25.1.1"
+# D146: error tracking. Uncaught JVM exceptions through the SDK's own handler.
+posthog = "3.72.4"
 telnyx = "3.5.0"
 # #524: the Android framework on the JVM, so a Compose test can PRESS a control
 # and assert what happened. Every guard on the cancel button before this read the
@@ -82,13 +84,12 @@ compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4
 compose-ui-test-junit4-accessibility = { group = "androidx.compose.ui", name = "ui-test-junit4-accessibility" }
 compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebaseMessaging" }
-firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics", version = "20.1.0" }
+posthog-android = { group = "com.posthog", name = "posthog-android", version.ref = "posthog" }
 telnyx-webrtc = { group = "com.github.team-telnyx", name = "telnyx-webrtc-android", version.ref = "telnyx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 google-services = { id = "com.google.gms.google-services", version = "4.5.0" }
-crashlytics = { id = "com.google.firebase.crashlytics", version = "3.0.7" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

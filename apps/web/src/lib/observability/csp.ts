@@ -27,9 +27,9 @@
  * REPORT-ONLY FIRST, AND THE COLLECTOR IS OURS
  *
  * #577 asks for report-only staging, and the last pass rightly refused to do it
- * with nowhere to send reports — Sentry's client path is blocked by ad blockers
- * for a large share of real users, so the violation data would be silently
- * partial, which is worse than knowing it is absent.
+ * with nowhere to send reports: a third-party collector's client path is
+ * blocked by ad blockers for a large share of real users, so the violation
+ * data would be silently partial, which is worse than knowing it is absent.
  *
  * The way out is that the collector does not have to be a third party. Reports
  * go to `/api/csp-report` on the SAME origin, which no blocker touches and no

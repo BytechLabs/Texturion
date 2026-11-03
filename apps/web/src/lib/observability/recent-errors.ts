@@ -3,7 +3,7 @@
  *
  * The acceptance criterion is that a report carries recent errors "without the
  * user assembling them". Android and iOS already had a diagnostics ring
- * (#197/#198); the web had nothing but Sentry, which the customer cannot read
+ * (#197/#198); the web had nothing but its error tracker, which the customer cannot read
  * and which [[observability-state]] records as blocked by ad blockers for a
  * large share of real browsers. So on the surface where the founder's own
  * screenshots come from, the errors were being thrown away.

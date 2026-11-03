@@ -76,7 +76,7 @@ export interface HarnessOptions {
 export const FULL_ENV: Partial<Env> = {
   TELNYX_API_KEY: "test-guard-key",
   RESEND_API_KEY: "test-resend-key",
-  SENTRY_PROD_DSN: "https://publickey@o1.ingest.sentry.example/12345",
+  POSTHOG_PROJECT_KEY: "phc_guard_test_key",
   EDGE_ORIGIN: EDGE,
   ROBOT_MAILBOX,
   NOTIFICATION_PATH_SECRET: "notice-path",
@@ -110,7 +110,7 @@ export function harness(options: HarnessOptions = {}): Harness {
     if (url.origin === "https://oauth2.googleapis.com") return reply({ access_token: "google-access", expires_in: 3600 });
     if (url.origin === "https://fcm.googleapis.com") return reply({ name: "projects/p/messages/1" });
     if (url.origin === "https://api.resend.com") return reply({ id: "email-1" });
-    return reply({ id: "sentry-event" });
+    return reply({ status: 1 });
   }) as typeof fetch;
 
   const config = readConfig({ ...FULL_ENV, ...options.env } as Env);

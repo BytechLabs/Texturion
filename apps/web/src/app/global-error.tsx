@@ -14,7 +14,7 @@ import { reportBoundaryError } from "./error";
  * <Link> router context worth trusting. Hence the system font stack, inline
  * v4 palette styling, and plain anchors.
  *
- * Same recovery contract as error.tsx: report to Sentry (when configured),
+ * Same recovery contract as error.tsx: report to PostHog (when configured),
  * offer `reset()`.
  */
 

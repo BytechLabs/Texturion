@@ -27,7 +27,7 @@
     "org.osmdroid:osmdroid-android": { "r8": "no-reflection", "why": "Ships no rules. Only ArchiveFileFactory reflects, for offline tile archives, which this app does not open. MapView is built in code, not inflated." },
     "com.github.team-telnyx:telnyx-webrtc-android": { "r8": "own-rules", "why": "Sends its socket messages through Gson by field name, and its native library calls Java by name. Ships no rules. Renamed, calling never registers.", "keepRules": ["-keep class com.telnyx.webrtc.** { *; }"] },
     "com.google.firebase:firebase-messaging": { "r8": "ships-rules", "why": "Component registrars are loaded by class name from manifest metadata; firebase-components keeps them and the check asserts it." },
-    "com.google.firebase:firebase-crashlytics": { "r8": "ships-rules", "why": "Same registrar loading. The mapping file it uploads comes from this build." }
+    "com.posthog:posthog-android": { "r8": "ships-rules", "why": "Serializes its events and remote config with Gson by field name; its consumer rules keep those classes. Reads posthog-meta.properties from assets for the mapping id the release workflow writes." }
   },
   "groups": {
     "androidx.activity": "No name lookups.",
@@ -88,8 +88,10 @@
     "com.google.android.material": "Transitive via Telnyx. XML views, kept by aapt; app code uses Compose Material.",
     "com.google.code.gson": "Reads fields by name. This is why the Telnyx keep exists; Gson 2.12 ships rules for TypeToken and annotated fields only, so unannotated Telnyx models depend on our rule.",
     "com.google.errorprone": "Annotations only.",
-    "com.google.firebase": "See direct entries; registrars asserted by name.",
+    "com.google.firebase": "See direct entry; registrars asserted by name.",
     "com.google.guava": "listenablefuture only; an interface.",
+    "com.posthog": "See direct entry; the core module ships the Gson rules for its event classes.",
+    "com.squareup.curtains": "Via PostHog, for session replay, which is off. Hooks window callbacks; no name lookups.",
     "com.jakewharton.timber": "Via Telnyx. Tags come from caller class names, which only labels log lines.",
     "com.squareup.okhttp3": "See direct entry.",
     "com.squareup.okio": "No name lookups.",

@@ -105,8 +105,8 @@ visible:
   with a problem.
 
 **Said plainly: this is not server-side alerting, and it should not be described as
-such.** Client Sentry is unreliable in this product — ad blockers eat it, and the
-tunnel was declined — so nobody is paged when a basemap stops drawing. What exists is
+such.** Client error reports are unreliable in this product: ad blockers eat them,
+and the tunnel was declined, so nobody is paged when a basemap stops drawing. What exists is
 (a) the customer sees an honest sentence instead of a blank grid, and (b) a support
 session can find the console marker.
 

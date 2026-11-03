@@ -45,16 +45,12 @@ export const legalSubprocessorsEn = {
     "Device push tokens; the notification preview, which contains the sender name and a short message excerpt",
   firebaseRegion:
     "United States. Relayed on to Apple's push service for iPhones",
-  sentryPurpose: "Error monitoring",
-  sentryData:
-    "Error diagnostics with PII scrubbed, no message bodies or phone numbers",
-  sentryRegion: "United States",
-  posthogPurpose: "Product analytics (events only) and error diagnostics",
+  posthogPurpose: "Product analytics (events only) and error monitoring",
   posthogData:
-    "Event names, counts, and UUIDs, no message content; cookieless on marketing pages. Error diagnostics with PII scrubbed, no message bodies or phone numbers",
+    "Event names, counts, and UUIDs, no message content; cookieless on marketing pages. Error and crash diagnostics from the website, the API and the Android and iPhone apps, with PII scrubbed: no message bodies, names, email addresses or phone numbers",
   posthogRegion: "United States",
   listNote:
-    "Data lives primarily in the United States (Supabase on AWS `us-east-1`). We keep message content out of Sentry and PostHog by design, see our {security} and {privacy}.",
+    "Data lives primarily in the United States (Supabase on AWS `us-east-1`). We keep message content out of PostHog by design, see our {security} and {privacy}.",
   securityLink: "security page",
   privacyLink: "privacy policy",
   aiIntro:
@@ -129,16 +125,12 @@ export const legalSubprocessorsFr: Translated<typeof legalSubprocessorsEn> = {
     "Jetons de notification des appareils; aperçu de la notification contenant le nom de l'expéditeur et un court extrait du message",
   firebaseRegion:
     "États-Unis. Transmis au service de notifications poussées d'Apple pour les iPhone",
-  sentryPurpose: "Surveillance des erreurs",
-  sentryData:
-    "Diagnostics d'erreur dont les renseignements personnels ont été retirés, sans corps de message ni numéro de téléphone",
-  sentryRegion: "États-Unis",
-  posthogPurpose: "Analyse du produit (seulement des événements) et diagnostics d'erreur",
+  posthogPurpose: "Analyse du produit (seulement des événements) et surveillance des erreurs",
   posthogData:
-    "Noms d'événements, quantités et UUID, sans contenu de message; sans témoins sur les pages publiques. Diagnostics d'erreur dont les renseignements personnels ont été retirés, sans corps de message ni numéro de téléphone",
+    "Noms d'événements, quantités et UUID, sans contenu de message; sans témoins sur les pages publiques. Diagnostics d'erreur et de plantage du site Web, de l'API et des applications Android et iPhone, dont les renseignements personnels ont été retirés : sans corps de message, nom, adresse courriel ni numéro de téléphone",
   posthogRegion: "États-Unis",
   listNote:
-    "Les données résident principalement aux États-Unis (Supabase sur AWS `us-east-1`). Nous gardons volontairement le contenu des messages hors de Sentry et de PostHog; consultez notre {security} et notre {privacy}.",
+    "Les données résident principalement aux États-Unis (Supabase sur AWS `us-east-1`). Nous gardons volontairement le contenu des messages hors de PostHog; consultez notre {security} et notre {privacy}.",
   securityLink: "page sur la sécurité",
   privacyLink: "politique de confidentialité",
   aiIntro:

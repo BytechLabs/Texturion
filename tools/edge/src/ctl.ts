@@ -3,7 +3,7 @@ import { RIG_PRODUCTION_ALERTS, type RigAlert, type RigProductionAlert } from "@
 import { hasControlClass } from "./auth";
 import { uplink, type Env } from "./env";
 import { boundedText, empty, json } from "./http";
-import { parseDsn, sendSentryEvent } from "./sentry";
+import { sendOpsEvent } from "./posthog";
 import type { RpcOutcome } from "./uplink";
 
 /** `/ctl/*`: the rig's own uplink, triage's rpc, rigd's production alerts, and the sealed secret bundle. */
@@ -12,8 +12,8 @@ const RPC_MAX_BYTES = 64 * 1024;
 const BUNDLE_MAX_PARTS = 8;
 const ALERT_MAX_BYTES = 8 * 1024;
 /**
- * A send Sentry did not take is tried again after this long rather than on
- * every request, so a Sentry outage cannot spend the day's budget in an hour.
+ * A send PostHog did not take is tried again after this long rather than on
+ * every request, so a PostHog outage cannot spend the day's budget in an hour.
  */
 export const RETRY_FAILED_AFTER_MS = 60 * 60 * 1000;
 /** rigd asks every hour while a fault lasts; production hears of it four times a day. */
@@ -75,8 +75,8 @@ export function sealedBundle(env: Env): string | null {
 }
 
 /**
- * rigd's production alerts. The box has no production DSN, so the edge sends
- * them by DSN, from its own production
+ * rigd's production alerts. The box has no PostHog key, so the edge sends
+ * them, from its own production
  * budget, at most once per key every {@link ALERT_REPEAT_MS}, and only for a
  * key the protocol lists. Any answer but 200 means production did not get
  * it, and rigd reports that as its own infrastructure fault.
@@ -101,27 +101,26 @@ export async function handleAlert(env: Env, request: Request): Promise<Response>
   const key = alert.key as RigProductionAlert;
   const name = `rig:${key}`;
   const rig = uplink(env);
-  if (!parseDsn(env.SENTRY_PROD_DSN)) {
-    await rig.bump(`alert.no_dsn.${key}`);
-    return json(503, { error: "no_production_dsn" });
+  if (!env.POSTHOG_PROJECT_KEY) {
+    await rig.bump(`alert.no_key.${key}`);
+    return json(503, { error: "no_production_key" });
   }
   const now = Date.now();
   const log = await rig.alertLog();
   if (now - (log.alerts[name] ?? 0) < ALERT_REPEAT_MS) return json(200, { sent: false, reason: "repeat" });
   if (now - (log.failures[name] ?? 0) < RETRY_FAILED_AFTER_MS) return json(503, { error: "retry_later" });
-  if (!(await rig.takeSentryBudget(now, "production"))) return json(429, { error: "budget_spent" });
-  const sent = await sendSentryEvent(env.SENTRY_PROD_DSN, {
-    fingerprint: ["ops", key],
+  if (!(await rig.takeEventBudget(now, "production"))) return json(429, { error: "budget_spent" });
+  const sent = await sendOpsEvent(env.POSTHOG_PROJECT_KEY, {
+    fingerprint: `ops:${key}`,
     level: "error",
     environment: "production",
     edgeSha: env.GIT_SHA,
     message: alert.message,
-    tags: { raised_by: "rigd" },
-    extra: alert.detail === undefined ? {} : { detail: alert.detail },
+    properties: { raised_by: "rigd", ...(alert.detail === undefined ? {} : { detail: alert.detail }) },
   });
   if (!sent) {
     await rig.noteAlertFailed(name, now);
-    return json(502, { error: "sentry_refused" });
+    return json(502, { error: "posthog_refused" });
   }
   await rig.noteAlert(name, now);
   return json(200, { sent: true });

@@ -162,8 +162,8 @@ Source of truth: `apps/web/src/env.ts`.
 | `NEXT_PUBLIC_API_URL` | Req | The api Worker origin — must equal `API_ORIGIN` exactly, e.g. `https://api.loonext.com` |
 | `NEXT_PUBLIC_APP_ORIGIN` | Opt | The app origin, e.g. `https://app.loonext.com`. **Set to enable the D27 marketing/app host split** (must match the API's `APP_ORIGIN`). Unset = single-host, no split |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Opt | Turnstile **site** key (public). ⚠️ Must be set and web redeployed **before** enabling Supabase Auth captcha, or auth breaks |
-| `NEXT_PUBLIC_SENTRY_DSN` | Opt | Sentry browser DSN. Unset = client error reporting off |
-| `NEXT_PUBLIC_POSTHOG_KEY` | Opt | PostHog project key. Unset = client analytics off |
+| `NEXT_PUBLIC_POSTHOG_KEY` | Opt | PostHog project key. Unset = client analytics and error tracking off |
+| `NEXT_PUBLIC_DEPLOY_ENV` | Opt | `production` in `ship.yml`; every exception carries it, and PostHog's alerts read only `production` |
 
 ---
 
@@ -184,16 +184,16 @@ Set under repo → Settings → Secrets and variables → Actions. Consumed by
 | `NEXT_PUBLIC_API_URL` | Web build var (§4) — **must exist before the first automated deploy** |
 | `NEXT_PUBLIC_APP_ORIGIN` | Web build var (§4, optional — enables host split) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Web build var (§4, optional) |
-| `NEXT_PUBLIC_SENTRY_DSN` | Web build var (§4, optional) — browser error reporting |
-| `NEXT_PUBLIC_POSTHOG_KEY` | Web build var (§4, optional) — browser analytics |
+| `NEXT_PUBLIC_POSTHOG_KEY` | Web build var (§4, optional): analytics and error tracking, and the project key the mobile builds, the guard and the edge send with |
+| `POSTHOG_CLI_TOKEN`, `POSTHOG_PROJECT_ID` | Optional: PostHog symbol uploads (web source maps, the Android R8 mapping, iOS dSYMs). Unset, each upload step prints a warning |
 
-> **Client telemetry (wired 2026-07-08):** `ship.yml` now passes all six
-> `NEXT_PUBLIC_*` build vars, including `NEXT_PUBLIC_SENTRY_DSN` and
-> `NEXT_PUBLIC_POSTHOG_KEY`. Both stay optional — leave the Actions secret unset
-> (or blank) and that client is a silent no-op. Two caveats: (1) PostHog's host is
-> hardcoded to Cloud **US** (`us.i.posthog.com`), so the project must be US-region;
-> (2) no Sentry build plugin is configured, so browser stack traces arrive
-> minified (add `@sentry/nextjs`'s source-map upload later for readable traces).
+> **Client telemetry (D146):** `ship.yml` passes the `NEXT_PUBLIC_*` build vars,
+> including `NEXT_PUBLIC_POSTHOG_KEY`, which stays optional: leave the Actions
+> secret unset (or blank) and the client is a silent no-op. PostHog's host is
+> hardcoded to Cloud **US** (`us.i.posthog.com`), so the project must be
+> US-region. Browser stacks are unminified from the source maps `ship.yml`
+> uploads with `posthog-cli` when `POSTHOG_CLI_TOKEN` and `POSTHOG_PROJECT_ID`
+> are set.
 
 ---
 

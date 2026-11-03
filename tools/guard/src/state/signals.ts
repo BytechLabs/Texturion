@@ -3,7 +3,7 @@ import type { HaltRequest } from "@loonext/rig-protocol";
 import type { Ctx } from "../context";
 import { SIGNAL_HALT_MS, SIGNAL_REPEAT_WINDOW_MS } from "../limits";
 import { Refusal } from "../refusal";
-import { sendProductionEvent } from "../sentry";
+import { sendProductionEvent } from "../posthog";
 
 /**
  * Account signals (docs/RIG.md). Telnyx's notification channel posts to

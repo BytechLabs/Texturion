@@ -1,22 +1,19 @@
 /**
  * Next.js client instrumentation — runs once in the browser before the app
- * hydrates, on every surface (marketing + app). Boots the two OPTIONAL
- * telemetry clients:
+ * hydrates, on every surface (marketing + app). Boots PostHog (D8, D12,
+ * D146): product analytics and error tracking, on only when
+ * NEXT_PUBLIC_POSTHOG_KEY is set.
  *
- * - Sentry browser client (D13), on only when NEXT_PUBLIC_SENTRY_DSN is set.
- * - PostHog product analytics (D8/D12), on only when NEXT_PUBLIC_POSTHOG_KEY
- *   is set.
- *
- * Both load their SDK via dynamic `import()` inside their init, so this
- * entry adds no meaningful weight to the main bundle and an unconfigured
- * environment (local dev, CI, previews) ships zero telemetry code paths.
- * On a marketing page both wait for the page to settle (LCP painted, load
- * fired, one idle moment, or the first input) before that import starts
- * (#640); the app starts them at once. Both inits are best-effort and never
- * reject — page boot cannot fail on telemetry.
+ * The SDK loads via dynamic `import()` inside its init, so this entry adds no
+ * meaningful weight to the main bundle and an unconfigured environment (local
+ * dev, CI, previews) ships zero telemetry code paths. On a marketing page it
+ * waits for the page to settle (LCP painted, load fired, one idle moment, or
+ * the first input) before that import starts (#640), and errors thrown before
+ * then are held and reported once it is up; the app starts it at once. Init
+ * is best-effort and never rejects: page boot cannot fail on telemetry.
  */
 import { initPostHog } from "@/lib/analytics/posthog";
-import { initSentryClient } from "@/lib/observability/sentry";
+import { holdEarlyErrors } from "@/lib/observability/errors";
 
-void initSentryClient();
+holdEarlyErrors();
 void initPostHog();

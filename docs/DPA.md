@@ -92,9 +92,9 @@ it should be answered from fact before this is signed.
 
 - Encryption in transit and at rest.
 - Message content is excluded from analytics and from error reporting. This is
-  enforced rather than intended: Sentry's `beforeSend` strips request bodies and
-  redacts phone numbers, `sendDefaultPii` is off, and there is no session replay
-  on conversation pages.
+  enforced rather than intended: every error report is scrubbed before it is
+  sent (request bodies dropped, phone numbers and email addresses redacted),
+  and there is no session replay.
 - Tenant isolation is performed by the API on every request. **It is one layer,
   not two** — the Worker's database key bypasses row-level security, so an
   unscoped query in our own code would be executed as written. SPEC §10 says so
@@ -116,7 +116,7 @@ for it.
 ## 6. Sub-processors
 
 Current list, kept public and current: **Cloudflare, OpenAI, PostHog, Resend,
-Sentry, Stripe, Supabase, Telnyx, and Cloudflare Workers AI.**
+Stripe, Supabase, Telnyx, and Cloudflare Workers AI.**
 
 > Source: `/legal/subprocessors`
 

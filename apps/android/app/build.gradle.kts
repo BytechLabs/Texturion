@@ -1,5 +1,4 @@
 import com.android.build.api.variant.HostTestBuilder
-import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
 import java.net.URI
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedComponentResult
@@ -15,10 +14,6 @@ plugins {
     // artifacts are push-enabled. The server-side service-account key is the
     // actual secret and never enters the repo.
     alias(libs.plugins.google.services)
-    // Fleet crash reporting (#169): crashes + recorded non-fatals upload to
-    // the Firebase console automatically. Free-unlimited; complements the
-    // on-device crash file + share sheet (#168), which also works offline.
-    alias(libs.plugins.crashlytics)
 }
 
 /**
@@ -36,6 +31,13 @@ val loonextVersionCode = providers.gradleProperty("loonextVersionCode")
     .orNull?.toIntOrNull() ?: 1
 val loonextVersionName = providers.gradleProperty("loonextVersionName")
     .orNull ?: "0.17.2" // x-release-please-version
+
+/**
+ * D146: the PostHog project key, public like the Supabase key below but passed
+ * by the release workflow rather than committed, so a local or rig build sends
+ * no crash reports at all.
+ */
+val loonextPostHogKey = providers.gradleProperty("loonextPostHogKey").orNull?.trim() ?: ""
 
 /**
  * The rig's `nonprod` build (D142) takes every value from these Gradle
@@ -134,6 +136,9 @@ android {
         // Compose test tags reach UIAutomator only when this is on, which is only
         // in the nonprod builds; elsewhere the semantics tree is unchanged.
         buildConfigField("boolean", "TEST_TAGS_AS_RESOURCE_IDS", "false")
+        // D146: error tracking, and which deployment an error came from.
+        buildConfigField("String", "POSTHOG_PROJECT_KEY", buildConfigString(loonextPostHogKey))
+        buildConfigField("String", "TELEMETRY_ENVIRONMENT", "\"local\"")
         // The App Links host the manifest claims (packages/shared/src/app-links.ts).
         manifestPlaceholders["appLinkHost"] = "app.loonext.com"
     }
@@ -157,6 +162,7 @@ android {
         debug {
         }
         release {
+            buildConfigField("String", "TELEMETRY_ENVIRONMENT", "\"production\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -170,6 +176,7 @@ android {
             // Keeps it apart from a production install and production's Firebase
             // app; the rig supplies this package's google-services.json, gitignored.
             applicationIdSuffix = ".nonprod"
+            buildConfigField("String", "TELEMETRY_ENVIRONMENT", "\"rig\"")
             nonprodProperties?.let { props ->
                 signingConfig = signingConfigs.getByName("nonprod")
                 buildConfigField(
@@ -194,9 +201,6 @@ android {
             buildConfigField("boolean", "TEST_TAGS_AS_RESOURCE_IDS", "true")
             // Inert on purpose: this build must never claim a real domain's links.
             manifestPlaceholders["appLinkHost"] = "nonprod.invalid"
-            // The upload would run inside every rig build, from a box whose DNS
-            // refuses vendor hosts, for crash reports nobody reads there.
-            configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
         }
         create("nonprodDebug") {
             initWith(getByName("nonprod"))
@@ -300,7 +304,7 @@ dependencies {
     // Initialized manually from BuildConfig when the founder provisions
     // Firebase (no google-services plugin) — no-ops gracefully until then.
     implementation(libs.firebase.messaging)
-    implementation(libs.firebase.crashlytics)
+    implementation(libs.posthog.android)
     debugImplementation(libs.compose.ui.tooling)
     implementation(libs.compose.ui.tooling.preview)
 

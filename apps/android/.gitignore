@@ -11,3 +11,5 @@ captures/
 app/src/nonprod/google-services.json
 app/src/nonprodDebug/google-services.json
 app/src/nonprod/res/raw/
+# D146: the release workflow writes the R8 mapping id here before it builds.
+app/src/release/assets/posthog-meta.properties

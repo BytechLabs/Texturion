@@ -250,7 +250,10 @@ class LoonextApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // FIRST (#168 part A): chain the default uncaught-exception handler so
+        // D146: PostHog's crash handler goes in first, so the one below chains
+        // into it and a crash is both written to the device and reported.
+        com.loonext.android.core.diag.Telemetry.setup(this)
+        // Then (#168 part A): chain the default uncaught-exception handler so
         // every crash — main thread, SDK worker, timer thread — appends its
         // stack to filesDir/crash-reports/latest.txt (last 20 kept, #197)
         // BEFORE the platform handler runs (crash dialog/ANR semantics stay

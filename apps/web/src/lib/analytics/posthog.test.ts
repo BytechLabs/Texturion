@@ -176,6 +176,71 @@ describe("initPostHog (NEXT_PUBLIC_POSTHOG_KEY optional — absent = off)", () =
   });
 });
 
+describe("exception capture (D146)", () => {
+  it("turns on posthog-js exception capture and scrubs through before_send", async () => {
+    const { initPostHog, scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
+    await initPostHog();
+
+    const [, config] = initSpy.mock.calls[0];
+    expect(config.capture_exceptions).toBe(true);
+    expect(config.autocapture).toBe(false);
+    expect(config.before_send).toBeTypeOf("function");
+    const event = { event: "$exception", properties: {} };
+    expect(config.before_send(event)).toEqual(scrubExceptionEvent(event as never));
+  });
+
+  it("delivers a thrown error's phone number and email address scrubbed", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEPLOY_ENV", "production");
+    const { scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
+    // The shape posthog-js builds for `new Error("+16135551234 a@b.co")`.
+    const out = scrubExceptionEvent({
+      uuid: "u",
+      event: "$exception",
+      properties: {
+        $exception_list: [
+          {
+            type: "Error",
+            value: "+16135551234 a@b.co",
+            mechanism: { handled: false, synthetic: false },
+            stacktrace: {
+              type: "raw",
+              frames: [{ filename: "https://app.loonext.com/_next/static/chunks/a.js", lineno: 1 }],
+            },
+          },
+        ],
+        $current_url: "https://app.loonext.com/inbox?q=Jane",
+      },
+    } as never);
+
+    expect(JSON.stringify(out)).not.toContain("6135551234");
+    expect(JSON.stringify(out)).not.toContain("a@b.co");
+    const [entry] = out?.properties.$exception_list as { value: string }[];
+    expect(entry.value).toBe("[phone redacted] [email redacted]");
+    expect(out?.properties).toMatchObject({
+      $current_url: "https://app.loonext.com/inbox",
+      environment: "production",
+      source: "web",
+    });
+  });
+
+  it("drops a bare network failure, which is the visitor's connection", async () => {
+    const { scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
+    expect(
+      scrubExceptionEvent({
+        uuid: "u",
+        event: "$exception",
+        properties: { $exception_list: [{ type: "TypeError", value: "Failed to fetch" }] },
+      } as never),
+    ).toBeNull();
+  });
+
+  it("passes every other event through untouched", async () => {
+    const { scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
+    const pageview = { uuid: "u", event: "$pageview", properties: { $pathname: "/a" } };
+    expect(scrubExceptionEvent(pageview as never)).toBe(pageview);
+  });
+});
+
 describe("the SDK waits for the page to settle (#640)", () => {
   /** A window whose URL the test can move, as a client navigation does. */
   function stubLocation(href: string) {

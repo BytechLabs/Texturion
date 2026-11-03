@@ -6,9 +6,9 @@ import { cspReportLine, MAX_CSP_REPORT_BYTES } from "@/lib/observability/csp-rep
  * #577 step 2 — where a Content-Security-Policy violation lands.
  *
  * The last pass refused to stage report-only because there was nowhere honest
- * to send reports: Sentry's client path is blocked by ad blockers for a large
- * share of real users, so the data would be silently partial — worse than
- * knowing it is absent. That reasoning is about a THIRD PARTY's collector, and
+ * to send reports: a third-party collector's client path is blocked by ad
+ * blockers for a large share of real users, so the data would be silently
+ * partial, which is worse than knowing it is absent. That reasoning is about a THIRD PARTY's collector, and
  * it stops applying the moment the collector is ours. This is same-origin, so
  * no blocker list contains it and no CORS rule governs it, and it writes to the
  * same Worker log every other line goes to.

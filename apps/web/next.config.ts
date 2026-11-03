@@ -53,6 +53,9 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: APP_VERSION,
   },
+  // D146: maps for PostHog to unminify browser errors with. Only the deploy
+  // workflow asks, and it uploads and deletes them before anything is served.
+  productionBrowserSourceMaps: process.env.UPLOAD_SOURCE_MAPS === "1",
   // Optional isolated build output dir (LOONEXT_DIST_DIR) so a production build
   // can run without colliding with a concurrently-running `next dev` that shares
   // the default `.next`. No effect when the env var is unset.

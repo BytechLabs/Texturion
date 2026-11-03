@@ -9,7 +9,8 @@
  *
  * D8 posture, enforced in config rather than by convention:
  * - autocapture OFF, session recording OFF, surveys OFF — feature events and
- *   UUIDs only, never DOM text.
+ *   UUIDs only, never DOM text. Exception capture is ON (D146), and each
+ *   `$exception` is scrubbed again in `before_send`.
  * - every event passes `sanitize_properties`: URL-ish properties lose their
  *   query string + fragment (search boxes and contact filters can embed
  *   phone numbers), and every remaining string is E.164-redacted / every
@@ -21,7 +22,7 @@
  * no-op (identical to the API's optional POSTHOG_API_KEY). When set, the SDK
  * loads via dynamic `import()` so posthog-js stays out of the main bundle.
  */
-import type { PostHog } from "posthog-js";
+import type { CaptureResult, PostHog } from "posthog-js";
 
 import { clientEnv } from "@/public-env";
 import { CAMPAIGN_PARAMS } from "@/lib/analytics/campaign-params";
@@ -37,9 +38,8 @@ const MAX_URL = 1000;
 
 /**
  * `sanitize_properties` hook (pure, runs on EVERY captured event), delegating
- * to the shared scrubber (lib/observability/scrub.ts, also Sentry's
- * beforeSend): URL-keyed strings (`$current_url`, `$referrer`, `$pathname`,
- * `$session_entry_url`, …) are cut at the query string/fragment at any
+ * to the shared scrubber (lib/observability/scrub.ts): URL-keyed strings
+ * (`$current_url`, `$referrer`, `$pathname`, `$session_entry_url`, …) are cut at the query string/fragment at any
  * nesting depth, every other string is phone-redacted, every `*name` key is
  * stripped. UUIDs, counts, and flags pass through untouched (D8).
  */
@@ -47,6 +47,35 @@ export function sanitizeEventProperties(
   properties: Record<string, unknown>,
 ): Record<string, unknown> {
   return scrubUnknown(properties) as Record<string, unknown>;
+}
+
+/**
+ * `before_send` for `$exception` (D146, D8): drop a bare network failure,
+ * which is the visitor's connectivity rather than a bug, and run the message,
+ * the stack and everything around them through the scrubber, and say which
+ * deployment it came from. Every other event passes untouched;
+ * `sanitize_properties` has already seen it.
+ */
+export function scrubExceptionEvent(event: CaptureResult | null): CaptureResult | null {
+  if (event === null || event.event !== "$exception") return event;
+  const list: unknown = event.properties.$exception_list;
+  const networkFailure =
+    Array.isArray(list) &&
+    list.some(
+      (entry: { type?: unknown; value?: unknown }) =>
+        entry.type === "TypeError" &&
+        typeof entry.value === "string" &&
+        /failed to fetch|load failed|networkerror|network request failed/i.test(entry.value),
+    );
+  if (networkFailure) return null;
+  return {
+    ...event,
+    properties: {
+      ...sanitizeEventProperties(event.properties),
+      environment: clientEnv.NEXT_PUBLIC_DEPLOY_ENV ?? "local",
+      source: "web",
+    },
+  };
 }
 
 let loader: Promise<PostHog | null> | null = null;
@@ -101,6 +130,10 @@ function loadPostHog(key: string): Promise<PostHog | null> {
         // once a workspace (company UUID) is identified.
         person_profiles: "identified_only",
         sanitize_properties: (properties) => sanitizeEventProperties(properties),
+        // D146: uncaught errors and unhandled rejections become `$exception`
+        // events, scrubbed like every other event before they leave.
+        capture_exceptions: true,
+        before_send: (event) => scrubExceptionEvent(event),
         // Runs inside init, before the SDK's own first pageview.
         loaded: (client) => {
           const moved = landing !== undefined && window.location.href !== landing;

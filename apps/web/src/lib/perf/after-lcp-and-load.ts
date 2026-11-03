@@ -16,7 +16,7 @@ let settled: Promise<void> | undefined;
  * 10 s after navigation start at the latest. Every page shares the one
  * promise.
  *
- * The telemetry SDKs (Sentry, PostHog) and gtm.js start downloading here. A
+ * The telemetry SDK (PostHog) and gtm.js start downloading here. A
  * script that downloads or runs before the LCP frame is presented joins the
  * LCP that Lighthouse simulates, and on a CDN the SDKs used to arrive first
  * (#640). Waiting for load alone is not enough, because load often fires

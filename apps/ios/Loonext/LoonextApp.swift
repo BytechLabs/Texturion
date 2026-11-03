@@ -12,6 +12,9 @@ struct LoonextApp: App {
     init() {
         // Paper & Olive fonts (Golos + Bricolage) before the first frame.
         DesignFonts.register()
+        // D146: PostHog's crash reporter first, so the exception handler
+        // CrashDiagnostics installs next chains into it.
+        Telemetry.setup()
         // #485: subscribe to MetricKit before anything else can crash. Apple
         // delivers a pending crash payload shortly after launch, so a
         // subscriber registered late is a payload nobody receives.

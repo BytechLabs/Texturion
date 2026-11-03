@@ -6,7 +6,7 @@ import {
   PRODUCTION_HEALTH_CACHE_MS,
 } from "../limits";
 import { Refusal } from "../refusal";
-import { sendProductionEvent } from "../sentry";
+import { sendProductionEvent } from "../posthog";
 import { SPEC } from "../setup/spec";
 import { invalidateOwned, KEYS, type PartitionRecord, type StandingNumber } from "./partition";
 
@@ -158,7 +158,7 @@ async function listedWithoutGroup(ctx: Ctx, phoneNumber: string): Promise<boolea
   }
 }
 
-/** Stops ordering for good, and says why in production's Sentry. Deletes nothing. */
+/** Stops ordering for good, and says why in production's PostHog. Deletes nothing. */
 async function stop(ctx: Ctx, reason: string, detail: string): Promise<"failed"> {
   await ctx.store.put(ORDER_KEYS.stopped, { at: ctx.now(), reason });
   await sendProductionEvent(ctx, {

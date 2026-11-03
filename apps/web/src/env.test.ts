@@ -102,44 +102,38 @@ describe("public env validation (SPEC §3, §10)", () => {
     expect(publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY).toBeUndefined();
   });
 
-  // Sentry DSN + PostHog key are optional: unset means the telemetry client
-  // in question is silently off (lib/observability/sentry.ts,
-  // lib/analytics/posthog.ts) — dev/CI/previews need neither.
-  it("exposes the Sentry DSN and PostHog key when configured", async () => {
+  // The PostHog key is optional: unset means analytics and error tracking are
+  // silently off (lib/analytics/posthog.ts); dev/CI/previews need neither.
+  it("exposes the PostHog key and the deployment when configured", async () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", VALID_URL);
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", VALID_KEY);
     vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
-    vi.stubEnv(
-      "NEXT_PUBLIC_SENTRY_DSN",
-      "https://abc123@o4506000.ingest.us.sentry.io/4506001",
-    );
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_0123456789abcdef");
+    vi.stubEnv("NEXT_PUBLIC_DEPLOY_ENV", "production");
 
     const { publicEnv } = await importEnv();
-    expect(publicEnv.NEXT_PUBLIC_SENTRY_DSN).toBe(
-      "https://abc123@o4506000.ingest.us.sentry.io/4506001",
-    );
     expect(publicEnv.NEXT_PUBLIC_POSTHOG_KEY).toBe("phc_0123456789abcdef");
+    expect(publicEnv.NEXT_PUBLIC_DEPLOY_ENV).toBe("production");
   });
 
-  it("rejects a Sentry DSN that is not a URL", async () => {
+  it("rejects a deployment name it does not know", async () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", VALID_URL);
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", VALID_KEY);
     vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
-    vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "not-a-dsn");
+    vi.stubEnv("NEXT_PUBLIC_DEPLOY_ENV", "staging");
 
-    await expect(importEnv()).rejects.toThrowError(/NEXT_PUBLIC_SENTRY_DSN/);
+    await expect(importEnv()).rejects.toThrowError(/NEXT_PUBLIC_DEPLOY_ENV/);
   });
 
-  it("treats blank Sentry/PostHog values as not configured", async () => {
+  it("treats blank PostHog and deployment values as not configured", async () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", VALID_URL);
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", VALID_KEY);
     vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
-    vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "");
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_DEPLOY_ENV", "");
 
     const { publicEnv } = await importEnv();
-    expect(publicEnv.NEXT_PUBLIC_SENTRY_DSN).toBeUndefined();
     expect(publicEnv.NEXT_PUBLIC_POSTHOG_KEY).toBeUndefined();
+    expect(publicEnv.NEXT_PUBLIC_DEPLOY_ENV).toBeUndefined();
   });
 });

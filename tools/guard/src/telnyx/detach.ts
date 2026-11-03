@@ -1,7 +1,7 @@
 import type { DetachRequest } from "@loonext/rig-protocol";
 
 import type { Ctx } from "../context";
-import { sendProductionEvent } from "../sentry";
+import { sendProductionEvent } from "../posthog";
 import { SPEC } from "../setup/spec";
 import { dayOf } from "../state/counters";
 import { readTier } from "../state/ledger";

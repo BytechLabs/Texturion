@@ -1,6 +1,6 @@
 import type { Ctx } from "./context";
 import { Refusal } from "./refusal";
-import { sendProductionEvent } from "./sentry";
+import { sendProductionEvent } from "./posthog";
 
 /**
  * The weekly key inventory (docs/RIG.md). Telnyx

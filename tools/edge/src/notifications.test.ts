@@ -19,7 +19,7 @@ let guard: FakeGuard;
 let env: Env;
 let balance: unknown;
 let events: unknown;
-/** Every request the edge sent past the guard, Sentry included. None reaches the network. */
+/** Every request the edge sent past the guard, PostHog included. None reaches the network. */
 let outbound: { url: string; event: Record<string, unknown> | null }[];
 
 beforeEach(async () => {
@@ -27,8 +27,11 @@ beforeEach(async () => {
   outbound = [];
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const request = new Request(input, init);
-    const lines = (await request.text()).split("\n");
-    outbound.push({ url: request.url, event: lines[2] ? (JSON.parse(lines[2]) as Record<string, unknown>) : null });
+    const body = await request.text();
+    const event = request.url.includes("posthog.com")
+      ? ((JSON.parse(body) as { properties: Record<string, unknown> }).properties)
+      : null;
+    outbound.push({ url: request.url, event });
     return new Response("{}", { status: 200 });
   });
   guard = fakeGuard();
@@ -39,10 +42,7 @@ beforeEach(async () => {
     if (c.path.startsWith("/telnyx/v2/notification_events")) return Response.json(events);
     return undefined;
   };
-  env = await edgeEnv(guard, {
-    SENTRY_PROD_DSN: "https://prodkey@o1.ingest.sentry.io/202",
-    SENTRY_SYNTHETIC_DSN: "https://synthetickey@o1.ingest.sentry.io/101",
-  });
+  env = await edgeEnv(guard, { POSTHOG_PROJECT_KEY: "phc_edge_test_key" });
 });
 
 afterEach(() => {
@@ -64,8 +64,8 @@ function signedNotice(name: string, id = `ntc-${Math.random()}`): Promise<Reques
   return telnyxDelivery(`/t/n/${NOTIFICATIONS_SECRET}`, { data: { id, event_type: name, payload: {} } });
 }
 
-const toProduction = () => outbound.filter((o) => o.url.includes("/api/202/"));
-const toSynthetic = () => outbound.filter((o) => o.url.includes("/api/101/"));
+const toProduction = () => outbound.filter((o) => o.event?.environment === "production");
+const toSynthetic = () => outbound.filter((o) => o.event?.environment === "synthetic");
 
 describe("account notices", () => {
   it("is an empty 404 without the secret", async () => {
@@ -87,8 +87,8 @@ describe("account notices", () => {
     expect((await call(notice("Suspicious Outbound Voice Traffic"), env)).status).toBe(200);
     expect(halts()).toEqual([]);
     expect(toProduction()).toEqual([]);
-    expect(toSynthetic().map((o) => o.event?.fingerprint)).toEqual([["synthetic-infra", "telnyx-notice"]]);
-    // The existing project's DSN: environment is what keeps these apart from production's own events.
+    expect(toSynthetic().map((o) => o.event?.$exception_fingerprint)).toEqual(["synthetic-infra:telnyx-notice"]);
+    // One project: environment is what keeps these out of production's alerts.
     expect(toSynthetic().map((o) => o.event?.environment)).toEqual(["synthetic"]);
   });
 
@@ -146,14 +146,14 @@ describe("account notices", () => {
     guard.respond = haltRefused;
     expect((await call(await signedNotice("Suspicious Outbound Voice Traffic"), env)).status).toBe(200);
     expect(toProduction()).toHaveLength(1);
-    expect(toProduction()[0].event).toMatchObject({ fingerprint: ["ops", "telnyx-account-signal"] });
+    expect(toProduction()[0].event).toMatchObject({ $exception_fingerprint: "ops:telnyx-account-signal" });
     expect(toProduction()[0].event?.release).toBeUndefined();
   });
 
   it("answers 503 so Telnyx retries when neither the halt nor the alert can land", async () => {
     guard.respond = haltRefused;
-    const noDsn = { ...env, SENTRY_PROD_DSN: undefined };
-    expect((await call(await signedNotice("Suspicious Outbound Voice Traffic"), noDsn)).status).toBe(503);
+    const noKey = { ...env, POSTHOG_PROJECT_KEY: undefined };
+    expect((await call(await signedNotice("Suspicious Outbound Voice Traffic"), noKey)).status).toBe(503);
     expect(outbound).toEqual([]);
   });
 

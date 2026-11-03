@@ -28,7 +28,7 @@ export default function AppError({
   const t = useT();
   useEffect(() => {
     // Surface it for the browser console; the digest is the server-correlated
-    // id Next.js assigns. Also ship it to Sentry — an authenticated-surface
+    // id Next.js assigns. Also ship it to PostHog: an authenticated-surface
     // crash caught here would otherwise stay invisible to us (only the global
     // and root boundaries reported before).
     console.error("App segment error", error);

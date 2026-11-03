@@ -141,7 +141,7 @@ export function MapIsland({
       createTileHealth({
         onUnhealthy: ({ errors, sample }) => {
           setTilesFailing(true);
-          // Client Sentry is unreliable here (ad blockers), so this is a console
+          // Client error tracking is unreliable here (ad blockers), so this is a console
           // marker a support session can find, plus the visible notice below. The
           // point is that SOMEBODY knows, not that it retries.
           console.error(

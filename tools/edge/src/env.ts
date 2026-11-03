@@ -41,13 +41,12 @@ export interface Env {
   NOTIFICATIONS_SECRET_SHA256?: string;
 
   /**
-   * The existing Sentry project's ingest-only DSN (FA7: no new project). Its
-   * events carry environment `synthetic`, which keeps notices that could not be
-   * corroborated apart from production's own.
+   * D146: the production PostHog project's public capture key. Notices that
+   * could not be corroborated carry environment `synthetic`, which PostHog's
+   * alerts ignore; the account signals and the rig's integrity notices carry
+   * `production`.
    */
-  SENTRY_SYNTHETIC_DSN?: string;
-  /** Production's API project: only the account signals and the rig's integrity alerts. */
-  SENTRY_PROD_DSN?: string;
+  POSTHOG_PROJECT_KEY?: string;
 
   /**
    * The sealed secret bundle, split because a Worker secret holds at most

@@ -3,41 +3,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Root error boundary guards: branded retry surface (v4 palette, wordmark,
- * reset() button) plus the Sentry hand-off — captureException only when
- * NEXT_PUBLIC_SENTRY_DSN is configured, silent no-op otherwise, and never a
- * rejection (the error page must not itself error).
+ * reset() button) plus the PostHog hand-off: captureException only when
+ * PostHog is configured, silent no-op otherwise, and never a rejection (the
+ * error page must not itself error).
  */
 
 const VALID_URL = "https://abcdefghijkl.supabase.co";
 const VALID_KEY = "sb_publishable_0123456789abcdef";
 const VALID_API = "https://api.loonext.com";
-const DSN =
-  "https://abc123def456@o4506000000000.ingest.us.sentry.io/4506000000001";
 
-// The SDK is loaded via dynamic import inside initSentryClient — mock it
-// so the tests can prove exactly when (and with what) capture fires.
+// initPostHog resolves the running client, or null when no key is set.
 const { captureSpy, initSpy } = vi.hoisted(() => ({
   captureSpy: vi.fn(),
   initSpy: vi.fn(),
 }));
-vi.mock("@sentry/browser", () => ({
-  captureException: captureSpy,
-  init: initSpy,
-}));
+vi.mock("@/lib/analytics/posthog", () => ({ initPostHog: initSpy }));
 
-// error.tsx reads the DSN at module load, so each test stubs the
-// required NEXT_PUBLIC_* set first and imports a fresh copy.
-async function importBoundary(dsn: string | undefined) {
+async function importBoundary(configured: boolean) {
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", VALID_URL);
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", VALID_KEY);
   vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
-  vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", dsn);
+  initSpy.mockResolvedValue(configured ? { captureException: captureSpy } : null);
   return import("./error");
 }
 
 beforeEach(() => {
   vi.resetModules();
   captureSpy.mockReset();
+  initSpy.mockReset();
 });
 
 afterEach(() => {
@@ -45,19 +38,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("reportBoundaryError (Sentry hand-off)", () => {
-  it("is a silent no-op when the DSN is not configured", async () => {
-    const { reportBoundaryError } = await importBoundary(undefined);
+describe("reportBoundaryError (PostHog hand-off)", () => {
+  it("is a silent no-op when PostHog is not configured", async () => {
+    const { reportBoundaryError } = await importBoundary(false);
     await reportBoundaryError(new Error("boom"));
     expect(captureSpy).not.toHaveBeenCalled();
   });
 
-  it("captures the error when the DSN is set", async () => {
-    const { reportBoundaryError } = await importBoundary(DSN);
+  it("captures the error, with the digest that joins it to the server log", async () => {
+    const { reportBoundaryError } = await importBoundary(true);
     const error = Object.assign(new Error("boom"), { digest: "d1g3st" });
     await reportBoundaryError(error);
     expect(captureSpy).toHaveBeenCalledTimes(1);
-    expect(captureSpy).toHaveBeenCalledWith(error);
+    expect(captureSpy).toHaveBeenCalledWith(error, { digest: "d1g3st" });
   });
 
   it("never rejects, even when the SDK throws", async () => {
@@ -67,7 +60,7 @@ describe("reportBoundaryError (Sentry hand-off)", () => {
     captureSpy.mockImplementation(() => {
       throw new Error("sdk exploded");
     });
-    const { reportBoundaryError } = await importBoundary(DSN);
+    const { reportBoundaryError } = await importBoundary(true);
     await expect(reportBoundaryError(new Error("boom"))).resolves.toBe(
       undefined,
     );
@@ -77,7 +70,7 @@ describe("reportBoundaryError (Sentry hand-off)", () => {
 
 describe("root error page markup", () => {
   async function render(digest?: string) {
-    const { default: RootError } = await importBoundary(undefined);
+    const { default: RootError } = await importBoundary(false);
     const error = Object.assign(new Error("boom"), { digest });
     return renderToStaticMarkup(
       <RootError error={error} reset={() => undefined} />,

@@ -9,8 +9,8 @@ import com.loonext.android.core.model.PhoneNumberSummary
  *
  * A call rings a bounded number of phones. A crew larger than that used to
  * have the same members left out of every call, and nothing in the product
- * said so — the warning went to Sentry, not to the owner and not to the
- * people who were not ringing.
+ * said so: the warning went to our error tracker, not to the owner and not
+ * to the people who were not ringing.
  *
  * Null — say nothing — is the answer for almost every workspace, and that
  * matters: a line about a limit nobody is near is noise that trains people to
