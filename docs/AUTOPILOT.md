@@ -34,5 +34,5 @@ below narrows or adds to the skill; the skill's rules otherwise apply.
 Competitors and adjacent products (OpenPhone, Podium, Heymarket, Textline,
 Google Voice), SMB field-service workflow trends, A2P/10DLC and carrier
 policy changes, Android/iOS platform capabilities, our own usage economics
-and Sentry telemetry. Persona walkthroughs: a plumber's dispatcher, a solo
+and PostHog telemetry. Persona walkthroughs: a plumber's dispatcher, a solo
 landscaper, a six-person HVAC crew.

@@ -194,7 +194,7 @@ create trigger port_requests_scrub_credentials
 Worker reads/writes with the `sb_secret_` key like every other table.
 
 **PII policy (SPEC §10, extended):** `account_number` and `pin_passcode` are **losing-carrier
-credentials**, not customer PII we telemeter — they never reach Sentry/PostHog (the D8 `beforeSend`
+credentials**, not customer PII we telemeter — they never reach PostHog (the D8 `beforeSend`
 redaction already strips bodies; add these column names to the never-log list). `pin_passcode` is
 stored because Telnyx requires it in the order payload and a rejected port must be re-submittable
 without re-collecting it; it is written **once** and never returned in any `/v1` response body (the
@@ -520,7 +520,7 @@ P6. On messaging_port_status → 'ported' (porting_order.messaging_changed):
 ```
 
 **Failure handling** (mirrors `recordProvisionFailure`): a step error sets `port_requests.rejection_reason`
-+ Sentry event; the row is left in a resumable status; the daily cron retries with backoff up to a bounded
++ PostHog exception; the row is left in a resumable status; the daily cron retries with backoff up to a bounded
 attempt count. A **carrier rejection** is different from a step error — it arrives as a Telnyx
 `exception` status via webhook, not a thrown error, and routes to the fix-and-resubmit UX (§6/§8), not a
 silent retry.
@@ -612,7 +612,7 @@ New handler `handlePortingEvent(env, event)` (module `porting.ts`), dispatching 
   `rejection_reason`/a comments field **(verify in build:** whether comments warrant their own column;
   MVP can fold an actionable comment into `rejection_reason` when status is `exception`).
 
-- **`porting_order.split` / `.deleted` / `loa_updated`** — MVP: log + Sentry breadcrumb + let the daily
+- **`porting_order.split` / `.deleted` / `loa_updated`** — MVP: log + let the daily
   cron reconcile from `GET /v2/porting_orders/{id}`. (`split` shouldn't occur — we port one number per
   order.)
 
@@ -626,7 +626,7 @@ Mirrors the **registration poller** exactly (webhooks primary, cron authoritativ
 
 **Orphan-scan exclusion (required edit to `reconcileNumbers` in `provisioning.ts`).** The orphan scan in
 `reconcileNumbers` builds `knownE164`/`knownIds` from `phone_numbers` rows and pages ALL
-`GET /v2/phone_numbers`, flagging (Sentry) any Telnyx-owned number no row knows. A `source='ported'` row
+`GET /v2/phone_numbers`, flagging (PostHog) any Telnyx-owned number no row knows. A `source='ported'` row
 is `status='provisioning'` with `number_e164=NULL` **and** `telnyx_phone_number_id=NULL` right up until
 P6a — so it contributes **nothing** to `knownE164`/`knownIds`. The instant voice ports, the number becomes
 Telnyx-owned and appears in the listing with a real id that no row knows → `orphansFlagged++` → an operator
@@ -945,7 +945,7 @@ cancelled it or because it was abandoned after a rejection nobody resolved.
 `phone_numbers` row linked by `port_requests.phone_number_id` was a placeholder
 for a number that never went live, so it is released (§3.8) rather than left
 occupying a slot on the plan. Best-effort: a release failure is reported to
-Sentry and does not block the cancellation, because the port is already over.
+PostHog and does not block the cancellation, because the port is already over.
 
 ### The bridge number is NOT released, and that is deliberate
 

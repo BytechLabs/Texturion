@@ -168,8 +168,8 @@ limit, which is exactly how the first attempts failed (silently, with an empty
 error message). The tag names must match the config's component names.
 
 **Release traceability.** `ship.yml` stamps the deployed commit into the API Worker
-(`--var GIT_SHA:<sha>`) and Sentry reports it as the release, so a production
-error maps to the exact commit that shipped it. That is what makes Sentry's
+(`--var GIT_SHA:<sha>`) and PostHog reports it as the release, so a production
+error maps to the exact commit that shipped it. That is what makes PostHog's
 regression detection and suspect-commits work.
 
 ## What runs when

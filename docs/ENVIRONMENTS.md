@@ -28,7 +28,7 @@ A green gate on `main` deploys nothing. Production changes when the release PR
 merges, and `main.yml` orders it: gate → release → ship. `ship.yml` pushes the
 migrations, deploys both Workers, purges the cache, and builds the two phone
 release artifacts. One version exists at a time; the deployed commit is stamped
-into the Worker and reported to Sentry as the release. `docs/RELEASING.md` is
+into the Worker and reported to PostHog as the release. `docs/RELEASING.md` is
 the whole procedure.
 
 The gate runs on every commit exactly as before — what moved is only *when* a

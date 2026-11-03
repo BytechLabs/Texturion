@@ -44,7 +44,7 @@ prerequisites flagged by the marketing/legal docs.
       `https://api.loonext.com/webhooks/telnyx` and its id captured as
       `TELNYX_VOICE_CONNECTION_ID`; account has US/CA + 10DLC
       and funded balance ([04](./04-telnyx.md)).
-- [ ] Resend sending domain verified; `RESEND_FROM` on that domain. Sentry DSN
+- [ ] Resend sending domain verified; `RESEND_FROM` on that domain. PostHog project key
       captured. VAPID pair generated ([05](./05-workers-deploy.md) §1).
 - [ ] All **25** launch-required API Worker secrets set on `loonext-api` —
       including the 4 `STRIPE_MODULE_*_PRICE_ID` secrets, which `/health` does
@@ -155,7 +155,7 @@ phones (or one phone + the Telnyx test tooling).
    inbound still works, and that the `0 14 * * *` grace cron would release on day 30
    ([08](./08-operations.md)).
 
-**Pass criteria:** every step completes with no Sentry error and no webhook stuck
+**Pass criteria:** every step completes with no PostHog error issue and no webhook stuck
 with `processed_at IS NULL` (the `*/5` sweeper should clear transient failures).
 
 ---

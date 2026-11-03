@@ -79,12 +79,11 @@ Set each with `wrangler secret put <NAME> --config apps/api/wrangler.jsonc`
 ### Observability, push, captcha
 | Secret | Req | Source / value |
 |---|---|---|
-| `SENTRY_DSN` | Req | Sentry → Project → Client Keys (DSN) |
 | `VAPID_PUBLIC_KEY` | Req | `npx web-push generate-vapid-keys` (once, forever) — base64url P-256 point |
 | `VAPID_PRIVATE_KEY` | Req | same command — base64url private scalar |
 | `FCM_SERVICE_ACCOUNT_JSON` | Opt | Firebase **service-account key JSON** (the whole downloaded file, pasted as one value) for native Android/iOS device push over FCM HTTP v1 (#151). Unset = native pushes are logged no-ops; Web Push is unaffected. Founder steps in §6 (Firebase row) |
 | `TURNSTILE_SECRET_KEY` | Opt | Cloudflare Turnstile **secret** for server-side verification on `/contact`. Unset = honeypot + rate-limit + daily-cap only |
-| `POSTHOG_API_KEY` | Opt | PostHog Cloud project key. Unset = analytics is a silent no-op |
+| `POSTHOG_API_KEY` | Req | PostHog Cloud project key. Every error report, heartbeat and gauge goes through it; production refuses to boot without it |
 
 ### Do NOT set in production
 | Secret | Why |
@@ -92,9 +91,9 @@ Set each with `wrangler secret put <NAME> --config apps/api/wrangler.jsonc`
 | `TELNYX_API_BASE`, `STRIPE_API_BASE` | Vendor base-URL overrides for the hermetic E2E harness only. Leave **unset** so clients hit the real vendor hosts |
 
 **Required count: 21 secrets** (Supabase 3 · Telnyx 3 · Stripe static 2 · Stripe
-catalog 6 · Resend 2 · Origins 2 · Sentry 1 · VAPID 2). Plus the recommended
+catalog 6 · Resend 2 · Origins 2 · PostHog 1 · VAPID 2). Plus the recommended
 optionals: `SITE_ORIGIN`, `RESEND_REPLY_TO`, the 4 `STRIPE_MODULE_*_PRICE_ID`,
-`TURNSTILE_SECRET_KEY`, `POSTHOG_API_KEY`, and — once the native mobile apps
+`TURNSTILE_SECRET_KEY`, and — once the native mobile apps
 ship — `FCM_SERVICE_ACCOUNT_JSON`.
 
 ---

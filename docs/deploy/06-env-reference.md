@@ -9,7 +9,7 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 - **API Worker secrets** are validated at startup by the zod schema in
   `apps/api/src/env.ts:22-104`; a missing/invalid one fails loudly and `/health`
   re-validates (`apps/api/src/index.ts:88-92`). There are **25 required for
-  launch + 1 optional** (`POSTHOG_API_KEY`). Four of the 25 — the
+  launch**, `POSTHOG_API_KEY` among them. Four of the 25 — the
   `STRIPE_MODULE_*_PRICE_ID` add-on price ids — are *optional in the schema*
   (the Worker boots without them, `apps/api/src/env.ts:64-67`) but
   **launch-required**: with any of them unset, that opt-in module is reported
@@ -24,7 +24,7 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 
 ---
 
-## A. API Worker secrets (`loonext-api`) — 25 required for launch + 1 optional
+## A. API Worker secrets (`loonext-api`) — 25 required for launch
 
 | Name | Secret? | Source (dashboard) | Example format |
 |------|:------:|--------------------|----------------|
@@ -39,7 +39,6 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | no (**required for text-to-pay, #224**) | Stripe → Developers → Webhooks → **add a second endpoint** at the same `/webhooks/stripe` URL, listening to *events on connected accounts* → Signing secret | `whsec_xxxxxxxxxxxxxxxx` |
 | `RESEND_API_KEY` | yes | Resend → API Keys | `re_xxxxxxxxxxxxxxxx` |
 | `RESEND_FROM` | yes | Operator-set; address at the verified Resend domain | `Loonext <notifications@loonext.com>` |
-| `SENTRY_DSN` | yes | Sentry → Project → Client Keys (DSN) | `https://abc123@o0.ingest.sentry.io/0` |
 | `APP_ORIGIN` | yes | Operator decision (app origin) | `https://app.loonext.com` |
 | `API_ORIGIN` | yes | Operator decision (this Worker's origin) | `https://api.loonext.com` |
 | `SITE_ORIGIN` | **required with the D27 host split** (optional otherwise) | Operator decision (marketing origin) | `https://loonext.com` |
@@ -63,7 +62,7 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `STRIPE_MODULE_VOICE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Calling add-on, $8/mo | `price_xxxxxxxxxxxx` |
 | `STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Extra storage add-on, $5/mo | `price_xxxxxxxxxxxx` |
 | `STRIPE_MODULE_REGIONS_CA_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Canada numbers add-on, $5/mo. Set it now so the live flip is complete, but the module itself stays **coming soon**: the API refuses to sell `regions_ca` regardless of the price id until multi-region provisioning ships (`apps/api/src/billing/company-modules.ts:26-33`). | `price_xxxxxxxxxxxx` |
-| `POSTHOG_API_KEY` | yes — **OPTIONAL** | PostHog → Project Settings → Project API key | `phc_xxxxxxxxxxxx` |
+| `POSTHOG_API_KEY` | yes — **launch-required** (schema-optional; production refuses to boot without it) | PostHog → Project Settings → Project API key | `phc_xxxxxxxxxxxx` |
 | `STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — extra number on Starter. Unset does NOT give a free number: `billing/extra-numbers.ts` fails CLOSED and refuses to sell one. | `price_xxxxxxxxxxxx` |
 | `STRIPE_EXTRA_NUMBER_PRO_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — extra number on Pro. Same fail-closed behaviour as the Starter id. | `price_xxxxxxxxxxxx` |
 | `TELNYX_WEBRTC_CONNECTION_ID` | yes — **required for calling** | Telnyx → Voice → Credential connection used to mint softphone tokens. Unset boots fine and the token endpoint 503s honestly, which means **the browser phone does not work** — every call feature is dark. | `2XXXXXXXXXXXXXXXXX` |
@@ -93,13 +92,13 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `FCM_OAUTH_TOKEN_URL` | no — **rig only** | D142 seam: replaces Google's OAuth token endpoint, which `notifications/fcm.ts` otherwise uses. The rig refuses to start without it or with a `googleapis.com` host, although in rig mode no send asks a token endpoint. **Unset in production**, and refused there at start-up. | *(unset)* |
 
 **Validation notes** (`apps/api/src/env.ts`): `SUPABASE_URL`, `SUPABASE_JWKS_URL`,
-`SENTRY_DSN`, `APP_ORIGIN`, `API_ORIGIN` must parse as URLs (`z.url()`, lines
+`APP_ORIGIN`, `API_ORIGIN` must parse as URLs (`z.url()`, lines
 23,25,38,39,41); the rest are non-empty strings (`z.string().min(1)`).
 Schema-optional secrets: the four `STRIPE_MODULE_*_PRICE_ID` ids
 (`apps/api/src/env.ts:64-67` — boot succeeds, but the corresponding add-on is
 unsellable until each is set; see the header note) and `POSTHOG_API_KEY`
-(`apps/api/src/env.ts:75`) — unset, every analytics capture is a silent no-op
-(`apps/api/src/analytics/posthog.ts:31`). Set them all with `wrangler secret put`
+(optional in the schema so local runs send nothing, but production refuses to
+boot without it: `apps/api/src/environments/policy.ts`). Set them all with `wrangler secret put`
 — see [05](./05-workers-deploy.md) §2. `wrangler.jsonc` `vars` is intentionally
 empty (`apps/api/wrangler.jsonc:64`).
 
@@ -252,7 +251,7 @@ stays the one inventory.
 the secrets and variables that `guard.yml`, `rig-cloud.yml`, `rig-secrets.yml`
 and `ops.yml` read. `docs/RIG.md` FA9 lists every name in one table, with the
 founder action that supplies each vendor value. Three of them reach
-production's own services: `SENTRY_PROD_DSN` (ingest-only, in `guard` and
+production's own services: `POSTHOG_PROJECT_KEY` (the public project key, in `guard` and
 `rig-cloud`), `AGENT_DIAG_DATABASE_URL` in `guard` (a read-only production
 database login that sees only the non-personal `ops_diag` views), and the
 `production-ops` pair below.
@@ -288,14 +287,15 @@ These are configured in a vendor dashboard and have **no** app env var:
 
 ---
 
-## E. PostHog — optional product analytics
+## E. PostHog — error tracking, health events and product analytics
 
-PostHog **is** integrated in the API Worker (`apps/api/src/analytics/posthog.ts`):
-a single `capture` helper posts the north-star funnel events to PostHog Cloud US.
-Configuration is one optional secret, `POSTHOG_API_KEY` (section A) — when it is
-unset every capture is a silent no-op (`apps/api/src/analytics/posthog.ts:31`),
-so leaving it out is safe. `distinct_id` is always the **company_id** — never a
-person, never PII (`apps/api/src/analytics/posthog.ts:40`). There is still no
-web-side PostHog client.
+The API Worker and the call Durable Object send exceptions, ops notices,
+heartbeats, gauges and the north-star funnel events to PostHog Cloud US
+(`apps/api/src/observability/capture.ts`, `apps/api/src/analytics/posthog.ts`).
+The one secret is `POSTHOG_API_KEY` (section A): local runs without it send
+nothing, and production refuses to boot without it. Funnel events use
+`distinct_id = company_id`, never a person. The web app has its own client
+(`NEXT_PUBLIC_POSTHOG_KEY`, section B). What is sent, and the dashboards and
+alerts built on it, are in [docs/MONITORING.md](../MONITORING.md).
 
 Next: [07 — go-live checklist](./07-go-live-checklist.md).

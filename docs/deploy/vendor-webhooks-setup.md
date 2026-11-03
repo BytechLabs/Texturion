@@ -184,8 +184,7 @@ through `apps/api/src/observability/capture.ts`, which scrubs phone numbers,
 addresses, query strings and request bodies before anything leaves the Worker
 (`apps/api/src/observability/scrub.ts`). PostHog's error tracking, dashboard and
 alerts are configured in PostHog itself (D146, [docs/MONITORING.md](../MONITORING.md));
-no webhook of ours is registered with PostHog. Nothing is sent to Sentry, though
-`SENTRY_DSN` is still validated at boot until it leaves the env schema.
+no webhook of ours is registered with PostHog.
 
 ## PostHog
 

@@ -21,7 +21,7 @@ You should already have (from [02](./02-supabase.md)–[04](./04-telnyx.md)):
   exists in §4), restricted `STRIPE_SECRET_KEY`.
 - `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`, `TELNYX_VOICE_CONNECTION_ID` (the
   Call-Control application id from [04](./04-telnyx.md) §1).
-- Resend key + verified `RESEND_FROM`; Sentry DSN.
+- Resend key + verified `RESEND_FROM`; the PostHog project key.
 - The two chosen origins: `APP_ORIGIN=https://app.loonext.com`,
   `API_ORIGIN=https://api.loonext.com` (PLACEHOLDERS).
 - Optionally a PostHog project API key (`POSTHOG_API_KEY`) — analytics are a
@@ -89,7 +89,7 @@ pnpm exec wrangler secret put STRIPE_SECRET_KEY
 pnpm exec wrangler secret put STRIPE_WEBHOOK_SECRET
 pnpm exec wrangler secret put RESEND_API_KEY
 pnpm exec wrangler secret put RESEND_FROM
-pnpm exec wrangler secret put SENTRY_DSN
+pnpm exec wrangler secret put POSTHOG_API_KEY
 pnpm exec wrangler secret put APP_ORIGIN
 pnpm exec wrangler secret put API_ORIGIN
 pnpm exec wrangler secret put VAPID_PUBLIC_KEY
@@ -127,7 +127,7 @@ Full descriptions and formats are in [06 — env reference](./06-env-reference.m
 > **Chicken-and-egg with `STRIPE_WEBHOOK_SECRET`:** you only get the `whsec_` after
 > creating the Stripe endpoint in §4 (which needs the live API domain). It's fine to
 > deploy first with a placeholder, then set the real secret and re-verify `/health`.
-> `SUPABASE_URL`, `SUPABASE_JWKS_URL`, `SENTRY_DSN`, `APP_ORIGIN`, `API_ORIGIN` must
+> `SUPABASE_URL`, `SUPABASE_JWKS_URL`, `APP_ORIGIN`, `API_ORIGIN` must
 > all be valid **URLs** (zod `z.url()`, `apps/api/src/env.ts:23,25,38,39,41`) or
 > startup fails.
 
@@ -150,8 +150,8 @@ cron triggers** (§6) — no dashboard action needed.
 declares no vars, so a deploy without them drops what the last one stamped.
 Without `DEPLOY_ENV` the Worker runs as `local` (D142): production's start-up
 refusals (a stub `TELNYX_API_BASE`, a database on the rig) stop applying, and
-Sentry files its events under `development`. Without `GIT_SHA` Sentry loses the
-release. `wrangler rollback` restores a previous version with its vars, so a
+PostHog files its events under `local`, which no alert reads. Without `GIT_SHA`
+PostHog loses the release. `wrangler rollback` restores a previous version with its vars, so a
 rollback needs neither flag.
 
 ### Web Worker (`loonext-web`) — MUST build on Linux/WSL
@@ -306,17 +306,16 @@ Operational details in [08 — operations](./08-operations.md).
 
 ---
 
-## 7. Sentry / PostHog wiring
+## 7. PostHog wiring
 
-- **Sentry:** DSN only. The whole Worker (fetch + scheduled) is wrapped by
-  `Sentry.withSentry` with `sendDefaultPii: false`, `tracesSampleRate: 0`, and
-  PII-scrubbing `beforeSend`/`beforeBreadcrumb`
-  (`apps/api/src/index.ts:244`, `apps/api/src/observability/sentry.ts:117-125`).
-  Setting `SENTRY_DSN` (§2) is the entire integration. **No web-side Sentry exists.**
-- **PostHog:** optional. Setting `POSTHOG_API_KEY` (§2) is the entire
-  integration — the API Worker captures the north-star funnel events with
-  `distinct_id = company_id` only (no PII); unset, captures are silent no-ops
-  (`apps/api/src/analytics/posthog.ts:31,40`). **No web-side PostHog exists.**
+- **API Worker and call Durable Object:** setting `POSTHOG_API_KEY` (§2) is the
+  entire integration, and production refuses to boot without it
+  (`apps/api/src/environments/policy.ts`). Exceptions, ops notices, heartbeats
+  and gauges go through `apps/api/src/observability/capture.ts`, which scrubs
+  them first. The product funnel events use `distinct_id = company_id` only
+  (no PII; `apps/api/src/analytics/posthog.ts`). What is sent, the dashboards
+  and the alerts are in [docs/MONITORING.md](../MONITORING.md).
+- **Web app:** `NEXT_PUBLIC_POSTHOG_KEY` (section B of the env reference).
 
 ---
 

@@ -88,7 +88,7 @@ Browser ──(direct)── Supabase Auth (@supabase/ssr: signup/login/reset/in
 Browser ──(direct)── Supabase Realtime (private topic company:{id}, Broadcast)
 Telnyx webhooks ───► apps/api /webhooks/telnyx
 Stripe webhooks ───► apps/api /webhooks/stripe
-Sentry (@sentry/cloudflare in both Workers + Next.js client) · PostHog (events only)
+PostHog (error tracking, health events and product events, D146)
 GitHub Actions (Linux CI): typecheck, lint, vitest, build, wrangler deploy on main
 ```
 
@@ -108,7 +108,7 @@ GitHub Actions (Linux CI): typecheck, lint, vitest, build, wrangler deploy on ma
 - **Telnyx** — number search/orders, per-company messaging profiles, SMS/MMS, 10DLC registration, webhooks.
 - **Stripe** — subscription-mode Checkout, Billing Meters, hosted portal (payment methods/invoices/cancellation only), Stripe Tax, Smart Retries.
 - **Resend** — all transactional email (product notifications, billing, registration, invites via Supabase SMTP).
-- **Sentry** (`@sentry/cloudflare` in both Workers + Next.js browser SDK) and **PostHog** — with the PII policy in §10.
+- **PostHog** (`posthog-node` in the API Worker and the call Durable Object, `posthog-js` and `posthog-node` in the web app, `posthog-android` and `posthog-ios` in the apps) for exceptions, health events and product events — with the PII policy in §10. What is sent, and what PostHog does with it, is `docs/MONITORING.md` (D146).
 - **No-server rule:** all time-based work (grace-period release, webhook sweeping, usage re-reporting, registration polling) runs on **Workers Cron Triggers** in `apps/api` (§11). **Cloudflare Queues is explicitly not used in MVP** (D11): the `waitUntil` + `webhook_events` ledger + sweeper cron pattern is sufficient at MVP scale.
 
 ### Monorepo layout (D13)
@@ -232,7 +232,7 @@ S3. Order: POST /v2/number_orders
     protection), then number_e164 + telnyx_phone_number_id; status='active'.
 ```
 
-**Failure handling:** any step error → `status='provision_failed'`, `last_provision_error` stored, Sentry event. The 15-minute cron (§11) retries with backoff up to 5 attempts, and reconciles crash-after-buy windows by listing Telnyx numbers with `customer_reference = company_id` and adopting any orphan. After 5 failures, Sentry alert escalates (page the operator) — the customer-facing state stays "We're setting up your number — this is taking longer than usual. You don't need to do anything." The dashboard never shows a dead end.
+**Failure handling:** any step error → `status='provision_failed'`, `last_provision_error` stored, PostHog exception. The 15-minute cron (§11) retries with backoff up to 5 attempts, and reconciles crash-after-buy windows by listing Telnyx numbers with `customer_reference = company_id` and adopting any orphan. After 5 failures, an ops notice (`ops:` fingerprint) reaches PostHog's alert (page the operator) — the customer-facing state stays "We're setting up your number — this is taking longer than usual. You don't need to do anything." The dashboard never shows a dead end.
 
 Pro's second number: `POST /v1/numbers/provision` (owner/admin, active subscription, atomic count-vs-plan check, Idempotency-Key required) runs the same saga from S2.
 
@@ -283,7 +283,7 @@ Status transitions are driven by **Telnyx webhooks** to `/webhooks/telnyx` — `
 **Webhook event mapping** (`data.event_type` → app transition):
 - `10dlc.brand.update`: `type=REGISTRATION` in review → brand `pending`; brand accepted/verified (sole-prop: `identityStatus='VERIFIED'`) → brand `approved` (triggers R2); failed with `reasons` → brand `rejected` (reasons → `rejection_reason`).
 - `10dlc.campaign.update`: `type=TELNYX_REVIEW`/`MNO_REVIEW` → campaign `pending`; `status=ACCEPTED` after MNO review → campaign `approved` (triggers R3); `status=REJECTED` → campaign `rejected` (reasons → `rejection_reason`).
-- `10dlc.phone_number.update`: assignment `FAILED` → Sentry alert + provisioning-retry cron re-runs R3's assignment; `ADDED` → no-op (assignment already recorded).
+- `10dlc.phone_number.update`: assignment `FAILED` → PostHog exception + provisioning-retry cron re-runs R3's assignment; `ADDED` → no-op (assignment already recorded).
 
 **Wizard → Telnyx payload field mapping:**
 
@@ -1190,7 +1190,7 @@ In-app only via `POST /v1/billing/change-plan` — the hosted portal **cannot** 
 - **Invites:** Supabase `inviteUserByEmail` (Resend custom SMTP) + `invites` table binding company/email/role; seat limits enforced at creation **and** acceptance; 7-day expiry; revocation supported.
 - **Secrets:** all server credentials are Worker encrypted secrets (`wrangler secret put`), injected from GitHub Actions environment secrets; never in `wrangler.toml` or the repo. Frontend receives only `NEXT_PUBLIC_SUPABASE_URL` + the `sb_publishable_` key (the allowed `NEXT_PUBLIC_*` set is enumerated in CI and reviewed). Stripe uses a **restricted key**. Supabase uses `sb_secret_` (independently revocable). Startup zod env validation fails loudly.
 - **Secret scanning:** GitHub secret scanning and **push protection** are both **on** (verified through the API, #601), so a commit carrying a recognised credential is refused *before it reaches the remote*. That is what "we scan for secrets" means here now: previously it meant only the `Security` workflow's gitleaks pass, which reads the whole history after the fact — a real hit there costs a history rewrite and a rotation rather than a rejected push. Both are kept: push protection uses GitHub's provider list, which is wider than `.gitleaks.toml` and updated without us, and gitleaks covers the shapes specific to this stack. **Dependabot security updates** are on. **The dependency graph is off** (an organisation setting; see `docs/RELEASING.md`), which is why `Dependency review` cannot evaluate a pull request.
-- **PII / telemetry policy:** message bodies, names, addresses, and phone numbers never reach Sentry or PostHog. **True as of 2026-08-09, and not before** (#585): outbound-fetch breadcrumbs carried the full URL — query string and all — from 2026-07-01 until the cut shipped, so typed search terms, geocoded addresses and email addresses did reach Sentry for those five weeks. Nothing is being added; the existing events age out by 2026-11-07 at the outside. Recorded as **R10** in `docs/ACCEPTED-RISKS.md`, with the one open question — who can read that Sentry organisation — as its trigger. Console breadcrumbs are dropped outright rather than pattern-matched, because a commitment this sentence makes cannot rest on a redaction list that is definitionally incomplete. Sentry `beforeSend` strips request/response bodies and redacts E.164 patterns; `sendDefaultPii` off. PostHog: UUIDs, counts, and feature events only; autocapture masked; no session replay on inbox/conversation pages. Logs reference IDs, never bodies or destination numbers. `messaging_registrations.data` stores the **full EIN/BN** (business identifier — required for brand submission, which happens later at webhook time) but **SSN/SIN as last-4 only**: full SSN/SIN are never collected or persisted (Telnyx's Sole Proprietor path requires only the last-4, §4.4).
+- **PII / telemetry policy:** message bodies, names, addresses, and phone numbers never reach PostHog. **True as of 2026-08-09, and not before** (#585): outbound-fetch breadcrumbs carried the full URL — query string and all — from 2026-07-01 until the cut shipped, so typed search terms, geocoded addresses and email addresses did reach Sentry (since removed, D146) for those five weeks. Nothing is being added; the existing events age out by 2026-11-07 at the outside. Recorded as **R10** in `docs/ACCEPTED-RISKS.md`, with the one open question — who can read that Sentry organisation, which is no longer written to but still holds the window until it is closed — as its trigger. Console breadcrumbs are dropped outright rather than pattern-matched, because a commitment this sentence makes cannot rest on a redaction list that is definitionally incomplete. Exceptions leave through `observability/capture.ts`, which rebuilds each error from scrubbed text and scrubs the finished event again (names, URL queries, secret path segments, phones, emails), and carry no request or response bodies. PostHog: UUIDs, counts, and feature events only; autocapture masked; no session replay on inbox/conversation pages. Logs reference IDs, never bodies or destination numbers. `messaging_registrations.data` stores the **full EIN/BN** (business identifier — required for brand submission, which happens later at webhook time) but **SSN/SIN as last-4 only**: full SSN/SIN are never collected or persisted (Telnyx's Sole Proprietor path requires only the last-4, §4.4).
 
 ---
 
@@ -1200,7 +1200,7 @@ All crons are idempotent and safe to re-run; each processes work-item rows selec
 
 | Cron | Schedule | Work | Idempotency |
 |---|---|---|---|
-| Webhook sweeper | `*/5 * * * *` | Reprocess `webhook_events` where `processed_at IS NULL AND received_at < now()-2min AND attempts < 5`; Sentry alert at attempt 5 | `processed_at` stamp; handlers are idempotent by design (unique indexes) |
+| Webhook sweeper | `*/5 * * * *` | Reprocess `webhook_events` where `processed_at IS NULL AND received_at < now()-2min AND attempts < 5`; PostHog exception at attempt 5 | `processed_at` stamp; handlers are idempotent by design (unique indexes) |
 | Provisioning retry & reconcile | `*/15 * * * *` | Retry `phone_numbers` in `provisioning`/`provision_failed` (backoff, ≤5 attempts); list Telnyx numbers by `customer_reference` to adopt crash-after-buy orphans | `provisioning_key` unique; saga steps skip completed work |
 | Usage re-reporter | `0 * * * *` (hourly) | Re-POST meter events for `usage_events` where `stripe_reported_at IS NULL` | Local stamp gate + Stripe `identifier` dedupe |
 | Stale-calls sweeper | `0 * * * *` (hourly) | #133: `api_sweep_stale_calls` flips call sessions in-flight (outcome NULL) >4h to 'missed' — /calls stays honest, the per-conversation dial guard re-opens | State-selected (outcome NULL + age); re-runs are no-ops |
@@ -1232,7 +1232,7 @@ Each step lands with its tests (D13) and deploys green from CI.
 15. **Notifications.** Resend email + Web Push (VAPID, service worker), debounce rules, audience resolution, per-user prefs. ✅ 3 rapid inbound messages → one notification; assignee-only routing works; toggles honored.
 16. **Team management.** Invites (Supabase invite + `invites` table + accept flow), members list, role change, deactivate; seat limits at invite and acceptance. ✅ 4th Starter seat rejected at both points; deactivated member loses API + Realtime access.
 17. **Billing lifecycle.** Portal session route, `change-plan` (upgrade prorate / downgrade block+schedule), dunning states (past_due blocks outbound, banners, emails), cancellation → suspend → grace emails → release cron (+ campaign deactivation), resubscribe-within-grace restore. ✅ State-machine suite covers every §9 table row; grace-expiry releases in Telnyx test.
-18. **Hardening + observability.** Turnstile, WAF rules, rate limits (1 msg/s, 250 seg/hr), Sentry PII scrubbing verified with canary events, PostHog events (checkout_completed, first_outbound_sent, registration_*), `DELETE /v1/numbers/:id`. ✅ Redaction test proves no phone number reaches Sentry; pump simulation trips 429.
+18. **Hardening + observability.** Turnstile, WAF rules, rate limits (1 msg/s, 250 seg/hr), PostHog PII scrubbing verified by test, PostHog events (checkout_completed, first_outbound_sent, registration_*), `DELETE /v1/numbers/:id`. ✅ Redaction test proves no phone number reaches PostHog; pump simulation trips 429.
 19. **Launch pass.** Full E2E: US sole-prop signup → pay → number → registration pending → CA send works → approve → US send; CA-only signup instant path; cancel → grace → release. Cost/limit review of live dashboards. ✅ Both golden paths recorded green in CI against test-mode vendors.
 
 ---
@@ -1259,7 +1259,7 @@ Each step lands with its tests (D13) and deploys green from CI.
 |---|---|
 | Cloudflare Workers Paid (both Workers; 10M req + 30M CPU-ms incl.; static assets free) | $5.00 |
 | Supabase Pro (never auto-paused; 8 GB disk, 100 GB storage, 250 GB egress, 500 Realtime conns, 5M Realtime msgs) | $25.00 |
-| Resend / Sentry / PostHog (free tiers at MVP volume) | $0.00 |
+| Resend / PostHog (free tiers at MVP volume) | $0.00 |
 | **Fixed total** | **~$30/mo** |
 
 Plus Stripe percentages on revenue (below) and per-tenant Telnyx COGS.

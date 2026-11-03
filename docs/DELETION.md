@@ -234,7 +234,7 @@ deleted `company_members` and there is no owner left to look up. The anonymise
 step clears it.
 
 **A failed send never fails or reverses a deletion.** The customer asked to
-leave; an unsent receipt raises in Sentry and is ours to chase.
+leave; an unsent receipt raises in PostHog and is ours to chase.
 
 ---
 

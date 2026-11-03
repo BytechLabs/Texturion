@@ -9699,3 +9699,13 @@ the same handler, and the subprocessors page lists Firebase for push only.
 and does nothing until an outcome event moves or a customer says so, and at
 today's traffic the channel heartbeats need long graces before silence means
 anything.
+
+**Amended 2026-11-03 (review of the first build).** Production refuses to boot
+without `POSTHOG_API_KEY`, as it did without `SENTRY_DSN`: nothing else
+notices a Worker that reports nothing. The rig's API Worker holds the project
+key too, and files its exceptions under `rig`; it sends no funnel events, so
+the D8 funnels stay production's. rigd reads those exceptions back from PostHog
+(HogQL, a query-only personal key in its secret store) for R00 and the
+scenarios, and files scenario failures under `synthetic`; a read that fails
+fails R00. The mobile apps also cut URL query strings and public-link tokens
+from exception text.

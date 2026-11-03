@@ -739,7 +739,7 @@ A vendor 429 or 503 now answers **503 `service_unavailable`, "The phone network
 is busy right now. Try that again in a moment."** 503 rather than 429 because a
 429 tells the caller *they* are going too fast, and they are not: the limit is
 ours, spent on their behalf. Every other vendor status keeps its 500, its
-Sentry event and its log line — this narrows what we call transient rather than
+PostHog exception and its log line — this narrows what we call transient rather than
 widening it.
 
 **Still not bounded: the account aggregate itself.** Nothing stops N concurrent
@@ -892,7 +892,7 @@ found five ways the truthful answer was not the answer given. Each is fixed and 
    the first timeout or refusal its remaining calls fail at once, with an error
    coded `ABORT_ERR` because that is the one thing postgrest-js does not retry.
 2. **Overload was reported as a bug.** A saturated database answered `500`
-   "Something went wrong." and filed a Sentry event for every shed request.
+   "Something went wrong." and filed a PostHog exception for every shed request.
    It is now `503 service_unavailable` with `Retry-After`, no event, and the ray
    in the log. Only the database being out of room is called busy; a query that
    failed for its own reasons is still a `500`.

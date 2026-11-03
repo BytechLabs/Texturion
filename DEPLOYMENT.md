@@ -21,8 +21,7 @@ Loonext is **two Cloudflare Workers + five SaaS vendors**, no other servers.
 | **Stripe** | Standard + **Tax** enabled | Subscriptions, usage metering | % of revenue |
 | **Resend** | Any, with a **verified sending domain** | Transactional email + Supabase Auth SMTP + reply-as SMTP for support | free tier fine |
 | **Inbound email** | Cloudflare Email Routing | Receive support@/privacy@/security@loonext.com in your own inbox — [docs/deploy/10-email-inbox.md](docs/deploy/10-email-inbox.md) | free |
-| **Sentry** | Any (Team+) | API error tracking (DSN only) | free tier fine |
-| **PostHog** | *Optional*, Cloud US | Product analytics (silent no-op if unset) | free tier fine |
+| **PostHog** | Cloud US | Error tracking, health events and product analytics (D146); required in production | free tier fine |
 | **Domain registrar** | — | `loonext.com` (or yours), DNS delegated to Cloudflare | ~$12/yr |
 | **Status page** | Instatus / BetterStack free | Launch blocker (deliverability-gated SMS product) | free tier fine |
 
@@ -39,9 +38,8 @@ Full table with sources in [docs/deploy/06-env-reference.md](docs/deploy/06-env-
 - **Supabase (3):** `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_JWKS_URL`
 - **Telnyx (3):** `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`, `TELNYX_VOICE_CONNECTION_ID`
 - **Stripe (12):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the 10 catalog IDs printed by `pnpm --filter @loonext/api stripe:setup` — the 6 plan/meter IDs (`STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`) plus the 4 module add-on price IDs (`STRIPE_MODULE_MMS_PRICE_ID`, `STRIPE_MODULE_VOICE_PRICE_ID`, `STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID`, `STRIPE_MODULE_REGIONS_CA_PRICE_ID`). ⚠️ The 4 module IDs are *schema-optional* (the Worker boots without them) but **launch-required**: without them every opt-in add-on (Picture messages, Calling, Extra storage) is refused at checkout as "isn't available yet" and cannot be sold.
-- **Email/errors/push (5):** `RESEND_API_KEY`, `RESEND_FROM`, `SENTRY_DSN`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (VAPID pair: `npx web-push generate-vapid-keys`, once forever)
+- **Email/errors/push (5):** `RESEND_API_KEY`, `RESEND_FROM`, `POSTHOG_API_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (VAPID pair: `npx web-push generate-vapid-keys`, once forever)
 - **Origins (2):** `APP_ORIGIN`, `API_ORIGIN`
-- **Optional (1):** `POSTHOG_API_KEY` — unset = analytics off
 
 ### (b) `loonext-api` Worker bindings (not secrets, live in `wrangler.jsonc`)
 Two Workers rate-limiting bindings, deployed with the Worker — **nothing to put**, but each

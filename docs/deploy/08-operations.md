@@ -208,7 +208,6 @@ the Worker to pick up a new secret; re-hit `/health` after.
 | `TELNYX_VOICE_CONNECTION_ID` | n/a — an application **id**, not a credential; nothing to leak. Changes only if you recreate the Call-Control app ([04](./04-telnyx.md) §1) | `wrangler secret put TELNYX_VOICE_CONNECTION_ID` (only after recreating the app) |
 | `POSTHOG_API_KEY` | PostHog → Project Settings → roll the project API key | `wrangler secret put POSTHOG_API_KEY` |
 | `RESEND_API_KEY` | Resend → API Keys → new key, revoke old | `wrangler secret put RESEND_API_KEY` |
-| `SENTRY_DSN` | Sentry → Client Keys → new DSN | `wrangler secret put SENTRY_DSN` |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare → API Tokens | Update the GitHub Actions secret |
 | Supabase **ES256 signing key** | Supabase → Auth → Signing Keys → rotate | JWKS auto-updates (~10 min edge cache); no Worker change |
 

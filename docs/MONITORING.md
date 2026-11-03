@@ -1,6 +1,6 @@
 # Monitoring
 
-**Status: CURRENT DIRECTION (D146).** What we send to PostHog and what PostHog does with it. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+**Status: CURRENT (D146).** What we send to PostHog and what PostHog does with it. Where it disagrees with `docs/DECISIONS.md`, that file wins.
 
 Our code instruments. PostHog does everything else (D146).
 
@@ -11,11 +11,9 @@ and its alerts email the project owner. No code of ours decides that something
 is broken, sends an alert email, throttles one, or keeps a ledger of what
 should have happened.
 
-The move is tracked in the epic "Monitoring: PostHog does it all, Sentry and
-homemade alerting removed". The ops email, the liveness checker and every
-Sentry call are gone from the code. Until the epic closes, the `@sentry`
-packages, their DSN setting and the rig's old Sentry relay are still in the
-tree and send nothing.
+Sentry, the ops email and the liveness checker are gone from the code. The
+Worker secrets `SENTRY_DSN`, `OPS_ALERT_EMAIL` and `OPS_ALERT_WEBHOOK_SECRET`
+are deleted by hand in Cloudflare.
 
 ## What we send
 
@@ -48,8 +46,10 @@ missing `environment` as production.
 An ops notice sets `$exception_fingerprint` to `ops:<key>`: `key` is lowercase
 words joined by hyphens, names the problem and never an id, an amount or a
 date, so every occurrence of one problem is one PostHog issue. Ids go in
-properties. Ordinary errors set no fingerprint and PostHog groups them by stack,
-which source maps make readable.
+properties. Ordinary errors set no fingerprint and PostHog groups them by stack. Source
+maps are uploaded for the web app and both mobile apps, so their frames read
+as source; the API Worker's are not uploaded yet, so its frames are the
+bundle's.
 
 A notice is sent once, when the condition starts: the request that reaches a
 cap, the transition into a bad state. Requests refused after that send nothing.
@@ -60,8 +60,18 @@ environment's partition, is reported on the first sweep of every sixth hour.
 
 The existing scrubbers run before anything is sent: no message bodies, names,
 addresses, phone numbers, email addresses, query strings or request bodies.
-Mobile SDKs run with screen views, lifecycle events, autocapture and session
-replay off, and the same redaction in their `beforeSend` hooks.
+The API Worker and the web app run the full set (name keys, URL query cuts,
+secret path segments, phone and email text). The mobile apps run with screen
+views, lifecycle events, autocapture and session replay off, and redact in
+their `beforeSend` hooks the text of each exception: URL query strings and
+the token in a public link's path, email addresses and phone-shaped digit
+runs. Their frames name classes and lines. The guard and edge Workers send
+only notices their own code wrote, scrubbed of phone numbers and email
+addresses.
+
+The rig's API Worker holds the project key so its exceptions, filed under
+environment `rig`, can be read back for R00; it sends no funnel events, and
+no alert reads `rig`.
 
 ### Volume
 
@@ -214,7 +224,8 @@ check is the hourly one. A newly created alert is checked within a minute.
 
 - The funnel events sent before `environment` was added to them carry none,
   and the registration rule, the no-first-text rule and the registration tile
-  read them as production. Rig events from before then can therefore still show.
+  read them as production. The rig sends no funnel events, so none of them is
+  the rig's.
 - A key reports as overdue for up to 48 hours past its grace, and a key never
   seen cannot be overdue. The longest grace (the monthly cron) is 33 days and
   the alert looks back 35.
