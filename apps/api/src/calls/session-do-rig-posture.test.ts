@@ -20,8 +20,8 @@ import { stubFetch } from "../test/support";
 import { CallSessionDO } from "./session-do";
 import { ctx, makeRuntime, makeStorage, SESSION } from "./session-do-fake";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const GUARD = new URL(RIG_TELNYX_API_BASE);
@@ -111,7 +111,8 @@ describe("the object's only road to Telnyx", () => {
     expect(runtime).toMatch(/import\s*\{[^}]*\btelnyxRequest\b[^}]*\}\s*from\s*["']\.\.\/telnyx\/client["']/);
     const sends = runtime.match(/\btelnyxRequest\s*\(/g) ?? [];
     expect(sends.length, "the runtime's Telnyx requests were found").toBeGreaterThan(0);
-    expect(shell).toMatch(/createSessionRuntime\(\s*getEnv\(/);
+    expect(shell).toMatch(/createSessionRuntime\(\s*this\.validatedEnv\(\)/);
+    expect(shell).toMatch(/validatedEnv\(\): Env \{\s*return getEnv\(/);
   });
 });
 

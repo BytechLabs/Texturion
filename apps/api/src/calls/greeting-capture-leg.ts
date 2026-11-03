@@ -23,10 +23,10 @@
  * that does not exist — which is the silence #309 says must never happen.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as Sentry from "@sentry/cloudflare";
 
 import type { Env } from "../env";
 import { deleteTelnyxRecording } from "../messaging/inbound-ring";
+import { captureException } from "../observability/capture";
 import { telnyxRequest, isDefiniteRefusal } from "../telnyx/client";
 
 import {
@@ -242,9 +242,10 @@ async function storeCapturedGreeting(
       // already ended there is nobody to ask, and overwriting a greeting they
       // did not ask us to touch is the worse answer — a second recording named
       // "After hours" must never silently replace the first.
-      Sentry.captureMessage(
+      void captureException(
+        env,
         `#309 capture call discarded: "${tag.name}" already exists in ${tag.companyId}`,
-        "info",
+        { source: "api", level: "warning" },
       );
       await deleteTelnyxRecording(env, sessionId);
       return;

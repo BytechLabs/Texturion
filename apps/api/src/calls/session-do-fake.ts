@@ -123,8 +123,8 @@ export function makeRuntime(config: FakeConfig = {}) {
       | undefined
     )[],
     voicemailPipelines: 0,
-    sentryWarns: [] as string[],
-    sentryErrors: 0,
+    warnings: [] as string[],
+    errorCount: 0,
     threads: 0,
     // #309: which recorded greetings were played, and from what URL.
     playbacks: [] as { ccid: string; audioUrl: string }[],
@@ -218,11 +218,11 @@ export function makeRuntime(config: FakeConfig = {}) {
     async voicemailPipeline() {
       calls.voicemailPipelines += 1;
     },
-    sentryWarn(message) {
-      calls.sentryWarns.push(message);
+    warn(message) {
+      calls.warnings.push(message);
     },
-    sentryError() {
-      calls.sentryErrors += 1;
+    reportError() {
+      calls.errorCount += 1;
     },
     buildClientStates: {
       memberRing: () => "brm-state",

@@ -20,11 +20,11 @@ import {
   type BusinessHours,
   type HoursException,
 } from "@loonext/shared";
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { captureException, workerEnv, type WaitUntil } from "../observability/capture";
 import {
   afterHoursDefaultGreeting,
   buildBrowserAnsweredState,
@@ -272,8 +272,9 @@ export interface SessionRuntime {
     briAnsweredAtIso: string | null,
   ): Promise<void>;
   voicemailPipeline(payload: Record<string, unknown>): Promise<void>;
-  sentryWarn(message: string): void;
-  sentryError(cause: unknown): void;
+  /** A handled condition worth a look, sent to PostHog as a warning. */
+  warn(message: string): void;
+  reportError(cause: unknown): void;
   buildClientStates: {
     memberRing(input: {
       sessionId: string;
@@ -396,8 +397,14 @@ interface InboundCompanyRow {
 /** In-flight window for the line-busy read (mirrors voice-webhook.ts). */
 const LINE_BUSY_WINDOW_MS = 4 * 60 * 60 * 1000;
 
-export function createSessionRuntime(env: Env): SessionRuntime {
+/**
+ * `waitUntil` is the Durable Object's own: a capture is handed to it so it
+ * never holds up the event that raised it.
+ */
+export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRuntime {
   const db = getDb(env);
+  const report = (error: unknown, level: "error" | "warning") =>
+    void captureException(env, error, { source: "call-session-do", level }, waitUntil);
   return {
     now: () => Date.now(),
     uuid: () => crypto.randomUUID(),
@@ -712,6 +719,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         db,
         number.company_id,
         number.id,
+        (error) => report(error, "warning"),
       );
 
       const identity = resolveNumberIdentity(
@@ -805,6 +813,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
           number.company_id,
           number.id,
           now,
+          (error) => report(error, "warning"),
         );
         if (onCallUserId) {
           const narrowedTargets = dialTargets.filter(
@@ -885,7 +894,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
           /^x-rtc/i.test(header?.name ?? ""),
         )
       ) {
-        Sentry.captureMessage(
+        report(
           `#213 guard: oc call.initiated for ${embeddedSession} carried an X-RTC-* ` +
             `header (a browser/placer leg, not the customer) — rejected to prevent ` +
             `a wrong-leg customer_call_control_id stamp`,
@@ -1159,6 +1168,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         db,
         companyId,
         phoneNumberId,
+        (error) => report(error, "warning"),
       );
       return pushAudience;
     },
@@ -1304,11 +1314,11 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       await handleVoicemailSaved(env, db, payload as never);
     },
 
-    sentryWarn(message) {
-      Sentry.captureMessage(message, "warning");
+    warn(message) {
+      report(message, "warning");
     },
-    sentryError(cause) {
-      Sentry.captureException(cause);
+    reportError(cause) {
+      report(cause, "error");
     },
 
     buildClientStates: {
@@ -1451,6 +1461,8 @@ export async function computeRingContext(
   db: SupabaseClient,
   companyId: string,
   phoneNumberId: string,
+  warn: (error: Error) => void = (error) =>
+    void captureException(workerEnv(), error, { source: "api", level: "warning" }),
 ): Promise<{
   dialTargets: { userId: string; sipUsername: string }[];
   pushAudience: string[];
@@ -1514,9 +1526,7 @@ export async function computeRingContext(
   if (prefs.error) {
     // Prefs default to enabled when a row is absent, so an empty map is safe
     // enough to proceed — but don't let a transient failure pass unseen.
-    Sentry.captureException(
-      new Error(`notification_prefs read failed: ${prefs.error.message}`),
-    );
+    warn(new Error(`notification_prefs read failed: ${prefs.error.message}`));
   }
   // #480: the levels come from the one resolver now, keyed by user.
   const levelByUser = new Map(
@@ -1613,6 +1623,7 @@ async function onCallMemberNow(
   companyId: string,
   phoneNumberId: string,
   at: Date,
+  warn: (error: Error) => void,
 ): Promise<string | null> {
   const { data, error } = await db.rpc("api_on_call_now", {
     p_company_id: companyId,
@@ -1622,10 +1633,7 @@ async function onCallMemberNow(
   if (error) {
     // Loud for us, invisible to the caller. Narrowing a live call on a read we
     // could not perform is the one thing this must not do.
-    Sentry.captureMessage(
-      `#278 on-call lookup failed for ${companyId}: ${error.message}`,
-      "warning",
-    );
+    warn(new Error(`#278 on-call lookup failed for ${companyId}: ${error.message}`));
     return null;
   }
   return typeof data === "string" && data ? data : null;

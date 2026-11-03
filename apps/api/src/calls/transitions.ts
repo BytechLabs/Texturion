@@ -102,7 +102,7 @@ export const JANITOR_MS = 4 * 60 * 60_000;
 /** §7.4: intent expiry — TRANSFER_TIMEOUT_SECS (25) + 15s. */
 export const INTENT_EXPIRY_MS = (25 + 15) * 1_000;
 
-/** §17.5: FIFO admission-wait Sentry threshold (LOAD-BEARING telemetry). */
+/** §17.5: FIFO admission-wait warning threshold (LOAD-BEARING telemetry). */
 export const QUEUE_LATENCY_WARN_MS = 2_000;
 
 export type CallState =
@@ -617,7 +617,7 @@ export type Effect =
       briAnsweredAtIso: string | null;
     }
   | { kind: "voicemail-pipeline"; payload: Record<string, unknown> }
-  | { kind: "sentry-warn"; message: string }
+  | { kind: "warn"; message: string }
   | { kind: "arm-alarm"; alarm: AlarmKind; atMs: number }
   | { kind: "clear-alarm"; alarm: AlarmKind };
 
@@ -1396,7 +1396,7 @@ function reduceInitiated(
   let targets = context.dialTargets;
   if (targets.length > MAX_LEGS_PER_SESSION) {
     effects.push({
-      kind: "sentry-warn",
+      kind: "warn",
       message:
         `calls-v3 RING-START: ${targets.length} eligible targets exceed ` +
         `MAX_LEGS_PER_SESSION=${MAX_LEGS_PER_SESSION} — dialing ` +
@@ -1591,7 +1591,7 @@ function reduceOutboundInitiated(
     });
   } else {
     effects.push({
-      kind: "sentry-warn",
+      kind: "warn",
       message:
         `#213 outbound ${context.callSessionId}: no placer SIP credential — ` +
         `cannot ring the placer; the oc leg / janitor will resolve the session`,
@@ -1801,10 +1801,10 @@ function reduceMemberAnswered(
     }
     if (!leg) {
       // Non-ringing states, non-matching records, forged tags: defensive
-      // hangup + Sentry — never a state change, never a T2 entry (§7.7).
+      // hangup + warning, never a state change, never a T2 entry (§7.7).
       effects.push({ kind: "telnyx-hangup", ccid: event.ccid, terminal: false });
       effects.push({
-        kind: "sentry-warn",
+        kind: "warn",
         message:
           `calls-v3: orphan brm call.answered with no matching pending/` +
           `ambiguous record (user ${event.userId}) — defensively hung up ` +
@@ -1987,7 +1987,7 @@ function reduceInboundHangup(
         next.answeredAtIso = next.answerIntent.answeredAtIso;
       } else {
         effects.push({
-          kind: "sentry-warn",
+          kind: "warn",
           message:
             "calls-v3 T17 upgrade: bri-tagged hangup in ended_missed with no " +
             "retained answerIntent — outcome upgraded unattributed (audit anomaly)",
@@ -2028,7 +2028,7 @@ function reduceInboundHangup(
     }
     if (next.answeredByUserId === null) {
       effects.push({
-        kind: "sentry-warn",
+        kind: "warn",
         message:
           "calls-v3 T17: bri-tagged inbound hangup with no answer stamp and " +
           "no retained answerIntent — terminal ended_answered stamped " +
@@ -2077,7 +2077,7 @@ function reduceInboundHangup(
     // Theoretically unreachable (the inbound leg always carries bri in
     // `answered`) — licensed anyway: totality beats optimism (§4 T17).
     effects.push({
-      kind: "sentry-warn",
+      kind: "warn",
       message:
         "calls-v3 T17: UNTAGGED inbound hangup in state=answered " +
         "(theoretically unreachable) — resolved ended_answered per T8 semantics",
@@ -2180,7 +2180,7 @@ function reduceRingMe(
   // §13: past MAX_LEGS_PER_SESSION, ring-me returns dial_failed.
   if (next.legs.length >= MAX_LEGS_PER_SESSION) {
     effects.push({
-      kind: "sentry-warn",
+      kind: "warn",
       message:
         `calls-v3 ring-me: session at MAX_LEGS_PER_SESSION=` +
         `${MAX_LEGS_PER_SESSION} — refusing the dial (cap-and-drop)`,

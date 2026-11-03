@@ -29,8 +29,6 @@
  * a live session and keep their D43 gates on the shared voice path (§7.2,
  * review R2-B3).
  */
-import * as Sentry from "@sentry/cloudflare";
-
 import type { Env } from "../env";
 import { parseMemberRingState } from "../messaging/inbound-ring";
 import {
@@ -38,6 +36,7 @@ import {
   parseOutboundSessionId,
 } from "../messaging/voice-webhook";
 import type { TelnyxEvent } from "../messaging/types";
+import { captureException, workerEnv } from "../observability/capture";
 
 import type { CallSessionDO } from "./session-do";
 
@@ -123,12 +122,13 @@ export async function dispatchInboundCallEvent(
   if (!sessionId) {
     // A session-family event with no usable key (e.g. a tag whose part-4 failed
     // UUID validation, or an event carrying no session id at all). NEVER
-    // idFromName a malformed/absent key onto an arbitrary DO — drop + Sentry
+    // idFromName a malformed/absent key onto an arbitrary DO: drop and warn
     // (the §7.5.1 sweeper-replay only helps a keyable no-row hangup).
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `#211 dispatch: session-family ${event.data?.event_type} with no usable ` +
         `session key — dropped (unroutable)`,
-      "warning",
+      { source: "api", level: "warning" },
     );
     return true;
   }
@@ -160,10 +160,11 @@ export function warnIfEchoDropped(event: TelnyxEvent): void {
     direction?: string;
   };
   if (decodePrefix(payload.client_state) || payload.direction) return;
-  Sentry.captureMessage(
+  void captureException(
+    workerEnv(),
     "#211 echo-drop tripwire: call.hangup with neither a recognized client_state " +
       "tag nor a direction — an oc terminal whose echo dropped would land here " +
       "un-attributable (falls to the direction rules / the 4h sweeper)",
-    "warning",
+    { source: "api", level: "warning" },
   );
 }

@@ -19,12 +19,6 @@
  * the journal-resume rule.
  */
 import { DurableObject } from "cloudflare:workers";
-import * as Sentry from "@sentry/cloudflare";
-
-import {
-  probeSentryChannel,
-  type SentryChannelProbe,
-} from "../observability/do-sentry-canary";
 
 import { getEnv, type Bindings, type Env } from "../env";
 import {
@@ -34,6 +28,7 @@ import {
   VOICEMAIL_INBOUND_STATE,
 } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
+import { captureEvent, SYSTEM_DISTINCT_ID, type WaitUntil } from "../observability/capture";
 import {
   parseOutboundPlacerState,
   parseOutboundSessionId,
@@ -133,6 +128,10 @@ function callPayload(event: TelnyxEvent): CallPayload | undefined {
   return event.data?.payload as unknown as CallPayload | undefined;
 }
 
+/** The Worker pings every six hours; seven leaves an hour of slack. */
+export const HEARTBEAT_KEY = "channel:call-session-do";
+export const HEARTBEAT_GRACE_MINUTES = 420;
+
 /** Alarm bucket keys — the reducer's AlarmKind plus the two shell-owned ones. */
 type AlarmSlot = AlarmKind | "journal-resume" | "mirror-retry";
 
@@ -154,10 +153,20 @@ export class CallSessionDO extends DurableObject<Env> {
    * A refusal throws, the alarm is retried, and nothing leaves.
    */
   private get rt(): SessionRuntime {
-    return (this._runtime ??= createSessionRuntime(
-      getEnv(this.env as unknown as Bindings),
-    ));
+    return (this._runtime ??= createSessionRuntime(this.validatedEnv(), this.keepAlive));
   }
+
+  private validatedEnv(): Env {
+    return getEnv(this.env as unknown as Bindings);
+  }
+
+  /**
+   * Every capture in this object goes through here with its own env. PostHog is
+   * called explicitly rather than through a wrapper: the old one covered
+   * fetch and alarm but not RPC, which is how every call event enters, so the
+   * warnings raised there reached nobody (D146).
+   */
+  private readonly keepAlive: WaitUntil = (promise) => this.ctx.waitUntil(promise);
 
   // ---- §4.1 FIFO: every entrypoint enqueues its ENTIRE body ---------------
   //
@@ -238,7 +247,7 @@ export class CallSessionDO extends DurableObject<Env> {
         // §17.5 LOAD-BEARING telemetry: the drift alarm for the webhook-ack
         // budget. It measures ADMISSION wait, which is the thing #617 shortens
         // — the queue ahead of this event is no longer holding vendor calls.
-        this.rt.sentryWarn(
+        this.rt.warn(
           `calls-v3 FIFO admission wait ${waited}ms exceeds ${QUEUE_LATENCY_WARN_MS}ms ` +
             `for ${event.data?.event_type} — webhook-ack budget drift`,
         );
@@ -269,7 +278,7 @@ export class CallSessionDO extends DurableObject<Env> {
      */
     slot.catch((cause: unknown) => {
       failAck(cause);
-      this.rt.sentryWarn(
+      this.rt.warn(
         `calls-v3 post-ack cascade failed for ${event.data?.event_type} — ` +
           `journal-resume will retry: ${cause instanceof Error ? cause.message : String(cause)}`,
       );
@@ -428,23 +437,21 @@ export class CallSessionDO extends DurableObject<Env> {
   }
 
   /**
-   * #375 — prove, from inside this isolate, that the alarms can still speak.
+   * The six-hourly proof that this object can still reach PostHog, sent from
+   * inside it: the Worker's own heartbeats say nothing about this isolate.
+   * PostHog's "Heartbeat overdue" alert fires when it stops (D146).
    *
-   * §13 states that Sentry inside the DO requires the §2.1 instrumentation or
-   * every cost-cap warning and drift alarm is a silent no-op. Nothing verified
-   * that condition, and it cannot be verified from the Worker: a DO is a
-   * separate isolate with its own client, so only code running HERE can answer
-   * for it.
-   *
-   * Deliberately outside `enqueue`. The serialized queue exists to order state
-   * transitions for a live call; this touches no session state, and making a
-   * diagnostic wait behind a call in progress would mean the probe times out
-   * exactly when the system is busiest — reporting an outage that is really a
-   * queue. It also runs on the reserved canary instance, which by construction
-   * never holds a call.
+   * Outside `enqueue`, like any diagnostic: it touches no session state and
+   * must not wait behind a live call.
    */
-  async probeAlertChannel(): Promise<SentryChannelProbe> {
-    return probeSentryChannel(this.env, () => Sentry.getClient());
+  async heartbeat(): Promise<void> {
+    await captureEvent(
+      this.validatedEnv(),
+      "ops_heartbeat",
+      SYSTEM_DISTINCT_ID,
+      { key: HEARTBEAT_KEY, grace_minutes: HEARTBEAT_GRACE_MINUTES },
+      this.keepAlive,
+    );
   }
 
   async alarm(): Promise<void> {
@@ -1003,8 +1010,8 @@ export class CallSessionDO extends DurableObject<Env> {
         await this.rt.voicemailPipeline(effect.payload);
         return [];
       }
-      case "sentry-warn": {
-        this.rt.sentryWarn(effect.message);
+      case "warn": {
+        this.rt.warn(effect.message);
         return [];
       }
       case "arm-alarm": {
@@ -1046,14 +1053,14 @@ export class CallSessionDO extends DurableObject<Env> {
     const cap = MAX_TELNYX_COMMANDS_PER_SESSION;
     if (terminalExempt) return true;
     if (machine.telnyxCommandCount > cap) {
-      this.rt.sentryWarn(
+      this.rt.warn(
         `calls-v3 command cap ${cap} exceeded for ${machine.callSessionId} — ` +
           `dropping non-terminal command (cap-and-drop)`,
       );
       return false;
     }
     if (machine.telnyxCommandCount === Math.floor(cap / 2)) {
-      this.rt.sentryWarn(
+      this.rt.warn(
         `calls-v3 command count at 50% of cap ${cap} for ${machine.callSessionId} (alert-before-the-cap)`,
       );
     }
@@ -1071,7 +1078,7 @@ export class CallSessionDO extends DurableObject<Env> {
       await this.rt.mirror(sessionId, set);
       return;
     } catch (cause) {
-      this.rt.sentryError(cause);
+      this.rt.reportError(cause);
       // MERGE into any existing pending mirror rather than overwriting it: a
       // second failed mirror carrying DIFFERENT columns would otherwise drop the
       // first one's (e.g. answered_at), and the retry would re-apply only the
@@ -1126,10 +1133,10 @@ export class CallSessionDO extends DurableObject<Env> {
       await this.rt.mirror(machine.callSessionId, pending.set);
       await this.clearPendingMirror();
     } catch (cause) {
-      this.rt.sentryError(cause);
+      this.rt.reportError(cause);
       pending.attempts += 1;
       if (pending.attempts >= MAX_MIRROR_ATTEMPTS) {
-        this.rt.sentryWarn(
+        this.rt.warn(
           `calls-v3 mirror gave up after ${pending.attempts} attempts for ` +
             `${machine.callSessionId} — call may be missing from the log`,
         );

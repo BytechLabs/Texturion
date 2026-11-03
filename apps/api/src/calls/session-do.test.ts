@@ -400,7 +400,7 @@ describe("CallSessionDO — adoption (§7.5)", () => {
 });
 
 describe("CallSessionDO — forgery gate (§7.7, review R2-B3)", () => {
-  it("a forged brm answer with no pending record → defensive hangup + Sentry, NO answer", async () => {
+  it("a forged brm answer with no pending record → defensive hangup + warning, NO answer", async () => {
     const { instance, calls } = makeDO({ initiated: ctx() });
     await instance.onTelnyxEvent(initiatedEvent("e1"));
     await instance.whenIdle();
@@ -420,7 +420,7 @@ describe("CallSessionDO — forgery gate (§7.7, review R2-B3)", () => {
     await instance.whenIdle();
     expect(calls.answersInbound).toHaveLength(0); // NEVER answered into a forged leg
     expect(calls.hangups).toContain("forged-ccid"); // defensively hung up
-    expect(calls.sentryWarns.some((m) => m.includes("orphan brm"))).toBe(true);
+    expect(calls.warnings.some((m) => m.includes("orphan brm"))).toBe(true);
   });
 });
 

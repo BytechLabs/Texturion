@@ -26,6 +26,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 vi.mock("@sentry/cloudflare", async () =>
   (await import("../test/sentry-mock")).sentryModuleMock(),
 );
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
 
 import type { Env } from "../env";
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
@@ -33,6 +36,7 @@ import type { TelnyxEvent } from "../messaging/types";
 import { callsRoutes } from "../routes/calls";
 import { liveCallsRoutes } from "../routes/live-calls";
 import { webrtcRoutes } from "../routes/webrtc";
+import { captured, resetCaptures } from "../test/capture-mock";
 import { apiRequest, buildTestApp } from "../test/routes-harness";
 import { resetSentryCaptures, sentryCaptures } from "../test/sentry-mock";
 import { completeEnv, createTestAuth, type TestAuth } from "../test/support";
@@ -555,6 +559,7 @@ beforeEach(() => {
   tables.call_member_legs.length = 0;
   tables.outbound_call_authorizations.length = 0;
   resetSentryCaptures();
+  resetCaptures();
 });
 
 function crewFor(journey: string): SeededCrew {
@@ -568,9 +573,10 @@ function expectQuietSession(sessionId: string) {
   expect(surprises, "requests the in-memory database could not answer").toEqual([]);
   const half = dbHalves.get(sessionId);
   expect(half, `session object ${sessionId} was created`).toBeDefined();
-  expect(half?.sentryWarns).toEqual([]);
-  expect(half?.sentryErrors).toBe(0);
+  expect(half?.warnings).toEqual([]);
+  expect(half?.errorCount).toBe(0);
   expect(sentryCaptures.map((capture) => capture.message)).toEqual([]);
+  expect(captured).toEqual([]);
   return half as NonNullable<typeof half>;
 }
 

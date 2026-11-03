@@ -1,7 +1,7 @@
 /**
  * #366 — a crew past the ring ceiling has members who never ring.
  *
- * `MAX_LEGS_PER_SESSION = 24` is a correct, well-argued bound, and the Sentry
+ * `MAX_LEGS_PER_SESSION = 24` is a correct, well-argued bound, and the
  * warning before it is exactly right. The gap was who gets told and who gets
  * left out: "dial the first 24 by earliest membership" is reproducible and
  * unfair in a way that compounds. A member who sorts 25th is 25th on every

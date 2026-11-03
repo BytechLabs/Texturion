@@ -446,7 +446,7 @@ describe("T2 — member answer", () => {
 // ---- §7.7 forgery ----------------------------------------------------------
 
 describe("§7.7 — orphan brm answer forgery gate", () => {
-  it("orphan answer with no matching pending record → defensive hangup + Sentry, NEVER T2", () => {
+  it("orphan answer with no matching pending record → defensive hangup + warning, NEVER T2", () => {
     const machine = ringingMachine();
     const r = reduce(
       machine,
@@ -455,7 +455,7 @@ describe("§7.7 — orphan brm answer forgery gate", () => {
       KEY,
     );
     expect(has(r.effects, "telnyx-hangup")).toBe(true);
-    expect(has(r.effects, "sentry-warn")).toBe(true);
+    expect(has(r.effects, "warn")).toBe(true);
     expect(has(r.effects, "telnyx-answer-inbound")).toBe(false);
     expect(r.machine?.state).toBe("ringing");
   });
@@ -1361,7 +1361,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
     const r = reduce(null, { type: "outbound-initiated", context: ocContext({ placerSipUsername: null }) }, 1_000, keyGen());
     expect(has(r.effects, "telnyx-dial-placer")).toBe(false);
     expect(r.machine?.legs).toHaveLength(0);
-    expect(has(r.effects, "sentry-warn")).toBe(true);
+    expect(has(r.effects, "warn")).toBe(true);
   });
 
   it("op answered EARLY-bridges op↔oc (ringback while the customer rings) + stays 'dialing'", () => {
