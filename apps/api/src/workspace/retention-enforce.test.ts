@@ -17,9 +17,6 @@ import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
 import { runRetentionEnforceJob } from "./retention-enforce";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
-);
 
 const env = completeEnv();
 const COMPANY = "cccccccc-0000-4000-8000-00000000000c";

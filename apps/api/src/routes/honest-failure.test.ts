@@ -46,7 +46,7 @@
  * So this asserts the OUTCOME (the response is readable cross-origin) and
  * cannot attribute it to either mechanism. Do not read a passing run as
  * evidence that the re-echo is dead code and delete it: this runs in the test
- * runtime, not in Workers behind `Sentry.withSentry`, and the re-echo is cheap
+ * runtime, not in the deployed Worker, and the re-echo is cheap
  * belt-and-braces for a failure that has actually happened here. Deleting it
  * needs evidence from the deployed runtime, which this file does not provide.
  */

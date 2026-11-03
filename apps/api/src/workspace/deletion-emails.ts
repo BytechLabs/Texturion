@@ -17,16 +17,16 @@
  * promises about the same operation.
  *
  * NOTHING HERE CAN FAIL A DELETION. Every send goes through
- * {@link sendDeletionEmail}, which swallows the error into Sentry. A deletion
+ * {@link sendDeletionEmail}, which reports the error to PostHog. A deletion
  * that reversed itself because Resend was down would be the worse bug by far:
  * the customer asked to leave, and telling them about it is our problem.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { captureException, workerEnv } from "../observability/capture";
 
 /**
  * What outlives the workspace, and why. docs/DELETION.md, *What survives*:
@@ -231,7 +231,7 @@ export function accountDeletedEmail(args: {
  *
  * A deletion is already done by the time we mail about it. Throwing here would
  * either fail a request whose work has completed or, worse, look like a reason
- * to roll one back. It raises in Sentry instead: an unsent receipt is our
+ * to roll one back. It reports to PostHog instead: an unsent receipt is our
  * obligation to chase, not the customer's problem to retry.
  */
 export async function sendDeletionEmail(
@@ -257,11 +257,12 @@ export async function sendDeletionEmail(
     });
     return { sent: true, emailId: id };
   } catch (cause) {
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `deletion receipt not sent (${context}): ${
         cause instanceof Error ? cause.message : String(cause)
       }`,
-      "error",
+      { source: "cron" },
     );
     return { sent: false, emailId: null };
   }
@@ -285,11 +286,12 @@ export async function lookupUserEmail(
     if (!email || email.endsWith("@account.invalid")) return null;
     return email;
   } catch (cause) {
-    Sentry.captureMessage(
+    void captureException(
+      workerEnv(),
       `deletion receipt: could not resolve an address for ${userId}: ${
         cause instanceof Error ? cause.message : String(cause)
       }`,
-      "warning",
+      { source: "cron", level: "warning" },
     );
     return null;
   }

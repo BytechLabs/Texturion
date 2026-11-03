@@ -84,7 +84,7 @@ export function databaseTrouble(): boolean {
 /**
  * Run a request inside its own pressure scope and report a 5xx as the 503 it is
  * when the database was the trouble. Covers a route that throws (handleAppError
- * answers that one, to keep the Sentry event out) and one that returns its own
+ * answers that one, to keep the error report out) and one that returns its own
  * 500. A response below 500 is never touched.
  */
 export function databasePressure(

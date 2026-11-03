@@ -28,12 +28,12 @@
  * It cannot say which customers, because this is the one email in the product
  * most likely to be forwarded outside the workspace.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { captureException } from "../observability/capture";
 
 /** What happened to the contacts, in the words the email uses. */
 export type BulkContactEvent =
@@ -174,10 +174,11 @@ async function deliver(
     // Loud for us, invisible to the customer — the same posture as a failed
     // audit write, and for the same reason: the action succeeded and must not
     // be undone, but a missing alarm is not something to swallow silently.
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `bulk contact alarm failed for ${alarm.companyId}/${alarm.event}: ` +
         (cause instanceof Error ? cause.message : String(cause)),
-      "warning",
+      { source: "api", level: "warning" },
     );
   }
 }

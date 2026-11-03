@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as Sentry from "@sentry/cloudflare";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
@@ -34,6 +33,7 @@ import {
   campaignDraftSchema,
   isSoleProprietorDraft,
 } from "../telnyx/wizard";
+import { captureException } from "../observability/capture";
 
 /**
  * Registration routes (SPEC §7 route table, §4.2, §4.4). Mounted by the
@@ -365,7 +365,7 @@ registrationRoutes.post("/otp", requireCapability("numbers.manage"), async (c) =
   try {
     await refreshBrandFromRemote(env, brand);
   } catch (cause) {
-    Sentry.captureException(cause);
+    void captureException(env, cause, { source: "api" });
   }
 
   return c.json(await registrationResponse(db, companyId, c.get("role")));
@@ -602,7 +602,7 @@ registrationRoutes.post("/enable-us", requireCapability("workspace.own"), async 
     //
     // Best-effort and never rethrown: the customer already has a failure, and
     // losing the DB rollback on top would wedge enable-us forever. A withdrawal
-    // that fails is reported to Sentry, where the $29 is a human's problem
+    // that fails is reported to PostHog, where the $29 is a human's problem
     // rather than a silent one.
     if (createdInvoiceId !== null) {
       try {
@@ -611,16 +611,18 @@ registrationRoutes.post("/enable-us", requireCapability("workspace.own"), async 
         try {
           await stripe.invoices.del(createdInvoiceId);
         } catch (withdrawError) {
-          Sentry.captureException(withdrawError, {
-            extra: {
+          void captureException(
+            env,
+            withdrawError,
+            { source: "api", extra: {
               note:
                 "#259: could not withdraw the US-registration fee invoice after "
                 + "a failed enable-us. It may still collect $29 while a retry "
                 + "creates a second invoice.",
               companyId,
               invoiceId: createdInvoiceId,
-            },
-          });
+            } },
+          );
         }
       }
     }
@@ -639,7 +641,7 @@ registrationRoutes.post("/enable-us", requireCapability("workspace.own"), async 
       })
       .eq("id", companyId)
       .is("registration_fee_paid_at", null);
-    if (rollbackError) Sentry.captureException(rollbackError);
+    if (rollbackError) void captureException(env, rollbackError, { source: "api" });
     throw invoiceError;
   }
 });

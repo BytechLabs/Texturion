@@ -1,6 +1,5 @@
 import { checkoutCurrency } from "../billing/checkout-currency";
 import { billingCurrencyOf, formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -83,6 +82,7 @@ import {
   isProvisionableCheckout,
   syncSubscription,
 } from "../webhooks/stripe";
+import { captureException } from "../observability/capture";
 
 const planBodySchema = z.object({
   plan: z.enum(PLAN_IDS),
@@ -849,7 +849,7 @@ billingRoutes.post("/change-plan", async (c) => {
    * #277 — a paused workspace changing plans gets a sentence, not a 500.
    *
    * Below, the licensed+metered pair is located by price and a miss THROWS,
-   * which becomes an `internal_error` and a Sentry alert. That throw is right
+   * which becomes an `internal_error` and a PostHog error. That throw is right
    * for what it was written for — a subscription missing its own plan prices is
    * a genuine invariant violation — but a paused subscription carries the pause
    * price instead of a plan price, so it hits that throw by design. The
@@ -2255,7 +2255,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
  * number was held.
  *
  * When Stripe cannot be re-read at all we do NOT undo. The number stays with
- * the customer, Sentry gets paged, and the daily converge reports the unbilled
+ * the customer, PostHog gets an error, and the daily converge reports the unbilled
  * number until a human settles it — a bounded, visible cost we can eat, unlike
  * taking a working number away from somebody who paid for it.
  */
@@ -2273,15 +2273,16 @@ async function undoUnpaidReinstate(
     cause: unknown;
   },
 ): Promise<boolean> {
-  Sentry.captureException(args.cause);
+  void captureException(env, args.cause, { source: "api" });
   try {
     const fresh = await args.stripe.subscriptions.retrieve(args.subscriptionId);
     if (billedExtraQuantity(env, fresh, args.plan) >= args.quantity) return true;
   } catch (readError) {
-    Sentry.captureException(readError);
-    Sentry.captureMessage(
+    void captureException(env, readError, { source: "api" });
+    void captureException(
+      env,
       `reinstate ${args.row.id}: the extra-number charge failed and Stripe could not be re-read — the number is staying with the customer, unbilled, until somebody settles it`,
-      "error",
+      { source: "api" },
     );
     return true;
   }
@@ -2313,7 +2314,7 @@ async function undoUnpaidReinstate(
     });
   } catch (undoError) {
     // Never silent: an undo that fails leaves paid capacity nobody paid for.
-    Sentry.captureException(undoError);
+    void captureException(env, undoError, { source: "api" });
     console.error(
       `reinstate ${args.row.id}: unpaid capacity could not be undone:`,
       undoError instanceof Error ? undoError.message : String(undoError),

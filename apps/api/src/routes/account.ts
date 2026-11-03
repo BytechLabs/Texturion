@@ -20,7 +20,6 @@
  * records, the history belongs to the business, and the consent part of it is
  * under the CASL three-year floor.
  */
-import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
 
 import { recordAudit } from "../audit/log";
@@ -35,6 +34,7 @@ import {
   lookupUserEmail,
   sendDeletionEmail,
 } from "../workspace/deletion-emails";
+import { captureException, workerEnv } from "../observability/capture";
 
 export const accountRoutes = new Hono<AppEnv>();
 
@@ -208,8 +208,8 @@ async function listMemberships(
  * key with nothing attached to it.
  *
  * Best-effort AFTER the data is already gone: failing the request here would
- * tell someone their deletion did not happen when most of it did. It raises in
- * Sentry instead, because an identity we failed to sever is ours to finish.
+ * tell someone their deletion did not happen when most of it did. It reports to
+ * PostHog instead, because an identity we failed to sever is ours to finish.
  */
 async function severAuthIdentity(db: Db, userId: string): Promise<void> {
   try {
@@ -224,11 +224,12 @@ async function severAuthIdentity(db: Db, userId: string): Promise<void> {
     });
     if (error) throw new Error(error.message);
   } catch (cause) {
-    Sentry.captureMessage(
+    void captureException(
+      workerEnv(),
       `account deletion: auth identity not severed for ${userId}: ${
         cause instanceof Error ? cause.message : String(cause)
       }`,
-      "error",
+      { source: "api" },
     );
   }
 }

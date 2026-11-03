@@ -23,7 +23,7 @@
  *   legitimate free over-included states exist (the D16 port bridge number, a
  *   ported row mid-port, an included slot added during a pending downgrade),
  *   so an upward "correction" would be an unconsented charge. When the count
- *   exceeds what's billed, convergence FLAGS it (Sentry) for a human instead —
+ *   exceeds what's billed, convergence FLAGS it (PostHog) for a human instead;
  *   the only path that raises a quantity is the explicit buy above.
  * - UPGRADE starter→pro: the change-plan path swaps a surviving extra item to
  *   the Pro price; convergence also migrates a wrong-plan-price item it finds

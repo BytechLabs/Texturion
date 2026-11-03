@@ -2,13 +2,13 @@
  * Push-to-wake incoming-call alert (#135). Covers what incoming-call.ts OWNS on
  * top of the shared Web Push crypto (round-tripped in webpush.test.ts): the
  * push_enabled preference filter (#146), the dead-subscription prune, and the
- * Sentry observability on every non-OK outcome (#142). Real RFC 8291 crypto
- * reaches a stubbed push endpoint; Sentry is mocked to assert reporting.
+ * error report on every non-OK outcome (#142). Real RFC 8291 crypto reaches a
+ * stubbed push endpoint; capture is mocked to assert reporting.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as Sentry from "@sentry/cloudflare";
 
 import { getDb } from "../db";
+import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
@@ -16,8 +16,8 @@ import { encodeBase64Url } from "./webpush";
 import { notifyIncomingCall } from "./incoming-call";
 import { pushAttemptsSettled } from "./push-attempts";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const env = completeEnv();
@@ -33,8 +33,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 beforeEach(() => {
-  vi.mocked(Sentry.captureMessage).mockClear();
-  vi.mocked(Sentry.captureException).mockClear();
+  resetCaptures();
 });
 
 /** A stored subscription row with a REAL P-256 key pair (so encryptPushPayload
@@ -114,7 +113,7 @@ describe("notifyIncomingCall — push_enabled filter (#146)", () => {
 });
 
 describe("notifyIncomingCall — observability + prune (#142)", () => {
-  it("prunes a gone (410) subscription as a LOG, not a Sentry event", async () => {
+  it("prunes a gone (410) subscription as a LOG, not an error report", async () => {
     const sb = supabaseStub(env);
     const sub = await makeSubRow(USER_A, `${PUSH_ORIGIN}/send/abc`);
     let deletedId = "";
@@ -136,7 +135,7 @@ describe("notifyIncomingCall — observability + prune (#142)", () => {
     expect(deletedId).toBe(`eq.${sub.id}`);
     // Routine lifecycle: NO Sentry event (founder: expected ≠ error) — the
     // prune is a log line, host only, never the per-device endpoint path.
-    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+    expect(exceptionsCaptured()).toEqual([]);
     const line = log.mock.calls.map((c) => String(c[0])).find((m) => m.includes("pruned"));
     expect(line).toBeDefined();
     // The HOST of the fixture endpoint, which #576 (2) made a real push
@@ -170,9 +169,9 @@ describe("notifyIncomingCall — observability + prune (#142)", () => {
 
     // The documented push-to-wake outage lead: ring-when-closed is dead for
     // this member until a device re-registers.
-    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
-    const [msg, level] = vi.mocked(Sentry.captureMessage).mock.calls[0];
-    expect(level).toBe("warning");
+    expect(exceptionsCaptured()).toHaveLength(1);
+    const [{ error: msg, context }] = exceptionsCaptured();
+    expect(context.level).toBe("warning");
     expect(msg).toContain("NO push channels");
     expect(msg).toContain(USER_A);
     log.mockRestore();
@@ -195,13 +194,13 @@ describe("notifyIncomingCall — observability + prune (#142)", () => {
     ).resolves.toMatchObject({ unreachableUserIds: expect.any(Array) });
 
     expect(deleteCalled).toBe(false);
-    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
-    const [msg, level] = vi.mocked(Sentry.captureMessage).mock.calls[0];
-    expect(level).toBe("warning");
+    expect(exceptionsCaptured()).toHaveLength(1);
+    const [{ error: msg, context }] = exceptionsCaptured();
+    expect(context.level).toBe("warning");
     expect(msg).toContain("403");
   });
 
-  it("stays silent (no Sentry) on a clean 201 delivery", async () => {
+  it("stays silent (no error report) on a clean 201 delivery", async () => {
     const sb = supabaseStub(env);
     const sub = await makeSubRow(USER_A, `${PUSH_ORIGIN}/send/ok`);
     sb.on("GET", "/rest/v1/notification_prefs", () => []);
@@ -210,8 +209,7 @@ describe("notifyIncomingCall — observability + prune (#142)", () => {
 
     await notifyIncomingCall(env, getDb(env), { ...INPUT, userIds: [USER_A] });
 
-    expect(Sentry.captureMessage).not.toHaveBeenCalled();
-    expect(Sentry.captureException).not.toHaveBeenCalled();
+    expect(exceptionsCaptured()).toEqual([]);
   });
 });
 
@@ -279,11 +277,10 @@ describe("notifyIncomingCall — native device push (#151)", () => {
     expect(message.data.kind).toBe("call");
     expect(message.data.title).toBe("Incoming call");
     expect(message.data.url).toBe("/calls?call=sess-1");
-    expect(Sentry.captureMessage).not.toHaveBeenCalled();
-    expect(Sentry.captureException).not.toHaveBeenCalled();
+    expect(exceptionsCaptured()).toEqual([]);
   });
 
-  it("prunes an UNREGISTERED token as a LOG (no Sentry event), never the token value", async () => {
+  it("prunes an UNREGISTERED token as a LOG (no error report), never the token value", async () => {
     const account = await makeServiceAccount();
     const service = fcmService({
       sendStatus: 404,
@@ -306,10 +303,10 @@ describe("notifyIncomingCall — native device push (#151)", () => {
     await notifyIncomingCall(env2, getDb(env2), { ...INPUT, userIds: [USER_A] });
 
     expect(world.deleted).toEqual([`eq.${DEVICE_ROW_ID}`]);
-    // Routine token rotation (reinstall) — a log line, not a Sentry issue
+    // Routine token rotation (reinstall) is a log line, not an error issue
     // (founder: expected ≠ error). The stubbed world still lists the token
     // row on the reachability re-read, so no zero-channels escalation fires.
-    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+    expect(exceptionsCaptured()).toEqual([]);
     const line = log.mock.calls.map((c) => String(c[0])).find((m) => m.includes("pruned"));
     expect(line).toBeDefined();
     expect(line).toContain("ios");
@@ -338,9 +335,9 @@ describe("notifyIncomingCall — native device push (#151)", () => {
     ).resolves.toMatchObject({ unreachableUserIds: expect.any(Array) });
 
     expect(world.deleted).toEqual([]);
-    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
-    const [msg, level] = vi.mocked(Sentry.captureMessage).mock.calls[0];
-    expect(level).toBe("warning");
+    expect(exceptionsCaptured()).toHaveLength(1);
+    const [{ error: msg, context }] = exceptionsCaptured();
+    expect(context.level).toBe("warning");
     expect(msg).toContain("429");
     expect(msg).not.toContain(DEVICE_TOKEN);
   });

@@ -41,9 +41,6 @@ vi.mock("./send", async (importOriginal) => {
 });
 
 vi.mock("./media", () => ({ signedMediaUrls: vi.fn(async () => []) }));
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
-);
 
 interface Claimed {
   id: string;

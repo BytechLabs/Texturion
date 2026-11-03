@@ -29,11 +29,11 @@
  *     resetting the row to geocode_status='pending' (routes/contacts.ts), so
  *     this cron re-picks it up — the cron never diffs addresses itself.
  */
-import * as Sentry from "@sentry/cloudflare";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { geocodeAddress, NOMINATIM_MIN_INTERVAL_MS } from "./nominatim";
+import { captureException } from "../observability/capture";
 
 /**
  * Rows geocoded per run. Bounded so a single trigger's wall-clock (≈1s/row from
@@ -183,9 +183,10 @@ export async function geocodeContactsJob(
         `geocode cache write failed for contact ${contact.id}:`,
         writeError.message,
       );
-      Sentry.captureMessage(
+      void captureException(
+        env,
         `geocode cache write failed for contact ${contact.id}`,
-        "warning",
+        { source: "cron", level: "warning" },
       );
     } else if ((written ?? []).length === 0) {
       // No row matched: the address changed under us (a concurrent edit reset

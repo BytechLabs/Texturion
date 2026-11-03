@@ -1213,7 +1213,7 @@ conversationsRoutes.post(
  * THROUGH THE AUTHED API, NOT CLIENT ANALYTICS. #431 suggests the enum-only
  * PostHog contract, which genuinely fits the shape. But client telemetry is
  * unreliable in this product — ad blockers eat it, and the tunnel that would have
- * fixed the same problem for Sentry was declined — so the rate would be silently
+ * fixed the same problem for error reports was declined, so the rate would be silently
  * biased by WHICH customers block trackers. A keep-or-kill decision cannot rest on
  * that.
  *

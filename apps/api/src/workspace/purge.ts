@@ -20,7 +20,6 @@
  * The Stripe customer goes last, after the rows: it is the one step whose
  * failure should not stop the rest, and re-running the sweep retries it.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getStripe } from "../billing/stripe";
@@ -32,6 +31,7 @@ import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
 import { removeExportObjects } from "./export";
 import { sendDeletionEmail, workspacePurgedEmail } from "./deletion-emails";
+import { captureException } from "../observability/capture";
 
 /** Rows per delete, and objects per Storage call. */
 const BATCH = 500;
@@ -195,11 +195,12 @@ export async function purgeClosedWorkspaces(
     } catch (cause) {
       // Loud, and never fatal to the rest of the run. A workspace that failed
       // partway is exactly as safe to resume as one that has not started.
-      Sentry.captureMessage(
+      void captureException(
+        env,
         `workspace purge failed for ${row.id}: ${
           cause instanceof Error ? cause.message : String(cause)
         }`,
-        "error",
+        { source: "cron" },
       );
     }
   }
@@ -338,11 +339,12 @@ async function deleteStripeCustomer(
   try {
     await getStripe(env).customers.del(customerId);
   } catch (cause) {
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `workspace purge: Stripe customer delete failed for ${companyId}: ${
         cause instanceof Error ? cause.message : String(cause)
       }`,
-      "error",
+      { source: "cron" },
     );
   }
 }

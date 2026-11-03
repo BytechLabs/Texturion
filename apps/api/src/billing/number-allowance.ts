@@ -12,7 +12,7 @@
  *
  * Nothing then corrected it. `convergeExtraNumberQuantity` is down-only by
  * design (#105), so the surplus was never billed — it produced an
- * `over_included_unbilled` Sentry warning every day at 15:00 and we paid the
+ * `over_included_unbilled` warning every day at 15:00 and we paid the
  * $1.10/mo Telnyx rent (`FIXED_MONTHLY_COST_CENTS.perNumber`) on it forever.
  * `runGraceJob` never reclaims it either: both of its scans require
  * `subscription_status = 'canceled'`, and this workspace is live and paying.
@@ -260,7 +260,7 @@ export function heldNumbersCopy(args: {
  * Both live here rather than at the call site, and both are exported, because a
  * guard that types the phrase into the test is a guard that passes when the
  * alert is deleted and replaced with a differently-worded one, and one that
- * asserts nothing at all is what #526 R3 found: removing BOTH Sentry calls from
+ * asserts nothing at all is what #526 R3 found: removing BOTH error reports from
  * the notice's catch left all 51 tests in stripe.test.ts green.
  *
  * SILENCE IS THE FAILURE MODE, not noise. The handler stamps `processed_at`, so

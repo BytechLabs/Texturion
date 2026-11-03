@@ -19,13 +19,13 @@
  * ('pending'/'failed'), requests are serialized ≥1s apart, the batch is capped,
  * and the write-back is gated on the address so a concurrent edit wins.
  */
-import * as Sentry from "@sentry/cloudflare";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { geocodeAddress, NOMINATIM_MIN_INTERVAL_MS } from "./nominatim";
+import { captureException } from "../observability/capture";
 
 /** Rows geocoded per run (≈1s each from the fair-use pace); backfill spans runs. */
 export const GEOCODE_TASKS_BATCH = 120;
@@ -142,9 +142,10 @@ export async function geocodeTasksJob(
         `geocode cache write failed for task ${task.id}:`,
         writeError.message,
       );
-      Sentry.captureMessage(
+      void captureException(
+        env,
         `geocode cache write failed for task ${task.id}`,
-        "warning",
+        { source: "cron", level: "warning" },
       );
     }
   }

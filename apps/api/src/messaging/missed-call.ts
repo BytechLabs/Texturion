@@ -247,7 +247,7 @@ export async function sendMissedCallText(
 
   // An anonymous/CLIR caller ('anonymous'), a malformed token, or a non-US/CA
   // number can never be texted — skip SILENTLY. Throwing here would burn all
-  // 5 ledger retries + a Sentry page on a condition known final on the first
+  // 5 ledger retries + an error report on a condition known final on the first
   // pass (mirrors the forward path's caller-less client_state skip).
   //
   // BEFORE the language lookup below, deliberately: a caller we can never text
@@ -292,7 +292,7 @@ export async function sendMissedCallText(
   // A gate failure (lapsed subscription, pending 10DLC registration — states
   // that last days) is first-pass-final for the retry window, so skip SILENTLY
   // like the non-textable caller above. Throwing would burn all 5 ledger
-  // retries + a Sentry page on EVERY missed call until the gate clears. A
+  // retries + an error report on EVERY missed call until the gate clears. A
   // non-gate error (DB/network) still propagates so the sweeper can retry it.
   let clearance: SendClearance;
   try {

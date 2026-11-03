@@ -41,10 +41,9 @@
  *
  * A pass failure is collected, the remaining passes still run (one broken arm
  * never starves the others), and the run rethrows at the end so the cron
- * still reports failure (Sentry wraps scheduled()). A per-batch Storage
+ * still reports failure (the scheduled handler reports it). A per-batch Storage
  * failure inside a pass is logged and left retryable, as before.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
@@ -53,6 +52,7 @@ import { MMS_BUCKET } from "../messaging/media";
 import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
 import { EXPORTS_BUCKET } from "../workspace/export";
+import { captureException, workerEnv } from "../observability/capture";
 
 /**
  * Soft-deleted rows must age past the signed-URL TTL (300s) before the object
@@ -174,7 +174,10 @@ async function sweepSoftDeletedRows(
     if (removeError) {
       // Leave the rows soft-deleted (still selectable) so the next run retries.
       console.error("attachment sweep storage remove failed:", removeError.message);
-      Sentry.captureMessage("attachment sweep storage remove failed", "warning");
+      void captureException(workerEnv(), "attachment sweep storage remove failed", {
+        source: "cron",
+        level: "warning",
+      });
       return;
     }
   }
@@ -217,7 +220,10 @@ async function sweepOrphanObjects(
   if (removeError) {
     // The objects are still row-less, so the next run re-selects and retries.
     console.error("orphan object remove failed:", removeError.message);
-    Sentry.captureMessage("attachment orphan object remove failed", "warning");
+    void captureException(workerEnv(), "attachment orphan object remove failed", {
+      source: "cron",
+      level: "warning",
+    });
   }
 }
 
@@ -290,7 +296,10 @@ async function sweepOrphanMmsObjects(
   if (removeError) {
     // Still row-less, so the next run re-selects and retries.
     console.error("mms orphan object remove failed:", removeError.message);
-    Sentry.captureMessage("mms orphan object remove failed", "warning");
+    void captureException(workerEnv(), "mms orphan object remove failed", {
+      source: "cron",
+      level: "warning",
+    });
   }
 }
 
@@ -358,7 +367,10 @@ async function sweepOrphanVoicemailObjects(
   if (removeError) {
     // Still row-less, so the next run re-selects and retries.
     console.error("voicemail orphan object remove failed:", removeError.message);
-    Sentry.captureMessage("voicemail orphan object remove failed", "warning");
+    void captureException(workerEnv(), "voicemail orphan object remove failed", {
+      source: "cron",
+      level: "warning",
+    });
   }
 }
 
@@ -440,6 +452,9 @@ async function sweepOrphanExportObjects(
     .remove(paths);
   if (removeError) {
     console.error("export orphan object remove failed:", removeError.message);
-    Sentry.captureMessage("export orphan object remove failed", "warning");
+    void captureException(workerEnv(), "export orphan object remove failed", {
+      source: "cron",
+      level: "warning",
+    });
   }
 }

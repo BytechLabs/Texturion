@@ -17,7 +17,6 @@
  * Also counts pending invites past `expires_at` (report only — §11: acceptance
  * already checks expiry, so no state change is needed or wanted here).
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
@@ -31,6 +30,7 @@ import { ensureVoiceMeteredItem } from "../webhooks/stripe";
 import type { PlanId } from "./plans";
 import { applyPriceToSchedulePhases } from "./schedule-phases";
 import { getStripe, type Stripe } from "./stripe";
+import { captureException, workerEnv } from "../observability/capture";
 
 /**
  * §11 orphan-subscription safety net (mirrors reconcileNumbers' orphan-release).
@@ -65,9 +65,10 @@ const ORPHAN_SWEEP_BATCH = 200;
 
 function warnIfScanAtCapacity(count: number, batch: number, scan: string): void {
   if (count >= batch) {
-    Sentry.captureMessage(
+    void captureException(
+      workerEnv(),
       `reconcile ${scan} scan hit its per-run cap of ${batch}; the tail is NOT processed this run — add checkpoint-resume before the base outgrows one invocation`,
-      "warning",
+      { source: "cron", level: "warning" },
     );
   }
 }
@@ -231,7 +232,7 @@ export async function runSubscriptionReconcileJob(
       summary.reconciled += 1;
     } catch (cause) {
       // One broken tenant must not starve the rest; rethrown below so the
-      // cron run still reports failure (Sentry wraps scheduled()).
+      // cron run still reports failure (the scheduled handler reports it).
       failures.push(cause);
     }
   }
@@ -357,9 +358,10 @@ async function sweepOrphanSubscriptions(
       // A default listing excludes canceled/incomplete_expired. >100 live subs is
       // impossible for this product — a partial view we must never act on.
       if (subs.has_more) {
-        Sentry.captureMessage(
+        void captureException(
+          env,
           `subscription reconcile: customer ${row.stripe_customer_id} (company ${row.id}) returned >100 subscriptions — skipping orphan sweep (partial view)`,
-          "warning",
+          { source: "cron", level: "warning" },
         );
         continue;
       }
@@ -463,14 +465,16 @@ async function sweepOrphanSubscriptions(
           });
           if (converged?.kind === "lowered" || converged?.kind === "migrated") {
             summary.extraNumberQuantitiesConverged += 1;
-            Sentry.captureMessage(
+            void captureException(
+              env,
               `subscription reconcile: ${converged.kind === "migrated" ? "migrated a wrong-plan extra-number item" : "lowered the extra-number quantity"} to ${converged.quantity} for company ${row.id} (#105 down-only convergence).`,
-              "warning",
+              { source: "cron", level: "warning" },
             );
           } else if (converged?.kind === "over_included_unbilled") {
-            Sentry.captureMessage(
+            void captureException(
+              env,
               `subscription reconcile: company ${row.id} holds ${converged.desired - converged.billed} more number(s) than its billed extras (billed ${converged.billed}, formula ${converged.desired}) — NOT auto-charging (#105 down-only rule; likely a D16 port bridge or mid-port row). Review manually if it persists past the port window.`,
-              "warning",
+              { source: "cron", level: "warning" },
             );
           } else if (converged?.kind === "held_unbilled") {
             // #523: the shortfall is entirely numbers on HOLD. Counted, not
@@ -482,10 +486,11 @@ async function sweepOrphanSubscriptions(
             summary.workspacesHoldingNumbers += 1;
           }
         } catch (cause) {
-          Sentry.captureException(cause);
-          Sentry.captureMessage(
+          void captureException(env, cause, { source: "cron" });
+          void captureException(
+            env,
             `subscription reconcile: extra-number convergence failed for company ${row.id} — will retry next sweep.`,
-            "error",
+            { source: "cron" },
           );
         }
       }
@@ -500,9 +505,10 @@ async function sweepOrphanSubscriptions(
           // The stored sub isn't confirmed live: the customer's live sub may be
           // this one. Never cancel a possibly-only subscription — page a human.
           summary.orphanSubscriptionsFlagged += 1;
-          Sentry.captureMessage(
+          void captureException(
+            env,
             `subscription reconcile: company ${row.id} (customer ${row.stripe_customer_id}) has a live subscription ${s.id} that is NOT its stored subscription (${row.stripe_subscription_id}), and the stored subscription is not confirmed live — NOT auto-cancelling; manual review needed.`,
-            "error",
+            { source: "cron" },
           );
           continue;
         }
@@ -513,16 +519,18 @@ async function sweepOrphanSubscriptions(
             idempotencyKey: idempotencyKey(row.id, "orphan_cancel", s.id),
           });
           summary.orphanSubscriptionsCancelled += 1;
-          Sentry.captureMessage(
+          void captureException(
+            env,
             `subscription reconcile: cancelled orphan subscription ${s.id} for company ${row.id} (customer ${row.stripe_customer_id}) — a settled company held an extra live subscription; stored subscription ${row.stripe_subscription_id} is the one-per-company invariant. Cancel stops future billing only — refund any duplicate invoice manually.`,
-            "warning",
+            { source: "cron", level: "warning" },
           );
         } catch (cancelError) {
           summary.orphanSubscriptionsFlagged += 1;
-          Sentry.captureException(cancelError);
-          Sentry.captureMessage(
+          void captureException(env, cancelError, { source: "cron" });
+          void captureException(
+            env,
             `subscription reconcile: failed to cancel orphan subscription ${s.id} for company ${row.id} — flagged, will retry next sweep.`,
-            "error",
+            { source: "cron" },
           );
         }
       }
@@ -556,9 +564,10 @@ async function sweepOrphanSubscriptions(
       if (stale) {
         await syncSubscription(env, row.stripe_subscription_id, db);
         summary.reconciled += 1;
-        Sentry.captureMessage(
+        void captureException(
+          env,
           `subscription reconcile: company ${row.id} was mirrored as ${row.paused_at ? "paused" : "not paused"} while subscription ${row.stripe_subscription_id} carries a ${pause.reading === "paused" ? "PAUSE" : "PLAN"} licensed price — re-mirrored (#277). A missed subscription webhook, or a mirror write that never landed.`,
-          "warning",
+          { source: "cron", level: "warning" },
         );
       }
     } catch (cause) {
@@ -603,9 +612,10 @@ async function stripRetiredModuleItems(
   if (stored.items?.has_more) {
     // >10 items is impossible for this product — a partial view we must never
     // act on (mirrors the >100-subscriptions guard above).
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `subscription reconcile: subscription ${stored.id} (company ${companyId}) returned a partial items list — skipping retired-item sweep`,
-      "warning",
+      { source: "cron", level: "warning" },
     );
     return;
   }
@@ -638,17 +648,19 @@ async function stripRetiredModuleItems(
         );
       }
       summary.retiredModuleItemsRemoved += 1;
-      Sentry.captureMessage(
+      void captureException(
+        env,
         `subscription reconcile: removed retired-module item ${item.id} (price ${item.price.id}) from ${scheduleId ? `schedule ${scheduleId} phases of ` : ""}subscription ${stored.id} for company ${companyId} — the mms module is retired (#103); the unused remainder was credited via proration.`,
-        "warning",
+        { source: "cron", level: "warning" },
       );
     } catch (cause) {
       const code = (cause as { code?: string }).code;
       if (code === "resource_missing") continue; // already gone — done
-      Sentry.captureException(cause);
-      Sentry.captureMessage(
+      void captureException(env, cause, { source: "cron" });
+      void captureException(
+        env,
         `subscription reconcile: failed to remove retired-module item ${item.id} from subscription ${stored.id} for company ${companyId} — will retry next sweep.`,
-        "error",
+        { source: "cron" },
       );
     }
   }

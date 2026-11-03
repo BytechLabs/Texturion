@@ -21,7 +21,6 @@
  * if Telnyx is down), then the number, then Stripe. Each is safely repeatable,
  * and the purge sweep re-attempts what did not land.
  */
-import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -42,6 +41,7 @@ import {
   sendDeletionEmail,
   workspaceClosedEmail,
 } from "../workspace/deletion-emails";
+import { captureException } from "../observability/capture";
 
 export const workspaceClosureRoutes = new Hono<AppEnv>();
 
@@ -178,7 +178,7 @@ async function mailTheOwner(
   if (!email) return false;
 
   // Stored before the send, not after: a failed send is chased by us from
-  // Sentry, and an address we never wrote down is one nobody can retry.
+  // PostHog, and an address we never wrote down is one nobody can retry.
   const { data: company, error } = await db
     .from("companies")
     .update({ purge_receipt_email: email })
@@ -186,9 +186,10 @@ async function mailTheOwner(
     .select("name,purge_after")
     .maybeSingle();
   if (error) {
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `workspace close: receipt address not stored for ${companyId}: ${error.message}`,
-      "error",
+      { source: "api" },
     );
   }
 
@@ -217,9 +218,10 @@ async function mailTheOwner(
     if (stampError) {
       // Never fatal: the receipt was sent, and losing the reference costs
       // evidence rather than the response itself.
-      Sentry.captureMessage(
+      void captureException(
+        env,
         `workspace close: receipt id not stored for ${companyId}: ${stampError.message}`,
-        "error",
+        { source: "api" },
       );
     }
   }
@@ -263,11 +265,12 @@ async function endEveryMembersAccess(
       devices += result.devices;
       voice += result.voice;
     } catch (cause) {
-      Sentry.captureMessage(
+      void captureException(
+        env,
         `workspace close: session revoke failed for ${userId}: ${
           cause instanceof Error ? cause.message : String(cause)
         }`,
-        "error",
+        { source: "api" },
       );
     }
     const { data: others, error: othersError } = await db
@@ -287,9 +290,10 @@ async function endEveryMembersAccess(
         .eq("user_id", userId)
         .select("id");
       if (error) {
-        Sentry.captureMessage(
+        void captureException(
+          env,
           `workspace close: ${table} cleanup failed for ${userId}: ${error.message}`,
-          "error",
+          { source: "api" },
         );
         continue;
       }
@@ -316,11 +320,12 @@ async function releaseNumbers(env: Env, companyId: string): Promise<number> {
     // Never fatal: a carrier blip must not leave the workspace open. The
     // customer asked to leave, and a number we still hold is a cost to US, not
     // a risk to them — the daily release cron re-attempts it.
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `workspace close: number release failed for ${companyId}: ${
         cause instanceof Error ? cause.message : String(cause)
       }`,
-      "error",
+      { source: "api" },
     );
     return 0;
   }
@@ -341,11 +346,12 @@ async function cancelSubscription(
     });
     return true;
   } catch (cause) {
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `workspace close: subscription cancel failed for ${companyId}: ${
         cause instanceof Error ? cause.message : String(cause)
       }`,
-      "error",
+      { source: "api" },
     );
     return false;
   }

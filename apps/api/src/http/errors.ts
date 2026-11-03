@@ -58,10 +58,10 @@ export function errorResponse(
  *    ALLOWED origin is echoed: this is a fix for a masked failure, not a
  *    relaxation.
  *  - **The Cloudflare ray is returned** as `request_id`, so a founder can jump
- *    from a customer's failed request to the exact log line and Sentry event
+ *    from a customer's failed request to the exact log line and PostHog error
  *    rather than grepping by timestamp mid-incident.
  *
- * Observability (Sentry, the server log) stays at the call site: it needs the
+ * Observability (PostHog, the server log) stays at the call site: it needs the
  * env and it is the half a test must not perform.
  */
 export function internalErrorResponse(

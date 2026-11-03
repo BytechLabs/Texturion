@@ -20,9 +20,6 @@ const deliverPush = vi.fn();
 vi.mock("./deliver", () => ({
   deliverPush: (...args: unknown[]) => deliverPush(...args),
 }));
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
-);
 
 const { pushPortCompleted } = await import("./port-completed");
 

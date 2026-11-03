@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { telnyxRequest, telnyxUpload, TelnyxApiError } from "./client";
@@ -24,6 +23,7 @@ import { getDb } from "../db";
 import { pushPortCompleted } from "../notifications/port-completed";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { captureException } from "../observability/capture";
 
 /**
  * The PORTING.md §3–§6 port-in feature: the Telnyx Porting API v2 calls, the
@@ -542,7 +542,7 @@ export async function sendPortEmail(
   } catch (cause) {
     // Best-effort side effect of an already-applied transition (like
     // registration.ts) — a Resend outage must not wedge the state machine.
-    Sentry.captureException(cause);
+    void captureException(env, cause, { source: "api" });
   }
 }
 
@@ -796,7 +796,7 @@ async function runPortConfirmSteps(
 
 /**
  * §4 failure handling (mirrors recordProvisionFailure): store the error on the
- * row + a Sentry event, leaving the row in a resumable status for the daily
+ * row + an error report, leaving the row in a resumable status for the daily
  * cron. A carrier rejection is DIFFERENT — it arrives as a Telnyx `exception`
  * status via webhook, not a thrown error, and routes to fix-and-resubmit (§6).
  */
@@ -807,7 +807,7 @@ async function recordPortFailure(
   cause: unknown,
 ): Promise<PortRequestRow> {
   const message = cause instanceof Error ? cause.message : String(cause);
-  Sentry.captureException(cause);
+  void captureException(env, cause, { source: "api" });
   return updatePortRow(db, row.id, {
     rejection_reason: message.slice(0, 2000),
   });
@@ -862,7 +862,7 @@ async function runP6Completion(
       await assignNumbersToCampaign(env, db, campaign);
     } catch (cause) {
       // A FAILED assignment is surfaced via the ledger + §9 copy, not here.
-      Sentry.captureException(cause);
+      void captureException(env, cause, { source: "api" });
     }
   }
 
@@ -908,7 +908,7 @@ async function runP6Completion(
         );
       }
     } catch (cause) {
-      Sentry.captureException(cause);
+      void captureException(env, cause, { source: "api" });
     }
   }
   return updated;
@@ -986,7 +986,7 @@ async function applyStatusTransition(
       try {
         await releaseNumberRow(env, phone);
       } catch (cause) {
-        Sentry.captureException(cause);
+        void captureException(env, cause, { source: "api" });
       }
     }
     // #319: and say what happened to the BRIDGE, which the line above does not
@@ -1016,7 +1016,7 @@ async function applyStatusTransition(
           );
         }
       } catch (cause) {
-        Sentry.captureException(cause);
+        void captureException(env, cause, { source: "api" });
       }
     }
   }
@@ -1169,7 +1169,7 @@ function payloadPortingOrderId(payload: Record<string, unknown>): string | null 
  * dispatcher, this one handler also covers sweeper replay (no separate change).
  *
  * Handled: status_changed, messaging_changed, new_comment. split/deleted/
- * loa_updated → Sentry breadcrumb + let the daily cron reconcile.
+ * loa_updated → a log line + let the daily cron reconcile.
  * sharing_token_expired (Verification correction 5) never fires for our
  * API-created single-number ports and falls through to the acked no-op.
  */
@@ -1258,13 +1258,9 @@ export async function handlePortingEvent(
     return;
   }
 
-  // split / deleted / loa_updated (and unknown porting_order.*): breadcrumb +
-  // let the daily cron reconcile from GET /v2/porting_orders/{id}.
-  Sentry.addBreadcrumb({
-    category: "porting",
-    level: "info",
-    message: `unhandled ${eventType}; cron will reconcile order ${orderId}`,
-  });
+  // split / deleted / loa_updated (and unknown porting_order.*): the daily
+  // cron reconciles from GET /v2/porting_orders/{id}.
+  console.log(`porting: unhandled ${eventType}; cron will reconcile order ${orderId}`);
 }
 
 // ---------------------------------------------------------------------------

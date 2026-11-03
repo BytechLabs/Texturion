@@ -550,7 +550,7 @@ export async function runGraceJob(
       }
     } catch (cause) {
       // One broken tenant must not starve the rest; rethrown below so the
-      // cron run still reports failure (Sentry wraps scheduled()).
+      // cron run still reports failure (the scheduled handler reports it).
       failures.push(cause);
     }
   }

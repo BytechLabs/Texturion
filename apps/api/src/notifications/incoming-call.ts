@@ -8,7 +8,7 @@
  * Best-effort by contract: a push failure (dead subscription, push-service
  * weather) must NEVER disturb the ring / voicemail path, so this never throws.
  * Dead subscriptions (404/410) are pruned opportunistically. Every non-OK
- * outcome and every prune is reported to Sentry (host + status only) so a
+ * outcome and every prune is reported to PostHog (host + status only) so a
  * wake outage is diagnosable (#142). Members who disabled push in settings are
  * skipped, matching the missed-call / inbound-message paths (#146).
  *
@@ -20,10 +20,10 @@
  * that merely soft-failed (transient) stays reachable — the ladder holds
  * ringback for them (§5.5: only provably-dead channels prune).
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { captureException, workerEnv } from "../observability/capture";
 
 import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
@@ -91,7 +91,7 @@ function bump(
  * #142's actual outage signal, rescoped: a prune is routine lifecycle
  * (reinstall/rotation) and only LOGS — but a prune that leaves the member
  * with ZERO push channels means calls can no longer wake any of their devices,
- * and THAT earns a Sentry event. Best-effort: an error here must never touch
+ * and THAT earns an error report. Best-effort: an error here must never touch
  * the live ring.
  */
 async function warnIfUnreachable(
@@ -105,9 +105,10 @@ async function warnIfUnreachable(
     ]);
     if (subs.error || tokens.error) return;
     if ((subs.data ?? []).length === 0 && (tokens.data ?? []).length === 0) {
-      Sentry.captureMessage(
+      void captureException(
+        workerEnv(),
         `incoming-call push: member ${userId} now has NO push channels — ring-when-closed is dead for them until a device re-registers`,
-        "warning",
+        { source: "api", level: "warning" },
       );
     }
   } catch {
@@ -116,7 +117,7 @@ async function warnIfUnreachable(
 }
 
 /** Host only — the full endpoint carries a per-device push token we must never
- *  log or send to Sentry. */
+ *  log or send to PostHog. */
 function endpointHost(endpoint: string): string {
   try {
     return new URL(endpoint).host;
@@ -144,7 +145,7 @@ export async function notifyIncomingCall(
   try {
     return await deliverIncomingCallPush(env, db, input, attempts);
   } catch (cause) {
-    Sentry.captureException(cause);
+    void captureException(env, cause, { source: "api" });
     return { unreachableUserIds: [] };
   } finally {
     // D142: not awaited. The DO holds this call's queue until the report comes
@@ -241,7 +242,7 @@ async function deliverIncomingCallPush(
           await db.from("push_subscriptions").delete().eq("id", sub.id);
           bump(channels, sub.user_id, "gone");
           // Expected lifecycle (browser reinstall/rotation) — a log line, NOT
-          // a Sentry event. #142's real signal is handled below: a prune that
+          // an error report. #142's real signal is handled below: a prune that
           // leaves the user with ZERO push channels escalates.
           console.log(
             `incoming-call push: pruned dead subscription (${endpointHost(sub.endpoint)}, HTTP ${result.status})`,
@@ -253,9 +254,10 @@ async function deliverIncomingCallPush(
           // throttled 429, push-service 5xx) AND the service's own error text —
           // the lead for diagnosing a silent wake outage. Best-effort, no throw.
           const detail = result.errorBody ? ` — ${result.errorBody}` : "";
-          Sentry.captureMessage(
+          void captureException(
+            env,
             `incoming-call push: delivery failed (${endpointHost(sub.endpoint)}, HTTP ${result.status})${detail}`,
-            "warning",
+            { source: "api", level: "warning" },
           );
         } else {
           bump(channels, sub.user_id, "liveOrSoft");
@@ -265,7 +267,7 @@ async function deliverIncomingCallPush(
         // to the live call. Push weather must never break a ring. A thrown send
         // is transient, not proof-dead → counts as an avenue.
         bump(channels, sub.user_id, "liveOrSoft");
-        Sentry.captureException(cause);
+        void captureException(env, cause, { source: "api" });
       }
     }),
   );
@@ -333,8 +335,8 @@ async function deliverIncomingCallPush(
             ),
         );
         if (result.gone) {
-          // UNREGISTERED token (app uninstalled / rotated): expected
-          // lifecycle — drop the row with a log line, NOT a Sentry event.
+          // UNREGISTERED token (app uninstalled / rotated) is expected
+          // lifecycle, so drop the row with a log line, NOT an error report.
           // Platform + status only; the token itself is a per-device
           // credential we never log. #142's real signal escalates below.
           await db.from("device_push_tokens").delete().eq("id", device.id);
@@ -346,9 +348,10 @@ async function deliverIncomingCallPush(
         } else if (!result.ok) {
           bump(channels, device.user_id, "liveOrSoft");
           const detail = result.errorBody ? ` — ${result.errorBody}` : "";
-          Sentry.captureMessage(
+          void captureException(
+            env,
             `incoming-call push: native delivery failed (${device.platform}, HTTP ${result.status})${detail}`,
-            "warning",
+            { source: "api", level: "warning" },
           );
         } else {
           bump(channels, device.user_id, "liveOrSoft");
@@ -357,7 +360,7 @@ async function deliverIncomingCallPush(
         // OAuth weather / network drop — observable but never fatal to the
         // live call. A thrown send is transient → counts as an avenue.
         bump(channels, device.user_id, "liveOrSoft");
-        Sentry.captureException(cause);
+        void captureException(env, cause, { source: "api" });
       }
     }),
   );

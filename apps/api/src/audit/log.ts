@@ -22,14 +22,14 @@
  * an oversight: the mutation and this write are separate round trips, so a
  * failed audit write cannot roll the action back, and refusing to remove a
  * member because the log was briefly unreachable is the worse failure. A
- * failure raises in Sentry at error level — a gap in the log must be visible
+ * failure is reported to PostHog as an error: a gap in the log must be visible
  * to US even though it cannot block the customer. Making it truly fail-closed
  * means moving each mutation into the same transaction as its audit row, which
  * is an RPC per route, not a flag here.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { Context } from "hono";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { captureException, workerEnv } from "../observability/capture";
 
 /**
  * The privileged actions worth a row. Dotted `subject.verb`, past tense, so a
@@ -320,9 +320,10 @@ export async function recordAudit(
   if (error) {
     // Loud for us, invisible to the customer: the action itself succeeded and
     // must not be undone, but a hole in the log is not something to swallow.
-    Sentry.captureMessage(
+    void captureException(
+      workerEnv(),
       `audit_log write failed for ${entry.action} on ${entry.targetType}: ${error.message}`,
-      "error",
+      { source: "api" },
     );
     return false;
   }

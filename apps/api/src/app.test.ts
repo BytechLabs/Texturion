@@ -128,7 +128,7 @@ describe("error envelope (SPEC §7)", () => {
   it("still calls a real vendor fault an internal error", async () => {
     // The other half, and the reason this narrows rather than widens what we
     // call transient: a 400 from Telnyx is a bug on our side of the request.
-    // Swallowing it as "busy, try again" would hide it from Sentry and send a
+    // Swallowing it as "busy, try again" would hide it from PostHog and send a
     // customer round a loop that can never succeed.
     const res = await app.request("/__test__/telnyx-400", {}, completeEnv());
     expect(res.status).toBe(500);

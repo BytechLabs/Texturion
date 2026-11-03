@@ -21,12 +21,12 @@
  * fires. Callers turn it on when the owner enables the feature (settings PATCH)
  * or sets a forward_to_cell.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { telnyxRequest } from "./client";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { captureException } from "../observability/capture";
 
 interface VoiceSettingsResponse {
   data?: { connection_id?: string | null };
@@ -401,7 +401,7 @@ export async function reconcileVoiceEnablement(
   // NOTE: this filters the DB enum, not raw Stripe statuses — 'trialing'
   // never reaches the DB (plans.ts maps it to 'active'), and Postgres
   // rejects unknown enum values outright, which broke this cron every
-  // 15 minutes (Sentry NODE-D).
+  // 15 minutes.
   const { data: companies, error: companiesError } = await db
     .from("companies")
     .select("id")
@@ -438,7 +438,7 @@ export async function reconcileVoiceEnablement(
       if (result.changed) summary.enabled += 1;
     } catch (cause) {
       // One number's failure never starves the rest; the cron re-runs in 15m.
-      Sentry.captureException(cause);
+      void captureException(env, cause, { source: "api" });
       failures.push(cause);
     }
   }
@@ -447,9 +447,10 @@ export async function reconcileVoiceEnablement(
     // run: one permanently-unbindable number (e.g. a Telnyx-side reject that
     // no retry can fix) would otherwise page the */15 cron forever and drown
     // the trigger's health signal. A single warning carries the count.
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `voice enablement reconcile: ${failures.length} number(s) still failing`,
-      "warning",
+      { source: "api", level: "warning" },
     );
   }
   return summary;

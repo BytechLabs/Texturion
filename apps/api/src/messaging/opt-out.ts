@@ -25,10 +25,10 @@
  * page would claim the person is textable while every send came back 40300.
  * Only the customer texting START lifts it.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { recordAudit } from "../audit/log";
+import { captureException, workerEnv } from "../observability/capture";
 
 /** How a carrier opt-out reached us. Recorded verbatim on the timeline. */
 export type CarrierOptOutSignal =
@@ -62,7 +62,7 @@ export interface CarrierOptOutInput {
  *
  * NEVER THROWS. Every caller is doing something else that already succeeded or
  * already failed for its own reasons: a send whose failure is being persisted,
- * a nightly sweep partway through a list. Losing the record is worth a Sentry
+ * a nightly sweep partway through a list. Losing the record is worth a reported
  * error, never a thrown one.
  */
 export async function recordCarrierOptOut(
@@ -131,11 +131,12 @@ export async function recordCarrierOptOut(
     });
     return true;
   } catch (cause) {
-    Sentry.captureMessage(
+    void captureException(
+      workerEnv(),
       `carrier opt-out not recorded for ${input.companyId} (${input.signal}): ${
         cause instanceof Error ? cause.message : String(cause)
       }`,
-      "error",
+      { source: "api" },
     );
     return false;
   }

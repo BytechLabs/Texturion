@@ -8,7 +8,7 @@
  */
 import { readFileSync } from "node:fs";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   hashWidgetCode,
@@ -19,9 +19,6 @@ import {
   widgetMayDiscloseGateError,
 } from "./widget";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
-);
 
 describe("the number a visitor typed", () => {
   it("accepts the shapes a person actually types", () => {

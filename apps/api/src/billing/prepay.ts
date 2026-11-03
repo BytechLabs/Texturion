@@ -13,10 +13,10 @@ import {
   prepayYearPrice,
   type PlanId,
 } from "./plans";
-import * as Sentry from "@sentry/cloudflare";
 
 import { getDb } from "../db";
 import { getStripe } from "./stripe";
+import { captureException } from "../observability/capture";
 
 /**
  * #400 / D107 — a prepaid year, delivered as a discount on the licensed line.
@@ -1073,11 +1073,12 @@ export async function ensurePrepaidDiscount(
     // with no record is its own problem". It also says the repair happened, which
     // means something dropped it — worth someone's attention even though the
     // customer is now whole.
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `prepaid discount re-asserted on subscription ${subscription.id} ` +
         `(company ${companyId}, session ${open.session_id}) for ${months} month` +
         `${months === 1 ? "" : "s"} — #584 convergence`,
-      "warning",
+      { source: "api", level: "warning" },
     );
   } catch (cause) {
     console.error(

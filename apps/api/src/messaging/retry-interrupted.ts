@@ -40,7 +40,6 @@
  * for provider 5xx is a separate judgement about duplicate risk that belongs
  * to the founder, not to this file.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
@@ -54,6 +53,7 @@ import {
   runPreSendGates,
 } from "./send";
 import type { MessageRow } from "./types";
+import { captureException } from "../observability/capture";
 
 /**
  * One automatic attempt, then the row falls to the fail-out sweeper.
@@ -196,9 +196,10 @@ export async function retryInterruptedSends(
     // Worth saying out loud: every one of these is a customer message that was
     // silently unsent and is now on its way. Count only, never bodies (§10).
     console.log(`auto-retried ${sent} interrupted outbound send(s)`);
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `stuck-send sweeper auto-retried ${sent} interrupted send(s)`,
-      "info",
+      { source: "cron", level: "warning" },
     );
   }
   return sent;

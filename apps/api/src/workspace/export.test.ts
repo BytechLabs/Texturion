@@ -7,15 +7,15 @@
  * budget, resumption at the table it stopped on, and a manifest that lands
  * only when the export is whole.
  */
-import * as Sentry from "@sentry/cloudflare";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { buildDataExports, pruneExpiredExports } from "./export";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const env = completeEnv();
@@ -26,6 +26,7 @@ const USER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  resetCaptures();
 });
 
 /** Every table the export walks, so an unstubbed read never fails a test. */
@@ -159,10 +160,10 @@ describe("buildDataExports", () => {
       .map((call) => call.body as { status?: string })
       .filter((body) => body.status === "failed");
     expect(failed).toHaveLength(1);
-    expect(Sentry.captureMessage).toHaveBeenCalledWith(
-      expect.stringContaining("data export failed"),
-      "error",
-    );
+    expect(exceptionsCaptured()).toContainEqual({
+      error: expect.stringContaining("data export failed"),
+      context: expect.not.objectContaining({ level: "warning" }),
+    });
   });
 
   it("emails the person who asked, and a failed email does not un-finish it", async () => {
@@ -289,7 +290,7 @@ describe("pruneExpiredExports (#378)", () => {
     expect(stamped).toHaveLength(0);
     // Loud, so a bucket that quietly stops accepting deletes is not a silent
     // retention policy.
-    expect(Sentry.captureMessage).toHaveBeenCalled();
+    expect(exceptionsCaptured()).not.toHaveLength(0);
   });
 
   it("keeps the ROW, because a customer should see they asked for one", async () => {

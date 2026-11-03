@@ -17,7 +17,7 @@
  * and MCTB use — there is one definition of "are we open" in this product and
  * this does not become the second.
  *
- * Failures are collected and thrown, so a broken run is visible in Sentry
+ * Failures are collected and thrown, so a broken run is visible in PostHog
  * rather than silently skipping a rung (#387).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";

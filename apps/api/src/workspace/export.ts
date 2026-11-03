@@ -22,7 +22,6 @@
  * cost we would carry for every export, and the manifest is what a portability
  * request actually needs.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
@@ -41,6 +40,7 @@ import {
 import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { captureException } from "../observability/capture";
 
 export const EXPORTS_BUCKET = "exports";
 
@@ -196,9 +196,10 @@ export async function buildDataExports(
         .from("data_exports")
         .update({ status: "failed", error: message, completed_at: new Date().toISOString() })
         .eq("id", row.id);
-      Sentry.captureMessage(
+      void captureException(
+        env,
         `data export failed for company ${row.company_id}: ${message}`,
-        "error",
+        { source: "cron" },
       );
     }
   }
@@ -502,11 +503,12 @@ async function notifyReady(
   } catch (cause) {
     // The export IS ready and visible in settings; a failed email is worth
     // knowing about but must not mark a finished export as failed.
-    Sentry.captureMessage(
+    void captureException(
+      env,
       `data export ready-email failed for ${row.id}: ${
         cause instanceof Error ? cause.message : String(cause)
       }`,
-      "warning",
+      { source: "cron", level: "warning" },
     );
   }
 }
@@ -606,11 +608,12 @@ export async function pruneExpiredExports(
     } catch (cause) {
       // One stuck export must not stop the others, and tomorrow's run retries
       // it: the row is still unstamped and still expired.
-      Sentry.captureMessage(
+      void captureException(
+        env,
         `export reap failed for ${row.id}: ${
           cause instanceof Error ? cause.message : String(cause)
         }`,
-        "error",
+        { source: "cron" },
       );
     }
   }

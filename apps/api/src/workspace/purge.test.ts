@@ -6,15 +6,15 @@
  * before the rows that point at them, that one stuck tenant cannot stop the
  * others, and that running out of budget resumes rather than half-finishing.
  */
-import * as Sentry from "@sentry/cloudflare";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { purgeClosedWorkspaces } from "./purge";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const env = completeEnv();
@@ -23,6 +23,7 @@ const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  resetCaptures();
 });
 
 interface WorldOptions {
@@ -197,10 +198,10 @@ describe("purgeClosedWorkspaces", () => {
 
     expect(summary).toMatchObject({ workspaces: 1, completed: 0 });
     expect(sb.find("POST", "/rest/v1/rpc/purge_workspace_step")).toHaveLength(0);
-    expect(Sentry.captureMessage).toHaveBeenCalledWith(
-      expect.stringContaining("workspace purge failed"),
-      "error",
-    );
+    expect(exceptionsCaptured()).toContainEqual({
+      error: expect.stringContaining("workspace purge failed"),
+      context: expect.not.objectContaining({ level: "warning" }),
+    });
   });
 
   it("anonymises the row once the rows are gone, and deletes the Stripe customer", async () => {
@@ -242,10 +243,10 @@ describe("purgeClosedWorkspaces", () => {
     const summary = await purgeClosedWorkspaces(env);
 
     expect(summary).toMatchObject({ workspaces: 2, completed: 1 });
-    expect(Sentry.captureMessage).toHaveBeenCalledWith(
-      expect.stringContaining(COMPANY_ID),
-      "error",
-    );
+    expect(exceptionsCaptured()).toContainEqual({
+      error: expect.stringContaining(COMPANY_ID),
+      context: expect.not.objectContaining({ level: "warning" }),
+    });
   });
 
   describe("the erasure receipt (#371)", () => {
@@ -367,10 +368,10 @@ describe("purgeClosedWorkspaces", () => {
 
       expect(summary).toMatchObject({ completed: 1, receiptsSent: 0 });
       expect(emails).toHaveLength(1);
-      expect(Sentry.captureMessage).toHaveBeenCalledWith(
-        expect.stringContaining("deletion receipt not sent"),
-        "error",
-      );
+      expect(exceptionsCaptured()).toContainEqual({
+        error: expect.stringContaining("deletion receipt not sent"),
+        context: expect.not.objectContaining({ level: "warning" }),
+      });
     });
   });
 

@@ -841,7 +841,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
 
   // Validate the filter params before they reach PostgREST — a malformed
   // uuid/timestamp otherwise raises a PostgREST type error (22P02) that surfaces
-  // as a 500 + Sentry noise instead of a clean 422 (matches GET /v1/conversations).
+  // as a 500 + error noise instead of a clean 422 (matches GET /v1/conversations).
   if (conversationId !== undefined && !z.uuid().safeParse(conversationId).success) {
     throw new ApiError("validation_failed", "conversation_id must be a UUID.");
   }

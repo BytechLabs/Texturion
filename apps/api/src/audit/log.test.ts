@@ -2,16 +2,16 @@
  * #231 — the audit write path. What lands in the row, what never does, and
  * what happens when the write itself fails.
  */
-import * as Sentry from "@sentry/cloudflare";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
+import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
 import { recordAudit, recordAuditFromRequest } from "./log";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const env = completeEnv();
@@ -21,6 +21,7 @@ const ACTOR_ID = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  resetCaptures();
 });
 
 function stub(options: { insertFails?: boolean } = {}): SupabaseStub {
@@ -108,10 +109,10 @@ describe("recordAudit", () => {
       }),
     ).resolves.toBe(false);
 
-    expect(Sentry.captureMessage).toHaveBeenCalledWith(
-      expect.stringContaining("audit_log write failed"),
-      "error",
-    );
+    expect(exceptionsCaptured()).toContainEqual({
+      error: expect.stringContaining("audit_log write failed"),
+      context: expect.not.objectContaining({ level: "warning" }),
+    });
   });
 });
 

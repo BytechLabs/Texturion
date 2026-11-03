@@ -180,7 +180,7 @@ scheduledMessageRoutes.post(
         );
       default:
         // A sentinel this route has not been taught about. A plain throw, so
-        // it surfaces as a 500 in Sentry rather than being dressed up as a
+        // it surfaces as a 500 in PostHog rather than being dressed up as a
         // validation message the person could act on.
         throw new Error(`unexpected schedule outcome: ${result.outcome}`);
     }

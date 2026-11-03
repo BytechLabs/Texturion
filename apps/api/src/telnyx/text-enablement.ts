@@ -21,7 +21,7 @@
  *   deleted                        → cancelled
  *   successful                     → completed
  *
- * An UNKNOWN status keeps the row's current status (and Sentry-warns) rather
+ * An UNKNOWN status keeps the row's current status (and warns) rather
  * than silently resetting to 'pending'.
  *
  * Number-ownership verification: the hosted-messaging API supports an optional
@@ -61,15 +61,14 @@
  * Attempt budget: a FAILED pass increments `attempts`; a successful pass resets
  * it to 0 (transient errors never permanently eat the budget). Exhausting
  * MAX_ENABLEMENT_ATTEMPTS lands the order at status='failed' with last_error
- * retained — visible to the owner (who can fix + resubmit), plus the Sentry
- * fatal for the operator.
+ * retained, visible to the owner (who can fix + resubmit), plus an error
+ * report for the operator.
  *
  * The phone_numbers row (source='hosted') and text_enablement_orders row are
  * inserted by claim_text_enablement_slot BEFORE the saga runs (the atomic slot
  * claim, idempotent on the provisioning_key) — same insert-first idempotency the
  * provisioned/ported paths use.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
@@ -86,6 +85,7 @@ import {
 } from "./provisioning";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { captureException, workerEnv } from "../observability/capture";
 
 export const MAX_ENABLEMENT_ATTEMPTS = 5;
 
@@ -125,8 +125,10 @@ async function releaseTextEnablementLease(
     .eq("id", orderId);
   // Best-effort: a failed release just means the lease expires on its own.
   if (error) {
-    Sentry.captureException(
+    void captureException(
+      workerEnv(),
       new Error(`text-enablement lease release failed: ${error.message}`),
+      { source: "api" },
     );
   }
 }
@@ -202,7 +204,7 @@ interface HostedOrderResponse {
  * Map a Telnyx hosted-order status onto our local enum. The input vocabulary
  * is the REAL MessagingHostedNumberOrder.status enum from the Telnyx OpenAPI
  * spec (see the module header) — an unknown value keeps the row's CURRENT
- * status (never a silent reset to 'pending') and Sentry-warns with the raw
+ * status (never a silent reset to 'pending') and warns with the raw
  * value so new vendor statuses surface to the operator.
  */
 export function mapHostedStatus(
@@ -229,9 +231,10 @@ export function mapHostedStatus(
     case "deleted":
       return "cancelled";
     default:
-      Sentry.captureMessage(
+      void captureException(
+        workerEnv(),
         `unknown Telnyx hosted-order status ${JSON.stringify(raw ?? null)} — keeping '${current}'`,
-        "warning",
+        { source: "api", level: "warning" },
       );
       return current;
   }
@@ -733,19 +736,20 @@ export async function resumeTextEnablement(
     return updateOrderUnlessCancelled(env, db, order.id, patch);
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
-    Sentry.captureException(cause);
+    void captureException(env, cause, { source: "api" });
     const attempts = order.attempts + 1;
     const patch: Record<string, unknown> = {
       last_error: message.slice(0, 2000),
       attempts,
     };
     if (attempts >= MAX_ENABLEMENT_ATTEMPTS) {
-      // The stall must be VISIBLE to the owner, not only a Sentry page: the
+      // The stall must be VISIBLE to the owner, not only an error report: the
       // order lands 'failed' with last_error retained (resubmit resets both).
       patch.status = "failed";
-      Sentry.captureMessage(
+      void captureException(
+        env,
         `text-enablement exhausted ${attempts} attempts for order ${order.id}`,
-        "fatal",
+        { source: "api" },
       );
     }
     return updateOrderUnlessCancelled(env, db, order.id, patch);

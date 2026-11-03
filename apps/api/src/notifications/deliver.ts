@@ -24,7 +24,6 @@ import {
  * the ring could not reach. Folding those in would mean an option for every
  * difference, which is the shape this file exists to avoid.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
@@ -37,6 +36,7 @@ import {
   type PushAttempt,
 } from "./push-attempts";
 import { sendWebPush } from "./webpush";
+import { captureException, workerEnv } from "../observability/capture";
 
 /**
  * Defensive bound, applied PER RECIPIENT rather than across the audience.
@@ -283,7 +283,7 @@ function warnIfTruncated(table: string, rowCount: number, ceiling: number): void
     `push fan-out: ${table} returned the full ${ceiling}-row ceiling — ` +
     `some recipients may not have been reached`;
   console.warn(message);
-  Sentry.captureMessage(message, "warning");
+  void captureException(workerEnv(), message, { source: "api", level: "warning" });
 }
 
 /**
