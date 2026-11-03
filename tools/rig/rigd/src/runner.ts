@@ -5,7 +5,7 @@
  * start inside the guard's dial window with time to finish there, and the
  * day's and the clock hour's dials must have room for it. Then the run holds
  * the lease, a failing attempt is tried once more, every attempt's verdict is
- * recorded with the SHA, and only a second failure becomes a Sentry event. A
+ * recorded with the SHA, and only a second failure is reported to PostHog. A
  * failure the doc calls critical is reported at once and not retried.
  */
 import { randomBytes } from "node:crypto";
@@ -26,7 +26,7 @@ import type {
   ScenarioResult,
   ScenarioRunner,
 } from "./scenarios/context.ts";
-import { infraFingerprint, syntheticFingerprint, type Dsn, type RelayDecision, type SentryRelay } from "./sentry-relay.ts";
+import { infraFingerprint, syntheticFingerprint, type PostHogErrors, type ReportDecision } from "./posthog-errors.ts";
 import type { Outcome, Verdict, VerdictStore } from "./verdicts.ts";
 
 /** A paid run must be able to finish before the window shuts. */
@@ -58,8 +58,7 @@ export interface RunnerDeps {
   localLease(scenario: string): Lease | Promise<Lease>;
   /** The robot, app probe, browser lane and the rest of the rig, for one attempt. */
   lanes(attempt: { scenario: string; runId: string; attempt: number }): ScenarioLanes;
-  relay?: SentryRelay;
-  syntheticDsn?: Dsn;
+  posthog?: Pick<PostHogErrors, "canSend" | "send">;
   /** The deployed SHA: `rig deploy` writes it. */
   sha(): string;
   room(): number;
@@ -103,7 +102,7 @@ export interface RunSummary {
   run_id?: string;
   status: Outcome;
   verdicts: Verdict[];
-  report?: RelayDecision;
+  report?: ReportDecision;
   detail?: string;
 }
 
@@ -638,7 +637,7 @@ async function finish(deps: RunnerDeps, entry: RegisteredScenario, runId: string
   // The event describes this run's last attempt that actually judged
   // something, never a later "skipped" from the window or the cap.
   const judged = verdicts.filter((v) => DECISIVE.has(v.outcome)).at(-1);
-  if (!judged || judged.outcome === "pass" || !deps.relay || !deps.syntheticDsn) return summary;
+  if (!judged || judged.outcome === "pass" || !deps.posthog?.canSend) return summary;
 
   const critical = verdicts.find((v) => v.critical);
   // Retried once before it is reported: the scenario's last two decisive
@@ -654,7 +653,7 @@ async function finish(deps: RunnerDeps, entry: RegisteredScenario, runId: string
     reported.outcome === "infra"
       ? infraFingerprint(reported.component ?? "unknown")
       : syntheticFingerprint(entry.id, reported.failure_class ?? "unknown");
-  summary.report = await deps.relay.send(deps.syntheticDsn, {
+  summary.report = await deps.posthog.send({
     fingerprint,
     message: `${entry.id} ${reported.outcome === "infra" ? `infrastructure: ${reported.component}` : `failed: ${reported.failure_class}`}${critical ? " (critical)" : ""}`,
     level: critical ? "fatal" : "error",

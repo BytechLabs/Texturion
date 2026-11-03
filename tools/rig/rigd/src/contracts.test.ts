@@ -9,7 +9,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { EDGE_PATHS, STANDING_ROLES } from "@loonext/rig-protocol";
 import { numberBook, SecretFiles, storeNameOf } from "@loonext/rig-robot";
-import { ManualClock } from "@loonext/rig-robot/test-support";
 import { STANDING_ROLES as CLI_STANDING_ROLES } from "../../src/guard.mjs";
 import { afterEach, describe, expect, it } from "vitest";
 import { AppProbe, splitMember, stableUuid } from "./app-probe.ts";
@@ -19,7 +18,7 @@ import { runStarter } from "./daemon.ts";
 import { WindowSource } from "./guard-window.ts";
 import { RpcRouter } from "./rpc.ts";
 import { BUNDLE_KEY_SECRET, deliverSecrets } from "./secrets.ts";
-import { parseDsn, SentryRelay, type SeenEvent } from "./sentry-relay.ts";
+import { reportApiExceptions, seenException, type SeenEvent } from "./posthog-errors.ts";
 import { fakeFetch, json } from "./test-support.ts";
 import type { RpcFrame } from "./uplink.ts";
 
@@ -39,11 +38,10 @@ function rigHomeDir(): string {
 describe("config from $RIG_HOME", () => {
   it("reads the edge origin from the store and the API's loopback port from rig.json", () => {
     const home = rigHomeDir();
-    writeFileSync(join(home, "rig.json"), JSON.stringify({ apiPort: 8787, sentryRelayOrigin: "http://127.0.0.1:8790" }));
+    writeFileSync(join(home, "rig.json"), JSON.stringify({ apiPort: 8787 }));
     const config = loadConfig({ RIG_HOME: home });
     expect(config.edgeOrigin).toBe("https://rig-edge.example.workers.dev");
     expect(config.localApiBase).toBe("http://127.0.0.1:8787");
-    expect(config.relayPort).toBe(8790);
     expect(() => edgeOriginOf("https://rig-edge.example.workers.dev/path")).toThrow(/bare https origin/);
     expect(edgeOriginOf("http://127.0.0.1:8899")).toBe("http://127.0.0.1:8899");
   });
@@ -384,50 +382,55 @@ describe("the cron registry's reading of the API's events", () => {
   });
 });
 
-describe("the relay's report for rig health", () => {
-  it("lists the API's events from the last day that the cron registry does not explain, and its defects apart", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "rigd-relay-"));
-    dirs.push(dir);
-    const { fetch } = fakeFetch({ POST: () => new Response("{}") });
-    const clock = new ManualClock(Date.UTC(2026, 9, 1, 5));
-    const dsn = parseDsn("https://key@o1.ingest.sentry.example/102");
-    const relay = new SentryRelay({ statePath: join(dir, "counters.json"), alertDsn: dsn, fetch, clock });
-    const envelope = (event: unknown) => new TextEncoder().encode(`{}\n{"type":"event"}\n${JSON.stringify(event)}\n`);
-    await relay.forwardEnvelope(dsn, envelope({ fingerprint: ["ops", "billing-dispute"], level: "warning" }));
-    await relay.forwardEnvelope(dsn, envelope({ level: "warning", message: "A number port-out is pending", tags: { ops_key: "port-out" } }));
-    await relay.forwardEnvelope(dsn, envelope({ level: "warning", message: "reconcile: a Telnyx number is unknown to phone_numbers" }));
-    await relay.forwardEnvelope(dsn, envelope({ exception: { values: [{ type: "TypeError", value: "x is undefined" }] } }));
+describe("the report of the API's exceptions for rig health", () => {
+  const NOW = Date.UTC(2026, 9, 1, 5);
+  const row = (at: number, list: { type: string; value: string }[], extras: { level?: string; fingerprint?: string; cron?: string; job?: string; ops_key?: string } = {}) =>
+    [at / 1000, extras.level ?? "error", extras.fingerprint ?? null, list, "api", null, extras.cron ?? null, extras.job ?? null, extras.ops_key ?? null];
+  const source = (rows: unknown[][]) => ({ apiExceptions: async () => rows.map((r) => seenException(r)) });
+
+  it("lists the API's exceptions from the last day that the cron registry does not explain, and its defects apart", async () => {
     const { explain } = cronExplainer(JSON.stringify(CRONS));
-    const report = relay.report(explain);
-    expect(report.unexplained_24h).toEqual([JSON.stringify(["exception", "TypeError", "x is undefined"])]);
+    const report = await reportApiExceptions(
+      source([
+        row(NOW, [{ type: "OpsNotice", value: "A number port-out is pending" }], { level: "warning", fingerprint: "ops:billing-dispute", ops_key: "billing-dispute" }),
+        row(NOW, [{ type: "Error", value: "reconcile: a Telnyx number is unknown to phone_numbers" }], { level: "warning" }),
+        row(NOW, [{ type: "TypeError", value: "x is undefined" }]),
+      ]),
+      explain,
+      NOW,
+    );
+    expect(report.error).toBeUndefined();
+    expect(report.unexplained_24h).toEqual(["TypeError: x is undefined"]);
     expect(report.defects_24h).toEqual([
-      { key: JSON.stringify(["message", "reconcile: a Telnyx number is unknown to phone_numbers"]), means: "A number in the rig's group has no phone_numbers row." },
+      { key: "Error: reconcile: a Telnyx number is unknown to phone_numbers", means: "A number in the rig's group has no phone_numbers row." },
     ]);
-    expect(report.day_count).toBe(4);
-    clock.advance(24 * 60 * 60 * 1000);
-    expect(relay.report(explain).unexplained_24h).toEqual([]);
-    expect(JSON.parse(readFileSync(join(dir, "counters.json"), "utf8")).apiSeen).toBeDefined();
   });
 
-  it("keeps an envelope Sentry did not take, and sends it on the next flush", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "rigd-relay-"));
-    dirs.push(dir);
-    let up = false;
-    const { fetch, requests } = fakeFetch({ POST: () => (up ? new Response("{}") : new Response("down", { status: 503 })) });
-    const clock = new ManualClock(Date.UTC(2026, 9, 1, 5));
-    const dsn = parseDsn("https://key@o1.ingest.sentry.example/101");
-    const relay = new SentryRelay({ statePath: join(dir, "counters.json"), alertDsn: dsn, fetch, clock });
-    const event = { fingerprint: ["synthetic", "S23", "not_threaded"], message: "S23 failed" };
-    expect(await relay.send(dsn, event)).toEqual({ sent: false, reason: "send_failed", pending: true });
-    expect(relay.report().pending).toBe(1);
-    // Still suppressed, so the same failure is not sent twice once Sentry is back.
-    expect(await relay.send(dsn, event)).toEqual({ sent: false, reason: "suppressed" });
-    expect(await relay.flushPending()).toEqual({ sent: 0, left: 1 });
-    up = true;
-    expect(await relay.flushPending()).toEqual({ sent: 1, left: 0 });
-    expect(relay.report().pending).toBe(0);
-    expect(requests.at(-1)!.body).toContain('"fingerprint":["synthetic","S23","not_threaded"]');
-    expect(requests.at(-1)!.body).toBe(requests[0]!.body);
+  it("says the read failed instead of reporting a quiet API", async () => {
+    const report = await reportApiExceptions(
+      { apiExceptions: async () => { throw new Error("PostHog answered 401 for the exception query"); } },
+      () => undefined,
+      NOW,
+    );
+    expect(report).toMatchObject({ error: "PostHog answered 401 for the exception query", unexplained_24h: [], defects_24h: [] });
+  });
+
+  it("reads PostHog's list with the thrown error first as the registry's, outermost last, and keeps the tags it matches on", () => {
+    const seen = seenException(
+      row(NOW, [{ type: "AggregateError", value: "cron: 1 of 5 job(s) failed" }, { type: "TelnyxApiError", value: "Telnyx 403 on DELETE /v2/phone_numbers/x" }], {
+        cron: "0 13 * * *",
+        job: "job:reconcile-numbers",
+      }),
+    );
+    expect(seen.exceptions?.map((e) => e.type)).toEqual(["TelnyxApiError", "AggregateError"]);
+    expect(seen.message).toBe("cron: 1 of 5 job(s) failed");
+    expect(seen.tags).toEqual({ source: "api", cron: "0 13 * * *", job: "job:reconcile-numbers" });
+    expect(seen.at).toBe(NOW);
+  });
+
+  it("parses a list PostHog returns as JSON text", () => {
+    const seen = seenException([NOW / 1000, "error", null, JSON.stringify([{ type: "Error", value: "boom" }]), null, null, null, null, null]);
+    expect(seen.exceptions).toEqual([{ type: "Error", value: "boom" }]);
   });
 });
 

@@ -9,7 +9,7 @@ import type { CallTestId, CheckoutRun, DeviceState, HostdHealth, NetworkShape, N
 import type { CallPlan, CallRecord, Detection, InboxMessage, RobotApi, SinkDelivery, Surface } from "@loonext/rig-robot";
 import { signUpNumberKey } from "../app-probe.ts";
 import type { UndoAction } from "../lease.ts";
-import type { SeenEvent } from "../sentry-relay.ts";
+import type { SeenEvent } from "../cron-events.ts";
 import type {
   ApiAnswer,
   AppApi,

@@ -78,5 +78,5 @@ export const NOT_RUNNABLE_YET: Readonly<Record<string, string>> = {
   G02: "the Android half needs the nonprod build to place an SDK call to a SIP address, and the app has no entry point for one",
   S08: "the web call bar has no consult transfer control, so every run would report the browser lane",
   K01: "an optional Phase 4 lane with no runner; it never runs by default (docs/RIG.md 2.3)",
-  S26: "the API raises the carrier-ceiling warning by email only, never as a Sentry event, so every run would fail carrier_alert_missing",
+  S26: "the API raises the carrier-ceiling warning by email only, never as an API exception, so every run would fail carrier_alert_missing",
 };

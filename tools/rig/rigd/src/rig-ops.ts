@@ -1,6 +1,6 @@
 /**
- * The rig VM as scenarios drive it: its health report, the relay's record of
- * the local API's Sentry events, the fault the next call event gets, and the
+ * The rig VM as scenarios drive it: its health report, PostHog's record of
+ * the local API's exceptions, the fault the next call event gets, and the
  * Android emulators.
  *
  * Health is the rig CLI's own `rig health` (tools/rig/src/health.mjs), run
@@ -31,7 +31,7 @@ import {
 } from "@loonext/rig-lanes";
 import type { NumberBook, Transcriber } from "@loonext/rig-robot";
 import type { Socket } from "node:net";
-import type { SeenEvent } from "./sentry-relay.ts";
+import type { PostHogErrors, SeenEvent } from "./posthog-errors.ts";
 import type { FaultFile } from "./state-files.ts";
 import type { DeviceApi, DevicesApi, RigApi, RigHealthReport } from "./scenarios/context.ts";
 
@@ -40,8 +40,8 @@ export interface RigOpsOptions {
   stateDir: string;
   /** tools/rig/bin/rig.mjs in the tooling checkout. */
   rigBin: string;
-  /** The relay's counters file, whose `apiSeen` holds the local API's events. */
-  relayState: string;
+  /** Where the local API's exceptions are read from. */
+  exceptions: Pick<PostHogErrors, "apiExceptions">;
   faults: FaultFile;
   transcriber?: Transcriber;
   exec?: (file: string, args: readonly string[]) => Promise<void>;
@@ -68,12 +68,7 @@ export class RigOps implements RigApi {
   }
 
   async apiEvents(since: number): Promise<SeenEvent[]> {
-    if (!existsSync(this.#o.relayState)) return [];
-    const state = JSON.parse(readFileSync(this.#o.relayState, "utf8")) as { apiSeen?: Record<string, number | SeenEvent> };
-    return Object.values(state.apiSeen ?? {})
-      .map((value) => (typeof value === "number" ? { at: value } : value))
-      .filter((event) => event.at >= since)
-      .sort((a, b) => a.at - b.at);
+    return (await this.#o.exceptions.apiExceptions(since)).sort((a, b) => a.at - b.at);
   }
 
   async failNextCallEvent(status: 503): Promise<void> {

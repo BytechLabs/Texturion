@@ -41,7 +41,6 @@ describe("the rig's layout", () => {
     expect(rigSettings(home)).toEqual({
       appOrigin: "https://app.rig.internal",
       apiPort: 8787,
-      sentryRelayOrigin: "http://127.0.0.1:8790",
       systemd: true,
     });
     writeFileSync(home.settingsFile, JSON.stringify({ apiPort: 9000, systemd: false }));
@@ -152,7 +151,7 @@ describe("a fresh home", () => {
     const root = temp();
     mkdirSync(join(root, "home"));
     const home = rigHome({ RIG_HOME: join(root, "home") });
-    publishState(home, "sentry-relay.json", { at: "x", unexplained_24h: [] });
-    expect(readState(home, "sentry-relay.json")).toEqual({ at: "x", unexplained_24h: [] });
+    publishState(home, "api-exceptions.json", { at: "x", unexplained_24h: [] });
+    expect(readState(home, "api-exceptions.json")).toEqual({ at: "x", unexplained_24h: [] });
   });
 });

@@ -8,7 +8,7 @@
  */
 import type { LeaseActivity } from "@loonext/rig-protocol";
 import type { CallRecord } from "@loonext/rig-robot";
-import type { SeenEvent } from "../sentry-relay.ts";
+import type { SeenEvent } from "../cron-events.ts";
 import {
   fail,
   FICTIONAL_E164,
@@ -91,7 +91,7 @@ export const PROBE_RULES: Readonly<Record<GuardProbe, string>> = {
 
 const RIG_DESTINATION_REFUSED = "rig_destination_refused";
 const STRANGER_TEXT_WAIT_MS = 30_000;
-/** The API reports its own errors in the background; the relay has them well within this. */
+/** The API reports its own errors in the background; PostHog has them well within this. */
 const API_ERROR_WAIT_MS = 30_000;
 const COMPOSE_ROUTE = "POST /v1/conversations";
 const BROWSER_CALL_ROUTE = "POST /v1/calls/browser";
@@ -102,7 +102,7 @@ function gateRefusedOn(event: SeenEvent, route: string): boolean {
 }
 
 /**
- * Whether an API error report is one of G01's own refusals, for the relay's
+ * Whether an API error report is one of G01's own refusals, for the cron
  * explainer: each run leaves two 500s that would otherwise read as
  * unexplained for a day. Only inside a G01 attempt, since the same report at
  * any other time is the app reaching for a stranger by itself.

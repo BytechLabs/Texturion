@@ -10,11 +10,9 @@ import {
   firebaseProjectId,
   generateVapidPair,
   parseDevVars,
-  relayDsn,
   renderDevVars,
   seams,
 } from "../src/dev-vars.mjs";
-import { WITHHELD_SENTRY_DSN } from "../src/deploy.mjs";
 import { edgeOrigin, recordStanding, rigEndpoints, standingNumbers } from "../src/guard.mjs";
 import { TOOLING_ROOT } from "../src/layout.mjs";
 import { secretStore } from "../src/secrets.mjs";
@@ -63,7 +61,6 @@ function context(store, overrides = {}) {
       fcmServiceAccount: '{"project_id":"p"}',
       stripeSecretKey: "sk_test_rig",
       stripeWebhookSecret: "whsec_rig",
-      sentryDsn: "http://k@127.0.0.1:8790/1",
       vapidPublicKey: "pub",
       vapidPrivateKey: "priv",
       rigOwnedE164: rigEndpoints(standing).join(","),
@@ -169,14 +166,6 @@ test("values survive quoting", () => {
   const parsed = JSON.parse(json);
   assert.equal(parsed.project_id, "rig-project");
   assert.match(parsed.private_key, /BEGIN PRIVATE KEY/);
-});
-
-test("the relay DSN keeps the key and project and swaps the host", () => {
-  assert.equal(relayDsn("https://abc@o123.ingest.sentry.io/456", "http://127.0.0.1:8790"), "http://abc@127.0.0.1:8790/456");
-});
-
-test("with the DSN withheld, the API still gets a URL, one that names no project and points at the relay", () => {
-  assert.equal(relayDsn(WITHHELD_SENTRY_DSN, "http://127.0.0.1:8790"), "http://withheld@127.0.0.1:8790/0");
 });
 
 test("seams come from the shared contract", () => {

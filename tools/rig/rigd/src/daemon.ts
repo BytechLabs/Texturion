@@ -1,6 +1,6 @@
 /**
- * The long-running half of rigd: the uplink, the lease watchdog, the Sentry
- * relay's listener, secret delivery, the rpc commands and the guard's version
+ * The long-running half of rigd: the uplink, the lease watchdog, the report of
+ * the local API's exceptions, secret delivery, the rpc commands and the guard's version
  * attestation. It starts no scenario by itself: runs are separate processes
  * that someone asks for (`rig run`, or `triage.rerun` through the rpc), each
  * in its own process or systemd unit, so a run that crashes takes nothing else
@@ -9,12 +9,11 @@
  * What it publishes in state/ (`rig health` reads the first two,
  * tools/rig/src/health.mjs):
  *   state/uplink.json        { connected, at }, at least every minute
- *   state/sentry-relay.json  { at, unexplained_24h, defects_24h, ... }, every five minutes
+ *   state/api-exceptions.json  { at, unexplained_24h, defects_24h, error? }, every five minutes
  *   state/guard-attest.json  { at, outcome, ... }, every hour (guard-attest.ts)
  */
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, unwatchFile, watchFile } from "node:fs";
-import { createServer, type Server } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { triageMethods, type StartedRun } from "@loonext/rig-triage";
@@ -32,24 +31,22 @@ import { newRunId } from "./runner.ts";
 import { g01Refusal } from "./scenarios/gates.ts";
 import { attestGuard, reportAttestation } from "./guard-attest.ts";
 import { BUNDLE_KEY_SECRET, CONTROL_TOKEN_SECRET, deliverSecrets } from "./secrets.ts";
-import { infraFingerprint, parseDsn, type Dsn, type Explanation, type SeenEvent } from "./sentry-relay.ts";
+import { infraFingerprint, reportApiExceptions, type Explanation, type SeenEvent } from "./posthog-errors.ts";
 import { Uplink } from "./uplink.ts";
 import type { VerdictStore } from "./verdicts.ts";
 import { buildRig, type Rig } from "./wiring.ts";
 
 const CLI = fileURLToPath(new URL("./cli.ts", import.meta.url));
 const UPLINK_STATE_MS = 60_000;
-const RELAY_REPORT_MS = 5 * 60_000;
+const EXCEPTIONS_REPORT_MS = 5 * 60_000;
 const VERDICT_POLL_MS = 10_000;
 const SECRET_REFRESH_MS = 6 * 60 * 60_000;
 const ATTEST_MS = 60 * 60_000;
-const ENVELOPE_MAX_BYTES = 1024 * 1024;
 
 export interface Daemon {
   uplink: Uplink;
   watchdog: LeaseWatchdog;
   router: RpcRouter;
-  relayServer?: Server;
   stop(): void;
 }
 
@@ -150,11 +147,11 @@ export function forwardTargets(rig: Pick<Rig, "config" | "numbers" | "faults" | 
 }
 
 /**
- * How the relay's report explains a local API event: the cron registry first,
+ * How the exceptions report explains a local API event: the cron registry first,
  * then a G01 attempt's refusals. An attempt still holding its lease counts from
  * when it took it, so its refusals are expected before its verdict is written.
  */
-export function relayExplain(
+export function exceptionExplain(
   explainer: CronExplainer | undefined,
   verdicts: Pick<VerdictStore, "all">,
   leases: Pick<LeaseClient, "open">,
@@ -199,8 +196,8 @@ export function startDaemon(config: RigdConfig): Daemon {
     client: rig.leases,
     log,
     onReap: (result, entry) => {
-      if (!rig.relay || !rig.syntheticDsn) return;
-      void rig.relay.send(rig.syntheticDsn, {
+      if (!rig.posthog.canSend) return;
+      void rig.posthog.send({
         fingerprint: infraFingerprint(result.failed.length ? "lease-undo" : "lease"),
         message: `the lease for ${entry.scenario} was not released in time; rigd ran its ${entry.undo.length} undo(s)`,
         extra: { lease_id: result.lease_id, failed: result.failed },
@@ -232,41 +229,28 @@ export function startDaemon(config: RigdConfig): Daemon {
     log(`no ${BUNDLE_KEY_SECRET} in the store; secret delivery is off`);
   }
 
-  let relayServer: Server | undefined;
-  const rigDsn = store.readOptional("sentry-dsn-rig");
-  if (rig.relay && rigDsn) {
-    const relay = rig.relay;
-    relayServer = sentryListener(rig, parseDsn(rigDsn));
-    relayServer.listen(config.relayPort, "127.0.0.1");
-    const cronRegistry = join(config.registryPath, "..", "crons.json");
-    let unread = 0;
-    const report = () => {
-      // Read each time: a deploy may change what the crons expect.
-      let explainer: CronExplainer | undefined;
-      try {
-        explainer = cronExplainer(existsSync(cronRegistry) ? readFileSync(cronRegistry, "utf8") : undefined);
-        if (explainer.unread.length !== unread) log(`crons.json: ${explainer.unread.length} match(es) rigd cannot read; they explain nothing`);
-        unread = explainer.unread.length;
-      } catch (error) {
-        log(`crons.json unreadable, so nothing is explained: ${error instanceof Error ? error.message : "error"}`);
-      }
-      publishState(home, "sentry-relay.json", relay.report(relayExplain(explainer, rig.verdicts, rig.leases, Date.now())));
-    };
-    report();
-    every(RELAY_REPORT_MS, report);
-    // A G01 attempt's lease is gone a moment before its verdict lands; report again once it does.
-    watchFile(rig.verdicts.file, { interval: VERDICT_POLL_MS }, report).unref();
-  } else {
-    log("no sentry-dsn-synthetic or sentry-dsn-rig in the store; the Sentry relay is off");
-  }
-  if (rig.relay) {
-    const relay = rig.relay;
-    every(RELAY_REPORT_MS, () =>
-      void relay.flushPending().then(({ sent, left }) => {
-        if (sent || left) log(`Sentry: ${sent} held envelope(s) sent, ${left} still held`);
-      }),
-    );
-  }
+  const cronRegistry = join(config.registryPath, "..", "crons.json");
+  let unread = 0;
+  const report = () => {
+    // Read each time: a deploy may change what the crons expect.
+    let explainer: CronExplainer | undefined;
+    try {
+      explainer = cronExplainer(existsSync(cronRegistry) ? readFileSync(cronRegistry, "utf8") : undefined);
+      if (explainer.unread.length !== unread) log(`crons.json: ${explainer.unread.length} match(es) rigd cannot read; they explain nothing`);
+      unread = explainer.unread.length;
+    } catch (error) {
+      log(`crons.json unreadable, so nothing is explained: ${error instanceof Error ? error.message : "error"}`);
+    }
+    const now = Date.now();
+    void reportApiExceptions(rig.posthog, exceptionExplain(explainer, rig.verdicts, rig.leases, now), now).then((result) => {
+      if (result.error) log(`the local API's exceptions could not be read: ${result.error}`);
+      publishState(home, "api-exceptions.json", result);
+    });
+  };
+  report();
+  every(EXCEPTIONS_REPORT_MS, report);
+  // A G01 attempt's lease is gone a moment before its verdict lands; report again once it does.
+  watchFile(rig.verdicts.file, { interval: VERDICT_POLL_MS }, report).unref();
 
   let attested: string | undefined;
   const attest = () =>
@@ -278,10 +262,9 @@ export function startDaemon(config: RigdConfig): Daemon {
         return reportAttestation(result, {
           edgeOrigin: config.edgeOrigin,
           controlToken: store.readOptional(CONTROL_TOKEN_SECRET),
-          infra:
-            rig.relay && rig.syntheticDsn
-              ? (message) => rig.relay!.send(rig.syntheticDsn!, { fingerprint: infraFingerprint("guard-attest"), message, level: "warning" })
-              : undefined,
+          infra: rig.posthog.canSend
+            ? (message) => rig.posthog.send({ fingerprint: infraFingerprint("guard-attest"), message, level: "warning" })
+            : undefined,
           log,
         });
       })
@@ -293,40 +276,12 @@ export function startDaemon(config: RigdConfig): Daemon {
     uplink,
     watchdog,
     router,
-    relayServer,
     stop() {
       for (const timer of timers) clearInterval(timer);
       uplink.stop();
       watchdog.stop();
-      relayServer?.close();
       unwatchFile(rig.verdicts.file);
       publishState(home, "uplink.json", { connected: false, at: new Date().toISOString() });
     },
   };
-}
-
-/**
- * The local API's Sentry SDK posts here: `rig deploy` rewrites the rig's DSN
- * to this listener (`sentryRelayOrigin` in rig.json), and the relay forwards
- * what its caps allow to the real `loonext-rig` project. The SDK is always
- * told 200, so a capped event is never retried into the cap again.
- */
-function sentryListener(rig: Rig, rigDsn: Dsn): Server {
-  return createServer((request, response) => {
-    if (request.method !== "POST" || !/^\/api\/\d+\/envelope\/?$/.test(request.url?.split("?")[0] ?? "")) {
-      response.writeHead(404).end();
-      return;
-    }
-    const chunks: Buffer[] = [];
-    let size = 0;
-    request.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size <= ENVELOPE_MAX_BYTES) chunks.push(chunk);
-    });
-    request.on("end", () => {
-      response.writeHead(200, { "content-type": "application/json" }).end("{}");
-      if (size > ENVELOPE_MAX_BYTES) return;
-      void rig.relay!.forwardEnvelope(rigDsn, Buffer.concat(chunks)).catch(() => undefined);
-    });
-  });
 }

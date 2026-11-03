@@ -7,7 +7,7 @@ export * from "./registry.ts";
 export * from "./rpc.ts";
 export * from "./runner.ts";
 export * from "./units.ts";
-export * from "./sentry-relay.ts";
+export * from "./posthog-errors.ts";
 export * from "./uplink.ts";
 export * from "./verdicts.ts";
 export * from "./scenarios/index.ts";

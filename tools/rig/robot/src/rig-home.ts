@@ -38,7 +38,6 @@ export function rigHome(env: NodeJS.ProcessEnv = process.env): RigHome {
 export interface RigSettings {
   appOrigin: string;
   apiPort: number;
-  sentryRelayOrigin: string;
   /** Off on a workstation running a spike: no user manager runs the units. */
   systemd: boolean;
 }
@@ -46,14 +45,14 @@ export interface RigSettings {
 /** The CLI's reading of rig.json, which refuses unknown settings, held to the types rigd needs. */
 export function rigSettings(home: RigHome): RigSettings {
   const settings = cliSettings(home) as Record<string, unknown>;
-  const { appOrigin, apiPort, sentryRelayOrigin, systemd } = settings;
-  if (typeof appOrigin !== "string" || typeof sentryRelayOrigin !== "string") {
-    throw new Error("rig: rig.json's appOrigin and sentryRelayOrigin must be strings");
+  const { appOrigin, apiPort, systemd } = settings;
+  if (typeof appOrigin !== "string") {
+    throw new Error("rig: rig.json's appOrigin must be a string");
   }
   if (typeof apiPort !== "number" || typeof systemd !== "boolean") {
     throw new Error("rig: rig.json's apiPort must be a number and systemd a boolean");
   }
-  return { appOrigin, apiPort, sentryRelayOrigin, systemd };
+  return { appOrigin, apiPort, systemd };
 }
 
 interface CliStore {

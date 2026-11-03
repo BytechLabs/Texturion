@@ -9,8 +9,9 @@
  *   guard-token-robot        the `robot` caller token: the lease, the robot's Telnyx
  *   guard-token-rig-api      the `rig-api` caller token, the app's TELNYX_API_KEY (the CLI's)
  *   bundle-private-key.json  the X25519 JWK the secret bundle is sealed to
- *   sentry-dsn-rig           the existing project's DSN, which the relay forwards the local API's events to (the CLI's)
- *   sentry-dsn-synthetic     the same project's DSN, for scenario and infrastructure events (FA7)
+ *   posthog-api-key          the project's public key: scenario and infrastructure events go out with it, and the local API's own (the CLI's)
+ *   posthog-personal-api-key a personal key that can run queries, for reading the local API's exceptions back (R00)
+ *   posthog-project-id       the project those exceptions are read from
  *   rig-app-id, rig-app-key  the GitHub App (RIG_APP_KEY)
  *   cf-guard-attest-token    guard-attest-read, for the hourly attestation (guard-attest.ts)
  *   cloudflare-account-id    the account the guard runs in, for the same read
@@ -56,7 +57,6 @@ export interface RigdConfig {
   /** The deployed API on loopback, as `rig serve api` runs it. */
   localApiBase: string;
   robotBase: string;
-  relayPort: number;
   windowOverride?: DialWindow;
   capsOverride?: DialCaps;
   /** hostd on the Windows host, through the tunnel. */
@@ -81,7 +81,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RigdConfig {
     registryPath: env.RIG_REGISTRY ?? resolve(HERE, "../../scenarios.json"),
     localApiBase: `http://127.0.0.1:${settings.apiPort}`,
     robotBase: env.RIG_ROBOT_BASE ?? "http://127.0.0.1:7311",
-    relayPort: Number(new URL(settings.sentryRelayOrigin).port || 8790),
     ...(env.RIG_DIAL_WINDOW ? { windowOverride: parseWindow(env.RIG_DIAL_WINDOW) } : {}),
     ...(env.RIG_DIAL_CAPS ? { capsOverride: parseCaps(env.RIG_DIAL_CAPS) } : {}),
     hostdOrigin: parseHostdOrigin(env.RIG_HOSTD_ORIGIN ?? HOSTD_ORIGIN),

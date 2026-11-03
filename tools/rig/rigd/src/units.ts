@@ -53,7 +53,7 @@ export function buildUnits(options: UnitOptions): Unit[] {
   return [
     service(
       "loonext-rig-rigd.service",
-      "Loonext rig: rigd (uplink, lease watchdog, Sentry relay, secret delivery)",
+      "Loonext rig: rigd (uplink, lease watchdog, exception report, secret delivery)",
       `${options.node} ${options.cli} daemon`,
       "loonext-rig-stack.service",
     ),

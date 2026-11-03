@@ -417,7 +417,7 @@ describe("the device driver's commands (no device has run them)", () => {
   });
 
   it("never repeats a typed password or the PIN in the error of a command that failed", async () => {
-    // Node's execFile error names the whole command line, which a verdict's detail would carry to Sentry.
+    // Node's execFile error names the whole command line, which a verdict's detail would carry to PostHog.
     const failing = (killed: boolean): Exec => async (file, args) => {
       const line = [file, ...args].join(" ");
       if (!line.includes(" input text ") && !line.includes(" set-pin ")) return "";

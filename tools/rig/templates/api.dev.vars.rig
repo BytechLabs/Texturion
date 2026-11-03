@@ -66,9 +66,10 @@ STRIPE_VOICE_METER_EVENT_NAME={{catalog?:STRIPE_VOICE_METER_EVENT_NAME}}
 STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID={{catalog?:STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID}}
 STRIPE_PRO_VOICE_OVERAGE_PRICE_ID={{catalog?:STRIPE_PRO_VOICE_OVERAGE_PRICE_ID}}
 
-# The existing Sentry project (FA7), through rigd's capped relay, which marks
-# these events environment rig.
-SENTRY_DSN={{derived.sentryDsn}}
+# The production PostHog project's public key (D146). The API files its
+# exceptions under environment rig, which no alert reads, and rigd reads them
+# back for R00. Left out when the store has none.
+POSTHOG_API_KEY={{secret?:posthog-api-key}}
 
 # Stable across deploys: a browser's push subscription is bound to the key.
 VAPID_PUBLIC_KEY={{derived.vapidPublicKey}}

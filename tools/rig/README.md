@@ -87,8 +87,9 @@ names it.
 | `edge-origin` | `https://loonext-rig-edge.<acct>.workers.dev` | written once at setup, before rigd can reach the edge |
 | `guard-token-rig-api` | The `rig-api` caller token (Telnyx, Resend, FCM and AI through the guard) | `GUARD_TOKEN_RIG_API` |
 | `stripe-secret-key` | The existing account's test-mode key (FA5 substitution); anything not `sk_test_` or `rk_test_` is refused before Stripe is contacted | `STRIPE_SECRET_KEY` (FA5) |
-| `sentry-dsn-rig` | The existing Sentry project's DSN, for events in environment `rig`; rewritten to rigd's relay | `SENTRY_DSN_RIG` (FA7) |
-| `sentry-dsn-synthetic` | The same project's DSN, for scenario and infrastructure events in environment `synthetic` | `SENTRY_DSN_SYNTHETIC` (FA7) |
+| `posthog-api-key` | The production PostHog project's public key: the local API's exceptions (environment `rig`) and rigd's scenario and infrastructure events (environment `synthetic`) are sent with it | `POSTHOG_API_KEY` |
+| `posthog-personal-api-key` | A personal key that can run queries, for reading the local API's exceptions back (R00, `apiEvents`) | `POSTHOG_PERSONAL_API_KEY` |
+| `posthog-project-id` | The project those exceptions are read from | `POSTHOG_PROJECT_ID` |
 | `hostd-token` | The bearer token the lanes present to hostd through the tunnel | written by hostd over SSH, never by the bundle |
 | `pixel-pin` | The lock PIN every AVD carries; `pixel` names the device-lane emulator `rig-pixel` | written once at setup |
 | `robot-mailbox` | The robot mailbox's address, for S34 | written once at setup |
@@ -130,8 +131,8 @@ rig stack up                        local Supabase from the derived config
 
 `RIG_HOME` (default `/var/lib/loonext-rig`) holds `rig.json` (settings:
 `tools/rig/src/layout.mjs`), the store, the worktrees, `current` (the deployed
-worktree) and `state/` (`deployed.json`, `health.json`, and what rigd and the
-Sentry relay publish there).
+worktree) and `state/` (`deployed.json`, `health.json`, and what rigd
+publishes there).
 
 ### What deploy derives
 
@@ -154,7 +155,7 @@ Sentry relay publish there).
   never touched.
 - No timers. Crons are not installed: the derived config has none, and an
   agent fires any of them on demand with `rig cron`. `crons.json` still
-  classifies each one for R00 and rigd's Sentry relay, and `rig health` fails
+  classifies each one for R00, and `rig health` fails
   while a cron of the ref is unclassified. The edge's and the guard's crons
   are skips, because they run on Cloudflare.
 - After the services restart, rigd's own units, which rigd writes itself from

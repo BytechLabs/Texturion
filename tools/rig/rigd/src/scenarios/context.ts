@@ -12,7 +12,7 @@ import type { GuardHealth, LeaseActivity, StandingRole } from "@loonext/rig-prot
 import { AUDIO_UNPROVEN, type CallTestId, type DeviceState, type HearOptions, type HostdHealth, type CheckoutRun, type NetworkShape, type NumberChoice, type OnboardingWalk, type PageHearing, type RigDeviceName, type StandbyBucket } from "@loonext/rig-lanes";
 import type { Detection, RobotApi, Surface } from "@loonext/rig-robot";
 import type { UndoAction } from "../lease.ts";
-import type { SeenEvent } from "../sentry-relay.ts";
+import type { SeenEvent } from "../cron-events.ts";
 
 export type ScenarioResult =
   | { outcome: "pass"; detail?: string }
@@ -607,7 +607,7 @@ export interface RigHealthReport {
 export interface RigApi {
   /** Runs `rig health` now and reads its report. */
   health(): Promise<RigHealthReport>;
-  /** The local API's Sentry events the relay saw since a time. */
+  /** The local API's exceptions in PostHog since a time. */
   apiEvents(since: number): Promise<SeenEvent[]>;
   /** The next Telnyx call event the edge relays gets this status from the rig instead of the API's. */
   failNextCallEvent(status: 503): Promise<void>;

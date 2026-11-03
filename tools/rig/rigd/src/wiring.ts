@@ -4,7 +4,7 @@
  * the state lives or which token goes where.
  *
  * rigd keeps its own files under `state/rigd/`; what other tools read
- * (`state/uplink.json`, `state/sentry-relay.json`) sits directly in `state/`.
+ * (`state/uplink.json`, `state/api-exceptions.json`) sits directly in `state/`.
  */
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -38,7 +38,7 @@ import { deleteStripeObject, STRIPE_DELETE_UNDO, StripeSandbox } from "./stripe-
 import type { RunnerDeps } from "./runner.ts";
 import { RUNNERS } from "./scenarios/index.ts";
 import type { BrowserApi, DeviceApi, DevicesApi, RigApi, ScenarioLanes, StripeApi, WorkspaceState } from "./scenarios/context.ts";
-import { parseDsn, SentryRelay, type Dsn } from "./sentry-relay.ts";
+import { PostHogErrors } from "./posthog-errors.ts";
 import { VerdictStore } from "./verdicts.ts";
 
 /** Where the rig's Supabase auth answers, which a sign-up's confirmation link opens (tools/rig/src/layout.mjs). */
@@ -52,8 +52,7 @@ export interface Rig {
   robot: RobotClient;
   leases: LeaseClient;
   late: LateDeliveries;
-  relay?: SentryRelay;
-  syntheticDsn?: Dsn;
+  posthog: PostHogErrors;
   marginsFile: string;
   registry(): Registry;
   /** The dial window in force: the guard's measured one, else the registry's. */
@@ -142,11 +141,11 @@ export function buildRig(config: RigdConfig): Rig {
   });
   const late = new LateDeliveries(join(dir, "late-deliveries.jsonl"));
 
-  const synthetic = store.readOptional("sentry-dsn-synthetic");
-  const syntheticDsn = synthetic ? parseDsn(synthetic) : undefined;
-  const relay = syntheticDsn
-    ? new SentryRelay({ statePath: join(dir, "sentry-counters.json"), alertDsn: syntheticDsn })
-    : undefined;
+  const posthog = new PostHogErrors({
+    projectKey: store.readOptional("posthog-api-key"),
+    personalKey: store.readOptional("posthog-personal-api-key"),
+    projectId: store.readOptional("posthog-project-id"),
+  });
 
   const marginsFile = marginsFileOf(config);
   const browser = once((): BrowserApi => {
@@ -215,7 +214,7 @@ export function buildRig(config: RigdConfig): Rig {
       new RigOps({
         stateDir: config.home.state,
         rigBin: RIG_BIN,
-        relayState: join(dir, "sentry-counters.json"),
+        exceptions: posthog,
         faults,
         transcriber: transcriber(),
       }),
@@ -267,8 +266,7 @@ export function buildRig(config: RigdConfig): Rig {
     robot,
     leases,
     late,
-    relay,
-    syntheticDsn,
+    posthog,
     marginsFile,
     registry,
     windows,
@@ -284,8 +282,7 @@ export function buildRig(config: RigdConfig): Rig {
       leases,
       localLease: (scenario) => leases.acquireLocal(scenario),
       lanes,
-      relay,
-      syntheticDsn,
+      posthog,
       sha: () => readDeployedSha(config),
       room: () => readRoom(config),
       dialWindow: () => windows().current(),

@@ -10,7 +10,7 @@ import { LeaseClient, type UndoHandlers } from "./lease.ts";
 import { chargedDials, runScenario, type RunnerDeps } from "./runner.ts";
 import type { ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
 import { fakeLanes, FakeTime } from "./scenarios/fakes.ts";
-import { parseDsn, SentryRelay } from "./sentry-relay.ts";
+import { PostHogErrors, POSTHOG_CAPTURE_URL } from "./posthog-errors.ts";
 import { LaneHoldFile } from "./state-files.ts";
 import { fakeFetch, json } from "./test-support.ts";
 import { registryOf, scenario } from "./test-registry.ts";
@@ -18,7 +18,6 @@ import { VerdictStore } from "./verdicts.ts";
 
 const SHA = "0123456789abcdef0123456789abcdef01234567";
 const EDGE = "https://rig-edge.example.workers.dev";
-const DSN = parseDsn("https://key@o1.ingest.sentry.example/101");
 /** 1 November 2026, 05:00 UTC: inside the dial window. */
 const S02_DAY = Date.UTC(2026, 10, 1, 5, 0, 0);
 const dirs: string[] = [];
@@ -59,7 +58,7 @@ function setup(results: ScenarioResult[], options: SetupOptions = {}) {
   const { fetch, requests } = fakeFetch({
     [`POST ${EDGE}/g/lease`]: () => options.acquire?.() ?? json({ lease_id: `lease-${requests.length}`, scenario: "S02", expires_at: "x" }, 201),
     [`DELETE ${EDGE}/g/lease/`]: () => new Response(null, { status: 204 }),
-    [`POST ${DSN.envelopeUrl}`]: () => new Response("{}"),
+    [`POST ${POSTHOG_CAPTURE_URL}`]: () => new Response("{}"),
   });
   const leases = new LeaseClient({ edgeOrigin: EDGE, token: "t", stateDir, fetch, clock, handlers: options.handlers ?? {} });
   const verdicts = new VerdictStore(join(stateDir, "verdicts"));
@@ -80,8 +79,7 @@ function setup(results: ScenarioResult[], options: SetupOptions = {}) {
     leases,
     localLease: (scenario) => leases.acquireLocal(scenario),
     lanes: () => fakeLanes(time),
-    relay: new SentryRelay({ statePath: join(stateDir, "relay.json"), alertDsn: DSN, fetch, clock }),
-    syntheticDsn: DSN,
+    posthog: new PostHogErrors({ projectKey: "phc_rig_test_key", fetch }),
     sha: () => SHA,
     room: () => options.room ?? 4,
     dialWindow: async () => parseWindow("04-10"),
@@ -89,8 +87,15 @@ function setup(results: ScenarioResult[], options: SetupOptions = {}) {
     clock,
     sleep: async (ms) => clock.advance(ms),
   };
-  const reports = () => requests.filter((r) => r.url === DSN.envelopeUrl);
-  const event = (index = 0) => JSON.parse(reports()[index]!.body!.split("\n")[2]!) as { fingerprint: string[]; message: { formatted: string }; level: string };
+  const reports = () => requests.filter((r) => r.url === POSTHOG_CAPTURE_URL);
+  const event = (index = 0) => {
+    const { properties } = JSON.parse(reports()[index]!.body!) as { properties: Record<string, unknown> };
+    return {
+      fingerprint: String(properties.$exception_fingerprint).split(":"),
+      message: { formatted: (properties.$exception_list as { value: string }[])[0]!.value },
+      level: properties.$exception_level as string,
+    };
+  };
   return { deps, verdicts, requests, attempts, clock, reports, event };
 }
 

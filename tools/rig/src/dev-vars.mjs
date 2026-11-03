@@ -65,18 +65,6 @@ export function firebaseProjectId(store) {
   return id;
 }
 
-/**
- * The rig's Sentry DSN pointed at rigd's relay, which forwards within the
- * caps. Key and project stay; the host becomes the relay.
- */
-export function relayDsn(dsn, relayOrigin) {
-  const original = new URL(dsn);
-  const relay = new URL(relayOrigin);
-  original.protocol = relay.protocol;
-  original.host = relay.host;
-  return original.toString();
-}
-
 /** One `.dev.vars` value, quoted the way dotenv reads it back unchanged. */
 export function dotenvValue(value) {
   if (/^[A-Za-z0-9_./:@+=,%*-]*$/.test(value)) return value;

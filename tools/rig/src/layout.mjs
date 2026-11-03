@@ -23,8 +23,6 @@ export const DEFAULT_SETTINGS = {
   apiOrigin: "https://api.rig.internal",
   apiPort: 8787,
   webPort: 8788,
-  /** rigd's Sentry relay; the rig's DSN is rewritten to point at it. */
-  sentryRelayOrigin: "http://127.0.0.1:8790",
   /** Off on a workstation running a spike: there is nothing to restart. */
   systemd: true,
   keepWorktrees: 3,
@@ -45,6 +43,9 @@ export function rigLayout(env = process.env) {
   };
 }
 
+/** Settings a box's rig.json may still hold, which nothing reads any more. */
+const RETIRED_SETTINGS = ["sentryRelayOrigin"];
+
 export function rigSettings(layout) {
   if (!existsSync(layout.settingsFile)) return { ...DEFAULT_SETTINGS };
   let parsed;
@@ -53,7 +54,7 @@ export function rigSettings(layout) {
   } catch {
     throw new Error(`rig: ${layout.settingsFile} is not valid JSON`);
   }
-  const unknown = Object.keys(parsed).filter((key) => !(key in DEFAULT_SETTINGS));
+  const unknown = Object.keys(parsed).filter((key) => !(key in DEFAULT_SETTINGS) && !RETIRED_SETTINGS.includes(key));
   if (unknown.length > 0) throw new Error(`rig: rig.json has unknown settings: ${unknown.join(", ")}`);
   return { ...DEFAULT_SETTINGS, ...parsed };
 }

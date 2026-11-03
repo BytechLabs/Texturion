@@ -33,7 +33,7 @@ import { join, resolve } from "node:path";
 
 import { bootstrapDb } from "./bootstrap-db.mjs";
 import { deployHoldPath, holdForDeploy, readDeployHold, releaseDeployHold } from "./deploy-hold.mjs";
-import { dummyServiceAccount, firebaseProjectId, generateVapidPair, relayDsn, renderDevVars, seams } from "./dev-vars.mjs";
+import { dummyServiceAccount, firebaseProjectId, generateVapidPair, renderDevVars, seams } from "./dev-vars.mjs";
 import { run, systemctlUser, userManagerEnv } from "./exec.mjs";
 import { edgeOrigin, fetchPartition, recordStanding, rigEndpoints, standingNumbers } from "./guard.mjs";
 import { TOOLING_ROOT } from "./layout.mjs";
@@ -52,13 +52,6 @@ import { seed, seedGapsSql } from "../../../scripts/rig/seed.mjs";
 
 /** The CLI's own address for its stack; anything else is set as the issuer. */
 const CLI_API_URL = "http://127.0.0.1:54321";
-
-/**
- * The API's DSN while the store holds none, which rig-secrets.yml withholds
- * until FA7 step 3 is done. It names no project, and rigd's relay, where it
- * points, is off without the real one, so nothing reaches Sentry.
- */
-export const WITHHELD_SENTRY_DSN = "https://withheld@o0.ingest.sentry.io/0";
 
 /** Services the stack does not need on the rig. */
 export const STACK_EXCLUDES = ["vector", "logflare", "imgproxy", "edge-runtime"];
@@ -367,7 +360,6 @@ function deriveAll({ root, sha, layout, settings, store, status, partition, endp
       fcmServiceAccount: dummyServiceAccount(firebaseProjectId(store)),
       stripeSecretKey,
       stripeWebhookSecret: stripeWebhookSecret(store),
-      sentryDsn: relayDsn(store.readOptional("sentry-dsn-rig") ?? WITHHELD_SENTRY_DSN, settings.sentryRelayOrigin),
       vapidPublicKey: vapid.publicKey,
       vapidPrivateKey: vapid.privateKey,
       rigOwnedE164: endpoints.join(","),

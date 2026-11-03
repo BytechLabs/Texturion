@@ -261,7 +261,7 @@ async function mainDeploys(doFetch: typeof fetch, app: { appId: string; privateK
 export interface AttestReporting {
   edgeOrigin: string;
   controlToken: string | undefined;
-  /** A `['synthetic-infra', 'guard-attest']` event; absent while the relay is off. */
+  /** A `['synthetic-infra', 'guard-attest']` event; absent while no PostHog key is in the store. */
   infra?: (message: string) => Promise<unknown>;
   fetch?: typeof fetch;
   log: (line: string) => void;

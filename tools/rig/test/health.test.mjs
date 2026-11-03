@@ -164,12 +164,12 @@ test("an unclassified cron fails the crons check, and no timer is looked for", a
   });
 });
 
-test("the sentry check fails on an unexplained fingerprint and on each defect, naming its cause", async () => {
+test("the apiExceptions check fails on an unexplained exception and on each defect, naming its cause", async () => {
   await withRig(async (context) => {
     mkdirSync(context.layout.state, { recursive: true });
     const relay = (state) =>
-      writeFileSync(join(context.layout.state, "sentry-relay.json"), JSON.stringify({ at: new Date().toISOString(), ...state }));
-    const check = () => healthChecks(context).sentry();
+      writeFileSync(join(context.layout.state, "api-exceptions.json"), JSON.stringify({ at: new Date().toISOString(), ...state }));
+    const check = () => healthChecks(context).apiExceptions();
 
     relay({ unexplained_24h: [], defects_24h: [] });
     assert.equal(await check(), null);
@@ -186,48 +186,27 @@ test("the sentry check fails on an unexplained fingerprint and on each defect, n
     });
     assert.equal(
       await check(),
-      `1 unexplained fingerprint(s) in 24 hours; defect (2 fingerprint(s) in 24 hours): ${robot}; ` +
-        `defect (1 fingerprint(s) in 24 hours): ${standing}`,
+      `1 unexplained exception(s) in 24 hours; defect (2 exception(s) in 24 hours): ${robot}; ` +
+        `defect (1 exception(s) in 24 hours): ${standing}`,
     );
 
     relay({ unexplained_24h: [], defects_24h: [{ key: "k4", means: standing }] });
-    assert.equal(await check(), `defect (1 fingerprint(s) in 24 hours): ${standing}`);
+    assert.equal(await check(), `defect (1 exception(s) in 24 hours): ${standing}`);
 
     relay({ unexplained_24h: [] });
     assert.match(await check(), /does not list unexplained_24h and defects_24h/);
 
+    relay({ error: "PostHog answered 401 for the exception query", unexplained_24h: [], defects_24h: [] });
+    assert.equal(
+      await check(),
+      "the local API's exceptions could not be read from PostHog: PostHog answered 401 for the exception query",
+    );
+
     writeFileSync(
-      join(context.layout.state, "sentry-relay.json"),
+      join(context.layout.state, "api-exceptions.json"),
       JSON.stringify({ at: "2026-01-01T00:00:00.000Z", unexplained_24h: [], defects_24h: [] }),
     );
-    assert.equal(await check(), "the relay's report is stale");
-  });
-});
-
-test("the posthogErrors check publishes that it is unconfigured, reads PostHog when configured, and fails on a rig event", async () => {
-  await withRig(async (context) => {
-    assert.equal(await healthChecks(context).posthogErrors(), null);
-    assert.deepEqual(context.published.posthog_errors, { configured: false });
-
-    const rows = (list) => json({ results: list });
-    context.env = { POSTHOG_PERSONAL_API_KEY: "phx_test", POSTHOG_PROJECT_ID: "1" };
-    context.fetch = async () => rows([["ops:telnyx-wiring", "production", 3, "2026-11-01 10:00:00"]]);
-    assert.equal(await healthChecks(context).posthogErrors(), null);
-    assert.deepEqual(context.published.posthog_errors, {
-      configured: true,
-      readable: true,
-      exception_events_24h: 3,
-      fingerprints_24h: 1,
-    });
-
-    context.fetch = async () => rows([["synthetic:s01:x", "synthetic", 1, "2026-11-01 10:00:00"]]);
-    const leaked = await healthChecks(context).posthogErrors();
-    assert.ok(leaked.startsWith("1 non-production error fingerprint(s) reached PostHog"), leaked);
-    assert.ok(leaked.includes("synthetic:synthetic:s01:x"), leaked);
-
-    context.fetch = async () => json({}, 403);
-    assert.match(await healthChecks(context).posthogErrors(), /could not be read: PostHog answered 403/);
-    assert.equal(context.published.posthog_errors.readable, false);
+    assert.equal(await check(), "rigd's report of the API's exceptions is stale");
   });
 });
 

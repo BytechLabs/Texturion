@@ -67,12 +67,12 @@ export const EDGE_PATHS = {
   ctlUplink: "/ctl/uplink",
   ctlRpc: "/ctl/rpc",
   ctlSecrets: "/ctl/secrets",
-  /** POST {@link RigAlert}: rigd raises one of {@link RIG_PRODUCTION_ALERTS} in production's Sentry. */
+  /** POST {@link RigAlert}: rigd raises one of {@link RIG_PRODUCTION_ALERTS} in production's PostHog. */
   ctlAlert: "/ctl/alert",
 } as const;
 
 /**
- * The `['ops', key]` alerts the rig box may raise in production's Sentry.
+ * The `['ops', key]` alerts the rig box may raise in production's PostHog.
  * The box holds no production DSN; the edge sends these for it, under its
  * own daily production budget, and refuses any other key.
  */

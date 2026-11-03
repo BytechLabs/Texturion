@@ -18,7 +18,6 @@ import { ADB_VM_PORT, HOSTD_PORT } from "../lanes/src/android/devices.ts";
 import { guardGet } from "./guard.mjs";
 import { parseJsonc } from "./jsonc.mjs";
 import { MemberSessions, memberSessionsFile } from "./member-sessions.mjs";
-import { posthogErrorsCheck } from "./posthog-errors.mjs";
 import { stripeSandboxKey } from "./stripe.mjs";
 import { psql } from "./supabase.mjs";
 
@@ -87,7 +86,7 @@ export const GUARD_SAFETY_MAX_AGE_MS = 6 * 3_600_000 + 15 * 60_000;
  * so a rig with nothing deployed or its stack down still says whether the
  * guard, hostd, the tunnel and the firewall are right.
  */
-export const DEPLOY_FREE_CHECKS = new Set(["guard", "nonprodApps", "uplink", "deployHold", "sentry", "posthogErrors", "hostd", "adbTunnel", "nftables"]);
+export const DEPLOY_FREE_CHECKS = new Set(["guard", "nonprodApps", "uplink", "deployHold", "apiExceptions", "hostd", "adbTunnel", "nftables"]);
 
 function readJsonFile(path) {
   return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null;
@@ -101,23 +100,29 @@ function fresh(at, maxAgeMs, now = Date.now()) {
 const short = (sha) => (typeof sha === "string" ? sha.slice(0, 12) : String(sha));
 
 /**
- * R00's Sentry half, from rigd's state/sentry-relay.json. A defect is an event
- * the cron registry says means the seed or a scenario's setup is wrong, so it
- * fails as surely as an unexplained one, and with the registry's cause.
+ * R00's exceptions half, from rigd's state/api-exceptions.json, which rigd
+ * fills from the local API's `rig` exceptions in PostHog. A read that failed
+ * is a failure: an empty list would pass the gate for the wrong reason. A
+ * defect is an exception the cron registry says means the seed or a
+ * scenario's setup is wrong, so it fails as surely as an unexplained one, and
+ * with the registry's cause.
  */
-export function sentryFailure(state) {
+export function apiExceptionsFailure(state) {
+  if (typeof state.error === "string" && state.error !== "") {
+    return `the local API's exceptions could not be read from PostHog: ${state.error}`;
+  }
   const { unexplained_24h: unexplained, defects_24h: defects } = state;
   if (!Array.isArray(unexplained) || !Array.isArray(defects)) {
-    return "the relay's report does not list unexplained_24h and defects_24h";
+    return "rigd's report does not list unexplained_24h and defects_24h";
   }
   const reasons = [];
-  if (unexplained.length > 0) reasons.push(`${unexplained.length} unexplained fingerprint(s) in 24 hours`);
+  if (unexplained.length > 0) reasons.push(`${unexplained.length} unexplained exception(s) in 24 hours`);
   const byMeans = new Map();
   for (const defect of defects) {
     const means = typeof defect?.means === "string" && defect.means !== "" ? defect.means : "a defect the cron registry names";
     byMeans.set(means, (byMeans.get(means) ?? 0) + 1);
   }
-  for (const [means, count] of byMeans) reasons.push(`defect (${count} fingerprint(s) in 24 hours): ${means}`);
+  for (const [means, count] of byMeans) reasons.push(`defect (${count} exception(s) in 24 hours): ${means}`);
   return reasons.length === 0 ? null : reasons.join("; ");
 }
 
@@ -290,22 +295,11 @@ export function healthChecks(context) {
       return `Node (tz ${process.versions.tz}) and Postgres disagree at ${mismatches.length} probe(s), first ${first.zone} ${first.at}: ${first.node} vs ${first.postgres} minutes`;
     },
 
-    async sentry() {
-      const state = readJsonFile(join(context.layout.state, "sentry-relay.json"));
-      if (state === null) return "the relay has not published state/sentry-relay.json";
-      if (!fresh(state.at, 30 * 60_000)) return "the relay's report is stale";
-      return sentryFailure(state);
-    },
-
-    /**
-     * R00's PostHog half (D144): PostHog's error events are readable by API, and
-     * none of them comes from the rig. Unconfigured is published, not failed:
-     * the rig VM may not hold a personal API key.
-     */
-    async posthogErrors() {
-      const result = await posthogErrorsCheck(context.env ?? process.env, fetchImpl);
-      context.published.posthog_errors = result.published;
-      return result.failure;
+    async apiExceptions() {
+      const state = readJsonFile(join(context.layout.state, "api-exceptions.json"));
+      if (state === null) return "rigd has not published state/api-exceptions.json";
+      if (!fresh(state.at, 30 * 60_000)) return "rigd's report of the API's exceptions is stale";
+      return apiExceptionsFailure(state);
     },
 
     /** hostd on the Windows host answers through its tunnel, with the store's token. */

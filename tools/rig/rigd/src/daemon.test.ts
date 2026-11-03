@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { forwardTargets, relayExplain } from "./daemon.ts";
+import { exceptionExplain, forwardTargets } from "./daemon.ts";
 import { destinationRefusedEvent } from "./scenarios/fakes.ts";
 import { FaultFile } from "./state-files.ts";
 import { VerdictStore, type Verdict } from "./verdicts.ts";
@@ -59,12 +59,12 @@ describe("forwardTargets", () => {
   });
 });
 
-describe("relayExplain", () => {
+describe("exceptionExplain", () => {
   it("expects a G01 attempt's refused send, and nothing outside one", () => {
     const at = Date.parse("2026-11-01T15:00:00Z");
     const verdicts = new VerdictStore(tempDir());
     verdicts.record(g01Verdict(at, at + 60_000));
-    const explain = relayExplain(undefined, verdicts, noLeases, at + 2 * 60 * 60_000);
+    const explain = exceptionExplain(undefined, verdicts, noLeases, at + 2 * 60 * 60_000);
     expect(explain(destinationRefusedEvent("POST /v1/conversations", at + 2_000))).toEqual({ kind: "expected" });
     expect(explain(destinationRefusedEvent("POST /v1/conversations", at + 60 * 60_000))).toBeUndefined();
   });
@@ -73,16 +73,16 @@ describe("relayExplain", () => {
     const at = Date.parse("2026-11-01T15:00:00Z");
     const verdicts = new VerdictStore(tempDir());
     const leases = { open: () => [{ lease_id: "local-1", scenario: "G01", acquired_at: at, expires_at: "", pid: 1, undo: [] }] };
-    const explain = relayExplain(undefined, verdicts, leases, at + 60_000);
+    const explain = exceptionExplain(undefined, verdicts, leases, at + 60_000);
     expect(explain(destinationRefusedEvent("POST /v1/calls/browser", at + 30_000))).toEqual({ kind: "expected" });
     expect(explain(destinationRefusedEvent("POST /v1/calls/browser", at - 30_000))).toBeUndefined();
     const s12 = { open: () => [{ lease_id: "local-2", scenario: "S12", acquired_at: at, expires_at: "", pid: 1, undo: [] }] };
-    expect(relayExplain(undefined, verdicts, s12, at + 60_000)(destinationRefusedEvent("POST /v1/calls/browser", at + 30_000))).toBeUndefined();
+    expect(exceptionExplain(undefined, verdicts, s12, at + 60_000)(destinationRefusedEvent("POST /v1/calls/browser", at + 30_000))).toBeUndefined();
   });
 
   it("reads the cron registry before G01", () => {
     const verdicts = new VerdictStore(tempDir());
-    const explain = relayExplain({ unread: [], explain: () => ({ kind: "defect", means: "seed" }) }, verdicts, noLeases, 0);
+    const explain = exceptionExplain({ unread: [], explain: () => ({ kind: "defect", means: "seed" }) }, verdicts, noLeases, 0);
     expect(explain(destinationRefusedEvent("POST /v1/conversations", 0))).toEqual({ kind: "defect", means: "seed" });
   });
 });

@@ -740,12 +740,21 @@ describe("the Stripe sandbox", () => {
 });
 
 describe("the rig box", () => {
-  it("reads the local API's events from the relay's record, oldest first", async () => {
+  it("reads the local API's exceptions from PostHog, oldest first", async () => {
     const dir = tempDir();
-    const relayState = join(dir, "relay.json");
-    writeFileSync(relayState, JSON.stringify({ apiSeen: { a: { at: 30, message: "late" }, b: 10, c: { at: 20, message: "carrier ceiling 80%" } } }));
-    const rig = new RigOps({ stateDir: dir, rigBin: "rig.mjs", relayState, faults: new FaultFile(dir) });
+    const seen: number[] = [];
+    const exceptions = {
+      apiExceptions: async (since: number) => {
+        seen.push(since);
+        return [
+          { at: 30, message: "late" },
+          { at: 20, message: "carrier ceiling 80%" },
+        ];
+      },
+    };
+    const rig = new RigOps({ stateDir: dir, rigBin: "rig.mjs", exceptions, faults: new FaultFile(dir) });
     expect((await rig.apiEvents(15)).map((event) => event.message)).toEqual(["carrier ceiling 80%", "late"]);
+    expect(seen).toEqual([15]);
   });
 
   it("runs rig health and reads the report it writes, even when a check failed", async () => {
@@ -754,7 +763,7 @@ describe("the rig box", () => {
     const rig = new RigOps({
       stateDir: dir,
       rigBin: "/tools/rig/bin/rig.mjs",
-      relayState: join(dir, "relay.json"),
+      exceptions: { apiExceptions: async () => [] },
       faults: new FaultFile(dir),
       exec: async (file, args) => {
         ran.push([file, ...args]);
