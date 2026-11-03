@@ -470,25 +470,28 @@ async function sendOperationalEmail(
  *
  * Separate from the customer email and sent alongside it, because the two
  * audiences need different things. The owner needs to know their texts have
- * stopped and that we are on it. Ops needs to know WHICH workspace, WHICH
- * registration and the carrier's words: a suspension is not self-service.
+ * stopped and that we are on it. Ops needs to know WHICH workspace and WHICH
+ * registration: a suspension is not self-service.
+ *
+ * The carrier's words stay out of it. They are free text that can quote the
+ * business's legal name or tax id, and a notice leaves for PostHog; the reason
+ * is on the registration row.
  */
 async function sendSuspensionNotice(
   env: Env,
   company: RegistrationCompany,
-  kind: RegistrationKind,
-  reason: string,
+  row: RegistrationRow,
 ): Promise<void> {
   await opsNotice(env, {
     key: "registration-suspended",
     level: "error",
-    summary: `The carrier suspended a workspace's 10DLC ${kind}`,
+    summary: `The carrier suspended a workspace's 10DLC ${row.kind}`,
     detail:
-      `company ${company.id}: US texting is blocked as of now (getSendGates.usApproved ` +
-      `is false and the composer says so). Carrier reason: ${reason}`,
+      `company ${company.id}, registration ${row.id}: US texting is blocked as of now ` +
+      "(getSendGates.usApproved is false and the composer says so).",
     action:
       "The customer has been emailed and told to reply to us; they cannot fix this " +
-      "themselves. Read the carrier's reason and answer them.",
+      "themselves. Read rejection_reason on that messaging_registrations row and answer them.",
   });
 }
 
@@ -614,7 +617,7 @@ async function applyTransition(
         env,
       ),
     );
-    await sendSuspensionNotice(env, company, row.kind, patch.rejection_reason as string);
+    await sendSuspensionNotice(env, company, row);
   }
   if (row.kind === "campaign" && reinstated) {
     // #423: reinstated. Numbers are re-assigned because a suspension can drop
@@ -1936,8 +1939,8 @@ export interface SendGates {
    * recommends verified toll-free instead — and filtering returns no error, so
    * a filtered message is accepted, billed, marked sent and never arrives.
    * That exposure is real and registration was never the fix for it. The signal
-   * is `messaging/delivery-by-country.ts` (daily); the mitigation is toll-free
-   * for Canadian A2P (#329). See D2's resolution block for the sources.
+   * is the `message_outcome` events PostHog reads by country; the mitigation
+   * is toll-free for Canadian A2P (#329). See D2's resolution block for the sources.
    */
   caAllowed: boolean;
 }

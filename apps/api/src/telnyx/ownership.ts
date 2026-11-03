@@ -59,13 +59,21 @@ export function partitionOrderFields(
 }
 
 /**
+ * The reconcile sweep runs every fifteen minutes and a mismatch stands until a
+ * person fixes it in the portal, so it reports on the first sweep of every
+ * sixth hour. Nothing is lost meanwhile; the numbers are only left alone.
+ */
+export function ownershipReportDue(now: Date): boolean {
+  return now.getUTCHours() % 6 === 0 && now.getUTCMinutes() < 15;
+}
+
+/**
  * Numbers outside this partition that this environment has evidence are its
  * own: tagged to one of its companies, or claimed by one of its rows. In
  * production that is a customer's number that gained a billing group. Every
  * path here leaves it alone, so without this page it would be orphaned in
  * silence: never released, never adopted, never flagged. One notice covers the
- * whole batch, on every pass that sees it, so the PostHog issue stays open
- * until a portal visit fixes it. IDs only: phone numbers stay out of telemetry.
+ * whole batch. IDs only: phone numbers stay out of telemetry.
  */
 export async function reportOwnershipMismatch(
   env: Env,

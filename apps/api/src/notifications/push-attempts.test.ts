@@ -166,7 +166,7 @@ describe("recordPushAttempts", () => {
     await recordPushAttempts(env, getDb(env), []);
   });
 
-  it("sends a notice on every refusal, with the code and never the row", async () => {
+  it("sends one notice an hour per isolate, with the code and never the row", async () => {
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/push_attempts", () =>
       Response.json(
@@ -179,8 +179,20 @@ describe("recordPushAttempts", () => {
     );
     stubFetch(sb.route);
 
-    await recordPushAttempts(env, getDb(env), [attempt]);
-    await recordPushAttempts(env, getDb(env), [attempt]);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-03T10:00:00Z"));
+      await recordPushAttempts(env, getDb(env), [attempt]);
+      await recordPushAttempts(env, getDb(env), [attempt]);
+      vi.setSystemTime(new Date("2026-11-03T10:59:00Z"));
+      await recordPushAttempts(env, getDb(env), [attempt]);
+      expect(noticesCaptured("push-attempts-ledger")).toHaveLength(1);
+
+      vi.setSystemTime(new Date("2026-11-03T11:01:00Z"));
+      await recordPushAttempts(env, getDb(env), [attempt]);
+    } finally {
+      vi.useRealTimers();
+    }
 
     const notices = noticesCaptured("push-attempts-ledger");
     expect(notices).toHaveLength(2);

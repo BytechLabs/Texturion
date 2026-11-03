@@ -4,9 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { telnyxRequest, TelnyxApiError } from "./client";
 import { provisioningDelayedCopy } from "./emails";
 import {
-  reportOwnershipMismatch,
+  ownershipReportDue,
   ownsTelnyxNumber,
   partitionOrderFields,
+  reportOwnershipMismatch,
   type TelnyxPartitionedNumber,
 } from "./ownership";
 // Type-only (erased at runtime): a VALUE import here would close a module
@@ -1584,7 +1585,7 @@ export async function reconcileNumbers(
         `${summary.mismatched} of them this environment's own — counted, not acted on`,
     );
   }
-  if (mismatched.length > 0) {
+  if (mismatched.length > 0 && ownershipReportDue(now)) {
     await reportOwnershipMismatch(env, mismatched, "the reconcile sweep");
   }
   return summary;

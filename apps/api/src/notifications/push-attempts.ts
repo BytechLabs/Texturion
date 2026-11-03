@@ -137,6 +137,14 @@ const MAX_LATENCY_MS = 600_000;
 const FOREIGN_KEY_VIOLATION = "23503";
 
 /**
+ * A ledger the database refuses fails the same way on every push, and a call
+ * fans out to many. One notice an hour per isolate says so; the rest would
+ * only spend the month's exception quota.
+ */
+const LEDGER_NOTICE_WINDOW_MS = 60 * 60 * 1000;
+let ledgerNoticeAt = Number.NEGATIVE_INFINITY;
+
+/**
  * Write the fan-out's rows. Never throws.
  *
  * A refusal (a 4xx: a CHECK the code has outgrown, a table that is not there
@@ -200,8 +208,10 @@ export async function recordPushAttempts(
     console.warn(`push attempts: ${attempts.length} row(s) not recorded (${why})`);
     return;
   }
+  const now = Date.now();
+  if (now - ledgerNoticeAt < LEDGER_NOTICE_WINDOW_MS) return;
+  ledgerNoticeAt = now;
   // The status and code, never the message: a constraint error quotes the row.
-  // PostHog's per-issue rate limit is what keeps a flood of these to one issue.
   await opsNotice(env, {
     key: "push-attempts-ledger",
     summary: "Push attempts are not being recorded",

@@ -1582,6 +1582,26 @@ describe("D142 — the shared-account partition", () => {
       expect(JSON.stringify(alerts[0])).not.toContain("+1212555");
     });
 
+    it("reports a standing mismatch on the first sweep of every sixth hour, not on each", async () => {
+      const { env, rest, telnyx } = setup();
+      insertSettled(rest);
+      telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+        data: [
+          { id: "pn-live", phone_number: "+12125550001", customer_reference: COMPANY_ID, billing_group_id: "bg-oops" },
+        ],
+        meta: { total_pages: 1 },
+      }));
+
+      for (const quiet of ["2026-10-30T06:15:00.000Z", "2026-10-30T06:45:00.000Z", "2026-10-30T07:00:00.000Z", "2026-10-30T11:30:00.000Z"]) {
+        const summary = await reconcileNumbers(env, new Date(quiet));
+        expect(summary.mismatched).toBe(1);
+      }
+      expect(mismatchAlerts()).toEqual([]);
+
+      await reconcileNumbers(env, new Date("2026-10-30T12:00:00.000Z"));
+      expect(mismatchAlerts()).toHaveLength(1);
+    });
+
     it("pages for a number one of our rows claims by id or E.164, with no customer_reference at all", async () => {
       // A ported number never gets our customer_reference; the row's own id
       // and E.164 are the evidence it is ours.
@@ -1648,23 +1668,6 @@ describe("D142 — the shared-account partition", () => {
       expect(summary.mismatched).toBe(1);
       expect(mismatchAlerts()).toHaveLength(1);
       expect(mismatchAlerts()[0].summary).toContain("pn-port");
-    });
-
-    it("sends the notice on every pass that sees a standing mismatch", async () => {
-      const { env, rest, telnyx } = setup();
-      insertSettled(rest);
-      telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
-        data: [
-          { id: "pn-live", phone_number: "+12125550001", customer_reference: COMPANY_ID, billing_group_id: "bg-oops" },
-        ],
-        meta: { total_pages: 1 },
-      }));
-
-      expect((await reconcileNumbers(env, ALERT_DUE)).mismatched).toBe(1);
-      expect(
-        (await reconcileNumbers(env, new Date("2026-10-30T06:15:00.000Z"))).mismatched,
-      ).toBe(1);
-      expect(mismatchAlerts()).toHaveLength(2);
     });
 
     it("the rig reclaims an orphan in its OWN group and leaves production's numbers alone", async () => {

@@ -197,12 +197,17 @@ export async function noticeMessagingSpendCap(
     .eq("company_id", hit.companyId)
     .eq("error_code", MESSAGING_SPEND_LIMIT_CODE)
     .gte("updated_at", utcDayStart(now).toISOString())
-    .neq("id", hit.messageId)
+    .order("updated_at", { ascending: true })
+    .order("id", { ascending: true })
     .limit(1);
   if (error) {
     console.error(`spend cap lookup failed: ${error.message}`);
-  } else if ((data ?? []).length > 0) {
-    return false;
+  } else {
+    // Each refused send has already saved its own row, so "any other row" would
+    // let two simultaneous first refusals each see the other and both stay
+    // quiet. Only the earliest row's send speaks.
+    const first = (data ?? [])[0] as { id: string } | undefined;
+    if (first !== undefined && first.id !== hit.messageId) return false;
   }
 
   await opsNotice(env, {

@@ -163,8 +163,9 @@ telnyxWebhookRoute.post("/", async (c) => {
 
 /**
  * D146: an inbound call reached a workspace, as `call_received` under it, so
- * PostHog can see one workspace's calls go quiet. Best-effort and off the
- * response path; the number itself never leaves.
+ * PostHog's dashboard can show calls per workspace. No alert reads it: a
+ * workspace whose calls stop is looked at there, not paged. Best-effort and off
+ * the response path; the number itself never leaves.
  */
 async function reportCallReceived(
   env: Env,

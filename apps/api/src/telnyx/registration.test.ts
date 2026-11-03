@@ -1999,7 +1999,9 @@ describe("#423 — the carrier takes an approved campaign away", () => {
     expect(notices).toHaveLength(1);
     expect(notices[0].level).toBe("error");
     expect(notices[0].detail).toContain(`company ${COMPANY_ID}`);
-    expect(notices[0].detail).toContain("Excessive opt-out rate");
+    expect(notices[0].detail).toContain(`company ${COMPANY_ID}, registration `);
+    // The carrier's words are free text and stay on the row.
+    expect(JSON.stringify(notices[0])).not.toContain("Excessive opt-out rate");
 
     // The transition happens once, so a second poll sends nothing more.
     await pollRegistrations(env);

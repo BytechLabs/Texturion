@@ -235,7 +235,7 @@ describe("40333, the cap being hit", () => {
     expect(notice.detail).toContain(`company ${COMPANY}`);
     const lookup = requests.find((line) => line.includes("/rest/v1/messages"));
     expect(lookup).toContain("error_code=eq.40333");
-    expect(lookup).toContain("id=neq.m-2");
+    expect(decodeURIComponent(lookup ?? "")).toContain("order=updated_at.asc,id.asc");
     expect(decodeURIComponent(lookup ?? "")).toContain(`updated_at=gte.${DAY_START.toISOString()}`);
   });
 
@@ -245,5 +245,21 @@ describe("40333, the cap being hit", () => {
 
     expect(await noticeMessagingSpendCap(env, getDb(env), hit, NOW)).toBe(false);
     expect(captured).toEqual([]);
+  });
+
+  it("lets only the earliest of two simultaneous first refusals speak", async () => {
+    // Both rows are saved before either lookup, so each sees the other; the
+    // lookup answers with the earliest.
+    account({ refusedToday: [{ id: "m-1" }] });
+    const env = production();
+
+    expect(
+      await noticeMessagingSpendCap(env, getDb(env), { companyId: COMPANY, messageId: "m-1" }, NOW),
+    ).toBe(true);
+    expect(noticesCaptured("telnyx-messaging-spend-cap")).toHaveLength(1);
+    expect(
+      await noticeMessagingSpendCap(env, getDb(env), { companyId: COMPANY, messageId: "m-2" }, NOW),
+    ).toBe(false);
+    expect(noticesCaptured("telnyx-messaging-spend-cap")).toHaveLength(1);
   });
 });

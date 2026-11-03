@@ -294,8 +294,7 @@
   // session owns the ring/answer/voicemail state machine, serialized by an
   // explicit per-object FIFO. SQLite-backed storage (Workers Paid — already
   // provisioned). The class is resolved from src/index.ts's NAMED export
-  // (wrangler reads DO classes from `main`'s named exports, not the
-  // Sentry-wrapped default).
+  // (wrangler reads DO classes from `main`'s named exports).
   "durable_objects": {
     "bindings": [{ "name": "CALL_SESSIONS", "class_name": "CallSessionDO" }]
   },

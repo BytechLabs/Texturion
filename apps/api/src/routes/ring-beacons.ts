@@ -83,6 +83,7 @@ export const RING_BEACON_STANDBY_BUCKETS = [
  * times that, so only a broken or hostile client reaches it.
  */
 export const RING_BEACON_DAILY_CAP = 1500;
+const RING_BEACON_WARN_AT = RING_BEACON_DAILY_CAP * 0.8;
 const RING_BEACON_CAP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -209,13 +210,18 @@ ringBeaconsRoutes.post("/ring-beacons", requireCapability("conversations.send"),
   });
   if (error) throw new Error(`ring beacon insert failed: ${error.message}`);
 
-  // The beacon that fills the window is the one that says so. A dropped beacon
-  // leaves the count where it was, so the ones refused after it say nothing.
-  if (recent + 1 === RING_BEACON_DAILY_CAP) {
+  // Two notices, so the first one comes while every beacon is still kept. A
+  // dropped beacon leaves the count where it was, so the ones refused after the
+  // cap say nothing.
+  const written = recent + 1;
+  if (written === RING_BEACON_WARN_AT || written === RING_BEACON_DAILY_CAP) {
+    const atCap = written === RING_BEACON_DAILY_CAP;
     await opsNotice(env, {
       key: "ring-beacon-cap",
-      summary: "A member reached the daily ring-beacon cap; further beacons are dropped",
-      detail: `company ${companyId}: ${RING_BEACON_DAILY_CAP} beacons in 24h`,
+      summary: atCap
+        ? "A member reached the daily ring-beacon cap; further beacons are dropped"
+        : "A member is nearing the daily ring-beacon cap",
+      detail: `company ${companyId}: ${written} of ${RING_BEACON_DAILY_CAP} beacons in 24h`,
       action:
         "Look for a client stuck in a loop on that workspace. Rings are unaffected; only the evidence is.",
     });

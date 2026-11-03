@@ -282,8 +282,25 @@ describe("POST /v1/ring-beacons", () => {
     expect(captured).toEqual([]);
   });
 
-  it("sends no notice below the cap", async () => {
+  it("warns from the beacon that reaches 80% of the cap, while it still records", async () => {
+    const warnAt = RING_BEACON_DAILY_CAP * 0.8;
+    const sb = stubs({ recent: warnAt - 1 });
+    const res = await post({ call_session_id: SESSION, stage: "answered" });
+    expect(await res.json()).toEqual({ recorded: true });
+    expect(inserted(sb)).toHaveLength(1);
+    const notices = noticesCaptured("ring-beacon-cap");
+    expect(notices).toHaveLength(1);
+    expect(notices[0].summary).toContain("nearing");
+  });
+
+  it("sends no notice between the warning and the cap", async () => {
     stubs({ recent: RING_BEACON_DAILY_CAP - 2 });
+    await post({ call_session_id: SESSION, stage: "answered" });
+    expect(noticesCaptured()).toEqual([]);
+  });
+
+  it("sends no notice well below the warning", async () => {
+    stubs({ recent: 10 });
     await post({ call_session_id: SESSION, stage: "answered" });
     expect(noticesCaptured()).toEqual([]);
   });
