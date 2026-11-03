@@ -23,8 +23,15 @@ object Telemetry {
     private val PHONE = Regex("""\+?\d[\d\s().-]{6,}\d""")
     private val EMAIL = Regex("""[\w.+-]+@[\w-]+\.[\w.-]+""")
 
+    // The API's public links carry their secret in the path, so cutting at the
+    // query string leaves it intact; the Worker's scrubber names the same four.
+    private val TOKEN_PATH = Regex("""(?<=/(?:photos|invite|pay|q)/)[^/?#\s]+""")
+    private val URL_QUERY = Regex("""(https?://[^\s?#]*)[?#]\S*""")
+
     @Volatile
     private var started = false
+
+    internal val isStarted: Boolean get() = started
 
     /**
      * Must run before [CrashDiagnostics.install], so the crash-file handler
@@ -62,9 +69,16 @@ object Telemetry {
         runCatching { PostHog.captureException(error, mapOf("tag" to tag)) }
     }
 
-    /** Phone-shaped digit runs and email addresses, the two things error text carries. */
-    fun scrubText(raw: String): String =
-        PHONE.replace(EMAIL.replace(raw, "[email redacted]"), "[phone redacted]")
+    /**
+     * What error text carries: the query string and fragment of a URL, the
+     * token in a public link's path, email addresses and phone-shaped digit
+     * runs. Names are not found by pattern; app code never puts one in an error.
+     */
+    fun scrubText(raw: String): String {
+        val noToken = TOKEN_PATH.replace(raw, "[token]")
+        val noQuery = URL_QUERY.replace(noToken) { match -> match.groupValues[1] }
+        return PHONE.replace(EMAIL.replace(noQuery, "[email redacted]"), "[phone redacted]")
+    }
 
     /**
      * Every `$exception` leaves with its messages scrubbed. Stack frames name

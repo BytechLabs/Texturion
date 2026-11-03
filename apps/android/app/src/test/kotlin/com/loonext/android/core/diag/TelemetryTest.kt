@@ -57,6 +57,21 @@ class TelemetryTest {
     fun `nothing is captured before setup`() {
         // No project key in a unit-test build, so setup never ran: a non-fatal
         // must be a silent no-op rather than a crash inside the crash path.
+        assertFalse(Telemetry.isStarted)
         Telemetry.captureNonFatal("test", IllegalStateException("x"))
+        assertFalse(Telemetry.isStarted)
+    }
+
+    @Test
+    fun `a URL in a message loses its query string and a public link its token`() {
+        assertEquals(
+            "GET https://api.loonext.com/v1/contacts failed",
+            Telemetry.scrubText("GET https://api.loonext.com/v1/contacts?address=eq.140+Maple+Ave failed"),
+        )
+        assertEquals(
+            "404 at https://api.loonext.com/photos/[token]",
+            Telemetry.scrubText("404 at https://api.loonext.com/photos/abcDEF123456abcDEF123456abcDEF123456abcDEF1?x=1"),
+        )
+        assertEquals("/pay/[token]", Telemetry.scrubText("/pay/Zm9vYmFyYmF6"))
     }
 }

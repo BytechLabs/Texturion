@@ -223,6 +223,16 @@ describe("exception capture (D146)", () => {
     });
   });
 
+  it("keeps the source a caller gave, so failed queries and mutations stay apart", async () => {
+    const { scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
+    const out = scrubExceptionEvent({
+      uuid: "u",
+      event: "$exception",
+      properties: { $exception_list: [{ type: "Error", value: "boom" }], source: "mutation" },
+    } as never);
+    expect(out?.properties.source).toBe("mutation");
+  });
+
   it("drops a bare network failure, which is the visitor's connection", async () => {
     const { scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
     expect(

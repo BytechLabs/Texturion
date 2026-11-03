@@ -53,7 +53,7 @@ export function sanitizeEventProperties(
  * `before_send` for `$exception` (D146, D8): drop a bare network failure,
  * which is the visitor's connectivity rather than a bug, and run the message,
  * the stack and everything around them through the scrubber, and say which
- * deployment it came from. Every other event passes untouched;
+ * deployment it came from and, unless the caller did, that it came from the web app. Every other event passes untouched;
  * `sanitize_properties` has already seen it.
  */
 export function scrubExceptionEvent(event: CaptureResult | null): CaptureResult | null {
@@ -71,9 +71,11 @@ export function scrubExceptionEvent(event: CaptureResult | null): CaptureResult 
   return {
     ...event,
     properties: {
+      // A caller that says where the error came from (a failed query or
+      // mutation) keeps it; everything else is the page itself.
+      source: "web",
       ...sanitizeEventProperties(event.properties),
       environment: clientEnv.NEXT_PUBLIC_DEPLOY_ENV ?? "local",
-      source: "web",
     },
   };
 }

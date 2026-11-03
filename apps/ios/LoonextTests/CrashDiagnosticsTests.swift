@@ -116,6 +116,18 @@ final class CrashDiagnosticsTests: XCTestCase {
         )
     }
 
+    func testAURLLosesItsQueryStringAndAPublicLinkItsToken() {
+        XCTAssertEqual(
+            Telemetry.scrubText("GET https://api.loonext.com/v1/contacts?address=eq.140+Maple+Ave failed"),
+            "GET https://api.loonext.com/v1/contacts failed"
+        )
+        XCTAssertEqual(
+            Telemetry.scrubText("404 at https://api.loonext.com/photos/abcDEF123456abcDEF123456abcDEF123456abcDEF1?x=1"),
+            "404 at https://api.loonext.com/photos/[token]"
+        )
+        XCTAssertEqual(Telemetry.scrubText("/pay/Zm9vYmFyYmF6"), "/pay/[token]")
+    }
+
     func testOnlyTheMessageIsRewrittenNotTheFrames() {
         let list: [[String: Any]] = [[
             "type": "NSInvalidArgumentException",
