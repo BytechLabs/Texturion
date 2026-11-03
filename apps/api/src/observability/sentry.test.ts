@@ -8,12 +8,10 @@ import { completeEnv } from "../test/support";
 import {
   redactPhones,
   redactTokenPaths,
-  scrubBreadcrumb,
-  scrubEvent,
   scrubUrl,
-  sentryOptions,
   TOKEN_PATH_PREFIXES,
-} from "./sentry";
+} from "./scrub";
+import { scrubBreadcrumb, scrubEvent, sentryOptions } from "./sentry";
 
 const PHONE = "+14165551234";
 

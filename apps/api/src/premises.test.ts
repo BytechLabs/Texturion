@@ -31,17 +31,19 @@
  * (#403), not an assertion, and the ones sized for a normal day are #401's
  * subject rather than this file's.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { scrubProperties } from "./analytics/posthog";
 import { buildNumberAccessView as viewFrom } from "./auth/number-access";
 import { sanitizeWithReport } from "./messaging/reply-suggestions";
+import { scrubProperties as scrubWithReport } from "./observability/scrub";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("./test/sentry-mock")).sentryModuleMock(),
-);
+/** The scrubber as the capture helpers call it, with its reports kept. */
+const reports: string[] = [];
+function scrubProperties(event: string, properties: Record<string, unknown>) {
+  return scrubWithReport(event, properties, (message) => reports.push(message));
+}
 
-describe("premise: no PII reaches third-party telemetry (analytics/posthog.ts)", () => {
+describe("premise: no PII reaches third-party telemetry (observability/scrub.ts)", () => {
   // > "distinct_id is ALWAYS the company_id — never a person, never PII
   // >  (SPEC §10: no message bodies, emails, or phone numbers in third-party
   // >  telemetry)."
@@ -82,14 +84,13 @@ describe("premise: no PII reaches third-party telemetry (analytics/posthog.ts)",
     expect(scrubProperties("e", { note: body })).toEqual({});
   });
 
-  it("never repeats the offending value into the report", async () => {
-    // Reporting a leak by echoing it into a DIFFERENT third party would be
-    // worse than the leak. The message names the key and the offence only.
-    const Sentry = await import("@sentry/cloudflare");
-    vi.mocked(Sentry.captureMessage).mockClear();
+  it("never repeats the offending value into the report", () => {
+    // Reporting a leak by echoing it into the error tracker would be as bad as
+    // the leak. The message names the key and the offence only.
+    reports.length = 0;
     scrubProperties("e", { owner: "dana@brightside.example" });
 
-    const [message] = vi.mocked(Sentry.captureMessage).mock.calls[0];
+    const [message] = reports;
     expect(message).toContain("owner");
     expect(message).toContain("email address");
     expect(message).not.toContain("dana@brightside.example");

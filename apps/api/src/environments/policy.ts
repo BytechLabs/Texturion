@@ -155,6 +155,14 @@ export function sentryEnvironment(env: Env): string {
   }
 }
 
+/**
+ * The `environment` property on everything sent to PostHog. PostHog's alerts
+ * read `production` only, so a rig or laptop error alerts nobody.
+ */
+export function telemetryEnvironment(env: Env): "production" | "rig" | "local" {
+  return deployEnv(env);
+}
+
 export function servesRigRoutes(env: Env): boolean {
   return deployEnv(env) === "rig";
 }

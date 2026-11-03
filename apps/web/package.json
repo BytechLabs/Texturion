@@ -37,6 +37,7 @@
     "p5": "^2.3.0",
     "papaparse": "^5.5.4",
     "posthog-js": "^1.398.2",
+    "posthog-node": "5.56.2",
     "radix-ui": "^1.6.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

@@ -37,3 +37,11 @@ export class DurableObject<Env = unknown> {
     this.env = env;
   }
 }
+
+/** The runtime's invocation-scoped `waitUntil`. Under node nothing outlives a test. */
+export function waitUntil(promise: Promise<unknown>): void {
+  void promise;
+}
+
+/** The isolate's bindings. Empty under node, so a capture is a no-op. */
+export const env: Record<string, unknown> = {};

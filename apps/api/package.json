@@ -24,6 +24,7 @@
     "@supabase/supabase-js": "2.110.0",
     "hono": "^4.13.11",
     "jose": "6.2.3",
+    "posthog-node": "5.56.2",
     "stripe": "22.3.0",
     "zod": "^4.6.6"
   },

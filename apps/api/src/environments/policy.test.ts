@@ -23,6 +23,7 @@ import {
   RIG_DESTINATION_REFUSED,
   RIG_MESSAGING_PROFILE_DAILY_LIMIT,
   sentryEnvironment,
+  telemetryEnvironment,
   servesRigRoutes,
   telnyxRequestRefusal,
 } from "./policy";
@@ -194,6 +195,11 @@ const INERT_OUTSIDE_RIG: Record<string, ((env: Env) => void) | "constant"> = {
   sentryEnvironment: (env) => {
     expect(sentryEnvironment(env)).toBe(
       deployEnv(env) === "production" ? "production" : "development",
+    );
+  },
+  telemetryEnvironment: (env) => {
+    expect(telemetryEnvironment(env)).toBe(
+      deployEnv(env) === "production" ? "production" : "local",
     );
   },
   servesRigRoutes: (env) => expect(servesRigRoutes(env)).toBe(false),
@@ -399,6 +405,16 @@ describe("the rig's messaging-profile limits", () => {
     expect(
       restrictTelnyxBody(env(), { method: "GET", path: "/v2/messaging_profiles" }, undefined),
     ).toBeUndefined();
+  });
+});
+
+describe("PostHog's environment comes from DEPLOY_ENV", () => {
+  it("names each deployment, and a release stamp is not production", () => {
+    expect(telemetryEnvironment(getEnv({ ...completeEnv(), DEPLOY_ENV: "production" }))).toBe(
+      "production",
+    );
+    expect(telemetryEnvironment(getEnv(rigEnv()))).toBe("rig");
+    expect(telemetryEnvironment(getEnv({ ...completeEnv(), GIT_SHA: "abc123" }))).toBe("local");
   });
 });
 

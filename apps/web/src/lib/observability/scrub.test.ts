@@ -586,7 +586,7 @@ describe("#558 the prefix list cannot go stale", () => {
     for (const prefix of tokenRoutePrefixes(APP_DIR)) {
       expect(
         TOKEN_PATH_PREFIXES as readonly string[],
-        `app/**/${prefix}/[token] has no redaction rule — its token would be sent to PostHog and Sentry in full. Add "${prefix}" to TOKEN_PATH_PREFIXES in scrub.ts AND in apps/api/src/observability/sentry.ts.`,
+        `app/**/${prefix}/[token] has no redaction rule — its token would be sent to PostHog and Sentry in full. Add "${prefix}" to TOKEN_PATH_PREFIXES in scrub.ts AND in apps/api/src/observability/scrub.ts.`,
       ).toContain(prefix);
     }
   });
@@ -596,7 +596,7 @@ describe("#558 the prefix list cannot go stale", () => {
     // documented as "known" — a comment, which is why it drifted. The Worker
     // answers GET /photos/:token itself, so its list is not optional.
     const worker = readFileSync(
-      join(__dirname, "../../../../api/src/observability/sentry.ts"),
+      join(__dirname, "../../../../api/src/observability/scrub.ts"),
       "utf8",
     );
     const declared = /TOKEN_PATH_PREFIXES = \[([^\]]*)\]/.exec(worker);
@@ -630,7 +630,7 @@ describe("#558 the prefix list cannot go stale", () => {
      * thought to write down.
      */
     const worker = readFileSync(
-      join(__dirname, "../../../../api/src/observability/sentry.ts"),
+      join(__dirname, "../../../../api/src/observability/scrub.ts"),
       "utf8",
     );
     // Both sides read as SOURCE TEXT rather than one side imported: it keeps the
