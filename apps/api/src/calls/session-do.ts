@@ -28,7 +28,12 @@ import {
   VOICEMAIL_INBOUND_STATE,
 } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
-import { captureEvent, SYSTEM_DISTINCT_ID, type WaitUntil } from "../observability/capture";
+import {
+  captureEvent,
+  captureException,
+  SYSTEM_DISTINCT_ID,
+  type WaitUntil,
+} from "../observability/capture";
 import {
   parseOutboundPlacerState,
   parseOutboundSessionId,
@@ -454,7 +459,27 @@ export class CallSessionDO extends DurableObject<Env> {
     );
   }
 
+  /**
+   * An alarm has no caller to hear its failure: the platform retries it and
+   * logs it, and nothing else tells PostHog. So it is reported here, with the
+   * object's env as it stands, since a failed env check is one thing that
+   * makes an alarm throw. Rethrown so the platform still retries.
+   */
   async alarm(): Promise<void> {
+    try {
+      await this.runAlarms();
+    } catch (cause) {
+      void captureException(
+        this.env as unknown as Env,
+        cause,
+        { source: "call-session-do", extra: { alarm: true } },
+        this.keepAlive,
+      );
+      throw cause;
+    }
+  }
+
+  private async runAlarms(): Promise<void> {
     await this.enqueue(async () => {
       await this.resumeJournalIfAny();
       const now = Date.now();

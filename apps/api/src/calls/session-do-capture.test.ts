@@ -132,3 +132,26 @@ describe("a warning raised inside onTelnyxEvent", () => {
     expect(waitUntil).toHaveBeenCalledWith(sending);
   });
 });
+
+describe("an alarm that throws", () => {
+  it("is one exception from the object, and still throws so the platform retries it", async () => {
+    const { instance, waitUntil } = makeDO();
+    (instance as unknown as { resumeJournalIfAny: () => Promise<void> }).resumeJournalIfAny =
+      async () => {
+        throw new Error("journal unreadable");
+      };
+
+    await expect(instance.alarm()).rejects.toThrow("journal unreadable");
+
+    expect(captured).toHaveLength(1);
+    const [failure] = exceptionsCaptured();
+    expect(String(failure.error)).toContain("journal unreadable");
+    expect(failure.context).toEqual({ source: "call-session-do", extra: { alarm: true } });
+    const [entry] = captured;
+    expect(entry.env).toBe(bindings);
+
+    const sending = Promise.resolve();
+    entry.waitUntil?.(sending);
+    expect(waitUntil).toHaveBeenCalledWith(sending);
+  });
+});

@@ -184,6 +184,19 @@ function waitUntilOf(c: Context): WaitUntil | undefined {
   }
 }
 
+/**
+ * The bindings as capture reads them. A failure of the environment check is
+ * itself worth reporting, and the unvalidated bindings still hold the PostHog
+ * key and the deploy environment.
+ */
+function reportingEnv(bindings: Bindings): Env {
+  try {
+    return getEnv(bindings);
+  } catch {
+    return bindings as unknown as Env;
+  }
+}
+
 /** Reporting must never be what turns an error response into a crash. */
 function reportUnexpected(
   bindings: Bindings,
@@ -192,7 +205,7 @@ function reportUnexpected(
   waitUntil?: WaitUntil,
 ): void {
   try {
-    void captureException(getEnv(bindings), error, context, waitUntil);
+    void captureException(reportingEnv(bindings), error, context, waitUntil);
   } catch (cause) {
     console.error("exception not reported:", cause instanceof Error ? cause.message : String(cause));
   }
@@ -868,15 +881,29 @@ export const handler = {
    * then run every job mapped to the schedule that fired.
    */
   async scheduled(controller, env, ctx) {
-    const validated = getEnv(env);
     const cron = controller.cron;
+    const waitUntil: WaitUntil = (promise) => ctx.waitUntil(promise);
+    // These two refusals happen before any job runs, so they are reported here
+    // or nowhere: every trigger of the cron would fail with only the missing
+    // heartbeat to show for it.
+    const refuseRun = (error: Error): never => {
+      reportUnexpected(env, error, { source: "cron", cron }, waitUntil);
+      throw error;
+    };
+    let validated: Env;
+    try {
+      validated = getEnv(env);
+    } catch (error) {
+      return refuseRun(error instanceof Error ? error : new Error(String(error)));
+    }
     if (!isCronSchedule(cron)) {
-      throw new Error(
-        `No scheduled jobs are mapped to cron "${cron}": wrangler.jsonc and CRON_JOBS are out of sync.`,
+      return refuseRun(
+        new Error(
+          `No scheduled jobs are mapped to cron "${cron}": wrangler.jsonc and CRON_JOBS are out of sync.`,
+        ),
       );
     }
     const now = new Date(controller.scheduledTime);
-    const waitUntil: WaitUntil = (promise) => ctx.waitUntil(promise);
 
     // The trigger FIRED, and that is what the heartbeat says, before the jobs
     // run and whether or not any of them throws. A job that throws is an

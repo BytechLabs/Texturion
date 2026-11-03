@@ -56,7 +56,7 @@ describe("a cron trigger", () => {
     ]);
   });
 
-  it("refuses a schedule it has no jobs for, before saying it fired", async () => {
+  it("refuses a schedule it has no jobs for, reporting it instead of saying it fired", async () => {
     const { ctx } = testExecutionContext();
     await expect(
       handler.scheduled(
@@ -65,7 +65,28 @@ describe("a cron trigger", () => {
         ctx,
       ),
     ).rejects.toThrow(/No scheduled jobs are mapped/);
-    expect(captured).toEqual([]);
+    expect(eventsCaptured("ops_heartbeat")).toEqual([]);
+    expect(captured).toHaveLength(1);
+    const [failure] = exceptionsCaptured();
+    expect(String(failure.error)).toContain("No scheduled jobs are mapped");
+    expect(failure.context).toEqual({ source: "cron", cron: "1 2 3 4 5" });
+  });
+
+  it("reports a failed environment check from the raw bindings, since nothing else will", async () => {
+    const { ctx } = testExecutionContext();
+    const broken = { ...completeEnv(), SUPABASE_URL: undefined } as unknown as Bindings;
+    await expect(
+      handler.scheduled(
+        { cron: "*/5 * * * *", scheduledTime: Date.now(), noRetry: () => {} },
+        broken,
+        ctx,
+      ),
+    ).rejects.toThrow(/Environment validation failed/);
+    expect(eventsCaptured("ops_heartbeat")).toEqual([]);
+    const [failure] = exceptionsCaptured();
+    expect(String(failure.error)).toContain("Environment validation failed");
+    expect(failure.context).toEqual({ source: "cron", cron: "*/5 * * * *" });
+    expect(captured[0].env).toBe(broken);
   });
 });
 
