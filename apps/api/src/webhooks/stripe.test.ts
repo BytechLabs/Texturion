@@ -974,7 +974,7 @@ describe("§9 event → state table", () => {
       api_key: "phc_test_key",
       event: "checkout_completed",
       distinct_id: COMPANY_ID,
-      properties: { plan: "starter" },
+      properties: { plan: "starter", environment: "local" },
     });
 
     // Key unset (every other suite's env) → zero PostHog traffic.

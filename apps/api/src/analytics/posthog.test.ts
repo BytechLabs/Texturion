@@ -46,11 +46,23 @@ describe("capture (analytics/posthog)", () => {
       api_key: "phc_test_key",
       event: "registration_submitted",
       distinct_id: COMPANY_ID,
-      properties: { action: "brand_submitted" },
+      properties: { action: "brand_submitted", environment: "local" },
     });
     expect(posthog.calls[0].headers.get("content-type")).toBe(
       "application/json",
     );
+  });
+
+  it("tags the deployment, so an alert can leave the rig's events out", async () => {
+    const posthog = stubRoute(posthogMatch, () => ({ status: 1 }));
+    stubFetch(posthog.route);
+
+    await capture({ ...envWithKey(), DEPLOY_ENV: "production" }, "checkout_completed", COMPANY_ID);
+    await capture({ ...envWithKey(), DEPLOY_ENV: "rig" }, "checkout_completed", COMPANY_ID);
+
+    expect(
+      posthog.calls.map((call) => (call.body as { properties: unknown }).properties),
+    ).toEqual([{ environment: "production" }, { environment: "rig" }]);
   });
 
   it("defaults properties to an empty object", async () => {

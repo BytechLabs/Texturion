@@ -102,9 +102,17 @@ function client(env: Env): PostHog | null {
   return posthog;
 }
 
+/**
+ * Which deployment sent an event, for the ones sent outside this module (the
+ * funnel events), so an alert can leave the rig's out.
+ */
+export function environmentOf(env: Env): string {
+  return telemetryEnvironment(env);
+}
+
 function baseProperties(env: Env): Record<string, unknown> {
   return {
-    environment: telemetryEnvironment(env),
+    environment: environmentOf(env),
     release: env.GIT_SHA,
     // About the code or a workspace, never a visitor.
     $process_person_profile: false,

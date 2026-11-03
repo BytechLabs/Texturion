@@ -1850,7 +1850,7 @@ describe("PostHog north-star events (§12 step 18)", () => {
       api_key: "phc_test_key",
       event: "registration_submitted",
       distinct_id: COMPANY_ID,
-      properties: { action: "brand_submitted" },
+      properties: { action: "brand_submitted", environment: "local" },
     });
   });
 

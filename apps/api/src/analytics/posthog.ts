@@ -19,7 +19,7 @@
  * are swallowed and logged.
  */
 import type { Env } from "../env";
-import { captureException } from "../observability/capture";
+import { captureException, environmentOf } from "../observability/capture";
 import { scrubProperties } from "../observability/scrub";
 
 /** PostHog Cloud (US) capture endpoint. */
@@ -46,10 +46,14 @@ export async function capture(
         api_key: env.POSTHOG_API_KEY,
         event,
         distinct_id: companyId,
-        properties: scrubProperties(event, properties, (message) => {
-          console.error(message);
-          void captureException(env, message, { source: "api", level: "warning" });
-        }),
+        properties: {
+          ...scrubProperties(event, properties, (message) => {
+            console.error(message);
+            void captureException(env, message, { source: "api", level: "warning" });
+          }),
+          // So an alert reading these events can leave the rig's out.
+          environment: environmentOf(env),
+        },
       }),
       // Analytics must never stall a send or a webhook: cap the round-trip.
       signal: AbortSignal.timeout(3000),
