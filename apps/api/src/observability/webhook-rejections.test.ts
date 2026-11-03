@@ -5,6 +5,8 @@
  *     delivery, which bounds what a scanner on a public route can send and
  *     keeps the signal from being diluted by traffic that says nothing about
  *     our secret;
+ *   - a flood of them sends one event per provider per window, so a script on a
+ *     public route cannot spend the month's event quota;
  *   - reporting can never turn a 400 into a 500, because that would make the
  *     provider retry a request we are never going to accept.
  */
@@ -15,7 +17,11 @@ import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import { eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { completeEnv } from "../test/support";
-import { countWebhookRejection, type WebhookProvider } from "./webhook-rejections";
+import {
+  countWebhookRejection,
+  rejectionGate,
+  type WebhookProvider,
+} from "./webhook-rejections";
 
 vi.mock("./capture", async () => (await import("../test/capture-mock")).captureModuleMock());
 
@@ -45,6 +51,8 @@ const providers = () =>
 
 beforeEach(() => {
   resetCaptures();
+  rejectionGate.reset();
+  vi.useRealTimers();
 });
 
 describe("countWebhookRejection", () => {
@@ -73,6 +81,28 @@ describe("countWebhookRejection", () => {
     countWebhookRejection(context(signed("telnyx-signature-ed25519"), () => {}), "stripe");
 
     expect(providers()).toEqual(["stripe", "resend"]);
+  });
+
+  it("sends one event per provider per five minutes, however many requests refuse", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-03T10:00:00Z"));
+    const flood = (provider: WebhookProvider, header: string) => {
+      for (let n = 0; n < 500; n += 1) {
+        countWebhookRejection(context(signed(header), () => {}), provider);
+      }
+    };
+
+    flood("stripe", "stripe-signature");
+    flood("telnyx", "telnyx-signature-ed25519");
+    expect(providers()).toEqual(["stripe", "telnyx"]);
+
+    vi.advanceTimersByTime(5 * 60 * 1000 - 1);
+    flood("stripe", "stripe-signature");
+    expect(providers()).toEqual(["stripe", "telnyx"]);
+
+    vi.advanceTimersByTime(1);
+    flood("stripe", "stripe-signature");
+    expect(providers()).toEqual(["stripe", "telnyx", "stripe"]);
   });
 
   it("still reports, and does not throw, when no execution context is bound", () => {

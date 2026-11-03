@@ -12,6 +12,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { rejectionGate } from "../observability/webhook-rejections";
 import { captured, eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
@@ -145,6 +146,7 @@ vi.mock("../observability/capture", async () =>
 
 beforeEach(() => {
   resetCaptures();
+  rejectionGate.reset();
 });
 
 describe("processResendEvent", () => {

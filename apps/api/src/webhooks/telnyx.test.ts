@@ -27,6 +27,7 @@ import {
   type Stub,
 } from "../test/messaging-support";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { channelBeats } from "../observability/heartbeat";
 import { eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { telnyxWebhookRoute } from "./telnyx";
 
@@ -50,6 +51,7 @@ beforeEach(async () => {
   privateKey = keys.privateKey;
   env = { ...completeEnv(), TELNYX_PUBLIC_KEY: keys.publicKeyB64 };
   resetCaptures();
+  channelBeats.reset();
 });
 
 afterEach(() => {

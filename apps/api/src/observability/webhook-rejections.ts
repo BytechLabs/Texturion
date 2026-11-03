@@ -6,12 +6,18 @@
  * nothing here throws. Each refusal becomes a `webhook_rejected` event, and
  * PostHog's "Limits and rates" alert fires on three from one provider in an
  * hour (D146).
+ *
+ * The routes are public and any non-empty signature header passes the check
+ * below, so sending is capped at one event per provider every five minutes per
+ * isolate. Without that, one script could spend the month's event quota, and
+ * the free plan stops ingesting errors and heartbeats with it.
  */
 import type { Context } from "hono";
 
 import type { AppEnv } from "../context";
 import { getEnv } from "../env";
 import { captureEvent, SYSTEM_DISTINCT_ID } from "./capture";
+import { rateGate } from "./rate-gate";
 
 export type WebhookProvider = "telnyx" | "stripe" | "resend";
 
@@ -30,6 +36,11 @@ const SIGNATURE_HEADER: Record<WebhookProvider, string> = {
   resend: "svix-signature",
 };
 
+/** The alert needs three rejections in an hour, which is three windows, not three requests. */
+const REJECTION_WINDOW_MS = 5 * 60 * 1000;
+
+export const rejectionGate = rateGate(REJECTION_WINDOW_MS);
+
 /**
  * Report one signature rejection off the response path. Never throws: a 500
  * here would make the provider retry a request we will never accept.
@@ -42,6 +53,7 @@ export function countWebhookRejection(
   provider: WebhookProvider,
 ): void {
   if (!c.req.raw.headers.get(SIGNATURE_HEADER[provider])) return;
+  if (!rejectionGate.allow(provider)) return;
   let waitUntil: (promise: Promise<unknown>) => void;
   try {
     const ctx = c.executionCtx;

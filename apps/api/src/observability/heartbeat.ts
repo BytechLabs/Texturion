@@ -9,6 +9,7 @@
  */
 import type { Env } from "../env";
 import { captureEvent, SYSTEM_DISTINCT_ID, type WaitUntil } from "./capture";
+import { rateGate } from "./rate-gate";
 
 /**
  * Every cron trigger in wrangler.jsonc, with how long it may stay silent: its
@@ -87,12 +88,27 @@ export function cronHeartbeat(
   );
 }
 
+/**
+ * A channel beats at most once every ten minutes per isolate. Its shortest
+ * grace is seven hours, so more says nothing new, and a traffic burst or a
+ * webhook retry storm would otherwise send one event each.
+ *
+ * `channel:resend-send` is counted instead: the bounce-rate rule divides by
+ * it, so every send must reach PostHog. Those sends are ours, not a
+ * provider's to repeat.
+ */
+const CHANNEL_BEAT_WINDOW_MS = 10 * 60 * 1000;
+const COUNTED_CHANNELS: ReadonlySet<Channel> = new Set(["channel:resend-send"]);
+
+export const channelBeats = rateGate(CHANNEL_BEAT_WINDOW_MS);
+
 /** Best effort: a channel's work never waits on, or fails because of, this. */
 export function channelHeartbeat(
   env: Env,
   channel: Channel,
   waitUntil?: WaitUntil,
 ): void {
+  if (!COUNTED_CHANNELS.has(channel) && !channelBeats.allow(channel)) return;
   void captureEvent(
     env,
     "ops_heartbeat",
