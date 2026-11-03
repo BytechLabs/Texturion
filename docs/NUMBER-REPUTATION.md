@@ -69,8 +69,8 @@ node scripts/ops/version-distribution.mjs   # is this one build, or everybody?
 - Is `kill:outbound-send` off, or the workspace overridden? (`docs/ROLLBACK.md`)
 - Is the campaign still approved? A rejected re-review looks exactly like
   filtering.
-- Is the destination country the pattern? Check the `delivery-by-country` alert
-  — if it is Canada, `docs/DECISIONS.md` D2 is the open question (#379).
+- Is the destination country the pattern? Check the delivery rate by country
+  in PostHog's "Limits and rates" alert and the Loonext texting dashboard — if it is Canada, `docs/DECISIONS.md` D2 is the open question (#379).
 
 ### 2. Free caller-registry submissions
 

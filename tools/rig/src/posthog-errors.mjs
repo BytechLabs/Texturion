@@ -5,7 +5,7 @@
  * Everything here goes through PostHog's HogQL query endpoint, which answers
  * for `$exception` events by fingerprint, environment and time. Credentials
  * come from the environment and are never written anywhere:
- *   POSTHOG_PERSONAL_API_KEY   a personal key with query:read (alerts: hog_function:write)
+ *   POSTHOG_PERSONAL_API_KEY   a personal key with query:read
  *   POSTHOG_PROJECT_ID         optional; the key's first project when unset
  *   POSTHOG_APP_HOST           optional; https://us.posthog.com
  *   SENTRY_PARITY_TOKEN (else SENTRY_AUTH_TOKEN), SENTRY_ORG   parity only, to list Sentry's
@@ -13,7 +13,6 @@
  *
  * Usage:
  *   node tools/rig/src/posthog-errors.mjs parity [--days 14] [--environment production]
- *   node tools/rig/src/posthog-errors.mjs alerts   (needs POSTHOG_ALERT_WEBHOOK_URL and OPS_ALERT_WEBHOOK_SECRET)
  */
 import { pathToFileURL } from "node:url";
 
@@ -21,15 +20,6 @@ export const DEFAULT_APP_HOST = "https://us.posthog.com";
 
 /** The environments that must never reach PostHog: the rig's and rigd's own. */
 export const NON_PRODUCTION_ENVIRONMENTS = ["rig", "synthetic", "development"];
-
-/** The two events PostHog raises for an issue, which the alerts are filtered on. */
-export const ALERT_EVENTS = [
-  { name: "Loonext: new error issue", event: "$error_tracking_issue_created" },
-  { name: "Loonext: reopened error issue", event: "$error_tracking_issue_reopened" },
-];
-
-/** The header the API Worker's /webhooks/posthog-alert reads the shared secret from. */
-export const OPS_SECRET_HEADER = "x-loonext-ops-secret";
 
 /** The rule the API Worker and the browser apply: a Sentry fingerprint joined by a colon. */
 export function posthogFingerprint(parts) {
@@ -177,72 +167,6 @@ export function parity(sentryKeys, posthogFingerprints) {
 }
 
 // ---------------------------------------------------------------------------
-// Alerts: error-tracking hog functions, created through the API
-// ---------------------------------------------------------------------------
-
-/**
- * The hog function body for one alert event, posting the issue to a webhook.
- *
- * PostHog does not fill in the template's default body when a function is
- * created through the API (the input is stored as null and the POST goes out
- * empty), so the body is spelled out here in the shape
- * apps/api/src/webhooks/posthog-alert.ts reads. The shared secret goes in
- * `secret_headers`, which PostHog stores encrypted and never shows again.
- */
-export function alertFunction(alert, webhookUrl, secret) {
-  return {
-    type: "internal_destination",
-    name: alert.name,
-    enabled: true,
-    template_id: "template-webhook",
-    filters: { events: [{ id: alert.event, type: "events" }] },
-    inputs: {
-      url: { value: webhookUrl },
-      method: { value: "POST" },
-      headers: { value: { "content-type": "application/json" } },
-      body: {
-        value: {
-          event: {
-            event: "{event.event}",
-            distinct_id: "{event.distinct_id}",
-            url: "{project.url}/error-tracking/fingerprint/{encodeURLComponent(event.properties.fingerprint)}?utm_source=alert&utm_medium=email",
-            properties: {
-              name: "{event.properties.name}",
-              description: "{event.properties.description}",
-              status: "{event.properties.status}",
-              fingerprint: "{event.properties.fingerprint}",
-              $exception_fingerprint: "{event.properties.$exception_fingerprint}",
-            },
-          },
-        },
-      },
-      ...(secret ? { secret_headers: { value: { [OPS_SECRET_HEADER]: secret } } } : {}),
-    },
-  };
-}
-
-/** Creates or updates the two alerts so a re-run converges on one copy of each. */
-export async function applyAlerts(settings, webhookUrl, secret, fetchImpl = fetch) {
-  if (!/^https:\/\//.test(webhookUrl)) throw new Error("POSTHOG_ALERT_WEBHOOK_URL must be an https URL");
-  if (!secret) throw new Error("OPS_ALERT_WEBHOOK_SECRET is needed: the Worker refuses a webhook without it");
-  const projectId = await resolveProjectId(settings, fetchImpl);
-  const listed = await api(settings, fetchImpl, `/api/environments/${projectId}/hog_functions/?type=internal_destination&limit=200`);
-  const outcomes = [];
-  for (const alert of ALERT_EVENTS) {
-    const existing = (listed?.results ?? []).find((fn) => fn.name === alert.name && !fn.deleted);
-    const body = JSON.stringify(alertFunction(alert, webhookUrl, secret));
-    if (existing) {
-      await api(settings, fetchImpl, `/api/environments/${projectId}/hog_functions/${existing.id}/`, { method: "PATCH", body });
-      outcomes.push({ name: alert.name, action: "updated" });
-    } else {
-      await api(settings, fetchImpl, `/api/environments/${projectId}/hog_functions/`, { method: "POST", body });
-      outcomes.push({ name: alert.name, action: "created" });
-    }
-  }
-  return outcomes;
-}
-
-// ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
 
@@ -272,21 +196,7 @@ export async function main(args, env = process.env, fetchImpl = fetch, out = con
     out(JSON.stringify({ days, environment, ...result }, null, 2));
     return result.ok ? 0 : 1;
   }
-  if (command === "alerts") {
-    const webhook = env.POSTHOG_ALERT_WEBHOOK_URL;
-    if (!webhook) {
-      out("POSTHOG_ALERT_WEBHOOK_URL is not set");
-      return 2;
-    }
-    const secret = env.OPS_ALERT_WEBHOOK_SECRET;
-    if (!secret) {
-      out("OPS_ALERT_WEBHOOK_SECRET is not set");
-      return 2;
-    }
-    out(JSON.stringify(await applyAlerts(settings, webhook, secret, fetchImpl), null, 2));
-    return 0;
-  }
-  out("usage: posthog-errors.mjs parity [--days N] [--environment E] | alerts");
+  out("usage: posthog-errors.mjs parity [--days N] [--environment E]");
   return 2;
 }
 

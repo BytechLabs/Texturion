@@ -12,8 +12,9 @@ is broken, sends an alert email, throttles one, or keeps a ledger of what
 should have happened.
 
 The move is tracked in the epic "Monitoring: PostHog does it all, Sentry and
-homemade alerting removed". Until it closes, Sentry, the ops email and the
-liveness checker are still running; this page describes where they are going.
+homemade alerting removed". The ops email, the liveness checker and the
+homemade probes are gone; the API Worker's Sentry wrapper goes with the epic's
+last code change.
 
 ## What we send
 
@@ -32,7 +33,7 @@ already do (D8). Alerts only read `environment = 'production'`.
 | `message_outcome` | API Worker, Telnyx status webhook | `status` (`delivered`, `failed`), `country` (two letters) | an outbound text reached a final status |
 | `email_bounced` | API Worker, Resend webhook | `kind` (`bounce`, `complaint`) | Resend reported a bounce or a complaint |
 | `ring_push_sent`, `ring_beacon` | API Worker | `platform`, `app_version`, and `stage` on a beacon | a ring push went out; a device reported a ring stage |
-| `call_received` | API Worker | none | an inbound call reached a workspace |
+| `call_received` | API Worker | none | an inbound call reached a workspace; the calls dashboard shows it, no alert reads it |
 | `aup_signals` | API Worker, daily cron | the counts and ratios `api_aup_signals` returns, never content or names | once a day for each workspace that sent texts that day |
 | `usage_threshold_crossed`, `overage_projected` | API Worker crons | `threshold` on the first | the existing customer warnings fired |
 
@@ -49,6 +50,8 @@ which source maps make readable.
 
 A notice is sent once, when the condition starts: the request that reaches a
 cap, the transition into a bad state. Requests refused after that send nothing.
+The one standing state with no event to start from, a Telnyx number outside the
+environment's partition, is reported on the first sweep of every sixth hour.
 
 ### What never leaves
 
@@ -113,7 +116,7 @@ link opens.
 |---|---|---|
 | [New or returning error issue](https://us.posthog.com/project/498129/insights/r0XtuRNs?alert_id=01a1a018-ca3b-0000-34f1-ae643b2cabaf) | an active issue's first production event, or its first after 24 quiet hours, was in the last 70 minutes; and for every ops notice (`ops_key`) in the last 70 minutes, since each one is something a person must act on | SQL over `$exception` joined to `system.error_tracking_issues`, one row per issue or notice |
 | [Heartbeat overdue](https://us.posthog.com/project/498129/insights/2nEDGd2v?alert_id=01a1a016-6c56-0000-622c-9eb2e7f7d0c7) | any `ops_heartbeat` key seen in the last 35 days has been silent longer than the largest `grace_minutes` it carried | SQL, one row per overdue key |
-| [Limits and rates](https://us.posthog.com/project/498129/insights/s980Sfcg?alert_id=01a1a016-711c-0000-7002-59894c7a1757) | a gauge is at 70% of its limit, or its limit is missing or under the expected floor; three `webhook_rejected` from one provider in an hour; a country's delivery rate is under 80% (ten or more outcomes in a day); bounces over 2% or complaints over 0.05% of sends (a week, 100 or more sends); rings shown under 80% of pushes on a platform (a day, ten or more pushes); a registration submitted seven days ago and not approved; a workspace's `aup_signals` crossing the AUP thresholds; a `voice_dials`, `inbound_volume` or `cost_projection` warning; the month's events at 700k or exceptions at 70k | SQL, one row per breach |
+| [Limits and rates](https://us.posthog.com/project/498129/insights/s980Sfcg?alert_id=01a1a016-711c-0000-7002-59894c7a1757) | a gauge is at 70% of its limit, or its limit is missing or under the expected floor; three `webhook_rejected` from one provider in an hour; a country's delivery rate is under 80% (ten or more outcomes in a day); bounces over 2% or complaints over 0.05% of sends (a week, 100 or more sends); rings shown under 80% of pushes on a platform (a day, ten or more pushes); a registration submitted seven days ago and not approved; a workspace's `aup_signals` crossing the AUP thresholds; a `voice_dials`, `inbound_volume`, `storage_abuse` or `cost_projection` warning; the month's events at 700k or exceptions at 70k | SQL, one row per breach |
 | [Exception spike](https://us.posthog.com/project/498129/insights/MOIssrNk?alert_id=01a1a016-75c1-0000-e9bd-92c2192a47ae) | PostHog's z-score anomaly detector (threshold 0.95, window 72 hours) flags the last completed hour of production exceptions | trend of `$exception` per hour |
 
 The AUP thresholds are the ones the old `aup-watch.ts` used: 100 or more sent
