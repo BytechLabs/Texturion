@@ -27,7 +27,12 @@ import {
   type Stub,
 } from "../test/messaging-support";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { telnyxWebhookRoute } from "./telnyx";
+
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const NUMBER_ID = "dddddddd-0000-4000-8000-00000000000d";
@@ -44,6 +49,7 @@ beforeEach(async () => {
   const keys = await telnyxSigningKeys();
   privateKey = keys.privateKey;
   env = { ...completeEnv(), TELNYX_PUBLIC_KEY: keys.publicKeyB64 };
+  resetCaptures();
 });
 
 afterEach(() => {
@@ -265,6 +271,55 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     await second.flush();
 
     expect(threadRpc.calls).toHaveLength(1); // first delivery only
+  });
+
+  it("beats the channel heartbeat once per fresh delivery, never on a duplicate", async () => {
+    const ledger = ledgerStubs();
+    serve(ledger.insert, ledger.stamp);
+    const event = {
+      data: {
+        event_type: "message.some_future_thing",
+        id: "e5e5e5e5-0000-4000-8000-000000000005",
+        payload: {},
+      },
+    };
+
+    await (await deliver(event)).flush();
+    await (await deliver(event)).flush();
+
+    expect(eventsCaptured("ops_heartbeat").map((beat) => beat.properties)).toEqual([
+      { key: "channel:telnyx-webhook", grace_minutes: 780 },
+    ]);
+  });
+
+  it("sends call_received under the workspace that owns the called number", async () => {
+    const ledger = ledgerStubs();
+    const numberLookup = stubRoute(restMatch(env, "GET", "phone_numbers"), () => [
+      { company_id: COMPANY_ID },
+    ]);
+    serve(ledger.insert, ledger.stamp, numberLookup);
+    const initiated = (direction: string, id: string) => ({
+      data: {
+        event_type: "call.initiated",
+        id,
+        payload: {
+          call_control_id: `cc-${id}`,
+          call_session_id: `session-${id}`,
+          direction,
+          from: "+16135550142",
+          to: "+16135550100",
+        },
+      },
+    });
+
+    await (await deliver(initiated("incoming", "e6e6e6e6-0000-4000-8000-000000000006"))).flush();
+    await (await deliver(initiated("outgoing", "e7e7e7e7-0000-4000-8000-000000000007"))).flush();
+
+    expect(eventsCaptured("call_received")).toEqual([
+      { event: "call_received", distinctId: COMPANY_ID, properties: {} },
+    ]);
+    expect(numberLookup.calls).toHaveLength(1);
+    expect(numberLookup.calls[0].url.searchParams.get("number_e164")).toBe("eq.+16135550100");
   });
 
   it("acks unknown event types as no-ops and stamps them processed", async () => {

@@ -1,6 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { runAiFeature, type AiFeatureSpec } from "./run";
+
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
+
+beforeEach(() => {
+  resetCaptures();
+});
 
 // #380: `key` is typed to the PRICED features, so this fixture names a real
 // one. That is the guard working — a cost centre that does not exist in the
@@ -136,6 +145,32 @@ describe("runAiFeature", () => {
     expect(run).not.toHaveBeenCalled();
     // The opt-in is checked BEFORE the ledger, so an off switch costs nothing.
     expect((db as unknown as { rpc: ReturnType<typeof vi.fn> }).rpc).not.toHaveBeenCalled();
+  });
+
+  it("sends one notice when the ledger says this unit crossed the threshold, and still runs", async () => {
+    const run = vi.fn(async () => ({ text: "hello" }));
+    const result = await runAiFeature(
+      envWith(run),
+      fakeDb({ reserve: { count: 80, over_cap: false, should_alert: true } }),
+      { companyId: "c1", spec: SPEC, model: "@cf/test", input: {}, settings: SETTINGS },
+    );
+
+    expect(result).toEqual({ ok: true, raw: { text: "hello" } });
+    const notices = noticesCaptured("ai-cap-nearing");
+    expect(notices).toHaveLength(1);
+    expect(notices[0].detail).toContain("company c1 has used 80 of 100");
+    expect(notices[0].detail).toContain("the thing stops.");
+  });
+
+  it("sends no notice for a unit the ledger does not flag", async () => {
+    await runAiFeature(envWith(vi.fn(async () => ({}))), fakeDb(), {
+      companyId: "c1",
+      spec: SPEC,
+      model: "@cf/test",
+      input: {},
+      settings: SETTINGS,
+    });
+    expect(noticesCaptured()).toEqual([]);
   });
 
   it("does not call the model once the cap is reached", async () => {

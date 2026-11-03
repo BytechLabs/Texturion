@@ -301,17 +301,17 @@ const CRONS = {
           code: "rig_endpoint_refused",
           outcome: "captured",
           telnyx_paths: ["/v2/messaging_hosted_number_orders", "/v2/documents"],
-          follow_on_events: [{ match: 'level fatal, message starts "text-enablement exhausted "' }],
+          follow_on_events: [{ match: 'level error, message starts "text-enablement exhausted "' }],
         },
       ],
       defects: [
         {
-          match: 'message starts "reconcile: Telnyx number " and contains "is unknown to phone_numbers"',
+          match: 'message starts "reconcile: a Telnyx number is unknown to phone_numbers"',
           means: "A number in the rig's group has no phone_numbers row.",
         },
         { match: 'TelnyxApiError "Telnyx 403 on DELETE /v2/phone_numbers/" with no [codes ...]', means: "A standing number was nearly reclaimed." },
       ],
-      expected_events: [{ match: 'fingerprint ["ops", "channel:sms-outbound"]' }],
+      expected_events: [{ match: 'fingerprint ["ops", "billing-dispute"]' }],
     },
     {
       config: "apps/api/wrangler.jsonc",
@@ -323,7 +323,6 @@ const CRONS = {
           code: "rig_endpoint_refused",
           outcome: "job-fails",
           telnyx_paths: ["/v2/10dlc/brand", "/v2/10dlc/campaign"],
-          fingerprints: [["ops", "job:poll-registrations"]],
         },
       ],
     },
@@ -331,7 +330,7 @@ const CRONS = {
       config: "apps/api/wrangler.jsonc",
       cron: "15 */6 * * *",
       class: "run",
-      expected_events: [{ match: "level debug, tag canary=do-sentry" }],
+      expected_events: [{ match: "level warning, tag ops_key=port-out" }],
     },
   ],
 };
@@ -345,29 +344,29 @@ describe("the cron registry's reading of the API's events", () => {
 
   it("reads every match form the registry uses", () => {
     expect(unread).toEqual([]);
-    expect(parseMatch("fingerprint [\"ops\", \"channel:sms-outbound\"]")!(event({ fingerprint: ["ops", "channel:sms-outbound"] }))).toBe(true);
+    expect(parseMatch("fingerprint [\"ops\", \"billing-dispute\"]")!(event({ fingerprint: ["ops", "billing-dispute"] }))).toBe(true);
     expect(parseMatch("something the reader never learned")).toBeUndefined();
     expect(cronExplainer(JSON.stringify({ ...CRONS, crons: [{ cron: "x", expected_events: [{ match: "a new form" }] }] })).unread).toEqual(["a new form"]);
   });
 
-  it("expects the liveness alerts, the canary, captured refusals and their follow-ons", () => {
-    expect(explain(event({ fingerprint: ["ops", "channel:sms-outbound"] }))).toEqual({ kind: "expected" });
-    expect(explain(event({ fingerprint: ["ops", "job:poll-registrations"] }))).toEqual({ kind: "expected" });
-    expect(explain(event({ level: "debug", tags: { canary: "do-sentry" }, message: "do canary" }))).toEqual({ kind: "expected" });
+  it("expects the listed events, captured refusals and their follow-ons", () => {
+    expect(explain(event({ fingerprint: ["ops", "billing-dispute"] }))).toEqual({ kind: "expected" });
+    expect(explain(event({ level: "warning", tags: { ops_key: "port-out" }, message: "A number port-out is pending" }))).toEqual({ kind: "expected" });
     expect(explain(event({ exceptions: [refused("POST", "/v2/documents")] }))).toEqual({ kind: "expected" });
-    expect(explain(event({ level: "fatal", message: "text-enablement exhausted for order 1" }))).toEqual({ kind: "expected" });
+    expect(explain(event({ level: "error", message: "text-enablement exhausted 5 attempts for order 1" }))).toEqual({ kind: "expected" });
   });
 
-  it("expects a cron's AggregateError only when every job in it failed on a refusal listed for that cron", () => {
-    const aggregate = (cron: string) => ({ type: "AggregateError", value: `cron "${cron}": 1 of 7 job(s) failed` });
-    expect(explain(event({ exceptions: [refused("GET", "/v2/10dlc/brand/x"), aggregate("0 13 * * *")] }))).toEqual({ kind: "expected" });
-    expect(explain(event({ exceptions: [refused("GET", "/v2/10dlc/brand/x"), { type: "TypeError", value: "x is undefined" }, aggregate("0 13 * * *")] }))).toBeUndefined();
-    expect(explain(event({ exceptions: [refused("GET", "/v2/10dlc/brand/x"), aggregate("*/15 * * * *")] }))).toBeUndefined();
-    expect(explain(event({ exceptions: [aggregate("0 13 * * *")] }))).toBeUndefined();
+  it("expects a job's failure only when it is a refusal listed for the cron that ran it", () => {
+    const failed = (cron: string, ...exceptions: { type: string; value: string }[]) =>
+      event({ tags: { source: "cron", cron, job: "job:poll-registrations" }, exceptions });
+    expect(explain(failed("0 13 * * *", refused("GET", "/v2/10dlc/brand/x")))).toEqual({ kind: "expected" });
+    expect(explain(failed("0 13 * * *", refused("GET", "/v2/10dlc/brand/x"), { type: "TypeError", value: "x is undefined" }))).toBeUndefined();
+    expect(explain(failed("*/15 * * * *", refused("GET", "/v2/10dlc/brand/x")))).toBeUndefined();
+    expect(explain(failed("0 13 * * *", { type: "AggregateError", value: "registration poll finished with 1 failure(s)" }))).toBeUndefined();
   });
 
   it("names a defect by its cause, and explains nothing else", () => {
-    expect(explain(event({ level: "warning", message: "reconcile: Telnyx number +1... is unknown to phone_numbers" }))).toEqual({
+    expect(explain(event({ level: "warning", message: "reconcile: a Telnyx number is unknown to phone_numbers" }))).toEqual({
       kind: "defect",
       means: "A number in the rig's group has no phone_numbers row.",
     });
@@ -394,15 +393,15 @@ describe("the relay's report for rig health", () => {
     const dsn = parseDsn("https://key@o1.ingest.sentry.example/102");
     const relay = new SentryRelay({ statePath: join(dir, "counters.json"), alertDsn: dsn, fetch, clock });
     const envelope = (event: unknown) => new TextEncoder().encode(`{}\n{"type":"event"}\n${JSON.stringify(event)}\n`);
-    await relay.forwardEnvelope(dsn, envelope({ fingerprint: ["ops", "channel:sms-outbound"], level: "warning" }));
-    await relay.forwardEnvelope(dsn, envelope({ level: "debug", message: "do canary", tags: { canary: "do-sentry" } }));
-    await relay.forwardEnvelope(dsn, envelope({ level: "warning", message: "reconcile: Telnyx number +1 is unknown to phone_numbers" }));
+    await relay.forwardEnvelope(dsn, envelope({ fingerprint: ["ops", "billing-dispute"], level: "warning" }));
+    await relay.forwardEnvelope(dsn, envelope({ level: "warning", message: "A number port-out is pending", tags: { ops_key: "port-out" } }));
+    await relay.forwardEnvelope(dsn, envelope({ level: "warning", message: "reconcile: a Telnyx number is unknown to phone_numbers" }));
     await relay.forwardEnvelope(dsn, envelope({ exception: { values: [{ type: "TypeError", value: "x is undefined" }] } }));
     const { explain } = cronExplainer(JSON.stringify(CRONS));
     const report = relay.report(explain);
     expect(report.unexplained_24h).toEqual([JSON.stringify(["exception", "TypeError", "x is undefined"])]);
     expect(report.defects_24h).toEqual([
-      { key: JSON.stringify(["message", "reconcile: Telnyx number +1 is unknown to phone_numbers"]), means: "A number in the rig's group has no phone_numbers row." },
+      { key: JSON.stringify(["message", "reconcile: a Telnyx number is unknown to phone_numbers"]), means: "A number in the rig's group has no phone_numbers row." },
     ]);
     expect(report.day_count).toBe(4);
     clock.advance(24 * 60 * 60 * 1000);

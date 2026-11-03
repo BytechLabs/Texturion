@@ -5,9 +5,9 @@
  * #377: `docs/deploy/` had forked into two env documents that each claimed
  * authority and each omitted variables production needs. Following one shipped
  * a Worker with no voice-overage metering — every minute past the allowance
- * billed to nobody. Following the other shipped one where `OPS_ALERT_EMAIL` was
- * never set, so every alert-before-the-cap in the product landed in the default
- * support inbox instead of wherever the founder actually reads.
+ * billed to nobody. Following the other shipped one where the ops alert address
+ * was never set, so every alert-before-the-cap in the product landed in the
+ * default support inbox instead of wherever the founder actually reads.
  *
  * There is ONE deployed environment (docs/ENVIRONMENTS.md), so neither mistake
  * surfaces in a staging run. It surfaces in production, or on an invoice.

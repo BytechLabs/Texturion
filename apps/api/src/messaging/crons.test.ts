@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../env";
 import { restMatch, rpcMatch, stubRoute } from "../test/messaging-support";
 import { completeEnv, stubFetch } from "../test/support";
+import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
 import {
   failStuckOutboundSends,
   isDuplicateMeterIdentifierError,
@@ -21,6 +22,10 @@ import {
   sweepWebhookEvents,
 } from "./crons";
 import { STUCK_SEND_SECONDS } from "./send";
+
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
 
 const TELNYX_ID = "40385f64-5717-4562-b3fc-2c963f66cccc";
 
@@ -358,65 +363,52 @@ describe("failStuckOutboundSends (#20)", () => {
 });
 
 describe("reportUnreportedUsage — work done, not just execution (#333)", () => {
-  /** Captures the liveness keys the reporter beat during a run. */
-  function heartbeatRoute() {
-    const beats: string[] = [];
-    const route = stubRoute(
-      (url, request) =>
-        request.method === "POST" && url.pathname === "/rest/v1/rpc/record_heartbeat",
-      // stubRoute already JSON-parses the request body — String()-ing it back
-      // yields "[object Object]" and throws inside the responder, which the
-      // stub then serves as the RPC's response.
-      (call) => {
-        beats.push((call.body as { p_key: string }).p_key);
-        return { recovered: false };
+  const outstanding = () =>
+    stubRoute(restMatch(env, "GET", "usage_events"), () => [
+      {
+        id: "u-1",
+        quantity: 2,
+        meter_identifier: TELNYX_ID,
+        created_at: new Date().toISOString(),
+        companies: { stripe_customer_id: "cus_123" },
       },
-    );
-    return { beats, route: route.route };
-  }
+    ]).route;
 
-  it("beats when there was nothing outstanding to report", async () => {
-    // A quiet platform is healthy, not broken. Without this the key would go
-    // overdue on any workspace with no traffic, and the first alert anyone
-    // ever saw would be a false one.
-    const hb = heartbeatRoute();
-    stubFetch(
-      stubRoute(restMatch(env, "GET", "usage_events"), () => []).route,
-      hb.route,
-    );
+  beforeEach(() => {
+    resetCaptures();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  it("reports nothing when there was nothing outstanding", async () => {
+    stubFetch(stubRoute(restMatch(env, "GET", "usage_events"), () => []).route);
 
     await reportUnreportedUsage(env);
 
-    expect(hb.beats).toContain("job:report-usage:work");
+    expect(exceptionsCaptured()).toEqual([]);
   });
 
-  it("does NOT beat when rows were outstanding and none got through", async () => {
-    // The failure this exists for: the job runs hourly, succeeds hourly, and
-    // every Stripe call errors. Schedule heartbeat fine, job heartbeat fine,
-    // revenue quietly unbilled. Withholding this beat is the only signal.
-    const hb = heartbeatRoute();
+  it("reports one exception, with counts, when rows were outstanding and none got through", async () => {
+    // The job runs hourly, succeeds hourly, and every Stripe call errors.
     stubFetch(
-      stubRoute(restMatch(env, "GET", "usage_events"), () => [
-        {
-          id: "u-1",
-          quantity: 2,
-          meter_identifier: TELNYX_ID,
-          created_at: new Date().toISOString(),
-          companies: { stripe_customer_id: "cus_123" },
-        },
-      ]).route,
+      outstanding(),
       stubRoute(
         (url, request) =>
           request.method === "POST" &&
           url.href === "https://api.stripe.com/v1/billing/meter_events",
         () => new Response("nope", { status: 500 }),
       ).route,
-      hb.route,
     );
 
     await reportUnreportedUsage(env);
 
-    expect(hb.beats).not.toContain("job:report-usage:work");
+    const [failure] = exceptionsCaptured();
+    expect(exceptionsCaptured()).toHaveLength(1);
+    expect(failure.context).toEqual({
+      source: "cron",
+      job: "job:report-usage",
+      extra: { found: 1, failed: 1 },
+    });
+    expect(failure.error).toBeInstanceOf(Error);
   });
 });
 

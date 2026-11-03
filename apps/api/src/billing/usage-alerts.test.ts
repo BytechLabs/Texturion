@@ -1,10 +1,10 @@
 /**
  * Usage-alert job suite (SPEC §2, §9, §11): the 80/100% percent arms
  * (segments, voice, egress) computed against real usage sums, plus the #121
- * storage_abuse arm (absolute GB tiers over TOTAL stored bytes — customer +
- * ops email, storage never blocks). One email set per
- * (company, period, metric, threshold) via the usage_alerts ledger. Real
- * product code with only global fetch stubbed.
+ * storage_abuse arm (absolute GB tiers over TOTAL stored bytes: a customer
+ * email, storage never blocks). One email and one `usage_threshold_crossed`
+ * event per (company, period, metric, threshold) via the usage_alerts ledger.
+ * Real product code with only global fetch stubbed.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +16,18 @@ import {
   type StubEndpoint,
 } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
+import { eventsCaptured, resetCaptures } from "../test/capture-mock";
+
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
+
+/** The `usage_threshold_crossed` events for one metric, as `[threshold, properties]`. */
+function crossings(metric: string): [unknown, Record<string, unknown>][] {
+  return eventsCaptured("usage_threshold_crossed")
+    .filter((event) => event.properties.metric === metric)
+    .map((event) => [event.properties.threshold, event.properties]);
+}
 
 const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
@@ -152,6 +164,7 @@ function sentEmails(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetCaptures();
 });
 
 describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
@@ -221,7 +234,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(harness.callsTo("POST", /usage_alerts/)).toHaveLength(0);
   });
 
-  it("crossing 25 GB (summed attachments + MMS) sends the friendly customer note AND the ops copy once (#121)", async () => {
+  it("crossing 25 GB (summed attachments + MMS) sends the friendly customer note and one event (#121)", async () => {
     // 15 GB files + 10 GB pictures = exactly 25 GB — at the tier counts as
     // crossed (>=), and it is the SUM that matters, not either pool alone.
     const state: UsageState = {
@@ -233,23 +246,25 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     const { harness, done } = run(state);
     await done;
     const emails = sentEmails(harness);
-    expect(emails).toHaveLength(2);
+    expect(emails).toHaveLength(1);
     // Customer copy: friendly and explicitly non-blocking, to owner/admins.
     expect(emails[0].subject).toBe("A note about Acme Plumbing's storage");
     expect(emails[0].to).toEqual(["owner@example.com"]);
     expect(emails[0].text).toContain("free and nothing is paused");
-    // Ops copy rides the SAME ledger claim, and goes to the ops address.
-    expect(emails[1].subject).toBe(
-      "[ops] storage abuse tier 25 GB: Acme Plumbing",
-    );
-    expect(emails[1].to).toEqual([env.OPS_ALERT_EMAIL]);
+    // The event rides the SAME ledger claim, under the workspace.
+    expect(crossings("storage_abuse")).toEqual([
+      [25, { metric: "storage_abuse", threshold: 25, stored_gb: 25 }],
+    ]);
+    expect(eventsCaptured("usage_threshold_crossed")[0].distinctId).toBe(COMPANY_ID);
     // ONE ledger row: metric storage_abuse, threshold = the GB tier.
     expect(state.ledger).toEqual(new Set(["storage_abuse:25"]));
 
-    // Second run in the same period: the ledger row suppresses BOTH emails.
+    // Second run in the same period: the ledger row suppresses both.
+    resetCaptures();
     const again = run(state);
     await again.done;
     expect(sentEmails(again.harness)).toHaveLength(0);
+    expect(crossings("storage_abuse")).toEqual([]);
   });
 
   it("a runaway tenant crossing multiple tiers in one run records one row per tier (#121)", async () => {
@@ -263,17 +278,9 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     const { harness, done } = run(state);
     await done;
     const emails = sentEmails(harness);
-    // Three crossings × (customer + ops), escalating tiers in order.
-    expect(emails).toHaveLength(6);
-    expect(
-      emails
-        .map((email) => email.subject)
-        .filter((subject) => subject.startsWith("[ops] storage abuse tier")),
-    ).toEqual([
-      "[ops] storage abuse tier 25 GB: Acme Plumbing",
-      "[ops] storage abuse tier 50 GB: Acme Plumbing",
-      "[ops] storage abuse tier 100 GB: Acme Plumbing",
-    ]);
+    // Three crossings, escalating tiers in order.
+    expect(emails).toHaveLength(3);
+    expect(crossings("storage_abuse").map(([threshold]) => threshold)).toEqual([25, 50, 100]);
     expect(state.ledger).toEqual(
       new Set(["storage_abuse:25", "storage_abuse:50", "storage_abuse:100"]),
     );
@@ -332,7 +339,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(sentEmails(harness)).toHaveLength(0);
   });
 
-  it("#448: a dial run the minute cap cannot see still reaches the founder", async () => {
+  it("#448: a dial run the minute cap cannot see still reaches PostHog with the money", async () => {
     // The whole point: near-zero minutes, real money. 300 dials on a starter
     // plan at 1x is $30 of per-dial fees while the voice arm reports the
     // tenant as using 1,000 of 2,500 allowance minutes — comfortably inside.
@@ -346,15 +353,13 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     await done;
 
     const emails = sentEmails(harness);
-    // One to the customer, one to ops — the ops copy carries the money,
-    // because the per-dial fee is our cost and never their bill.
-    const ops = emails.find((e) => e.subject.startsWith("[ops]"));
-    expect(ops).toBeDefined();
-    expect(ops?.subject).toContain("$30.00");
-    expect(ops?.text).toContain("300");
-    expect(ops?.text).toContain("Calling pauses at: 1500");
+    // The event carries the money, because the per-dial fee is our cost and
+    // never their bill.
+    expect(crossings("voice_dials")).toEqual([
+      [expect.any(Number), expect.objectContaining({ dials: 300, cost_cents: 3000, stop_at: 1500 })],
+    ]);
 
-    const customer = emails.find((e) => !e.subject.startsWith("[ops]"));
+    const customer = emails.find((e) => e.subject.includes("unusual call volume"));
     expect(customer?.subject).toContain("unusual call volume");
     // Never quote OUR cost at the customer — they are not billed for it.
     expect(customer?.text).not.toContain("$");
@@ -451,8 +456,8 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     };
     const { harness, done } = run(state);
     await done;
-    // 2 segment alerts + 3 crossed tiers × (customer + ops) = 8.
-    expect(sentEmails(harness)).toHaveLength(8);
+    // 2 segment alerts + 3 crossed tiers = 5.
+    expect(sentEmails(harness)).toHaveLength(5);
     expect(state.ledger).toEqual(
       new Set([
         "segments:80",
@@ -525,7 +530,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
 });
 
 describe("#449 — inbound is uncapped, so it is at least visible", () => {
-  it("tells both audiences when inbound crosses an absolute tier", async () => {
+  it("tells the customer, and PostHog the cost, when inbound crosses an absolute tier", async () => {
     const state: UsageState = {
       used: 0,
       ledger: new Set(),
@@ -538,13 +543,14 @@ describe("#449 — inbound is uncapped, so it is at least visible", () => {
     await done;
 
     const emails = sentEmails(harness);
-    const ops = emails.find((e) => e.subject.startsWith("[ops]"));
-    // 10,000 x 1.0c = $100 of our money, free to the customer (#445).
-    expect(ops?.subject).toContain("$100.00");
-    // The trailing figure is what separates a freeze from an attack (#401).
-    expect(ops?.text).toContain("Trailing 30 days before this: 800");
+    // 10,000 x 1.0c = $100 of our money, free to the customer (#445). The
+    // trailing figure is what separates a freeze from an attack (#401).
+    expect(crossings("inbound_volume").at(-1)).toEqual([
+      10_000,
+      expect.objectContaining({ inbound_segments: 10_000, cost_cents: 10_000, trailing_30_days: 800 }),
+    ]);
 
-    const customer = emails.find((e) => !e.subject.startsWith("[ops]"));
+    const [customer] = emails;
     expect(customer?.to).toEqual(["owner@example.com"]);
     // Incoming texts are free and always will be — the customer note must
     // never read as a bill or a threat.
@@ -602,15 +608,13 @@ describe("#449 — inbound is uncapped, so it is at least visible", () => {
       ledger: new Set(),
       inboundSegments: 50_000,
     };
-    const { harness, done } = run(state);
+    const { done } = run(state);
     await done;
-    const ops = sentEmails(harness).find((e) => e.subject.startsWith("[ops]"));
-    expect(ops?.subject).toContain("$500.00");
-    expect(ops?.text).toContain("cannot be capped");
+    expect(crossings("inbound_volume").at(-1)?.[1]).toMatchObject({ cost_cents: 50_000 });
   });
 
   it("still alerts when the trailing baseline cannot be read", async () => {
-    // Context is nice; the alert is the point. A baseline probe that fails
+    // Context is nice; the warning is the point. A baseline probe that fails
     // must never take the money signal down with it.
     const state: UsageState = {
       used: 0,
@@ -618,10 +622,8 @@ describe("#449 — inbound is uncapped, so it is at least visible", () => {
       inboundSegments: 5_000,
       inboundTrailing: [0, 0],
     };
-    const { harness, done } = run(state);
+    const { done } = run(state);
     await done;
-    expect(
-      sentEmails(harness).find((e) => e.subject.startsWith("[ops]")),
-    ).toBeDefined();
+    expect(crossings("inbound_volume")).not.toEqual([]);
   });
 });

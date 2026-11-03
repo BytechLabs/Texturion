@@ -7,7 +7,7 @@ import {
   LEGS_PER_ANSWERED_CALL,
   TELNYX_CONCURRENT_CALL_LIMIT,
 } from "../telnyx/account-limits";
-import { opsAlert } from "./ops-alert";
+import { captureEvent, SYSTEM_DISTINCT_ID } from "./capture";
 
 /**
  * #643: can production's calls outgrow Telnyx's concurrent call limit?
@@ -16,7 +16,7 @@ import { opsAlert } from "./ops-alert";
  * it. If other calls are up at that moment, the ring legs are competing with
  * them for the account's concurrent limit, and the ones Telnyx refuses simply
  * never ring: the customer reaches fewer people, or nobody. Nothing errors
- * loudly, so this reads the numbers and warns before it can happen.
+ * loudly, so this reads the numbers and reports them before it can happen.
  *
  * The worst case it prices is the one that matters: the largest ring audience
  * of any number, a new call's own leg, and the most calls that were ever up
@@ -25,7 +25,7 @@ import { opsAlert } from "./ops-alert";
  * is the right side to err on for a warning.
  */
 
-export const CAPACITY_KEY = "telnyx-concurrency-capacity";
+export const CAPACITY_GAUGE_KEY = "telnyx-concurrent-legs";
 
 export interface CapacityRead {
   /** Active numbers the audience was taken over. */
@@ -81,17 +81,18 @@ export async function readCapacity(db: SupabaseClient): Promise<CapacityRead> {
 }
 
 /**
- * Daily. Warns when the worst case reaches or passes the account's concurrent
- * call limit. Null when this is not production, before any read.
+ * Daily: the worst case as an `ops_gauge` against the account's concurrent
+ * call limit. PostHog's "Limits and rates" alert fires at 70% of it (D146).
+ * Null when this is not production, before any read.
  */
-export async function runTelnyxCapacityWatch(
+export async function runTelnyxCapacityGauge(
   env: Env,
   _now: Date = new Date(),
   db: SupabaseClient = getDb(env),
 ): Promise<CapacityReport | null> {
   const refusal = productionWatchRefusal(env);
   if (refusal !== null) {
-    console.log(`telnyx capacity watch skipped: ${refusal}`);
+    console.log(`telnyx capacity gauge skipped: ${refusal}`);
     return null;
   }
 
@@ -102,26 +103,13 @@ export async function runTelnyxCapacityWatch(
       `peak ${report.peak_concurrent_calls} answered call(s) up at once, ` +
       `${report.numbers} active number(s)`,
   );
-  if (report.verdict === "ok") return report;
-
-  await opsAlert(env, {
-    key: CAPACITY_KEY,
-    level: report.verdict === "over" ? "error" : "warning",
-    summary:
-      report.verdict === "over"
-        ? "Production's calls can exceed Telnyx's concurrent call limit"
-        : "Production's calls can reach Telnyx's concurrent call limit",
-    detail:
-      `Worst case: 1 customer leg + ${report.largest_audience} ring leg(s) + ` +
-      `${report.peak_concurrent_calls} answered call(s) x ${LEGS_PER_ANSWERED_CALL} legs ` +
-      `= ${report.legsNeeded}, against a limit of ${report.limit}. ` +
-      "Past the limit Telnyx refuses ring legs, so a customer reaches fewer members than " +
-      "the crew has, or none.",
-    action:
-      "Either shrink the ring audience (number access levels, or who has a telephony " +
-      "credential), or raise the account's level in portal.telnyx.com (Account Levels) and " +
-      "then set TELNYX_CONCURRENT_CALL_LIMIT in apps/api/src/telnyx/account-limits.ts and " +
-      "docs/deploy/04-telnyx.md section 9 to the new limit.",
+  await captureEvent(env, "ops_gauge", SYSTEM_DISTINCT_ID, {
+    key: CAPACITY_GAUGE_KEY,
+    value: report.legsNeeded,
+    limit: report.limit,
+    unit: "legs",
+    largest_audience: report.largest_audience,
+    peak_concurrent_calls: report.peak_concurrent_calls,
   });
   return report;
 }

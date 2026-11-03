@@ -17,8 +17,13 @@ import {
   type Stub,
 } from "../test/messaging-support";
 import { completeEnv, stubFetch } from "../test/support";
+import { captured, eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { handleStatusEvent } from "./status";
 import type { TelnyxEvent } from "./types";
+
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const MESSAGE_ID = "99999999-0000-4000-8000-000000000099";
@@ -29,6 +34,7 @@ let env: Env;
 
 beforeEach(() => {
   env = completeEnv();
+  resetCaptures();
 });
 
 afterEach(() => {
@@ -101,6 +107,8 @@ describe("message.sent", () => {
 describe("message.finalized", () => {
   function baseStubs(options: {
     direction?: string;
+    /** The row's status before this webhook. */
+    status?: string;
     usageInsert?: (call: unknown) => Response | unknown;
   } = {}) {
     const lookup = stubRoute(restMatch(env, "GET", "messages"), () => [
@@ -108,6 +116,7 @@ describe("message.finalized", () => {
         id: MESSAGE_ID,
         company_id: COMPANY_ID,
         direction: options.direction ?? "outbound",
+        status: options.status ?? "sent",
       },
     ]);
     const update = stubRoute(restMatch(env, "PATCH", "messages"), () =>
@@ -171,6 +180,64 @@ describe("message.finalized", () => {
     expect(stubs.usageStamp.calls).toHaveLength(1);
     expect(stubs.usageStamp.calls[0].body).toMatchObject({
       stripe_reported_at: expect.any(String),
+    });
+  });
+
+  describe("message_outcome", () => {
+    function routes(stubs: ReturnType<typeof baseStubs>) {
+      stubFetch(
+        stubs.lookup.route,
+        stubs.update.route,
+        stubs.usageInsert.route,
+        stubs.companyLookup.route,
+        stubs.usageStamp.route,
+        stubs.meter.route,
+        // The message.failed webhook fan-out: no endpoints subscribed.
+        stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => []).route,
+      );
+    }
+
+    it("sends the final status and the destination's country, never the number", async () => {
+      routes(baseStubs());
+
+      await handleStatusEvent(env, finalizedEvent());
+
+      expect(eventsCaptured("message_outcome")).toEqual([
+        {
+          event: "message_outcome",
+          distinctId: COMPANY_ID,
+          properties: { status: "delivered", country: "CA" },
+        },
+      ]);
+      expect(JSON.stringify(captured)).not.toContain("5551000");
+    });
+
+    it("sends a failure as failed", async () => {
+      routes(baseStubs());
+
+      await handleStatusEvent(
+        env,
+        finalizedEvent({ toStatus: "delivery_failed", errors: [{ code: "40300" }] }),
+      );
+
+      expect(eventsCaptured("message_outcome")[0]?.properties).toEqual({
+        status: "failed",
+        country: "CA",
+      });
+    });
+
+    it("sends nothing for a replay of the same final status", async () => {
+      routes(baseStubs({ status: "delivered" }));
+      await handleStatusEvent(env, finalizedEvent());
+      expect(eventsCaptured("message_outcome")).toEqual([]);
+    });
+
+    it("sends nothing for an unconfirmed delivery or an inbound row", async () => {
+      routes(baseStubs());
+      await handleStatusEvent(env, finalizedEvent({ toStatus: "delivery_unconfirmed" }));
+      routes(baseStubs({ direction: "inbound" }));
+      await handleStatusEvent(env, finalizedEvent());
+      expect(eventsCaptured("message_outcome")).toEqual([]);
     });
   });
 

@@ -31,7 +31,7 @@ import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
-import { opsEmail, opsTextHtml } from "../observability/ops-alert";
+import { opsNotice, type OpsNotice } from "../observability/capture";
 import type { Env } from "../env";
 import type { TelnyxEvent } from "../messaging/types";
 
@@ -122,33 +122,29 @@ function customerCopy(
   };
 }
 
-function opsCopy(
-  companyName: string,
+/** Ids only: the number itself and the company's name stay out of telemetry. */
+function portOutNotice(
   companyId: string | null,
+  phoneNumberId: string | null,
   notice: PortOutNotice,
-  phone: string,
-): { subject: string; text: string } {
+): OpsNotice {
   const actionable = ACTIONABLE.has(notice.status);
   return {
-    subject: `[ops] port-out ${notice.status}: ${phone} (${companyName})`,
-    text:
-      `Company: ${companyName} (${companyId ?? "unmatched"})\n` +
-      `Number: ${phone}\n` +
-      `Port-out id: ${notice.portoutId}\n` +
-      `Status: ${notice.status}\n` +
-      `Gaining carrier: ${notice.carrierName ?? "unknown"}\n` +
-      `FOC date: ${notice.focDate ?? "unknown"}\n\n` +
-      (actionable
-        ? `THIS IS THE WINDOW. The port has not completed. If the customer did ` +
-          `not request it, it can still be disputed with the carrier — after it ` +
-          `completes there is nothing to stop, and every customer text to that ` +
-          `number reaches whoever took it.\n\n` +
-          `If it IS the customer: they are leaving and still paying. This is ` +
-          `the only day the conversation is worth having.\n`
-        : notice.status === "ported"
-          ? `The number is gone. It is marked ported_out and no longer bills as ` +
-            `an active number. Check whether the subscription should follow.\n`
-          : `The port did not go through. The number is untouched.\n`),
+    key: "port-out",
+    level: actionable ? "error" : "warning",
+    summary: `A number port-out is ${notice.status}`,
+    detail:
+      `company ${companyId ?? "unmatched"}, phone_number ${phoneNumberId ?? "unmatched"}, ` +
+      `port-out ${notice.portoutId}, gaining carrier ${notice.carrierName ?? "unknown"}, ` +
+      `FOC date ${notice.focDate ?? "unknown"}`,
+    action: actionable
+      ? "This is the window: the port has not completed. If the customer did not request " +
+        "it, dispute it with the carrier now; after it completes every customer text to " +
+        "that number reaches whoever took it. If it is the customer, they are leaving and " +
+        "still paying, and this is the only day the conversation is worth having."
+      : notice.status === "ported"
+        ? "The number is gone and marked ported_out. Check whether the subscription should follow."
+        : "The port did not go through and the number is untouched. Nothing to do.",
   };
 }
 
@@ -244,13 +240,7 @@ async function handleOneNumber(
     });
   }
 
-  const ops = opsCopy(companyName, companyId, notice, phone);
-  await opsEmail(env, {
-    key: "ops:telnyx-portout",
-    subject: ops.subject,
-    text: ops.text,
-    html: opsTextHtml(ops.text),
-  });
+  await opsNotice(env, portOutNotice(companyId, row?.id ?? null, notice));
 
   // The customer hears about the states that matter to them: someone is taking
   // the number, or it is gone. A rejected port is our problem, not theirs.

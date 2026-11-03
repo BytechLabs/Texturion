@@ -138,9 +138,6 @@ begin
   -- + tasks (D17/TASKS.md T1.1, 20260702060000)
   -- + notification_reads (D24 read-model, 20260702070000_appv2_for_you_notifications.sql)
   -- + inbound_notification_days (#39 email budget, 20260707150000_inbound_notification_budget.sql).
-  -- + liveness_heartbeats (#387/D55, 20260728001100_liveness_heartbeats.sql) —
-  --   the ledger of expected things that DID happen, so absences can be
-  --   alerted on.
   -- + billing_disputes (#422, 20260728001600_billing_disputes.sql) — a
   --   chargeback advances through statuses, so the row is updated after it is
   --   written.
@@ -148,8 +145,8 @@ begin
   --   task links and the outbox. OAuth state is append/consume and has none.
   -- The generic attachments table (D19) is append-only and deliberately has NO
   -- moddatetime trigger.
-  if n is distinct from 23 then
-    raise exception 'T5 FAILED: expected 23 set_updated_at triggers, found %', n;
+  if n is distinct from 22 then
+    raise exception 'T5 FAILED: expected 22 set_updated_at triggers, found %', n;
   end if;
 
   select count(*) into n

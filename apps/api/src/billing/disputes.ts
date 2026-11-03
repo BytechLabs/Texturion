@@ -26,7 +26,7 @@ import { recordAudit } from "../audit/log";
 import { getDb } from "../db";
 import { revokePrepaidYearForPaymentIntent } from "./prepay";
 
-import { opsBodyHtml, opsEmail } from "../observability/ops-alert";
+import { opsNotice } from "../observability/capture";
 import type { Env } from "../env";
 import { getStripe } from "./stripe";
 
@@ -52,17 +52,15 @@ export async function handleChargeDispute(
     typeof dispute.charge === "string" ? dispute.charge : (dispute.charge?.id ?? null);
 
   let companyId: string | null = null;
-  let companyName: string | null = null;
   const customerId = await customerIdForDispute(env, dispute, chargeId);
   if (customerId) {
     const { data } = await db
       .from("companies")
-      .select("id,name")
+      .select("id")
       .eq("stripe_customer_id", customerId)
       .limit(1);
-    const row = (data ?? [])[0] as { id: string; name: string } | undefined;
+    const row = (data ?? [])[0] as { id: string } | undefined;
     companyId = row?.id ?? null;
-    companyName = row?.name ?? null;
   }
 
   const feeCents = disputeFeeCents(dispute);
@@ -112,7 +110,7 @@ export async function handleChargeDispute(
 
   // #345: audited ONLY when the company resolved. `audit_log.company_id` is
   // NOT NULL with a foreign key, and `recordAudit` swallows its own failures
-  // into Sentry — so an unguarded call on an unattributable dispute would be a
+  // into an exception, so an unguarded call on an unattributable dispute would be a
   // silent hole in exactly the log this issue asks for.
   if (companyId) {
     await recordAudit(db, {
@@ -134,12 +132,12 @@ export async function handleChargeDispute(
     });
   }
 
-  // One email per dispute, on the way in. At this customer count every single
-  // one matters, and a RATE would swing wildly on a denominator of a handful —
-  // the count is the signal.
+  // One notice per dispute, on the way in. At this customer count every
+  // single one matters, and a RATE would swing wildly on a denominator of a
+  // handful, the count is the signal.
   const first = (recorded as { first_seen?: boolean } | null)?.first_seen === true;
   if (first && !closed) {
-    await alertFounder(env, dispute, { companyId, companyName, feeCents });
+    await sendDisputeNotice(env, dispute, { companyId, feeCents });
   }
 }
 
@@ -148,8 +146,8 @@ export async function handleChargeDispute(
  *
  * Read from the balance transactions when present, otherwise assumed at the
  * published $15. Assuming is right here: under-reporting the cost is the one
- * direction that makes the alert less alarming than the truth, and the
- * arithmetic is the whole point of the alert.
+ * direction that makes the notice less alarming than the truth, and the
+ * arithmetic is the whole point of the notice.
  */
 function disputeFeeCents(dispute: Stripe.Dispute): number {
   const fromBalance = dispute.balance_transactions?.reduce(
@@ -177,7 +175,7 @@ async function customerIdForDispute(
     return typeof charge.customer === "string" ? charge.customer : charge.customer.id;
   } catch (cause) {
     // An unattributable dispute is MORE alarming, not less. The lookup failing
-    // must never stop the record or the alert.
+    // must never stop the record or the notice.
     console.error(`dispute ${dispute.id}: charge lookup failed: ${String(cause)}`);
     return null;
   }
@@ -187,46 +185,28 @@ function dollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-async function alertFounder(
+async function sendDisputeNotice(
   env: Env,
   dispute: Stripe.Dispute,
-  context: { companyId: string | null; companyName: string | null; feeCents: number },
+  context: { companyId: string | null; feeCents: number },
 ): Promise<void> {
-  const who = context.companyName
-    ? `${context.companyName} (${context.companyId})`
-    : "AN UNMATCHED CUSTOMER: no company has this Stripe customer id";
   const due = dispute.evidence_details?.due_by
     ? new Date(dispute.evidence_details.due_by * 1000).toISOString().slice(0, 10)
     : "not given";
 
-  const text =
-    `A charge was disputed.\n\n` +
-    `Workspace: ${who}\n` +
-    `Amount: ${dollars(dispute.amount)}\n` +
-    `Stripe dispute fee: ${dollars(context.feeCents)}\n` +
-    `Total cost: ${dollars(dispute.amount + context.feeCents)}\n` +
-    `Reason: ${dispute.reason}\n` +
-    `Status: ${dispute.status}\n` +
-    `Evidence due by: ${due}\n\n` +
-    `The subscription is STILL ACTIVE and the service is STILL RUNNING. ` +
-    `Stripe leaves a subscription active while one of its charges is disputed, ` +
-    `and we do not suspend on an accusation: a dispute is not a verdict, and ` +
-    `cutting a paying business off from their own customer conversations over ` +
-    `one would be worse than the money.\n\n` +
-    `Whether to keep serving them is your call. The evidence deadline above is ` +
-    `when Stripe stops waiting for you to make it.`;
-
-  await opsEmail(env, {
-    key: "ops:billing-disputes",
-    subject: `[ops] chargeback: ${dollars(dispute.amount + context.feeCents)} on ${
-      context.companyName ?? "an unmatched customer"
-    }`,
-    text,
-    html: opsBodyHtml(
-      `<p><strong>A charge was disputed.</strong></p><pre style="white-space:pre-wrap;font-family:inherit;">${text
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")}</pre>`,
-    ),
+  await opsNotice(env, {
+    key: "billing-dispute",
+    level: "error",
+    summary: "A charge was disputed",
+    detail:
+      `${context.companyId ? `company ${context.companyId}` : "an UNMATCHED customer: no company has this Stripe customer id"}, ` +
+      `dispute ${dispute.id}, amount ${dollars(dispute.amount)}, Stripe fee ${dollars(context.feeCents)}, ` +
+      `total cost ${dollars(dispute.amount + context.feeCents)}, reason ${dispute.reason}, ` +
+      `status ${dispute.status}, evidence due by ${due}`,
+    action:
+      "The subscription and the service are still running: Stripe leaves a subscription " +
+      "active while one of its charges is disputed, and we do not suspend on an " +
+      "accusation. Whether to keep serving them is your call; the evidence deadline is " +
+      "when Stripe stops waiting for you to make it.",
   });
 }

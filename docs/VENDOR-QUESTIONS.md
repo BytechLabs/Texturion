@@ -194,7 +194,8 @@ own words. D2's "no 10DLC for CA→CA" is correct as written.
 Twilio publishes this as *carrier* behaviour ("Canadian mobile carriers enforce
 strict filtering on A2P messages") and recommends verified toll-free instead.
 Registration would not have fixed that. The mitigation is #329 (see V5); the
-signal is `messaging/delivery-by-country.ts`, already live.
+signal is the `message_outcome` event's delivery rate by country in PostHog
+(D146), already live.
 
 **Why this entry exists.** It sat recorded for a week as a fact only Telnyx
 could supply. It was not: any requirement would come from the **carriers**, so

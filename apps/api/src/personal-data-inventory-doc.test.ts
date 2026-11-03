@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
  * A psql script cannot read a markdown file, so the property was unguardable
  * where it was written.
  *
- * It had already gone wrong. `activation_stall_state` sat in the array and
+ * It had already gone wrong. A funnel-state table sat in the array and
  * appeared nowhere in the document, and the SQL guard reported "all 100 public
  * tables are classified" over it. That document is what a subject-access or
  * erasure request is answered from, and §6 promises in as many words that "not

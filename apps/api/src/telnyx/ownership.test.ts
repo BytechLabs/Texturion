@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 
 import { completeEnv } from "../test/support";
 import {
-  mismatchSweepAlertDue,
   ownsTelnyxNumber,
   partitionOrderFields,
   TELNYX_PARTITION_CAPABILITY,
@@ -61,17 +60,6 @@ describe("the rig (TELNYX_BILLING_GROUP_ID set)", () => {
   it("orders into its group", () => {
     expect(partitionOrderFields(rig)).toEqual({ billing_group_id: "bg-nonprod" });
   });
-});
-
-it("lets exactly one 15-minute sweep in every six hours repeat the mismatch page", () => {
-  // The sweep keeps no state and opsAlert emails on every call: paging on
-  // every pass would be 96 copies a day of one standing problem.
-  const midnight = Date.UTC(2026, 9, 30);
-  const due = [...Array(96).keys()]
-    .map((quarter) => new Date(midnight + quarter * 15 * 60_000))
-    .filter(mismatchSweepAlertDue)
-    .map((at) => at.toISOString().slice(11, 16));
-  expect(due).toEqual(["00:00", "06:00", "12:00", "18:00"]);
 });
 
 it("advertises the rule under the literal the rig's guard waits for", () => {

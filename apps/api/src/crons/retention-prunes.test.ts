@@ -1,5 +1,5 @@
 /**
- * #581 — the two prunes that existed and ran nowhere.
+ * #581: the prune that existed and ran nowhere.
  *
  * The interesting assertions here are the REGISTRATION ones. A unit test that
  * only proves `prunePublicLinkAccess` issues the right RPC would have passed
@@ -20,15 +20,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../env";
 import { CRON_JOBS } from "../index";
-import type { JobKey } from "../observability/liveness";
 import { rpcMatch, stubRoute } from "../test/messaging-support";
 import { completeEnv, stubFetch } from "../test/support";
-import {
-  PROBE_RESULT_RETENTION_DAYS,
-  PUBLIC_LINK_ACCESS_RETENTION_DAYS,
-  pruneProbeResults,
-  prunePublicLinkAccess,
-} from "./retention-prunes";
+import { PUBLIC_LINK_ACCESS_RETENTION_DAYS, prunePublicLinkAccess } from "./retention-prunes";
 
 const REPO_ROOT = join(fileURLToPath(new URL("../../../..", import.meta.url)));
 
@@ -76,58 +70,26 @@ describe("prunePublicLinkAccess", () => {
   });
 });
 
-describe("pruneProbeResults", () => {
-  it("asks for the window /status is read over", async () => {
-    const rpc = stubRoute(rpcMatch(env, "prune_probe_results"), () => 12);
-    stubFetch(rpc.route);
-
-    await expect(pruneProbeResults(env)).resolves.toBe(12);
-
-    expect(rpc.calls).toHaveLength(1);
-    expect(rpc.calls[0]?.body).toEqual({ p_keep_days: 90 });
-  });
-
-  it("throws a named error rather than reporting a silent zero", async () => {
-    const rpc = stubRoute(rpcMatch(env, "prune_probe_results"), () =>
-      Response.json(
-        { code: "42883", message: "function does not exist", details: null, hint: null },
-        { status: 404 },
-      ),
-    );
-    stubFetch(rpc.route);
-
-    // A prune that swallowed its error would leave the liveness heartbeat
-    // beating (#333 records it only on success) — the table would grow while
-    // the dashboard said the job was fine, which is this bug a second time.
-    await expect(pruneProbeResults(env)).rejects.toThrow(
-      /probe_results prune failed/,
-    );
-  });
-});
-
-describe("#581 — both prunes are actually reachable", () => {
+describe("#581: the prune is actually reachable", () => {
   /**
-   * The assertion that would have caught the original bug. Both functions were
+   * The assertion that would have caught the original bug. The function was
    * defined, granted to `service_role` and named in a document; what nothing
-   * checked was that a schedule ever calls them.
+   * checked was that a schedule ever calls it.
    */
-  // `as const` so the keys stay literal rather than widening to `string`: the
-  // compiler is the first line of this assertion (#387 makes an undeclared key
-  // a type error), and a widened string would hand that job to the runtime.
-  it.each([
-    ["job:prune-public-link-access", prunePublicLinkAccess],
-    ["job:prune-probe-results", pruneProbeResults],
-  ] as const)("registers %s on the daily retention trigger", (key, run) => {
-    expect(CRON_JOBS[RETENTION_CRON]).toContainEqual({ key, run });
+  it("registers job:prune-public-link-access on the daily retention trigger", () => {
+    expect(CRON_JOBS[RETENTION_CRON]).toContainEqual({
+      key: "job:prune-public-link-access",
+      run: prunePublicLinkAccess,
+    });
   });
 
-  it("runs both BEFORE the notice→enforce pair at the tail of the trigger", () => {
+  it("runs BEFORE the notice→enforce pair at the tail of the trigger", () => {
     // #284 makes the notice a precondition of enforcement in SQL, so those two
     // have to stay last and stay in that order. Pinning the relative position
     // here means a future prune appended to this list cannot quietly land
     // between them.
     const keys = CRON_JOBS[RETENTION_CRON].map((entry) => entry.key);
-    const at = (key: JobKey) => {
+    const at = (key: `job:${string}`) => {
       // Asserted, not just read. `indexOf` answers -1 for a key that is not
       // registered at all, and -1 is less than every real index — so comparing
       // raw positions would let this whole assertion pass for two jobs nobody
@@ -138,7 +100,6 @@ describe("#581 — both prunes are actually reachable", () => {
     };
     const enforce = at("job:retention-enforce");
     expect(at("job:prune-public-link-access")).toBeLessThan(enforce);
-    expect(at("job:prune-probe-results")).toBeLessThan(enforce);
     expect(at("job:retention-notice")).toBeLessThan(enforce);
   });
 });
@@ -163,21 +124,5 @@ describe("#581 — the published window and the enforced one are the same number
       row,
       `inventory publishes a window this job does not enforce (${PUBLIC_LINK_ACCESS_RETENTION_DAYS}d)`,
     ).toContain(`${PUBLIC_LINK_ACCESS_RETENTION_DAYS} days`);
-  });
-
-  it("keeps probe_results out of the personal-data sections", () => {
-    // Its prune is a storage bound, not a privacy promise: the table holds a
-    // probe name, a boolean, a <=64-char failure CODE and a latency. If it ever
-    // gains a column worth naming, it moves to §5 and its window becomes
-    // publishable — this is the tripwire for that day.
-    const inventory = readFileSync(
-      join(REPO_ROOT, "docs/PERSONAL-DATA-INVENTORY.md"),
-      "utf8",
-    );
-    const noPersonalData = inventory.slice(
-      inventory.indexOf("## 6. No personal data"),
-    );
-    expect(noPersonalData).toContain("`probe_results`");
-    expect(PROBE_RESULT_RETENTION_DAYS).toBeGreaterThan(0);
   });
 });

@@ -7,13 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEnv } from "../env";
 import { TELNYX_CONCURRENT_CALL_LIMIT } from "../telnyx/account-limits";
 import { rigEnv } from "../test/rig-env";
-import { opsCaptures, resetSentryCaptures } from "../test/sentry-mock";
+import { captured, eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { completeEnv, stubFetch } from "../test/support";
-import { judgeCapacity, legsNeeded, runTelnyxCapacityWatch } from "./telnyx-capacity";
+import { judgeCapacity, legsNeeded, runTelnyxCapacityGauge } from "./telnyx-capacity";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
-);
+vi.mock("./capture", async () => (await import("../test/capture-mock")).captureModuleMock());
 
 const production = () => getEnv({ ...completeEnv(), DEPLOY_ENV: "production" });
 const NOW = new Date("2026-11-01T13:00:00Z");
@@ -23,7 +21,6 @@ let requests: string[];
 function capacity(row: Record<string, unknown> | null) {
   stubFetch(async (url, request) => {
     requests.push(`${request.method} ${url.href}`);
-    if (url.host === "api.resend.com") return Response.json({ id: "email-1" });
     if (url.pathname === "/rest/v1/rpc/api_voice_capacity_read") {
       return Response.json(row === null ? [] : [row]);
     }
@@ -38,7 +35,7 @@ const read = (largest_audience: number, peak_concurrent_calls: number) => ({
 });
 
 beforeEach(() => {
-  resetSentryCaptures();
+  resetCaptures();
   requests = [];
   vi.spyOn(console, "log").mockImplementation(() => {});
 });
@@ -62,36 +59,39 @@ describe("the worst case", () => {
   });
 });
 
-describe("the capacity watch", () => {
-  it("is quiet for a small crew", async () => {
+describe("the capacity gauge", () => {
+  it("sends the worst case against the limit, whatever it is", async () => {
     capacity(read(3, 1));
-    const report = await runTelnyxCapacityWatch(production(), NOW);
+    const report = await runTelnyxCapacityGauge(production(), NOW);
     expect(report?.verdict).toBe("ok");
-    expect(opsCaptures()).toEqual([]);
+    expect(eventsCaptured("ops_gauge")).toEqual([
+      {
+        event: "ops_gauge",
+        distinctId: "loonext-api",
+        properties: {
+          key: "telnyx-concurrent-legs",
+          value: 6,
+          limit: 10,
+          unit: "legs",
+          largest_audience: 3,
+          peak_concurrent_calls: 1,
+        },
+      },
+    ]);
   });
 
-  it("warns, before the limit can be exceeded, when the worst case just fits", async () => {
-    capacity(read(5, 2));
-    await runTelnyxCapacityWatch(production(), NOW);
-    const [alert] = opsCaptures("telnyx-concurrency-capacity");
-    expect(alert.fingerprint).toEqual(["ops", "telnyx-concurrency-capacity"]);
-    expect(alert.level).toBe("warning");
-    expect(alert.message).toContain("can reach");
-  });
-
-  it("raises an error when the worst case exceeds the limit", async () => {
+  it("decides nothing itself: a worst case past the limit is the same one event", async () => {
     capacity(read(8, 2));
-    const report = await runTelnyxCapacityWatch(production(), NOW);
+    const report = await runTelnyxCapacityGauge(production(), NOW);
     expect(report).toMatchObject({ legsNeeded: 13, limit: 10, verdict: "over" });
-    const [alert] = opsCaptures("telnyx-concurrency-capacity");
-    expect(alert.level).toBe("error");
-    expect(String(alert.extra.detail)).toContain("= 13, against a limit of 10");
+    expect(captured).toHaveLength(1);
+    expect(eventsCaptured("ops_gauge")[0].properties).toMatchObject({ value: 13, limit: 10 });
   });
 
   it("fails on a read that returns nothing usable rather than passing it", async () => {
     capacity(null);
-    await expect(runTelnyxCapacityWatch(production(), NOW)).rejects.toThrow(/no usable counts/);
-    expect(opsCaptures()).toEqual([]);
+    await expect(runTelnyxCapacityGauge(production(), NOW)).rejects.toThrow(/no usable counts/);
+    expect(captured).toEqual([]);
   });
 
   it.each([
@@ -99,7 +99,8 @@ describe("the capacity watch", () => {
     ["a laptop", () => getEnv(completeEnv())],
   ])("does not run on %s", async (_name, build) => {
     capacity(read(9, 9));
-    expect(await runTelnyxCapacityWatch(build(), NOW)).toBeNull();
+    expect(await runTelnyxCapacityGauge(build(), NOW)).toBeNull();
     expect(requests).toEqual([]);
+    expect(captured).toEqual([]);
   });
 });

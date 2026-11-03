@@ -132,7 +132,8 @@ Named here rather than left to be rediscovered:
 - **A stuck port-in.** Telnyx dashboard plus state fixes. The port saga has its
   own resume path (`pollPortRequests`); reach for that first.
 - **"My texts stopped arriving."** Investigation, not a fix — start with the
-  `webhook_liveness` probe (#308) and the per-country delivery split (#379).
+  Loonext health dashboard in PostHog: `webhook_rejected` by provider (#308)
+  and `message_outcome` by country (#379).
 - **Anything touching money.** Refunds and proration go through Stripe's own
   dashboard, which has its own audit trail and does not need ours.
 

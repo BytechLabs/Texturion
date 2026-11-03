@@ -1,8 +1,8 @@
-# 07 — Telnyx, Resend, Sentry Setup + Webhook Registration
+# 07 — Telnyx, Resend, PostHog Setup + Webhook Registration
 
 **Status: CURRENT DIRECTION (#323).** A per-vendor deep-dive on webhook registration. The numbered set 01–08 is the operator walkthrough — start there.
 
-The vendor-side actions for **Telnyx**, **Resend**, and **Sentry/PostHog**, and
+The vendor-side actions for **Telnyx**, **Resend**, and **PostHog**, and
 where each webhook URL is registered. Stripe's own setup (catalog, tax, its
 webhook endpoint) is in [09](./09-stripe-catalog-setup.md). Supabase is in
 [05](./vendor-supabase-migrations.md). Every fact cites `file:line`.
@@ -177,37 +177,28 @@ Two uses, both need one verified domain and one API key.
 
 ---
 
-## Sentry
+## Errors and alerts
 
-One action: create a project, take its DSN.
-
-- The whole Worker (fetch + scheduled) is wrapped by `Sentry.withSentry` with
-  `dsn: SENTRY_DSN`, `sendDefaultPii: false`, `tracesSampleRate: 0`, and PII
-  scrubbing in `beforeSend`/`beforeBreadcrumb`
-  (`apps/api/src/index.ts:244`, `apps/api/src/observability/sentry.ts:117-125`).
-- The scrubber redacts E.164 phone numbers everywhere and strips name-keyed
-  fields, request bodies, cookies, and query strings before anything leaves the
-  Worker (`apps/api/src/observability/sentry.ts:20-110`). No extra Sentry-side
-  configuration is required for the PII policy — it is enforced in code.
-
-**Operator action:** Sentry dashboard → your project → Settings → Client Keys
-(DSN) → copy → set `SENTRY_DSN` (`apps/api/src/env.ts:38`).
-
-**Yields env var:** `SENTRY_DSN`.
+The API Worker sends its exceptions, ops notices and health events to PostHog
+through `apps/api/src/observability/capture.ts`, which scrubs phone numbers,
+addresses, query strings and request bodies before anything leaves the Worker
+(`apps/api/src/observability/scrub.ts`). PostHog's error tracking, dashboard and
+alerts are configured in PostHog itself (D146, [docs/MONITORING.md](../MONITORING.md));
+no webhook of ours is registered with PostHog. Nothing is sent to Sentry, though
+`SENTRY_DSN` is still validated at boot until it leaves the env schema.
 
 ## PostHog
 
-**Optional, server-side only.** The API Worker has a single `capture` helper
-(`apps/api/src/analytics/posthog.ts`) that posts the north-star funnel events
-(checkout completed, first outbound sent, registration submitted/approved) to
-PostHog Cloud US. `distinct_id` is always the **company_id** — never a person,
-never PII (`posthog.ts:40`), and captures are best-effort (a PostHog outage
-never breaks the send/webhook path, `posthog.ts:49-57`).
+**Where every error and alert lives (D146).** The API Worker posts the
+north-star funnel events (`apps/api/src/analytics/posthog.ts`) and its
+exceptions, ops notices and health events (`apps/api/src/observability/capture.ts`)
+to PostHog Cloud US. `distinct_id` is the **company_id** for a workspace's events
+and `loonext-api` for the system's, never a person, and captures are best-effort:
+a PostHog outage never breaks the send/webhook path.
 
-**Operator action (optional):** create a PostHog Cloud US project and set its
-Project API key as the `POSTHOG_API_KEY` Worker secret
-(`apps/api/src/env.ts:75`). With the key unset, every capture is a silent no-op
-(`posthog.ts:31`) — running without PostHog is fully supported. There is no
-web-side PostHog client; the strings in marketing/legal pages are prose only.
+**Operator action:** create a PostHog Cloud US project and set its Project API key
+as the `POSTHOG_API_KEY` Worker secret. The schema keeps it optional so a laptop
+and CI run without it, where every capture is a silent no-op; production without
+it has no error tracking and no alerts at all.
 
-**Yields env var:** `POSTHOG_API_KEY` (optional).
+**Yields env var:** `POSTHOG_API_KEY`.

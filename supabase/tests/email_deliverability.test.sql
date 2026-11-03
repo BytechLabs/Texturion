@@ -136,49 +136,6 @@ begin
 end $$;
 
 -- ===========================================================================
--- ED-5. api_email_health reports rates, and reports NULL rather than zero on
---       an empty window.
---
---       Zero would read as "perfectly healthy" on a day we sent nothing at
---       all, which is the same lie as a silent failure — and this whole
---       feature exists because that lie is expensive.
--- ===========================================================================
-do $$
-declare h jsonb;
-begin
-  delete from public.email_events;
-
-  h := public.api_email_health(now(), 24);
-  if (h->>'bounce_rate') is not null or (h->>'complaint_rate') is not null then
-    raise exception 'ED-5 FAILED: an empty window reported a rate: %', h;
-  end if;
-
-  -- 8 delivered, 2 bounced → 20%.
-  for i in 1..8 loop
-    perform public.record_email_event(format('ok%s@example.com', i), 'delivered', now(), null, null, null);
-  end loop;
-  perform public.record_email_event('b1@example.com', 'bounced', now(), 'Permanent', null, null);
-  perform public.record_email_event('b2@example.com', 'bounced', now(), 'Permanent', null, null);
-
-  h := public.api_email_health(now(), 24);
-  if (h->>'total')::int is distinct from 10 then
-    raise exception 'ED-5 FAILED: total was %, expected 10', h->>'total';
-  end if;
-  if (h->>'bounce_rate')::numeric is distinct from 0.2 then
-    raise exception 'ED-5 FAILED: bounce_rate was %, expected 0.2', h->>'bounce_rate';
-  end if;
-
-  -- Outside the window is outside the number.
-  update public.email_events set occurred_at = now() - interval '3 days';
-  h := public.api_email_health(now(), 24);
-  if (h->>'total')::int is distinct from 0 then
-    raise exception 'ED-5 FAILED: events outside the window were counted: %', h;
-  end if;
-
-  raise notice 'ED-5 PASSED: rates are windowed, and empty means null rather than healthy';
-end $$;
-
--- ===========================================================================
 -- ED-6. Grants and RLS. These tables hold every address the product has ever
 --       written to, across every tenant. One company being able to enumerate
 --       another's crew emails would be a cross-tenant leak of exactly the kind
@@ -191,7 +148,7 @@ begin
     from information_schema.role_routine_grants g
     join pg_proc p on p.proname = g.routine_name
    where g.routine_schema = 'public'
-     and p.proname in ('record_email_event', 'api_email_health', 'api_email_suppression_state')
+     and p.proname in ('record_email_event', 'api_email_suppression_state')
      and g.grantee in ('PUBLIC', 'anon', 'authenticated');
   if bad is not null then
     raise exception 'ED-6 FAILED: deliverability functions are reachable: %', bad;

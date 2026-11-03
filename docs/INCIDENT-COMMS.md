@@ -2,10 +2,10 @@
 
 **Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
 
-Detection is solved. Server-side Sentry is the source of truth for errors, the
-`liveness_heartbeats` ledger catches the failures that are *absences* rather than
-throws (#387), and the kill switches in `docs/ROLLBACK.md` stop the bleeding in
-about ten seconds without a deploy.
+Detection is PostHog's (D146, docs/MONITORING.md): error tracking holds every
+exception and ops notice, its "Heartbeat overdue" alert catches the failures that
+are *absences* rather than throws (#387), and the kill switches in
+`docs/ROLLBACK.md` stop the bleeding in about ten seconds without a deploy.
 
 **Telling the customer is the part that had no plan.** This is that plan. It is
 deliberately short: a runbook nobody can follow at 7am while texting is down is

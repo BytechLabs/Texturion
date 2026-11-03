@@ -37,9 +37,6 @@ const ALLOWED: Record<string, string> = {
   "routes/conversations.ts":
     "opening a thread that does not exist yet, where the primary is the only " +
     "number there is",
-  "messaging/delivery-by-country.ts":
-    "counts sends by the DESTINATION COUNTRY of the customer; the country of " +
-    "a second number in the same country is the same country",
   "notifications/inbound.ts":
     "the notification's title — who texted, not where a reply goes",
   "notifications/missed-call.ts":

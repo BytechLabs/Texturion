@@ -18,7 +18,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
-import { opsAlert } from "../observability/ops-alert";
+import { captureEvent, opsNotice } from "../observability/capture";
 
 /** Each vocabulary below is also a CHECK on the table; push-evidence-schema.test.ts holds them together. */
 export const PUSH_PURPOSES = ["ring", "call_end", "alert"] as const;
@@ -126,10 +126,6 @@ export async function timedPush<T extends PushOutcome>(
   return result;
 }
 
-/** At most one alert an hour from each isolate: one cause, one issue, no flood. */
-const ALERT_EVERY_MS = 60 * 60 * 1000;
-let lastAlertAt = Number.NEGATIVE_INFINITY;
-
 /**
  * Far under the client's 10 s hang-breaker: a write slower than this is lost
  * evidence, which is cheaper than an alert fan-out held open for it.
@@ -144,8 +140,11 @@ const FOREIGN_KEY_VIOLATION = "23503";
  * Write the fan-out's rows. Never throws.
  *
  * A refusal (a 4xx: a CHECK the code has outgrown, a table that is not there
- * yet) repeats on every write until somebody fixes it, so it reaches the
- * operator. No response, or a 5xx, is weather and stays in the log.
+ * yet) repeats on every write until somebody fixes it, so it is sent as a
+ * notice. No response, or a 5xx, is weather and stays in the log.
+ *
+ * Each ring push that reached a live channel is also a `ring_push_sent` event,
+ * which PostHog sets against the `ring_beacon` events for rings shown (D146).
  */
 export async function recordPushAttempts(
   env: Env,
@@ -153,6 +152,12 @@ export async function recordPushAttempts(
   attempts: readonly PushAttempt[],
 ): Promise<void> {
   if (attempts.length === 0) return;
+  for (const attempt of attempts) {
+    if (attempt.purpose !== "ring" || attempt.responseClass === "gone") continue;
+    void captureEvent(env, "ring_push_sent", attempt.companyId, {
+      platform: attempt.platform,
+    });
+  }
   let refusal: { status: number; code: string } | null = null;
   let answered = 0;
   try {
@@ -195,11 +200,9 @@ export async function recordPushAttempts(
     console.warn(`push attempts: ${attempts.length} row(s) not recorded (${why})`);
     return;
   }
-  const now = Date.now();
-  if (now - lastAlertAt < ALERT_EVERY_MS) return;
-  lastAlertAt = now;
   // The status and code, never the message: a constraint error quotes the row.
-  await opsAlert(env, {
+  // PostHog's per-issue rate limit is what keeps a flood of these to one issue.
+  await opsNotice(env, {
     key: "push-attempts-ledger",
     summary: "Push attempts are not being recorded",
     detail: `the database refused ${attempts.length} row(s): HTTP ${refusal.status} ${refusal.code || "(no code)"}`,
@@ -235,9 +238,4 @@ export function recordPushAttemptsInBackground(
  */
 export async function pushAttemptsSettled(): Promise<void> {
   await Promise.all([...inFlight]);
-}
-
-/** Test seam: forget the last alert so each test starts unthrottled. */
-export function resetPushAttemptAlertsForTest(): void {
-  lastAlertAt = Number.NEGATIVE_INFINITY;
 }

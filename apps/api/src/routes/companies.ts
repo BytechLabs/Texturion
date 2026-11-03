@@ -528,7 +528,7 @@ companiesRoutes.post("/companies", async (c) => {
    * would turn away real customers at the moment they are deciding whether to
    * trust us, with nobody to argue to. A person reads the alert and decides
    * before the number is provisioned, which is the same alert-then-human
-   * posture the watch job takes and for the same reason.
+   * posture the AUP signals take and for the same reason.
    *
    * Best-effort, like the two blocks around it: a workspace that exists must
    * not fail to be created because an alert could not be sent.
@@ -538,7 +538,6 @@ companiesRoutes.post("/companies", async (c) => {
     try {
       await alertProhibitedCategory(getEnv(c.env), {
         companyId: company.id as string,
-        name: body.name,
         matches: flags,
       });
     } catch (cause) {

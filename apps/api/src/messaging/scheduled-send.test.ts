@@ -332,7 +332,7 @@ describe("#233 one workspace cannot stop the others", () => {
   it("keeps going after a failure and reports it at the end", async () => {
     // #387: collected rather than thrown per row, so a single broken send does
     // not leave every other workspace's message unsent for that minute — but
-    // still thrown, so a broken run reaches Sentry.
+    // still thrown, so a broken run is reported.
     const { sb } = harness({
       fireThrows: true,
       due: [

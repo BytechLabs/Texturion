@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/cloudflare";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
 
@@ -25,19 +24,20 @@ import {
 } from "./test-support";
 import { getDb } from "../db";
 import {
-  opsCaptures,
-  resetSentryCaptures,
-  sentryCaptures,
-} from "../test/sentry-mock";
+  exceptionsCaptured,
+  noticesCaptured,
+  resetCaptures,
+} from "../test/capture-mock";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 
 /**
  * #526: the close-out is best-effort at all three of its call sites, so a
- * failure produces no throw, no email and no retry — Sentry is the entire
- * record that it happened. Guarding "never silent" needs it observable.
+ * failure produces no throw, no email and no retry: the reported exception
+ * is the entire record that it happened. Guarding "never silent" needs it
+ * observable.
  */
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
@@ -1359,14 +1359,14 @@ describe("suspend / release", () => {
     // Cleared HERE rather than in a beforeEach: `toHaveBeenCalled` on a mock
     // this file never resets is satisfied by any earlier test in it, which is
     // how this very assertion survived its own mutation on the first attempt.
-    vi.mocked(Sentry.captureException).mockClear();
+    resetCaptures();
 
     const suspended = await suspendCompanyNumbers(env, COMPANY_ID);
 
     // The consequential half happened anyway.
     expect(suspended).toHaveLength(1);
     expect(rest.rows("phone_numbers")[0].status).toBe("suspended");
-    expect(Sentry.captureException).toHaveBeenCalledOnce();
+    expect(exceptionsCaptured()).toHaveLength(1);
   });
 
   it("releases every non-released number, tolerating Telnyx 404", async () => {
@@ -1466,21 +1466,19 @@ describe("D142 — the shared-account partition", () => {
   const RIG_GROUP = "bg-nonprod";
   /** A company only the OTHER environment's database knows. */
   const STRANGER_COMPANY = "33333333-3333-4333-8333-333333333333";
-  /** A sweep that may page (first quarter hour of 00/06/12/18 UTC), and one that may not. */
   const ALERT_DUE = new Date("2026-10-30T06:00:00.000Z");
-  const NOT_DUE = new Date("2026-10-30T06:15:00.000Z");
 
   beforeEach(() => {
-    resetSentryCaptures();
+    resetCaptures();
   });
 
-  /** The orphan scan's own warnings ("flagged" / "reclaimed"), not ops alerts. */
+  /** The orphan scan's own warnings ("flagged" / "reclaimed"), not ops notices. */
   const orphanWarnings = () =>
-    sentryCaptures.filter(
-      (c) => c.fingerprint === undefined && c.message.startsWith("reconcile:"),
+    exceptionsCaptured().filter(
+      (c) => typeof c.error === "string" && c.error.startsWith("reconcile:"),
     );
 
-  const mismatchAlerts = () => opsCaptures("telnyx-ownership-mismatch");
+  const mismatchAlerts = () => noticesCaptured("telnyx-ownership-mismatch");
 
   /** A SETTLED company with nothing in flight: an unknown number tagged to it is reclaimed. */
   function insertSettled(rest: FakeRest) {
@@ -1576,11 +1574,10 @@ describe("D142 — the shared-account partition", () => {
       expect(summary.mismatched).toBe(1);
       const alerts = mismatchAlerts();
       expect(alerts).toHaveLength(1);
-      expect(alerts[0].fingerprint).toEqual(["ops", "telnyx-ownership-mismatch"]);
-      // A page, not a warning: Sentry alert rules route on level.
+      expect(alerts[0].key).toBe("telnyx-ownership-mismatch");
       expect(alerts[0].level).toBe("error");
-      expect(alerts[0].message).toContain("pn-live");
-      expect(alerts[0].message).toContain(COMPANY_ID);
+      expect(alerts[0].summary).toContain("pn-live");
+      expect(alerts[0].summary).toContain(COMPANY_ID);
       // IDs only: phone numbers stay out of telemetry.
       expect(JSON.stringify(alerts[0])).not.toContain("+1212555");
     });
@@ -1618,8 +1615,8 @@ describe("D142 — the shared-account partition", () => {
       const alerts = mismatchAlerts();
       // One page for the batch, not one per number.
       expect(alerts).toHaveLength(1);
-      expect(alerts[0].message).toContain("2 Telnyx numbers");
-      const detail = String(alerts[0].extra.detail);
+      expect(alerts[0].summary).toContain("2 Telnyx numbers");
+      const detail = String(alerts[0].detail);
       expect(detail).toContain("pn-live");
       expect(detail).toContain("pn-ported");
       expect(detail).not.toContain("pn-rig");
@@ -1650,10 +1647,10 @@ describe("D142 — the shared-account partition", () => {
 
       expect(summary.mismatched).toBe(1);
       expect(mismatchAlerts()).toHaveLength(1);
-      expect(mismatchAlerts()[0].message).toContain("pn-port");
+      expect(mismatchAlerts()[0].summary).toContain("pn-port");
     });
 
-    it("repeats a standing page at most once every six hours, while still counting it every pass", async () => {
+    it("sends the notice on every pass that sees a standing mismatch", async () => {
       const { env, rest, telnyx } = setup();
       insertSettled(rest);
       telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
@@ -1663,14 +1660,11 @@ describe("D142 — the shared-account partition", () => {
         meta: { total_pages: 1 },
       }));
 
-      expect((await reconcileNumbers(env, NOT_DUE)).mismatched).toBe(1);
+      expect((await reconcileNumbers(env, ALERT_DUE)).mismatched).toBe(1);
       expect(
-        (await reconcileNumbers(env, new Date("2026-10-30T07:00:00.000Z"))).mismatched,
+        (await reconcileNumbers(env, new Date("2026-10-30T06:15:00.000Z"))).mismatched,
       ).toBe(1);
-      expect(mismatchAlerts()).toEqual([]);
-
-      await reconcileNumbers(env, ALERT_DUE);
-      expect(mismatchAlerts()).toHaveLength(1);
+      expect(mismatchAlerts()).toHaveLength(2);
     });
 
     it("the rig reclaims an orphan in its OWN group and leaves production's numbers alone", async () => {
@@ -1704,7 +1698,7 @@ describe("D142 — the shared-account partition", () => {
         telnyx.callsTo("DELETE", /phone_numbers/).map((call) => call.path),
       ).toEqual(["/v2/phone_numbers/pn-rig-orphan"]);
       expect(mismatchAlerts()).toHaveLength(1);
-      expect(mismatchAlerts()[0].message).toContain("pn-prod-shaped");
+      expect(mismatchAlerts()[0].summary).toContain("pn-prod-shaped");
     });
   });
 
@@ -1852,7 +1846,7 @@ describe("D142 — the shared-account partition", () => {
       expect(rest.rows("phone_numbers")[0].status).toBe("suspended");
       expect(mismatchAlerts()).toHaveLength(1);
       expect(mismatchAlerts()[0].level).toBe("error");
-      expect(mismatchAlerts()[0].message).toContain("pn-1");
+      expect(mismatchAlerts()[0].summary).toContain("pn-1");
     });
 
     it("a refusal does not fail the grace batch: no retry can fix it, and the company's other numbers are still released", async () => {

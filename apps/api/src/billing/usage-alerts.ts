@@ -11,7 +11,6 @@
  * selected by state — sums vs the ledger — never by "last run" bookkeeping),
  * so re-runs and overlaps can never double-send.
  */
-import * as Sentry from "@sentry/cloudflare";
 import { storedBytes, type StorageUsageRow } from "./stored-bytes";
 
 import { billingRecipients } from "./recipients";
@@ -25,12 +24,12 @@ import {
   type PlanId,
   STORAGE_ABUSE_TIERS_GB,
 } from "./plans";
-import { checkFleetStorage } from "./fleet-storage";
+import { sendFleetStorageGauge } from "./fleet-storage";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
-import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
+import { captureEvent, captureException } from "../observability/capture";
 
 /** Ledger-backed thresholds (SPEC §6 `usage_alerts.threshold in (80,100)`). */
 export type UsageAlertThreshold = 80 | 100;
@@ -59,8 +58,7 @@ export type UsageAlertMetric =
   // #85/#92: dynamic overage warning — one ledger row per (company, period).
   | "cost_projection"
   // #448: per-dial fees, which the SECONDS-denominated spending cap cannot
-  // bound. One ledger row per (company, period) — this is our cost, not the
-  // customer's bill, so it goes to ops only.
+  // bound. One ledger row per (company, period).
   | "voice_dials"
   // #449: inbound segments — free to the customer, 1.0c to us (#445), and the one
   // cost that cannot be capped because it is already paid for by the time we
@@ -79,8 +77,9 @@ export interface ActiveCompanyRow {
 }
 
 /**
- * #449 — the tenant's inbound over the 30 days BEFORE the last 30, so an ops
- * reader can tell a flood from a busy season without opening a console.
+ * #449: the tenant's inbound over the 30 days BEFORE the last 30, so whoever
+ * reads the event can tell a flood from a busy season without opening a
+ * console.
  *
  * Derived by subtraction because `api_period_inbound_segments` counts from a
  * point forward rather than over a range: everything since 60 days ago, minus
@@ -89,8 +88,8 @@ export interface ActiveCompanyRow {
  * may not have a clean previous one, and the comparison only has to be
  * indicative.
  *
- * Returns null rather than throwing: this is context on an alert, and losing
- * the context must never lose the alert.
+ * Returns null rather than throwing: this is context on a warning, and losing
+ * the context must never lose the warning.
  */
 async function trailingInboundBaseline(
   db: ReturnType<typeof getDb>,
@@ -157,17 +156,15 @@ function segmentAlertCopy(
 /**
  * #121 storage-abuse copy (replaces the retired budget alerts): storage is
  * free and NOTHING blocks — this is a friendly heads-up to the customer that
- * their stored bytes crossed an unusual absolute tier, and a parallel ops
- * note so a human can look. Tone matters: the customer email must never read
- * as a warning shot; it is "all good, here's what we noticed, reply if this
- * is just how you work."
+ * their stored bytes crossed an unusual absolute tier. Tone matters: the
+ * customer email must never read as a warning shot; it is "all good, here's
+ * what we noticed, reply if this is just how you work."
  */
 function storageAbuseCopy(
   company: ActiveCompanyRow,
-  tierGb: number,
   usedBytes: number,
   env: Env,
-): { customer: { subject: string; text: string }; ops: { subject: string; text: string } } {
+): { customer: { subject: string; text: string } } {
   const used = formatGb(usedBytes);
   const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
   return {
@@ -192,14 +189,6 @@ Our fair use policy asks only that ` +
 See usage: ${usageUrl}
 
 Loonext`,
-    },
-    ops: {
-      subject: `[ops] storage abuse tier ${tierGb} GB: ${company.name}`,
-      text:
-        `Company ${company.name} (${company.id}) crossed the ${tierGb} GB ` +
-        `storage tier: ${used} stored (attachments + MMS). Plan: ` +
-        `${company.plan}. The customer received the friendly heads-up. ` +
-        `Review under the fair-use policy if this keeps escalating.`,
     },
   };
 }
@@ -290,6 +279,12 @@ function egressAlertCopy(
  * Insert the `(company_id, period_start, metric, threshold)` ledger row FIRST
  * and only send when the insert actually landed (the grace-notice pattern,
  * §11). Returns whether this call sent the email.
+ *
+ * The same landing sends one `usage_threshold_crossed` event under the
+ * workspace (`overage_projected` for the cost projection), with `measured`
+ * beside it, so PostHog sees each warning once (D146). The arms whose cost is
+ * ours rather than the customer's (dials, inbound, the projection) say how
+ * much in `measured`.
  */
 export async function recordAndSendAlert(
   env: Env,
@@ -299,9 +294,7 @@ export async function recordAndSendAlert(
   // storage_abuse (#121) — the ledger PK treats it purely as a dedupe key.
   threshold: number,
   copy: { subject: string; text: string },
-  /** #121: when set, a second alert rides the SAME ledger dedupe to ops —
-   * Sentry always, and OPS_ALERT_EMAIL too where one is configured. */
-  ops?: { subject: string; text: string },
+  measured: Record<string, number | null> = {},
 ): Promise<boolean> {
   const db = getDb(env);
   const { data, error } = await db
@@ -324,6 +317,13 @@ export async function recordAndSendAlert(
   }
   if (!data || data.length === 0) return false; // ledger says already sent
 
+  void captureEvent(
+    env,
+    metric === "cost_projection" ? "overage_projected" : "usage_threshold_crossed",
+    company.id,
+    { metric, threshold, ...measured },
+  );
+
   // Operational email: owner + active admins, bypasses notification_prefs (§8).
   const to = await billingRecipients(env, company.id, db);
   if (to.length === 0) return false;
@@ -333,14 +333,6 @@ export async function recordAndSendAlert(
     text: copy.text,
     html: renderEmailHtml(copy.text),
   });
-  if (ops) {
-    await opsEmail(env, {
-    key: "ops:billing-usage-alerts",
-      subject: ops.subject,
-      text: ops.text,
-      html: opsTextHtml(ops.text),
-    });
-  }
   return true;
 }
 
@@ -381,10 +373,14 @@ export async function runUsageAlertsJob(
     throw new Error(`active companies lookup failed: ${error.message}`);
   }
   if ((data ?? []).length >= USAGE_ALERTS_BATCH) {
-    Sentry.captureMessage(
-      `usage-alerts scan hit its per-run cap of ${USAGE_ALERTS_BATCH}; tenants past the cap miss overage warnings this run — add checkpoint-resume before the active base outgrows one invocation`,
-      "warning",
-    );
+    // Tenants past the cap miss their warnings this run: add checkpoint-resume
+    // before the active base outgrows one invocation.
+    void captureException(env, "usage-alerts scan hit its per-run cap", {
+      source: "cron",
+      job: "job:usage-alerts",
+      level: "warning",
+      extra: { cap: USAGE_ALERTS_BATCH },
+    });
   }
 
   const failures: unknown[] = [];
@@ -393,14 +389,14 @@ export async function runUsageAlertsJob(
   // per-tenant fact, and summing what this capped loop happened to visit would
   // under-report exactly as the fleet grew past the point where it matters.
   //
-  // Reported to Sentry rather than added to `failures`: this job exists to warn
-  // tenants about their own overage, and the aggregate error below counts
-  // COMPANIES. Folding an ops tripwire into that number would fail the run for
+  // Reported on its own rather than added to `failures`: this job exists to
+  // warn tenants about their own overage, and the aggregate error below counts
+  // COMPANIES. Folding a fleet gauge into that number would fail the run for
   // something no tenant is affected by and misreport how many of them broke.
   try {
-    await checkFleetStorage(env);
+    await sendFleetStorageGauge(env);
   } catch (cause) {
-    Sentry.captureException(cause);
+    void captureException(env, cause, { source: "cron", job: "job:usage-alerts" });
   }
 
   for (const company of (data ?? []) as ActiveCompanyRow[]) {
@@ -433,9 +429,9 @@ export async function runUsageAlertsJob(
 
       // #121 storage-abuse arm (replaces the retired budget arms): storage
       // is free — nothing blocks — but total stored bytes crossing an
-      // absolute tier emails the customer (friendly) and ops (factual), once
-      // per tier per period via the same ledger dedupe. Escalating tiers keep
-      // a runaway tenant re-alerting as it doubles.
+      // absolute tier emails the customer (friendly), once per tier per
+      // period via the same ledger dedupe. Escalating tiers keep a runaway
+      // tenant re-alerting as it doubles.
       const { data: storage, error: storageError } = await db.rpc(
         "api_storage_usage",
         { p_company_id: company.id },
@@ -446,14 +442,14 @@ export async function runUsageAlertsJob(
       const totalStoredBytes = storedBytes(storage as StorageUsageRow);
       for (const tierGb of STORAGE_ABUSE_TIERS_GB) {
         if (totalStoredBytes >= tierGb * 1024 ** 3) {
-          const abuse = storageAbuseCopy(company, tierGb, totalStoredBytes, env);
+          const abuse = storageAbuseCopy(company, totalStoredBytes, env);
           await recordAndSendAlert(
             env,
             company,
             "storage_abuse",
             tierGb,
             abuse.customer,
-            abuse.ops,
+            { stored_gb: Math.round((totalStoredBytes / 1024 ** 3) * 10) / 10 },
           );
         }
       }
@@ -501,11 +497,10 @@ export async function runUsageAlertsJob(
       // whatever happens next, so a dialer stuck in a loop reports as
       // comfortably inside its minute allowance while spending real money.
       //
-      // Ops only, and no customer copy: the per-dial fee is OUR cost
-      // (UNIT_COST_CENTS.voiceTransfer), never billed to the customer, so
-      // there is nothing for them to act on and telling them would read as a
-      // charge they cannot find. #447 is the general form of this — the person
-      // who eats the cost is the one who has to be told.
+      // The per-dial fee is OUR cost (UNIT_COST_CENTS.voiceTransfer), never
+      // billed to the customer, so their copy names no charge; what it costs
+      // us travels in the event. #447 is the general form of this: the
+      // person who eats the cost is the one who has to be told.
       const { data: dialCount, error: dialError } = await db.rpc(
         "api_period_forwarded_calls",
         { p_company_id: company.id, p_since: company.current_period_start },
@@ -533,22 +528,7 @@ export async function runUsageAlertsJob(
               `may be dialling on its own. Get in touch and we'll look at it ` +
               `with you.`,
           },
-          {
-            subject: `[ops] ${company.name}: ${dials} dials this period ($${(spentCents / 100).toFixed(2)} in per-dial fees)`,
-            text:
-              `Company: ${company.name} (${company.id})\n` +
-              `Plan: ${company.plan}\n` +
-              `Dials this period: ${dials}\n` +
-              `Per-dial cost so far: $${(spentCents / 100).toFixed(2)} ` +
-              `(${UNIT_COST_CENTS.voiceTransfer}c each)\n` +
-              `Alert line: ${lines.alertAt} dials\n` +
-              `Calling pauses at: ${lines.stopAt} dials\n\n` +
-              `The voice spending cap counts SECONDS and cannot bound this ` +
-              `(#448). Short calls accrue ~0 seconds and 10c each, so this ` +
-              `tenant can look well inside its minute allowance while this ` +
-              `runs. Worth checking for a dialer in a retry loop before it ` +
-              `reaches the pause.`,
-          },
+          { dials, cost_cents: spentCents, stop_at: lines.stopAt },
         );
       }
 
@@ -563,7 +543,7 @@ export async function runUsageAlertsJob(
       // abuse call.
       //
       // It is therefore deliberately NOT enforcement. It is the storage-abuse
-      // shape: absolute tiers, both audiences told, nothing blocked — so the
+      // shape: absolute tiers, the customer told, nothing blocked, so the
       // one unbounded cost in the product stops being invisible.
       //
       // Its own metric, never the notification budget's. That budget is about
@@ -584,10 +564,10 @@ export async function runUsageAlertsJob(
         // #449 ask 2: a freeze or a heat wave produces a genuinely huge inbound
         // month (#401), and an alert that cannot tell that from an attack
         // teaches the reader to ignore it. The TRIGGER stays absolute — $70 is
-        // $70 whatever caused it — but the ops copy carries the tenant's own
+        // $70 whatever caused it, but the event carries the tenant's own
         // trailing 30 days, which is what says "ten times normal" or "a busy
         // week" at a glance. Best-effort: a failed baseline must not sink the
-        // alert that matters.
+        // warning that matters.
         const baseline = await trailingInboundBaseline(db, company.id, now);
         await recordAndSendAlert(
           env,
@@ -607,23 +587,7 @@ export async function runUsageAlertsJob(
               `sending you the same thing over and over, and we can help you ` +
               `look.\n\nLoonext`,
           },
-          {
-            subject: `[ops] ${company.name}: ${inbound.toLocaleString()} inbound segments ($${(costCents / 100).toFixed(2)})`,
-            text:
-              `Company: ${company.name} (${company.id})\n` +
-              `Plan: ${company.plan}\n` +
-              `Inbound this period: ${inbound.toLocaleString()} segments\n` +
-              `Our cost: $${(costCents / 100).toFixed(2)} ` +
-              `(${UNIT_COST_CENTS.inboundSegment}c each, free to the customer)\n` +
-              `Tier crossed: ${tier.toLocaleString()}\n` +
-              `Trailing 30 days before this: ${baseline === null ? "unavailable" : baseline.toLocaleString()} segments\n\n` +
-              `Inbound cannot be capped — the segment is billed by Telnyx ` +
-              `before our webhook runs, so only suspending the number stops ` +
-              `it (#449, DECISIONS D58). This is a visibility alert, not a ` +
-              `gate; nothing was blocked.\n\n` +
-              `Compare against the trailing figure before acting: a storm is ` +
-              `many senders, abuse is usually one.`,
-          },
+          { inbound_segments: inbound, cost_cents: costCents, trailing_30_days: baseline },
         );
       }
 
@@ -656,7 +620,7 @@ export async function runUsageAlertsJob(
       }
     } catch (cause) {
       // One broken tenant must not starve the rest; rethrown below so the
-      // cron run still reports failure (Sentry wraps scheduled()).
+      // cron run still reports failure.
       failures.push(cause);
     }
   }

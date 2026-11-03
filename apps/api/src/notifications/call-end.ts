@@ -28,10 +28,10 @@
  * path, so it never throws. No pruning here — the ring fan-out (incoming-call)
  * owns channel liveness; a call_end to a dead channel is a harmless no-op.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { captureException } from "../observability/capture";
 
 import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
@@ -111,7 +111,7 @@ export async function notifyCallEnd(
   try {
     await deliverCallEnd(env, db, input, attempts);
   } catch (cause) {
-    Sentry.captureException(cause);
+    void captureException(env, cause, { source: "call-session-do" });
   } finally {
     // Not awaited, for the same reason as the ring's: this runs in the call's
     // serialized queue.
@@ -217,7 +217,7 @@ async function deliverCallEnd(
             await db.from("push_subscriptions").delete().eq("id", sub.id);
           }
         } catch (cause) {
-          Sentry.captureException(cause);
+          void captureException(env, cause, { source: "call-session-do" });
         }
       }),
     );
@@ -275,7 +275,7 @@ async function deliverCallEnd(
           await db.from("device_push_tokens").delete().eq("id", device.id);
         }
       } catch (cause) {
-        Sentry.captureException(cause);
+        void captureException(env, cause, { source: "call-session-do" });
       }
     }),
   );

@@ -110,18 +110,15 @@ CallSessionDO ──▶ Telnyx commands (dial / answer / bridge / hangup / speak
   (`rateLimiterSchema`, env.ts:12–15), typed
   `DurableObjectNamespace`, and declared **`.optional()`** (required would
   break every existing test env fixture / `completeEnv`); the webhook router
-  and the live-calls routes guard at runtime and fail loudly (Sentry) if the
-  binding is absent in production. `CallSessionDO` is **re-exported as a
-  named export from `src/index.ts`** — wrangler resolves DO classes from
-  `main`'s named exports, NOT from the (Sentry-wrapped) default export.
-  The export is wrapped with
-  `Sentry.instrumentDurableObjectWithSentry(sentryOptions, CallSessionDO)`
-  (@sentry/cloudflare 10.63.0 ships it): the Worker-level
-  `Sentry.withSentry` (index.ts:382) wraps only fetch/scheduled, so an
-  uninstrumented DO would make every §2.2 mirror-failure alert and §13
-  cost-cap warning a silent no-op — and `alarm()` errors are the single
-  highest-value capture (a repeatedly-throwing alarm is the ring window's
-  single point of failure).
+  and the live-calls routes guard at runtime and fail loudly (an exception)
+  if the binding is absent in production. `CallSessionDO` is **re-exported
+  as a named export from `src/index.ts`** — wrangler resolves DO classes
+  from `main`'s named exports, NOT from the default export. The DO reports
+  through `observability/capture.ts` explicitly, passing its own `env` and
+  `ctx.waitUntil` on every capture (D146), so there is no wrapper to forget:
+  every §2.2 mirror-failure report and §13 cost-cap warning reaches PostHog,
+  and `alarm()` errors are the single highest-value capture (a
+  repeatedly-throwing alarm is the ring window's single point of failure).
 - **Id scheme**: `env.CALL_SESSIONS.idFromName(call_session_id)` where
   `call_session_id` is the Telnyx session id of the **inbound (customer)
   leg** — the same key the calls row uses. Member ring legs carry a different
@@ -153,7 +150,7 @@ Rule of thumb: the DO is authoritative *during* the session; Postgres is the
 authoritative record *of* the session. Every DO transition mirrors to
 Postgres; a mirror-write failure retries via a short DO alarm (the DO's own
 state never regresses), and terminal-state mirrors retry until they land
-(bounded attempts + Sentry — a call must never be lost from the log).
+(bounded attempts + an exception — a call must never be lost from the log).
 
 ### 2.3 Why each founder-mandated property now holds by construction
 
@@ -567,7 +564,7 @@ family:
 - A forged brm tag naming a random session hits an empty DO → adoption finds
   no calls row → drop. A forged tag naming a REAL session presents a ccid
   with no pending/ambiguous record for the tag's userId → §7.7 defensively
-  hangs it up + Sentry — it can never enter T2 (the tag is client-mintable
+  hangs it up + an exception — it can never enter T2 (the tag is client-mintable
   via the outbound SDK path, calls.ts:407–408, so signature + tag are NOT
   proof of provenance; the leg-map/pending-record requirement is the
   forgery gate, review R2-B3). The D43 calls-row-exists gate for
@@ -589,7 +586,7 @@ family:
   still **UNSTAMPED re-dispatches** (awaits admission again — DO dedup makes
   double-admission a no-op) instead of pure-acking `{duplicate:true}`
   forever (telnyx.ts:67–69 today). Admission latency is bounded by the T1d
-  parallel-dial rule + the queue-latency Sentry signal; if the edge times
+  parallel-dial rule + the queue-latency warning; if the edge times
   out anyway, Telnyx's retry meets the unstamped-redispatch rule. Non-call
   events keep ACK-then-waitUntil verbatim. The 5-minute sweeper replay stays
   as the LAST layer: it re-enters the DO and no-ops on dedup/guards (or
@@ -768,7 +765,7 @@ Rules, normative:
      dial targets pass.
    - **Anything else — no matching record, non-adopted machine — is a
      defensive hangup** of that ccid (best-effort, 4xx-swallowed), plus a
-     Sentry warning naming the tag's userId (a forged tag is a security
+     warning exception naming the tag's userId (a forged tag is a security
      event, not noise). Never a state change, never a T2 entry.
    - Any non-`ringing` state: **defensive hangup** as before — the session
      has no use for the leg; this also reaps ambiguous-dial orphans and
@@ -1132,12 +1129,12 @@ because this section claims to be the cap-and-drop accounting, not because
 it moves the total). **Order of \$0.0004/call — noise against the ~1.2¢/min
 Telnyx cost the call already carries.**
 
-Hard caps (enforced in the DO, Sentry warning at 50%, drop + log at 100% —
-Sentry inside the DO REQUIRES the §2.1 instrumentation or every one of these
-alerts is a silent no-op):
+Hard caps (enforced in the DO, a warning exception at 50%, drop + log at 100%;
+each capture passes the DO's own `env`, §2.1, so none of them is a silent
+no-op):
 
 - `MAX_LEGS_PER_SESSION = 24` (engine fan-out + ring-me adds) — RING-START
-  fires a Sentry warning the moment eligible targets exceed it (alert BEFORE
+  fires a warning the moment eligible targets exceed it (alert BEFORE
   the cap, per the standing mandate) and dials the first 24 deterministically
   (§4 T1d); past it, ring-me returns `dial_failed`.
 - `MAX_TELNYX_COMMANDS_PER_SESSION = 3 × MAX_LEGS_PER_SESSION + 16` (= 88
@@ -1328,7 +1325,7 @@ required for #170 (it may come later; it is not a dependency).
 - Forgery (review R2-B3's interception sequence, pinned): forged brm naming
   a foreign session → dropped; forged brm naming a REAL ringing session
   with no pending/ambiguous record for the tag's userId → defensive hangup
-  + Sentry, NO adoption, NO T2, no answer/bridge command ever issued —
+  + an exception, NO adoption, NO T2, no answer/bridge command ever issued —
   asserted with a hostile-member fixture holding a real credential and the
   broadcast session id; ledger-less minting asserted possible ONLY on an
   `adopted` machine AND only for an active, credentialed, #106-eligible
@@ -1405,7 +1402,7 @@ proposed, or rejected; recorded here so the reasoning survives:
    (inbound-ring.ts:468–475), so a leg with a matching pending/ambiguous
    record is honored (T2). But the original justification — "the tag is
    unforgeable" — was FALSE (client-mintable client_state,
-   calls.ts:407–408), so tag-only legs are now defensively hung up + Sentry
+   calls.ts:407–408), so tag-only legs are now defensively hung up + an exception
    (§7.7). Every leg a member can legitimately answer has a record by
    construction (pending persists before every dial POST); the only
    record-less-but-legitimate legs are legacy-cutover legs, scoped by the
@@ -1503,7 +1500,7 @@ implementation notes:
 4. **Internal events in the no-op matrix:** §15.1's exhaustive matrix
    includes the internal events (`push-fanout-settled`, answer-outcome) ×
    every state — e.g. a settle arriving in `answered` is a licensed no-op.
-5. **Load-bearing telemetry:** T1d's ~2s FIFO queue-latency Sentry signal is
+5. **Load-bearing telemetry:** T1d's ~2s FIFO queue-latency warning is
    NOT optional — it is the drift alarm for the webhook-ack budget
    (worst-case ~3-4s behind a 24-target dial).
 6. **Old-fleet tail ghost (accepted, self-extinguishing):** pre-v3
@@ -1518,7 +1515,6 @@ implementation notes:
    filter, which call_end now shares; one durable
    credential per (company,user); MainActivity.parseDeepLink drops `?call=`
    today; vitest 'telnyx' project hosts mount.test.ts with no resolve.alias;
-   `instrumentDurableObjectWithSentry` exists in @sentry/cloudflare 10.63.0;
    SWEEP_MAX_ATTEMPTS=5.
 
 ---
@@ -1747,21 +1743,11 @@ tunes monitoring only, never the architecture.
 
 ---
 
-## 17a. What dies with DO Sentry (#375)
+## 17a. What the Durable Object reports (#375, D146)
 
-§13 says it plainly — *"Sentry inside the DO **REQUIRES** the §2.1
-instrumentation or every one of these alerts is a silent no-op"* — and §17.5
-calls the queue-latency drift alarm **NOT optional**. Neither said which
-signals, so the blast radius had to be reconstructed by reading the code. This
-is that list, so it never has to be reconstructed again.
-
-**One line carries all of it.** `apps/api/src/index.ts` re-exports the DO
-through `Sentry.instrumentDurableObjectWithSentry`. The Worker-level
-`withSentry` wraps only `fetch`/`scheduled`, so without that re-export a DO's
-`alarm()` and RPC entry points run entirely uninstrumented — while the build
-passes, the deploy succeeds, and calls keep connecting.
-
-**Everything that goes silent if it is dropped:**
+§13's warnings and §17.5's queue-latency drift alarm all report from inside the
+DO, so this is the list of what reaches PostHog from there, so it never has to
+be reconstructed by reading the code:
 
 | Signal | Where | What it protects |
 |---|---|---|
@@ -1770,64 +1756,24 @@ passes, the deploy succeeds, and calls keep connecting.
 | Telnyx command count at **50% of cap** | `session-do.ts:797` | the alert-before-the-cap half, which is the only warning that arrives while there is still time to act |
 | Mirror write failed (per attempt) | `session-do.ts:815`, `:870` | §2.2 mirror failures — the call row drifting from the DO's truth |
 | Mirror **gave up** after `MAX_MIRROR_ATTEMPTS` | `session-do.ts:873` | a call that will be missing from the log entirely |
-| Reducer-emitted `sentry-warn` effects | `session-do.ts:748` | every state-machine warning the reducer chooses to raise |
+| Reducer-emitted warning effects | `session-do.ts:748` | every state-machine warning the reducer chooses to raise |
 | `#213` guard: an `oc` leg carrying `X-RTC-*` | `runtime.ts:597` | the wrong-bridge regression, rejected honestly rather than hijacking a transfer |
 | `notification_prefs` read failure during a ring | `runtime.ts:1112` | a transient read that silently narrows who gets rung |
 
-**Why losing it is invisible in both directions.** Sentry receiving nothing
-from a DO looks exactly like a healthy system with nothing to report — and for
-warnings that fire at 50% of a cap, *nothing to report is the expected steady
-state*. The absence of alerts is the normal condition, so the broken condition
-cannot be told apart from it by looking. That is the same shape as #308 (a dead
-inbound webhook looks like a quiet day) applied one layer up, to the channel
-those alarms would report through.
+**Why there is no wrapper to drop.** Every capture inside `CallSessionDO` calls
+`apps/api/src/observability/capture.ts` explicitly with the object's own `env`
+and `ctx.waitUntil`, so the capture never blocks `onTelnyxEvent` and there is no
+instrumentation layer that a refactor could lose. The Sentry wrapper this
+replaced never covered RPC, which is how every call event enters the object, so
+`channel:do-sentry` had never passed in production (D146).
 
-**What guards it now.** `apps/api/src/observability/do-instrumentation.test.ts`
-fails CI if any DO class wrangler binds is not exported through the wrapper, if
-a DO class is declared and never routed through it, or if the bound name is not
-a real runtime export. Verified by decoy — removing the wrapper fails two of
-the three assertions.
-
-**And what proves it carries.** The CI test above asserts the instrumentation
-is *wired*; it cannot assert Sentry *accepted* anything. The synthetic call it
-asked for now exists:
-`apps/api/src/observability/do-sentry-canary.ts`, on the `15 */6 * * *`
-trigger. Every six hours the cron asks the DO — via `probeAlertChannel()`, on
-the reserved instance `__do-sentry-canary__`, which can never collide with a
-session id — to make two assertions from inside its own isolate:
-
-1. **`Sentry.getClient()` is defined**, which is the §2.1 wrapper's runtime
-   fingerprint. Free, and it catches the dropped-wrapper regression in
-   production the same way the CI test catches it before merge.
-2. **A minimal `debug`-level envelope POSTed to the DSN's ingest endpoint came
-   back 2xx.** This is the part no wiring check can do: it proves the DSN is
-   valid, the project is still accepting, egress from the DO isolate is
-   permitted, and we are not being rate-limited into silence (a 429 fails the
-   probe deliberately — a project shedding events has degraded alarms even
-   though the channel technically works).
-
-Only both together record the `channel:do-sentry` heartbeat. **The alert for
-its absence is an email**, through the #387 liveness checker — deliberately a
-channel whose failure mode is unrelated, because a Sentry alert about Sentry
-being down is not an alert. That is where the regress stops, and one level is
-enough.
-
-Two decisions worth keeping:
-
-- **Six-hourly, not hourly.** Each probe is a billable Sentry event. Hourly
-  would spend ~720 a month saying "still fine" — a seventh of a 5k plan — and
-  quota spent on canaries is quota unavailable to real errors. A canary that
-  rate-limits the alarms it protects would *be* the failure it exists to
-  prevent. The fault being watched for is not transient, so detecting it a few
-  hours later is the same detection.
-- **A raw envelope, not `captureMessage`.** A captured message is
-  fire-and-forget, and `flush()` reports that the local queue drained, not that
-  Sentry accepted anything. This canary exists precisely because "we handed it
-  off successfully" was already the assumption that failed.
-
-Withheld when `CALL_SESSIONS` is unbound, like the #308 canary: there is no DO
-runtime to answer for, and an expectation about something undeployed alerts
-forever.
+**What proves it carries.** The `15 */6 * * *` trigger asks the reserved instance
+`__heartbeat__`, which can never collide with a session id, for its
+`heartbeat()`. That RPC sends `ops_heartbeat` with the key
+`channel:call-session-do` and a 420-minute grace from inside the object's own
+isolate, through the same capture path as every warning above. PostHog's
+"Heartbeat overdue" alert fires when it stops arriving. Without `CALL_SESSIONS`
+bound there is no object to ask, and the job logs that and returns.
 
 ---
 

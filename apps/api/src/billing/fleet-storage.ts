@@ -1,8 +1,6 @@
-import * as Sentry from "@sentry/cloudflare";
-
 import { getDb } from "../db";
-import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
+import { captureEvent, SYSTEM_DISTINCT_ID } from "../observability/capture";
 
 /**
  * #240 item 2 — the tripwire that decides when storage starts costing us
@@ -70,44 +68,24 @@ export async function fleetStoredBytes(env: Env): Promise<number> {
 }
 
 /**
- * Tell ops once when the fleet crosses the included allowance.
+ * Hourly, the fleet's stored bytes as an `ops_gauge` against the included
+ * allowance. PostHog's "Limits and rates" alert fires at 70% of it (D146).
  *
  * Deliberately NOT a customer-facing anything: D34 made storage free to the
  * customer and this is our cost, not theirs. Deliberately not a cap either —
- * capping storage is the thing D34 explicitly took off the table.
- *
- * Idempotence rides Sentry rather than the usage_alerts ledger, because that
- * ledger is keyed on (company, period) and this is neither. A message a month
- * about a threshold nobody has crossed in a year is the right trade against
- * inventing a fleet-scoped ledger table for one boolean.
+ * capping storage is the thing D34 explicitly took off the table. Past the
+ * allowance, deduplication and a second storage tier (#240) become worth
+ * building; `node scripts/ops/storage-report.mjs` ranks the workspaces
+ * carrying it.
  */
-export async function checkFleetStorage(env: Env): Promise<void> {
-  const bytes = await fleetStoredBytes(env);
-  const gb = bytes / 1024 ** 3;
-  if (gb < SUPABASE_INCLUDED_STORAGE_GB) return;
-
-  const text =
-    `Stored attachments across the whole fleet have reached ` +
-    `${gb.toFixed(1)} GB, past the ${SUPABASE_INCLUDED_STORAGE_GB} GB included ` +
-    `in Supabase Pro (checked ${SUPABASE_STORAGE_VERIFIED_ON}).\n\n` +
-    `Nothing is broken and nothing is capped — D34 keeps storage free to the ` +
-    `customer on purpose. This is the point where two things in #240 that were ` +
-    `deliberately not built become worth building:\n\n` +
-    `  - Deduplication of identical objects across a workspace.\n` +
-    `  - Moving cold objects to a cheaper tier, which needs a second storage ` +
-    `vendor: Supabase Storage supports neither lifecycle rules nor storage ` +
-    `classes.\n\n` +
-    `Run \`node scripts/ops/storage-report.mjs\` to see which workspaces are ` +
-    `carrying it, ranked by what they actually cost.`;
-
-  Sentry.captureMessage(
-    `fleet storage past the included allowance: ${gb.toFixed(1)} GB`,
-    "warning",
-  );
-  await opsEmail(env, {
-    key: "ops:billing-fleet-storage",
-    subject: `Fleet storage is past the included ${SUPABASE_INCLUDED_STORAGE_GB} GB`,
-    text,
-    html: opsTextHtml(text),
+export async function sendFleetStorageGauge(env: Env): Promise<number> {
+  const gb = (await fleetStoredBytes(env)) / 1024 ** 3;
+  const value = Math.round(gb * 1000) / 1000;
+  await captureEvent(env, "ops_gauge", SYSTEM_DISTINCT_ID, {
+    key: "supabase-storage",
+    value,
+    limit: SUPABASE_INCLUDED_STORAGE_GB,
+    unit: "gb",
   });
+  return value;
 }

@@ -12,13 +12,14 @@ basics.
 
 Nine cron triggers on `loonext-api`, registered automatically on `wrangler deploy`
 (`apps/api/wrangler.jsonc:11-21`), mapped to jobs at `apps/api/src/index.ts:156-200`.
-Jobs sharing a trigger run **sequentially but fail independently**; if any fails the
-whole run rejects (as an `AggregateError`) so Sentry records it
-(`apps/api/src/index.ts:222-235`).
+Jobs sharing a trigger run **sequentially but fail independently**; each failure
+is reported to PostHog as an exception naming its job, and the whole run still
+rejects as an `AggregateError` (`runScheduledJobs`, `apps/api/src/index.ts`).
+Every trigger sends an `ops_heartbeat` when it fires (D146).
 
 | Cron (UTC) | Jobs | What it does |
 |------------|------|--------------|
-| `*/5 * * * *` | `sweepWebhookEvents` | Replays `webhook_events` rows still unprocessed after 2 min, up to 5 attempts; the 5th failure raises a Sentry alert (`apps/api/src/messaging/crons.ts:25,37,81-84`). Both providers, through the same dispatch as the live routes. |
+| `*/5 * * * *` | `sweepWebhookEvents` | Replays `webhook_events` rows still unprocessed after 2 min, up to 5 attempts; the 5th failure is reported as an exception (`apps/api/src/messaging/crons.ts`). Both providers, through the same dispatch as the live routes. |
 | `*/15 * * * *` | `reconcileNumbers`, `retryCampaignAssignments`, `sweepDeletedAttachments`, `reconcileTextEnablement`, `reconcileVoiceEnablement` | Resumes stuck provisioning, adopts crash-after-buy orphans, retries §4.4 campaign number-assignments; reclaims soft-deleted attachment objects past the signed-URL grace window; polls in-flight keep-your-number hosted-SMS orders (`/v1/text-enablements`, webhooks primary); binds voice on active numbers whose company has missed-call text-back on (`apps/api/src/index.ts:167-178`, `apps/api/src/telnyx/voice.ts:160-205`). |
 | `0 * * * *` | `reportUnreportedUsage`, `runUsageAlertsJob` | Re-POSTs Stripe meter events for `usage_events` where `stripe_reported_at IS NULL`, then checks 80%/100% usage alerts (`apps/api/src/index.ts:181`, `apps/api/src/messaging/crons.ts:102`). |
 | `30 * * * *` | `nudgeSoleProprietorOtp` | Nudges sole-prop OTP outstanding ≥12h, once per submission (`apps/api/src/index.ts:183`). |
@@ -69,23 +70,21 @@ email with the hosted invoice link; no state change
 
 ## 3. Monitoring
 
-- **Sentry** — the whole Worker (fetch + scheduled) is wrapped by
-  `Sentry.withSentry` (`apps/api/src/index.ts:244`). Unhandled `/v1` errors and cron
-  failures are captured. PII is scrubbed: `sendDefaultPii:false`,
-  `tracesSampleRate:0`, and `beforeSend`/`beforeBreadcrumb` scrubbers
-  (`apps/api/src/observability/sentry.ts:117-125`) — message bodies never reach
-  Sentry. Watch for: the `*/5` sweeper's 5th-attempt alerts, cron `AggregateError`s,
-  and Resend/Telnyx/Stripe call failures.
+- **PostHog** — everything is there (D146, [docs/MONITORING.md](../MONITORING.md)).
+  Unhandled `/v1` errors, each failing cron job and every ops notice are exceptions
+  in Error tracking, sent through `apps/api/src/observability/capture.ts`, which
+  scrubs them first: message bodies, phone numbers and addresses never leave.
+  The Loonext health dashboard shows heartbeats, gauges and outcome events, and
+  PostHog's alerts email the founder's PostHog login. Nothing in our code sends an
+  alert email.
 - **`/health`** — `GET https://api.loonext.com/health` re-runs env validation; a 500
   naming a key means a secret is missing/invalid (`apps/api/src/index.ts:88-92`). Good
   target for an uptime monitor / the status page. A keyword monitor should match
   `"ok":true`, not the whole body: the body is
   `{"ok":true,"capabilities":["telnyx-partition-v1"]}` and the capability list grows.
-- **PostHog** — optional product analytics (`POSTHOG_API_KEY`,
-  [06](./06-env-reference.md) §E). Captures are best-effort: a PostHog failure
-  never breaks the send/webhook path — it logs and leaves a Sentry breadcrumb
-  (`apps/api/src/analytics/posthog.ts:49-57`). With the key unset there is
-  nothing to monitor.
+- **PostHog's key** — `POSTHOG_API_KEY` ([06](./06-env-reference.md) §E). Captures
+  are best-effort: a PostHog failure never breaks the send/webhook path, it is
+  only logged. With the key unset nothing is sent at all.
 - **Cloudflare Workers metrics/logs** — request volume, error rate, cron invocations.
 
 ---
@@ -162,17 +161,13 @@ Re-check any time with:
 nslookup -type=TXT _dmarc.loonext.com 8.8.8.8
 ```
 
-**You do not have to remember to.** `job:email-health` now asks the DNS itself
-once a day (`apps/api/src/email/auth-posture.ts`) and raises an ops alert
-while any of the three records is missing — with the exact TXT to add and the
-command above in the body. It reaches Sentry under the key
-`ops:email-auth-posture`, and a mailbox too where `OPS_ALERT_EMAIL` is set
-(D139), at most one mail per key per hour. PostHog's own new-issue and reopened-issue
-alerts reach the same mailbox through `POST /webhooks/posthog-alert` (D145). A dated line in this document is
-only true on the day it was written; DNS is edited by hand, at a registrar, by
-one person, usually while doing something else. The check exists because the
-gap is a founder action, and a gap somebody has to go and act on is exactly the
-kind that gets forgotten.
+**Nothing re-checks this for you any more.** The daily DNS check that used to
+mail about a missing record was homemade monitoring and went with D146; the
+domain's authentication status is now only in Resend's dashboard (Domains), and
+the bounce and complaint rates are PostHog's "Limits and rates" alert. A dated
+line in this document is only true on the day it was written: DNS is edited by
+hand, at a registrar, by one person, so look at Resend's domain page after any
+DNS change.
 
 It never alerts on its own failure: a resolver that times out or answers badly
 says nothing about our DNS, and "absent" and "could not ask" are kept as
@@ -291,8 +286,9 @@ affected leg (e.g. a Stripe test event after rotating the webhook secret).
    / the web deploy; without `DEPLOY_ENV` the Worker runs as `local`, see
    [05](./05-workers-deploy.md) §3) or use Cloudflare's version rollback. Migrations are **forward-only** — never `db push` a
    destructive change without a reviewed migration.
-7. **Escalation** — Sentry issue → identify the failing call (Supabase / Stripe /
-   Telnyx / Resend), check that vendor's status page, and confirm the relevant secret.
+7. **Escalation** — PostHog Error tracking issue → identify the failing call
+   (Supabase / Stripe / Telnyx / Resend), check that vendor's status page, and
+   confirm the relevant secret.
 
 ---
 

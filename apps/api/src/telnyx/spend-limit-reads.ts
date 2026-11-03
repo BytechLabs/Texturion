@@ -2,6 +2,10 @@ import type { Env } from "../env";
 import { TelnyxApiError, telnyxRequest } from "./client";
 import type { ReportedSpendLimit } from "./spend-limits";
 
+const PAGE_SIZE = 250;
+/** 5,000 profiles, far beyond today's fleet. */
+const MAX_PROFILE_PAGES = 20;
+
 /**
  * Read-only views of the Telnyx resources that carry production's daily spend
  * limits (#642). Every request here is a GET.
@@ -82,5 +86,41 @@ export async function readVoiceProfile(env: Env, id: string): Promise<ProfileRea
     if (cause instanceof TelnyxApiError && cause.status === 404) return { id, limit: null };
     throw cause;
   }
+}
+
+export interface MessagingProfileItem extends ReportedSpendLimit {
+  id?: string;
+}
+
+interface PageMeta {
+  page_number?: number;
+  total_pages?: number;
+}
+
+/**
+ * Telnyx's view of every messaging profile in the account, up to the page cap.
+ * A profile past the cap reads as unlisted, which the gauge reports as having
+ * no limit: the safe direction to be wrong in.
+ */
+export async function listMessagingProfiles(
+  env: Env,
+): Promise<Map<string, MessagingProfileItem>> {
+  const profiles = new Map<string, MessagingProfileItem>();
+  for (let page = 1; page <= MAX_PROFILE_PAGES; page += 1) {
+    const body = await telnyxRequest<{ data?: MessagingProfileItem[]; meta?: PageMeta }>(env, {
+      method: "GET",
+      path: "/v2/messaging_profiles",
+      query: { "page[number]": String(page), "page[size]": String(PAGE_SIZE) },
+    });
+    const items = Array.isArray(body?.data) ? body.data : [];
+    for (const item of items) {
+      if (typeof item.id === "string") profiles.set(item.id, item);
+    }
+    const lastPage = body?.meta?.total_pages;
+    if (items.length < PAGE_SIZE || (typeof lastPage === "number" && page >= lastPage)) {
+      return profiles;
+    }
+  }
+  return profiles;
 }
 

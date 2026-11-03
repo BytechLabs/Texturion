@@ -14,8 +14,8 @@ import { callEndAlert, notifyCallEnd } from "./call-end";
 import { pushAttemptsSettled } from "./push-attempts";
 import { encodeBase64Url } from "./webpush";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const env = completeEnv();

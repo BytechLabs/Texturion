@@ -5,23 +5,35 @@
  * the tenant flag) is SQL and is covered by supabase/tests/billing_disputes.test.sql.
  * What this owns is what the handler decides:
  *
- *   - that an unattributable dispute is still recorded and still alerts,
- *     because a charge we cannot match to a company is MORE alarming;
+ *   - that an unattributable dispute is still recorded and still sends its
+ *     notice, because a charge we cannot match to a company is MORE alarming;
  *   - that it does NOT write the audit log without a company, because
  *     `audit_log.company_id` is NOT NULL and `recordAudit` swallows its own
  *     failures — an unguarded call would be a silent hole in the log this
  *     issue exists to create;
- *   - that the alert names the total cost, which is the entire argument;
- *   - that a redelivery does not email the founder twice.
+ *   - that the notice names the total cost, which is the entire argument;
+ *   - that a redelivery does not send it twice;
+ *   - that nobody is emailed.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { handleChargeDispute } from "./disputes";
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
+
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
+
+const notices = () => noticesCaptured("billing-dispute");
+
+beforeEach(() => {
+  resetCaptures();
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -48,7 +60,7 @@ function world(options: { company?: boolean; firstSeen?: boolean } = {}) {
   const audits: Record<string, unknown>[] = [];
 
   sb.on("GET", "/rest/v1/companies", () =>
-    options.company === false ? [] : [{ id: COMPANY_ID, name: "Kettleman Roofing" }],
+    options.company === false ? [] : [{ id: COMPANY_ID }],
   );
   sb.on("POST", "/rest/v1/rpc/record_billing_dispute", (call) => {
     rpcCalls.push(call.body as Record<string, unknown>);
@@ -69,7 +81,7 @@ function world(options: { company?: boolean; firstSeen?: boolean } = {}) {
 }
 
 describe("a dispute we can attribute", () => {
-  it("records it, audits it, and emails the founder", async () => {
+  it("records it, audits it, and sends one notice", async () => {
     const w = world();
     stubFetch(...w.routes);
 
@@ -92,7 +104,9 @@ describe("a dispute we can attribute", () => {
       // workspace would put a name on an act nobody here performed.
       actor_user_id: null,
     });
-    expect(w.emails).toHaveLength(1);
+    expect(notices()).toHaveLength(1);
+    expect(notices()[0].level).toBe("error");
+    expect(w.emails).toEqual([]);
   });
 
   it("names the TOTAL cost, which is the whole argument", async () => {
@@ -103,12 +117,12 @@ describe("a dispute we can attribute", () => {
 
     await handleChargeDispute(env, dispute(), "charge.dispute.created");
 
-    const email = w.emails[0] as { subject: string; text: string };
-    expect(email.text).toContain("$44.00");
-    expect(email.subject).toContain("$44.00");
+    const [notice] = notices();
+    expect(notice.detail).toContain("total cost $44.00");
+    expect(notice.detail).toContain(`company ${COMPANY_ID}`);
     // And that we did NOT cut them off, since that is the reader's first
     // question and the answer is deliberate.
-    expect(email.text).toContain("STILL RUNNING");
+    expect(notice.action).toContain("still running");
   });
 
   it("assumes the published fee when Stripe has not reported one yet", async () => {
@@ -128,20 +142,20 @@ describe("a dispute we can attribute", () => {
 });
 
 describe("a dispute we cannot attribute", () => {
-  it("still records and still alerts — it is MORE alarming, not less", async () => {
+  it("still records and still sends the notice: it is MORE alarming, not less", async () => {
     const w = world({ company: false });
     stubFetch(...w.routes);
 
     await handleChargeDispute(env, dispute(), "charge.dispute.created");
 
     expect(w.rpcCalls[0]).toMatchObject({ p_company_id: null });
-    expect(w.emails).toHaveLength(1);
-    expect((w.emails[0] as { text: string }).text).toContain("UNMATCHED CUSTOMER");
+    expect(notices()).toHaveLength(1);
+    expect(notices()[0].detail).toContain("UNMATCHED customer");
   });
 
   it("writes NO audit row, because the log cannot hold one", async () => {
     // `audit_log.company_id` is NOT NULL with an FK, and `recordAudit`
-    // swallows its failure into Sentry. An unguarded call would look like it
+    // swallows its failure into an exception. An unguarded call would look like it
     // logged and quietly would not — a hole in exactly the log #422 asks for.
     const w = world({ company: false });
     stubFetch(...w.routes);
@@ -153,19 +167,19 @@ describe("a dispute we cannot attribute", () => {
 });
 
 describe("Stripe redelivers", () => {
-  it("does not email twice for the same dispute", async () => {
+  it("does not send the notice twice for the same dispute", async () => {
     const w = world({ firstSeen: false });
     stubFetch(...w.routes);
 
     await handleChargeDispute(env, dispute(), "charge.dispute.created");
 
     expect(w.rpcCalls).toHaveLength(1); // still recorded, for the status advance
-    expect(w.emails).toHaveLength(0);
+    expect(notices()).toEqual([]);
   });
 
-  it("does not email when the dispute is merely closing", async () => {
-    // The founder was told when it opened. A second email saying it finished
-    // is noise on a channel that has to stay believable.
+  it("sends nothing when the dispute is merely closing", async () => {
+    // The notice went out when it opened. A second one saying it finished is
+    // noise on a channel that has to stay believable.
     const w = world();
     stubFetch(...w.routes);
 
@@ -173,6 +187,6 @@ describe("Stripe redelivers", () => {
 
     expect(w.rpcCalls[0]).toMatchObject({ p_dispute_id: "dp_1" });
     expect(w.rpcCalls[0].p_closed_at).toBeTruthy();
-    expect(w.emails).toHaveLength(0);
+    expect(notices()).toEqual([]);
   });
 });

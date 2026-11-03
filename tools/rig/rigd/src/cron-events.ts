@@ -1,42 +1,41 @@
 /**
  * tools/rig/crons.json (`loonext.rig-crons.v1`, scripts/check-rig-crons.mjs)
- * read as R00 needs it: which of the local API's Sentry events the rig
- * expects, which mean its seed or setup is wrong, and, by elimination, which
- * nobody explains.
+ * read as R00 needs it: which of the local API's exceptions the rig expects,
+ * which mean its seed or setup is wrong, and, by elimination, which nobody
+ * explains.
  *
  * Expected:
- *   - a refusal's `fingerprints` (a job that fails, then its liveness alert);
- *   - a skip's `fingerprints` (the liveness keys a cron the rig never fires
- *     raises);
  *   - an `expected_events` or `follow_on_events` match;
- *   - a captured refusal: a TelnyxApiError event whose message carries
+ *   - a captured refusal: a TelnyxApiError exception whose message carries
  *     `refusal_match.message_contains` and one of that refusal's paths;
- *   - a cron's failure (its AggregateError outermost, which Sentry lists
- *     last) whose every exception but the AggregateErrors is a job-fails
- *     refusal listed for that cron, provided Sentry read inside every
- *     AggregateError in it.
+ *   - a job's failure (an exception whose `cron` tag names the cron that ran
+ *     it) whose every exception but the AggregateErrors is a job-fails
+ *     refusal listed for that cron.
  * Defects: a `defects` match, reported with its `means`, never suppressed.
  *
  * A `match` is the registry's short English, read clause by clause:
  * `fingerprint [...]`, `level <level>`, `tag <name>=<value>`,
  * `message starts "<text>"`, `contains "<text>"`, `<ErrorType> "<prefix>"`,
- * `with no [codes ...]` and `inside the cron's AggregateError`. A match with a
- * clause outside that list explains nothing, and is listed in `unread`, so a
- * new form shows up in R00 rather than silently suppressing events.
+ * and `with no [codes ...]`. A match with a clause outside that list explains
+ * nothing, and is listed in `unread`, so a new form shows up in R00 rather
+ * than silently suppressing events.
  */
-import type { Explanation, SeenEvent } from "./sentry-relay.ts";
-
 export const CRONS_SCHEMA = "loonext.rig-crons.v1";
 
-/**
- * Sentry's linked-errors walk (@sentry/core aggregate-errors.js, default
- * limit 5, which the API keeps) puts each exception it finds in front of the
- * last, so the outermost comes last, and stops reading inside exceptions once
- * six are listed while still listing the siblings it is looping over. Of n
- * exceptions, the first n - 5 are unread inside: an AggregateError there may
- * hold a failure that never reached Sentry.
- */
-const SENTRY_WALKED = 5;
+/** What R00 keeps of one of the local API's exceptions, for the registry to explain it. */
+export interface SeenEvent {
+  at: number;
+  level?: string;
+  message?: string;
+  fingerprint?: string[];
+  /** The exception's `source`, `cron`, `job` and `ops_key` properties, where it has them. */
+  tags?: Record<string, string>;
+  /** Every exception in the event, the outermost last. */
+  exceptions?: { type: string; value: string }[];
+}
+
+/** Why an API exception is no surprise, or undefined when nothing explains it. */
+export type Explanation = { kind: "expected" } | { kind: "defect"; means: string };
 
 type Clause =
   | { kind: "fingerprint"; parts: string[] }
@@ -45,8 +44,7 @@ type Clause =
   | { kind: "message-starts"; text: string }
   | { kind: "contains"; text: string }
   | { kind: "exception"; type: string; prefix: string }
-  | { kind: "no-codes" }
-  | { kind: "in-aggregate" };
+  | { kind: "no-codes" };
 
 export type Matcher = (event: SeenEvent) => boolean;
 
@@ -70,7 +68,6 @@ export function parseMatch(text: string): Matcher | undefined {
     [/^contains "([^"]*)"/, (m) => ({ kind: "contains", text: m[1]! })],
     [/^([A-Z]\w*Error) "([^"]*)"/, (m) => ({ kind: "exception", type: m[1]!, prefix: m[2]! })],
     [/^with no \[codes \.\.\.\]/, () => ({ kind: "no-codes" })],
-    [/^inside the cron's AggregateError/, () => ({ kind: "in-aggregate" })],
     [/^(?:,|and\b)\s*/, () => undefined],
   ];
   let rest = source;
@@ -112,8 +109,6 @@ function matcher(clauses: Clause[]): Matcher {
             return text.startsWith(c.text);
           case "contains":
             return text.includes(c.text);
-          case "in-aggregate":
-            return exceptions.some((exception) => exception.type === "AggregateError");
           default:
             return true;
         }
@@ -158,20 +153,8 @@ export function cronExplainer(registryText: string | undefined): CronExplainer {
     return parsed;
   };
 
-  const expectFingerprints = (list: unknown) => {
-    for (const fingerprint of Array.isArray(list) ? list : []) {
-      if (Array.isArray(fingerprint) && fingerprint.every((part) => typeof part === "string")) {
-        expected.push(matcher([{ kind: "fingerprint", parts: fingerprint as string[] }]));
-      }
-    }
-  };
-
   for (const raw of registry.crons as Record<string, unknown>[]) {
     const cron = typeof raw?.cron === "string" ? raw.cron : "";
-    // A skipped API cron never runs here, so its liveness keys alert.
-    // scripts/check-rig-crons.mjs refuses fingerprints on any other Worker's
-    // skip, where they could only hide what the API itself raises.
-    if (raw?.class === "skip") expectFingerprints(raw.fingerprints);
     for (const event of asList(raw?.expected_events)) {
       const match = read(event.match);
       if (match) expected.push(match);
@@ -182,7 +165,6 @@ export function cronExplainer(registryText: string | undefined): CronExplainer {
     }
     for (const refusal of asList(raw?.refusals) as (Partial<Refusal> & Record<string, unknown>)[]) {
       const paths = Array.isArray(refusal.telnyx_paths) ? refusal.telnyx_paths.filter((p): p is string => typeof p === "string") : [];
-      expectFingerprints(refusal.fingerprints);
       for (const followOn of asList(refusal.follow_on_events)) {
         const match = read(followOn.match);
         if (match) expected.push(match);
@@ -206,21 +188,13 @@ export function cronExplainer(registryText: string | undefined): CronExplainer {
       if (expected.some((match) => match(event))) return { kind: "expected" };
       const exceptions = event.exceptions ?? [];
       if (exceptions.length === 1 && captured.some((paths) => isRefusal(exceptions[0]!, paths))) return { kind: "expected" };
-      const root = exceptions.at(-1);
-      const cron = root?.type === "AggregateError" ? /^cron "([^"]+)"/.exec(root.value)?.[1] : undefined;
+      const cron = event.tags?.cron;
       const paths = cron === undefined ? undefined : jobFails.get(cron);
       if (paths) {
-        // A job that collects its failures (poll-registrations, poll-port-requests,
-        // grace-and-release) adds an AggregateError of its own between the cron's
-        // and the refusal, so every exception that is not an AggregateError is a
-        // failure the cron reported.
+        // An AggregateError here is a wrapper; every exception that is not one
+        // is a failure the job reported.
         const leaves = exceptions.filter((exception) => exception.type !== "AggregateError");
-        const unwalked = exceptions.slice(0, Math.max(0, exceptions.length - SENTRY_WALKED));
-        if (
-          leaves.length > 0 &&
-          leaves.every((exception) => isRefusal(exception, paths)) &&
-          !unwalked.some((exception) => exception.type === "AggregateError")
-        ) {
+        if (leaves.length > 0 && leaves.every((exception) => isRefusal(exception, paths))) {
           return { kind: "expected" };
         }
       }

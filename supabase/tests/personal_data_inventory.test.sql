@@ -26,8 +26,8 @@ declare
   -- THIS SCRIPT CANNOT OPEN THAT DOCUMENT, and for a long time nothing did.
   -- The header above says this is "what stops it quietly becoming untrue",
   -- and the mechanism was a convention — "edited in the same commit" — which
-  -- is the thing people do not do. `activation_stall_state` sat in this array
-  -- and appeared nowhere in the document while this reported all tables
+  -- is the thing people do not do. A table once sat in this array and
+  -- appeared nowhere in the document while this reported all tables
   -- classified.
   --
   -- The document half is checked by apps/api/src/personal-data-inventory-doc
@@ -131,7 +131,7 @@ declare
     -- §5 operational data with an identifier attached
     'prepayments', 'referrals',
     'email_events', 'email_suppressions', 'email_ledger', 'public_link_access',
-    'public_links', 'webhook_events', 'webhook_rejections', 'inbound_canary_runs',
+    'public_links', 'webhook_events',
     -- #243: the outbound half. `webhook_deliveries` is `webhook_events` facing
     -- the other way and carries the same content, so it is classified beside it
     -- rather than anywhere gentler.
@@ -151,23 +151,17 @@ declare
     'app_release_policy', 'company_modules', 'conversation_reads',
     'conversation_tags', 'feature_flags', 'feature_flag_overrides',
     'grace_notices', 'high_priority_push_budget', 'high_priority_push_days',
-    'inbound_notification_days', 'liveness_heartbeats', 'message_mentions',
+    'inbound_notification_days', 'message_mentions',
     'outbound_call_authorizations', 'outbound_dial_leases',
     -- #537: a workspace id, a user id, a step, and a HASH of the emailed code.
     -- A credential rather than personal data, and dead within ten minutes.
     'ownership_confirmations', 'ownership_transfers',
-    'call_silence_state', 'retention_notices',
+    'retention_notices',
     -- #475: a template id, a count and a timestamp. Deliberately carries no
     -- contact and no conversation — "which reply did you send this person"
     -- is a per-contact fact and no feature in scope needs it, so the table
     -- stays here rather than becoming a new personal-data surface.
-    'template_uses',
-    -- #477: probe name, pass/fail, latency, and a short failure CODE. In §6
-    -- only because the code is capped and never a message — see the note there.
-    'probe_results',
-    -- #281: a company id and funnel timestamps. Names WHICH workspace is
-    -- struggling, which is commercial rather than personal.
-    'activation_stall_state'
+    'template_uses'
   ];
   v_missing text;
   v_stale   text;

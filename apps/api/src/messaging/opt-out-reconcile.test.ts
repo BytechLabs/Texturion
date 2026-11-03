@@ -7,20 +7,24 @@
  * recorded; a number only we hold is app-side enforcement working, and is left
  * exactly alone.
  */
-import * as Sentry from "@sentry/cloudflare";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { captured, exceptionsCaptured, noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { reconcileOptOuts } from "./opt-out-reconcile";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const PROFILE_ID = "profile-1";
+
+beforeEach(() => {
+  resetCaptures();
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -159,8 +163,9 @@ describe("reconcileOptOuts (#331)", () => {
     expect(summary).toMatchObject({ recorded: 0, appSideOnly: 2 });
     expect(sb.find("POST", "/rest/v1/opt_outs")).toHaveLength(0);
     expect(sb.find("PATCH", "/rest/v1/opt_outs")).toHaveLength(0);
-    // And a run where nothing is wrong sends nothing. A nightly "0" email is
-    // one nobody reads by week three, including the one that says 47.
+    // And a run where nothing is wrong sends nothing. A nightly "0" is one
+    // nobody reads by week three, including the one that says 47.
+    expect(captured).toEqual([]);
     expect(emails).toEqual([]);
   });
 
@@ -176,7 +181,7 @@ describe("reconcileOptOuts (#331)", () => {
     expect(sb.find("POST", "/rest/v1/opt_outs")).toHaveLength(0);
   });
 
-  it("emails ops, naming it as a webhook problem rather than a customer trend", async () => {
+  it("sends one notice, naming it as a webhook problem rather than a customer trend", async () => {
     const { routes, emails } = world({
       carrier: [carrierBlock("+16135551000"), carrierBlock("+16135551001")],
       ours: [],
@@ -185,10 +190,15 @@ describe("reconcileOptOuts (#331)", () => {
 
     await reconcileOptOuts(env);
 
-    expect(emails).toHaveLength(1);
-    expect(emails[0].subject).toContain("2 missed by our webhook");
-    expect(emails[0].text).toContain("Acme Plumbing");
-    expect(emails[0].text).toContain("webhook-delivery problem");
+    const notices = noticesCaptured("opt-out-missed-by-webhook");
+    expect(notices).toHaveLength(1);
+    expect(notices[0].detail).toContain("2 number(s) recorded");
+    expect(notices[0].detail).toContain(`company ${COMPANY_ID}`);
+    expect(notices[0].action).toContain("webhook-delivery problem");
+    // By id: a business name and the customers' numbers stay out of telemetry.
+    expect(JSON.stringify(captured)).not.toContain("Acme Plumbing");
+    expect(JSON.stringify(captured)).not.toContain("5551000");
+    expect(emails).toEqual([]);
   });
 
   it("keeps going when one workspace's carrier list cannot be read", async () => {
@@ -205,10 +215,10 @@ describe("reconcileOptOuts (#331)", () => {
     const summary = await reconcileOptOuts(env);
 
     expect(summary).toMatchObject({ companies: 2, failed: 2, recorded: 0 });
-    expect(Sentry.captureMessage).toHaveBeenCalledWith(
-      expect.stringContaining("opt-out reconcile failed"),
-      "error",
-    );
+    expect(exceptionsCaptured().map((entry) => entry.context)).toEqual([
+      { source: "cron", job: "job:opt-out-reconcile", company_id: COMPANY_ID },
+      { source: "cron", job: "job:opt-out-reconcile", company_id: other },
+    ]);
   });
 
   it("pages, and reports a list too long to finish rather than pretending it read it all", async () => {
@@ -217,7 +227,7 @@ describe("reconcileOptOuts (#331)", () => {
     const full = Array.from({ length: 250 }, (_, index) =>
       carrierBlock(`+1613555${String(index).padStart(4, "0")}`),
     );
-    const { routes, carrierQueries, emails } = world({
+    const { routes, carrierQueries } = world({
       carrierPages: Array.from({ length: 25 }, () => full),
       ours: [],
     });
@@ -228,7 +238,7 @@ describe("reconcileOptOuts (#331)", () => {
     // Stops at the page ceiling rather than walking a vendor endpoint forever.
     expect(carrierQueries).toHaveLength(20);
     expect(summary.divergences[0].truncated).toBe(true);
-    expect(emails[0].text).toContain("TRUNCATED");
+    expect(noticesCaptured("opt-out-missed-by-webhook")[0].detail).toContain("TRUNCATED");
   });
 
   it("asks only for live workspaces that have a messaging profile", async () => {

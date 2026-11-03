@@ -1,5 +1,5 @@
 import type { Env } from "../env";
-import { opsAlert } from "../observability/ops-alert";
+import { opsNotice } from "../observability/capture";
 
 /**
  * D142 — which Telnyx numbers this environment may act on.
@@ -59,36 +59,15 @@ export function partitionOrderFields(
 }
 
 /**
- * How many hours apart the reconcile sweep repeats a standing mismatch page.
- * The sweep runs every 15 minutes and keeps no state, and `opsAlert` also
- * emails on every call when OPS_ALERT_EMAIL is set: paging on every pass would
- * be 96 copies a day of one problem that only a portal visit fixes. Six hours
- * is the liveness checker's re-alert interval.
- */
-export const MISMATCH_SWEEP_ALERT_EVERY_HOURS = 6;
-
-/**
- * True for the one sweep in each six-hour window that may page: the first
- * quarter hour of 00, 06, 12 and 18 UTC. Stateless, like the email posture
- * check's daily hour, and sized for the 15-minute trigger, whose scheduledTime
- * lands in that quarter hour exactly once.
- */
-export function mismatchSweepAlertDue(now: Date): boolean {
-  return (
-    now.getUTCHours() % MISMATCH_SWEEP_ALERT_EVERY_HOURS === 0 &&
-    now.getUTCMinutes() < 15
-  );
-}
-
-/**
  * Numbers outside this partition that this environment has evidence are its
  * own: tagged to one of its companies, or claimed by one of its rows. In
  * production that is a customer's number that gained a billing group. Every
  * path here leaves it alone, so without this page it would be orphaned in
- * silence: never released, never adopted, never flagged. One alert covers the
- * whole batch. IDs only: phone numbers stay out of telemetry.
+ * silence: never released, never adopted, never flagged. One notice covers the
+ * whole batch, on every pass that sees it, so the PostHog issue stays open
+ * until a portal visit fixes it. IDs only: phone numbers stay out of telemetry.
  */
-export async function alertOwnershipMismatch(
+export async function reportOwnershipMismatch(
   env: Env,
   numbers: readonly TelnyxPartitionedNumber[],
   where: string,
@@ -107,7 +86,7 @@ export async function alertOwnershipMismatch(
         `billing_group_id=${number.billing_group_id ?? "none"})`,
     )
     .join("; ");
-  await opsAlert(env, {
+  await opsNotice(env, {
     key: "telnyx-ownership-mismatch",
     summary,
     detail:

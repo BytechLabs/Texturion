@@ -122,22 +122,23 @@ export function screenBusinessName(name: string): CategoryMatch[] {
 }
 
 /**
- * The line an ops alert leads with. Plain, and never a verdict.
+ * The evidence an ops notice carries. Plain, and never a verdict. It names the
+ * matched words and never the business name, which stays out of telemetry.
  *
  * #228 — ENGLISH on purpose, and not a gap. This never reaches a customer:
- * `alertProhibitedCategory` puts it in an email to `OPS_ALERT_EMAIL`, read by
- * whoever is deciding whether to look at a new workspace before it sends. It
- * is an internal sentence in the same sense a log line is, and translating it
- * would put the reader's own language between them and a judgement call about
- * somebody else's business.
+ * `alertProhibitedCategory` sends it to PostHog, read by whoever is deciding
+ * whether to look at a new workspace before it sends. It is an internal
+ * sentence in the same sense a log line is, and translating it would put the
+ * reader's own language between them and a judgement call about somebody
+ * else's business.
  */
-export function screeningSummary(name: string, matches: CategoryMatch[]): string {
-  if (matches.length === 0) return `“${name}” matched nothing.`;
-  const parts = matches.map((m) => `${m.category.replace(/_/g, " ")} (“${m.term}”)`);
+export function screeningSummary(matches: CategoryMatch[]): string {
+  if (matches.length === 0) return "The name matched nothing.";
+  const parts = matches.map((m) => `${m.category.replace(/_/g, " ")} ("${m.term}")`);
   return (
-    `“${name}” looks like it could be in a category the AUP prohibits: ` +
+    `The name looks like it could be in a category the AUP prohibits: ` +
     `${parts.join(", ")}. This is a keyword match on the name they typed, not ` +
-    `a finding — plenty of real businesses share these words. Look before ` +
+    `a finding; plenty of real businesses share these words. Look before ` +
     `acting.`
   );
 }

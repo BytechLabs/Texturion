@@ -1,43 +1,15 @@
 /**
- * #379 ask 4 — delivery rate per destination country.
+ * #379/#426: a workspace's delivery rate per destination country, shown to
+ * the customer on the usage page.
  *
- * D2 says Canada-bound outbound needs no registration, and the code agrees with
- * a hardcoded `caAllowed: true`. That reading may still be right. What makes it
- * dangerous is the SHAPE of being wrong: a Canadian carrier filtering
- * unregistered A2P traffic does not return an error. The message is accepted,
- * billed, marked sent, and never arrives.
+ * US and Canadian numbers are both +1, so the country lives in the area code,
+ * and the area-code table is `NANP_AREA_CODES` in `shared`. One table, read
+ * from TypeScript, rather than a second copy of it in a migration.
  *
- * So there is no failure to catch — only an absence, which per #387 is the one
- * thing this product cannot see. Delivery rate split by DESTINATION COUNTRY is
- * the only signal that would ever tell us, and it is worth having whether or
- * not D2 turns out to be correct. That is why this ships ahead of the answer
- * rather than behind it.
- *
- * WHY THE COUNTRY IS DERIVED HERE RATHER THAN IN SQL: US and Canadian numbers
- * are both +1, so the country lives in the area code, and the area-code table
- * is `NANP_AREA_CODES` in `shared`. Copying ~800 area codes into a migration to
- * do this in Postgres would be a second copy of a table with nothing keeping it
- * in step — the exact drift that has bitten this repo twice this week. One
- * table, read from TypeScript.
+ * The fleet-wide split is PostHog's: every final status sends a
+ * `message_outcome` event with its country (D146).
  */
 import { lookupAreaCode, type NanpCountry } from "@loonext/shared";
-
-import { getDb } from "../db";
-import { opsEmail, opsTextHtml } from "../observability/ops-alert";
-import type { Env } from "../env";
-
-/** How far back each run looks. */
-export const DELIVERY_WINDOW_DAYS = 7;
-
-/**
- * Below this delivery rate a destination country is worth a human look.
- *
- * Deliberately low. Carriers drop a small share of traffic for ordinary
- * reasons — handsets off, numbers reassigned — and an alert that fires on
- * normal noise gets filtered by the person receiving it, which is the failure
- * mode this whole alert exists to avoid.
- */
-export const DELIVERY_ALERT_FLOOR = 0.85;
 
 /**
  * Minimum messages to a country before its rate means anything. Three sends
@@ -106,67 +78,4 @@ export function summarize(rows: OutboundRow[]): CountryDelivery[] {
       };
     })
     .sort((a, b) => a.country.localeCompare(b.country));
-}
-
-/** Countries whose rate is both meaningful and bad. */
-export function underperforming(rows: CountryDelivery[]): CountryDelivery[] {
-  return rows.filter((r) => r.rate !== null && r.rate < DELIVERY_ALERT_FLOOR);
-}
-
-/**
- * Daily check: is anything we send failing to land in one country and not
- * another? Ops-only — this is our signal about carriers, not the customer's
- * problem to act on, and a customer told "your texts may not be arriving in
- * Canada" can do precisely nothing with that.
- */
-export async function runDeliveryByCountryJob(
-  env: Env,
-  now: Date = new Date(),
-): Promise<void> {
-  const db = getDb(env);
-  const since = new Date(
-    now.getTime() - DELIVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-  ).toISOString();
-
-  const { data, error } = await db
-    .from("messages")
-    .select("status,conversations(contacts(phone_e164))")
-    .eq("direction", "outbound")
-    .in("status", ["delivered", "failed"])
-    .gte("created_at", since)
-    .limit(5000);
-  if (error) {
-    throw new Error(`delivery-by-country read failed: ${error.message}`);
-  }
-
-  const summary = summarize((data ?? []) as unknown as OutboundRow[]);
-  const bad = underperforming(summary);
-  if (bad.length === 0) return;
-
-  const lines = summary
-    .map(
-      (r) =>
-        `  ${r.country}: ${r.delivered} delivered, ${r.failed} failed` +
-        (r.rate === null ? "" : ` (${(r.rate * 100).toFixed(1)}%)`),
-    )
-    .join("\n");
-
-  const text =
-    `Delivery rate fell below ${(DELIVERY_ALERT_FLOOR * 100).toFixed(0)}% in ` +
-    `${bad.map((b) => b.country).join(", ")} over the last ` +
-    `${DELIVERY_WINDOW_DAYS} days.\n\n${lines}\n\n` +
-    `A carrier filtering unregistered A2P traffic does not return an error — ` +
-    `the message is accepted, billed, marked sent, and never arrives. This ` +
-    `split is the only signal that would ever show it (#379, #235).\n\n` +
-    `If CANADA is the country below the line, the open question in DECISIONS ` +
-    `D2 is the first place to look: every number we hold was bought after the ` +
-    `2025-03-26 cutoff, so none of them is grandfathered for domestic ` +
-    `Canadian traffic, and none carries a messaging campaign.`;
-
-  await opsEmail(env, {
-    key: "ops:messaging-delivery-by-country",
-    subject: `[ops] delivery rate low in ${bad.map((b) => b.country).join(", ")}`,
-    text,
-    html: opsTextHtml(text),
-  });
 }

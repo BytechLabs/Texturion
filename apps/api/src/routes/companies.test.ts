@@ -18,7 +18,13 @@ import {
   stubFetch,
   type TestAuth,
 } from "../test/support";
+import { opsNotice } from "../observability/capture";
+import { noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { companiesRoutes } from "./companies";
+
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
@@ -33,6 +39,8 @@ beforeAll(async () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  resetCaptures();
 });
 
 function stubWithRole(role: string | null): SupabaseStub {
@@ -271,7 +279,7 @@ describe("POST /v1/companies (company-exempt)", () => {
  * SS-2 is the one that matters. This exists to catch a dispensary before a
  * carrier complaint does, and it must never be the reason a real contractor
  * cannot sign up: the screen flags, a person decides, and the workspace is
- * created either way. A signup that failed because an ops mailbox was down
+ * created either way. A signup that failed because a notice could not be sent
  * would be a far worse bug than the one this prevents.
  */
 describe("POST /v1/companies — AUP signup screening (#303)", () => {
@@ -281,16 +289,8 @@ describe("POST /v1/companies — AUP signup screening (#303)", () => {
     return sb;
   }
 
-  it("SS-1: a name suggesting a prohibited category alerts somebody", async () => {
-    const sb = world();
-    const sent: unknown[] = [];
-    stubFetch(jwksRoute(auth), sb.route, (url, request) => {
-      if (!url.href.includes("resend")) return undefined;
-      return request.text().then((body) => {
-        sent.push(JSON.parse(body));
-        return Response.json({ id: "email-1" });
-      });
-    });
+  it("SS-1: a name suggesting a prohibited category sends one notice", async () => {
+    stubFetch(jwksRoute(auth), world().route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
       method: "POST",
@@ -299,26 +299,21 @@ describe("POST /v1/companies — AUP signup screening (#303)", () => {
     });
     expect(res.status).toBe(201);
 
-    const email = sent[0] as { subject: string; text: string };
-    expect(email.subject).toMatch(/cannabis/i);
+    const [notice] = noticesCaptured("aup-signup-screen");
+    expect(notice.detail).toMatch(/cannabis/i);
+    expect(notice.detail).toMatch(/not\s+a finding/i);
+    expect(notice.detail).toContain(`company ${COMPANY_ID}`);
     // Never a verdict: whoever opens this is about to look at a real business.
-    expect(email.subject).not.toMatch(/violation|prohibited business/i);
-    expect(email.text).toMatch(/not\s+a finding/i);
+    expect(notice.summary).not.toMatch(/violation|prohibited business/i);
+    // By id: the business name stays out of telemetry.
+    expect(JSON.stringify(notice)).not.toContain("Green Leaf");
   });
 
-  it("SS-2: an ordinary contractor is not alerted on, and never blocked", async () => {
+  it("SS-2: an ordinary contractor is not reported, and never blocked", async () => {
     // THE ONE THAT MATTERS. A screen that fires on real customers trains
     // whoever reads it to dismiss the queue, and one that could block a signup
     // would be a worse bug than the problem it solves.
-    const sb = world();
-    const sent: unknown[] = [];
-    stubFetch(jwksRoute(auth), sb.route, (url, request) => {
-      if (!url.href.includes("resend")) return undefined;
-      return request.text().then((body) => {
-        sent.push(JSON.parse(body));
-        return Response.json({ id: "email-1" });
-      });
-    });
+    stubFetch(jwksRoute(auth), world().route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
       method: "POST",
@@ -326,18 +321,15 @@ describe("POST /v1/companies — AUP signup screening (#303)", () => {
       body: { ...validBody, requested_area_code: "212", name: "Colt Plumbing & Heating" },
     });
     expect(res.status).toBe(201);
-    expect(sent).toEqual([]);
+    expect(noticesCaptured()).toEqual([]);
   });
 
-  it("SS-3: the workspace is created even when the alert cannot be sent", async () => {
-    // The alert is best-effort by construction. A workspace that exists must
-    // not fail to be created because an ops mailbox was unreachable.
-    const sb = world();
-    stubFetch(jwksRoute(auth), sb.route, (url) =>
-      url.href.includes("resend")
-        ? new Response("upstream down", { status: 500 })
-        : undefined,
-    );
+  it("SS-3: the workspace is created even when the notice cannot be sent", async () => {
+    // Best-effort by construction. A workspace that exists must not fail to be
+    // created because PostHog was unreachable.
+    stubFetch(jwksRoute(auth), world().route);
+    vi.mocked(opsNotice).mockRejectedValueOnce(new Error("upstream down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
       method: "POST",

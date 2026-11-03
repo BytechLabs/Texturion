@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
+import { captureEvent, SYSTEM_DISTINCT_ID } from "../observability/capture";
 import { countWebhookRejection } from "../observability/webhook-rejections";
 
 /**
@@ -214,6 +215,15 @@ export async function processResendEvent(env: Env, event: ResendEvent): Promise<
     if (error) {
       throw new Error(`record_email_event failed: ${error.message}`);
     }
+  }
+
+  // D146: the domain's bounce and complaint rates are PostHog's to watch, set
+  // against the `channel:resend-send` heartbeat each send makes. The address
+  // stays here.
+  if (kind !== "delivered") {
+    void captureEvent(env, "email_bounced", SYSTEM_DISTINCT_ID, {
+      kind: kind === "bounced" ? "bounce" : "complaint",
+    });
   }
 }
 

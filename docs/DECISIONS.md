@@ -8774,7 +8774,7 @@ metadata is most of what a marketing page is for.
 **Decision.** Operational alerts go to **Sentry**, fingerprinted by a stable
 `key`. Email is an optional secondary copy, sent only when `OPS_ALERT_EMAIL` is
 configured, and there is **no fallback recipient**. One module —
-`apps/api/src/observability/ops-alert.ts` — owns both channels; it is the only
+`observability/ops-alert.ts` in the API Worker (removed by D146) — owns both channels; it is the only
 place permitted to read that binding, and `ops-alert.test.ts` enforces that by
 sweeping the tree. Ops mail is `kind: "operational"`, which exempts it from the
 customer service-message footer and points its Reply-To back at ops.

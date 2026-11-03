@@ -31,7 +31,7 @@ import { fail, runScript, showRows } from "./lib.mjs";
  *
  * Duplicated deliberately: this script is plain ESM with no build step and
  * cannot import the Worker's TypeScript. `flags-roster.test.ts` fails CI if
- * the two lists drift, which is the same guard the liveness table uses.
+ * the two lists drift, the same check mount.test.ts keeps on the cron list.
  */
 const KILL_SWITCHES = ["kill:ai", "kill:calls", "kill:realtime", "kill:outbound-send"];
 

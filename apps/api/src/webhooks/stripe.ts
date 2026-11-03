@@ -1,6 +1,5 @@
 import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
 
 import { capture } from "../analytics/posthog";
@@ -54,6 +53,7 @@ import { getStripe, stripeCryptoProvider, type Stripe } from "../billing/stripe"
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
+import { captureException } from "../observability/capture";
 import { liveStripeEventRefusal } from "../environments/policy";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
@@ -451,9 +451,8 @@ export async function ensureVoiceMeteredItem(
             ),
         },
       );
-      Sentry.captureMessage(
+      console.log(
         `voice metered item attached to subscription ${subscription.id} (company ${companyId}) — D36 convergence`,
-        "info",
       );
       return;
     }
@@ -467,7 +466,7 @@ export async function ensureVoiceMeteredItem(
       });
     }
   } catch (cause) {
-    Sentry.captureException(cause);
+    void captureException(env, cause, { source: "api", company_id: companyId });
     console.error(
       `voice metered convergence failed for ${companyId}:`,
       cause instanceof Error ? cause.message : String(cause),
@@ -601,12 +600,13 @@ async function noticeHeldNumbers(
       // notice that had nowhere to go. The push still fires (its audience is
       // user ids, not addresses) — but the channel we treat as the durable one
       // did not, and that has to be on the record.
-      Sentry.captureMessage(
+      void captureException(
+        env,
         heldNoticeNoRecipientsAlert({
           companyId: args.companyId,
           held: args.held.length,
         }),
-        "error",
+        { source: "api", company_id: args.companyId },
       );
     } else {
       await sendEmail(env, {
@@ -675,7 +675,7 @@ export async function handleCheckoutCompleted(
 
   // #400/D107: a prepaid year is a one-time payment session, so it carries NO
   // subscription reference and would fall into the throw below — which the
-  // sweeper would then retry every five minutes forever, with a Sentry alert
+  // sweeper would then retry every five minutes forever, with an exception
   // each time. Branch before that, on OUR metadata rather than on `mode`: mode
   // alone would also claim any future one-time session this product grows, and
   // the failure of guessing wrong here is silent money movement.
@@ -806,11 +806,20 @@ export async function handleCheckoutCompleted(
     try {
       await stripe.subscriptions.cancel(subscriptionId);
     } catch (cancelError) {
-      Sentry.captureException(cancelError);
+      void captureException(env, cancelError, { source: "api", company_id: companyId });
     }
-    Sentry.captureMessage(
-      `checkout: duplicate subscription ${subscriptionId} for company ${companyId} cancelled — a live subscription (${claimResult.existing_subscription_id ?? "?"}) already exists`,
-      "warning",
+    void captureException(
+      env,
+      "checkout: duplicate subscription cancelled, a live subscription already exists",
+      {
+        source: "api",
+        level: "warning",
+        company_id: companyId,
+        extra: {
+          subscription_id: subscriptionId,
+          existing_subscription_id: claimResult.existing_subscription_id ?? null,
+        },
+      },
     );
     return;
   }
@@ -890,10 +899,13 @@ export async function handleCheckoutCompleted(
       expectedEpoch: capacityEpoch,
     });
     if (allowance.capacityFenced) {
-      Sentry.captureMessage(
-        `checkout ${session.id}: paid-extra capacity raise fenced for company ${companyId} — a credit landed mid-activation; the next reconcile re-mirrors`,
-        "warning",
-      );
+      // A credit landed mid-activation; the next reconcile re-mirrors.
+      void captureException(env, "checkout: paid-extra capacity raise fenced", {
+        source: "api",
+        level: "warning",
+        company_id: companyId,
+        extra: { checkout_session_id: session.id },
+      });
     }
     if (allowance.held.length > 0 && plan) {
       // BEST-EFFORT, like every other side effect on this path that is not the
@@ -909,7 +921,7 @@ export async function handleCheckoutCompleted(
       // already spent), which is how the hold ended up costing us silently.
       //
       // Loud, though. The claim is given back so a replay can try again, and
-      // Sentry hears about it either way.
+      // it is reported as an exception either way.
       try {
         await noticeHeldNumbers(env, db, {
           companyId,
@@ -921,14 +933,15 @@ export async function handleCheckoutCompleted(
           emailKey: `numbers_held:${session.id}`,
         });
       } catch (cause) {
-        Sentry.captureException(cause);
-        Sentry.captureMessage(
+        void captureException(env, cause, { source: "api", company_id: companyId });
+        void captureException(
+          env,
           heldNoticeUnannouncedAlert({
             companyId,
             sessionId: session.id,
             held: allowance.held.length,
           }),
-          "error",
+          { source: "api", company_id: companyId },
         );
         console.error(
           `held-number notice failed for ${companyId} (${session.id}):`,

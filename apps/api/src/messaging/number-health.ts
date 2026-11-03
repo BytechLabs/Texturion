@@ -12,9 +12,9 @@
  * What lives here is the part that needs judgement about PEOPLE:
  *
  *   - only TRANSITIONS are announced. The RPC returns just the numbers whose
- *     state changed, so a known-bad number does not mail us every morning
- *     until somebody starts ignoring the mailbox.
- *   - 'watch' emails US. 'degraded' also becomes a banner the customer sees.
+ *     state changed, so a known-bad number does not send a notice every
+ *     morning until somebody starts ignoring them.
+ *   - 'watch' is a notice to US. 'degraded' also becomes a banner the customer sees.
  *     A maybe-degraded warning on a thin sample is how a false alarm turns
  *     into a cancellation, so the customer only ever hears the confident one.
  *   - RECOVERY is announced too. A number that came back is the only evidence
@@ -24,8 +24,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
+import { opsNotice } from "../observability/capture";
 
 /** One row from api_assess_number_health — a number that changed state. */
 interface HealthTransition {
@@ -64,40 +64,32 @@ export async function runNumberHealthJob(
     const rate = row.delivery_rate === null ? "?" : `${Math.round(row.delivery_rate * 100)}%`;
     const base =
       row.baseline_rate === null ? "no baseline" : `was ${Math.round(row.baseline_rate * 100)}%`;
-    return `  ${row.number_e164 ?? row.phone_number_id}: ${row.was} → ${row.state} — ${rate} (${base})${row.detail ? `; ${row.detail}` : ""}`;
+    // The id, never the number: telemetry carries no phone numbers (§10).
+    return `phone_number ${row.phone_number_id}: ${row.was} to ${row.state}, ${rate} (${base})${row.detail ? `; ${row.detail}` : ""}`;
   };
 
-  const parts: string[] = [];
-  if (worse.length > 0) {
-    parts.push(
-      `${worse.length} number(s) got worse:\n${worse.map(line).join("\n")}`,
-      "",
-      "A number that has been labelled does not recover on its own — the " +
-        "registry paperwork takes days, so the useful moment to start is now " +
-        "rather than when the customer calls. docs/NUMBER-REPUTATION.md has " +
-        "the remediation path.",
-    );
-  }
-  if (better.length > 0) {
-    parts.push(
-      `${better.length} number(s) recovered:\n${better.map(line).join("\n")}`,
-      "",
-      "Worth reading even though it is good news: a recovery is the only " +
-        "evidence any remediation actually worked.",
-    );
-  }
-
   const degraded = transitions.filter((row) => row.state === "degraded").length;
-  const text = parts.join("\n");
+  const lines = [
+    ...worse.map((row) => `worse: ${line(row)}`),
+    ...better.map((row) => `recovered: ${line(row)}`),
+  ];
 
-  await opsEmail(env, {
-    key: "ops:messaging-number-health",
-    subject:
+  await opsNotice(env, {
+    key: "number-health",
+    level: degraded > 0 ? "error" : "warning",
+    summary:
       degraded > 0
-        ? `[ops] ${degraded} number(s) now DEGRADED — customers can see this`
-        : `[ops] number health changed for ${transitions.length} number(s)`,
-    text,
-    html: opsTextHtml(text),
+        ? "A number is now DEGRADED, and its customer can see it"
+        : worse.length > 0
+          ? "A number's delivery health got worse"
+          : "A number's delivery health recovered",
+    detail: lines.join("; "),
+    action:
+      worse.length > 0
+        ? "A labelled number does not recover on its own and the registry paperwork " +
+          "takes days, so start now rather than when the customer calls. " +
+          "docs/NUMBER-REPUTATION.md has the remediation path."
+        : "Nothing to do. A recovery is the only evidence a remediation worked.",
   });
 
   return transitions;

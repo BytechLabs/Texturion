@@ -1,22 +1,31 @@
 /**
- * #235 — the alerting half, and the read that must never break the app.
+ * #235: the notice half, and the read that must never break the app.
  *
  * The SQL decides *whether* a number is degraded (`number_reputation.test.sql`
  * pins that, including the false-alarm cases). What is asserted here is the
- * judgement about people: that a known-bad number does not mail us every
+ * judgement about people: that a known-bad number does not send a notice every
  * morning, that recovery is reported too, and that a reputation lookup can
  * never take down the numbers list — which the composer's "text from" picker
  * reads, so a failure there would stop somebody texting a customer.
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../env";
+import { captured, noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { loadNumberHealth } from "./number-health-read";
 import { runNumberHealthJob } from "./number-health";
 
-const env = { OPS_ALERT_EMAIL: "ops@test.local" } as unknown as Env;
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
 
-/** A db stub whose rpc answers with `data`, plus captured email sends. */
+const env = {} as unknown as Env;
+
+beforeEach(() => {
+  resetCaptures();
+});
+
+/** A db stub whose rpc answers with `data`. */
 function stub(data: unknown, fail = false) {
   const rpc = vi.fn(async () =>
     fail ? { data: null, error: { message: "boom" } } : { data, error: null },
@@ -38,72 +47,56 @@ const transition = (over: Record<string, unknown> = {}) => ({
 
 describe("runNumberHealthJob", () => {
   it("sends nothing when no number changed state", async () => {
-    // The common morning. A known-bad number is not news, and mailing about it
-    // daily is how the mailbox stops being read.
-    const sent = vi.fn();
-    vi.stubGlobal("fetch", sent);
+    // The common morning. A known-bad number is not news, and a notice about
+    // it daily is how notices stop being read.
     const { db } = stub([]);
 
     const rows = await runNumberHealthJob(env, new Date(0), db);
 
     expect(rows).toEqual([]);
-    expect(sent).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
+    expect(captured).toEqual([]);
   });
 
-  it("names the number, the fall, and the baseline it fell from", async () => {
-    const bodies: string[] = [];
-    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
-      bodies.push(String(init?.body ?? ""));
-      return Response.json({ id: "e1" });
-    });
+  it("names the number by id, the fall, and the baseline it fell from", async () => {
     const { db } = stub([transition()]);
 
     await runNumberHealthJob(env, new Date(0), db);
 
-    const body = bodies.join("");
-    expect(body).toContain("+14165550001");
-    expect(body).toContain("54%");
+    const [notice] = noticesCaptured("number-health");
+    expect(notice.detail).toContain("phone_number n1");
+    expect(notice.detail).toContain("54%");
     // Without the baseline, "54%" is not obviously bad — some numbers live
     // there. The comparison is the whole claim.
-    expect(body).toContain("97%");
-    vi.unstubAllGlobals();
+    expect(notice.detail).toContain("97%");
+    // The id, never the number: telemetry carries no phone numbers.
+    expect(JSON.stringify(captured)).not.toContain("5550001");
   });
 
-  it("says in the subject when a customer can see it", async () => {
-    const bodies: string[] = [];
-    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
-      bodies.push(String(init?.body ?? ""));
-      return Response.json({ id: "e1" });
-    });
+  it("says when a customer can see it", async () => {
     const { db } = stub([transition()]);
 
     await runNumberHealthJob(env, new Date(0), db);
 
-    expect(bodies.join("")).toContain("DEGRADED");
-    vi.unstubAllGlobals();
+    const [notice] = noticesCaptured("number-health");
+    expect(notice.summary).toContain("DEGRADED");
+    expect(notice.level).toBe("error");
   });
 
   it("reports a recovery, because it is the only proof a fix worked", async () => {
-    const bodies: string[] = [];
-    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
-      bodies.push(String(init?.body ?? ""));
-      return Response.json({ id: "e1" });
-    });
     const { db } = stub([transition({ was: "degraded", state: "healthy" })]);
 
     await runNumberHealthJob(env, new Date(0), db);
 
-    const body = bodies.join("");
-    expect(body).toContain("recovered");
+    const [notice] = noticesCaptured("number-health");
+    expect(notice.summary).toContain("recovered");
     // And it must not read as an alarm.
-    expect(body).not.toContain("DEGRADED");
-    vi.unstubAllGlobals();
+    expect(notice.summary).not.toContain("DEGRADED");
+    expect(notice.level).toBe("warning");
   });
 
   it("throws when the assessment itself fails, so the cron reports broken", async () => {
     // Opposite posture to the read below: this is a job, and a job that fails
-    // silently is exactly what the liveness ledger exists to catch.
+    // silently is one nobody hears about.
     const { db } = stub(null, true);
     await expect(runNumberHealthJob(env, new Date(0), db)).rejects.toThrow(/assessment failed/);
   });

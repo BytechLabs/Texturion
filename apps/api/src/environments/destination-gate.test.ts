@@ -20,7 +20,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../db";
 import { getEnv, type Bindings } from "../env";
 import { dispatchOutbound, sendSystemText } from "../messaging/send";
-import { runInboundCanaryJob } from "../observability/inbound-canary";
 import { TELNYX_ENDPOINTS } from "../telnyx/endpoints";
 import { attachHostedOrderDocuments } from "../telnyx/text-enablement";
 import { telnyxDestinations } from "../telnyx/client";
@@ -33,7 +32,6 @@ import {
   rigEnv,
   STRANGER,
 } from "../test/rig-env";
-import { supabaseStub } from "../test/routes-harness";
 import { productionSources, sourceText, stripComments } from "../test/source-tree";
 import { clearedFor, completeEnv, stubFetch } from "../test/support";
 import { RIG_DESTINATION_REFUSED, telnyxRequestRefusal } from "./policy";
@@ -353,49 +351,6 @@ describe("an account-wide raw fetch, behaving", () => {
       "/v2/documents/doc-loa/download",
       "/v2/messaging_hosted_number_orders/hno-1/actions/file_upload",
     ]);
-  });
-});
-
-describe("the inbound canary, behaving", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  function canary(to: string) {
-    const env = getEnv(rigEnv({ CANARY_FROM_E164: OWNED_A, CANARY_TO_E164: to }));
-    const sb = supabaseStub(env);
-    // Owned either way: the rig's stranger is a number it owns but keeps off
-    // its allowlist, so ownership alone must not be enough to text it.
-    sb.on("GET", "/rest/v1/phone_numbers", () => [{ id: "num-1" }]);
-    sb.on("POST", "/rest/v1/rpc/inbound_canary_unanswered", () => 0);
-    sb.on("POST", "/rest/v1/rpc/confirm_inbound_canary", () => ({ confirmed: null, pending: false }));
-    sb.on("POST", "/rest/v1/inbound_canary_runs", () => []);
-    sb.on("PATCH", "/rest/v1/inbound_canary_runs", () => []);
-    const telnyx: string[] = [];
-    stubFetch(sb.route, (url) => {
-      if (url.origin === RIG_SUPABASE_URL) return undefined;
-      telnyx.push(url.href);
-      return Response.json({ data: { id: "msg-1" } });
-    });
-    return { env, sb, telnyx };
-  }
-
-  it("records a failed send to a number off the allowlist, and sends nothing", async () => {
-    const { env, sb, telnyx } = canary(STRANGER);
-    const result = await runInboundCanaryJob(env, new Date());
-    expect(result).toMatchObject({
-      status: "send-failed",
-      detail: expect.stringMatching(/RIG_OWNED_E164/),
-    });
-    expect(telnyx).toEqual([]);
-    expect(sb.find("PATCH", "/rest/v1/inbound_canary_runs")).toHaveLength(1);
-  });
-
-  it("texts the partition's own number through the guard", async () => {
-    const { env, telnyx } = canary(OWNED_B);
-    const result = await runInboundCanaryJob(env, new Date());
-    expect(result).toMatchObject({ status: "sent" });
-    expect(telnyx).toEqual([`${RIG_TELNYX_API_BASE}/v2/messages`]);
   });
 });
 

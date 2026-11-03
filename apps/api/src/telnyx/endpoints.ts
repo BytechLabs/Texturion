@@ -133,6 +133,4 @@ export const TELNYX_ENDPOINTS = [
   { method: "POST", path: "/v2/telephony_credentials", policy: "provisioning" },
   { method: "DELETE", path: "/v2/telephony_credentials/:id", policy: "provisioning" },
   { method: "POST", path: "/v2/telephony_credentials/:id/token", policy: "provisioning" },
-
-  { method: "GET", path: "/v2/webhook_deliveries", policy: "read" },
 ] as const satisfies readonly TelnyxEndpoint[];

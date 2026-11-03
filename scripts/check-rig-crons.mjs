@@ -8,27 +8,22 @@
  * The rig fires each cron in the deployed ref's own config. `tools/rig/crons.json`
  * classifies each as `run`, `run-expect-refusal` (rig mode refuses an
  * account-wide Telnyx request with `rig_endpoint_refused`) or `skip`. R00 fails
- * on any Sentry fingerprint nothing explains, so an unclassified cron is a
- * standing red.
+ * on any exception nothing explains, so an unclassified cron is a standing red.
  *
- * A refusal's `outcome` says what Sentry receives. `job-fails`: the job lets
- * the error out, so it arrives inside the cron's AggregateError and the job's
- * liveness alert follows. `captured`: the job catches it at `caught_in`,
- * reports it as its own event and returns normally, so no liveness alert
- * follows, and suppressing one would hide a real failure.
+ * A refusal's `outcome` says what reaches PostHog. `job-fails`: the job lets
+ * the error out, and runScheduledJobs reports it as an exception tagged with
+ * the cron and the job. `captured`: the job catches it at `caught_in` and
+ * reports it as its own exception.
  *
- * A skipped API cron lists the liveness alerts that follow. The rig fires
- * only the API's crons (`rig cron` takes the API's), so any
- * other Worker's (the edge's, the guard's) is a skip, and it lists no
- * fingerprint: that Worker reports nowhere the rig's relay reads, so anything
- * listed could only match an event the rig's own API raises, and hide it.
+ * The rig fires only the API's crons (`rig cron` takes the API's), so any
+ * other Worker's (the edge's, the guard's) is a skip. A skip is never fired,
+ * so it raises nothing and explains nothing.
  *
  * Fails when a config declares a cron the registry does not classify, the
  * registry classifies one no config declares, an entry is malformed, an API
  * cron's jobs differ from `CRON_JOBS` (the jobs are what is classified),
- * another Worker's cron is not a skip or lists a fingerprint, a
- * refusal names an endpoint rig mode does not refuse, or a `caught_in`
- * function does not exist.
+ * another Worker's cron is not a skip, a refusal names an endpoint rig mode
+ * does not refuse, or a `caught_in` function does not exist.
  *
  * `--ref` reads the configs and sources from that ref. There, entries and jobs
  * the ref lacks are notes, since the registry may be newer. A ref whose
@@ -60,10 +55,10 @@ const CRON_FIELD = /^[0-9*/,-]+$/;
 const ENTRY_KEYS = {
   run: ["config", "cron", "class", "jobs", "note", "expected_events", "defects"],
   "run-expect-refusal": ["config", "cron", "class", "jobs", "note", "refusals", "expected_events", "defects"],
-  skip: ["config", "cron", "class", "jobs", "reason", "fingerprints"],
+  skip: ["config", "cron", "class", "jobs", "reason"],
 };
 export const OUTCOMES = ["job-fails", "captured"];
-const REFUSAL_KEYS = ["job", "code", "outcome", "telnyx_paths", "when", "caught_in", "fingerprints", "follow_on_events"];
+const REFUSAL_KEYS = ["job", "code", "outcome", "telnyx_paths", "when", "caught_in", "follow_on_events"];
 const CAUGHT_IN = /^([\w./-]+\.ts)#(\w+)$/;
 
 /** Comments and trailing commas out, outside strings only: a `//` in a URL is not a comment. */
@@ -159,8 +154,6 @@ export function declaresFunction(text, name) {
 
 const isStringList = (value) =>
   Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string" && item.trim() !== "");
-const isFingerprint = (value) => isStringList(value);
-const sameFingerprint = (a, b) => a.length === b.length && a.every((part, i) => part === b[i]);
 const isSentence = (value) => typeof value === "string" && value.trim() !== "";
 
 /** `expected_events`, `defects` and `follow_on_events` are lists of a match and one explaining field. */
@@ -231,28 +224,6 @@ function checkClassFields(entry, at, problems, families, sourceAt) {
     if (typeof entry.reason !== "string" || entry.reason.trim() === "") {
       problems.push(`${at}: a skip needs a reason`);
     }
-    if (entry.fingerprints !== undefined && (!Array.isArray(entry.fingerprints) || !entry.fingerprints.every(isFingerprint))) {
-      problems.push(`${at}: fingerprints must be a list of fingerprints`);
-      return;
-    }
-    const listed = entry.fingerprints ?? [];
-    // The API's liveness checker watches only the API's own crons and jobs: a
-    // skipped one goes overdue and alerts under each key.
-    if (entry.config === FIRED_CONFIG) {
-      const owed = [["ops", `cron:${entry.cron}`], ...(entry.jobs ?? []).map((job) => ["ops", job])];
-      for (const fingerprint of owed) {
-        if (!listed.some((item) => sameFingerprint(item, fingerprint))) {
-          problems.push(`${at}: a skip silences ${JSON.stringify(fingerprint)}, so list it in fingerprints`);
-        }
-      }
-      return;
-    }
-    for (const item of listed) {
-      problems.push(
-        `${at}: ${entry.config} reports nowhere the rig's relay reads, so ${JSON.stringify(item)} could only ` +
-          `match an event the rig's own API raises, and would hide it; list no fingerprints`,
-      );
-    }
     return;
   }
   if (!Array.isArray(entry.refusals) || entry.refusals.length === 0) {
@@ -304,27 +275,11 @@ function checkClassFields(entry, at, problems, families, sourceAt) {
       }
     }
     checkEventList(refusal.follow_on_events, "follow_on_events", "why", where, problems);
-    const liveness = ["ops", refusal.job];
-    if (refusal.fingerprints !== undefined && (!Array.isArray(refusal.fingerprints) || !refusal.fingerprints.every(isFingerprint))) {
-      problems.push(`${where}: fingerprints must be a list of fingerprints`);
-      continue;
-    }
-    const listed = refusal.fingerprints ?? [];
-    const listsLiveness = listed.some((item) => sameFingerprint(item, liveness));
     if (refusal.outcome === "job-fails") {
       if (refusal.caught_in !== undefined) {
         problems.push(`${where}: a job-fails refusal is not caught; drop caught_in, or make it captured`);
       }
-      // The job withholds its heartbeat, and the liveness checker then alerts
-      // on it under this fingerprint.
-      if (!listsLiveness) problems.push(`${where}: fingerprints must include ${JSON.stringify(liveness)}`);
       continue;
-    }
-    if (listsLiveness) {
-      problems.push(
-        `${where}: a captured refusal leaves the job's heartbeat recorded, so ${JSON.stringify(liveness)} ` +
-          `would only ever be a real failure; do not suppress it`,
-      );
     }
     const pointer = CAUGHT_IN.exec(typeof refusal.caught_in === "string" ? refusal.caught_in : "");
     if (pointer === null) {

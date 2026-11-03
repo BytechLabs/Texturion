@@ -1,28 +1,26 @@
 import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@loonext/shared";
-import * as Sentry from "@sentry/cloudflare";
 import { Hono, type Context, type ErrorHandler } from "hono";
 import { cors } from "hono/cors";
 
 import { securityHeaders } from "./http/security-headers";
 import { sweepDeletedAttachments } from "./attachments/sweep";
-import { runDeliveryByCountryJob } from "./messaging/delivery-by-country";
 import { companyContext } from "./auth/company";
-import { CallSessionDO as CallSessionDOImpl } from "./calls/session-do";
 import { jwtAuth } from "./auth/jwt";
 import { runGraceJob } from "./billing/grace";
 import { sweepUncreditedConversions } from "./billing/prepay";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import {
-  runOverageDigestJob,
-} from "./billing/overage-warning";
-import { runProbes } from "./observability/probes";
-import { runRingSuccessWatch } from "./observability/ring-success";
-import { runTelnyxCapacityWatch } from "./observability/telnyx-capacity";
+  captureException,
+  type ExceptionContext,
+  type WaitUntil,
+} from "./observability/capture";
 import {
-  runTelnyxSpendLimitDriftWatch,
-  runTelnyxSpendWatch,
-} from "./observability/telnyx-spend";
-import { runTelnyxWiringWatch } from "./observability/telnyx-wiring";
+  cronHeartbeat,
+  isCronSchedule,
+  type CronSchedule,
+} from "./observability/heartbeat";
+import { runTelnyxCapacityGauge } from "./observability/telnyx-capacity";
+import { runTelnyxSpendGauges } from "./observability/telnyx-spend";
 import { runResponseTimeRecapJob } from "./reports/monthly-recap";
 import {
   runOverageWarningJob,
@@ -41,9 +39,6 @@ import { runBatchFlush } from "./notifications/batch-flush";
 import { runDailySummary } from "./notifications/daily-summary";
 import { runEscalationSweep } from "./notifications/escalation-sweep";
 import { runNumberHealthJob } from "./messaging/number-health";
-import { runRegistrationStallJob } from "./telnyx/registration-stalls";
-import { runActivationStallJob } from "./analytics/activation-stall";
-import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
 import {
   runContactRetentionJob,
@@ -51,17 +46,9 @@ import {
 } from "./marketing/contact-retention";
 import { runCarrierCeilingJob } from "./billing/carrier-ceiling";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
-import { runAupWatchJob } from "./messaging/aup-watch";
+import { runAupSignalsJob } from "./messaging/aup-watch";
 import { runRetentionEnforceJob } from "./workspace/retention-enforce";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
-import { runInboundCanaryJob } from "./observability/inbound-canary";
-import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
-import { runLivenessCheckJob } from "./observability/liveness-check";
-import {
-  recordHeartbeatBestEffort,
-  type CronSchedule,
-  type JobKey,
-} from "./observability/liveness";
 import { notifyDueTasksJob } from "./tasks/due-notice";
 import {
   ApiError,
@@ -83,7 +70,6 @@ import {
   pruneWebhookDeliveries,
 } from "./webhooks/outbound-deliver";
 import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
-import { sentryOptions } from "./observability/sentry";
 import { attachmentsRoutes } from "./routes/attachments";
 import { availableNumbersRoutes } from "./routes/available-numbers";
 import { billingRoutes } from "./routes/billing";
@@ -124,10 +110,7 @@ import { searchRoutes } from "./routes/search";
 import { sessionsRoutes } from "./routes/sessions";
 import { pruneAuditLog } from "./audit/retention";
 import { pruneUserSessions } from "./auth/session-retention";
-import {
-  pruneProbeResults,
-  prunePublicLinkAccess,
-} from "./crons/retention-prunes";
+import { prunePublicLinkAccess } from "./crons/retention-prunes";
 import { buildDataExports, pruneExpiredExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { accountRoutes } from "./routes/account";
@@ -171,8 +154,6 @@ import {
   pollRegistrations,
   retryCampaignAssignments,
 } from "./telnyx/registration";
-import { runEmailHealthJob } from "./email/health";
-import { posthogAlertWebhookRoute } from "./webhooks/posthog-alert";
 import { resendWebhookRoute } from "./webhooks/resend";
 import { stripeWebhookRoute } from "./webhooks/stripe";
 import { telnyxWebhookRoute } from "./webhooks/telnyx";
@@ -189,6 +170,30 @@ function allowedOriginsOf(c: Context): (string | undefined)[] {
     return [env.APP_ORIGIN, env.SITE_ORIGIN];
   } catch {
     return [];
+  }
+}
+
+/** `c.executionCtx` throws when no execution context is bound. */
+function waitUntilOf(c: Context): WaitUntil | undefined {
+  try {
+    const ctx = c.executionCtx;
+    return (promise) => ctx.waitUntil(promise);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Reporting must never be what turns an error response into a crash. */
+function reportUnexpected(
+  bindings: Bindings,
+  error: unknown,
+  context: ExceptionContext,
+  waitUntil?: WaitUntil,
+): void {
+  try {
+    void captureException(getEnv(bindings), error, context, waitUntil);
+  } catch (cause) {
+    console.error("exception not reported:", cause instanceof Error ? cause.message : String(cause));
   }
 }
 
@@ -372,8 +377,6 @@ app.route("/webhooks/telnyx", telnyxWebhookRoute);
 app.route("/webhooks/stripe", stripeWebhookRoute);
 // #386: delivery outcomes for the eighteen places this product sends email.
 app.route("/webhooks/resend", resendWebhookRoute);
-// #652: PostHog's error-tracking alerts, mailed to the founder (D144).
-app.route("/webhooks/posthog-alert", posthogAlertWebhookRoute);
 
 /**
  * PUBLIC POST /contact (marketing contact form): unversioned and outside the
@@ -429,7 +432,7 @@ const handleAppError: ErrorHandler<AppEnv> = (error, c) => {
    * too fast, and they are not — the limit is ours, spent on their behalf.
    *
    * Only 429 and 503. Every other vendor status is a real fault and keeps its
-   * 500, its Sentry event and its log line: this narrows what we call
+   * 500, its exception and its log line: this narrows what we call
    * transient, it does not widen it. The message is OURS, not the vendor's —
    * a vendor string can carry request context we should not hand back.
    */
@@ -443,8 +446,8 @@ const handleAppError: ErrorHandler<AppEnv> = (error, c) => {
       "The phone network is busy right now. Try that again in a moment.",
     );
   }
-  // Overload is not a bug: a Sentry event per shed request would be an alert
-  // storm. The synthetic probes page about the database; the ray stays in the log.
+  // Overload is not a bug: an exception per shed request would be a storm of
+  // them. The ray stays in the log.
   if (databaseTrouble()) {
     console.warn(
       `[503] database trouble: ${c.req.method} ${new URL(c.req.url).pathname} ray=${c.req.header("cf-ray") ?? "-"}`,
@@ -455,16 +458,23 @@ const handleAppError: ErrorHandler<AppEnv> = (error, c) => {
   // internals to the client (SPEC §10):
   //   1. a rich server log with the failing route + Cloudflare ray id — shows
   //      up in `wrangler tail` and the Worker's Logs (observability is on);
-  //   2. a Sentry event tagged with that route + ray (PII-scrubbed by the §10
-  //      beforeSend), so it is searchable;
+  //   2. a PostHog exception carrying that route + ray, scrubbed (SPEC §10),
+  //      so it is searchable;
   //   3. a `request_id` (the ray) returned to the client, so a founder can jump
-  //      straight from a failed request to the exact log/Sentry event.
+  //      straight from a failed request to the exact log line and exception.
   const method = c.req.method;
   const path = new URL(c.req.url).pathname;
   const rayId = c.req.header("cf-ray") ?? undefined;
-  Sentry.captureException(error, {
-    tags: { route: `${method} ${path}`, ...(rayId ? { cf_ray: rayId } : {}) },
-  });
+  reportUnexpected(
+    c.env,
+    error,
+    {
+      source: "api",
+      route: `${method} ${path}`,
+      ...(rayId ? { extra: { cf_ray: rayId } } : {}),
+    },
+    waitUntilOf(c),
+  );
   console.error(`[500] ${method} ${path} ray=${rayId ?? "-"}:`, error);
   // The client-facing half is shared with the test harness (#251), so a route
   // suite cannot pass against an error response production does not send.
@@ -537,21 +547,43 @@ async function rigUnreadyResponse(env: Bindings): Promise<Response | null> {
   );
 }
 
-type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;
+/** The one RPC the heartbeat job needs; structural so this file names no DO internals. */
+interface HeartbeatStub {
+  heartbeat(): Promise<void>;
+}
 
 /**
- * A scheduled job and the liveness key that speaks for it (#333/D55).
- *
- * Pairing them here rather than in a side table is the point: there is no way
- * to register a job without declaring what its silence means, because the
- * registration IS the declaration.
+ * A reserved name, never a real session id: `CallSessionDO` keys on
+ * `idFromName(sessionId)`, so this instance can never hold a live call.
  */
+export const HEARTBEAT_SESSION_NAME = "__heartbeat__";
+
+/**
+ * Ask the call Durable Object to send its own heartbeat. Without the binding
+ * there is no object to ask; a failed call is the run's failure, and the
+ * missing heartbeat is what PostHog alerts on.
+ */
+export async function pingCallSessionObject(env: Env): Promise<void> {
+  const namespace = env.CALL_SESSIONS;
+  if (!namespace) {
+    console.warn("call session heartbeat: CALL_SESSIONS is not bound; skipping");
+    return;
+  }
+  const stub = namespace.get(
+    namespace.idFromName(HEARTBEAT_SESSION_NAME),
+  ) as unknown as HeartbeatStub;
+  await stub.heartbeat();
+}
+
+type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;
+
+/** A scheduled job and the name its failures are reported under. */
 interface CronEntry {
-  key: JobKey;
+  key: `job:${string}`;
   run: ScheduledJob;
 }
 
-const job = (key: JobKey, run: ScheduledJob): CronEntry => ({ key, run });
+const job = (key: `job:${string}`, run: ScheduledJob): CronEntry => ({ key, run });
 
 /**
  * SPEC §11 cron table — one entry per wrangler.jsonc trigger, in §11 order.
@@ -560,10 +592,9 @@ const job = (key: JobKey, run: ScheduledJob): CronEntry => ({ key, run });
  * this map stays in lockstep with wrangler.jsonc and the §11 schedule set.
  */
 /**
- * #387: keyed by `CronSchedule`, which is derived from the `cron:` entries of
- * LIVENESS_EXPECTATIONS. Adding a trigger here without first declaring what
- * its ABSENCE means does not compile — the guard lives at the point of
- * definition rather than in a doc somebody has to remember.
+ * Keyed by `CronSchedule`, which is derived from `CRON_GRACE_MINUTES`: adding
+ * a trigger here without first saying how long its silence may last does not
+ * compile.
  */
 export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // #388: the unanswered-lead ladder. Every minute, because the rungs are at
@@ -637,11 +668,6 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // the promise legible, and the scan is a partial index over the few
     // members who opted in at all.
     job("job:daily-summary", runDailySummary),
-    // #387: the liveness checker rides an existing trigger rather than taking
-    // one of its own. A checker with its own schedule is one more thing that
-    // can quietly stop, and the schedule it rides on is watched by the very
-    // ledger it reads — so if this stops, its own absence is the alert.
-    job("job:liveness-check", runLivenessCheckJob),
     // Task due-date reminders: one push to the assignee as a task comes due,
     // at most once per due date. A quarter hour is close enough to "now" for
     // a day of trade work and keeps the scan cheap.
@@ -677,26 +703,12 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #133: flip call sessions wedged in-flight >4h to 'missed' so /calls
     // stays honest and the per-conversation dial guard re-opens.
     job("job:sweep-stale-calls", sweepStaleCalls),
-    // #386: the domain's bounce and complaint rates. Hourly, over a rolling
-    // 24h window — reputation is not a per-message property and cannot be
-    // judged from one send.
-    job("job:email-health", runEmailHealthJob),
-    // D142 P01: do customers' phones ring? Hourly because the window it reads
-    // is 24 hours wide and a drop is worth hearing about the hour it appears;
-    // the job itself keeps a persisting drop to one alert every six hours.
-    job("job:ring-success-watch", runRingSuccessWatch),
-    // #642: the warning before Telnyx's own daily spend limits. Hourly because
-    // the limits reset at 00:00 UTC and an afternoon's runaway should be heard
-    // about while there is still a cap left to save. A quiet hour reads the
-    // cost ledger and makes no Telnyx request.
-    job("job:telnyx-spend-watch", runTelnyxSpendWatch),
-    // #308: the synthetic inbound canary — one text from our number to our
-    // number, confirmed by its own webhook coming back. HOURLY because the
-    // cadence is the cost: each round trip is ~1.7c, and an hour is the
-    // shortest interval whose annual bill is defensible for a signal the
-    // traffic probes can only give in half a day. Off entirely until the
-    // number pair is configured.
-    job("job:inbound-canary", runInboundCanaryJob),
+    // #642: today's Telnyx spend against its own daily limits, as gauges.
+    // Hourly because the limits reset at 00:00 UTC and an afternoon's runaway
+    // should be seen while there is still a cap left to save. Each run reads
+    // the limits too, so one removed or lowered in the portal shows within
+    // the hour.
+    job("job:telnyx-spend-gauges", runTelnyxSpendGauges),
     // #224: retire payment requests past their expiry, so a thread stops
     // showing "Waiting" for a link that no longer opens.
     job("job:expire-payment-requests", expirePaymentRequests),
@@ -713,41 +725,19 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // geocoder (:20) so the two never share a Nominatim second.
   "40 * * * *": [job("job:geocode-tasks", geocodeTasksJob)],
   // Registration poller (webhooks are primary; this is the D2 fallback).
-  // #379: and the delivery-rate split by destination country. A carrier
-  // filtering unregistered A2P traffic returns no error — the message is
-  // accepted, billed, marked sent and never arrives — so an absence is all it
-  // leaves behind, and this split is the only place it shows.
   "0 13 * * *": [
     job("job:poll-registrations", pollRegistrations),
-    job("job:delivery-by-country", runDeliveryByCountryJob),
     // #235: per-number reputation. Rides the same daily trigger as the other
     // slow reconciles — the windows it compares are 7 and 28 days, so running
     // it more often would cost queries to learn the same answer.
     job("job:number-health", runNumberHealthJob),
-    // #310: and the registrations that did NOT move. The poller above advances
-    // the ones that changed; a registration that simply sits there produces no
-    // event and no error, which is the silent-absence shape #387 exists for.
-    job("job:registration-stalls", runRegistrationStallJob),
-    // #397 ask 2: one workspace's calls going quiet. The fleet-wide call-event
-    // key catches a Telnyx outage; this catches a customer replacing us.
-    job("job:call-silence", runCallSilenceJob),
-    // D142 PW01: production's Telnyx webhook settings and the last day of
-    // failed deliveries. Daily, on the slow trigger: settings drift is a
-    // portal edit, and the delivery log it reads is 24 hours wide. Production
-    // only; the job refuses anywhere else before any request.
-    job("job:telnyx-wiring-watch", runTelnyxWiringWatch),
-    // #643: can the ring audience plus the calls already up outgrow Telnyx's
-    // concurrent call limit? Daily: the inputs (crew size, number access) move
-    // by deliberate edits, and the 28-day peak moves slowly.
-    job("job:telnyx-capacity-watch", runTelnyxCapacityWatch),
-    // #303: the AUP has been accepted by everyone and enforced against nobody.
-    // Daily, on the slow trigger, because the signals it reads are day-scale by
-    // construction — a workspace's own median day against the last one.
-    job("job:aup-watch", runAupWatchJob),
-    // #281 item 4: a workspace stalling in the funnel. Daily like its siblings,
-    // and for the same reason — the windows it compares are 3, 7 and 10 days,
-    // so asking more often would spend queries to learn the same answer.
-    job("job:activation-stall", runActivationStallJob),
+    // #643: the worst-case call legs against Telnyx's concurrent call limit,
+    // as a gauge. Daily: the inputs (crew size, number access) move by
+    // deliberate edits, and the 28-day peak moves slowly.
+    job("job:telnyx-capacity-gauge", runTelnyxCapacityGauge),
+    // #303: each workspace's day of sending, as an `aup_signals` event. Daily
+    // because the signals are day-scale by construction.
+    job("job:aup-signals", runAupSignalsJob),
   ],
   // Port reconcile & resume (PORTING.md §5.2): poll in-flight porting orders,
   // apply missed status/messaging transitions, resume stalled sagas, and
@@ -762,45 +752,28 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // #331: compare our opt-out list against the carrier's. A number Telnyx is
   // blocking that we have no record for is an inbound STOP whose webhook we
   // missed — the composer stays open and every send comes back 40300 until
-  // somebody notices. Recorded here, and reported to ops, because a run of
-  // them is a webhook-delivery failure rather than a change in behaviour.
+  // somebody notices. Recorded here, and a notice sent, because a run of them
+  // is a webhook-delivery failure rather than a change in behaviour.
   "45 15 * * *": [job("job:opt-out-reconcile", reconcileOptOuts)],
   // Ledger retention: drop PROCESSED webhook_events past the 30-day dedupe
   // window. The */5 sweeper only replays the unprocessed tail, so without this
   // the ledger grows without bound for the life of the install.
   // Ledger retention, both daily: the webhook ledger's dedupe window and the
   // #231 audit log's 12 months. Neither can grow without bound.
-  // #447: the weekly founder digest — how many tenants were projected over
-  // revenue in the last 7 days. The per-tenant copies go out hourly with the
-  // warning; this is the only place the PATTERN shows up, which is the
-  // question #446 asks. Monday morning, off the hour.
-  "50 13 * * 1": [
-    job("job:overage-digest", runOverageDigestJob),
-    // #642: has a Telnyx daily spend limit been removed or lowered? Weekly,
-    // because that is a portal edit, and the cap is the second line behind the
-    // app's own, not the first.
-    job("job:telnyx-spend-limit-drift", runTelnyxSpendLimitDriftWatch),
-  ],
   // #482/#239: the monthly response-time recap. Monthly because the arc it
   // reports moves on that scale — a weekly one would mostly report noise, and
   // an email that mostly says nothing is one people stop opening.
   "35 14 1 * *": [job("job:response-time-recap", runResponseTimeRecapJob)],
-  // #477: does the product actually work, checked from outside itself. Sentry
-  // catches throws and the liveness ledger catches absences; this catches the
-  // third shape — a path that answers 200 and does nothing useful.
-  "5 */2 * * *": [job("job:probes", runProbes)],
   // #457: the carrier's own daily ceiling, warned about hourly. Hourly rather
   // than daily because the only useful advice ("spread the rest over
   // tomorrow") expires the moment the ceiling is hit, and a nightly sweep
   // would always arrive after that. The usage_alerts ledger, keyed on the UTC
   // day, keeps it to one warning per crew per day.
   "25 * * * *": [job("job:carrier-ceiling", runCarrierCeilingJob)],
-  // #375: prove, from inside the Durable Object, that the alarms guarding the
-  // calls system can still reach a human. Its own schedule rather than a
-  // piggyback, because the six-hour cadence is a cost decision (one billable
-  // Sentry event per probe) and hiding it inside an hourly trigger would make
-  // that decision unreadable at the point where it is made.
-  "15 */6 * * *": [job("job:do-sentry-canary", runDoSentryCanaryJob)],
+  // D146: the call Durable Object's own heartbeat, sent from inside it. The
+  // Worker's heartbeats say nothing about the object's isolate, which is where
+  // every call event is handled.
+  "15 */6 * * *": [job("job:call-session-heartbeat", pingCallSessionObject)],
   "30 15 * * *": [
     job("job:prune-webhook-events", pruneWebhookEvents),
     // #581: the widget's proof-of-number rows. Beside the others because it is
@@ -820,7 +793,6 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // the tail of this trigger is the notice→enforce pair whose order is
     // load-bearing and must not be pushed around by unrelated arrivals.
     job("job:prune-public-link-access", prunePublicLinkAccess),
-    job("job:prune-probe-results", pruneProbeResults),
     job("job:purge-closed-workspaces", purgeClosedWorkspaces),
     // #227: exports build here for the same reason the purge does — a busy
     // workspace cannot be processed inside a request.
@@ -850,16 +822,14 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   ],
 };
 
-// Exported (not just the Sentry-wrapped default) so the outermost fetch guard
-// below can be unit-tested directly, without standing up the Sentry wrapper.
 export const handler = {
   /**
    * Outermost safety net (D13/§10). Hono's `onError` only routes `Error`
    * instances to the handler — a non-Error throw (or a throw inside onError
    * itself) unwinds past it and out of `app.fetch`, which Cloudflare turns
    * into a bare 1101 page carrying NO Access-Control-Allow-Origin. The browser
-   * then reports a spurious "CORS error" and the real failure never reaches
-   * Sentry. Catch everything the app can throw: capture it (so it is finally
+   * then reports a spurious "CORS error" and the real failure is never
+   * reported. Catch everything the app can throw: capture it (so it is finally
    * observable), re-echo the allowed CORS origin, and return the readable §7
    * envelope with the ray as `request_id` — never a header-less 1101.
    */
@@ -870,32 +840,20 @@ export const handler = {
       return await appFor(request, env).fetch(request, env, ctx);
     } catch (error) {
       const rayId = request.headers.get("cf-ray") ?? undefined;
-      try {
-        Sentry.captureException(error, {
-          tags: {
-            route: `${request.method} ${new URL(request.url).pathname}`,
-            escaped_onerror: "true",
-            ...(rayId ? { cf_ray: rayId } : {}),
-          },
-        });
-      } catch {
-        // Reporting must never mask the response.
-      }
-      // The PATH, never the full URL — the same cut the `route` tag above makes,
-      // and still the caller's job even though the breadcrumb no longer leaves.
-      //
-      // This comment used to say the reason was that `scrubBreadcrumb` keys off
-      // FIELD NAMES and free text has none, so a query string here would reach
-      // Sentry untouched. That stopped being true when #585 made the scrubber
-      // drop console crumbs outright, and the comment was not updated with it —
-      // so it described a mechanism that no longer existed.
-      //
-      // The rule survives its old justification. This line still goes to
-      // Cloudflare Workers Logs in full, where a query string carrying
-      // `?q=<a customer's street address>` is retained under our own retention
-      // rather than a third party's; SPEC §10 is about where a customer's data
-      // ends up, not only about Sentry. Cutting at the path is cheap and keeps
-      // the promise on both destinations.
+      reportUnexpected(
+        env,
+        error,
+        {
+          source: "api",
+          route: `${request.method} ${new URL(request.url).pathname}`,
+          extra: { escaped_onerror: true, ...(rayId ? { cf_ray: rayId } : {}) },
+        },
+        (promise) => ctx.waitUntil(promise),
+      );
+      // The PATH, never the full URL, the same cut the `route` above makes.
+      // This line goes to Cloudflare Workers Logs in full, where a query string
+      // carrying `?q=<a customer's street address>` would be retained; SPEC §10
+      // is about where a customer's data ends up, on every destination.
       console.error(
         `[fetch-guard] uncaught ${request.method} ${new URL(request.url).pathname} ` +
           `ray=${rayId ?? "-"}:`,
@@ -933,69 +891,60 @@ export const handler = {
 
   /**
    * Cron entry point (SPEC §11): validate the environment (a misconfigured
-   * Worker fails loudly on its first trigger), then run every job mapped to
-   * the schedule that fired. Jobs on a shared trigger run sequentially but
-   * fail independently — one job's failure never starves its siblings, and
-   * the run still rejects so Sentry (which wraps scheduled()) records it.
+   * Worker fails loudly on its first trigger), send the trigger's heartbeat,
+   * then run every job mapped to the schedule that fired.
    */
-  async scheduled(controller, env) {
+  async scheduled(controller, env, ctx) {
     const validated = getEnv(env);
-    const jobs = CRON_JOBS[controller.cron as CronSchedule];
-    if (!jobs) {
+    const cron = controller.cron;
+    if (!isCronSchedule(cron)) {
       throw new Error(
-        `No scheduled jobs are mapped to cron "${controller.cron}" — wrangler.jsonc and CRON_JOBS are out of sync.`,
+        `No scheduled jobs are mapped to cron "${cron}": wrangler.jsonc and CRON_JOBS are out of sync.`,
       );
     }
     const now = new Date(controller.scheduledTime);
+    const waitUntil: WaitUntil = (promise) => ctx.waitUntil(promise);
 
-    // #387: the trigger FIRED, and that is what the heartbeat records — before
-    // the jobs run and regardless of whether any of them throws. The two
-    // signals are deliberately orthogonal: a job that throws is Sentry's, a
-    // schedule that stops firing leaves no exception at all and is this
-    // ledger's. Recording it only on success would conflate them and leave the
-    // absence undetectable behind a job that is merely broken.
-    await recordHeartbeatBestEffort(
-      validated,
-      `cron:${controller.cron}` as `cron:${CronSchedule}`,
-      now,
-    );
+    // The trigger FIRED, and that is what the heartbeat says, before the jobs
+    // run and whether or not any of them throws. A job that throws is an
+    // exception; a schedule that stops firing leaves no exception at all, and
+    // the missing heartbeat is the only trace it leaves.
+    void cronHeartbeat(validated, cron, waitUntil);
 
     const rigRefusal = await rigDatabaseRefusal(validated);
     if (rigRefusal !== null) throw new Error(`rig cron not run: ${rigRefusal}`);
 
-    await runScheduledJobs(validated, controller.cron, jobs, now);
+    await runScheduledJobs(validated, cron, CRON_JOBS[cron], now, waitUntil);
   },
 } satisfies ExportedHandler<Bindings>;
 
 /**
- * Run one schedule's jobs, recording each one's liveness heartbeat.
- *
- * Extracted from `scheduled()` so the rule that actually matters — a job's
- * heartbeat is recorded ONLY when it succeeds (#333) — is testable without
- * standing up every real cron job in the product.
- *
- * Jobs on a shared trigger run sequentially but fail independently: one job's
- * failure never starves its siblings, and the run still rejects so Sentry
- * (which wraps `scheduled()`) records it.
+ * A job that collects its failures throws them as one AggregateError, and
+ * PostHog reads an error's `cause` chain, never `errors`, so each failure in
+ * it is reported on its own.
+ */
+function failuresIn(cause: unknown): unknown[] {
+  if (!(cause instanceof AggregateError) || cause.errors.length === 0) return [cause];
+  return cause.errors.flatMap(failuresIn);
+}
+
+/**
+ * Run one schedule's jobs. Jobs on a shared trigger run sequentially but fail
+ * independently: one job's failure never starves its siblings, each failure is
+ * reported as an exception naming its job, and the run still rejects so the
+ * Workers dashboard shows it failed.
  */
 export async function runScheduledJobs(
   env: Env,
-  cron: string,
+  cron: CronSchedule,
   jobs: readonly CronEntry[],
   now: Date,
+  waitUntil?: WaitUntil,
 ): Promise<void> {
   const failures: unknown[] = [];
   for (const entry of jobs) {
     try {
       await entry.run(env, now);
-      // ONLY on success. A job that throws on its first statement every run
-      // would otherwise keep beating while doing nothing, and the
-      // schedule-level heartbeat cannot tell the difference — the trigger
-      // fired either way. Withholding the beat makes "broken every run since
-      // Tuesday" and "has not run at all" the same alert on the same path,
-      // which is what #333 asks for. A transient failure that recovers on the
-      // next run never reaches its grace window, so this costs no noise.
-      await recordHeartbeatBestEffort(env, entry.key, now);
     } catch (cause) {
       // Name the culprit in the run's own logs: the platform serializes only
       // the AggregateError's top-level message (child errors vanish), which
@@ -1003,6 +952,9 @@ export async function runScheduledJobs(
       const detail =
         cause instanceof Error ? (cause.stack ?? cause.message) : String(cause);
       console.error(`cron job ${entry.key} failed: ${detail}`);
+      for (const failure of failuresIn(cause)) {
+        void captureException(env, failure, { source: "cron", cron, job: entry.key }, waitUntil);
+      }
       failures.push(cause);
     }
   }
@@ -1014,24 +966,12 @@ export async function runScheduledJobs(
   }
 }
 
-
-/**
- * Sentry wraps the whole Worker (fetch + scheduled) with the SPEC §10
- * beforeSend/beforeBreadcrumb PII scrubbing configured in
- * observability/sentry.ts.
- */
-export default Sentry.withSentry(sentryOptions, handler);
+export default handler;
 
 /**
  * Calls v3 (#170 §2.1): the CallSessionDO, re-exported as a NAMED export so
- * wrangler resolves the DO class from `main` (it does NOT read the
- * Sentry-wrapped default export). Instrumented with
- * `instrumentDurableObjectWithSentry` so alarm()/RPC errors are captured — the
- * Worker-level withSentry wraps only fetch/scheduled, so an uninstrumented DO
- * would make every §2.2 mirror-failure alert and §13 cost-cap warning (and the
- * high-value alarm() crash) a silent no-op.
+ * wrangler resolves the DO class from `main`. It reports its own errors
+ * through observability/capture.ts with the object's env, so it needs no
+ * wrapper (D146).
  */
-export const CallSessionDO = Sentry.instrumentDurableObjectWithSentry(
-  (env: Env) => sentryOptions(env),
-  CallSessionDOImpl,
-);
+export { CallSessionDO } from "./calls/session-do";

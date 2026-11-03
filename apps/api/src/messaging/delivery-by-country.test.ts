@@ -1,18 +1,10 @@
 /**
- * #379 ask 4 — the only signal that would ever tell us Canadian traffic is
- * being filtered.
- *
- * A carrier dropping unregistered A2P messages returns no error: accepted,
- * billed, marked sent, never arrives. There is nothing to catch except the
- * shape of the numbers, and only when they are split by where they were going.
+ * #379/#426: the delivery split a customer sees on the usage page, by where
+ * each message was going.
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  DELIVERY_MIN_SAMPLE,
-  summarize,
-  underperforming,
-} from "./delivery-by-country";
+import { DELIVERY_MIN_SAMPLE, summarize } from "./delivery-by-country";
 
 /** A settled outbound message to a given destination. */
 function msg(phone: string, status: "delivered" | "failed") {
@@ -71,7 +63,7 @@ describe("splitting delivery by where the message was going", () => {
   });
 });
 
-describe("what is worth waking someone for", () => {
+describe("the rate a customer is shown", () => {
   function bulk(phone: string, delivered: number, failed: number) {
     return [
       ...Array.from({ length: delivered }, () => msg(phone, "delivered")),
@@ -79,37 +71,17 @@ describe("what is worth waking someone for", () => {
     ];
   }
 
-  it("flags a country below the floor once the sample is big enough", () => {
-    // 60 sends, 70% delivered — the shape of carrier filtering.
-    const rows = summarize(bulk(CA, 42, 18));
-    const bad = underperforming(rows);
-    expect(bad).toHaveLength(1);
-    expect(bad[0].country).toBe("CA");
+  it("is a rate once the sample is big enough", () => {
+    const [ca] = summarize(bulk(CA, 42, 18));
+    expect(ca.rate).toBeCloseTo(0.7);
   });
 
-  it("reports no rate at all over a tiny sample", () => {
-    // Three sends and one failure is 67%, which means nothing — and #426 shows
-    // this figure to CUSTOMERS, where a scary percentage over four messages
-    // manufactures the exact anxiety the number exists to remove. Below the
-    // sample line there is no rate to render, so clients show counts.
+  it("is no rate at all over a tiny sample", () => {
+    // Three sends and one failure is 67%, which means nothing, and a scary
+    // percentage over four messages manufactures the anxiety the number exists
+    // to remove. Below the sample line clients show counts.
     const rows = summarize(bulk(CA, 2, 1));
     expect(rows[0].rate).toBeNull();
-    expect(underperforming(rows)).toHaveLength(0);
-  });
-
-  it("says nothing about a healthy country with plenty of volume", () => {
-    const rows = summarize(bulk(US, DELIVERY_MIN_SAMPLE * 2, 3));
-    expect(underperforming(rows)).toHaveLength(0);
-  });
-
-  it("flags only the country that is failing, not the whole account", () => {
-    // Canada filtered, the US fine — which is exactly the pattern #379 says to
-    // expect if D2 has gone stale, and the case a single overall rate hides.
-    const rows = summarize([...bulk(CA, 40, 20), ...bulk(US, 200, 2)]);
-    expect(underperforming(rows).map((r) => r.country)).toEqual(["CA"]);
-  });
-
-  it("treats a country with nothing settled as no evidence", () => {
-    expect(underperforming(summarize([]))).toHaveLength(0);
+    expect(summarize(bulk(US, DELIVERY_MIN_SAMPLE, 0))[0].rate).toBe(1);
   });
 });

@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { telnyxRequest, TelnyxApiError } from "./client";
@@ -27,7 +26,7 @@ import { billingRecipients } from "../billing/recipients";
 import { owesUsRegistration } from "../billing/registration-draft";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
-import { opsEmail, opsTextHtml } from "../observability/ops-alert";
+import { captureException, opsNotice } from "../observability/capture";
 import { pushRegistrationApproved } from "../notifications/registration-approved";
 import type { Env } from "../env";
 
@@ -461,56 +460,36 @@ async function sendOperationalEmail(
   } catch (cause) {
     // Emails are best-effort side effects of an already-applied transition;
     // a Resend outage must not wedge the state machine.
-    Sentry.captureException(cause);
+    void captureException(env, cause, { source: "api" });
   }
 }
 
 /**
- * #423: ops-side alert for a carrier suspension.
+ * #423: the notice for a carrier suspension, sent once, by the transition into
+ * `suspended`.
  *
  * Separate from the customer email and sent alongside it, because the two
  * audiences need different things. The owner needs to know their texts have
  * stopped and that we are on it. Ops needs to know WHICH workspace, WHICH
- * registration and the carrier's verbatim words — a suspension is not
- * self-service, and the customer's reply is going to land in the support
- * inbox within the hour either way.
- *
- * Never throws, for the same reason `sendOperationalEmail` does not: this is a
- * side effect of an already-applied transition, and a Resend outage must not
- * wedge the state machine.
+ * registration and the carrier's words: a suspension is not self-service.
  */
-async function sendOpsAlert(
+async function sendSuspensionNotice(
   env: Env,
   company: RegistrationCompany,
   kind: RegistrationKind,
   reason: string,
 ): Promise<void> {
-  try {
-    const text =
-      `${company.name} (${company.id}) has had its 10DLC ${kind} SUSPENDED ` +
-      `by the carrier. US texting for this workspace is blocked as of now — ` +
-      `getSendGates.usApproved is false and the composer says so.
-
-` +
-      `Carrier reason:
-${reason}
-
-` +
-      `The customer has been emailed and told to reply to us. They cannot fix ` +
-      `this themselves.
-
-` +
-      `Registration: ${env.APP_ORIGIN}/settings/numbers
-`;
-    await opsEmail(env, {
-    key: "ops:telnyx-registration",
-      subject: `[ops] ${company.name}: carrier suspended the 10DLC ${kind}`,
-      text,
-      html: opsTextHtml(text),
-    });
-  } catch (cause) {
-    Sentry.captureException(cause);
-  }
+  await opsNotice(env, {
+    key: "registration-suspended",
+    level: "error",
+    summary: `The carrier suspended a workspace's 10DLC ${kind}`,
+    detail:
+      `company ${company.id}: US texting is blocked as of now (getSendGates.usApproved ` +
+      `is false and the composer says so). Carrier reason: ${reason}`,
+    action:
+      "The customer has been emailed and told to reply to us; they cannot fix this " +
+      "themselves. Read the carrier's reason and answer them.",
+  });
 }
 
 /**
@@ -565,7 +544,7 @@ async function applyTransition(
     try {
       await submitCampaignIfReady(env, db, company, updated);
     } catch (cause) {
-      Sentry.captureException(cause);
+      void captureException(env, cause, { source: "api" });
     }
   }
   const reinstated = mapped.next === "approved" && row.status === "suspended";
@@ -582,7 +561,7 @@ async function applyTransition(
     try {
       await assignNumbersToCampaign(env, db, updated);
     } catch (cause) {
-      Sentry.captureException(cause);
+      void captureException(env, cause, { source: "api" });
     }
     // #525 — is this workspace PAUSED, and therefore unable to use what was
     // just approved?
@@ -635,7 +614,7 @@ async function applyTransition(
         env,
       ),
     );
-    await sendOpsAlert(env, company, row.kind, patch.rejection_reason as string);
+    await sendSuspensionNotice(env, company, row.kind, patch.rejection_reason as string);
   }
   if (row.kind === "campaign" && reinstated) {
     // #423: reinstated. Numbers are re-assigned because a suspension can drop
@@ -645,7 +624,7 @@ async function applyTransition(
     try {
       await assignNumbersToCampaign(env, db, updated);
     } catch (cause) {
-      Sentry.captureException(cause);
+      void captureException(env, cause, { source: "api" });
     }
     // #525: branched for the same reason the approval branch above is. The
     // running copy says texts are sending "right now, with nothing for you to
@@ -786,7 +765,7 @@ function campaignCapReachedCopy(
 /**
  * One-shot "budget exhausted" owner notification (#40): stamp FIRST (the §11
  * idempotency pattern — the route, the checkout webhook, and the sweeper can
- * all hit the exhausted budget repeatedly), then email + Sentry.
+ * all hit the exhausted budget repeatedly), then email + exception.
  */
 async function notifyCampaignCapReached(
   env: Env,
@@ -800,9 +779,10 @@ async function notifyCampaignCapReached(
       ? "reactivationCapNotifiedAt"
       : "submissionCapNotifiedAt";
   if (typeof campaign.data[stampKey] === "string") return;
-  Sentry.captureMessage(
-    `10DLC campaign ${cause} budget exhausted for company ${company.id} — submissions paused ('contact support' surfaced)`,
-    "error",
+  void captureException(
+    env,
+    "10DLC campaign budget exhausted, submissions paused ('contact support' surfaced)",
+    { source: "api", company_id: company.id, extra: { budget: cause } },
   );
   await updateRow(db, campaign.id, {
     data: { ...campaign.data, [stampKey]: new Date().toISOString() },
@@ -858,10 +838,12 @@ async function consumeCampaignSubmissionBudget(
   if (result.count === cap - 1) {
     // Alert BEFORE the cap (cost-protection mandate): one unit left after the
     // submission this consumed. Counters are monotonic, so this fires once.
-    Sentry.captureMessage(
-      `10DLC campaign ${cause} budget nearly exhausted for company ${company.id} (${result.count}/${cap})`,
-      "warning",
-    );
+    void captureException(env, "10DLC campaign budget nearly exhausted", {
+      source: "api",
+      level: "warning",
+      company_id: company.id,
+      extra: { budget: cause, count: result.count, cap },
+    });
     await sendOperationalEmail(
       env,
       db,
@@ -1001,10 +983,16 @@ async function submitBrand(
     // adoptable orphan before buying: one cheap GET in front of a paid create.
     telnyxId = await adoptOrphanBrand(env, db, draft);
     if (telnyxId) {
-      Sentry.captureMessage(
-        `10DLC brand recovery: adopted orphan brand ${telnyxId} for company ${row.company_id} (a prior create attempt never persisted its id; write-ahead marker ${typeof current.data.brandSubmitAttemptedAt === "string" ? "present" : "absent"})`,
-        "warning",
-      );
+      // A prior create attempt never persisted its id.
+      void captureException(env, "10DLC brand recovery: adopted an orphan brand", {
+        source: "api",
+        level: "warning",
+        company_id: row.company_id,
+        extra: {
+          telnyx_brand_id: telnyxId,
+          write_ahead_marker: typeof current.data.brandSubmitAttemptedAt === "string",
+        },
+      });
     }
     if (!telnyxId) {
       // Write-ahead intent (#51, mirroring provisioning's persist-order-id-
@@ -1048,7 +1036,7 @@ async function submitBrand(
     try {
       await triggerBrandOtp(env, telnyxId);
     } catch (cause) {
-      Sentry.captureException(cause);
+      void captureException(env, cause, { source: "api" });
     }
   }
   return updated;
@@ -1142,10 +1130,10 @@ async function submitCampaignIfReady(
   if (campaign.status !== "draft" && campaign.deactivated_at === null) return;
   const draft = parseCampaignDraft(campaign);
   if (!draft) {
-    Sentry.captureMessage(
-      `campaign draft for company ${company.id} is incomplete at R2 time`,
-      "error",
-    );
+    void captureException(env, "campaign draft is incomplete at R2 time", {
+      source: "api",
+      company_id: company.id,
+    });
     return;
   }
   await submitCampaign(env, db, company, brand, campaign, draft, "review");
@@ -1403,7 +1391,7 @@ export async function assignNumbersToCampaign(
       status = "pending";
     } catch (cause) {
       status = "failed";
-      Sentry.captureException(cause);
+      void captureException(env, cause, { source: "api" });
     }
     // Per-key atomic merge (not a whole-object write) so a concurrent
     // phone_number.update webhook's ledger entry isn't clobbered here.
@@ -1476,7 +1464,7 @@ export async function retryCampaignAssignments(env: Env): Promise<number> {
  * Idempotent — GETs the campaign first and skips when a `sample3` is already
  * registered: sample3 is the field this migration introduces, so its presence
  * is the cheap "already migrated?" marker. Returns true when an update was
- * actually sent. A Telnyx 422 on the PUT is reported to Sentry and swallowed
+ * actually sent. A Telnyx 422 on the PUT is reported as an exception and swallowed
  * (returns false): the payload is built to the update schema's 255-char caps,
  * but a campaign Telnyx still refuses must not fail the caller — otherwise
  * one bad tenant poisons every {@link pollRegistrations} run with a daily
@@ -1520,10 +1508,11 @@ export async function updateCampaignContent(
       // Defense in depth: content this specific campaign cannot accept is a
       // per-tenant data problem, not a poll-stopping outage. Report and skip;
       // any other failure (5xx, transport) propagates so the poll retries.
-      Sentry.captureMessage(
-        `10DLC campaign content migration rejected (422) for campaign ${campaign.telnyx_id} (company ${campaign.company_id}): ${cause.message}`,
-        "error",
-      );
+      void captureException(env, cause, {
+        source: "api",
+        company_id: campaign.company_id,
+        extra: { telnyx_campaign_id: campaign.telnyx_id, step: "content migration" },
+      });
       return false;
     }
     throw cause;
@@ -1626,9 +1615,10 @@ export async function handle10dlcEvent(
       clearNotified = true;
     } else if (status === "FAILED") {
       newStatus = "failed";
-      Sentry.captureMessage(
-        `10DLC number assignment FAILED for campaign ${campaignId} (company ${row.company_id}): ${formatReasons(payload.reasons) ?? "no reason given"}`,
-        "error",
+      void captureException(
+        env,
+        `10DLC number assignment FAILED: ${formatReasons(payload.reasons) ?? "no reason given"}`,
+        { source: "api", company_id: row.company_id, extra: { telnyx_campaign_id: campaignId } },
       );
       // §9 "10DLC assignment failed post-port": customer-actionable, so it
       // must reach them — once per stuck number, not per retry-cron cycle.

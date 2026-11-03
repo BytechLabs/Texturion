@@ -18,7 +18,7 @@ import {
   supabaseStub,
   type SupabaseStub,
 } from "../test/routes-harness";
-import { opsCaptures, resetSentryCaptures } from "../test/sentry-mock";
+import { captured, eventsCaptured, noticesCaptured, resetCaptures } from "../test/capture-mock";
 import {
   completeEnv,
   createTestAuth,
@@ -31,14 +31,12 @@ import {
   RING_BEACON_PERMISSIONS,
   RING_BEACON_STAGES,
   RING_BEACON_STANDBY_BUCKETS,
-  RING_BEACON_WARN_AT,
   ringBeaconsRoutes,
-  resetRingBeaconAlertsForTest,
   type RingBeaconStage,
 } from "./ring-beacons";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const env = completeEnv();
@@ -54,8 +52,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  resetSentryCaptures();
-  resetRingBeaconAlertsForTest();
+  resetCaptures();
 });
 
 afterEach(() => {
@@ -248,29 +245,30 @@ describe("POST /v1/ring-beacons", () => {
     expect(inserted(sb)).toHaveLength(0);
   });
 
-  it("warns the operator at 80% of the cap and still records", async () => {
-    const sb = stubs({ recent: RING_BEACON_WARN_AT });
+  it("sends one ring_beacon event, under the workspace, with the build and stage", async () => {
+    stubs();
+    await post({ call_session_id: SESSION, stage: "ringing_shown" });
+    expect(eventsCaptured("ring_beacon")).toEqual([
+      {
+        event: "ring_beacon",
+        distinctId: COMPANY_ID,
+        properties: { platform: "android", app_version: "0.18.2", stage: "ringing_shown" },
+      },
+    ]);
+    expect(noticesCaptured()).toEqual([]);
+  });
+
+  it("sends the cap notice from the beacon that fills the window, and records it", async () => {
+    const sb = stubs({ recent: RING_BEACON_DAILY_CAP - 1 });
     const res = await post({ call_session_id: SESSION, stage: "answered" });
     expect(await res.json()).toEqual({ recorded: true });
     expect(inserted(sb)).toHaveLength(1);
-    expect(opsCaptures("ring-beacons-member-cap-warning")).toHaveLength(1);
-    expect(opsCaptures("ring-beacons-member-cap")).toHaveLength(0);
+    const notices = noticesCaptured("ring-beacon-cap");
+    expect(notices).toHaveLength(1);
+    expect(notices[0].detail).toContain(COMPANY_ID);
   });
 
-  it("warns once between the warning line and the cap, even when beacons race past the line", async () => {
-    const sb = stubs({ recent: RING_BEACON_WARN_AT + 1 });
-    const res = await post({ call_session_id: SESSION, stage: "answered" });
-    expect(await res.json()).toEqual({ recorded: true });
-    expect(inserted(sb)).toHaveLength(1);
-    expect(opsCaptures("ring-beacons-member-cap-warning")).toHaveLength(1);
-
-    vi.unstubAllGlobals();
-    stubs({ recent: RING_BEACON_WARN_AT + 2 });
-    await post({ call_session_id: SESSION, stage: "answered" });
-    expect(opsCaptures("ring-beacons-member-cap-warning")).toHaveLength(1);
-  });
-
-  it("drops beacons at the cap and says so once, however many arrive", async () => {
+  it("drops beacons at the cap and sends nothing for them, however many arrive", async () => {
     // A dropped beacon leaves the count at the cap, so every later beacon
     // sees exactly the cap again.
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -281,13 +279,13 @@ describe("POST /v1/ring-beacons", () => {
       expect(await res.json()).toEqual({ recorded: false });
       expect(inserted(atCap)).toHaveLength(0);
     }
-    expect(opsCaptures("ring-beacons-member-cap")).toHaveLength(1);
+    expect(captured).toEqual([]);
   });
 
-  it("says nothing to the operator below the warning line", async () => {
-    stubs({ recent: RING_BEACON_WARN_AT - 1 });
+  it("sends no notice below the cap", async () => {
+    stubs({ recent: RING_BEACON_DAILY_CAP - 2 });
     await post({ call_session_id: SESSION, stage: "answered" });
-    expect(opsCaptures()).toHaveLength(0);
+    expect(noticesCaptured()).toEqual([]);
   });
 });
 

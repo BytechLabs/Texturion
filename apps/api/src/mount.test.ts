@@ -10,29 +10,19 @@ import { readFileSync } from "node:fs";
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { runEmailHealthJob } from "./email/health";
-import { runRingSuccessWatch } from "./observability/ring-success";
-import { runTelnyxCapacityWatch } from "./observability/telnyx-capacity";
-import {
-  runTelnyxSpendLimitDriftWatch,
-  runTelnyxSpendWatch,
-} from "./observability/telnyx-spend";
-import { runTelnyxWiringWatch } from "./observability/telnyx-wiring";
+import { CRON_GRACE_MINUTES } from "./observability/heartbeat";
+import { runTelnyxCapacityGauge } from "./observability/telnyx-capacity";
+import { runTelnyxSpendGauges } from "./observability/telnyx-spend";
 import { runNumberHealthJob } from "./messaging/number-health";
-import { runRegistrationStallJob } from "./telnyx/registration-stalls";
-import { runActivationStallJob } from "./analytics/activation-stall";
-import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
 import {
   runContactRetentionJob,
   runMarketingContactRetentionJob,
 } from "./marketing/contact-retention";
-import { runAupWatchJob } from "./messaging/aup-watch";
+import { runAupSignalsJob } from "./messaging/aup-watch";
 import { runRetentionEnforceJob } from "./workspace/retention-enforce";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { expirePaymentRequests } from "./crons/payment-requests";
-import { runInboundCanaryJob } from "./observability/inbound-canary";
-import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { pruneExpiredExports } from "./workspace/export";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
@@ -40,21 +30,15 @@ import { runScheduledSendJob } from "./messaging/scheduled-send";
 import { runBatchFlush } from "./notifications/batch-flush";
 import { runDailySummary } from "./notifications/daily-summary";
 import { runEscalationSweep } from "./notifications/escalation-sweep";
-import { runLivenessCheckJob } from "./observability/liveness-check";
-import { LIVENESS_EXPECTATIONS } from "./observability/liveness";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
-import { runDeliveryByCountryJob } from "./messaging/delivery-by-country";
 import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { sweepUncreditedConversions } from "./billing/prepay";
 import { pruneAuditLog } from "./audit/retention";
 import { pruneUserSessions } from "./auth/session-retention";
-import {
-  pruneProbeResults,
-  prunePublicLinkAccess,
-} from "./crons/retention-prunes";
+import { prunePublicLinkAccess } from "./crons/retention-prunes";
 import { buildDataExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
@@ -62,7 +46,7 @@ import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
 import { notifyDueTasksJob } from "./tasks/due-notice";
 import { runCalendarSyncJob } from "./calendar/worker";
-import { app, CRON_JOBS } from "./index";
+import { app, CRON_JOBS, pingCallSessionObject } from "./index";
 import {
   failStuckOutboundSends,
   pruneWebhookEvents,
@@ -491,15 +475,13 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
         "0 15 * * *", // subscription reconcile
         "45 15 * * *", // opt-out reconciliation against the carrier (#331)
         "30 15 * * *", // webhook_events ledger retention
-        "15 */6 * * *", // #375 Durable Object alert-channel canary
-        "50 13 * * 1", // #447 founder digest: tenants projected over revenue (weekly)
+        "15 */6 * * *", // D146 the call Durable Object's heartbeat
         "35 14 1 * *", // #482 response-time recap (monthly, 1st)
-        "5 */2 * * *", // #477 synthetic probes (two-hourly)
       ].sort(),
     );
   });
 
-  /** The job functions on a schedule, in order (#333 pairs each with a key). */
+  /** The job functions on a schedule, in order. */
   const runs = (schedule: keyof typeof CRON_JOBS) =>
     CRON_JOBS[schedule].map((entry) => entry.run);
 
@@ -546,11 +528,6 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     ]);
     expect(runs("*/15 * * * *")).toEqual([
       runDailySummary,
-      // #387: the liveness checker rides this trigger rather than taking one
-      // of its own — a checker with its own schedule is one more thing that
-      // can quietly stop, and this schedule is watched by the ledger the
-      // checker reads, so its own absence is the alert.
-      runLivenessCheckJob,
       notifyDueTasksJob,
       reconcileNumbers,
       retryCampaignAssignments,
@@ -568,10 +545,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runUsageAlertsJob,
       runOverageWarningJob,
       sweepStaleCalls, // #133: stale-calls sweeper (in-flight >4h → missed)
-      runEmailHealthJob, // #386: domain bounce/complaint rates, rolling 24h
-      runRingSuccessWatch, // D142 P01: ring pushes that became a shown ring
-      runTelnyxSpendWatch, // #642: spend past 70% of a Telnyx daily limit
-      runInboundCanaryJob, // #308: synthetic inbound round trip (off until configured)
+      runTelnyxSpendGauges, // #642: today's spend against Telnyx's daily limits
       // #224: retires payment requests past their 14-day expiry, so a thread
       // stops showing "Waiting" for a link that no longer opens.
       expirePaymentRequests,
@@ -581,26 +555,14 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(runs("40 * * * *")).toEqual([geocodeTasksJob]);
     expect(runs("0 13 * * *")).toEqual([
       pollRegistrations,
-      runDeliveryByCountryJob,
       // #235: per-number reputation, on the same daily trigger as the other
       // slow reconciles.
       runNumberHealthJob,
-      // #310: the registrations that did NOT move.
-      runRegistrationStallJob,
-      // #397: one workspace's calls going quiet.
-      runCallSilenceJob,
-      // D142 PW01: production's Telnyx webhook settings and failed deliveries.
-      runTelnyxWiringWatch,
       // #643: ring audience plus calls up, against the concurrent call limit.
-      runTelnyxCapacityWatch,
-      // #303: the AUP watcher, on the same daily trigger as the other slow
-      // watchers — its signals are day-scale by construction.
-      runAupWatchJob,
-      // #281: a workspace stalling on the way to its first conversation.
-      runActivationStallJob,
+      runTelnyxCapacityGauge,
+      // #303: each workspace's day of sending, day-scale by construction.
+      runAupSignalsJob,
     ]);
-    // #642: the weekly drift check rides the Monday slot beside the digest.
-    expect(runs("50 13 * * 1")).toContain(runTelnyxSpendLimitDriftWatch);
     expect(runs("10 13 * * *")).toEqual([pollPortRequests]);
     expect(runs("0 14 * * *")).toEqual([runGraceJob]);
     expect(runs("0 15 * * *")).toEqual([runSubscriptionReconcileJob]);
@@ -620,12 +582,10 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       pruneWebhookDeliveries,
       pruneAuditLog,
       pruneUserSessions, // #236: dead and revoked device rows past 90 days
-      // #581: both of these existed, were granted and were documented — and
-      // were called by nothing at all, while PERSONAL-DATA-INVENTORY.md
-      // published a 30-day window for the first one. Registered here is what
-      // makes the published window true.
+      // #581: this existed, was granted and was documented, and was called by
+      // nothing at all, while PERSONAL-DATA-INVENTORY.md published a 30-day
+      // window for it. Registered here is what makes the published window true.
       prunePublicLinkAccess,
-      pruneProbeResults,
       purgeClosedWorkspaces,
       buildDataExports,
       pruneExpiredExports, // #378: expired exports are deleted, not just hidden
@@ -644,24 +604,38 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       // eligible for a window it had not yet been told about.
       runRetentionEnforceJob,
     ]);
-    // #375: the DO alert-channel canary, alone on its own six-hourly trigger.
-    expect(runs("15 */6 * * *")).toEqual([runDoSentryCanaryJob]);
+    // D146: the call Durable Object's heartbeat, alone on its six-hourly trigger.
+    expect(runs("15 */6 * * *")).toEqual([pingCallSessionObject]);
   });
 
-  it("pairs every job with a DISTINCT declared liveness key (#333)", () => {
-    // The compiler already refuses a job whose key is not declared. What it
-    // cannot see is two jobs sharing one key — which would look fine and quietly
-    // mean the healthy one keeps beating for the broken one, so the broken job
-    // never goes overdue. That is the precise failure this whole mechanism
-    // exists to prevent, hiding inside the mechanism itself.
+  it("names every job distinctly, so an exception says which one failed", () => {
     const all = Object.values(CRON_JOBS).flatMap((entries) =>
       entries.map((entry) => entry.key),
     );
-    expect(new Set(all).size, `duplicate liveness key among ${all.length} jobs`).toBe(
-      all.length,
-    );
-    for (const key of all) {
-      expect(LIVENESS_EXPECTATIONS, key).toHaveProperty(key);
+    expect(new Set(all).size, `duplicate job name among ${all.length} jobs`).toBe(all.length);
+  });
+
+  it("exports every Durable Object class wrangler binds, under its bound name", async () => {
+    // wrangler resolves a DO class from `main`'s named exports, so a rename
+    // here fails at deploy time, not in a build.
+    const wrangler = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+    const bound = [...wrangler.matchAll(/"class_name"\s*:\s*"(\w+)"/g)].map((match) => match[1]);
+    expect(bound.length, "wrangler.jsonc binds no Durable Object at all").toBeGreaterThan(0);
+    const worker = (await import("./index")) as Record<string, unknown>;
+    for (const name of bound) {
+      expect(worker[name], `wrangler binds "${name}" but the Worker exports no such name`).toBeTypeOf(
+        "function",
+      );
+    }
+  });
+
+  it("gives every trigger a heartbeat grace the overdue alert's 35-day window can see", () => {
+    // The alert reads 35 days of heartbeats. A grace past that would make a
+    // stopped trigger indistinguishable from one that never existed.
+    expect(Object.keys(CRON_GRACE_MINUTES).sort()).toEqual(Object.keys(CRON_JOBS).sort());
+    for (const [cron, grace] of Object.entries(CRON_GRACE_MINUTES)) {
+      expect(grace, cron).toBeLessThan(35 * 24 * 60);
+      expect(grace, cron).toBeGreaterThan(0);
     }
   });
 });

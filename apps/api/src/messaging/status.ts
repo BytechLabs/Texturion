@@ -17,9 +17,12 @@
  * Status webhooks whose telnyx_message_id matches no row are acked no-ops
  * (§8) — e.g. a `sent` racing the send route's telnyx_message_id persist.
  */
+import { lookupAreaCode } from "@loonext/shared";
+
 import { reportSegmentUsage } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { captureEvent } from "../observability/capture";
 import type { TelnyxEvent, TelnyxMessagePayload } from "./types";
 import { MMS_SEGMENTS } from "./media";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
@@ -55,6 +58,16 @@ async function markSent(env: Env, telnyxMessageId: string): Promise<void> {
     .eq("direction", "outbound")
     .eq("status", "queued"); // never regress delivered/failed (out-of-order)
   if (error) throw new Error(`message.sent update failed: ${error.message}`);
+}
+
+/**
+ * The two letters of the recipient's country, from the area code: US and
+ * Canadian numbers are both +1. Anything else, the Caribbean's +1 included,
+ * is "other". The number itself never leaves this function.
+ */
+function destinationCountry(payload: TelnyxMessagePayload): string {
+  const phone = payload.to?.[0]?.phone_number;
+  return (phone ? lookupAreaCode(phone)?.country : undefined) ?? "other";
 }
 
 async function finalize(
@@ -135,6 +148,18 @@ async function finalize(
   }
 
   if (message.direction !== "outbound") return;
+
+  // D146: the fleet's delivery rate per destination country, in PostHog. Once
+  // per transition, so a replay of the same final status counts nothing.
+  if (
+    (finalStatus === "delivered" || finalStatus === "failed") &&
+    message.status !== finalStatus
+  ) {
+    void captureEvent(env, "message_outcome", message.company_id, {
+      status: finalStatus,
+      country: destinationCountry(payload),
+    });
+  }
 
   // #243: a send that came back refused is the event an integration most wants
   // — it is the one that needs a human. Only on the transition, never on a

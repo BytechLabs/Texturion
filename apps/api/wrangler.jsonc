@@ -67,18 +67,10 @@
       "0 15 * * *", // subscription reconcile
       "45 15 * * *", // opt-out reconciliation against the carrier list (daily)
       "30 15 * * *", // webhook_events ledger retention (daily)
-      // #375: the DO alert-channel canary. Six-hourly rather than hourly
-      // because each probe is a billable Sentry event, and a canary that eats
-      // the error quota would rate-limit the alarms it exists to protect.
-      "15 */6 * * *",
-      "50 13 * * 1", // #447 founder digest: tenants projected over revenue (weekly, Mon)
+      "15 */6 * * *", // D146 the call Durable Object's heartbeat (six-hourly)
       // #482 response-time recap (monthly, 1st). Its own minute so it never
       // shares a tick with the daily jobs above — this one fans out across
       // every active tenant, and a slow run must not delay grace & release.
-      // #477: the synthetic probes. Two-hourly rather than hourly — both are
-      // free, but a status page reads the same either way and half the rows is
-      // half the retention.
-      "5 */2 * * *",
       "35 14 1 * *"
     ]
   },

@@ -18,12 +18,10 @@
  * is no fourth path, and `PushDelivery` is typed so that asking for HIGH
  * without naming a company and a reason does not compile.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { billingRecipients } from "../billing/recipients";
-import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
+import { captureException, opsNotice, workerEnv } from "../observability/capture";
 
 /**
  * Which feature is spending. Recorded per company per day so a spike can be
@@ -119,85 +117,54 @@ export async function claimHighPriority(
       alert: row.alert === 80 || row.alert === 100 ? row.alert : null,
     };
   } catch (cause) {
-    const message =
+    console.error(
       `high-priority push meter failed for company ${request.companyId} ` +
-      `(${request.reason}): ${cause instanceof Error ? cause.message : String(cause)}`;
-    console.error(message);
-    Sentry.captureMessage(message, "warning");
+        `(${request.reason}): ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+    void captureException(workerEnv(), cause, {
+      source: "api",
+      level: "warning",
+      company_id: request.companyId,
+      extra: { reason: request.reason },
+    });
     return OPEN;
   }
 }
 
+export const HIGH_PRIORITY_CEILING_KEY = "high-priority-push-ceiling";
+
 /**
- * The ops alert. Ops-only, deliberately: this is our standing with Google, not
- * the customer's bill, and there is nothing an owner could do about it — the
- * same call #448 made for per-dial fees.
+ * The notice at 80% and at 100% of the ceiling. Ops-only, deliberately: this is
+ * our standing with Google, not the customer's bill, and there is nothing an
+ * owner could do about it, the same call #448 made for per-dial fees.
  *
- * Exactly-once is the ledger stamp's guarantee, inside `claim_high_priority_push`;
- * this only renders and sends. Never throws, for the same reason the claim does
- * not: an alert about push must not break push.
+ * Exactly-once is the ledger stamp's guarantee, inside `claim_high_priority_push`,
+ * so the claim that crosses a rung is the only one that sends.
  */
 export async function reportHighPriorityPushAlert(
   env: Env,
-  db: SupabaseClient,
   request: HighPriorityRequest,
   threshold: 80 | 100,
 ): Promise<void> {
-  try {
-    const { data, error } = await db
-      .from("companies")
-      .select("name")
-      .eq("id", request.companyId)
-      .limit(1);
-    if (error) throw new Error(error.message);
-    const name =
-      (data?.[0] as { name: string } | undefined)?.name ?? request.companyId;
-
-    // Who the owner/admins are is useful context for the ops reader deciding
-    // whether this is a real crew having a huge day or an abuse pattern.
-    let owners = "";
-    try {
-      const recipients = await billingRecipients(env, request.companyId, db);
-      if (recipients.length > 0) owners = recipients.join(", ");
-    } catch {
-      // Context, not the alert. Losing it must not lose the alert.
-    }
-
-    const text =
+  await opsNotice(env, {
+    key: HIGH_PRIORITY_CEILING_KEY,
+    level: threshold === 100 ? "error" : "warning",
+    summary:
+      threshold === 100
+        ? "A workspace reached the daily high-priority push ceiling"
+        : "A workspace used 80% of the daily high-priority push ceiling",
+    detail:
+      `company ${request.companyId}, reason ${request.reason}, ${threshold}% of ` +
+      `${HIGH_PRIORITY_PUSH_DAILY_LIMIT}. ` +
       (threshold === 100
-        ? `${name} has reached today's ceiling of ${HIGH_PRIORITY_PUSH_DAILY_LIMIT} ` +
-          `high-priority device pushes for new leads. Further lead ` +
-          `notifications today are being delivered at NORMAL priority — they ` +
-          `are still sent, they just will not wake a phone out of Doze.\n\n`
-        : `${name} has used 80% of today's ceiling of ` +
-          `${HIGH_PRIORITY_PUSH_DAILY_LIMIT} high-priority device pushes for ` +
-          `new leads. Past the ceiling, lead notifications degrade to NORMAL ` +
-          `priority for the rest of their local day.\n\n`) +
-      `Company: ${name} (${request.companyId})\n` +
-      (owners ? `Owner/admins: ${owners}\n` : "") +
-      `Reason: ${request.reason}\n\n` +
-      `High-priority push is rationed by Google and Apple, and overuse is ` +
-      `penalised app-wide rather than per message. Check whether this is a ` +
-      `genuinely busy crew (raise companies.high_priority_push_limit) or an ` +
-      `inbound flood (check the workspace for spam threads).\n\n` +
-      `Last 7 days by company: select api_high_priority_push_report(7);\n`;
-
-    await opsEmail(env, {
-    key: "ops:notifications-high-priority",
-      subject:
-        threshold === 100
-          ? `[ops] ${name} hit the high-priority push ceiling`
-          : `[ops] ${name} is nearing the high-priority push ceiling`,
-      text,
-      html: opsTextHtml(text),
-    });
-  } catch (cause) {
-    const message =
-      `high-priority push alert (${threshold}%) failed for company ` +
-      `${request.companyId}: ${cause instanceof Error ? cause.message : String(cause)}`;
-    console.error(message);
-    Sentry.captureMessage(message, "warning");
-  }
+        ? "Further lead notifications today go at NORMAL priority: still sent, but they will not wake a phone out of Doze."
+        : "Past the ceiling, lead notifications go at NORMAL priority for the rest of the local day."),
+    action:
+      "High-priority push is rationed by Google and Apple, and overuse is penalised " +
+      "app-wide. Check whether this is a busy crew (raise companies.high_priority_push_limit) " +
+      "or an inbound flood (look for spam threads). Last 7 days by company: " +
+      "select api_high_priority_push_report(7);",
+  });
 }
 
 /**
@@ -212,7 +179,7 @@ export async function resolveHighPriority(
 ): Promise<"normal" | "high"> {
   const claim = await claimHighPriority(db, request, sends);
   if (claim.alert !== null) {
-    await reportHighPriorityPushAlert(env, db, request, claim.alert);
+    await reportHighPriorityPushAlert(env, request, claim.alert);
   }
   return claim.allowed ? "high" : "normal";
 }

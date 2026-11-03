@@ -141,25 +141,22 @@ gets overlooked.
 | `public_link_access` | **country only**, deliberately never the IP (#335) | 30 days, swept daily by `job:prune-public-link-access` — `apps/api/src/crons/retention-prunes.ts`. The window was published here while the SQL that enforces it had no caller (#581); the number was always right, the sweep is what makes the row true |
 | `public_links` | token **hash** only, never the token | Life of the linked object |
 | `webhook_events` | provider payloads, which **contain message bodies and numbers** | Pruned daily |
-| `webhook_rejections` | signature failures | Rolling |
 | `webhook_deliveries` | the payloads we send OUT, which **contain message bodies, numbers and contact names** — the same class as `webhook_events`, copied into a second table (#243) | **30 days**, `api_prune_webhook_deliveries`, swept daily. The payload is kept rather than rebuilt so a redelivery re-sends the event as it was; that is a real requirement and it is also why this row needed a retention answer rather than inheriting one. Goes with the workspace in the teardown |
 | `webhook_endpoints` | a **URL** the business chose, its **signing secret**, and the **user id** who added it. No contact data | Life of the endpoint; deleted with the workspace. The secret is readable by `service_role` alone — no policy and no grant reaches it from a client key, because anything that can read it can forge our signature |
 | `webhook_subscriptions` | opaque Google/Graph subscription and resource ids plus a client-state **hash**; no event body or customer content (#245) | Renewed for the live connection, revoked on disconnect/replacement, and purged with the workspace |
 | `api_keys` | a **name** the owner typed, a **token hash**, the **user id** who created it and the one who revoked it. No contact data, and the token itself is never stored (#243) | Life of the key. A revocation is a STAMP, not a delete: "when was that turned off, and by whom" is the first question after an incident and a deleted row cannot answer it. Rows go with the workspace in the teardown — a workspace that has been erased must not leave a live token that still resolves to its id |
-| `push_attempts`, `ring_beacons` | the **user id** of the member a push went to or whose device reported a ring, beside that device's push outcome (provider response class, HTTP status, priority, latency) and, for beacons, the **auth session id**, app version, OS, permission and standby state (D142). No number, name, message, endpoint or device token. Every free-text column is held by a CHECK, which refuses the shapes personal data takes by accident (a number with its plus, bare digits, an email, a name with spaces): the stage, purpose, outcome, permission and standby columns to fixed word lists, the OS to the few shapes the clients send (an SDK level, a short iOS version, a browser's platform name), the app version to dotted digits, and the call session id to an identifier's characters. Read in production only through the hashed `ops_diag` views, and in aggregate by `api_ring_success` (D142 P01, service role only), which returns platforms, app versions, counts, rates and a verdict, never a member, workspace, session or device | **14 days**, swept by a trigger on every insert, so a row outlives its window only while nothing at all is being written to that table. Both reference the member's `company_members` row with ON DELETE CASCADE, so they go with the workspace in the teardown. Account deletion keeps that row, so `delete_account` deletes the member's own rows of both |
-| `inbound_canary_runs` | our own numbers only | Rolling |
+| `push_attempts`, `ring_beacons` | the **user id** of the member a push went to or whose device reported a ring, beside that device's push outcome (provider response class, HTTP status, priority, latency) and, for beacons, the **auth session id**, app version, OS, permission and standby state (D142). No number, name, message, endpoint or device token. Every free-text column is held by a CHECK, which refuses the shapes personal data takes by accident (a number with its plus, bare digits, an email, a name with spaces): the stage, purpose, outcome, permission and standby columns to fixed word lists, the OS to the few shapes the clients send (an SDK level, a short iOS version, a browser's platform name), the app version to dotted digits, and the call session id to an identifier's characters. Read in production only through the hashed `ops_diag` views | **14 days**, swept by a trigger on every insert, so a row outlives its window only while nothing at all is being written to that table. Both reference the member's `company_members` row with ON DELETE CASCADE, so they go with the workspace in the teardown. Account deletion keeps that row, so `delete_account` deletes the member's own rows of both |
 | `data_exports` | a notify-email id, and the export objects **contain everything above** | Expired exports deleted at 7 days (#378) |
 | `usage_events`, `usage_alerts`, `egress_events`, `company_ai_usage`, `call_records`, `provider_costs`, `billing_disputes`, `prepayments`, `referrals` | volumes and Stripe ids; no names or bodies | Billing record |
 
 ## 6. No personal data
 
-`activation_stall_state`, `app_release_policy`, `company_modules`, `conversation_reads`,
+`app_release_policy`, `company_modules`, `conversation_reads`,
 `conversation_tags`, `feature_flags`, `feature_flag_overrides`, `grace_notices`,
 `high_priority_push_budget`, `high_priority_push_days`,
-`inbound_notification_days`, `liveness_heartbeats`, `message_mentions`,
+`inbound_notification_days`, `message_mentions`,
 `outbound_call_authorizations`, `outbound_dial_leases`, `ownership_confirmations`,
-`ownership_transfers`, `call_silence_state`, `probe_results`,
-`retention_notices`, `template_uses`.
+`ownership_transfers`, `retention_notices`, `template_uses`.
 
 Ids and counters. Listed rather than omitted, so "not in the document" always
 means "somebody forgot", never "deliberately excluded".
@@ -181,12 +178,6 @@ per-contact fact, and nothing that needed the ledger (sorting a picker, finding
 dead templates, gating a delete confirmation) needed that. Adding either column
 would move this row to section 5 and is its own decision, which is exactly why
 they were left out rather than added "in case".
-
-`probe_results` (#477) is in this section CONDITIONALLY, and the condition is
-enforced in the schema: its `detail` column is a short failure code, capped at
-64 characters, never a message and never a body. A probe that recorded what it
-actually saw — a number it texted, a URL with a key in it — would move this
-table into section 5 on the first bad day. The cap is what keeps it here.
 
 ---
 

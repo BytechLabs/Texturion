@@ -69,7 +69,6 @@ const refusal = {
   outcome: "job-fails",
   telnyx_paths: ["/v2/porting_orders"],
   when: "a port is open",
-  fingerprints: [["ops", "job:a"]],
 };
 const captured = {
   job: "job:a",
@@ -205,35 +204,22 @@ describe("malformed entries", () => {
     expect(problems(input)).toMatch(/is classified twice/);
   });
 
-  it("fails a skip with no reason, or without the liveness alerts it causes", () => {
+  it("fails a skip with no reason, and passes one with a reason", () => {
     const skip = { config: API, cron: "0 13 * * *", class: "skip", jobs: ["job:a"] };
     expect(problems(world(skip))).toMatch(/a skip needs a reason/);
-    expect(problems(world({ ...skip, reason: "x", fingerprints: [["ops", "cron:0 13 * * *"]] }))).toMatch(
-      /a skip silences \["ops","job:a"\]/,
-    );
-    const complete = { ...skip, reason: "x", fingerprints: [["ops", "cron:0 13 * * *"], ["ops", "job:a"]] };
-    expect(guard.judge({ ...world(complete), exact: true }).problems).toEqual([]);
+    expect(guard.judge({ ...world({ ...skip, reason: "x" }), exact: true }).problems).toEqual([]);
   });
 
-  it("owes no liveness key for another Worker's cron, and refuses any fingerprint there", () => {
+  it("refuses fingerprints on any skip, which could only hide what the API raises", () => {
+    // A skip is never fired, so it raises nothing; a fingerprint on one could
+    // only suppress an event the rig's own API sends.
     const input = world(run);
     input.configs[EDGE] = ["*/15 * * * *"];
-    const edge: Entry = { config: EDGE, cron: "*/15 * * * *", class: "skip", reason: "x", fingerprints: [] as string[][] };
+    const edge: Entry = { config: EDGE, cron: "*/15 * * * *", class: "skip", reason: "x" };
     input.registry.crons.push(edge);
     expect(guard.judge({ ...input, exact: true }).problems).toEqual([]);
-    delete edge.fingerprints;
-    expect(guard.judge({ ...input, exact: true }).problems).toEqual([]);
-    // The API's liveness keys, its channel keys, and anything else alike.
-    for (const fingerprint of [
-      ["ops", "cron:*/15 * * * *"],
-      ["ops", "job:a"],
-      ["ops", "channel:sms-outbound"],
-      ["exception", "TypeError"],
-    ]) {
-      edge.fingerprints = [fingerprint];
-      const escaped = JSON.stringify(fingerprint).replace(/[[\]*/]/g, "\\$&");
-      expect(problems(input)).toMatch(new RegExp(`reports nowhere the rig's relay reads, so ${escaped} could only match`));
-    }
+    edge.fingerprints = [["ops", "job:a"]];
+    expect(problems(input)).toMatch(/"fingerprints" is not a field of a skip entry/);
   });
 
   it("refuses another Worker's cron classified as anything but skip, since nothing fires it", () => {
@@ -250,23 +236,16 @@ describe("malformed entries", () => {
     }
   });
 
-  it("fails skip fingerprints that are not a list of fingerprints", () => {
-    const input = world(run);
-    input.configs[GUARD] = ["7 * * * *"];
-    input.registry.crons.push({ config: GUARD, cron: "7 * * * *", class: "skip", reason: "x", fingerprints: ["ops"] });
-    expect(problems(input)).toMatch(/fingerprints must be a list of fingerprints/);
-  });
-
   it("fails a refusal on an endpoint rig mode does not refuse", () => {
     const entry = { ...run, class: "run-expect-refusal", refusals: [{ ...refusal, telnyx_paths: ["/v2/messages"] }] };
     expect(problems(world(entry))).toMatch(/rig mode does not refuse \/v2\/messages/);
   });
 
-  it("fails a refusal for a job the cron does not run, or without its ops fingerprint", () => {
-    const stranger = { ...run, class: "run-expect-refusal", refusals: [{ ...refusal, job: "job:z", fingerprints: [["ops", "job:z"]] }] };
+  it("fails a refusal for a job the cron does not run, or one that lists fingerprints", () => {
+    const stranger = { ...run, class: "run-expect-refusal", refusals: [{ ...refusal, job: "job:z" }] };
     expect(problems(world(stranger))).toMatch(/job:z is not one of this cron's jobs/);
-    const unprinted = { ...run, class: "run-expect-refusal", refusals: [{ ...refusal, fingerprints: [] }] };
-    expect(problems(world(unprinted))).toMatch(/fingerprints must include \["ops","job:a"\]/);
+    const printed = { ...run, class: "run-expect-refusal", refusals: [{ ...refusal, fingerprints: [["ops", "job:a"]] }] };
+    expect(problems(world(printed))).toMatch(/"fingerprints" is not a refusal field/);
   });
 
   it("fails a refusal that does not say whether the job fails or captures it", () => {
@@ -278,12 +257,6 @@ describe("malformed entries", () => {
 describe("refusals the job captures", () => {
   it("passes a captured refusal whose catch site exists, beside a job-fails one for the same job", () => {
     expect(guard.judge({ ...refusing(captured, refusal), exact: true }).problems).toEqual([]);
-  });
-
-  it("fails a captured refusal that suppresses the job's liveness alert, since the job still beats", () => {
-    expect(problems(refusing({ ...captured, fingerprints: [["ops", "job:a"]] }))).toMatch(
-      /captured refusal leaves the job's heartbeat recorded/,
-    );
   });
 
   it("fails a captured refusal with no catch site, or one that no longer exists", () => {
@@ -305,7 +278,7 @@ describe("refusals the job captures", () => {
   });
 
   it("fails an expected event, defect or follow-on event without its explanation", () => {
-    expect(problems(refusing({ ...captured, follow_on_events: [{ match: "level fatal" }] }))).toMatch(
+    expect(problems(refusing({ ...captured, follow_on_events: [{ match: "level error" }] }))).toMatch(
       /follow_on_events\[0\] needs exactly a match and a why/,
     );
     expect(problems(world({ ...run, defects: [{ match: "x", why: "y" }] }))).toMatch(/defects\[0\] needs exactly a match and a means/);
@@ -332,7 +305,7 @@ describe("the real registry's refusals", () => {
     expect(outcomes).not.toContain("job:retry-campaign-assignments job-fails");
   });
 
-  it("skips the edge's and the guard's Cloudflare crons, owing no liveness key", () => {
+  it("skips the edge's and the guard's Cloudflare crons, listing no fingerprint", () => {
     const { registry, configs } = realInput();
     for (const config of [EDGE, GUARD]) {
       const entries = registry.crons.filter((entry) => entry.config === config);
@@ -340,7 +313,7 @@ describe("the real registry's refusals", () => {
       expect(entries.length).toBeGreaterThan(0);
       for (const entry of entries) {
         expect(entry.class).toBe("skip");
-        expect(entry.fingerprints).toEqual([]);
+        expect(entry.fingerprints).toBeUndefined();
       }
     }
   });

@@ -4,7 +4,7 @@
  *
  *   sweepWebhookEvents  (*\/5)  — replay `webhook_events` rows still
  *     unprocessed after 2 minutes (waitUntil died, transient failure), up to
- *     5 attempts; the 5th failure raises a Sentry alert. Telnyx rows replay
+ *     5 attempts; the 5th failure is reported as an exception. Telnyx rows replay
  *     through the same dispatch as the live route; Stripe rows through the
  *     billing track's processStripeEvent — durability without Queues (D11).
  *     #22: each row is CLAIMED (atomic CAS on attempts + a claimed_at lease)
@@ -31,12 +31,10 @@
  *     event on an attempt whose stamp never landed — treated as success
  *     (stamp and move on), never as a retryable failure.
  */
-import * as Sentry from "@sentry/cloudflare";
-
 import { reportSegmentUsage, reportVoiceSeconds } from "../billing/meter";
 import { getDb } from "../db";
-import { recordHeartbeatBestEffort } from "../observability/liveness";
 import type { Env } from "../env";
+import { captureException } from "../observability/capture";
 import { telnyxRequest } from "../telnyx/client";
 import { processResendEvent } from "../webhooks/resend";
 import { processStripeEvent } from "../webhooks/stripe";
@@ -177,11 +175,17 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
         .eq("provider", row.provider)
         .eq("event_id", row.event_id);
       if (attempts >= SWEEP_MAX_ATTEMPTS) {
-        // §11: Sentry alert at attempt 5 — IDs only, never payload bodies (§10).
-        Sentry.captureMessage(
-          `webhook ${row.provider}/${row.event_id} (${row.event_type}) failed ${attempts} times`,
-          "error",
-        );
+        // §11: reported at attempt 5, ids only, never payload bodies (§10).
+        void captureException(env, `webhook replay failed ${SWEEP_MAX_ATTEMPTS} times`, {
+          source: "cron",
+          job: "job:sweep-webhooks",
+          extra: {
+            provider: row.provider,
+            event_id: row.event_id,
+            event_type: row.event_type,
+            attempts,
+          },
+        });
       }
     }
   }
@@ -195,7 +199,7 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
  * bound for the life of the install, linearly with messages + calls. This caps
  * it. Only processed rows are eligible: an unprocessed row is still owed a
  * replay, and one that exhausted its attempts is the forensic record behind a
- * §11 Sentry alert.
+ * §11 exception.
  */
 
 /**
@@ -268,7 +272,7 @@ export async function pruneWebhookEvents(
  * forever (silently unsent, unretryable, and counting against the period
  * cap's pending sum). Flipping to failed + `send_interrupted` surfaces it in
  * the thread with the existing retry affordance. Piggybacks the 5-minute
- * webhook-sweep cadence; a flip is worth an alert (a customer's message was
+ * webhook-sweep cadence; a flip is worth reporting (a customer's message was
  * silently NOT sent) — count only, never bodies (§10).
  */
 export async function failStuckOutboundSends(env: Env): Promise<void> {
@@ -282,10 +286,12 @@ export async function failStuckOutboundSends(env: Env): Promise<void> {
   const count = Number(data ?? 0);
   if (count > 0) {
     console.error(`failed out ${count} stuck queued outbound message(s)`);
-    Sentry.captureMessage(
-      `stuck-send sweeper failed out ${count} queued outbound message(s)`,
-      "warning",
-    );
+    void captureException(env, "stuck-send sweeper failed out queued outbound messages", {
+      source: "cron",
+      job: "job:fail-stuck-sends",
+      level: "warning",
+      extra: { count },
+    });
   }
 }
 
@@ -298,13 +304,6 @@ interface UnreportedUsageRow {
   created_at: string;
   companies: { stripe_customer_id: string | null } | null;
 }
-
-/**
- * The re-reporter runs hourly, so a revenue row still unstamped after this long
- * has failed many retries — Sentry-alert it (ids only) so silent revenue
- * leakage surfaces instead of being retried invisibly forever.
- */
-const STUCK_METER_ROW_MS = 6 * 60 * 60 * 1000;
 
 /**
  * #53: does this meter-event failure mean Stripe ALREADY accepted the
@@ -332,31 +331,29 @@ export function isDuplicateMeterIdentifierError(cause: unknown): boolean {
   );
 }
 
-/** §11 usage re-reporter: meter events for locally-unstamped usage rows. */
 /**
- * #333 ask 3 — "report work done, not just execution".
- *
- * A re-reporter can run every hour, succeed every hour, and still be failing
- * at the only thing it exists for: rows sit unreported, every Stripe call
- * errors, the loop catches and continues, and both the schedule heartbeat and
- * the job heartbeat look perfect while revenue quietly does not get billed.
- *
- * Healthy is a conjunction, not a count: nothing was outstanding, OR we got
- * something through. Outstanding work with nothing reported is the only wrong
- * shape — and the only one that does not false-alarm on a platform with no
- * traffic to report.
+ * #333 ask 3: a re-reporter can run every hour and still be failing at the
+ * only thing it exists for, with every Stripe call erroring and the loop
+ * catching each one, while revenue quietly does not get billed. So a run that
+ * left rows unreported says so once, with the last failure as the exception
+ * and the counts beside it (ids only, §10).
  */
-async function recordReporterProgress(
+function reportReporterFailures(
   env: Env,
-  key: "job:report-usage:work" | "job:report-voice-usage:work",
+  job: "job:report-usage" | "job:report-voice-usage",
   found: number,
-  reported: number,
-): Promise<void> {
-  if (found === 0 || reported > 0) {
-    await recordHeartbeatBestEffort(env, key);
-  }
+  failed: number,
+  lastFailure: unknown,
+): void {
+  if (failed === 0) return;
+  void captureException(env, lastFailure, {
+    source: "cron",
+    job,
+    extra: { found, failed },
+  });
 }
 
+/** §11 usage re-reporter: meter events for locally-unstamped usage rows. */
 export async function reportUnreportedUsage(env: Env): Promise<void> {
   const db = getDb(env);
   const { data, error } = await db
@@ -368,7 +365,8 @@ export async function reportUnreportedUsage(env: Env): Promise<void> {
   if (error) throw new Error(`usage re-report query failed: ${error.message}`);
 
   const rows = (data ?? []) as unknown as UnreportedUsageRow[];
-  let reported = 0;
+  let failed = 0;
+  let lastFailure: unknown;
 
   for (const row of rows) {
     const stripeCustomerId = row.companies?.stripe_customer_id;
@@ -387,14 +385,8 @@ export async function reportUnreportedUsage(env: Env): Promise<void> {
           `usage re-report failed for ${row.id}:`,
           cause instanceof Error ? cause.message : String(cause),
         );
-        // Surface a chronically-stuck revenue row (ids only, no payload) so
-        // silent revenue leakage becomes visible instead of retrying forever.
-        if (Date.now() - new Date(row.created_at).getTime() > STUCK_METER_ROW_MS) {
-          Sentry.captureMessage(
-            `usage re-report stuck >6h for row ${row.id} (identifier ${row.meter_identifier ?? row.id})`,
-            "error",
-          );
-        }
+        failed += 1;
+        lastFailure = cause;
         continue; // stays unstamped; next hourly run retries
       }
       // #53: identifier already accepted by Stripe (a reported-but-unstamped
@@ -410,10 +402,9 @@ export async function reportUnreportedUsage(env: Env): Promise<void> {
     if (stampError) {
       throw new Error(`stripe_reported_at stamp failed: ${stampError.message}`);
     }
-    reported += 1;
   }
 
-  await recordReporterProgress(env, "job:report-usage:work", rows.length, reported);
+  reportReporterFailures(env, "job:report-usage", rows.length, failed, lastFailure);
 }
 
 interface UnreportedVoiceRow {
@@ -473,7 +464,8 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
   }
 
   const rows = (data ?? []) as unknown as UnreportedVoiceRow[];
-  let reported = 0;
+  let failed = 0;
+  let lastFailure: unknown;
 
   for (const row of rows) {
     const stripeCustomerId = row.companies?.stripe_customer_id;
@@ -490,6 +482,8 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
           `voice re-report failed for ${row.id}:`,
           cause instanceof Error ? cause.message : String(cause),
         );
+        failed += 1;
+        lastFailure = cause;
         continue; // stays unstamped; next hourly run retries
       }
       // #53: identifier already accepted by Stripe — stamp through.
@@ -504,15 +498,9 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
         `call_records stamp failed: ${stampError.message}`,
       );
     }
-    reported += 1;
   }
 
-  await recordReporterProgress(
-    env,
-    "job:report-voice-usage:work",
-    rows.length,
-    reported,
-  );
+  reportReporterFailures(env, "job:report-voice-usage", rows.length, failed, lastFailure);
 }
 
 /**

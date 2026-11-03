@@ -28,13 +28,11 @@
  * The other direction is NEVER touched. Deleting our record because Telnyx has
  * no matching one would erase a manual opt-out on every single run.
  */
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { escapeHtml } from "../email/html";
-import { opsBodyHtml, opsEmail } from "../observability/ops-alert";
 import type { Env } from "../env";
+import { captureException, opsNotice } from "../observability/capture";
 import { listCarrierOptOuts } from "../telnyx/opt-outs";
 import { recordCarrierOptOut } from "./opt-out";
 
@@ -47,7 +45,6 @@ const MAX_COMPANIES_PER_RUN = 200;
 
 export interface OptOutDivergence {
   companyId: string;
-  companyName: string | null;
   /** On the carrier's list, missing from ours — and now recorded. */
   carrierOnly: string[];
   /** On ours, not on the carrier's. Expected for manual and imported ones. */
@@ -109,18 +106,17 @@ export async function reconcileOptOuts(
       summary.recorded += divergence.carrierOnly.length;
       summary.appSideOnly += divergence.oursOnly;
       // Only worth reporting when something is actually out of step. A run
-      // where every list agrees should produce no email at all.
+      // where every list agrees should produce no notice at all.
       if (divergence.carrierOnly.length > 0 || divergence.truncated) {
         summary.divergences.push(divergence);
       }
     } catch (cause) {
       summary.failed += 1;
-      Sentry.captureMessage(
-        `opt-out reconcile failed for ${company.id}: ${
-          cause instanceof Error ? cause.message : String(cause)
-        }`,
-        "error",
-      );
+      void captureException(env, cause, {
+        source: "cron",
+        job: "job:opt-out-reconcile",
+        company_id: company.id,
+      });
     }
   }
 
@@ -174,7 +170,6 @@ async function reconcileCompany(
 
   return {
     companyId: company.id,
-    companyName: company.name,
     carrierOnly,
     oursOnly,
     truncated: carrier.truncated,
@@ -187,9 +182,9 @@ async function reconcileCompany(
  * consequence — the number is now correctly marked opted out — is already
  * visible in their app.
  *
- * Silence is the healthy state. An email every night that says "0" is one
- * nobody reads by week three, and then the one that says "47" is not read
- * either.
+ * Silence is the healthy state, so a run that found nothing sends nothing.
+ * Each run that recorded a missed STOP is one notice: those numbers were not
+ * opted out before it ran, so the condition starts with that run.
  */
 async function reportDivergence(
   env: Env,
@@ -198,49 +193,23 @@ async function reportDivergence(
   if (summary.divergences.length === 0) return;
 
   const lines = summary.divergences.map((row) => {
-    const name = row.companyName ?? row.companyId;
-    const parts = [`${name}: ${row.carrierOnly.length} recorded from the carrier`];
+    const parts = [`company ${row.companyId}: ${row.carrierOnly.length} recorded from the carrier`];
     if (row.truncated) {
-      parts.push("carrier list longer than one run reads — TRUNCATED");
+      parts.push("carrier list longer than one run reads, TRUNCATED");
     }
-    return `- ${parts.join("; ")}`;
+    return parts.join(", ");
   });
 
-  const text =
-    `${summary.recorded} number(s) were being blocked by the carrier with no ` +
-    "opt-out on our side. Each is an inbound STOP whose webhook we did not " +
-    "process, and each has now been recorded so the composer stops offering " +
-    "to text them.\n\n" +
-    `${lines.join("\n")}\n\n` +
-    `Checked ${summary.companies} workspace(s); ${summary.failed} could not ` +
-    `be read. ${summary.appSideOnly} opt-out(s) are held app-side only, which ` +
-    "is expected — Telnyx has no write API, so manual and imported opt-outs " +
-    "live only with us.\n\n" +
-    "A run of these is a webhook-delivery problem, not a sudden change in " +
-    "customer behaviour.\n";
-
-  try {
-    await opsEmail(env, {
-    key: "ops:messaging-opt-out-reconcile",
-      subject: `Opt-out reconciliation: ${summary.recorded} missed by our webhook`,
-      text,
-      html: opsBodyHtml(
-        text
-          .split("\n\n")
-          // Company names are customer-controlled and reach this verbatim,
-          // so they go through the shared escaper like every other builder.
-          .map((para) => `<p>${escapeHtml(para).replaceAll("\n", "<br>")}</p>`)
-          .join(""),
-      ),
-    });
-  } catch (cause) {
-    // The records are already written; the email is the notification, not the
-    // fix. Losing it must not fail the sweep.
-    Sentry.captureMessage(
-      `opt-out reconciliation report not sent: ${
-        cause instanceof Error ? cause.message : String(cause)
-      }`,
-      "error",
-    );
-  }
+  await opsNotice(env, {
+    key: "opt-out-missed-by-webhook",
+    summary: "The carrier was blocking numbers we had no opt-out for",
+    detail:
+      `${summary.recorded} number(s) recorded as opted out: ${lines.join("; ")}. ` +
+      `Checked ${summary.companies} workspace(s); ${summary.failed} could not be read; ` +
+      `${summary.appSideOnly} opt-out(s) are held app-side only, which is expected.`,
+    action:
+      "Each is an inbound STOP whose webhook we did not process, now recorded so the " +
+      "composer stops offering to text them. A run of these is a webhook-delivery " +
+      "problem: check the Telnyx messaging webhook deliveries.",
+  });
 }

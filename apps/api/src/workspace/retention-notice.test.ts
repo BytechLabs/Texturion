@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../env";
 import { runRetentionNoticeJob } from "./retention-notice";
 
-const env = { OPS_ALERT_EMAIL: "ops@test.local" } as unknown as Env;
+const env = {} as unknown as Env;
 
 const due = (over: Record<string, unknown> = {}) => ({
   company_id: "c1",

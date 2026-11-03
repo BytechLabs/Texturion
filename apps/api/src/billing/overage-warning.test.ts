@@ -6,10 +6,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  runOverageDigestJob,
-  runOverageWarningJob,
-} from "./overage-warning";
+import { runOverageWarningJob } from "./overage-warning";
+import { eventsCaptured, resetCaptures } from "../test/capture-mock";
 import {
   endpoint,
   makeHarness,
@@ -18,6 +16,10 @@ import {
   type StubEndpoint,
 } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
+
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
 
 const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
@@ -113,6 +115,7 @@ function sentEmails(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetCaptures();
 });
 
 describe("runOverageWarningJob (#85/#92 dynamic overage warning)", () => {
@@ -122,30 +125,30 @@ describe("runOverageWarningJob (#85/#92 dynamic overage warning)", () => {
     const { harness, done } = run(state);
     await done;
 
-    // #447: two emails now — the customer's heads-up and the founder's copy.
     const emails = sentEmails(harness);
-    expect(emails).toHaveLength(2);
+    expect(emails).toHaveLength(1);
 
-    const customer = emails.find((e) => !e.subject.startsWith("[ops]"));
+    const [customer] = emails;
     expect(customer?.subject).toContain("Acme Plumbing");
     expect(customer?.to).toEqual(["owner@example.com"]);
     // The customer's copy must never carry OUR cost or margin — those are
     // internal figures, and the whole point of the split is that the tenant
-    // sees usage while the founder sees economics.
+    // sees usage while we see economics.
     expect(customer?.text).not.toContain("$");
     expect(customer?.text.toLowerCase()).not.toContain("margin");
 
-    // #447: the signal that says "this tenant is unprofitable" reaches the
-    // person who cannot absorb it. It carries the money, because ops is the
-    // only audience the margin means anything to.
-    const ops = emails.find((e) => e.subject.startsWith("[ops]"));
-    expect(ops).toBeDefined();
-    expect(ops?.to).toEqual(["ops@example.com"]);
-    expect(ops?.subject).toContain("Acme Plumbing");
-    expect(ops?.text).toContain("Projected margin:");
+    // #447: the signal that says "this tenant is unprofitable" carries the
+    // money, in an event under the workspace, never in the customer's copy.
+    const [projected] = eventsCaptured("overage_projected");
+    expect(projected.distinctId).toBe(COMPANY_ID);
+    expect(projected.properties).toMatchObject({ metric: "cost_projection", threshold: 100 });
+    expect(projected.properties.margin_cents).toBeLessThan(0);
+    expect(typeof projected.properties.projected_cost_cents).toBe("number");
+    expect(typeof projected.properties.revenue_cents).toBe("number");
+    expect(eventsCaptured("usage_threshold_crossed")).toEqual([]);
 
-    // Both ride ONE ledger row, so the founder can never be told more often
-    // than the customer was, nor without them.
+    // Both ride ONE ledger row, so the event can never fire more often than
+    // the customer was told.
     expect(state.ledger).toEqual(new Set(["cost_projection:100"]));
   });
 
@@ -155,6 +158,7 @@ describe("runOverageWarningJob (#85/#92 dynamic overage warning)", () => {
     await done;
     expect(sentEmails(harness)).toHaveLength(0);
     expect(harness.callsTo("POST", /usage_alerts/)).toHaveLength(0);
+    expect(eventsCaptured()).toEqual([]);
   });
 
   it("does not re-warn when the period's ledger row already exists", async () => {
@@ -165,6 +169,7 @@ describe("runOverageWarningJob (#85/#92 dynamic overage warning)", () => {
     const { harness, done } = run(state);
     await done;
     expect(sentEmails(harness)).toHaveLength(0);
+    expect(eventsCaptured()).toEqual([]);
   });
 
   /**
@@ -203,8 +208,7 @@ describe("runOverageWarningJob (#85/#92 dynamic overage warning)", () => {
     };
     const { harness, done } = run(paused);
     await done;
-    // #447: the customer's heads-up and the founder's copy.
-    expect(sentEmails(harness)).toHaveLength(2);
+    expect(sentEmails(harness)).toHaveLength(1);
   });
 
   it("PW-2: warns on a paused tenant whose fee we cannot read, never crediting the plan", async () => {
@@ -220,7 +224,7 @@ describe("runOverageWarningJob (#85/#92 dynamic overage warning)", () => {
     };
     const { harness, done } = run(state);
     await done;
-    expect(sentEmails(harness)).toHaveLength(2);
+    expect(sentEmails(harness)).toHaveLength(1);
   });
 
   it("PW-3: asks the database for paused_at, not only for the fee", async () => {
@@ -232,73 +236,5 @@ describe("runOverageWarningJob (#85/#92 dynamic overage warning)", () => {
       ) ?? "";
     expect(select).toContain("paused_at");
     expect(select).toContain("paused_price_cents");
-  });
-});
-
-describe("runOverageDigestJob (#447 — the pattern, not the instance)", () => {
-  const OTHER_ID = "8c9e6679-7425-40de-944b-e07fc1f90ae8";
-
-  function digestHarness(
-    crossings: { company_id: string }[],
-    activeCount: number,
-  ): Harness {
-    return makeHarness([
-      // The ledger IS the history (#447 ask 3): rows written for idempotency,
-      // stamped with sent_at, read back here to answer "how often".
-      endpoint("GET", /\/rest\/v1\/usage_alerts/, () => crossings),
-      endpoint("HEAD", /\/rest\/v1\/companies/, () =>
-        countResponse(activeCount),
-      ),
-      endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
-    ]);
-  }
-
-  it("tells the founder how many tenants crossed, out of how many", async () => {
-    const harness = digestHarness(
-      [{ company_id: COMPANY_ID }, { company_id: OTHER_ID }],
-      7,
-    );
-    stubFetch(harness.route);
-    await runOverageDigestJob(env, NOW);
-
-    const emails = sentEmails(harness);
-    expect(emails).toHaveLength(1);
-    expect(emails[0].to).toEqual(["ops@example.com"]);
-    expect(emails[0].subject).toContain("2 tenants");
-    // The denominator is the pricing signal: 2 of 7 is a different fact from
-    // 2 of 700, and only the ratio answers #446.
-    expect(emails[0].text).toContain("2 of 7");
-  });
-
-  it("counts a tenant once even if it crossed in two periods", async () => {
-    // One tenant crossing twice inside the window is one tenant, not a trend.
-    const harness = digestHarness(
-      [{ company_id: COMPANY_ID }, { company_id: COMPANY_ID }],
-      7,
-    );
-    stubFetch(harness.route);
-    await runOverageDigestJob(env, NOW);
-    expect(sentEmails(harness)[0].subject).toContain("1 tenant ");
-  });
-
-  it("stays silent in a week where nobody crossed", async () => {
-    // The module's own posture: no email is the answer "nobody hit the
-    // ceiling". A weekly zero would train the founder to ignore it.
-    const harness = digestHarness([], 7);
-    stubFetch(harness.route);
-    await runOverageDigestJob(env, NOW);
-    expect(sentEmails(harness)).toHaveLength(0);
-  });
-
-  it("never names a tenant — counts only", async () => {
-    // The per-tenant conversation stays between the product and the customer;
-    // this email exists to make a PATTERN visible without putting anyone's
-    // name in front of the founder.
-    const harness = digestHarness([{ company_id: COMPANY_ID }], 7);
-    stubFetch(harness.route);
-    await runOverageDigestJob(env, NOW);
-    const body = sentEmails(harness)[0];
-    expect(body.text).not.toContain(COMPANY_ID);
-    expect(body.text).not.toContain("Acme");
   });
 });

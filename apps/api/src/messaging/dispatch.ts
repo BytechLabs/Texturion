@@ -10,7 +10,6 @@ import {
 } from "../calls/webhook-router";
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { handleSpendLimitReachedEvent } from "../observability/telnyx-spend";
 import { handlePortingEvent } from "../telnyx/porting";
 import { handlePortOutEvent } from "../telnyx/portout";
 import { handle10dlcEvent } from "../telnyx/registration";
@@ -31,11 +30,6 @@ export async function dispatchTelnyxEvent(
   }
   if (eventType === "message.sent" || eventType === "message.finalized") {
     return handleStatusEvent(env, event);
-  }
-  if (eventType === "messaging-profile.spend-limit-reached") {
-    // #642: the vendor-side daily cap was hit. Its own ops signal, not a
-    // message event: nothing here touches a message row.
-    return handleSpendLimitReachedEvent(env, event.data?.payload);
   }
   if (eventType === "call.cost") {
     // #216: a BILLING event, not a call-state event — it must NEVER route to the

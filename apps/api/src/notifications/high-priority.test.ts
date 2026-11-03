@@ -11,12 +11,16 @@
  *   - a refused claim does NOT degrade Web Push, which nobody rations;
  *   - a meter failure fails OPEN and is reported, because a counter must never
  *     be the reason a phone does not ring;
- *   - crossing a rung sends the ops alert once, to ops rather than the owner.
+ *   - crossing a rung sends one ops notice, and nothing reaches the owner.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import * as Sentry from "@sentry/cloudflare";
-
+import {
+  captured,
+  exceptionsCaptured,
+  noticesCaptured,
+  resetCaptures,
+} from "../test/capture-mock";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
@@ -24,11 +28,10 @@ import { deliverPush } from "./deliver";
 import {
   claimHighPriority,
   HIGH_PRIORITY_PUSH_DAILY_LIMIT,
-  reportHighPriorityPushAlert,
 } from "./high-priority";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const env = completeEnv();
@@ -46,8 +49,7 @@ const ALERT = () => ({
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.mocked(Sentry.captureMessage).mockClear();
-  vi.mocked(Sentry.captureException).mockClear();
+  resetCaptures();
 });
 
 /** A structurally valid Web Push subscription, so real RFC 8291 crypto runs. */
@@ -82,8 +84,6 @@ async function world(options: {
   claim?: unknown;
   claimStatus?: number;
   devices?: number;
-  /** Status to fail the company-name lookup the ops alert needs. */
-  companyStatus?: number;
 } = {}) {
   const sb = supabaseStub(env);
   const deviceCount = options.devices ?? 2;
@@ -103,11 +103,6 @@ async function world(options: {
     options.claimStatus !== undefined
       ? new Response("boom", { status: options.claimStatus })
       : (options.claim ?? { allowed: true, alert: null }),
-  );
-  sb.on("GET", "/rest/v1/companies", () =>
-    options.companyStatus !== undefined
-      ? new Response("nope", { status: options.companyStatus })
-      : [{ name: "Dana Plumbing" }],
   );
   sb.on("GET", "/rest/v1/company_members", () => [{ user_id: USER }]);
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, () => ({
@@ -219,38 +214,43 @@ describe("#452 — the meter on high-priority push", () => {
     });
 
     expect(priorities).toEqual(["HIGH", "HIGH"]);
-    const [message, level] = vi.mocked(Sentry.captureMessage).mock.calls[0];
-    expect(String(message)).toContain("high-priority push meter failed");
-    expect(level).toBe("warning");
+    const [failure] = exceptionsCaptured();
+    expect(failure.context).toMatchObject({
+      level: "warning",
+      company_id: COMPANY,
+      extra: { reason: "lead" },
+    });
   });
 
-  it("emails OPS, not the owner, when a rung is crossed", async () => {
+  it("sends one notice at 80%, and no email to anyone", async () => {
     // Our standing with Google is our cost, not the customer's bill, and
     // there is nothing an owner could do about it — the #448 posture.
     const w = await world({ claim: { allowed: true, alert: 80 } });
     await nativePriorities(w, { companyId: COMPANY, reason: "lead" });
 
-    expect(w.resend).toHaveLength(1);
-    const email = w.resend[0] as { to: string[]; subject: string; text: string };
-    expect(email.to).toEqual([env.OPS_ALERT_EMAIL]);
-    expect(email.to).not.toContain("owner@team.example");
-    expect(email.subject).toContain("nearing");
-    expect(email.text).toContain(COMPANY);
+    const notices = noticesCaptured("high-priority-push-ceiling");
+    expect(notices).toHaveLength(1);
+    expect(notices[0].level).toBe("warning");
+    expect(notices[0].detail).toContain(COMPANY);
+    expect(notices[0].detail).not.toContain("owner@team.example");
+    expect(w.resend).toEqual([]);
   });
 
   it("says plainly at 100% that leads now ride NORMAL", async () => {
     const w = await world({ claim: { allowed: true, alert: 100 } });
     await nativePriorities(w, { companyId: COMPANY, reason: "lead" });
 
-    const email = w.resend[0] as { subject: string; text: string };
-    expect(email.subject).toContain("hit the high-priority push ceiling");
-    expect(email.text).toContain("NORMAL priority");
+    const [notice] = noticesCaptured("high-priority-push-ceiling");
+    expect(notice.level).toBe("error");
+    expect(notice.summary).toContain("reached the daily high-priority push ceiling");
+    expect(notice.detail).toContain("NORMAL priority");
   });
 
-  it("does not alert when no rung was crossed", async () => {
+  it("sends nothing when no rung was crossed", async () => {
     const w = await world({ claim: { allowed: true, alert: null } });
     await nativePriorities(w, { companyId: COMPANY, reason: "emergency" });
 
+    expect(captured).toEqual([]);
     expect(w.resend).toEqual([]);
   });
 });
@@ -283,23 +283,5 @@ describe("claimHighPriority", () => {
       4,
     );
     expect(claim.allowed).toBe(true);
-  });
-});
-
-describe("reportHighPriorityPushAlert", () => {
-  it("never throws when the alert itself fails", async () => {
-    // An alert about push must not break push.
-    const w = await world({ companyStatus: 500 });
-    stubFetch(...w.routes);
-
-    await expect(
-      reportHighPriorityPushAlert(
-        env,
-        (await import("../db")).getDb(env),
-        { companyId: COMPANY, reason: "lead" },
-        100,
-      ),
-    ).resolves.toBeUndefined();
-    expect(Sentry.captureMessage).toHaveBeenCalled();
   });
 });

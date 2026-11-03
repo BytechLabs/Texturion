@@ -10,8 +10,9 @@
  * permanence) live in SQL and are covered by
  * supabase/tests/email_deliverability.test.sql.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { captured, eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
 import {
@@ -138,6 +139,14 @@ describe("verifyResendSignature", () => {
   });
 });
 
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
+
+beforeEach(() => {
+  resetCaptures();
+});
+
 describe("processResendEvent", () => {
   function world() {
     const sb = supabaseStub(env);
@@ -173,6 +182,11 @@ describe("processResendEvent", () => {
       p_bounce_type: "Permanent",
       p_resend_id: "re_1",
     });
+    // One event per Resend event, never the address.
+    expect(eventsCaptured("email_bounced")).toEqual([
+      { event: "email_bounced", distinctId: "loonext-api", properties: { kind: "bounce" } },
+    ]);
+    expect(JSON.stringify(captured)).not.toContain("dead@example.com");
   });
 
   it("records one event per recipient of a fan-out", async () => {
@@ -191,6 +205,9 @@ describe("processResendEvent", () => {
       "a@example.com",
       "b@example.com",
     ]);
+    expect(eventsCaptured("email_bounced").map((event) => event.properties)).toEqual([
+      { kind: "complaint" },
+    ]);
   });
 
   it("ignores the events that change no decision", async () => {
@@ -206,6 +223,20 @@ describe("processResendEvent", () => {
     });
 
     expect(w.recorded).toHaveLength(0);
+    expect(captured).toEqual([]);
+  });
+
+  it("records a delivery and sends no event for it", async () => {
+    const w = world();
+    stubFetch(w.sb.route);
+
+    await processResendEvent(env, {
+      type: "email.delivered",
+      data: { email_id: "re_4", to: ["someone@example.com"] },
+    });
+
+    expect(w.recorded).toHaveLength(1);
+    expect(captured).toEqual([]);
   });
 });
 
@@ -214,20 +245,12 @@ describe("#581/16 — an unconfigured secret is a rotation, and says so", () => 
    * Refusing outright is right: trusting an unsigned body would let anybody suppress
    * any address in the product. What was wrong is that this arm returned BEFORE the
    * rejection counter, so the most likely Resend misconfiguration — a secret cleared,
-   * or never copied into an environment — recorded nothing at all.
+   * or never copied into an environment, reported nothing at all.
    *
-   * That is the one arrangement the `channel:webhook-signature` alarm exists to catch.
    * Every delivery is refused either way; what differs is whether anybody finds out
    * before we have spent a week not suppressing hard-bounced addresses.
    */
-  it("counts the refusal, so the liveness alarm can see it", async () => {
-    const sb = supabaseStub(env);
-    const rejections: { p_provider: string }[] = [];
-    sb.on("POST", "/rest/v1/rpc/record_webhook_rejection", (call) => {
-      rejections.push(call.body as { p_provider: string });
-      return null;
-    });
-    stubFetch(sb.route);
+  it("reports the refusal, so the PostHog alert can see it", async () => {
 
     const unconfigured = { ...env, RESEND_WEBHOOK_SECRET: undefined };
     const res = await resendWebhookRoute.request(
@@ -244,8 +267,8 @@ describe("#581/16 — an unconfigured secret is a rotation, and says so", () => 
     );
 
     expect(res.status).toBe(503);
-    // The counter runs off the response path; let its promise settle.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(rejections).toEqual([{ p_provider: "resend" }]);
+    expect(eventsCaptured("webhook_rejected").map((event) => event.properties)).toEqual([
+      { provider: "resend" },
+    ]);
   });
 });

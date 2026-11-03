@@ -11,16 +11,16 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
-import { resetSentryCaptures } from "../test/sentry-mock";
+import { resetCaptures } from "../test/capture-mock";
 import { stubFetch, type FetchRoute } from "../test/support";
 import { notifyCallEnd } from "./call-end";
 import { deliverPush } from "./deliver";
 import { notifyIncomingCall } from "./incoming-call";
-import { resetPushAttemptAlertsForTest, pushAttemptsSettled } from "./push-attempts";
+import { pushAttemptsSettled } from "./push-attempts";
 import { encodeBase64Url } from "./webpush";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const COMPANY_ID = "c2000000-0000-4000-8000-00000000000c";
@@ -33,8 +33,7 @@ const CALLER = "+16135550142";
 const WEB_ENDPOINT = `https://updates.push.services.mozilla.com/wpush/v2/${SUB_ID}`;
 
 beforeEach(() => {
-  resetSentryCaptures();
-  resetPushAttemptAlertsForTest();
+  resetCaptures();
 });
 afterEach(() => {
   vi.unstubAllGlobals();

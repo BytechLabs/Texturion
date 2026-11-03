@@ -2,9 +2,9 @@
   "schema": "loonext.rig-crons.v1",
   "notes": [
     "What the rig does with each cron a tracked Worker config declares (docs/RIG.md, Loonext in rig mode). Nothing fires a cron on a timer: an agent fires one on demand (rig cron) through /cdn-cgi/handler/scheduled; scripts/check-rig-crons.mjs fails when a config and this file disagree, and `--ref <ref>` checks another ref's configs against it.",
-    "run: the rig can fire it on demand. run-expect-refusal: the rig can fire it on demand, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it. A skipped API cron silences its liveness keys, [\"ops\",\"cron:<expr>\"] and each job's, so it lists them in fingerprints. Another Worker's cron (the edge's, the guard's) is always a skip, since the rig fires only the API's, and lists no fingerprint: that Worker reports nowhere the rig's relay reads, so a listed one could only hide an event the rig's own API raises (the API runs */15 too).",
-    "Refusals are listed for every code path that can reach one, not only for what today's seed exercises: a refusal that never happens costs nothing, and one that is missing is an unexplained Sentry fingerprint in R00.",
-    "A refusal's outcome says what Sentry receives. job-fails: the job lets the TelnyxApiError out, runScheduledJobs rejects with an AggregateError that holds it (under the job's own AggregateError too, since poll-registrations, poll-port-requests and grace-and-release each collect their failures, and the release's own inside grace's), the job's heartbeat is withheld, and after its grace the liveness checker raises the job's ops fingerprint. captured: the job catches it at caught_in, reports it as its own event and returns normally, so its heartbeat is recorded and no ops fingerprint follows; follow_on_events lists what the job raises next because of it.",
+    "run: the rig can fire it on demand. run-expect-refusal: the rig can fire it on demand, and when the named job has the work described in `when`, it reaches an account-wide Telnyx endpoint that rig mode refuses before any request leaves (apps/api/src/environments/policy.ts). skip: never fire it. Another Worker's cron (the edge's, the guard's) is always a skip, since the rig fires only the API's. A skip is never fired, so it raises nothing and needs nothing explained.",
+    "Refusals are listed for every code path that can reach one, not only for what today's seed exercises: a refusal that never happens costs nothing, and one that is missing is an unexplained exception in R00.",
+    "A refusal's outcome says what PostHog receives. job-fails: the job lets the TelnyxApiError out and runScheduledJobs reports it as an exception carrying the cron and the job; a job that collects its failures into an AggregateError (poll-registrations, poll-port-requests and grace-and-release do, and the release's own inside grace's) has each failure in it reported on its own, the same way. captured: the job catches it at caught_in and reports it as its own exception; follow_on_events lists what the job raises next because of it.",
     "defects: events that mean the rig's seed or a scenario's setup is wrong, with the cause. Nothing suppresses them; R00 reports them with that cause instead of as unexplained. rigd reports the first defect that matches, so no two may match one event: `message starts` reads the event's own text, which for a cron's failure is the cron's AggregateError, so it tells an exception a job captured from the same exception inside a cron's failure.",
     "A guard refusal (a 403 from the guard rather than the app) reaches the app as a TelnyxApiError with no code, which the app treats as a real Telnyx failure. None is expected: each one the crons can provoke is a defect.",
     "Every cron here first asks rig_database_posture(): until the rig's database reports rig mode it throws `rig cron not run: ...`. That is an infrastructure fault for R00 to report, not an expected event, so no entry suppresses it."
@@ -13,7 +13,7 @@
     "code": "rig_endpoint_refused",
     "exception_type": "TelnyxApiError",
     "message_contains": "[codes rig_endpoint_refused]",
-    "why": "The app sets no fingerprint on a refusal, so Sentry groups it by exception; its message is `Telnyx 403 on <METHOD> <path> [codes rig_endpoint_refused] ...`. A job-fails refusal arrives inside the cron's AggregateError (`cron \"<expr>\": ...`, the last exception), usually under the job's own AggregateError: suppress that event only when every exception in it that is not an AggregateError matches a job-fails refusal listed for that cron, since anything else in it is a real failure. A captured refusal arrives as its own TelnyxApiError event, raised while that cron runs: suppress it when the message has this text and one of the refusal's paths."
+    "why": "The app sets no fingerprint on a refusal, so PostHog groups it by exception; its message is `Telnyx 403 on <METHOD> <path> [codes rig_endpoint_refused] ...`. A job-fails refusal arrives as an exception whose `cron` names the cron that ran it: suppress it only when every exception in it that is not an AggregateError matches a job-fails refusal listed for that cron, since anything else in it is a real failure. A captured refusal arrives as its own TelnyxApiError exception, raised while that cron runs: suppress it when the message has this text and one of the refusal's paths."
   },
   "crons": [
     {
@@ -43,7 +43,6 @@
       "class": "run-expect-refusal",
       "jobs": [
         "job:daily-summary",
-        "job:liveness-check",
         "job:notify-due-tasks",
         "job:reconcile-numbers",
         "job:retry-campaign-assignments",
@@ -52,7 +51,7 @@
         "job:reconcile-text-enablement",
         "job:reconcile-voice-enablement"
       ],
-      "note": "reconcile-numbers lists the account's numbers through the guard and acts only on its own billing group. A group number with no phone_numbers row is flagged once per run, or, when its customer_reference names a settled workspace with nothing provisioning, DELETEd (provisioning.ts reconcileNumbers). The seed gives every standing number an active row, ROBOT-1, ROBOT-2 and STRANGER-1 under the Robot workspace (scripts/rig/tenants.mjs), so the sweep knows all eight. The liveness checker alerts on channels a sparse rig leaves quiet; the scenarios that use each channel judge it instead.",
+      "note": "reconcile-numbers lists the account's numbers through the guard and acts only on its own billing group. A group number with no phone_numbers row is flagged once per run, or, when its customer_reference names a settled workspace with nothing provisioning, DELETEd (provisioning.ts reconcileNumbers). The seed gives every standing number an active row, ROBOT-1, ROBOT-2 and STRANGER-1 under the Robot workspace (scripts/rig/tenants.mjs), so the sweep knows all eight.",
       "refusals": [
         {
           "job": "job:retry-campaign-assignments",
@@ -71,7 +70,7 @@
           "caught_in": "apps/api/src/telnyx/text-enablement.ts#resumeTextEnablement",
           "follow_on_events": [
             {
-              "match": "level fatal, message starts \"text-enablement exhausted \"",
+              "match": "level error, message starts \"text-enablement exhausted \"",
               "why": "The fifth refused attempt marks the order failed and says so once; nothing polls a failed order."
             }
           ]
@@ -79,11 +78,11 @@
       ],
       "defects": [
         {
-          "match": "message starts \"reconcile: Telnyx number \" and contains \"is unknown to phone_numbers\"",
-          "means": "A number in the rig's group has no live phone_numbers row. The seed writes one for every standing number, so either a row was released or lost since the last seed (run rig seed), or the group holds a number that is not a standing one and no workspace bought. One warning per number per run, 96 a day each, against the relay's 100."
+          "match": "message starts \"reconcile: a Telnyx number is unknown to phone_numbers\"",
+          "means": "A number in the rig's group has no live phone_numbers row. The seed writes one for every standing number, so either a row was released or lost since the last seed (run rig seed), or the group holds a number that is not a standing one and no workspace bought. One warning per number per run, 96 a day each."
         },
         {
-          "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...], message starts \"Telnyx 403 on DELETE /v2/phone_numbers/\"",
+          "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...], tag job=job:reconcile-numbers",
           "means": "reconcile-numbers tried to reclaim a group number that has no phone_numbers row and whose customer_reference names a settled seeded workspace, and the guard refused it because it is a standing number. Only the guard's standing-number rule stood between the sweep and the number: give the number a row or clear its customer_reference."
         },
         {
@@ -95,26 +94,8 @@
           "means": "The same refusal, counted: the voice reconcile left numbers unbound at the end of a run. See the PATCH /v2/phone_numbers/ defect above for the cause."
         },
         {
-          "match": "level warning, message starts \"reconcile: reclaimed orphaned Telnyx number \"",
+          "match": "level warning, message starts \"reconcile: reclaimed an orphaned Telnyx number\"",
           "means": "The same reclaim got through and a number in the rig's group was deleted. If it was a standing number, the guard's standing-number rule failed: critical."
-        }
-      ],
-      "expected_events": [
-        {
-          "match": "fingerprint [\"ops\", \"channel:sms-outbound\"]",
-          "why": "The rig texts a few times a day, so most hours have no outbound text while the 7-day baseline is not empty. S20 judges outbound texts."
-        },
-        {
-          "match": "fingerprint [\"ops\", \"channel:telnyx-inbound-message\"]",
-          "why": "The same gap for inbound texts. S21 judges them."
-        },
-        {
-          "match": "fingerprint [\"ops\", \"channel:email-outbound\"]",
-          "why": "The rig sends email rarely. S34 judges it."
-        },
-        {
-          "match": "fingerprint [\"ops\", \"channel:telnyx-call-events\"]",
-          "why": "A day with no paid call lane (room, budget or a halt) leaves call events quiet. The call scenarios judge them."
         }
       ]
     },
@@ -128,13 +109,10 @@
         "job:usage-alerts",
         "job:overage-warning",
         "job:sweep-stale-calls",
-        "job:email-health",
-        "job:ring-success-watch",
-        "job:telnyx-spend-watch",
-        "job:inbound-canary",
+        "job:telnyx-spend-gauges",
         "job:expire-payment-requests"
       ],
-      "note": "Usage goes to Stripe's shared test mode, which S01's meter check reads. The inbound canary stays off because the rig sets no CANARY_* numbers. sweep-stale-calls hangs up a runaway leg through the guard's leg-command class. ring-success-watch reads api_ring_success from the rig's own database and alerts [\"ops\",\"ring-success-<platform>\"] only on a drop, which takes 30 ring pushes in the 24-hour window and 30 in the week before it. On the rig that means the rig's own phones stopped ringing, so nothing suppresses it. telnyx-spend-watch reads production's Telnyx spend limits and cost ledger in production only: productionWatchRefusal stops it in rig mode before any request, so it logs that it was skipped and returns."
+      "note": "Usage goes to Stripe's shared test mode, which S01's meter check reads. sweep-stale-calls hangs up a runaway leg through the guard's leg-command class. telnyx-spend-gauges reads production's Telnyx spend limits and cost ledger in production only: productionWatchRefusal stops it in rig mode before any request, so it logs that it was skipped and returns."
     },
     {
       "config": "apps/api/wrangler.jsonc",
@@ -170,24 +148,18 @@
       "class": "run-expect-refusal",
       "jobs": [
         "job:poll-registrations",
-        "job:delivery-by-country",
         "job:number-health",
-        "job:registration-stalls",
-        "job:call-silence",
-        "job:telnyx-wiring-watch",
-        "job:telnyx-capacity-watch",
-        "job:aup-watch",
-        "job:activation-stall"
+        "job:telnyx-capacity-gauge",
+        "job:aup-signals"
       ],
-      "note": "No job but the registration poller makes a Telnyx request. telnyx-wiring-watch reads production's Telnyx wiring in production only: productionWatchRefusal stops it in rig mode before any request, so it logs that it was skipped and returns, and its heartbeat is recorded. telnyx-capacity-watch behaves the same way: it prices production's ring audience against the account's concurrent call limit, production only, and returns before any read in rig mode.",
+      "note": "No job but the registration poller makes a Telnyx request. telnyx-capacity-gauge prices production's ring audience against the account's concurrent call limit in production only: productionWatchRefusal stops it in rig mode before any read, so it logs that it was skipped and returns. aup-signals sends one event per seeded workspace that texted, an event rather than an exception.",
       "refusals": [
         {
           "job": "job:poll-registrations",
           "code": "rig_endpoint_refused",
           "outcome": "job-fails",
           "telnyx_paths": ["/v2/10dlc/brand", "/v2/10dlc/campaign", "/v2/10dlc/campaignBuilder"],
-          "when": "a brand or campaign row with a telnyx_id and no deactivated_at is submitted, pending, approved or suspended (each is polled), or an approved brand's campaign is a draft or deactivated (it is submitted). An approved campaign is also read a second time, for its content migration.",
-          "fingerprints": [["ops", "job:poll-registrations"]]
+          "when": "a brand or campaign row with a telnyx_id and no deactivated_at is submitted, pending, approved or suspended (each is polled), or an approved brand's campaign is a draft or deactivated (it is submitted). An approved campaign is also read a second time, for its content migration."
         },
         {
           "job": "job:poll-registrations",
@@ -211,8 +183,7 @@
           "code": "rig_endpoint_refused",
           "outcome": "job-fails",
           "telnyx_paths": ["/v2/porting_orders"],
-          "when": "a port_requests row with a Telnyx order id is not ported or cancelled, or is voice-ported with messaging still pending: the poll's read of the order is refused",
-          "fingerprints": [["ops", "job:poll-port-requests"]]
+          "when": "a port_requests row with a Telnyx order id is not ported or cancelled, or is voice-ported with messaging still pending: the poll's read of the order is refused"
         },
         {
           "job": "job:poll-port-requests",
@@ -236,13 +207,12 @@
           "code": "rig_endpoint_refused",
           "outcome": "job-fails",
           "telnyx_paths": ["/v2/10dlc/campaign", "/v2/messaging_hosted_numbers", "/v2/messaging_hosted_number_orders"],
-          "when": "a workspace past its grace period still has an active 10DLC campaign to deactivate, or holds a hosted (text-enabled) number whose enablement order is not cancelled: releasing it deletes the hosted number, or the order while it is not completed",
-          "fingerprints": [["ops", "job:grace-and-release"]]
+          "when": "a workspace past its grace period still has an active 10DLC campaign to deactivate, or holds a hosted (text-enabled) number whose enablement order is not cancelled: releasing it deletes the hosted number, or the order while it is not completed"
         }
       ],
       "defects": [
         {
-          "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...], inside the cron's AggregateError, contains \"0 14 * * *\"",
+          "match": "TelnyxApiError \"Telnyx 403 on DELETE /v2/phone_numbers/\" with no [codes ...], tag job=job:grace-and-release",
           "means": "The grace job tried to release a standing number and the guard refused it: S29 backdated a workspace that holds one. The job fails before it deactivates the workspace's campaign, and S29 cannot pass. Only the guard's standing-number rule kept the number. S29 needs a workspace whose only number is one bought for the run."
         }
       ]
@@ -259,7 +229,7 @@
       "cron": "45 15 * * *",
       "class": "run",
       "jobs": ["job:opt-out-reconcile"],
-      "note": "Reads /v2/messaging_optouts filtered by each workspace's own messaging profile, which the guard's read class allows. It keeps going past a workspace whose list cannot be read, reporting each one as its own Sentry message."
+      "note": "Reads /v2/messaging_optouts filtered by each workspace's own messaging profile, which the guard's read class allows. It keeps going past a workspace whose list cannot be read, reporting each one as its own exception."
     },
     {
       "config": "apps/api/wrangler.jsonc",
@@ -272,7 +242,6 @@
         "job:prune-audit-log",
         "job:prune-user-sessions",
         "job:prune-public-link-access",
-        "job:prune-probe-results",
         "job:purge-closed-workspaces",
         "job:build-data-exports",
         "job:prune-expired-exports",
@@ -288,28 +257,8 @@
       "config": "apps/api/wrangler.jsonc",
       "cron": "15 */6 * * *",
       "class": "run",
-      "jobs": ["job:do-sentry-canary"],
-      "note": "Proves the Durable Object can still reach Sentry, here the loonext-rig project through the relay. Four debug events a day of the relay's 100.",
-      "expected_events": [
-        {
-          "match": "level debug, tag canary=do-sentry",
-          "why": "The canary's arrival is its assertion (#375); it is never a failure."
-        }
-      ]
-    },
-    {
-      "config": "apps/api/wrangler.jsonc",
-      "cron": "50 13 * * 1",
-      "class": "run",
-      "jobs": ["job:overage-digest", "job:telnyx-spend-limit-drift"],
-      "note": "Weekly founder digest. On the rig it can only describe seeded tenants, and it reaches no inbox outside the guard's Resend allowlist. telnyx-spend-limit-drift reads production's Telnyx daily spend limits in production only: productionWatchRefusal stops it in rig mode before any request, so it logs that it was skipped and returns."
-    },
-    {
-      "config": "apps/api/wrangler.jsonc",
-      "cron": "5 */2 * * *",
-      "class": "run",
-      "jobs": ["job:probes"],
-      "note": "The free probes: local auth health and the webhook ledger. Nothing is billed."
+      "jobs": ["job:call-session-heartbeat"],
+      "note": "Asks the call Durable Object to send its heartbeat, an event rather than an exception, so nothing here needs explaining."
     },
     {
       "config": "apps/api/wrangler.jsonc",
@@ -322,22 +271,19 @@
       "config": "tools/edge/wrangler.jsonc",
       "cron": "*/15 * * * *",
       "class": "skip",
-      "reason": "loonext-rig-edge runs on Cloudflare, never on the rig box: its mail self-test and uplink housekeeping fire there on Cloudflare's clock, so the rig has nothing to fire, and no liveness key watches this cron.",
-      "fingerprints": []
+      "reason": "loonext-rig-edge runs on Cloudflare, never on the rig box: its mail self-test and uplink housekeeping fire there on Cloudflare's clock, so the rig has nothing to fire."
     },
     {
       "config": "tools/guard/wrangler.jsonc",
       "cron": "0 6 * * 1",
       "class": "skip",
-      "reason": "The guard's weekly Telnyx key inventory, a Cloudflare cron on loonext-telnyx-guard that the rig box never fires. It reports to production's Sentry as [\"ops\",\"telnyx-key-inventory\"], never through the rig's relay, and no liveness key watches this cron.",
-      "fingerprints": []
+      "reason": "The guard's weekly Telnyx key inventory, a Cloudflare cron on loonext-telnyx-guard that the rig box never fires. It reports to production's PostHog as [\"ops\",\"telnyx-key-inventory\"], never to the rig's."
     },
     {
       "config": "tools/guard/wrangler.jsonc",
       "cron": "7 * * * *",
       "class": "skip",
-      "reason": "The guard's hourly upkeep on Cloudflare (expired legs, the robot mailbox's arrival deadline, the first order's read-back, the balance sample and the monthly cap), which the rig box never fires. What it raises goes to production's Sentry under the guard's own keys (telnyx-guard-order-group, telnyx-balance-low, telnyx-guard-detach), never through the rig's relay, and no liveness key watches this cron.",
-      "fingerprints": []
+      "reason": "The guard's hourly upkeep on Cloudflare (expired legs, the robot mailbox's arrival deadline, the first order's read-back, the balance sample and the monthly cap), which the rig box never fires. What it raises goes to production's PostHog under the guard's own keys (telnyx-guard-order-group, telnyx-balance-low, telnyx-guard-detach), never to the rig's."
     }
   ]
 }

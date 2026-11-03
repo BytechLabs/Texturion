@@ -13,7 +13,7 @@
  * us a suggestion, never an unbounded bill.
  */
 import type { getDb } from "../db";
-import { opsEmail, opsTextHtml } from "../observability/ops-alert";
+import { opsNotice } from "../observability/capture";
 import type { Env } from "../env";
 
 type Db = ReturnType<typeof getDb>;
@@ -148,10 +148,10 @@ export async function reserveAiUsage(
 }
 
 /**
- * The one-shot ops alert, fired the first time a company crosses a feature's
- * alert threshold in a month. `stops` says in plain language what the company
- * loses at the cap, so whoever reads the email knows the blast radius without
- * opening the code.
+ * The one-shot notice, sent the first time a company crosses a feature's
+ * alert threshold in a month (the ledger's `should_alert` is true once).
+ * `stops` says in plain language what the company loses at the cap, so whoever
+ * reads it knows the blast radius without opening the code.
  */
 export async function sendAiCapAlert(
   env: Env,
@@ -164,14 +164,13 @@ export async function sendAiCapAlert(
     stops: string;
   },
 ): Promise<void> {
-  const text =
-    `Company ${args.companyId} has used ${args.count} of ${args.cap} AI ` +
-    `${args.label} calls this month (alerting at ${args.alertThreshold}). ` +
-    `At the cap, ${args.stops} Review if this volume looks abusive.`;
-  await opsEmail(env, {
-    key: "ops:ai-settings",
-    subject: `AI ${args.label} nearing monthly cap — company ${args.companyId}`,
-    text,
-    html: opsTextHtml(text),
+  await opsNotice(env, {
+    key: "ai-cap-nearing",
+    summary: `A workspace is nearing its monthly AI ${args.label} cap`,
+    detail:
+      `company ${args.companyId} has used ${args.count} of ${args.cap} AI ` +
+      `${args.label} calls this month (noticing at ${args.alertThreshold}). ` +
+      `At the cap, ${args.stops}`,
+    action: "Review whether this volume looks abusive.",
   });
 }

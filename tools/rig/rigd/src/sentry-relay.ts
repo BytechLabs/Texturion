@@ -77,19 +77,8 @@ export type RelayDecision =
   /** Admitted, but Sentry did not take it yet: it waits in the relay's state for the next flush. */
   | { sent: false; reason: "send_failed"; pending: true };
 
-/** What the relay keeps of an API event, for the cron registry to explain it (cron-events.ts). */
-export interface SeenEvent {
-  at: number;
-  level?: string;
-  message?: string;
-  fingerprint?: string[];
-  tags?: Record<string, string>;
-  /** Every exception in the event, a linked error's included. */
-  exceptions?: { type: string; value: string }[];
-}
-
-/** Why an API event is no surprise, or undefined when nothing explains it. */
-export type Explanation = { kind: "expected" } | { kind: "defect"; means: string };
+import type { Explanation, SeenEvent } from "./cron-events.ts";
+export type { Explanation, SeenEvent };
 
 interface PendingEnvelope {
   url: string;

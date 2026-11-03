@@ -42,8 +42,9 @@ exception to it:
   `20260731120000_mfa_enforce_personal_enrolment.sql`). Not a risk; a feature.
 - **"Nothing measures deliverability (#235)"** — number reputation shipped
   (`supabase/migrations/20260730000300_number_reputation.sql`), and
-  `apps/api/src/messaging/delivery-by-country.ts` carries a per-country
-  delivery rate with an alert floor. This one matters twice: it was the
+  every final status sends a `message_outcome` event with its destination
+  country, and PostHog's "Limits and rates" alert fires on a country's rate
+  under 80% (D146). This one matters twice: it was the
   evidence for #326's central claim that D4's risk is unwatchable, and it is
   no longer true. **D4 now has a scoreboard**, which is why its entry below
   names a threshold instead of an apology.
@@ -57,7 +58,7 @@ exception to it:
 | **Exposure** | A first outbound to a new contact is not guaranteed to identify the business or state how to opt out. Weakens 10DLC standing and invites carrier filtering. |
 | **Bound** | Outbound only, and only the automatic footer. Consent capture, the opt-out keyword handler and the STOP gate are all untouched — a customer who replies STOP is still blocked, permanently, by machinery no send path can bypass. |
 | **Why accepted** | Owner direction, 2026-07. The footer cost characters on every first message, and an em dash in it pushed a one-segment message to three. |
-| **Trigger to revisit** | **Whichever comes first:** (a) `delivery-by-country.ts` reports a CA- or US-destination rate below `DELIVERY_ALERT_FLOOR` (0.85) for a sustained window; (b) any number reaches a `number_health` flagged state (#235); (c) counsel answers L1 in `VENDOR-QUESTIONS.md` on CASL s.6(2) sender identification; (d) a carrier rejection catalogued in `rejection-guidance.ts` cites missing identification. |
+| **Trigger to revisit** | **Whichever comes first:** (a) PostHog's "Limits and rates" alert reports a CA- or US-destination delivery rate under 80% from `message_outcome` for a sustained window; (b) any number reaches a `number_health` flagged state (#235); (c) counsel answers L1 in `VENDOR-QUESTIONS.md` on CASL s.6(2) sender identification; (d) a carrier rejection catalogued in `rejection-guidance.ts` cites missing identification. |
 | **Not a trigger** | A single failed message, or one customer complaint. The risk is a *rate* and the scoreboard measures a rate; reacting to a single event would mean reversing an owner ruling on noise. |
 
 **What firing this trigger buys.** The named mitigation is verified toll-free
@@ -157,7 +158,8 @@ trigger on purpose, so neither can be revisited without the other.
 > That is the premise the "why accepted" row rests on, now confirmed rather
 > than assumed, which is what it asked for. No purge. The entry keeps its own
 > instruction: **delete it once the window has aged out on 2026-11-07** — a
-> resolved risk is pruned, not archived.
+> resolved risk is pruned, not archived. Closing the Sentry organisation, a
+> founder step of D146, deletes the window outright.
 
 | | |
 |---|---|

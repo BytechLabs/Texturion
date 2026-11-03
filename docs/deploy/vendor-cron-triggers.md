@@ -25,7 +25,9 @@ The two lists must stay in lockstep — an unmapped cron throws
 | `0 14 * * *` | daily 14:00 | `runGraceJob` (day 1/15/27 warnings; day-30 release + campaign deactivation) | `index.ts:196` |
 | `0 15 * * *` | daily 15:00 | `runSubscriptionReconcileJob` (re-mirror non-active companies from Stripe; stale-invite report) | `index.ts:199` |
 
-Jobs sharing a trigger run sequentially but fail independently; the run still
-rejects on any failure so Sentry records it (`apps/api/src/index.ts:222-235`).
+Jobs sharing a trigger run sequentially but fail independently; each failure is
+reported to PostHog as an exception naming its job, and the run still rejects
+(`runScheduledJobs` in `apps/api/src/index.ts`). Every trigger also sends an
+`ops_heartbeat`, which PostHog's "Heartbeat overdue" alert watches (D146).
 Times are UTC (Cloudflare cron is UTC). These schedules are the exact SPEC §11
 set (`apps/api/wrangler.jsonc:8-10`, `SPEC.md:1081`).

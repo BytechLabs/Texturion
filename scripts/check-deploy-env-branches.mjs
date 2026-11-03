@@ -68,19 +68,15 @@ const MODE_IMPORT = /\bfrom\s+["'][^"']*environments\/mode(?:\.ts)?["']|\bimport
  * PostHog and Sentry have to file events under the right environment, the Worker entry has
  * to decide whether the rig's routes exist, the FCM sender has to know
  * whether it may mint a Google token (its answer differs only on the rig),
- * and the Telnyx watches (wiring, spend limits, concurrent-call capacity) have
- * to know they are production.
+ * and the Telnyx gauges (spend limits, concurrent-call capacity) have to know
+ * they are production.
  */
 export const MODE_REVEALING_IMPORTERS = {
   telemetryEnvironment: ["apps/api/src/observability/capture.ts"],
-  sentryEnvironment: [
-    "apps/api/src/observability/sentry.ts",
-    "apps/api/src/observability/do-sentry-canary.ts",
-  ],
+  sentryEnvironment: ["apps/api/src/observability/sentry.ts"],
   servesRigRoutes: ["apps/api/src/index.ts"],
   fcmCredential: ["apps/api/src/notifications/fcm.ts"],
   productionWatchRefusal: [
-    "apps/api/src/observability/telnyx-wiring.ts",
     "apps/api/src/observability/telnyx-spend.ts",
     "apps/api/src/observability/telnyx-capacity.ts",
   ],

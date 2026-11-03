@@ -280,9 +280,9 @@
       ]
     },
     "prohibited-categories.ts": {
-      "why": "This sentence is an internal screening summary emailed to the fixed English-language operations inbox, not client copy. Giving it a tenant locale would make one operator-facing alert change language according to the business being screened, which changes and obscures the review workflow rather than localising a customer surface.",
+      "why": "This sentence is an internal screening summary sent to PostHog as an ops notice, read in English by whoever reviews it, not client copy. Giving it a tenant locale would make one operator-facing notice change language according to the business being screened, which changes and obscures the review workflow rather than localising a customer surface.",
       "literals": [
-        "“${name}” matched nothing."
+        "The name matched nothing."
       ]
     },
     "pipeline.ts": {

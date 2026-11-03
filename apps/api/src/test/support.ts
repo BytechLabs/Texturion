@@ -69,10 +69,6 @@ export function completeEnv(): Env {
     STRIPE_VOICE_METER_EVENT_NAME: "voice_seconds",
     STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID: "price_starter_voice_overage_0001",
     STRIPE_PRO_VOICE_OVERAGE_PRICE_ID: "price_pro_voice_overage_0001",
-    // Ops email is a secondary copy, so an alert test proves nothing about it
-    // unless the address is configured. A suite that needs the UNCONFIGURED
-    // behaviour deletes it explicitly, the way the #277 pause price does.
-    OPS_ALERT_EMAIL: "ops@example.com",
   };
 }
 
@@ -196,13 +192,13 @@ export type FetchRoute = (
  * Endpoints that hang off EVERY email send and assert nothing about the test
  * that triggered them.
  *
- * `sendEmail` reads the #386 suppression list before sending and records the
- * #387 delivery-channel heartbeat after. Neither is what any of the hundred
- * tests that happen to send an email are about, and requiring each of them to
- * stub both would be boilerplate that tests nothing — and that the next person
- * to add an email would have to rediscover from a five-second timeout.
+ * `sendEmail` reads the #386 suppression list before sending. That is not what
+ * any of the hundred tests that happen to send an email are about, and
+ * requiring each of them to stub it would be boilerplate that tests nothing,
+ * and that the next person to add an email would have to rediscover from a
+ * five-second timeout.
  *
- * They come LAST, so a suite that wants to assert on either one still can by
+ * They come LAST, so a suite that wants to assert on one still can by
  * registering its own route: the explicit stub matches first.
  *
  * Empty suppression list = nothing is blocked, which is the state every
@@ -211,12 +207,8 @@ export type FetchRoute = (
 const ambientEmailRoutes: FetchRoute[] = [
   (url) =>
     url.pathname === "/rest/v1/email_suppressions" ? Response.json([]) : undefined,
-  (url) =>
-    url.pathname === "/rest/v1/rpc/record_heartbeat"
-      ? Response.json({ recovered: false })
-      : undefined,
   // #283: flags hang off the send, calls and AI paths, so they are ambient for
-  // the same reason the heartbeat is. `{}` means "nothing has been said",
+  // the same reason the suppression list is. `{}` means "nothing has been said",
   // which resolves every key to its code default — kill switches ON. A test
   // that wants a switch OFF stubs the RPC itself and shadows this.
   (url) =>

@@ -70,11 +70,9 @@ const SUITES = [
   "spam_review",
   "emergency_keyword",
   "lead_response_clock",
-  "liveness",
   "email_deliverability",
   "billing_disputes",
   "high_priority_push",
-  "webhook_liveness",
   "number_access_surfaces",
   "tenant_scope",
   "consent_ledger",
@@ -87,7 +85,6 @@ const SUITES = [
   "public_links",
   "identity_retention",
   "personal_data_inventory",
-  "call_silence",
   "legal_hold",
   "retention_setting",
   "daily_outbound",
@@ -95,7 +92,6 @@ const SUITES = [
   "retry_interrupted",
   "search_voicemail",
   "member_firsts",
-  "activation_stall",
   "bulk_conversations",
   "geocode_fair_share",
   "ai_outcomes",
@@ -182,8 +178,6 @@ const SUITES = [
   "push_evidence",
   // D142: agent_diag reads the non-personal views and nothing else.
   "agent_diag",
-  // D142 P01: ring success counts, verdicts and grants.
-  "ring_success",
   // #642/#643: Telnyx spend and voice-capacity reads.
   "telnyx_spend_reads",
 ];

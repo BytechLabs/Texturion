@@ -31,6 +31,11 @@ import { POSTHOG_CAPTURE_URL } from "../analytics/posthog";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { noticesCaptured, resetCaptures } from "../test/capture-mock";
+
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";
@@ -836,7 +841,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     }).numberAssignments;
     expect(ledger["+12125550123"]).toBe("failed");
     // Not a ported number (no port_requests row) → the §9 port guidance email
-    // does not apply; the failure still lands in Sentry + the ledger.
+    // does not apply; the failure still lands as an exception + in the ledger.
     expect(emails).toHaveLength(0);
   });
 
@@ -1964,11 +1969,12 @@ describe("#423 — the carrier takes an approved campaign away", () => {
     });
   });
 
-  it("tells the owner AND ops, and does not tell them to resubmit", async () => {
+  it("tells the owner, sends ops one notice, and does not tell them to resubmit", async () => {
     // The rejection copy says "update your details and resubmit". That is the
     // right instruction for a review that said no and the wrong one here:
     // nothing about their details changed, they were live, and editing a
     // wizard they already completed correctly wastes the hour that matters.
+    resetCaptures();
     const { env, rest, telnyx, emails } = setup();
     seedRows(
       rest,
@@ -1988,9 +1994,16 @@ describe("#423 — the carrier takes an approved campaign away", () => {
     // It leads with the consequence, which is the part they can act on.
     expect(owner?.text).toContain("stopped going out");
 
-    const ops = emails.find((mail) => mail.subject.startsWith("[ops]"));
-    expect(ops?.text).toContain(COMPANY_ID);
-    expect(ops?.text).toContain("Excessive opt-out rate");
+    expect(emails.filter((mail) => mail.subject.startsWith("[ops]"))).toEqual([]);
+    const notices = noticesCaptured("registration-suspended");
+    expect(notices).toHaveLength(1);
+    expect(notices[0].level).toBe("error");
+    expect(notices[0].detail).toContain(`company ${COMPANY_ID}`);
+    expect(notices[0].detail).toContain("Excessive opt-out rate");
+
+    // The transition happens once, so a second poll sends nothing more.
+    await pollRegistrations(env);
+    expect(noticesCaptured("registration-suspended")).toHaveLength(1);
   });
 
   it("treats an EXPIRED lifecycle as suspension even when the status still says accepted", async () => {

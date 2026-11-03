@@ -32,7 +32,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
-import { opsAlert } from "../observability/ops-alert";
+import { captureEvent, opsNotice } from "../observability/capture";
 import { parseJsonBody } from "./core/http";
 
 /**
@@ -83,31 +83,7 @@ export const RING_BEACON_STANDBY_BUCKETS = [
  * times that, so only a broken or hostile client reaches it.
  */
 export const RING_BEACON_DAILY_CAP = 1500;
-export const RING_BEACON_WARN_AT = Math.floor(RING_BEACON_DAILY_CAP * 0.8);
 const RING_BEACON_CAP_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Each member's warning and cap alert fire at most once an hour per isolate.
- * Equality with the threshold would fire on every dropped beacon at the cap,
- * because a dropped beacon leaves the count where it was, and two beacons
- * racing past the warning line would skip it altogether.
- */
-const CAP_ALERT_EVERY_MS = 60 * 60 * 1000;
-const lastCapAlertAt = new Map<string, number>();
-
-function capAlertDue(key: string, nowMs: number): boolean {
-  const last = lastCapAlertAt.get(key);
-  if (last !== undefined && nowMs - last < CAP_ALERT_EVERY_MS) return false;
-  // Bounded memory: forgetting every member costs at most one repeat each.
-  if (lastCapAlertAt.size >= 1000) lastCapAlertAt.clear();
-  lastCapAlertAt.set(key, nowMs);
-  return true;
-}
-
-/** Test seam: forget every alert so each test starts unthrottled. */
-export function resetRingBeaconAlertsForTest(): void {
-  lastCapAlertAt.clear();
-}
 
 /**
  * How far a device clock may disagree with ours before its timestamp is thrown
@@ -213,26 +189,7 @@ ringBeaconsRoutes.post("/ring-beacons", requireCapability("conversations.send"),
   }
   const recent = count ?? 0;
 
-  const member = `${companyId}:${userId}`;
-  if (recent >= RING_BEACON_DAILY_CAP) {
-    if (capAlertDue(`cap:${member}`, nowMs)) {
-      await opsAlert(env, {
-        key: "ring-beacons-member-cap",
-        summary: "A member reached the daily ring-beacon cap; further beacons are dropped",
-        detail: `company ${companyId}: ${recent} beacons in 24h (cap ${RING_BEACON_DAILY_CAP})`,
-        action:
-          "Look for a client stuck in a loop on that workspace. Rings are unaffected; only the evidence is.",
-      });
-    }
-    return c.json({ recorded: false }, 202);
-  }
-  if (recent >= RING_BEACON_WARN_AT && capAlertDue(`warn:${member}`, nowMs)) {
-    await opsAlert(env, {
-      key: "ring-beacons-member-cap-warning",
-      summary: "A member is at 80% of the daily ring-beacon cap",
-      detail: `company ${companyId}: ${recent} beacons in 24h (cap ${RING_BEACON_DAILY_CAP})`,
-    });
-  }
+  if (recent >= RING_BEACON_DAILY_CAP) return c.json({ recorded: false }, 202);
 
   const { error } = await db.from("ring_beacons").insert({
     company_id: companyId,
@@ -251,6 +208,23 @@ ringBeaconsRoutes.post("/ring-beacons", requireCapability("conversations.send"),
     screen_locked: body.screen_locked ?? null,
   });
   if (error) throw new Error(`ring beacon insert failed: ${error.message}`);
+
+  // The beacon that fills the window is the one that says so. A dropped beacon
+  // leaves the count where it was, so the ones refused after it say nothing.
+  if (recent + 1 === RING_BEACON_DAILY_CAP) {
+    await opsNotice(env, {
+      key: "ring-beacon-cap",
+      summary: "A member reached the daily ring-beacon cap; further beacons are dropped",
+      detail: `company ${companyId}: ${RING_BEACON_DAILY_CAP} beacons in 24h`,
+      action:
+        "Look for a client stuck in a loop on that workspace. Rings are unaffected; only the evidence is.",
+    });
+  }
+  void captureEvent(env, "ring_beacon", companyId, {
+    platform,
+    app_version: requestAppVersion(c),
+    stage: body.stage,
+  });
 
   return c.json({ recorded: true }, 202);
 });

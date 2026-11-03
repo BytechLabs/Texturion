@@ -555,7 +555,7 @@ export async function runScheduledSendJob(
 
   // Collected rather than thrown one at a time, so one workspace's broken
   // send does not stop every other workspace's from going out this minute
-  // (#387). Thrown at the end so a broken run is still visible in Sentry.
+  // (#387). Thrown at the end so a broken run is still reported as one.
   const failures: string[] = [];
 
   for (const row of due) {

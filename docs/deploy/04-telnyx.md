@@ -232,12 +232,12 @@ live in this same Telnyx account, in the `loonext-nonprod` billing group
   number is in the partition (`GET /v2/phone_numbers/{id}`) before it DELETEs,
   and refuses when the read does not positively state the number's group.
 - If a customer's number ever gains a billing group, production stops managing
-  it. It raises the `telnyx-ownership-mismatch` alert (Sentry fingerprint
-  `['ops','telnyx-ownership-mismatch']`, level error) when it has evidence the
-  number is its own: the number's `customer_reference` names one of its
-  companies, or one of its `phone_numbers` rows holds the number's id or E.164.
-  The sweep repeats the alert at most once every six hours (00, 06, 12 and 18
-  UTC); a refused release raises it every time. A refused release keeps the row
+  it. It sends the `telnyx-ownership-mismatch` notice (PostHog fingerprint
+  `ops:telnyx-ownership-mismatch`, level error) when it has evidence the number
+  is its own: the number's `customer_reference` names one of its companies, or
+  one of its `phone_numbers` rows holds the number's id or E.164. Every sweep
+  that sees it sends it, and so does a refused release, so the PostHog issue
+  stays open until the number is fixed. A refused release keeps the row
   un-released, and the daily grace pass carries on with the company's campaign
   and its other numbers. Fix it by clearing the group on the number in the
   portal. Never assign a billing group to a production number.
@@ -282,8 +282,8 @@ The app's own per-company caps are the first line against a bug that spends.
 Telnyx's daily spend limit is the second: over the limit, Telnyx refuses new
 calls on the outbound voice profile until 00:00 UTC, and answers HTTP 429 with
 code `40333` to a send on a messaging profile (and fires
-`messaging-profile.spend-limit-reached`). It also emails the account owner, but
-only after the fact.
+`messaging-profile.spend-limit-reached`, which the API acknowledges and does
+nothing with). It also emails the account owner, but only after the fact.
 
 ### Sizing, from evidence
 
@@ -347,20 +347,21 @@ curl -s -X PATCH -H "Authorization: Bearer $TELNYX_API_KEY" -H "Content-Type: ap
 ```
 
 To revert, send `"daily_spend_limit_enabled": false` with the before values
-above. Reverting removes the vendor-side cap, and the weekly check below will
-alert until the limit is back. Raising a limit is fine and is not drift; record
-the new figure and the reason here.
+above. Reverting removes the vendor-side cap, and the hourly gauge below reports
+the missing limit until it is back. Raising a limit is fine and is not drift;
+record the new figure and the reason here.
 
-### Watches in the API Worker (production only)
+### What the API Worker sends to PostHog (production only)
 
-All three read only, refuse to run anywhere but production
-(`productionWatchRefusal`), and report through `opsAlert`.
+The gauges read only and refuse to run anywhere but production
+(`productionWatchRefusal`). The thresholds live in PostHog's "Limits and rates"
+alert, not here (D146, docs/MONITORING.md).
 
-| Alert key | Job | When | Fires when |
+| Sent | Job | When | What it carries |
 |---|---|---|---|
-| `telnyx-spend-precap-voice`, `telnyx-spend-precap-messaging` | `job:telnyx-spend-watch` | hourly | A UTC day's spend passes about 70% of the live limit (voice: the account; messaging: per company, listed by id). Level `error` at 100%. Repeats only at 00, 06, 12 and 18 UTC. A quiet hour reads the cost ledger and makes no Telnyx request. |
-| `telnyx-messaging-spend-cap` | the send path and the webhook | when it happens | A send is refused with `40333`, or `messaging-profile.spend-limit-reached` arrives. One alert per profile per half hour per isolate. The customer sees an ordinary failed message, not a vendor limit. |
-| `telnyx-spend-limit-drift` | `job:telnyx-spend-limit-drift` | weekly, Monday 13:50 UTC | A production voice or messaging profile has no enforced limit, a disabled one, or one below USD 25.00. |
+| `ops_gauge` `telnyx-spend-voice` | `job:telnyx-spend-gauges` | hourly | Today's voice spend, the tightest enforced limit across production's outbound voice profiles (`null` when one has none), and the USD 25.00 floor. The alert fires at 70% of the limit, and on a limit that is missing or below the floor. |
+| `ops_gauge` `telnyx-spend-messaging` | `job:telnyx-spend-gauges` | hourly | The messaging profile closest to trouble: one with no enforced limit, or one Telnyx no longer lists, first; otherwise the one with the largest share of its limit spent today. One gauge for the fleet. |
+| notice `telnyx-messaging-spend-cap` | the send path | the day's first refusal | A send is refused with `40333` and no other text of that workspace was refused that UTC day. The customer sees an ordinary failed message, not a vendor limit. |
 
 Spend is the cost ledger's (`provider_costs` for voice, `messages.provider_cost`
 for texts, through `api_telnyx_spend_since`), which trails a message by its
@@ -406,9 +407,10 @@ readable states it; the limits are.
 
 ### The capacity check
 
-`job:telnyx-capacity-watch` (daily, 13:00 UTC) reads `api_voice_capacity_read`
-and warns, through `opsAlert` under the key `telnyx-concurrency-capacity`, before
-production's calls can exceed the limit. The worst case it prices:
+`job:telnyx-capacity-gauge` (daily, 13:00 UTC) reads `api_voice_capacity_read`
+and sends the worst case as the `ops_gauge` `telnyx-concurrent-legs` against the
+limit; PostHog's "Limits and rates" alert fires at 70% of it, before production's
+calls can exceed the limit. The worst case it prices:
 
 ```
 legs needed = 1 (the new call's customer leg)
@@ -420,8 +422,8 @@ A number's ring audience is its text-level members who hold a telephony
 credential, or the most ring legs one call opened in 28 days, whichever is
 larger (the same definition as the rig's reserve, `docs/RIG.md` section 3.5).
 Telnyx's docs do not say whether SIP-URI ring legs count against the limit, so
-they are counted. At exactly the limit it warns; above it, it raises an error.
-With a limit of 10, a five-member crew leaves room for two calls already up.
+they are counted. With a limit of 10, a five-member crew leaves room for two
+calls already up.
 
 When the account's level changes, change `TELNYX_CONCURRENT_CALL_LIMIT` and the
 table above together. The rig's room formula (`docs/RIG.md` section 4.1) reads the
@@ -440,8 +442,9 @@ business number and somebody taking it.
 ### 1. Port-out notifications — REQUIRED, or the code below never runs
 
 `apps/api/src/telnyx/portout.ts` handles `portout.*` webhooks: it marks the
-number `ported_out`, writes the audit row, and emails the owner and ops. Telnyx
-does not send those events unless you switch them on:
+number `ported_out`, writes the audit row, emails the owner and sends the
+`port-out` notice to PostHog. Telnyx does not send those events unless you switch
+them on:
 
 **Account Settings → Advanced Features → Notifications**
 1. Create a **Notification Profile**.

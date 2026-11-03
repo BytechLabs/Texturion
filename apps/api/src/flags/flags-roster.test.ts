@@ -8,7 +8,7 @@
  * from every customer, and stops warning the operator what they are about to
  * do — both failures of exactly the moment the script exists for.
  *
- * Same guard the liveness table uses for wrangler's cron list.
+ * Same check mount.test.ts keeps on wrangler's cron list.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

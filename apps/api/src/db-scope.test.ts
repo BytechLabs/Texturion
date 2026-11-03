@@ -77,12 +77,12 @@ const TENANT_TABLES = new Set([
   "messaging_registrations", "notification_prefs", "notification_read_items",
   "notification_reads", "number_access", "number_port_outs", "opt_outs",
   "outbound_call_authorizations", "outbound_dial_leases",
-  "activation_stall_state", "alert_escalations", "appointment_reminder_rules",
+  "alert_escalations", "appointment_reminder_rules",
   "contact_addresses", "contact_field_defs", "contact_phones",
   "pending_notifications",
   "on_call_shifts", "prepayments", "referrals", "saved_views",
   "scheduled_messages",
-  "call_silence_state", "feature_flag_overrides", "number_health",
+  "feature_flag_overrides", "number_health",
   "retention_notices",
   "ownership_confirmations", "ownership_transfers", "phone_numbers",
   "public_links",
@@ -251,37 +251,9 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     count: 2,
     why: "stale-call sweeper: finds calls wedged in-flight across all tenants",
   },
-  "messaging/delivery-by-country.ts::messages": {
-    count: 1,
-    why:
-      "#379 delivery-rate split: a PLATFORM statistic by destination country. " +
-      "Per-tenant it would be meaningless — the signal is carrier filtering " +
-      "of our traffic as a whole",
-  },
-  "observability/liveness-check.ts::messages": {
-    count: 3,
-    why:
-      "#387 outbound-SMS probe: asks whether ANY workspace got a text to the " +
-      "carrier in the window. Per-tenant it would be noise — one plumber " +
-      "having a quiet afternoon is not an outage; every inbox silent is. " +
-      "#510 adds the second: the same question over a WEEK, because 'every " +
-      "inbox silent' is also what a platform with three customers looks like " +
-      "on a Sunday, and an alert that cannot tell that from an outage fires " +
-      "forever and teaches its reader to delete it. The third asks whether " +
-      "the platform ATTEMPTED any send, in any status, so " +
-      "channel:telnyx-message-status is withheld unless a status webhook was " +
-      "actually owed — platform-wide for the same reason as the other two, " +
-      "and status-blind on purpose, since the broken path is the only thing " +
-      "that would have moved those rows off 'queued'",
-  },
-  "observability/inbound-canary.ts::phone_numbers": {
-    count: 1,
-    why:
-      "#308 canary: checks the destination belongs to the PLATFORM, which is " +
-      "the whole point of the check. Scoping it to a company would make the " +
-      "guard weaker, not stronger — it exists so a typo'd secret cannot text " +
-      "a stranger",
-  },
+
+
+
   "telnyx/provisioning.ts::phone_numbers": {
     count: 3,
     why:
@@ -371,22 +343,14 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     count: 1,
     why: "the same sweep, for live 10DLC campaigns still costing us money",
   },
-  "billing/overage-warning.ts::usage_alerts": {
-    count: 1,
-    why:
-      "`runOverageDigestJob`: which workspaces crossed a cost projection in " +
-      "the window, for one digest to us. Per-tenant it would not be a digest",
-  },
+
   "tasks/due-notice.ts::tasks": {
     count: 1,
     why:
       "the due-task notifier, batched across all tenants. It selects " +
       "company_id precisely so it can fan the notices back out per workspace",
   },
-  "telnyx/registration-stalls.ts::messaging_registrations": {
-    count: 1,
-    why: "stall detector: registrations stuck at the carrier, every tenant",
-  },
+
 
   // ---- "Which company owns this number?" — the scope is the ANSWER, so the
   // query cannot carry one. In all four the number arrives in a TELNYX WEBHOOK
@@ -411,6 +375,10 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
   "calls/runtime.ts::phone_numbers": {
     count: 1,
     why: "`loadInitiatedContext`: same lookup on `payload.to` from the call event",
+  },
+  "webhooks/telnyx.ts::phone_numbers": {
+    count: 1,
+    why: "`call_received`: which company owns the called number (`payload.to`), for its event",
   },
   "telnyx/portout.ts::phone_numbers": {
     count: 1,

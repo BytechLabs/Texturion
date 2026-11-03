@@ -34,7 +34,7 @@ export function buildTestApp(...subApps: Hono<AppEnv>[]): Hono<AppEnv> {
   // simplified double, which meant every route suite in the repo asserted
   // against an error response production does not send — no CORS re-echo, no
   // request id — so a test about error behaviour could pass while the
-  // deployed behaviour differed. The observability half (Sentry, the server
+  // deployed behaviour differed. The observability half (PostHog, the server
   // log) stays in `index.ts`, because a test must not perform it.
   app.onError((error, c) => {
     if (error instanceof ApiError) {
@@ -249,11 +249,6 @@ export function supabaseStub(env: Env): SupabaseStub {
           : undefined,
     },
     {
-      method: "POST",
-      matcher: "/rest/v1/rpc/record_heartbeat",
-      respond: () => ({ recovered: false }),
-    },
-    {
       // #452: the high-priority push meter hangs off every HIGH send the same
       // way. The default verdict is "allowed, no alert", which IS the shipped
       // behaviour every pre-#452 test was written against — a suite that wants
@@ -262,16 +257,6 @@ export function supabaseStub(env: Env): SupabaseStub {
       method: "POST",
       matcher: "/rest/v1/rpc/claim_high_priority_push",
       respond: () => ({ allowed: true, alert: null }),
-    },
-    {
-      // #308: the signature-rejection counter hangs off the FAILURE path of
-      // every webhook route. Without this, any suite that posts an unsigned
-      // webhook makes a real network call and waits out the timeout — the
-      // request is fired before `waitUntil`, precisely so a context that cannot
-      // defer it still records.
-      method: "POST",
-      matcher: "/rest/v1/rpc/record_webhook_rejection",
-      respond: () => null,
     },
     {
       // #581: every AI feature now asks whether the workspace is still paying

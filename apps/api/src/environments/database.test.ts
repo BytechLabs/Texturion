@@ -111,13 +111,8 @@ describe("a rig whose database gate is off", () => {
   it("runs no cron job", async () => {
     const bindings = rigEnv();
     const sb = database(bindings, () => ({ deploy_env: "", endpoints: 0 }));
-    // The heartbeat records that the trigger fired, which it did.
-    const HEARTBEAT = "/rest/v1/rpc/record_heartbeat";
-    sb.on("POST", HEARTBEAT, () => ({ recovered: false }));
 
-    // Through the exported Worker, as the runtime calls it. Sentry wraps the
-    // handler in place and its wrapper needs the execution context, which the
-    // handler's own signature leaves out.
+    // Through the exported Worker, as the runtime calls it.
     const scheduled = worker.scheduled as unknown as ExportedHandlerScheduledHandler<Bindings>;
     await expect(
       scheduled(
@@ -126,9 +121,7 @@ describe("a rig whose database gate is off", () => {
         testExecutionContext().ctx,
       ),
     ).rejects.toThrow(/rig cron not run/);
-    expect(sb.calls.map((call) => call.path).filter((path) => path !== HEARTBEAT)).toEqual([
-      POSTURE,
-    ]);
+    expect(sb.calls.map((call) => call.path)).toEqual([POSTURE]);
   });
 });
 

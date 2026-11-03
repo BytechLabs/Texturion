@@ -2,7 +2,7 @@ import { SUPPORT_EMAIL } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { recordHeartbeatBestEffort } from "../observability/liveness";
+import { channelHeartbeat } from "../observability/heartbeat";
 import { emailTextFooter } from "./html";
 
 export interface SendEmailInput {
@@ -36,16 +36,11 @@ export interface SendEmailInput {
    * below that unsubscribe line would both misdescribe the message and put a
    * second footer under the compliance block.
    *
-   * OPERATIONAL is the third audience, and it is us. The account voice is
-   * wrong twice over on an ops alert: it tells the operator the alert is
-   * customer mail, and it points their reply at the queue customers write to.
-   * Those sends all go through `observability/ops-alert.ts` (D139).
-   *
    * Defaulted rather than required because transactional is the overwhelming
    * majority and a wrong default there is silent; `commercial-footer.test.ts`
    * is what stops the next commercial sender from inheriting it by omission.
    */
-  kind?: "transactional" | "commercial" | "operational";
+  kind?: "transactional" | "commercial";
   /**
    * #252 — STREAM SEPARATION. True for the handful of messages a customer
    * cannot afford to miss: your payment failed, your number is released in
@@ -160,13 +155,7 @@ export async function sendEmail(
       //
       // Commercial mail is exempt: it carries its own compliance block and is
       // not a service message about an account the recipient does not have.
-      // "operational" is exempt for a different reason than "commercial": an
-      // ops alert is addressed to US, and this footer was on the text part of
-      // all nineteen of them.
-      text:
-        input.kind === "commercial" || input.kind === "operational"
-          ? input.text
-          : input.text + emailTextFooter(),
+      text: input.kind === "commercial" ? input.text : input.text + emailTextFooter(),
       reply_to: replyTo,
       ...(input.headers !== undefined ? { headers: input.headers } : {}),
     }),
@@ -186,13 +175,10 @@ export async function sendEmail(
     throw new Error("Resend send failed: response carried no email id.");
   }
 
-  // #387 liveness: nothing anywhere records that an email was sent, which is
-  // half of why #386 can happen at all. This is the one place that knows, so
-  // it is where the channel's heartbeat is taken. Best-effort by construction
-  // — a bookkeeping write must never be the reason a notification is reported
-  // as failed, and a heartbeat that did not land is itself an absence the
-  // checker notices one cadence later.
-  await recordHeartbeatBestEffort(env, "channel:email-outbound");
+  // Nothing else records that an email was sent, so this is where the
+  // channel's heartbeat is taken. Never awaited: a heartbeat must not be the
+  // reason a notification is reported as failed.
+  channelHeartbeat(env, "channel:resend-send");
 
   return { id: payload.id };
 }

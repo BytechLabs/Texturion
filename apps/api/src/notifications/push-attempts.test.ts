@@ -6,20 +6,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import { supabaseStub } from "../test/routes-harness";
-import { opsCaptures, resetSentryCaptures } from "../test/sentry-mock";
+import { eventsCaptured, noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { completeEnv, stubFetch } from "../test/support";
 import {
   classifyPushResponse,
   PUSH_ATTEMPTS_WRITE_TIMEOUT_MS,
   recordPushAttempts,
-  resetPushAttemptAlertsForTest,
   timedPush,
   type PushAttempt,
   type PushTarget,
 } from "./push-attempts";
 
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 const env = completeEnv();
@@ -36,8 +35,7 @@ const TARGET: PushTarget = {
 };
 
 beforeEach(() => {
-  resetSentryCaptures();
-  resetPushAttemptAlertsForTest();
+  resetCaptures();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -145,12 +143,30 @@ describe("recordPushAttempts", () => {
     ]);
   });
 
+  it("sends a ring_push_sent event for each ring push that reached a live channel", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/push_attempts", () => new Response(null, { status: 201 }));
+    stubFetch(sb.route);
+
+    await recordPushAttempts(env, getDb(env), [
+      attempt,
+      { ...attempt, platform: "ios" },
+      { ...attempt, responseClass: "gone" },
+      { ...attempt, purpose: "call_end" },
+    ]);
+
+    expect(eventsCaptured("ring_push_sent")).toEqual([
+      { event: "ring_push_sent", distinctId: TARGET.companyId, properties: { platform: "android" } },
+      { event: "ring_push_sent", distinctId: TARGET.companyId, properties: { platform: "ios" } },
+    ]);
+  });
+
   it("writes nothing for an empty fan-out", async () => {
     stubFetch(); // any request fails the test
     await recordPushAttempts(env, getDb(env), []);
   });
 
-  it("alerts the operator once on a refusal, with the code and never the row", async () => {
+  it("sends a notice on every refusal, with the code and never the row", async () => {
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/push_attempts", () =>
       Response.json(
@@ -166,15 +182,15 @@ describe("recordPushAttempts", () => {
     await recordPushAttempts(env, getDb(env), [attempt]);
     await recordPushAttempts(env, getDb(env), [attempt]);
 
-    const alerts = opsCaptures("push-attempts-ledger");
-    expect(alerts).toHaveLength(1);
-    const detail = String(alerts[0].extra.detail);
+    const notices = noticesCaptured("push-attempts-ledger");
+    expect(notices).toHaveLength(2);
+    const detail = String(notices[0].detail);
     expect(detail).toContain("23514");
     expect(detail).not.toContain("5550142");
     expect(detail).not.toContain("session-1");
   });
 
-  it("logs a member who left mid-send without alerting: a race, not a broken ledger", async () => {
+  it("logs a member who left mid-send without a notice: a race, not a broken ledger", async () => {
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/push_attempts", () =>
       Response.json(
@@ -187,7 +203,7 @@ describe("recordPushAttempts", () => {
 
     await recordPushAttempts(env, getDb(env), [attempt]);
 
-    expect(opsCaptures()).toHaveLength(0);
+    expect(noticesCaptured()).toHaveLength(0);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("left mid-send"));
   });
 
@@ -202,17 +218,17 @@ describe("recordPushAttempts", () => {
     expect(request.body).toEqual([expect.objectContaining({ latency_ms: 600_000 })]);
   });
 
-  it("logs a transport failure without alerting, and never throws", async () => {
+  it("logs a transport failure without a notice, and never throws", async () => {
     stubFetch(); // the insert's fetch rejects
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await expect(recordPushAttempts(env, getDb(env), [attempt])).resolves.toBeUndefined();
 
-    expect(opsCaptures()).toHaveLength(0);
+    expect(noticesCaptured()).toHaveLength(0);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("not recorded"));
   });
 
-  it("logs a database's 5xx without alerting: weather, not a refusal", async () => {
+  it("logs a database's 5xx without a notice: weather, not a refusal", async () => {
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/push_attempts", () =>
       Response.json({ code: "57014", message: "canceling statement due to statement timeout" }, { status: 503 }),
@@ -222,7 +238,7 @@ describe("recordPushAttempts", () => {
 
     await recordPushAttempts(env, getDb(env), [attempt]);
 
-    expect(opsCaptures()).toHaveLength(0);
+    expect(noticesCaptured()).toHaveLength(0);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("HTTP 503"));
   });
 
@@ -252,7 +268,7 @@ describe("recordPushAttempts", () => {
     deadline.abort(new DOMException("deadline", "TimeoutError"));
 
     await expect(write).resolves.toBeUndefined();
-    expect(opsCaptures()).toHaveLength(0);
+    expect(noticesCaptured()).toHaveLength(0);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("no answer"));
   });
 

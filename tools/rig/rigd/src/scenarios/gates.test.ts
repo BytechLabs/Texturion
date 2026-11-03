@@ -198,8 +198,8 @@ describe("G01, isolation self-test", () => {
     expect(readFileSync(repoPath("apps/api/src/messaging/send.ts"), "utf8")).toContain("throw new Error(`gate_outbound_send failed: ${error.message}`);");
     expect(readFileSync(repoPath("apps/api/src/routes/calls.ts"), "utf8")).toMatch(/await db\.rpc\("api_claim_outbound_line", \{[\s\S]*?\}\),\s*"outbound line claim",/);
     expect(readFileSync(repoPath("apps/api/src/routes/core/http.ts"), "utf8")).toContain("throw new Error(`${what} failed: ${result.error.message}`);");
-    // onError tags the event with the route, and answers anything but an ApiError or a 429/503 from Telnyx with 500.
-    expect(readFileSync(repoPath("apps/api/src/index.ts"), "utf8")).toContain("tags: { route: `${method} ${path}`");
+    // onError reports the exception with the route, and answers anything but an ApiError or a 429/503 from Telnyx with 500.
+    expect(readFileSync(repoPath("apps/api/src/index.ts"), "utf8")).toContain("route: `${method} ${path}`");
   });
 
   it("calls an app request the guard had to refuse critical", async () => {

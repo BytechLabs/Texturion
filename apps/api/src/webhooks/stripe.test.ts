@@ -10,7 +10,7 @@
  * lands in a parallel worktree.
  */
 import { Hono } from "hono";
-import * as Sentry from "@sentry/cloudflare";
+import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
 import Stripe from "stripe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -39,18 +39,18 @@ import {
 import { submitRegistration } from "../test/telnyx-doubles/registration";
 
 /**
- * #526: Sentry is observable here because for one branch of this handler it is
- * the ONLY thing that exists — the held-number notice is best-effort by design,
- * so a failure leaves no email, no push, no retry and no error. Without a spy
- * on it, "never silent" is an unguarded sentence in a comment (#526 R3: both
- * captures could be deleted with all 51 tests still green).
- *
- * The whole surface this module graph touches is listed, because vitest fails
- * the import — not the call — on a name the factory does not provide.
+ * #526: the reported exception is observable here because for one branch of
+ * this handler it is the ONLY thing that exists: the held-number notice is
+ * best-effort by design, so a failure leaves no email, no push, no retry and
+ * no error. Without a spy on it, "never silent" is an unguarded sentence in a
+ * comment (#526 R3: both captures could be deleted with all 51 tests still
+ * green).
  */
-vi.mock("@sentry/cloudflare", async () =>
-  (await import("../test/sentry-mock")).sentryModuleMock(),
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
 );
+
+const reported = () => exceptionsCaptured().map((entry) => entry.error);
 
 const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
@@ -340,6 +340,7 @@ async function deliver(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetCaptures();
 });
 
 afterEach(() => {
@@ -776,16 +777,15 @@ describe("§9 event → state table", () => {
 
     // The shipped sentence, not one typed in here: a differently-worded
     // replacement is a different alert, and this test would not notice.
-    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+    expect(reported()).toContain(
       heldNoticeUnannouncedAlert({
         companyId: COMPANY_ID,
         sessionId: "cs_1",
         held: 1,
       }),
-      "error",
     );
-    // And the cause itself, so the alert is not the only thing an operator has.
-    expect(Sentry.captureException).toHaveBeenCalled();
+    // And the cause itself, so the sentence is not the only thing an operator has.
+    expect(reported().some((error) => error instanceof Error)).toBe(true);
   });
 
   it("#526 a workspace with no billing email is on the record too — that branch throws nothing", async () => {
@@ -831,10 +831,7 @@ describe("§9 event → state table", () => {
 
     expect(response.status).toBe(200);
     expect(harness.callsTo("POST", /api\.resend\.com\/emails/)).toHaveLength(0);
-    expect(Sentry.captureMessage).toHaveBeenCalledWith(
-      heldNoticeNoRecipientsAlert({ companyId: COMPANY_ID, held: 1 }),
-      "error",
-    );
+    expect(reported()).toContain(heldNoticeNoRecipientsAlert({ companyId: COMPANY_ID, held: 1 }));
   });
 
   it("#523 an ordinary first checkout is told nothing: no hold, no email", async () => {

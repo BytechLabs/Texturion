@@ -22,7 +22,7 @@ const rateLimiterSchema = z.custom<RateLimiter>(
  * unknown keys, so a binding added to a TS type alone would be silently
  * discarded. Declared .optional() because required would break every existing
  * test env fixture / completeEnv; the webhook router and live-calls routes
- * guard at runtime and fail loudly (Sentry) if it is absent in production.
+ * guard at runtime and fail loudly (an exception) if it is absent in production.
  */
 const callSessionsSchema = z.custom<DurableObjectNamespace>(
   (value) =>
@@ -101,11 +101,11 @@ const envSchema = z.object({
   SENTRY_DSN: z.url(),
   /**
    * The git SHA this Worker was built from — stamped by the Deploy workflow
-   * (`wrangler deploy --var GIT_SHA:<head_sha>`) and reported to Sentry as the
-   * release, so a production error maps to the exact commit that shipped it
-   * (and Sentry can flag regressions + suspect commits). Optional: local dev,
-   * tests, and a manual `wrangler deploy` boot without it, and Sentry simply
-   * falls back to an untagged release rather than the Worker failing to start.
+   * (`wrangler deploy --var GIT_SHA:<head_sha>`) and sent with every PostHog
+   * exception and event as `release`, so a production error maps to the exact
+   * commit that shipped it. Optional: local dev, tests, and a manual
+   * `wrangler deploy` boot without it, and the release is simply untagged
+   * rather than the Worker failing to start.
    */
   GIT_SHA: z.string().min(1).optional(),
   /**
@@ -166,32 +166,6 @@ const envSchema = z.object({
    * requires a second authenticated subdomain, which is a DNS action.
    */
   RESEND_FROM_CRITICAL: z.string().min(1).optional(),
-  /**
-   * Optional SECONDARY recipient for operational alerts. Sentry (SENTRY_DSN,
-   * required) is the ops channel; this only adds an email copy where somebody
-   * wants one. Unset means Sentry only — deliberately NOT the support address,
-   * which is where customers write (observability/ops-alert.ts).
-   */
-  OPS_ALERT_EMAIL: z.string().min(3).optional(),
-  /**
-   * #652: the shared secret PostHog's alert webhook sends in `x-loonext-ops-secret`
-   * (webhooks/posthog-alert.ts). Unset, the endpoint answers 503 to everything.
-   * 32 characters at least, so a guessable value cannot be set.
-   */
-  OPS_ALERT_WEBHOOK_SECRET: z.string().min(32).optional(),
-  /**
-   * #308: the synthetic inbound canary's number pair, in E.164.
-   *
-   * BOTH OPTIONAL, and the canary is off unless both are set — a from with no
-   * to is not half a canary, it is a text to nowhere. The destination must be
-   * a number this platform owns; the job checks and refuses otherwise, which
-   * is what makes this the one send path that may skip the §5 gates.
-   *
-   * Cost when enabled: one segment out plus one segment in per hourly run,
-   * ~1.7c, capped by MAX_UNANSWERED_PER_DAY once the path is known broken.
-   */
-  CANARY_FROM_E164: z.string().min(8).optional(),
-  CANARY_TO_E164: z.string().min(8).optional(),
   /**
    * Reply-To stamped on EVERY Resend send (email-hardening: alert copy says
    * "just reply to this email", so replies must land in a monitored inbox

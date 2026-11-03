@@ -111,16 +111,17 @@ describe("#303 screening a business name", () => {
     }
   });
 
-  it("PC-6: the alert names its evidence and refuses to reach a verdict", () => {
+  it("PC-6: the notice names its evidence, not the business, and refuses to reach a verdict", () => {
     // A reviewer needs the matched term to judge it themselves, and the copy
     // has to say plainly that this is a keyword hit rather than a finding —
     // otherwise the flag reads as a decision already taken.
     const matches = screenBusinessName("Green Leaf Dispensary");
-    const summary = screeningSummary("Green Leaf Dispensary", matches);
+    const summary = screeningSummary(matches);
 
     expect(summary).toContain("dispensary");
     expect(summary).toMatch(/not\s+a finding/i);
     expect(summary).toMatch(/look before\s+acting/i);
+    expect(summary).not.toContain("Green Leaf");
     // No verdict language anywhere.
     for (const verdict of ["violation", "prohibited business", "must be", "confirmed"]) {
       expect(summary.toLowerCase()).not.toContain(verdict);
@@ -128,6 +129,6 @@ describe("#303 screening a business name", () => {
   });
 
   it("PC-7: a clean name produces a summary that says so", () => {
-    expect(screeningSummary("Reed Roofing", [])).toMatch(/matched nothing/);
+    expect(screeningSummary([])).toMatch(/matched nothing/);
   });
 });

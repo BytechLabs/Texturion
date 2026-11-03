@@ -6,57 +6,39 @@
  * part that reaches a person, and it exists as its own module for one reason:
  * the signup route must never fail because an alert could not be sent.
  *
- * WHY AN EMAIL AND NOT A QUEUE. There is no ops UI, and inventing a review
- * table nobody opens would be worse than the email that already reaches
- * whoever reads the watch job's alerts. When there is a queue, this is one
- * call site to move.
+ * It is an ops notice, so the PostHog issue is the review queue: one per
+ * workspace screened, with its status and history (D146). The notice names
+ * the workspace by id and the categories matched, never the business name.
  *
  * WHAT IT DELIBERATELY DOES NOT DO: block provisioning. A keyword match on a
  * business name is weak evidence, and holding a real contractor's number until
- * somebody reads an email would punish them for being called Colt Plumbing.
+ * somebody reads a notice would punish them for being called Colt Plumbing.
  * The window between signup and a first send is hours at minimum; that is the
  * time a reviewer has, and it is enough.
  */
-import type { CategoryMatch } from "@loonext/shared";
-import { screeningSummary } from "@loonext/shared";
+import { screeningSummary, type CategoryMatch } from "@loonext/shared";
 
-import { opsEmail, opsTextHtml } from "../observability/ops-alert";
 import type { Env } from "../env";
+import { opsNotice } from "../observability/capture";
 
 export async function alertProhibitedCategory(
   env: Env,
-  args: { companyId: string; name: string; matches: CategoryMatch[] },
+  args: { companyId: string; matches: CategoryMatch[] },
 ): Promise<void> {
   if (args.matches.length === 0) return;
 
-  const summary = screeningSummary(args.name, args.matches);
-  const categories = [...new Set(args.matches.map((m) => m.category))].join(", ");
-
-  const text = [
-    summary,
-    "",
-    `Workspace: ${args.name}`,
-    `ID: ${args.companyId}`,
-    "",
-    "Why you are seeing this: /legal/aup §4 prohibits these categories",
-    "outright, and a carrier complaint against one of them lands on our",
-    "account and every other customer's deliverability — not on theirs.",
-    "Catching it now is worth a great deal; catching it at the complaint is",
-    "worth nothing.",
-    "",
-    "What to do: look at the workspace before it sends. If it is what the",
-    "name suggests, the ladder in docs/AUP-ENFORCEMENT.md starts with",
-    "asking. If it is a plumber called Colt, nothing happens and this alert",
-    "did its job.",
-  ].join("\n");
-
-  await opsEmail(env, {
-    key: "ops:messaging-aup-signup-screen",
-    // The subject says "check", not "violation". Whoever opens this is about
-    // to look at a real business, and a subject line that has already decided
-    // makes that harder to do fairly.
-    subject: `Check a new workspace: possible ${categories}`,
-    text,
-    html: opsTextHtml(text),
+  await opsNotice(env, {
+    key: "aup-signup-screen",
+    // "Check", not "violation". Whoever opens this is about to look at a real
+    // business, and a title that has already decided makes that harder to do
+    // fairly.
+    summary: "Check a new workspace: its name matches a prohibited category",
+    detail: `company ${args.companyId}: ${screeningSummary(args.matches)}`,
+    action:
+      "/legal/aup section 4 prohibits these categories outright, and a carrier complaint " +
+      "against one lands on our account and every other customer's deliverability. Look " +
+      "at the workspace before it sends. If it is what the name suggests, the ladder in " +
+      "docs/AUP-ENFORCEMENT.md starts with asking. If it is a plumber called Colt, " +
+      "nothing happens.",
   });
 }

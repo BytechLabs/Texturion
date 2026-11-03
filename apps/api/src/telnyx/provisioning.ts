@@ -1,12 +1,10 @@
 import { NANP_AREA_CODES } from "@loonext/shared";
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { telnyxRequest, TelnyxApiError } from "./client";
 import { provisioningDelayedCopy } from "./emails";
 import {
-  alertOwnershipMismatch,
-  mismatchSweepAlertDue,
+  reportOwnershipMismatch,
   ownsTelnyxNumber,
   partitionOrderFields,
   type TelnyxPartitionedNumber,
@@ -23,6 +21,7 @@ import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { captureException, workerEnv } from "../observability/capture";
 
 /**
  * The §4.3 number-provisioning saga. Every step is independently retryable and
@@ -119,7 +118,7 @@ const NUMBER_COLUMNS =
   "last_provision_error,provision_failure_reason,chosen_number_e164," +
   "created_at,updated_at";
 
-/** SPEC §4.3: Sentry escalates (page the operator) after 5 failed attempts. */
+/** SPEC §4.3: an exhausted budget is reported as an error after 5 failed attempts. */
 export const MAX_PROVISION_ATTEMPTS = 5;
 
 /**
@@ -391,13 +390,14 @@ async function searchAvailableNumber(
   if (sawMasked) {
     // The country's inventory is masked / un-orderable at this Telnyx account
     // level (number_reservations → 10038). This is an OPERATOR problem, not the
-    // customer's — alert loudly with the actionable cause so it gets fixed, and
+    // customer's: report it with the actionable cause so it gets fixed, and
     // fail honestly rather than ordering a masked number (10027) on a loop that
     // shows a false "still setting up".
-    Sentry.captureMessage(
-      `Provisioning blocked: ${country} numbers are masked and un-orderable at this Telnyx account ` +
-        `level (number_reservations returns 10038). Upgrade/verify the Telnyx account to order ${country} numbers.`,
-      "error",
+    void captureException(
+      env,
+      "Provisioning blocked: numbers are masked and un-orderable at this Telnyx account " +
+        "level (number_reservations returns 10038). Upgrade or verify the Telnyx account.",
+      { source: "api", extra: { country } },
     );
     throw new Error(
       `no orderable ${country} inventory: numbers are masked (Telnyx account upgrade required for ${country})`,
@@ -531,10 +531,15 @@ async function failStuckPendingOrder(
   db: SupabaseClient,
   row: PhoneNumberRow,
 ): Promise<PhoneNumberRow> {
-  Sentry.captureMessage(
-    `provisioning: Telnyx order ${row.telnyx_order_id} for company ${row.company_id} ` +
-      `stuck pending > 10m — flipping row ${row.id} to provision_failed for user remediation`,
-    "warning",
+  void captureException(
+    workerEnv(),
+    "provisioning: Telnyx order stuck pending > 10m, row flipped to provision_failed",
+    {
+      source: "api",
+      level: "warning",
+      company_id: row.company_id,
+      extra: { telnyx_order_id: row.telnyx_order_id, phone_number_id: row.id },
+    },
   );
   return updateNumberRow(db, row.id, {
     status: "provision_failed",
@@ -703,9 +708,9 @@ async function orderNumberForRow(
 
 /**
  * §4.3 failure handling: `status='provision_failed'`, error stored, attempts
- * incremented, Sentry event; owner+admin email on the FIRST failure (the
+ * incremented, exception reported; owner+admin email on the FIRST failure (the
  * customer-facing "taking longer than usual" note — SPEC copy, no action
- * required); Sentry escalation when the attempt budget is exhausted.
+ * required); an error-level exception when the attempt budget is exhausted.
  */
 /**
  * Coarse, customer-safe classification of a provisioning failure — the ONLY
@@ -733,12 +738,18 @@ async function recordProvisionFailure(
 ): Promise<PhoneNumberRow> {
   const attempts = row.provision_attempts + 1;
   const message = cause instanceof Error ? cause.message : String(cause);
-  Sentry.captureException(cause);
+  void captureException(env, cause, {
+    source: "api",
+    level: "warning",
+    company_id: company.id,
+    extra: { attempts },
+  });
   if (attempts >= MAX_PROVISION_ATTEMPTS) {
-    Sentry.captureMessage(
-      `number provisioning exhausted ${attempts} attempts for company ${company.id}`,
-      "fatal",
-    );
+    void captureException(env, "number provisioning exhausted its attempts", {
+      source: "api",
+      company_id: company.id,
+      extra: { attempts },
+    });
   }
 
   const updated = await updateNumberRow(db, row.id, {
@@ -759,7 +770,7 @@ async function recordProvisionFailure(
       }
     } catch (emailError) {
       // The email is best-effort; the failure record is the durable state.
-      Sentry.captureException(emailError);
+      void captureException(env, emailError, { source: "api", company_id: company.id });
     }
   }
   return updated;
@@ -781,10 +792,12 @@ export async function resumeProvisioning(
   // hosted row by the text-enablement saga — ordering here would purchase a
   // random new number and overwrite the owner's own number_e164.
   if (row.source !== "provisioned") {
-    Sentry.captureMessage(
-      `resumeProvisioning called on a source='${row.source}' row ${row.id} — skipped`,
-      "warning",
-    );
+    void captureException(env, "resumeProvisioning called on a keep-your-number row, skipped", {
+      source: "api",
+      level: "warning",
+      company_id: row.company_id,
+      extra: { source: row.source, phone_number_id: row.id },
+    });
     return row;
   }
   const db = getDb(env);
@@ -1053,7 +1066,7 @@ export async function closeOutDeadProvisioningBestEffort(
           : "."),
     );
   } catch (cause) {
-    Sentry.captureException(cause);
+    void captureException(workerEnv(), cause, { source: "api", company_id: companyId });
     console.error(
       `${context}: dead-provisioning close-out failed for ${companyId} (retried on the next daily grace pass):`,
       cause instanceof Error ? cause.message : String(cause),
@@ -1137,10 +1150,12 @@ export async function releaseNumberRow(
     if (!order) {
       // A hosted row without its order is a data bug worth flagging — but
       // never a reason to keep the slot occupied.
-      Sentry.captureMessage(
-        `release: hosted row ${row.id} has no text_enablement_orders row`,
-        "warning",
-      );
+      void captureException(env, "release: hosted row has no text_enablement_orders row", {
+        source: "api",
+        level: "warning",
+        company_id: row.company_id,
+        extra: { phone_number_id: row.id },
+      });
     } else if (order.status !== "cancelled") {
       // Telnyx side first (same DELETE calls cancelTextEnablement uses):
       // 'completed' → the live hosted NUMBER; non-terminal → the ORDER
@@ -1165,10 +1180,12 @@ export async function releaseNumberRow(
       } else if (order.status === "completed") {
         // Completed but the hosted-number id never landed: nothing
         // addressable to delete — flag it, don't hold the slot.
-        Sentry.captureMessage(
-          `release: completed enablement ${order.id} has no telnyx_hosted_number_id`,
-          "warning",
-        );
+        void captureException(env, "release: completed enablement has no telnyx_hosted_number_id", {
+          source: "api",
+          level: "warning",
+          company_id: row.company_id,
+          extra: { text_enablement_order_id: order.id },
+        });
       }
       const { error: orderError } = await db
         .from("text_enablement_orders")
@@ -1193,7 +1210,7 @@ export async function releaseNumberRow(
     if (current && !ownsTelnyxNumber(env, current)) {
       // Our own row holds this id, which is evidence enough that the number is
       // ours to manage, whatever its customer_reference says.
-      await alertOwnershipMismatch(
+      await reportOwnershipMismatch(
         env,
         [current],
         `the release of row ${row.id}`,
@@ -1526,25 +1543,36 @@ export async function reconcileNumbers(
           // Already gone → done; anything else stays flagged for the next pass.
           if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
             summary.orphansFlagged += 1;
-            Sentry.captureException(cause);
+            void captureException(env, cause, { source: "cron", job: "job:reconcile-numbers" });
             continue;
           }
         }
         summary.orphansReleased += 1;
         // IDs only — never the number itself (SPEC §10 telemetry policy).
-        Sentry.captureMessage(
-          `reconcile: reclaimed orphaned Telnyx number ${owned.id} (customer_reference=${ref}) — a settled company owned an extra number no row claims (double-buy safety net)`,
-          "warning",
+        void captureException(
+          env,
+          "reconcile: reclaimed an orphaned Telnyx number a settled company owned and no row claims",
+          {
+            source: "cron",
+            job: "job:reconcile-numbers",
+            level: "warning",
+            extra: { telnyx_phone_number_id: owned.id, customer_reference: ref },
+          },
         );
         continue;
       }
 
       summary.orphansFlagged += 1;
       // IDs only — never the number itself (SPEC §10 telemetry policy).
-      Sentry.captureMessage(
-        `reconcile: Telnyx number ${owned.id} (customer_reference=${owned.customer_reference ?? "none"}) is unknown to phone_numbers`,
-        "warning",
-      );
+      void captureException(env, "reconcile: a Telnyx number is unknown to phone_numbers", {
+        source: "cron",
+        job: "job:reconcile-numbers",
+        level: "warning",
+        extra: {
+          telnyx_phone_number_id: owned.id,
+          customer_reference: owned.customer_reference ?? null,
+        },
+      });
     }
     page += 1;
   }
@@ -1556,8 +1584,8 @@ export async function reconcileNumbers(
         `${summary.mismatched} of them this environment's own — counted, not acted on`,
     );
   }
-  if (mismatched.length > 0 && mismatchSweepAlertDue(now)) {
-    await alertOwnershipMismatch(env, mismatched, "the reconcile sweep");
+  if (mismatched.length > 0) {
+    await reportOwnershipMismatch(env, mismatched, "the reconcile sweep");
   }
   return summary;
 }
