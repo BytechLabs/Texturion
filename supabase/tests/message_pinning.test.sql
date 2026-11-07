@@ -219,44 +219,42 @@ end $$;
 -- ===========================================================================
 do $$
 declare
-  before_count int;
-  after_count int;
-  latest jsonb;
+  seen_ids uuid[];
+  emitted jsonb[];
+  broadcast jsonb;
 begin
-  select count(*) into before_count
-  from realtime.messages
-  where topic like 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd%'
-    and event = 'message.status' and extension = 'broadcast'
-    and payload->>'message_id' = 'dddddddd-dddd-4ddd-8ddd-ddd000000004';
+  -- Rows written in one transaction share an inserted_at, so the newest
+  -- broadcast cannot be picked by time: compare with the rows seen before.
+  select coalesce(array_agg(m.id), '{}') into seen_ids
+  from realtime.messages m
+  where m.topic like 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd%'
+    and m.event = 'message.status' and m.extension = 'broadcast'
+    and m.payload->>'message_id' = 'dddddddd-dddd-4ddd-8ddd-ddd000000004';
 
   perform public.set_message_pinned(
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     'dddddddd-dddd-4ddd-8ddd-ddd000000004', true,
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc');
 
-  select count(*) into after_count
-  from realtime.messages
-  where topic like 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd%'
-    and event = 'message.status' and extension = 'broadcast'
-    and payload->>'message_id' = 'dddddddd-dddd-4ddd-8ddd-ddd000000004';
+  select coalesce(array_agg(m.payload), '{}') into emitted
+  from realtime.messages m
+  where m.topic like 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd%'
+    and m.event = 'message.status' and m.extension = 'broadcast'
+    and m.payload->>'message_id' = 'dddddddd-dddd-4ddd-8ddd-ddd000000004'
+    and m.id <> all(seen_ids);
 
-  if after_count <= before_count then
+  if cardinality(emitted) = 0 then
     raise exception 'P-5 FAILED: pin toggle did not emit a message.status broadcast';
   end if;
 
-  select payload into latest
-  from realtime.messages
-  where topic like 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd%'
-    and event = 'message.status' and extension = 'broadcast'
-    and payload->>'message_id' = 'dddddddd-dddd-4ddd-8ddd-ddd000000004'
-  order by inserted_at desc limit 1;
-
-  if latest->>'pinned_at' is null then
-    raise exception 'P-5 FAILED: broadcast payload missing pinned_at after pin';
-  end if;
-  if latest->>'pinned_by_user_id' is distinct from 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' then
-    raise exception 'P-5 FAILED: broadcast payload missing/incorrect pinned_by_user_id';
-  end if;
+  foreach broadcast in array emitted loop
+    if broadcast->>'pinned_at' is null then
+      raise exception 'P-5 FAILED: broadcast payload missing pinned_at after pin';
+    end if;
+    if broadcast->>'pinned_by_user_id' is distinct from 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' then
+      raise exception 'P-5 FAILED: broadcast payload missing/incorrect pinned_by_user_id';
+    end if;
+  end loop;
   raise notice 'P-5 PASSED: pin toggle emits message.status carrying the pin fields';
 end $$;
 
