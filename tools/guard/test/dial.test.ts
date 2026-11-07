@@ -243,14 +243,15 @@ describe("admission", () => {
     expect(await ruleOf(await dial(h, id, { ...DIAL, to: N.devA1 }))).toBe("admission.no_room");
   });
 
-  it("refuses on a conflict in the evidence, and alerts production once", async () => {
+  it("refuses on a conflict in the evidence, and the refusal is all it says", async () => {
     const h = await ready({ validated: 3 });
     await h.store.put(LIMIT_KEYS.history, { peak_calls: 4, measured_at: h.clock.now });
     const id = await lease(h);
+    const sent = h.outbound.length;
     expect(await ruleOf(await dial(h, id))).toBe("admission.limit_conflict");
     expect(await ruleOf(await dial(h, id))).toBe("admission.limit_conflict");
-    const alerts = h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-guard-limit-conflict"'));
-    expect(alerts).toHaveLength(1);
+    expect(h.outbound.slice(sent).filter((item) => item.body.includes('"$exception_fingerprint"'))).toEqual([]);
+    expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
   });
 
   it("refuses without a fresh reading of production's dial peaks", async () => {

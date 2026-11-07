@@ -4,7 +4,7 @@
  * the state lives or which token goes where.
  *
  * rigd keeps its own files under `state/rigd/`; what other tools read
- * (`state/uplink.json`, `state/api-exceptions.json`) sits directly in `state/`.
+ * (`state/uplink.json`) sits directly in `state/`.
  */
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -38,7 +38,7 @@ import { deleteStripeObject, STRIPE_DELETE_UNDO, StripeSandbox } from "./stripe-
 import type { RunnerDeps } from "./runner.ts";
 import { RUNNERS } from "./scenarios/index.ts";
 import type { BrowserApi, DeviceApi, DevicesApi, RigApi, ScenarioLanes, StripeApi, WorkspaceState } from "./scenarios/context.ts";
-import { PostHogErrors } from "./posthog-errors.ts";
+import { posthogFromStore, type PostHogErrors } from "./posthog-errors.ts";
 import { VerdictStore } from "./verdicts.ts";
 
 /** Where the rig's Supabase auth answers, which a sign-up's confirmation link opens (tools/rig/src/layout.mjs). */
@@ -99,6 +99,7 @@ export function buildRig(config: RigdConfig): Rig {
   };
   const numbers = once(() => standingBook(store.readJson<unknown>("standing-numbers.json")));
   const tenants = once(() => store.readJson<TenantsFile>("tenants.json"));
+  const posthog = posthogFromStore(store);
   const app = once(() => {
     const supabase = localSupabase(config.home, config.env);
     return new AppProbe({
@@ -112,6 +113,7 @@ export function buildRig(config: RigdConfig): Rig {
       guardToken: store.read("guard-token-rig-api"),
       robotWebhookSecret: () => store.readOptional("robot-webhook-secret"),
       robotMailbox: () => store.readOptional("robot-mailbox"),
+      posthog,
       stateDir: dir,
     });
   });
@@ -140,12 +142,6 @@ export function buildRig(config: RigdConfig): Rig {
     handlers: undo,
   });
   const late = new LateDeliveries(join(dir, "late-deliveries.jsonl"));
-
-  const posthog = new PostHogErrors({
-    projectKey: store.readOptional("posthog-api-key"),
-    personalKey: store.readOptional("posthog-personal-api-key"),
-    projectId: store.readOptional("posthog-project-id"),
-  });
 
   const marginsFile = marginsFileOf(config);
   const browser = once((): BrowserApi => {

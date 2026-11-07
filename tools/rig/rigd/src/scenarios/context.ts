@@ -32,6 +32,15 @@ export interface LeaseHandle {
  */
 export const FICTIONAL_E164 = ["+14165550199", "+14165550198"] as const;
 
+/**
+ * Push attempts and ring beacons are PostHog events, which can take this long
+ * to become readable. A wait for one adds it, and a check that one did not
+ * happen watches this long before it believes it.
+ */
+export const EVENT_INGEST_MS = 60_000;
+/** Between reads of PostHog, whose query API is limited per project. */
+export const EVENT_POLL_MS = 5_000;
+
 export function isFictional(e164: string): boolean {
   return /^\+1\d{3}55501\d{2}$/.test(e164);
 }
@@ -233,6 +242,7 @@ export interface AppApi {
   /** A message's attachments, and the bytes storage holds for one. */
   attachments(messageId: string): Promise<{ storage_path: string; content_type: string; size_bytes: number; quarantined_at: string | null }[]>;
   storedObject(args: { bucket: string; path: string }): Promise<Uint8Array>;
+  /** The API's push attempts in a tenant since a time, from PostHog: see EVENT_INGEST_MS. */
   pushAttempts(args: { tenant: string; since: number; purpose?: "ring" | "call_end" | "alert" }): Promise<
     {
       purpose: string;
@@ -248,7 +258,7 @@ export interface AppApi {
   pushTargets(args: { member: string }): Promise<number>;
   /** The FCM tokens the API stores for a member's Android devices, for D10 and D12 to match against the device's own. */
   pushTokens(args: { member: string }): Promise<string[]>;
-  /** The ring beacons a tenant's devices reported, oldest first; with `member`, that member's only. */
+  /** The ring beacons a tenant's devices reported, oldest first; with `member`, that member's only. From PostHog: see EVENT_INGEST_MS. */
   ringBeacons(args: { tenant: string; since: number; member?: string }): Promise<
     {
       stage: string;

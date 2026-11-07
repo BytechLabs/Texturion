@@ -9,6 +9,8 @@ import type { StandingRole } from "@loonext/rig-protocol";
 import type { PageHearing } from "@loonext/rig-lanes";
 import type { CallPlan, CallRecord, Surface } from "@loonext/rig-robot";
 import {
+  EVENT_INGEST_MS,
+  EVENT_POLL_MS,
   fail,
   infra,
   pass,
@@ -307,7 +309,7 @@ export const S05: ScenarioRunner = {
       const attempts = await ctx.app.pushAttempts({ tenant: "QA-W", since, purpose: "ring" });
       const rings = attempts.filter((p) => p.purpose === "ring" && (!p.call_session_id || p.call_session_id === row.call_session_id));
       return rings.length > 0 ? rings : undefined;
-    }, 30_000, 2_000);
+    }, 30_000 + EVENT_INGEST_MS, EVENT_POLL_MS);
     ctx.evidence.ring_pushes = pushes?.map((p) => ({ platform: p.platform, response: p.response_class, priority: p.priority }));
     if (!pushes) return fail("no_ring_push", "no ring push attempt was recorded for the call");
     return escalationWidens(ctx, since);

@@ -14,7 +14,7 @@
  * claim the journal by renaming it first, and only one rename can win.
  */
 import { randomBytes } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { EDGE_PATHS, GUARD_ROUTES, HEADER, LEASE_MAX_MS, type GuardRefusal, type LeaseGrant } from "@loonext/rig-protocol";
 import { GuardRefusedError, systemClock, type Clock } from "@loonext/rig-robot";
@@ -72,6 +72,19 @@ export interface LeaseClientOptions {
   clock?: Clock;
 }
 
+/** The journals in a leases directory that are still held, for a process that has no LeaseClient (R00). */
+export function openJournals(dir: string): JournalEntry[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).flatMap((name) => {
+    if (!/^[^.]+\.json$/.test(name)) return [];
+    try {
+      return [JSON.parse(readFileSync(join(dir, name), "utf8")) as JournalEntry];
+    } catch {
+      return [];
+    }
+  });
+}
+
 export class LeaseClient {
   readonly #o: LeaseClientOptions;
   readonly #fetch: typeof fetch;
@@ -92,14 +105,7 @@ export class LeaseClient {
 
   /** The journals of leases still held: taken, and neither released nor reaped. */
   open(): JournalEntry[] {
-    return readdirSync(this.#dir).flatMap((name) => {
-      if (!/^[^.]+\.json$/.test(name)) return [];
-      try {
-        return [JSON.parse(readFileSync(join(this.#dir, name), "utf8")) as JournalEntry];
-      } catch {
-        return [];
-      }
-    });
+    return openJournals(this.#dir);
   }
 
   /** Runs the undos of every lease this process holds, for a run stopped before it could release them. */

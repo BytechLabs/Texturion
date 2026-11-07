@@ -1,12 +1,10 @@
-/**
- * What startDaemon connects: the forwarder's targets and the relay's
- * explanation of the local API's events.
- */
+/** What startDaemon connects, the forwarder's targets, and R00's explanation of the local API's events. */
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { exceptionExplain, forwardTargets } from "./daemon.ts";
+import { exceptionExplain } from "./api-exceptions.ts";
+import { forwardTargets } from "./daemon.ts";
 import { destinationRefusedEvent } from "./scenarios/fakes.ts";
 import { FaultFile } from "./state-files.ts";
 import { VerdictStore, type Verdict } from "./verdicts.ts";

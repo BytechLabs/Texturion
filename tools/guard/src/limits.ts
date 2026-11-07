@@ -66,7 +66,6 @@ export const MONTHLY_CAP_USD = 35;
 export const SET_ASIDE_USD = 1.5;
 export const BALANCE_FLOOR_MIN_USD = 30;
 export const BALANCE_FLOOR_DAYS = 14;
-export const BALANCE_ALERT_USD = 150;
 export const BALANCE_CACHE_MS = 10 * MINUTE;
 /** Amber once this share of the month's usage budget is spent. */
 export const AMBER_SHARE = 0.8;

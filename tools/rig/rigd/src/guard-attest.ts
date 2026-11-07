@@ -1,5 +1,5 @@
 /**
- * The hourly guard version attestation (docs/RIG.md): is the guard
+ * The guard version attestation R00 runs (docs/RIG.md): is the guard
  * Cloudflare serves the one guard.yml last deployed from main?
  *
  * Cloudflare's side is the guard's live deployment, read with the
@@ -31,7 +31,6 @@
  * secret change is taken at its word: only a holder of the guard's deploy
  * rights could put other code under one.
  */
-import { EDGE_PATHS, type RigAlert } from "@loonext/rig-protocol";
 import type { SecretFiles } from "@loonext/rig-robot";
 import { githubHeaders, GITHUB_API, installationToken, splitRepo } from "@loonext/rig-triage";
 
@@ -89,6 +88,11 @@ export interface AttestOptions {
 }
 
 class Unreadable extends Error {}
+
+/** The repository whose guard.yml is attested, and whose issues triage files; RIG_REPO names another. */
+export function rigRepo(env: NodeJS.ProcessEnv): string {
+  return env.RIG_REPO ?? "BytechLabs/Texturion";
+}
 
 export async function attestGuard(options: AttestOptions): Promise<Attestation> {
   const { store } = options;
@@ -256,59 +260,6 @@ async function mainDeploys(doFetch: typeof fetch, app: { appId: string; privateK
   return deploys
     .filter((deploy) => Date.parse(deploy.started_at) >= newestSuccess)
     .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
-}
-
-export interface AttestReporting {
-  edgeOrigin: string;
-  controlToken: string | undefined;
-  /** A `['synthetic-infra', 'guard-attest']` event; absent while no PostHog key is in the store. */
-  infra?: (message: string) => Promise<unknown>;
-  fetch?: typeof fetch;
-  log: (line: string) => void;
-}
-
-/**
- * A mismatch goes to production through the edge, which holds the DSN the
- * box does not (EDGE_PATHS.ctlAlert). A fault, and a mismatch the edge did
- * not take, go to the synthetic project instead, so neither passes unseen.
- */
-export async function reportAttestation(result: Attestation, reporting: AttestReporting): Promise<"none" | "alerted" | "infra"> {
-  const infra = async (message: string) => {
-    reporting.log(`guard attestation: ${message}`);
-    await reporting.infra?.(message);
-    return "infra" as const;
-  };
-  if (result.outcome === "match") return "none";
-  if (result.outcome === "infra") return infra(result.reason);
-  const alert: RigAlert = {
-    key: "telnyx-guard-integrity",
-    message: "The Telnyx guard's live deployment is not one guard.yml made from main",
-    detail: clip(
-      `${result.reason}. guard.yml's latest deployments from main: ${result.expected.slice(0, 5).join(", ") || "none"}. ` +
-        `Find who deployed ${result.deployment_id} and how, then dispatch guard.yml from main to put the tested guard back.`,
-      1_900,
-    ),
-  };
-  let status: number | string = "no control token";
-  if (reporting.controlToken) {
-    status = await (reporting.fetch ?? fetch)(`${reporting.edgeOrigin}${EDGE_PATHS.ctlAlert}`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${reporting.controlToken}`, "content-type": "application/json" },
-      body: JSON.stringify(alert),
-      signal: AbortSignal.timeout(20_000),
-    }).then(
-      async (response) => {
-        await response.body?.cancel();
-        return response.ok ? 200 : response.status;
-      },
-      () => "no answer",
-    );
-  }
-  if (status === 200) {
-    reporting.log(`guard attestation: mismatch, raised in production as ops/${alert.key}: ${result.reason}`);
-    return "alerted";
-  }
-  return infra(`mismatch (${result.reason}), and the edge did not take the production alert: ${status}`);
 }
 
 function clip(text: string, max: number): string {

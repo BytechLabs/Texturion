@@ -3,7 +3,7 @@
  * S24 and S25. Every body carries the attempt's nonce, so a check never
  * matches a text from another run.
  */
-import { fail, infra, pass, poll, type ScenarioContext, type ScenarioResult, type ScenarioRunner } from "./context.ts";
+import { EVENT_INGEST_MS, EVENT_POLL_MS, fail, infra, pass, poll, type ScenarioContext, type ScenarioResult, type ScenarioRunner } from "./context.ts";
 
 /** Every rig number has an Ontario area code, so the destination's clock is Toronto's. */
 const DESTINATION_ZONE = "America/Toronto";
@@ -117,7 +117,7 @@ export const S21: ScenarioRunner = {
     const push = await poll(ctx, async () => {
       const attempts = await ctx.app.pushAttempts({ tenant: "QA-W", since });
       return attempts.length > 0 ? attempts : undefined;
-    }, 30_000, 2_000);
+    }, 30_000 + EVENT_INGEST_MS, EVENT_POLL_MS);
     if (!push) return fail("no_push_attempt", "no push attempt was recorded for the inbound text");
     ctx.evidence.push = push.map((p) => ({ purpose: p.purpose, platform: p.platform, response: p.response_class }));
     return pass();

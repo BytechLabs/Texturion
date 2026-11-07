@@ -1,12 +1,10 @@
-import { runInDurableObject } from "cloudflare:test";
 import { EDGE_PATHS } from "@loonext/rig-protocol";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { Env } from "./env";
 import { servesHost } from "./http";
-import { ALERT_REPEAT_MS, sealedBundle } from "./ctl";
-import { ORIGIN, TOKENS, call, edgeEnv, fakeGuard, resetEdge, uplinkStub } from "./test/support";
-import { EVENT_DAILY_MAX } from "./uplink";
+import { sealedBundle } from "./ctl";
+import { ORIGIN, TOKENS, call, edgeEnv, fakeGuard, resetEdge } from "./test/support";
 
 let env: Env;
 
@@ -23,7 +21,7 @@ function expectHardened(response: Response): void {
 
 describe("the public surface", () => {
   it("is an empty 404 everywhere off the list, with the hardening headers", async () => {
-    for (const path of ["/", "/index.html", "/t", "/t/x", "/ctl", "/ctl/other", "/health", "/favicon.ico", "/gx"]) {
+    for (const path of ["/", "/index.html", "/t", "/t/x", "/ctl", "/ctl/other", "/ctl/alert", "/health", "/favicon.ico", "/gx"]) {
       for (const method of ["GET", "POST"]) {
         const response = await call(new Request(`${ORIGIN}${path}`, { method }), env);
         expect(response.status, `${method} ${path}`).toBe(404);
@@ -42,7 +40,6 @@ describe("the public surface", () => {
       ["POST", EDGE_PATHS.ctlUplink],
       ["GET", EDGE_PATHS.ctlRpc],
       ["POST", EDGE_PATHS.ctlSecrets],
-      ["GET", EDGE_PATHS.ctlAlert],
     ]) {
       expect((await call(new Request(`${ORIGIN}${path}`, { method }), env)).status, `${method} ${path}`).toBe(404);
     }
@@ -63,101 +60,6 @@ describe("the public surface", () => {
     expect(servesHost("loonext-rig-edge.example.workers.dev")).toBe(true);
     expect(servesHost("localhost")).toBe(true);
     expect(servesHost("edge.example.com")).toBe(false);
-  });
-});
-
-describe("/ctl/alert", () => {
-  const KEY = "phc_edge_test_key";
-  const alert = { key: "telnyx-guard-integrity", message: "The Telnyx guard's live deployment is not one guard.yml made from main", detail: "d" };
-  const post = (e: Env, body: unknown, token = TOKENS.rig) =>
-    call(
-      new Request(`${ORIGIN}${EDGE_PATHS.ctlAlert}`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-      e,
-    );
-  let sent: { url: string; event: Record<string, unknown> }[];
-  let posthogAnswers: number;
-
-  beforeEach(() => {
-    sent = [];
-    posthogAnswers = 200;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-      const request = new Request(input, init);
-      sent.push({ url: request.url, event: JSON.parse(await request.text()) as Record<string, unknown> });
-      return new Response("{}", { status: posthogAnswers });
-    });
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("sends a listed key to production as ops:<key>, once in six hours", async () => {
-    const withKey = { ...env, POSTHOG_PROJECT_KEY: KEY };
-    const response = await post(withKey, alert);
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ sent: true });
-    expect(sent).toHaveLength(1);
-    expect(sent[0]!.url).toBe("https://us.i.posthog.com/i/v0/e/");
-    expect(sent[0]!.event).toMatchObject({
-      api_key: KEY,
-      event: "$exception",
-      properties: {
-        $exception_fingerprint: "ops:telnyx-guard-integrity",
-        $exception_level: "error",
-        $exception_list: [{ type: "OpsNotice", value: alert.message }],
-        environment: "production",
-        ops_key: "telnyx-guard-integrity",
-        raised_by: "rigd",
-        detail: "d",
-      },
-    });
-
-    expect(await (await post(withKey, alert)).json()).toEqual({ sent: false, reason: "repeat" });
-    expect(sent).toHaveLength(1);
-    await runInDurableObject(uplinkStub(), (_instance, state) => {
-      state.storage.sql.exec("UPDATE meta SET value = ? WHERE key = 'alert:rig:telnyx-guard-integrity'", String(Date.now() - ALERT_REPEAT_MS - 1));
-    });
-    expect(await (await post(withKey, alert)).json()).toEqual({ sent: true });
-    expect(sent).toHaveLength(2);
-  });
-
-  it("spends the edge's daily production budget, and sends nothing once it is spent", async () => {
-    const withKey = { ...env, POSTHOG_PROJECT_KEY: KEY };
-    const rig = uplinkStub();
-    expect((await post(withKey, alert)).status).toBe(200);
-    for (let i = 1; i < EVENT_DAILY_MAX.production; i++) expect(await rig.takeEventBudget(Date.now(), "production")).toBe(true);
-    expect(await rig.takeEventBudget(Date.now(), "production")).toBe(false);
-
-    await runInDurableObject(uplinkStub(), (_instance, state) => {
-      state.storage.sql.exec("DELETE FROM meta WHERE key LIKE 'alert:%'");
-    });
-    const response = await post(withKey, alert);
-    expect(response.status).toBe(429);
-    expect(await response.json()).toEqual({ error: "budget_spent" });
-    expect(sent).toHaveLength(1);
-  });
-
-  it("answers other than 200 whenever production did not get it", async () => {
-    expect((await post(env, alert)).status).toBe(503);
-    const withKey = { ...env, POSTHOG_PROJECT_KEY: KEY };
-    posthogAnswers = 429;
-    expect((await post(withKey, alert)).status).toBe(502);
-    // A refused send is not tried again inside the hour.
-    posthogAnswers = 200;
-    expect(await (await post(withKey, alert)).json()).toEqual({ error: "retry_later" });
-    expect(sent).toHaveLength(1);
-  });
-
-  it("takes the rig's token and the protocol's keys only", async () => {
-    const withKey = { ...env, POSTHOG_PROJECT_KEY: KEY };
-    for (const token of [TOKENS.triage, TOKENS.admin, TOKENS["rig-api"], "nope"]) expect((await post(withKey, alert, token)).status).toBe(401);
-    expect((await post(withKey, { ...alert, key: "synthetic-dark" })).status).toBe(400);
-    expect((await post(withKey, { ...alert, message: "" })).status).toBe(400);
-    expect((await post(withKey, { ...alert, detail: "x".repeat(2_001) })).status).toBe(400);
-    expect(sent).toEqual([]);
   });
 });
 

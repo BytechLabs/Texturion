@@ -29,11 +29,6 @@ async function validation(h: Harness, record: Partial<ValidationRecord>): Promis
   } satisfies ValidationRecord);
 }
 
-const conflictAlerts = (h: Harness) =>
-  h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-guard-limit-conflict"'));
-const cappedAlerts = (h: Harness) =>
-  h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-guard-limit-capped"'));
-
 describe("the limit in force", () => {
   it("is the floor, with no room at all, while nothing else is proven", async () => {
     const h = harness();
@@ -65,17 +60,14 @@ describe("the limit in force", () => {
     expect(await limitInForce(h.ctx)).toMatchObject({ limit: 4, source: "validation", ceiling: { value: 4, from: "telnyx-90041" } });
   });
 
-  it("counts a validation above Paid's 5 only as far as production's history corroborates, and warns once per value", async () => {
+  it("counts a validation above Paid's 5 only as far as production's history corroborates", async () => {
     const h = harness();
     await validation(h, { value: 40 });
     expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, source: "validation" });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5 });
-    expect(cappedAlerts(h)).toHaveLength(1);
     await history(h, 7);
     expect(await limitInForce(h.ctx)).toMatchObject({ limit: 7, source: "validation", conflict: null });
     await validation(h, { value: 6 });
     expect(await limitInForce(h.ctx)).toMatchObject({ limit: 6 });
-    expect(cappedAlerts(h)).toHaveLength(1);
   });
 
   it("stays the floor when the check found the rule not enforced, or could not tell", async () => {
@@ -154,17 +146,14 @@ describe("a conflict in the evidence", () => {
     expect((await limitInForce(h.ctx)).conflict).toBe("validation_below_history");
   });
 
-  it("alerts production once, and again only after it cleared and came back", async () => {
+  it("is read, never reported: working it out sends nothing and writes nothing", async () => {
     const h = harness();
     await validation(h, { value: 3 });
     await history(h, 4);
-    for (let i = 0; i < 3; i++) await limitInForce(h.ctx);
-    expect(conflictAlerts(h)).toHaveLength(1);
-    await history(h, 3);
-    expect((await limitInForce(h.ctx)).conflict).toBeNull();
-    await history(h, 5);
-    await limitInForce(h.ctx);
-    expect(conflictAlerts(h)).toHaveLength(2);
+    const before = await h.store.list("");
+    expect((await limitInForce(h.ctx)).conflict).toBe("validation_below_history");
+    expect(h.outbound).toEqual([]);
+    expect(await h.store.list("")).toEqual(before);
   });
 
   it("refuses a bridge too, though it adds no leg", async () => {

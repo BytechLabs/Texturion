@@ -17,6 +17,8 @@ import type { CallRecord, Detection, Surface } from "@loonext/rig-robot";
 import {
   audioFault,
   audioReady,
+  EVENT_INGEST_MS,
+  EVENT_POLL_MS,
   fail,
   infra,
   pass,
@@ -37,8 +39,8 @@ const NO_RING_WAIT_MS = 15_000;
 const TALK_MS = 25_000;
 /** The device records this long from the answer, the span the robot judges as well (2-12 s). */
 const HEAR_MS = 12_000;
-/** Push attempts and beacons are written in the background; this is how long they get. */
-const EVIDENCE_WAIT_MS = 30_000;
+/** Push attempts and beacons are sent in the background; this is how long they get, PostHog's ingestion on top. */
+const EVIDENCE_WAIT_MS = 30_000 + EVENT_INGEST_MS;
 /** A device's clock may run behind the rig's. Beacons are matched by session, so a wide margin costs nothing. */
 const DEVICE_CLOCK_MARGIN_MS = 5 * 60_000;
 /**
@@ -203,7 +205,7 @@ export async function ringPush(
       (a) => a.purpose === "ring" && a.platform === "android" && (args.sessionId === undefined || a.call_session_id === args.sessionId),
     );
     return android.length > 0 ? android : undefined;
-  }, EVIDENCE_WAIT_MS, 2_000);
+  }, EVIDENCE_WAIT_MS, EVENT_POLL_MS);
   ev.push = (rows ?? []).map((a) => ({
     session_id: a.call_session_id ?? null,
     response_class: a.response_class,
@@ -241,7 +243,7 @@ export async function readBeacons(
     (await poll(ctx, async () => {
       const current = await read();
       return args.until.every((stage) => current.some((b) => b.stage === stage)) ? current : undefined;
-    }, EVIDENCE_WAIT_MS, 2_000)) ?? (await read());
+    }, EVIDENCE_WAIT_MS, EVENT_POLL_MS)) ?? (await read());
   if (args.settleUntil !== undefined && ctx.now() < args.settleUntil) {
     await ctx.sleep(args.settleUntil - ctx.now());
     rows = await read();
@@ -465,7 +467,7 @@ export async function pushWake(ctx: ScenarioContext, pixel: DeviceApi, ev: Recor
   const ring = await pixel.waitForRinging(RING_WITHIN_MS);
   ev.ring = ring ?? null;
   if (ring) ev.ring_shows_nonce = await pixel.showing({ text: caller });
-  const beacons = await readBeacons(ctx, PIXEL_LANE, { since, sessionId, until: PUSH_STAGES, settleUntil: since + RING_ME_SETTLE_MS }, ev);
+  const beacons = await readBeacons(ctx, PIXEL_LANE, { since, sessionId, until: PUSH_STAGES, settleUntil: since + RING_ME_SETTLE_MS + EVENT_INGEST_MS }, ev);
   const cleared = await dismissRing(ctx, pixel, ring !== undefined, ev);
 
   const push = await ringPush(ctx, PIXEL_LANE, { since, sessionId }, ev);

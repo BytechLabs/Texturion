@@ -18,7 +18,7 @@ import { runStarter } from "./daemon.ts";
 import { WindowSource } from "./guard-window.ts";
 import { RpcRouter } from "./rpc.ts";
 import { BUNDLE_KEY_SECRET, deliverSecrets } from "./secrets.ts";
-import { reportApiExceptions, seenException, type SeenEvent } from "./posthog-errors.ts";
+import { PostHogErrors, reportApiExceptions, seenException, type SeenEvent } from "./posthog-errors.ts";
 import { fakeFetch, json } from "./test-support.ts";
 import type { RpcFrame } from "./uplink.ts";
 
@@ -222,22 +222,43 @@ describe("the app probe and the seed's tenants", () => {
       edgeOrigin: "https://rig-edge.example.workers.dev",
       guardToken: "t",
       robotWebhookSecret: () => secret,
+      posthog: new PostHogErrors({ personalKey: "phx_rig_test_key", projectId: "7", fetch }),
       fetch,
     });
     return { probe, requests };
   }
 
-  it("reads push attempts by when they were attempted, and a member's push targets by user", async () => {
+  it("reads push_attempt events from PostHog since a time, and a member's push targets by user", async () => {
+    const since = Date.UTC(2026, 9, 31);
     const { probe, requests } = probeWith({
-      "GET http://127.0.0.1:54321/rest/v1/push_attempts": () => json([{ purpose: "alert", platform: "web", response_class: "accepted", attempted_at: "x" }]),
+      "POST https://us.posthog.com/api/environments/7/query/": () =>
+        json({ results: [[since + 1_000, "alert", "web", "accepted", null, "normal", null, USER]] }),
       "GET http://127.0.0.1:54321/rest/v1/push_subscriptions": () => json([{ id: "a" }]),
       "GET http://127.0.0.1:54321/rest/v1/device_push_tokens": () => json([{ id: "b" }, { id: "c" }]),
     });
-    await probe.pushAttempts({ tenant: "QA-W", since: Date.UTC(2026, 9, 31) });
-    const query = new URL(requests[0]!.url).searchParams;
-    expect(query.get("attempted_at")).toBe("gte.2026-10-31T00:00:00.000Z");
-    expect(query.get("select")).toBe("purpose,platform,response_class,attempted_at,priority,call_session_id,user_id");
-    expect(query.has("created_at")).toBe(false);
+    expect(await probe.pushAttempts({ tenant: "QA-W", since, purpose: "alert" })).toEqual([
+      {
+        purpose: "alert",
+        platform: "web",
+        response_class: "accepted",
+        attempted_at: new Date(since + 1_000).toISOString(),
+        priority: "normal",
+        call_session_id: null,
+        user_id: USER,
+      },
+    ]);
+    const asked = JSON.parse(requests[0]!.body!) as { query: { query: string; values: Record<string, unknown> } };
+    expect(asked.query.values).toEqual({
+      event: "push_attempt",
+      environment: "rig",
+      company: "00000000-0000-4000-8000-000000000001",
+      since,
+      purpose: "alert",
+    });
+    expect(asked.query.query.startsWith(
+      "select toUnixTimestamp64Milli(timestamp), properties.purpose, properties.platform, properties.response_class, " +
+        "properties.attempted_at, properties.priority, properties.call_session_id, properties.user_id from events ",
+    )).toBe(true);
     expect(await probe.pushTargets({ member: "qa-w-owner" })).toBe(3);
     expect(requests.filter((r) => r.url.includes("push_subscriptions") || r.url.includes("device_push_tokens")).map((r) => new URL(r.url).searchParams.get("user_id"))).toEqual([`eq.${USER}`, `eq.${USER}`]);
   });

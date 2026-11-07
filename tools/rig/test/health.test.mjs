@@ -164,11 +164,17 @@ test("an unclassified cron fails the crons check, and no timer is looked for", a
   });
 });
 
-test("the apiExceptions check fails on an unexplained exception and on each defect, naming its cause", async () => {
+test("the apiExceptions check reads the exceptions when it runs, and fails on an unexplained one and on each defect, naming its cause", async () => {
   await withRig(async (context) => {
-    mkdirSync(context.layout.state, { recursive: true });
-    const relay = (state) =>
-      writeFileSync(join(context.layout.state, "api-exceptions.json"), JSON.stringify({ at: new Date().toISOString(), ...state }));
+    let report;
+    const asked = [];
+    context.readApiExceptions = async (sources) => {
+      asked.push(sources);
+      return report;
+    };
+    const relay = (state) => {
+      report = { at: new Date().toISOString(), ...state };
+    };
     const check = () => healthChecks(context).apiExceptions();
 
     relay({ unexplained_24h: [], defects_24h: [] });
@@ -196,17 +202,31 @@ test("the apiExceptions check fails on an unexplained exception and on each defe
     relay({ unexplained_24h: [] });
     assert.match(await check(), /does not list unexplained_24h and defects_24h/);
 
-    relay({ error: "PostHog answered 401 for the exception query", unexplained_24h: [], defects_24h: [] });
+    relay({ error: "PostHog answered 401 for the HogQL query", unexplained_24h: [], defects_24h: [] });
     assert.equal(
       await check(),
-      "the local API's exceptions could not be read from PostHog: PostHog answered 401 for the exception query",
+      "the local API's exceptions could not be read from PostHog: PostHog answered 401 for the HogQL query",
     );
+    assert.equal(asked.length, 5);
+    assert.deepEqual(asked[0], { stateDir: context.layout.state, store: context.store });
+  });
+});
 
-    writeFileSync(
-      join(context.layout.state, "api-exceptions.json"),
-      JSON.stringify({ at: "2026-01-01T00:00:00.000Z", unexplained_24h: [], defects_24h: [] }),
-    );
-    assert.equal(await check(), "rigd's report of the API's exceptions is stale");
+test("the guardVersion check passes only on a guard guard.yml deployed from main, and names what it found otherwise", async () => {
+  await withRig(async (context) => {
+    let result;
+    context.attestGuard = async (options) => {
+      assert.equal(options.store, context.store);
+      return result;
+    };
+    const check = () => healthChecks(context).guardVersion();
+
+    result = { outcome: "match", sha: SHA, deployment_id: "d", run_id: 1, secret_changes: 0 };
+    assert.equal(await check(), null);
+    result = { outcome: "mismatch", reason: "the live deployment names 333333333333", deployment_id: "d", expected: [SHA] };
+    assert.equal(await check(), "the live guard is not one guard.yml deployed from main: the live deployment names 333333333333");
+    result = { outcome: "infra", reason: "GitHub answered 502 for /actions/runs/1/jobs" };
+    assert.equal(await check(), "the guard's version could not be attested: GitHub answered 502 for /actions/runs/1/jobs");
   });
 });
 

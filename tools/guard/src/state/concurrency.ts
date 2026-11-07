@@ -1,6 +1,5 @@
 import type { Ctx } from "../context";
 import { LIMIT_EVIDENCE_STALE_MS, PAID_CONCURRENT } from "../limits";
-import { sendProductionEvent } from "../posthog";
 
 /**
  * The account's concurrent call limit, as the guard can prove it (docs/RIG.md,
@@ -78,9 +77,6 @@ export const LIMIT_KEYS = {
   ceiling: "limit:ceiling",
   /** When the validation check last ran, conclusive or not, for its once-a-day pace. */
   probe: "limit:probe",
-  conflictAlert: "limit:conflict-alert",
-  /** The validated value last alerted on for being above what the rig can corroborate. */
-  cappedAlert: "limit:capped-alert",
 } as const;
 
 const MAX_CEILINGS = 20;
@@ -138,44 +134,7 @@ export async function limitInForce(ctx: Ctx): Promise<LimitInForce> {
   else if (lowest && floor !== null && floor > lowest.value) conflict = "floor_above_ceiling";
   else if (exact !== null && history !== null && exact < history) conflict = "validation_below_history";
 
-  const result: LimitInForce = { limit, source, floor, validation: stored, history, ceiling, conflict };
-  await alertConflictOnce(ctx, conflict);
-  await alertCappedOnce(ctx, exact !== null && exact > Math.max(PAID_CONCURRENT, history ?? 0) ? exact : null);
-  return result;
-}
-
-/** One warning per validated value above what Paid's limit or production's history supports. */
-async function alertCappedOnce(ctx: Ctx, value: number | null): Promise<void> {
-  const alerted = await ctx.store.get<number>(LIMIT_KEYS.cappedAlert);
-  if (value === null || alerted === value) return;
-  await ctx.store.put(LIMIT_KEYS.cappedAlert, value);
-  await sendProductionEvent(ctx, {
-    key: "telnyx-guard-limit-capped",
-    summary: "The rig's validation check found a concurrent limit above what it can corroborate",
-    detail:
-      `The check accepted ${value}, above Paid's ${PAID_CONCURRENT} and production's measured peak, so the guard ` +
-      `counts no more than the higher of those two. A boundary that high may be a product maximum, not the account's limit.`,
-    level: "warning",
-  });
-}
-
-/** One production alert per conflict, raised again only once it has cleared and come back. */
-async function alertConflictOnce(ctx: Ctx, conflict: string | null): Promise<void> {
-  const alerted = await ctx.store.get<string>(LIMIT_KEYS.conflictAlert);
-  if (conflict === null) {
-    if (alerted !== undefined) await ctx.store.delete(LIMIT_KEYS.conflictAlert);
-    return;
-  }
-  if (alerted === conflict) return;
-  await ctx.store.put(LIMIT_KEYS.conflictAlert, conflict);
-  await sendProductionEvent(ctx, {
-    key: "telnyx-guard-limit-conflict",
-    summary: "The rig's evidence about Telnyx's concurrent call limit contradicts itself",
-    detail:
-      `The guard found ${conflict.replace(/_/g, " ")} and refuses every paid dial (admission.limit_conflict) ` +
-      "until the evidence agrees again or lapses. Production's own calls may be nearer the account's limit than assumed.",
-    level: "error",
-  });
+  return { limit, source, floor, validation: stored, history, ceiling, conflict };
 }
 
 /** Test legs the limit leaves after production's reserve: none while only the floor is proven. */

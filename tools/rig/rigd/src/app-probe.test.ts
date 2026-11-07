@@ -1,7 +1,8 @@
 /**
- * The app probe's reads and writes against a stub of the local API, auth and
- * PostgREST: what each request names, and what each answer comes back as.
- * The answers are the shapes apps/api and Supabase send.
+ * The app probe's reads and writes against a stub of the local API, auth,
+ * PostgREST and PostHog's query API: what each request names, and what each
+ * answer comes back as. The answers are the shapes apps/api, Supabase and
+ * PostHog send.
  */
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,10 +11,12 @@ import { numberBook } from "@loonext/rig-robot";
 import { describe, expect, it } from "vitest";
 import { totpCode } from "../../../../scripts/rig/seed.mjs";
 import { AppProbe, MAIL_ACCOUNT_ADDRESS, SIGN_UP_ADDRESS, signUpNumberKey, stableUuid, VOICEMAILS_BUCKET } from "./app-probe.ts";
+import { PostHogErrors } from "./posthog-errors.ts";
 import { fakeFetch, json, type Recorded, type Route } from "./test-support.ts";
 
 const SUPABASE = "http://127.0.0.1:54321";
 const API = "http://127.0.0.1:8787";
+const HOGQL = "https://us.posthog.com/api/environments/7/query/";
 const COMPANY = "0f4c7a52-1d1e-4a4b-9c55-3a2b1c0d9e8f";
 const OWNER = "11111111-2222-4333-8444-555555555555";
 const TECH = "22222222-3333-4444-8555-666666666666";
@@ -60,6 +63,7 @@ function probeWith(routes: Record<string, Route>, stateDir?: string) {
     edgeOrigin: "https://rig-edge.example.workers.dev",
     guardToken: "t",
     robotMailbox: () => "rig-robot@example.invalid",
+    posthog: new PostHogErrors({ personalKey: "phx_rig_test_key", projectId: "7", fetch }),
     fetch,
     now: () => NOW,
     ...(stateDir ? { stateDir } : {}),
@@ -143,13 +147,63 @@ describe("the app probe's messages", () => {
 });
 
 describe("the app probe's calls", () => {
-  it("reads a tenant's ring beacons since a time, a member's by their user id", async () => {
-    const { probe, requests } = probeWith({ [`GET ${rest("ring_beacons")}`]: () => json([]) });
-    await probe.ringBeacons({ tenant: "QA-W", since: NOW, member: "qa-w-technician" });
+  it("reads a tenant's ring_beacon events from PostHog since a time, a member's by their user id, in the device's order", async () => {
+    const { probe, requests } = probeWith({
+      [`POST ${HOGQL}`]: () =>
+        json({
+          results: [
+            [NOW + 2_000, "ringing_shown", "android", "2026-10-31T15:00:01.500Z", "s-1", "1.4.0", "true", false, "active"],
+            [NOW + 3_000, "push_received", "android", null, "s-1", "1.4.0", null, null, null],
+          ],
+        }),
+    });
+    const mine = await probe.ringBeacons({ tenant: "QA-W", since: NOW, member: "qa-w-technician" });
     await probe.ringBeacons({ tenant: "QA-W", since: NOW });
-    const [mine, all] = requests.filter((r) => r.url.startsWith(rest("ring_beacons"))).map(query);
-    expect(mine).toMatchObject({ company_id: `eq.${COMPANY}`, occurred_at: `gte.${new Date(NOW).toISOString()}`, user_id: `eq.${TECH}`, order: "occurred_at.asc" });
-    expect(all).not.toHaveProperty("user_id");
+    const [asked, all] = requests
+      .filter((r) => r.url === HOGQL)
+      .map((r) => JSON.parse(r.body!) as { refresh: string; query: { query: string; values: Record<string, unknown> } });
+    expect(asked!.refresh).toBe("force_blocking");
+    expect(asked!.query.values).toEqual({ event: "ring_beacon", environment: "rig", company: COMPANY, since: NOW, user_id: TECH });
+    expect(asked!.query.query).toContain("distinct_id = {company}");
+    expect(asked!.query.query).toContain("and properties.user_id = {user_id}");
+    expect(all!.query.values).not.toHaveProperty("user_id");
+    expect(mine).toEqual([
+      {
+        stage: "ringing_shown",
+        platform: "android",
+        occurred_at: "2026-10-31T15:00:01.500Z",
+        call_session_id: "s-1",
+        app_version: "1.4.0",
+        device_idle: true,
+        screen_locked: false,
+        standby_bucket: "active",
+      },
+      {
+        stage: "push_received",
+        platform: "android",
+        occurred_at: new Date(NOW + 3_000).toISOString(),
+        call_session_id: "s-1",
+        app_version: "1.4.0",
+        device_idle: null,
+        screen_locked: null,
+        standby_bucket: null,
+      },
+    ]);
+  });
+
+  it("cannot read the push and ring evidence without a PostHog reader", async () => {
+    const probe = new AppProbe({
+      tenants: { "qa-w": { company_id: COMPANY, members: {} } },
+      numbers: numberBook({}),
+      apiBase: API,
+      supabaseUrl: SUPABASE,
+      serviceRoleKey: "service",
+      anonKey: "publishable",
+      edgeOrigin: "https://rig-edge.example.workers.dev",
+      guardToken: "t",
+    });
+    await expect(probe.pushAttempts({ tenant: "QA-W", since: NOW })).rejects.toThrow(/no PostHog reader/);
+    await expect(probe.ringBeacons({ tenant: "QA-W", since: NOW })).rejects.toThrow(/no PostHog reader/);
   });
 
   it("names a call's legs by member key, matching auth's address whatever its case, and an unknown user as nobody", async () => {

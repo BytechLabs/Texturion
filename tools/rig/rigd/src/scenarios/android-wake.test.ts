@@ -419,6 +419,24 @@ describe("D02p, a ring push with no call", () => {
     expect(await D02p.run(world.ctx)).toMatchObject({ failure_class: "ring_me_not_refused" });
   });
 
+  it("still sees a ring-me beacon that PostHog takes 45 s to show", async () => {
+    const world = wakeWorld("D02p");
+    const since = world.time.now;
+    const late = {
+      stage: "ring_me_sent",
+      platform: "android",
+      occurred_at: new Date(since + 10_000).toISOString(),
+      call_session_id: "synthetic-1",
+      app_version: "1.0.0",
+      device_idle: null,
+      screen_locked: null,
+      standby_bucket: null,
+    };
+    const read = world.app.ringBeacons;
+    world.app.ringBeacons = async (args) => [...(await read(args)), ...(world.time.now >= since + 55_000 ? [late] : [])];
+    expect(await D02p.run(world.ctx)).toMatchObject({ failure_class: "ring_me_not_refused" });
+  });
+
   it("blames the rig when the emulator is unreachable, before asking for a ring", async () => {
     const world = wakeWorld("D02p");
     world.pixel.reachableNow = false;

@@ -116,13 +116,12 @@ describe("the balance floor", () => {
     await expect(requireAboveFloor(h.ctx)).rejects.toMatchObject({ rule: "budget.balance_unknown" });
   });
 
-  it("raises one production alert a day under $150", async () => {
+  it("leaves a low balance to Telnyx's own notice: reading it sends nothing", async () => {
     const h = await ready();
-    h.telnyx.balance = "140.00";
-    await readBalance(h.ctx, { fresh: true });
-    await readBalance(h.ctx, { fresh: true });
-    const events = h.outbound.filter((item) => item.body.includes('"$exception_fingerprint":"ops:telnyx-balance-low"'));
-    expect(events).toHaveLength(1);
+    h.telnyx.balance = "40.00";
+    const sent = h.outbound.length;
+    expect(await readBalance(h.ctx, { fresh: true })).toBe(40);
+    expect(h.outbound.slice(sent)).toEqual([]);
   });
 });
 
@@ -160,7 +159,7 @@ describe("the cap", () => {
     expect(detachEvents(h)).toHaveLength(1);
   });
 
-  it("alerts at most once a day while a detach keeps failing", async () => {
+  it("raises the event on every pass while a detach keeps failing", async () => {
     const h = await ready();
     await charge(h.ctx, 40);
     const realHandle = h.telnyx.handle.bind(h.telnyx);
@@ -170,6 +169,6 @@ describe("the cap", () => {
         : realHandle(request);
     for (let i = 0; i < 3; i++) await enforceCap(h.ctx, await loadPartition(h.ctx, { fresh: true }));
     expect(h.telnyx.numbers.find((item) => item.id === "num-devw2")?.connection_id).toBe("conn-voice");
-    expect(detachEvents(h)).toHaveLength(1);
+    expect(detachEvents(h)).toHaveLength(3);
   });
 });

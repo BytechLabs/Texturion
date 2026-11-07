@@ -15,6 +15,8 @@ import { parseDevVars } from "./dev-vars.mjs";
 import { GUARD_ROUTES } from "../../rig-protocol/src/index.ts";
 import { adbAnswers } from "../lanes/src/android/adb.ts";
 import { ADB_VM_PORT, HOSTD_PORT } from "../lanes/src/android/devices.ts";
+import { apiExceptionsNow } from "../rigd/src/api-exceptions.ts";
+import { attestGuard, rigRepo } from "../rigd/src/guard-attest.ts";
 import { guardGet } from "./guard.mjs";
 import { parseJsonc } from "./jsonc.mjs";
 import { MemberSessions, memberSessionsFile } from "./member-sessions.mjs";
@@ -86,7 +88,7 @@ export const GUARD_SAFETY_MAX_AGE_MS = 6 * 3_600_000 + 15 * 60_000;
  * so a rig with nothing deployed or its stack down still says whether the
  * guard, hostd, the tunnel and the firewall are right.
  */
-export const DEPLOY_FREE_CHECKS = new Set(["guard", "nonprodApps", "uplink", "deployHold", "apiExceptions", "hostd", "adbTunnel", "nftables"]);
+export const DEPLOY_FREE_CHECKS = new Set(["guard", "nonprodApps", "guardVersion", "uplink", "deployHold", "apiExceptions", "hostd", "adbTunnel", "nftables"]);
 
 function readJsonFile(path) {
   return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null;
@@ -100,10 +102,10 @@ function fresh(at, maxAgeMs, now = Date.now()) {
 const short = (sha) => (typeof sha === "string" ? sha.slice(0, 12) : String(sha));
 
 /**
- * R00's exceptions half, from rigd's state/api-exceptions.json, which rigd
- * fills from the local API's `rig` exceptions in PostHog. A read that failed
- * is a failure: an empty list would pass the gate for the wrong reason. A
- * defect is an exception the cron registry says means the seed or a
+ * R00's exceptions half, from the report rigd's api-exceptions.ts makes of the
+ * local API's `rig` exceptions in PostHog when the check runs. A read that
+ * failed is a failure: an empty list would pass the gate for the wrong reason.
+ * A defect is an exception the cron registry says means the seed or a
  * scenario's setup is wrong, so it fails as surely as an unexplained one, and
  * with the registry's cause.
  */
@@ -127,13 +129,15 @@ export function apiExceptionsFailure(state) {
 }
 
 /**
- * @param {{ layout, settings, store, status, projectId, deployed, fetch?: typeof fetch, systemctl?: typeof systemctlUser, cronRegistry?: object, run?: typeof run, portAnswers?: typeof adbAnswers }} context
+ * @param {{ layout, settings, store, status, projectId, deployed, fetch?: typeof fetch, systemctl?: typeof systemctlUser, cronRegistry?: object, run?: typeof run, portAnswers?: typeof adbAnswers, readApiExceptions?: typeof apiExceptionsNow, attestGuard?: typeof attestGuard }} context
  */
 export function healthChecks(context) {
   const fetchImpl = context.fetch ?? fetch;
   const systemctl = context.systemctl ?? systemctlUser;
   const runImpl = context.run ?? run;
   const portAnswers = context.portAnswers ?? adbAnswers;
+  const readApiExceptions = context.readApiExceptions ?? apiExceptionsNow;
+  const attest = context.attestGuard ?? attestGuard;
   const api = () => `http://127.0.0.1:${context.settings.apiPort}`;
   const devVars = () => {
     const path = join(context.deployed.worktree, "apps", "api", ".dev.vars.rig");
@@ -251,6 +255,15 @@ export function healthChecks(context) {
       return fresh(safety.checked_at, GUARD_SAFETY_MAX_AGE_MS) ? null : "the guard's start-up checks have not run for over six hours";
     },
 
+    /** The guard Cloudflare serves is the one guard.yml last deployed from main (rigd's guard-attest.ts). */
+    async guardVersion() {
+      const result = await attest({ store: context.store, repo: rigRepo(process.env) });
+      if (result.outcome === "match") return null;
+      return result.outcome === "mismatch"
+        ? `the live guard is not one guard.yml deployed from main: ${result.reason}`
+        : `the guard's version could not be attested: ${result.reason}`;
+    },
+
     async stripeListener() {
       if (context.settings.systemd) {
         const active = systemctl(["is-active", "loonext-rig-stripe-listen.service"], { allowFailure: true });
@@ -296,10 +309,7 @@ export function healthChecks(context) {
     },
 
     async apiExceptions() {
-      const state = readJsonFile(join(context.layout.state, "api-exceptions.json"));
-      if (state === null) return "rigd has not published state/api-exceptions.json";
-      if (!fresh(state.at, 30 * 60_000)) return "rigd's report of the API's exceptions is stale";
-      return apiExceptionsFailure(state);
+      return apiExceptionsFailure(await readApiExceptions({ stateDir: context.layout.state, store: context.store }));
     },
 
     /** hostd on the Windows host answers through its tunnel, with the store's token. */

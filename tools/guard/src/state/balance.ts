@@ -1,12 +1,6 @@
 import type { Ctx } from "../context";
-import {
-  BALANCE_ALERT_USD,
-  BALANCE_CACHE_MS,
-  BALANCE_FLOOR_DAYS,
-  BALANCE_FLOOR_MIN_USD,
-} from "../limits";
+import { BALANCE_CACHE_MS, BALANCE_FLOOR_DAYS, BALANCE_FLOOR_MIN_USD } from "../limits";
 import { Refusal } from "../refusal";
-import { sendProductionEvent } from "../posthog";
 import type { TelnyxReply } from "../telnyx/client";
 import { dayOf } from "./counters";
 
@@ -28,7 +22,6 @@ interface Sample {
 const KEYS = {
   reading: "balance:reading",
   samples: "balance:samples",
-  alertedDay: "balance:alerted-day",
 } as const;
 
 const KEEP_SAMPLES = 15;
@@ -80,23 +73,7 @@ export async function readBalance(ctx: Ctx, options: { fresh?: boolean } = {}): 
     samples.push({ day: today, usd: value });
     await ctx.store.put(KEYS.samples, samples.slice(-KEEP_SAMPLES));
   }
-  await alertIfLow(ctx, value);
   return value;
-}
-
-async function alertIfLow(ctx: Ctx, balance: number): Promise<void> {
-  if (balance >= BALANCE_ALERT_USD) return;
-  const today = dayOf(ctx.now());
-  if ((await ctx.store.get<string>(KEYS.alertedDay)) === today) return;
-  await ctx.store.put(KEYS.alertedDay, today);
-  await sendProductionEvent(ctx, {
-    key: "telnyx-balance-low",
-    summary: `Telnyx balance is $${balance.toFixed(2)}, under the $${BALANCE_ALERT_USD} alert line`,
-    detail:
-      "Production and the rig share this balance. Auto-recharge is off, so a top-up is the only fix. " +
-      "The rig's guard refuses all test spend below its floor.",
-    level: "error",
-  });
 }
 
 export async function balanceFloor(ctx: Ctx): Promise<number> {

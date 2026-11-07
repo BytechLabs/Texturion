@@ -3,7 +3,6 @@ import type { DetachRequest } from "@loonext/rig-protocol";
 import type { Ctx } from "../context";
 import { sendProductionEvent } from "../posthog";
 import { SPEC } from "../setup/spec";
-import { dayOf } from "../state/counters";
 import { readTier } from "../state/ledger";
 import { invalidateOwned, type OwnedNumber, type PartitionView } from "./partition";
 
@@ -26,7 +25,6 @@ export interface DetachRecord {
 }
 
 const DETACHED_PREFIX = "detached:";
-const CAP_ALERTED_DAY = "cap-detach:alerted-day";
 
 async function statusOf(ctx: Ctx, path: string, body: Record<string, unknown>): Promise<number> {
   try {
@@ -89,7 +87,7 @@ export async function detachFlooded(
  * stranger inbound stops costing money too. What counts is the listing, not a
  * record of having run: a number that still shows a connection or profile is
  * detached again on the next pass (the hourly upkeep reads a fresh listing),
- * and a pass that leaves one attached raises a production event, once a day.
+ * and every pass that leaves one attached raises a production event.
  */
 export async function enforceCap(ctx: Ctx, view: PartitionView): Promise<number> {
   const reading = await readTier(ctx);
@@ -108,9 +106,6 @@ export async function enforceCap(ctx: Ctx, view: PartitionView): Promise<number>
 }
 
 async function alertCapDetachFailed(ctx: Ctx, failed: number): Promise<void> {
-  const today = dayOf(ctx.now());
-  if ((await ctx.store.get<string>(CAP_ALERTED_DAY)) === today) return;
-  await ctx.store.put(CAP_ALERTED_DAY, today);
   await sendProductionEvent(ctx, {
     key: "telnyx-guard-detach",
     summary: `The rig is at its monthly cap and ${failed} number(s) would not detach`,

@@ -2,7 +2,9 @@
  * The app probe: the rig's local Loonext, driven as a member through its API
  * and read through its local database's PostgREST with the local service key.
  * Every read names its columns; the table and column names come from
- * supabase/migrations.
+ * supabase/migrations. The push and ring evidence is not in the database: it
+ * is the API's push_attempt and ring_beacon events in PostHog, read back with
+ * HogQL.
  *
  * Tenants, members and their passwords are the seed's `tenants.json` in the
  * rig's secret store (scripts/rig/seed.mjs), which git never sees. Tenants are
@@ -13,6 +15,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
 import type { NumberBook } from "@loonext/rig-robot";
+import { API_ENVIRONMENT, type PostHogErrors } from "./posthog-errors.ts";
 import { stableUuid as seedStableUuid } from "../../../../scripts/rig/seed.mjs";
 import { totpCode } from "../../../../scripts/rig/seed.mjs";
 import { MemberSessions, memberSessionsFile } from "../../src/member-sessions.mjs";
@@ -78,6 +81,8 @@ export interface AppProbeOptions {
   robotMailbox?: () => string | undefined;
   /** `state/rigd`: S25 keeps what it changed here, so the undo can put it back. */
   stateDir?: string;
+  /** Reads the API's events back from PostHog; without it the push and ring evidence cannot be read. */
+  posthog?: Pick<PostHogErrors, "query">;
   fetch?: typeof fetch;
   now?: () => number;
 }
@@ -154,13 +159,17 @@ export class AppProbe implements AppApi {
     });
   }
 
-  pushAttempts(args: { tenant: string; since: number; purpose?: "ring" | "call_end" | "alert" }) {
-    return this.#rest<{ purpose: string; platform: string; response_class: string; attempted_at: string }[]>("push_attempts", {
-      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
-      attempted_at: `gte.${iso(args.since)}`,
-      ...(args.purpose ? { purpose: `eq.${args.purpose}` } : {}),
-      select: "purpose,platform,response_class,attempted_at,priority,call_session_id,user_id",
-    });
+  async pushAttempts(args: { tenant: string; since: number; purpose?: "ring" | "call_end" | "alert" }) {
+    const events = await this.#events("push_attempt", args, args.purpose ? { purpose: args.purpose } : {}, PUSH_ATTEMPT_PROPERTIES);
+    return events.map(({ at, properties: p }) => ({
+      purpose: textOf(p.purpose) ?? "",
+      platform: textOf(p.platform) ?? "",
+      response_class: textOf(p.response_class) ?? "",
+      attempted_at: textOf(p.attempted_at) ?? at,
+      priority: textOf(p.priority),
+      call_session_id: textOf(p.call_session_id),
+      user_id: textOf(p.user_id),
+    }));
   }
 
   async pushTargets(args: { member: string }): Promise<number> {
@@ -447,24 +456,20 @@ export class AppProbe implements AppApi {
   }
 
   async ringBeacons(args: { tenant: string; since: number; member?: string }) {
-    return this.#rest<
-      {
-        stage: string;
-        platform: string;
-        occurred_at: string;
-        call_session_id: string | null;
-        app_version: string | null;
-        device_idle: boolean | null;
-        screen_locked: boolean | null;
-        standby_bucket: string | null;
-      }[]
-    >("ring_beacons", {
-      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
-      occurred_at: `gte.${iso(args.since)}`,
-      ...(args.member ? { user_id: `eq.${await this.#userIdOf(args.member)}` } : {}),
-      select: "stage,platform,occurred_at,call_session_id,app_version,device_idle,screen_locked,standby_bucket",
-      order: "occurred_at.asc",
-    });
+    const where: Record<string, string> = args.member ? { user_id: await this.#userIdOf(args.member) } : {};
+    const events = await this.#events("ring_beacon", args, where, RING_BEACON_PROPERTIES);
+    const beacons = events.map(({ at, properties: p }) => ({
+      stage: textOf(p.stage) ?? "",
+      platform: textOf(p.platform) ?? "",
+      // The device's own time when it sent one, which orders the stages; else when the API took it.
+      occurred_at: textOf(p.occurred_at) ?? at,
+      call_session_id: textOf(p.call_session_id),
+      app_version: textOf(p.app_version),
+      device_idle: flagOf(p.device_idle),
+      screen_locked: flagOf(p.screen_locked),
+      standby_bucket: textOf(p.standby_bucket),
+    }));
+    return beacons.sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at));
   }
 
   async callLegs(args: { tenant: string; callSessionId: string }) {
@@ -1381,6 +1386,36 @@ export class AppProbe implements AppApi {
     return (await response.json()) as T;
   }
 
+  /**
+   * A tenant's `event` events from the local API since a time, oldest first:
+   * when each happened and the named properties. The API sends them under the
+   * workspace's id in environment `rig`; `where` matches properties exactly.
+   */
+  async #events(
+    event: string,
+    args: { tenant: string; since: number },
+    where: Record<string, string>,
+    properties: readonly string[],
+  ): Promise<{ at: string; properties: Record<string, unknown> }[]> {
+    if (!this.#o.posthog) throw new Error(`app probe: no PostHog reader, so the API's ${event} events cannot be read`);
+    const sql =
+      `select toUnixTimestamp64Milli(timestamp), ${properties.map((name) => `properties.${name}`).join(", ")} from events ` +
+      "where event = {event} and properties.environment = {environment} and distinct_id = {company} " +
+      `and timestamp >= fromUnixTimestamp64Milli({since})${Object.keys(where).map((name) => ` and properties.${name} = {${name}}`).join("")} ` +
+      `order by timestamp limit ${EVENT_ROWS_MAX}`;
+    const rows = await this.#o.posthog.query(sql, {
+      ...where,
+      event,
+      environment: API_ENVIRONMENT,
+      company: this.#tenant(args.tenant).company_id,
+      since: Math.max(0, Math.floor(args.since)),
+    });
+    return rows.map(([at, ...values]) => ({
+      at: iso(Number(at)),
+      properties: Object.fromEntries(properties.map((name, i) => [name, values[i]])),
+    }));
+  }
+
   async #rest<T>(table: string, query: Record<string, string>): Promise<T> {
     const search = new URLSearchParams(query);
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/rest/v1/${table}?${search}`, {
@@ -1427,6 +1462,30 @@ function seededVoicemailPath(companyId: string, sessionId: string): string {
 
 function iso(ms: number): string {
   return new Date(ms).toISOString();
+}
+
+/** The properties of the API's push_attempt and ring_beacon events that the scenarios read. */
+const PUSH_ATTEMPT_PROPERTIES = ["purpose", "platform", "response_class", "attempted_at", "priority", "call_session_id", "user_id"] as const;
+const RING_BEACON_PROPERTIES = [
+  "stage",
+  "platform",
+  "occurred_at",
+  "call_session_id",
+  "app_version",
+  "device_idle",
+  "screen_locked",
+  "standby_bucket",
+] as const;
+/** More of one tenant's events than any scenario's window holds. */
+const EVENT_ROWS_MAX = 1_000;
+
+const textOf = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
+
+/** HogQL answers a JSON boolean property as true or false, or as its text. */
+function flagOf(value: unknown): boolean | null {
+  if (value === true || value === "true") return true;
+  if (value === false || value === "false") return false;
+  return null;
 }
 
 /** The message a send answers with, as routes/messages.ts's messageJson writes it. */

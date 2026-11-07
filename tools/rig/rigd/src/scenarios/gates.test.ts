@@ -911,6 +911,18 @@ describe("S16, note-level member and sign-out", () => {
     pushed.push("user-qa-w-note-member");
     expect(await S16.run(pushed.ctx)).toMatchObject({ failure_class: "note_member_pushed" });
 
+    // PostHog shows the note member's push 40 s after the call.
+    const late = s16World();
+    const shownAt = late.time.now + 40_000;
+    const read = late.app.pushAttempts.bind(late.app);
+    late.app.pushAttempts = async (args) => [
+      ...(await read(args)),
+      ...(late.time.now >= shownAt
+        ? [{ tenant: "QA-W", purpose: "ring", platform: "web", response_class: "accepted", attempted_at: iso(late.time.now), user_id: "user-qa-w-note-member" }]
+        : []),
+    ];
+    expect(await S16.run(late.ctx)).toMatchObject({ failure_class: "note_member_pushed" });
+
     const unrung = s16World();
     unrung.browser.script.ringsAfterMs = undefined;
     expect(await S16.run(unrung.ctx)).toMatchObject({ failure_class: "owner_not_rung" });

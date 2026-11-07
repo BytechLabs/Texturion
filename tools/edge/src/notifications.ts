@@ -35,7 +35,11 @@ import { checkTelnyxSignature } from "./telnyx";
  */
 
 const NOTICE_MAX_BYTES = 64 * 1024;
-/** The production low-balance alert's threshold; a "low balance" above it is not corroborated. */
+/**
+ * A "low balance" notice with the balance above this is not corroborated.
+ * Telnyx's Low Available Credit threshold is set in its portal, and no API
+ * reads it back.
+ */
 export const LOW_BALANCE_CORROBORATE_BELOW_USD = 150;
 
 export interface Notice {
@@ -176,20 +180,18 @@ export async function handleNotification(env: Env, request: Request, secret: str
   if (verdict.outcome === "uncorroborated") {
     await rig.recordNotice(notice.key, notice.name, "uncorroborated");
     // Best effort and never retried: this notice halts nothing either way.
-    if (env.POSTHOG_PROJECT_KEY && (await rig.takeEventBudget(Date.now(), "synthetic"))) {
-      await sendOpsEvent(env.POSTHOG_PROJECT_KEY, {
-        fingerprint: "synthetic-infra:telnyx-notice",
-        level: "warning",
-        environment: "synthetic",
-        edgeSha: env.GIT_SHA,
-        message: `Telnyx notice not corroborated: ${notice.name}`,
-        properties: {
-          notice_id: notice.id,
-          signed,
-          detail: "Paid tests were not halted. Check the Telnyx portal's notifications for this account.",
-        },
-      });
-    }
+    await sendOpsEvent(env.POSTHOG_PROJECT_KEY, {
+      fingerprint: "synthetic-infra:telnyx-notice",
+      level: "warning",
+      environment: "synthetic",
+      edgeSha: env.GIT_SHA,
+      message: `Telnyx notice not corroborated: ${notice.name}`,
+      properties: {
+        notice_id: notice.id,
+        signed,
+        detail: "Paid tests were not halted. Check the Telnyx portal's notifications for this account.",
+      },
+    });
     return empty(200);
   }
 
@@ -204,20 +206,17 @@ export async function handleNotification(env: Env, request: Request, secret: str
     await rig.recordNotice(notice.key, notice.name, "halted");
     return empty(200);
   }
-  const alerted =
-    Boolean(env.POSTHOG_PROJECT_KEY) &&
-    (await rig.takeEventBudget(Date.now(), "production")) &&
-    (await sendOpsEvent(env.POSTHOG_PROJECT_KEY, {
-      fingerprint: "ops:telnyx-account-signal",
-      level: "error",
-      environment: "production",
-      edgeSha: env.GIT_SHA,
-      message: `Telnyx account signal: ${notice.name}`,
-      properties: {
-        detail: `Corroborated by ${verdict.by}, but the guard did not take the halt.`,
-        action: "Stop paid rig tests by hand, then find out why the guard refused or failed the halt.",
-      },
-    }));
+  const alerted = await sendOpsEvent(env.POSTHOG_PROJECT_KEY, {
+    fingerprint: "ops:telnyx-account-signal",
+    level: "error",
+    environment: "production",
+    edgeSha: env.GIT_SHA,
+    message: `Telnyx account signal: ${notice.name}`,
+    properties: {
+      detail: `Corroborated by ${verdict.by}, but the guard did not take the halt.`,
+      action: "Stop paid rig tests by hand, then find out why the guard refused or failed the halt.",
+    },
+  });
   if (!alerted) {
     // Neither landed. Unrecorded, so Telnyx's retry tries both again.
     await rig.bump("notice.halt_failed");

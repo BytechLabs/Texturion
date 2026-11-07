@@ -30,9 +30,6 @@ type MailFrame = Extract<EdgeToRig, { t: "mail" }>;
 type QueuedFrame = Omit<WebhookFrame, "id" | "attempt"> | Omit<MailFrame, "id">;
 type RpcFrame = Extract<EdgeToRig, { t: "rpc" }>;
 
-/** Which environment an edge-sent PostHog event is filed under; each has its own daily budget. */
-export type AlertTarget = "synthetic" | "production";
-
 export interface CallRelay {
   eventId: string;
   kind: "call" | "robot-call";
@@ -79,13 +76,6 @@ export interface StrangerRecord {
   theirs: string;
 }
 
-export interface AlertLog {
-  /** Last notice PostHog took, per alert key. */
-  alerts: Record<string, number>;
-  /** Last send PostHog did not take, per alert key. */
-  failures: Record<string, number>;
-}
-
 export interface UplinkSnapshot {
   connected: boolean;
   queueDepth: number;
@@ -113,12 +103,6 @@ const NOTICES_MAX = 100;
 /** How long a call relay that timed out can still be answered and remembered. */
 const LATE_CALL_MEMORY_MS = 15 * 60 * 1000;
 const TELNYX_SIGNATURE_WINDOW_MS = TELNYX_SIGNATURE_WINDOW_S * 1000;
-/**
- * PostHog events the edge itself may send in a UTC day, per environment, so a
- * flood of synthetic notices can never spend production's.
- */
-export const EVENT_DAILY_MAX: Record<AlertTarget, number> = { synthetic: 20, production: 10 };
-
 /** Redelivery backoff after the nth unacked attempt: 30 s doubling to 15 min. */
 export function retryDelay(attempts: number): number {
   return Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.max(0, attempts - 1));
@@ -194,9 +178,11 @@ export class RigUplink extends DurableObject<Env> {
     ]) {
       this.sql.exec(statement);
     }
-    // Drop the heartbeat rows and arming time that older edges kept.
+    // Drop what older edges kept: heartbeat rows, the arming time, and the
+    // alert times and daily event counts that once throttled PostHog sends.
     this.sql.exec("DROP TABLE IF EXISTS heartbeats");
-    this.sql.exec("DELETE FROM meta WHERE key = 'armed_at'");
+    this.sql.exec("DELETE FROM meta WHERE key = 'armed_at' OR key LIKE 'alert:%' OR key LIKE 'alert-failed:%'");
+    this.sql.exec("DELETE FROM counters WHERE name LIKE 'events.sent.%'");
   }
 
   // ---------------------------------------------------------------------------
@@ -594,42 +580,6 @@ export class RigUplink extends DurableObject<Env> {
     this.count(`notice.${outcome}`);
   }
 
-  // ---------------------------------------------------------------------------
-  // Alerts the edge sent.
-
-  async alertLog(): Promise<AlertLog> {
-    return { alerts: this.metaTimes("alert:"), failures: this.metaTimes("alert-failed:") };
-  }
-
-  private metaTimes(prefix: string): Record<string, number> {
-    const times: Record<string, number> = {};
-    for (const row of this.sql.exec<{ key: string; value: string }>(
-      "SELECT key, value FROM meta WHERE substr(key, 1, ?) = ?",
-      prefix.length,
-      prefix,
-    )) {
-      times[row.key.slice(prefix.length)] = Number(row.value);
-    }
-    return times;
-  }
-
-  async noteAlert(key: string, at: number): Promise<void> {
-    this.setMeta(`alert:${key}`, String(at));
-  }
-
-  async noteAlertFailed(key: string, at: number): Promise<void> {
-    this.setMeta(`alert-failed:${key}`, String(at));
-  }
-
-  /** One of the day's {@link EVENT_DAILY_MAX} edge-sent events to `target`, or false. */
-  async takeEventBudget(now: number, target: AlertTarget): Promise<boolean> {
-    const name = `events.sent.${new Date(now).toISOString().slice(0, 10)}.${target}`;
-    const used = this.number("SELECT COALESCE(MAX(n), 0) AS n FROM counters WHERE name = ?", name);
-    if (used >= EVENT_DAILY_MAX[target]) return false;
-    this.count(name);
-    return true;
-  }
-
   /** The cron's housekeeping: expire, purge and ping the rig. */
   async tick(now: number): Promise<void> {
     this.sql.exec("DELETE FROM seen WHERE at <= ?", now - SEEN_TTL_MS);
@@ -643,7 +593,6 @@ export class RigUplink extends DurableObject<Env> {
       "DELETE FROM notices WHERE key NOT IN (SELECT key FROM notices ORDER BY at DESC LIMIT ?)",
       NOTICES_MAX,
     );
-    this.sql.exec("DELETE FROM counters WHERE name LIKE 'events.sent.%' AND name < ?", `events.sent.${new Date(now - 7 * 86_400_000).toISOString().slice(0, 10)}`);
     this.flush(now);
     const ws = this.socket();
     if (ws) {

@@ -1,47 +1,39 @@
 /**
- * The long-running half of rigd: the uplink, the lease watchdog, the report of
- * the local API's exceptions, secret delivery, the rpc commands and the guard's version
- * attestation. It starts no scenario by itself: runs are separate processes
- * that someone asks for (`rig run`, or `triage.rerun` through the rpc), each
- * in its own process or systemd unit, so a run that crashes takes nothing else
- * down and a restart of rigd takes no run with it.
+ * The long-running half of rigd: the uplink, the lease watchdog, secret
+ * delivery and the rpc commands. It starts no scenario by itself: runs are
+ * separate processes that someone asks for (`rig run`, or `triage.rerun`
+ * through the rpc), each in its own process or systemd unit, so a run that
+ * crashes takes nothing else down and a restart of rigd takes no run with it.
+ * It judges nothing on a timer either: the local API's exceptions and the
+ * guard's version are read when `rig health` asks (api-exceptions.ts,
+ * guard-attest.ts).
  *
- * What it publishes in state/ (`rig health` reads the first two,
- * tools/rig/src/health.mjs):
- *   state/uplink.json        { connected, at }, at least every minute
- *   state/api-exceptions.json  { at, unexplained_24h, defects_24h, error? }, every five minutes
- *   state/guard-attest.json  { at, outcome, ... }, every hour (guard-attest.ts)
+ * It publishes state/uplink.json, { connected, at }, at least every minute,
+ * which `rig health` reads (tools/rig/src/health.mjs).
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, openSync, readFileSync, unwatchFile, watchFile } from "node:fs";
+import { mkdirSync, openSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { triageMethods, type StartedRun } from "@loonext/rig-triage";
 import type { RigdConfig } from "./config.ts";
-import { cronExplainer, type CronExplainer } from "./cron-events.ts";
 import { webhookForwarder, type ForwardTargets } from "./forward.ts";
 import { parseInstance } from "./registry.ts";
 import { telnyxPublicKey } from "./late.ts";
-import { LeaseWatchdog, type LeaseClient } from "./lease.ts";
+import { LeaseWatchdog } from "./lease.ts";
 import { Mailbox } from "./mail.ts";
 import { mediaRelay } from "./media.ts";
 import { isRobotRole, localSupabase, publishState, robotLocalToken } from "@loonext/rig-robot";
 import { objectParams, RpcRouter } from "./rpc.ts";
 import { newRunId } from "./runner.ts";
-import { g01Refusal } from "./scenarios/gates.ts";
-import { attestGuard, reportAttestation } from "./guard-attest.ts";
-import { BUNDLE_KEY_SECRET, CONTROL_TOKEN_SECRET, deliverSecrets } from "./secrets.ts";
-import { infraFingerprint, reportApiExceptions, type Explanation, type SeenEvent } from "./posthog-errors.ts";
+import { BUNDLE_KEY_SECRET, deliverSecrets } from "./secrets.ts";
+import { infraFingerprint } from "./posthog-errors.ts";
 import { Uplink } from "./uplink.ts";
-import type { VerdictStore } from "./verdicts.ts";
 import { buildRig, type Rig } from "./wiring.ts";
 
 const CLI = fileURLToPath(new URL("./cli.ts", import.meta.url));
 const UPLINK_STATE_MS = 60_000;
-const EXCEPTIONS_REPORT_MS = 5 * 60_000;
-const VERDICT_POLL_MS = 10_000;
 const SECRET_REFRESH_MS = 6 * 60 * 60_000;
-const ATTEST_MS = 60 * 60_000;
 
 export interface Daemon {
   uplink: Uplink;
@@ -146,27 +138,6 @@ export function forwardTargets(rig: Pick<Rig, "config" | "numbers" | "faults" | 
   };
 }
 
-/**
- * How the exceptions report explains a local API event: the cron registry first,
- * then a G01 attempt's refusals. An attempt still holding its lease counts from
- * when it took it, so its refusals are expected before its verdict is written.
- */
-export function exceptionExplain(
-  explainer: CronExplainer | undefined,
-  verdicts: Pick<VerdictStore, "all">,
-  leases: Pick<LeaseClient, "open">,
-  now: number,
-): (event: SeenEvent) => Explanation | undefined {
-  const g01 = [
-    ...verdicts.all().filter((v) => v.scenario === "G01"),
-    ...leases
-      .open()
-      .filter((entry) => entry.scenario === "G01")
-      .map((entry) => ({ started_at: new Date(entry.acquired_at).toISOString(), finished_at: new Date(now).toISOString() })),
-  ];
-  return (event) => explainer?.explain(event) ?? (g01Refusal(event, g01) ? { kind: "expected" } : undefined);
-}
-
 export function startDaemon(config: RigdConfig): Daemon {
   const rig = buildRig(config);
   const { store, home } = config;
@@ -229,49 +200,6 @@ export function startDaemon(config: RigdConfig): Daemon {
     log(`no ${BUNDLE_KEY_SECRET} in the store; secret delivery is off`);
   }
 
-  const cronRegistry = join(config.registryPath, "..", "crons.json");
-  let unread = 0;
-  const report = () => {
-    // Read each time: a deploy may change what the crons expect.
-    let explainer: CronExplainer | undefined;
-    try {
-      explainer = cronExplainer(existsSync(cronRegistry) ? readFileSync(cronRegistry, "utf8") : undefined);
-      if (explainer.unread.length !== unread) log(`crons.json: ${explainer.unread.length} match(es) rigd cannot read; they explain nothing`);
-      unread = explainer.unread.length;
-    } catch (error) {
-      log(`crons.json unreadable, so nothing is explained: ${error instanceof Error ? error.message : "error"}`);
-    }
-    const now = Date.now();
-    void reportApiExceptions(rig.posthog, exceptionExplain(explainer, rig.verdicts, rig.leases, now), now).then((result) => {
-      if (result.error) log(`the local API's exceptions could not be read: ${result.error}`);
-      publishState(home, "api-exceptions.json", result);
-    });
-  };
-  report();
-  every(EXCEPTIONS_REPORT_MS, report);
-  // A G01 attempt's lease is gone a moment before its verdict lands; report again once it does.
-  watchFile(rig.verdicts.file, { interval: VERDICT_POLL_MS }, report).unref();
-
-  let attested: string | undefined;
-  const attest = () =>
-    attestGuard({ store, repo: config.repo })
-      .then((result) => {
-        publishState(home, "guard-attest.json", { at: new Date().toISOString(), ...result });
-        if (result.outcome === "match" && attested !== "match") log(`guard attestation: the live guard is guard.yml's ${result.sha.slice(0, 12)} from main`);
-        attested = result.outcome;
-        return reportAttestation(result, {
-          edgeOrigin: config.edgeOrigin,
-          controlToken: store.readOptional(CONTROL_TOKEN_SECRET),
-          infra: rig.posthog.canSend
-            ? (message) => rig.posthog.send({ fingerprint: infraFingerprint("guard-attest"), message, level: "warning" })
-            : undefined,
-          log,
-        });
-      })
-      .catch((error: unknown) => log(`guard attestation failed: ${error instanceof Error ? error.message : "error"}`));
-  void attest();
-  every(ATTEST_MS, () => void attest());
-
   return {
     uplink,
     watchdog,
@@ -280,7 +208,6 @@ export function startDaemon(config: RigdConfig): Daemon {
       for (const timer of timers) clearInterval(timer);
       uplink.stop();
       watchdog.stop();
-      unwatchFile(rig.verdicts.file);
       publishState(home, "uplink.json", { connected: false, at: new Date().toISOString() });
     },
   };

@@ -10,6 +10,8 @@ import type { LeaseActivity } from "@loonext/rig-protocol";
 import type { CallRecord } from "@loonext/rig-robot";
 import type { SeenEvent } from "../cron-events.ts";
 import {
+  EVENT_INGEST_MS,
+  EVENT_POLL_MS,
   fail,
   FICTIONAL_E164,
   GUARD_PROBES,
@@ -785,7 +787,12 @@ export const S16: ScenarioRunner = {
     const row = await poll(ctx, async () => (await ctx.app.calls({ tenant: "QA-W", callerRole: "ROBOT-1", since })).at(-1), 30_000, 2_000);
     if (!row) return fail("no_call_row", "ROBOT-1's call to DEV-W1 left no call row");
     const legs = await ctx.app.callLegs({ tenant: "QA-W", callSessionId: row.call_session_id });
-    const pushes = (await ctx.app.pushAttempts({ tenant: "QA-W", since })).filter((p) => p.user_id === noteUser);
+    // Watched for, not read once: a push the note member was sent may not have reached PostHog yet.
+    const pushes =
+      (await poll(ctx, async () => {
+        const sent = (await ctx.app.pushAttempts({ tenant: "QA-W", since })).filter((p) => p.user_id === noteUser);
+        return sent.length > 0 ? sent : undefined;
+      }, EVENT_INGEST_MS, EVENT_POLL_MS)) ?? [];
     ctx.evidence.call = { ...callEvidence(call), ring_ms: ringMs, legs: legs.map((leg) => ({ member: leg.member, state: leg.state })), note_pushes: pushes.length };
 
     // The owner ringing is what makes the note member's silence mean anything.

@@ -1,7 +1,4 @@
-/**
- * The guard's version attestation against stub Cloudflare and GitHub servers,
- * and its reporting against a stub edge.
- */
+/** The guard's version attestation against stub Cloudflare and GitHub servers. */
 import { generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server } from "node:http";
@@ -9,7 +6,6 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { EDGE_PATHS } from "@loonext/rig-protocol";
 import { SecretFiles } from "@loonext/rig-robot";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -20,8 +16,6 @@ import {
   DEPLOY_MESSAGE,
   DEPLOY_STEP,
   GUARD_SCRIPT,
-  reportAttestation,
-  type Attestation,
 } from "./guard-attest.ts";
 
 const REPO = "BytechLabs/Texturion";
@@ -31,7 +25,6 @@ const SHA_OLD = "1".repeat(40);
 const SHA_NEW = "2".repeat(40);
 const SHA_OTHER = "3".repeat(40);
 const NOW = Date.parse("2026-10-31T12:00:00.000Z");
-const CONTROL_TOKEN = "rig-control-test-token";
 
 interface Seen {
   method: string;
@@ -72,7 +65,6 @@ async function stubServer(): Promise<Stub> {
 
 let cloudflare: Stub;
 let github: Stub;
-let edge: Stub;
 const appKey = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 
 /** Real HTTP to the stubs, for the hosts the attestation names. */
@@ -84,16 +76,16 @@ const toStubs: typeof fetch = (input, init) => {
 };
 
 beforeAll(async () => {
-  [cloudflare, github, edge] = await Promise.all([stubServer(), stubServer(), stubServer()]);
+  [cloudflare, github] = await Promise.all([stubServer(), stubServer()]);
 });
 afterAll(async () => {
-  await Promise.all([cloudflare, github, edge].map((stub) => stub.close()));
+  await Promise.all([cloudflare, github].map((stub) => stub.close()));
 });
 
 const dirs: string[] = [];
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
-  for (const stub of [cloudflare, github, edge]) {
+  for (const stub of [cloudflare, github]) {
     stub.seen.length = 0;
     stub.answer = () => undefined;
   }
@@ -418,58 +410,6 @@ describe("the guard's version attestation", () => {
       reason: expect.stringMatching(/^the store has no cloudflare-account-id, rig-app-key,/),
     });
     expect([...cloudflare.seen, ...github.seen]).toEqual([]);
-  });
-});
-
-describe("reporting an attestation", () => {
-  const mismatch: Attestation = {
-    outcome: "mismatch",
-    reason: "the live deployment names 333333333333, but guard.yml last deployed 111111111111 from main",
-    deployment_id: "dep-live-0001",
-    expected: [SHA_OLD],
-  };
-
-  function reporting(controlToken: string | undefined) {
-    const infra: string[] = [];
-    const lines: string[] = [];
-    return {
-      infra,
-      lines,
-      options: { edgeOrigin: edge.origin, controlToken, infra: async (message: string) => void infra.push(message), log: (line: string) => lines.push(line) },
-    };
-  }
-
-  it("raises a mismatch in production through the edge, as ops/telnyx-guard-integrity", async () => {
-    edge.answer = (request) => (request.path === EDGE_PATHS.ctlAlert ? { status: 200, body: { sent: true } } : undefined);
-    const { options, infra } = reporting(CONTROL_TOKEN);
-    expect(await reportAttestation(mismatch, options)).toBe("alerted");
-    expect(edge.seen).toHaveLength(1);
-    expect(edge.seen[0]).toMatchObject({ method: "POST", path: EDGE_PATHS.ctlAlert, authorization: `Bearer ${CONTROL_TOKEN}` });
-    const body = JSON.parse(edge.seen[0]!.body) as { key: string; message: string; detail: string };
-    expect(body.key).toBe("telnyx-guard-integrity");
-    expect(body.detail).toContain(mismatch.reason);
-    expect(body.detail).toContain(SHA_OLD);
-    expect(infra).toEqual([]);
-  });
-
-  it("reports a mismatch the edge did not take, and every fault, to the synthetic project", async () => {
-    edge.answer = () => ({ status: 503, body: { error: "no_production_dsn" } });
-    const first = reporting(CONTROL_TOKEN);
-    expect(await reportAttestation(mismatch, first.options)).toBe("infra");
-    expect(first.infra).toEqual([`mismatch (${mismatch.reason}), and the edge did not take the production alert: 503`]);
-
-    const tokenless = reporting(undefined);
-    expect(await reportAttestation(mismatch, tokenless.options)).toBe("infra");
-    expect(tokenless.infra[0]).toMatch(/did not take the production alert: no control token$/);
-
-    const fault = reporting(CONTROL_TOKEN);
-    expect(await reportAttestation({ outcome: "infra", reason: "GitHub answered 502 for /actions/runs/101/jobs" }, fault.options)).toBe("infra");
-    expect(fault.infra).toEqual(["GitHub answered 502 for /actions/runs/101/jobs"]);
-
-    const quiet = reporting(CONTROL_TOKEN);
-    edge.seen.length = 0;
-    expect(await reportAttestation({ outcome: "match", sha: SHA_OLD, deployment_id: "d", run_id: 1, secret_changes: 0 }, quiet.options)).toBe("none");
-    expect([quiet.infra, quiet.lines, edge.seen]).toEqual([[], [], []]);
   });
 });
 

@@ -10,10 +10,10 @@
  *   guard-token-rig-api      the `rig-api` caller token, the app's TELNYX_API_KEY (the CLI's)
  *   bundle-private-key.json  the X25519 JWK the secret bundle is sealed to
  *   posthog-api-key          the project's public key: scenario and infrastructure events go out with it, and the local API's own (the CLI's)
- *   posthog-personal-api-key a personal key that can run queries, for reading the local API's exceptions back (R00)
- *   posthog-project-id       the project those exceptions are read from
+ *   posthog-personal-api-key a personal key that can run queries, for reading the local API's exceptions (R00) and its push and ring evidence back
+ *   posthog-project-id       the project those events are read from
  *   rig-app-id, rig-app-key  the GitHub App (RIG_APP_KEY)
- *   cf-guard-attest-token    guard-attest-read, for the hourly attestation (guard-attest.ts)
+ *   cf-guard-attest-token    guard-attest-read, for R00's version attestation (guard-attest.ts)
  *   cloudflare-account-id    the account the guard runs in, for the same read
  *   stripe-secret-key        the existing account's test-mode key, for the scenarios' Stripe calls (FA5; the CLI's)
  *   pixel-pin                the lock PIN of every emulator, the device lane's among them
@@ -44,6 +44,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HOSTD_ORIGIN, parseAdbServer, parseHostdOrigin, RIG_ADB_SERVER, type AdbServer } from "@loonext/rig-lanes";
 import { parseWindow, type DialCaps, type DialWindow } from "./budget.ts";
+import { rigRepo } from "./guard-attest.ts";
 import { readState, rigHome, rigSettings, SecretFiles, type RigHome, type RigSettings } from "@loonext/rig-robot";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -86,7 +87,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RigdConfig {
     hostdOrigin: parseHostdOrigin(env.RIG_HOSTD_ORIGIN ?? HOSTD_ORIGIN),
     adbServer: env.RIG_ADB_SERVER ? parseAdbServer(env.RIG_ADB_SERVER) : RIG_ADB_SERVER,
     systemd: settings.systemd,
-    repo: env.RIG_REPO ?? "BytechLabs/Texturion",
+    repo: rigRepo(env),
     env,
   };
 }
