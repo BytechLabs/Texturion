@@ -283,7 +283,8 @@ Telnyx's daily spend limit is the second: over the limit, Telnyx refuses new
 calls on the outbound voice profile until 00:00 UTC, and answers HTTP 429 with
 code `40333` to a send on a messaging profile (and fires
 `messaging-profile.spend-limit-reached`, which the API acknowledges and does
-nothing with). It also emails the account owner, but only after the fact.
+nothing with; the first refused text raises an ops notice, see "Who hears
+about it").
 
 ### Sizing, from evidence
 
@@ -352,10 +353,11 @@ drift; record the new figure and the reason here.
 
 ### Who hears about it
 
-Telnyx does, and nothing of ours does (D146). Over a limit, Telnyx refuses the
-call or the text itself and emails the account owner. A text it refuses fails on
-the thread as an ordinary failed message with code `40333`, and the API sends no
-notice of its own.
+Telnyx has no notification for its spend limits. Over a limit, Telnyx refuses
+the call or the text itself. A text it refuses fails on the thread as an
+ordinary failed message with code `40333`, and the API raises one ops notice,
+`telnyx-messaging-spend-limit`, which PostHog's error alert reports. A refused
+call has no notice.
 
 The account's Telnyx notifications, read from `GET /v2/notification_settings` on
 2026-11-07:
@@ -364,6 +366,8 @@ The account's Telnyx notifications, read from `GET /v2/notification_settings` on
 |---|---|---|
 | Low Available Credit | enabled | The balance running down |
 | Account Disabled Due to Insufficient Balance | enabled | The balance running out |
+| Suspicious Outbound Voice Traffic | enabled | Unusual outbound call patterns |
+| The two call surcharge notices | enabled | A call surcharge being applied |
 | Messaging Profile Activity | not enabled | A messaging profile changed or deleted, which is how a removed limit would be seen |
 
 Nothing warns before a limit is reached. The hourly spend gauge that alerted at

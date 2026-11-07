@@ -428,9 +428,8 @@ private struct NumberCard: View {
             }
         } else if number.status == NumberStatus.active, let health = number.health {
             // #235: a carrier is filtering this line. Only the confident
-            // 'degraded' state ever reaches a client — the server flattens the
-            // internal 'watch' to healthy, because a maybe-degraded warning on
-            // a thin sample is how a false alarm becomes a cancellation.
+            // 'degraded' state exists, because a maybe-degraded warning on a
+            // thin sample is how a false alarm becomes a cancellation.
             Text(AppStrings.translate(appLocale, "settingsMore.numberUnreliable"))
                 .font(.callout)
             Text(numberHealthCopy(health, appLocale))

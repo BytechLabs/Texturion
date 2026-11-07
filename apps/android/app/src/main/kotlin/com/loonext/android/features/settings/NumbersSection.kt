@@ -360,9 +360,8 @@ private fun NumberCard(
             }
 
             // #235: a carrier is filtering this line. Only the confident
-            // 'degraded' state ever reaches a client — the server flattens the
-            // internal 'watch' to healthy, because a maybe-degraded warning on
-            // a thin sample is how a false alarm becomes a cancellation.
+            // 'degraded' state exists, because a maybe-degraded warning on a
+            // thin sample is how a false alarm becomes a cancellation.
             number.status == NumberStatus.ACTIVE && number.health != null -> {
                 Text(
                     t("settingsMore.numberUnreliable"),

@@ -314,8 +314,8 @@ Operational details in [08 — operations](./08-operations.md).
 
 - **API Worker and call Durable Object:** setting `POSTHOG_API_KEY` (§2) is the
   entire integration, and production refuses to boot without it
-  (`apps/api/src/environments/policy.ts`). Exceptions, ops notices, heartbeats
-  and gauges go through `apps/api/src/observability/capture.ts`, which scrubs
+  (`apps/api/src/environments/policy.ts`). Exceptions, ops notices and events
+  go through `apps/api/src/observability/capture.ts`, which scrubs
   them first. The product funnel events use `distinct_id = company_id` only
   (no PII; `apps/api/src/analytics/posthog.ts`). What is sent, the dashboards
   and the alerts are in [docs/MONITORING.md](../MONITORING.md).

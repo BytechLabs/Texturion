@@ -313,8 +313,8 @@ struct PhoneNumberSummary: Codable, Sendable {
     var ring_target_limit: Int?
     /// #235: present only when a carrier is filtering or labelling this number.
     /// nil means healthy — which is also what an unassessed number reads as.
-    /// The internal 'watch' state never reaches a client. `var … = nil` so it
-    /// does not become a required memberwise-init parameter everywhere.
+    /// `var … = nil` so it does not become a required memberwise-init
+    /// parameter everywhere.
     var health: NumberHealth? = nil
     let suspended_at: String?
     let released_at: String?

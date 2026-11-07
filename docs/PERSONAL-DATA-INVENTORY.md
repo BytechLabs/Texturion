@@ -151,15 +151,15 @@ gets overlooked.
 Push and ring evidence (D142) is not kept in the database. The API sends it to
 PostHog as two events under the workspace's id: `push_attempt`, one per push the
 server sends (purpose, channel, platform, priority, the provider's response
-class and HTTP status, latency, the call session id, the member's **user id**,
-and when it started), and `ring_beacon`, one per ring stage a member's device
-reports (platform, app version, stage, the call session id, the member's **user
-id**, the device's clock when believable, OS, permission and standby state). No
-number, name, message, endpoint or device token, and every property passes the
-API's scrubber (`apps/api/src/observability/scrub.ts`). PostHog keeps events for
-its retention window, one year on the free plan
-(posthog.com/docs/data/events-retention, read 2026-11-07). Account deletion does
-not reach them; the user id they carry then names a tombstoned profile.
+class and HTTP status, latency, the call session id and when it started), and
+`ring_beacon`, one per ring stage a member's device reports (platform, app
+version, stage, the call session id, the device's clock when believable, OS,
+permission and standby state). Production events carry no member id (D147), so
+account deletion has nothing to erase there; the rig and local runs add the
+`user_id`. No number, name, message, endpoint or device token, and every
+property passes the API's scrubber (`apps/api/src/observability/scrub.ts`).
+PostHog keeps events for its retention window, one year on the free plan
+(posthog.com/docs/data/events-retention, read 2026-11-07).
 
 ## 6. No personal data
 

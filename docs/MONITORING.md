@@ -27,12 +27,12 @@ already do (D8). Alerts only read `environment = 'production'`.
 | Event | Sent by | Properties | When |
 |---|---|---|---|
 | `$exception` | every client, through PostHog's SDKs | `$exception_list`, `$exception_level`, `source`, `release`, and `route`, `cron`, `job` or `company_id` where they apply | every caught or uncaught error |
-| `$exception` (ops notice) | API Worker and Durable Object | the above plus `$exception_fingerprint`, `ops_key`, `detail`, `action` | a condition the product handles that a person must act on: a chargeback, a port-out, a carrier suspension, a cost cap reached |
+| `$exception` (ops notice) | API Worker and Durable Object | the above plus `$exception_fingerprint`, `ops_key`, `detail`, `action` | a condition the product handles that a person must act on: a chargeback, a port-out, a carrier suspension, a cost cap reached, the Telnyx messaging spend limit refusing a text |
 | `message_outcome` | API Worker, Telnyx status webhook | `status` (`delivered`, `failed`), `country` (two letters) | an outbound text reached a final status |
 | `email_sent` | API Worker | none | Resend accepted an email; the denominator of the bounce and complaint rates |
 | `email_bounced` | API Worker, Resend webhook | `kind` (`bounce`, `complaint`) | Resend reported a bounce or a complaint |
-| `push_attempt` | API Worker and Durable Object | `purpose` (`ring`, `call_end`, `alert`), `channel`, `platform`, `priority`, `response_class` (`accepted`, `gone`, `unauthorized`, `rejected`, `throttled`, `provider_error`, `transport_error`), `http_status`, `latency_ms`, `call_session_id`, `user_id`, `attempted_at` | every push the server sent, one event per device |
-| `ring_beacon` | API Worker, relaying the apps | `platform`, `app_version`, `stage`, `call_session_id`, `user_id`, `occurred_at`, and the device state the app reports (`os`, `permissions`, `standby_bucket`, `power_save`, `device_idle`, `screen_locked`) | a device reported a ring stage; a Workers rate limiting binding bounds each member's beacons |
+| `push_attempt` | API Worker and Durable Object | `purpose` (`ring`, `call_end`, `alert`), `channel`, `platform`, `priority`, `response_class` (`accepted`, `gone`, `unauthorized`, `rejected`, `throttled`, `provider_error`, `transport_error`), `http_status`, `latency_ms`, `call_session_id`, `user_id` (not in production), `attempted_at` | every push the server sent, one event per device |
+| `ring_beacon` | API Worker, relaying the apps | `platform`, `app_version`, `stage`, `call_session_id`, `user_id` (not in production), `occurred_at`, and the device state the app reports (`os`, `permissions`, `standby_bucket`, `power_save`, `device_idle`, `screen_locked`) | a device reported a ring stage; a Workers rate limiting binding bounds each member's beacons |
 | `call_received` | API Worker | none | an inbound call reached a workspace; the alert reads a workspace that took eight calls and then none for 14 days |
 | `aup_signals` | API Worker, daily cron | the counts and ratios `api_aup_signals` returns, never content or names | once a day for each workspace that sent texts that day |
 | `usage_threshold_crossed`, `overage_projected` | API Worker crons | `threshold` on the first | the existing customer warnings fired |
@@ -282,13 +282,15 @@ over the last seven days (in which the API's webhooks answered 200 ten times).
 |---|---|---|---|
 | M1 loonext-api cron triggers stopped | `SELECT COUNT(*) AS value FROM events.workersInvocations WHERE accountTag = '<account>' AND scriptName = 'loonext-api' AND invocationType = 'cron'` | 15 minutes | `value < 1` |
 | M2 Workers invocations the platform failed | `SELECT COUNT(*) AS value FROM events.workersInvocations WHERE accountTag = '<account>' AND scriptName IN ('loonext-api', 'loonext-web') AND status NOT IN ('success', 'clientDisconnected', 'responseStreamDisconnected') AND NOT (invocationType = 'cron' AND status = 'scriptThrewException')` | 1 hour | `value > 0` |
-| M3 Webhook signature refusals | `SELECT COUNT(*) AS value FROM logs.workersLogs WHERE accountTag = '<account>' AND scriptName = 'loonext-api' AND logType = 'cf-worker-event' AND invocationType = 'fetch' AND url LIKE '%/webhooks/%' AND httpStatus = 400` | 1 hour | `value >= 3` |
+| M3 Webhook signature refusals | `SELECT COUNT(*) AS value FROM logs.workersLogs WHERE accountTag = '<account>' AND scriptName = 'loonext-api' AND logType = 'cf-worker-event' AND invocationType = 'fetch' AND url LIKE '%/webhooks/%' AND httpStatus IN (400, 503)` | 1 hour | `value >= 3` |
 
 M1 replaces the cron heartbeats: the every-minute trigger alone runs 15 times
 in its window. M2 leaves out a cron run whose script threw, because PostHog
 already reports that exception; what it catches is the platform's own
 refusals (exceeded CPU or memory, a script that would not load). M3 reads the
-status the webhook routes answer a bad signature with.
+status the webhook routes answer a bad signature with (400) or an unset Resend
+secret with (503). It is not a PostHog capture because the webhook URLs are
+public (D147).
 
 The fourth notification is a **Cloudflare Status incident alert**
 (`incident_alert`), for minor, major and critical incidents on the Workers,
@@ -314,7 +316,9 @@ Each vendor below notifies the account owner by its own email, configured in
 its own dashboard.
 
 - **Telnyx.** A messaging profile's daily spend limit refuses further sends
-  (429, error 40333) and Telnyx emails the account when it is reached. Enabled
+  (429, error 40333). The API raises one ops notice, `telnyx-messaging-spend-limit`,
+  on the first refused text, which the "New or returning error issue" alert
+  reports; Telnyx has no notification for its spend limit. Enabled
   on the account on 2026-11-07: Low Available Credit, Account Disabled Due to
   Insufficient Balance, Suspicious Outbound Voice Traffic and the two call
   surcharge notices. Available but not enabled: Messaging Profile Activity (a
@@ -364,8 +368,8 @@ What that leaves uncovered, plainly:
   is a new vendor account.
 - **Status email.** No subscribe-by-email (D147 supersedes D105); customers
   get the `/status` line and direct email to owners.
-- **Early spend warnings.** Telnyx emails when a messaging profile's daily
-  limit is reached, not before. Supabase emails once a quota is exceeded, not
+- **Early spend warnings.** A messaging profile's daily limit raises an ops
+  notice when it is reached, not before. Supabase emails once a quota is exceeded, not
   before. The AI, high-priority push and ring-beacon caps report only when
   reached; Cloudflare's billing budget alerts cover the Workers AI bill.
 - **Call capacity.** Telnyx offers no API or alert for concurrent call legs;

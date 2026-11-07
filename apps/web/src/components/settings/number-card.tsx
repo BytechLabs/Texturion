@@ -207,8 +207,8 @@ export function NumberCard({
           {failedCopy(number, t)}
         </p>
       )}
-      {/* #235: a carrier is filtering this line. Only ever shown for the
-          confident 'degraded' state — the server never sends 'watch'. */}
+      {/* #235: a carrier is filtering this line. Only the confident
+          'degraded' state exists. */}
       {number.status === "active" && number.health && (
         <NumberHealthNotice health={number.health} />
       )}

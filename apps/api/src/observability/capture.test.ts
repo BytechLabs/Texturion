@@ -248,11 +248,25 @@ describe("captureEvent", () => {
       user_id: "a1000000-0000-4000-8000-00000000000a",
       attempted_at: "2026-10-31T14:00:00.000Z",
     };
-    await captureEvent(env(), "push_attempt", COMPANY, properties, waitUntil);
+    await captureEvent(env({ DEPLOY_ENV: "rig" }), "push_attempt", COMPANY, properties, waitUntil);
     await Promise.all(pending);
 
     expect(sent).toHaveLength(1);
     expect(sent[0].event.properties).toMatchObject(properties);
+  });
+
+  it("leaves the member out of a production event and keeps it on the rig", async () => {
+    const { waitUntil, pending } = invocation();
+    const properties = { stage: "ringing_shown", user_id: "a1000000-0000-4000-8000-00000000000a" };
+    await captureEvent(env({ DEPLOY_ENV: "production" }), "ring_beacon", COMPANY, properties, waitUntil);
+    await captureEvent(env({ DEPLOY_ENV: "rig" }), "ring_beacon", COMPANY, properties, waitUntil);
+    await Promise.all(pending);
+
+    expect(sent.map(({ event }) => event.properties)).toMatchObject([
+      { environment: "production", stage: "ringing_shown" },
+      { environment: "rig", user_id: properties.user_id },
+    ]);
+    expect(sent[0].event.properties).not.toHaveProperty("user_id");
   });
 
   it("still drops a phone number written beside a uuid", async () => {

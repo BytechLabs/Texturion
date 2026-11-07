@@ -315,7 +315,6 @@ data class PhoneNumberSummary(
     /**
      * #235: present only when a carrier is filtering or labelling this number.
      * Null means healthy — which is also what an unassessed number reads as.
-     * The internal 'watch' state never reaches a client.
      */
     val health: NumberHealth? = null,
     val suspended_at: String? = null,

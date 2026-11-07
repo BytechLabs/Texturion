@@ -83,7 +83,7 @@ Set each with `wrangler secret put <NAME> --config apps/api/wrangler.jsonc`
 | `VAPID_PRIVATE_KEY` | Req | same command — base64url private scalar |
 | `FCM_SERVICE_ACCOUNT_JSON` | Opt | Firebase **service-account key JSON** (the whole downloaded file, pasted as one value) for native Android/iOS device push over FCM HTTP v1 (#151). Unset = native pushes are logged no-ops; Web Push is unaffected. Founder steps in §6 (Firebase row) |
 | `TURNSTILE_SECRET_KEY` | Opt | Cloudflare Turnstile **secret** for server-side verification on `/contact`. Unset = honeypot + rate-limit + daily-cap only |
-| `POSTHOG_API_KEY` | Req | PostHog Cloud project key. Every error report, heartbeat and gauge goes through it; production refuses to boot without it |
+| `POSTHOG_API_KEY` | Req | PostHog Cloud project key. Every exception, ops notice and event goes through it; production refuses to boot without it |
 
 ### Do NOT set in production
 | Secret | Why |

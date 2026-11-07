@@ -315,8 +315,6 @@ export interface PhoneNumberSummary {
    * #235: this number's delivery health, present only when it is DEGRADED —
    * a carrier or analytics vendor is filtering or labelling it. `null` or
    * absent means healthy, which is also what an unassessed number reads as.
-   *
-   * The internal 'watch' state never appears here; the server flattens it.
    */
   health?: NumberHealth | null;
   /** Present on GET /v1/numbers rows; absent from the company-view embed. */

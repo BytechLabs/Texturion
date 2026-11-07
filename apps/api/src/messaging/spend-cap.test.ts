@@ -3,8 +3,8 @@
  * send path.
  *
  * A send the cap refuses answers HTTP 429 with code 40333. It stays an
- * ordinary failed send for the customer. Telnyx emails the account itself, so
- * nothing here tells the operator.
+ * ordinary failed send for the customer, and one ops notice tells the
+ * operator, because it fails every customer's texts until 00:00 UTC.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,7 +13,7 @@ import { dispatchTelnyxEvent } from "./dispatch";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { MESSAGING_SPEND_LIMIT_CODE } from "../telnyx/spend-limits";
-import { captured, resetCaptures } from "../test/capture-mock";
+import { captured, noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { messageRow, restMatch, stubRoute } from "../test/messaging-support";
 import { clearedFor, completeEnv, stubFetch } from "../test/support";
 
@@ -71,19 +71,20 @@ const send = (env: ReturnType<typeof getEnv>) =>
   dispatchOutbound(env, getDb(env), messageRow({ id: MESSAGE_ID, company_id: COMPANY_ID }), SEND_ARGS);
 
 describe("a send refused with 40333", () => {
-  it("is an honest failed message on the thread, and nothing else", async () => {
+  it("is an honest failed message on the thread, with one ops notice", async () => {
     const { env, persist } = refuseAtTheCap();
 
     const row = await send(env);
 
     expect(row.status).toBe("failed");
     expect(persist.calls[0].body).toMatchObject({ status: "failed", error_code: "40333" });
-    expect(captured).toEqual([]);
+    expect(noticesCaptured().map((notice) => notice.key)).toEqual(["telnyx-messaging-spend-limit"]);
+    expect(captured).toHaveLength(1);
   });
 });
 
 describe("the messaging-profile.spend-limit-reached webhook", () => {
-  it("is acknowledged and does nothing: Telnyx emails the account owner itself", async () => {
+  it("is acknowledged and does nothing: the refused send raises the notice", async () => {
     const env = getEnv(completeEnv());
     const requests: string[] = [];
     stubFetch(async (url, request) => {

@@ -9813,8 +9813,10 @@ vendor account for uptime or status email, and timers on the rig.
 
 **What is lost, stated plainly.**
 
-- No warning before Telnyx's daily messaging spend limit: Telnyx emails when
-  it is reached, not at 70%.
+- No warning before Telnyx's daily messaging spend limit: the first text it
+  refuses (code 40333) raises one ops notice, `telnyx-messaging-spend-limit`,
+  when the limit is reached, not at 70%. Telnyx has no notification for its
+  own spend limit.
 - No view of concurrent call capacity: Telnyx offers no API or alert for it,
   and a refused leg shows only as an exception from the call path.
 - No warning before the Supabase storage quota: its email comes once it is
@@ -9833,3 +9835,20 @@ vendor account for uptime or status email, and timers on the rig.
   Cloudflare's billing budget alerts cover the Workers AI bill.
 - No crash history on a device for a person to share, and no interrupted-call
   line on Android 9 and 10.
+
+
+**Standing rules this knowingly departs from, and one choice kept.**
+
+- The cost-protection rule "alert before the cap" is not met by the AI,
+  high-priority push and ring-beacon caps. A pre-cap rung is state that
+  remembers a notice went out; PostHog has no usage meter to read instead. The
+  caps still refuse at 100% and say so once.
+- A webhook signature refusal stays a log line, read by Cloudflare monitor M3
+  (docs/MONITORING.md), and is not sent to PostHog. The webhook URLs are public,
+  so anyone can make the Worker refuse a request, and a capture per refusal
+  would let a stranger spend the PostHog event and exception quota. M3 counts
+  400 and 503 answers.
+- `push_attempt` and `ring_beacon` carry the member's `user_id` only outside
+  production. PostHog events cannot be erased per member when an account is
+  deleted, and no production alert or dashboard groups by member. The rig keeps
+  it because its scenarios judge one member at a time.

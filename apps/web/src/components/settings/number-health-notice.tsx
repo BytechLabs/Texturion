@@ -19,8 +19,8 @@ import type { NumberHealth } from "@/lib/api/types";
  *   - It does not say "spam" or "flagged". We know delivery fell; we do not
  *     know which vendor labelled it or whether one did. Naming a cause we
  *     have not established would be a guess dressed as a diagnosis.
- *   - It does not appear for the internal 'watch' state. That never reaches
- *     the client — a maybe-degraded warning on a thin sample is how a false
+ *   - It does not warn on a maybe-degraded number. Only the confident
+ *     'degraded' state exists: a warning on a thin sample is how a false
  *     alarm becomes a cancellation.
  *   - It does not offer a self-serve fix button. Remediation is registry
  *     paperwork that takes days and needs the customer's real business

@@ -211,6 +211,11 @@ export function opsNotice(
 /**
  * One product or health event. `properties` pass `scrubProperties`, which
  * drops anything that reads as free text, a phone number or an email address.
+ *
+ * Production events carry no `user_id`: PostHog cannot erase events per member
+ * when an account is deleted, and no production alert groups by member. The
+ * rig and local runs keep it, because the rig's scenarios judge one member at
+ * a time.
  */
 export function captureEvent(
   env: Env,
@@ -221,7 +226,9 @@ export function captureEvent(
 ): Promise<void> {
   const posthog = client(env);
   if (posthog === null) return Promise.resolve();
-  const safe = scrubProperties(event, properties, (message) => {
+  const { user_id: _member, ...withoutMember } = properties;
+  const named = environmentOf(env) === "production" ? withoutMember : properties;
+  const safe = scrubProperties(event, named, (message) => {
     console.error(message);
     void captureException(env, message, { source: "api", level: "warning" }, waitUntil);
   });

@@ -23,6 +23,8 @@ import { isKilled } from "../flags/evaluate";
 import { TELNYX_TIMEOUT_MS, telnyxMediaUrl, telnyxUrl } from "../telnyx/client";
 import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
+import { MESSAGING_SPEND_LIMIT_CODE } from "../telnyx/spend-limits";
+import { opsNotice } from "../observability/capture";
 import { recordCarrierOptOut } from "./opt-out";
 import type { GateResult, MessageRow } from "./types";
 
@@ -852,6 +854,16 @@ export async function dispatchOutbound(
         error_detail: result.errorDetail.slice(0, 2000),
       };
   const row = await persistMessagePatch(db, message, patch);
+
+  if (!result.ok && result.errorCode === MESSAGING_SPEND_LIMIT_CODE) {
+    // Every customer's texts fail until 00:00 UTC; PostHog groups the repeats
+    // into one issue, whose first event the error alert reports.
+    void opsNotice(env, {
+      key: "telnyx-messaging-spend-limit",
+      summary: "Telnyx refused a text: the messaging profile reached its daily spend limit",
+      action: "Check the Telnyx messaging profile's daily spend limit and the day's spend.",
+    });
+  }
 
   // #331: a carrier opt-out is not just a failed message, it is the carrier
   // telling us this person opted out and we did not know. Treating it only as
