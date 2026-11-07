@@ -5,7 +5,7 @@
 
 ### Bug Fixes
 
-* **api:** the Worker entry exports only handlers, so it boots again ([c024fe2](https://github.com/BytechLabs/Texturion/commit/c024fe246d6016ffb250ec98c186407e522bd220))
+* Nothing changes for customers: error and health monitoring moved to PostHog, so the team is told about problems sooner.
 
 ## [0.20.1](https://github.com/BytechLabs/Texturion/compare/api-v0.20.0...api-v0.20.1) (2026-11-02)
 
