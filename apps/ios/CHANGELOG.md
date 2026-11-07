@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.2](https://github.com/BytechLabs/Texturion/compare/ios-v0.17.1...ios-v0.17.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **api:** tell PostHog when Telnyx refuses a text at its spend limit ([d9d32af](https://github.com/BytechLabs/Texturion/commit/d9d32afc3e0ef9a7f8c4c80889812e39fedf8b06))
+
 ## [0.17.1](https://github.com/BytechLabs/Texturion/compare/ios-v0.17.0...ios-v0.17.1) (2026-11-02)
 
 
