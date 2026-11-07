@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.20.2](https://github.com/BytechLabs/Texturion/compare/web-v0.20.1...web-v0.20.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **web:** calls, contacts and threads read clearly to screen readers ([1b2595a](https://github.com/BytechLabs/Texturion/commit/1b2595a4a65c4716d4297524d854c23f32e7db43))
+* **web:** the French accessibility statement lists the 2.5.3 check ([385b112](https://github.com/BytechLabs/Texturion/commit/385b112d043bd9791ac0703118106d9aa9bd1683))
+* **web:** the region switch is named by the letters it shows ([6649d1a](https://github.com/BytechLabs/Texturion/commit/6649d1ac146054e9d6f0b4455edafbae85292735))
+* **web:** voice control can press inbox rows and tabs by their words ([586d246](https://github.com/BytechLabs/Texturion/commit/586d2466f685211d9dd5bc9b4395f823f2c3c568))
+
 ## [0.20.1](https://github.com/BytechLabs/Texturion/compare/web-v0.20.0...web-v0.20.1) (2026-11-07)
 
 
