@@ -24,7 +24,8 @@ import { TELNYX_TIMEOUT_MS, telnyxMediaUrl, telnyxUrl } from "../telnyx/client";
 import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
 import { MESSAGING_SPEND_LIMIT_CODE } from "../telnyx/spend-limits";
-import { opsNotice } from "../observability/capture";
+import { captureEvent, opsNotice } from "../observability/capture";
+import { phoneCountry } from "./delivery-by-country";
 import { recordCarrierOptOut } from "./opt-out";
 import type { GateResult, MessageRow } from "./types";
 
@@ -780,6 +781,27 @@ async function captureFirstOutboundSent(
 }
 
 /**
+ * D146: one `message_sent` per submit, accepted or refused, beside the
+ * `message_outcome` the status webhook sends once the text is final. A
+ * refusal with no code is a network failure.
+ */
+function reportSubmit(
+  env: Env,
+  message: MessageRow,
+  args: { to: string; mediaUrls: string[] },
+  refusal: { code: string | null; reason: string } | null,
+): void {
+  void captureEvent(env, "message_sent", message.company_id, {
+    direction: "outbound",
+    status: refusal ? "refused" : "accepted",
+    ...(refusal ? { error_code: refusal.code, reason: refusal.reason } : {}),
+    country: phoneCountry(args.to),
+    segments: message.segments,
+    media_count: args.mediaUrls.length,
+  });
+}
+
+/**
  * The send-lifecycle tail (SPEC §8): Telnyx call → persist telnyx_message_id
  * on success, or status='failed' + error columns on API failure (retryable
  * via POST /v1/messages/:id/retry while telnyx_message_id IS NULL, §7).
@@ -830,6 +852,7 @@ export async function dispatchOutbound(
         error_detail:
           "Outbound rate limit reached (about 1 message per second per company).",
       });
+      reportSubmit(env, message, args, { code: "rate_limited", reason: "rate_limited" });
       throw new ApiError(
         "rate_limited",
         "Sending too quickly — try again in a moment.",
@@ -854,6 +877,14 @@ export async function dispatchOutbound(
         error_detail: result.errorDetail.slice(0, 2000),
       };
   const row = await persistMessagePatch(db, message, patch);
+  reportSubmit(
+    env,
+    row,
+    args,
+    result.ok
+      ? null
+      : { code: result.errorCode, reason: classifySendFailure(result.errorCode) },
+  );
 
   if (!result.ok && result.errorCode === MESSAGING_SPEND_LIMIT_CODE) {
     // Every customer's texts fail until 00:00 UTC; PostHog groups the repeats

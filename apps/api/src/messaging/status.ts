@@ -17,12 +17,11 @@
  * Status webhooks whose telnyx_message_id matches no row are acked no-ops
  * (§8) — e.g. a `sent` racing the send route's telnyx_message_id persist.
  */
-import { lookupAreaCode } from "@loonext/shared";
-
 import { reportSegmentUsage } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { captureEvent } from "../observability/capture";
+import { phoneCountry } from "./delivery-by-country";
 import type { TelnyxEvent, TelnyxMessagePayload } from "./types";
 import { MMS_SEGMENTS } from "./media";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
@@ -66,8 +65,7 @@ async function markSent(env: Env, telnyxMessageId: string): Promise<void> {
  * is "other". The number itself never leaves this function.
  */
 function destinationCountry(payload: TelnyxMessagePayload): string {
-  const phone = payload.to?.[0]?.phone_number;
-  return (phone ? lookupAreaCode(phone)?.country : undefined) ?? "other";
+  return phoneCountry(payload.to?.[0]?.phone_number);
 }
 
 async function finalize(

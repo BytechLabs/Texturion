@@ -24,7 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { captureException, workerEnv, type WaitUntil } from "../observability/capture";
+import { captureEvent, captureException, workerEnv, type WaitUntil } from "../observability/capture";
 import {
   afterHoursDefaultGreeting,
   buildBrowserAnsweredState,
@@ -275,6 +275,8 @@ export interface SessionRuntime {
   /** A handled condition worth a look, sent to PostHog as a warning. */
   warn(message: string): void;
   reportError(cause: unknown): void;
+  /** One call lifecycle event, sent to PostHog under the workspace. */
+  capture(event: string, companyId: string, properties: Record<string, unknown>): void;
   buildClientStates: {
     memberRing(input: {
       sessionId: string;
@@ -1311,6 +1313,9 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
     },
     reportError(cause) {
       report(cause, "error");
+    },
+    capture(event, companyId, properties) {
+      void captureEvent(env, event, companyId, properties, waitUntil);
     },
 
     buildClientStates: {

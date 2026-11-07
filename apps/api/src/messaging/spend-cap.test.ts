@@ -79,7 +79,8 @@ describe("a send refused with 40333", () => {
     expect(row.status).toBe("failed");
     expect(persist.calls[0].body).toMatchObject({ status: "failed", error_code: "40333" });
     expect(noticesCaptured().map((notice) => notice.key)).toEqual(["telnyx-messaging-spend-limit"]);
-    expect(captured).toHaveLength(1);
+    // The notice and the refused send's own event, and nothing else.
+    expect(captured.map((entry) => entry.kind)).toEqual(["event", "notice"]);
   });
 });
 

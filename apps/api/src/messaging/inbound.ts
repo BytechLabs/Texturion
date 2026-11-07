@@ -27,6 +27,8 @@ import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
+import { captureEvent } from "../observability/capture";
+import { phoneCountry } from "./delivery-by-country";
 import { classifyInbound } from "./spam-flag";
 import { stripImageLocation } from "../attachments/location";
 import { qualifyReferralForSender } from "../referrals/referrals";
@@ -303,6 +305,13 @@ export async function handleInboundMessage(
       alreadyStampedAt: company?.first_inbound_reply_at,
       country: company?.country,
       usTextingEnabled: company?.us_texting_enabled,
+    });
+    // D146: the inbound side of `message_sent`, with the sender's country.
+    void captureEvent(env, "message_received", number.company_id, {
+      direction: "inbound",
+      country: phoneCountry(fromE164),
+      segments: typeof payload.parts === "number" ? payload.parts : null,
+      media_count: payload.media?.length ?? 0,
     });
   }
 

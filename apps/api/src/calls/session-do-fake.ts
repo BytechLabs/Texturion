@@ -125,6 +125,7 @@ export function makeRuntime(config: FakeConfig = {}) {
     voicemailPipelines: 0,
     warnings: [] as string[],
     errorCount: 0,
+    events: [] as { event: string; companyId: string; properties: Record<string, unknown> }[],
     threads: 0,
     // #309: which recorded greetings were played, and from what URL.
     playbacks: [] as { ccid: string; audioUrl: string }[],
@@ -223,6 +224,9 @@ export function makeRuntime(config: FakeConfig = {}) {
     },
     reportError() {
       calls.errorCount += 1;
+    },
+    capture(event, companyId, properties) {
+      calls.events.push({ event, companyId, properties });
     },
     buildClientStates: {
       memberRing: () => "brm-state",

@@ -30,7 +30,6 @@ import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
 import { refuseStrangerInbound } from "../environments/inbound";
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
-import { captureEvent } from "../observability/capture";
 import type { TelnyxEvent } from "../messaging/types";
 import { verifyTelnyxWebhook } from "../telnyx/verify";
 
@@ -78,11 +77,6 @@ telnyxWebhookRoute.post("/", async (c) => {
     .select("event_id");
   if (error) {
     throw new Error(`webhook_events insert failed: ${error.message}`);
-  }
-
-  // A duplicate POST says nothing new, so it never counts a call twice.
-  if (data && data.length > 0 && eventType === "call.initiated") {
-    c.executionCtx.waitUntil(reportCallReceived(env, db, event));
   }
 
   // #216: call.cost is a BILLING event (fired per leg at call end), not a
@@ -151,35 +145,6 @@ telnyxWebhookRoute.post("/", async (c) => {
   c.executionCtx.waitUntil(processAndStamp(env, event, eventId));
   return c.json({ received: true });
 });
-
-/**
- * D146: an inbound call reached a workspace, as `call_received` under it, so
- * PostHog's dashboard can show calls per workspace. No alert reads it: a
- * workspace whose calls stop is looked at there, not paged. Best-effort and off
- * the response path; the number itself never leaves.
- */
-async function reportCallReceived(
-  env: Env,
-  db: ReturnType<typeof getDb>,
-  event: TelnyxEvent,
-): Promise<void> {
-  const payload = event.data?.payload as { direction?: unknown; to?: unknown } | undefined;
-  if (payload?.direction !== "incoming" || typeof payload.to !== "string") return;
-  const { data, error } = await db
-    .from("phone_numbers")
-    .select("company_id")
-    .eq("number_e164", payload.to)
-    .neq("status", "released")
-    .limit(1);
-  if (error) {
-    console.error(`call_received lookup failed: ${error.message}`);
-    return;
-  }
-  const companyId = (data?.[0] as { company_id?: unknown } | undefined)?.company_id;
-  if (typeof companyId === "string") {
-    await captureEvent(env, "call_received", companyId, {});
-  }
-}
 
 /** Stamp processed_at for a DO-admitted inbound-family event (best-effort). */
 async function stampProcessed(

@@ -373,10 +373,6 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     count: 1,
     why: "`loadInitiatedContext`: same lookup on `payload.to` from the call event",
   },
-  "webhooks/telnyx.ts::phone_numbers": {
-    count: 1,
-    why: "`call_received`: which company owns the called number (`payload.to`), for its event",
-  },
   "telnyx/portout.ts::phone_numbers": {
     count: 1,
     why:

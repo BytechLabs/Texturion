@@ -17,6 +17,15 @@ import { lookupAreaCode, type NanpCountry } from "@loonext/shared";
  */
 export const DELIVERY_MIN_SAMPLE = 50;
 
+/**
+ * A NANP area code we do not recognise is "other" rather than dropped: the
+ * Caribbean shares +1 and bills at international rates, so a surprise there is
+ * worth seeing, not hiding.
+ */
+export function phoneCountry(phone: string | null | undefined): NanpCountry | "other" {
+  return (phone ? lookupAreaCode(phone)?.country : undefined) ?? "other";
+}
+
 export interface CountryDelivery {
   country: NanpCountry | "other";
   sent: number;
@@ -48,11 +57,7 @@ export function summarize(rows: OutboundRow[]): CountryDelivery[] {
   for (const row of rows) {
     const phone = row.conversations?.contacts?.phone_e164;
     if (!phone) continue;
-    const entry = lookupAreaCode(phone);
-    // A NANP area code we do not recognise is "other" rather than dropped:
-    // the Caribbean shares +1 and bills at international rates, so a surprise
-    // there is worth seeing, not hiding.
-    const country: NanpCountry | "other" = entry?.country ?? "other";
+    const country = phoneCountry(phone);
 
     const bucket = buckets.get(country) ?? {
       country,

@@ -271,9 +271,36 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     await second.flush();
 
     expect(threadRpc.calls).toHaveLength(1); // first delivery only
+    expect(eventsCaptured("message_received")).toEqual([
+      {
+        event: "message_received",
+        distinctId: COMPANY_ID,
+        properties: { direction: "inbound", country: "CA", segments: 1, media_count: 0 },
+      },
+    ]);
   });
 
-  it("sends call_received under the workspace that owns the called number", async () => {
+  it("sends no message_received for a replay of a text already threaded", async () => {
+    const ledger = ledgerStubs();
+    const numberLookup = stubRoute(
+      restMatch(env, "GET", "phone_numbers"),
+      () => [{ id: NUMBER_ID, company_id: COMPANY_ID }],
+    );
+    const threadRpc = stubRoute(rpcMatch(env, "thread_inbound_message"), () => ({
+      message_id: MESSAGE_ID,
+      conversation_id: CONVERSATION_ID,
+      created: false,
+      opted_out: false,
+    }));
+    serve(ledger.insert, ledger.stamp, numberLookup, threadRpc, awayDisabledStub());
+
+    await (await deliver(messageReceivedEvent())).flush();
+
+    expect(threadRpc.calls).toHaveLength(1);
+    expect(eventsCaptured("message_received")).toEqual([]);
+  });
+
+  it("leaves a call's events to its Durable Object, so none is counted twice", async () => {
     const ledger = ledgerStubs();
     const numberLookup = stubRoute(restMatch(env, "GET", "phone_numbers"), () => [
       { company_id: COMPANY_ID },
@@ -296,11 +323,8 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     await (await deliver(initiated("incoming", "e6e6e6e6-0000-4000-8000-000000000006"))).flush();
     await (await deliver(initiated("outgoing", "e7e7e7e7-0000-4000-8000-000000000007"))).flush();
 
-    expect(eventsCaptured("call_received")).toEqual([
-      { event: "call_received", distinctId: COMPANY_ID, properties: {} },
-    ]);
-    expect(numberLookup.calls).toHaveLength(1);
-    expect(numberLookup.calls[0].url.searchParams.get("number_e164")).toBe("eq.+16135550100");
+    expect(eventsCaptured()).toEqual([]);
+    expect(numberLookup.calls).toHaveLength(0);
   });
 
   it("acks unknown event types as no-ops and stamps them processed", async () => {

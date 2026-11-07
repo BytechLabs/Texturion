@@ -46,6 +46,8 @@ import {
   MAX_TELNYX_COMMANDS_PER_SESSION,
   PURGE_DELAY_MS,
   DIAL_BATCH_SIZE,
+  isTerminal,
+  outcomeForState,
   QUEUE_LATENCY_WARN_MS,
   RING_WINDOW_SECS,
   reduce,
@@ -630,7 +632,8 @@ export class CallSessionDO extends DurableObject<Env> {
       const head = journal.head;
       if (head.effects === null) {
         const machine = await this.load();
-        const result = reduce(machine, head.event, Date.now(), () => this.rt.uuid());
+        const nowMs = Date.now();
+        const result = reduce(machine, head.event, nowMs, () => this.rt.uuid());
         head.effects = result.effects;
         head.cursor = 0;
         if (first) headReply = result.reply;
@@ -647,6 +650,7 @@ export class CallSessionDO extends DurableObject<Env> {
           this.cachedMachine = result.machine;
           await this.ctx.storage.put({ machine: result.machine, journal });
           await this.rememberSessionId(result.machine.callSessionId);
+          this.reportLifecycle(machine, result.machine, head.event, nowMs);
         } else {
           // reducer returned null machine (should not happen mid-session) —
           // keep the prior machine, journal the effects.
@@ -669,6 +673,42 @@ export class CallSessionDO extends DurableObject<Env> {
     await this.clearAlarmSlot("journal-resume");
     await this.reconcileAlarm();
     return headReply;
+  }
+
+  /**
+   * D146: a call's start, its end, and a later change to its outcome, sent to
+   * PostHog under the workspace. Only after the reduction is durable, and a
+   * journal resume never reduces again, so no transition is reported twice.
+   */
+  private reportLifecycle(
+    before: SessionMachine | null,
+    after: SessionMachine,
+    cause: SessionEvent,
+    nowMs: number,
+  ): void {
+    const call = { direction: after.direction, call_session_id: after.callSessionId };
+    if (before === null) this.rt.capture("call_started", after.companyId, call);
+    if (!isTerminal(after.state)) return;
+    const outcome = outcomeForState(after.state);
+    if (before === null || !isTerminal(before.state)) {
+      this.rt.capture("call_ended", after.companyId, {
+        ...call,
+        outcome,
+        duration_seconds: Math.max(0, Math.round((nowMs - after.startedAtMs) / 1000)),
+        ended_by: cause.type,
+      });
+      return;
+    }
+    // A voicemail ends as "missed" when the caller hangs up, and becomes
+    // "voicemail" when the recording is saved a moment later.
+    const previous = outcomeForState(before.state);
+    if (outcome !== previous) {
+      this.rt.capture("call_outcome_revised", after.companyId, {
+        ...call,
+        outcome,
+        previous_outcome: previous,
+      });
+    }
   }
 
   // ---- Effect execution (§7.3 + §4.1 discrimination) ----------------------
